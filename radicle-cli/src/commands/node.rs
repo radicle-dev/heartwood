@@ -3,7 +3,7 @@ use std::time;
 
 use anyhow::anyhow;
 
-use radicle::node::{Address, Node, NodeId, PeerAddr, ROUTING_DB_FILE};
+use radicle::node::{Address, Node, NodeId, PeerAddr};
 use radicle::prelude::Id;
 
 use crate::terminal as term;
@@ -249,8 +249,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             events::run(node, count, timeout)?;
         }
         Operation::Routing { rid, nid, json } => {
-            let store =
-                radicle::node::routing::Table::reader(profile.home.node().join(ROUTING_DB_FILE))?;
+            let store = profile.database()?;
             routing::run(&store, rid, nid, json)?;
         }
         Operation::Logs { lines } => control::logs(lines, Some(time::Duration::MAX), &profile)?,

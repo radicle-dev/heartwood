@@ -1,93 +1,64 @@
-#![allow(clippy::type_complexity)]
-use std::path::Path;
 use std::str::FromStr;
-use std::{fmt, io};
 
 use localtime::LocalTime;
 use sqlite as sql;
 use thiserror::Error;
 
-use crate::git::Oid;
 use crate::node;
-use crate::node::address::{KnownAddress, Source};
-use crate::node::{Address, Alias, AliasError, AliasStore, NodeId};
-use crate::prelude::{Id, Timestamp};
+use crate::node::address::{AddressType, KnownAddress, Node, Source};
+use crate::node::{Address, Alias, AliasError, AliasStore, Database, NodeId};
+use crate::prelude::Timestamp;
 use crate::sql::transaction;
-
-use super::types;
-use super::{AddressType, SyncedAt};
 
 #[derive(Error, Debug)]
 pub enum Error {
-    /// I/O error.
-    #[error("i/o error: {0}")]
-    Io(#[from] io::Error),
-    #[error("alias error: {0}")]
-    InvalidAlias(#[from] AliasError),
     /// An Internal error.
     #[error("internal error: {0}")]
     Internal(#[from] sql::Error),
+    #[error("alias error: {0}")]
+    InvalidAlias(#[from] AliasError),
 }
 
-/// A file-backed address book.
-pub struct Book {
-    db: sql::Connection,
+/// Address store.
+///
+/// Used to store node addresses and metadata.
+pub trait Store {
+    /// Get the information we have about a node.
+    fn get(&self, id: &NodeId) -> Result<Option<Node>, Error>;
+    /// Get the addresses of a node.
+    fn addresses_of(&self, node: &NodeId) -> Result<Vec<KnownAddress>, Error>;
+    /// Insert a node with associated addresses into the store.
+    ///
+    /// Returns `true` if the node or addresses were updated, and `false` otherwise.
+    fn insert(
+        &mut self,
+        node: &NodeId,
+        features: node::Features,
+        alias: Alias,
+        pow: u32,
+        timestamp: Timestamp,
+        addrs: impl IntoIterator<Item = KnownAddress>,
+    ) -> Result<bool, Error>;
+    /// Remove a node from the store.
+    fn remove(&mut self, id: &NodeId) -> Result<bool, Error>;
+    /// Returns the number of addresses.
+    fn len(&self) -> Result<usize, Error>;
+    /// Returns true if there are no addresses.
+    fn is_empty(&self) -> Result<bool, Error> {
+        self.len().map(|l| l == 0)
+    }
+    /// Get the address entries in the store.
+    fn entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, KnownAddress)>>, Error>;
+    /// Mark a node as attempted at a certain time.
+    fn attempted(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error>;
+    /// Mark a node as successfully connected at a certain time.
+    fn connected(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error>;
+    /// Mark a node as disconnected.
+    fn disconnected(&mut self, nid: &NodeId, addr: &Address, transient: bool) -> Result<(), Error>;
 }
 
-impl fmt::Debug for Book {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Book(..)")
-    }
-}
-
-impl From<sql::Connection> for Book {
-    fn from(db: sql::Connection) -> Self {
-        Self { db }
-    }
-}
-
-impl Book {
-    const SCHEMA: &'static str = include_str!("schema.sql");
-    const PRAGMA: &'static str = "PRAGMA foreign_keys = ON";
-
-    /// Open an address book at the given path. Creates a new address book if it
-    /// doesn't exist.
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let db = sql::Connection::open_with_flags(
-            path,
-            sqlite::OpenFlags::new()
-                .with_create()
-                .with_read_write()
-                .with_full_mutex(),
-        )?;
-        db.execute(Self::PRAGMA)?;
-        db.execute(Self::SCHEMA)?;
-
-        Ok(Self { db })
-    }
-
-    /// Same as [`Self::open`], but in read-only mode. This is useful to have multiple
-    /// open databases, as no locking is required.
-    pub fn reader<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let db = sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().with_read_only())?;
-        db.execute(Self::PRAGMA)?;
-        db.execute(Self::SCHEMA)?;
-
-        Ok(Self { db })
-    }
-
-    /// Create a new in-memory address book.
-    pub fn memory() -> Result<Self, Error> {
-        let db = sql::Connection::open(":memory:")?;
-        db.execute(Self::PRAGMA)?;
-        db.execute(Self::SCHEMA)?;
-
-        Ok(Self { db })
-    }
-}
-
-impl Store for Book {
-    fn get(&self, node: &NodeId) -> Result<Option<types::Node>, Error> {
+impl Store for Database {
+    fn get(&self, node: &NodeId) -> Result<Option<Node>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT features, alias, pow, timestamp FROM nodes WHERE id = ?")?;
@@ -99,9 +70,9 @@ impl Store for Book {
             let alias = Alias::from_str(row.read::<&str, _>("alias"))?;
             let timestamp = row.read::<i64, _>("timestamp") as Timestamp;
             let pow = row.read::<i64, _>("pow") as u32;
-            let addrs = self.addresses(node)?;
+            let addrs = self.addresses_of(node)?;
 
-            Ok(Some(types::Node {
+            Ok(Some(Node {
                 features,
                 alias,
                 pow,
@@ -113,7 +84,7 @@ impl Store for Book {
         }
     }
 
-    fn addresses(&self, node: &NodeId) -> Result<Vec<KnownAddress>, Error> {
+    fn addresses_of(&self, node: &NodeId) -> Result<Vec<KnownAddress>, Error> {
         let mut addrs = Vec::new();
         let mut stmt = self.db.prepare(
             "SELECT type, value, source, last_attempt, last_success, banned FROM addresses WHERE node = ?",
@@ -211,90 +182,6 @@ impl Store for Book {
         Ok(self.db.change_count() > 0)
     }
 
-    fn synced(
-        &mut self,
-        rid: &Id,
-        nid: &NodeId,
-        at: Oid,
-        timestamp: Timestamp,
-    ) -> Result<bool, Error> {
-        let mut stmt = self.db.prepare(
-            "INSERT INTO `repo-sync-status` (repo, node, head, timestamp)
-             VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT DO UPDATE
-             SET head = ?3, timestamp = ?4
-             WHERE timestamp < ?4",
-        )?;
-        stmt.bind((1, rid))?;
-        stmt.bind((2, nid))?;
-        stmt.bind((3, at.to_string().as_str()))?;
-        stmt.bind((4, timestamp as i64))?;
-        stmt.next()?;
-
-        Ok(self.db.change_count() > 0)
-    }
-
-    fn seeds(
-        &self,
-        rid: &Id,
-    ) -> Result<Box<dyn Iterator<Item = Result<types::Seed, Error>> + '_>, Error> {
-        let mut stmt = self.db.prepare(
-            "SELECT node, head, timestamp
-             FROM `repo-sync-status`
-             WHERE repo = ?",
-        )?;
-        stmt.bind((1, rid))?;
-
-        Ok(Box::new(stmt.into_iter().map(|row| {
-            let row = row?;
-            let nid = row.try_read::<NodeId, _>("node")?;
-            let oid = row.try_read::<&str, _>("head")?;
-            let oid = Oid::from_str(oid).map_err(|e| {
-                Error::Internal(sql::Error {
-                    code: None,
-                    message: Some(format!("sql: invalid oid '{oid}': {e}")),
-                })
-            })?;
-            let timestamp = row.try_read::<i64, _>("timestamp")?;
-            let timestamp = LocalTime::from_millis(timestamp as u128);
-            let addresses = self.addresses(&nid)?;
-
-            Ok(types::Seed {
-                nid,
-                addresses,
-                synced_at: SyncedAt { oid, timestamp },
-            })
-        })))
-    }
-
-    fn seeded_by(
-        &self,
-        nid: &NodeId,
-    ) -> Result<Box<dyn Iterator<Item = Result<(Id, SyncedAt), Error>> + '_>, Error> {
-        let mut stmt = self.db.prepare(
-            "SELECT repo, head, timestamp
-             FROM `repo-sync-status`
-             WHERE node = ?",
-        )?;
-        stmt.bind((1, nid))?;
-
-        Ok(Box::new(stmt.into_iter().map(|row| {
-            let row = row?;
-            let rid = row.try_read::<Id, _>("repo")?;
-            let oid = row.try_read::<&str, _>("head")?;
-            let oid = Oid::from_str(oid).map_err(|e| {
-                Error::Internal(sql::Error {
-                    code: None,
-                    message: Some(format!("sql: invalid oid '{oid}': {e}")),
-                })
-            })?;
-            let timestamp = row.try_read::<i64, _>("timestamp")?;
-            let timestamp = LocalTime::from_millis(timestamp as u128);
-
-            Ok((rid, SyncedAt { oid, timestamp }))
-        })))
-    }
-
     fn entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, KnownAddress)>>, Error> {
         let mut stmt = self
             .db
@@ -381,7 +268,10 @@ impl Store for Book {
     }
 }
 
-impl AliasStore for Book {
+impl<T> AliasStore for T
+where
+    T: Store,
+{
     /// Retrieve `alias` of given node.
     /// Calls `Self::get` under the hood.
     fn alias(&self, nid: &NodeId) -> Option<Alias> {
@@ -389,62 +279,6 @@ impl AliasStore for Book {
             .map(|node| node.map(|n| n.alias))
             .unwrap_or(None)
     }
-}
-
-/// Address store.
-///
-/// Used to store node addresses and metadata.
-pub trait Store {
-    /// Get the information we have about a node.
-    fn get(&self, id: &NodeId) -> Result<Option<types::Node>, Error>;
-    /// Get the addresses of a node.
-    fn addresses(&self, node: &NodeId) -> Result<Vec<KnownAddress>, Error>;
-    /// Insert a node with associated addresses into the store.
-    ///
-    /// Returns `true` if the node or addresses were updated, and `false` otherwise.
-    fn insert(
-        &mut self,
-        node: &NodeId,
-        features: node::Features,
-        alias: Alias,
-        pow: u32,
-        timestamp: Timestamp,
-        addrs: impl IntoIterator<Item = KnownAddress>,
-    ) -> Result<bool, Error>;
-    /// Remove a node from the store.
-    fn remove(&mut self, id: &NodeId) -> Result<bool, Error>;
-    /// Mark a repo as synced on the given node.
-    fn synced(
-        &mut self,
-        rid: &Id,
-        nid: &NodeId,
-        at: Oid,
-        timestamp: Timestamp,
-    ) -> Result<bool, Error>;
-    /// Get nodes that have synced the given repo.
-    fn seeds(
-        &self,
-        rid: &Id,
-    ) -> Result<Box<dyn Iterator<Item = Result<types::Seed, Error>> + '_>, Error>;
-    /// Get the repos seeded by the given node.
-    fn seeded_by(
-        &self,
-        nid: &NodeId,
-    ) -> Result<Box<dyn Iterator<Item = Result<(Id, SyncedAt), Error>> + '_>, Error>;
-    /// Returns the number of addresses.
-    fn len(&self) -> Result<usize, Error>;
-    /// Returns true if there are no addresses.
-    fn is_empty(&self) -> Result<bool, Error> {
-        self.len().map(|l| l == 0)
-    }
-    /// Get the address entries in the store.
-    fn entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, KnownAddress)>>, Error>;
-    /// Mark a node as attempted at a certain time.
-    fn attempted(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error>;
-    /// Mark a node as successfully connected at a certain time.
-    fn connected(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error>;
-    /// Mark a node as disconnected.
-    fn disconnected(&mut self, nid: &NodeId, addr: &Address, transient: bool) -> Result<(), Error>;
 }
 
 impl TryFrom<&sql::Value> for Source {
@@ -521,7 +355,7 @@ mod test {
     fn test_empty() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("cache");
-        let cache = Book::open(path).unwrap();
+        let cache = Database::open(path).unwrap();
 
         assert!(cache.is_empty().unwrap());
     }
@@ -529,7 +363,7 @@ mod test {
     #[test]
     fn test_get_none() {
         let alice = arbitrary::gen::<NodeId>(1);
-        let cache = Book::memory().unwrap();
+        let cache = Database::memory().unwrap();
         let result = cache.get(&alice).unwrap();
 
         assert!(result.is_none());
@@ -538,7 +372,7 @@ mod test {
     #[test]
     fn test_remove_nothing() {
         let alice = arbitrary::gen::<NodeId>(1);
-        let mut cache = Book::memory().unwrap();
+        let mut cache = Database::memory().unwrap();
         let removed = cache.remove(&alice).unwrap();
 
         assert!(!removed);
@@ -547,7 +381,7 @@ mod test {
     #[test]
     fn test_alias() {
         let alice = arbitrary::gen::<NodeId>(1);
-        let mut cache = Book::memory().unwrap();
+        let mut cache = Database::memory().unwrap();
         let features = node::Features::SEED;
         let timestamp = LocalTime::now().as_millis();
 
@@ -567,7 +401,7 @@ mod test {
     #[test]
     fn test_insert_and_get() {
         let alice = arbitrary::gen::<NodeId>(1);
-        let mut cache = Book::memory().unwrap();
+        let mut cache = Database::memory().unwrap();
         let features = node::Features::SEED;
         let timestamp = LocalTime::now().as_millis();
 
@@ -602,7 +436,7 @@ mod test {
     #[test]
     fn test_insert_duplicate() {
         let alice = arbitrary::gen::<NodeId>(1);
-        let mut cache = Book::memory().unwrap();
+        let mut cache = Database::memory().unwrap();
         let features = node::Features::SEED;
         let timestamp = LocalTime::now().as_millis();
         let alias = Alias::new("alice");
@@ -630,7 +464,7 @@ mod test {
     #[test]
     fn test_insert_and_update() {
         let alice = arbitrary::gen::<NodeId>(1);
-        let mut cache = Book::memory().unwrap();
+        let mut cache = Database::memory().unwrap();
         let timestamp = LocalTime::now().as_millis();
         let features = node::Features::SEED;
         let alias1 = Alias::new("alice");
@@ -685,7 +519,7 @@ mod test {
     fn test_insert_and_remove() {
         let alice = arbitrary::gen::<NodeId>(1);
         let bob = arbitrary::gen::<NodeId>(1);
-        let mut cache = Book::memory().unwrap();
+        let mut cache = Database::memory().unwrap();
         let timestamp = LocalTime::now().as_millis();
         let features = node::Features::SEED;
         let alice_alias = Alias::new("alice");
@@ -732,7 +566,7 @@ mod test {
     fn test_entries() {
         let ids = arbitrary::vec::<NodeId>(16);
         let mut rng = fastrand::Rng::new();
-        let mut cache = Book::memory().unwrap();
+        let mut cache = Database::memory().unwrap();
         let mut expected = Vec::new();
         let timestamp = LocalTime::now().as_millis();
         let features = node::Features::SEED;

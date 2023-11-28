@@ -854,9 +854,10 @@ fn rad_clone_connect() {
     let mut bob = bob.spawn();
 
     // Let Eve know about Alice and Bob having the repo.
-    eve.routing.insert([&acme], alice.id, now).unwrap();
-    eve.routing.insert([&acme], bob.id, now).unwrap();
-    eve.addresses
+    eve.db.routing_mut().insert([&acme], alice.id, now).unwrap();
+    eve.db.routing_mut().insert([&acme], bob.id, now).unwrap();
+    eve.db
+        .addresses_mut()
         .insert(
             &alice.id,
             node::Features::SEED,
@@ -869,7 +870,8 @@ fn rad_clone_connect() {
             )],
         )
         .unwrap();
-    eve.addresses
+    eve.db
+        .addresses_mut()
         .insert(
             &bob.id,
             node::Features::SEED,

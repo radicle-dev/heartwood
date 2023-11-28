@@ -2,8 +2,10 @@ mod features;
 
 pub mod address;
 pub mod config;
+pub mod db;
 pub mod events;
 pub mod routing;
+pub mod seed;
 pub mod tracking;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -27,11 +29,13 @@ use crate::profile;
 use crate::storage::refs::RefsAt;
 use crate::storage::RefUpdate;
 
-pub use address::{KnownAddress, SyncedAt};
+pub use address::KnownAddress;
 pub use config::Config;
 pub use cyphernet::addr::{HostName, PeerAddr};
+pub use db::Database;
 pub use events::{Event, Events};
 pub use features::Features;
+pub use seed::SyncedAt;
 
 /// Default name for control socket file.
 pub const DEFAULT_SOCKET_NAME: &str = "control.sock";
@@ -41,10 +45,8 @@ pub const DEFAULT_PORT: u16 = 8776;
 pub const DEFAULT_TIMEOUT: time::Duration = time::Duration::from_secs(9);
 /// Maximum length in bytes of a node alias.
 pub const MAX_ALIAS_LENGTH: usize = 32;
-/// Filename of routing table database under the node directory.
-pub const ROUTING_DB_FILE: &str = "routing.db";
-/// Filename of address database under the node directory.
-pub const ADDRESS_DB_FILE: &str = "addresses.db";
+/// Filename of node database under the node directory.
+pub const NODE_DB_FILE: &str = "node.db";
 /// Filename of tracking table database under the node directory.
 pub const TRACKING_DB_FILE: &str = "tracking.db";
 /// Filename of last node announcement, when running in debug mode.
@@ -462,13 +464,18 @@ impl Session {
     }
 }
 
+/// A seed for some repository, with metadata about its status.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Seed {
+    /// The Node ID.
     pub nid: NodeId,
+    /// Known addresses for this seed.
     pub addrs: Vec<KnownAddress>,
+    /// The seed's session state, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state: Option<State>,
+    /// The seed's sync status, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sync: Option<SyncStatus>,
 }
@@ -1067,18 +1074,6 @@ impl Handle for Node {
 pub trait AliasStore {
     /// Returns alias of a `NodeId`.
     fn alias(&self, nid: &NodeId) -> Option<Alias>;
-}
-
-impl<T: AliasStore + ?Sized> AliasStore for &T {
-    fn alias(&self, nid: &NodeId) -> Option<Alias> {
-        (*self).alias(nid)
-    }
-}
-
-impl<T: AliasStore + ?Sized> AliasStore for Box<T> {
-    fn alias(&self, nid: &NodeId) -> Option<Alias> {
-        self.deref().alias(nid)
-    }
 }
 
 impl AliasStore for HashMap<NodeId, Alias> {

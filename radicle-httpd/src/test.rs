@@ -19,9 +19,6 @@ use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git::{raw as git2, RefString};
 use radicle::identity::Visibility;
 use radicle::node;
-use radicle::node::address as AddressStore;
-use radicle::node::routing as RoutingStore;
-use radicle::node::tracking::store as TrackingStore;
 use radicle::profile;
 use radicle::profile::Home;
 use radicle::storage::ReadStorage;
@@ -96,15 +93,10 @@ pub fn contributor(dir: &Path) -> Context {
 fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G) -> Context {
     const DEFAULT_BRANCH: &str = "master";
 
-    let tracking_db = dir.join("radicle").join("node").join("tracking.db");
-    let routing_db = dir.join("radicle").join("node").join("routing.db");
-    let addresses_db = dir.join("radicle").join("node").join("addresses.db");
-
     crate::logger::init().ok();
 
-    TrackingStore::Config::open(tracking_db).unwrap();
-    RoutingStore::Table::open(routing_db).unwrap();
-    AddressStore::Book::open(addresses_db).unwrap();
+    profile.tracking_mut().unwrap();
+    profile.database_mut().unwrap(); // Create the database.
 
     let workdir = dir.join("hello-world-private");
     fs::create_dir_all(&workdir).unwrap();

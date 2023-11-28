@@ -21,9 +21,14 @@ use localtime::{LocalDuration, LocalTime};
 use log::*;
 use nonempty::NonEmpty;
 
+use radicle::node;
 use radicle::node::address;
+use radicle::node::address::Store as _;
 use radicle::node::address::{AddressBook, KnownAddress};
 use radicle::node::config::PeerConfig;
+use radicle::node::routing::Store as _;
+use radicle::node::seed;
+use radicle::node::seed::Store as _;
 use radicle::node::ConnectOptions;
 use radicle::storage::RepositoryError;
 
@@ -37,6 +42,7 @@ use crate::node::{
 };
 use crate::prelude::*;
 use crate::runtime::Emitter;
+use crate::service::gossip::Store as _;
 use crate::service::message::{Announcement, AnnouncementMessage, Info, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::tracking::{store::Write, Scope};
@@ -128,7 +134,11 @@ pub enum Error {
     #[error(transparent)]
     Routing(#[from] routing::Error),
     #[error(transparent)]
-    Addresses(#[from] address::Error),
+    Address(#[from] address::Error),
+    #[error(transparent)]
+    Database(#[from] node::db::Error),
+    #[error(transparent)]
+    Seeds(#[from] seed::Error),
     #[error(transparent)]
     Tracking(#[from] tracking::Error),
     #[error(transparent)]
@@ -136,6 +146,11 @@ pub enum Error {
     #[error("namespaces error: {0}")]
     Namespaces(#[from] NamespacesError),
 }
+
+/// A store for all node data.
+pub trait Store: address::Store + gossip::Store + routing::Store + seed::Store {}
+
+impl Store for node::Database {}
 
 /// Function used to query internal service state.
 pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<(), CommandError> + Send + Sync;
@@ -223,23 +238,74 @@ struct FetchState {
     subscribers: Vec<chan::Sender<FetchResult>>,
 }
 
+/// Holds all node stores.
+#[derive(Debug)]
+pub struct Stores<D>(D);
+
+impl<D> Stores<D>
+where
+    D: Store,
+{
+    /// Get the database as a routing store.
+    pub fn routing(&self) -> &impl routing::Store {
+        &self.0
+    }
+
+    /// Get the database as a routing store, mutably.
+    pub fn routing_mut(&mut self) -> &mut impl routing::Store {
+        &mut self.0
+    }
+
+    /// Get the database as an address store.
+    pub fn addresses(&self) -> &impl address::Store {
+        &self.0
+    }
+
+    /// Get the database as an address store, mutably.
+    pub fn addresses_mut(&mut self) -> &mut impl address::Store {
+        &mut self.0
+    }
+
+    /// Get the database as a gossip store.
+    pub fn gossip(&self) -> &impl gossip::Store {
+        &self.0
+    }
+
+    /// Get the database as a gossip store, mutably.
+    pub fn gossip_mut(&mut self) -> &mut impl gossip::Store {
+        &mut self.0
+    }
+
+    /// Get the database as a seed store.
+    pub fn seeds(&self) -> &impl seed::Store {
+        &self.0
+    }
+
+    /// Get the database as a seed store, mutably.
+    pub fn seeds_mut(&mut self) -> &mut impl seed::Store {
+        &mut self.0
+    }
+}
+
+impl<D> From<D> for Stores<D> {
+    fn from(db: D) -> Self {
+        Self(db)
+    }
+}
+
 /// The node service.
 #[derive(Debug)]
-pub struct Service<R, A, S, G> {
+pub struct Service<D, S, G> {
     /// Service configuration.
     config: Config,
     /// Our cryptographic signer and key.
     signer: G,
     /// Project storage.
     storage: S,
-    /// Network routing table. Keeps track of where projects are located.
-    routing: R,
-    /// Node address manager.
-    addresses: A,
+    /// Node database.
+    db: Stores<D>,
     /// Tracking policy configuration.
     tracking: tracking::Config<Write>,
-    /// State relating to gossip.
-    gossip: gossip::Store,
     /// Peer sessions, currently or recently connected.
     sessions: Sessions,
     /// Clock. Tells the time.
@@ -272,7 +338,7 @@ pub struct Service<R, A, S, G> {
     emitter: Emitter<Event>,
 }
 
-impl<R, A, S, G> Service<R, A, S, G>
+impl<D, S, G> Service<D, S, G>
 where
     G: crypto::Signer,
 {
@@ -287,20 +353,17 @@ where
     }
 }
 
-impl<R, A, S, G> Service<R, A, S, G>
+impl<D, S, G> Service<D, S, G>
 where
-    R: routing::Store,
-    A: address::Store,
+    D: Store,
     S: ReadStorage + 'static,
     G: Signer,
 {
     pub fn new(
         config: Config,
         clock: LocalTime,
-        routing: R,
+        db: Stores<D>,
         storage: S,
-        addresses: A,
-        gossip: gossip::Store,
         tracking: tracking::Config<Write>,
         signer: G,
         rng: Rng,
@@ -312,14 +375,12 @@ where
         Self {
             config,
             storage,
-            addresses,
             tracking,
             signer,
             rng,
             node,
             clock,
-            routing,
-            gossip,
+            db,
             outbox: Outbox::default(),
             limiter: RateLimiter::default(),
             sessions,
@@ -382,19 +443,14 @@ where
         todo!()
     }
 
-    /// Get the address book instance.
-    pub fn addresses(&self) -> &A {
-        &self.addresses
+    /// Get the database.
+    pub fn database(&self) -> &Stores<D> {
+        &self.db
     }
 
-    /// Get the mutable address book instance.
-    pub fn addresses_mut(&mut self) -> &mut A {
-        &mut self.addresses
-    }
-
-    /// Get the routing store.
-    pub fn routing(&self) -> &R {
-        &self.routing
+    /// Get the mutable database.
+    pub fn database_mut(&mut self) -> &mut Stores<D> {
+        &mut self.db
     }
 
     /// Get the storage instance.
@@ -427,9 +483,9 @@ where
         &mut self.outbox
     }
 
-    /// Lookup a project, both locally and in the routing table.
+    /// Lookup a repository, both locally and in the routing table.
     pub fn lookup(&self, rid: Id) -> Result<Lookup, LookupError> {
-        let remote = self.routing.get(&rid)?.iter().cloned().collect();
+        let remote = self.db.routing().get(&rid)?.iter().cloned().collect();
 
         Ok(Lookup {
             local: self.storage.get(rid)?,
@@ -440,12 +496,14 @@ where
     pub fn initialize(&mut self, time: LocalTime) -> Result<(), Error> {
         debug!(target: "service", "Init @{}", time.as_millis());
 
+        let nid = self.node_id();
         self.start_time = time;
 
         // Ensure that our local node is in our address database.
-        self.addresses
+        self.db
+            .addresses_mut()
             .insert(
-                &self.node_id(),
+                &nid,
                 self.node.features,
                 self.node.alias.clone(),
                 self.node.work(),
@@ -466,12 +524,11 @@ where
         // all of it. It can happen that inventory is not properly tracked if for eg. the
         // user creates a new repository while the node is stopped.
         let rids = self.storage.inventory()?;
-        self.routing
-            .insert(&rids, self.node_id(), time.as_millis())?;
+        self.db.routing_mut().insert(&rids, nid, time.as_millis())?;
 
-        let nid = self.node_id();
         let announced = self
-            .addresses
+            .db
+            .seeds()
             .seeded_by(&nid)?
             .collect::<Result<HashMap<_, _>, _>>()?;
         for rid in rids {
@@ -493,15 +550,19 @@ where
             }
             // Make sure our local node's sync status is up to date with storage.
             debug!(target: "service", "Saving local sync status for {rid}..");
-            self.addresses
-                .synced(&rid, &nid, updated_at.oid, updated_at.timestamp.as_millis())?;
+            self.db.seeds_mut().synced(
+                &rid,
+                &nid,
+                updated_at.oid,
+                updated_at.timestamp.as_millis(),
+            )?;
 
             // If we got here, it likely means a repo was updated while the node was stopped.
             // Therefore, we pre-load a refs announcement for this repo, so that it is included in
             // the historical gossip messages when a node connects and subscribes to this repo.
             if let Ok((ann, _)) = self.refs_announcement_for(rid, [nid]) {
                 debug!(target: "service", "Adding refs announcement for {rid} to historical gossip messages..");
-                self.gossip.announced(&nid, &ann)?;
+                self.db.gossip_mut().announced(&nid, &ann)?;
             }
         }
 
@@ -566,7 +627,8 @@ where
                 error!(target: "service", "Error pruning routing entries: {err}");
             }
             if let Err(err) = self
-                .gossip
+                .db
+                .gossip_mut()
                 .prune((now - self.config.limits.gossip_max_age).as_millis())
             {
                 error!(target: "service", "Error pruning gossip entries: {err}");
@@ -925,7 +987,7 @@ where
                 peer.to_connected(self.clock);
                 self.outbox.write_all(peer, msgs);
 
-                if let Err(e) = self.addresses.connected(&remote, &peer.addr, now) {
+                if let Err(e) = self.db.addresses_mut().connected(&remote, &peer.addr, now) {
                     error!(target: "service", "Error updating address book with connection: {e}");
                 }
             }
@@ -1000,7 +1062,8 @@ where
             debug!(target: "service", "Dropping peer {remote}..");
 
             if let Err(e) =
-                self.addresses
+                self.db
+                    .addresses_mut()
                     .disconnected(&remote, &session.addr, reason.is_transient())
             {
                 error!(target: "service", "Error updating address store: {e}");
@@ -1068,7 +1131,7 @@ where
         // announcement timestamp, but before the other announcements. In that case, we simply
         // ignore all announcements of that node until we get a node announcement.
         if let AnnouncementMessage::Inventory(_) | AnnouncementMessage::Refs(_) = message {
-            match self.addresses.get(announcer) {
+            match self.db.addresses().get(announcer) {
                 Ok(node) => {
                     if node.is_none() {
                         debug!(target: "service", "Ignoring announcement from unknown node {announcer}");
@@ -1083,7 +1146,7 @@ where
         }
 
         // Discard announcement messages we've already seen, otherwise update our last seen time.
-        match self.gossip.announced(announcer, announcement) {
+        match self.db.gossip_mut().announced(announcer, announcement) {
             Ok(fresh) => {
                 if !fresh {
                     trace!(target: "service", "Ignoring stale inventory announcement from {announcer} (t={})", self.time());
@@ -1162,7 +1225,8 @@ where
                 // We update inventories when receiving ref announcements, as these could come
                 // from a new repository being initialized.
                 if let Ok(result) =
-                    self.routing
+                    self.db
+                        .routing_mut()
                         .insert([&message.rid], *announcer, message.timestamp)
                 {
                     if let &[(_, InsertResult::SeedAdded)] = result.as_slice() {
@@ -1176,10 +1240,12 @@ where
 
                 // Update sync status for this repo.
                 if let Some(refs) = message.refs.iter().find(|r| &r.remote == self.nid()) {
-                    match self
-                        .addresses
-                        .synced(&message.rid, announcer, refs.at, message.timestamp)
-                    {
+                    match self.db.seeds_mut().synced(
+                        &message.rid,
+                        announcer,
+                        refs.at,
+                        message.timestamp,
+                    ) {
                         Ok(updated) => {
                             if updated {
                                 debug!(
@@ -1295,7 +1361,7 @@ where
                     return Ok(relay);
                 }
 
-                match self.addresses.insert(
+                match self.db.addresses_mut().insert(
                     announcer,
                     *features,
                     ann.alias.clone(),
@@ -1426,7 +1492,8 @@ where
             (session::State::Connected { .. }, Message::Subscribe(subscribe)) => {
                 // Filter announcements by interest.
                 match self
-                    .gossip
+                    .db
+                    .gossip()
                     .filtered(&subscribe.filter, subscribe.since, subscribe.until)
                 {
                     Ok(anns) => {
@@ -1507,7 +1574,7 @@ where
         //
         // If this is our first connection to the network, we just ask for a fixed backlog
         // of messages to get us started.
-        let since = match self.gossip.last() {
+        let since = match self.db.gossip().last() {
             Ok(Some(last)) => last - MAX_TIME_DELTA.as_millis() as Timestamp,
             Ok(None) => (*now - INITIAL_SUBSCRIBE_BACKLOG_DELTA).as_millis() as Timestamp,
             Err(e) => {
@@ -1545,7 +1612,7 @@ where
         let mut synced = SyncedRouting::default();
         let included: HashSet<&Id> = HashSet::from_iter(inventory);
 
-        for (rid, result) in self.routing.insert(inventory, from, timestamp)? {
+        for (rid, result) in self.db.routing_mut().insert(inventory, from, timestamp)? {
             match result {
                 InsertResult::SeedAdded => {
                     info!(target: "service", "Routing table updated for {rid} with seed {from}");
@@ -1565,9 +1632,9 @@ where
                 InsertResult::NotUpdated => {}
             }
         }
-        for rid in self.routing.get_resources(&from)?.into_iter() {
+        for rid in self.db.routing().get_resources(&from)?.into_iter() {
             if !included.contains(&rid) {
-                if self.routing.remove(&rid, &from)? {
+                if self.db.routing_mut().remove(&rid, &from)? {
                     synced.removed.push(rid);
                     self.emitter.emit(Event::SeedDropped { rid, nid: from });
                 }
@@ -1622,7 +1689,8 @@ where
         // the node was stopped.
         if let Some(refs) = refs.iter().find(|r| r.remote == ann.node) {
             if let Err(e) = self
-                .addresses
+                .db
+                .seeds_mut()
                 .synced(&rid, &ann.node, refs.at, ann.timestamp())
             {
                 error!(target: "service", "Error updating sync status for local node: {e}");
@@ -1634,7 +1702,7 @@ where
                 // Only announce to peers who are allowed to view this repo.
                 doc.is_visible_to(&p.id)
             }),
-            &mut self.gossip,
+            self.db.gossip_mut(),
         );
 
         Ok(refs)
@@ -1682,8 +1750,9 @@ where
             return false;
         }
         let persistent = self.config.is_persistent(&nid);
+        let time = self.time();
 
-        if let Err(e) = self.addresses.attempted(&nid, &addr, self.time()) {
+        if let Err(e) = self.db.addresses_mut().attempted(&nid, &addr, time) {
             error!(target: "service", "Error updating address book with connection attempt: {e}");
         }
         self.sessions.insert(
@@ -1709,7 +1778,7 @@ where
         // our own refs.
         if let Ok(repo) = self.storage.repository(*rid) {
             if let Ok(local) = RefsAt::new(&repo, self.node_id()) {
-                for seed in self.addresses.seeds(rid)? {
+                for seed in self.db.seeds().seeds_for(rid)? {
                     let seed = seed?;
                     let state = self.sessions.get(&seed.nid).map(|s| s.state.clone());
                     let synced = if local.at == seed.synced_at.oid {
@@ -1730,7 +1799,7 @@ where
         // Then, add peers we know about but have no information about the sync status.
         // These peers have announced that they track the repository via an inventory
         // announcement, but we haven't received any ref announcements from them.
-        for nid in self.routing.get(rid)? {
+        for nid in self.db.routing().get(rid)? {
             if nid == self.node_id() {
                 continue;
             }
@@ -1738,7 +1807,7 @@ where
                 // We already have a richer entry for this node.
                 continue;
             }
-            let addrs = self.addresses.addresses(&nid)?;
+            let addrs = self.db.addresses().addresses_of(&nid)?;
             let state = self.sessions.get(&nid).map(|s| s.state.clone());
 
             seeds.insert(Seed::new(nid, addrs, state, None));
@@ -1773,19 +1842,19 @@ where
         self.outbox.announce(
             msg.signed(&self.signer),
             self.sessions.connected().map(|(_, p)| p),
-            &mut self.gossip,
+            self.db.gossip_mut(),
         );
         Ok(())
     }
 
     fn prune_routing_entries(&mut self, now: &LocalTime) -> Result<(), routing::Error> {
-        let count = self.routing.len()?;
+        let count = self.db.routing().len()?;
         if count <= self.config.limits.routing_max_size {
             return Ok(());
         }
 
         let delta = count - self.config.limits.routing_max_size;
-        self.routing.prune(
+        self.db.routing_mut().prune(
             (*now - self.config.limits.routing_max_age).as_millis(),
             Some(delta),
         )?;
@@ -1825,7 +1894,7 @@ where
 
     /// Get a list of peers available to connect to.
     fn available_peers(&mut self) -> HashMap<NodeId, Vec<KnownAddress>> {
-        match self.addresses.entries() {
+        match self.db.addresses().entries() {
             Ok(entries) => {
                 // Nb. we don't want to connect to any peers that already have a session with us,
                 // even if it's in a disconnected state. Those sessions are re-attempted automatically.
@@ -1969,9 +2038,9 @@ pub trait ServiceState {
     fn config(&self) -> &Config;
 }
 
-impl<R, A, S, G> ServiceState for Service<R, A, S, G>
+impl<D, S, G> ServiceState for Service<D, S, G>
 where
-    R: routing::Store,
+    D: routing::Store,
     G: Signer,
     S: ReadStorage,
 {

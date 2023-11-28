@@ -7,7 +7,8 @@ use std::str::FromStr;
 use log::*;
 
 use radicle::identity::Visibility;
-use radicle::node::address::Store;
+use radicle::node::address::Store as _;
+use radicle::node::Database;
 use radicle::node::{address, Alias, ConnectOptions};
 use radicle::rad;
 use radicle::storage::refs::RefsAt;
@@ -18,7 +19,6 @@ use crate::crypto::test::signer::MockSigner;
 use crate::crypto::Signer;
 use crate::identity::Id;
 use crate::node;
-use crate::node::routing;
 use crate::prelude::*;
 use crate::runtime::Emitter;
 use crate::service;
@@ -36,7 +36,7 @@ use crate::Link;
 use crate::{LocalDuration, LocalTime};
 
 /// Service instantiation used for testing.
-pub type Service<S, G> = service::Service<routing::Table, address::Book, S, G>;
+pub type Service<S, G> = service::Service<Database, S, G>;
 
 #[derive(Debug)]
 pub struct Peer<S, G> {
@@ -100,8 +100,7 @@ where
 
 pub struct Config<G: Signer + 'static> {
     pub config: service::Config,
-    pub addrs: address::Book,
-    pub gossip: gossip::Store,
+    pub db: Stores<node::Database>,
     pub local_time: LocalTime,
     pub policy: Policy,
     pub scope: Scope,
@@ -115,13 +114,13 @@ impl Default for Config<MockSigner> {
         let mut rng = fastrand::Rng::new();
         let signer = MockSigner::new(&mut rng);
         let tmp = tempfile::TempDir::new().unwrap();
-        let addrs = address::Book::open(tmp.path().join("addresses.db")).unwrap();
-        let gossip = gossip::Store::open(tmp.path().join("addresses.db")).unwrap();
+        let db = Database::open(tmp.path().join(node::NODE_DB_FILE))
+            .unwrap()
+            .into();
 
         Config {
             config: service::Config::test(Alias::from_str("mocky").unwrap()),
-            addrs,
-            gossip,
+            db,
             local_time: LocalTime::now(),
             policy: Policy::default(),
             scope: Scope::default(),
@@ -163,7 +162,6 @@ where
         storage: S,
         mut config: Config<G>,
     ) -> Self {
-        let routing = routing::Table::memory().unwrap();
         let tracking = tracking::Store::<tracking::store::Write>::memory().unwrap();
         let mut tracking = tracking::Config::new(config.policy, config.scope, tracking);
         let id = *config.signer.public_key();
@@ -181,10 +179,8 @@ where
         let service = Service::new(
             config.config,
             config.local_time,
-            routing,
+            config.db,
             storage,
-            config.addrs,
-            config.gossip,
             tracking,
             config.signer,
             config.rng.clone(),
@@ -236,8 +232,9 @@ where
     pub fn import_addresses<'a>(&mut self, peers: impl IntoIterator<Item = &'a Self>) {
         let timestamp = self.timestamp();
         for peer in peers.into_iter() {
-            let known_address = address::KnownAddress::new(peer.address(), address::Source::Peer);
+            let known_address = node::KnownAddress::new(peer.address(), address::Source::Peer);
             self.service
+                .database_mut()
                 .addresses_mut()
                 .insert(
                     &peer.node_id(),

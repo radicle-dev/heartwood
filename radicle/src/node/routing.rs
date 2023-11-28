@@ -1,20 +1,14 @@
 use std::collections::HashSet;
-use std::path::Path;
-use std::{fmt, time};
 
 use sqlite as sql;
 use thiserror::Error;
 
+use crate::node::Database;
 use crate::{
     prelude::Timestamp,
     prelude::{Id, NodeId},
     sql::transaction,
 };
-
-/// How long to wait for the database lock to be released before failing a read.
-const DB_READ_TIMEOUT: time::Duration = time::Duration::from_secs(3);
-/// How long to wait for the database lock to be released before failing a write.
-const DB_WRITE_TIMEOUT: time::Duration = time::Duration::from_secs(6);
 
 /// Result of inserting into the routing table.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -36,50 +30,6 @@ pub enum Error {
     /// Internal unit overflow.
     #[error("the unit overflowed")]
     UnitOverflow,
-}
-
-/// Persistent file storage for a routing table.
-pub struct Table {
-    db: sql::Connection,
-}
-
-impl fmt::Debug for Table {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Table(..)")
-    }
-}
-
-impl Table {
-    const SCHEMA: &'static str = include_str!("routing/schema.sql");
-
-    /// Open a routing file store at the given path. Creates a new empty store
-    /// if an existing store isn't found.
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let mut db = sql::Connection::open(path)?;
-        db.set_busy_timeout(DB_WRITE_TIMEOUT.as_millis() as usize)?;
-        db.execute(Self::SCHEMA)?;
-
-        Ok(Self { db })
-    }
-
-    /// Same as [`Self::open`], but in read-only mode. This is useful to have multiple
-    /// open databases, as no locking is required.
-    pub fn reader<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let mut db =
-            sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().with_read_only())?;
-        db.set_busy_timeout(DB_READ_TIMEOUT.as_millis() as usize)?;
-        db.execute(Self::SCHEMA)?;
-
-        Ok(Self { db })
-    }
-
-    /// Create a new in-memory routing table.
-    pub fn memory() -> Result<Self, Error> {
-        let db = sql::Connection::open(":memory:")?;
-        db.execute(Self::SCHEMA)?;
-
-        Ok(Self { db })
-    }
 }
 
 /// Backing store for a routing table.
@@ -113,11 +63,11 @@ pub trait Store {
     fn count(&self, id: &Id) -> Result<usize, Error>;
 }
 
-impl Store for Table {
+impl Store for Database {
     fn get(&self, id: &Id) -> Result<HashSet<NodeId>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT (node) FROM routing WHERE resource = ?")?;
+            .prepare("SELECT (node) FROM routing WHERE repo = ?")?;
         stmt.bind((1, id))?;
 
         let mut nodes = HashSet::new();
@@ -128,14 +78,12 @@ impl Store for Table {
     }
 
     fn get_resources(&self, node: &NodeId) -> Result<HashSet<Id>, Error> {
-        let mut stmt = self
-            .db
-            .prepare("SELECT resource FROM routing WHERE node = ?")?;
+        let mut stmt = self.db.prepare("SELECT repo FROM routing WHERE node = ?")?;
         stmt.bind((1, node))?;
 
         let mut resources = HashSet::new();
         for row in stmt.into_iter() {
-            resources.insert(row?.read::<Id, _>("resource"));
+            resources.insert(row?.read::<Id, _>("repo"));
         }
         Ok(resources)
     }
@@ -143,13 +91,13 @@ impl Store for Table {
     fn entry(&self, id: &Id, node: &NodeId) -> Result<Option<Timestamp>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT (time) FROM routing WHERE resource = ? AND node = ?")?;
+            .prepare("SELECT (timestamp) FROM routing WHERE repo = ? AND node = ?")?;
 
         stmt.bind((1, id))?;
         stmt.bind((2, node))?;
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
-            return Ok(Some(row.read::<i64, _>("time") as Timestamp));
+            return Ok(Some(row.read::<i64, _>("timestamp") as Timestamp));
         }
         Ok(None)
     }
@@ -166,18 +114,18 @@ impl Store for Table {
         transaction(&self.db, |db| {
             for id in ids.into_iter() {
                 let mut stmt =
-                    db.prepare("SELECT (time) FROM routing WHERE resource = ? AND node = ?")?;
+                    db.prepare("SELECT (timestamp) FROM routing WHERE repo = ? AND node = ?")?;
 
                 stmt.bind((1, id))?;
                 stmt.bind((2, &node))?;
 
                 let existed = stmt.into_iter().next().is_some();
                 let mut stmt = db.prepare(
-                    "INSERT INTO routing (resource, node, time)
+                    "INSERT INTO routing (repo, node, timestamp)
                      VALUES (?, ?, ?)
                      ON CONFLICT DO UPDATE
-                     SET time = ?3
-                     WHERE time < ?3",
+                     SET timestamp = ?3
+                     WHERE timestamp < ?3",
                 )?;
 
                 stmt.bind((1, id))?;
@@ -200,12 +148,12 @@ impl Store for Table {
     fn entries(&self) -> Result<Box<dyn Iterator<Item = (Id, NodeId)>>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT resource, node FROM routing ORDER BY resource")?
+            .prepare("SELECT repo, node FROM routing ORDER BY repo")?
             .into_iter();
         let mut entries = Vec::new();
 
         while let Some(Ok(row)) = stmt.next() {
-            let id = row.read("resource");
+            let id = row.read("repo");
             let node = row.read("node");
 
             entries.push((id, node));
@@ -216,7 +164,7 @@ impl Store for Table {
     fn remove(&mut self, id: &Id, node: &NodeId) -> Result<bool, Error> {
         let mut stmt = self
             .db
-            .prepare("DELETE FROM routing WHERE resource = ? AND node = ?")?;
+            .prepare("DELETE FROM routing WHERE repo = ? AND node = ?")?;
 
         stmt.bind((1, id))?;
         stmt.bind((2, node))?;
@@ -245,7 +193,7 @@ impl Store for Table {
 
         let mut stmt = self.db.prepare(
             "DELETE FROM routing WHERE rowid IN
-            (SELECT rowid FROM routing WHERE time < ? LIMIT ?)",
+            (SELECT rowid FROM routing WHERE timestamp < ? LIMIT ?)",
         )?;
         stmt.bind((1, oldest))?;
         stmt.bind((2, limit))?;
@@ -257,7 +205,7 @@ impl Store for Table {
     fn count(&self, id: &Id) -> Result<usize, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT COUNT(*) FROM routing WHERE resource = ?")?;
+            .prepare("SELECT COUNT(*) FROM routing WHERE repo = ?")?;
 
         stmt.bind((1, id))?;
 
@@ -284,7 +232,7 @@ mod test {
     fn test_insert_and_get() {
         let ids = arbitrary::set::<Id>(5..10);
         let nodes = arbitrary::set::<NodeId>(5..10);
-        let mut db = Table::open(":memory:").unwrap();
+        let mut db = Database::open(":memory:").unwrap();
 
         for node in &nodes {
             assert_eq!(
@@ -307,7 +255,7 @@ mod test {
     fn test_insert_and_get_resources() {
         let ids = arbitrary::set::<Id>(5..10);
         let nodes = arbitrary::set::<NodeId>(5..10);
-        let mut db = Table::open(":memory:").unwrap();
+        let mut db = Database::open(":memory:").unwrap();
 
         for node in &nodes {
             db.insert(&ids, *node, 0).unwrap();
@@ -325,7 +273,7 @@ mod test {
     fn test_entries() {
         let ids = arbitrary::set::<Id>(6..9);
         let nodes = arbitrary::set::<NodeId>(6..9);
-        let mut db = Table::open(":memory:").unwrap();
+        let mut db = Database::open(":memory:").unwrap();
 
         for node in &nodes {
             assert!(db
@@ -348,7 +296,7 @@ mod test {
     fn test_insert_and_remove() {
         let ids = arbitrary::set::<Id>(5..10);
         let nodes = arbitrary::set::<NodeId>(5..10);
-        let mut db = Table::open(":memory:").unwrap();
+        let mut db = Database::open(":memory:").unwrap();
 
         for node in &nodes {
             db.insert(&ids, *node, 0).unwrap();
@@ -367,7 +315,7 @@ mod test {
     fn test_insert_duplicate() {
         let id = arbitrary::gen::<Id>(1);
         let node = arbitrary::gen::<NodeId>(1);
-        let mut db = Table::open(":memory:").unwrap();
+        let mut db = Database::open(":memory:").unwrap();
 
         assert_eq!(
             db.insert([&id], node, 0).unwrap(),
@@ -387,7 +335,7 @@ mod test {
     fn test_insert_existing_updated_time() {
         let id = arbitrary::gen::<Id>(1);
         let node = arbitrary::gen::<NodeId>(1);
-        let mut db = Table::open(":memory:").unwrap();
+        let mut db = Database::open(":memory:").unwrap();
 
         assert_eq!(
             db.insert([&id], node, 0).unwrap(),
@@ -405,7 +353,7 @@ mod test {
         let id1 = arbitrary::gen::<Id>(1);
         let id2 = arbitrary::gen::<Id>(1);
         let node = arbitrary::gen::<NodeId>(1);
-        let mut db = Table::open(":memory:").unwrap();
+        let mut db = Database::open(":memory:").unwrap();
 
         assert_eq!(
             db.insert([&id1], node, 0).unwrap(),
@@ -431,7 +379,7 @@ mod test {
     fn test_remove_redundant() {
         let id = arbitrary::gen::<Id>(1);
         let node = arbitrary::gen::<NodeId>(1);
-        let mut db = Table::open(":memory:").unwrap();
+        let mut db = Database::open(":memory:").unwrap();
 
         assert_eq!(
             db.insert([&id], node, 0).unwrap(),
@@ -443,7 +391,7 @@ mod test {
 
     #[test]
     fn test_len() {
-        let mut db = Table::open(":memory:").unwrap();
+        let mut db = Database::open(":memory:").unwrap();
         let ids = arbitrary::vec::<Id>(10);
         let node = arbitrary::gen(1);
 
@@ -458,7 +406,7 @@ mod test {
         let now = LocalTime::now();
         let ids = arbitrary::vec::<Id>(10);
         let nodes = arbitrary::vec::<NodeId>(10);
-        let mut db = Table::open(":memory:").unwrap();
+        let mut db = Database::open(":memory:").unwrap();
 
         for node in &nodes {
             let time = rng.u64(..now.as_millis());
@@ -488,7 +436,7 @@ mod test {
     fn test_count() {
         let id = arbitrary::gen::<Id>(1);
         let nodes = arbitrary::set::<NodeId>(5..10);
-        let mut db = Table::open(":memory:").unwrap();
+        let mut db = Database::open(":memory:").unwrap();
 
         for node in &nodes {
             db.insert([&id], *node, 0).unwrap();

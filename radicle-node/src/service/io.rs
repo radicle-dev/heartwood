@@ -68,7 +68,7 @@ impl Outbox {
         &mut self,
         ann: Announcement,
         peers: impl Iterator<Item = &'a Session>,
-        gossip: &mut gossip::Store,
+        gossip: &mut impl gossip::Store,
     ) {
         // Store our announcement so that it can be retrieved from us later, just like
         // announcements we receive from peers.

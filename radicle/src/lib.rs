@@ -9,6 +9,7 @@ extern crate amplify;
 extern crate radicle_git_ext as git_ext;
 
 mod canonical;
+
 pub mod cli;
 pub mod cob;
 pub mod collections;

@@ -1,6 +1,4 @@
---
--- Address book SQL schema.
---
+-- Discovered nodes.
 create table if not exists "nodes" (
   -- Node ID.
   "id"                 text      primary key not null,
@@ -17,6 +15,7 @@ create table if not exists "nodes" (
   --
 ) strict;
 
+-- Node addresses.
 create table if not exists "addresses" (
   -- Node ID.
   "node"               text      not null references "nodes" ("id") on delete cascade,
@@ -42,9 +41,24 @@ create table if not exists "addresses" (
   --
 ) strict;
 
+-- Routing table. Tracks inventories.
+create table if not exists "routing" (
+  -- Repository being seeded.
+  "repo"         text      not null,
+  -- Node ID.
+  -- TODO: Add foreign-key constraint.
+  "node"         text      not null,
+  -- UNIX time at which this entry was added or refreshed.
+  "timestamp"    integer   not null,
+
+  primary key ("repo", "node")
+);
+
+-- Gossip message store.
 create table if not exists "announcements" (
   -- Node ID.
-  "node"               text      not null references "nodes" ("id") on delete cascade,
+  -- TODO: Add foreign-key constraint.
+  "node"               text      not null,
   -- Repo ID, if any, for example in ref announcements.
   -- For other announcement types, this should be an empty string.
   "repo"               text      not null,
@@ -64,6 +78,7 @@ create table if not exists "announcements" (
   "timestamp"          integer   not null,
   --
   unique ("node", "repo", "type")
+  --
 ) strict;
 
 -- Repository sync status.
@@ -78,4 +93,5 @@ create table if not exists "repo-sync-status" (
   "timestamp"            integer   not null,
   --
   unique ("repo", "node")
+  --
 ) strict;

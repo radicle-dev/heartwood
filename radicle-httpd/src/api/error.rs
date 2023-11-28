@@ -74,9 +74,9 @@ pub enum Error {
     #[error(transparent)]
     TrackingStore(#[from] radicle::node::tracking::store::Error),
 
-    /// Routing store error.
+    /// Node database error.
     #[error(transparent)]
-    RoutingStore(#[from] radicle::node::routing::Error),
+    Database(#[from] radicle::node::db::Error),
 
     /// Node error.
     #[error(transparent)]

@@ -273,7 +273,7 @@ fn test_inventory_sync() {
     );
 
     for proj in &projs {
-        let seeds = alice.routing().get(proj).unwrap();
+        let seeds = alice.database().routing().get(proj).unwrap();
         assert!(seeds.contains(&bob.node_id()));
     }
 }
@@ -382,7 +382,7 @@ fn test_inventory_pruning() {
 
         assert_eq!(
             test.expected_routing_table_size,
-            alice.routing().len().unwrap()
+            alice.database().routing().len().unwrap()
         );
     }
 }

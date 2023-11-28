@@ -18,11 +18,10 @@ use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git;
 use radicle::git::refname;
 use radicle::identity::{Id, Visibility};
-use radicle::node::address::Book;
-use radicle::node::routing;
 use radicle::node::routing::Store;
 use radicle::node::tracking::store as tracking;
-use radicle::node::{Alias, ADDRESS_DB_FILE, ROUTING_DB_FILE, TRACKING_DB_FILE};
+use radicle::node::Database;
+use radicle::node::{Alias, TRACKING_DB_FILE};
 use radicle::node::{ConnectOptions, Handle as _};
 use radicle::profile;
 use radicle::profile::Home;
@@ -84,20 +83,15 @@ impl Environment {
 
         let tracking_db = profile.home.node().join(TRACKING_DB_FILE);
         let tracking = tracking::Config::open(tracking_db).unwrap();
-
-        let routing_db = profile.home.node().join(ROUTING_DB_FILE);
-        let routing = routing::Table::open(routing_db).unwrap();
-
-        let addresses_db = profile.home.node().join(ADDRESS_DB_FILE);
-        let addresses = Book::open(addresses_db).unwrap();
+        let db = profile.database_mut().unwrap();
+        let db = service::Stores::from(db);
 
         Node {
             id: *profile.id(),
             home: profile.home,
             config,
             signer,
-            addresses,
-            routing,
+            db,
             tracking,
             storage: profile.storage,
         }
@@ -129,8 +123,7 @@ impl Environment {
         .unwrap();
 
         tracking::Config::open(tracking_db).unwrap();
-        let addresses_db = home.node().join(ADDRESS_DB_FILE);
-        Book::open(addresses_db).unwrap();
+        home.database_mut().unwrap(); // Just create the database.
 
         transport::local::register(storage.clone());
         keystore.store(keypair.clone(), "radicle", None).unwrap();
@@ -155,8 +148,7 @@ pub struct Node<G> {
     pub signer: G,
     pub storage: Storage,
     pub config: Config,
-    pub addresses: Book,
-    pub routing: routing::Table,
+    pub db: service::Stores<Database>,
     pub tracking: tracking::Config<tracking::Write>,
 }
 
@@ -217,7 +209,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
 
     /// Get routing table entries.
     pub fn routing(&self) -> impl Iterator<Item = (Id, NodeId)> {
-        radicle::node::routing::Table::reader(self.home.node().join(radicle::node::ROUTING_DB_FILE))
+        Database::reader(self.home.node().join(node::NODE_DB_FILE))
             .unwrap()
             .entries()
             .unwrap()
@@ -356,9 +348,9 @@ impl Node<MockSigner> {
             },
         )
         .unwrap();
-        let addresses = home.addresses_mut().unwrap();
         let tracking = home.tracking_mut().unwrap();
-        let routing = home.routing_mut().unwrap();
+        let db = home.database_mut().unwrap();
+        let db = service::Stores::from(db);
 
         log::debug!(target: "test", "Node::init {}: {}", config.alias, signer.public_key());
         Self {
@@ -367,9 +359,8 @@ impl Node<MockSigner> {
             signer,
             storage,
             config,
-            addresses,
+            db,
             tracking,
-            routing,
         }
     }
 }

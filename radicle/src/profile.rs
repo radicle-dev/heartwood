@@ -20,7 +20,7 @@ use thiserror::Error;
 use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
-use crate::node::{address, routing, tracking, Alias, AliasStore};
+use crate::node::{tracking, Alias, AliasStore};
 use crate::prelude::Did;
 use crate::prelude::{Id, NodeId};
 use crate::storage::git::transport;
@@ -148,7 +148,7 @@ pub enum Error {
     #[error(transparent)]
     TrackingStore(#[from] node::tracking::store::Error),
     #[error(transparent)]
-    AddressStore(#[from] node::address::Error),
+    DatabaseStore(#[from] node::db::Error),
 }
 
 #[derive(Debug, Error)]
@@ -357,22 +357,6 @@ impl Profile {
         Ok(config)
     }
 
-    /// Return a read-only handle to the routing database of the node.
-    pub fn routing(&self) -> Result<routing::Table, routing::Error> {
-        let path = self.home.node().join(node::ROUTING_DB_FILE);
-        let router = routing::Table::reader(path)?;
-
-        Ok(router)
-    }
-
-    /// Return a handle to the addresses database of the node.
-    pub fn addresses(&self) -> Result<address::Book, address::Error> {
-        let path = self.home.node().join(node::ADDRESS_DB_FILE);
-        let addresses = address::Book::reader(path)?;
-
-        Ok(addresses)
-    }
-
     /// Get radicle home.
     pub fn home(&self) -> &Home {
         &self.home
@@ -381,12 +365,9 @@ impl Profile {
     /// Return a multi-source store for aliases.
     pub fn aliases(&self) -> Aliases {
         let tracking = self.home.tracking().ok();
-        let addresses = self.home.addresses().ok();
+        let db = self.home.database().ok();
 
-        Aliases {
-            tracking,
-            addresses,
-        }
+        Aliases { tracking, db }
     }
 }
 
@@ -408,7 +389,7 @@ impl std::ops::DerefMut for Profile {
 /// them one by one when asking for an alias.
 pub struct Aliases {
     tracking: Option<tracking::store::ConfigReader>,
-    addresses: Option<address::Book>,
+    db: Option<node::Database>,
 }
 
 impl AliasStore for Aliases {
@@ -418,7 +399,7 @@ impl AliasStore for Aliases {
         self.tracking
             .as_ref()
             .and_then(|db| db.alias(nid))
-            .or_else(|| self.addresses.as_ref().and_then(|db| db.alias(nid)))
+            .or_else(|| self.db.as_ref().and_then(|db| db.alias(nid)))
     }
 }
 
@@ -522,36 +503,20 @@ impl Home {
         Ok(config)
     }
 
-    /// Return a read-only handle to the routing database of the node.
-    pub fn routing(&self) -> Result<routing::Table, routing::Error> {
-        let path = self.node().join(node::ROUTING_DB_FILE);
-        let router = routing::Table::reader(path)?;
+    /// Return a handle to a read-only database of the node.
+    pub fn database(&self) -> Result<node::Database, node::db::Error> {
+        let path = self.node().join(node::NODE_DB_FILE);
+        let db = node::Database::reader(path)?;
 
-        Ok(router)
+        Ok(db)
     }
 
-    /// Return a read-write handle to the routing database of the node.
-    pub fn routing_mut(&self) -> Result<routing::Table, routing::Error> {
-        let path = self.node().join(node::ROUTING_DB_FILE);
-        let router = routing::Table::open(path)?;
+    /// Return a handle to the database of the node.
+    pub fn database_mut(&self) -> Result<node::Database, node::db::Error> {
+        let path = self.node().join(node::NODE_DB_FILE);
+        let db = node::Database::open(path)?;
 
-        Ok(router)
-    }
-
-    /// Return a handle to a read-only addresses database of the node.
-    pub fn addresses(&self) -> Result<address::Book, address::Error> {
-        let path = self.node().join(node::ADDRESS_DB_FILE);
-        let addresses = address::Book::reader(path)?;
-
-        Ok(addresses)
-    }
-
-    /// Return a handle to the addresses database of the node.
-    pub fn addresses_mut(&self) -> Result<address::Book, address::Error> {
-        let path = self.node().join(node::ADDRESS_DB_FILE);
-        let addresses = address::Book::open(path)?;
-
-        Ok(addresses)
+        Ok(db)
     }
 }
 

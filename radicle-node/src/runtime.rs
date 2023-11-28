@@ -19,7 +19,6 @@ use radicle::node;
 use radicle::node::address;
 use radicle::node::address::Store as _;
 use radicle::node::Handle as _;
-use radicle::node::{ADDRESS_DB_FILE, NODE_ANNOUNCEMENT_FILE, ROUTING_DB_FILE, TRACKING_DB_FILE};
 use radicle::profile::Home;
 use radicle::Storage;
 
@@ -42,15 +41,18 @@ pub enum Error {
     /// A routing database error.
     #[error("routing database error: {0}")]
     Routing(#[from] routing::Error),
-    /// An address database error.
-    #[error("address database error: {0}")]
-    Addresses(#[from] address::Error),
+    /// A node database error.
+    #[error("node database error: {0}")]
+    Database(#[from] node::db::Error),
     /// A tracking database error.
     #[error("tracking database error: {0}")]
     Tracking(#[from] tracking::Error),
     /// A gossip database error.
     #[error("gossip database error: {0}")]
     Gossip(#[from] gossip::Error),
+    /// An address database error.
+    #[error("address database error: {0}")]
+    Address(#[from] address::Error),
     /// An I/O error.
     #[error("i/o error: {0}")]
     Io(#[from] io::Error),
@@ -137,29 +139,20 @@ impl Runtime {
         let rng = fastrand::Rng::new();
         let clock = LocalTime::now();
         let storage = Storage::open(home.storage(), git::UserInfo { alias, key: id })?;
-        let address_db = node_dir.join(ADDRESS_DB_FILE);
-        let routing_db = node_dir.join(ROUTING_DB_FILE);
-        let tracking_db = node_dir.join(TRACKING_DB_FILE);
         let scope = config.scope;
         let policy = config.policy;
 
-        log::info!(target: "node", "Opening address book {}..", address_db.display());
-        let mut addresses = address::Book::open(address_db.clone())?;
+        log::info!(target: "node", "Opening node database..");
+        let mut db: service::Stores<_> = home.database_mut()?.into();
 
-        log::info!(target: "node", "Opening gossip store from {}..", address_db.display());
-        let gossip = gossip::Store::open(address_db)?; // Nb. same database as address book.
-
-        log::info!(target: "node", "Opening routing table {}..", routing_db.display());
-        let routing = routing::Table::open(routing_db)?;
-
-        log::info!(target: "node", "Opening tracking policy table {}..", tracking_db.display());
-        let tracking = tracking::Store::open(tracking_db.clone())?;
+        log::info!(target: "node", "Opening tracking policy configuration..");
+        let tracking = home.tracking_mut()?;
         let tracking = tracking::Config::new(policy, scope, tracking);
 
         log::info!(target: "node", "Default tracking policy set to '{}'", &policy);
         log::info!(target: "node", "Initializing service ({:?})..", network);
 
-        let announcement = if let Some(ann) = fs::read(node_dir.join(NODE_ANNOUNCEMENT_FILE))
+        let announcement = if let Some(ann) = fs::read(node_dir.join(node::NODE_ANNOUNCEMENT_FILE))
             .ok()
             .and_then(|ann| NodeAnnouncement::decode(&mut ann.as_slice()).ok())
             .and_then(|ann| {
@@ -185,13 +178,13 @@ impl Runtime {
                 .expect("Runtime::init: unable to solve proof-of-work puzzle")
         };
 
-        if config.connect.is_empty() && addresses.is_empty()? {
+        if config.connect.is_empty() && db.addresses().is_empty()? {
             log::info!(target: "node", "Address book is empty. Adding bootstrap nodes..");
 
             for (alias, addr) in config.network.bootstrap() {
                 let (id, addr) = addr.into();
 
-                addresses.insert(
+                db.addresses_mut().insert(
                     &id,
                     radicle::node::Features::SEED,
                     alias,
@@ -200,17 +193,15 @@ impl Runtime {
                     [node::KnownAddress::new(addr, address::Source::Bootstrap)],
                 )?;
             }
-            log::info!(target: "node", "{} nodes added to address book", addresses.len()?);
+            log::info!(target: "node", "{} nodes added to address book", db.addresses().len()?);
         }
 
         let emitter: Emitter<Event> = Default::default();
         let service = service::Service::new(
             config,
             clock,
-            routing,
+            db,
             storage.clone(),
-            addresses,
-            gossip,
             tracking,
             signer.clone(),
             rng,
@@ -246,7 +237,7 @@ impl Runtime {
         let fetch = worker::FetchConfig {
             policy,
             scope,
-            tracking_db,
+            tracking_db: home.node().join(node::TRACKING_DB_FILE),
             limit: FetchLimit::default(),
             local: nid,
             expiry: worker::garbage::Expiry::default(),

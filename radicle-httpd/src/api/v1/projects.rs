@@ -83,7 +83,7 @@ async fn project_root_handler(
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
     let storage = &ctx.profile.storage;
-    let routing = &ctx.profile.routing()?;
+    let db = &ctx.profile.database()?;
     let mut projects = storage
         .repositories()?
         .into_iter()
@@ -119,7 +119,7 @@ async fn project_root_handler(
                 return None;
             };
             let delegates = id.doc.delegates;
-            let trackings = routing.count(&id.rid).unwrap_or_default();
+            let trackings = db.count(&id.rid).unwrap_or_default();
 
             Some(Info {
                 payload,

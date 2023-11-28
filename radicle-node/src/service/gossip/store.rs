@@ -1,10 +1,10 @@
-use std::{fmt, io, path::Path};
+use std::{fmt, io};
 
 use radicle::crypto::Signature;
 use sqlite as sql;
 use thiserror::Error;
 
-use crate::node::NodeId;
+use crate::node::{Database, NodeId};
 use crate::prelude::{Filter, Timestamp};
 use crate::service::message::{
     Announcement, AnnouncementMessage, InventoryAnnouncement, NodeAnnouncement, RefsAnnouncement,
@@ -14,39 +14,42 @@ use crate::wire::Decode;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    /// I/O error.
-    #[error("i/o error: {0}")]
-    Io(#[from] io::Error),
     /// An Internal error.
     #[error("internal error: {0}")]
     Internal(#[from] sql::Error),
 }
 
+/// A database that has access to historical gossip messages.
 /// Keeps track of the latest received gossip messages for each node.
 /// Grows linearly with the number of nodes on the network.
-pub struct GossipStore {
-    db: sql::Connection,
-}
-
-impl fmt::Debug for GossipStore {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("GossipStore").finish()
-    }
-}
-
-impl GossipStore {
-    /// Open a gossip store at the given path. Creates a new store if it doesn't exist.
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let db = sql::Connection::open_with_flags(
-            path,
-            sqlite::OpenFlags::new().with_read_write().with_full_mutex(),
-        )?;
-
-        Ok(Self { db })
-    }
-
+pub trait Store {
     /// Prune announcements older than the cutoff time.
-    pub fn prune(&mut self, cutoff: Timestamp) -> Result<usize, Error> {
+    fn prune(&mut self, cutoff: Timestamp) -> Result<usize, Error>;
+
+    /// Get the timestamp of the last announcement in the store.
+    fn last(&self) -> Result<Option<Timestamp>, Error>;
+
+    /// Process an announcement for the given node.
+    /// Returns `true` if the timestamp was updated or the announcement wasn't there before.
+    fn announced(&mut self, nid: &NodeId, ann: &Announcement) -> Result<bool, Error>;
+
+    /// Get all the latest gossip messages of all nodes, filtered by inventory filter and
+    /// announcement timestamps.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `from` > `to`.
+    ///
+    fn filtered<'a>(
+        &'a self,
+        filter: &'a Filter,
+        from: Timestamp,
+        to: Timestamp,
+    ) -> Result<Box<dyn Iterator<Item = Result<Announcement, Error>> + 'a>, Error>;
+}
+
+impl Store for Database {
+    fn prune(&mut self, cutoff: Timestamp) -> Result<usize, Error> {
         let mut stmt = self
             .db
             .prepare("DELETE FROM `announcements` WHERE timestamp < ?1")?;
@@ -57,8 +60,7 @@ impl GossipStore {
         Ok(self.db.change_count())
     }
 
-    /// Get the timestamp of the last announcement in the store.
-    pub fn last(&self) -> Result<Option<Timestamp>, Error> {
+    fn last(&self) -> Result<Option<Timestamp>, Error> {
         let stmt = self
             .db
             .prepare("SELECT MAX(timestamp) AS latest FROM `announcements`")?;
@@ -71,9 +73,7 @@ impl GossipStore {
         Ok(None)
     }
 
-    /// Process an announcement for the given node.
-    /// Returns `true` if the timestamp was updated or the announcement wasn't there before.
-    pub fn announced(&mut self, nid: &NodeId, ann: &Announcement) -> Result<bool, Error> {
+    fn announced(&mut self, nid: &NodeId, ann: &Announcement) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
             "INSERT INTO `announcements` (node, repo, type, message, signature, timestamp)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
@@ -107,19 +107,12 @@ impl GossipStore {
         Ok(self.db.change_count() > 0)
     }
 
-    /// Get all the latest gossip messages of all nodes, filtered by inventory filter and
-    /// announcement timestamps.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `from` > `to`.
-    ///
-    pub fn filtered<'a>(
+    fn filtered<'a>(
         &'a self,
         filter: &'a Filter,
         from: Timestamp,
         to: Timestamp,
-    ) -> Result<impl Iterator<Item = Result<Announcement, Error>> + 'a, Error> {
+    ) -> Result<Box<dyn Iterator<Item = Result<Announcement, Error>> + 'a>, Error> {
         let mut stmt = self.db.prepare(
             "SELECT node, type, message, signature, timestamp
              FROM announcements
@@ -131,41 +124,42 @@ impl GossipStore {
         stmt.bind((1, i64::try_from(from).unwrap_or(i64::MAX)))?;
         stmt.bind((2, i64::try_from(to).unwrap_or(i64::MAX)))?;
 
-        Ok(stmt
-            .into_iter()
-            .map(|row| {
-                let row = row?;
-                let node = row.read::<NodeId, _>("node");
-                let gt = row.read::<GossipType, _>("type");
-                let message = match gt {
-                    GossipType::Refs => {
-                        let ann = row.read::<RefsAnnouncement, _>("message");
-                        AnnouncementMessage::Refs(ann)
-                    }
-                    GossipType::Inventory => {
-                        let ann = row.read::<InventoryAnnouncement, _>("message");
-                        AnnouncementMessage::Inventory(ann)
-                    }
-                    GossipType::Node => {
-                        let ann = row.read::<NodeAnnouncement, _>("message");
-                        AnnouncementMessage::Node(ann)
-                    }
-                };
-                let signature = row.read::<Signature, _>("signature");
-                let timestamp = row.read::<i64, _>("timestamp");
+        Ok(Box::new(
+            stmt.into_iter()
+                .map(|row| {
+                    let row = row?;
+                    let node = row.read::<NodeId, _>("node");
+                    let gt = row.read::<GossipType, _>("type");
+                    let message = match gt {
+                        GossipType::Refs => {
+                            let ann = row.read::<RefsAnnouncement, _>("message");
+                            AnnouncementMessage::Refs(ann)
+                        }
+                        GossipType::Inventory => {
+                            let ann = row.read::<InventoryAnnouncement, _>("message");
+                            AnnouncementMessage::Inventory(ann)
+                        }
+                        GossipType::Node => {
+                            let ann = row.read::<NodeAnnouncement, _>("message");
+                            AnnouncementMessage::Node(ann)
+                        }
+                    };
+                    let signature = row.read::<Signature, _>("signature");
+                    let timestamp = row.read::<i64, _>("timestamp");
 
-                debug_assert_eq!(timestamp, message.timestamp() as i64);
+                    debug_assert_eq!(timestamp, message.timestamp() as i64);
 
-                Ok(Announcement {
-                    node,
-                    message,
-                    signature,
+                    Ok(Announcement {
+                        node,
+                        message,
+                        signature,
+                    })
                 })
-            })
-            .filter(|ann| match ann {
-                Ok(a) => a.matches(filter),
-                Err(_) => true,
-            }))
+                .filter(|ann| match ann {
+                    Ok(a) => a.matches(filter),
+                    Err(_) => true,
+                }),
+        ))
     }
 }
 
