@@ -80,7 +80,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         anyhow::bail!("repository {rid} was not found");
     }
 
-    if !options.confirm || term::confirm(format!("Remove {rid}?")) {
+    if !options.confirm || term::confirm(format!("Clean {rid}?")) {
         let cleaned = storage.clean(rid)?;
         for remote in cleaned {
             term::info!("Removed {remote}");

@@ -642,6 +642,7 @@ fn rad_clean() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
+    let eve = environment.node(Config::test(Alias::new("eve")));
     let working = environment.tmp().join("working");
 
     // Setup a test project.
@@ -657,9 +658,12 @@ fn rad_clean() {
 
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
+    let mut eve = eve.spawn();
     alice.handle.track_repo(acme, Scope::All).unwrap();
+    eve.handle.track_repo(acme, Scope::Trusted).unwrap();
 
     bob.connect(&alice).converge([&alice]);
+    eve.connect(&alice).converge([&alice]);
 
     test(
         "examples/rad-clone.md",
@@ -669,16 +673,31 @@ fn rad_clean() {
     )
     .unwrap();
 
+    eve.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
+
     bob.has_inventory_of(&acme, &alice.id);
     alice.has_inventory_of(&acme, &bob.id);
+    eve.has_inventory_of(&acme, &alice.id);
 
-    test(
-        "examples/rad-clean.md",
-        working.join("acme"),
-        Some(&alice.home),
-        [],
-    )
-    .unwrap();
+    formula(&environment.tmp(), "examples/rad-clean.md")
+        .unwrap()
+        .home(
+            "alice",
+            working.join("acme"),
+            [("RAD_HOME", alice.home.path().display())],
+        )
+        .home(
+            "bob",
+            working.join("bob"),
+            [("RAD_HOME", bob.home.path().display())],
+        )
+        .home(
+            "eve",
+            working.join("eve"),
+            [("RAD_HOME", eve.home.path().display())],
+        )
+        .run()
+        .unwrap();
 }
 
 #[test]

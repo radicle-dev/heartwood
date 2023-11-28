@@ -17,7 +17,7 @@ use crate::identity::doc::DocError;
 use crate::identity::{doc::DocAt, Doc, Id};
 use crate::identity::{Identity, Project};
 use crate::storage::refs;
-use crate::storage::refs::{Refs, SignedRefs};
+use crate::storage::refs::{Refs, SignedRefs, SignedRefsAt};
 use crate::storage::{
     Inventory, ReadRepository, ReadStorage, Remote, Remotes, RepositoryError, SignRepository,
     WriteRepository, WriteStorage,
@@ -141,7 +141,16 @@ impl WriteStorage for Storage {
 
     fn clean(&self, rid: Id) -> Result<Vec<RemoteId>, RepositoryError> {
         let repo = self.repository(rid)?;
-        repo.clean(&self.info.key)
+        // N.b. we remove the repository if the `local` peer has no
+        // `rad/sigrefs`. There's no risk of them corrupting data.
+        let has_sigrefs = SignedRefsAt::load(self.info.key, &repo)?.is_some();
+        if has_sigrefs {
+            repo.clean(&self.info.key)
+        } else {
+            let remotes = repo.remote_ids()?.collect::<Result<_, _>>()?;
+            repo.remove()?;
+            Ok(remotes)
+        }
     }
 }
 
@@ -359,7 +368,7 @@ impl Repository {
     }
 
     /// Remove all the remotes of a repository that are not the
-    /// `local` remote or a delegate of the repository.
+    /// delegates of the repository or the local peer.
     ///
     /// N.b. failure to delete remotes or references will not result
     /// in an early exit. Instead, this method continues to delete the
@@ -379,10 +388,12 @@ impl Repository {
                     continue;
                 }
             };
+
             // N.b. it is fatal to delete local or delegates
             if *local == id || delegates.contains(&id) {
                 continue;
             }
+
             let glob = git::refname!("refs/namespaces")
                 .join(git::Component::from(&id))
                 .with_pattern(git::refspec::STAR);

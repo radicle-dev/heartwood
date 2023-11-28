@@ -349,6 +349,15 @@ pub trait WriteStorage: ReadStorage {
 
     /// Delete all remote namespaces apart from the local node's and
     /// delegates' namespace.
+
+    /// Clean the repository found at `rid`.
+    ///
+    /// If the local peer has initialised `rad/sigrefs` by forking or
+    /// creating any COBs, then this will delete all remote namespaces
+    /// that are neither the local's or a delegate's.
+    ///
+    /// If the local peer has no initialised `rad/sigrefs`, then the
+    /// repository will be entirely removed from storage.
     fn clean(&self, rid: Id) -> Result<Vec<RemoteId>, RepositoryError>;
 }
 

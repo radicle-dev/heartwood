@@ -5,7 +5,7 @@ clean` command.
 
 First let's look at what we have locally:
 
-```
+``` ~alice
 $ rad ls
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │
@@ -16,7 +16,7 @@ $ rad ls
 
 Let's also inspect what remotes are in the repository:
 
-```
+``` ~alice
 $ rad inspect --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi f209c9f68aa689af24220a20462e13ee9dfb2a95
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 161b775a3509c8098de67f57f750972bba015b31
@@ -24,7 +24,7 @@ z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 161b775a3509c8098de67f57f750972
 
 Now let's clean the `heartwood` project:
 
-```
+``` ~alice
 $ rad clean rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-confirm
 Removed z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 ✓ Successfully cleaned rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
@@ -32,7 +32,7 @@ Removed z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 
 Inspecting the remotes again, we see that Bob is now gone:
 
-```
+``` ~alice
 $ rad inspect --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi f209c9f68aa689af24220a20462e13ee9dfb2a95
 ```
@@ -44,15 +44,24 @@ possible to stop fetching Bob for this particular repository.
 Cleaning a repository again will remove no remotes, since we're
 already at the minimal set of remotes:
 
-```
+``` ~alice
 $ rad clean rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-confirm
 ✓ Successfully cleaned rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ```
 
-And attempting to clean a non-existent repository has no effect on the
-storage at all:
+Since Eve did not fork the repository, and has no refs of their own,
+when they run `rad clean` it will remove the project entirely:
 
-``` (fail)
-$ rad clean rad:z42hL2jL4XNk6K8oHQaSWdeadbeef --no-confirm
-✗ Error: repository rad:z42hL2jL4XNk6K8oHQaSWdeadbeef was not found
+``` ~eve
+$ rad clean rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-confirm
+Removed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+✓ Successfully cleaned rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+```
+
+And attempting to clean the repository again, or any non-existent
+repository, has no effect on the storage at all:
+
+``` ~eve (fail)
+$ rad clean rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-confirm
+✗ Error: repository rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji was not found
 ```
