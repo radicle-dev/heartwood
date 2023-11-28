@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::IsTerminal;
 use std::ops::ControlFlow;
 use std::path::Path;
@@ -11,6 +11,7 @@ use thiserror::Error;
 use radicle::cob::object::ParseObjectId;
 use radicle::cob::patch;
 use radicle::crypto::Signer;
+use radicle::explorer::ExplorerResource;
 use radicle::identity::Did;
 use radicle::node;
 use radicle::node::{Handle, NodeId};
@@ -97,8 +98,11 @@ pub enum Error {
     Repository(#[from] radicle::storage::RepositoryError),
 }
 
+/// Push command.
 enum Command {
+    /// Update ref.
     Push(git::Refspec<git::RefString, git::RefString>),
+    /// Delete ref.
     Delete(git::RefString),
 }
 
@@ -159,7 +163,7 @@ pub fn run(
     })?;
     let signer = profile.signer()?;
     let mut line = String::new();
-    let mut ok = HashSet::new();
+    let mut ok = HashMap::new();
     let hints = profile.hints();
 
     assert_eq!(signer.public_key(), &nid);
@@ -198,6 +202,7 @@ pub fn run(
                     .raw()
                     .find_reference(&refname)
                     .and_then(|mut r| r.delete())
+                    .map(|_| None)
                     .map_err(Error::from)
             }
             Command::Push(git::Refspec { src, dst, force }) => {
@@ -269,9 +274,9 @@ pub fn run(
 
         match result {
             // Let Git tooling know that this ref has been pushed.
-            Ok(()) => {
+            Ok(resource) => {
                 println!("ok {}", cmd.dst());
-                ok.insert(spec);
+                ok.insert(spec, resource);
             }
             // Let Git tooling know that there was an error pushing the ref.
             Err(e) => println!("error {} {e}", cmd.dst()),
@@ -298,7 +303,7 @@ pub fn run(
             let node = radicle::Node::new(profile.socket());
             if node.is_running() {
                 // Nb. allow this to fail. The push to local storage was still successful.
-                sync(stored.id, node).ok();
+                sync(stored.id, ok.into_values().flatten(), node, profile).ok();
             } else if hints {
                 hint("offline push, your node is not running");
                 hint("to sync with the network, run `rad node start`");
@@ -321,7 +326,7 @@ fn patch_open<G: Signer>(
     signer: &G,
     profile: &Profile,
     opts: Options,
-) -> Result<(), Error> {
+) -> Result<Option<ExplorerResource>, Error> {
     let reference = working.find_reference(src.as_str())?;
     let commit = reference.peel_to_commit()?;
     let dst = git::refs::storage::staging::patch(nid, commit.id());
@@ -412,8 +417,7 @@ fn patch_open<G: Signer>(
                     }
                 }
             }
-
-            Ok(())
+            Ok(Some(ExplorerResource::Patch { id: patch }))
         }
         Err(e) => Err(e),
     };
@@ -440,7 +444,7 @@ fn patch_update<G: Signer>(
     stored: &storage::git::Repository,
     signer: &G,
     opts: Options,
-) -> Result<(), Error> {
+) -> Result<Option<ExplorerResource>, Error> {
     let reference = working.find_reference(src.as_str())?;
     let commit = reference.peel_to_commit()?;
     let patch_id = radicle::cob::ObjectId::from(oid);
@@ -455,7 +459,7 @@ fn patch_update<G: Signer>(
 
     // Don't update patch if it already has a revision matching this commit.
     if patch.revisions().any(|(_, r)| *r.head() == commit.id()) {
-        return Ok(());
+        return Ok(None);
     }
     let message = cli::patch::get_update_message(
         opts.message,
@@ -490,7 +494,7 @@ fn patch_update<G: Signer>(
         patch_merge(patch, revision, head, working, signer)?;
     }
 
-    Ok(())
+    Ok(Some(ExplorerResource::Patch { id: patch_id }))
 }
 
 fn push<G: Signer>(
@@ -501,7 +505,7 @@ fn push<G: Signer>(
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
     signer: &G,
-) -> Result<(), Error> {
+) -> Result<Option<ExplorerResource>, Error> {
     let head = working.find_reference(src.as_str())?;
     let head = head.peel_to_commit()?.id();
     let dst = dst.with_namespace(nid.into());
@@ -524,7 +528,7 @@ fn push<G: Signer>(
             }
         }
     }
-    Ok(())
+    Ok(Some(ExplorerResource::Tree { oid: head.into() }))
 }
 
 /// Merge all patches that have been included in the base branch.
@@ -626,9 +630,15 @@ fn push_ref(
 }
 
 /// Sync with the network.
-fn sync(rid: Id, mut node: radicle::Node) -> Result<(), radicle::node::Error> {
+fn sync(
+    rid: Id,
+    updated: impl Iterator<Item = ExplorerResource>,
+    mut node: radicle::Node,
+    profile: &Profile,
+) -> Result<(), radicle::node::Error> {
     let seeds = node.seeds(rid)?;
     let connected = seeds.connected().map(|s| s.nid).collect::<Vec<_>>();
+    let mut replicated = HashSet::new();
 
     if connected.is_empty() {
         eprintln!("Not connected to any seeds.");
@@ -647,6 +657,7 @@ fn sync(rid: Id, mut node: radicle::Node) -> Result<(), radicle::node::Error> {
         |event, _| match event {
             node::AnnounceEvent::Announced => ControlFlow::Continue(()),
             node::AnnounceEvent::RefsSynced { remote } => {
+                replicated.insert(remote);
                 spinner.message(format!("Synced with {remote}.."));
                 ControlFlow::Continue(())
             }
@@ -659,5 +670,31 @@ fn sync(rid: Id, mut node: radicle::Node) -> Result<(), radicle::node::Error> {
         spinner.message(format!("Synced with {} node(s)", result.synced.len()));
         spinner.finish();
     }
+    let mut urls = Vec::new();
+
+    for seed in &profile.config.preferred_seeds {
+        if replicated.contains(&seed.id) {
+            for resource in updated {
+                let url = profile
+                    .config
+                    .public_explorer
+                    .url(seed.addr.host.clone(), rid)
+                    .resource(resource);
+
+                urls.push(url);
+            }
+            break;
+        }
+    }
+
+    // Print URLs to the updated resources.
+    if !urls.is_empty() {
+        eprintln!();
+        for url in urls {
+            eprintln!("  {}", cli::format::dim(url));
+        }
+        eprintln!();
+    }
+
     Ok(())
 }

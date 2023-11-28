@@ -11,6 +11,7 @@ use anyhow::{anyhow, bail, Context as _};
 use serde_json as json;
 
 use radicle::crypto::{ssh, Verified};
+use radicle::explorer::ExplorerUrl;
 use radicle::git::RefString;
 use radicle::identity::{Id, Visibility};
 use radicle::node::policy::Scope;
@@ -356,7 +357,7 @@ fn sync(
     rid: Id,
     node: &mut Node,
     config: &profile::Config,
-) -> Result<SyncResult<Option<String>>, radicle::node::Error> {
+) -> Result<SyncResult<Option<ExplorerUrl>>, radicle::node::Error> {
     if !node.is_running() {
         return Ok(SyncResult::NodeStopped);
     }
@@ -423,11 +424,7 @@ fn sync(
         for seed in &config.preferred_seeds {
             if replicas.contains(&seed.id) {
                 return Ok(SyncResult::Synced {
-                    result: Some(
-                        config
-                            .public_explorer
-                            .url(seed.addr.host.to_string().as_str(), &rid),
-                    ),
+                    result: Some(config.public_explorer.url(seed.addr.host.to_string(), rid)),
                 });
             }
         }

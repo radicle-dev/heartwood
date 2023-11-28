@@ -1675,6 +1675,41 @@ fn rad_patch_pull_update() {
 }
 
 #[test]
+fn rad_patch_open_explore() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let mut alice = environment
+        .node(Config {
+            policy: Policy::Allow,
+            ..Config::test(Alias::new("alice"))
+        })
+        .spawn();
+
+    let bob = environment.profile(profile::Config {
+        preferred_seeds: vec![alice.address()],
+        ..config::profile("bob")
+    });
+    let mut bob = Node::new(bob).spawn();
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(&working);
+
+    bob.init("heartwood", "", &working).unwrap();
+    bob.connect(&alice);
+    alice.handle.follow(bob.id, None).unwrap();
+    alice.converge([&bob]);
+
+    test(
+        "examples/rad-patch-open-explore.md",
+        &working,
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_init_private() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));

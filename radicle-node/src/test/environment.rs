@@ -9,7 +9,6 @@ use std::{
 
 use crossbeam_channel as chan;
 
-use radicle::cob;
 use radicle::cob::issue;
 use radicle::crypto::ssh::{keystore::MemorySigner, Keystore};
 use radicle::crypto::test::signer::MockSigner;
@@ -31,6 +30,7 @@ use radicle::storage::{ReadStorage as _, RemoteRepository as _, SignRepository a
 use radicle::test::fixtures;
 use radicle::Storage;
 use radicle::{cli, node};
+use radicle::{cob, explorer};
 
 use crate::node::NodeId;
 use crate::service::Event;
@@ -91,7 +91,7 @@ impl Environment {
         profile::Config {
             node: node::Config::test(alias),
             cli: cli::Config { hints: false },
-            public_explorer: profile::Explorer::default(),
+            public_explorer: explorer::Explorer::default(),
             preferred_seeds: vec![],
         }
     }
@@ -313,6 +313,23 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
     /// Announce a repo.
     pub fn announce<P: AsRef<Path>>(&self, rid: Id, cwd: P) -> io::Result<()> {
         self.rad("sync", &[rid.to_string().as_str(), "--announce"], cwd)
+    }
+
+    /// Init a repo.
+    pub fn init<P: AsRef<Path>>(&self, name: &str, desc: &str, cwd: P) -> io::Result<()> {
+        self.rad(
+            "init",
+            &[
+                "--name",
+                name,
+                "--description",
+                desc,
+                "--default-branch",
+                "master",
+                "--public",
+            ],
+            cwd,
+        )
     }
 
     /// Run a `rad` CLI command.

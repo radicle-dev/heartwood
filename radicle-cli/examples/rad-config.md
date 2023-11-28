@@ -4,7 +4,7 @@ In its simplest form, `rad config` prints the current configuration.
 ```
 $ rad config
 {
-  "publicExplorer": "https://app.radicle.xyz/nodes/$host/$rid",
+  "publicExplorer": "https://app.radicle.xyz/nodes/$host/$rid$path",
   "preferredSeeds": [],
   "cli": {
     "hints": false

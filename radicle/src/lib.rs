@@ -13,6 +13,7 @@ mod canonical;
 pub mod cli;
 pub mod cob;
 pub mod collections;
+pub mod explorer;
 pub mod git;
 pub mod identity;
 #[cfg(feature = "logger")]

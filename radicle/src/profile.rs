@@ -20,10 +20,11 @@ use thiserror::Error;
 use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
+use crate::explorer::Explorer;
 use crate::node::policy::config::store::Read;
 use crate::node::{policy, Alias, AliasStore};
 use crate::prelude::Did;
-use crate::prelude::{Id, NodeId};
+use crate::prelude::NodeId;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
 use crate::{cli, git, node};
@@ -78,55 +79,6 @@ pub mod env {
             );
         }
         fastrand::Rng::new()
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum ExplorerUrlError {
-    #[error("invalid explorer URL {0:?}: unknown protocol")]
-    UnknownProtocol(String),
-    #[error("invalid explorer URL {0:?}: missing `$host` component")]
-    MissingHost(String),
-    #[error("invalid explorer URL {0:?}: missing `$rid` component")]
-    MissingRid(String),
-}
-
-/// A public explorer, eg. `https://app.radicle.xyz`.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
-#[serde(transparent)]
-pub struct Explorer(String);
-
-impl Default for Explorer {
-    fn default() -> Self {
-        Self(String::from("https://app.radicle.xyz/nodes/$host/$rid"))
-    }
-}
-
-impl Explorer {
-    /// Get the explorer URL, filling in the host and RID.
-    pub fn url(&self, host: &str, rid: &Id) -> String {
-        self.0
-            .replace("$host", host)
-            .replace("$rid", rid.urn().as_str())
-    }
-}
-
-impl FromStr for Explorer {
-    type Err = ExplorerUrlError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let url = s.to_owned();
-
-        if !url.starts_with("http://") && !url.starts_with("https://") {
-            return Err(ExplorerUrlError::UnknownProtocol(url));
-        }
-        if !url.contains("$host") {
-            return Err(ExplorerUrlError::MissingHost(url));
-        }
-        if !url.contains("$rid") {
-            return Err(ExplorerUrlError::MissingRid(url));
-        }
-        Ok(Explorer(url))
     }
 }
 

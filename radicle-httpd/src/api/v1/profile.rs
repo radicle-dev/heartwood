@@ -71,7 +71,7 @@ mod routes {
             response.json().await,
             json!({
               "config": {
-                "publicExplorer": "https://app.radicle.xyz/nodes/$host/$rid",
+                "publicExplorer": "https://app.radicle.xyz/nodes/$host/$rid$path",
                 "preferredSeeds": [
                   "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776"
                 ],
