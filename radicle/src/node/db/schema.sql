@@ -46,8 +46,7 @@ create table if not exists "routing" (
   -- Repository being seeded.
   "repo"         text      not null,
   -- Node ID.
-  -- TODO: Add foreign-key constraint.
-  "node"         text      not null,
+  "node"         text      not null references "nodes" ("id") on delete cascade,
   -- UNIX time at which this entry was added or refreshed.
   "timestamp"    integer   not null,
 
@@ -57,7 +56,9 @@ create table if not exists "routing" (
 -- Gossip message store.
 create table if not exists "announcements" (
   -- Node ID.
-  -- TODO: Add foreign-key constraint.
+  --
+  -- Nb. We don't use a foreign key constraint here, because announcements are
+  -- currently added to the database before nodes.
   "node"               text      not null,
   -- Repo ID, if any, for example in ref announcements.
   -- For other announcement types, this should be an empty string.

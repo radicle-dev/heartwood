@@ -854,8 +854,6 @@ fn rad_clone_connect() {
     let mut bob = bob.spawn();
 
     // Let Eve know about Alice and Bob having the repo.
-    eve.db.routing_mut().insert([&acme], alice.id, now).unwrap();
-    eve.db.routing_mut().insert([&acme], bob.id, now).unwrap();
     eve.db
         .addresses_mut()
         .insert(
@@ -884,6 +882,8 @@ fn rad_clone_connect() {
             )],
         )
         .unwrap();
+    eve.db.routing_mut().insert([&acme], alice.id, now).unwrap();
+    eve.db.routing_mut().insert([&acme], bob.id, now).unwrap();
     eve.config.peers = node::config::PeerConfig::Static;
 
     let eve = eve.spawn();

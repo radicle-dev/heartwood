@@ -228,11 +228,19 @@ mod test {
     use super::*;
     use crate::test::arbitrary;
 
+    fn database(path: &str) -> Database {
+        let db = Database::open(path).unwrap();
+
+        // We don't want to test foreign key constraints here.
+        db.db.execute("PRAGMA foreign_keys = OFF").unwrap();
+        db
+    }
+
     #[test]
     fn test_insert_and_get() {
         let ids = arbitrary::set::<Id>(5..10);
         let nodes = arbitrary::set::<NodeId>(5..10);
-        let mut db = Database::open(":memory:").unwrap();
+        let mut db = database(":memory:");
 
         for node in &nodes {
             assert_eq!(
@@ -255,7 +263,7 @@ mod test {
     fn test_insert_and_get_resources() {
         let ids = arbitrary::set::<Id>(5..10);
         let nodes = arbitrary::set::<NodeId>(5..10);
-        let mut db = Database::open(":memory:").unwrap();
+        let mut db = database(":memory:");
 
         for node in &nodes {
             db.insert(&ids, *node, 0).unwrap();
@@ -273,7 +281,7 @@ mod test {
     fn test_entries() {
         let ids = arbitrary::set::<Id>(6..9);
         let nodes = arbitrary::set::<NodeId>(6..9);
-        let mut db = Database::open(":memory:").unwrap();
+        let mut db = database(":memory:");
 
         for node in &nodes {
             assert!(db
@@ -296,7 +304,7 @@ mod test {
     fn test_insert_and_remove() {
         let ids = arbitrary::set::<Id>(5..10);
         let nodes = arbitrary::set::<NodeId>(5..10);
-        let mut db = Database::open(":memory:").unwrap();
+        let mut db = database(":memory:");
 
         for node in &nodes {
             db.insert(&ids, *node, 0).unwrap();
@@ -315,7 +323,7 @@ mod test {
     fn test_insert_duplicate() {
         let id = arbitrary::gen::<Id>(1);
         let node = arbitrary::gen::<NodeId>(1);
-        let mut db = Database::open(":memory:").unwrap();
+        let mut db = database(":memory:");
 
         assert_eq!(
             db.insert([&id], node, 0).unwrap(),
@@ -335,7 +343,7 @@ mod test {
     fn test_insert_existing_updated_time() {
         let id = arbitrary::gen::<Id>(1);
         let node = arbitrary::gen::<NodeId>(1);
-        let mut db = Database::open(":memory:").unwrap();
+        let mut db = database(":memory:");
 
         assert_eq!(
             db.insert([&id], node, 0).unwrap(),
@@ -353,7 +361,7 @@ mod test {
         let id1 = arbitrary::gen::<Id>(1);
         let id2 = arbitrary::gen::<Id>(1);
         let node = arbitrary::gen::<NodeId>(1);
-        let mut db = Database::open(":memory:").unwrap();
+        let mut db = database(":memory:");
 
         assert_eq!(
             db.insert([&id1], node, 0).unwrap(),
@@ -379,7 +387,7 @@ mod test {
     fn test_remove_redundant() {
         let id = arbitrary::gen::<Id>(1);
         let node = arbitrary::gen::<NodeId>(1);
-        let mut db = Database::open(":memory:").unwrap();
+        let mut db = database(":memory:");
 
         assert_eq!(
             db.insert([&id], node, 0).unwrap(),
@@ -391,7 +399,7 @@ mod test {
 
     #[test]
     fn test_len() {
-        let mut db = Database::open(":memory:").unwrap();
+        let mut db = database(":memory:");
         let ids = arbitrary::vec::<Id>(10);
         let node = arbitrary::gen(1);
 
@@ -406,7 +414,7 @@ mod test {
         let now = LocalTime::now();
         let ids = arbitrary::vec::<Id>(10);
         let nodes = arbitrary::vec::<NodeId>(10);
-        let mut db = Database::open(":memory:").unwrap();
+        let mut db = database(":memory:");
 
         for node in &nodes {
             let time = rng.u64(..now.as_millis());
@@ -436,7 +444,7 @@ mod test {
     fn test_count() {
         let id = arbitrary::gen::<Id>(1);
         let nodes = arbitrary::set::<NodeId>(5..10);
-        let mut db = Database::open(":memory:").unwrap();
+        let mut db = database(":memory:");
 
         for node in &nodes {
             db.insert([&id], *node, 0).unwrap();
