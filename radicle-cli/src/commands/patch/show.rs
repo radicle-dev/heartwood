@@ -76,6 +76,7 @@ pub fn run(
     )?;
     let author = patch.author();
     let author = term::format::Author::new(author.id(), profile);
+    let labels = patch.labels().map(|l| l.to_string()).collect::<Vec<_>>();
 
     let mut attrs = Table::<2, term::Line>::new(TableOptions {
         spacing: 2,
@@ -93,6 +94,12 @@ pub fn run(
         term::format::tertiary("Author".to_owned()).into(),
         author.line(),
     ]);
+    if !labels.is_empty() {
+        attrs.push([
+            term::format::tertiary("Labels".to_owned()).into(),
+            term::format::secondary(labels.join(", ")).into(),
+        ]);
+    }
     attrs.push([
         term::format::tertiary("Head".to_owned()).into(),
         term::format::secondary(revision.head().to_string()).into(),

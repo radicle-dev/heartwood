@@ -43,24 +43,27 @@ $ rad issue show d185ee1
 
 Great! Now we've documented the issue for ourselves and others.
 
-Just like with other project management systems, the issue can be assigned to
-others to work on.  This is to ensure work is not duplicated.
+Just like with other project management systems, the issue can be
+labeled and assigned to others to work on. This is to ensure work is
+not duplicated.
 
-Let's assign ourselves to this one.
+Let's assign ourselves to this one, this is to ensure work is not
+duplicated. While we're at it, let's add a label.
 
 ```
-$ rad assign d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61 --to did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad assign d185ee16a00bac874c0bcbc2a8ad80fdce5e1e6 --to did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad issue label d185ee1 -l good-first-issue
 ```
 
-It will now show in the list of issues assigned to us.
+It will now show in the list of issues assigned to us, along with the new label.
 
 ```
 $ rad issue list --assigned
-╭─────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title                         Author                    Labels   Assignees         Opened │
-├─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   d185ee1   flux capacitor underpowered   z6MknSL…StBU8Vi   (you)            z6MknSL…StBU8Vi   now    │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title                         Author                    Labels             Assignees         Opened │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   d185ee1   flux capacitor underpowered   z6MknSL…StBU8Vi   (you)   good-first-issue   z6MknSL…StBU8Vi   now    │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Note: this can always be undone with the `unassign` subcommand.
@@ -76,9 +79,9 @@ It will help whoever works on a fix.
 
 ```
 $ rad issue comment d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61 --message 'The flux capacitor needs 1.21 Gigawatts' -q
-14019611935fd1c66458111a5b49f0a7350c226f
-$ rad issue comment d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61 --reply-to 14019611935fd1c66458111a5b49f0a7350c226f --message 'More power!' -q
-e342e47b7dd93451d47c806a0faeb0b5e957da2c
+80ef590710edb64dfa57e8e940d6e4d0b0ae4217
+$ rad issue comment d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61 --reply-to 80ef590710edb64dfa57e8e940d6e4d0b0ae4217 --message 'More power!' -q
+91009820ca0996d93b9afd5739a4d2158a2ec898
 ```
 
 We can see our comments by showing the issue:
@@ -89,14 +92,15 @@ $ rad issue show d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61
 │ Title   flux capacitor underpowered                     │
 │ Issue   d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61        │
 │ Author  z6MknSL…StBU8Vi (you)                           │
+│ Labels  good-first-issue                                │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │
 ├─────────────────────────────────────────────────────────┤
-│ z6MknSL…StBU8Vi (you) now 1401961                       │
+│ z6MknSL…StBU8Vi (you) now 80ef590                       │
 │ The flux capacitor needs 1.21 Gigawatts                 │
 ├─────────────────────────────────────────────────────────┤
-│ z6MknSL…StBU8Vi (you) now e342e47                       │
+│ z6MknSL…StBU8Vi (you) now 9100982                       │
 │ More power!                                             │
 ╰─────────────────────────────────────────────────────────╯
 ```

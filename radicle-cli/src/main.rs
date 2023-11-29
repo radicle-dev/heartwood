@@ -243,13 +243,6 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
-        "label" => {
-            term::run_command_args::<rad_label::Options, _>(
-                rad_label::HELP,
-                rad_label::run,
-                args.to_vec(),
-            );
-        }
         "track" => {
             term::run_command_args::<rad_track::Options, _>(
                 rad_track::HELP,
@@ -261,13 +254,6 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             term::run_command_args::<rad_unassign::Options, _>(
                 rad_unassign::HELP,
                 rad_unassign::run,
-                args.to_vec(),
-            );
-        }
-        "unlabel" => {
-            term::run_command_args::<rad_unlabel::Options, _>(
-                rad_unlabel::HELP,
-                rad_unlabel::run,
                 args.to_vec(),
             );
         }

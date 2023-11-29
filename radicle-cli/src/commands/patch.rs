@@ -10,6 +10,8 @@ mod common;
 mod delete;
 #[path = "patch/edit.rs"]
 mod edit;
+#[path = "patch/label.rs"]
+mod label;
 #[path = "patch/list.rs"]
 mod list;
 #[path = "patch/ready.rs"]
@@ -26,8 +28,9 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
-use radicle::cob::patch;
+use nonempty::NonEmpty;
 use radicle::cob::patch::PatchId;
+use radicle::cob::{patch, Label};
 use radicle::prelude::*;
 use radicle::storage::git::transport;
 
@@ -51,6 +54,8 @@ Usage
     rad patch checkout <patch-id> [<option>...]
     rad patch delete <patch-id> [<option>...]
     rad patch redact <revision-id> [<option>...]
+    rad patch label <patch-id> --label <label> [<option>...]
+    rad patch unlabel <patch-id> --label <label> [<option>...]
     rad patch ready <patch-id> [--undo] [<option>...]
     rad patch edit <patch-id> [<option>...]
     rad patch set <patch-id> [<option>...]
@@ -68,6 +73,14 @@ Comment options
 Edit options
 
     -m, --message [<string>]   Provide a comment message to the patch or revision (default: prompt)
+
+Label options
+
+    -l, --label                Label the patch with the provided label (may be specified multiple times)
+
+Unlabel options
+
+    -l, --label                Remove the provided label from the patch (may be specified multiple times)
 
 Update options
 
@@ -111,6 +124,8 @@ pub enum OperationName {
     Checkout,
     Comment,
     Ready,
+    Label,
+    Unlabel,
     #[default]
     List,
     Edit,
@@ -169,6 +184,14 @@ pub enum Operation {
         message: Message,
         reply_to: Option<Rev>,
     },
+    Label {
+        patch_id: Rev,
+        labels: NonEmpty<Label>,
+    },
+    Unlabel {
+        patch_id: Rev,
+        labels: NonEmpty<Label>,
+    },
     List {
         filter: Filter,
     },
@@ -215,6 +238,7 @@ impl Args for Options {
         let mut undo = false;
         let mut reply_to: Option<Rev> = None;
         let mut checkout_opts = checkout::Options::default();
+        let mut labels = Vec::new();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -285,6 +309,17 @@ impl Args for Options {
                     checkout_opts.name = Some(term::args::refstring("name", val)?);
                 }
 
+                // Un/Label options.
+                Short('l') | Long("label")
+                    if matches!(op, Some(OperationName::Label | OperationName::Unlabel)) =>
+                {
+                    let val = parser.value()?;
+                    let name = term::args::string(&val);
+                    let label = Label::new(name)?;
+
+                    labels.push(label);
+                }
+
                 // List options.
                 Long("all") => {
                     filter = Filter::all();
@@ -332,6 +367,8 @@ impl Args for Options {
                     "y" | "ready" => op = Some(OperationName::Ready),
                     "e" | "edit" => op = Some(OperationName::Edit),
                     "r" | "redact" => op = Some(OperationName::Redact),
+                    "label" => op = Some(OperationName::Label),
+                    "unlabel" => op = Some(OperationName::Unlabel),
                     "comment" => op = Some(OperationName::Comment),
                     "set" => op = Some(OperationName::Set),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
@@ -352,6 +389,8 @@ impl Args for Options {
                             Some(OperationName::Comment),
                             Some(OperationName::Edit),
                             Some(OperationName::Set),
+                            Some(OperationName::Label),
+                            Some(OperationName::Unlabel),
                         ]
                         .contains(&op) =>
                 {
@@ -399,6 +438,16 @@ impl Args for Options {
             },
             OperationName::Redact => Operation::Redact {
                 revision_id: revision_id.ok_or_else(|| anyhow!("a revision must be provided"))?,
+            },
+            OperationName::Label => Operation::Label {
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                labels: NonEmpty::from_vec(labels)
+                    .ok_or_else(|| anyhow!("at least one label must be specified"))?,
+            },
+            OperationName::Unlabel => Operation::Unlabel {
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                labels: NonEmpty::from_vec(labels)
+                    .ok_or_else(|| anyhow!("at least one label must be specified"))?,
             },
             OperationName::Set => Operation::Set {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
@@ -505,6 +554,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Redact { revision_id } => {
             redact::run(&revision_id, &profile, &repository)?;
+        }
+        Operation::Label { patch_id, labels } => {
+            let patch_id = patch_id.resolve(&repository.backend)?;
+            label::add(&patch_id, labels, &profile, &repository)?;
+        }
+        Operation::Unlabel { patch_id, labels } => {
+            let patch_id = patch_id.resolve(&repository.backend)?;
+            label::remove(&patch_id, labels, &profile, &repository)?;
         }
         Operation::Set { patch_id } => {
             let patches = radicle::cob::patch::Patches::open(&repository)?;

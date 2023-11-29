@@ -24,6 +24,8 @@ rad-patch - Manage radicle patches.
 *rad patch* _edit_ <patch-id> [<option>...] +
 *rad patch* _set_ <patch-id> [<option>...] +
 *rad patch* _comment_ <revision-id> [<option>...] +
+*rad patch* _label_ <patch-id> --label <label> [<option>...] +
+*rad patch* _unlabel_ <patch-id> --label <label> [<option>...] +
 
 == Description
 

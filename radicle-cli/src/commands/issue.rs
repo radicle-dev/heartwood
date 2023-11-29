@@ -4,6 +4,7 @@ use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
 
+use nonempty::NonEmpty;
 use radicle::cob::common::{Label, Reaction};
 use radicle::cob::issue;
 use radicle::cob::issue::{CloseReason, Issues, State};
@@ -38,9 +39,19 @@ Usage
     rad issue list [--assigned <did>] [--all | --closed | --open | --solved] [<option>...]
     rad issue open [--title <title>] [--description <text>] [--label <label>] [<option>...]
     rad issue react <issue-id> [--emoji <char>] [--to <comment>] [<option>...]
+    rad issue label <issue-id> --label <label> [<option>...]
+    rad issue unlabel <issue-id> --label <label> [<option>...]
     rad issue comment <issue-id> [--message <message>] [--reply-to <comment-id>] [<option>...]
     rad issue show <issue-id> [<option>...]
     rad issue state <issue-id> [--closed | --open | --solved] [<option>...]
+
+Label options
+
+    -l, --label       Label the issue with the provided label (may be specified multiple times)
+
+Unlabel options
+
+    -l, --label       Remove the provided label from the issue (may be specified multiple times)
 
 Options
 
@@ -57,11 +68,13 @@ pub enum OperationName {
     Open,
     Comment,
     Delete,
+    Label,
     #[default]
     List,
     React,
     Show,
     State,
+    Unlabel,
 }
 
 /// Command line Peer argument.
@@ -105,6 +118,14 @@ pub enum Operation {
         id: Rev,
         reaction: Reaction,
         comment_id: Option<thread::CommentId>,
+    },
+    Label {
+        id: Rev,
+        labels: NonEmpty<Label>,
+    },
+    Unlabel {
+        id: Rev,
+        labels: NonEmpty<Label>,
     },
     List {
         assigned: Option<Assigned>,
@@ -164,7 +185,12 @@ impl Args for Options {
                 Long("title") if op == Some(OperationName::Open) => {
                     title = Some(parser.value()?.to_string_lossy().into());
                 }
-                Long("label") if op == Some(OperationName::Open) => {
+                Short('l') | Long("label")
+                    if matches!(
+                        op,
+                        Some(OperationName::Open | OperationName::Label | OperationName::Unlabel)
+                    ) =>
+                {
                     let val = parser.value()?;
                     let name = term::args::string(&val);
                     let label = Label::new(name)?;
@@ -248,6 +274,8 @@ impl Args for Options {
                     "o" | "open" => op = Some(OperationName::Open),
                     "r" | "react" => op = Some(OperationName::React),
                     "s" | "state" => op = Some(OperationName::State),
+                    "label" => op = Some(OperationName::Label),
+                    "unlabel" => op = Some(OperationName::Unlabel),
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
@@ -293,6 +321,16 @@ impl Args for Options {
             },
             OperationName::Delete => Operation::Delete {
                 id: id.ok_or_else(|| anyhow!("an issue to remove must be provided"))?,
+            },
+            OperationName::Label => Operation::Label {
+                id: id.ok_or_else(|| anyhow!("an issue to label must be provided"))?,
+                labels: NonEmpty::from_vec(labels)
+                    .ok_or_else(|| anyhow!("at least one label must be specified"))?,
+            },
+            OperationName::Unlabel => Operation::Unlabel {
+                id: id.ok_or_else(|| anyhow!("an issue to label must be provided"))?,
+                labels: NonEmpty::from_vec(labels)
+                    .ok_or_else(|| anyhow!("at least one label must be specified"))?,
             },
             OperationName::List => Operation::List { assigned, state },
         };
@@ -406,6 +444,26 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 &signer,
                 &profile,
             )?;
+        }
+        Operation::Label { id, labels } => {
+            let id = id.resolve(&repo.backend)?;
+            let Ok(mut issue) = issues.get_mut(&id) else {
+                anyhow::bail!("Issue `{id}` not found");
+            };
+            let labels = issue.labels().cloned().chain(labels).collect::<Vec<_>>();
+            issue.label(labels, &signer)?;
+        }
+        Operation::Unlabel { id, labels } => {
+            let id = id.resolve(&repo.backend)?;
+            let Ok(mut issue) = issues.get_mut(&id) else {
+                anyhow::bail!("Issue `{id}` not found");
+            };
+            let labels = issue
+                .labels()
+                .filter(|&l| !labels.contains(l))
+                .cloned()
+                .collect::<Vec<_>>();
+            issue.label(labels, &signer)?;
         }
         Operation::List { assigned, state } => {
             list(&issues, &assigned, &state, &profile)?;

@@ -89,6 +89,28 @@ $ git branch -vv
   master               f2de534 [rad/master] Second commit
 ```
 
+We also want to label the patch after we've created it:
+```
+$ rad patch label 6ff4f09c1b5a81347981f59b02ef43a31a07cdae -l fun
+$ rad patch show 6ff4f09c1b5a81347981f59b02ef43a31a07cdae
+╭────────────────────────────────────────────────────╮
+│ Title     Define power requirements                │
+│ Patch     6ff4f09c1b5a81347981f59b02ef43a31a07cdae │
+│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Labels    fun                                      │
+│ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33 │
+│ Branches  flux-capacitor-power                     │
+│ Commits   ahead 1, behind 0                        │
+│ Status    open                                     │
+│                                                    │
+│ See details.                                       │
+├────────────────────────────────────────────────────┤
+│ 3e674d1 Define power requirements                  │
+├────────────────────────────────────────────────────┤
+│ ● opened by z6MknSL…StBU8Vi (you) now              │
+╰────────────────────────────────────────────────────╯
+```
+
 Wait, let's add a README too! Just for fun.
 
 ```
@@ -101,7 +123,7 @@ $ git commit --message "Add README, just for the fun"
 ```
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun"
-✓ Patch 6ff4f09 updated to 0c0942e2ff2488617d950ede15567ca39a29972e
+✓ Patch 6ff4f09 updated to 873e637a66be511c45f4ef7b04fddc9def8f072c
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    3e674d1..27857ec  flux-capacitor-power -> patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae
 ```
@@ -111,11 +133,11 @@ And let's leave a quick comment for our team:
 ```
 $ rad patch comment 6ff4f09c1b5a81347981f59b02ef43a31a07cdae --message 'I cannot wait to get back to the 90s!'
 ╭───────────────────────────────────────╮
-│ z6MknSL…StBU8Vi (you) now cd811db     │
+│ z6MknSL…StBU8Vi (you) now efaf6fb     │
 │ I cannot wait to get back to the 90s! │
 ╰───────────────────────────────────────╯
-$ rad patch comment 6ff4f09c1b5a81347981f59b02ef43a31a07cdae --message 'My favorite decade!' --reply-to cd811db -q
-b6a76fe394de87eb34cbc3823a0edc80ff98cb97
+$ rad patch comment 6ff4f09c1b5a81347981f59b02ef43a31a07cdae --message 'My favorite decade!' --reply-to efaf6fb -q
+2cb22a1c87af86c25368c7be9fc385720fd6086f
 ```
 
 Now, let's checkout the patch that we just created:
@@ -141,6 +163,7 @@ $ rad patch show 6ff4f09
 │ Title     Define power requirements                                 │
 │ Patch     6ff4f09c1b5a81347981f59b02ef43a31a07cdae                  │
 │ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Labels    fun                                                       │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                  │
 │ Branches  flux-capacitor-power, patch/6ff4f09                       │
 │ Commits   ahead 2, behind 0                                         │
@@ -152,7 +175,7 @@ $ rad patch show 6ff4f09
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by z6MknSL…StBU8Vi (you) now                               │
-│ ↑ updated to 0c0942e2ff2488617d950ede15567ca39a29972e (27857ec) now │
+│ ↑ updated to 873e637a66be511c45f4ef7b04fddc9def8f072c (27857ec) now │
 │ ✓ accepted by z6MknSL…StBU8Vi (you) now                             │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
@@ -166,6 +189,7 @@ $ rad patch show 6ff4f09
 │ Title     Define power requirements                                 │
 │ Patch     6ff4f09c1b5a81347981f59b02ef43a31a07cdae                  │
 │ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Labels    fun                                                       │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                  │
 │ Branches  flux-capacitor-power, patch/6ff4f09                       │
 │ Commits   ahead 2, behind 0                                         │
@@ -177,7 +201,7 @@ $ rad patch show 6ff4f09
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by z6MknSL…StBU8Vi (you) now                               │
-│ ↑ updated to 0c0942e2ff2488617d950ede15567ca39a29972e (27857ec) now │
+│ ↑ updated to 873e637a66be511c45f4ef7b04fddc9def8f072c (27857ec) now │
 │ ✓ accepted by z6MknSL…StBU8Vi (you) now                             │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
