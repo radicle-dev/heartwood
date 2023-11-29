@@ -41,6 +41,7 @@ pub fn get_merge_target(
 }
 
 /// Get the diff stats between two commits.
+/// Should match the default output of `git diff <old> <new> --stat` exactly.
 pub fn diff_stats(
     repo: &git::raw::Repository,
     old: &Oid,
@@ -50,8 +51,10 @@ pub fn diff_stats(
     let new = repo.find_commit(*new)?;
     let old_tree = old.tree()?;
     let new_tree = new.tree()?;
-    let diff = repo.diff_tree_to_tree(Some(&old_tree), Some(&new_tree), None)?;
+    let mut diff = repo.diff_tree_to_tree(Some(&old_tree), Some(&new_tree), None)?;
+    let mut find_opts = git::raw::DiffFindOptions::new();
 
+    diff.find_similar(Some(&mut find_opts))?;
     diff.stats()
 }
 
