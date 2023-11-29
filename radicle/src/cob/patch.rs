@@ -706,17 +706,25 @@ impl Patch {
                 self.title = title;
                 self.target = target;
             }
-            Action::Lifecycle { state } => match state {
-                Lifecycle::Open => {
-                    self.state = State::Open { conflicts: vec![] };
+            Action::Lifecycle { state } => {
+                let valid = self.state == State::Draft
+                    || self.state == State::Archived
+                    || self.state == State::Open { conflicts: vec![] };
+
+                if valid {
+                    match state {
+                        Lifecycle::Open => {
+                            self.state = State::Open { conflicts: vec![] };
+                        }
+                        Lifecycle::Draft => {
+                            self.state = State::Draft;
+                        }
+                        Lifecycle::Archived => {
+                            self.state = State::Archived;
+                        }
+                    }
                 }
-                Lifecycle::Draft => {
-                    self.state = State::Draft;
-                }
-                Lifecycle::Archived => {
-                    self.state = State::Archived;
-                }
-            },
+            }
             Action::Label { labels } => {
                 self.labels = BTreeSet::from_iter(labels);
             }
