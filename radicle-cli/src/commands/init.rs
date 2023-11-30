@@ -40,7 +40,7 @@ Options
         --name <string>            Name of the repository
         --description <string>     Description of the repository
         --default-branch <name>    The default branch of the repository
-        --scope <scope>            Repository follow scope (default: all)
+        --scope <scope>            Repository follow scope: `followed` or `all` (default: all)
         --private                  Set repository visibility to *private*
         --public                   Set repository visibility to *public*
     -u, --set-upstream             Setup the upstream of the default branch

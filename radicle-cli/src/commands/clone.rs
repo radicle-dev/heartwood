@@ -45,7 +45,7 @@ Usage
 
 Options
 
-        --scope <scope>     Follow scope (default: all)
+        --scope <scope>     Follow scope: `followed` or `all` (default: all)
     -s, --seed <nid>        Clone from this seed (may be specified multiple times)
         --timeout <secs>    Timeout for fetching repository (default: 9)
         --help              Print help
