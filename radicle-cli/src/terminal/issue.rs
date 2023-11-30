@@ -46,7 +46,7 @@ pub fn show(
 ) -> anyhow::Result<()> {
     let labels: Vec<String> = issue.labels().cloned().map(|t| t.into()).collect();
     let assignees: Vec<String> = issue
-        .assigned()
+        .assignees()
         .map(|a| term::format::did(a).to_string())
         .collect();
     let author = issue.author();

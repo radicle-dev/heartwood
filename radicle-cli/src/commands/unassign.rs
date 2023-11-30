@@ -87,7 +87,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     })?;
     let signer = term::signer(&profile)?;
     let assigned = issue
-        .assigned()
+        .assignees()
         .cloned()
         .filter(|did| !options.from.contains(did))
         .collect::<Vec<_>>();

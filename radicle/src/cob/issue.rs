@@ -197,7 +197,7 @@ impl Issue {
         }
     }
 
-    pub fn assigned(&self) -> impl Iterator<Item = &Did> + '_ {
+    pub fn assignees(&self) -> impl Iterator<Item = &Did> + '_ {
         self.assignees.iter()
     }
 
@@ -922,7 +922,7 @@ mod test {
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+        let assignees: Vec<_> = issue.assignees().cloned().collect::<Vec<_>>();
 
         assert_eq!(1, assignees.len());
         assert!(assignees.contains(&assignee));
@@ -934,7 +934,7 @@ mod test {
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+        let assignees: Vec<_> = issue.assignees().cloned().collect::<Vec<_>>();
 
         assert_eq!(2, assignees.len());
         assert!(assignees.contains(&assignee));
@@ -963,7 +963,7 @@ mod test {
         issue.assign([assignee_two], &node.signer).unwrap();
         issue.reload().unwrap();
 
-        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+        let assignees: Vec<_> = issue.assignees().cloned().collect::<Vec<_>>();
 
         assert_eq!(1, assignees.len());
         assert!(assignees.contains(&assignee_two));
@@ -971,7 +971,7 @@ mod test {
         issue.assign([], &node.signer).unwrap();
         issue.reload().unwrap();
 
-        assert_eq!(0, issue.assigned().count());
+        assert_eq!(0, issue.assignees().count());
     }
 
     #[test]
@@ -1057,12 +1057,12 @@ mod test {
                 &node.signer,
             )
             .unwrap();
-        assert_eq!(2, issue.assigned().count());
+        assert_eq!(2, issue.assignees().count());
 
         issue.assign([assignee_two], &node.signer).unwrap();
         issue.reload().unwrap();
 
-        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+        let assignees: Vec<_> = issue.assignees().cloned().collect::<Vec<_>>();
 
         assert_eq!(1, assignees.len());
         assert!(assignees.contains(&assignee_two));

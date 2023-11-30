@@ -510,7 +510,7 @@ fn list<R: WriteRepository + cob::Store>(
         };
 
         if let Some(a) = assignee {
-            if !issue.assigned().any(|v| v == &Did::from(a)) {
+            if !issue.assignees().any(|v| v == &Did::from(a)) {
                 continue;
             }
         }
@@ -544,7 +544,7 @@ fn list<R: WriteRepository + cob::Store>(
 
     for (id, issue) in all {
         let assigned: String = issue
-            .assigned()
+            .assignees()
             .map(|did| {
                 let (alias, _) = Author::new(did.as_key(), profile).labels();
 

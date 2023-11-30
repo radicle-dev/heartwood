@@ -105,7 +105,7 @@ pub(crate) fn issue(id: IssueId, issue: Issue, aliases: &impl AliasStore) -> Val
         "author": author(&issue.author(), aliases.alias(issue.author().id())),
         "title": issue.title(),
         "state": issue.state(),
-        "assignees": issue.assigned().collect::<Vec<_>>(),
+        "assignees": issue.assignees().collect::<Vec<_>>(),
         "discussion": issue
           .comments()
           .map(|(id, comment)| Comment::new(id, comment, aliases))
