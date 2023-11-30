@@ -52,7 +52,7 @@ duplicated. While we're at it, let's add a label.
 
 ```
 $ rad issue assign d185ee1 --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-$ rad issue label d185ee1 -l good-first-issue
+$ rad issue label d185ee1 --add good-first-issue
 ```
 
 It will now show in the list of issues assigned to us, along with the new label.

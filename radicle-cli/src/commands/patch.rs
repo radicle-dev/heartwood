@@ -30,7 +30,6 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
-use nonempty::NonEmpty;
 use radicle::cob::patch::PatchId;
 use radicle::cob::{patch, Label};
 use radicle::prelude::*;
@@ -57,8 +56,7 @@ Usage
     rad patch delete <patch-id> [<option>...]
     rad patch redact <revision-id> [<option>...]
     rad patch assign <revision-id> [--add <did>] [--remove <did>] [<option>...]
-    rad patch label <revision-id> --label <label> [<option>...]
-    rad patch unlabel <revision-id> --label <label> [<option>...]
+    rad patch label <revision-id> [--add <label>] [--remove <label>] [<option>...]
     rad patch ready <patch-id> [--undo] [<option>...]
     rad patch edit <patch-id> [<option>...]
     rad patch set <patch-id> [<option>...]
@@ -79,19 +77,19 @@ Edit options
 
 Assign options
 
-    -a, --add    <did>   Add an assignee to the issue (may be specified multiple times).
-                         Note: --add will take precedence over --remove
+    -a, --add    <did>         Add an assignee to the issue (may be specified multiple times).
+                               Note: --add will take precedence over --remove
 
-    -r, --remove <did>   Remove an assignee from the issue (may be specified multiple times).
-                         Note: --add will take precedence over --remove
+    -r, --remove <did>         Remove an assignee from the issue (may be specified multiple times).
+                               Note: --add will take precedence over --remove
 
 Label options
 
-    -l, --label                Label the patch with the provided label (may be specified multiple times)
+    -a, --add    <label>       Add an assignee to the issue (may be specified multiple times).
+                               Note: --add will take precedence over --remove
 
-Unlabel options
-
-    -l, --label                Remove the provided label from the patch (may be specified multiple times)
+    -r, --remove <label>       Remove an assignee from the issue (may be specified multiple times).
+                               Note: --add will take precedence over --remove
 
 Update options
 
@@ -137,7 +135,6 @@ pub enum OperationName {
     Comment,
     Ready,
     Label,
-    Unlabel,
     #[default]
     List,
     Edit,
@@ -149,6 +146,12 @@ pub enum OperationName {
 pub struct AssignOptions {
     pub add: BTreeSet<Did>,
     pub remove: BTreeSet<Did>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct LabelOptions {
+    pub add: BTreeSet<Label>,
+    pub remove: BTreeSet<Label>,
 }
 
 pub struct Filter(fn(&patch::State) -> bool);
@@ -208,11 +211,7 @@ pub enum Operation {
     },
     Label {
         patch_id: Rev,
-        labels: NonEmpty<Label>,
-    },
-    Unlabel {
-        patch_id: Rev,
-        labels: NonEmpty<Label>,
+        opts: LabelOptions,
     },
     List {
         filter: Filter,
@@ -260,8 +259,8 @@ impl Args for Options {
         let mut undo = false;
         let mut reply_to: Option<Rev> = None;
         let mut checkout_opts = checkout::Options::default();
-        let mut labels = Vec::new();
         let mut assign_opts = AssignOptions::default();
+        let mut label_opts = LabelOptions::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -343,15 +342,21 @@ impl Args for Options {
                         .insert(term::args::did(&parser.value()?)?);
                 }
 
-                // Un/Label options.
-                Short('l') | Long("label")
-                    if matches!(op, Some(OperationName::Label | OperationName::Unlabel)) =>
-                {
+                // Label options.
+                Short('a') | Long("add") if matches!(op, Some(OperationName::Label)) => {
                     let val = parser.value()?;
                     let name = term::args::string(&val);
                     let label = Label::new(name)?;
 
-                    labels.push(label);
+                    label_opts.add.insert(label);
+                }
+
+                Short('r') | Long("remove") if matches!(op, Some(OperationName::Label)) => {
+                    let val = parser.value()?;
+                    let name = term::args::string(&val);
+                    let label = Label::new(name)?;
+
+                    label_opts.remove.insert(label);
                 }
 
                 // List options.
@@ -403,7 +408,6 @@ impl Args for Options {
                     "r" | "redact" => op = Some(OperationName::Redact),
                     "assign" => op = Some(OperationName::Assign),
                     "label" => op = Some(OperationName::Label),
-                    "unlabel" => op = Some(OperationName::Unlabel),
                     "comment" => op = Some(OperationName::Comment),
                     "set" => op = Some(OperationName::Set),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
@@ -426,7 +430,6 @@ impl Args for Options {
                             Some(OperationName::Set),
                             Some(OperationName::Assign),
                             Some(OperationName::Label),
-                            Some(OperationName::Unlabel),
                         ]
                         .contains(&op) =>
                 {
@@ -481,13 +484,7 @@ impl Args for Options {
             },
             OperationName::Label => Operation::Label {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-                labels: NonEmpty::from_vec(labels)
-                    .ok_or_else(|| anyhow!("at least one label must be specified"))?,
-            },
-            OperationName::Unlabel => Operation::Unlabel {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-                labels: NonEmpty::from_vec(labels)
-                    .ok_or_else(|| anyhow!("at least one label must be specified"))?,
+                opts: label_opts,
             },
             OperationName::Set => Operation::Set {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
@@ -602,13 +599,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let patch_id = patch_id.resolve(&repository.backend)?;
             assign::run(&patch_id, add, remove, &profile, &repository)?;
         }
-        Operation::Label { patch_id, labels } => {
+        Operation::Label {
+            patch_id,
+            opts: LabelOptions { add, remove },
+        } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
-            label::add(&patch_id, labels, &profile, &repository)?;
-        }
-        Operation::Unlabel { patch_id, labels } => {
-            let patch_id = patch_id.resolve(&repository.backend)?;
-            label::remove(&patch_id, labels, &profile, &repository)?;
+            label::run(&patch_id, add, remove, &profile, &repository)?;
         }
         Operation::Set { patch_id } => {
             let patches = radicle::cob::patch::Patches::open(&repository)?;

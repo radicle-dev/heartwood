@@ -1,29 +1,13 @@
 use super::*;
 
-use nonempty::NonEmpty;
 use radicle::storage::git::Repository;
 
 use crate::terminal as term;
 
-pub fn add(
+pub fn run(
     patch_id: &PatchId,
-    labels: NonEmpty<Label>,
-    profile: &Profile,
-    repository: &Repository,
-) -> anyhow::Result<()> {
-    let signer = term::signer(profile)?;
-    let mut patches = radicle::cob::patch::Patches::open(repository)?;
-    let Ok(mut patch) = patches.get_mut(patch_id) else {
-        anyhow::bail!("Patch `{patch_id}` not found");
-    };
-    let labels = patch.labels().cloned().chain(labels).collect::<Vec<_>>();
-    patch.label(labels, &signer)?;
-    Ok(())
-}
-
-pub fn remove(
-    patch_id: &PatchId,
-    labels: NonEmpty<Label>,
+    add: BTreeSet<Label>,
+    remove: BTreeSet<Label>,
     profile: &Profile,
     repository: &Repository,
 ) -> anyhow::Result<()> {
@@ -34,7 +18,8 @@ pub fn remove(
     };
     let labels = patch
         .labels()
-        .filter(|&l| !labels.contains(l))
+        .filter(|l| !remove.contains(l))
+        .chain(add.iter())
         .cloned()
         .collect::<Vec<_>>();
     patch.label(labels, &signer)?;

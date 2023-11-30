@@ -93,7 +93,7 @@ We can also label patches as well as assign DIDs to the patch to help
 organise your workflow:
 
 ```
-$ rad patch label 6ff4f09 -l fun
+$ rad patch label 6ff4f09 --add fun
 $ rad patch assign 6ff4f09 --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 $ rad patch show 6ff4f09
 ╭────────────────────────────────────────────────────╮
