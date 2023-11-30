@@ -51,7 +51,7 @@ Let's assign ourselves to this one, this is to ensure work is not
 duplicated. While we're at it, let's add a label.
 
 ```
-$ rad assign d185ee16a00bac874c0bcbc2a8ad80fdce5e1e6 --to did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad issue assign d185ee1 --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 $ rad issue label d185ee1 -l good-first-issue
 ```
 
@@ -69,7 +69,7 @@ $ rad issue list --assigned
 Note: this can always be undone with the `unassign` subcommand.
 
 ```
-$ rad unassign d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61 --from did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad issue assign d185ee1 --remove did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 Great, now we have communicated to the world about our car's defect.

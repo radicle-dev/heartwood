@@ -1,5 +1,7 @@
 #[path = "patch/archive.rs"]
 mod archive;
+#[path = "patch/assign.rs"]
+mod assign;
 #[path = "patch/checkout.rs"]
 mod checkout;
 #[path = "patch/comment.rs"]
@@ -54,8 +56,9 @@ Usage
     rad patch checkout <patch-id> [<option>...]
     rad patch delete <patch-id> [<option>...]
     rad patch redact <revision-id> [<option>...]
-    rad patch label <patch-id> --label <label> [<option>...]
-    rad patch unlabel <patch-id> --label <label> [<option>...]
+    rad patch assign <revision-id> [--add <did>] [--remove <did>] [<option>...]
+    rad patch label <revision-id> --label <label> [<option>...]
+    rad patch unlabel <revision-id> --label <label> [<option>...]
     rad patch ready <patch-id> [--undo] [<option>...]
     rad patch edit <patch-id> [<option>...]
     rad patch set <patch-id> [<option>...]
@@ -73,6 +76,14 @@ Comment options
 Edit options
 
     -m, --message [<string>]   Provide a comment message to the patch or revision (default: prompt)
+
+Assign options
+
+    -a, --add    <did>   Add an assignee to the issue (may be specified multiple times).
+                         Note: --add will take precedence over --remove
+
+    -r, --remove <did>   Remove an assignee from the issue (may be specified multiple times).
+                         Note: --add will take precedence over --remove
 
 Label options
 
@@ -117,6 +128,7 @@ Other options
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub enum OperationName {
+    Assign,
     Show,
     Update,
     Archive,
@@ -131,6 +143,12 @@ pub enum OperationName {
     Edit,
     Redact,
     Set,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct AssignOptions {
+    pub add: BTreeSet<Did>,
+    pub remove: BTreeSet<Did>,
 }
 
 pub struct Filter(fn(&patch::State) -> bool);
@@ -183,6 +201,10 @@ pub enum Operation {
         revision_id: Rev,
         message: Message,
         reply_to: Option<Rev>,
+    },
+    Assign {
+        patch_id: Rev,
+        opts: AssignOptions,
     },
     Label {
         patch_id: Rev,
@@ -239,6 +261,7 @@ impl Args for Options {
         let mut reply_to: Option<Rev> = None;
         let mut checkout_opts = checkout::Options::default();
         let mut labels = Vec::new();
+        let mut assign_opts = AssignOptions::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -309,6 +332,17 @@ impl Args for Options {
                     checkout_opts.name = Some(term::args::refstring("name", val)?);
                 }
 
+                // Assign options.
+                Short('a') | Long("add") if matches!(op, Some(OperationName::Assign)) => {
+                    assign_opts.add.insert(term::args::did(&parser.value()?)?);
+                }
+
+                Short('r') | Long("remove") if matches!(op, Some(OperationName::Assign)) => {
+                    assign_opts
+                        .remove
+                        .insert(term::args::did(&parser.value()?)?);
+                }
+
                 // Un/Label options.
                 Short('l') | Long("label")
                     if matches!(op, Some(OperationName::Label | OperationName::Unlabel)) =>
@@ -367,6 +401,7 @@ impl Args for Options {
                     "y" | "ready" => op = Some(OperationName::Ready),
                     "e" | "edit" => op = Some(OperationName::Edit),
                     "r" | "redact" => op = Some(OperationName::Redact),
+                    "assign" => op = Some(OperationName::Assign),
                     "label" => op = Some(OperationName::Label),
                     "unlabel" => op = Some(OperationName::Unlabel),
                     "comment" => op = Some(OperationName::Comment),
@@ -389,6 +424,7 @@ impl Args for Options {
                             Some(OperationName::Comment),
                             Some(OperationName::Edit),
                             Some(OperationName::Set),
+                            Some(OperationName::Assign),
                             Some(OperationName::Label),
                             Some(OperationName::Unlabel),
                         ]
@@ -438,6 +474,10 @@ impl Args for Options {
             },
             OperationName::Redact => Operation::Redact {
                 revision_id: revision_id.ok_or_else(|| anyhow!("a revision must be provided"))?,
+            },
+            OperationName::Assign => Operation::Assign {
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                opts: assign_opts,
             },
             OperationName::Label => Operation::Label {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
@@ -554,6 +594,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Redact { revision_id } => {
             redact::run(&revision_id, &profile, &repository)?;
+        }
+        Operation::Assign {
+            patch_id,
+            opts: AssignOptions { add, remove },
+        } => {
+            let patch_id = patch_id.resolve(&repository.backend)?;
+            assign::run(&patch_id, add, remove, &profile, &repository)?;
         }
         Operation::Label { patch_id, labels } => {
             let patch_id = patch_id.resolve(&repository.backend)?;

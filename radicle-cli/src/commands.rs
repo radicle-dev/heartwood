@@ -1,5 +1,3 @@
-#[path = "commands/assign.rs"]
-pub mod rad_assign;
 #[path = "commands/auth.rs"]
 pub mod rad_auth;
 #[path = "commands/checkout.rs"]
@@ -46,7 +44,5 @@ pub mod rad_self;
 pub mod rad_sync;
 #[path = "commands/track.rs"]
 pub mod rad_track;
-#[path = "commands/unassign.rs"]
-pub mod rad_unassign;
 #[path = "commands/untrack.rs"]
 pub mod rad_untrack;

@@ -13,7 +13,6 @@ pub const HELP: Help = Help {
 };
 
 const COMMANDS: &[Help] = &[
-    rad_assign::HELP,
     rad_auth::HELP,
     rad_checkout::HELP,
     rad_clone::HELP,
@@ -31,7 +30,6 @@ const COMMANDS: &[Help] = &[
     rad_clean::HELP,
     rad_self::HELP,
     rad_track::HELP,
-    rad_unassign::HELP,
     rad_untrack::HELP,
     rad_remote::HELP,
     rad_sync::HELP,

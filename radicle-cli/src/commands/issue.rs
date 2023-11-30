@@ -1,4 +1,4 @@
-#![allow(clippy::or_fun_call)]
+use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::str::FromStr;
 
@@ -39,31 +39,41 @@ Usage
     rad issue list [--assigned <did>] [--all | --closed | --open | --solved] [<option>...]
     rad issue open [--title <title>] [--description <text>] [--label <label>] [<option>...]
     rad issue react <issue-id> [--emoji <char>] [--to <comment>] [<option>...]
+    rad issue assign <issue-id> [--add <did>] [--remove <did>] [<option>...]
     rad issue label <issue-id> --label <label> [<option>...]
     rad issue unlabel <issue-id> --label <label> [<option>...]
     rad issue comment <issue-id> [--message <message>] [--reply-to <comment-id>] [<option>...]
     rad issue show <issue-id> [<option>...]
     rad issue state <issue-id> [--closed | --open | --solved] [<option>...]
 
+Assign options
+
+    -a, --add    <did>   Add an assignee to the issue (may be specified multiple times).
+                         Note: --add will take precedence over --remove
+
+    -r, --remove <did>   Remove an assignee from the issue (may be specified multiple times).
+                         Note: --add will take precedence over --remove
+
 Label options
 
-    -l, --label       Label the issue with the provided label (may be specified multiple times)
+    -l, --label          Label the issue with the provided label (may be specified multiple times)
 
 Unlabel options
 
-    -l, --label       Remove the provided label from the issue (may be specified multiple times)
+    -l, --label          Remove the provided label from the issue (may be specified multiple times)
 
 Options
 
-    --no-announce     Don't announce issue to peers
-    --header          Show only the issue header, hiding the comments
-    --quiet, -q       Don't print anything
-    --help            Print help
+    --no-announce        Don't announce issue to peers
+    --header             Show only the issue header, hiding the comments
+    --quiet, -q          Don't print anything
+    --help               Print help
 "#,
 };
 
 #[derive(Default, Debug, PartialEq, Eq)]
 pub enum OperationName {
+    Assign,
     Edit,
     Open,
     Comment,
@@ -119,6 +129,10 @@ pub enum Operation {
         reaction: Reaction,
         comment_id: Option<thread::CommentId>,
     },
+    Assign {
+        id: Rev,
+        opts: AssignOptions,
+    },
     Label {
         id: Rev,
         labels: NonEmpty<Label>,
@@ -131,6 +145,12 @@ pub enum Operation {
         assigned: Option<Assigned>,
         state: Option<State>,
     },
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct AssignOptions {
+    pub add: BTreeSet<Did>,
+    pub remove: BTreeSet<Did>,
 }
 
 #[derive(Debug)]
@@ -160,6 +180,7 @@ impl Args for Options {
         let mut reply_to = None;
         let mut announce = true;
         let mut quiet = false;
+        let mut assign_opts = AssignOptions::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -262,6 +283,17 @@ impl Args for Options {
                 Long("no-announce") => {
                     announce = false;
                 }
+
+                // Assign options
+                Short('a') | Long("add") if op == Some(OperationName::Assign) => {
+                    assign_opts.add.insert(term::args::did(&parser.value()?)?);
+                }
+                Short('r') | Long("remove") if op == Some(OperationName::Assign) => {
+                    assign_opts
+                        .remove
+                        .insert(term::args::did(&parser.value()?)?);
+                }
+
                 Long("quiet") | Short('q') => {
                     quiet = true;
                 }
@@ -274,6 +306,7 @@ impl Args for Options {
                     "o" | "open" => op = Some(OperationName::Open),
                     "r" | "react" => op = Some(OperationName::React),
                     "s" | "state" => op = Some(OperationName::State),
+                    "assign" => op = Some(OperationName::Assign),
                     "label" => op = Some(OperationName::Label),
                     "unlabel" => op = Some(OperationName::Unlabel),
 
@@ -322,6 +355,10 @@ impl Args for Options {
             OperationName::Delete => Operation::Delete {
                 id: id.ok_or_else(|| anyhow!("an issue to remove must be provided"))?,
             },
+            OperationName::Assign => Operation::Assign {
+                id: id.ok_or_else(|| anyhow!("an issue to label must be provided"))?,
+                opts: assign_opts,
+            },
             OperationName::Label => Operation::Label {
                 id: id.ok_or_else(|| anyhow!("an issue to label must be provided"))?,
                 labels: NonEmpty::from_vec(labels)
@@ -358,6 +395,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 | Operation::React { .. }
                 | Operation::State { .. }
                 | Operation::Delete { .. }
+                | Operation::Assign { .. }
+                | Operation::Label { .. }
+                | Operation::Unlabel { .. }
         );
 
     let mut node = Node::new(profile.socket());
@@ -444,6 +484,22 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 &signer,
                 &profile,
             )?;
+        }
+        Operation::Assign {
+            id,
+            opts: AssignOptions { add, remove },
+        } => {
+            let id = id.resolve(&repo.backend)?;
+            let Ok(mut issue) = issues.get_mut(&id) else {
+                anyhow::bail!("Issue `{id}` not found");
+            };
+            let assignees = issue
+                .assignees()
+                .filter(|did| !remove.contains(did))
+                .chain(add.iter())
+                .cloned()
+                .collect::<Vec<_>>();
+            issue.assign(assignees, &signer)?;
         }
         Operation::Label { id, labels } => {
             let id = id.resolve(&repo.backend)?;

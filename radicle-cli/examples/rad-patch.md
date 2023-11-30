@@ -89,10 +89,13 @@ $ git branch -vv
   master               f2de534 [rad/master] Second commit
 ```
 
-We also want to label the patch after we've created it:
+We can also label patches as well as assign DIDs to the patch to help
+organise your workflow:
+
 ```
-$ rad patch label 6ff4f09c1b5a81347981f59b02ef43a31a07cdae -l fun
-$ rad patch show 6ff4f09c1b5a81347981f59b02ef43a31a07cdae
+$ rad patch label 6ff4f09 -l fun
+$ rad patch assign 6ff4f09 --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad patch show 6ff4f09
 ╭────────────────────────────────────────────────────╮
 │ Title     Define power requirements                │
 │ Patch     6ff4f09c1b5a81347981f59b02ef43a31a07cdae │
@@ -123,7 +126,7 @@ $ git commit --message "Add README, just for the fun"
 ```
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun"
-✓ Patch 6ff4f09 updated to 873e637a66be511c45f4ef7b04fddc9def8f072c
+✓ Patch 6ff4f09 updated to e0fd9f00b51e10e1ca88868e68e46e859ed371d7
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    3e674d1..27857ec  flux-capacitor-power -> patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae
 ```
@@ -131,13 +134,13 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 And let's leave a quick comment for our team:
 
 ```
-$ rad patch comment 6ff4f09c1b5a81347981f59b02ef43a31a07cdae --message 'I cannot wait to get back to the 90s!'
+$ rad patch comment 6ff4f09 --message 'I cannot wait to get back to the 90s!'
 ╭───────────────────────────────────────╮
-│ z6MknSL…StBU8Vi (you) now efaf6fb     │
+│ z6MknSL…StBU8Vi (you) now f5b4613     │
 │ I cannot wait to get back to the 90s! │
 ╰───────────────────────────────────────╯
-$ rad patch comment 6ff4f09c1b5a81347981f59b02ef43a31a07cdae --message 'My favorite decade!' --reply-to efaf6fb -q
-2cb22a1c87af86c25368c7be9fc385720fd6086f
+$ rad patch comment 6ff4f09 --message 'My favorite decade!' --reply-to f5b4613 -q
+611df66ccb3803b604a59f2efa9a42d72256dd49
 ```
 
 Now, let's checkout the patch that we just created:
@@ -151,7 +154,7 @@ $ rad patch checkout 6ff4f09
 We can also add a review verdict as such:
 
 ```
-$ rad review 6ff4f09c1b5a81347981f59b02ef43a31a07cdae --accept --no-message --no-sync
+$ rad review 6ff4f09 --accept --no-message --no-sync
 ✓ Patch 6ff4f09 accepted
 ```
 
@@ -175,7 +178,7 @@ $ rad patch show 6ff4f09
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by z6MknSL…StBU8Vi (you) now                               │
-│ ↑ updated to 873e637a66be511c45f4ef7b04fddc9def8f072c (27857ec) now │
+│ ↑ updated to e0fd9f00b51e10e1ca88868e68e46e859ed371d7 (27857ec) now │
 │ ✓ accepted by z6MknSL…StBU8Vi (you) now                             │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
@@ -201,7 +204,7 @@ $ rad patch show 6ff4f09
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by z6MknSL…StBU8Vi (you) now                               │
-│ ↑ updated to 873e637a66be511c45f4ef7b04fddc9def8f072c (27857ec) now │
+│ ↑ updated to e0fd9f00b51e10e1ca88868e68e46e859ed371d7 (27857ec) now │
 │ ✓ accepted by z6MknSL…StBU8Vi (you) now                             │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
