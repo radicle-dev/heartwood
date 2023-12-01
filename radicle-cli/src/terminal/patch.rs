@@ -25,9 +25,10 @@ pub enum Error {
 }
 
 /// The user supplied `Patch` description.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Message {
     /// Prompt user to write comment in editor.
+    #[default]
     Edit,
     /// Don't leave a comment.
     Blank,
@@ -94,12 +95,6 @@ impl Message {
         } else {
             *self = Message::Text(arg.into());
         };
-    }
-}
-
-impl Default for Message {
-    fn default() -> Self {
-        Self::Edit
     }
 }
 
