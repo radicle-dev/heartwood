@@ -12,7 +12,7 @@ use radicle::git::raw;
 use radicle::identity::doc;
 use radicle::identity::doc::{DocError, Id};
 use radicle::node;
-use radicle::node::tracking::Scope;
+use radicle::node::policy::Scope;
 use radicle::node::{Handle as _, Node};
 use radicle::prelude::*;
 use radicle::rad;
@@ -39,7 +39,7 @@ Usage
 
 Options
 
-    --scope <scope>   Tracking scope (default: all)
+    --scope <scope>   Follow scope (default: all)
     --no-announce     Do not announce our new refs to the network
     --help            Print help
 
@@ -219,7 +219,7 @@ pub fn clone<G: Signer>(
     // Track.
     if node.seed(id, scope)? {
         term::success!(
-            "Tracking relationship established for {} with scope '{scope}'",
+            "Seeding policy updated for {} with scope '{scope}'",
             term::format::tertiary(id)
         );
     }

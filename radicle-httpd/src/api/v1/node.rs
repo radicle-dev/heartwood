@@ -7,7 +7,7 @@ use hyper::StatusCode;
 use serde_json::json;
 
 use radicle::identity::Id;
-use radicle::node::{tracking, Handle, DEFAULT_TIMEOUT};
+use radicle::node::{policy, Handle, DEFAULT_TIMEOUT};
 use radicle::Node;
 
 use crate::api::error::Error;
@@ -20,7 +20,7 @@ pub fn router(ctx: Context) -> Router {
         .route("/node/policies/repos", get(node_policies_repos_handler))
         .route(
             "/node/policies/repos/:rid",
-            put(node_policies_track_handler).delete(node_policies_untrack_handler),
+            put(node_policies_seed_handler).delete(node_policies_unseed_handler),
         )
         .with_state(ctx)
 }
@@ -57,7 +57,7 @@ async fn node_policies_repos_handler(State(ctx): State<Context>) -> impl IntoRes
     let tracking = ctx.profile.tracking()?;
     let mut repos = Vec::new();
 
-    for tracking::Repo { id, scope, policy } in tracking.repo_policies()? {
+    for policy::Repo { id, scope, policy } in tracking.repo_policies()? {
         repos.push(json!({
             "id": id,
             "scope": scope,
@@ -70,7 +70,7 @@ async fn node_policies_repos_handler(State(ctx): State<Context>) -> impl IntoRes
 
 /// Track a new repo.
 /// `PUT /node/policies/repos/:rid`
-async fn node_policies_track_handler(
+async fn node_policies_seed_handler(
     State(ctx): State<Context>,
     AuthBearer(token): AuthBearer,
     Path(project): Path<Id>,
@@ -78,7 +78,8 @@ async fn node_policies_track_handler(
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
     let mut node = Node::new(ctx.profile.socket());
-    node.track_repo(project, qs.scope.unwrap_or_default())?;
+    node.seed(project, qs.scope.unwrap_or_default())?;
+
     if let Some(from) = qs.from {
         let results = node.fetch(project, from, DEFAULT_TIMEOUT)?;
         return Ok::<_, Error>((
@@ -86,20 +87,19 @@ async fn node_policies_track_handler(
             Json(json!({ "success": true, "results": results })),
         ));
     }
-
     Ok::<_, Error>((StatusCode::OK, Json(json!({ "success": true }))))
 }
 
 /// Untrack a repo.
 /// `DELETE /node/policies/repos/:rid`
-async fn node_policies_untrack_handler(
+async fn node_policies_unseed_handler(
     State(ctx): State<Context>,
     AuthBearer(token): AuthBearer,
     Path(project): Path<Id>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
     let mut node = Node::new(ctx.profile.socket());
-    node.untrack_repo(project)?;
+    node.unseed(project)?;
 
     Ok::<_, Error>((StatusCode::OK, Json(json!({ "success": true }))))
 }

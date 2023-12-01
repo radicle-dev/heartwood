@@ -9,10 +9,10 @@ use crate::crypto::PublicKey;
 use crate::prelude::{Id, NodeId};
 use crate::storage::{Namespaces, ReadRepository as _, ReadStorage, RepositoryError};
 
-pub use crate::node::tracking::store;
-pub use crate::node::tracking::store::Config as Store;
-pub use crate::node::tracking::store::Error;
-pub use crate::node::tracking::{Alias, Node, Policy, Repo, Scope};
+pub use crate::node::policy::store;
+pub use crate::node::policy::store::Config as Store;
+pub use crate::node::policy::store::Error;
+pub use crate::node::policy::{Alias, Node, Policy, Repo, Scope};
 
 #[derive(Debug, Error)]
 pub enum NamespacesError {

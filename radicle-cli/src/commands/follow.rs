@@ -2,8 +2,7 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
-use radicle::node::tracking::Alias;
-use radicle::node::{Handle, NodeId};
+use radicle::node::{Alias, Handle, NodeId};
 use radicle::{prelude::*, Node};
 
 use crate::terminal as term;

@@ -45,7 +45,7 @@ use crate::runtime::Emitter;
 use crate::service::gossip::Store as _;
 use crate::service::message::{Announcement, AnnouncementMessage, Info, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
-use crate::service::tracking::{store::Write, Scope};
+use crate::service::policy::{store::Write, Policy, Scope};
 use crate::storage;
 use crate::storage::refs::RefsAt;
 use crate::storage::ReadRepository;
@@ -59,12 +59,12 @@ pub use crate::node::{config::Network, Config, NodeId};
 pub use crate::service::message::{Message, ZeroBytes};
 pub use crate::service::session::Session;
 
-pub use radicle::node::tracking::config as tracking;
+pub use radicle::node::policy::config as policy;
 
 use self::io::Outbox;
 use self::limitter::RateLimiter;
 use self::message::{InventoryAnnouncement, RefsStatus};
-use self::tracking::NamespacesError;
+use self::policy::NamespacesError;
 
 /// How often to run the "idle" task.
 pub const IDLE_INTERVAL: LocalDuration = LocalDuration::from_secs(30);
@@ -140,7 +140,7 @@ pub enum Error {
     #[error(transparent)]
     Seeds(#[from] seed::Error),
     #[error(transparent)]
-    Tracking(#[from] tracking::Error),
+    Tracking(#[from] policy::Error),
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
     #[error("namespaces error: {0}")]
@@ -213,7 +213,7 @@ pub enum CommandError {
     #[error(transparent)]
     Routing(#[from] routing::Error),
     #[error(transparent)]
-    Tracking(#[from] tracking::Error),
+    Tracking(#[from] policy::Error),
 }
 
 /// Error returned by [`Service::try_fetch`].
@@ -305,7 +305,7 @@ pub struct Service<D, S, G> {
     /// Node database.
     db: Stores<D>,
     /// Tracking policy configuration.
-    tracking: tracking::Config<Write>,
+    tracking: policy::Config<Write>,
     /// Peer sessions, currently or recently connected.
     sessions: Sessions,
     /// Clock. Tells the time.
@@ -364,7 +364,7 @@ where
         clock: LocalTime,
         db: Stores<D>,
         storage: S,
-        tracking: tracking::Config<Write>,
+        tracking: policy::Config<Write>,
         signer: G,
         rng: Rng,
         node: NodeAnnouncement,
@@ -404,7 +404,7 @@ where
 
     /// Track a repository.
     /// Returns whether or not the tracking policy was updated.
-    pub fn track_repo(&mut self, id: &Id, scope: Scope) -> Result<bool, tracking::Error> {
+    pub fn track_repo(&mut self, id: &Id, scope: Scope) -> Result<bool, policy::Error> {
         let updated = self.tracking.track_repo(id, scope)?;
         self.filter.insert(id);
 
@@ -415,7 +415,7 @@ where
     /// Returns whether or not the tracking policy was updated.
     /// Note that when untracking, we don't announce anything to the network. This is because by
     /// simply not announcing it anymore, it will eventually be pruned by nodes.
-    pub fn untrack_repo(&mut self, id: &Id) -> Result<bool, tracking::Error> {
+    pub fn untrack_repo(&mut self, id: &Id) -> Result<bool, policy::Error> {
         let updated = self.tracking.untrack_repo(id)?;
         // Nb. This is potentially slow if we have lots of projects. We should probably
         // only re-compute the filter when we've untracked a certain amount of projects
@@ -425,13 +425,13 @@ where
         self.filter = Filter::new(
             self.tracking
                 .repo_policies()?
-                .filter_map(|t| (t.policy == tracking::Policy::Allow).then_some(t.id)),
+                .filter_map(|t| (t.policy == Policy::Allow).then_some(t.id)),
         );
         Ok(updated)
     }
 
     /// Check whether we are tracking a certain repository.
-    pub fn is_tracking(&self, id: &Id) -> Result<bool, tracking::Error> {
+    pub fn is_tracking(&self, id: &Id) -> Result<bool, policy::Error> {
         self.tracking.is_repo_tracked(id)
     }
 
@@ -464,7 +464,7 @@ where
     }
 
     /// Get the tracking policy.
-    pub fn tracking(&self) -> &tracking::Config<Write> {
+    pub fn tracking(&self) -> &policy::Config<Write> {
         &self.tracking
     }
 
@@ -570,7 +570,7 @@ where
         self.filter = Filter::new(
             self.tracking
                 .repo_policies()?
-                .filter_map(|t| (t.policy == tracking::Policy::Allow).then_some(t.id)),
+                .filter_map(|t| (t.policy == Policy::Allow).then_some(t.id)),
         );
         // Try to establish some connections.
         self.maintain_connections();
@@ -1266,7 +1266,7 @@ where
                     "Service::handle_announcement: error accessing repo tracking configuration",
                 );
 
-                if repo_entry.policy == tracking::Policy::Allow {
+                if repo_entry.policy == Policy::Allow {
                     let (fresh, stale) = match self.refs_status_of(message, &repo_entry.scope) {
                         Ok(RefsStatus { fresh, stale }) => (fresh, stale),
                         Err(e) => {
@@ -1411,7 +1411,7 @@ where
     fn refs_status_of(
         &self,
         message: &RefsAnnouncement,
-        scope: &tracking::Scope,
+        scope: &policy::Scope,
     ) -> Result<RefsStatus, Error> {
         let mut refs = message.refs_status(&self.storage)?;
 
@@ -1423,8 +1423,8 @@ where
 
         // Second, check the scope.
         match scope {
-            tracking::Scope::All => Ok(refs),
-            tracking::Scope::Followed => {
+            policy::Scope::All => Ok(refs),
+            policy::Scope::Followed => {
                 match self.tracking.namespaces_for(&self.storage, &message.rid) {
                     Ok(Namespaces::All) => Ok(refs),
                     Ok(Namespaces::Followed(mut followed)) => {
@@ -1817,7 +1817,7 @@ where
 
     /// Return a new filter object, based on our tracking policy.
     fn filter(&self) -> Filter {
-        if self.config.policy == tracking::Policy::Allow {
+        if self.config.policy == Policy::Allow {
             // TODO: Remove bits for blocked repos.
             Filter::default()
         } else {
@@ -1920,7 +1920,7 @@ where
         let missing = self
             .tracking
             .repo_policies()?
-            .filter_map(|t| (t.policy == tracking::Policy::Allow).then_some(t.id))
+            .filter_map(|t| (t.policy == Policy::Allow).then_some(t.id))
             .filter(|rid| !inventory.contains(rid));
 
         for rid in missing {

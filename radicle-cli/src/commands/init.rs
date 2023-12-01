@@ -12,7 +12,7 @@ use serde_json as json;
 use radicle::crypto::{ssh, Verified};
 use radicle::git::RefString;
 use radicle::identity::Visibility;
-use radicle::node::tracking::Scope;
+use radicle::node::policy::Scope;
 use radicle::node::{Handle, NodeId};
 use radicle::prelude::Doc;
 use radicle::{profile, Node};
@@ -37,7 +37,7 @@ Options
         --name <string>            Name of the project
         --description <string>     Description of the project
         --default-branch <name>    The default branch of the project
-        --scope <scope>            Tracking scope (default: all)
+        --scope <scope>            Repository follow scope (default: all)
         --private                  Set repository visibility to *private*
         --public                   Set repository visibility to *public*
     -u, --set-upstream             Setup the upstream of the default branch

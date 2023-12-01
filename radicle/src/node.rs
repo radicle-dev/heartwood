@@ -4,9 +4,9 @@ pub mod address;
 pub mod config;
 pub mod db;
 pub mod events;
+pub mod policy;
 pub mod routing;
 pub mod seed;
-pub mod tracking;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::io::{BufRead, BufReader};
@@ -414,7 +414,7 @@ pub enum Command {
 
     /// Seed the given repository.
     #[serde(rename_all = "camelCase")]
-    Seed { rid: Id, scope: tracking::Scope },
+    Seed { rid: Id, scope: policy::Scope },
 
     /// Unseed the given repository.
     #[serde(rename_all = "camelCase")]
@@ -777,7 +777,7 @@ pub trait Handle: Clone + Sync + Send {
     ) -> Result<FetchResult, Self::Error>;
     /// Start seeding the given repo. May update the scope. Does nothing if the
     /// repo is already seeded.
-    fn seed(&mut self, id: Id, scope: tracking::Scope) -> Result<bool, Self::Error>;
+    fn seed(&mut self, id: Id, scope: policy::Scope) -> Result<bool, Self::Error>;
     /// Start following the given peer.
     fn follow(&mut self, id: NodeId, alias: Option<Alias>) -> Result<bool, Self::Error>;
     /// Un-seed the given repo and delete it from storage.
@@ -988,7 +988,7 @@ impl Handle for Node {
         Ok(response.updated)
     }
 
-    fn seed(&mut self, rid: Id, scope: tracking::Scope) -> Result<bool, Error> {
+    fn seed(&mut self, rid: Id, scope: policy::Scope) -> Result<bool, Error> {
         let mut line = self.call::<Success>(Command::Seed { rid, scope }, DEFAULT_TIMEOUT)?;
         let response = line.next().ok_or(Error::EmptyResponse)??;
 

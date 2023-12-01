@@ -1,5 +1,5 @@
 use radicle::crypto::PublicKey;
-use radicle::node::{tracking, AliasStore};
+use radicle::node::{policy, AliasStore};
 use radicle::prelude::Did;
 use radicle::Profile;
 
@@ -16,7 +16,7 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
     ]);
     t.divider();
 
-    for tracking::Repo { id, scope, policy } in store.repo_policies()? {
+    for policy::Repo { id, scope, policy } in store.repo_policies()? {
         let id = id.to_string();
         let scope = scope.to_string();
         let policy = policy.to_string();
@@ -43,7 +43,7 @@ pub fn following(profile: &Profile) -> anyhow::Result<()> {
     ]);
     t.divider();
 
-    for tracking::Node { id, alias, policy } in store.node_policies()? {
+    for policy::Node { id, alias, policy } in store.node_policies()? {
         t.push([
             term::format::highlight(Did::from(id).to_string()),
             match alias {

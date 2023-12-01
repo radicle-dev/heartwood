@@ -2,7 +2,7 @@ use radicle::prelude::*;
 
 use crate::git;
 use radicle::git::RefStr;
-use radicle::node::tracking::Scope;
+use radicle::node::policy::Scope;
 use radicle::node::{Handle, NodeId};
 use radicle::Node;
 

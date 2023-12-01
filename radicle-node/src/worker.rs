@@ -18,7 +18,8 @@ use radicle::{crypto, Storage};
 use radicle_fetch::FetchLimit;
 
 use crate::runtime::{thread, Handle};
-use crate::service::tracking;
+use crate::service::policy;
+use crate::service::policy::Policy;
 use crate::wire::StreamId;
 
 pub use channels::{ChannelEvent, Channels};
@@ -49,7 +50,7 @@ pub enum FetchError {
     #[error(transparent)]
     Storage(#[from] radicle::storage::Error),
     #[error(transparent)]
-    TrackingConfig(#[from] radicle::node::tracking::store::Error),
+    TrackingConfig(#[from] radicle::node::policy::store::Error),
     #[error(transparent)]
     Tracked(#[from] radicle_fetch::tracking::error::Tracking),
     #[error(transparent)]
@@ -152,9 +153,9 @@ pub struct TaskResult {
 #[derive(Debug, Clone)]
 pub struct FetchConfig {
     /// Default policy, if a policy for a specific node or repository was not found.
-    pub policy: tracking::Policy,
+    pub policy: Policy,
     /// Default scope, if a scope for a specific repository was not found.
-    pub scope: tracking::Scope,
+    pub scope: policy::Scope,
     /// Path to the tracking database.
     pub tracking_db: PathBuf,
     /// Data limits when fetching from a remote.
@@ -282,12 +283,11 @@ impl Worker {
             local,
             expiry,
         } = &self.fetch_config;
-        let tracking =
-            tracking::Config::new(*policy, *scope, tracking::Store::reader(tracking_db)?);
+        let policies = policy::Config::new(*policy, *scope, policy::Store::reader(tracking_db)?);
         // N.b. if the `rid` is blocked this will return an error, so
         // we won't continue with any further set up of the fetch.
-        let tracked = radicle_fetch::Tracked::from_config(rid, &tracking)?;
-        let blocked = radicle_fetch::BlockList::from_config(&tracking)?;
+        let tracked = radicle_fetch::Tracked::from_config(rid, &policies)?;
+        let blocked = radicle_fetch::BlockList::from_config(&policies)?;
 
         let handle = fetch::Handle::new(rid, *local, &self.storage, tracked, blocked, channels)?;
         let result = handle.fetch(rid, &self.storage, *limit, remote, refs_at)?;

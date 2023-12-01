@@ -20,7 +20,7 @@ To push changes, run `git push`.
 
 ``` ~bob
 $ rad clone rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK
-✓ Tracking relationship established for rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK with scope 'all'
+✓ Seeding policy updated for rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK with scope 'all'
 ✓ Fetching rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK from z6MknSL…StBU8Vi..
 ✓ Forking under z6Mkt67…v4N1tRk..
 ✓ Creating checkout in ./heartwood..

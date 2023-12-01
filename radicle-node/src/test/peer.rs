@@ -24,7 +24,7 @@ use crate::runtime::Emitter;
 use crate::service;
 use crate::service::io::Io;
 use crate::service::message::*;
-use crate::service::tracking::{Policy, Scope};
+use crate::service::policy::{Policy, Scope};
 use crate::service::*;
 use crate::storage::git::transport::remote;
 use crate::storage::Inventory;
@@ -162,8 +162,8 @@ where
         storage: S,
         mut config: Config<G>,
     ) -> Self {
-        let tracking = tracking::Store::<tracking::store::Write>::memory().unwrap();
-        let mut tracking = tracking::Config::new(config.policy, config.scope, tracking);
+        let tracking = policy::Store::<policy::store::Write>::memory().unwrap();
+        let mut tracking = policy::Config::new(config.policy, config.scope, tracking);
         let id = *config.signer.public_key();
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, config.rng.u16(..));

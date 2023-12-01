@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 
 use radicle::crypto::PublicKey;
-use radicle::node::tracking::config::Config;
-use radicle::node::tracking::store::Read;
+use radicle::node::policy::config::Config;
+use radicle::node::policy::store::Read;
 use radicle::prelude::Id;
 
-pub use radicle::node::tracking::{Policy, Scope};
+pub use radicle::node::policy::{Policy, Scope};
 
 #[derive(Clone, Debug)]
 pub enum Tracked {
@@ -70,14 +70,14 @@ impl BlockList {
 }
 
 pub mod error {
-    use radicle::node::tracking;
+    use radicle::node::policy;
     use radicle::prelude::Id;
     use radicle::storage;
     use thiserror::Error;
 
     #[derive(Debug, Error)]
     #[error(transparent)]
-    pub struct Blocked(#[from] tracking::config::Error);
+    pub struct Blocked(#[from] policy::config::Error);
 
     #[derive(Debug, Error)]
     pub enum Tracking {
@@ -85,7 +85,7 @@ pub mod error {
         FailedPolicy {
             rid: Id,
             #[source]
-            err: tracking::store::Error,
+            err: policy::store::Error,
         },
         #[error("cannot fetch {rid} as it is not tracked")]
         BlockedPolicy { rid: Id },
@@ -93,7 +93,7 @@ pub mod error {
         FailedNodes {
             rid: Id,
             #[source]
-            err: tracking::store::Error,
+            err: policy::store::Error,
         },
 
         #[error(transparent)]

@@ -3,7 +3,7 @@ automatically connect to the necessary seeds.
 
 ```
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Tracking relationship established for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
+✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
 ✓ Connecting to z6MknSL…StBU8Vi@[..]
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
 ✓ Connecting to z6Mkt67…v4N1tRk@[..]

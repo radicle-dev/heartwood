@@ -9,7 +9,7 @@ use chrono::prelude::*;
 
 use radicle::identity::Id;
 use radicle::identity::Identity;
-use radicle::node::tracking::Policy;
+use radicle::node::policy::Policy;
 use radicle::node::AliasStore as _;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, ReadStorage};

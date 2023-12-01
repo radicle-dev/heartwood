@@ -14,7 +14,7 @@ use radicle::storage::{ReadStorage, RemoteRepository};
 use radicle::test::fixtures;
 
 use radicle_cli_test::TestFormula;
-use radicle_node::service::tracking::{Policy, Scope};
+use radicle_node::service::policy::{Policy, Scope};
 use radicle_node::service::Event;
 use radicle_node::test::environment::{Config, Environment};
 #[allow(unused_imports)]

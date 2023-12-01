@@ -26,7 +26,7 @@ use crate::control;
 use crate::crypto::Signer;
 use crate::node::{routing, NodeId};
 use crate::service::message::NodeAnnouncement;
-use crate::service::{gossip, tracking, Event};
+use crate::service::{gossip, policy, Event};
 use crate::wire::Wire;
 use crate::wire::{self, Decode};
 use crate::worker;
@@ -46,7 +46,7 @@ pub enum Error {
     Database(#[from] node::db::Error),
     /// A tracking database error.
     #[error("tracking database error: {0}")]
-    Tracking(#[from] tracking::Error),
+    Tracking(#[from] policy::Error),
     /// A gossip database error.
     #[error("gossip database error: {0}")]
     Gossip(#[from] gossip::Error),
@@ -147,7 +147,7 @@ impl Runtime {
 
         log::info!(target: "node", "Opening tracking policy configuration..");
         let tracking = home.tracking_mut()?;
-        let tracking = tracking::Config::new(policy, scope, tracking);
+        let tracking = policy::Config::new(policy, scope, tracking);
 
         log::info!(target: "node", "Default tracking policy set to '{}'", &policy);
         log::info!(target: "node", "Initializing service ({:?})..", network);

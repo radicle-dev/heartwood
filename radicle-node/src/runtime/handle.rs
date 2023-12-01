@@ -14,7 +14,7 @@ use crate::node::{Alias, Command, FetchResult};
 use crate::profile::Home;
 use crate::runtime::Emitter;
 use crate::service;
-use crate::service::tracking;
+use crate::service::policy;
 use crate::service::NodeId;
 use crate::service::{CommandError, Config, QueryState};
 use crate::service::{Event, Events};
@@ -213,7 +213,7 @@ impl radicle::node::Handle for Handle {
         receiver.recv().map_err(Error::from)
     }
 
-    fn seed(&mut self, id: Id, scope: tracking::Scope) -> Result<bool, Error> {
+    fn seed(&mut self, id: Id, scope: policy::Scope) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::TrackRepo(id, scope, sender))?;
         receiver.recv().map_err(Error::from)

@@ -6,7 +6,7 @@ use cyphernet::addr::PeerAddr;
 use localtime::LocalDuration;
 
 use crate::node;
-use crate::node::tracking::{Policy, Scope};
+use crate::node::policy::{Policy, Scope};
 use crate::node::{Address, Alias, NodeId};
 
 /// Target number of peers to maintain connections to.

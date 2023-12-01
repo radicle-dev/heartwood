@@ -9,7 +9,7 @@ use radicle::storage::refs::RefsAt;
 use crate::identity::Id;
 use crate::node::{Alias, Config, ConnectOptions, ConnectResult, Event, FetchResult, Seeds};
 use crate::runtime::HandleError;
-use crate::service::tracking;
+use crate::service::policy;
 use crate::service::NodeId;
 
 #[derive(Default, Clone)]
@@ -60,7 +60,7 @@ impl radicle::node::Handle for Handle {
         })
     }
 
-    fn seed(&mut self, id: Id, _scope: tracking::Scope) -> Result<bool, Self::Error> {
+    fn seed(&mut self, id: Id, _scope: policy::Scope) -> Result<bool, Self::Error> {
         Ok(self.tracking_repos.lock().unwrap().insert(id))
     }
 

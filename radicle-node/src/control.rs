@@ -228,7 +228,7 @@ mod tests {
     use crate::identity::Id;
     use crate::node::Handle;
     use crate::node::{Alias, Node, NodeId};
-    use crate::service::tracking::Scope;
+    use crate::service::policy::Scope;
     use crate::test;
 
     #[test]

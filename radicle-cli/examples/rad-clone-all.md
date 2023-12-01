@@ -1,6 +1,6 @@
 ```
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope all
-✓ Tracking relationship established for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
+✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
 ✓ Forking under z6Mkux1…nVhib7Z..
 ✓ Creating checkout in ./heartwood..

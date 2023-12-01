@@ -3,7 +3,7 @@ use std::time;
 
 use anyhow::anyhow;
 
-use radicle::node::tracking::Scope;
+use radicle::node::policy::Scope;
 use radicle::node::Handle;
 use radicle::{prelude::*, Node};
 

@@ -1,5 +1,5 @@
 --
--- Service configuration schema.
+-- Node policy database.
 --
 
 -- Node follow policies.

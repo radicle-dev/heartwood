@@ -72,7 +72,7 @@ pub enum Error {
 
     /// Tracking store error.
     #[error(transparent)]
-    TrackingStore(#[from] radicle::node::tracking::store::Error),
+    TrackingStore(#[from] radicle::node::policy::store::Error),
 
     /// Node database error.
     #[error(transparent)]

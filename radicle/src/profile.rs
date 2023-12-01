@@ -20,7 +20,7 @@ use thiserror::Error;
 use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
-use crate::node::{tracking, Alias, AliasStore};
+use crate::node::{policy, Alias, AliasStore};
 use crate::prelude::Did;
 use crate::prelude::{Id, NodeId};
 use crate::storage::git::transport;
@@ -146,7 +146,7 @@ pub enum Error {
     #[error("profile key `{0}` is not registered with ssh-agent")]
     KeyNotRegistered(PublicKey),
     #[error(transparent)]
-    TrackingStore(#[from] node::tracking::store::Error),
+    TrackingStore(#[from] node::policy::store::Error),
     #[error(transparent)]
     DatabaseStore(#[from] node::db::Error),
 }
@@ -342,17 +342,17 @@ impl Profile {
     }
 
     /// Return a read-only handle to the tracking configuration of the node.
-    pub fn tracking(&self) -> Result<tracking::store::ConfigReader, tracking::store::Error> {
+    pub fn tracking(&self) -> Result<policy::store::ConfigReader, policy::store::Error> {
         let path = self.home.node().join(node::TRACKING_DB_FILE);
-        let config = tracking::store::Config::reader(path)?;
+        let config = policy::store::Config::reader(path)?;
 
         Ok(config)
     }
 
     /// Return a read-write handle to the tracking configuration of the node.
-    pub fn tracking_mut(&self) -> Result<tracking::store::ConfigWriter, tracking::store::Error> {
+    pub fn tracking_mut(&self) -> Result<policy::store::ConfigWriter, policy::store::Error> {
         let path = self.home.node().join(node::TRACKING_DB_FILE);
-        let config = tracking::store::Config::open(path)?;
+        let config = policy::store::Config::open(path)?;
 
         Ok(config)
     }
@@ -388,7 +388,7 @@ impl std::ops::DerefMut for Profile {
 /// Holds multiple alias stores, and will try
 /// them one by one when asking for an alias.
 pub struct Aliases {
-    tracking: Option<tracking::store::ConfigReader>,
+    tracking: Option<policy::store::ConfigReader>,
     db: Option<node::Database>,
 }
 
@@ -488,17 +488,17 @@ impl Home {
     }
 
     /// Return a read-only handle to the tracking configuration of the node.
-    pub fn tracking(&self) -> Result<tracking::store::ConfigReader, tracking::store::Error> {
+    pub fn tracking(&self) -> Result<policy::store::ConfigReader, policy::store::Error> {
         let path = self.node().join(node::TRACKING_DB_FILE);
-        let config = tracking::store::Config::reader(path)?;
+        let config = policy::store::Config::reader(path)?;
 
         Ok(config)
     }
 
     /// Return a read-write handle to the tracking configuration of the node.
-    pub fn tracking_mut(&self) -> Result<tracking::store::ConfigWriter, tracking::store::Error> {
+    pub fn tracking_mut(&self) -> Result<policy::store::ConfigWriter, policy::store::Error> {
         let path = self.node().join(node::TRACKING_DB_FILE);
-        let config = tracking::store::Config::open(path)?;
+        let config = policy::store::Config::open(path)?;
 
         Ok(config)
     }

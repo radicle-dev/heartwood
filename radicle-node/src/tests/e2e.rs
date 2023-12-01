@@ -13,7 +13,7 @@ use radicle::{assert_matches, rad};
 use crate::node::config::Limits;
 use crate::node::{Config, ConnectOptions};
 use crate::service;
-use crate::service::tracking::Scope;
+use crate::service::policy::Scope;
 use crate::storage::git::transport;
 use crate::test::environment::{converge, Environment, Node};
 use crate::test::logger;

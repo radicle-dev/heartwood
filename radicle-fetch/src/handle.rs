@@ -86,7 +86,7 @@ impl<S> Handle<S> {
 pub mod error {
     use std::io;
 
-    use radicle::node::tracking;
+    use radicle::node::policy;
     use radicle::prelude::Id;
     use radicle::{git, storage};
     use thiserror::Error;
@@ -96,7 +96,7 @@ pub mod error {
         #[error(transparent)]
         Io(#[from] io::Error),
         #[error(transparent)]
-        Tracking(#[from] tracking::config::Error),
+        Tracking(#[from] policy::config::Error),
     }
 
     #[derive(Debug, Error)]
@@ -105,7 +105,7 @@ pub mod error {
         FailedPolicy {
             rid: Id,
             #[source]
-            err: tracking::store::Error,
+            err: policy::store::Error,
         },
         #[error("cannot fetch {rid} as it is not tracked")]
         BlockedPolicy { rid: Id },
@@ -113,7 +113,7 @@ pub mod error {
         FailedNodes {
             rid: Id,
             #[source]
-            err: tracking::store::Error,
+            err: policy::store::Error,
         },
 
         #[error(transparent)]

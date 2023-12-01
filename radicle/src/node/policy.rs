@@ -11,6 +11,7 @@ use crate::prelude::Id;
 
 pub use super::{Alias, NodeId};
 
+/// Repository seeding policy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Repo {
     pub id: Id,
@@ -18,6 +19,7 @@ pub struct Repo {
     pub policy: Policy,
 }
 
+/// Node following policy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Node {
     pub id: NodeId,

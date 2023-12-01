@@ -18,8 +18,8 @@ use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git;
 use radicle::git::refname;
 use radicle::identity::{Id, Visibility};
+use radicle::node::policy::store as policy;
 use radicle::node::routing::Store;
-use radicle::node::tracking::store as tracking;
 use radicle::node::Database;
 use radicle::node::{Alias, TRACKING_DB_FILE};
 use radicle::node::{ConnectOptions, Handle as _};
@@ -82,7 +82,7 @@ impl Environment {
         let signer = MemorySigner::load(&profile.keystore, None).unwrap();
 
         let tracking_db = profile.home.node().join(TRACKING_DB_FILE);
-        let tracking = tracking::Config::open(tracking_db).unwrap();
+        let tracking = policy::Config::open(tracking_db).unwrap();
         let db = profile.database_mut().unwrap();
         let db = service::Stores::from(db);
 
@@ -122,7 +122,7 @@ impl Environment {
         )
         .unwrap();
 
-        tracking::Config::open(tracking_db).unwrap();
+        policy::Config::open(tracking_db).unwrap();
         home.database_mut().unwrap(); // Just create the database.
 
         transport::local::register(storage.clone());
@@ -149,7 +149,7 @@ pub struct Node<G> {
     pub storage: Storage,
     pub config: Config,
     pub db: service::Stores<Database>,
-    pub tracking: tracking::Config<tracking::Write>,
+    pub tracking: policy::Config<policy::Write>,
 }
 
 /// Handle to a running node.
@@ -420,7 +420,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
 
         assert!(self
             .tracking
-            .track_repo(&id, node::tracking::Scope::Followed)
+            .track_repo(&id, node::policy::Scope::Followed)
             .unwrap());
 
         log::debug!(
