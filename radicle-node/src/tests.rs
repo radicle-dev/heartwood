@@ -742,7 +742,7 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
     let bob_inv = bob.storage().inventory().unwrap();
     let rid = bob_inv[0];
 
-    alice.track_repo(&rid, tracking::Scope::Trusted).unwrap();
+    alice.track_repo(&rid, tracking::Scope::Followed).unwrap();
     alice.connect_to(&bob);
 
     // Alice receives Bob's refs.
@@ -755,11 +755,11 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
 /// Alice and Bob both have the same repo.
 ///
 /// First, Alice will not fetch from Bob's `RefsAnnouncement` as Alice does not
-/// track Bob as `Trusted`.
+/// track Bob as `Followed`.
 ///
-/// Later Alice tracks Bob, and will be able to fetch Bob's refs.
+/// Later Alice follows Bob, and will be able to fetch Bob's refs.
 #[test]
-fn test_refs_announcement_trusted() {
+fn test_refs_announcement_followed() {
     logger::init(log::Level::Debug);
 
     // Create MockStorage for Alice and Bob. Both will have repo with `rid`.
@@ -796,9 +796,9 @@ fn test_refs_announcement_trusted() {
         },
     );
 
-    // Alice uses Scope::Trusted, and did not track Bob yet.
+    // Alice uses Scope::Followed, and did not track Bob yet.
     alice.connect_to(&bob);
-    alice.track_repo(&rid, tracking::Scope::Trusted).unwrap();
+    alice.track_repo(&rid, tracking::Scope::Followed).unwrap();
 
     // Alice receives Bob's refs
     alice.receive(bob.id(), bob.refs_announcement(rid));
@@ -1538,14 +1538,14 @@ fn test_push_and_pull() {
     assert!(eve.get(proj_id).unwrap().is_none());
     assert!(bob.get(proj_id).unwrap().is_none());
 
-    // Bob tracks Alice's project.
+    // Bob seeds Alice's project.
     let (sender, _) = chan::bounded(1);
     bob.command(service::Command::TrackRepo(
         proj_id,
         tracking::Scope::default(),
         sender,
     ));
-    // Eve tracks Alice's project.
+    // Eve seeds Alice's project.
     let (sender, _) = chan::bounded(1);
     eve.command(service::Command::TrackRepo(
         proj_id,

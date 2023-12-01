@@ -37,7 +37,7 @@ $ rad config
       }
     },
     "policy": "block",
-    "scope": "trusted"
+    "scope": "followed"
   }
 }
 ```

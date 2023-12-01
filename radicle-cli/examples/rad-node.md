@@ -34,11 +34,11 @@ repository that was already created:
 
 ```
 $ rad node seeding
-╭──────────────────────────────────────────────────────╮
-│ RID                                 Scope     Policy │
-├──────────────────────────────────────────────────────┤
-│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   trusted   track  │
-╰──────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────╮
+│ RID                                 Scope      Policy │
+├───────────────────────────────────────────────────────┤
+│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   followed   allow  │
+╰───────────────────────────────────────────────────────╯
 ```
 
 If we wish to see which nodes we are following:
@@ -48,7 +48,7 @@ $ rad node following
 ╭───────────────────────────────────────────────────────────────────────────╮
 │ DID                                                        Alias   Policy │
 ├───────────────────────────────────────────────────────────────────────────┤
-│ did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   Bob     track  │
+│ did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   Bob     allow  │
 ╰───────────────────────────────────────────────────────────────────────────╯
 ```
 

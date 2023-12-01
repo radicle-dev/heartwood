@@ -2,8 +2,8 @@ To create a local copy of a repository on the radicle network, we use the
 `clone` command, followed by the identifier or *RID* of the repository:
 
 ```
-$ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope trusted
-✓ Tracking relationship established for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'trusted'
+$ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope followed
+✓ Tracking relationship established for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'followed'
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
 ✓ Forking under z6Mkt67…v4N1tRk..
 ✓ Creating checkout in ./heartwood..

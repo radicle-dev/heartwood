@@ -13,7 +13,7 @@
 //!      delegate data for the repository.
 //!   2. [`SpecialRefs`]: fetches the special references, `rad/id` and
 //!      `rad/sigrefs`, for each configured namespace, i.e. tracked
-//!      and delegate peers if the scope is trusted and all peers is the
+//!      and delegate peers if the scope is "followed" and all peers is the
 //!      scope is all.
 //!   3. [`DataRefs`]: fetches the `Oid`s for each reference listed in
 //!      the `rad/sigrefs` for each fetched peer in the
@@ -241,7 +241,7 @@ impl ProtocolStage for SpecialRefs {
     fn ls_refs(&self) -> Option<NonEmpty<BString>> {
         match &self.tracked {
             tracking::Tracked::All => Some(NonEmpty::new("refs/namespaces".into())),
-            tracking::Tracked::Trusted { remotes } => NonEmpty::collect(
+            tracking::Tracked::Followed { remotes } => NonEmpty::collect(
                 remotes
                     .iter()
                     .chain(self.delegates.iter())

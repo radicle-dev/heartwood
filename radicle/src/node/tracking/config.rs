@@ -16,21 +16,21 @@ pub use crate::node::tracking::{Alias, Node, Policy, Repo, Scope};
 
 #[derive(Debug, Error)]
 pub enum NamespacesError {
-    #[error("Failed to find tracking policy for {rid}")]
+    #[error("failed to find tracking policy for {rid}")]
     FailedPolicy {
         rid: Id,
         #[source]
         err: Error,
     },
-    #[error("Cannot fetch {rid} as it is not tracked")]
+    #[error("cannot fetch {rid} as it is not tracked")]
     BlockedPolicy { rid: Id },
-    #[error("Failed to get tracking nodes for {rid}")]
+    #[error("failed to get tracking nodes for {rid}")]
     FailedNodes {
         rid: Id,
         #[source]
         err: Error,
     },
-    #[error("Failed to get delegates for {rid}")]
+    #[error("failed to get delegates for {rid}")]
     FailedDelegates {
         rid: Id,
         #[source]
@@ -38,8 +38,8 @@ pub enum NamespacesError {
     },
     #[error(transparent)]
     Git(#[from] crate::git::raw::Error),
-    #[error("Could not find any trusted nodes for {rid}")]
-    NoTrusted { rid: Id },
+    #[error("could not find any followed nodes for {rid}")]
+    NoFollowed { rid: Id },
 }
 
 /// Tracking configuration.
@@ -77,13 +77,13 @@ impl<T> Config<T> {
     /// Check if a repository is tracked.
     pub fn is_repo_tracked(&self, id: &Id) -> Result<bool, Error> {
         self.repo_policy(id)
-            .map(|entry| entry.policy == Policy::Track)
+            .map(|entry| entry.policy == Policy::Allow)
     }
 
     /// Check if a node is tracked.
     pub fn is_node_tracked(&self, id: &NodeId) -> Result<bool, Error> {
         self.node_policy(id)
-            .map(|entry| entry.policy == Policy::Track)
+            .map(|entry| entry.policy == Policy::Allow)
     }
 
     /// Get a node's tracking information.
@@ -120,14 +120,14 @@ impl<T> Config<T> {
                 error!(target: "service", "Attempted to fetch untracked repo {rid}");
                 Err(NamespacesError::BlockedPolicy { rid: *rid })
             }
-            Policy::Track => match entry.scope {
+            Policy::Allow => match entry.scope {
                 Scope::All => Ok(Namespaces::All),
-                Scope::Trusted => {
+                Scope::Followed => {
                     let nodes = self
                         .node_policies()
                         .map_err(|err| FailedNodes { rid: *rid, err })?;
-                    let mut trusted: HashSet<_> = nodes
-                        .filter_map(|node| (node.policy == Policy::Track).then_some(node.id))
+                    let mut followed: HashSet<_> = nodes
+                        .filter_map(|node| (node.policy == Policy::Allow).then_some(node.id))
                         .collect();
 
                     if let Ok(repo) = storage.repository(*rid) {
@@ -135,15 +135,15 @@ impl<T> Config<T> {
                             .delegates()
                             .map_err(|err| FailedDelegates { rid: *rid, err })?
                             .map(PublicKey::from);
-                        trusted.extend(delegates);
+                        followed.extend(delegates);
                     };
-                    if trusted.is_empty() {
+                    if followed.is_empty() {
                         // Nb. returning All here because the
                         // fetching logic will correctly determine
-                        // trusted and delegate remotes.
+                        // followed and delegate remotes.
                         Ok(Namespaces::All)
                     } else {
-                        Ok(Namespaces::Trusted(trusted))
+                        Ok(Namespaces::Followed(followed))
                     }
                 }
             },

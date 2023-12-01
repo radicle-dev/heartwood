@@ -19,7 +19,7 @@ pub fn fetch<W: WriteRepository>(
 ) -> Result<Vec<RefUpdate>, crate::storage::FetchError> {
     let namespace = match namespaces.into() {
         Namespaces::All => None,
-        Namespaces::Trusted(trusted) => trusted.into_iter().next(),
+        Namespaces::Followed(followed) => followed.into_iter().next(),
     };
     let mut updates = Vec::new();
     let mut callbacks = git2::RemoteCallbacks::new();

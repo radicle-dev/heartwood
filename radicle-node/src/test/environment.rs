@@ -420,7 +420,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
 
         assert!(self
             .tracking
-            .track_repo(&id, node::tracking::Scope::Trusted)
+            .track_repo(&id, node::tracking::Scope::Followed)
             .unwrap());
 
         log::debug!(

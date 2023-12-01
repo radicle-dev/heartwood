@@ -153,8 +153,8 @@ You can see all replicated and locally-available repositories using:
     $ rad ls
 
 By default, your node will subscribe to updates from _all_ peers. This
-behavior can be changed by passing *--scope trusted* when cloning. It can
-also be changed later via the *rad track* command.
+behavior can be changed by passing *--scope followed* when cloning. It can
+also be changed later via the *rad seed* command.
 
 === Publishing a repository on Radicle
 

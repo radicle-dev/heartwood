@@ -2,30 +2,30 @@
 -- Service configuration schema.
 --
 
--- Node tracking policy.
-create table if not exists "node-policies" (
+-- Node follow policies.
+create table if not exists "following" (
   -- Node ID.
   "id"                 text      primary key not null,
   -- Node alias. May override the alias announced by the node.
   "alias"              text      default '',
   -- Tracking policy for this node.
-  "policy"             text      default 'track'
+  "policy"             text      default 'allow'
   --
 ) strict;
 
--- Repository tracking policy.
-create table if not exists "repo-policies" (
+-- Repository seeding policies.
+create table if not exists "seeding" (
   -- Repository ID.
   "id"                 text      primary key not null,
   -- Tracking scope for this repository.
   --
   -- Valid values are:
   --
-  -- "trusted"         track repository delegates and remotes in the `node-policies` table.
-  -- "all"             track all remotes.
+  -- "followed"        seed repository delegates and remotes in the `following` table.
+  -- "all"             seed all remotes.
   --
-  "scope"              text      default 'trusted',
+  "scope"              text      default 'followed',
   -- Tracking policy for this repository.
-  "policy"             text      default 'track'
+  "policy"             text      default 'allow'
   --
 ) strict;

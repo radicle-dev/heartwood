@@ -9,6 +9,6 @@ $ rad follow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias ev
 Now let's track one of Eve's repositories:
 
 ```
-$ rad seed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope trusted --no-fetch
-✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'trusted'
+$ rad seed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope followed --no-fetch
+✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'followed'
 ```

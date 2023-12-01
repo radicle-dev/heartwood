@@ -36,8 +36,8 @@ pub enum Namespaces {
     /// All namespaces.
     #[default]
     All,
-    /// The trusted set of namespaces.
-    Trusted(HashSet<PublicKey>),
+    /// The followed set of namespaces.
+    Followed(HashSet<PublicKey>),
 }
 
 impl Namespaces {
@@ -48,7 +48,7 @@ impl Namespaces {
                 dst: (*NAMESPACES_GLOB).clone(),
                 force: true,
             }],
-            Namespaces::Trusted(pks) => pks
+            Namespaces::Followed(pks) => pks
                 .iter()
                 .map(|pk| {
                     let ns = pk.to_namespace().with_pattern(git::refspec::STAR);
@@ -65,7 +65,7 @@ impl Namespaces {
 
 impl FromIterator<PublicKey> for Namespaces {
     fn from_iter<T: IntoIterator<Item = PublicKey>>(iter: T) -> Self {
-        Self::Trusted(iter.into_iter().collect())
+        Self::Followed(iter.into_iter().collect())
     }
 }
 

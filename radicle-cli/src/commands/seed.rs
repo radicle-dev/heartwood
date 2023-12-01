@@ -25,15 +25,15 @@ Usage
     To delete a policy, use the `--delete` flag.
 
     When seeding a repository, a scope can be specified: this can be either `all` or
-    `trusted`. When using `all`, all remote nodes will be followed for that repository.
-    On the other hand, with `trusted`, only the repository delegates will be followed,
+    `followed`. When using `all`, all remote nodes will be followed for that repository.
+    On the other hand, with `followed`, only the repository delegates will be followed,
     plus any remote that is explicitly followed via `rad follow <nid>`.
 
 Options
 
     --delete, -d           Delete the seeding policy
     --[no-]fetch           Fetch repository after updating seeding policy
-    --scope <scope>        Peer follow scope for a repository
+    --scope <scope>        Peer follow scope for this repository
     --verbose, -v          Verbose output
     --help                 Print help
 "#,

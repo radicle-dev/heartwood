@@ -172,7 +172,7 @@ where
         config.config.external_addresses.push(local_addr.into());
 
         for rid in storage.inventory().unwrap() {
-            tracking.track_repo(&rid, Scope::Trusted).unwrap();
+            tracking.track_repo(&rid, Scope::Followed).unwrap();
         }
         let announcement = service::gossip::node(&config.config, config.local_time.as_secs());
         let emitter: Emitter<Event> = Default::default();

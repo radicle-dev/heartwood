@@ -176,7 +176,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let tracking = profile.tracking()?;
             if let Some(repo) = tracking.repo_policy(&rid)? {
                 let tracking = match repo.policy {
-                    Policy::Track => term::format::positive("tracked"),
+                    Policy::Allow => term::format::positive("tracked"),
                     Policy::Block => term::format::negative("blocked"),
                 };
                 println!(

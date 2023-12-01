@@ -10,7 +10,7 @@ pub use radicle::node::tracking::{Policy, Scope};
 #[derive(Clone, Debug)]
 pub enum Tracked {
     All,
-    Trusted { remotes: HashSet<PublicKey> },
+    Followed { remotes: HashSet<PublicKey> },
 }
 
 impl Tracked {
@@ -23,17 +23,17 @@ impl Tracked {
                 log::error!(target: "fetch", "Attempted to fetch untracked repo {rid}");
                 Err(error::Tracking::BlockedPolicy { rid })
             }
-            Policy::Track => match entry.scope {
+            Policy::Allow => match entry.scope {
                 Scope::All => Ok(Self::All),
-                Scope::Trusted => {
+                Scope::Followed => {
                     let nodes = config
                         .node_policies()
                         .map_err(|err| error::Tracking::FailedNodes { rid, err })?;
-                    let trusted: HashSet<_> = nodes
-                        .filter_map(|node| (node.policy == Policy::Track).then_some(node.id))
+                    let followed: HashSet<_> = nodes
+                        .filter_map(|node| (node.policy == Policy::Allow).then_some(node.id))
                         .collect();
 
-                    Ok(Tracked::Trusted { remotes: trusted })
+                    Ok(Tracked::Followed { remotes: followed })
                 }
             },
         }

@@ -118,7 +118,7 @@ impl Config<Write> {
     /// Track a node.
     pub fn track_node(&mut self, id: &NodeId, alias: Option<&str>) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
-            "INSERT INTO `node-policies` (id, alias)
+            "INSERT INTO `following` (id, alias)
              VALUES (?1, ?2)
              ON CONFLICT DO UPDATE
              SET alias = ?2 WHERE alias != ?2",
@@ -134,7 +134,7 @@ impl Config<Write> {
     /// Track a repository.
     pub fn track_repo(&mut self, id: &Id, scope: Scope) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
-            "INSERT INTO `repo-policies` (id, scope)
+            "INSERT INTO `seeding` (id, scope)
              VALUES (?1, ?2)
              ON CONFLICT DO UPDATE
              SET scope = ?2 WHERE scope != ?2",
@@ -150,7 +150,7 @@ impl Config<Write> {
     /// Set a node's tracking policy.
     pub fn set_node_policy(&mut self, id: &NodeId, policy: Policy) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
-            "INSERT INTO `node-policies` (id, policy)
+            "INSERT INTO `following` (id, policy)
              VALUES (?1, ?2)
              ON CONFLICT DO UPDATE
              SET policy = ?2 WHERE policy != ?2",
@@ -166,7 +166,7 @@ impl Config<Write> {
     /// Set a repository's tracking policy.
     pub fn set_repo_policy(&mut self, id: &Id, policy: Policy) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
-            "INSERT INTO `repo-policies` (id, policy)
+            "INSERT INTO `seeding` (id, policy)
              VALUES (?1, ?2)
              ON CONFLICT DO UPDATE
              SET policy = ?2 WHERE policy != ?2",
@@ -181,9 +181,7 @@ impl Config<Write> {
 
     /// Untrack a node.
     pub fn untrack_node(&mut self, id: &NodeId) -> Result<bool, Error> {
-        let mut stmt = self
-            .db
-            .prepare("DELETE FROM `node-policies` WHERE id = ?")?;
+        let mut stmt = self.db.prepare("DELETE FROM `following` WHERE id = ?")?;
 
         stmt.bind((1, id))?;
         stmt.next()?;
@@ -193,9 +191,7 @@ impl Config<Write> {
 
     /// Untrack a repository.
     pub fn untrack_repo(&mut self, id: &Id) -> Result<bool, Error> {
-        let mut stmt = self
-            .db
-            .prepare("DELETE FROM `repo-policies` WHERE id = ?")?;
+        let mut stmt = self.db.prepare("DELETE FROM `seeding` WHERE id = ?")?;
 
         stmt.bind((1, id))?;
         stmt.next()?;
@@ -212,7 +208,7 @@ impl<T> Config<T> {
         Ok(matches!(
             self.node_policy(id)?,
             Some(Node {
-                policy: Policy::Track,
+                policy: Policy::Allow,
                 ..
             })
         ))
@@ -223,7 +219,7 @@ impl<T> Config<T> {
         Ok(matches!(
             self.repo_policy(id)?,
             Some(Repo {
-                policy: Policy::Track,
+                policy: Policy::Allow,
                 ..
             })
         ))
@@ -233,7 +229,7 @@ impl<T> Config<T> {
     pub fn node_policy(&self, id: &NodeId) -> Result<Option<Node>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT alias, policy FROM `node-policies` WHERE id = ?")?;
+            .prepare("SELECT alias, policy FROM `following` WHERE id = ?")?;
 
         stmt.bind((1, id))?;
 
@@ -259,7 +255,7 @@ impl<T> Config<T> {
     pub fn repo_policy(&self, id: &Id) -> Result<Option<Repo>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT scope, policy FROM `repo-policies` WHERE id = ?")?;
+            .prepare("SELECT scope, policy FROM `seeding` WHERE id = ?")?;
 
         stmt.bind((1, id))?;
 
@@ -277,7 +273,7 @@ impl<T> Config<T> {
     pub fn node_policies(&self) -> Result<Box<dyn Iterator<Item = Node>>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT id, alias, policy FROM `node-policies`")?
+            .prepare("SELECT id, alias, policy FROM `following`")?
             .into_iter();
         let mut entries = Vec::new();
 
@@ -301,7 +297,7 @@ impl<T> Config<T> {
     pub fn repo_policies(&self) -> Result<Box<dyn Iterator<Item = Repo>>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT id, scope, policy FROM `repo-policies`")?
+            .prepare("SELECT id, scope, policy FROM `seeding`")?
             .into_iter();
         let mut entries = Vec::new();
 
@@ -412,8 +408,8 @@ mod test {
 
         assert!(db.track_repo(&id, Scope::All).unwrap());
         assert_eq!(db.repo_policy(&id).unwrap().unwrap().scope, Scope::All);
-        assert!(db.track_repo(&id, Scope::Trusted).unwrap());
-        assert_eq!(db.repo_policy(&id).unwrap().unwrap().scope, Scope::Trusted);
+        assert!(db.track_repo(&id, Scope::Followed).unwrap());
+        assert_eq!(db.repo_policy(&id).unwrap().unwrap().scope, Scope::Followed);
     }
 
     #[test]
@@ -422,7 +418,7 @@ mod test {
         let mut db = Config::open(":memory:").unwrap();
 
         assert!(db.track_repo(&id, Scope::All).unwrap());
-        assert_eq!(db.repo_policy(&id).unwrap().unwrap().policy, Policy::Track);
+        assert_eq!(db.repo_policy(&id).unwrap().unwrap().policy, Policy::Allow);
         assert!(db.set_repo_policy(&id, Policy::Block).unwrap());
         assert_eq!(db.repo_policy(&id).unwrap().unwrap().policy, Policy::Block);
     }
@@ -433,7 +429,7 @@ mod test {
         let mut db = Config::open(":memory:").unwrap();
 
         assert!(db.track_node(&id, None).unwrap());
-        assert_eq!(db.node_policy(&id).unwrap().unwrap().policy, Policy::Track);
+        assert_eq!(db.node_policy(&id).unwrap().unwrap().policy, Policy::Allow);
         assert!(db.set_node_policy(&id, Policy::Block).unwrap());
         assert_eq!(db.node_policy(&id).unwrap().unwrap().policy, Policy::Block);
     }

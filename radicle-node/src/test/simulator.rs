@@ -422,7 +422,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                                 radicle::test::fetch(
                                     &repo,
                                     &nid,
-                                    Namespaces::Trusted(namespaces.clone()),
+                                    Namespaces::Followed(namespaces.clone()),
                                 )
                                 .unwrap();
                             }
@@ -655,7 +655,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                                 Rc::new(Ok(fetch::FetchResult {
                                     updated: vec![],
                                     namespaces: match namespaces {
-                                        Namespaces::Trusted(hs) => hs,
+                                        Namespaces::Followed(hs) => hs,
                                         Namespaces::All => HashSet::new(),
                                     },
                                 })),

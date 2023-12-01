@@ -700,7 +700,7 @@ fn rad_clean() {
     let mut bob = bob.spawn();
     let mut eve = eve.spawn();
     alice.handle.track_repo(acme, Scope::All).unwrap();
-    eve.handle.track_repo(acme, Scope::Trusted).unwrap();
+    eve.handle.track_repo(acme, Scope::Followed).unwrap();
 
     bob.connect(&alice).converge([&alice]);
     eve.connect(&alice).converge([&alice]);
@@ -769,7 +769,7 @@ fn rad_clone() {
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
     // Prevent Alice from fetching Bob's fork, as we're not testing that and it may cause errors.
-    alice.handle.track_repo(acme, Scope::Trusted).unwrap();
+    alice.handle.track_repo(acme, Scope::Followed).unwrap();
 
     bob.connect(&alice).converge([&alice]);
 
@@ -873,8 +873,8 @@ fn rad_clone_connect() {
 
     let eve = eve.spawn();
 
-    alice.handle.track_repo(acme, Scope::Trusted).unwrap();
-    bob.handle.track_repo(acme, Scope::Trusted).unwrap();
+    alice.handle.track_repo(acme, Scope::Followed).unwrap();
+    bob.handle.track_repo(acme, Scope::Followed).unwrap();
     alice.connect(&bob);
     bob.routes_to(&[(acme, alice.id)]);
     eve.routes_to(&[(acme, alice.id), (acme, bob.id)]);
@@ -1257,7 +1257,7 @@ fn test_replication_via_seed() {
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
     let seed = environment.node(Config {
-        policy: Policy::Track,
+        policy: Policy::Allow,
         scope: Scope::All,
         ..Config::test(Alias::new("seed"))
     });

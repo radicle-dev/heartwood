@@ -284,7 +284,7 @@ fn test_replication_invalid() {
     converge([&alice, &bob]);
 
     alice.handle.track_node(*carol.public_key(), None).unwrap();
-    alice.handle.track_repo(acme, Scope::Trusted).unwrap();
+    alice.handle.track_repo(acme, Scope::Followed).unwrap();
     let result = alice.handle.fetch(acme, bob.id, DEFAULT_TIMEOUT).unwrap();
 
     // Fetch is successful despite not fetching Carol's refs, since she isn't a delegate.
@@ -367,7 +367,7 @@ fn test_dont_fetch_owned_refs() {
     alice.connect(&bob);
     converge([&alice, &bob]);
 
-    assert!(bob.handle.track_repo(acme, Scope::Trusted).unwrap());
+    assert!(bob.handle.track_repo(acme, Scope::Followed).unwrap());
 
     let result = bob.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
     assert!(result.is_success());
@@ -380,7 +380,7 @@ fn test_dont_fetch_owned_refs() {
 }
 
 #[test]
-fn test_fetch_trusted_remotes() {
+fn test_fetch_followed_remotes() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
@@ -402,18 +402,18 @@ fn test_fetch_trusted_remotes() {
     alice.connect(&bob);
     converge([&alice, &bob]);
 
-    let trusted = signers
+    let followed = signers
         .iter()
         .map(|s| *s.public_key())
         .take(2)
         .collect::<HashSet<_>>();
 
     assert!(
-        trusted.len() < signers.len(),
+        followed.len() < signers.len(),
         "Bob is only trusting a subset of peers"
     );
-    assert!(bob.handle.track_repo(acme, Scope::Trusted).unwrap());
-    for nid in &trusted {
+    assert!(bob.handle.track_repo(acme, Scope::Followed).unwrap());
+    for nid in &followed {
         assert!(bob.handle.track_node(*nid, None).unwrap());
     }
 
@@ -429,8 +429,8 @@ fn test_fetch_trusted_remotes() {
         .collect::<Result<HashSet<_>, _>>()
         .unwrap();
 
-    assert!(bob_remotes.len() == trusted.len() + 1);
-    assert!(bob_remotes.is_superset(&trusted));
+    assert!(bob_remotes.len() == followed.len() + 1);
+    assert!(bob_remotes.is_superset(&followed));
     assert!(bob_remotes.contains(&alice.id));
 }
 
@@ -450,7 +450,7 @@ fn test_missing_remote() {
     alice.connect(&bob);
     converge([&alice, &bob]);
 
-    assert!(bob.handle.track_repo(acme, Scope::Trusted).unwrap());
+    assert!(bob.handle.track_repo(acme, Scope::Followed).unwrap());
     assert!(bob.handle.track_node(*carol.public_key(), None).unwrap());
     let result = bob.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
     assert!(result.is_success());
@@ -477,7 +477,7 @@ fn test_fetch_preserve_owned_refs() {
     alice.connect(&bob);
     converge([&alice, &bob]);
 
-    assert!(bob.handle.track_repo(acme, Scope::Trusted).unwrap());
+    assert!(bob.handle.track_repo(acme, Scope::Followed).unwrap());
     assert!(bob.handle.track_node(alice.id, None).unwrap());
 
     let result = bob.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();

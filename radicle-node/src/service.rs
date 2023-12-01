@@ -425,7 +425,7 @@ where
         self.filter = Filter::new(
             self.tracking
                 .repo_policies()?
-                .filter_map(|t| (t.policy == tracking::Policy::Track).then_some(t.id)),
+                .filter_map(|t| (t.policy == tracking::Policy::Allow).then_some(t.id)),
         );
         Ok(updated)
     }
@@ -570,7 +570,7 @@ where
         self.filter = Filter::new(
             self.tracking
                 .repo_policies()?
-                .filter_map(|t| (t.policy == tracking::Policy::Track).then_some(t.id)),
+                .filter_map(|t| (t.policy == tracking::Policy::Allow).then_some(t.id)),
         );
         // Try to establish some connections.
         self.maintain_connections();
@@ -1266,7 +1266,7 @@ where
                     "Service::handle_announcement: error accessing repo tracking configuration",
                 );
 
-                if repo_entry.policy == tracking::Policy::Track {
+                if repo_entry.policy == tracking::Policy::Allow {
                     let (fresh, stale) = match self.refs_status_of(message, &repo_entry.scope) {
                         Ok(RefsStatus { fresh, stale }) => (fresh, stale),
                         Err(e) => {
@@ -1424,13 +1424,13 @@ where
         // Second, check the scope.
         match scope {
             tracking::Scope::All => Ok(refs),
-            tracking::Scope::Trusted => {
+            tracking::Scope::Followed => {
                 match self.tracking.namespaces_for(&self.storage, &message.rid) {
                     Ok(Namespaces::All) => Ok(refs),
-                    Ok(Namespaces::Trusted(mut trusted)) => {
-                        // Get the set of trusted nodes except self.
-                        trusted.remove(self.nid());
-                        refs.fresh.retain(|r| trusted.contains(&r.remote));
+                    Ok(Namespaces::Followed(mut followed)) => {
+                        // Get the set of followed nodes except self.
+                        followed.remove(self.nid());
+                        refs.fresh.retain(|r| followed.contains(&r.remote));
 
                         Ok(refs)
                     }
@@ -1817,7 +1817,7 @@ where
 
     /// Return a new filter object, based on our tracking policy.
     fn filter(&self) -> Filter {
-        if self.config.policy == tracking::Policy::Track {
+        if self.config.policy == tracking::Policy::Allow {
             // TODO: Remove bits for blocked repos.
             Filter::default()
         } else {
@@ -1920,7 +1920,7 @@ where
         let missing = self
             .tracking
             .repo_policies()?
-            .filter_map(|t| (t.policy == tracking::Policy::Track).then_some(t.id))
+            .filter_map(|t| (t.policy == tracking::Policy::Allow).then_some(t.id))
             .filter(|rid| !inventory.contains(rid));
 
         for rid in missing {
