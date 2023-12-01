@@ -578,7 +578,12 @@ fn sort_seeds_by(local: NodeId, seeds: &mut [Seed], aliases: &impl AliasStore, s
             let b = aliases.alias(&b.nid);
             a.cmp(&b)
         }
-        SortBy::Status => a.sync.cmp(&b.sync),
+        SortBy::Status => match (&a.sync, &b.sync) {
+            (Some(_), None) => Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
+            (Some(a), Some(b)) => a.cmp(b).reverse(),
+            (None, None) => Ordering::Equal,
+        },
     };
 
     // Always show our local node first.
@@ -588,13 +593,7 @@ fn sort_seeds_by(local: NodeId, seeds: &mut [Seed], aliases: &impl AliasStore, s
         } else if b.nid == local {
             Ordering::Greater
         } else {
-            match (&a.sync, &b.sync) {
-                (Some(_), None) => Ordering::Less,
-                (None, Some(_)) => Ordering::Greater,
-                (Some(a), Some(b)) => a.cmp(b).reverse(),
-                (None, None) => Ordering::Equal,
-            }
-            .then(compare(a, b))
+            compare(a, b)
         }
     });
 }
