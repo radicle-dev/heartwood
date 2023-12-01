@@ -36,8 +36,6 @@ pub mod rad_path;
 pub mod rad_publish;
 #[path = "commands/remote.rs"]
 pub mod rad_remote;
-#[path = "commands/review.rs"]
-pub mod rad_review;
 #[path = "commands/self.rs"]
 pub mod rad_self;
 #[path = "commands/sync.rs"]

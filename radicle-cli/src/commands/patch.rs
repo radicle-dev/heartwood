@@ -20,6 +20,8 @@ mod list;
 mod ready;
 #[path = "patch/redact.rs"]
 mod redact;
+#[path = "patch/review.rs"]
+mod review;
 #[path = "patch/show.rs"]
 mod show;
 #[path = "patch/update.rs"]
@@ -53,6 +55,7 @@ Usage
     rad patch archive <patch-id> [<option>...]
     rad patch update <patch-id> [<option>...]
     rad patch checkout <patch-id> [<option>...]
+    rad patch review <patch-id> [--accept | --reject] [-m [<string>]] [-d | --delete] [<option>...]
     rad patch delete <patch-id> [<option>...]
     rad patch redact <revision-id> [<option>...]
     rad patch assign <revision-id> [--add <did>] [--delete <did>] [<option>...]
@@ -74,6 +77,18 @@ Comment options
 Edit options
 
     -m, --message [<string>]   Provide a comment message to the patch or revision (default: prompt)
+
+Review options
+
+        --revision <id>        Review the given revision of the patch
+    -p, --patch                Review by patch hunks
+        --hunk <index>         Only review a specific hunk
+        --accept               Accept a patch or set of hunks
+        --reject               Reject a patch or set of hunks
+    -U, --unified <n>          Generate diffs with <n> lines of context instead of the usual three
+    -d, --delete               Delete a review draft
+    -r, --revision             Review a patch revision
+    -m, --message [<string>]   Provide a comment with the review (default: prompt)
 
 Assign options
 
@@ -134,6 +149,7 @@ pub enum OperationName {
     Checkout,
     Comment,
     Ready,
+    Review,
     Label,
     #[default]
     List,
@@ -205,6 +221,11 @@ pub enum Operation {
         message: Message,
         reply_to: Option<Rev>,
     },
+    Review {
+        patch_id: Rev,
+        revision_id: Option<Rev>,
+        opts: review::Options,
+    },
     Assign {
         patch_id: Rev,
         opts: AssignOptions,
@@ -261,6 +282,7 @@ impl Args for Options {
         let mut checkout_opts = checkout::Options::default();
         let mut assign_opts = AssignOptions::default();
         let mut label_opts = LabelOptions::default();
+        let mut review_op = review::Operation::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -312,6 +334,65 @@ impl Args for Options {
                     let rev = term::args::oid(&val)?;
 
                     reply_to = Some(rev);
+                }
+
+                // Review options.
+                Long("revision") if op == Some(OperationName::Review) => {
+                    let val = parser.value()?;
+                    let rev = term::args::oid(&val)?;
+
+                    revision_id = Some(rev);
+                }
+                Long("patch") | Short('p') if op == Some(OperationName::Review) => {
+                    if let review::Operation::Review { by_hunk, .. } = &mut review_op {
+                        *by_hunk = true;
+                    } else {
+                        return Err(arg.unexpected().into());
+                    }
+                }
+                Long("unified") | Short('U') if op == Some(OperationName::Review) => {
+                    if let review::Operation::Review { unified, .. } = &mut review_op {
+                        let val = parser.value()?;
+                        *unified = term::args::number(&val)?;
+                    } else {
+                        return Err(arg.unexpected().into());
+                    }
+                }
+                Long("hunk") if op == Some(OperationName::Review) => {
+                    if let review::Operation::Review { hunk, .. } = &mut review_op {
+                        let val = parser.value()?;
+                        let val = term::args::number(&val)
+                            .map_err(|e| anyhow!("invalid hunk value: {e}"))?;
+
+                        *hunk = Some(val);
+                    } else {
+                        return Err(arg.unexpected().into());
+                    }
+                }
+                Long("delete") | Short('d') if op == Some(OperationName::Review) => {
+                    review_op = review::Operation::Delete;
+                }
+                Long("accept") if op == Some(OperationName::Review) => {
+                    if let review::Operation::Review {
+                        verdict: verdict @ None,
+                        ..
+                    } = &mut review_op
+                    {
+                        *verdict = Some(patch::Verdict::Accept);
+                    } else {
+                        return Err(arg.unexpected().into());
+                    }
+                }
+                Long("reject") if op == Some(OperationName::Review) => {
+                    if let review::Operation::Review {
+                        verdict: verdict @ None,
+                        ..
+                    } = &mut review_op
+                    {
+                        *verdict = Some(patch::Verdict::Reject);
+                    } else {
+                        return Err(arg.unexpected().into());
+                    }
                 }
 
                 // Checkout options
@@ -409,6 +490,7 @@ impl Args for Options {
                     "assign" => op = Some(OperationName::Assign),
                     "label" => op = Some(OperationName::Label),
                     "comment" => op = Some(OperationName::Comment),
+                    "review" => op = Some(OperationName::Review),
                     "set" => op = Some(OperationName::Set),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
@@ -426,6 +508,7 @@ impl Args for Options {
                             Some(OperationName::Ready),
                             Some(OperationName::Checkout),
                             Some(OperationName::Comment),
+                            Some(OperationName::Review),
                             Some(OperationName::Edit),
                             Some(OperationName::Set),
                             Some(OperationName::Assign),
@@ -466,6 +549,15 @@ impl Args for Options {
                     .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
                 message,
                 reply_to,
+            },
+            OperationName::Review => Operation::Review {
+                patch_id: patch_id
+                    .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
+                revision_id,
+                opts: review::Options {
+                    message,
+                    op: review_op,
+                },
             },
             OperationName::Ready => Operation::Ready {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
@@ -584,6 +676,18 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 &repository,
                 &profile,
             )?;
+        }
+        Operation::Review {
+            patch_id,
+            revision_id,
+            opts,
+        } => {
+            let patch_id = patch_id.resolve(&repository.backend)?;
+            let revision_id = revision_id
+                .map(|rev| rev.resolve::<radicle::git::Oid>(&repository.backend))
+                .transpose()?
+                .map(patch::RevisionId::from);
+            review::run(patch_id, revision_id, opts, &profile, &repository)?;
         }
         Operation::Edit { patch_id, message } => {
             let patch_id = patch_id.resolve(&repository.backend)?;

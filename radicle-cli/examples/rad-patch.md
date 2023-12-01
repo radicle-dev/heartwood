@@ -154,7 +154,7 @@ $ rad patch checkout 6ff4f09
 We can also add a review verdict as such:
 
 ```
-$ rad review 6ff4f09 --accept --no-message --no-sync
+$ rad patch review 6ff4f09 --accept --no-message
 ✓ Patch 6ff4f09 accepted
 ```
 
