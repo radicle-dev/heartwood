@@ -139,6 +139,13 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "follow" => {
+            term::run_command_args::<rad_follow::Options, _>(
+                rad_follow::HELP,
+                rad_follow::run,
+                args.to_vec(),
+            );
+        }
         "fork" => {
             term::run_command_args::<rad_fork::Options, _>(
                 rad_fork::HELP,
@@ -229,17 +236,17 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
-        "track" => {
-            term::run_command_args::<rad_track::Options, _>(
-                rad_track::HELP,
-                rad_track::run,
+        "seed" => {
+            term::run_command_args::<rad_seed::Options, _>(
+                rad_seed::HELP,
+                rad_seed::run,
                 args.to_vec(),
             );
         }
-        "untrack" => {
-            term::run_command_args::<rad_untrack::Options, _>(
-                rad_untrack::HELP,
-                rad_untrack::run,
+        "unfollow" => {
+            term::run_command_args::<rad_unfollow::Options, _>(
+                rad_unfollow::HELP,
+                rad_unfollow::run,
                 args.to_vec(),
             );
         }

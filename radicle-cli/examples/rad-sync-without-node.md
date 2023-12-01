@@ -10,9 +10,9 @@ $ rad sync --fetch rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5 --seed z6MksmpU5b1dS7oaqF2b
 ✗ Error: to sync a repository, your node must be running. To start it, run `rad node start`
 ```
 
-Note that tracking works fine without a running node:
+Note that seeding works fine without a running node:
 
 ``` ~alice
-$ rad track rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5
-✓ Tracking policy updated for rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5 with scope 'trusted'
+$ rad seed rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5
+✓ Seeding policy updated for rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5 with scope 'all'
 ```

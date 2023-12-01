@@ -12,6 +12,8 @@ pub mod rad_cob;
 pub mod rad_config;
 #[path = "commands/diff.rs"]
 pub mod rad_diff;
+#[path = "commands/follow.rs"]
+pub mod rad_follow;
 #[path = "commands/fork.rs"]
 pub mod rad_fork;
 #[path = "commands/help.rs"]
@@ -36,11 +38,11 @@ pub mod rad_path;
 pub mod rad_publish;
 #[path = "commands/remote.rs"]
 pub mod rad_remote;
+#[path = "commands/seed.rs"]
+pub mod rad_seed;
 #[path = "commands/self.rs"]
 pub mod rad_self;
 #[path = "commands/sync.rs"]
 pub mod rad_sync;
-#[path = "commands/track.rs"]
-pub mod rad_track;
-#[path = "commands/untrack.rs"]
-pub mod rad_untrack;
+#[path = "commands/unfollow.rs"]
+pub mod rad_unfollow;

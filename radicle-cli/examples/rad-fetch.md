@@ -6,15 +6,15 @@ necessary.
 Instead, we want to fetch the project from the network into our local
 storage. In this scenario, we know that the project is
 `rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji`. In order to fetch it, we first
-have to track the project.
+have to update our seeding policy for the project.
 
 ```
-$ rad track rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-fetch
-✓ Tracking policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'trusted'
+$ rad seed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-fetch
+✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
 ```
 
-Now that the project is tracked we can fetch it and we will have it in
-our local storage. Note that the `track` command can also be told to fetch
+Now that the project is seeding we can fetch it and we will have it in
+our local storage. Note that the `seed` command can also be told to fetch
 by passing the `--fetch` option.
 
 ```

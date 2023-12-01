@@ -2,8 +2,8 @@ Given a private repo `rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu` belonging to Alice,
 Bob tries to fetch it, and even though he's connected to Alice, it fails.
 
 ``` ~bob
-$ rad track rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu
-✓ Tracking policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'trusted'
+$ rad seed rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --scope trusted
+✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'trusted'
 $ rad ls
 ```
 ``` ~bob (fail)

@@ -18,22 +18,22 @@ $ rad node status
 ✓ Node is running.
 ```
 
-The node also allows us to query data that it has access too such as
-the tracking relationships and the routing table. Before we explore
-those commands we'll first track a peer so that we have something to
+The node also allows us to query data that it has access to such as
+the follow policies and the routing table. Before we explore
+those commands we'll first follow a peer so that we have something to
 see.
 
 ```
-$ rad track did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias Bob
-✓ Tracking policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (Bob)
+$ rad follow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias Bob
+✓ Follow policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (Bob)
 ```
 
-Now, when we use the `rad node tracking` command we will see
-information for repositories that we track -- in this case a
+Now, when we use the `rad node seeding` command we will see
+information for repositories that we seed -- in this case a
 repository that was already created:
 
 ```
-$ rad node tracking
+$ rad node seeding
 ╭──────────────────────────────────────────────────────╮
 │ RID                                 Scope     Policy │
 ├──────────────────────────────────────────────────────┤
@@ -41,12 +41,10 @@ $ rad node tracking
 ╰──────────────────────────────────────────────────────╯
 ```
 
-This is the same as using the `--repos` flag, but if we wish to see
-which nodes we are specifically tracking, then we use the `--nodes`
-flag:
+If we wish to see which nodes we are following:
 
 ```
-$ rad node tracking --nodes
+$ rad node following
 ╭───────────────────────────────────────────────────────────────────────────╮
 │ DID                                                        Alias   Policy │
 ├───────────────────────────────────────────────────────────────────────────┤

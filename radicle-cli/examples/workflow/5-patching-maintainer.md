@@ -1,11 +1,11 @@
 Back to being the project maintainer.
 
 Changes have been proposed by another person (or peer) via a radicle patch.  To
-follow changes by another, we must 'track' them.
+follow changes by another, we must 'follow' them.
 
 ```
-$ rad track did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias bob
-✓ Tracking policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
+$ rad follow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias bob
+✓ Follow policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
 ```
 
 Additionally, we need to add a new 'git remote' to our working copy for the

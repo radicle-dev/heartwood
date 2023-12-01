@@ -28,8 +28,9 @@ const COMMANDS: &[Help] = &[
     rad_path::HELP,
     rad_clean::HELP,
     rad_self::HELP,
-    rad_track::HELP,
-    rad_untrack::HELP,
+    rad_seed::HELP,
+    rad_follow::HELP,
+    rad_unfollow::HELP,
     rad_remote::HELP,
     rad_sync::HELP,
 ];

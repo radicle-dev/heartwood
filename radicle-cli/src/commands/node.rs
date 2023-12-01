@@ -14,10 +14,10 @@ use crate::terminal::Element as _;
 mod control;
 #[path = "node/events.rs"]
 mod events;
+#[path = "node/policies.rs"]
+mod policies;
 #[path = "node/routing.rs"]
 mod routing;
-#[path = "node/tracking.rs"]
-mod tracking;
 
 pub const HELP: Help = Help {
     name: "node",
@@ -32,7 +32,8 @@ Usage
     rad node logs [-n <lines>]
     rad node connect <nid>@<addr> [<option>...]
     rad node routing [--rid <rid>] [--nid <nid>] [--json] [<option>...]
-    rad node tracking [--repos | --nodes] [<option>...]
+    rad node following [<option>...]
+    rad node seeding [<option>...]
     rad node events [--timeout <secs>] [-n <count>] [<option>...]
     rad node config
 
@@ -48,11 +49,6 @@ Routing options
     --rid <rid>          Show the routing table entries for the given RID
     --nid <nid>          Show the routing table entries for the given NID
     --json               Output the routing table as json
-
-Tracking options
-
-    --repos              Show the tracked repositories table
-    --nodes              Show the tracked nodes table
 
 Events options
 
@@ -95,16 +91,8 @@ pub enum Operation {
     Status,
     Sessions,
     Stop,
-    Tracking {
-        mode: TrackingMode,
-    },
-}
-
-#[derive(Default)]
-pub enum TrackingMode {
-    #[default]
-    Repos,
-    Nodes,
+    Following,
+    Seeding,
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -119,7 +107,8 @@ pub enum OperationName {
     Status,
     Sessions,
     Stop,
-    Tracking,
+    Following,
+    Seeding,
 }
 
 impl Args for Options {
@@ -130,7 +119,6 @@ impl Args for Options {
         let mut options = vec![];
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
-        let mut tracking_mode = TrackingMode::default();
         let mut nid: Option<NodeId> = None;
         let mut rid: Option<Id> = None;
         let mut json: bool = false;
@@ -154,7 +142,8 @@ impl Args for Options {
                     "start" => op = Some(OperationName::Start),
                     "status" => op = Some(OperationName::Status),
                     "stop" => op = Some(OperationName::Stop),
-                    "tracking" => op = Some(OperationName::Tracking),
+                    "seeding" => op = Some(OperationName::Seeding),
+                    "following" => op = Some(OperationName::Following),
                     "sessions" => op = Some(OperationName::Sessions),
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
@@ -180,12 +169,6 @@ impl Args for Options {
                 Long("count") | Short('n') if matches!(op, Some(OperationName::Events)) => {
                     let val = parser.value()?;
                     count = term::args::number(&val)?;
-                }
-                Long("repos") if matches!(op, Some(OperationName::Tracking)) => {
-                    tracking_mode = TrackingMode::Repos
-                }
-                Long("nodes") if matches!(op, Some(OperationName::Tracking)) => {
-                    tracking_mode = TrackingMode::Nodes;
                 }
                 Long("foreground") if matches!(op, Some(OperationName::Start)) => {
                     foreground = true;
@@ -222,9 +205,8 @@ impl Args for Options {
             OperationName::Status => Operation::Status,
             OperationName::Sessions => Operation::Sessions,
             OperationName::Stop => Operation::Stop,
-            OperationName::Tracking => Operation::Tracking {
-                mode: tracking_mode,
-            },
+            OperationName::Seeding => Operation::Seeding,
+            OperationName::Following => Operation::Following,
         };
         Ok((Options { op }, vec![]))
     }
@@ -266,7 +248,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Stop => {
             control::stop(node)?;
         }
-        Operation::Tracking { mode } => tracking::run(&profile, mode)?,
+        Operation::Seeding => policies::seeding(&profile)?,
+        Operation::Following => policies::following(&profile)?,
     }
 
     Ok(())
