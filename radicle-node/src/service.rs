@@ -140,7 +140,7 @@ pub enum Error {
     #[error(transparent)]
     Seeds(#[from] seed::Error),
     #[error(transparent)]
-    Tracking(#[from] policy::Error),
+    Policy(#[from] policy::Error),
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
     #[error("namespaces error: {0}")]
@@ -173,14 +173,14 @@ pub enum Command {
     Seeds(Id, chan::Sender<Seeds>),
     /// Fetch the given repository from the network.
     Fetch(Id, NodeId, time::Duration, chan::Sender<FetchResult>),
-    /// Track the given repository.
-    TrackRepo(Id, Scope, chan::Sender<bool>),
-    /// Untrack the given repository.
-    UntrackRepo(Id, chan::Sender<bool>),
-    /// Track the given node.
-    TrackNode(NodeId, Option<Alias>, chan::Sender<bool>),
-    /// Untrack the given node.
-    UntrackNode(NodeId, chan::Sender<bool>),
+    /// Seed the given repository.
+    Seed(Id, Scope, chan::Sender<bool>),
+    /// Unseed the given repository.
+    Unseed(Id, chan::Sender<bool>),
+    /// Follow the given node.
+    Follow(NodeId, Option<Alias>, chan::Sender<bool>),
+    /// Unfollow the given node.
+    Unfollow(NodeId, chan::Sender<bool>),
     /// Query the internal service state.
     QueryState(Arc<QueryState>, chan::Sender<Result<(), CommandError>>),
 }
@@ -196,10 +196,10 @@ impl fmt::Debug for Command {
             Self::Config(_) => write!(f, "Config"),
             Self::Seeds(id, _) => write!(f, "Seeds({id})"),
             Self::Fetch(id, node, _, _) => write!(f, "Fetch({id}, {node})"),
-            Self::TrackRepo(id, scope, _) => write!(f, "TrackRepo({id}, {scope})"),
-            Self::UntrackRepo(id, _) => write!(f, "UntrackRepo({id})"),
-            Self::TrackNode(id, _, _) => write!(f, "TrackNode({id})"),
-            Self::UntrackNode(id, _) => write!(f, "UntrackNode({id})"),
+            Self::Seed(id, scope, _) => write!(f, "Seed({id}, {scope})"),
+            Self::Unseed(id, _) => write!(f, "Unseed({id})"),
+            Self::Follow(id, _, _) => write!(f, "Follow({id})"),
+            Self::Unfollow(id, _) => write!(f, "Unfollow({id})"),
             Self::QueryState { .. } => write!(f, "QueryState(..)"),
         }
     }
@@ -213,7 +213,7 @@ pub enum CommandError {
     #[error(transparent)]
     Routing(#[from] routing::Error),
     #[error(transparent)]
-    Tracking(#[from] policy::Error),
+    Policy(#[from] policy::Error),
 }
 
 /// Error returned by [`Service::try_fetch`].
@@ -304,8 +304,8 @@ pub struct Service<D, S, G> {
     storage: S,
     /// Node database.
     db: Stores<D>,
-    /// Tracking policy configuration.
-    tracking: policy::Config<Write>,
+    /// Policy configuration.
+    policies: policy::Config<Write>,
     /// Peer sessions, currently or recently connected.
     sessions: Sessions,
     /// Clock. Tells the time.
@@ -322,7 +322,7 @@ pub struct Service<D, S, G> {
     queue: VecDeque<(Id, NodeId)>,
     /// Request/connection rate limitter.
     limiter: RateLimiter,
-    /// Current tracked repository bloom filter.
+    /// Current seeded repositories bloom filter.
     filter: Filter,
     /// Last time the service was idle.
     last_idle: LocalTime,
@@ -364,7 +364,7 @@ where
         clock: LocalTime,
         db: Stores<D>,
         storage: S,
-        tracking: policy::Config<Write>,
+        policies: policy::Config<Write>,
         signer: G,
         rng: Rng,
         node: NodeAnnouncement,
@@ -375,7 +375,7 @@ where
         Self {
             config,
             storage,
-            tracking,
+            policies,
             signer,
             rng,
             node,
@@ -402,42 +402,37 @@ where
         self.outbox.next()
     }
 
-    /// Track a repository.
-    /// Returns whether or not the tracking policy was updated.
-    pub fn track_repo(&mut self, id: &Id, scope: Scope) -> Result<bool, policy::Error> {
-        let updated = self.tracking.track_repo(id, scope)?;
+    /// Seed a repository.
+    /// Returns whether or not the repo policy was updated.
+    pub fn seed(&mut self, id: &Id, scope: Scope) -> Result<bool, policy::Error> {
+        let updated = self.policies.seed(id, scope)?;
         self.filter.insert(id);
 
         Ok(updated)
     }
 
-    /// Untrack a repository.
-    /// Returns whether or not the tracking policy was updated.
-    /// Note that when untracking, we don't announce anything to the network. This is because by
+    /// Unseed a repository.
+    /// Returns whether or not the repo policy was updated.
+    /// Note that when unseeding, we don't announce anything to the network. This is because by
     /// simply not announcing it anymore, it will eventually be pruned by nodes.
-    pub fn untrack_repo(&mut self, id: &Id) -> Result<bool, policy::Error> {
-        let updated = self.tracking.untrack_repo(id)?;
-        // Nb. This is potentially slow if we have lots of projects. We should probably
-        // only re-compute the filter when we've untracked a certain amount of projects
+    pub fn unseed(&mut self, id: &Id) -> Result<bool, policy::Error> {
+        let updated = self.policies.unseed(id)?;
+        // Nb. This is potentially slow if we have lots of repos. We should probably
+        // only re-compute the filter when we've unseeded a certain amount of repos
         // and the filter is really out of date.
         //
         // TODO: Share this code with initialization code.
         self.filter = Filter::new(
-            self.tracking
-                .repo_policies()?
+            self.policies
+                .seed_policies()?
                 .filter_map(|t| (t.policy == Policy::Allow).then_some(t.id)),
         );
         Ok(updated)
     }
 
-    /// Check whether we are tracking a certain repository.
-    pub fn is_tracking(&self, id: &Id) -> Result<bool, policy::Error> {
-        self.tracking.is_repo_tracked(id)
-    }
-
-    /// Find the closest `n` peers by proximity in tracking graphs.
+    /// Find the closest `n` peers by proximity in seeding graphs.
     /// Returns a sorted list from the closest peer to the furthest.
-    /// Peers with more trackings in common score score higher.
+    /// Peers with more seedings in common score score higher.
     #[allow(unused)]
     pub fn closest_peers(&self, n: usize) -> Vec<NodeId> {
         todo!()
@@ -463,9 +458,9 @@ where
         &mut self.storage
     }
 
-    /// Get the tracking policy.
-    pub fn tracking(&self) -> &policy::Config<Write> {
-        &self.tracking
+    /// Get the node policies.
+    pub fn policies(&self) -> &policy::Config<Write> {
+        &self.policies
     }
 
     /// Get the local signer.
@@ -520,8 +515,8 @@ where
         for (id, addr) in addrs.into_iter().map(|ca| ca.into()) {
             self.connect(id, addr);
         }
-        // Ensure that our inventory is recorded in our routing table, and we are tracking
-        // all of it. It can happen that inventory is not properly tracked if for eg. the
+        // Ensure that our inventory is recorded in our routing table, and we are seeding
+        // all of it. It can happen that inventory is not properly seeded if for eg. the
         // user creates a new repository while the node is stopped.
         let rids = self.storage.inventory()?;
         self.db.routing_mut().insert(&rids, nid, time.as_millis())?;
@@ -534,8 +529,8 @@ where
         for rid in rids {
             let repo = self.storage.repository(rid)?;
 
-            if !self.is_tracking(&rid)? {
-                warn!(target: "service", "Local repository {rid} is not tracked");
+            if !self.policies.is_seeding(&rid)? {
+                warn!(target: "service", "Local repository {rid} is not seeded");
             }
             // If we have no owned refs for this repo, then there's nothing to announce.
             let Ok(updated_at) = SyncedAt::load(&repo, nid) else {
@@ -566,10 +561,10 @@ where
             }
         }
 
-        // Setup subscription filter for tracked repos.
+        // Setup subscription filter for seeded repos.
         self.filter = Filter::new(
-            self.tracking
-                .repo_policies()?
+            self.policies
+                .seed_policies()?
                 .filter_map(|t| (t.policy == Policy::Allow).then_some(t.id)),
         );
         // Try to establish some connections.
@@ -677,12 +672,12 @@ where
             Command::Fetch(rid, seed, timeout, resp) => {
                 self.fetch(rid, &seed, timeout, Some(resp));
             }
-            Command::TrackRepo(rid, scope, resp) => {
-                // Update our tracking policy.
-                let tracked = self
-                    .track_repo(&rid, scope)
-                    .expect("Service::command: error tracking repository");
-                resp.send(tracked).ok();
+            Command::Seed(rid, scope, resp) => {
+                // Update our seeding policy.
+                let seeded = self
+                    .seed(&rid, scope)
+                    .expect("Service::command: error seeding repository");
+                resp.send(seeded).ok();
 
                 // Let all our peers know that we're interested in this repo from now on.
                 self.outbox.broadcast(
@@ -690,25 +685,25 @@ where
                     self.sessions.connected().map(|(_, s)| s),
                 );
             }
-            Command::UntrackRepo(id, resp) => {
-                let untracked = self
-                    .untrack_repo(&id)
-                    .expect("Service::command: error untracking repository");
-                resp.send(untracked).ok();
+            Command::Unseed(id, resp) => {
+                let updated = self
+                    .unseed(&id)
+                    .expect("Service::command: error unseeding repository");
+                resp.send(updated).ok();
             }
-            Command::TrackNode(id, alias, resp) => {
-                let tracked = self
-                    .tracking
-                    .track_node(&id, alias.as_deref())
-                    .expect("Service::command: error tracking node");
-                resp.send(tracked).ok();
+            Command::Follow(id, alias, resp) => {
+                let seeded = self
+                    .policies
+                    .follow(&id, alias.as_deref())
+                    .expect("Service::command: error following node");
+                resp.send(seeded).ok();
             }
-            Command::UntrackNode(id, resp) => {
-                let untracked = self
-                    .tracking
-                    .untrack_node(&id)
-                    .expect("Service::command: error untracking node");
-                resp.send(untracked).ok();
+            Command::Unfollow(id, resp) => {
+                let updated = self
+                    .policies
+                    .unfollow(&id)
+                    .expect("Service::command: error unfollowing node");
+                resp.send(updated).ok();
             }
             Command::AnnounceRefs(id, resp) => match self.announce_refs(id, [self.node_id()]) {
                 Ok(refs) => match refs.as_slice() {
@@ -833,7 +828,7 @@ where
             from,
             subscribers: vec![],
         });
-        let namespaces = self.tracking.namespaces_for(&self.storage, &rid)?;
+        let namespaces = self.policies.namespaces_for(&self.storage, &rid)?;
 
         self.outbox
             .fetch(session, rid, namespaces, refs_at, timeout);
@@ -1190,10 +1185,10 @@ where
                             sub.filter.insert(id);
                         }
 
-                        // If we're tracking and connected to the announcer, and we don't have
+                        // If we're seeding and connected to the announcer, and we don't have
                         // the inventory, fetch it from the announcer.
-                        if self.tracking.is_repo_tracked(id).expect(
-                            "Service::handle_announcement: error accessing tracking configuration",
+                        if self.policies.is_seeding(id).expect(
+                            "Service::handle_announcement: error accessing seeding configuration",
                         ) {
                             // Only if we do not have the repository locally do we fetch here.
                             // If we do have it, only fetch after receiving a ref announcement.
@@ -1202,7 +1197,7 @@ where
                                     // Do nothing.
                                 }
                                 Ok(false) => {
-                                    debug!(target: "service", "Missing tracked inventory {id}; initiating fetch..");
+                                    debug!(target: "service", "Missing seeded inventory {id}; initiating fetch..");
                                     self.fetch(*id, announcer, FETCH_TIMEOUT, None);
                                 }
                                 Err(e) => {
@@ -1262,8 +1257,8 @@ where
                 }
 
                 // TODO: Buffer/throttle fetches.
-                let repo_entry = self.tracking.repo_policy(&message.rid).expect(
-                    "Service::handle_announcement: error accessing repo tracking configuration",
+                let repo_entry = self.policies.repo_policy(&message.rid).expect(
+                    "Service::handle_announcement: error accessing repo seeding configuration",
                 );
 
                 if repo_entry.policy == Policy::Allow {
@@ -1336,7 +1331,7 @@ where
                 } else {
                     debug!(
                         target: "service",
-                        "Ignoring refs announcement from {announcer}: repository {} isn't tracked",
+                        "Ignoring refs announcement from {announcer}: repository {} isn't seeded",
                         message.rid
                     );
                 }
@@ -1425,7 +1420,7 @@ where
         match scope {
             policy::Scope::All => Ok(refs),
             policy::Scope::Followed => {
-                match self.tracking.namespaces_for(&self.storage, &message.rid) {
+                match self.policies.namespaces_for(&self.storage, &message.rid) {
                     Ok(Namespaces::All) => Ok(refs),
                     Ok(Namespaces::Followed(mut followed)) => {
                         // Get the set of followed nodes except self.
@@ -1618,9 +1613,11 @@ where
                     info!(target: "service", "Routing table updated for {rid} with seed {from}");
                     self.emitter.emit(Event::SeedDiscovered { rid, nid: from });
 
-                    if self.tracking.is_repo_tracked(&rid).expect(
-                        "Service::process_inventory: error accessing tracking configuration",
-                    ) {
+                    if self
+                        .policies
+                        .is_seeding(&rid)
+                        .expect("Service::process_inventory: error accessing seeding configuration")
+                    {
                         // TODO: We should fetch here if we're already connected, case this seed has
                         // refs we don't have.
                     }
@@ -1797,7 +1794,7 @@ where
         }
 
         // Then, add peers we know about but have no information about the sync status.
-        // These peers have announced that they track the repository via an inventory
+        // These peers have announced that they seed the repository via an inventory
         // announcement, but we haven't received any ref announcements from them.
         for nid in self.db.routing().get(rid)? {
             if nid == self.node_id() {
@@ -1815,7 +1812,7 @@ where
         Ok(seeds)
     }
 
-    /// Return a new filter object, based on our tracking policy.
+    /// Return a new filter object, based on our seeding policy.
     fn filter(&self) -> Filter {
         if self.config.policy == Policy::Allow {
             // TODO: Remove bits for blocked repos.
@@ -1914,12 +1911,12 @@ where
         }
     }
 
-    /// Fetch all repositories that are tracked but missing from our inventory.
+    /// Fetch all repositories that are seeded but missing from our inventory.
     fn fetch_missing_inventory(&mut self) -> Result<(), Error> {
         let inventory = self.storage().inventory()?;
         let missing = self
-            .tracking
-            .repo_policies()?
+            .policies
+            .seed_policies()?
             .filter_map(|t| (t.policy == Policy::Allow).then_some(t.id))
             .filter(|rid| !inventory.contains(rid));
 
@@ -1938,7 +1935,7 @@ where
                         // Another way to handle this would be to update our database, saying
                         // that we're trying to fetch a certain repo. We would then just
                         // iterate over those entries in the above circumstances. This is
-                        // merely an optimization though, we can also iterate over all tracked
+                        // merely an optimization though, we can also iterate over all seeded
                         // repos and check which ones are not in our inventory.
                         debug!(target: "service", "No connected seeds found for {rid}..");
                     }

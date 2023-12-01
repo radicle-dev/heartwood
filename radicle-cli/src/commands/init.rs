@@ -60,7 +60,7 @@ pub struct Options {
     pub scope: Scope,
     pub set_upstream: bool,
     pub verbose: bool,
-    pub track: bool,
+    pub seed: bool,
 }
 
 impl Args for Options {
@@ -77,7 +77,7 @@ impl Args for Options {
         let mut set_upstream = false;
         let mut setup_signing = false;
         let mut scope = Scope::All;
-        let mut track = true;
+        let mut seed = true;
         let mut verbose = false;
         let mut visibility = None;
 
@@ -129,8 +129,8 @@ impl Args for Options {
                 Long("no-confirm") => {
                     interactive = Interactive::No;
                 }
-                Long("no-track") => {
-                    track = false;
+                Long("no-seed") => {
+                    seed = false;
                 }
                 Long("private") => {
                     visibility = Some(Visibility::private([]));
@@ -161,7 +161,7 @@ impl Args for Options {
                 interactive,
                 set_upstream,
                 setup_signing,
-                track,
+                seed,
                 visibility,
                 verbose,
             },
@@ -279,10 +279,10 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                 term::blob(json::to_string_pretty(&proj)?);
             }
 
-            // It's important to track our own repositories to make sure that our node signals
+            // It's important to seed our own repositories to make sure that our node signals
             // interest for them. This ensures that messages relating to them are relayed to us.
-            if options.track {
-                cli::project::track(id, options.scope, &mut node, profile)?;
+            if options.seed {
+                cli::project::seed(id, options.scope, &mut node, profile)?;
             }
 
             if options.set_upstream || git::branch_remote(&repo, proj.default_branch()).is_err() {

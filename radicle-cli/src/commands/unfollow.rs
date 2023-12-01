@@ -79,8 +79,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let unfollowed = match node.unfollow(nid) {
         Ok(updated) => updated,
         Err(e) if e.is_connection_err() => {
-            let mut config = profile.tracking_mut()?;
-            config.untrack_node(&nid)?
+            let mut config = profile.policies_mut()?;
+            config.unfollow(&nid)?
         }
         Err(e) => return Err(e.into()),
     };

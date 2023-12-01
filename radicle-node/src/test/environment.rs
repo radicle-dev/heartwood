@@ -21,7 +21,7 @@ use radicle::identity::{Id, Visibility};
 use radicle::node::policy::store as policy;
 use radicle::node::routing::Store;
 use radicle::node::Database;
-use radicle::node::{Alias, TRACKING_DB_FILE};
+use radicle::node::{Alias, POLICIES_DB_FILE};
 use radicle::node::{ConnectOptions, Handle as _};
 use radicle::profile;
 use radicle::profile::Home;
@@ -81,8 +81,8 @@ impl Environment {
         let profile = self.profile(&config.alias);
         let signer = MemorySigner::load(&profile.keystore, None).unwrap();
 
-        let tracking_db = profile.home.node().join(TRACKING_DB_FILE);
-        let tracking = policy::Config::open(tracking_db).unwrap();
+        let policies_db = profile.home.node().join(POLICIES_DB_FILE);
+        let policies = policy::Store::open(policies_db).unwrap();
         let db = profile.database_mut().unwrap();
         let db = service::Stores::from(db);
 
@@ -92,7 +92,7 @@ impl Environment {
             config,
             signer,
             db,
-            tracking,
+            policies,
             storage: profile.storage,
         }
     }
@@ -103,7 +103,7 @@ impl Environment {
         let home = Home::new(self.tmp().join("home").join(alias).join(".radicle")).unwrap();
         let keystore = Keystore::new(&home.keys());
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
-        let tracking_db = home.node().join(TRACKING_DB_FILE);
+        let policies_db = home.node().join(POLICIES_DB_FILE);
         let alias = Alias::from_str(alias).unwrap();
         let config = profile::Config {
             node: node::Config::new(alias.clone()),
@@ -122,7 +122,7 @@ impl Environment {
         )
         .unwrap();
 
-        policy::Config::open(tracking_db).unwrap();
+        policy::Store::open(policies_db).unwrap();
         home.database_mut().unwrap(); // Just create the database.
 
         transport::local::register(storage.clone());
@@ -149,7 +149,7 @@ pub struct Node<G> {
     pub storage: Storage,
     pub config: Config,
     pub db: service::Stores<Database>,
-    pub tracking: policy::Config<policy::Write>,
+    pub policies: policy::Store<policy::Write>,
 }
 
 /// Handle to a running node.
@@ -348,7 +348,7 @@ impl Node<MockSigner> {
             },
         )
         .unwrap();
-        let tracking = home.tracking_mut().unwrap();
+        let policies = home.policies_mut().unwrap();
         let db = home.database_mut().unwrap();
         let db = service::Stores::from(db);
 
@@ -360,7 +360,7 @@ impl Node<MockSigner> {
             storage,
             config,
             db,
-            tracking,
+            policies,
         }
     }
 }
@@ -419,8 +419,8 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
         .unwrap();
 
         assert!(self
-            .tracking
-            .track_repo(&id, node::policy::Scope::Followed)
+            .policies
+            .seed(&id, node::policy::Scope::Followed)
             .unwrap());
 
         log::debug!(

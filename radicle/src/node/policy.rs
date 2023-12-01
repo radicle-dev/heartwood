@@ -111,7 +111,7 @@ impl fmt::Display for Scope {
 }
 
 #[derive(Debug, Error)]
-#[error("invalid tracking scope: {0:?}")]
+#[error("invalid seeding scope: {0:?}")]
 pub struct ParseScopeError(String);
 
 impl FromStr for Scope {

@@ -12,7 +12,7 @@
 //!      as an anchor for the rest of the fetch, i.e. provides initial
 //!      delegate data for the repository.
 //!   2. [`SpecialRefs`]: fetches the special references, `rad/id` and
-//!      `rad/sigrefs`, for each configured namespace, i.e. tracked
+//!      `rad/sigrefs`, for each configured namespace, i.e. followed
 //!      and delegate peers if the scope is "followed" and all peers is the
 //!      scope is all.
 //!   3. [`DataRefs`]: fetches the `Oid`s for each reference listed in
@@ -40,12 +40,12 @@ use radicle::storage::refs::{RefsAt, Special};
 use radicle::storage::ReadRepository;
 
 use crate::git::refs::{Policy, Update, Updates};
+use crate::policy::BlockList;
 use crate::refs::{ReceivedRef, ReceivedRefname};
 use crate::sigrefs;
 use crate::state::FetchState;
-use crate::tracking::BlockList;
 use crate::transport::WantsHaves;
-use crate::{refs, tracking};
+use crate::{policy, refs};
 
 pub mod error {
     use radicle::crypto::PublicKey;
@@ -214,12 +214,11 @@ impl ProtocolStage for CanonicalId {
 }
 
 /// The [`ProtocolStage`] for fetching special refs from the set of
-/// remotes in `tracked` and `delegates`.
+/// remotes in `followed` and `delegates`.
 ///
-/// This step asks for all tracked and delegate remote's `rad/id` and
-/// `rad/sigrefs`, iff the scope is
-/// [`tracking::Scope::Trusted`]. Otherwise, it asks for all
-/// namespaces.
+/// This step asks for all followed and delegate remote's `rad/id` and
+/// `rad/sigrefs`, iff the scope is [`policy::Scope::Followed`].
+/// Otherwise, it asks for all namespaces.
 ///
 /// It ensures that all delegate refs were fetched.
 #[derive(Debug)]
@@ -229,7 +228,7 @@ pub struct SpecialRefs {
     /// The node that is being fetched from.
     pub remote: PublicKey,
     /// The set of nodes to be fetched.
-    pub tracked: tracking::Tracked,
+    pub followed: policy::Allowed,
     /// The set of delegates to be fetched, with the local node
     /// removed in the case of a `pull`.
     pub delegates: BTreeSet<PublicKey>,
@@ -239,9 +238,9 @@ pub struct SpecialRefs {
 
 impl ProtocolStage for SpecialRefs {
     fn ls_refs(&self) -> Option<NonEmpty<BString>> {
-        match &self.tracked {
-            tracking::Tracked::All => Some(NonEmpty::new("refs/namespaces".into())),
-            tracking::Tracked::Followed { remotes } => NonEmpty::collect(
+        match &self.followed {
+            policy::Allowed::All => Some(NonEmpty::new("refs/namespaces".into())),
+            policy::Allowed::Followed { remotes } => NonEmpty::collect(
                 remotes
                     .iter()
                     .chain(self.delegates.iter())

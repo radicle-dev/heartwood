@@ -47,8 +47,8 @@ pub const DEFAULT_TIMEOUT: time::Duration = time::Duration::from_secs(9);
 pub const MAX_ALIAS_LENGTH: usize = 32;
 /// Filename of node database under the node directory.
 pub const NODE_DB_FILE: &str = "node.db";
-/// Filename of tracking table database under the node directory.
-pub const TRACKING_DB_FILE: &str = "tracking.db";
+/// Filename of policies database under the node directory.
+pub const POLICIES_DB_FILE: &str = "policies.db";
 /// Filename of last node announcement, when running in debug mode.
 #[cfg(debug_assertions)]
 pub const NODE_ANNOUNCEMENT_FILE: &str = "announcement.wire.debug";

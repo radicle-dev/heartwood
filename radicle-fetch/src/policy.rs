@@ -8,32 +8,32 @@ use radicle::prelude::Id;
 pub use radicle::node::policy::{Policy, Scope};
 
 #[derive(Clone, Debug)]
-pub enum Tracked {
+pub enum Allowed {
     All,
     Followed { remotes: HashSet<PublicKey> },
 }
 
-impl Tracked {
-    pub fn from_config(rid: Id, config: &Config<Read>) -> Result<Self, error::Tracking> {
+impl Allowed {
+    pub fn from_config(rid: Id, config: &Config<Read>) -> Result<Self, error::Policy> {
         let entry = config
             .repo_policy(&rid)
-            .map_err(|err| error::Tracking::FailedPolicy { rid, err })?;
+            .map_err(|err| error::Policy::FailedPolicy { rid, err })?;
         match entry.policy {
             Policy::Block => {
-                log::error!(target: "fetch", "Attempted to fetch untracked repo {rid}");
-                Err(error::Tracking::BlockedPolicy { rid })
+                log::error!(target: "fetch", "Attempted to fetch non-seeded repo {rid}");
+                Err(error::Policy::BlockedPolicy { rid })
             }
             Policy::Allow => match entry.scope {
                 Scope::All => Ok(Self::All),
                 Scope::Followed => {
                     let nodes = config
-                        .node_policies()
-                        .map_err(|err| error::Tracking::FailedNodes { rid, err })?;
+                        .follow_policies()
+                        .map_err(|err| error::Policy::FailedNodes { rid, err })?;
                     let followed: HashSet<_> = nodes
                         .filter_map(|node| (node.policy == Policy::Allow).then_some(node.id))
                         .collect();
 
-                    Ok(Tracked::Followed { remotes: followed })
+                    Ok(Allowed::Followed { remotes: followed })
                 }
             },
         }
@@ -63,7 +63,7 @@ impl BlockList {
 
     pub fn from_config(config: &Config<Read>) -> Result<BlockList, error::Blocked> {
         Ok(config
-            .node_policies()?
+            .follow_policies()?
             .filter_map(|entry| (entry.policy == Policy::Block).then_some(entry.id))
             .collect())
     }
@@ -80,16 +80,16 @@ pub mod error {
     pub struct Blocked(#[from] policy::config::Error);
 
     #[derive(Debug, Error)]
-    pub enum Tracking {
-        #[error("failed to find tracking policy for {rid}")]
+    pub enum Policy {
+        #[error("failed to find policy for {rid}")]
         FailedPolicy {
             rid: Id,
             #[source]
             err: policy::store::Error,
         },
-        #[error("cannot fetch {rid} as it is not tracked")]
+        #[error("cannot fetch {rid} as it is not seeded")]
         BlockedPolicy { rid: Id },
-        #[error("failed to get tracking nodes for {rid}")]
+        #[error("failed to get followed nodes for {rid}")]
         FailedNodes {
             rid: Id,
             #[source]

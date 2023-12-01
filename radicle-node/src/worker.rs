@@ -50,11 +50,11 @@ pub enum FetchError {
     #[error(transparent)]
     Storage(#[from] radicle::storage::Error),
     #[error(transparent)]
-    TrackingConfig(#[from] radicle::node::policy::store::Error),
+    PolicyStore(#[from] radicle::node::policy::store::Error),
     #[error(transparent)]
-    Tracked(#[from] radicle_fetch::tracking::error::Tracking),
+    Policy(#[from] radicle_fetch::policy::error::Policy),
     #[error(transparent)]
-    Blocked(#[from] radicle_fetch::tracking::error::Blocked),
+    Blocked(#[from] radicle_fetch::policy::error::Blocked),
 }
 
 impl FetchError {
@@ -156,8 +156,8 @@ pub struct FetchConfig {
     pub policy: Policy,
     /// Default scope, if a scope for a specific repository was not found.
     pub scope: policy::Scope,
-    /// Path to the tracking database.
-    pub tracking_db: PathBuf,
+    /// Path to the policies database.
+    pub policies_db: PathBuf,
     /// Data limits when fetching from a remote.
     pub limit: FetchLimit,
     /// Public key of the local peer.
@@ -278,18 +278,18 @@ impl Worker {
         let FetchConfig {
             policy,
             scope,
-            tracking_db,
+            policies_db,
             limit,
             local,
             expiry,
         } = &self.fetch_config;
-        let policies = policy::Config::new(*policy, *scope, policy::Store::reader(tracking_db)?);
+        let policies = policy::Config::new(*policy, *scope, policy::Store::reader(policies_db)?);
         // N.b. if the `rid` is blocked this will return an error, so
         // we won't continue with any further set up of the fetch.
-        let tracked = radicle_fetch::Tracked::from_config(rid, &policies)?;
+        let allowed = radicle_fetch::Allowed::from_config(rid, &policies)?;
         let blocked = radicle_fetch::BlockList::from_config(&policies)?;
 
-        let handle = fetch::Handle::new(rid, *local, &self.storage, tracked, blocked, channels)?;
+        let handle = fetch::Handle::new(rid, *local, &self.storage, allowed, blocked, channels)?;
         let result = handle.fetch(rid, &self.storage, *limit, remote, refs_at)?;
 
         if let Err(e) = garbage::collect(&self.storage, rid, *expiry) {

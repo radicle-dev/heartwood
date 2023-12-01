@@ -173,8 +173,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Target::Policy => {
-            let tracking = profile.tracking()?;
-            if let Some(repo) = tracking.repo_policy(&rid)? {
+            let tracking = profile.policies()?;
+            if let Some(repo) = tracking.seed_policy(&rid)? {
                 let tracking = match repo.policy {
                     Policy::Allow => term::format::positive("tracked"),
                     Policy::Block => term::format::negative("blocked"),

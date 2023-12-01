@@ -10,21 +10,21 @@ use crate::prelude::{Id, NodeId};
 use crate::storage::{Namespaces, ReadRepository as _, ReadStorage, RepositoryError};
 
 pub use crate::node::policy::store;
-pub use crate::node::policy::store::Config as Store;
 pub use crate::node::policy::store::Error;
+pub use crate::node::policy::store::Store;
 pub use crate::node::policy::{Alias, Node, Policy, Repo, Scope};
 
 #[derive(Debug, Error)]
 pub enum NamespacesError {
-    #[error("failed to find tracking policy for {rid}")]
+    #[error("failed to find policy for {rid}")]
     FailedPolicy {
         rid: Id,
         #[source]
         err: Error,
     },
-    #[error("cannot fetch {rid} as it is not tracked")]
+    #[error("cannot fetch {rid} as it is not seeded")]
     BlockedPolicy { rid: Id },
-    #[error("failed to get tracking nodes for {rid}")]
+    #[error("failed to get node policies for {rid}")]
     FailedNodes {
         rid: Id,
         #[source]
@@ -42,7 +42,7 @@ pub enum NamespacesError {
     NoFollowed { rid: Id },
 }
 
-/// Tracking configuration.
+/// Policies configuration.
 pub struct Config<T> {
     /// Default policy, if a policy for a specific node or repository was not found.
     policy: Policy,
@@ -65,7 +65,7 @@ impl<T> fmt::Debug for Config<T> {
 }
 
 impl<T> Config<T> {
-    /// Create a new tracking configuration.
+    /// Create a new policy configuration.
     pub fn new(policy: Policy, scope: Scope, store: Store<T>) -> Self {
         Self {
             policy,
@@ -74,32 +74,32 @@ impl<T> Config<T> {
         }
     }
 
-    /// Check if a repository is tracked.
-    pub fn is_repo_tracked(&self, id: &Id) -> Result<bool, Error> {
+    /// Check if a repository is seeded.
+    pub fn is_seeding(&self, id: &Id) -> Result<bool, Error> {
         self.repo_policy(id)
             .map(|entry| entry.policy == Policy::Allow)
     }
 
-    /// Check if a node is tracked.
-    pub fn is_node_tracked(&self, id: &NodeId) -> Result<bool, Error> {
+    /// Check if a node is followed.
+    pub fn is_following(&self, id: &NodeId) -> Result<bool, Error> {
         self.node_policy(id)
             .map(|entry| entry.policy == Policy::Allow)
     }
 
-    /// Get a node's tracking information.
+    /// Get a node's following information.
     /// Returns the default policy if the node isn't found.
     pub fn node_policy(&self, id: &NodeId) -> Result<Node, Error> {
-        Ok(self.store.node_policy(id)?.unwrap_or(Node {
+        Ok(self.store.follow_policy(id)?.unwrap_or(Node {
             id: *id,
             alias: None,
             policy: self.policy,
         }))
     }
 
-    /// Get a repository's tracking information.
+    /// Get a repository's seediing information.
     /// Returns the default policy if the repo isn't found.
     pub fn repo_policy(&self, id: &Id) -> Result<Repo, Error> {
-        Ok(self.store.repo_policy(id)?.unwrap_or(Repo {
+        Ok(self.store.seed_policy(id)?.unwrap_or(Repo {
             id: *id,
             scope: self.scope,
             policy: self.policy,
@@ -124,7 +124,7 @@ impl<T> Config<T> {
                 Scope::All => Ok(Namespaces::All),
                 Scope::Followed => {
                     let nodes = self
-                        .node_policies()
+                        .follow_policies()
                         .map_err(|err| FailedNodes { rid: *rid, err })?;
                     let mut followed: HashSet<_> = nodes
                         .filter_map(|node| (node.policy == Policy::Allow).then_some(node.id))

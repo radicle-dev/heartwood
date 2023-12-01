@@ -741,14 +741,14 @@ fn rad_clean() {
 }
 
 #[test]
-fn rad_track() {
+fn rad_seed_and_follow() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
     let working = tempfile::tempdir().unwrap();
     let alice = alice.spawn();
 
     test(
-        "examples/rad-track.md",
+        "examples/rad-seed-and-follow.md",
         working.path(),
         Some(&alice.home),
         [],
@@ -897,7 +897,7 @@ fn rad_sync_without_node() {
     let mut eve = environment.node(Config::test(Alias::new("eve")));
 
     let rid = Id::from_urn("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5").unwrap();
-    eve.tracking.track_repo(&rid, Scope::All).unwrap();
+    eve.policies.seed(&rid, Scope::All).unwrap();
 
     formula(&environment.tmp(), "examples/rad-sync-without-node.md")
         .unwrap()

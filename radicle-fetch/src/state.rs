@@ -323,13 +323,13 @@ impl FetchState {
                 Ok(signed_refs)
             }
             None => {
-                let tracked = handle.tracked();
-                log::trace!(target: "fetch", "Tracked nodes {:?}", tracked);
+                let followed = handle.allowed();
+                log::trace!(target: "fetch", "Followed nodes {:?}", followed);
                 let special_refs = stage::SpecialRefs {
                     blocked: handle.blocked.clone(),
                     remote,
                     delegates: delegates.clone(),
-                    tracked,
+                    followed,
                     limit: limit.special,
                 };
                 log::trace!(target: "fetch", "{special_refs:?}");

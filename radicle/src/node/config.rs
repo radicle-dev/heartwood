@@ -211,10 +211,10 @@ pub struct Config {
     /// Configured service limits.
     #[serde(default)]
     pub limits: Limits,
-    /// Default tracking policy.
+    /// Default seeding policy.
     #[serde(default)]
     pub policy: Policy,
-    /// Default tracking scope.
+    /// Default seeding scope.
     #[serde(default)]
     pub scope: Scope,
 }

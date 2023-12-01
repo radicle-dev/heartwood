@@ -7,7 +7,7 @@ use radicle::prelude::Id;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadStorage as _, RefUpdate, WriteRepository as _};
 use radicle::Storage;
-use radicle_fetch::{BlockList, FetchLimit, Tracked};
+use radicle_fetch::{Allowed, BlockList, FetchLimit};
 
 use super::channels::ChannelsFlush;
 
@@ -34,18 +34,18 @@ impl Handle {
         rid: Id,
         local: PublicKey,
         storage: &Storage,
-        tracked: Tracked,
+        follow: Allowed,
         blocked: BlockList,
         channels: ChannelsFlush,
     ) -> Result<Self, error::Handle> {
         let exists = storage.contains(&rid)?;
         if exists {
             let repo = storage.repository(rid)?;
-            let handle = radicle_fetch::Handle::new(local, repo, tracked, blocked, channels)?;
+            let handle = radicle_fetch::Handle::new(local, repo, follow, blocked, channels)?;
             Ok(Handle::Pull { handle })
         } else {
             let (repo, tmp) = storage.lock_repository(rid)?;
-            let handle = radicle_fetch::Handle::new(local, repo, tracked, blocked, channels)?;
+            let handle = radicle_fetch::Handle::new(local, repo, follow, blocked, channels)?;
             Ok(Handle::Clone { handle, tmp })
         }
     }

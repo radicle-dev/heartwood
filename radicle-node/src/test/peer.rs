@@ -162,8 +162,8 @@ where
         storage: S,
         mut config: Config<G>,
     ) -> Self {
-        let tracking = policy::Store::<policy::store::Write>::memory().unwrap();
-        let mut tracking = policy::Config::new(config.policy, config.scope, tracking);
+        let policies = policy::Store::<policy::store::Write>::memory().unwrap();
+        let mut policies = policy::Config::new(config.policy, config.scope, policies);
         let id = *config.signer.public_key();
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, config.rng.u16(..));
@@ -172,7 +172,7 @@ where
         config.config.external_addresses.push(local_addr.into());
 
         for rid in storage.inventory().unwrap() {
-            tracking.track_repo(&rid, Scope::Followed).unwrap();
+            policies.seed(&rid, Scope::Followed).unwrap();
         }
         let announcement = service::gossip::node(&config.config, config.local_time.as_secs());
         let emitter: Emitter<Event> = Default::default();
@@ -181,7 +181,7 @@ where
             config.local_time,
             config.db,
             storage,
-            tracking,
+            policies,
             config.signer,
             config.rng.clone(),
             announcement,

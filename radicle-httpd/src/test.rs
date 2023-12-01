@@ -96,7 +96,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
 
     crate::logger::init().ok();
 
-    profile.tracking_mut().unwrap();
+    profile.policies_mut().unwrap();
     profile.database_mut().unwrap(); // Create the database.
 
     let workdir = dir.join("hello-world-private");

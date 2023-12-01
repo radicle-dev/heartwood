@@ -7,7 +7,7 @@ use crate::terminal as term;
 use term::Element;
 
 pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
-    let store = profile.tracking()?;
+    let store = profile.policies()?;
     let mut t = term::Table::new(term::table::TableOptions::bordered());
     t.push([
         term::format::default(String::from("RID")),
@@ -16,7 +16,7 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
     ]);
     t.divider();
 
-    for policy::Repo { id, scope, policy } in store.repo_policies()? {
+    for policy::Repo { id, scope, policy } in store.seed_policies()? {
         let id = id.to_string();
         let scope = scope.to_string();
         let policy = policy.to_string();
@@ -33,7 +33,7 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
 }
 
 pub fn following(profile: &Profile) -> anyhow::Result<()> {
-    let store = profile.tracking()?;
+    let store = profile.policies()?;
     let aliases = profile.aliases();
     let mut t = term::Table::new(term::table::TableOptions::bordered());
     t.push([
@@ -43,7 +43,7 @@ pub fn following(profile: &Profile) -> anyhow::Result<()> {
     ]);
     t.divider();
 
-    for policy::Node { id, alias, policy } in store.node_policies()? {
+    for policy::Node { id, alias, policy } in store.follow_policies()? {
         t.push([
             term::format::highlight(Did::from(id).to_string()),
             match alias {

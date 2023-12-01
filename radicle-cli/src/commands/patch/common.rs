@@ -23,7 +23,7 @@ fn get_branch(git_ref: git::Qualified) -> git::RefString {
     std::iter::once(head).chain(tail).collect()
 }
 
-/// Determine the merge target for this patch. This can be any tracked remote's "default" branch,
+/// Determine the merge target for this patch. This can be any followed remote's "default" branch,
 /// as well as your own (eg. `rad/master`).
 pub fn get_merge_target(
     storage: &Repository,

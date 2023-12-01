@@ -64,7 +64,7 @@ impl Context {
         let issues = issue::Issues::open(&repo)?.counts()?;
         let patches = patch::Patches::open(&repo)?.counts()?;
         let db = &self.profile.database()?;
-        let trackings = db.count(&id).unwrap_or_default();
+        let seeding = db.count(&id).unwrap_or_default();
 
         Ok(project::Info {
             payload,
@@ -74,7 +74,7 @@ impl Context {
             issues,
             patches,
             id,
-            trackings,
+            seeding,
         })
     }
 
@@ -213,7 +213,7 @@ mod project {
         pub patches: cob::patch::PatchCounts,
         pub issues: cob::issue::IssueCounts,
         pub id: Id,
-        pub trackings: usize,
+        pub seeding: usize,
     }
 }
 

@@ -52,9 +52,9 @@ impl<'a> SetupRemote<'a> {
     }
 }
 
-/// Track a repository by first trying to track through the node, and if the node isn't running,
-/// by updating the tracking database directly.
-pub fn track(
+/// Seed a repository by first trying to seed through the node, and if the node isn't running,
+/// by updating the policy database directly.
+pub fn seed(
     rid: Id,
     scope: Scope,
     node: &mut Node,
@@ -63,21 +63,21 @@ pub fn track(
     match node.seed(rid, scope) {
         Ok(updated) => Ok(updated),
         Err(e) if e.is_connection_err() => {
-            let mut config = profile.tracking_mut()?;
-            config.track_repo(&rid, scope).map_err(|e| e.into())
+            let mut config = profile.policies_mut()?;
+            config.seed(&rid, scope).map_err(|e| e.into())
         }
         Err(e) => Err(e.into()),
     }
 }
 
-/// Untrack a repository by first trying to untrack through the node, and if the node isn't running,
-/// by updating the tracking database directly.
-pub fn untrack(rid: Id, node: &mut Node, profile: &Profile) -> Result<bool, anyhow::Error> {
+/// Unseed a repository by first trying to unseed through the node, and if the node isn't running,
+/// by updating the policy database directly.
+pub fn unseed(rid: Id, node: &mut Node, profile: &Profile) -> Result<bool, anyhow::Error> {
     match node.unseed(rid) {
         Ok(updated) => Ok(updated),
         Err(e) if e.is_connection_err() => {
-            let mut config = profile.tracking_mut()?;
-            config.untrack_repo(&rid).map_err(|e| e.into())
+            let mut config = profile.policies_mut()?;
+            config.unseed(&rid).map_err(|e| e.into())
         }
         Err(e) => Err(e.into()),
     }

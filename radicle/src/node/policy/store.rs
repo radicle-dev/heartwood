@@ -32,23 +32,23 @@ pub struct Read;
 pub struct Write;
 
 /// Read only config.
-pub type ConfigReader = Config<Read>;
+pub type StoreReader = Store<Read>;
 /// Read-write config.
-pub type ConfigWriter = Config<Write>;
+pub type StoreWriter = Store<Write>;
 
-/// Tracking configuration.
-pub struct Config<T> {
+/// Policy configuration.
+pub struct Store<T> {
     db: sql::Connection,
     _marker: PhantomData<T>,
 }
 
-impl<T> fmt::Debug for Config<T> {
+impl<T> fmt::Debug for Store<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Config(..)")
+        write!(f, "Store(..)")
     }
 }
 
-impl Config<Read> {
+impl Store<Read> {
     const SCHEMA: &'static str = include_str!("schema.sql");
 
     /// Same as [`Self::open`], but in read-only mode. This is useful to have multiple
@@ -80,7 +80,7 @@ impl Config<Read> {
     }
 }
 
-impl Config<Write> {
+impl Store<Write> {
     const SCHEMA: &'static str = include_str!("schema.sql");
 
     /// Open a policy store at the given path. Creates a new store if it
@@ -108,15 +108,15 @@ impl Config<Write> {
     }
 
     /// Get a read-only version of this store.
-    pub fn read_only(self) -> ConfigReader {
-        Config {
+    pub fn read_only(self) -> StoreReader {
+        Store {
             db: self.db,
             _marker: PhantomData,
         }
     }
 
-    /// Track a node.
-    pub fn track_node(&mut self, id: &NodeId, alias: Option<&str>) -> Result<bool, Error> {
+    /// Follow a node.
+    pub fn follow(&mut self, id: &NodeId, alias: Option<&str>) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
             "INSERT INTO `following` (id, alias)
              VALUES (?1, ?2)
@@ -131,8 +131,8 @@ impl Config<Write> {
         Ok(self.db.change_count() > 0)
     }
 
-    /// Track a repository.
-    pub fn track_repo(&mut self, id: &Id, scope: Scope) -> Result<bool, Error> {
+    /// Seed a repository.
+    pub fn seed(&mut self, id: &Id, scope: Scope) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
             "INSERT INTO `seeding` (id, scope)
              VALUES (?1, ?2)
@@ -147,8 +147,8 @@ impl Config<Write> {
         Ok(self.db.change_count() > 0)
     }
 
-    /// Set a node's tracking policy.
-    pub fn set_node_policy(&mut self, id: &NodeId, policy: Policy) -> Result<bool, Error> {
+    /// Set a node's follow policy.
+    pub fn set_follow_policy(&mut self, id: &NodeId, policy: Policy) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
             "INSERT INTO `following` (id, policy)
              VALUES (?1, ?2)
@@ -163,8 +163,8 @@ impl Config<Write> {
         Ok(self.db.change_count() > 0)
     }
 
-    /// Set a repository's tracking policy.
-    pub fn set_repo_policy(&mut self, id: &Id, policy: Policy) -> Result<bool, Error> {
+    /// Set a repository's seeding policy.
+    pub fn set_seed_policy(&mut self, id: &Id, policy: Policy) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
             "INSERT INTO `seeding` (id, policy)
              VALUES (?1, ?2)
@@ -179,8 +179,8 @@ impl Config<Write> {
         Ok(self.db.change_count() > 0)
     }
 
-    /// Untrack a node.
-    pub fn untrack_node(&mut self, id: &NodeId) -> Result<bool, Error> {
+    /// Unfollow a node.
+    pub fn unfollow(&mut self, id: &NodeId) -> Result<bool, Error> {
         let mut stmt = self.db.prepare("DELETE FROM `following` WHERE id = ?")?;
 
         stmt.bind((1, id))?;
@@ -189,8 +189,8 @@ impl Config<Write> {
         Ok(self.db.change_count() > 0)
     }
 
-    /// Untrack a repository.
-    pub fn untrack_repo(&mut self, id: &Id) -> Result<bool, Error> {
+    /// Unseed a repository.
+    pub fn unseed(&mut self, id: &Id) -> Result<bool, Error> {
         let mut stmt = self.db.prepare("DELETE FROM `seeding` WHERE id = ?")?;
 
         stmt.bind((1, id))?;
@@ -202,11 +202,11 @@ impl Config<Write> {
 
 /// `Read` methods for `Config`. This implies that a
 /// `Config<Write>` can access these functions as well.
-impl<T> Config<T> {
-    /// Check if a node is tracked.
-    pub fn is_node_tracked(&self, id: &NodeId) -> Result<bool, Error> {
+impl<T> Store<T> {
+    /// Check if a node is followed.
+    pub fn is_node_followed(&self, id: &NodeId) -> Result<bool, Error> {
         Ok(matches!(
-            self.node_policy(id)?,
+            self.follow_policy(id)?,
             Some(Node {
                 policy: Policy::Allow,
                 ..
@@ -214,10 +214,10 @@ impl<T> Config<T> {
         ))
     }
 
-    /// Check if a repository is tracked.
-    pub fn is_repo_tracked(&self, id: &Id) -> Result<bool, Error> {
+    /// Check if a repository is seeded.
+    pub fn is_repo_seeded(&self, id: &Id) -> Result<bool, Error> {
         Ok(matches!(
-            self.repo_policy(id)?,
+            self.seed_policy(id)?,
             Some(Repo {
                 policy: Policy::Allow,
                 ..
@@ -225,8 +225,8 @@ impl<T> Config<T> {
         ))
     }
 
-    /// Get a node's tracking policy.
-    pub fn node_policy(&self, id: &NodeId) -> Result<Option<Node>, Error> {
+    /// Get a node's follow policy.
+    pub fn follow_policy(&self, id: &NodeId) -> Result<Option<Node>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT alias, policy FROM `following` WHERE id = ?")?;
@@ -251,8 +251,8 @@ impl<T> Config<T> {
         Ok(None)
     }
 
-    /// Get a repository's tracking policy.
-    pub fn repo_policy(&self, id: &Id) -> Result<Option<Repo>, Error> {
+    /// Get a repository's seeding policy.
+    pub fn seed_policy(&self, id: &Id) -> Result<Option<Repo>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT scope, policy FROM `seeding` WHERE id = ?")?;
@@ -269,8 +269,8 @@ impl<T> Config<T> {
         Ok(None)
     }
 
-    /// Get node tracking policies.
-    pub fn node_policies(&self) -> Result<Box<dyn Iterator<Item = Node>>, Error> {
+    /// Get node follow policies.
+    pub fn follow_policies(&self) -> Result<Box<dyn Iterator<Item = Node>>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT id, alias, policy FROM `following`")?
@@ -293,8 +293,8 @@ impl<T> Config<T> {
     }
 
     // TODO: see if sql can return iterator directly
-    /// Get repository tracking policies.
-    pub fn repo_policies(&self) -> Result<Box<dyn Iterator<Item = Repo>>, Error> {
+    /// Get repository seed policies.
+    pub fn seed_policies(&self) -> Result<Box<dyn Iterator<Item = Repo>>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT id, scope, policy FROM `seeding`")?
@@ -312,11 +312,11 @@ impl<T> Config<T> {
     }
 }
 
-impl<T> AliasStore for Config<T> {
+impl<T> AliasStore for Store<T> {
     /// Retrieve `alias` of given node.
     /// Calls `Self::node_policy` under the hood.
     fn alias(&self, nid: &NodeId) -> Option<Alias> {
-        self.node_policy(nid)
+        self.follow_policy(nid)
             .map(|node| node.and_then(|n| n.alias))
             .unwrap_or(None)
     }
@@ -330,38 +330,38 @@ mod test {
     use crate::test::arbitrary;
 
     #[test]
-    fn test_track_and_untrack_node() {
+    fn test_follow_and_unfollow_node() {
         let id = arbitrary::gen::<NodeId>(1);
-        let mut db = Config::open(":memory:").unwrap();
+        let mut db = Store::open(":memory:").unwrap();
 
-        assert!(db.track_node(&id, Some("eve")).unwrap());
-        assert!(db.is_node_tracked(&id).unwrap());
-        assert!(!db.track_node(&id, Some("eve")).unwrap());
-        assert!(db.untrack_node(&id).unwrap());
-        assert!(!db.is_node_tracked(&id).unwrap());
+        assert!(db.follow(&id, Some("eve")).unwrap());
+        assert!(db.is_node_followed(&id).unwrap());
+        assert!(!db.follow(&id, Some("eve")).unwrap());
+        assert!(db.unfollow(&id).unwrap());
+        assert!(!db.is_node_followed(&id).unwrap());
     }
 
     #[test]
-    fn test_track_and_untrack_repo() {
+    fn test_seed_and_unseed_repo() {
         let id = arbitrary::gen::<Id>(1);
-        let mut db = Config::open(":memory:").unwrap();
+        let mut db = Store::open(":memory:").unwrap();
 
-        assert!(db.track_repo(&id, Scope::All).unwrap());
-        assert!(db.is_repo_tracked(&id).unwrap());
-        assert!(!db.track_repo(&id, Scope::All).unwrap());
-        assert!(db.untrack_repo(&id).unwrap());
-        assert!(!db.is_repo_tracked(&id).unwrap());
+        assert!(db.seed(&id, Scope::All).unwrap());
+        assert!(db.is_repo_seeded(&id).unwrap());
+        assert!(!db.seed(&id, Scope::All).unwrap());
+        assert!(db.unseed(&id).unwrap());
+        assert!(!db.is_repo_seeded(&id).unwrap());
     }
 
     #[test]
     fn test_node_policies() {
         let ids = arbitrary::vec::<NodeId>(3);
-        let mut db = Config::open(":memory:").unwrap();
+        let mut db = Store::open(":memory:").unwrap();
 
         for id in &ids {
-            assert!(db.track_node(id, None).unwrap());
+            assert!(db.follow(id, None).unwrap());
         }
-        let mut entries = db.node_policies().unwrap();
+        let mut entries = db.follow_policies().unwrap();
         assert_matches!(entries.next(), Some(Node { id, .. }) if id == ids[0]);
         assert_matches!(entries.next(), Some(Node { id, .. }) if id == ids[1]);
         assert_matches!(entries.next(), Some(Node { id, .. }) if id == ids[2]);
@@ -370,12 +370,12 @@ mod test {
     #[test]
     fn test_repo_policies() {
         let ids = arbitrary::vec::<Id>(3);
-        let mut db = Config::open(":memory:").unwrap();
+        let mut db = Store::open(":memory:").unwrap();
 
         for id in &ids {
-            assert!(db.track_repo(id, Scope::All).unwrap());
+            assert!(db.seed(id, Scope::All).unwrap());
         }
-        let mut entries = db.repo_policies().unwrap();
+        let mut entries = db.seed_policies().unwrap();
         assert_matches!(entries.next(), Some(Repo { id, .. }) if id == ids[0]);
         assert_matches!(entries.next(), Some(Repo { id, .. }) if id == ids[1]);
         assert_matches!(entries.next(), Some(Repo { id, .. }) if id == ids[2]);
@@ -384,19 +384,19 @@ mod test {
     #[test]
     fn test_update_alias() {
         let id = arbitrary::gen::<NodeId>(1);
-        let mut db = Config::open(":memory:").unwrap();
+        let mut db = Store::open(":memory:").unwrap();
 
-        assert!(db.track_node(&id, Some("eve")).unwrap());
+        assert!(db.follow(&id, Some("eve")).unwrap());
         assert_eq!(
-            db.node_policy(&id).unwrap().unwrap().alias,
+            db.follow_policy(&id).unwrap().unwrap().alias,
             Some(Alias::from_str("eve").unwrap())
         );
-        assert!(db.track_node(&id, None).unwrap());
-        assert_eq!(db.node_policy(&id).unwrap().unwrap().alias, None);
-        assert!(!db.track_node(&id, None).unwrap());
-        assert!(db.track_node(&id, Some("alice")).unwrap());
+        assert!(db.follow(&id, None).unwrap());
+        assert_eq!(db.follow_policy(&id).unwrap().unwrap().alias, None);
+        assert!(!db.follow(&id, None).unwrap());
+        assert!(db.follow(&id, Some("alice")).unwrap());
         assert_eq!(
-            db.node_policy(&id).unwrap().unwrap().alias,
+            db.follow_policy(&id).unwrap().unwrap().alias,
             Some(Alias::new("alice"))
         );
     }
@@ -404,33 +404,39 @@ mod test {
     #[test]
     fn test_update_scope() {
         let id = arbitrary::gen::<Id>(1);
-        let mut db = Config::open(":memory:").unwrap();
+        let mut db = Store::open(":memory:").unwrap();
 
-        assert!(db.track_repo(&id, Scope::All).unwrap());
-        assert_eq!(db.repo_policy(&id).unwrap().unwrap().scope, Scope::All);
-        assert!(db.track_repo(&id, Scope::Followed).unwrap());
-        assert_eq!(db.repo_policy(&id).unwrap().unwrap().scope, Scope::Followed);
+        assert!(db.seed(&id, Scope::All).unwrap());
+        assert_eq!(db.seed_policy(&id).unwrap().unwrap().scope, Scope::All);
+        assert!(db.seed(&id, Scope::Followed).unwrap());
+        assert_eq!(db.seed_policy(&id).unwrap().unwrap().scope, Scope::Followed);
     }
 
     #[test]
     fn test_repo_policy() {
         let id = arbitrary::gen::<Id>(1);
-        let mut db = Config::open(":memory:").unwrap();
+        let mut db = Store::open(":memory:").unwrap();
 
-        assert!(db.track_repo(&id, Scope::All).unwrap());
-        assert_eq!(db.repo_policy(&id).unwrap().unwrap().policy, Policy::Allow);
-        assert!(db.set_repo_policy(&id, Policy::Block).unwrap());
-        assert_eq!(db.repo_policy(&id).unwrap().unwrap().policy, Policy::Block);
+        assert!(db.seed(&id, Scope::All).unwrap());
+        assert_eq!(db.seed_policy(&id).unwrap().unwrap().policy, Policy::Allow);
+        assert!(db.set_seed_policy(&id, Policy::Block).unwrap());
+        assert_eq!(db.seed_policy(&id).unwrap().unwrap().policy, Policy::Block);
     }
 
     #[test]
     fn test_node_policy() {
         let id = arbitrary::gen::<NodeId>(1);
-        let mut db = Config::open(":memory:").unwrap();
+        let mut db = Store::open(":memory:").unwrap();
 
-        assert!(db.track_node(&id, None).unwrap());
-        assert_eq!(db.node_policy(&id).unwrap().unwrap().policy, Policy::Allow);
-        assert!(db.set_node_policy(&id, Policy::Block).unwrap());
-        assert_eq!(db.node_policy(&id).unwrap().unwrap().policy, Policy::Block);
+        assert!(db.follow(&id, None).unwrap());
+        assert_eq!(
+            db.follow_policy(&id).unwrap().unwrap().policy,
+            Policy::Allow
+        );
+        assert!(db.set_follow_policy(&id, Policy::Block).unwrap());
+        assert_eq!(
+            db.follow_policy(&id).unwrap().unwrap().policy,
+            Policy::Block
+        );
     }
 }

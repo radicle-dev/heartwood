@@ -15,8 +15,8 @@ use crate::service::NodeId;
 #[derive(Default, Clone)]
 pub struct Handle {
     pub updates: Arc<Mutex<Vec<Id>>>,
-    pub tracking_repos: Arc<Mutex<HashSet<Id>>>,
-    pub tracking_nodes: Arc<Mutex<HashSet<NodeId>>>,
+    pub seeding: Arc<Mutex<HashSet<Id>>>,
+    pub following: Arc<Mutex<HashSet<NodeId>>>,
 }
 
 impl radicle::node::Handle for Handle {
@@ -61,15 +61,15 @@ impl radicle::node::Handle for Handle {
     }
 
     fn seed(&mut self, id: Id, _scope: policy::Scope) -> Result<bool, Self::Error> {
-        Ok(self.tracking_repos.lock().unwrap().insert(id))
+        Ok(self.seeding.lock().unwrap().insert(id))
     }
 
     fn unseed(&mut self, id: Id) -> Result<bool, Self::Error> {
-        Ok(self.tracking_repos.lock().unwrap().remove(&id))
+        Ok(self.seeding.lock().unwrap().remove(&id))
     }
 
     fn follow(&mut self, id: NodeId, _alias: Option<Alias>) -> Result<bool, Self::Error> {
-        Ok(self.tracking_nodes.lock().unwrap().insert(id))
+        Ok(self.following.lock().unwrap().insert(id))
     }
 
     fn subscribe(
@@ -80,7 +80,7 @@ impl radicle::node::Handle for Handle {
     }
 
     fn unfollow(&mut self, id: NodeId) -> Result<bool, Self::Error> {
-        Ok(self.tracking_nodes.lock().unwrap().remove(&id))
+        Ok(self.following.lock().unwrap().remove(&id))
     }
 
     fn announce_refs(&mut self, id: Id) -> Result<RefsAt, Self::Error> {

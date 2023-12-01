@@ -203,25 +203,25 @@ impl radicle::node::Handle for Handle {
 
     fn follow(&mut self, id: NodeId, alias: Option<Alias>) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::TrackNode(id, alias, sender))?;
+        self.command(service::Command::Follow(id, alias, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
     fn unfollow(&mut self, id: NodeId) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::UntrackNode(id, sender))?;
+        self.command(service::Command::Unfollow(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
     fn seed(&mut self, id: Id, scope: policy::Scope) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::TrackRepo(id, scope, sender))?;
+        self.command(service::Command::Seed(id, scope, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
     fn unseed(&mut self, id: Id) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::UntrackRepo(id, sender))?;
+        self.command(service::Command::Unseed(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 

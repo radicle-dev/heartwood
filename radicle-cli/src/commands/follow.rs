@@ -100,8 +100,8 @@ pub fn follow(
     let followed = match node.follow(nid, alias.clone()) {
         Ok(updated) => updated,
         Err(e) if e.is_connection_err() => {
-            let mut config = profile.tracking_mut()?;
-            config.track_node(&nid, alias.as_deref())?
+            let mut config = profile.policies_mut()?;
+            config.follow(&nid, alias.as_deref())?
         }
         Err(e) => return Err(e.into()),
     };

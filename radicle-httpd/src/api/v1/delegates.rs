@@ -78,7 +78,7 @@ async fn delegates_projects_handler(
             };
 
             let delegates = id.doc.delegates;
-            let trackings = db.count(&id.rid).unwrap_or_default();
+            let seeding = db.count(&id.rid).unwrap_or_default();
 
             Some(Info {
                 payload,
@@ -88,7 +88,7 @@ async fn delegates_projects_handler(
                 issues,
                 patches,
                 id: id.rid,
-                trackings,
+                seeding,
             })
         })
         .skip(page * per_page)
@@ -146,7 +146,7 @@ mod routes {
                   "closed": 0,
                 },
                 "id": "rad:zLuTzcmoWMcdK37xqArS8eckp9vK",
-                "trackings": 0,
+                "seeding": 0,
               },
               {
                 "name": "hello-world",
@@ -168,7 +168,7 @@ mod routes {
                   "closed": 0,
                 },
                 "id": RID,
-                "trackings": 0,
+                "seeding": 0,
               },
             ])
         );
@@ -207,7 +207,7 @@ mod routes {
                   "closed": 0,
                 },
                 "id": RID,
-                "trackings": 0,
+                "seeding": 0,
               }
             ])
         );

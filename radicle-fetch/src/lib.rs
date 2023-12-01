@@ -1,6 +1,6 @@
 pub mod git;
 pub mod handle;
-pub mod tracking;
+pub mod policy;
 pub mod transport;
 
 pub(crate) mod sigrefs;
@@ -10,8 +10,8 @@ mod stage;
 mod state;
 
 pub use handle::Handle;
+pub use policy::{Allowed, BlockList, Scope};
 pub use state::{FetchLimit, FetchResult};
-pub use tracking::{BlockList, Scope, Tracked};
 pub use transport::Transport;
 
 use std::io;

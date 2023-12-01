@@ -22,7 +22,7 @@ Usage
     local operator or a delegate of the repository.
 
     Note that remotes will still be fetched as long as they are
-    tracked and/or the tracking scope is "all".
+    followed and/or the follow scope is "all".
 
 Options
 

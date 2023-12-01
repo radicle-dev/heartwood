@@ -280,7 +280,7 @@ mod tests {
     }
 
     #[test]
-    fn test_track_untrack() {
+    fn test_seed_unseed() {
         let tmp = tempfile::tempdir().unwrap();
         let socket = tmp.path().join("node.sock");
         let proj = test::arbitrary::gen::<Id>(1);

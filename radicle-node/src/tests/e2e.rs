@@ -163,8 +163,8 @@ fn test_replication() {
     let inventory = alice.storage.inventory().unwrap();
     assert!(inventory.is_empty());
 
-    let tracked = alice.handle.seed(acme, Scope::All).unwrap();
-    assert!(tracked);
+    let updated = alice.handle.seed(acme, Scope::All).unwrap();
+    assert!(updated);
 
     let seeds = alice.handle.seeds(acme).unwrap();
     assert!(seeds.is_connected(&bob.id));
@@ -314,8 +314,8 @@ fn test_migrated_clone() {
     alice.connect(&bob);
     converge([&alice, &bob]);
 
-    let tracked = bob.handle.seed(acme, Scope::All).unwrap();
-    assert!(tracked);
+    let updated = bob.handle.seed(acme, Scope::All).unwrap();
+    assert!(updated);
 
     let result = bob.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
     assert!(result.is_success());

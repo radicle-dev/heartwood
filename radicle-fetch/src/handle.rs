@@ -9,14 +9,14 @@ use radicle::prelude::Doc;
 use radicle::storage::git::Repository;
 use radicle::storage::ReadRepository;
 
-use crate::tracking::{BlockList, Tracked};
+use crate::policy::{Allowed, BlockList};
 use crate::transport::{ConnectionStream, Transport};
 
 /// The handle used for pulling or cloning changes from a remote peer.
 pub struct Handle<S> {
     pub(crate) local: PublicKey,
     pub(crate) repo: Repository,
-    pub(crate) tracked: Tracked,
+    pub(crate) allowed: Allowed,
     pub(crate) transport: Transport<S>,
     /// The set of keys we will ignore when fetching from a
     /// remote. This set can be constructed using the tracking
@@ -34,7 +34,7 @@ impl<S> Handle<S> {
     pub fn new(
         local: PublicKey,
         repo: Repository,
-        tracked: Tracked,
+        follow: Allowed,
         blocked: BlockList,
         connection: S,
     ) -> Result<Self, error::Init>
@@ -47,7 +47,7 @@ impl<S> Handle<S> {
         Ok(Self {
             local,
             repo,
-            tracked,
+            allowed: follow,
             transport,
             blocked,
             interrupt: Arc::new(AtomicBool::new(false)),
@@ -78,8 +78,8 @@ impl<S> Handle<S> {
         Ok(self.repo.identity_doc_at(head)?.doc)
     }
 
-    pub fn tracked(&self) -> Tracked {
-        self.tracked.clone()
+    pub fn allowed(&self) -> Allowed {
+        self.allowed.clone()
     }
 }
 
@@ -101,13 +101,13 @@ pub mod error {
 
     #[derive(Debug, Error)]
     pub enum Tracking {
-        #[error("failed to find tracking policy for {rid}")]
+        #[error("failed to find policy for {rid}")]
         FailedPolicy {
             rid: Id,
             #[source]
             err: policy::store::Error,
         },
-        #[error("cannot fetch {rid} as it is not tracked")]
+        #[error("cannot fetch {rid} as it is not seeded")]
         BlockedPolicy { rid: Id },
         #[error("failed to get tracking nodes for {rid}")]
         FailedNodes {

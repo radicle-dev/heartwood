@@ -52,7 +52,7 @@ pub struct RepositoryInfo<V> {
     /// Identity document.
     pub doc: Doc<V>,
     /// Local signed refs, if any.
-    /// Repositories with this set to `None` are ones that are tracked but not forked.
+    /// Repositories with this set to `None` are ones that are seeded but not forked.
     pub refs: Option<refs::SignedRefsAt>,
 }
 

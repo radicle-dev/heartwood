@@ -131,7 +131,7 @@ pub fn update(
     node: &mut Node,
     profile: &Profile,
 ) -> Result<(), anyhow::Error> {
-    let updated = project::track(rid, scope, node, profile)?;
+    let updated = project::seed(rid, scope, node, profile)?;
     let outcome = if updated { "updated" } else { "exists" };
 
     term::success!(
@@ -143,7 +143,7 @@ pub fn update(
 }
 
 pub fn delete(rid: Id, node: &mut Node, profile: &Profile) -> anyhow::Result<()> {
-    if project::untrack(rid, node, profile)? {
+    if project::unseed(rid, node, profile)? {
         term::success!("Seeding policy for {} removed", term::format::tertiary(rid));
     }
     Ok(())

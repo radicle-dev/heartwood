@@ -146,7 +146,7 @@ pub enum Error {
     #[error("profile key `{0}` is not registered with ssh-agent")]
     KeyNotRegistered(PublicKey),
     #[error(transparent)]
-    TrackingStore(#[from] node::policy::store::Error),
+    PolicyStore(#[from] node::policy::store::Error),
     #[error(transparent)]
     DatabaseStore(#[from] node::db::Error),
 }
@@ -341,22 +341,6 @@ impl Profile {
         }
     }
 
-    /// Return a read-only handle to the tracking configuration of the node.
-    pub fn tracking(&self) -> Result<policy::store::ConfigReader, policy::store::Error> {
-        let path = self.home.node().join(node::TRACKING_DB_FILE);
-        let config = policy::store::Config::reader(path)?;
-
-        Ok(config)
-    }
-
-    /// Return a read-write handle to the tracking configuration of the node.
-    pub fn tracking_mut(&self) -> Result<policy::store::ConfigWriter, policy::store::Error> {
-        let path = self.home.node().join(node::TRACKING_DB_FILE);
-        let config = policy::store::Config::open(path)?;
-
-        Ok(config)
-    }
-
     /// Get radicle home.
     pub fn home(&self) -> &Home {
         &self.home
@@ -364,10 +348,10 @@ impl Profile {
 
     /// Return a multi-source store for aliases.
     pub fn aliases(&self) -> Aliases {
-        let tracking = self.home.tracking().ok();
+        let policies = self.home.policies().ok();
         let db = self.home.database().ok();
 
-        Aliases { tracking, db }
+        Aliases { policies, db }
     }
 }
 
@@ -388,15 +372,15 @@ impl std::ops::DerefMut for Profile {
 /// Holds multiple alias stores, and will try
 /// them one by one when asking for an alias.
 pub struct Aliases {
-    tracking: Option<policy::store::ConfigReader>,
+    policies: Option<policy::store::StoreReader>,
     db: Option<node::Database>,
 }
 
 impl AliasStore for Aliases {
     /// Retrieve `alias` of given node.
-    /// First looks in `tracking.db` and then `addresses.db`.
+    /// First looks in `policies.db` and then `addresses.db`.
     fn alias(&self, nid: &NodeId) -> Option<Alias> {
-        self.tracking
+        self.policies
             .as_ref()
             .and_then(|db| db.alias(nid))
             .or_else(|| self.db.as_ref().and_then(|db| db.alias(nid)))
@@ -487,18 +471,18 @@ impl Home {
             .unwrap_or_else(|| self.node().join(node::DEFAULT_SOCKET_NAME))
     }
 
-    /// Return a read-only handle to the tracking configuration of the node.
-    pub fn tracking(&self) -> Result<policy::store::ConfigReader, policy::store::Error> {
-        let path = self.node().join(node::TRACKING_DB_FILE);
-        let config = policy::store::Config::reader(path)?;
+    /// Return a read-only handle to the policies of the node.
+    pub fn policies(&self) -> Result<policy::store::StoreReader, policy::store::Error> {
+        let path = self.node().join(node::POLICIES_DB_FILE);
+        let config = policy::store::Store::reader(path)?;
 
         Ok(config)
     }
 
-    /// Return a read-write handle to the tracking configuration of the node.
-    pub fn tracking_mut(&self) -> Result<policy::store::ConfigWriter, policy::store::Error> {
-        let path = self.node().join(node::TRACKING_DB_FILE);
-        let config = policy::store::Config::open(path)?;
+    /// Return a read-write handle to the policies of the node.
+    pub fn policies_mut(&self) -> Result<policy::store::StoreWriter, policy::store::Error> {
+        let path = self.node().join(node::POLICIES_DB_FILE);
+        let config = policy::store::Store::open(path)?;
 
         Ok(config)
     }

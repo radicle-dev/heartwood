@@ -51,13 +51,13 @@ async fn node_handler(State(ctx): State<Context>) -> impl IntoResponse {
     Ok::<_, Error>(Json(response))
 }
 
-/// Return local tracking repos information.
+/// Return local repo policies information.
 /// `GET /node/policies/repos`
 async fn node_policies_repos_handler(State(ctx): State<Context>) -> impl IntoResponse {
-    let tracking = ctx.profile.tracking()?;
+    let policies = ctx.profile.policies()?;
     let mut repos = Vec::new();
 
-    for policy::Repo { id, scope, policy } in tracking.repo_policies()? {
+    for policy::Repo { id, scope, policy } in policies.seed_policies()? {
         repos.push(json!({
             "id": id,
             "scope": scope,
@@ -68,7 +68,7 @@ async fn node_policies_repos_handler(State(ctx): State<Context>) -> impl IntoRes
     Ok::<_, Error>(Json(repos))
 }
 
-/// Track a new repo.
+/// Seed a new repo.
 /// `PUT /node/policies/repos/:rid`
 async fn node_policies_seed_handler(
     State(ctx): State<Context>,
@@ -90,7 +90,7 @@ async fn node_policies_seed_handler(
     Ok::<_, Error>((StatusCode::OK, Json(json!({ "success": true }))))
 }
 
-/// Untrack a repo.
+/// Unseed a repo.
 /// `DELETE /node/policies/repos/:rid`
 async fn node_policies_unseed_handler(
     State(ctx): State<Context>,

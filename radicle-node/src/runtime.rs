@@ -44,9 +44,9 @@ pub enum Error {
     /// A node database error.
     #[error("node database error: {0}")]
     Database(#[from] node::db::Error),
-    /// A tracking database error.
-    #[error("tracking database error: {0}")]
-    Tracking(#[from] policy::Error),
+    /// A policies database error.
+    #[error("policies database error: {0}")]
+    Policy(#[from] policy::Error),
     /// A gossip database error.
     #[error("gossip database error: {0}")]
     Gossip(#[from] gossip::Error),
@@ -145,11 +145,11 @@ impl Runtime {
         log::info!(target: "node", "Opening node database..");
         let mut db: service::Stores<_> = home.database_mut()?.into();
 
-        log::info!(target: "node", "Opening tracking policy configuration..");
-        let tracking = home.tracking_mut()?;
-        let tracking = policy::Config::new(policy, scope, tracking);
+        log::info!(target: "node", "Opening policy database..");
+        let policies = home.policies_mut()?;
+        let policies = policy::Config::new(policy, scope, policies);
 
-        log::info!(target: "node", "Default tracking policy set to '{}'", &policy);
+        log::info!(target: "node", "Default seeding policy set to '{}'", &policy);
         log::info!(target: "node", "Initializing service ({:?})..", network);
 
         let announcement = if let Some(ann) = fs::read(node_dir.join(node::NODE_ANNOUNCEMENT_FILE))
@@ -202,7 +202,7 @@ impl Runtime {
             clock,
             db,
             storage.clone(),
-            tracking,
+            policies,
             signer.clone(),
             rng,
             announcement,
@@ -237,7 +237,7 @@ impl Runtime {
         let fetch = worker::FetchConfig {
             policy,
             scope,
-            tracking_db: home.node().join(node::TRACKING_DB_FILE),
+            policies_db: home.node().join(node::POLICIES_DB_FILE),
             limit: FetchLimit::default(),
             local: nid,
             expiry: worker::garbage::Expiry::default(),

@@ -388,25 +388,21 @@ fn test_inventory_pruning() {
 }
 
 #[test]
-fn test_tracking() {
+fn test_seeding() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let proj_id: identity::Id = test::arbitrary::gen(1);
 
     let (sender, receiver) = chan::bounded(1);
-    alice.command(Command::TrackRepo(
-        proj_id,
-        policy::Scope::default(),
-        sender,
-    ));
+    alice.command(Command::Seed(proj_id, policy::Scope::default(), sender));
     let policy_change = receiver.recv().map_err(runtime::HandleError::from).unwrap();
     assert!(policy_change);
-    assert!(alice.tracking().is_repo_tracked(&proj_id).unwrap());
+    assert!(alice.policies().is_seeding(&proj_id).unwrap());
 
     let (sender, receiver) = chan::bounded(1);
-    alice.command(Command::UntrackRepo(proj_id, sender));
+    alice.command(Command::Unseed(proj_id, sender));
     let policy_change = receiver.recv().map_err(runtime::HandleError::from).unwrap();
     assert!(policy_change);
-    assert!(!alice.tracking().is_repo_tracked(&proj_id).unwrap());
+    assert!(!alice.policies().is_seeding(&proj_id).unwrap());
 }
 
 #[test]
@@ -504,7 +500,7 @@ fn test_announcement_rebroadcast_duplicates() {
         anns.insert(bob.node_announcement());
 
         for rid in rids {
-            alice.track_repo(&rid, policy::Scope::All).unwrap();
+            alice.seed(&rid, policy::Scope::All).unwrap();
             anns.insert(carol.refs_announcement(rid));
             anns.insert(bob.refs_announcement(rid));
         }
@@ -676,9 +672,9 @@ fn test_refs_announcement_relay() {
     };
     let bob_inv = bob.storage().inventory().unwrap();
 
-    alice.track_repo(&bob_inv[0], policy::Scope::All).unwrap();
-    alice.track_repo(&bob_inv[1], policy::Scope::All).unwrap();
-    alice.track_repo(&bob_inv[2], policy::Scope::All).unwrap();
+    alice.seed(&bob_inv[0], policy::Scope::All).unwrap();
+    alice.seed(&bob_inv[1], policy::Scope::All).unwrap();
+    alice.seed(&bob_inv[2], policy::Scope::All).unwrap();
     alice.connect_to(&bob);
     alice.connect_to(&eve);
     alice.receive(eve.id(), Message::Subscribe(Subscribe::all()));
@@ -742,7 +738,7 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
     let bob_inv = bob.storage().inventory().unwrap();
     let rid = bob_inv[0];
 
-    alice.track_repo(&rid, policy::Scope::Followed).unwrap();
+    alice.seed(&rid, policy::Scope::Followed).unwrap();
     alice.connect_to(&bob);
 
     // Alice receives Bob's refs.
@@ -798,7 +794,7 @@ fn test_refs_announcement_followed() {
 
     // Alice uses Scope::Followed, and did not track Bob yet.
     alice.connect_to(&bob);
-    alice.track_repo(&rid, policy::Scope::Followed).unwrap();
+    alice.seed(&rid, policy::Scope::Followed).unwrap();
 
     // Alice receives Bob's refs
     alice.receive(bob.id(), bob.refs_announcement(rid));
@@ -811,7 +807,7 @@ fn test_refs_announcement_followed() {
 
     // Alice starts to track Bob.
     let (sender, receiver) = chan::bounded(1);
-    alice.command(Command::TrackNode(
+    alice.command(Command::Follow(
         bob.id,
         Some(node::Alias::new("bob")),
         sender,
@@ -834,7 +830,7 @@ fn test_refs_announcement_no_subscribe() {
     let eve = Peer::new("eve", [9, 9, 9, 9]);
     let id = arbitrary::gen(1);
 
-    alice.track_repo(&id, policy::Scope::All).unwrap();
+    alice.seed(&id, policy::Scope::All).unwrap();
     alice.connect_to(&bob);
     alice.connect_to(&eve);
     alice.receive(bob.id(), bob.refs_announcement(rid));
@@ -863,7 +859,7 @@ fn test_refs_announcement_offline() {
     let inv = alice.inventory();
     let rid = inv.first().unwrap();
     let mut bob = Peer::new("bob", [8, 8, 8, 8]);
-    bob.track_repo(rid, policy::Scope::All).unwrap();
+    bob.seed(rid, policy::Scope::All).unwrap();
 
     // Make sure alice's service wasn't initialized before.
     assert!(alice.initialize());
@@ -1248,14 +1244,14 @@ fn test_maintain_connections_failed_attempt() {
 }
 
 #[test]
-fn test_track_repo_subscribe() {
+fn test_seed_repo_subscribe() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let rid = arbitrary::gen::<Id>(1);
     let (send, recv) = chan::bounded(1);
 
     alice.connect_to(&bob);
-    alice.command(Command::TrackRepo(rid, policy::Scope::default(), send));
+    alice.command(Command::Seed(rid, policy::Scope::default(), send));
     assert!(recv.recv().unwrap());
 
     assert_matches!(
@@ -1275,7 +1271,7 @@ fn test_fetch_missing_inventory_on_gossip() {
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let now = LocalTime::now();
 
-    alice.track_repo(&rid, node::policy::Scope::All).unwrap();
+    alice.seed(&rid, node::policy::Scope::All).unwrap();
     alice.connect_to(&bob);
     alice.receive(
         bob.id(),
@@ -1300,7 +1296,7 @@ fn test_fetch_missing_inventory_on_schedule() {
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let now = LocalTime::now();
 
-    alice.track_repo(&rid, node::policy::Scope::All).unwrap();
+    alice.seed(&rid, node::policy::Scope::All).unwrap();
     alice.connect_to(&bob);
     alice.receive(
         bob.id(),
@@ -1441,7 +1437,7 @@ fn test_refs_synced_event() {
     });
     let msg = ann.signed(bob.signer());
 
-    alice.track_repo(&acme, policy::Scope::All).unwrap();
+    alice.seed(&acme, policy::Scope::All).unwrap();
     alice.connect_to(&bob);
     alice.receive(bob.id, Message::Announcement(msg));
 
@@ -1540,14 +1536,14 @@ fn test_push_and_pull() {
 
     // Bob seeds Alice's project.
     let (sender, _) = chan::bounded(1);
-    bob.command(service::Command::TrackRepo(
+    bob.command(service::Command::Seed(
         proj_id,
         policy::Scope::default(),
         sender,
     ));
     // Eve seeds Alice's project.
     let (sender, _) = chan::bounded(1);
-    eve.command(service::Command::TrackRepo(
+    eve.command(service::Command::Seed(
         proj_id,
         policy::Scope::default(),
         sender,

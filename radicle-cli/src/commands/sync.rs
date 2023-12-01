@@ -279,8 +279,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Synchronize(SyncMode::Repo { mode, direction }) => {
             if [SyncDirection::Fetch, SyncDirection::Both].contains(&direction) {
-                if !profile.tracking()?.is_repo_tracked(&rid)? {
-                    anyhow::bail!("repository {rid} is not tracked");
+                if !profile.policies()?.is_repo_seeded(&rid)? {
+                    anyhow::bail!("repository {rid} is not seeded");
                 }
                 let results = fetch(rid, mode.clone(), options.timeout, &mut node)?;
                 let success = results.success().count();
