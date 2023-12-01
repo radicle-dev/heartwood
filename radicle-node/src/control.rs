@@ -120,7 +120,7 @@ where
 
             CommandResult::Okay(sessions).to_writer(writer)?;
         }
-        Command::TrackRepo { rid, scope } => match handle.track_repo(rid, scope) {
+        Command::Seed { rid, scope } => match handle.seed(rid, scope) {
             Ok(result) => {
                 CommandResult::updated(result).to_writer(writer)?;
             }
@@ -128,7 +128,7 @@ where
                 return Err(CommandError::Runtime(e));
             }
         },
-        Command::UntrackRepo { rid } => match handle.untrack_repo(rid) {
+        Command::Unseed { rid } => match handle.unseed(rid) {
             Ok(result) => {
                 CommandResult::updated(result).to_writer(writer)?;
             }
@@ -136,7 +136,7 @@ where
                 return Err(CommandError::Runtime(e));
             }
         },
-        Command::TrackNode { nid, alias } => match handle.track_node(nid, alias) {
+        Command::Follow { nid, alias } => match handle.follow(nid, alias) {
             Ok(result) => {
                 CommandResult::updated(result).to_writer(writer)?;
             }
@@ -144,7 +144,7 @@ where
                 return Err(CommandError::Runtime(e));
             }
         },
-        Command::UntrackNode { nid } => match handle.untrack_node(nid) {
+        Command::Unfollow { nid } => match handle.unfollow(nid) {
             Ok(result) => {
                 CommandResult::updated(result).to_writer(writer)?;
             }
@@ -297,14 +297,14 @@ mod tests {
         // Wait for node to be online.
         while !handle.is_running() {}
 
-        assert!(handle.track_repo(proj, Scope::default()).unwrap());
-        assert!(!handle.track_repo(proj, Scope::default()).unwrap());
-        assert!(handle.untrack_repo(proj).unwrap());
-        assert!(!handle.untrack_repo(proj).unwrap());
+        assert!(handle.seed(proj, Scope::default()).unwrap());
+        assert!(!handle.seed(proj, Scope::default()).unwrap());
+        assert!(handle.unseed(proj).unwrap());
+        assert!(!handle.unseed(proj).unwrap());
 
-        assert!(handle.track_node(peer, Some(Alias::new("alice"))).unwrap());
-        assert!(!handle.track_node(peer, Some(Alias::new("alice"))).unwrap());
-        assert!(handle.untrack_node(peer).unwrap());
-        assert!(!handle.untrack_node(peer).unwrap());
+        assert!(handle.follow(peer, Some(Alias::new("alice"))).unwrap());
+        assert!(!handle.follow(peer, Some(Alias::new("alice"))).unwrap());
+        assert!(handle.unfollow(peer).unwrap());
+        assert!(!handle.unfollow(peer).unwrap());
     }
 }

@@ -98,7 +98,7 @@ pub fn follow(
     node: &mut Node,
     profile: &Profile,
 ) -> Result<(), anyhow::Error> {
-    let followed = match node.track_node(nid, alias.clone()) {
+    let followed = match node.follow(nid, alias.clone()) {
         Ok(updated) => updated,
         Err(e) if e.is_connection_err() => {
             let mut config = profile.tracking_mut()?;

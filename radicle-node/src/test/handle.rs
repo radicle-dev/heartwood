@@ -60,15 +60,15 @@ impl radicle::node::Handle for Handle {
         })
     }
 
-    fn track_repo(&mut self, id: Id, _scope: tracking::Scope) -> Result<bool, Self::Error> {
+    fn seed(&mut self, id: Id, _scope: tracking::Scope) -> Result<bool, Self::Error> {
         Ok(self.tracking_repos.lock().unwrap().insert(id))
     }
 
-    fn untrack_repo(&mut self, id: Id) -> Result<bool, Self::Error> {
+    fn unseed(&mut self, id: Id) -> Result<bool, Self::Error> {
         Ok(self.tracking_repos.lock().unwrap().remove(&id))
     }
 
-    fn track_node(&mut self, id: NodeId, _alias: Option<Alias>) -> Result<bool, Self::Error> {
+    fn follow(&mut self, id: NodeId, _alias: Option<Alias>) -> Result<bool, Self::Error> {
         Ok(self.tracking_nodes.lock().unwrap().insert(id))
     }
 
@@ -79,7 +79,7 @@ impl radicle::node::Handle for Handle {
         Ok(Box::new(std::iter::empty()))
     }
 
-    fn untrack_node(&mut self, id: NodeId) -> Result<bool, Self::Error> {
+    fn unfollow(&mut self, id: NodeId) -> Result<bool, Self::Error> {
         Ok(self.tracking_nodes.lock().unwrap().remove(&id))
     }
 

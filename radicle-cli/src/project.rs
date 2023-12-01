@@ -60,7 +60,7 @@ pub fn track(
     node: &mut Node,
     profile: &Profile,
 ) -> Result<bool, anyhow::Error> {
-    match node.track_repo(rid, scope) {
+    match node.seed(rid, scope) {
         Ok(updated) => Ok(updated),
         Err(e) if e.is_connection_err() => {
             let mut config = profile.tracking_mut()?;
@@ -73,7 +73,7 @@ pub fn track(
 /// Untrack a repository by first trying to untrack through the node, and if the node isn't running,
 /// by updating the tracking database directly.
 pub fn untrack(rid: Id, node: &mut Node, profile: &Profile) -> Result<bool, anyhow::Error> {
-    match node.untrack_repo(rid) {
+    match node.unseed(rid) {
         Ok(updated) => Ok(updated),
         Err(e) if e.is_connection_err() => {
             let mut config = profile.tracking_mut()?;

@@ -163,7 +163,7 @@ fn test_replication() {
     let inventory = alice.storage.inventory().unwrap();
     assert!(inventory.is_empty());
 
-    let tracked = alice.handle.track_repo(acme, Scope::All).unwrap();
+    let tracked = alice.handle.seed(acme, Scope::All).unwrap();
     assert!(tracked);
 
     let seeds = alice.handle.seeds(acme).unwrap();
@@ -229,7 +229,7 @@ fn test_replication_ref_in_sigrefs() {
     alice.connect(&bob);
     converge([&alice, &bob]);
 
-    alice.handle.track_repo(acme, Scope::All).unwrap();
+    alice.handle.seed(acme, Scope::All).unwrap();
     let result = alice.handle.fetch(acme, bob.id, DEFAULT_TIMEOUT).unwrap();
 
     assert_matches!(result, FetchResult::Success { .. });
@@ -283,8 +283,8 @@ fn test_replication_invalid() {
     alice.connect(&bob);
     converge([&alice, &bob]);
 
-    alice.handle.track_node(*carol.public_key(), None).unwrap();
-    alice.handle.track_repo(acme, Scope::Followed).unwrap();
+    alice.handle.follow(*carol.public_key(), None).unwrap();
+    alice.handle.seed(acme, Scope::Followed).unwrap();
     let result = alice.handle.fetch(acme, bob.id, DEFAULT_TIMEOUT).unwrap();
 
     // Fetch is successful despite not fetching Carol's refs, since she isn't a delegate.
@@ -314,7 +314,7 @@ fn test_migrated_clone() {
     alice.connect(&bob);
     converge([&alice, &bob]);
 
-    let tracked = bob.handle.track_repo(acme, Scope::All).unwrap();
+    let tracked = bob.handle.seed(acme, Scope::All).unwrap();
     assert!(tracked);
 
     let result = bob.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
@@ -367,7 +367,7 @@ fn test_dont_fetch_owned_refs() {
     alice.connect(&bob);
     converge([&alice, &bob]);
 
-    assert!(bob.handle.track_repo(acme, Scope::Followed).unwrap());
+    assert!(bob.handle.seed(acme, Scope::Followed).unwrap());
 
     let result = bob.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
     assert!(result.is_success());
@@ -412,9 +412,9 @@ fn test_fetch_followed_remotes() {
         followed.len() < signers.len(),
         "Bob is only trusting a subset of peers"
     );
-    assert!(bob.handle.track_repo(acme, Scope::Followed).unwrap());
+    assert!(bob.handle.seed(acme, Scope::Followed).unwrap());
     for nid in &followed {
-        assert!(bob.handle.track_node(*nid, None).unwrap());
+        assert!(bob.handle.follow(*nid, None).unwrap());
     }
 
     let result = bob.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
@@ -450,8 +450,8 @@ fn test_missing_remote() {
     alice.connect(&bob);
     converge([&alice, &bob]);
 
-    assert!(bob.handle.track_repo(acme, Scope::Followed).unwrap());
-    assert!(bob.handle.track_node(*carol.public_key(), None).unwrap());
+    assert!(bob.handle.seed(acme, Scope::Followed).unwrap());
+    assert!(bob.handle.follow(*carol.public_key(), None).unwrap());
     let result = bob.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
     assert!(result.is_success());
     log::debug!(target: "test", "Fetch complete with {}", bob.id);
@@ -477,8 +477,8 @@ fn test_fetch_preserve_owned_refs() {
     alice.connect(&bob);
     converge([&alice, &bob]);
 
-    assert!(bob.handle.track_repo(acme, Scope::Followed).unwrap());
-    assert!(bob.handle.track_node(alice.id, None).unwrap());
+    assert!(bob.handle.seed(acme, Scope::Followed).unwrap());
+    assert!(bob.handle.follow(alice.id, None).unwrap());
 
     let result = bob.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
     assert!(result.is_success());
@@ -526,7 +526,7 @@ fn test_clone() {
 
     transport::local::register(alice.storage.clone());
 
-    let _ = alice.handle.track_repo(acme, Scope::All).unwrap();
+    let _ = alice.handle.seed(acme, Scope::All).unwrap();
     let seeds = alice.handle.seeds(acme).unwrap();
     assert!(seeds.is_connected(&bob.id));
 
@@ -584,7 +584,7 @@ fn test_fetch_up_to_date() {
 
     transport::local::register(alice.storage.clone());
 
-    let _ = alice.handle.track_repo(acme, Scope::All).unwrap();
+    let _ = alice.handle.seed(acme, Scope::All).unwrap();
     let result = alice.handle.fetch(acme, bob.id, DEFAULT_TIMEOUT).unwrap();
     assert!(result.is_success());
 
@@ -615,7 +615,7 @@ fn test_large_fetch() {
     let mut bob = bob.spawn();
     let bob_events = bob.handle.events();
 
-    bob.handle.track_repo(rid, Scope::All).unwrap();
+    bob.handle.seed(rid, Scope::All).unwrap();
     alice.connect(&bob);
 
     bob_events
@@ -688,10 +688,10 @@ fn test_concurrent_fetches() {
     let bob_events = bob.handle.events();
 
     for rid in &bob_repos {
-        alice.handle.track_repo(*rid, Scope::All).unwrap();
+        alice.handle.seed(*rid, Scope::All).unwrap();
     }
     for rid in &alice_repos {
-        bob.handle.track_repo(*rid, Scope::All).unwrap();
+        bob.handle.seed(*rid, Scope::All).unwrap();
     }
     alice.connect(&bob);
 
@@ -801,8 +801,8 @@ fn test_non_fastforward_sigrefs() {
     let bob = bob.spawn();
     let mut eve = eve.spawn();
 
-    alice.handle.track_repo(rid, Scope::All).unwrap();
-    eve.handle.track_repo(rid, Scope::All).unwrap();
+    alice.handle.seed(rid, Scope::All).unwrap();
+    eve.handle.seed(rid, Scope::All).unwrap();
 
     alice.connect(&bob);
     alice.connect(&eve);
@@ -875,8 +875,8 @@ fn test_outdated_sigrefs() {
     let mut bob = bob.spawn();
     let mut eve = eve.spawn();
 
-    bob.handle.track_repo(rid, Scope::All).unwrap();
-    eve.handle.track_repo(rid, Scope::All).unwrap();
+    bob.handle.seed(rid, Scope::All).unwrap();
+    eve.handle.seed(rid, Scope::All).unwrap();
     alice.connect(&bob);
     bob.connect(&eve);
     eve.connect(&alice);
@@ -892,7 +892,7 @@ fn test_outdated_sigrefs() {
 
     alice
         .handle
-        .track_node(eve.id, Some(Alias::new("eve")))
+        .follow(eve.id, Some(Alias::new("eve")))
         .unwrap();
     alice.handle.fetch(rid, eve.id, DEFAULT_TIMEOUT).unwrap();
     let repo = alice.storage.repository(rid).unwrap();
@@ -934,7 +934,7 @@ fn test_outdated_sigrefs() {
 
     alice
         .handle
-        .track_node(bob.id, Some(Alias::new("bob")))
+        .follow(bob.id, Some(Alias::new("bob")))
         .unwrap();
     assert_matches!(
         alice.handle.fetch(rid, bob.id, DEFAULT_TIMEOUT).unwrap(),
@@ -966,8 +966,8 @@ fn test_outdated_delegate_sigrefs() {
     let mut bob = bob.spawn();
     let mut eve = eve.spawn();
 
-    bob.handle.track_repo(rid, Scope::All).unwrap();
-    eve.handle.track_repo(rid, Scope::All).unwrap();
+    bob.handle.seed(rid, Scope::All).unwrap();
+    eve.handle.seed(rid, Scope::All).unwrap();
     alice.connect(&bob);
     bob.connect(&eve);
     eve.connect(&alice);
@@ -983,7 +983,7 @@ fn test_outdated_delegate_sigrefs() {
 
     alice
         .handle
-        .track_node(eve.id, Some(Alias::new("eve")))
+        .follow(eve.id, Some(Alias::new("eve")))
         .unwrap();
     alice.handle.fetch(rid, eve.id, DEFAULT_TIMEOUT).unwrap();
     let repo = alice.storage.repository(rid).unwrap();
@@ -1023,9 +1023,7 @@ fn test_outdated_delegate_sigrefs() {
 
     log::debug!(target: "test", "Alice fetches from Bob..");
 
-    eve.handle
-        .track_node(bob.id, Some(Alias::new("bob")))
-        .unwrap();
+    eve.handle.follow(bob.id, Some(Alias::new("bob"))).unwrap();
     assert_matches!(
         eve.handle.fetch(rid, bob.id, DEFAULT_TIMEOUT).unwrap(),
         FetchResult::Success { .. }
@@ -1054,8 +1052,8 @@ fn missing_default_branch() {
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
 
-    alice.handle.track_repo(rid, Scope::All).unwrap();
-    bob.handle.track_repo(rid, Scope::All).unwrap();
+    alice.handle.seed(rid, Scope::All).unwrap();
+    bob.handle.seed(rid, Scope::All).unwrap();
     alice.connect(&bob);
     converge([&alice, &bob]);
 

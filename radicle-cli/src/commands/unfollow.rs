@@ -76,7 +76,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut node = radicle::Node::new(profile.socket());
     let nid = options.nid;
 
-    let unfollowed = match node.untrack_node(nid) {
+    let unfollowed = match node.unfollow(nid) {
         Ok(updated) => updated,
         Err(e) if e.is_connection_err() => {
             let mut config = profile.tracking_mut()?;

@@ -217,7 +217,7 @@ pub fn clone<G: Signer>(
     let me = *signer.public_key();
 
     // Track.
-    if node.track_repo(id, scope)? {
+    if node.seed(id, scope)? {
         term::success!(
             "Tracking relationship established for {} with scope '{scope}'",
             term::format::tertiary(id)

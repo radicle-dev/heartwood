@@ -261,7 +261,7 @@ fn rad_id() {
     let mut alice = alice.spawn();
     let bob = bob.spawn();
 
-    alice.handle.track_repo(acme, Scope::All).unwrap();
+    alice.handle.seed(acme, Scope::All).unwrap();
     alice.connect(&bob).converge([&bob]);
     let events = alice.handle.events();
 
@@ -316,8 +316,8 @@ fn rad_id_multi_delegate() {
     let mut bob = bob.spawn();
     let mut eve = eve.spawn();
 
-    alice.handle.track_repo(acme, Scope::All).unwrap();
-    bob.handle.track_node(eve.id, None).unwrap();
+    alice.handle.seed(acme, Scope::All).unwrap();
+    bob.handle.follow(eve.id, None).unwrap();
     alice.connect(&bob).converge([&bob]);
     eve.connect(&alice).converge([&alice]);
 
@@ -544,7 +544,7 @@ fn rad_patch_checkout_force() {
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
 
-    bob.handle.track_repo(acme, Scope::All).unwrap();
+    bob.handle.seed(acme, Scope::All).unwrap();
     alice.connect(&bob).converge([&bob]);
 
     test(
@@ -699,8 +699,8 @@ fn rad_clean() {
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
     let mut eve = eve.spawn();
-    alice.handle.track_repo(acme, Scope::All).unwrap();
-    eve.handle.track_repo(acme, Scope::Followed).unwrap();
+    alice.handle.seed(acme, Scope::All).unwrap();
+    eve.handle.seed(acme, Scope::Followed).unwrap();
 
     bob.connect(&alice).converge([&alice]);
     eve.connect(&alice).converge([&alice]);
@@ -769,7 +769,7 @@ fn rad_clone() {
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
     // Prevent Alice from fetching Bob's fork, as we're not testing that and it may cause errors.
-    alice.handle.track_repo(acme, Scope::Followed).unwrap();
+    alice.handle.seed(acme, Scope::Followed).unwrap();
 
     bob.connect(&alice).converge([&alice]);
 
@@ -791,7 +791,7 @@ fn rad_clone_all() {
     let mut bob = bob.spawn();
     let mut eve = eve.spawn();
 
-    alice.handle.track_repo(acme, Scope::All).unwrap();
+    alice.handle.seed(acme, Scope::All).unwrap();
     bob.connect(&alice).converge([&alice]);
     eve.connect(&alice).converge([&alice]);
 
@@ -873,8 +873,8 @@ fn rad_clone_connect() {
 
     let eve = eve.spawn();
 
-    alice.handle.track_repo(acme, Scope::Followed).unwrap();
-    bob.handle.track_repo(acme, Scope::Followed).unwrap();
+    alice.handle.seed(acme, Scope::Followed).unwrap();
+    bob.handle.seed(acme, Scope::Followed).unwrap();
     alice.connect(&bob);
     bob.routes_to(&[(acme, alice.id)]);
     eve.routes_to(&[(acme, alice.id), (acme, bob.id)]);
@@ -1105,7 +1105,7 @@ fn test_cob_replication() {
     let mut bob = bob.spawn();
     let events = alice.handle.events();
 
-    alice.handle.track_node(bob.id, None).unwrap();
+    alice.handle.follow(bob.id, None).unwrap();
     alice.connect(&bob);
 
     bob.routes_to(&[(rid, alice.id)]);
@@ -1165,8 +1165,8 @@ fn test_cob_deletion() {
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
 
-    alice.handle.track_repo(rid, Scope::All).unwrap();
-    bob.handle.track_repo(rid, Scope::All).unwrap();
+    alice.handle.seed(rid, Scope::All).unwrap();
+    bob.handle.seed(rid, Scope::All).unwrap();
     alice.connect(&bob);
     bob.routes_to(&[(rid, alice.id)]);
 
@@ -1229,8 +1229,8 @@ fn rad_sync() {
     let mut bob = bob.spawn();
     let mut eve = eve.spawn();
 
-    bob.handle.track_repo(acme, Scope::All).unwrap();
-    eve.handle.track_repo(acme, Scope::All).unwrap();
+    bob.handle.seed(acme, Scope::All).unwrap();
+    eve.handle.seed(acme, Scope::All).unwrap();
 
     alice.connect(&bob);
     eve.connect(&alice);
@@ -1359,7 +1359,7 @@ fn rad_remote() {
     let mut bob = bob.spawn();
     alice
         .handle
-        .track_node(bob.id, Some(Alias::new("bob")))
+        .follow(bob.id, Some(Alias::new("bob")))
         .unwrap();
 
     bob.connect(&alice);

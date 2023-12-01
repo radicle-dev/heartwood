@@ -412,21 +412,21 @@ pub enum Command {
         timeout: time::Duration,
     },
 
-    /// Track the given repository.
+    /// Seed the given repository.
     #[serde(rename_all = "camelCase")]
-    TrackRepo { rid: Id, scope: tracking::Scope },
+    Seed { rid: Id, scope: tracking::Scope },
 
-    /// Untrack the given repository.
+    /// Unseed the given repository.
     #[serde(rename_all = "camelCase")]
-    UntrackRepo { rid: Id },
+    Unseed { rid: Id },
 
-    /// Track the given node.
+    /// Follow the given node.
     #[serde(rename_all = "camelCase")]
-    TrackNode { nid: NodeId, alias: Option<Alias> },
+    Follow { nid: NodeId, alias: Option<Alias> },
 
-    /// Untrack the given node.
+    /// Unfollow the given node.
     #[serde(rename_all = "camelCase")]
-    UntrackNode { nid: NodeId },
+    Unfollow { nid: NodeId },
 
     /// Get the node's status.
     Status,
@@ -775,15 +775,15 @@ pub trait Handle: Clone + Sync + Send {
         from: NodeId,
         timeout: time::Duration,
     ) -> Result<FetchResult, Self::Error>;
-    /// Start tracking the given project. Doesn't do anything if the project is already
-    /// tracked.
-    fn track_repo(&mut self, id: Id, scope: tracking::Scope) -> Result<bool, Self::Error>;
-    /// Start tracking the given node.
-    fn track_node(&mut self, id: NodeId, alias: Option<Alias>) -> Result<bool, Self::Error>;
-    /// Untrack the given project and delete it from storage.
-    fn untrack_repo(&mut self, id: Id) -> Result<bool, Self::Error>;
-    /// Untrack the given node.
-    fn untrack_node(&mut self, id: NodeId) -> Result<bool, Self::Error>;
+    /// Start seeding the given repo. May update the scope. Does nothing if the
+    /// repo is already seeded.
+    fn seed(&mut self, id: Id, scope: tracking::Scope) -> Result<bool, Self::Error>;
+    /// Start following the given peer.
+    fn follow(&mut self, id: NodeId, alias: Option<Alias>) -> Result<bool, Self::Error>;
+    /// Un-seed the given repo and delete it from storage.
+    fn unseed(&mut self, id: Id) -> Result<bool, Self::Error>;
+    /// Unfollow the given peer.
+    fn unfollow(&mut self, id: NodeId) -> Result<bool, Self::Error>;
     /// Notify the service that a project has been updated, and announce local refs.
     fn announce_refs(&mut self, id: Id) -> Result<RefsAt, Self::Error>;
     /// Announce local inventory.
@@ -981,29 +981,29 @@ impl Handle for Node {
         Ok(result)
     }
 
-    fn track_node(&mut self, nid: NodeId, alias: Option<Alias>) -> Result<bool, Error> {
-        let mut line = self.call::<Success>(Command::TrackNode { nid, alias }, DEFAULT_TIMEOUT)?;
+    fn follow(&mut self, nid: NodeId, alias: Option<Alias>) -> Result<bool, Error> {
+        let mut line = self.call::<Success>(Command::Follow { nid, alias }, DEFAULT_TIMEOUT)?;
         let response = line.next().ok_or(Error::EmptyResponse)??;
 
         Ok(response.updated)
     }
 
-    fn track_repo(&mut self, rid: Id, scope: tracking::Scope) -> Result<bool, Error> {
-        let mut line = self.call::<Success>(Command::TrackRepo { rid, scope }, DEFAULT_TIMEOUT)?;
+    fn seed(&mut self, rid: Id, scope: tracking::Scope) -> Result<bool, Error> {
+        let mut line = self.call::<Success>(Command::Seed { rid, scope }, DEFAULT_TIMEOUT)?;
         let response = line.next().ok_or(Error::EmptyResponse)??;
 
         Ok(response.updated)
     }
 
-    fn untrack_node(&mut self, nid: NodeId) -> Result<bool, Error> {
-        let mut line = self.call::<Success>(Command::UntrackNode { nid }, DEFAULT_TIMEOUT)?;
+    fn unfollow(&mut self, nid: NodeId) -> Result<bool, Error> {
+        let mut line = self.call::<Success>(Command::Unfollow { nid }, DEFAULT_TIMEOUT)?;
         let response = line.next().ok_or(Error::EmptyResponse)??;
 
         Ok(response.updated)
     }
 
-    fn untrack_repo(&mut self, rid: Id) -> Result<bool, Error> {
-        let mut line = self.call::<Success>(Command::UntrackRepo { rid }, DEFAULT_TIMEOUT)?;
+    fn unseed(&mut self, rid: Id) -> Result<bool, Error> {
+        let mut line = self.call::<Success>(Command::Unseed { rid }, DEFAULT_TIMEOUT)?;
         let response = line.next().ok_or(Error::EmptyResponse {})??;
 
         Ok(response.updated)
