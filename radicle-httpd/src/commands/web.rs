@@ -1,7 +1,12 @@
 use std::ffi::OsString;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::process::Command;
+use std::thread::sleep;
+use std::time::Duration;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use radicle::crypto::{PublicKey, Signature, Signer};
 
@@ -10,19 +15,20 @@ use radicle_cli::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "web",
-    description: "Connect web with node",
+    description: "Start HTTP API server and connect the web explorer to it",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
 
-    rad web [<option>...]
+    rad web [<option>...] [<explorer-url>]
+
+    Runs the Radicle HTTP Daemon and opens a Radicle web explorer to authenticate with it.
 
 Options
 
-    --backend, -b          httpd to bind to
-    --frontend, -f         Web interface to bind to
-    --verbose, -v          Verbose output
-    --json                 Output as json
+    --listen, -l           Address to bind the HTTP daemon to (default: 127.0.0.1:8080)
+    --connect, -c          Connect the explorer to an already running daemon
+    --no-open              Don't open the authentication URL automatically
     --help                 Print help
 "#,
 };
@@ -36,10 +42,10 @@ pub struct SessionInfo {
 
 #[derive(Debug)]
 pub struct Options {
-    pub backend: String,
-    pub frontend: String,
-    pub json: bool,
-    pub verbose: bool,
+    pub app_url: Url,
+    pub listen: SocketAddr,
+    pub connect: bool,
+    pub open: bool,
 }
 
 impl Args for Options {
@@ -47,23 +53,35 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut backend = None;
-        let mut frontend = None;
-        let mut json = false;
-        let mut verbose = false;
+        let mut listen = None;
+        // SAFETY: This is a valid URL.
+        #[allow(clippy::unwrap_used)]
+        let mut app_url = Url::parse("https://app.radicle.xyz").unwrap();
+        let mut connect = false;
+        let mut open = true;
 
         while let Some(arg) = parser.next()? {
             match arg {
-                Long("verbose") | Short('v') => verbose = true,
-                Long("backend") | Short('b') => {
-                    backend = Some(parser.value()?.to_string_lossy().to_string())
+                Long("listen") | Short('l') => {
+                    listen = Some(
+                        parser
+                            .value()?
+                            .to_string_lossy()
+                            .as_ref()
+                            .parse::<SocketAddr>()
+                            .context("argument for '--listen' is not a valid socket address")?,
+                    )
                 }
-                Long("frontend") | Short('f') => {
-                    frontend = Some(parser.value()?.to_string_lossy().to_string())
+                Long("connect") | Short('c') => {
+                    connect = true;
                 }
-                Long("json") => json = true,
+                Long("no-open") => open = false,
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
+                }
+                Value(val) => {
+                    let val = val.to_string_lossy();
+                    app_url = Url::parse(val.as_ref()).context("invalid explorer URL supplied")?;
                 }
                 _ => {
                     return Err(anyhow!(arg.unexpected()));
@@ -73,10 +91,13 @@ impl Args for Options {
 
         Ok((
             Options {
-                json,
-                verbose,
-                backend: backend.unwrap_or(String::from("http://0.0.0.0:8080")),
-                frontend: frontend.unwrap_or(String::from("https://app.radicle.xyz")),
+                open,
+                app_url,
+                listen: listen.unwrap_or(SocketAddr::new(
+                    IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+                    8080,
+                )),
+                connect,
             },
             vec![],
         ))
@@ -90,33 +111,88 @@ pub fn sign(signer: Box<dyn Signer>, session: &SessionInfo) -> Result<Signature,
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
-    let session: SessionInfo = ureq::post(&format!("{}/api/v1/sessions", options.backend))
-        .call()?
-        .into_json()?;
     let profile = ctx.profile()?;
+
+    let runtime_and_handle = if !options.connect {
+        tracing_subscriber::fmt::init();
+
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("failed to create threaded runtime");
+        let httpd_handle = runtime.spawn(crate::run(crate::Options {
+            aliases: Default::default(),
+            listen: options.listen,
+            cache: None,
+        }));
+        Some((runtime, httpd_handle))
+    } else {
+        None
+    };
+
+    let mut num_retries = 30;
+    let response = loop {
+        num_retries -= 1;
+        sleep(Duration::from_millis(100));
+        match ureq::post(&format!("http://{}/api/v1/sessions", options.listen)).call() {
+            Ok(response) => {
+                break response;
+            }
+            Err(err) => {
+                if err.kind() == ureq::ErrorKind::ConnectionFailed && num_retries > 0 {
+                    continue;
+                } else {
+                    anyhow::bail!(err);
+                }
+            }
+        }
+    };
+
+    let session = response.into_json::<SessionInfo>()?;
     let signer = profile.signer()?;
     let signature = sign(signer, &session)?;
 
-    if options.json {
-        println!(
-            "{}",
-            serde_json::json!({
-                "sessionId": session.session_id,
-                "publicKey": session.public_key,
-                "signature": signature,
-            })
-        )
+    let mut auth_url = options.app_url.clone();
+    auth_url
+        .path_segments_mut()
+        .map_err(|_| anyhow!("URL not supported"))?
+        .push("session")
+        .push(&session.session_id);
+
+    auth_url
+        .query_pairs_mut()
+        .append_pair("pk", &session.public_key.to_string())
+        .append_pair("sig", &signature.to_string())
+        .append_pair("addr", &options.listen.to_string());
+
+    if options.open {
+        #[cfg(target_os = "macos")]
+        let cmd_name = "open";
+        #[cfg(target_os = "linux")]
+        let cmd_name = "xdg-open";
+
+        let mut cmd = Command::new(cmd_name);
+
+        match cmd.arg(auth_url.as_str()).spawn()?.wait() {
+            Ok(exit_status) => {
+                if exit_status.success() {
+                    term::success!("Opened {auth_url}");
+                } else {
+                    term::info!("Visit {auth_url} to connect");
+                }
+            }
+            Err(_) => {
+                term::info!("Visit {auth_url} to connect");
+            }
+        }
     } else {
-        term::blank();
-        term::info!("Open the following link to authenticate:");
-        term::info!(
-            "  👉 {}/session/{}?pk={}&sig={}",
-            options.frontend,
-            session.session_id,
-            session.public_key,
-            signature,
-        );
-        term::blank();
+        term::info!("Visit {auth_url} to connect");
+    }
+
+    if let Some((runtime, httpd_handle)) = runtime_and_handle {
+        runtime
+            .block_on(httpd_handle)?
+            .context("httpd server error")?;
     }
 
     Ok(())
