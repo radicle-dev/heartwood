@@ -27,7 +27,7 @@ thiserror = { version = "1" }
 zeroize = { version = "1.5.7" }
 
 [dependencies.radicle-git-ext]
-version = "0.6.0"
+version = "0.7.0"
 default-features = false
 optional = true
 

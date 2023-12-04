@@ -23,7 +23,7 @@ unicode-segmentation = { version = "1.7.1" }
 zeroize = { version = "1.1" }
 
 [dependencies.git2]
-version = "0.17.0"
+version = "0.18.1"
 default-features = false
 features = ["vendored-libgit2"]
 optional = true

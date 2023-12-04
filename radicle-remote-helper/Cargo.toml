@@ -8,7 +8,7 @@ build = "../build.rs"
 
 [dependencies]
 thiserror = "1"
-radicle-git-ext = { version = "0.6.0" }
+radicle-git-ext = { version = "0.7.0" }
 
 [dependencies.radicle]
 path = "../radicle"

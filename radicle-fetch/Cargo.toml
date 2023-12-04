@@ -17,7 +17,7 @@ gix-protocol = { version = "0.41.1", features = ["blocking-client"] }
 gix-transport = { version = "0.38", features = ["blocking-client"] }
 log = { version = "0.4.17", features = ["std"] }
 nonempty = { version = "0.8.1" }
-radicle-git-ext = { version = "0.6.0", features = ["bstr"] }
+radicle-git-ext = { version = "0.7.0", features = ["bstr"] }
 thiserror = { version = "1" }
 
 [dependencies.radicle]

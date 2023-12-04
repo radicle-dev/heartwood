@@ -30,7 +30,7 @@ once_cell = { version = "1.13" }
 qcheck = { version = "1", default-features = false, optional = true }
 # N.b. this is required to use macros, even though it's re-exported
 # through radicle
-radicle-git-ext = { version = "0.6.0", features = ["serde"] }
+radicle-git-ext = { version = "0.7.0", features = ["serde"] }
 sqlite = { version = "0.32.0" }
 scrypt = { version = "0.10.0", default-features = false }
 serde = { version = "1", features = ["derive"] }

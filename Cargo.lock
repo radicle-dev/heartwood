@@ -1000,11 +1000,11 @@ dependencies = [
 
 [[package]]
 name = "git2"
-version = "0.17.2"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b989d6a7ca95a362cf2cfc5ad688b3a467be1f87e480b8dad07fee8c79b0044"
+checksum = "fbf97ba92db08df386e10c8ede66a2a0369bd277090afd8710e19e38de9ec0cd"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.4.0",
  "libc",
  "libgit2-sys",
  "log",
@@ -1700,9 +1700,9 @@ checksum = "89d92a4743f9a61002fae18374ed11e7973f530cb3a3255fb354818118b2203c"
 
 [[package]]
 name = "libgit2-sys"
-version = "0.15.2+1.6.4"
+version = "0.16.1+1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a80df2e11fb4a61f4ba2ab42dbe7f74468da143f1a75c74e11dee7c813f694fa"
+checksum = "f2a2bb3680b094add03bb3732ec520ece34da31a8cd2d633d1389d0f0fb60d0c"
 dependencies = [
  "cc",
  "libc",
@@ -2420,9 +2420,9 @@ dependencies = [
 
 [[package]]
 name = "radicle-git-ext"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90bc5efea239afa1fb374923be50c3a5f98cec92d53b5fa55bdf57ac76b16433"
+checksum = "7ba40f0288f73b9464c0f52c09261593777ed6f195ef3be6a12d8f8e920d7885"
 dependencies = [
  "git-ref-format",
  "git2",
@@ -2533,9 +2533,9 @@ checksum = "db20136bbc9ae63f3fec8e5a6c369f4902fac2244501b5dfc6d668e43475aaa4"
 
 [[package]]
 name = "radicle-surf"
-version = "0.17.1"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d4c942246ed4db15d26de46dfc86ee35af6f31af0d3e1fe14a36990c95cb129"
+checksum = "9403736ddf2be5e7de42928f94a5f68ef0785916171d009809d19b4202b58d83"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
