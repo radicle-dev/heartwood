@@ -10,7 +10,7 @@ use crate::terminal as term;
 pub fn run(
     patch_id: &PatchId,
     add: BTreeSet<Did>,
-    remove: BTreeSet<Did>,
+    delete: BTreeSet<Did>,
     profile: &Profile,
     repository: &Repository,
 ) -> anyhow::Result<()> {
@@ -21,7 +21,7 @@ pub fn run(
     };
     let assignees = patch
         .assignees()
-        .filter(|did| !remove.contains(did))
+        .filter(|did| !delete.contains(did))
         .chain(add)
         .collect::<BTreeSet<_>>();
     patch.assign(assignees, &signer)?;

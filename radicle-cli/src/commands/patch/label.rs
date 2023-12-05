@@ -7,7 +7,7 @@ use crate::terminal as term;
 pub fn run(
     patch_id: &PatchId,
     add: BTreeSet<Label>,
-    remove: BTreeSet<Label>,
+    delete: BTreeSet<Label>,
     profile: &Profile,
     repository: &Repository,
 ) -> anyhow::Result<()> {
@@ -18,7 +18,7 @@ pub fn run(
     };
     let labels = patch
         .labels()
-        .filter(|l| !remove.contains(l))
+        .filter(|l| !delete.contains(l))
         .chain(add.iter())
         .cloned()
         .collect::<Vec<_>>();

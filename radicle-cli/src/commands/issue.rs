@@ -38,8 +38,8 @@ Usage
     rad issue list [--assigned <did>] [--all | --closed | --open | --solved] [<option>...]
     rad issue open [--title <title>] [--description <text>] [--label <label>] [<option>...]
     rad issue react <issue-id> [--emoji <char>] [--to <comment>] [<option>...]
-    rad issue assign <issue-id> [--add <did>] [--remove <did>] [<option>...]
-    rad issue label <issue-id> [--add <label>] [--remove <did>] [<option>...]
+    rad issue assign <issue-id> [--add <did>] [--delete <did>] [<option>...]
+    rad issue label <issue-id> [--add <label>] [--delete <label>] [<option>...]
     rad issue unlabel <issue-id> --label <label> [<option>...]
     rad issue comment <issue-id> [--message <message>] [--reply-to <comment-id>] [<option>...]
     rad issue show <issue-id> [<option>...]
@@ -48,24 +48,24 @@ Usage
 Assign options
 
     -a, --add    <did>     Add an assignee to the issue (may be specified multiple times).
-                           Note: --add will take precedence over --remove
+                           Note: --add will take precedence over --delete
 
-    -r, --remove <did>     Remove an assignee from the issue (may be specified multiple times).
-                           Note: --add will take precedence over --remove
+    -d, --delete <did>     Delete an assignee from the issue (may be specified multiple times).
+                           Note: --add will take precedence over --delete
 
 Label options
 
     -a, --add    <label>   Add a label to the issue (may be specified multiple times).
-                           Note: --add will take precedence over --remove
+                           Note: --add will take precedence over --delete
 
-    -r, --remove <label>   Remove a label from the issue (may be specified multiple times).
-                           Note: --add will take precedence over --remove
+    -d, --delete <label>   Delete a label from the issue (may be specified multiple times).
+                           Note: --add will take precedence over --delete
 
 Options
 
     --no-announce          Don't announce issue to peers
     --header               Show only the issue header, hiding the comments
-    --quiet, -q            Don't print anything
+    -q, --quiet            Don't print anything
     --help                 Print help
 "#,
 };
@@ -144,13 +144,13 @@ pub enum Operation {
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct AssignOptions {
     pub add: BTreeSet<Did>,
-    pub remove: BTreeSet<Did>,
+    pub delete: BTreeSet<Did>,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct LabelOptions {
     pub add: BTreeSet<Label>,
-    pub remove: BTreeSet<Label>,
+    pub delete: BTreeSet<Label>,
 }
 
 #[derive(Debug)]
@@ -284,9 +284,9 @@ impl Args for Options {
                 Short('a') | Long("add") if op == Some(OperationName::Assign) => {
                     assign_opts.add.insert(term::args::did(&parser.value()?)?);
                 }
-                Short('r') | Long("remove") if op == Some(OperationName::Assign) => {
+                Short('d') | Long("delete") if op == Some(OperationName::Assign) => {
                     assign_opts
-                        .remove
+                        .delete
                         .insert(term::args::did(&parser.value()?)?);
                 }
 
@@ -298,12 +298,12 @@ impl Args for Options {
 
                     label_opts.add.insert(label);
                 }
-                Short('r') | Long("remove") if matches!(op, Some(OperationName::Label)) => {
+                Short('d') | Long("delete") if matches!(op, Some(OperationName::Label)) => {
                     let val = parser.value()?;
                     let name = term::args::string(&val);
                     let label = Label::new(name)?;
 
-                    label_opts.remove.insert(label);
+                    label_opts.delete.insert(label);
                 }
 
                 Long("quiet") | Short('q') => {
@@ -491,7 +491,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Assign {
             id,
-            opts: AssignOptions { add, remove },
+            opts: AssignOptions { add, delete },
         } => {
             let id = id.resolve(&repo.backend)?;
             let Ok(mut issue) = issues.get_mut(&id) else {
@@ -499,7 +499,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             };
             let assignees = issue
                 .assignees()
-                .filter(|did| !remove.contains(did))
+                .filter(|did| !delete.contains(did))
                 .chain(add.iter())
                 .cloned()
                 .collect::<Vec<_>>();
@@ -507,7 +507,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Label {
             id,
-            opts: LabelOptions { add, remove },
+            opts: LabelOptions { add, delete },
         } => {
             let id = id.resolve(&repo.backend)?;
             let Ok(mut issue) = issues.get_mut(&id) else {
@@ -515,7 +515,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             };
             let labels = issue
                 .labels()
-                .filter(|did| !remove.contains(did))
+                .filter(|did| !delete.contains(did))
                 .chain(add.iter())
                 .cloned()
                 .collect::<Vec<_>>();

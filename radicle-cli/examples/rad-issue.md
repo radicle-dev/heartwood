@@ -69,7 +69,7 @@ $ rad issue list --assigned
 Note: this can always be undone with the `unassign` subcommand.
 
 ```
-$ rad issue assign d185ee1 --remove did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad issue assign d185ee1 --delete did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 Great, now we have communicated to the world about our car's defect.

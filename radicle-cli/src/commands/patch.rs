@@ -55,8 +55,8 @@ Usage
     rad patch checkout <patch-id> [<option>...]
     rad patch delete <patch-id> [<option>...]
     rad patch redact <revision-id> [<option>...]
-    rad patch assign <revision-id> [--add <did>] [--remove <did>] [<option>...]
-    rad patch label <revision-id> [--add <label>] [--remove <label>] [<option>...]
+    rad patch assign <revision-id> [--add <did>] [--delete <did>] [<option>...]
+    rad patch label <revision-id> [--add <label>] [--delete <label>] [<option>...]
     rad patch ready <patch-id> [--undo] [<option>...]
     rad patch edit <patch-id> [<option>...]
     rad patch set <patch-id> [<option>...]
@@ -77,19 +77,19 @@ Edit options
 
 Assign options
 
-    -a, --add    <did>         Add an assignee to the issue (may be specified multiple times).
-                               Note: --add will take precedence over --remove
+    -a, --add    <did>         Add an assignee to the patch (may be specified multiple times).
+                               Note: --add will take precedence over --delete
 
-    -r, --remove <did>         Remove an assignee from the issue (may be specified multiple times).
-                               Note: --add will take precedence over --remove
+    -d, --delete <did>         Delete an assignee from the patch (may be specified multiple times).
+                               Note: --add will take precedence over --delete
 
 Label options
 
-    -a, --add    <label>       Add an assignee to the issue (may be specified multiple times).
-                               Note: --add will take precedence over --remove
+    -a, --add    <label>       Add a label to the patch (may be specified multiple times).
+                               Note: --add will take precedence over --delete
 
-    -r, --remove <label>       Remove an assignee from the issue (may be specified multiple times).
-                               Note: --add will take precedence over --remove
+    -d, --delete <label>       Delete a label from the patch (may be specified multiple times).
+                               Note: --add will take precedence over --delete
 
 Update options
 
@@ -145,13 +145,13 @@ pub enum OperationName {
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct AssignOptions {
     pub add: BTreeSet<Did>,
-    pub remove: BTreeSet<Did>,
+    pub delete: BTreeSet<Did>,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct LabelOptions {
     pub add: BTreeSet<Label>,
-    pub remove: BTreeSet<Label>,
+    pub delete: BTreeSet<Label>,
 }
 
 pub struct Filter(fn(&patch::State) -> bool);
@@ -336,9 +336,9 @@ impl Args for Options {
                     assign_opts.add.insert(term::args::did(&parser.value()?)?);
                 }
 
-                Short('r') | Long("remove") if matches!(op, Some(OperationName::Assign)) => {
+                Short('d') | Long("delete") if matches!(op, Some(OperationName::Assign)) => {
                     assign_opts
-                        .remove
+                        .delete
                         .insert(term::args::did(&parser.value()?)?);
                 }
 
@@ -351,12 +351,12 @@ impl Args for Options {
                     label_opts.add.insert(label);
                 }
 
-                Short('r') | Long("remove") if matches!(op, Some(OperationName::Label)) => {
+                Short('d') | Long("delete") if matches!(op, Some(OperationName::Label)) => {
                     let val = parser.value()?;
                     let name = term::args::string(&val);
                     let label = Label::new(name)?;
 
-                    label_opts.remove.insert(label);
+                    label_opts.delete.insert(label);
                 }
 
                 // List options.
@@ -594,17 +594,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Assign {
             patch_id,
-            opts: AssignOptions { add, remove },
+            opts: AssignOptions { add, delete },
         } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
-            assign::run(&patch_id, add, remove, &profile, &repository)?;
+            assign::run(&patch_id, add, delete, &profile, &repository)?;
         }
         Operation::Label {
             patch_id,
-            opts: LabelOptions { add, remove },
+            opts: LabelOptions { add, delete },
         } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
-            label::run(&patch_id, add, remove, &profile, &repository)?;
+            label::run(&patch_id, add, delete, &profile, &repository)?;
         }
         Operation::Set { patch_id } => {
             let patches = radicle::cob::patch::Patches::open(&repository)?;
