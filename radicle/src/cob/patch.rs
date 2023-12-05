@@ -881,6 +881,7 @@ impl Patch {
                     thread::edit(
                         &mut review.comments,
                         entry,
+                        author,
                         comment,
                         timestamp,
                         body,
@@ -1036,6 +1037,7 @@ impl Patch {
                     thread::edit(
                         &mut revision.discussion,
                         entry,
+                        author,
                         comment,
                         timestamp,
                         body,

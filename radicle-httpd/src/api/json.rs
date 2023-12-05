@@ -242,6 +242,7 @@ struct Comment<'a> {
     id: CommentId,
     author: Value,
     body: &'a str,
+    edits: Vec<Value>,
     embeds: Vec<Embed<Uri>>,
     reactions: Vec<(&'a ActorId, &'a Reaction)>,
     #[serde(with = "radicle::serde_ext::localtime::time")]
@@ -257,6 +258,17 @@ impl<'a> Comment<'a> {
             id: *id,
             author: author(&comment_author, aliases.alias(comment_author.id())),
             body: comment.body(),
+            edits: comment
+                .edits()
+                .map(|edit| {
+                    json!({
+                        "author": author(&Author::from(edit.author), aliases.alias(&edit.author)),
+                        "body": edit.body,
+                        "timestamp": edit.timestamp,
+                        "embeds": edit.embeds,
+                    })
+                })
+                .collect::<Vec<_>>(),
             embeds: comment.embeds().to_vec(),
             reactions: comment.reactions().collect::<Vec<_>>(),
             timestamp: comment.timestamp(),

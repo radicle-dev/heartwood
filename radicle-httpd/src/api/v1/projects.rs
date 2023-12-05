@@ -1995,6 +1995,16 @@ mod routes {
                       "id": DID
                     },
                     "body": "Change 'hello world' to 'hello everyone'",
+                    "edits": [
+                      {
+                        "author": {
+                          "id": DID,
+                        },
+                        "body": "Change 'hello world' to 'hello everyone'",
+                        "timestamp": COMMENT_TIMESTAMP,
+                        "embeds": [],
+                      },
+                    ],
                     "embeds": [],
                     "reactions": [],
                     "timestamp": TIMESTAMP,
@@ -2070,6 +2080,21 @@ mod routes {
                   "id": CONTRIBUTOR_DID,
                 },
                 "body": "Change 'hello world' to 'hello everyone'",
+                "edits": [
+                  {
+                    "author": {
+                      "id": CONTRIBUTOR_DID,
+                    },
+                    "body": "Change 'hello world' to 'hello everyone'",
+                    "timestamp": COMMENT_TIMESTAMP,
+                    "embeds": [
+                      {
+                        "name": "example.html",
+                        "content": "git:b62df2ec90365e3749cd4fa431cb844492908b84",
+                      },
+                    ],
+                  },
+                ],
                 "embeds": [
                   {
                     "name": "example.html",
@@ -2203,6 +2228,29 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "body": "EDIT: Change 'hello world' to 'hello anyone'",
+                  "edits": [
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "Change 'hello world' to 'hello everyone'",
+                      "timestamp": COMMENT_TIMESTAMP,
+                      "embeds": [],
+                    },
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "EDIT: Change 'hello world' to 'hello anyone'",
+                      "timestamp": COMMENT_TIMESTAMP,
+                      "embeds": [
+                        {
+                          "name": "image.jpg",
+                          "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
+                        },
+                      ],
+                    },
+                  ],
                   "embeds": [
                     {
                       "name": "image.jpg",
@@ -2271,11 +2319,11 @@ mod routes {
               "author": {
                 "id": CONTRIBUTOR_DID,
               },
-              "assignees": [],
               "title": "Issue #1",
               "state": {
                 "status": "open",
               },
+              "assignees": [],
               "discussion": [
                 {
                   "id": ISSUE_DISCUSSION_ID,
@@ -2283,6 +2331,16 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
+                  "edits": [
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "Change 'hello world' to 'hello everyone'",
+                      "timestamp": COMMENT_TIMESTAMP,
+                      "embeds": [],
+                    },
+                  ],
                   "embeds": [],
                   "reactions": [],
                   "timestamp": TIMESTAMP,
@@ -2295,6 +2353,21 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "body": "This is a reply to the first comment",
+                  "edits": [
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "This is a reply to the first comment",
+                      "timestamp": COMMENT_TIMESTAMP,
+                      "embeds": [
+                        {
+                          "name": "image.jpg",
+                          "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
+                        },
+                      ],
+                    },
+                  ],
                   "embeds": [
                     {
                       "name": "image.jpg",
@@ -2931,6 +3004,34 @@ mod routes {
                         "id": CONTRIBUTOR_DID,
                       },
                       "body": "EDIT: This is a root level comment",
+                      "edits": [
+                        {
+                          "author": {
+                            "id": CONTRIBUTOR_DID,
+                          },
+                          "body": "This is a root level comment",
+                          "timestamp": COMMENT_TIMESTAMP,
+                          "embeds": [
+                            {
+                                "name": "image.jpg",
+                                "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
+                            },
+                          ],
+                        },
+                        {
+                          "author": {
+                            "id": CONTRIBUTOR_DID,
+                          },
+                          "body": "EDIT: This is a root level comment",
+                          "timestamp": COMMENT_TIMESTAMP,
+                          "embeds": [
+                           {
+                                "name": "image.jpg",
+                                "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
+                            },
+                          ],
+                        },
+                      ],
                       "embeds": [
                         {
                           "name": "image.jpg",
@@ -2948,6 +3049,16 @@ mod routes {
                         "id": CONTRIBUTOR_DID,
                       },
                       "body": "This is a root level comment",
+                      "edits": [
+                        {
+                          "author": {
+                            "id": CONTRIBUTOR_DID,
+                          },
+                          "body": "This is a root level comment",
+                          "timestamp": COMMENT_TIMESTAMP,
+                          "embeds": [],
+                        },
+                      ],
                       "embeds": [],
                       "reactions": [],
                       "timestamp": TIMESTAMP,
@@ -3132,6 +3243,30 @@ mod routes {
                           ],
                           "resolved": true,
                           "body": "EDIT: This is a comment on a review",
+                          "edits": [
+                            {
+                              "author": "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                              "timestamp": COMMENT_TIMESTAMP,
+                              "body": "This is a comment on a review",
+                              "embeds": [
+                                  {
+                                    "name": "image.jpg",
+                                    "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
+                                  },
+                              ],
+                            },
+                            {
+                              "author": "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                              "timestamp": COMMENT_TIMESTAMP,
+                              "body": "EDIT: This is a comment on a review",
+                              "embeds": [
+                                {
+                                  "name": "image.jpg",
+                                  "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
+                                },
+                              ],
+                            },
+                          ],
                           "embeds": [
                             {
                               "name": "image.jpg",

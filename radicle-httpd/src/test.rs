@@ -37,6 +37,7 @@ pub const ISSUE_DISCUSSION_ID: &str = "d11b03464c9bf58b09460713c8e2c74f0725d3bd"
 pub const ISSUE_COMMENT_ID: &str = "e3aa754cb47d2299781fed49cc91c4b41e06c219";
 pub const SESSION_ID: &str = "u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy";
 pub const TIMESTAMP: u64 = 1671125284;
+pub const COMMENT_TIMESTAMP: u64 = 1671125284000;
 pub const CONTRIBUTOR_RID: &str = "rad:z4XaCmN3jLSeiMvW15YTDpNbDHFhG";
 pub const CONTRIBUTOR_DID: &str = "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
 pub const CONTRIBUTOR_NID: &str = "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";

@@ -356,7 +356,7 @@ impl Issue {
                 )?;
             }
             Action::CommentEdit { id, body, embeds } => {
-                thread::edit(&mut self.thread, entry, id, timestamp, body, embeds)?;
+                thread::edit(&mut self.thread, entry, author, id, timestamp, body, embeds)?;
             }
             Action::CommentRedact { id } => {
                 let (root, _) = self.root();

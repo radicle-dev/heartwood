@@ -53,8 +53,10 @@ pub type CommentId = EntryId;
 pub type Reactions = BTreeSet<(ActorId, Reaction)>;
 
 /// A comment edit is just some text and an edit time.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Edit {
+    /// Edit author.
+    pub author: ActorId,
     /// When the edit was made.
     pub timestamp: Timestamp,
     /// Edit contents. Replaces previous edits.
@@ -86,7 +88,7 @@ impl<T: Serialize> Serialize for Comment<T> {
     where
         S: serde::ser::Serializer,
     {
-        let mut state = serializer.serialize_struct("Comment", 8)?;
+        let mut state = serializer.serialize_struct("Comment", 9)?;
         state.serialize_field("author", &self.author())?;
         if let Some(loc) = &self.location {
             state.serialize_field("location", loc)?;
@@ -97,6 +99,7 @@ impl<T: Serialize> Serialize for Comment<T> {
         state.serialize_field("reactions", &self.reactions)?;
         state.serialize_field("resolved", &self.resolved)?;
         state.serialize_field("body", self.body())?;
+        state.serialize_field("edits", &self.edits)?;
         if let Some(location) = self.location() {
             state.serialize_field("location", &location)?;
         }
@@ -120,6 +123,7 @@ impl<L> Comment<L> {
         timestamp: Timestamp,
     ) -> Self {
         let edit = Edit {
+            author,
             body,
             embeds,
             timestamp,
@@ -168,8 +172,15 @@ impl<L> Comment<L> {
     }
 
     /// Add an edit.
-    pub fn edit(&mut self, body: String, embeds: Vec<Embed<Uri>>, timestamp: Timestamp) {
+    pub fn edit(
+        &mut self,
+        author: ActorId,
+        body: String,
+        embeds: Vec<Embed<Uri>>,
+        timestamp: Timestamp,
+    ) {
         self.edits.push(Edit {
+            author,
             body,
             embeds,
             timestamp,
@@ -336,7 +347,7 @@ impl Thread {
                 comment(self, entry, author, timestamp, body, reply_to, None, vec![])?;
             }
             Action::Edit { id, body } => {
-                edit(self, entry, id, timestamp, body, vec![])?;
+                edit(self, entry, author, id, timestamp, body, vec![])?;
             }
             Action::Redact { id } => {
                 redact(self, entry, id)?;
@@ -471,6 +482,7 @@ pub fn comment<L>(
 pub fn edit<L>(
     thread: &mut Thread<Comment<L>>,
     id: EntryId,
+    author: ActorId,
     comment: EntryId,
     timestamp: Timestamp,
     body: String,
@@ -489,7 +501,7 @@ pub fn edit<L>(
     // that as an error.
     if let Some(comment) = thread.comments.get_mut(&comment) {
         if let Some(comment) = comment {
-            comment.edit(body, embeds, timestamp);
+            comment.edit(author, body, embeds, timestamp);
         }
     } else {
         return Err(Error::Missing(comment));
@@ -785,7 +797,18 @@ mod tests {
         let (second_id, second) = thread.comments().nth(2).unwrap();
 
         assert!(first_id != second_id); // The ids are not the same,
-        assert_eq!(first.edits, second.edits); // despite the content being the same.
+        assert_eq!(
+            first
+                .edits
+                .iter()
+                .map(|e| (&e.body, e.timestamp))
+                .collect::<Vec<_>>(),
+            second
+                .edits
+                .iter()
+                .map(|e| (&e.body, e.timestamp))
+                .collect::<Vec<_>>(),
+        ); // despite the content being the same.
     }
 
     #[quickcheck]
