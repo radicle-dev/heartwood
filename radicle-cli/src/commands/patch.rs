@@ -42,6 +42,7 @@ use crate::node;
 use crate::terminal as term;
 use crate::terminal::args::{string, Args, Error, Help};
 use crate::terminal::patch::Message;
+use crate::tui;
 
 pub const HELP: Help = Help {
     name: "patch",
@@ -549,63 +550,120 @@ impl Args for Options {
 
         let op = match op.unwrap_or_default() {
             OperationName::List => Operation::List { filter },
-            OperationName::Show => Operation::Show {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-                diff,
-            },
-            OperationName::Delete => Operation::Delete {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-            },
-            OperationName::Update => Operation::Update {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-                base_id,
-                message,
-            },
-            OperationName::Archive => Operation::Archive {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
-            },
-            OperationName::Checkout => Operation::Checkout {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-                revision_id,
-                opts: checkout_opts,
-            },
-            OperationName::Comment => Operation::Comment {
-                revision_id: patch_id
-                    .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
-                message,
-                reply_to,
-            },
-            OperationName::Review => Operation::Review {
-                patch_id: patch_id
-                    .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
-                revision_id,
-                opts: review::Options {
+            OperationName::Show => {
+                let patch_id = match patch_id {
+                    Some(id) => id,
+                    _ => tui::patch_select()?.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                };
+                Operation::Show { patch_id, diff }
+            }
+            OperationName::Delete => {
+                let patch_id = match patch_id {
+                    Some(id) => id,
+                    _ => tui::patch_select()?.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                };
+                Operation::Delete { patch_id }
+            }
+            OperationName::Update => {
+                let patch_id = match patch_id {
+                    Some(id) => id,
+                    _ => tui::patch_select()?.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                };
+                Operation::Update {
+                    patch_id,
+                    base_id,
                     message,
-                    op: review_op,
-                },
-            },
-            OperationName::Ready => Operation::Ready {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-                undo,
-            },
-            OperationName::Edit => Operation::Edit {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-                message,
-            },
+                }
+            }
+            OperationName::Archive => {
+                let patch_id = match patch_id {
+                    Some(id) => id,
+                    _ => tui::patch_select()?.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                };
+                Operation::Archive { patch_id }
+            }
+            OperationName::Checkout => {
+                let patch_id = match patch_id {
+                    Some(id) => id,
+                    _ => tui::patch_select()?.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                };
+                Operation::Checkout {
+                    patch_id,
+                    revision_id,
+                    opts: checkout_opts,
+                }
+            }
+            OperationName::Comment => {
+                let patch_id = match patch_id {
+                    Some(id) => id,
+                    _ => tui::patch_select()?
+                        .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
+                };
+                Operation::Comment {
+                    revision_id: patch_id,
+                    message,
+                    reply_to,
+                }
+            }
+            OperationName::Review => {
+                let patch_id = match patch_id {
+                    Some(id) => id,
+                    _ => tui::patch_select()?
+                        .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
+                };
+                Operation::Review {
+                    patch_id,
+                    revision_id,
+                    opts: review::Options {
+                        message,
+                        op: review_op,
+                    },
+                }
+            }
+            OperationName::Ready => {
+                let patch_id = match patch_id {
+                    Some(id) => id,
+                    _ => tui::patch_select()?.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                };
+                Operation::Ready { patch_id, undo }
+            }
+            OperationName::Edit => {
+                let patch_id = match patch_id {
+                    Some(id) => id,
+                    _ => tui::patch_select()?.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                };
+                Operation::Edit { patch_id, message }
+            }
             OperationName::Redact => Operation::Redact {
                 revision_id: revision_id.ok_or_else(|| anyhow!("a revision must be provided"))?,
             },
-            OperationName::Assign => Operation::Assign {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-                opts: assign_opts,
-            },
-            OperationName::Label => Operation::Label {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-                opts: label_opts,
-            },
-            OperationName::Set => Operation::Set {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-            },
+            OperationName::Assign => {
+                let patch_id = match patch_id {
+                    Some(id) => id,
+                    _ => tui::patch_select()?.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                };
+                Operation::Assign {
+                    patch_id,
+                    opts: assign_opts,
+                }
+            }
+            OperationName::Label => {
+                let patch_id = match patch_id {
+                    Some(id) => id,
+                    _ => tui::patch_select()?.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                };
+                Operation::Label {
+                    patch_id,
+                    opts: label_opts,
+                }
+            }
+            OperationName::Set => {
+                let patch_id = match patch_id {
+                    Some(id) => id,
+                    _ => tui::patch_select()?.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                };
+                Operation::Set { patch_id }
+            }
         };
 
         Ok((
@@ -765,3 +823,5 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
     Ok(())
 }
+
+pub fn patch_select() {}
