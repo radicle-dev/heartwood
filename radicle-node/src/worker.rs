@@ -79,6 +79,8 @@ pub enum UploadError {
     Identity(#[from] radicle::identity::DocError),
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
+    #[error(transparent)]
+    PolicyStore(#[from] radicle::node::policy::store::Error),
 }
 
 impl UploadError {
@@ -259,9 +261,16 @@ impl Worker {
     }
 
     fn is_authorized(&self, remote: NodeId, rid: Id) -> Result<(), UploadError> {
+        let policy = {
+            let policy = self.fetch_config.policy;
+            let scope = self.fetch_config.scope;
+            let db = &self.fetch_config.policies_db;
+            let policies = policy::Config::new(policy, scope, policy::Store::reader(db)?);
+            policies.repo_policy(&rid)?.policy
+        };
         let repo = self.storage.repository(rid)?;
         let doc = repo.canonical_identity_doc()?;
-        if !doc.is_visible_to(&remote) {
+        if !doc.is_visible_to(&remote) || policy == Policy::Block {
             Err(UploadError::Unauthorized(remote, rid))
         } else {
             Ok(())

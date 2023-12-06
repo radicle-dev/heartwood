@@ -597,6 +597,35 @@ fn test_fetch_up_to_date() {
 }
 
 #[test]
+fn test_fetch_unseeded() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
+    let mut bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let acme = bob.project("acme", "");
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    alice.connect(&bob);
+    converge([&alice, &bob]);
+
+    transport::local::register(alice.storage.clone());
+
+    let _ = alice.handle.seed(acme, Scope::All).unwrap();
+    let result = alice.handle.fetch(acme, bob.id, DEFAULT_TIMEOUT).unwrap();
+    assert!(result.is_success());
+
+    // Bob stops seeding the repository
+    assert!(bob.handle.unseed(acme).unwrap());
+
+    // Alice attempts to fetch but is unauthorized
+    let result = alice.handle.fetch(acme, bob.id, DEFAULT_TIMEOUT).unwrap();
+    assert_matches!(result, FetchResult::Failed { .. });
+}
+
+#[test]
 fn test_large_fetch() {
     logger::init(log::Level::Debug);
 
