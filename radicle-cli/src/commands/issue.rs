@@ -40,7 +40,6 @@ Usage
     rad issue react <issue-id> [--emoji <char>] [--to <comment>] [<option>...]
     rad issue assign <issue-id> [--add <did>] [--delete <did>] [<option>...]
     rad issue label <issue-id> [--add <label>] [--delete <label>] [<option>...]
-    rad issue unlabel <issue-id> --label <label> [<option>...]
     rad issue comment <issue-id> [--message <message>] [--reply-to <comment-id>] [<option>...]
     rad issue show <issue-id> [<option>...]
     rad issue state <issue-id> [--closed | --open | --solved] [<option>...]
@@ -48,25 +47,23 @@ Usage
 Assign options
 
     -a, --add    <did>     Add an assignee to the issue (may be specified multiple times).
-                           Note: --add will take precedence over --delete
-
     -d, --delete <did>     Delete an assignee from the issue (may be specified multiple times).
-                           Note: --add will take precedence over --delete
+
+    Note: --add takes precedence over --delete
 
 Label options
 
     -a, --add    <label>   Add a label to the issue (may be specified multiple times).
-                           Note: --add will take precedence over --delete
-
     -d, --delete <label>   Delete a label from the issue (may be specified multiple times).
-                           Note: --add will take precedence over --delete
+
+    Note: --add takes precedence over --delete
 
 Options
 
-    --no-announce          Don't announce issue to peers
-    --header               Show only the issue header, hiding the comments
+        --no-announce      Don't announce issue to peers
+        --header           Show only the issue header, hiding the comments
     -q, --quiet            Don't print anything
-    --help                 Print help
+        --help             Print help
 "#,
 };
 
