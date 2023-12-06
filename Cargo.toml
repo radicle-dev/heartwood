@@ -1,4 +1,5 @@
 [workspace]
+package.version = "0.9.0"
 members = [
   "radicle",
   "radicle-cob",
