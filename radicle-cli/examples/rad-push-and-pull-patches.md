@@ -8,6 +8,9 @@ $ git push -o patch.message="Changes" rad HEAD:refs/patches
 ```
 
 ``` ~alice
+$ rad sync -f
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
+✓ Fetched repository from 1 seed(s)
 $ git checkout -b alice/1 -q
 $ git rev-parse HEAD
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
