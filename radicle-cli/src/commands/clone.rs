@@ -1,6 +1,6 @@
 #![allow(clippy::or_fun_call)]
 use std::ffi::OsString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time;
 
@@ -34,7 +34,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad clone <rid> [--scope <scope>] [<option>...]
+    rad clone <rid> [<directory>] [--scope <scope>] [<option>...]
 
 Options
 
@@ -46,7 +46,11 @@ Options
 
 #[derive(Debug)]
 pub struct Options {
+    /// The RID of the repository.
     id: Id,
+    /// The target directory for the repository to be cloned into.
+    directory: Option<PathBuf>,
+    /// The seeding scope of the repository.
     scope: Scope,
 }
 
@@ -57,6 +61,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<Id> = None;
         let mut scope = Scope::All;
+        let mut directory = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -79,13 +84,24 @@ impl Args for Options {
 
                     id = Some(val);
                 }
+                // Parse <directory> once <rid> has been parsed
+                Value(val) if id.is_some() && directory.is_none() => {
+                    directory = Some(Path::new(&val).to_path_buf());
+                }
                 _ => return Err(anyhow!(arg.unexpected())),
             }
         }
         let id =
             id.ok_or_else(|| anyhow!("to clone, an RID must be provided; see `rad clone --help`"))?;
 
-        Ok((Options { id, scope }, vec![]))
+        Ok((
+            Options {
+                id,
+                directory,
+                scope,
+            },
+            vec![],
+        ))
     }
 }
 
@@ -102,6 +118,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     let (working, repo, doc, proj) = clone(
         options.id,
+        options.directory.clone(),
         options.scope,
         &mut node,
         &signer,
@@ -150,9 +167,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     ])]);
     info.print();
 
+    let location = options
+        .directory
+        .map_or(proj.name().to_string(), |loc| loc.display().to_string());
     term::info!(
         "Run {} to go to the project directory.",
-        term::format::command(format!("cd ./{}", proj.name())),
+        term::format::command(format!("cd ./{location}")),
     );
 
     Ok(())
@@ -160,6 +180,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
 #[derive(Error, Debug)]
 pub enum CloneError {
+    #[error("the directory path {path:?} already exists")]
+    Exists { path: PathBuf },
     #[error("node: {0}")]
     Node(#[from] node::Error),
     #[error("storage: {0}")]
@@ -180,6 +202,7 @@ pub enum CloneError {
 
 pub fn clone<G: Signer>(
     id: Id,
+    directory: Option<PathBuf>,
     scope: Scope,
     node: &mut Node,
     signer: &G,
@@ -221,7 +244,14 @@ pub fn clone<G: Signer>(
 
     let doc = repository.identity_doc()?;
     let proj = doc.project()?;
-    let path = Path::new(proj.name());
+    let path = directory.unwrap_or(Path::new(proj.name()).to_path_buf());
+
+    // N.b. fail if the path exists and is not empty
+    if path.exists() {
+        if path.read_dir().map_or(true, |mut dir| dir.next().is_some()) {
+            return Err(CloneError::Exists { path });
+        }
+    }
 
     if results.success().next().is_none() {
         if results.failed().next().is_some() {

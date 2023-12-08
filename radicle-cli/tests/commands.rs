@@ -749,6 +749,32 @@ fn rad_clone() {
 }
 
 #[test]
+fn rad_clone_directory() {
+    let mut environment = Environment::new();
+    let mut alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let working = environment.tmp().join("working");
+
+    // Setup a test project.
+    let acme = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+    // Prevent Alice from fetching Bob's fork, as we're not testing that and it may cause errors.
+    alice.handle.seed(acme, Scope::Followed).unwrap();
+
+    bob.connect(&alice).converge([&alice]);
+
+    test(
+        "examples/rad-clone-directory.md",
+        working,
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_clone_all() {
     let mut environment = Environment::new();
     let mut alice = environment.node(Config::test(Alias::new("alice")));
