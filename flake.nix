@@ -213,12 +213,10 @@
       };
 
       devShells.default = craneLib.devShell {
-        # Inherit inputs from checks.
-        checks = self.checks.${system};
-
         # Extra inputs can be added here; cargo and rustc are provided by default.
         packages = [
           pkgs.cargo-watch
+          pkgs.cargo-nextest
           pkgs.ripgrep
           pkgs.rust-analyzer
         ];
