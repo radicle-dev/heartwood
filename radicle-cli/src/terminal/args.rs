@@ -145,6 +145,14 @@ pub fn seconds(val: &OsString) -> anyhow::Result<time::Duration> {
     Ok(time::Duration::from_secs(secs))
 }
 
+pub fn milliseconds(val: &OsString) -> anyhow::Result<time::Duration> {
+    let val = val.to_string_lossy();
+    let secs =
+        u64::from_str(&val).map_err(|_| anyhow!("invalid number of milliseconds '{}'", val))?;
+
+    Ok(time::Duration::from_millis(secs))
+}
+
 pub fn string(val: &OsString) -> String {
     val.to_string_lossy().to_string()
 }

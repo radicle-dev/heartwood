@@ -255,6 +255,11 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             rad_remote::run,
             args.to_vec(),
         ),
+        "watch" => term::run_command_args::<rad_watch::Options, _>(
+            rad_watch::HELP,
+            rad_watch::run,
+            args.to_vec(),
+        ),
         other => {
             let exe = format!("{NAME}-{exe}");
             let status = process::Command::new(exe).args(args).status();

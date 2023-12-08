@@ -1719,6 +1719,37 @@ fn rad_patch_fetch_1() {
 }
 
 #[test]
+fn rad_watch() {
+    let mut environment = Environment::new();
+    let mut alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let working = environment.tmp().join("working");
+    let (repo, _) = fixtures::repository(working.join("alice"));
+    let rid = alice.project_from("heartwood", "Radicle Heartwood Protocol & Stack", &repo);
+
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    bob.connect(&alice).converge([&alice]);
+    bob.clone(rid, working.join("bob")).unwrap();
+
+    formula(&environment.tmp(), "examples/rad-watch.md")
+        .unwrap()
+        .home(
+            "alice",
+            working.join("alice"),
+            [("RAD_HOME", alice.home.path().display())],
+        )
+        .home(
+            "bob",
+            working.join("bob").join("heartwood"),
+            [("RAD_HOME", bob.home.path().display())],
+        )
+        .run()
+        .unwrap();
+}
+
+#[test]
 fn rad_patch_fetch_2() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
