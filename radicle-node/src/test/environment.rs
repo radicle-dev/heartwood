@@ -511,11 +511,12 @@ pub fn converge<'a, G: Signer + cyphernet::Ecdh + 'static>(
             let routing = node.routing();
             let routes = BTreeSet::from_iter(routing);
 
-            if routes == all_routes {
+            if routes.is_superset(&all_routes) {
                 log::debug!(target: "test", "Node {} has converged", node.id);
                 return false;
             } else {
                 log::debug!(target: "test", "Node {} has {:?}", node.id, routes);
+                log::debug!(target: "test", "All routes {:?}", all_routes);
             }
             true
         });
