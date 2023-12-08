@@ -6,7 +6,7 @@ use anyhow::anyhow;
 
 use radicle::cob::{self, issue, patch};
 use radicle::crypto;
-use radicle::git::RefString;
+use radicle::git::{Oid, RefString};
 use radicle::node::{Address, Alias};
 use radicle::prelude::{Did, Id, NodeId};
 
@@ -154,11 +154,11 @@ pub fn rev(val: &OsString) -> anyhow::Result<Rev> {
     Ok(Rev::from(s.to_owned()))
 }
 
-pub fn oid(val: &OsString) -> anyhow::Result<Rev> {
+pub fn oid(val: &OsString) -> anyhow::Result<Oid> {
     let s = string(val);
-    let _ = radicle::git::Oid::from_str(&s).map_err(|_| anyhow!("invalid git oid '{s}'"))?;
+    let o = radicle::git::Oid::from_str(&s).map_err(|_| anyhow!("invalid git oid '{s}'"))?;
 
-    Ok(Rev::from(s))
+    Ok(o)
 }
 
 pub fn alias(val: &OsString) -> anyhow::Result<Alias> {

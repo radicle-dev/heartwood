@@ -269,7 +269,7 @@ impl Args for Options {
                 }
                 Long("reply-to") if op == Some(OperationName::Comment) => {
                     let val = parser.value()?;
-                    let rev = term::args::oid(&val)?;
+                    let rev = term::args::rev(&val)?;
 
                     reply_to = Some(rev);
                 }
@@ -321,7 +321,7 @@ impl Args for Options {
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val) if op.is_some() => {
-                    let val = term::args::oid(&val)?;
+                    let val = term::args::rev(&val)?;
                     id = Some(val);
                 }
                 _ => {

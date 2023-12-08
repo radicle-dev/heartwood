@@ -323,7 +323,7 @@ impl Args for Options {
                 // Update options.
                 Long("revision") if op == Some(OperationName::Update) => {
                     let val = parser.value()?;
-                    let rev = term::args::oid(&val)?;
+                    let rev = term::args::rev(&val)?;
 
                     revision_id = Some(rev);
                 }
@@ -331,7 +331,7 @@ impl Args for Options {
                 // Comment options.
                 Long("reply-to") if op == Some(OperationName::Comment) => {
                     let val = parser.value()?;
-                    let rev = term::args::oid(&val)?;
+                    let rev = term::args::rev(&val)?;
 
                     reply_to = Some(rev);
                 }
@@ -339,7 +339,7 @@ impl Args for Options {
                 // Review options.
                 Long("revision") if op == Some(OperationName::Review) => {
                     let val = parser.value()?;
-                    let rev = term::args::oid(&val)?;
+                    let rev = term::args::rev(&val)?;
 
                     revision_id = Some(rev);
                 }
@@ -398,7 +398,7 @@ impl Args for Options {
                 // Checkout options
                 Long("revision") if op == Some(OperationName::Checkout) => {
                     let val = parser.value()?;
-                    let rev = term::args::oid(&val)?;
+                    let rev = term::args::rev(&val)?;
 
                     revision_id = Some(rev);
                 }
@@ -495,7 +495,7 @@ impl Args for Options {
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val) if op == Some(OperationName::Redact) => {
-                    let rev = term::args::oid(&val)?;
+                    let rev = term::args::rev(&val)?;
                     revision_id = Some(rev);
                 }
                 Value(val)
