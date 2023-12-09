@@ -137,7 +137,7 @@ pub enum Operation {
     },
     React {
         id: Rev,
-        reaction: Reaction,
+        reaction: Option<Reaction>,
         comment_id: Option<thread::CommentId>,
     },
     Assign {
@@ -435,7 +435,7 @@ impl Args for Options {
             },
             OperationName::React => Operation::React {
                 id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                reaction: reaction.ok_or_else(|| anyhow!("a reaction emoji must be provided"))?,
+                reaction,
                 comment_id,
             },
             OperationName::Delete => Operation::Delete {
@@ -595,6 +595,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     Some(cid) => cid,
                     None => *term::io::comment_select(&issue).map(|(cid, _)| cid)?,
                 };
+                let reaction = match reaction {
+                    Some(reaction) => reaction,
+                    None => term::io::reaction_select()?,
+                };
+                // SAFETY: reaction is never None here.
                 issue.react(comment_id, reaction, true, &signer)?;
             }
         }

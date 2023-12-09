@@ -1,6 +1,7 @@
 use anyhow::anyhow;
 use radicle::cob::issue::Issue;
 use radicle::cob::thread::{Comment, CommentId};
+use radicle::cob::Reaction;
 use radicle::crypto::ssh::keystore::MemorySigner;
 use radicle::crypto::{ssh::Keystore, Signer};
 use radicle::profile::env::RAD_PASSPHRASE;
@@ -78,4 +79,14 @@ pub fn comment_select(issue: &Issue) -> anyhow::Result<(&CommentId, &Comment)> {
         .get(selection)
         .copied()
         .ok_or(anyhow!("failed to perform comment selection"))
+}
+
+pub fn reaction_select() -> anyhow::Result<Reaction> {
+    let emoji = Select::new(
+        "With which emoji do you want to react?",
+        vec!['🐙', '👾', '💯', '✨', '🙇', '🙅', '❤'],
+    )
+    .with_render_config(*CONFIG)
+    .prompt()?;
+    Ok(Reaction::new(emoji)?)
 }
