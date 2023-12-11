@@ -595,6 +595,27 @@ fn rad_patch_ahead_behind() {
 }
 
 #[test]
+fn rad_patch_change_base() {
+    logger::init(log::Level::Debug);
+    let mut environment = Environment::new();
+    let profile = environment.profile("alice");
+    let working = tempfile::tempdir().unwrap();
+    let home = &profile.home;
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+
+    test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
+    test(
+        "examples/rad-patch-change-base.md",
+        working.path(),
+        Some(home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_patch_draft() {
     let mut environment = Environment::new();
     let profile = environment.profile("alice");

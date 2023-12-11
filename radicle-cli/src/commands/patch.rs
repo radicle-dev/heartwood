@@ -108,6 +108,7 @@ Label options
 
 Update options
 
+    -b, --base <revspec>       Provide a Git revision as the base commit
     -m, --message [<string>]   Provide a comment message to the patch or revision (default: prompt)
         --no-message           Leave the patch or revision comment message blank
 
@@ -199,6 +200,7 @@ pub enum Operation {
     },
     Update {
         patch_id: Rev,
+        base_id: Option<Rev>,
         message: Message,
     },
     Archive {
@@ -283,6 +285,7 @@ impl Args for Options {
         let mut assign_opts = AssignOptions::default();
         let mut label_opts = LabelOptions::default();
         let mut review_op = review::Operation::default();
+        let mut base_id = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -321,11 +324,11 @@ impl Args for Options {
                 }
 
                 // Update options.
-                Long("revision") if op == Some(OperationName::Update) => {
+                Short('b') | Long("base") if op == Some(OperationName::Update) => {
                     let val = parser.value()?;
                     let rev = term::args::rev(&val)?;
 
-                    revision_id = Some(rev);
+                    base_id = Some(rev);
                 }
 
                 // Comment options.
@@ -534,6 +537,7 @@ impl Args for Options {
             },
             OperationName::Update => Operation::Update {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                base_id,
                 message,
             },
             OperationName::Archive => Operation::Archive {
@@ -628,10 +632,22 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Update {
             ref patch_id,
+            ref base_id,
             ref message,
         } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
-            update::run(patch_id, message.clone(), &profile, &repository, &workdir)?;
+            let base_id = base_id
+                .as_ref()
+                .map(|base| base.resolve(&repository.backend))
+                .transpose()?;
+            update::run(
+                patch_id,
+                base_id,
+                message.clone(),
+                &profile,
+                &repository,
+                &workdir,
+            )?;
         }
         Operation::Archive { ref patch_id } => {
             let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
