@@ -510,11 +510,6 @@ where
             )
             .expect("Service::initialize: error adding local node to address database");
 
-        // Connect to configured peers.
-        let addrs = self.config.connect.clone();
-        for (id, addr) in addrs.into_iter().map(|ca| ca.into()) {
-            self.connect(id, addr);
-        }
         // Ensure that our inventory is recorded in our routing table, and we are seeding
         // all of it. It can happen that inventory is not properly seeded if for eg. the
         // user creates a new repository while the node is stopped.
@@ -529,8 +524,10 @@ where
         for rid in rids {
             let repo = self.storage.repository(rid)?;
 
+            // If we're not seeding this repo, just skip it.
             if !self.policies.is_seeding(&rid)? {
                 warn!(target: "service", "Local repository {rid} is not seeded");
+                continue;
             }
             // If we have no owned refs for this repo, then there's nothing to announce.
             let Ok(updated_at) = SyncedAt::load(&repo, nid) else {
@@ -544,13 +541,14 @@ where
                 }
             }
             // Make sure our local node's sync status is up to date with storage.
-            debug!(target: "service", "Saving local sync status for {rid}..");
-            self.db.seeds_mut().synced(
+            if self.db.seeds_mut().synced(
                 &rid,
                 &nid,
                 updated_at.oid,
                 updated_at.timestamp.as_millis(),
-            )?;
+            )? {
+                debug!(target: "service", "Saved local sync status for {rid}..");
+            }
 
             // If we got here, it likely means a repo was updated while the node was stopped.
             // Therefore, we pre-load a refs announcement for this repo, so that it is included in
@@ -567,6 +565,11 @@ where
                 .seed_policies()?
                 .filter_map(|t| (t.policy == Policy::Allow).then_some(t.id)),
         );
+        // Connect to configured peers.
+        let addrs = self.config.connect.clone();
+        for (id, addr) in addrs.into_iter().map(|ca| ca.into()) {
+            self.connect(id, addr);
+        }
         // Try to establish some connections.
         self.maintain_connections();
         // Start periodic tasks.
