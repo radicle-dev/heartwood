@@ -84,13 +84,21 @@ impl Args for Options {
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("name") if name.is_none() => {
-                    let value = parser
-                        .value()?
-                        .to_str()
-                        .ok_or(anyhow::anyhow!(
-                            "invalid project name specified with `--name`"
-                        ))?
-                        .to_owned();
+                    let value = parser.value()?;
+                    let value = term::args::string(&value);
+                    let allowed = ['-', '_', '.'];
+
+                    // Nb. We avoid characters that need to be quoted by shells, such as `$`,
+                    // `!` etc., since repository names are used for naming folders during clone.
+                    if !value
+                        .chars()
+                        .all(|c| c.is_alphanumeric() || allowed.contains(&c))
+                    {
+                        anyhow::bail!(
+                            "invalid project name specified with `--name`, \
+                            only alphanumeric characters, '-', '_' and '.' are allowed"
+                        );
+                    }
                     name = Some(value);
                 }
                 Long("description") if description.is_none() => {
