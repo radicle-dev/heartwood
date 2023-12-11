@@ -265,13 +265,8 @@ fn rad_id() {
     alice.connect(&bob).converge([&bob]);
     let events = alice.handle.events();
 
-    test(
-        "examples/rad-clone.md",
-        working.join("bob"),
-        Some(&bob.home),
-        [],
-    )
-    .unwrap();
+    bob.fork(acme, bob.home.path()).unwrap();
+    bob.announce(acme, bob.home.path()).unwrap();
     alice.has_inventory_of(&acme, &bob.id);
 
     // Alice must have Bob to try add them as a delegate
@@ -321,23 +316,11 @@ fn rad_id_multi_delegate() {
     alice.connect(&bob).converge([&bob]);
     eve.connect(&alice).converge([&alice]);
 
-    test(
-        "examples/rad-clone.md",
-        working.join("bob"),
-        Some(&bob.home),
-        [],
-    )
-    .unwrap();
+    bob.fork(acme, working.join("bob")).unwrap();
     bob.has_inventory_of(&acme, &alice.id);
     alice.has_inventory_of(&acme, &bob.id);
 
-    test(
-        "examples/rad-clone-all.md",
-        working.join("eve"),
-        Some(&eve.home),
-        [],
-    )
-    .unwrap();
+    eve.fork(acme, working.join("eve")).unwrap();
     eve.has_inventory_of(&acme, &bob.id);
     alice.has_inventory_of(&acme, &eve.id);
 
@@ -384,13 +367,8 @@ fn rad_id_conflict() {
 
     alice.connect(&bob).converge([&bob]);
 
-    test(
-        "examples/rad-clone.md",
-        working.join("bob"),
-        Some(&bob.home),
-        [],
-    )
-    .unwrap();
+    bob.fork(acme, working.join("bob")).unwrap();
+    bob.announce(acme, bob.home.path()).unwrap();
     alice.has_inventory_of(&acme, &bob.id);
 
     formula(&environment.tmp(), "examples/rad-id-conflict.md")
@@ -705,16 +683,10 @@ fn rad_clean() {
     bob.connect(&alice).converge([&alice]);
     eve.connect(&alice).converge([&alice]);
 
-    test(
-        "examples/rad-clone.md",
-        working.join("bob"),
-        Some(&bob.home),
-        [],
-    )
-    .unwrap();
-
     eve.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
 
+    bob.fork(acme, bob.home.path()).unwrap();
+    bob.announce(acme, bob.home.path()).unwrap();
     bob.has_inventory_of(&acme, &alice.id);
     alice.has_inventory_of(&acme, &bob.id);
     eve.has_inventory_of(&acme, &alice.id);
@@ -795,13 +767,9 @@ fn rad_clone_all() {
     bob.connect(&alice).converge([&alice]);
     eve.connect(&alice).converge([&alice]);
 
-    test(
-        "examples/rad-clone.md",
-        working.join("bob"),
-        Some(&bob.home),
-        [],
-    )
-    .unwrap();
+    // Fork and sync repo.
+    bob.fork(acme, bob.home.path()).unwrap();
+    bob.announce(acme, bob.home.path()).unwrap();
     bob.has_inventory_of(&acme, &alice.id);
     alice.has_inventory_of(&acme, &bob.id);
 
@@ -1109,8 +1077,7 @@ fn test_cob_replication() {
     alice.connect(&bob);
 
     bob.routes_to(&[(rid, alice.id)]);
-    bob.rad("clone", &[rid.to_string().as_str()], working.path())
-        .unwrap();
+    bob.fork(rid, working.path()).unwrap();
 
     // Wait for Alice to fetch the clone refs.
     events
@@ -1307,8 +1274,7 @@ fn test_replication_via_seed() {
     let seed_events = seed.handle.events();
     let alice_events = alice.handle.events();
 
-    bob.rad("clone", &[rid.to_string().as_str()], working.join("bob"))
-        .unwrap();
+    bob.fork(rid, working.join("bob")).unwrap();
 
     alice.routes_to(&[(rid, alice.id), (rid, seed.id), (rid, bob.id)]);
     seed.routes_to(&[(rid, alice.id), (rid, seed.id), (rid, bob.id)]);
@@ -1364,9 +1330,8 @@ fn rad_remote() {
 
     bob.connect(&alice);
     bob.routes_to(&[(rid, alice.id)]);
-    bob.rad("clone", &[rid.to_string().as_str()], &working)
-        .unwrap();
-
+    bob.fork(rid, bob.home.path()).unwrap();
+    bob.announce(rid, bob.home.path()).unwrap();
     alice.has_inventory_of(&rid, &bob.id);
 
     test(
@@ -1611,14 +1576,7 @@ fn git_push_diverge() {
     let mut bob = bob.spawn();
 
     bob.connect(&alice).converge([&alice]);
-
-    test(
-        "examples/rad-clone.md",
-        working.join("bob"),
-        Some(&bob.home),
-        [],
-    )
-    .unwrap();
+    bob.fork(acme, working.join("bob")).unwrap();
     alice.has_inventory_of(&acme, &bob.id);
 
     formula(&environment.tmp(), "examples/git/git-push-diverge.md")
@@ -1659,16 +1617,7 @@ fn rad_push_and_pull_patches() {
     let mut bob = bob.spawn();
 
     bob.connect(&alice).converge([&alice]);
-
-    logger::init(log::Level::Debug);
-
-    test(
-        "examples/rad-clone.md",
-        working.join("bob"),
-        Some(&bob.home),
-        [],
-    )
-    .unwrap();
+    bob.fork(acme, working.join("bob")).unwrap();
     alice.has_inventory_of(&acme, &bob.id);
 
     formula(&environment.tmp(), "examples/rad-push-and-pull-patches.md")

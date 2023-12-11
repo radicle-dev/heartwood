@@ -275,6 +275,20 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
         self.rad("clone", &[rid.to_string().as_str()], cwd)
     }
 
+    /// Fork a repo.
+    pub fn fork<P: AsRef<Path>>(&self, rid: Id, cwd: P) -> io::Result<()> {
+        self.clone(rid, &cwd)?;
+        self.rad("fork", &[rid.to_string().as_str()], &cwd)?;
+        self.announce(rid, &cwd)?;
+
+        Ok(())
+    }
+
+    /// Announce a repo.
+    pub fn announce<P: AsRef<Path>>(&self, rid: Id, cwd: P) -> io::Result<()> {
+        self.rad("sync", &[rid.to_string().as_str(), "--announce"], cwd)
+    }
+
     /// Run a `rad` CLI command.
     pub fn rad<P: AsRef<Path>>(&self, cmd: &str, args: &[&str], cwd: P) -> io::Result<()> {
         let cwd = cwd.as_ref();
@@ -295,6 +309,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
             .env("RAD_PASSPHRASE", "radicle")
             .env("TZ", "UTC")
             .env("LANG", "C")
+            .env(radicle::cob::git::RAD_COMMIT_TIME, "1671125284")
             .envs(git::env::GIT_DEFAULT_CONFIG)
             .current_dir(cwd)
             .arg(cmd)

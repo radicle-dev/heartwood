@@ -21,7 +21,6 @@ $ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob
 $ git fetch bob
 ✓ Synced with 1 peer(s)
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
- * [new branch]      master     -> bob/master
  * [new branch]      patches/3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c -> bob/patches/3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c
 ```
 
@@ -29,7 +28,6 @@ The contributor's changes are now visible to us.
 
 ```
 $ git branch -r
-  bob/master
   bob/patches/3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c
   rad/master
 $ rad patch show 3581e83

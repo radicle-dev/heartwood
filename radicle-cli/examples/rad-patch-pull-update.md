@@ -22,7 +22,6 @@ To push changes, run `git push`.
 $ rad clone rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK
 ✓ Seeding policy updated for rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK with scope 'all'
 ✓ Fetching rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK from z6MknSL…StBU8Vi..
-✓ Forking under z6Mkt67…v4N1tRk..
 ✓ Creating checkout in ./heartwood..
 ✓ Remote alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi added
 ✓ Remote-tracking branch alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi
@@ -35,18 +34,20 @@ $ rad clone rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK
 Run `cd ./heartwood` to go to the project directory.
 ```
 
-We wait for Alice to sync our fork.
+We fork the repository by pushing to `master`, and wait for Alice to sync
+our fork:
 
-``` ~bob
-$ rad node events -n 2 --timeout 1
-{"type":"refsAnnounced","nid":"z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi","rid":"rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK","refs":[{"remote":"z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk","at":"161b775a3509c8098de67f57f750972bba015b31"}],"timestamp":[..]}
-{"type":"refsSynced","remote":"z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi","rid":"rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK","at":"161b775a3509c8098de67f57f750972bba015b31"}
+``` ~bob (stderr)
+$ cd heartwood
+$ git push rad master
+✓ Synced with 1 node(s)
+To rad://zhbMU4DUXrzB8xT6qAJh6yZ7bFMK/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+ * [new branch]      master -> master
 ```
 
 Bob then opens a patch.
 
 ``` ~bob (stderr)
-$ cd heartwood
 $ git checkout -b bob/feature -q
 $ git commit --allow-empty -m "Bob's commit #1" -q
 $ git push rad -o sync -o patch.message="Bob's patch" HEAD:refs/patches

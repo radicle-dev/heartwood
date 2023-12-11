@@ -2,7 +2,6 @@
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope all
 ✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
-✓ Forking under z6Mkux1…nVhib7Z..
 ✓ Creating checkout in ./heartwood..
 ✓ Remote alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi added
 ✓ Remote-tracking branch alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi
@@ -24,7 +23,7 @@ $ cat README
 Hello World!
 ```
 
-Let's check that we have all the namespaces in storage:
+Let's check that we have Bob and Alice's namespaces in storage:
 
 ```
 $ rad inspect --refs
@@ -39,12 +38,6 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
         ├── id
         └── sigrefs
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-└── refs
-    ├── heads
-    │   └── master
-    └── rad
-        └── sigrefs
-z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
 └── refs
     ├── heads
     │   └── master
@@ -71,4 +64,37 @@ $ git branch --remotes
   alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
   bob/master
   rad/master
+```
+
+We can also create our own fork just by pushing:
+
+``` (stderr)
+$ git push -o no-sync rad master
+To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
+ * [new branch]      master -> master
+```
+```
+$ rad inspect --refs
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+└── refs
+    ├── cobs
+    │   └── xyz.radicle.id
+    │       └── [...]
+    ├── heads
+    │   └── master
+    └── rad
+        ├── id
+        └── sigrefs
+z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+└── refs
+    ├── heads
+    │   └── master
+    └── rad
+        └── sigrefs
+z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
+└── refs
+    ├── heads
+    │   └── master
+    └── rad
+        └── sigrefs
 ```

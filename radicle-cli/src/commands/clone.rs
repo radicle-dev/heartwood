@@ -18,7 +18,6 @@ use radicle::prelude::*;
 use radicle::rad;
 use radicle::storage;
 use radicle::storage::git::Storage;
-use radicle::storage::RemoteRepository as _;
 use radicle::storage::RepositoryError;
 
 use crate::commands::rad_checkout as checkout;
@@ -40,7 +39,6 @@ Usage
 Options
 
     --scope <scope>   Follow scope (default: all)
-    --no-announce     Do not announce our new refs to the network
     --help            Print help
 
 "#,
@@ -49,7 +47,6 @@ Options
 #[derive(Debug)]
 pub struct Options {
     id: Id,
-    announce: bool,
     scope: Scope,
 }
 
@@ -59,7 +56,6 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<Id> = None;
-        let mut announce = true;
         let mut scope = Scope::All;
 
         while let Some(arg) = parser.next()? {
@@ -72,12 +68,6 @@ impl Args for Options {
                 Long("no-confirm") => {
                     // We keep this flag here for consistency though it doesn't have any effect,
                     // since the command is fully non-interactive.
-                }
-                Long("no-announce") => {
-                    announce = false;
-                }
-                Long("announce") => {
-                    announce = true;
                 }
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
@@ -95,14 +85,7 @@ impl Args for Options {
         let id =
             id.ok_or_else(|| anyhow!("to clone, an RID must be provided; see `rad clone --help`"))?;
 
-        Ok((
-            Options {
-                id,
-                scope,
-                announce,
-            },
-            vec![],
-        ))
+        Ok((Options { id, scope }, vec![]))
     }
 }
 
@@ -119,7 +102,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     let (working, repo, doc, proj) = clone(
         options.id,
-        options.announce,
         options.scope,
         &mut node,
         &signer,
@@ -180,8 +162,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 pub enum CloneError {
     #[error("node: {0}")]
     Node(#[from] node::Error),
-    #[error("fork: {0}")]
-    Fork(#[from] rad::ForkError),
     #[error("storage: {0}")]
     Storage(#[from] storage::Error),
     #[error("checkout: {0}")]
@@ -200,7 +180,6 @@ pub enum CloneError {
 
 pub fn clone<G: Signer>(
     id: Id,
-    announce: bool,
     scope: Scope,
     node: &mut Node,
     signer: &G,
@@ -239,26 +218,6 @@ pub fn clone<G: Signer>(
             return Err(CloneError::NotFound(id));
         }
     };
-
-    // Create a local fork of the project, under our own id, unless we have one already.
-    if repository.remote(signer.public_key()).is_err() {
-        let mut spinner = term::spinner(format!(
-            "Forking under {}..",
-            term::format::tertiary(term::format::node(&me))
-        ));
-        rad::fork(id, signer, &storage)?;
-
-        if announce {
-            if let Err(e) = node.announce_refs(id) {
-                spinner.message("Announcing fork..");
-                spinner.error(e);
-            } else {
-                spinner.finish();
-            }
-        } else {
-            spinner.finish();
-        }
-    }
 
     let doc = repository.identity_doc()?;
     let proj = doc.project()?;

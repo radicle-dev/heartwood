@@ -4,9 +4,24 @@ $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --des
 ```
 
 ``` ~bob
+$ rad watch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --node z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z -r 'refs/rad/sigrefs' -t 95cd447c57de8d232c6154f5dba0451aa593520e -i 500 --timeout 5000
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
 ✓ Fetched repository from 1 seed(s)
+$ rad id --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+╭────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title              Author                     Status     Created │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ ●   069e7d5   Add Bob            alice    z6MknSL…StBU8Vi   accepted   now     │
+│ ●   0656c21   Initial revision   alice    z6MknSL…StBU8Vi   accepted   now     │
+╰────────────────────────────────────────────────────────────────────────────────╯
+$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi [..]
+z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [..]
+z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z [..]
+$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
+did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
+did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
 $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --description "" --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --no-confirm
 ✓ Identity revision 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3 created
 ╭────────────────────────────────────────────────────────────────────────╮
