@@ -214,22 +214,17 @@ where
     Ok(value)
 }
 
-pub fn passphrase<K: AsRef<OsStr>, V: validator::StringValidator + 'static>(
-    var: K,
+pub fn passphrase<V: validator::StringValidator + 'static>(
     validate: V,
 ) -> Result<Passphrase, inquire::InquireError> {
-    if let Ok(p) = env::var(var) {
-        Ok(Passphrase::from(p))
-    } else {
-        Ok(Passphrase::from(
-            Password::new("Passphrase:")
-                .with_render_config(*CONFIG)
-                .with_display_mode(inquire::PasswordDisplayMode::Masked)
-                .without_confirmation()
-                .with_validator(validate)
-                .prompt()?,
-        ))
-    }
+    Ok(Passphrase::from(
+        Password::new("Passphrase:")
+            .with_render_config(*CONFIG)
+            .with_display_mode(inquire::PasswordDisplayMode::Masked)
+            .without_confirmation()
+            .with_validator(validate)
+            .prompt()?,
+    ))
 }
 
 pub fn passphrase_confirm<K: AsRef<OsStr>>(

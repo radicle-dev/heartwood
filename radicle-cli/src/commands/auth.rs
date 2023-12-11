@@ -171,12 +171,12 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
                 term::success!("Radicle key already in ssh-agent");
                 return Ok(());
             }
-
-            let validator = term::io::PassphraseValidator::new(profile.keystore.clone());
-            let passphrase = if options.stdin {
+            let passphrase = if let Some(phrase) = profile::env::passphrase() {
+                phrase
+            } else if options.stdin {
                 term::passphrase_stdin()?
             } else {
-                term::passphrase(RAD_PASSPHRASE, validator)?
+                term::io::passphrase(term::io::PassphraseValidator::new(profile.keystore.clone()))?
             };
             register(&mut agent, profile, passphrase)?;
 
@@ -191,7 +191,7 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
     // Try RAD_PASSPHRASE fallback.
     if let Some(passphrase) = profile::env::passphrase() {
         ssh::keystore::MemorySigner::load(&profile.keystore, Some(passphrase))
-            .map_err(|_| anyhow!("RAD_PASSPHRASE failed"))?;
+            .map_err(|_| anyhow!("`{RAD_PASSPHRASE}` is invalid"))?;
         return Ok(());
     };
 

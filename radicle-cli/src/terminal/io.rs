@@ -39,13 +39,22 @@ impl inquire::validator::StringValidator for PassphraseValidator {
     }
 }
 
-/// Get the signer. First we try getting it from ssh-agent, otherwise we prompt the user.
+/// Get the signer. First we try getting it from ssh-agent, otherwise we prompt the user,
+/// if we're connected to a TTY.
 pub fn signer(profile: &Profile) -> anyhow::Result<Box<dyn Signer>> {
     if let Ok(signer) = profile.signer() {
         return Ok(signer);
     }
     let validator = PassphraseValidator::new(profile.keystore.clone());
-    let passphrase = passphrase(RAD_PASSPHRASE, validator)?;
+    let passphrase = match passphrase(validator) {
+        Ok(p) => p,
+        Err(inquire::InquireError::NotTTY) => {
+            return Err(anyhow::anyhow!(
+                "running in non-interactive mode, please set `{RAD_PASSPHRASE}` to unseal your key",
+            ));
+        }
+        Err(e) => return Err(e.into()),
+    };
     let spinner = spinner("Unsealing key...");
     let signer = MemorySigner::load(&profile.keystore, Some(passphrase))?;
 
