@@ -50,34 +50,38 @@ impl Args for Options {
 }
 
 pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
-    println!("Usage: rad <command> [--help]");
+    term::print("Usage: rad <command> [--help]");
 
-    if ctx.profile().is_err() {
-        println!();
-        println!(
-            "{}",
-            term::format::highlight("It looks like this is your first time using radicle.")
-        );
-        println!(
-            "{}",
-            term::format::highlight("To get started, use `rad auth` to authenticate.")
-        );
-        println!();
+    if let Err(e) = ctx.profile() {
+        term::blank();
+        match e.downcast_ref() {
+            Some(term::args::Error::WithHint { err, hint }) => {
+                term::print(term::format::yellow(err));
+                term::print(term::format::yellow(hint));
+            }
+            Some(e) => {
+                term::error(e);
+            }
+            None => {
+                term::error(e);
+            }
+        }
+        term::blank();
     }
 
-    println!("Common `rad` commands used in various situations:");
-    println!();
+    term::print("Common `rad` commands used in various situations:");
+    term::blank();
 
     for help in COMMANDS {
-        println!(
+        term::info!(
             "\t{} {}",
             term::format::bold(format!("{:-12}", help.name)),
             term::format::dim(help.description)
         );
     }
-    println!();
-    println!("See `rad <command> --help` to learn about a specific command.");
-    println!();
+    term::blank();
+    term::print("See `rad <command> --help` to learn about a specific command.");
+    term::blank();
 
     Ok(())
 }

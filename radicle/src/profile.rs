@@ -153,10 +153,10 @@ pub enum Error {
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
-    #[error("failed to load node configuration from {0}: {1}")]
+    #[error("failed to load configuration from {0}: {1}")]
     Io(PathBuf, io::Error),
-    #[error("failed to decode node configuration from {0}: {1}")]
-    Json(PathBuf, serde_json::Error),
+    #[error("failed to load configuration from {0}: {1}")]
+    Load(PathBuf, serde_json::Error),
 }
 
 /// Local radicle configuration.
@@ -200,7 +200,7 @@ impl Config {
     pub fn load(path: &Path) -> Result<Self, ConfigError> {
         match fs::File::open(path) {
             Ok(cfg) => {
-                serde_json::from_reader(cfg).map_err(|e| ConfigError::Json(path.to_path_buf(), e))
+                serde_json::from_reader(cfg).map_err(|e| ConfigError::Load(path.to_path_buf(), e))
             }
             Err(e) => {
                 let Ok(user) = env::var("USER") else {

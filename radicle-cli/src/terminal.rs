@@ -121,11 +121,13 @@ where
 pub fn profile() -> Result<Profile, anyhow::Error> {
     match Profile::load() {
         Ok(profile) => Ok(profile),
-        Err(e) => Err(args::Error::WithHint {
-            err: anyhow::anyhow!("Could not load radicle profile: {e}"),
+        Err(radicle::profile::Error::NotFound(path)) => Err(args::Error::WithHint {
+            err: anyhow::anyhow!("Radicle profile not found in '{}'.", path.display()),
             hint: "To setup your radicle profile, run `rad auth`.",
         }
         .into()),
+        Err(radicle::profile::Error::Config(e)) => Err(e.into()),
+        Err(e) => Err(anyhow::anyhow!("Could not load radicle profile: {e}")),
     }
 }
 
