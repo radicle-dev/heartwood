@@ -226,11 +226,15 @@ pub fn run(
                         let (canonical_ref, canonical_oid) = &canonical;
 
                         // If we're trying to update the canonical head, make sure
-                        // we don't diverge from the current head.
+                        // we don't diverge from the current head. This only applies
+                        // to repos with more than one delegate.
                         //
                         // Note that we *do* allow rolling back to a previous commit on the
                         // canonical branch.
-                        if dst == *canonical_ref && delegates.contains(&Did::from(nid)) {
+                        if dst == *canonical_ref
+                            && delegates.contains(&Did::from(nid))
+                            && delegates.len() > 1
+                        {
                             let head = working.find_reference(src.as_str())?;
                             let head = head.peel_to_commit()?.id();
                             // Rollback is allowed and head is an ancestor of the canonical head.
