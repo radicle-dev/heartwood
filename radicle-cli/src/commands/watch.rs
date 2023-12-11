@@ -127,20 +127,32 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let repo = storage.repository(rid)?;
 
     if let Some(target) = options.target {
-        while repo.reference_oid(&nid, &qualified)? != target {
+        while reference(&repo, &nid, &qualified)? != Some(target) {
             thread::sleep(options.interval);
         }
     } else {
-        let initial = repo.reference_oid(&nid, &qualified)?;
+        let initial = reference(&repo, &nid, &qualified)?;
 
         loop {
             thread::sleep(options.interval);
-            let oid = repo.reference_oid(&nid, &qualified)?;
+            let oid = reference(&repo, &nid, &qualified)?;
             if oid != initial {
-                term::info!("{oid}");
+                term::info!("{}", oid.unwrap_or(git::raw::Oid::zero().into()));
                 break;
             }
         }
     }
     Ok(())
+}
+
+fn reference<R: ReadRepository>(
+    repo: &R,
+    nid: &NodeId,
+    qual: &git::Qualified,
+) -> Result<Option<git::Oid>, git::raw::Error> {
+    match repo.reference_oid(nid, qual) {
+        Ok(oid) => Ok(Some(oid)),
+        Err(e) if git::ext::is_not_found_err(&e) => Ok(None),
+        Err(e) => Err(e),
+    }
 }
