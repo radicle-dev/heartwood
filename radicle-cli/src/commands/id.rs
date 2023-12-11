@@ -278,7 +278,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .interactive
                 .confirm(format!("Accept revision {}?", term::format::tertiary(id)))
             {
-                identity.accept(&revision, &signer)?;
+                identity.accept(&revision.id, &signer)?;
 
                 if let Some(revision) = identity.revision(&id) {
                     // Update the canonical head to point to the latest accepted revision.
@@ -605,8 +605,12 @@ fn update<R: WriteRepository + cob::Store, G: Signer>(
     signer: &G,
 ) -> anyhow::Result<Revision> {
     if let Some((title, description)) = edit_title_description(title, description)? {
-        let revision = current.update(title, description, &doc, signer)?;
-        Ok(revision)
+        let id = current.update(title, description, &doc, signer)?;
+        let revision = current
+            .revision(&id)
+            .ok_or(anyhow!("update failed: revision {id} is missing"))?;
+
+        Ok(revision.clone())
     } else {
         Err(anyhow!("you must provide a revision title and description"))
     }

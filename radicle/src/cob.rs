@@ -17,4 +17,4 @@ pub use radicle_cob::{
     Create, Embed, Entry, Evaluate, History, Manifest, ObjectId, Store, TypeName, Update, Updated,
     Version,
 };
-pub use radicle_cob::{create, get, list, remove, update};
+pub use radicle_cob::{create, get, git, list, remove, update};

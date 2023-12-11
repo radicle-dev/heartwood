@@ -128,6 +128,8 @@ pub enum Error {
     Op(#[from] op::OpEncodingError),
     #[error(transparent)]
     Doc(#[from] DocError),
+    #[error("revision {0} was not found")]
+    NotFound(RevisionId),
 }
 
 /// An evolving identity document.
@@ -890,26 +892,26 @@ where
         description: impl ToString,
         doc: &Doc<Verified>,
         signer: &G,
-    ) -> Result<Revision, Error> {
+    ) -> Result<RevisionId, Error> {
         let parent = self.current;
         let id = self.transaction("Propose revision", signer, |tx| {
             tx.revision(title, description, doc, Some(parent), signer)
         })?;
 
-        // SAFETY: Since the revision was just added, it's guaranteed to be there.
-        Ok(self
-            .revision(&id)
-            .expect("IdentityMut::update: revision exists")
-            .clone())
+        Ok(id)
     }
 
     /// Accept an active revision.
-    pub fn accept<G: Signer>(&mut self, revision: &Revision, signer: &G) -> Result<EntryId, Error> {
+    pub fn accept<G: Signer>(
+        &mut self,
+        revision: &RevisionId,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        let id = *revision;
+        let revision = self.revision(revision).ok_or(Error::NotFound(id))?;
         let signature = revision.sign(signer)?;
 
-        self.transaction("Accept revision", signer, |tx| {
-            tx.accept(revision.id, signature)
-        })
+        self.transaction("Accept revision", signer, |tx| tx.accept(id, signature))
     }
 
     /// Reject an active revision.
@@ -1042,10 +1044,7 @@ mod test {
         // Let's add another delegate.
         doc.delegate(bob.public_key());
         // The update should go through now.
-        let r1 = identity
-            .update(title, description, &doc, signer)
-            .unwrap()
-            .id;
+        let r1 = identity.update(title, description, &doc, signer).unwrap();
         assert!(identity.revision(&r1).unwrap().is_accepted());
         assert_eq!(identity.current, r1);
         // With two delegates now, we need two signatures for any update to go through.
@@ -1055,16 +1054,16 @@ mod test {
         let r2 = identity.update(title, description, &doc, signer).unwrap();
         // R1 is still the head.
         assert_eq!(identity.current, r1);
-        assert_eq!(r2.state, State::Active);
+        assert_eq!(identity.revision(&r2).unwrap().state, State::Active);
         assert_eq!(repo.canonical_identity_head().unwrap(), r1);
         assert_eq!(repo.identity_doc().unwrap().visibility, Visibility::Public);
         // Now let's add a signature on R2 from Bob.
         identity.accept(&r2, &bob).unwrap();
 
         // R2 is now the head.
-        assert_eq!(identity.current, r2.id);
-        assert_eq!(identity.revision(&r2.id).unwrap().state, State::Accepted);
-        assert_eq!(repo.canonical_identity_head().unwrap(), r2.id);
+        assert_eq!(identity.current, r2);
+        assert_eq!(identity.revision(&r2).unwrap().state, State::Accepted);
+        assert_eq!(repo.canonical_identity_head().unwrap(), r2);
         assert_eq!(
             repo.canonical_identity_doc().unwrap().visibility,
             Visibility::private([])
@@ -1084,10 +1083,7 @@ mod test {
 
         // Let's add another delegate.
         doc.delegate(bob.public_key());
-        let r1 = identity
-            .update(title, description, &doc, signer)
-            .unwrap()
-            .id;
+        let r1 = identity.update(title, description, &doc, signer).unwrap();
         assert_eq!(identity.current, r1);
 
         doc.visibility = Visibility::private([]);
@@ -1096,8 +1092,8 @@ mod test {
             .unwrap();
 
         // 1/2 rejected means that we can never reach the required 2/2 votes.
-        identity.reject(r2.id, &bob).unwrap();
-        let r2 = identity.revision(&r2.id).unwrap();
+        identity.reject(r2, &bob).unwrap();
+        let r2 = identity.revision(&r2).unwrap();
         assert_eq!(r2.state, State::Rejected);
 
         // Now let's add another delegate.
@@ -1106,7 +1102,7 @@ mod test {
             .update("Add Eve", description, &doc, &node.signer)
             .unwrap();
         let _ = identity.accept(&r3, &bob).unwrap();
-        assert_eq!(identity.current, r3.id);
+        assert_eq!(identity.current, r3);
 
         doc.visibility = Visibility::Public;
         let r3 = identity
@@ -1114,8 +1110,8 @@ mod test {
             .unwrap();
 
         // 1/3 rejected means that we can still reach the 2/3 required votes.
-        identity.reject(r3.id, &bob).unwrap();
-        let r3 = identity.revision(&r3.id).unwrap().clone();
+        identity.reject(r3, &bob).unwrap();
+        let r3 = identity.revision(&r3).unwrap().clone();
         assert_eq!(r3.state, State::Active); // Still active.
 
         // 2/3 rejected means that we can no longer reach the 2/3 required votes.
@@ -1138,8 +1134,7 @@ mod test {
         alice_doc.delegate(bob.signer.public_key());
         let a1 = alice_identity
             .update("Add Bob", "", &alice_doc, &alice.signer)
-            .unwrap()
-            .id;
+            .unwrap();
 
         bob.repo.fetch(alice);
 
@@ -1155,8 +1150,7 @@ mod test {
         // Bob makes the same change without knowing Alice already did.
         let b1 = bob_identity
             .update("Make private", "", &alice_doc, &bob.signer)
-            .unwrap()
-            .id;
+            .unwrap();
 
         // Bob gets Alice's data.
         bob.repo.fetch(alice);
@@ -1168,17 +1162,14 @@ mod test {
         alice.repo.fetch(bob);
         alice_identity.reload().unwrap();
         assert_eq!(alice_identity.current, a1);
-        assert_eq!(bob_identity.revision(&a2.id).unwrap().state, State::Active);
+        assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Active);
         assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Active);
 
         // Now Bob accepts Alice's proposal. This voids his own.
         bob_identity.accept(&a2, &bob.signer).unwrap();
-        assert_eq!(bob_identity.current, a2.id);
+        assert_eq!(bob_identity.current, a2);
         assert_eq!(bob_identity.revision(&a1).unwrap().state, State::Accepted);
-        assert_eq!(
-            bob_identity.revision(&a2.id).unwrap().state,
-            State::Accepted
-        );
+        assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Accepted);
         assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Stale);
     }
 
@@ -1198,8 +1189,7 @@ mod test {
         let a0 = alice_identity.root;
         let a1 = alice_identity
             .update("Add Bob", "Eh.", &alice_doc, &alice.signer)
-            .unwrap()
-            .id;
+            .unwrap();
 
         alice_doc.visibility = Visibility::private([eve.signer.public_key().into()]);
         let a2 = alice_identity
@@ -1207,23 +1197,20 @@ mod test {
             .unwrap();
 
         bob.repo.fetch(alice);
-        let a3 = alice_identity.redact(a2.id, &alice.signer).unwrap();
+        let a3 = alice_identity.redact(a2, &alice.signer).unwrap();
         assert!(alice_identity.revision(&a1).is_some());
-        assert_eq!(alice_identity.timeline, vec![a0, a1, a2.id, a3]);
+        assert_eq!(alice_identity.timeline, vec![a0, a1, a2, a3]);
 
         let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
         let b1 = bob_identity.accept(&a2, &bob.signer).unwrap();
 
-        assert_eq!(bob_identity.timeline, vec![a0, a1, a2.id, b1]);
-        assert_eq!(
-            bob_identity.revision(&a2.id).unwrap().state,
-            State::Accepted
-        );
+        assert_eq!(bob_identity.timeline, vec![a0, a1, a2, b1]);
+        assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Accepted);
         bob.repo.fetch(alice);
         bob_identity.reload().unwrap();
 
-        assert_eq!(bob_identity.timeline, vec![a0, a1, a2.id, a3, b1]);
-        assert_eq!(bob_identity.revision(&a2.id), None);
+        assert_eq!(bob_identity.timeline, vec![a0, a1, a2, a3, b1]);
+        assert_eq!(bob_identity.revision(&a2), None);
         assert_eq!(bob_identity.current, a1);
     }
 
@@ -1244,8 +1231,7 @@ mod test {
         let a0 = alice_identity.root;
         let a1 = alice_identity
             .update("Add Bob and Eve", "Eh.", &alice_doc, &alice.signer)
-            .unwrap()
-            .id;
+            .unwrap();
 
         alice_doc.rescind(eve.signer.public_key()).unwrap();
         let a2 = alice_identity
@@ -1258,7 +1244,7 @@ mod test {
 
         let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
         let b1 = bob_identity.accept(&a2, &bob.signer).unwrap();
-        assert_eq!(bob_identity.current, a2.id);
+        assert_eq!(bob_identity.current, a2);
 
         let mut eve_identity = Identity::load_mut(&*eve.repo).unwrap();
         let mut eve_doc = eve_identity.doc().clone();
@@ -1269,7 +1255,7 @@ mod test {
 
         eve.repo.fetch(bob);
         eve_identity.reload().unwrap();
-        assert_eq!(eve_identity.timeline, vec![a0, a1, a2.id, e1.id, b1]);
+        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, e1, b1]);
         assert!(!eve_identity.is_delegate(eve.signer.public_key()));
     }
 
@@ -1290,8 +1276,7 @@ mod test {
         let a0 = alice_identity.root;
         let a1 = alice_identity
             .update("Add Bob and Eve", "Eh.", &alice_doc, &alice.signer)
-            .unwrap()
-            .id;
+            .unwrap();
 
         alice_doc.visibility = Visibility::private([]);
         let a2 = alice_identity
@@ -1308,7 +1293,7 @@ mod test {
 
         // Eve rejects the revision, not knowing.
         let mut eve_identity = Identity::load_mut(&*eve.repo).unwrap();
-        let e1 = eve_identity.reject(a2.id, &eve.signer).unwrap();
+        let e1 = eve_identity.reject(a2, &eve.signer).unwrap();
 
         // Then she submits a new revision.
         let mut eve_doc = eve_identity.doc().clone();
@@ -1323,11 +1308,11 @@ mod test {
 
         eve.repo.fetch(bob);
         eve_identity.reload().unwrap();
-        assert_eq!(eve_identity.timeline, vec![a0, a1, a2.id, e1, b1, e2.id]);
+        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, e1, b1, e2]);
 
         // Her revision is there, although stale, since another revision was accepted since.
         // However, it wasn't pruned, even though rejecting an accepted revision is an error.
-        let e2 = eve_identity.revision(&e2.id).unwrap();
+        let e2 = eve_identity.revision(&e2).unwrap();
         assert_eq!(e2.state, State::Stale);
     }
 
@@ -1383,15 +1368,15 @@ mod test {
             .update("Change visibility #2", "Woops", &eve_doc, &eve.signer)
             .unwrap();
         assert_eq!(eve_identity.revisions().count(), 4);
-        assert_eq!(e1.state, State::Active);
+        assert_eq!(eve_identity.revision(&e1).unwrap().state, State::Active);
 
         let a2 = alice_identity.accept(&b1, &alice.signer).unwrap();
 
         eve.repo.fetch(alice);
         eve_identity.reload().unwrap();
 
-        assert_eq!(eve_identity.timeline, vec![a0, a1.id, b1.id, e1.id, a2]);
-        assert_eq!(eve_identity.revision(&e1.id).unwrap().state, State::Stale);
+        assert_eq!(eve_identity.timeline, vec![a0, a1, b1, e1, a2]);
+        assert_eq!(eve_identity.revision(&e1).unwrap().state, State::Stale);
     }
 
     #[test]
@@ -1448,7 +1433,7 @@ mod test {
 
         let identity: Identity = Identity::load(&repo).unwrap();
         let root = repo.identity_root().unwrap();
-        let doc = repo.identity_doc_at(revision.id).unwrap();
+        let doc = repo.identity_doc_at(revision).unwrap();
 
         assert_eq!(identity.signatures().count(), 2);
         assert_eq!(identity.revisions().count(), 5);
@@ -1456,7 +1441,7 @@ mod test {
         assert_eq!(identity.root().id, root);
         assert_eq!(identity.current().blob, doc.blob);
         assert_eq!(identity.current().description.as_str(), "Bob's repository");
-        assert_eq!(identity.head(), revision.id);
+        assert_eq!(identity.head(), revision);
         assert_eq!(identity.doc(), &*doc);
         assert_eq!(
             identity.doc().project().unwrap().description(),
