@@ -15,11 +15,13 @@ peer.  Upcoming versions of radicle will not require this step.
 $ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob
 ✓ Remote bob added
 ✓ Remote-tracking branch bob/master created for z6Mkt67…v4N1tRk
+$ rad sync -f
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
+✓ Fetched repository from 1 seed(s)
 ```
 
 ``` (stderr)
 $ git fetch bob
-✓ Synced with 1 peer(s)
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new branch]      patches/3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c -> bob/patches/3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c
 ```

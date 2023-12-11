@@ -55,7 +55,6 @@ Bob fetches these new changes and can see their branch is now behind:
 
 ``` ~bob (stderr)
 $ git fetch rad
-✓ Synced with 1 peer(s)
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
    3e674d1..27857ec  patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae -> rad/patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae
 ```

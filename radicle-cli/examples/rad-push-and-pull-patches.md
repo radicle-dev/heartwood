@@ -50,7 +50,6 @@ $ git push
 ``` ~alice (stderr)
 $ git checkout master -q
 $ git pull
-✓ Synced with 1 peer(s)
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
  + c2aaf1c...8d5f1ba patches/0fd67a0364af1f79ed8770a35ed09d85571d4c21 -> rad/patches/0fd67a0364af1f79ed8770a35ed09d85571d4c21  (forced update)
 $ git checkout - -q
@@ -71,7 +70,6 @@ f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354		branch 'master' of rad://z42hL2jL4XNk6
 ``` ~bob (stderr)
 $ git checkout master -q
 $ git pull
-✓ Synced with 1 peer(s)
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
  + c2aaf1c...8d5f1ba patches/0fd67a0364af1f79ed8770a35ed09d85571d4c21 -> rad/patches/0fd67a0364af1f79ed8770a35ed09d85571d4c21  (forced update)
 ```
