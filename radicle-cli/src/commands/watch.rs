@@ -33,6 +33,7 @@ Options
                                 will cause the command to exit
     -i, --interval  <millis>    How often, in milliseconds, to check the reference target
                                 (default: 1000)
+        --timeout   <millis>    Timeout, in milliseconds (default: none)
     -h, --help                  Print help
 "#,
 };
@@ -43,6 +44,7 @@ pub struct Options {
     target: Option<git::Oid>,
     nid: Option<NodeId>,
     interval: time::Duration,
+    timeout: time::Duration,
 }
 
 impl Args for Options {
@@ -55,6 +57,7 @@ impl Args for Options {
         let mut target: Option<git::Oid> = None;
         let mut refstr: Option<git::RefString> = None;
         let mut interval: Option<time::Duration> = None;
+        let mut timeout: time::Duration = time::Duration::MAX;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -88,6 +91,12 @@ impl Args for Options {
 
                     interval = Some(value);
                 }
+                Long("timeout") => {
+                    let value = parser.value()?;
+                    let value = term::args::milliseconds(&value)?;
+
+                    timeout = value;
+                }
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
@@ -102,6 +111,7 @@ impl Args for Options {
                 nid,
                 target,
                 interval: interval.unwrap_or(time::Duration::from_secs(1)),
+                timeout,
             },
             vec![],
         ))
@@ -125,10 +135,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
     };
     let repo = storage.repository(rid)?;
+    let now = time::SystemTime::now();
 
     if let Some(target) = options.target {
         while reference(&repo, &nid, &qualified)? != Some(target) {
             thread::sleep(options.interval);
+            if now.elapsed()? >= options.timeout {
+                anyhow::bail!("timed out after {}ms", options.timeout.as_millis());
+            }
         }
     } else {
         let initial = reference(&repo, &nid, &qualified)?;
@@ -139,6 +153,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             if oid != initial {
                 term::info!("{}", oid.unwrap_or(git::raw::Oid::zero().into()));
                 break;
+            }
+            if now.elapsed()? >= options.timeout {
+                anyhow::bail!("timed out after {}ms", options.timeout.as_millis());
             }
         }
     }
