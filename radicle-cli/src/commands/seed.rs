@@ -40,11 +40,22 @@ Options
 };
 
 #[derive(Debug)]
+pub enum Operation {
+    Seed { fetch: bool, scope: Scope },
+    Unseed,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub enum OperationName {
+    #[default]
+    Seed,
+    Unseed,
+}
+
+#[derive(Debug)]
 pub struct Options {
     pub rid: Id,
-    pub scope: Scope,
-    pub delete: bool,
-    pub fetch: bool,
+    pub op: Operation,
     pub verbose: bool,
 }
 
@@ -55,8 +66,8 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut rid: Option<Id> = None;
         let mut scope: Option<Scope> = None;
-        let mut fetch = true;
-        let mut delete = false;
+        let mut fetch: Option<bool> = None;
+        let mut op: Option<OperationName> = None;
         let mut verbose = false;
 
         while let Some(arg) = parser.next()? {
@@ -64,13 +75,19 @@ impl Args for Options {
                 Value(val) => {
                     rid = Some(term::args::rid(val)?);
                 }
-                Long("scope") if scope.is_none() => {
+                Long("delete") | Short('d') if op.is_none() => {
+                    op = Some(OperationName::Unseed);
+                }
+                Long("scope") if op.unwrap_or_default() == OperationName::Seed => {
                     let val = parser.value()?;
                     scope = Some(term::args::parse_value("scope", val)?);
                 }
-                Long("delete") | Short('d') => delete = true,
-                Long("fetch") => fetch = true,
-                Long("no-fetch") => fetch = false,
+                Long("fetch") if op.unwrap_or_default() == OperationName::Seed => {
+                    fetch = Some(true);
+                }
+                Long("no-fetch") if op.unwrap_or_default() == OperationName::Seed => {
+                    fetch = Some(false);
+                }
                 Long("verbose") | Short('v') => verbose = true,
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
@@ -81,19 +98,18 @@ impl Args for Options {
             }
         }
 
-        if scope.is_some() && delete {
-            anyhow::bail!("`--scope` may not be used with `--delete` or `-d`");
-        }
-        if fetch && delete {
-            anyhow::bail!("`--fetch` may not be used with `--delete` or `-d`");
-        }
+        let op = match op.unwrap_or_default() {
+            OperationName::Seed => Operation::Seed {
+                fetch: fetch.unwrap_or(true),
+                scope: scope.unwrap_or(Scope::All),
+            },
+            OperationName::Unseed => Operation::Unseed,
+        };
 
         Ok((
             Options {
                 rid: rid.ok_or_else(|| anyhow!("a Repository ID must be specified"))?,
-                scope: scope.unwrap_or(Scope::All),
-                delete,
-                fetch,
+                op,
                 verbose,
             },
             vec![],
@@ -105,20 +121,20 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let mut node = radicle::Node::new(profile.socket());
     let rid = options.rid;
-    let scope = options.scope;
 
-    if options.delete {
-        delete(rid, &mut node, &profile)?;
-    } else {
-        update(rid, scope, &mut node, &profile)?;
+    match options.op {
+        Operation::Unseed => delete(rid, &mut node, &profile)?,
+        Operation::Seed { fetch, scope } => {
+            update(rid, scope, &mut node, &profile)?;
 
-        if options.fetch && node.is_running() {
-            sync::fetch(
-                rid,
-                sync::RepoSync::default(),
-                time::Duration::from_secs(6),
-                &mut node,
-            )?;
+            if fetch && node.is_running() {
+                sync::fetch(
+                    rid,
+                    sync::RepoSync::default(),
+                    time::Duration::from_secs(6),
+                    &mut node,
+                )?;
+            }
         }
     }
 
