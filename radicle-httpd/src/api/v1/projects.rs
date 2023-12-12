@@ -2001,7 +2001,7 @@ mod routes {
                           "id": DID,
                         },
                         "body": "Change 'hello world' to 'hello everyone'",
-                        "timestamp": COMMENT_TIMESTAMP,
+                        "timestamp": TIMESTAMP,
                         "embeds": [],
                       },
                     ],
@@ -2086,7 +2086,7 @@ mod routes {
                       "id": CONTRIBUTOR_DID,
                     },
                     "body": "Change 'hello world' to 'hello everyone'",
-                    "timestamp": COMMENT_TIMESTAMP,
+                    "timestamp": TIMESTAMP,
                     "embeds": [
                       {
                         "name": "example.html",
@@ -2234,7 +2234,7 @@ mod routes {
                         "id": CONTRIBUTOR_DID,
                       },
                       "body": "Change 'hello world' to 'hello everyone'",
-                      "timestamp": COMMENT_TIMESTAMP,
+                      "timestamp": TIMESTAMP,
                       "embeds": [],
                     },
                     {
@@ -2242,7 +2242,7 @@ mod routes {
                         "id": CONTRIBUTOR_DID,
                       },
                       "body": "EDIT: Change 'hello world' to 'hello anyone'",
-                      "timestamp": COMMENT_TIMESTAMP,
+                      "timestamp": TIMESTAMP,
                       "embeds": [
                         {
                           "name": "image.jpg",
@@ -2337,7 +2337,7 @@ mod routes {
                         "id": CONTRIBUTOR_DID,
                       },
                       "body": "Change 'hello world' to 'hello everyone'",
-                      "timestamp": COMMENT_TIMESTAMP,
+                      "timestamp": TIMESTAMP,
                       "embeds": [],
                     },
                   ],
@@ -2359,7 +2359,7 @@ mod routes {
                         "id": CONTRIBUTOR_DID,
                       },
                       "body": "This is a reply to the first comment",
-                      "timestamp": COMMENT_TIMESTAMP,
+                      "timestamp": TIMESTAMP,
                       "embeds": [
                         {
                           "name": "image.jpg",
@@ -3010,7 +3010,7 @@ mod routes {
                             "id": CONTRIBUTOR_DID,
                           },
                           "body": "This is a root level comment",
-                          "timestamp": COMMENT_TIMESTAMP,
+                          "timestamp": TIMESTAMP,
                           "embeds": [
                             {
                                 "name": "image.jpg",
@@ -3023,7 +3023,7 @@ mod routes {
                             "id": CONTRIBUTOR_DID,
                           },
                           "body": "EDIT: This is a root level comment",
-                          "timestamp": COMMENT_TIMESTAMP,
+                          "timestamp": TIMESTAMP,
                           "embeds": [
                            {
                                 "name": "image.jpg",
@@ -3055,7 +3055,7 @@ mod routes {
                             "id": CONTRIBUTOR_DID,
                           },
                           "body": "This is a root level comment",
-                          "timestamp": COMMENT_TIMESTAMP,
+                          "timestamp": TIMESTAMP,
                           "embeds": [],
                         },
                       ],
@@ -3216,49 +3216,37 @@ mod routes {
                   "reviews": [
                     {
                       "author": {
-                          "id": CONTRIBUTOR_NID,
+                          "id": CONTRIBUTOR_DID,
                       },
                       "verdict": "accept",
                       "summary": "A small review",
-                      "comments": [[
-                        comment_id,
+                      "comments": [
                         {
-                          "author": CONTRIBUTOR_NID,
-                          "location": {
-                            "path": "README.md",
-                            "old": null,
-                            "new": {
-                              "type": "lines",
-                              "range": {
-                                "start": 2,
-                                "end": 4,
-                              }
-                            }
+                          "id": "b108acfd2117480fd87012a5ab7cb69a0651d933",
+                          "author": {
+                            "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
                           },
-                          "reactions": [
-                            [
-                              "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
-                              "🚀",
-                            ],
-                          ],
-                          "resolved": true,
                           "body": "EDIT: This is a comment on a review",
                           "edits": [
                             {
-                              "author": "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
-                              "timestamp": COMMENT_TIMESTAMP,
+                              "author": {
+                                "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                              },
                               "body": "This is a comment on a review",
+                              "timestamp": 1671125284,
                               "embeds": [
-                                  {
-                                    "name": "image.jpg",
-                                    "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
-                                  },
+                                {
+                                  "name": "image.jpg",
+                                  "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
+                                },
                               ],
                             },
                             {
-                              "author": "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
-                              "timestamp": COMMENT_TIMESTAMP,
+                              "author": {
+                                "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                              },
                               "body": "EDIT: This is a comment on a review",
+                              "timestamp": 1671125284,
                               "embeds": [
                                 {
                                   "name": "image.jpg",
@@ -3271,11 +3259,31 @@ mod routes {
                             {
                               "name": "image.jpg",
                               "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
-                            }
+                            },
                           ],
-                        },
-                      ]],
-                      "timestamp": TIMESTAMP,
+                          "reactions": [
+                            [
+                              "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                              "🚀",
+                            ],
+                          ],
+                          "timestamp": 1671125284,
+                          "replyTo": null,
+                          "location": {
+                            "path": "README.md",
+                            "old": null,
+                            "new": {
+                              "type": "lines",
+                              "range": {
+                                "start": 2,
+                                "end": 4,
+                              },
+                            },
+                          },
+                          "resolved": true,
+                        }
+                      ],
+                      "timestamp": 1671125284,
                     },
                   ],
                 },
@@ -3329,20 +3337,20 @@ mod routes {
               "labels": [],
               "merges": [{
                   "author": {
-                    "id": CONTRIBUTOR_NID,
+                    "id": CONTRIBUTOR_DID,
                   },
-                  "revision": CONTRIBUTOR_PATCH_ID,
                   "commit": PARENT,
                   "timestamp": TIMESTAMP,
+                  "revision": CONTRIBUTOR_PATCH_ID,
               }],
               "assignees": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
-                  "description": "change `hello world` in README to something else",
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
+                  "description": "change `hello world` in README to something else",
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [

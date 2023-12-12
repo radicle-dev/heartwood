@@ -4,16 +4,13 @@ use std::path::Path;
 use std::str;
 
 use base64::prelude::{Engine, BASE64_STANDARD};
-use serde::Serialize;
+use radicle::patch::CodeLocation;
 use serde_json::{json, Value};
 
 use radicle::cob::issue::{Issue, IssueId};
-use radicle::cob::patch::Merge;
-use radicle::cob::patch::Review;
-use radicle::cob::patch::{Patch, PatchId};
-use radicle::cob::thread;
-use radicle::cob::thread::CommentId;
-use radicle::cob::{ActorId, Author, Embed, Reaction, Timestamp, Uri};
+use radicle::cob::patch::{Merge, Patch, PatchId, Review};
+use radicle::cob::thread::{Comment, CommentId};
+use radicle::cob::{ActorId, Author};
 use radicle::git::RefString;
 use radicle::node::{Alias, AliasStore};
 use radicle::prelude::NodeId;
@@ -106,10 +103,7 @@ pub(crate) fn issue(id: IssueId, issue: Issue, aliases: &impl AliasStore) -> Val
         "title": issue.title(),
         "state": issue.state(),
         "assignees": issue.assignees().collect::<Vec<_>>(),
-        "discussion": issue
-          .comments()
-          .map(|(id, comment)| Comment::new(id, comment, aliases))
-          .collect::<Vec<_>>(),
+        "discussion": issue.comments().map(|(id, c)| comment(id, c, aliases)).collect::<Vec<_>>(),
         "labels": issue.labels().collect::<Vec<_>>(),
     })
 }
@@ -128,7 +122,7 @@ pub(crate) fn patch(
         "state": patch.state(),
         "target": patch.target(),
         "labels": patch.labels().collect::<Vec<_>>(),
-        "merges": patch.merges().map(|(nid, m)| merge(m, nid, aliases.alias(nid))).collect::<Vec<_>>(),
+        "merges": patch.merges().map(|(nid, m)| merge(nid, m, aliases)).collect::<Vec<_>>(),
         "assignees": patch.assignees().collect::<Vec<_>>(),
         "revisions": patch.revisions().map(|(id, rev)| {
             json!({
@@ -138,11 +132,9 @@ pub(crate) fn patch(
                 "base": rev.base(),
                 "oid": rev.head(),
                 "refs": get_refs(repo, patch.author().id(), &rev.head()).unwrap_or_default(),
-                "discussions": rev.discussion().comments()
-                  .map(|(id, comment)| Comment::new(id, comment,  aliases))
-                  .collect::<Vec<_>>(),
+                "discussions": rev.discussion().comments().map(|(id, c)| comment(id, c,  aliases)).collect::<Vec<_>>(),
                 "timestamp": rev.timestamp().as_secs(),
-                "reviews": rev.reviews().map(|(nid, _review)| review(nid, aliases.alias(nid), _review)).collect::<Vec<_>>(),
+                "reviews": rev.reviews().map(|(nid, r)| review(nid, r, aliases)).collect::<Vec<_>>(),
             })
         }).collect::<Vec<_>>(),
     })
@@ -160,51 +152,73 @@ fn author(author: &Author, alias: Option<Alias>) -> Value {
 }
 
 /// Returns JSON for a patch `Merge` and fills in `alias` when present.
-fn merge(merge: &Merge, nid: &NodeId, alias: Option<Alias>) -> Value {
-    match alias {
-        Some(alias) => json!({
-            "author": {
-                "id": nid,
-                "alias": alias,
-            },
-            "commit": merge.commit,
-            "timestamp": merge.timestamp.as_secs(),
-            "revision": merge.revision,
-        }),
-        None => json!({
-            "author": {
-                "id": nid,
-            },
-            "commit": merge.commit,
-            "timestamp": merge.timestamp.as_secs(),
-            "revision": merge.revision,
-        }),
-    }
+fn merge(nid: &NodeId, merge: &Merge, aliases: &impl AliasStore) -> Value {
+    json!({
+        "author": author(&Author::from(*nid), aliases.alias(nid)),
+        "commit": merge.commit,
+        "timestamp": merge.timestamp.as_secs(),
+        "revision": merge.revision,
+    })
 }
 
 /// Returns JSON for a patch `Review` and fills in `alias` when present.
-fn review(nid: &NodeId, alias: Option<Alias>, review: &Review) -> Value {
-    match alias {
-        Some(alias) => json!({
-            "author": {
-                "id": nid,
-                "alias": alias,
-            },
-            "verdict": review.verdict(),
-            "summary": review.summary(),
-            "comments": review.comments().collect::<Vec<_>>(),
-            "timestamp": review.timestamp().as_secs(),
-        }),
-        None => json!({
-            "author": {
-                "id": nid,
-            },
-            "verdict": review.verdict(),
-            "summary": review.summary(),
-            "comments": review.comments().collect::<Vec<_>>(),
-            "timestamp": review.timestamp().as_secs(),
-        }),
-    }
+fn review(nid: &NodeId, review: &Review, aliases: &impl AliasStore) -> Value {
+    json!({
+        "author": author(&Author::from(*nid), aliases.alias(nid)),
+        "verdict": review.verdict(),
+        "summary": review.summary(),
+        "comments": review.comments().map(|(id, c)| review_comment(id, c, aliases)).collect::<Vec<_>>(),
+        "timestamp": review.timestamp().as_secs(),
+    })
+}
+
+/// Returns JSON for a `Comment`.
+fn comment(id: &CommentId, comment: &Comment, aliases: &impl AliasStore) -> Value {
+    json!({
+        "id": *id,
+        "author": author(&Author::from(comment.author()), aliases.alias(&comment.author())),
+        "body": comment.body(),
+        "edits": comment.edits().map(|edit| {
+          json!({
+            "author": author(&Author::from(edit.author), aliases.alias(&edit.author)),
+            "body": edit.body,
+            "timestamp": edit.timestamp.as_secs(),
+            "embeds": edit.embeds,
+          })
+        }).collect::<Vec<_>>(),
+        "embeds": comment.embeds().to_vec(),
+        "reactions": comment.reactions().collect::<Vec<_>>(),
+        "timestamp": comment.timestamp().as_secs(),
+        "replyTo": comment.reply_to(),
+        "resolved": comment.resolved(),
+    })
+}
+
+/// Returns JSON for a `Review`.
+fn review_comment(
+    id: &CommentId,
+    comment: &Comment<CodeLocation>,
+    aliases: &impl AliasStore,
+) -> Value {
+    json!({
+        "id": *id,
+        "author": author(&Author::from(comment.author()), aliases.alias(&comment.author())),
+        "body": comment.body(),
+        "edits": comment.edits().map(|edit| {
+          json!({
+            "author": author(&Author::from(edit.author), aliases.alias(&edit.author)),
+            "body": edit.body,
+            "timestamp": edit.timestamp.as_secs(),
+            "embeds": edit.embeds,
+          })
+        }).collect::<Vec<_>>(),
+        "embeds": comment.embeds().to_vec(),
+        "reactions": comment.reactions().collect::<Vec<_>>(),
+        "timestamp": comment.timestamp().as_secs(),
+        "replyTo": comment.reply_to(),
+        "location": comment.location(),
+        "resolved": comment.resolved(),
+    })
 }
 
 /// Returns the name part of a path string.
@@ -234,46 +248,4 @@ fn get_refs(
         .collect::<Vec<_>>();
 
     Ok(refs)
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Comment<'a> {
-    id: CommentId,
-    author: Value,
-    body: &'a str,
-    edits: Vec<Value>,
-    embeds: Vec<Embed<Uri>>,
-    reactions: Vec<(&'a ActorId, &'a Reaction)>,
-    #[serde(with = "radicle::serde_ext::localtime::time")]
-    timestamp: Timestamp,
-    reply_to: Option<CommentId>,
-    resolved: bool,
-}
-
-impl<'a> Comment<'a> {
-    fn new(id: &'a CommentId, comment: &'a thread::Comment, aliases: &impl AliasStore) -> Self {
-        let comment_author = Author::new(comment.author());
-        Self {
-            id: *id,
-            author: author(&comment_author, aliases.alias(comment_author.id())),
-            body: comment.body(),
-            edits: comment
-                .edits()
-                .map(|edit| {
-                    json!({
-                        "author": author(&Author::from(edit.author), aliases.alias(&edit.author)),
-                        "body": edit.body,
-                        "timestamp": edit.timestamp,
-                        "embeds": edit.embeds,
-                    })
-                })
-                .collect::<Vec<_>>(),
-            embeds: comment.embeds().to_vec(),
-            reactions: comment.reactions().collect::<Vec<_>>(),
-            timestamp: comment.timestamp(),
-            reply_to: comment.reply_to(),
-            resolved: comment.resolved(),
-        }
-    }
 }
