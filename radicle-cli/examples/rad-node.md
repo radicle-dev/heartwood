@@ -44,7 +44,7 @@ $ rad node seeding
 If we wish to see which nodes we are following:
 
 ```
-$ rad node following
+$ rad follow
 ╭───────────────────────────────────────────────────────────────────────────╮
 │ DID                                                        Alias   Policy │
 ├───────────────────────────────────────────────────────────────────────────┤

@@ -7,6 +7,17 @@ $ rad follow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias ev
 ✓ Follow policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (eve)
 ```
 
+We can list the followed peers by omitting the DID:
+
+```
+$ rad follow
+╭───────────────────────────────────────────────────────────────────────────╮
+│ DID                                                        Alias   Policy │
+├───────────────────────────────────────────────────────────────────────────┤
+│ did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   eve     allow  │
+╰───────────────────────────────────────────────────────────────────────────╯
+```
+
 Now let's seed one of Eve's repositories:
 
 ```
