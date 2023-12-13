@@ -2,8 +2,9 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
-use radicle::node::{Alias, Handle, NodeId};
+use radicle::node::{policy, Alias, AliasStore, Handle, NodeId};
 use radicle::{prelude::*, Node};
+use radicle_term::{Element as _, Paint, Table};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -15,10 +16,12 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad follow <nid> [--alias <name>] [<option>...]
+    rad follow [<nid>] [--alias <name>] [<option>...]
 
-    The `follow` command takes a Node ID, optionally in DID format, and updates the follow
-    policy for that peer.
+    The `follow` command will print all nodes being followed, optionally filtered by alias, if no
+    Node ID is provided.
+    Otherwise, it takes a Node ID, optionally in DID format, and updates the follow policy
+    for that peer, optionally giving the peer the alias provided.
 
 Options
 
@@ -29,9 +32,21 @@ Options
 };
 
 #[derive(Debug)]
+pub enum Operation {
+    Follow { nid: NodeId, alias: Option<Alias> },
+    List { alias: Option<Alias> },
+}
+
+#[derive(Debug, Default)]
+pub enum OperationName {
+    Follow,
+    #[default]
+    List,
+}
+
+#[derive(Debug)]
 pub struct Options {
-    pub nid: NodeId,
-    pub alias: Option<Alias>,
+    pub op: Operation,
     pub verbose: bool,
 }
 
@@ -71,14 +86,11 @@ impl Args for Options {
             }
         }
 
-        Ok((
-            Options {
-                nid: nid.ok_or_else(|| anyhow!("a Node ID must be specified"))?,
-                alias,
-                verbose,
-            },
-            vec![],
-        ))
+        let op = match nid {
+            Some(nid) => Operation::Follow { nid, alias },
+            None => Operation::List { alias },
+        };
+        Ok((Options { op, verbose }, vec![]))
     }
 }
 
@@ -86,7 +98,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let mut node = radicle::Node::new(profile.socket());
 
-    follow(options.nid, options.alias, &mut node, &profile)?;
+    match options.op {
+        Operation::Follow { nid, alias } => follow(nid, alias, &mut node, &profile)?,
+        Operation::List { alias } => following(&profile, alias)?,
+    }
 
     Ok(())
 }
@@ -120,4 +135,53 @@ pub fn follow(
     }
 
     Ok(())
+}
+
+pub fn following(profile: &Profile, alias: Option<Alias>) -> anyhow::Result<()> {
+    let store = profile.policies()?;
+    let aliases = profile.aliases();
+    let mut t = term::Table::new(term::table::TableOptions::bordered());
+    t.push([
+        term::format::default(String::from("DID")),
+        term::format::default(String::from("Alias")),
+        term::format::default(String::from("Policy")),
+    ]);
+    t.divider();
+
+    match alias {
+        None => push_policies(&mut t, &aliases, store.follow_policies()?),
+        Some(alias) => push_policies(
+            &mut t,
+            &aliases,
+            store
+                .follow_policies()?
+                .filter(|p| p.alias.as_ref().is_some_and(|alias_| *alias_ == alias)),
+        ),
+    };
+    t.print();
+
+    Ok(())
+}
+
+fn push_policies(
+    t: &mut Table<3, Paint<String>>,
+    aliases: &impl AliasStore,
+    policies: impl Iterator<Item = policy::Node>,
+) {
+    for policy::Node { id, alias, policy } in policies {
+        t.push([
+            term::format::highlight(Did::from(id).to_string()),
+            match alias {
+                None => term::format::secondary(fallback_alias(&id, aliases)),
+                Some(alias) => term::format::secondary(alias.to_string()),
+            },
+            term::format::secondary(policy.to_string()),
+        ]);
+    }
+}
+
+fn fallback_alias(nid: &PublicKey, aliases: &impl AliasStore) -> String {
+    aliases
+        .alias(nid)
+        .map_or("n/a".to_string(), |alias| alias.to_string())
 }

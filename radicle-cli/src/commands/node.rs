@@ -32,7 +32,6 @@ Usage
     rad node logs [-n <lines>]
     rad node connect <nid>@<addr> [<option>...]
     rad node routing [--rid <rid>] [--nid <nid>] [--json] [<option>...]
-    rad node following [<option>...]
     rad node seeding [<option>...]
     rad node events [--timeout <secs>] [-n <count>] [<option>...]
     rad node config
@@ -91,7 +90,6 @@ pub enum Operation {
     Status,
     Sessions,
     Stop,
-    Following,
     Seeding,
 }
 
@@ -107,7 +105,6 @@ pub enum OperationName {
     Status,
     Sessions,
     Stop,
-    Following,
     Seeding,
 }
 
@@ -143,7 +140,6 @@ impl Args for Options {
                     "status" => op = Some(OperationName::Status),
                     "stop" => op = Some(OperationName::Stop),
                     "seeding" => op = Some(OperationName::Seeding),
-                    "following" => op = Some(OperationName::Following),
                     "sessions" => op = Some(OperationName::Sessions),
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
@@ -206,7 +202,6 @@ impl Args for Options {
             OperationName::Sessions => Operation::Sessions,
             OperationName::Stop => Operation::Stop,
             OperationName::Seeding => Operation::Seeding,
-            OperationName::Following => Operation::Following,
         };
         Ok((Options { op }, vec![]))
     }
@@ -249,7 +244,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             control::stop(node)?;
         }
         Operation::Seeding => policies::seeding(&profile)?,
-        Operation::Following => policies::following(&profile)?,
     }
 
     Ok(())
