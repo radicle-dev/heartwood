@@ -2354,6 +2354,7 @@ name = "radicle"
 version = "0.2.0"
 dependencies = [
  "amplify",
+ "base64 0.21.3",
  "chrono",
  "colored",
  "crossbeam-channel",

@@ -4,11 +4,14 @@ use std::ops::{Deref, Range};
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use base64::prelude::{Engine, BASE64_STANDARD};
 use localtime::LocalTime;
 use serde::{Deserialize, Serialize};
 
+use crate::cob::Embed;
 use crate::git::Oid;
 use crate::prelude::{Did, PublicKey};
+use crate::storage::ReadRepository;
 
 /// Timestamp used for COB operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -338,6 +341,50 @@ impl std::str::FromStr for Uri {
         }
         Ok(Self(s.to_owned()))
     }
+}
+
+/// A `data:` URI.
+#[derive(Debug, Clone)]
+pub struct DataUri(Vec<u8>);
+
+impl From<DataUri> for Vec<u8> {
+    fn from(value: DataUri) -> Self {
+        value.0
+    }
+}
+
+impl TryFrom<&Uri> for DataUri {
+    type Error = Uri;
+
+    fn try_from(value: &Uri) -> Result<Self, Self::Error> {
+        if let Some(data_uri) = value.as_str().strip_prefix("data:") {
+            let (_, uri_data) = data_uri.split_once(',').ok_or(value.clone())?;
+            let uri_data = BASE64_STANDARD
+                .decode(uri_data)
+                .map_err(|_| value.clone())?;
+
+            return Ok(DataUri(uri_data));
+        }
+        Err(value.clone())
+    }
+}
+
+/// Resolve an embed with a URI to one with actual data.
+pub fn resolve_embed(repo: &impl ReadRepository, embed: Embed<Uri>) -> Option<Embed<Vec<u8>>> {
+    DataUri::try_from(&embed.content)
+        .ok()
+        .map(|content| Embed {
+            name: embed.name.clone(),
+            content: content.into(),
+        })
+        .or_else(|| {
+            Oid::try_from(&embed.content).ok().and_then(|oid| {
+                repo.blob(oid).ok().map(|blob| Embed {
+                    name: embed.name,
+                    content: blob.content().to_vec(),
+                })
+            })
+        })
 }
 
 /// The result of an authorization check on an COB action.
