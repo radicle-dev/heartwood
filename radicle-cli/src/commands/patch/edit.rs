@@ -1,6 +1,6 @@
 use super::*;
 
-use radicle::cob::patch;
+use radicle::cob::{patch, resolve_embed};
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
 
@@ -38,13 +38,18 @@ pub fn run(
 
     let (root, _) = patch.root();
     let target = patch.target();
+    let embeds = patch
+        .embeds()
+        .into_iter()
+        .filter_map(|embed| resolve_embed(repository, embed.clone()))
+        .collect::<Vec<_>>();
 
     patch.transaction("Edit", &signer, |tx| {
         if let Some(t) = title {
             tx.edit(t, target)?;
         }
         if let Some(d) = description {
-            tx.edit_revision(root, d, Vec::default())?;
+            tx.edit_revision(root, d, embeds)?;
         }
         Ok(())
     })?;

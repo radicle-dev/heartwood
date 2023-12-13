@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tower_http::set_header::SetResponseHeaderLayer;
 
-use radicle::cob::{issue, patch, Embed, Label, Uri};
+use radicle::cob::{issue, patch, resolve_embed, Embed, Label, Uri};
 use radicle::identity::{Did, Id, Visibility};
 use radicle::node::routing::Store;
 use radicle::node::{AliasStore, Node, NodeId};
@@ -24,7 +24,7 @@ use radicle_surf::{diff, Glob, Oid, Repository};
 
 use crate::api::error::Error;
 use crate::api::project::Info;
-use crate::api::{self, announce_refs, resolve_embed, CobsQuery, Context, PaginationQuery};
+use crate::api::{self, announce_refs, CobsQuery, Context, PaginationQuery};
 use crate::axum_extra::{Path, Query};
 
 const CACHE_1_HOUR: &str = "public, max-age=3600, must-revalidate";
@@ -844,7 +844,14 @@ async fn patch_update_handler(
         patch::Action::RevisionEdit {
             revision,
             description,
-        } => patch.edit_revision(revision, description, &signer)?,
+            embeds,
+        } => {
+            let embeds: Vec<Embed> = embeds
+                .into_iter()
+                .filter_map(|embed| resolve_embed(&repo, embed))
+                .collect();
+            patch.edit_revision(revision, description, embeds, &signer)?
+        }
         patch::Action::RevisionRedact { revision } => patch.redact(revision, &signer)?,
         patch::Action::RevisionComment {
             revision,

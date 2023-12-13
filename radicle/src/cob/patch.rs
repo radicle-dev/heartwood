@@ -442,6 +442,12 @@ impl Patch {
         r.description()
     }
 
+    /// Patch embeds.
+    pub fn embeds(&self) -> &Vec<Embed<Uri>> {
+        let (_, r) = self.root();
+        r.embeds()
+    }
+
     /// Author of the first revision of the patch.
     pub fn author(&self) -> &Author {
         &self.author
@@ -1300,6 +1306,10 @@ impl Revision {
 
     pub fn description(&self) -> &str {
         self.description.last().body.as_str()
+    }
+
+    pub fn embeds(&self) -> &Vec<Embed<Uri>> {
+        &self.description.last().embeds
     }
 
     /// Author of the revision.
