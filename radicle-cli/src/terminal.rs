@@ -14,7 +14,7 @@ use std::process;
 
 pub use radicle_term::*;
 
-use radicle::profile::{ConfigError, Profile};
+use radicle::profile::Profile;
 
 use crate::terminal;
 
