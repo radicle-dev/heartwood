@@ -23,6 +23,7 @@ use radicle::storage::git::Repository;
 use radicle_surf::diff::*;
 
 use crate::git::unified_diff;
+use crate::git::unified_diff::Encode;
 use crate::terminal as term;
 
 /// Help message shown to user.
@@ -177,6 +178,8 @@ impl<'a> ReviewBuilder<'a> {
     pub fn new(patch_id: PatchId, nid: NodeId, repo: &'a Repository) -> Self {
         Self {
             patch_id,
+            // TODO: Validate this leads to correct UX for potentially abandoned drafts on
+            // past revisions.
             refname: git::refs::storage::draft::review(&nid, &patch_id),
             repo,
             hunk: None,
@@ -202,7 +205,14 @@ impl<'a> ReviewBuilder<'a> {
         let base = repo.find_commit((*revision.base()).into())?;
         let author = repo.signature()?;
         let patch_id = self.patch_id;
-        let review = if let Ok(c) = self.current() {
+        let tree = {
+            let commit = repo.find_commit(revision.head().into())?;
+            commit.tree()?
+        };
+
+        let mut stdin = io::stdin().lock();
+        let mut stderr = io::stderr().lock();
+        let mut review = if let Ok(c) = self.current() {
             term::success!(
                 "Loaded existing review {} for patch {}",
                 term::format::secondary(term::format::parens(term::format::oid(c.id()))),
@@ -216,20 +226,15 @@ impl<'a> ReviewBuilder<'a> {
                 &author,
                 &format!("Review {patch_id}"),
                 &base.tree()?,
+                // TODO: Verify this is necessary, shouldn't matter.
                 &[&base],
             )?;
             repo.find_commit(oid)?
         };
-
+        let mut brain = review.tree()?;
         let mut writer = unified_diff::Writer::new(io::stdout()).styled(true);
         let mut queue = ReviewQueue::default(); // Queue of hunks to review.
         let mut current = None; // File of the current hunk.
-        let mut stdin = io::stdin().lock();
-        let mut stderr = io::stderr().lock();
-
-        let commit = repo.find_commit(revision.head().into())?;
-        let tree = commit.tree()?;
-        let brain = review.tree()?;
 
         let mut find_opts = git::raw::DiffFindOptions::new();
         find_opts.exact_match_only(true);
@@ -271,6 +276,7 @@ impl<'a> ReviewBuilder<'a> {
             }
         }
         let total = queue.len();
+        let mut delta: i32 = 0;
 
         while let Some((ix, item)) = queue.next() {
             if let Some(hunk) = self.hunk {
@@ -284,33 +290,52 @@ impl<'a> ReviewBuilder<'a> {
             if current.map_or(true, |c| c != file) {
                 writer.encode(&unified_diff::FileHeader::from(file))?;
                 current = Some(file);
+                delta = 0;
             }
-            if let Some(h) = hunk {
-                writer.encode(h)?;
-            }
+
+            let header = hunk
+                .map(|h| {
+                    let header = unified_diff::HunkHeader::try_from(h)?;
+                    writer.encode(h)?;
+                    Ok::<_, anyhow::Error>(header)
+                })
+                .transpose()?;
 
             match self.prompt(&mut stdin, &mut stderr, progress) {
                 Some(ReviewAction::Accept) => {
                     let mut buf = Vec::new();
                     {
                         let mut writer = unified_diff::Writer::new(&mut buf);
-
                         writer.encode(&unified_diff::FileHeader::from(file))?;
-                        if let Some(h) = hunk {
-                            writer.encode(h)?;
+
+                        if let (Some(h), Some(mut header)) = (hunk, header) {
+                            header.old_line_no -= delta as u32;
+                            header.new_line_no -= delta as u32;
+
+                            let h = Hunk {
+                                header: header.to_unified_string()?.as_bytes().to_owned().into(),
+                                lines: h.lines.clone(),
+                                old: h.old.clone(),
+                                new: h.new.clone(),
+                            };
+                            writer.encode(&h)?;
                         }
                     }
                     let diff = git::raw::Diff::from_buffer(&buf)?;
 
                     let mut index = repo.apply_to_tree(&brain, &diff, None)?;
-                    let brain = index.write_tree_to(repo)?;
-                    let brain = repo.find_tree(brain)?;
+                    let brain_oid = index.write_tree_to(repo)?;
+                    brain = repo.find_tree(brain_oid)?;
 
-                    let _oid =
+                    let oid =
                         review.amend(Some(&self.refname), None, None, None, None, Some(&brain))?;
+                    review = repo.find_commit(oid)?;
                 }
                 Some(ReviewAction::Ignore) => {
                     // Do nothing. Hunk will be reviewable again next time.
+                    if let Some(h) = header {
+                        delta += h.new_size as i32 - h.old_size as i32;
+                    }
                 }
                 Some(ReviewAction::Comment) => {
                     eprintln!(

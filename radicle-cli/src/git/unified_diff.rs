@@ -119,6 +119,15 @@ pub struct HunkHeader {
     pub text: Vec<u8>,
 }
 
+impl TryFrom<&Hunk<Modification>> for HunkHeader {
+    type Error = Error;
+
+    fn try_from(hunk: &Hunk<Modification>) -> Result<Self, Self::Error> {
+        let mut r = io::BufReader::new(hunk.header.as_bytes());
+        Self::decode(&mut r)
+    }
+}
+
 impl HunkHeader {
     pub fn old_line_range(&self) -> std::ops::Range<u32> {
         let start: u32 = self.old_line_no;
