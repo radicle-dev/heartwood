@@ -5,6 +5,7 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use amplify::Wrapper;
+use nonempty::NonEmpty;
 use once_cell::sync::Lazy;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
@@ -17,7 +18,7 @@ use crate::cob::store::Transaction;
 use crate::cob::store::{Cob, CobAction};
 use crate::cob::thread;
 use crate::cob::thread::Thread;
-use crate::cob::thread::{Comment, CommentId, Reactions};
+use crate::cob::thread::{Comment, CommentId, Edit, Reactions};
 use crate::cob::{op, store, ActorId, Embed, EntryId, ObjectId, TypeName, Uri};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
@@ -218,6 +219,9 @@ pub enum Action {
     RevisionEdit {
         revision: RevisionId,
         description: String,
+        /// Embeded content.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        embeds: Vec<Embed<Uri>>,
     },
     /// React to the revision.
     #[serde(rename = "revision.react")]
@@ -732,11 +736,17 @@ impl Patch {
             Action::RevisionEdit {
                 revision,
                 description,
+                embeds,
             } => {
                 if let Some(redactable) = self.revisions.get_mut(&revision) {
                     // If the revision was redacted concurrently, there's nothing to do.
                     if let Some(revision) = redactable {
-                        revision.description = description;
+                        revision.description.push(Edit::new(
+                            author,
+                            description,
+                            timestamp,
+                            embeds,
+                        ));
                     }
                 } else {
                     return Err(Error::Missing(revision.into_inner()));
@@ -1247,7 +1257,7 @@ pub struct Revision {
     /// Author of the revision.
     pub(super) author: Author,
     /// Revision description.
-    pub(super) description: String,
+    pub(super) description: NonEmpty<Edit>,
     /// Base branch commit, used as a merge base.
     pub(super) base: git::Oid,
     /// Reference to the Git object containing the code (revision head).
@@ -1273,9 +1283,11 @@ impl Revision {
         timestamp: Timestamp,
         resolves: BTreeSet<(EntryId, CommentId)>,
     ) -> Self {
+        let description = Edit::new(*author.public_key(), description, timestamp, Vec::default());
+
         Self {
             author,
-            description,
+            description: NonEmpty::new(description),
             base,
             oid,
             discussion: Thread::default(),
@@ -1287,7 +1299,7 @@ impl Revision {
     }
 
     pub fn description(&self) -> &str {
-        self.description.as_str()
+        self.description.last().body.as_str()
     }
 
     /// Author of the revision.
@@ -1496,10 +1508,15 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         &mut self,
         revision: RevisionId,
         description: impl ToString,
+        embeds: Vec<Embed>,
     ) -> Result<(), store::Error> {
+        let hashed = embeds.iter().map(|e| e.hashed()).collect();
+
+        self.embed(embeds)?;
         self.push(Action::RevisionEdit {
             revision,
             description: description.to_string(),
+            embeds: hashed,
         })
     }
 
@@ -1806,10 +1823,11 @@ where
         &mut self,
         revision: RevisionId,
         description: String,
+        embeds: impl IntoIterator<Item = Embed>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Edit revision", signer, |tx| {
-            tx.edit_revision(revision, description)
+            tx.edit_revision(revision, description, embeds.into_iter().collect())
         })
     }
 
@@ -2621,6 +2639,7 @@ mod test {
             &Action::RevisionEdit {
                 revision: RevisionId(*h0.root().id()),
                 description: String::from("Edited"),
+                embeds: Vec::default(),
             },
             &bob,
         );

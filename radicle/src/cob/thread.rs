@@ -66,6 +66,23 @@ pub struct Edit {
     pub embeds: Vec<Embed<Uri>>,
 }
 
+impl Edit {
+    /// Create a new edit.
+    pub fn new(
+        author: ActorId,
+        body: String,
+        timestamp: Timestamp,
+        embeds: Vec<Embed<Uri>>,
+    ) -> Self {
+        Self {
+            author,
+            timestamp,
+            body,
+            embeds,
+        }
+    }
+}
+
 /// A comment on a discussion thread.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Comment<T = Infallible> {
@@ -123,12 +140,7 @@ impl<L> Comment<L> {
         embeds: Vec<Embed<Uri>>,
         timestamp: Timestamp,
     ) -> Self {
-        let edit = Edit {
-            author,
-            body,
-            embeds,
-            timestamp,
-        };
+        let edit = Edit::new(author, body, timestamp, embeds);
 
         Self {
             author,
@@ -180,12 +192,7 @@ impl<L> Comment<L> {
         embeds: Vec<Embed<Uri>>,
         timestamp: Timestamp,
     ) {
-        self.edits.push(Edit {
-            author,
-            body,
-            embeds,
-            timestamp,
-        });
+        self.edits.push(Edit::new(author, body, timestamp, embeds));
     }
 
     /// Comment reactions.

@@ -44,7 +44,7 @@ pub fn run(
             tx.edit(t, target)?;
         }
         if let Some(d) = description {
-            tx.edit_revision(root, d)?;
+            tx.edit_revision(root, d, Vec::default())?;
         }
         Ok(())
     })?;
