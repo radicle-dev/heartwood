@@ -156,6 +156,18 @@ impl Runtime {
             .ok()
             .and_then(|ann| NodeAnnouncement::decode(&mut ann.as_slice()).ok())
             .and_then(|ann| {
+                // If our announcement was made some time ago, the timestamp on it will be old,
+                // and it might not get gossiped to new nodes since it will be purged from caches.
+                // Therefore, we make sure it's never too old.
+                if clock.as_millis() - ann.timestamp
+                    <= config.limits.gossip_max_age.as_millis() as u64
+                {
+                    Some(ann)
+                } else {
+                    None
+                }
+            })
+            .and_then(|ann| {
                 if config.features() == ann.features
                     && config.alias == ann.alias
                     && config.external_addresses == ann.addresses.as_ref()
