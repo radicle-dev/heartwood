@@ -5,9 +5,9 @@ use crate::terminal as term;
 use crate::terminal::format::Author;
 
 /// Return a comment header as a [`term::Element`].
-pub fn header(
+pub fn header<T>(
     id: &CommentId,
-    comment: &Comment,
+    comment: &Comment<T>,
     profile: &Profile,
 ) -> term::hstack::HStack<'static> {
     let author = comment.author();
@@ -27,7 +27,7 @@ pub fn header(
 }
 
 /// Return a full comment widget as a [`term::Element`].
-pub fn widget<'a>(id: &CommentId, comment: &Comment, profile: &Profile) -> term::VStack<'a> {
+pub fn widget<'a, T>(id: &CommentId, comment: &Comment<T>, profile: &Profile) -> term::VStack<'a> {
     term::vstack::bordered(header(id, comment, profile))
         .child(term::textarea(comment.body()).wrap(60))
 }

@@ -103,7 +103,7 @@ pub(crate) fn issue(id: IssueId, issue: Issue, aliases: &impl AliasStore) -> Val
         "title": issue.title(),
         "state": issue.state(),
         "assignees": issue.assignees().collect::<Vec<_>>(),
-        "discussion": issue.comments().map(|(id, c)| comment(id, c, aliases)).collect::<Vec<_>>(),
+        "discussion": issue.comments().map(|(id, c)| issue_comment(id, c, aliases)).collect::<Vec<_>>(),
         "labels": issue.labels().collect::<Vec<_>>(),
     })
 }
@@ -132,7 +132,7 @@ pub(crate) fn patch(
                 "base": rev.base(),
                 "oid": rev.head(),
                 "refs": get_refs(repo, patch.author().id(), &rev.head()).unwrap_or_default(),
-                "discussions": rev.discussion().comments().map(|(id, c)| comment(id, c,  aliases)).collect::<Vec<_>>(),
+                "discussions": rev.discussion().comments().map(|(id, c)| patch_comment(id, c,  aliases)).collect::<Vec<_>>(),
                 "timestamp": rev.timestamp().as_secs(),
                 "reviews": rev.reviews().map(|(nid, r)| review(nid, r, aliases)).collect::<Vec<_>>(),
             })
@@ -172,8 +172,8 @@ fn review(nid: &NodeId, review: &Review, aliases: &impl AliasStore) -> Value {
     })
 }
 
-/// Returns JSON for a `Comment`.
-fn comment(id: &CommentId, comment: &Comment, aliases: &impl AliasStore) -> Value {
+/// Returns JSON for a Issue `Comment`.
+fn issue_comment(id: &CommentId, comment: &Comment, aliases: &impl AliasStore) -> Value {
     json!({
         "id": *id,
         "author": author(&Author::from(comment.author()), aliases.alias(&comment.author())),
@@ -190,6 +190,33 @@ fn comment(id: &CommentId, comment: &Comment, aliases: &impl AliasStore) -> Valu
         "reactions": comment.reactions().collect::<Vec<_>>(),
         "timestamp": comment.timestamp().as_secs(),
         "replyTo": comment.reply_to(),
+        "resolved": comment.resolved(),
+    })
+}
+
+/// Returns JSON for a Patch `Comment`.
+fn patch_comment(
+    id: &CommentId,
+    comment: &Comment<CodeLocation>,
+    aliases: &impl AliasStore,
+) -> Value {
+    json!({
+        "id": *id,
+        "author": author(&Author::from(comment.author()), aliases.alias(&comment.author())),
+        "body": comment.body(),
+        "edits": comment.edits().map(|edit| {
+          json!({
+            "author": author(&Author::from(edit.author), aliases.alias(&edit.author)),
+            "body": edit.body,
+            "timestamp": edit.timestamp.as_secs(),
+            "embeds": edit.embeds,
+          })
+        }).collect::<Vec<_>>(),
+        "embeds": comment.embeds().to_vec(),
+        "reactions": comment.reactions().collect::<Vec<_>>(),
+        "timestamp": comment.timestamp().as_secs(),
+        "replyTo": comment.reply_to(),
+        "location": comment.location(),
         "resolved": comment.resolved(),
     })
 }
