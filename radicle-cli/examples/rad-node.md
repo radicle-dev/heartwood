@@ -28,12 +28,12 @@ $ rad follow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias Bo
 ✓ Follow policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (Bob)
 ```
 
-Now, when we use the `rad node seeding` command we will see
+Now, when we use the `rad seed` command we will see
 information for repositories that we seed -- in this case a
 repository that was already created:
 
 ```
-$ rad node seeding
+$ rad seed
 ╭───────────────────────────────────────────────────────╮
 │ RID                                 Scope      Policy │
 ├───────────────────────────────────────────────────────┤

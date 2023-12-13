@@ -13,9 +13,7 @@ use crate::terminal::Element as _;
 #[path = "node/control.rs"]
 pub mod control;
 #[path = "node/events.rs"]
-pub mod events;
-#[path = "node/policies.rs"]
-pub mod policies;
+mod events;
 #[path = "node/routing.rs"]
 pub mod routing;
 
@@ -32,7 +30,6 @@ Usage
     rad node logs [-n <lines>]
     rad node connect <nid>@<addr> [<option>...]
     rad node routing [--rid <rid>] [--nid <nid>] [--json] [<option>...]
-    rad node seeding [<option>...]
     rad node events [--timeout <secs>] [-n <count>] [<option>...]
     rad node config
 
@@ -90,7 +87,6 @@ pub enum Operation {
     Status,
     Sessions,
     Stop,
-    Seeding,
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -105,7 +101,6 @@ pub enum OperationName {
     Status,
     Sessions,
     Stop,
-    Seeding,
 }
 
 impl Args for Options {
@@ -139,7 +134,6 @@ impl Args for Options {
                     "start" => op = Some(OperationName::Start),
                     "status" => op = Some(OperationName::Status),
                     "stop" => op = Some(OperationName::Stop),
-                    "seeding" => op = Some(OperationName::Seeding),
                     "sessions" => op = Some(OperationName::Sessions),
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
@@ -201,7 +195,6 @@ impl Args for Options {
             OperationName::Status => Operation::Status,
             OperationName::Sessions => Operation::Sessions,
             OperationName::Stop => Operation::Stop,
-            OperationName::Seeding => Operation::Seeding,
         };
         Ok((Options { op }, vec![]))
     }
@@ -243,7 +236,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Stop => {
             control::stop(node)?;
         }
-        Operation::Seeding => policies::seeding(&profile)?,
     }
 
     Ok(())

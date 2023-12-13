@@ -3,9 +3,11 @@ use std::time;
 
 use anyhow::anyhow;
 
+use radicle::node::policy;
 use radicle::node::policy::Scope;
 use radicle::node::Handle;
 use radicle::{prelude::*, Node};
+use radicle_term::Element as _;
 
 use crate::commands::rad_sync as sync;
 use crate::terminal::args::{Args, Error, Help};
@@ -18,10 +20,13 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad seed <rid> [-d | --delete] [--[no-]fetch] [--scope <scope>] [<option>...]
+    rad seed [<rid>] [-d | --delete] [--[no-]fetch] [--scope <scope>] [<option>...]
 
-    The `seed` command takes a Repository ID (<rid>) and updates the seeding policy
-    for that repository. By default, a seeding policy will be created or updated.
+    The `seed` command, when no Repository ID (<rid>) is provided, will list the
+    repositories being seeded.
+
+    When a Repository ID (<rid>) is provided it updates the seeding policy for
+    that repository. By default, a seeding policy will be created or updated.
     To delete a policy, use the `--delete` flag.
 
     When seeding a repository, a scope can be specified: this can be either `all` or
@@ -41,8 +46,9 @@ Options
 
 #[derive(Debug)]
 pub enum Operation {
-    Seed { fetch: bool, scope: Scope },
-    Unseed,
+    Seed { rid: Id, fetch: bool, scope: Scope },
+    List,
+    Unseed { rid: Id },
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -54,7 +60,6 @@ pub enum OperationName {
 
 #[derive(Debug)]
 pub struct Options {
-    pub rid: Id,
     pub op: Operation,
     pub verbose: bool,
 }
@@ -98,33 +103,29 @@ impl Args for Options {
             }
         }
 
-        let op = match op.unwrap_or_default() {
-            OperationName::Seed => Operation::Seed {
-                fetch: fetch.unwrap_or(true),
-                scope: scope.unwrap_or(Scope::All),
+        let op = match rid {
+            Some(rid) => match op.unwrap_or_default() {
+                OperationName::Seed => Operation::Seed {
+                    rid,
+                    fetch: fetch.unwrap_or(true),
+                    scope: scope.unwrap_or(Scope::All),
+                },
+                OperationName::Unseed => Operation::Unseed { rid },
             },
-            OperationName::Unseed => Operation::Unseed,
+            None => Operation::List,
         };
 
-        Ok((
-            Options {
-                rid: rid.ok_or_else(|| anyhow!("a Repository ID must be specified"))?,
-                op,
-                verbose,
-            },
-            vec![],
-        ))
+        Ok((Options { op, verbose }, vec![]))
     }
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let mut node = radicle::Node::new(profile.socket());
-    let rid = options.rid;
 
     match options.op {
-        Operation::Unseed => delete(rid, &mut node, &profile)?,
-        Operation::Seed { fetch, scope } => {
+        Operation::Unseed { rid } => delete(rid, &mut node, &profile)?,
+        Operation::Seed { rid, fetch, scope } => {
             update(rid, scope, &mut node, &profile)?;
 
             if fetch && node.is_running() {
@@ -136,6 +137,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 )?;
             }
         }
+        Operation::List => seeding(&profile)?,
     }
 
     Ok(())
@@ -162,5 +164,31 @@ pub fn delete(rid: Id, node: &mut Node, profile: &Profile) -> anyhow::Result<()>
     if project::unseed(rid, node, profile)? {
         term::success!("Seeding policy for {} removed", term::format::tertiary(rid));
     }
+    Ok(())
+}
+
+pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
+    let store = profile.policies()?;
+    let mut t = term::Table::new(term::table::TableOptions::bordered());
+    t.push([
+        term::format::default(String::from("RID")),
+        term::format::default(String::from("Scope")),
+        term::format::default(String::from("Policy")),
+    ]);
+    t.divider();
+
+    for policy::Repo { id, scope, policy } in store.seed_policies()? {
+        let id = id.to_string();
+        let scope = scope.to_string();
+        let policy = policy.to_string();
+
+        t.push([
+            term::format::highlight(id),
+            term::format::secondary(scope),
+            term::format::secondary(policy),
+        ])
+    }
+    t.print();
+
     Ok(())
 }
