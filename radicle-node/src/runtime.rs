@@ -235,9 +235,6 @@ impl Runtime {
 
         let nid = *signer.public_key();
         let fetch = worker::FetchConfig {
-            policy,
-            scope,
-            policies_db: home.node().join(node::POLICIES_DB_FILE),
             limit: FetchLimit::default(),
             local: nid,
             expiry: worker::garbage::Expiry::default(),
@@ -251,8 +248,11 @@ impl Runtime {
                 timeout: time::Duration::from_secs(9),
                 storage: storage.clone(),
                 fetch,
+                policy,
+                scope,
+                policies_db: home.node().join(node::POLICIES_DB_FILE),
             },
-        );
+        )?;
         let control = match UnixListener::bind(home.socket()) {
             Ok(sock) => sock,
             Err(err) if err.kind() == io::ErrorKind::AddrInUse => {
