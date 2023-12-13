@@ -1012,7 +1012,7 @@ impl Patch {
                 body,
                 reply_to,
                 embeds,
-                ..
+                location,
             } => {
                 if let Some(revision) = lookup::revision_mut(self, &revision)? {
                     thread::comment(
@@ -1022,7 +1022,7 @@ impl Patch {
                         timestamp,
                         body,
                         reply_to,
-                        None,
+                        location,
                         embeds,
                     )?;
                 }
@@ -1255,7 +1255,7 @@ pub struct Revision {
     /// Reference to the Git object containing the code (revision head).
     pub(super) oid: git::Oid,
     /// Discussion around this revision.
-    pub(super) discussion: Thread<Comment>,
+    pub(super) discussion: Thread<Comment<CodeLocation>>,
     /// Reviews of this revision's changes (one per actor).
     pub(super) reviews: BTreeMap<ActorId, Option<Review>>,
     /// When this revision was created.
@@ -1313,7 +1313,7 @@ impl Revision {
     }
 
     /// Discussion around this revision.
-    pub fn discussion(&self) -> &Thread<Comment> {
+    pub fn discussion(&self) -> &Thread<Comment<CodeLocation>> {
         &self.discussion
     }
 

@@ -3041,6 +3041,7 @@ mod routes {
                       "reactions": [["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8","🚀"]],
                       "timestamp": TIMESTAMP,
                       "replyTo": null,
+                      "location": null,
                       "resolved": false,
                     },
                     {
@@ -3063,6 +3064,7 @@ mod routes {
                       "reactions": [],
                       "timestamp": TIMESTAMP,
                       "replyTo": comment_id,
+                      "location": null,
                       "resolved": false,
                     },
                   ],

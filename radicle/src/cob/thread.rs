@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
+use std::convert::Infallible;
 use std::str::FromStr;
 
 use once_cell::sync::Lazy;
@@ -67,7 +68,7 @@ pub struct Edit {
 
 /// A comment on a discussion thread.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Comment<T = ()> {
+pub struct Comment<T = Infallible> {
     /// Comment author.
     author: ActorId,
     /// The comment body.
@@ -265,7 +266,7 @@ impl From<Action> for nonempty::NonEmpty<Action> {
 
 /// A discussion thread.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Thread<T = Comment<()>> {
+pub struct Thread<T = Comment> {
     /// The comments under the thread.
     pub(crate) comments: BTreeMap<CommentId, Option<T>>,
     /// Comment timeline.
