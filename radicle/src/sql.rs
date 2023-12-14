@@ -10,10 +10,10 @@ use crate::node::Address;
 
 /// Run an SQL query inside a transaction.
 /// Commits the transaction on success, and rolls back on error.
-pub fn transaction<T>(
+pub fn transaction<T, E: From<sql::Error>>(
     db: &sql::Connection,
-    query: impl FnOnce(&sql::Connection) -> Result<T, sql::Error>,
-) -> Result<T, sql::Error> {
+    query: impl FnOnce(&sql::Connection) -> Result<T, E>,
+) -> Result<T, E> {
     db.execute("BEGIN")?;
 
     match query(db) {

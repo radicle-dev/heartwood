@@ -17,6 +17,9 @@ pub enum Error {
     Internal(#[from] sql::Error),
     #[error("alias error: {0}")]
     InvalidAlias(#[from] AliasError),
+    /// No rows returned in query result.
+    #[error("no rows returned")]
+    NoRows,
 }
 
 /// Address store.
@@ -121,8 +124,7 @@ impl Store for Database {
             .prepare("SELECT COUNT(*) FROM addresses")?
             .into_iter()
             .next()
-            .unwrap()
-            .unwrap();
+            .ok_or(Error::NoRows)??;
         let count = row.read::<i64, _>(0) as usize;
 
         Ok(count)
@@ -168,9 +170,8 @@ impl Store for Database {
                 stmt.bind((5, timestamp as i64))?;
                 stmt.next()?;
             }
-            Ok(db.change_count() > 0)
+            Ok::<_, Error>(db.change_count() > 0)
         })
-        .map_err(Error::from)
     }
 
     fn remove(&mut self, node: &NodeId) -> Result<bool, Error> {

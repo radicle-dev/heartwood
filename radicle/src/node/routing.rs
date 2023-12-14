@@ -140,9 +140,8 @@ impl Store for Database {
                 };
                 results.push((*id, result));
             }
-            Ok(results)
+            Ok::<_, Error>(results)
         })
-        .map_err(Error::from)
     }
 
     fn entries(&self) -> Result<Box<dyn Iterator<Item = (Id, NodeId)>>, Error> {
