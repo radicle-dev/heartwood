@@ -381,6 +381,8 @@ impl Response {
     }
 
     pub async fn body(self) -> Bytes {
-        hyper::body::to_bytes(self.0.into_body()).await.unwrap()
+        axum::body::to_bytes(self.0.into_body(), usize::MAX)
+            .await
+            .unwrap()
     }
 }

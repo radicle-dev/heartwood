@@ -13,10 +13,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context as _;
-use axum::body::{Body, BoxBody, HttpBody};
+use axum::body::{Body, HttpBody};
 use axum::http::{Request, Response};
 use axum::middleware;
 use axum::Router;
+use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing::Span;
 
@@ -54,9 +55,9 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
 
     tracing::info!("{}", str::from_utf8(&git_version)?.trim());
 
-    let listen = options.listen;
+    let listener = TcpListener::bind(options.listen).await?;
 
-    tracing::info!("listening on http://{}", listen);
+    tracing::info!("listening on http://{}", options.listen);
 
     let profile = Profile::load()?;
     let request_id = RequestId::new();
@@ -72,7 +73,7 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
                     tracing::info_span!("request", id = %request_id.clone().next())
                 })
                 .on_response(
-                    |response: &Response<BoxBody>, latency: Duration, _span: &Span| {
+                    |response: &Response<Body>, latency: Duration, _span: &Span| {
                         if let Some(info) = response.extensions().get::<TracingInfo>() {
                             tracing::info!(
                                 "{} \"{} {} {:?}\" {} {:?} {}",
@@ -100,8 +101,7 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
         )
         .into_make_service_with_connect_info::<SocketAddr>();
 
-    axum::Server::bind(&listen)
-        .serve(app)
+    axum::serve(listener, app)
         .await
         .map_err(anyhow::Error::from)
 }

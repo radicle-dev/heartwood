@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use axum::body::Body;
 use axum::extract::ConnectInfo;
 use axum::http::Request;
 use axum::middleware::Next;
@@ -25,6 +26,7 @@ impl RequestId {
     }
 }
 
+#[derive(Clone)]
 pub struct TracingInfo {
     pub connect_info: ConnectInfo<SocketAddr>,
     pub method: Method,
@@ -45,7 +47,7 @@ impl fmt::Display for ColoredStatus {
     }
 }
 
-pub async fn tracing_middleware<B>(request: Request<B>, next: Next<B>) -> impl IntoResponse {
+pub async fn tracing_middleware(request: Request<Body>, next: Next) -> impl IntoResponse {
     let connect_info = *request
         .extensions()
         .get::<ConnectInfo<std::net::SocketAddr>>()
