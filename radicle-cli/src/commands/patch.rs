@@ -34,10 +34,11 @@ use anyhow::anyhow;
 
 use radicle::cob::patch::PatchId;
 use radicle::cob::{patch, Label};
-use radicle::prelude::*;
 use radicle::storage::git::transport;
+use radicle::{prelude::*, Node};
 
 use crate::git::Rev;
+use crate::node;
 use crate::terminal as term;
 use crate::terminal::args::{string, Args, Error, Help};
 use crate::terminal::patch::Message;
@@ -134,6 +135,7 @@ Checkout options
 
 Other options
 
+        --[no-]announce        Announce changes made to the network
     -q, --quiet                Quiet output
         --help                 Print help
 "#,
@@ -249,6 +251,25 @@ pub enum Operation {
     },
 }
 
+impl Operation {
+    fn is_announce(&self) -> bool {
+        match self {
+            Operation::Update { .. }
+            | Operation::Archive { .. }
+            | Operation::Ready { .. }
+            | Operation::Delete { .. }
+            | Operation::Comment { .. }
+            | Operation::Review { .. }
+            | Operation::Assign { .. }
+            | Operation::Label { .. }
+            | Operation::Edit { .. }
+            | Operation::Redact { .. }
+            | Operation::Set { .. } => true,
+            Operation::Show { .. } | Operation::Checkout { .. } | Operation::List { .. } => false,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Options {
     pub op: Operation,
@@ -270,7 +291,7 @@ impl Args for Options {
         let mut quiet = false;
         let mut authored = false;
         let mut authors = vec![];
-        let mut announce = false;
+        let mut announce = true;
         let mut patch_id = None;
         let mut revision_id = None;
         let mut message = Message::default();
@@ -604,6 +625,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     let profile = ctx.profile()?;
     let repository = profile.storage.repository(id)?;
+    let announce = options.announce && options.op.is_announce();
 
     transport::local::register(profile.storage.clone());
 
@@ -719,6 +741,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
             radicle::rad::setup_patch_upstream(&patch_id, *patch.head(), &workdir, true)?;
         }
+    }
+
+    if announce {
+        let mut node = Node::new(profile.socket());
+        node::sync(id, &mut node)?;
     }
     Ok(())
 }
