@@ -93,8 +93,8 @@ We can also label patches as well as assign DIDs to the patch to help
 organise your workflow:
 
 ```
-$ rad patch label 6ff4f09 --add fun
-$ rad patch assign 6ff4f09 --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad patch label 6ff4f09 --add fun --no-announce
+$ rad patch assign 6ff4f09 --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --no-announce
 $ rad patch show 6ff4f09
 ╭────────────────────────────────────────────────────╮
 │ Title     Define power requirements                │
@@ -134,12 +134,12 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 And let's leave a quick comment for our team:
 
 ```
-$ rad patch comment 6ff4f09 --message 'I cannot wait to get back to the 90s!'
+$ rad patch comment 6ff4f09 --message 'I cannot wait to get back to the 90s!' --no-announce
 ╭───────────────────────────────────────╮
 │ z6MknSL…StBU8Vi (you) now f5b4613     │
 │ I cannot wait to get back to the 90s! │
 ╰───────────────────────────────────────╯
-$ rad patch comment 6ff4f09 --message 'My favorite decade!' --reply-to f5b4613 -q
+$ rad patch comment 6ff4f09 --message 'My favorite decade!' --reply-to f5b4613 -q --no-announce
 611df66ccb3803b604a59f2efa9a42d72256dd49
 ```
 
@@ -154,7 +154,7 @@ $ rad patch checkout 6ff4f09
 We can also add a review verdict as such:
 
 ```
-$ rad patch review 6ff4f09 --accept --no-message
+$ rad patch review 6ff4f09 --accept --no-message --no-announce
 ✓ Patch 6ff4f09 accepted
 ```
 
@@ -186,7 +186,7 @@ $ rad patch show 6ff4f09
 If you make a mistake on the patch description, you can always change it!
 
 ```
-$ rad patch edit 6ff4f09 --message "Define power requirements" --message "Add requirements file"
+$ rad patch edit 6ff4f09 --message "Define power requirements" --message "Add requirements file" --no-announce
 $ rad patch show 6ff4f09
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                 │

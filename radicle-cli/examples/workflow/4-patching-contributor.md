@@ -87,4 +87,5 @@ And let's leave a quick comment for our team:
 ```
 $ rad patch comment 3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c --message 'I cannot wait to get back to the 90s!' -q
 b6711a58b45323f3ef2bb87cfb2b3b4d04c22a8b
+✓ Synced with 1 node(s)
 ```

@@ -9,7 +9,6 @@ use radicle::cob::issue;
 use radicle::cob::issue::{CloseReason, Issues, State};
 use radicle::cob::thread;
 use radicle::crypto::Signer;
-use radicle::node::Handle;
 use radicle::prelude::Did;
 use radicle::profile;
 use radicle::storage;
@@ -18,6 +17,7 @@ use radicle::Profile;
 use radicle::{cob, Node};
 
 use crate::git::Rev;
+use crate::node;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::format::Author;
@@ -401,7 +401,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 | Operation::Label { .. }
         );
 
-    let mut node = Node::new(profile.socket());
     let mut issues = Issues::open(&repo)?;
 
     match options.op {
@@ -528,11 +527,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     if announce {
-        match node.announce_refs(rid) {
-            Ok(_) => {}
-            Err(e) if e.is_connection_err() => {}
-            Err(e) => return Err(e.into()),
-        }
+        let mut node = Node::new(profile.socket());
+        node::sync(rid, &mut node)?;
     }
 
     Ok(())

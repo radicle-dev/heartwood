@@ -51,8 +51,8 @@ Let's assign ourselves to this one, this is to ensure work is not
 duplicated. While we're at it, let's add a label.
 
 ```
-$ rad issue assign d185ee1 --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-$ rad issue label d185ee1 --add good-first-issue
+$ rad issue assign d185ee1 --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --no-announce
+$ rad issue label d185ee1 --add good-first-issue --no-announce
 ```
 
 It will now show in the list of issues assigned to us, along with the new label.
@@ -69,7 +69,7 @@ $ rad issue list --assigned
 Note: this can always be undone with the `unassign` subcommand.
 
 ```
-$ rad issue assign d185ee1 --delete did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad issue assign d185ee1 --delete did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --no-announce
 ```
 
 Great, now we have communicated to the world about our car's defect.
@@ -78,9 +78,9 @@ But wait! We've found an important detail about the car's power requirements.
 It will help whoever works on a fix.
 
 ```
-$ rad issue comment d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61 --message 'The flux capacitor needs 1.21 Gigawatts' -q
+$ rad issue comment d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61 --message 'The flux capacitor needs 1.21 Gigawatts' -q --no-announce
 80ef590710edb64dfa57e8e940d6e4d0b0ae4217
-$ rad issue comment d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61 --reply-to 80ef590710edb64dfa57e8e940d6e4d0b0ae4217 --message 'More power!' -q
+$ rad issue comment d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61 --reply-to 80ef590710edb64dfa57e8e940d6e4d0b0ae4217 --message 'More power!' -q --no-announce
 91009820ca0996d93b9afd5739a4d2158a2ec898
 ```
 

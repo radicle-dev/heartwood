@@ -36,7 +36,7 @@ $ rad patch show 193a2540ded82245b49971de8afc89a129502c6d
 Once the patch is ready for review, we can use the `ready` command:
 
 ```
-$ rad patch ready 193a2540ded82245b49971de8afc89a129502c6d
+$ rad patch ready 193a2540ded82245b49971de8afc89a129502c6d --no-announce
 ```
 
 ```
@@ -60,7 +60,7 @@ If for whatever reason, it needed to go back into draft mode, we could use
 the `--undo` flag:
 
 ```
-$ rad patch ready --undo 193a2540ded82245b49971de8afc89a129502c6d
+$ rad patch ready --undo 193a2540ded82245b49971de8afc89a129502c6d --no-announce
 $ rad patch show 193a2540ded82245b49971de8afc89a129502c6d
 ╭────────────────────────────────────────────────────╮
 │ Title     Nothing yet                              │
