@@ -219,6 +219,7 @@
           pkgs.cargo-nextest
           pkgs.ripgrep
           pkgs.rust-analyzer
+          pkgs.sqlite
         ];
       };
     });
