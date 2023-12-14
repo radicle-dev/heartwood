@@ -32,7 +32,7 @@ default-features = false
 optional = true
 
 [dependencies.ssh-key]
-version = "0.5.1"
+version = "0.6.3"
 default-features = false
 features = ["std", "encryption", "getrandom"]
 optional = true

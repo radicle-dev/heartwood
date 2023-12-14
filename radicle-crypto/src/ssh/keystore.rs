@@ -75,7 +75,7 @@ impl Keystore {
         let ssh_pair = ssh_key::private::KeypairData::Ed25519(ssh_pair);
         let secret = ssh_key::PrivateKey::new(ssh_pair, comment)?;
         let secret = if let Some(p) = passphrase {
-            secret.encrypt(ssh_key::rand_core::OsRng, p)?
+            secret.encrypt(&mut ssh_key::rand_core::OsRng, p)?
         } else {
             secret
         };
