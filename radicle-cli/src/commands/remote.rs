@@ -14,6 +14,7 @@ use radicle::git::RefString;
 use radicle::prelude::NodeId;
 use radicle::storage::ReadStorage;
 
+use crate::terminal as term;
 use crate::terminal::args;
 use crate::terminal::{Args, Context, Help};
 
@@ -24,19 +25,28 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad remote
-    rad remote list
-    rad remote add (<did> | <nid>) [--name <string>]
-    rad remote rm <name>
+    rad remote [<option>...]
+    rad remote list [--tracked | --untracked | --all] [<option>...]
+    rad remote add (<did> | <nid>) [--name <string>] [<option>...]
+    rad remote rm <name> [<option>...]
+
+List options
+
+    --tracked     Show all remotes that are listed in the working copy
+    --untracked   Show all remotes that are listed in the Radicle storage
+    --all         Show all remotes in both the Radicle storage and the working copy
+
+Add options
+
+    --name        Override the name of the remote that by default is set to the node alias
 
 Options
 
-    --name      Override the name of the remote that by default is set to the node alias
-    --help      Print help
+    --help        Print help
 "#,
 };
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum OperationName {
     Add,
     Rm,
@@ -48,7 +58,15 @@ pub enum OperationName {
 pub enum Operation {
     Add { id: NodeId, name: Option<RefString> },
     Rm { name: RefString },
-    List,
+    List { option: ListOption },
+}
+
+#[derive(Debug, Default)]
+pub enum ListOption {
+    All,
+    #[default]
+    Tracked,
+    Untracked,
 }
 
 #[derive(Debug)]
@@ -64,6 +82,7 @@ impl Args for Options {
         let mut op: Option<OperationName> = None;
         let mut id: Option<NodeId> = None;
         let mut name: Option<RefString> = None;
+        let mut list_op: ListOption = ListOption::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -82,10 +101,25 @@ impl Args for Options {
                     "r" | "rm" => op = Some(OperationName::Rm),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
+
+                // List options
+                Long("all") if op.unwrap_or_default() == OperationName::List => {
+                    list_op = ListOption::All;
+                }
+                Long("tracked") if op.unwrap_or_default() == OperationName::List => {
+                    list_op = ListOption::Tracked;
+                }
+                Long("untracked") if op.unwrap_or_default() == OperationName::List => {
+                    list_op = ListOption::Untracked;
+                }
+
+                // Add options
                 Value(val) if op == Some(OperationName::Add) && id.is_none() => {
                     let nid = args::pubkey(&val)?;
                     id = Some(nid);
                 }
+
+                // Remove options
                 Value(val) if op == Some(OperationName::Rm) && name.is_none() => {
                     let val = args::string(&val);
                     let val = RefString::try_from(val)
@@ -104,7 +138,7 @@ impl Args for Options {
                 ))?,
                 name,
             },
-            OperationName::List => Operation::List,
+            OperationName::List => Operation::List { option: list_op },
             OperationName::Rm => Operation::Rm {
                 name: name.ok_or(anyhow!("name required, see `rad remote`"))?,
             },
@@ -127,7 +161,29 @@ pub fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
             self::add::run(rid, id, name, Some(branch.clone()), &profile, &working)?
         }
         Operation::Rm { ref name } => self::rm::run(name, &working)?,
-        Operation::List => self::list::run(&working)?,
+        Operation::List { option } => match option {
+            ListOption::All => {
+                let tracked = list::tracked(&working)?;
+                let untracked = list::untracked(rid, &profile, tracked.iter())?;
+                // Only include a blank line if we're printing both tracked and untracked
+                let include_blank_line = !tracked.is_empty() && !untracked.is_empty();
+
+                list::print_tracked(tracked.iter());
+                if include_blank_line {
+                    term::blank();
+                }
+                list::print_untracked(untracked.iter());
+            }
+            ListOption::Tracked => {
+                let tracked = list::tracked(&working)?;
+                list::print_tracked(tracked.iter());
+            }
+            ListOption::Untracked => {
+                let tracked = list::tracked(&working)?;
+                let untracked = list::untracked(rid, &profile, tracked.iter())?;
+                list::print_untracked(untracked.iter());
+            }
+        },
     };
     Ok(())
 }

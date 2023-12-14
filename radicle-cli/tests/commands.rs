@@ -1465,6 +1465,7 @@ fn rad_remote() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
+    let eve = environment.node(Config::test(Alias::new("eve")));
     let working = environment.tmp().join("working");
     let home = alice.home.clone();
     let rid = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
@@ -1481,6 +1482,7 @@ fn rad_remote() {
 
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
+    let mut eve = eve.spawn();
     alice
         .handle
         .follow(bob.id, Some(Alias::new("bob")))
@@ -1491,6 +1493,12 @@ fn rad_remote() {
     bob.fork(rid, bob.home.path()).unwrap();
     bob.announce(rid, bob.home.path()).unwrap();
     alice.has_inventory_of(&rid, &bob.id);
+
+    eve.connect(&bob);
+    eve.routes_to(&[(rid, alice.id)]);
+    eve.fork(rid, eve.home.path()).unwrap();
+    eve.announce(rid, eve.home.path()).unwrap();
+    alice.has_inventory_of(&rid, &eve.id);
 
     test(
         "examples/rad-remote.md",
