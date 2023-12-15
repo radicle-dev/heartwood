@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 use crate::node::config::Limits;
+use crate::node::Severity;
 use crate::service::message;
 use crate::service::message::Message;
 use crate::service::{Address, Id, LocalTime, NodeId, Outbox, Rng};
@@ -9,7 +10,7 @@ use crate::Link;
 
 pub use crate::node::{PingState, State};
 
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Debug, Clone, Copy)]
 pub enum Error {
     /// The remote peer sent an invalid announcement timestamp,
     /// for eg. a timestamp far in the future.
@@ -28,13 +29,13 @@ pub enum Error {
 }
 
 impl Error {
-    /// Check whether this error is transient.
-    pub fn is_transient(&self) -> bool {
+    /// Return the severity for this error.
+    pub fn severity(&self) -> Severity {
         match self {
-            Self::InvalidTimestamp(_) => false,
-            Self::ProtocolMismatch => true,
-            Self::Misbehavior => false,
-            Self::Timeout => true,
+            Self::InvalidTimestamp(_) => Severity::High,
+            Self::ProtocolMismatch => Severity::High,
+            Self::Misbehavior => Severity::High,
+            Self::Timeout => Severity::Low,
         }
     }
 }

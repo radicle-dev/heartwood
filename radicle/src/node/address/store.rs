@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::node;
 use crate::node::address::{AddressType, KnownAddress, Node, Source};
-use crate::node::{Address, Alias, AliasError, AliasStore, Database, NodeId};
+use crate::node::{Address, Alias, AliasError, AliasStore, Database, NodeId, Penalty, Severity};
 use crate::prelude::Timestamp;
 use crate::sql::transaction;
 
@@ -20,6 +20,17 @@ pub enum Error {
     /// No rows returned in query result.
     #[error("no rows returned")]
     NoRows,
+}
+
+/// An entry returned by the store.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddressEntry {
+    /// Node ID.
+    pub node: NodeId,
+    /// Node penalty.
+    pub penalty: Penalty,
+    /// Node address.
+    pub address: KnownAddress,
 }
 
 /// Address store.
@@ -51,20 +62,25 @@ pub trait Store {
         self.len().map(|l| l == 0)
     }
     /// Get the address entries in the store.
-    fn entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, KnownAddress)>>, Error>;
+    fn entries(&self) -> Result<Box<dyn Iterator<Item = AddressEntry>>, Error>;
     /// Mark a node as attempted at a certain time.
     fn attempted(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error>;
     /// Mark a node as successfully connected at a certain time.
     fn connected(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error>;
     /// Mark a node as disconnected.
-    fn disconnected(&mut self, nid: &NodeId, addr: &Address, transient: bool) -> Result<(), Error>;
+    fn disconnected(
+        &mut self,
+        nid: &NodeId,
+        addr: &Address,
+        severity: Severity,
+    ) -> Result<(), Error>;
 }
 
 impl Store for Database {
     fn get(&self, node: &NodeId) -> Result<Option<Node>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT features, alias, pow, timestamp FROM nodes WHERE id = ?")?;
+            .prepare("SELECT features, alias, pow, penalty, timestamp FROM nodes WHERE id = ?")?;
 
         stmt.bind((1, node))?;
 
@@ -73,6 +89,8 @@ impl Store for Database {
             let alias = Alias::from_str(row.read::<&str, _>("alias"))?;
             let timestamp = row.read::<i64, _>("timestamp") as Timestamp;
             let pow = row.read::<i64, _>("pow") as u32;
+            let penalty = row.read::<i64, _>("penalty").min(u8::MAX as i64);
+            let penalty = Penalty(penalty as u8);
             let addrs = self.addresses_of(node)?;
 
             Ok(Some(Node {
@@ -80,6 +98,7 @@ impl Store for Database {
                 alias,
                 pow,
                 timestamp,
+                penalty,
                 addrs,
             }))
         } else {
@@ -183,10 +202,15 @@ impl Store for Database {
         Ok(self.db.change_count() > 0)
     }
 
-    fn entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, KnownAddress)>>, Error> {
+    fn entries(&self) -> Result<Box<dyn Iterator<Item = AddressEntry>>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT node, type, value, source, last_success, last_attempt, banned FROM addresses ORDER BY node")?
+            .prepare(
+                "SELECT a.node, a.type, a.value, a.source, a.last_success, a.last_attempt, a.banned, n.penalty
+                 FROM addresses AS a
+                 JOIN nodes AS n ON a.node = n.id
+                 ORDER BY n.penalty ASC, n.id ASC",
+            )?
             .into_iter();
         let mut entries = Vec::new();
 
@@ -200,17 +224,20 @@ impl Store for Database {
             let last_success = last_success.map(|t| LocalTime::from_millis(t as u128));
             let last_attempt = last_attempt.map(|t| LocalTime::from_millis(t as u128));
             let banned = row.read::<i64, _>("banned").is_positive();
+            let penalty = row.read::<i64, _>("penalty");
+            let penalty = Penalty(penalty as u8); // Clamped at `u8::MAX`.
 
-            entries.push((
+            entries.push(AddressEntry {
                 node,
-                KnownAddress {
+                penalty,
+                address: KnownAddress {
                     addr,
                     source,
                     last_success,
                     last_attempt,
                     banned,
                 },
-            ));
+            });
         }
         Ok(Box::new(entries.into_iter()))
     }
@@ -234,37 +261,47 @@ impl Store for Database {
     }
 
     fn connected(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error> {
-        let mut stmt = self.db.prepare(
-            "UPDATE `addresses`
-             SET last_success = ?1
-             WHERE node = ?2
-             AND type = ?3
-             AND value = ?4",
-        )?;
-
-        stmt.bind((1, time as i64))?;
-        stmt.bind((2, nid))?;
-        stmt.bind((3, AddressType::from(addr)))?;
-        stmt.bind((4, addr))?;
-        stmt.next()?;
-
-        Ok(())
-    }
-
-    fn disconnected(&mut self, nid: &NodeId, addr: &Address, transient: bool) -> Result<(), Error> {
-        // Ban address if not a transient failure.
-        if !transient {
-            let mut stmt = self.db.prepare(
+        transaction(&self.db, |db| {
+            let mut stmt = db.prepare(
                 "UPDATE `addresses`
-                 SET banned = 1
-                 WHERE node = ?1 AND type = ?2 AND value = ?3",
+                 SET last_success = ?1
+                 WHERE node = ?2
+                 AND type = ?3
+                 AND value = ?4",
             )?;
 
-            stmt.bind((1, nid))?;
-            stmt.bind((2, AddressType::from(addr)))?;
-            stmt.bind((3, addr))?;
+            stmt.bind((1, time as i64))?;
+            stmt.bind((2, nid))?;
+            stmt.bind((3, AddressType::from(addr)))?;
+            stmt.bind((4, addr))?;
             stmt.next()?;
-        }
+
+            // Reduce penalty by half on successful connect.
+            db.prepare("UPDATE `nodes` SET penalty = penalty / 2 WHERE node = ?1")?;
+
+            stmt.bind((1, nid))?;
+            stmt.next()?;
+
+            Ok(())
+        })
+    }
+
+    fn disconnected(
+        &mut self,
+        nid: &NodeId,
+        _addr: &Address,
+        severity: Severity,
+    ) -> Result<(), Error> {
+        let mut stmt = self.db.prepare(
+            "UPDATE `nodes`
+             SET penalty = penalty + ?2
+             WHERE id = ?1",
+        )?;
+
+        stmt.bind((1, nid))?;
+        stmt.bind((2, severity as i64))?;
+        stmt.next()?;
+
         Ok(())
     }
 }
@@ -584,7 +621,11 @@ mod test {
                 last_attempt: None,
                 banned: false,
             };
-            expected.push((id, ka.clone()));
+            expected.push(AddressEntry {
+                node: id,
+                penalty: Penalty::default(),
+                address: ka.clone(),
+            });
             cache
                 .insert(&id, features, alias.clone(), 0, timestamp, [ka])
                 .unwrap();
@@ -592,10 +633,37 @@ mod test {
 
         let mut actual = cache.entries().unwrap().collect::<Vec<_>>();
 
-        actual.sort_by_key(|(i, _)| *i);
-        expected.sort_by_key(|(i, _)| *i);
+        actual.sort_by_key(|ae| ae.node);
+        expected.sort_by_key(|ae| ae.node);
 
         assert_eq!(cache.len().unwrap(), actual.len());
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_disconnected() {
+        let alice = arbitrary::gen::<NodeId>(1);
+        let addr = arbitrary::gen::<Address>(1);
+        let mut cache = Database::memory().unwrap();
+        let features = node::Features::SEED;
+        let timestamp = LocalTime::now().as_millis();
+
+        cache
+            .insert(&alice, features, Alias::new("alice"), 16, timestamp, [])
+            .unwrap();
+        let node = cache.get(&alice).unwrap().unwrap();
+        assert_eq!(node.penalty, Penalty::default());
+
+        cache.disconnected(&alice, &addr, Severity::Low).unwrap();
+        let node = cache.get(&alice).unwrap().unwrap();
+        assert_eq!(node.penalty, Penalty::default());
+
+        cache.disconnected(&alice, &addr, Severity::Medium).unwrap();
+        let node = cache.get(&alice).unwrap().unwrap();
+        assert_eq!(node.penalty, Penalty(1));
+
+        cache.disconnected(&alice, &addr, Severity::High).unwrap();
+        let node = cache.get(&alice).unwrap().unwrap();
+        assert_eq!(node.penalty, Penalty(9));
     }
 }

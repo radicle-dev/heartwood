@@ -29,7 +29,7 @@ use radicle::node::config::PeerConfig;
 use radicle::node::routing::Store as _;
 use radicle::node::seed;
 use radicle::node::seed::Store as _;
-use radicle::node::ConnectOptions;
+use radicle::node::{ConnectOptions, Penalty, Severity};
 use radicle::storage::RepositoryError;
 
 use crate::crypto;
@@ -116,6 +116,14 @@ impl SyncedRouting {
     fn is_empty(&self) -> bool {
         self.added.is_empty() && self.removed.is_empty() && self.updated.is_empty()
     }
+}
+
+/// A peer we can connect to.
+#[derive(Debug, Clone)]
+struct Peer {
+    nid: NodeId,
+    addresses: Vec<KnownAddress>,
+    penalty: Penalty,
 }
 
 /// General service error.
@@ -1029,6 +1037,7 @@ where
             }
         };
         let link = session.link;
+        let addr = session.addr.clone();
 
         self.fetching.retain(|_, fetching| {
             if fetching.from != remote {
@@ -1058,15 +1067,31 @@ where
             self.outbox.wakeup(delay);
         } else {
             debug!(target: "service", "Dropping peer {remote}..");
+            self.sessions.remove(&remote);
 
-            if let Err(e) =
-                self.db
-                    .addresses_mut()
-                    .disconnected(&remote, &session.addr, reason.is_transient())
+            let severity = match reason {
+                DisconnectReason::Dial(_)
+                | DisconnectReason::Fetch(_)
+                | DisconnectReason::Connection(_) => {
+                    if self.is_online() {
+                        // If we're "online", there's something wrong with this
+                        // peer connection specifically.
+                        Severity::Medium
+                    } else {
+                        Severity::Low
+                    }
+                }
+                DisconnectReason::Session(e) => e.severity(),
+                DisconnectReason::Command => Severity::Low,
+            };
+
+            if let Err(e) = self
+                .db
+                .addresses_mut()
+                .disconnected(&remote, &addr, severity)
             {
                 error!(target: "service", "Error updating address store: {e}");
             }
-            self.sessions.remove(&remote);
             // Only re-attempt outbound connections, since we don't care if an inbound connection
             // is dropped.
             if link.is_outbound() {
@@ -1590,6 +1615,15 @@ where
         ]
     }
 
+    /// Try to guess whether we're online or not.
+    fn is_online(&self) -> bool {
+        self.sessions
+            .connected()
+            .filter(|(_, s)| s.addr.is_routable() && s.last_active >= self.clock - IDLE_INTERVAL)
+            .count()
+            > 0
+    }
+
     /// Update our routing table with our local node's inventory.
     fn sync_inventory(&mut self) -> Result<SyncedRouting, Error> {
         let inventory = self.storage.inventory()?;
@@ -1892,24 +1926,35 @@ where
         }
     }
 
-    /// Get a list of peers available to connect to.
-    fn available_peers(&mut self) -> HashMap<NodeId, Vec<KnownAddress>> {
+    /// Get a list of peers available to connect to, sorted by lowest penalty.
+    fn available_peers(&mut self) -> Vec<Peer> {
         match self.db.addresses().entries() {
             Ok(entries) => {
                 // Nb. we don't want to connect to any peers that already have a session with us,
                 // even if it's in a disconnected state. Those sessions are re-attempted automatically.
-                entries
-                    .filter(|(_, ka)| !ka.banned)
-                    .filter(|(nid, _)| !self.sessions.contains_key(nid))
-                    .filter(|(nid, _)| nid != &self.node_id())
-                    .fold(HashMap::new(), |mut acc, (nid, addr)| {
-                        acc.entry(nid).or_default().push(addr);
+                let mut peers = entries
+                    .filter(|entry| !entry.address.banned)
+                    .filter(|entry| !entry.penalty.is_threshold_reached())
+                    .filter(|entry| !self.sessions.contains_key(&entry.node))
+                    .filter(|entry| &entry.node != self.nid())
+                    .fold(HashMap::new(), |mut acc, entry| {
+                        acc.entry(entry.node)
+                            .and_modify(|e: &mut Peer| e.addresses.push(entry.address.clone()))
+                            .or_insert_with(|| Peer {
+                                nid: entry.node,
+                                addresses: vec![entry.address],
+                                penalty: entry.penalty,
+                            });
                         acc
                     })
+                    .into_values()
+                    .collect::<Vec<_>>();
+                peers.sort_by_key(|p| p.penalty);
+                peers
             }
             Err(e) => {
                 error!(target: "service", "Unable to lookup available peers in address book: {e}");
-                HashMap::new()
+                Vec::new()
             }
         }
     }
@@ -1974,8 +2019,9 @@ where
         for (id, ka) in self
             .available_peers()
             .into_iter()
-            .filter_map(|(nid, kas)| {
-                kas.into_iter()
+            .filter_map(|peer| {
+                peer.addresses
+                    .into_iter()
                     .find(|ka| match (ka.last_success, ka.last_attempt) {
                         // If we succeeded the last time we tried, this is a good address.
                         // TODO: This will always be hit after a success, and never re-attempted after
@@ -1986,7 +2032,7 @@ where
                         // If we've never tried this address, it's worth a try.
                         (None, None) => true,
                     })
-                    .map(|ka| (nid, ka))
+                    .map(|ka| (peer.nid, ka))
             })
             .take(wanted)
         {
@@ -2093,18 +2139,6 @@ impl DisconnectReason {
 
     pub fn is_connection_err(&self) -> bool {
         matches!(self, Self::Connection(_))
-    }
-
-    // TODO: These aren't quite correct, since dial errors *can* be transient, eg.
-    // temporary DNS issue.
-    pub fn is_transient(&self) -> bool {
-        match self {
-            Self::Dial(_) => false,
-            Self::Connection(_) => true,
-            Self::Command => false,
-            Self::Fetch(_) => true,
-            Self::Session(err) => err.is_transient(),
-        }
     }
 }
 

@@ -10,7 +10,7 @@ use localtime::LocalTime;
 use nonempty::NonEmpty;
 
 use crate::collections::RandomMap;
-use crate::node::{Address, Alias};
+use crate::node::{Address, Alias, Penalty};
 use crate::prelude::Timestamp;
 use crate::{node, profile};
 
@@ -130,6 +130,8 @@ pub struct Node {
     pub pow: u32,
     /// When this data was published.
     pub timestamp: Timestamp,
+    /// Node connection penalty.
+    pub penalty: Penalty,
 }
 
 /// A known address.

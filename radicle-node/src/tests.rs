@@ -9,6 +9,7 @@ use std::time;
 use crossbeam_channel as chan;
 use netservices::Direction as Link;
 use radicle::identity::Visibility;
+use radicle::node::address::Store;
 use radicle::node::routing::Store as _;
 use radicle::node::{ConnectOptions, DEFAULT_TIMEOUT};
 use radicle::storage::refs::RefsAt;
@@ -898,7 +899,12 @@ fn test_refs_announcement_offline() {
 
     // Now we restart Alice's node. It should pick up that something's changed in storage.
     alice.elapse(LocalDuration::from_secs(60));
-    alice.disconnected(bob.id, &DisconnectReason::Command);
+    alice
+        .database_mut()
+        .addresses_mut()
+        .remove(&bob.id)
+        .unwrap(); // Make sure we don't reconnect automatically.
+    alice.disconnected(bob.id, &DisconnectReason::Session(session::Error::Timeout));
     alice.outbox().for_each(drop);
     alice.restart();
     alice.connect_to(&bob);
@@ -1157,11 +1163,9 @@ fn test_maintain_connections() {
     alice.import_addresses(&unconnected);
 
     // A non-transient error such as this will cause Alice to attempt a different peer.
-    let error = Arc::new(io::Error::from(io::ErrorKind::ConnectionReset));
+    let error = session::Error::Misbehavior;
     for peer in connected.iter() {
-        let reason = DisconnectReason::Dial(error.clone());
-        assert!(!reason.is_transient());
-        alice.disconnected(peer.id(), &reason);
+        alice.disconnected(peer.id(), &DisconnectReason::Session(error));
 
         let id = alice
             .outbox()
@@ -1209,8 +1213,6 @@ fn test_maintain_connections_failed_attempt() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let reason =
         DisconnectReason::Connection(Arc::new(io::Error::from(io::ErrorKind::ConnectionReset)));
-
-    assert!(reason.is_transient());
 
     alice.connect_to(&eve);
     // Make sure Alice knows about Eve.

@@ -45,6 +45,8 @@ pub const DEFAULT_PORT: u16 = 8776;
 pub const DEFAULT_TIMEOUT: time::Duration = time::Duration::from_secs(9);
 /// Maximum length in bytes of a node alias.
 pub const MAX_ALIAS_LENGTH: usize = 32;
+/// Penalty threshold at which point we avoid connecting to this node.
+pub const PENALTY_THRESHOLD: u8 = 32;
 /// Filename of node database under the node directory.
 pub const NODE_DB_FILE: &str = "node.db";
 /// Filename of policies database under the node directory.
@@ -125,6 +127,26 @@ impl fmt::Display for State {
                 write!(f, "disconnected")
             }
         }
+    }
+}
+
+/// Severity of a peer misbehavior or a connection problem.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Severity {
+    Low = 0,
+    Medium = 1,
+    High = 8,
+}
+
+/// Node connection penalty. Nodes with a high penalty are deprioritized as peers.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord)]
+pub struct Penalty(u8);
+
+impl Penalty {
+    /// If the penalty threshold is reached, at which point we should just avoid
+    /// connecting to this node.
+    pub fn is_threshold_reached(&self) -> bool {
+        self.0 >= PENALTY_THRESHOLD
     }
 }
 
