@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 use serde_json as json;
 
 use crate::crypto::PublicKey;
+use crate::git;
 use crate::identity::Id;
 use crate::profile;
 use crate::storage::refs::RefsAt;
@@ -654,6 +655,14 @@ impl FetchResult {
             } => Some((updated, namespaces)),
             _ => None,
         }
+    }
+
+    pub fn find_updated(&self, name: &git::RefString) -> Option<RefUpdate> {
+        let updated = match self {
+            Self::Success { updated, .. } => Some(updated),
+            _ => None,
+        }?;
+        updated.iter().find(|up| up.name() == name).cloned()
     }
 }
 
