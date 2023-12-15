@@ -842,7 +842,24 @@ fn test_non_fastforward_sigrefs() {
     // Eve fetches the inital project from Bob.
     eve.handle.fetch(rid, bob.id, DEFAULT_TIMEOUT).unwrap();
     // Alice fetches it too.
-    alice.handle.fetch(rid, bob.id, DEFAULT_TIMEOUT).unwrap();
+    let old_bob = alice.handle.fetch(rid, bob.id, DEFAULT_TIMEOUT).unwrap();
+    let bob_sigrefs = bob
+        .storage
+        .repository(rid)
+        .unwrap()
+        .reference_oid(&bob.id, &radicle::storage::refs::SIGREFS_BRANCH)
+        .unwrap();
+    let up = old_bob
+        .find_updated(
+            &(*radicle::storage::refs::Special::SignedRefs.namespaced(&bob.id)).to_ref_string(),
+        )
+        .unwrap();
+    let old_bob = match up {
+        RefUpdate::Created { oid, .. } => oid,
+        RefUpdate::Skipped { oid, .. } => oid,
+        _ => panic!("rad/sigrefs should have been created or skipped: {:?}", up),
+    };
+    assert_eq!(bob_sigrefs, old_bob);
 
     // Log the before Oid value of bob's 'rad/sigrefs', for debugging purposes.
     {
@@ -867,7 +884,25 @@ fn test_non_fastforward_sigrefs() {
         "Updated sigrefs are harshing my vibes",
     );
     // Alice fetches from Bob.
-    alice.handle.fetch(rid, bob.id, DEFAULT_TIMEOUT).unwrap();
+    let new_bob = alice.handle.fetch(rid, bob.id, DEFAULT_TIMEOUT).unwrap();
+    let bob_sigrefs = bob
+        .storage
+        .repository(rid)
+        .unwrap()
+        .reference_oid(&bob.id, &radicle::storage::refs::SIGREFS_BRANCH)
+        .unwrap();
+    let up = new_bob
+        .find_updated(
+            &(*radicle::storage::refs::Special::SignedRefs.namespaced(&bob.id)).to_ref_string(),
+        )
+        .unwrap();
+    let new_bob = match up {
+        RefUpdate::Updated { new, .. } => new,
+        // FIXME: Really it shouldn't be skipped but let's see what happens
+        RefUpdate::Skipped { oid, .. } => oid,
+        _ => panic!("rad/sigrefs should have been updated {:?}", up),
+    };
+    assert_eq!(bob_sigrefs, new_bob);
 
     // Log the after Oid value of bob's 'rad/sigrefs', for debugging purposes.
     {
@@ -877,11 +912,9 @@ fn test_non_fastforward_sigrefs() {
             .unwrap()
             .reference_oid(&bob.id, &radicle::storage::refs::SIGREFS_BRANCH)
             .unwrap();
-        log::debug!(target: "test", "bob's old 'rad/sigrefs': {}", after);
+        log::debug!(target: "test", "bob's new 'rad/sigrefs': {}", after);
     }
 
-    // Now Alice has the latest, and when she tries to fetch from Eve, it breaks because
-    // Eve has old refs.
     assert_matches!(
         alice.handle.fetch(rid, eve.id, DEFAULT_TIMEOUT).unwrap(),
         FetchResult::Success { updated, .. } if updated.is_empty()

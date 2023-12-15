@@ -901,12 +901,12 @@ where
         }
 
         for sub in &fetching.subscribers {
-            debug!(target: "service", "Found existing fetch request, sending result..");
+            debug!(target: "service", "Found existing fetch request from {remote}, sending result..");
 
             if sub.send(result.clone()).is_err() {
-                error!(target: "service", "Error sending fetch result for {rid}..");
+                error!(target: "service", "Error sending fetch result for {rid} from {remote}..");
             } else {
-                debug!(target: "service", "Sent fetch result for {rid}..");
+                debug!(target: "service", "Sent fetch result for {rid} from {remote}..");
             }
         }
 

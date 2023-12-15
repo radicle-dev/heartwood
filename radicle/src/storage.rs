@@ -170,6 +170,15 @@ impl RefUpdate {
             Self::Skipped { name, oid: old }
         }
     }
+
+    pub fn name(&self) -> &RefString {
+        match &self {
+            RefUpdate::Updated { name, .. } => name,
+            RefUpdate::Created { name, .. } => name,
+            RefUpdate::Deleted { name, .. } => name,
+            RefUpdate::Skipped { name, .. } => name,
+        }
+    }
 }
 
 impl fmt::Display for RefUpdate {
