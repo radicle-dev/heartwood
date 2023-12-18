@@ -15,6 +15,7 @@ use radicle_term::Element;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::format::Author;
 use crate::terminal::{Table, TableOptions};
 
 pub const HELP: Help = Help {
@@ -316,11 +317,11 @@ fn sync_status(
 
     table.push([
         term::format::dim(String::from("●")).into(),
-        term::format::bold(String::from("NID")).into(),
-        term::format::bold(String::from("Alias")).into(),
+        term::format::bold(String::from("Node")).into(),
+        term::Label::blank(),
         term::format::bold(String::from("Address")).into(),
         term::format::bold(String::from("Status")).into(),
-        term::format::bold(String::from("At")).into(),
+        term::format::bold(String::from("Tip")).into(),
         term::format::bold(String::from("Timestamp")).into(),
     ]);
     table.divider();
@@ -331,13 +332,13 @@ fn sync_status(
         let (icon, status, head, time) = match seed.sync {
             Some(SyncStatus::Synced { at }) => (
                 term::format::positive("●"),
-                term::format::positive("synced"),
+                term::format::positive(if seed.nid != local { "synced" } else { "" }),
                 term::format::oid(at.oid),
                 term::format::timestamp(at.timestamp),
             ),
             Some(SyncStatus::OutOfSync { remote, .. }) => (
                 term::format::negative("●"),
-                term::format::negative("out-of-sync"),
+                term::format::negative(if seed.nid != local { "out-of-sync" } else { "" }),
                 term::format::oid(remote.oid),
                 term::format::timestamp(remote.timestamp),
             ),
@@ -355,15 +356,12 @@ fn sync_status(
             .map(|a| a.addr.to_string())
             .unwrap_or_default()
             .into();
-        let alias = aliases
-            .alias(&seed.nid)
-            .map(|a| a.to_string())
-            .unwrap_or_default();
+        let (alias, nid) = Author::new(&seed.nid, profile).labels();
 
         table.push([
             icon.into(),
-            term::format::primary(term::format::node(&seed.nid)).into(),
-            term::format::primary(alias).dim().into(),
+            alias,
+            nid,
             addr,
             status.into(),
             term::format::secondary(head).into(),

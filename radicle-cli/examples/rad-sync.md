@@ -7,18 +7,16 @@ For instance let's create an issue and sync it with the network:
 $ rad issue open --title "Test `rad sync`" --description "Check that the command works" -q --no-announce
 ```
 
-If we check the sync status, we see that our peers are out of sync:
-Our own node is also out of sync, since we used `--no-announce`.
-It isn't aware of the updates to the repo.
+If we check the sync status, we see that our peers are out of sync.
 
 ```
 $ rad sync status --sort-by alias
 ╭──────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   NID               Alias   Address                  Status        At        Timestamp │
+│ ●   Node                      Address                  Status        Tip       Timestamp │
 ├──────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   z6MknSL…StBU8Vi   alice   alice.radicle.xyz:8776   out-of-sync   f209c9f   [  ...  ] │
-│ ●   z6Mkt67…v4N1tRk   bob     bob.radicle.xyz:8776     out-of-sync   f209c9f   [  ...  ] │
-│ ●   z6Mkux1…nVhib7Z   eve     eve.radicle.xyz:8776     out-of-sync   f209c9f   [  ...  ] │
+│ ●   alice   (you)             alice.radicle.xyz:8776                 f209c9f   [  ...  ] │
+│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.xyz:8776     out-of-sync   f209c9f   [  ...  ] │
+│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.xyz:8776     out-of-sync   f209c9f   [  ...  ] │
 ╰──────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -78,10 +76,10 @@ We can check the sync status again to make sure everything's in sync:
 ```
 $ rad sync status --sort-by alias
 ╭─────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   NID               Alias   Address                  Status   At        Timestamp │
+│ ●   Node                      Address                  Status   Tip       Timestamp │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   z6MknSL…StBU8Vi   alice   alice.radicle.xyz:8776   synced   9f615f9   [  ...  ] │
-│ ●   z6Mkt67…v4N1tRk   bob     bob.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
-│ ●   z6Mkux1…nVhib7Z   eve     eve.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
+│ ●   alice   (you)             alice.radicle.xyz:8776            9f615f9   [  ...  ] │
+│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
+│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 ```

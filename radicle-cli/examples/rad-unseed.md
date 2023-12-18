@@ -9,7 +9,7 @@ $ rad ls
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-We could stop seeding it if didn't want other nodes to fetch it from us:
+We could stop seeding it if we didn't want other nodes to fetch it from us:
 
 ```
 $ rad seed --delete rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
