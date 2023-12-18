@@ -1308,6 +1308,10 @@ impl Revision {
         self.description.last().body.as_str()
     }
 
+    pub fn edits(&self) -> impl Iterator<Item = &Edit> {
+        self.description.iter()
+    }
+
     pub fn embeds(&self) -> &Vec<Embed<Uri>> {
         &self.description.last().embeds
     }

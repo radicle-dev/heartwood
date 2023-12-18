@@ -40,7 +40,7 @@ pub fn run(
     let target = patch.target();
     let embeds = patch
         .embeds()
-        .into_iter()
+        .iter()
         .filter_map(|embed| resolve_embed(repository, embed.clone()))
         .collect::<Vec<_>>();
 

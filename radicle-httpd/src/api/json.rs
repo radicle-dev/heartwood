@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Merge, Patch, PatchId, Review};
-use radicle::cob::thread::{Comment, CommentId};
+use radicle::cob::thread::{Comment, CommentId, Edit};
 use radicle::cob::{ActorId, Author};
 use radicle::git::RefString;
 use radicle::node::{Alias, AliasStore};
@@ -129,6 +129,7 @@ pub(crate) fn patch(
                 "id": id,
                 "author": author(rev.author(), aliases.alias(rev.author().id())),
                 "description": rev.description(),
+                "edits": rev.edits().map(|e| edit(e, aliases)).collect::<Vec<_>>(),
                 "base": rev.base(),
                 "oid": rev.head(),
                 "refs": get_refs(repo, patch.author().id(), &rev.head()).unwrap_or_default(),
@@ -172,20 +173,23 @@ fn review(nid: &NodeId, review: &Review, aliases: &impl AliasStore) -> Value {
     })
 }
 
+/// Returns JSON for an `Edit`.
+fn edit(edit: &Edit, aliases: &impl AliasStore) -> Value {
+    json!({
+      "author": author(&Author::from(edit.author), aliases.alias(&edit.author)),
+      "body": edit.body,
+      "timestamp": edit.timestamp.as_secs(),
+      "embeds": edit.embeds,
+    })
+}
+
 /// Returns JSON for a Issue `Comment`.
 fn issue_comment(id: &CommentId, comment: &Comment, aliases: &impl AliasStore) -> Value {
     json!({
         "id": *id,
         "author": author(&Author::from(comment.author()), aliases.alias(&comment.author())),
         "body": comment.body(),
-        "edits": comment.edits().map(|edit| {
-          json!({
-            "author": author(&Author::from(edit.author), aliases.alias(&edit.author)),
-            "body": edit.body,
-            "timestamp": edit.timestamp.as_secs(),
-            "embeds": edit.embeds,
-          })
-        }).collect::<Vec<_>>(),
+        "edits": comment.edits().map(|e| edit(e, aliases)).collect::<Vec<_>>(),
         "embeds": comment.embeds().to_vec(),
         "reactions": comment.reactions().collect::<Vec<_>>(),
         "timestamp": comment.timestamp().as_secs(),
@@ -204,14 +208,7 @@ fn patch_comment(
         "id": *id,
         "author": author(&Author::from(comment.author()), aliases.alias(&comment.author())),
         "body": comment.body(),
-        "edits": comment.edits().map(|edit| {
-          json!({
-            "author": author(&Author::from(edit.author), aliases.alias(&edit.author)),
-            "body": edit.body,
-            "timestamp": edit.timestamp.as_secs(),
-            "embeds": edit.embeds,
-          })
-        }).collect::<Vec<_>>(),
+        "edits": comment.edits().map(|e| edit(e, aliases)).collect::<Vec<_>>(),
         "embeds": comment.embeds().to_vec(),
         "reactions": comment.reactions().collect::<Vec<_>>(),
         "timestamp": comment.timestamp().as_secs(),
@@ -231,14 +228,7 @@ fn review_comment(
         "id": *id,
         "author": author(&Author::from(comment.author()), aliases.alias(&comment.author())),
         "body": comment.body(),
-        "edits": comment.edits().map(|edit| {
-          json!({
-            "author": author(&Author::from(edit.author), aliases.alias(&edit.author)),
-            "body": edit.body,
-            "timestamp": edit.timestamp.as_secs(),
-            "embeds": edit.embeds,
-          })
-        }).collect::<Vec<_>>(),
+        "edits": comment.edits().map(|e| edit(e, aliases)).collect::<Vec<_>>(),
         "embeds": comment.embeds().to_vec(),
         "reactions": comment.reactions().collect::<Vec<_>>(),
         "timestamp": comment.timestamp().as_secs(),

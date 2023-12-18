@@ -2417,10 +2417,20 @@ mod routes {
                 "revisions": [
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
-                    "description": "change `hello world` in README to something else",
                     "author": {
                       "id": CONTRIBUTOR_DID,
                     },
+                    "description": "change `hello world` in README to something else",
+                    "edits": [
+                      {
+                        "author": {
+                          "id": CONTRIBUTOR_DID,
+                        },
+                        "body": "change `hello world` in README to something else",
+                        "timestamp": TIMESTAMP,
+                        "embeds": [],
+                      },
+                    ],
                     "base": PARENT,
                     "oid": HEAD,
                     "refs": [
@@ -2459,10 +2469,20 @@ mod routes {
                 "revisions": [
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
-                    "description": "change `hello world` in README to something else",
                     "author": {
                       "id": CONTRIBUTOR_DID,
                     },
+                    "description": "change `hello world` in README to something else",
+                    "edits": [
+                      {
+                        "author": {
+                          "id": CONTRIBUTOR_DID,
+                        },
+                        "body": "change `hello world` in README to something else",
+                        "timestamp": TIMESTAMP,
+                        "embeds": [],
+                      },
+                    ],
                     "base": PARENT,
                     "oid": HEAD,
                     "refs": [
@@ -2540,10 +2560,20 @@ mod routes {
                 "revisions": [
                   {
                     "id": CREATED_PATCH_ID,
-                    "description": "Do some changes to README",
                     "author": {
                       "id": CONTRIBUTOR_DID,
                     },
+                    "description": "Do some changes to README",
+                    "edits": [
+                      {
+                        "author": {
+                          "id": CONTRIBUTOR_DID,
+                        },
+                        "body": "Do some changes to README",
+                        "timestamp": TIMESTAMP,
+                        "embeds": [],
+                      },
+                   ],
                     "base": INITIAL_COMMIT,
                     "oid": HEAD,
                     "refs": [
@@ -2606,6 +2636,16 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "description": "change `hello world` in README to something else",
+                  "edits": [
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "change `hello world` in README to something else",
+                      "timestamp": TIMESTAMP,
+                      "embeds": [],
+                    },
+                  ],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2666,10 +2706,20 @@ mod routes {
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
-                  "description": "change `hello world` in README to something else",
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
+                  "description": "change `hello world` in README to something else",
+                  "edits": [
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "change `hello world` in README to something else",
+                      "timestamp": TIMESTAMP,
+                      "embeds": [],
+                    },
+                  ],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2733,6 +2783,16 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "description": "change `hello world` in README to something else",
+                  "edits": [
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "change `hello world` in README to something else",
+                      "timestamp": TIMESTAMP,
+                      "embeds": [],
+                    },
+                  ],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2748,6 +2808,16 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "description": "This is a new revision",
+                  "edits": [
+                    {
+                        "author": {
+                            "id": CONTRIBUTOR_DID,
+                        },
+                        "body": "This is a new revision",
+                        "timestamp": TIMESTAMP,
+                        "embeds": [],
+                    },
+                  ],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2807,10 +2877,20 @@ mod routes {
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
-                  "description": "change `hello world` in README to something else",
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
+                  "description": "change `hello world` in README to something else",
+                  "edits": [
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "change `hello world` in README to something else",
+                      "timestamp": TIMESTAMP,
+                      "embeds": [],
+                    },
+                  ],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2873,6 +2953,24 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "description": "Let's change the description a bit",
+                  "edits": [
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "change `hello world` in README to something else",
+                      "timestamp": TIMESTAMP,
+                      "embeds": [],
+                    },
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "Let's change the description a bit",
+                      "timestamp": TIMESTAMP,
+                      "embeds": [],
+                    },
+                  ],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2999,6 +3097,16 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "description": "change `hello world` in README to something else",
+                  "edits": [
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "change `hello world` in README to something else",
+                      "timestamp": TIMESTAMP,
+                      "embeds": [],
+                    },
+                  ],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -3216,6 +3324,16 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "description": "change `hello world` in README to something else",
+                  "edits": [
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "change `hello world` in README to something else",
+                      "timestamp": TIMESTAMP,
+                      "embeds": [],
+                    },
+                  ],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -3362,6 +3480,16 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "description": "change `hello world` in README to something else",
+                  "edits": [
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "change `hello world` in README to something else",
+                      "timestamp": TIMESTAMP,
+                      "embeds": [],
+                    },
+                  ],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
