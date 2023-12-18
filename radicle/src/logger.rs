@@ -1,6 +1,6 @@
 //! Logging module.
 //!
-//! For test logging see [`test`].
+//! For test logging see [`mod@test`].
 
 #[cfg(feature = "test")]
 pub mod test;

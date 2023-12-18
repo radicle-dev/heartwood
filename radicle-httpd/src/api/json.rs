@@ -4,7 +4,7 @@ use std::path::Path;
 use std::str;
 
 use base64::prelude::{Engine, BASE64_STANDARD};
-use radicle::patch::CodeLocation;
+use radicle::cob::CodeLocation;
 use serde_json::{json, Value};
 
 use radicle::cob::issue::{Issue, IssueId};
