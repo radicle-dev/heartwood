@@ -3111,6 +3111,7 @@ mod routes {
             }
           ],
           "location": {
+            "oid": HEAD,
             "path": "README.md",
             "new": {
               "type": "lines",
@@ -3224,7 +3225,7 @@ mod routes {
                       "summary": "A small review",
                       "comments": [
                         {
-                          "id": "b108acfd2117480fd87012a5ab7cb69a0651d933",
+                          "id": "399d6bfe00f237b413dd8c0cf25e2105b1b036aa",
                           "author": {
                             "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
                           },
@@ -3272,6 +3273,7 @@ mod routes {
                           "timestamp": 1671125284,
                           "replyTo": null,
                           "location": {
+                            "oid": HEAD,
                             "path": "README.md",
                             "old": null,
                             "new": {

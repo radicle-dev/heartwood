@@ -1,12 +1,13 @@
 use std::fmt;
 use std::fmt::Display;
-use std::ops::Deref;
+use std::ops::{Deref, Range};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use localtime::LocalTime;
 use serde::{Deserialize, Serialize};
 
-use crate::git_ext::Oid;
+use crate::git::Oid;
 use crate::prelude::{Did, PublicKey};
 
 /// Timestamp used for COB operations.
@@ -383,5 +384,59 @@ mod test {
 
         Color::from_str("#aa00").unwrap_err();
         Color::from_str("#abc").unwrap_err();
+    }
+}
+
+/// Describes a code location that can be used for comments on
+/// patches, issues, and diffs.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodeLocation {
+    /// [`Oid`] of the Git commit.
+    pub oid: Oid,
+    /// Path of file.
+    pub path: PathBuf,
+    /// Line range on old file. `None` for added files.
+    pub old: Option<CodeRange>,
+    /// Line range on new file. `None` for deleted files.
+    pub new: Option<CodeRange>,
+}
+
+/// Code range.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum CodeRange {
+    /// One or more lines.
+    Lines { range: Range<usize> },
+    /// Character range within a line.
+    Chars { line: usize, range: Range<usize> },
+}
+
+impl std::cmp::PartialOrd for CodeRange {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl std::cmp::Ord for CodeRange {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (CodeRange::Lines { .. }, CodeRange::Chars { .. }) => std::cmp::Ordering::Less,
+            (CodeRange::Chars { .. }, CodeRange::Lines { .. }) => std::cmp::Ordering::Greater,
+
+            (CodeRange::Lines { range: a }, CodeRange::Lines { range: b }) => {
+                a.clone().cmp(b.clone())
+            }
+            (
+                CodeRange::Chars {
+                    line: l1,
+                    range: r1,
+                },
+                CodeRange::Chars {
+                    line: l2,
+                    range: r2,
+                },
+            ) => l1.cmp(l2).then(r1.clone().cmp(r2.clone())),
+        }
     }
 }

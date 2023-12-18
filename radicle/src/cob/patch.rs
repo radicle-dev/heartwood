@@ -2,8 +2,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::ops::Deref;
-use std::ops::Range;
-use std::path::PathBuf;
 use std::str::FromStr;
 
 use amplify::Wrapper;
@@ -14,7 +12,7 @@ use storage::RepositoryError;
 use thiserror::Error;
 
 use crate::cob;
-use crate::cob::common::{Author, Authorization, Label, Reaction, Timestamp};
+use crate::cob::common::{Author, Authorization, CodeLocation, Label, Reaction, Timestamp};
 use crate::cob::store::Transaction;
 use crate::cob::store::{Cob, CobAction};
 use crate::cob::thread;
@@ -1408,57 +1406,6 @@ impl fmt::Display for Verdict {
     }
 }
 
-/// Code range.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "type")]
-pub enum CodeRange {
-    /// One or more lines.
-    Lines { range: Range<usize> },
-    /// Character range within a line.
-    Chars { line: usize, range: Range<usize> },
-}
-
-impl std::cmp::PartialOrd for CodeRange {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl std::cmp::Ord for CodeRange {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match (self, other) {
-            (CodeRange::Lines { .. }, CodeRange::Chars { .. }) => std::cmp::Ordering::Less,
-            (CodeRange::Chars { .. }, CodeRange::Lines { .. }) => std::cmp::Ordering::Greater,
-
-            (CodeRange::Lines { range: a }, CodeRange::Lines { range: b }) => {
-                a.clone().cmp(b.clone())
-            }
-            (
-                CodeRange::Chars {
-                    line: l1,
-                    range: r1,
-                },
-                CodeRange::Chars {
-                    line: l2,
-                    range: r2,
-                },
-            ) => l1.cmp(l2).then(r1.clone().cmp(r2.clone())),
-        }
-    }
-}
-
-/// Code location, used for attaching comments to diffs.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CodeLocation {
-    /// Path of file.
-    pub path: PathBuf,
-    /// Line range on old file. `None` for added files.
-    pub old: Option<CodeRange>,
-    /// Line range on new file. `None` for deleted files.
-    pub new: Option<CodeRange>,
-}
-
 /// A patch review on a revision.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Review {
@@ -2351,12 +2298,14 @@ where
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
+    use std::path::PathBuf;
     use std::str::FromStr;
     use std::vec;
 
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::cob::common::CodeRange;
     use crate::cob::test::Actor;
     use crate::crypto::test::signer::MockSigner;
     use crate::identity;
@@ -2784,6 +2733,7 @@ mod test {
 
         let (rid, _) = patch.latest();
         let location = CodeLocation {
+            oid: branch.oid,
             path: PathBuf::from_str("README").unwrap(),
             old: None,
             new: Some(CodeRange::Lines { range: 5..8 }),
