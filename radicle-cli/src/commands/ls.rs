@@ -82,6 +82,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
     let repos = storage.repositories()?;
+    let policy = profile.policies()?;
     let mut table = term::Table::new(term::TableOptions::bordered());
     let mut rows = Vec::new();
 
@@ -105,13 +106,22 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         if refs.is_none() && !options.all {
             continue;
         }
+        let seeded = policy.is_repo_seeded(&rid)?;
+
+        if !seeded && !options.all {
+            continue;
+        }
         let proj = doc.project()?;
         let head = term::format::oid(head).into();
 
         rows.push([
             term::format::bold(proj.name().to_owned()),
             term::format::tertiary(rid.urn()),
-            term::format::visibility(&doc.visibility).into(),
+            if seeded {
+                term::format::visibility(&doc.visibility).into()
+            } else {
+                term::format::tertiary("local").into()
+            },
             term::format::secondary(head),
             term::format::italic(proj.description().to_owned()),
         ]);

@@ -729,6 +729,19 @@ fn rad_seed_and_follow() {
 }
 
 #[test]
+fn rad_unseed() {
+    let mut environment = Environment::new();
+    let mut alice = environment.node(Config::test(Alias::new("alice")));
+    let working = tempfile::tempdir().unwrap();
+
+    // Setup a test project.
+    alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
+    let alice = alice.spawn();
+
+    test("examples/rad-unseed.md", working, Some(&alice.home), []).unwrap();
+}
+
+#[test]
 fn rad_clone() {
     let mut environment = Environment::new();
     let mut alice = environment.node(Config::test(Alias::new("alice")));
