@@ -192,6 +192,10 @@ impl TestFormula {
         // We don't need to re-build everytime the `build` function is called. Once is enough.
         BUILD.call_once(|| {
             use escargot::format::Message;
+            use radicle::logger::env_level;
+            use radicle::logger::test as logger;
+
+            logger::init(env_level().unwrap_or(log::Level::Debug));
 
             for (package, binary) in binaries {
                 log::debug!(target: "test", "Building binaries for package `{package}`..");

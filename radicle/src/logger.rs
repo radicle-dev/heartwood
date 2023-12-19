@@ -1,4 +1,10 @@
 //! Logging module.
+//!
+//! For test logging see [`test`].
+
+#[cfg(feature = "test")]
+pub mod test;
+
 use std::io::{self, Write};
 
 use chrono::prelude::*;
@@ -54,4 +60,11 @@ pub fn init(level: Level) -> Result<(), SetLoggerError> {
     log::set_max_level(level.to_level_filter());
 
     Ok(())
+}
+
+/// Get the level set by the environment variable `RUST_LOG`, if
+/// present.
+pub fn env_level() -> Option<Level> {
+    let level = std::env::var("RUST_LOG").ok()?;
+    level.parse().ok()
 }
