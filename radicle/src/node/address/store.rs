@@ -277,7 +277,7 @@ impl Store for Database {
             stmt.next()?;
 
             // Reduce penalty by half on successful connect.
-            db.prepare("UPDATE `nodes` SET penalty = penalty / 2 WHERE node = ?1")?;
+            let mut stmt = db.prepare("UPDATE `nodes` SET penalty = penalty / 2 WHERE id = ?1")?;
 
             stmt.bind((1, nid))?;
             stmt.next()?;
@@ -665,5 +665,9 @@ mod test {
         cache.disconnected(&alice, &addr, Severity::High).unwrap();
         let node = cache.get(&alice).unwrap().unwrap();
         assert_eq!(node.penalty, Penalty(9));
+
+        cache.connected(&alice, &addr, timestamp + 1).unwrap();
+        let node = cache.get(&alice).unwrap().unwrap();
+        assert_eq!(node.penalty, Penalty(4));
     }
 }
