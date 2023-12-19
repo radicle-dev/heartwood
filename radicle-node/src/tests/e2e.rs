@@ -1151,3 +1151,90 @@ fn missing_default_branch() {
         FetchResult::Failed { .. }
     );
 }
+
+#[test]
+fn test_background_foreground_fetch() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+
+    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
+    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let eve = Node::init(tmp.path(), Config::test(Alias::new("eve")));
+
+    let rid = alice.project("acme", "");
+
+    let mut alice = alice.spawn();
+    let alice_events = alice.handle.events();
+    let mut bob = bob.spawn();
+    let mut eve = eve.spawn();
+
+    bob.handle.seed(rid, Scope::Followed).unwrap();
+    eve.handle.seed(rid, Scope::Followed).unwrap();
+    alice.connect(&bob);
+    alice.connect(&eve);
+    converge([&alice, &bob, &eve]);
+
+    bob.handle.fetch(rid, alice.id, DEFAULT_TIMEOUT).unwrap();
+    assert!(bob.storage.contains(&rid).unwrap());
+    rad::fork(rid, &bob.signer, &bob.storage).unwrap();
+
+    eve.handle.fetch(rid, alice.id, DEFAULT_TIMEOUT).unwrap();
+    assert!(eve.storage.contains(&rid).unwrap());
+    rad::fork(rid, &eve.signer, &eve.storage).unwrap();
+
+    // Alice fetches Eve's fork and we make note of the sigrefs
+    alice
+        .handle
+        .follow(eve.id, Some(Alias::new("eve")))
+        .unwrap();
+    alice.handle.fetch(rid, eve.id, DEFAULT_TIMEOUT).unwrap();
+    let repo = alice.storage.repository(rid).unwrap();
+    assert!(repo.remote(&eve.id).is_ok());
+    let repo = alice.storage.repository(rid).unwrap();
+    let eve_remote = repo.remote(&eve.id).unwrap();
+    let old_refs = eve_remote.refs;
+
+    // Eve creates an issue, updating their refs, and we make note of
+    // the new refs
+    eve.issue(
+        rid,
+        "Outdated Sigrefs",
+        "Outdated sigrefs are harshing my vibes",
+    );
+    let repo = eve.storage.repository(rid).unwrap();
+    let eves_refs = repo.remote(&eve.id).unwrap().refs;
+
+    // Alice follows Bob and they make a new change and announce it,
+    // this initiates a background fetch for Alice from Bob
+    alice
+        .handle
+        .follow(bob.id, Some(Alias::new("bob")))
+        .unwrap();
+    bob.issue(
+        rid,
+        "Concurrent fetches",
+        "Concurrent fetches are harshing my vibes",
+    );
+    bob.handle.announce_refs(rid).unwrap();
+    alice_events
+        .wait(
+            |e| matches!(e, service::Event::RefsAnnounced { .. }).then_some(()),
+            DEFAULT_TIMEOUT,
+        )
+        .unwrap();
+
+    // Alice initiates a fetch from Eve and we ensure that we get the
+    // updated refs from Eve, and the fetch from Bob should not
+    // interfere
+    log::debug!(target: "test", "Alice fetches from Eve..");
+    assert_matches!(
+        alice.handle.fetch(rid, eve.id, DEFAULT_TIMEOUT).unwrap(),
+        FetchResult::Success { .. }
+    );
+    let repo = alice.storage.repository(rid).unwrap();
+    let eve_remote = repo.remote(&eve.id).unwrap();
+    let eves_refs_expected = eve_remote.refs;
+    assert_ne!(eves_refs_expected, old_refs);
+    assert_eq!(eves_refs_expected, eves_refs);
+}
