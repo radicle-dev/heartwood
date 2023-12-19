@@ -1,7 +1,6 @@
 pub mod bounded;
 pub mod control;
 pub mod deserializer;
-pub mod logger;
 pub mod runtime;
 pub mod service;
 pub mod signals;

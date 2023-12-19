@@ -2354,6 +2354,8 @@ name = "radicle"
 version = "0.2.0"
 dependencies = [
  "amplify",
+ "chrono",
+ "colored",
  "crossbeam-channel",
  "cyphernet",
  "fastrand",
@@ -2430,6 +2432,7 @@ dependencies = [
  "escargot",
  "log",
  "pretty_assertions",
+ "radicle",
  "shlex",
  "snapbox",
  "thiserror",

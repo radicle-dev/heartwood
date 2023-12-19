@@ -15,6 +15,8 @@ pub mod cob;
 pub mod collections;
 pub mod git;
 pub mod identity;
+#[cfg(feature = "logger")]
+pub mod logger;
 pub mod node;
 pub mod profile;
 pub mod rad;
