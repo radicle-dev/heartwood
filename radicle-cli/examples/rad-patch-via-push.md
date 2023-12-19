@@ -10,7 +10,7 @@ $ git commit -a -m "Add things" -q --allow-empty
 $ git push -o patch.message="Add things #1" -o patch.message="See commits for details." rad HEAD:refs/patches
 ✓ Patch 82faae29b2a2f11bf45bbba4c4787d6b32a12447 opened
 hint: to update, run `git push`,
-      or `git push rad -f HEAD:rad/patches/82faae29b2a2f11bf45bbba4c4787d6b32a12447`
+      or `git push rad -f HEAD:patches/82faae29b2a2f11bf45bbba4c4787d6b32a12447`
 hint: offline push, your node is not running
       to sync with the network, run `rad node start`
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
@@ -112,7 +112,7 @@ $ git commit -a -m "Improve code" -q --allow-empty
 ```
 
 ``` (stderr)
-$ git push
+$ git push rad
 ✓ Patch b77b2e8 updated to 8d6692ce2b2219a54d09ccd5feefedb2bae33eba
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    8b0ea80..02bef3f  feature/2 -> patches/b77b2e8a05adcdc859a0184f7db859df1c6686b6

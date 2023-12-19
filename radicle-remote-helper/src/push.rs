@@ -394,6 +394,9 @@ fn patch_open<G: Signer>(
             {
                 if let Some(name) = branch.name()? {
                     if profile.hints() {
+                        // Remove the remote portion of the name, i.e.
+                        // rad/patches/deadbeef -> patches/deadbeef
+                        let name = name.split('/').skip(1).collect::<Vec<_>>().join("/");
                         eprintln!("hint: to update, run `git push`,");
                         eprintln!("      or `git push rad -f HEAD:{name}`");
                     }
