@@ -80,3 +80,21 @@ Running the command again gives us an error:
 $ rad node stop
 ✗ Stopping node... error: node is not running
 ```
+
+Some commands also give us a hint if the node isn't running:
+
+``` (fail)
+$ rad node events
+✗ Error: failed to open node control socket "[..]/.radicle/node/control.sock" (entity not found)
+✗ Hint: to start your node, run `rad node start`.
+```
+``` (fail)
+$ rad sync status
+✗ Error: to sync a repository, your node must be running. To start it, run `rad node start`
+```
+``` (fail)
+$ rad node connect z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk@radicle.xyz:8776
+✗ Connecting to z6Mkt67…v4N1tRk@radicle.xyz:8776... <canceled>
+✗ Error: failed to open node control socket "[..]/.radicle/node/control.sock" (entity not found)
+✗ Hint: to start your node, run `rad node start`.
+```

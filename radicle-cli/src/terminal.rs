@@ -139,6 +139,12 @@ pub fn fail(_name: &str, error: &anyhow::Error) {
         io::error(line);
     }
 
+    // Catch common node errors, and offer a hint.
+    if let Some(e) = error.downcast_ref::<radicle::node::Error>() {
+        if e.is_connection_err() {
+            io::hint("to start your node, run `rad node start`.");
+        }
+    }
     if let Some(Error::WithHint { hint, .. }) = error.downcast_ref::<Error>() {
         io::hint(hint);
     }

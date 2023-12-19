@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 mod features;
 
 pub mod address;
@@ -748,28 +749,14 @@ impl IntoIterator for FetchResults {
 /// Error returned by [`Handle`] functions.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("failed to connect to node: {0}")]
-    Connect(#[from] io::Error),
-    #[error("failed to call node: {0}")]
-    Call(#[from] CallError),
-    #[error("node: {0}")]
-    Node(String),
-    #[error("received empty response for command")]
-    EmptyResponse,
-}
-
-impl Error {
-    /// Check if the error is due to the not being able to connect to the local node.
-    pub fn is_connection_err(&self) -> bool {
-        matches!(self, Self::Connect(_))
-    }
-}
-
-/// Error returned by [`Node::call`] iterator.
-#[derive(thiserror::Error, Debug)]
-pub enum CallError {
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
+    #[error("node: {0}")]
+    Node(String),
+    #[error("timed out reading from control socket")]
+    TimedOut,
+    #[error("failed to open node control socket {0:?} ({1})")]
+    Connect(PathBuf, io::ErrorKind),
     #[error("command error: {reason}")]
     Command { reason: String },
     #[error("received invalid json `{response}` in response to command: {error}")]
@@ -777,6 +764,15 @@ pub enum CallError {
         response: String,
         error: json::Error,
     },
+    #[error("received empty response for command")]
+    EmptyResponse,
+}
+
+impl Error {
+    /// Check if the error is due to the not being able to connect to the local node.
+    pub fn is_connection_err(&self) -> bool {
+        matches!(self, Self::Connect { .. })
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -838,7 +834,7 @@ pub trait Handle: Clone + Sync + Send {
     fn subscribe(
         &self,
         timeout: time::Duration,
-    ) -> Result<Box<dyn Iterator<Item = Result<Event, io::Error>>>, Self::Error>;
+    ) -> Result<Box<dyn Iterator<Item = Result<Event, Self::Error>>>, Self::Error>;
 }
 
 /// Public node & device identifier.
@@ -863,32 +859,27 @@ impl Node {
         &self,
         cmd: Command,
         timeout: time::Duration,
-    ) -> Result<impl Iterator<Item = Result<T, CallError>>, io::Error> {
-        let stream = UnixStream::connect(&self.socket)?;
+    ) -> Result<impl Iterator<Item = Result<T, Error>>, Error> {
+        let stream = UnixStream::connect(&self.socket)
+            .map_err(|e| Error::Connect(self.socket.clone(), e.kind()))?;
         cmd.to_writer(&stream)?;
 
         stream.set_read_timeout(Some(timeout))?;
 
         Ok(BufReader::new(stream).lines().map(move |l| {
-            let l = l.map_err(|e| {
-                if e.kind() == io::ErrorKind::WouldBlock {
-                    io::Error::new(
-                        io::ErrorKind::TimedOut,
-                        "timed out reading from node control socket",
-                    )
-                } else {
-                    e
-                }
+            let l = l.map_err(|e| match e.kind() {
+                io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => Error::TimedOut,
+                _ => Error::Io(e),
             })?;
-            let result: CommandResult<T> =
-                json::from_str(&l).map_err(|e| CallError::InvalidJson {
-                    response: l.clone(),
-                    error: e,
-                })?;
+
+            let result: CommandResult<T> = json::from_str(&l).map_err(|e| Error::InvalidJson {
+                response: l.clone(),
+                error: e,
+            })?;
 
             match result {
                 CommandResult::Okay(result) => Ok(result),
-                CommandResult::Error { reason } => Err(CallError::Command { reason }),
+                CommandResult::Error { reason } => Err(Error::Command { reason }),
             }
         }))
     }
@@ -928,11 +919,11 @@ impl Node {
                 }
                 Ok(_) => {}
 
-                Err(e) if e.kind() == io::ErrorKind::TimedOut => {
+                Err(Error::TimedOut) => {
                     timeout.extend(seeds.iter());
                     break;
                 }
-                Err(e) => return Err(e.into()),
+                Err(e) => return Err(e),
             }
             if seeds.is_empty() {
                 break;
@@ -1077,18 +1068,10 @@ impl Handle for Node {
     fn subscribe(
         &self,
         timeout: time::Duration,
-    ) -> Result<Box<dyn Iterator<Item = Result<Event, io::Error>>>, Error> {
+    ) -> Result<Box<dyn Iterator<Item = Result<Event, Error>>>, Error> {
         let events = self.call(Command::Subscribe, timeout)?;
 
-        Ok(Box::new(events.map(|e| {
-            e.map_err(|err| match err {
-                CallError::Io(e) => e,
-                CallError::InvalidJson { .. } => {
-                    io::Error::new(io::ErrorKind::InvalidInput, err.to_string())
-                }
-                CallError::Command { reason } => io::Error::new(io::ErrorKind::Other, reason),
-            })
-        })))
+        Ok(Box::new(events))
     }
 
     fn sessions(&self) -> Result<Self::Sessions, Error> {

@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::{env, io, time};
+use std::{env, time};
 
 use anyhow::{anyhow, bail, Context as _};
 use serde_json as json;
@@ -403,12 +403,12 @@ fn sync(
             Ok(_) => {
                 // Some other irrelevant event received.
             }
-            Err(e) if e.kind() == io::ErrorKind::TimedOut => {
+            Err(radicle::node::Error::TimedOut) => {
                 break;
             }
             Err(e) => {
                 spinner.error(&e);
-                return Err(e.into());
+                return Err(e);
             }
         }
     }

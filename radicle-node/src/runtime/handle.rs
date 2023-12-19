@@ -245,7 +245,7 @@ impl radicle::node::Handle for Handle {
     fn subscribe(
         &self,
         _timeout: time::Duration,
-    ) -> Result<Box<dyn Iterator<Item = Result<Event, io::Error>>>, Error> {
+    ) -> Result<Box<dyn Iterator<Item = Result<Event, Error>>>, Error> {
         Ok(Box::new(self.events().into_iter().map(Ok)))
     }
 

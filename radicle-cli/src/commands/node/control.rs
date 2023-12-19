@@ -181,7 +181,7 @@ pub fn connect(
     ) {
         Ok(ConnectResult::Connected) => spinner.finish(),
         Ok(ConnectResult::Disconnected { reason }) => spinner.error(reason),
-        Err(err) => spinner.error(err.to_string()),
+        Err(err) => return Err(err.into()),
     }
     Ok(())
 }

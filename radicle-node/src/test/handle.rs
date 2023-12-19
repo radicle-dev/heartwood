@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use std::{io, time};
+use std::time;
 
 use radicle::git;
 use radicle::storage::refs::RefsAt;
@@ -75,7 +75,7 @@ impl radicle::node::Handle for Handle {
     fn subscribe(
         &self,
         _timeout: time::Duration,
-    ) -> Result<Box<dyn Iterator<Item = Result<Event, io::Error>>>, Self::Error> {
+    ) -> Result<Box<dyn Iterator<Item = Result<Event, Self::Error>>>, Self::Error> {
         Ok(Box::new(std::iter::empty()))
     }
 
