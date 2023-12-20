@@ -95,7 +95,7 @@ impl IntoResponse for Error {
             Error::CobStore(e @ radicle::cob::store::Error::NotFound(_, _)) => {
                 (StatusCode::NOT_FOUND, Some(e.to_string()))
             }
-            Error::Auth(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
+            Error::Auth(msg) => (StatusCode::UNAUTHORIZED, Some(msg.to_string())),
             Error::Crypto(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
             Error::Surf(radicle_surf::Error::Git(e)) if radicle::git::is_not_found_err(&e) => {
                 (StatusCode::NOT_FOUND, Some(e.message().to_owned()))
