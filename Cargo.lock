@@ -80,9 +80,9 @@ checksum = "0942ffc6dcaadf03badf6e6a2d0228460359d5e34b57ccdc720b7382dfbd5ec5"
 
 [[package]]
 name = "amplify"
-version = "4.0.0"
+version = "4.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f26966af46e0d200e8bf2b7f16230997c1c3f2d141bc27ccc091c012ed527b58"
+checksum = "8629db306c0bbeb0a402e2918bdcf0026b5ddb24c46460f3bf5410b350d98710"
 dependencies = [
  "amplify_derive",
  "amplify_num",
@@ -92,9 +92,9 @@ dependencies = [
 
 [[package]]
 name = "amplify_derive"
-version = "3.0.1"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c87df0f28e6eb1f2d355f29ba6793fa9ca643967528609608d5cbd70bd68f9d1"
+checksum = "759dcbfaf94d838367a86d493ec34ccc8aa6fe365cb7880d6bf89006de24d9c1"
 dependencies = [
  "amplify_syn",
  "proc-macro2",
@@ -1677,9 +1677,9 @@ dependencies = [
 
 [[package]]
 name = "io-reactor"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "850495a01d6f0b6d29adf5849a75b5a82449d9181bdd642cd681ce3d6f14b58c"
+checksum = "2457e8fb1b1f298809fcd93cd15d485f52ef565f7ad47970583c7a80ae6c7e78"
 dependencies = [
  "amplify",
  "crossbeam-channel",
@@ -1748,9 +1748,9 @@ checksum = "478ee9e62aaeaf5b140bd4138753d1f109765488581444218d3ddda43234f3e8"
 
 [[package]]
 name = "libc"
-version = "0.2.150"
+version = "0.2.152"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89d92a4743f9a61002fae18374ed11e7973f530cb3a3255fb354818118b2203c"
+checksum = "13e3bf6590cbc649f4d1a3eefc9d5d6eb746f5200ffb04e5e142700b8faa56e7"
 
 [[package]]
 name = "libgit2-sys"
@@ -1908,9 +1908,9 @@ dependencies = [
 
 [[package]]
 name = "netservices"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee13a6ce51c79cf719cea8a3f0d3584098e529c726634bc1197cbbb6967b7de2"
+checksum = "e227ff39744a414d32b9b473266c1739a950b89cd03694a58b624f4bde926c10"
 dependencies = [
  "amplify",
  "cyphernet",
