@@ -196,8 +196,13 @@ impl<L> Comment<L> {
     }
 
     /// Comment reactions.
-    pub fn reactions(&self) -> impl Iterator<Item = (&ActorId, &Reaction)> {
-        self.reactions.iter().map(|(a, r)| (a, r))
+    pub fn reactions(&self) -> BTreeMap<&Reaction, Vec<&ActorId>> {
+        self.reactions
+            .iter()
+            .fold(BTreeMap::new(), |mut acc, (author, reaction)| {
+                acc.entry(reaction).or_default().push(author);
+                acc
+            })
     }
 
     /// Get comment location, if any.

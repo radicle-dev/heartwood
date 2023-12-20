@@ -1332,6 +1332,10 @@ impl Revision {
         &self.description.last().embeds
     }
 
+    pub fn reactions(&self) -> &BTreeMap<Option<CodeLocation>, BTreeSet<(PublicKey, Reaction)>> {
+        &self.reactions
+    }
+
     /// Author of the revision.
     pub fn author(&self) -> &Author {
         &self.author
@@ -1590,6 +1594,22 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
             reply_to: None,
             location: None,
             embeds: vec![],
+        })
+    }
+
+    /// React on a patch revision.
+    pub fn react(
+        &mut self,
+        revision: RevisionId,
+        reaction: Reaction,
+        location: Option<CodeLocation>,
+        active: bool,
+    ) -> Result<(), store::Error> {
+        self.push(Action::RevisionReact {
+            revision,
+            reaction,
+            location,
+            active,
         })
     }
 
@@ -1921,6 +1941,20 @@ where
                 location,
                 embeds.into_iter().collect(),
             )
+        })
+    }
+
+    /// React on a patch revision.
+    pub fn react<G: Signer>(
+        &mut self,
+        revision: RevisionId,
+        reaction: Reaction,
+        location: Option<CodeLocation>,
+        active: bool,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("React", signer, |tx| {
+            tx.react(revision, reaction, location, active)
         })
     }
 

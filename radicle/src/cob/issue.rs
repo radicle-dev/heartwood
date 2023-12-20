@@ -1167,9 +1167,10 @@ mod test {
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let (_, r) = issue.comment(&comment).unwrap().reactions().next().unwrap();
+        let reactions = issue.comment(&comment).unwrap().reactions();
+        let authors = reactions.get(&reaction).unwrap();
 
-        assert_eq!(r, &reaction);
+        assert_eq!(authors.first().unwrap(), &node.signer.public_key());
 
         // TODO: Test multiple reactions from same author and different authors
     }

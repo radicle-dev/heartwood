@@ -1,10 +1,11 @@
 //! Utilities for building JSON responses of our API.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::str;
 
 use base64::prelude::{Engine, BASE64_STANDARD};
-use radicle::cob::CodeLocation;
+use radicle::cob::{CodeLocation, Reaction};
 use serde_json::{json, Value};
 
 use radicle::cob::issue::{Issue, IssueId};
@@ -130,6 +131,15 @@ pub(crate) fn patch(
                 "author": author(rev.author(), aliases.alias(rev.author().id())),
                 "description": rev.description(),
                 "edits": rev.edits().map(|e| edit(e, aliases)).collect::<Vec<_>>(),
+                "reactions": rev.reactions().iter().flat_map(|(location, reaction)| {
+                    let reactions = reaction.iter().fold(BTreeMap::new(), |mut acc: BTreeMap<&Reaction, Vec<_>>, (author, emoji)| {
+                        acc.entry(emoji).or_default().push(author);
+                        acc
+                    });
+                    reactions.iter().map(|(emoji, authors)|
+                        json!({"location": location, "emoji": emoji, "authors": authors })
+                    ).collect::<Vec<_>>()
+                }).collect::<Vec<_>>(),
                 "base": rev.base(),
                 "oid": rev.head(),
                 "refs": get_refs(repo, patch.author().id(), &rev.head()).unwrap_or_default(),
@@ -191,7 +201,9 @@ fn issue_comment(id: &CommentId, comment: &Comment, aliases: &impl AliasStore) -
         "body": comment.body(),
         "edits": comment.edits().map(|e| edit(e, aliases)).collect::<Vec<_>>(),
         "embeds": comment.embeds().to_vec(),
-        "reactions": comment.reactions().collect::<Vec<_>>(),
+        "reactions": comment.reactions().iter().map(|(emoji, authors)|
+            json!({ "emoji": emoji, "authors": authors })
+        ).collect::<Vec<_>>(),
         "timestamp": comment.timestamp().as_secs(),
         "replyTo": comment.reply_to(),
         "resolved": comment.resolved(),
@@ -210,7 +222,9 @@ fn patch_comment(
         "body": comment.body(),
         "edits": comment.edits().map(|e| edit(e, aliases)).collect::<Vec<_>>(),
         "embeds": comment.embeds().to_vec(),
-        "reactions": comment.reactions().collect::<Vec<_>>(),
+        "reactions": comment.reactions().iter().map(|(emoji, authors)|
+            json!({ "emoji": emoji, "authors": authors })
+        ).collect::<Vec<_>>(),
         "timestamp": comment.timestamp().as_secs(),
         "replyTo": comment.reply_to(),
         "location": comment.location(),
@@ -230,7 +244,9 @@ fn review_comment(
         "body": comment.body(),
         "edits": comment.edits().map(|e| edit(e, aliases)).collect::<Vec<_>>(),
         "embeds": comment.embeds().to_vec(),
-        "reactions": comment.reactions().collect::<Vec<_>>(),
+        "reactions": comment.reactions().iter().map(|(emoji, authors)|
+            json!({ "emoji": emoji, "authors": authors })
+        ).collect::<Vec<_>>(),
         "timestamp": comment.timestamp().as_secs(),
         "replyTo": comment.reply_to(),
         "location": comment.location(),

@@ -869,6 +869,12 @@ async fn patch_update_handler(
             patch.edit_revision(revision, description, embeds, &signer)?
         }
         patch::Action::RevisionRedact { revision } => patch.redact(revision, &signer)?,
+        patch::Action::RevisionReact {
+            revision,
+            reaction,
+            active,
+            location,
+        } => patch.react(revision, reaction, location, active, &signer)?,
         patch::Action::RevisionComment {
             revision,
             body,
@@ -902,9 +908,6 @@ async fn patch_update_handler(
         } => patch.comment_react(revision, comment, reaction, active, &signer)?,
         patch::Action::RevisionCommentRedact { revision, comment } => {
             patch.comment_redact(revision, comment, &signer)?
-        }
-        _ => {
-            todo!();
         }
     };
 
@@ -2281,10 +2284,10 @@ mod routes {
                     }
                   ],
                   "reactions": [
-                    [
-                    "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
-                    "🚀",
-                    ],
+                    {
+                      "emoji": "🚀",
+                      "authors": ["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8"]
+                    },
                   ],
                   "timestamp": TIMESTAMP,
                   "replyTo": null,
@@ -2433,6 +2436,7 @@ mod routes {
                 "revisions": [
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
+                    "reactions": [],
                     "author": {
                       "id": CONTRIBUTOR_DID,
                     },
@@ -2485,6 +2489,7 @@ mod routes {
                 "revisions": [
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
+                    "reactions": [],
                     "author": {
                       "id": CONTRIBUTOR_DID,
                     },
@@ -2576,6 +2581,7 @@ mod routes {
                 "revisions": [
                   {
                     "id": CREATED_PATCH_ID,
+                    "reactions": [],
                     "author": {
                       "id": CONTRIBUTOR_DID,
                     },
@@ -2662,6 +2668,7 @@ mod routes {
                       "embeds": [],
                     },
                   ],
+                  "reactions": [],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2736,6 +2743,7 @@ mod routes {
                       "embeds": [],
                     },
                   ],
+                  "reactions": [],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2809,6 +2817,7 @@ mod routes {
                       "embeds": [],
                     },
                   ],
+                  "reactions": [],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2834,6 +2843,7 @@ mod routes {
                         "embeds": [],
                     },
                   ],
+                  "reactions": [],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2893,6 +2903,7 @@ mod routes {
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
+                  "reactions": [],
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
@@ -2931,6 +2942,52 @@ mod routes {
           "type": "revision.edit",
           "revision": CONTRIBUTOR_PATCH_ID,
           "description": "Let's change the description a bit",
+        }))
+        .unwrap();
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = serde_json::to_vec(&json!({
+          "type": "revision.react",
+          "revision": CONTRIBUTOR_PATCH_ID,
+          "reaction": "🚀",
+          "location": {
+            "commit": INITIAL_COMMIT,
+            "path": "./README.md",
+            "new": {
+              "type": "lines",
+              "range": {
+                "start": 0,
+                "end": 1
+              }
+            }
+          },
+          "active": true,
+        }))
+        .unwrap();
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = serde_json::to_vec(&json!({
+          "type": "revision.react",
+          "revision": CONTRIBUTOR_PATCH_ID,
+          "reaction": "🙏",
+          "location": null,
+          "active": true,
         }))
         .unwrap();
         let response = patch(
@@ -2985,6 +3042,29 @@ mod routes {
                       "body": "Let's change the description a bit",
                       "timestamp": TIMESTAMP,
                       "embeds": [],
+                    },
+                  ],
+                  "reactions": [
+                    {
+                      "location": null,
+                      "emoji": "🙏",
+                      "authors": ["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8"],
+                    },
+                    {
+                      "location": {
+                        "commit": INITIAL_COMMIT,
+                        "path": "./README.md",
+                        "old": null,
+                        "new": {
+                          "type": "lines",
+                          "range": {
+                            "start": 0,
+                            "end": 1
+                          }
+                        }
+                      },
+                      "emoji": "🚀",
+                      "authors": ["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8"]
                     },
                   ],
                   "base": PARENT,
@@ -3123,6 +3203,7 @@ mod routes {
                       "embeds": [],
                     },
                   ],
+                  "reactions": [],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -3169,7 +3250,12 @@ mod routes {
                           "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
                         }
                       ],
-                      "reactions": [["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8","🚀"]],
+                      "reactions": [
+                        {
+                          "emoji": "🚀",
+                          "authors": ["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8"]
+                        },
+                      ],
                       "timestamp": TIMESTAMP,
                       "replyTo": null,
                       "location": null,
@@ -3350,6 +3436,7 @@ mod routes {
                       "embeds": [],
                     },
                   ],
+                  "reactions": [],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -3406,10 +3493,10 @@ mod routes {
                             },
                           ],
                           "reactions": [
-                            [
-                              "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
-                              "🚀",
-                            ],
+                            {
+                              "emoji": "🚀",
+                              "authors": ["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8"],
+                            },
                           ],
                           "timestamp": 1671125284,
                           "replyTo": null,
@@ -3506,6 +3593,7 @@ mod routes {
                       "embeds": [],
                     },
                   ],
+                  "reactions": [],
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
