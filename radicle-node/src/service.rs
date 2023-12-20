@@ -2059,13 +2059,14 @@ where
                     .into_iter()
                     .find(|ka| match (ka.last_success, ka.last_attempt) {
                         // If we succeeded the last time we tried, this is a good address.
-                        // TODO: This will always be hit after a success, and never re-attempted after
-                        //       the first failed attempt.
-                        (Some(success), attempt) => success >= attempt.unwrap_or_default(),
+                        // If it's been long enough that we failed to connect, we also try again.
+                        (Some(success), Some(attempt)) => {
+                            success >= attempt || now - attempt >= CONNECTION_RETRY_DELTA
+                        }
                         // If we haven't succeeded yet, and we waited long enough, we can try this address.
                         (None, Some(attempt)) => now - attempt >= CONNECTION_RETRY_DELTA,
-                        // If we've never tried this address, it's worth a try.
-                        (None, None) => true,
+                        // If we have no failed attempts for this address, it's worth a try.
+                        (_, None) => true,
                     })
                     .map(|ka| (peer.nid, ka))
             })
