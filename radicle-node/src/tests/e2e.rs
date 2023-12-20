@@ -809,9 +809,6 @@ fn test_connection_crossing() {
     assert!(s1 ^ s2, "Exactly one session should be established");
 }
 
-// TODO(finto): I witnessed a flaky error, but can't replicate.
-// We log some values until it's clearer where this flake is coming
-// from.
 #[test]
 /// Alice is going to try to fetch outdated refs of Bob, from Eve. This is a non-fastfoward fetch
 /// on the sigrefs branch.

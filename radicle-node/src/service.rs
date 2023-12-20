@@ -646,7 +646,6 @@ where
                 error!(target: "service", "Error announcing inventory: {err}");
             }
             self.outbox.wakeup(ANNOUNCE_INTERVAL);
-            self.last_announce = now;
         }
         if now - self.last_prune >= PRUNE_INTERVAL {
             trace!(target: "service", "Running 'prune' task...");
@@ -1905,7 +1904,23 @@ where
 
     /// Announce our inventory to all connected peers.
     fn announce_inventory(&mut self, inventory: Vec<Id>) -> Result<(), storage::Error> {
-        let time = self.time();
+        let time = if self.clock > self.last_announce {
+            self.clock.as_millis()
+        } else if self.last_announce - self.clock < LocalDuration::from_secs(1) {
+            // In rare cases where the inventory is updated very quickly, we want to make sure all
+            // announcements carry an increasing timestamp. We allow our timestamps to be up to
+            // one second in the future.
+            self.last_announce.as_millis() + 1
+        } else {
+            // Announcement is considered redundant, ignore. Nb. This should not happen unless
+            // you are trying to spam inventories.
+            log::warn!(
+                target: "service",
+                "Ignored outgoing inventory announcement with {} items",
+                inventory.len()
+            );
+            return Ok(());
+        };
         let msg = AnnouncementMessage::from(gossip::inventory(time, inventory));
 
         self.outbox.announce(
@@ -1913,6 +1928,8 @@ where
             self.sessions.connected().map(|(_, p)| p),
             self.db.gossip_mut(),
         );
+        self.last_announce = LocalTime::from_millis(time as u128);
+
         Ok(())
     }
 

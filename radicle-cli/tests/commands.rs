@@ -1025,11 +1025,6 @@ fn rad_init_sync_preferred() {
 
     fixtures::repository(working.join("bob"));
 
-    // Necessary for now, if we don't want the new inventry announcement to be considered stale
-    // for Alice.
-    // TODO: Find a way to advance internal clocks instead.
-    thread::sleep(time::Duration::from_millis(3));
-
     // Bob initializes a repo after her node has started, and after bob has connected to it.
     test(
         "examples/rad-init-sync-preferred.md",
@@ -1085,11 +1080,6 @@ fn rad_init_sync_and_clone() {
     bob.connect(&alice);
 
     fixtures::repository(working.join("alice"));
-
-    // Necessary for now, if we don't want the new inventry announcement to be considered stale
-    // for Bob.
-    // TODO: Find a way to advance internal clocks instead.
-    thread::sleep(time::Duration::from_millis(3));
 
     // Alice initializes a repo after her node has started, and after bob has connected to it.
     test(
