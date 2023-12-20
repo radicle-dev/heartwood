@@ -1,13 +1,15 @@
 use std::io::IsTerminal as _;
-use std::sync;
-use std::sync::atomic::AtomicBool;
-use std::{fmt, io};
+use std::os::fd::{AsRawFd, BorrowedFd};
+use std::sync::atomic::{AtomicBool, AtomicI32};
+use std::{fmt, sync};
 
 use once_cell::sync::Lazy;
 
 use super::color::Color;
 use super::style::{Property, Style};
 
+/// What file is used for text output.
+static TERMINAL: AtomicI32 = AtomicI32::new(libc::STDOUT_FILENO);
 /// Whether paint styling is enabled or not.
 static ENABLED: AtomicBool = AtomicBool::new(true);
 /// Whether paint styling should be forced.
@@ -261,7 +263,8 @@ impl Paint<()> {
         let clicolor = anstyle_query::clicolor();
         let clicolor_enabled = clicolor.unwrap_or(false);
         let clicolor_disabled = !clicolor.unwrap_or(true);
-        let is_terminal = io::stdout().is_terminal();
+        let terminal = TERMINAL.load(sync::atomic::Ordering::SeqCst);
+        let is_terminal = unsafe { BorrowedFd::borrow_raw(terminal).is_terminal() };
         let is_enabled = ENABLED.load(sync::atomic::Ordering::SeqCst);
 
         is_terminal
@@ -281,6 +284,12 @@ impl Paint<()> {
     /// Enable paint styling.
     pub fn enable() {
         ENABLED.store(true, sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Set the terminal we are writing to. This influences the logic that checks whether or not to
+    /// include colors.
+    pub fn set_terminal(fd: impl AsRawFd) {
+        TERMINAL.store(fd.as_raw_fd(), sync::atomic::Ordering::SeqCst);
     }
 
     /// Force paint styling.
