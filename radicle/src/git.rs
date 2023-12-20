@@ -669,6 +669,40 @@ where
     ))
 }
 
+/// Functions that call to the `git` CLI instead of `git2`.
+pub mod process {
+    use std::io;
+    use std::path::Path;
+
+    use crate::storage::ReadRepository;
+
+    use super::{run, url, Oid};
+
+    /// Perform a local fetch, i.e. `file://<storage path>`.
+    ///
+    /// `oids` are the set of [`Oid`]s that are being fetched from the
+    /// `storage`.
+    pub fn fetch_local<R>(
+        working: &Path,
+        storage: &R,
+        oids: impl IntoIterator<Item = Oid>,
+    ) -> Result<(), io::Error>
+    where
+        R: ReadRepository,
+    {
+        let mut fetch = vec![
+            "fetch".to_string(),
+            url::File::new(storage.path()).to_string(),
+            // N.b. avoid writing fetch head since we're only fetching objects
+            "--no-write-fetch-head".to_string(),
+        ];
+        fetch.extend(oids.into_iter().map(|oid| oid.to_string()));
+        // N.b. `.` is used since we're fetching within the working copy
+        run::<_, _, &str, &str>(working, fetch, [])?;
+        Ok(())
+    }
+}
+
 /// Git URLs.
 pub mod url {
     use std::path::PathBuf;

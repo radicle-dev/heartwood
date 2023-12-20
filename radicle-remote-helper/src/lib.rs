@@ -45,6 +45,9 @@ pub enum Error {
     /// The `GIT_DIR` env var is not set.
     #[error("the `GIT_DIR` environment variable is not set")]
     NoGitDir,
+    /// No parent of `GIT_DIR` was found.
+    #[error("expected parent of .git but found {path:?}")]
+    NoWorkingCopy { path: PathBuf },
     /// Git error.
     #[error("git: {0}")]
     Git(#[from] git::raw::Error),
@@ -153,7 +156,14 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                 let oid = git::Oid::from_str(oid)?;
                 let refstr = git::RefString::try_from(*refstr)?;
 
-                return fetch::run(vec![(oid, refstr)], &working, url, stored, &stdin)
+                // N.b. `working` is the `.git` folder and `fetch::run`
+                // requires the working directory.
+                let working = working.canonicalize()?;
+                let working = working.parent().ok_or_else(|| Error::NoWorkingCopy {
+                    path: working.clone(),
+                })?;
+
+                return fetch::run(vec![(oid, refstr)], working, stored, &stdin)
                     .map_err(Error::from);
             }
             ["push", refspec] => {
