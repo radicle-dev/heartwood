@@ -6,7 +6,6 @@ use radicle::cob::patch::RevisionId;
 use radicle::git::RefString;
 use radicle::patch::PatchId;
 use radicle::storage::git::Repository;
-use radicle::storage::ReadRepository;
 use radicle::{git, rad};
 
 use crate::terminal as term;
@@ -107,17 +106,14 @@ fn find_patch_commit<'a>(
     working: &'a git::raw::Repository,
 ) -> anyhow::Result<git::raw::Commit<'a>> {
     let head = *revision.head();
+    let workdir = working
+        .workdir()
+        .ok_or(anyhow::anyhow!("repository is a bare git repository "))?;
 
     match working.find_commit(head) {
         Ok(commit) => Ok(commit),
         Err(e) if git::ext::is_not_found_err(&e) => {
-            let url = git::url::File::new(stored.path());
-
-            working.remote_anonymous(url.to_string().as_str())?.fetch(
-                &[head.to_string()],
-                None,
-                None,
-            )?;
+            git::process::fetch_local(workdir, stored, [head.into()])?;
             working.find_commit(head).map_err(|e| e.into())
         }
         Err(e) => Err(e.into()),

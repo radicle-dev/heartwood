@@ -5,7 +5,6 @@ use std::str::FromStr;
 use thiserror::Error;
 
 use radicle::git;
-use radicle::storage::git::transport::local::Url;
 use radicle::storage::ReadRepository;
 
 use crate::read_line;
@@ -30,7 +29,6 @@ pub enum Error {
 pub fn run<R: ReadRepository>(
     mut refs: Vec<(git::Oid, git::RefString)>,
     working: &Path,
-    url: Url,
     stored: R,
     stdin: &io::Stdin,
 ) -> Result<(), Error> {
@@ -53,23 +51,18 @@ pub fn run<R: ReadRepository>(
     }
 
     // Verify them and prepare the final refspecs.
-    let mut refspecs = Vec::new();
-    for (oid, refstr) in refs {
-        if let Some(nid) = url.namespace {
-            refspecs.push(nid.to_namespace().join(refstr).to_string());
-        } else {
-            // Just fetch the object directly in this case, it's simpler and faster.
-            refspecs.push(oid.to_string());
-        };
-    }
+    let oids = refs.into_iter().map(|(oid, _)| oid);
 
-    let mut opts = git::raw::FetchOptions::new();
-    // Setting this to false ensures that the FETCH_HEAD is set correctly. Go figure.
-    opts.update_fetchhead(false);
-
-    git::raw::Repository::open(working)?
-        .remote_anonymous(&git::url::File::new(stored.path()).to_string())?
-        .fetch(&refspecs, Some(&mut opts), None)?;
+    // N.b. we shell out to `git`, avoiding using `git2`. This is to
+    // avoid an issue where somewhere within the fetch there is an
+    // attempt to lookup a `rad/sigrefs` object, which says that the
+    // object is missing. We suspect that this is due to the object
+    // being localised in the same packfile as other objects we are
+    // fetching. Since the `rad/sigrefs` object is never needed nor
+    // used in the working copy, this will always result in the object
+    // missing. This seems to only be an issue with `libgit2`/`git2`
+    // and not `git` itself.
+    git::process::fetch_local(working, &stored, oids)?;
 
     // Nb. An empty line means we're done.
     println!();
