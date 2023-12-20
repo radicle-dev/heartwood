@@ -21,7 +21,7 @@ use radicle::Profile;
 use radicle::{git, rad};
 use radicle_cli::terminal as cli;
 
-use crate::{read_line, Options};
+use crate::{hint, read_line, Options};
 
 /// Default timeout for syncing to the network after a push.
 const DEFAULT_SYNC_TIMEOUT: time::Duration = time::Duration::from_secs(9);
@@ -248,14 +248,14 @@ pub fn run(
                                 && !rollback
                             {
                                 if hints {
-                                    eprintln!(
-                                        "hint: you are attempting to push a commit that would \
-                                        cause your upstream to diverge from the canonical head"
+                                    hint(
+                                        "you are attempting to push a commit that would cause \
+                                        your upstream to diverge from the canonical head",
                                     );
-                                    eprintln!(
-                                        "hint: to integrate the remote changes, run `git pull --rebase` \
-                                        and try again"
-                                );
+                                    hint(
+                                        "to integrate the remote changes, run `git pull --rebase` \
+                                        and try again",
+                                    );
                                 }
                                 return Err(Error::HeadsDiverge(head.into(), *canonical_oid));
                             }
@@ -291,8 +291,8 @@ pub fn run(
                 // Nb. allow this to fail. The push to local storage was still successful.
                 sync(stored.id, node).ok();
             } else if hints {
-                eprintln!("hint: offline push, your node is not running");
-                eprintln!("      to sync with the network, run `rad node start`");
+                hint("offline push, your node is not running");
+                hint("to sync with the network, run `rad node start`");
             }
         }
     }
@@ -397,8 +397,9 @@ fn patch_open<G: Signer>(
                         // Remove the remote portion of the name, i.e.
                         // rad/patches/deadbeef -> patches/deadbeef
                         let name = name.split('/').skip(1).collect::<Vec<_>>().join("/");
-                        eprintln!("hint: to update, run `git push`,");
-                        eprintln!("      or `git push rad -f HEAD:{name}`");
+                        hint(format!(
+                            "to update, run `git push` or `git push rad -f HEAD:{name}`"
+                        ));
                     }
                 }
             }

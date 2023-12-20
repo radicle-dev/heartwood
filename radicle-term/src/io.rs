@@ -178,7 +178,7 @@ pub fn error(error: impl fmt::Display) {
 }
 
 pub fn hint(hint: impl fmt::Display) {
-    println!("{ERROR_HINT_PREFIX} {}", Paint::yellow(hint));
+    println!("{ERROR_HINT_PREFIX} {}", format::hint(hint));
 }
 
 pub fn ask<D: fmt::Display>(prompt: D, default: bool) -> bool {

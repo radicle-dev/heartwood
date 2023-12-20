@@ -32,6 +32,10 @@ pub fn yellow<D: std::fmt::Display>(msg: D) -> Paint<D> {
     Paint::yellow(msg)
 }
 
+pub fn hint<D: std::fmt::Display>(msg: D) -> Paint<D> {
+    Paint::yellow(msg)
+}
+
 pub fn faint<D: std::fmt::Display>(msg: D) -> Paint<D> {
     Paint::fixed(236, msg)
 }

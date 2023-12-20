@@ -9,10 +9,9 @@ Switched to a new branch 'feature/1'
 $ git commit -a -m "Add things" -q --allow-empty
 $ git push -o patch.message="Add things #1" -o patch.message="See commits for details." rad HEAD:refs/patches
 ✓ Patch 82faae29b2a2f11bf45bbba4c4787d6b32a12447 opened
-hint: to update, run `git push`,
-      or `git push rad -f HEAD:patches/82faae29b2a2f11bf45bbba4c4787d6b32a12447`
+hint: to update, run `git push` or `git push rad -f HEAD:patches/82faae29b2a2f11bf45bbba4c4787d6b32a12447`
 hint: offline push, your node is not running
-      to sync with the network, run `rad node start`
+hint: to sync with the network, run `rad node start`
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```

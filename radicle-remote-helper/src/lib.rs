@@ -9,7 +9,7 @@ mod push;
 
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::{env, io};
+use std::{env, fmt, io};
 
 use radicle_cli::git::Rev;
 use thiserror::Error;
@@ -86,6 +86,10 @@ pub struct Options {
 
 /// Run the radicle remote helper using the given profile.
 pub fn run(profile: radicle::Profile) -> Result<(), Error> {
+    // Since we're going to be writing user output to `stderr`, make sure the paint
+    // module is aware of that.
+    cli::Paint::set_terminal(io::stderr());
+
     let url: Url = {
         let args = env::args().skip(1).take(2).collect::<Vec<_>>();
 
@@ -226,4 +230,9 @@ pub(crate) fn read_line<'a>(stdin: &io::Stdin, line: &'a mut String) -> io::Resu
     let tokens = line.split(' ').filter(|t| !t.is_empty()).collect();
 
     Ok(tokens)
+}
+
+/// Write a hint to the user.
+pub(crate) fn hint(s: impl fmt::Display) {
+    eprintln!("{}", cli::format::hint(format!("hint: {s}")));
 }
