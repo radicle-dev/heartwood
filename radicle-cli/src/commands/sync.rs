@@ -397,15 +397,21 @@ fn announce_refs(
                 }
             }
             RepoSync::Replicas(replicas) => {
-                let synced = synced.collect::<Vec<_>>();
-                if synced.len() >= seeds.len() {
+                let synced = synced
+                    .filter(|s| &s.nid != profile.id())
+                    .collect::<Vec<_>>();
+                let connected = seeds
+                    .connected()
+                    .filter(|s| &s.nid != profile.id())
+                    .collect::<Vec<_>>();
+                if synced.len() >= connected.len() {
                     term::success!(
                         "Nothing to announce, already in sync with network (see `rad sync status`)"
                     );
                     return Ok(());
                 }
                 // Replicas not counting our local replica.
-                let remotes = synced.iter().filter(|s| &s.nid != profile.id()).count();
+                let remotes = synced.len();
                 if remotes >= replicas {
                     term::success!("Nothing to announce, already in sync with {remotes} seed(s) (see `rad sync status`)");
                     return Ok(());
