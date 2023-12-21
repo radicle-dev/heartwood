@@ -372,6 +372,112 @@ fn rad_id_multi_delegate() {
 }
 
 #[test]
+#[ignore = "slow"]
+fn rad_id_collaboration() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let eve = environment.node(Config::test(Alias::new("eve")));
+    let seed = environment.node(Config::seed(Alias::new("seed")));
+    let distrustful = environment.node(Config::seed(Alias::new("distrustful")));
+    let working = tempfile::tempdir().unwrap();
+    let working = working.path();
+    let acme = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+
+    // Setup a test repository.
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+    let mut eve = eve.spawn();
+    let mut seed = seed.spawn();
+    let mut distrustful = distrustful.spawn();
+
+    // Alice sets up the seed and follows Bob and Eve via the CLI
+    alice.handle.seed(acme, Scope::Followed).unwrap();
+    alice
+        .handle
+        .follow(seed.id, Some(Alias::new("seed")))
+        .unwrap();
+
+    // The seed is trustful and will fetch from anyone
+    seed.handle.seed(acme, Scope::All).unwrap();
+
+    // The distrustful seed will only interact with Alice and Bob
+    distrustful.handle.seed(acme, Scope::Followed).unwrap();
+    distrustful.handle.follow(alice.id, None).unwrap();
+    distrustful.handle.follow(bob.id, None).unwrap();
+
+    alice
+        .connect(&seed)
+        .connect(&distrustful)
+        .converge([&seed, &distrustful]);
+    bob.connect(&seed)
+        .connect(&distrustful)
+        .converge([&seed, &distrustful]);
+    eve.connect(&seed)
+        .connect(&distrustful)
+        .converge([&seed, &distrustful]);
+
+    seed.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
+    distrustful
+        .handle
+        .fetch(acme, alice.id, DEFAULT_TIMEOUT)
+        .unwrap();
+
+    formula(&environment.tmp(), "examples/rad-id-collaboration.md")
+        .unwrap()
+        .home(
+            "alice",
+            working.join("alice"),
+            [("RAD_HOME", alice.home.path().display())],
+        )
+        .home(
+            "bob",
+            working.join("bob"),
+            [("RAD_HOME", bob.home.path().display())],
+        )
+        .home(
+            "eve",
+            working.join("eve"),
+            [("RAD_HOME", eve.home.path().display())],
+        )
+        .run()
+        .unwrap();
+
+    // Ensure the seeds have fetched all nodes.
+    let repo = seed.storage.repository(acme).unwrap();
+    let mut remotes = repo
+        .remote_ids()
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let mut expected = vec![alice.id, bob.id, eve.id];
+    remotes.sort();
+    expected.sort();
+    assert_eq!(remotes, expected);
+
+    let repo = distrustful.storage.repository(acme).unwrap();
+    let mut remotes = repo
+        .remote_ids()
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let mut expected = vec![alice.id, bob.id, eve.id];
+    remotes.sort();
+    expected.sort();
+    assert_eq!(remotes, expected);
+}
+
+#[test]
 fn rad_id_conflict() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
