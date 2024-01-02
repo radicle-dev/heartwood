@@ -540,7 +540,7 @@ fn patch_merge_all<G: Signer>(
             // Skip patches that failed to load.
             continue;
         };
-        if !patch.is_open() {
+        if !patch.is_open() && !patch.is_draft() {
             continue;
         }
         // Later revisions are more likely to be merged, so we build the list backwards.
