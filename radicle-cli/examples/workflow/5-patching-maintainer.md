@@ -60,9 +60,12 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
  * [new branch]      patch/3581e83 -> patches/3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c
 ```
 
-Great, all fixed up, lets merge the code.
+Great, all fixed up, lets accept and merge the code.
 
 ```
+$ rad patch review 3581e83 --revision abb0360 --accept
+✓ Patch 3581e83 accepted
+✓ Synced with 1 node(s)
 $ git checkout master
 Your branch is up to date with 'rad/master'.
 $ git merge patch/3581e83
@@ -103,7 +106,8 @@ $ rad patch show 3581e83
 │ ● opened by bob z6Mkt67…v4N1tRk now                                 │
 │ ↑ updated to 6de8527cdf51f96e12649c7278efe1dccfdee885 (27857ec) now │
 │ * revised by alice (you) in abb0360 (f567f69) now                   │
-│ ✓ merged by alice (you) at revision abb0360 (f567f69) now           │
+│   └─ ✓ accepted by alice (you) now                                  │
+│   └─ ✓ merged by alice (you) at revision abb0360 (f567f69) now      │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 

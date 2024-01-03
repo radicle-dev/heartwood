@@ -152,7 +152,7 @@ pub fn run(
         .children(commits.into_iter().map(|l| l.boxed()))
         .divider();
 
-    for line in list::timeline(profile, &patch, stored)? {
+    for line in list::timeline(profile, &patch) {
         widget.push(line);
     }
     widget.print();

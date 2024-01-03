@@ -75,6 +75,21 @@ $ rad patch --merged
 │ ✔  [ ... ]  Second change  alice   (you)  daf349f  +0  -0  now     │
 │ ✔  [ ... ]  First change   alice   (you)  20aa5dd  +0  -0  now     │
 ╰────────────────────────────────────────────────────────────────────╯
+$ rad patch show 8357a9f1d61e80309d314491aa754969d9f47d77
+╭────────────────────────────────────────────────────────────────╮
+│ Title     Second change                                        │
+│ Patch     8357a9f1d61e80309d314491aa754969d9f47d77             │
+│ Author    alice (you)                                          │
+│ Head      daf349ff76bedf48c5f292290b682ee7be0683cf             │
+│ Branches  feature/2                                            │
+│ Commits   ahead 0, behind 2                                    │
+│ Status    merged                                               │
+├────────────────────────────────────────────────────────────────┤
+│ daf349f Second change                                          │
+├────────────────────────────────────────────────────────────────┤
+│ ● opened by alice (you) now                                    │
+│   └─ ✓ merged by alice (you) at revision 8357a9f (d6399c7) now │
+╰────────────────────────────────────────────────────────────────╯
 ```
 
 We can verify that the remote tracking branches were also deleted:
