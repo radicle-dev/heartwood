@@ -1490,6 +1490,11 @@ impl Review {
         }
     }
 
+    /// Review author.
+    pub fn author(&self) -> &Author {
+        &self.author
+    }
+
     /// Review verdict.
     pub fn verdict(&self) -> Option<Verdict> {
         self.verdict

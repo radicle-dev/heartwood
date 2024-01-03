@@ -179,7 +179,7 @@ $ rad patch show 6ff4f09
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by z6MknSL…StBU8Vi (you) now                               │
 │ ↑ updated to e0fd9f00b51e10e1ca88868e68e46e859ed371d7 (27857ec) now │
-│ ✓ accepted by z6MknSL…StBU8Vi (you) now                             │
+│   └── ✓ accepted by z6MknSL…StBU8Vi (you) now                       │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -205,6 +205,6 @@ $ rad patch show 6ff4f09
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by z6MknSL…StBU8Vi (you) now                               │
 │ ↑ updated to e0fd9f00b51e10e1ca88868e68e46e859ed371d7 (27857ec) now │
-│ ✓ accepted by z6MknSL…StBU8Vi (you) now                             │
+│   └── ✓ accepted by z6MknSL…StBU8Vi (you) now                       │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
