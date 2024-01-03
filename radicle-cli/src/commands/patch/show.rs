@@ -13,7 +13,7 @@ use crate::terminal as term;
 use super::*;
 
 fn show_patch_diff(patch: &patch::Patch, stored: &Repository) -> anyhow::Result<()> {
-    let (from, to) = patch.range(stored)?;
+    let (from, to) = patch.range()?;
     let range = format!("{}..{}", from, to);
 
     process::Command::new("git")
@@ -28,7 +28,7 @@ fn show_patch_diff(patch: &patch::Patch, stored: &Repository) -> anyhow::Result<
 }
 
 fn patch_commits(patch: &patch::Patch, stored: &Repository) -> anyhow::Result<Vec<term::Line>> {
-    let (from, to) = patch.range(stored)?;
+    let (from, to) = patch.range()?;
     let range = format!("{}..{}", from, to);
 
     let mut revwalk = stored.revwalk(*patch.head())?;

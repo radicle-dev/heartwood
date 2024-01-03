@@ -10,6 +10,8 @@ mod comment;
 mod common;
 #[path = "patch/delete.rs"]
 mod delete;
+#[path = "patch/diff.rs"]
+mod diff;
 #[path = "patch/edit.rs"]
 mod edit;
 #[path = "patch/label.rs"]
@@ -53,6 +55,7 @@ Usage
     rad patch [<option>...]
     rad patch list [--all|--merged|--open|--archived|--draft|--authored] [--author <did>]... [<option>...]
     rad patch show <patch-id> [<option>...]
+    rad patch diff <patch-id> [<option>...]
     rad patch archive <patch-id> [<option>...]
     rad patch update <patch-id> [<option>...]
     rad patch checkout <patch-id> [<option>...]
@@ -71,6 +74,10 @@ Show options
     -p, --patch                Show the actual patch diff
     -v, --verbose              Show additional information about the patch
 
+Diff options
+
+    -r, --revision <id>        The revision to diff (default: latest)
+
 Comment options
 
     -m, --message <string>     Provide a comment message via the command-line
@@ -81,14 +88,13 @@ Edit options
 
 Review options
 
-        --revision <id>        Review the given revision of the patch
+    -r, --revision <id>        Review the given revision of the patch
     -p, --patch                Review by patch hunks
         --hunk <index>         Only review a specific hunk
         --accept               Accept a patch or set of hunks
         --reject               Reject a patch or set of hunks
     -U, --unified <n>          Generate diffs with <n> lines of context instead of the usual three
     -d, --delete               Delete a review draft
-    -r, --revision             Review a patch revision
     -m, --message [<string>]   Provide a comment with the review (default: prompt)
 
 Assign options
@@ -146,6 +152,7 @@ Other options
 pub enum OperationName {
     Assign,
     Show,
+    Diff,
     Update,
     Archive,
     Delete,
@@ -199,6 +206,10 @@ pub enum Operation {
     Show {
         patch_id: Rev,
         diff: bool,
+    },
+    Diff {
+        patch_id: Rev,
+        revision_id: Option<Rev>,
     },
     Update {
         patch_id: Rev,
@@ -267,7 +278,10 @@ impl Operation {
             | Operation::Edit { .. }
             | Operation::Redact { .. }
             | Operation::Set { .. } => true,
-            Operation::Show { .. } | Operation::Checkout { .. } | Operation::List { .. } => false,
+            Operation::Show { .. }
+            | Operation::Diff { .. }
+            | Operation::Checkout { .. }
+            | Operation::List { .. } => false,
         }
     }
 }
@@ -360,8 +374,10 @@ impl Args for Options {
                     reply_to = Some(rev);
                 }
 
-                // Review options.
-                Long("revision") if op == Some(OperationName::Review) => {
+                // Review/diff options.
+                Long("revision") | Short('r')
+                    if op == Some(OperationName::Review) || op == Some(OperationName::Diff) =>
+                {
                     let val = parser.value()?;
                     let rev = term::args::rev(&val)?;
 
@@ -511,6 +527,7 @@ impl Args for Options {
                     "y" | "ready" => op = Some(OperationName::Ready),
                     "e" | "edit" => op = Some(OperationName::Edit),
                     "r" | "redact" => op = Some(OperationName::Redact),
+                    "diff" => op = Some(OperationName::Diff),
                     "assign" => op = Some(OperationName::Assign),
                     "label" => op = Some(OperationName::Label),
                     "comment" => op = Some(OperationName::Comment),
@@ -526,6 +543,7 @@ impl Args for Options {
                     if patch_id.is_none()
                         && [
                             Some(OperationName::Show),
+                            Some(OperationName::Diff),
                             Some(OperationName::Update),
                             Some(OperationName::Delete),
                             Some(OperationName::Archive),
@@ -552,6 +570,10 @@ impl Args for Options {
             OperationName::Show => Operation::Show {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
                 diff,
+            },
+            OperationName::Diff => Operation::Diff {
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                revision_id,
             },
             OperationName::Delete => Operation::Delete {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
@@ -651,6 +673,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 &repository,
                 &workdir,
             )?;
+        }
+        Operation::Diff {
+            patch_id,
+            revision_id,
+        } => {
+            let patch_id = patch_id.resolve(&repository.backend)?;
+            let revision_id = revision_id
+                .map(|rev| rev.resolve::<radicle::git::Oid>(&repository.backend))
+                .transpose()?
+                .map(patch::RevisionId::from);
+            diff::run(&patch_id, revision_id, &repository)?;
         }
         Operation::Update {
             ref patch_id,

@@ -13,8 +13,10 @@ use crate::terminal::highlight::{Highlighter, Theme};
 use super::unified_diff::{Decode, HunkHeader};
 
 /// Blob returned by the [`Repo`] trait.
+#[derive(PartialEq, Eq)]
 pub enum Blob {
     Binary,
+    Empty,
     Plain(Vec<u8>),
 }
 
@@ -33,7 +35,13 @@ impl Repo for git::raw::Repository {
         if blob.is_binary() {
             Ok(Blob::Binary)
         } else {
-            Ok(Blob::Plain(blob.content().to_vec()))
+            let content = blob.content();
+
+            if content.is_empty() {
+                Ok(Blob::Empty)
+            } else {
+                Ok(Blob::Plain(blob.content().to_vec()))
+            }
         }
     }
 
@@ -226,6 +234,14 @@ impl ToPretty for DiffContent {
 
         match context {
             FileDiff::Moved(_) | FileDiff::Copied(_) => {}
+            FileDiff::Added(_) if blobs.new.is_none() => {
+                vstack = vstack.divider();
+                vstack.push(term::Line::new(term::format::italic("Empty file")));
+            }
+            FileDiff::Deleted(_) if blobs.old.is_none() => {
+                vstack = vstack.divider();
+                vstack.push(term::Line::new(term::format::italic("Empty file")));
+            }
             FileDiff::Added(_) | FileDiff::Deleted(_) | FileDiff::Modified(_) => {
                 vstack = vstack.divider();
 

@@ -100,7 +100,7 @@ pub fn row(
 ) -> anyhow::Result<[term::Line; 9]> {
     let state = patch.state();
     let (_, revision) = patch.latest();
-    let (from, to) = patch.range(repository)?;
+    let (from, to) = revision.range();
     let stats = common::diff_stats(repository.raw(), &from, &to)?;
     let author = patch.author().id;
     let (alias, did) = Author::new(&author, profile).labels();

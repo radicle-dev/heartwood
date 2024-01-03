@@ -99,7 +99,7 @@ pub enum Error {
     #[error("identity doc failed to load: {0}")]
     Doc(#[from] DocError),
     /// Identity document is missing.
-    #[error("missing identity docuemnt")]
+    #[error("missing identity document")]
     MissingIdentity,
     /// Error loading the document payload.
     #[error("payload failed to load: {0}")]
@@ -118,6 +118,9 @@ pub enum Error {
     /// An illegal action.
     #[error("action is not allowed: {0}")]
     NotAllowed(EntryId),
+    /// Revision not found.
+    #[error("revision not found: {0}")]
+    RevisionNotFound(RevisionId),
     /// Initialization failed.
     #[error("initialization failed: {0}")]
     Init(&'static str),
@@ -521,15 +524,8 @@ impl Patch {
     }
 
     /// Get the commit range of this patch.
-    pub fn range<R: ReadRepository>(
-        &self,
-        repo: &R,
-    ) -> Result<(git::Oid, git::Oid), git::ext::Error> {
-        if self.is_merged() {
-            Ok((*self.base(), *self.head()))
-        } else {
-            Ok((self.merge_base(repo)?, *self.head()))
-        }
+    pub fn range(&self) -> Result<(git::Oid, git::Oid), git::ext::Error> {
+        return Ok((*self.base(), *self.head()));
     }
 
     /// Index of latest revision in the revisions list.
@@ -1329,6 +1325,11 @@ impl Revision {
     /// Reference to the Git object containing the code (revision head).
     pub fn head(&self) -> git::Oid {
         self.oid
+    }
+
+    /// Get the commit range of this revision.
+    pub fn range(&self) -> (git::Oid, git::Oid) {
+        (self.base, self.oid)
     }
 
     /// When this revision was created.
