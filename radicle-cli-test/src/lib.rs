@@ -85,8 +85,16 @@ impl TestRun {
         self.home.path = path;
     }
 
-    fn envs(&self) -> impl Iterator<Item = (&String, &String)> {
-        self.home.envs.iter().chain(self.env.iter())
+    fn envs(&self) -> impl Iterator<Item = (String, String)> + '_ {
+        self.home
+            .envs
+            .iter()
+            .chain(self.env.iter())
+            .map(|(k, v)| (k.to_owned(), v.to_owned()))
+            .chain(Some((
+                "PWD".to_owned(),
+                self.home.path.to_string_lossy().to_string(),
+            )))
     }
 
     fn path(&self) -> PathBuf {
@@ -403,6 +411,13 @@ impl TestFormula {
 
             // For each command.
             for assertion in &test.assertions {
+                // Expand environment variables.
+                let mut args = assertion.args.clone();
+                for arg in &mut args {
+                    for (k, v) in run.envs() {
+                        *arg = arg.replace(format!("${k}").as_str(), &v);
+                    }
+                }
                 let path = assertion
                     .path
                     .file_name()
@@ -411,10 +426,7 @@ impl TestFormula {
                 let cmd = if assertion.command == "rad" {
                     snapbox::cmd::cargo_bin("rad")
                 } else if assertion.command == "cd" {
-                    let mut arg = assertion.args.first().unwrap().clone();
-                    for (k, v) in run.envs() {
-                        arg = arg.replace(&format!("${k}"), v);
-                    }
+                    let arg = assertion.args.first().unwrap();
                     let dir: PathBuf = arg.into();
                     let dir = run.path().join(dir);
 
@@ -454,7 +466,7 @@ impl TestFormula {
                     .env("RUST_BACKTRACE", "1")
                     .envs(run.envs())
                     .current_dir(run.path())
-                    .args(&assertion.args)
+                    .args(args)
                     .with_assert(assert.clone())
                     .output();
 

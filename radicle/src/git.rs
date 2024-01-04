@@ -584,7 +584,7 @@ pub fn push<'a>(
 ) -> Result<(), git2::Error> {
     let refspecs = refspecs
         .into_iter()
-        .map(|(src, dst)| format!("{}:{}", src.as_str(), dst.as_str()));
+        .map(|(src, dst)| format!("{src}:{dst}"));
 
     repo.find_remote(remote)?
         .push(refspecs.collect::<Vec<_>>().as_slice(), None)?;
