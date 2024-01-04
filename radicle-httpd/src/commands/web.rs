@@ -26,10 +26,10 @@ Usage
 
 Options
 
-    --listen, -l           Address to bind the HTTP daemon to (default: 127.0.0.1:8080)
-    --connect, -c          Connect the explorer to an already running daemon
-    --no-open              Don't open the authentication URL automatically
-    --help                 Print help
+    --listen, -l  <addr>     Address to bind the HTTP daemon to (default: 127.0.0.1:8080)
+    --connect, -c [<addr>]   Connect the explorer to an already running daemon (default: 127.0.0.1:8080)
+    --[no-]open              Open the authentication URL automatically (default: open)
+    --help                   Print help
 "#,
 };
 
@@ -44,7 +44,7 @@ pub struct SessionInfo {
 pub struct Options {
     pub app_url: Url,
     pub listen: SocketAddr,
-    pub connect: bool,
+    pub connect: Option<SocketAddr>,
     pub open: bool,
 }
 
@@ -54,27 +54,29 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut listen = None;
+        let mut connect = None;
         // SAFETY: This is a valid URL.
         #[allow(clippy::unwrap_used)]
         let mut app_url = Url::parse("https://app.radicle.xyz").unwrap();
-        let mut connect = false;
         let mut open = true;
 
         while let Some(arg) = parser.next()? {
             match arg {
-                Long("listen") | Short('l') => {
-                    listen = Some(
-                        parser
-                            .value()?
-                            .to_string_lossy()
-                            .as_ref()
-                            .parse::<SocketAddr>()
-                            .context("argument for '--listen' is not a valid socket address")?,
-                    )
+                Long("listen") | Short('l') if listen.is_none() => {
+                    let val = parser.value()?;
+                    listen = Some(term::args::socket_addr(&val)?);
                 }
-                Long("connect") | Short('c') => {
-                    connect = true;
+                Long("connect") | Short('c') if connect.is_none() => {
+                    if let Ok(val) = parser.value() {
+                        connect = Some(term::args::socket_addr(&val)?);
+                    } else {
+                        connect = Some(SocketAddr::new(
+                            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+                            8080,
+                        ));
+                    }
                 }
+                Long("open") => open = true,
                 Long("no-open") => open = false,
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
@@ -112,8 +114,7 @@ pub fn sign(signer: Box<dyn Signer>, session: &SessionInfo) -> Result<Signature,
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-
-    let runtime_and_handle = if !options.connect {
+    let runtime_and_handle = if options.connect.is_none() {
         tracing_subscriber::fmt::init();
 
         let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -130,16 +131,18 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         None
     };
 
-    let mut num_retries = 30;
+    let mut retries = 30;
+    let connect = options.connect.unwrap_or(options.listen);
     let response = loop {
-        num_retries -= 1;
+        retries -= 1;
         sleep(Duration::from_millis(100));
-        match ureq::post(&format!("http://{}/api/v1/sessions", options.listen)).call() {
+
+        match ureq::post(&format!("http://{connect}/api/v1/sessions")).call() {
             Ok(response) => {
                 break response;
             }
             Err(err) => {
-                if err.kind() == ureq::ErrorKind::ConnectionFailed && num_retries > 0 {
+                if err.kind() == ureq::ErrorKind::ConnectionFailed && retries > 0 {
                     continue;
                 } else {
                     anyhow::bail!(err);

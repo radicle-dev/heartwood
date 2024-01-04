@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::net::SocketAddr;
 use std::str::FromStr;
 use std::time;
 
@@ -126,6 +127,11 @@ pub fn pubkey(val: &OsString) -> anyhow::Result<NodeId> {
         return Ok(nid);
     };
     Ok(did.as_key().to_owned())
+}
+
+pub fn socket_addr(val: &OsString) -> anyhow::Result<SocketAddr> {
+    let val = val.to_string_lossy();
+    SocketAddr::from_str(&val).map_err(|_| anyhow!("invalid socket address '{}'", val))
 }
 
 pub fn addr(val: &OsString) -> anyhow::Result<Address> {
