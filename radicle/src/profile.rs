@@ -139,11 +139,11 @@ pub enum Error {
     Keystore(#[from] keystore::Error),
     #[error(transparent)]
     MemorySigner(#[from] keystore::MemorySignerError),
-    #[error("no profile found at path '{0}'")]
+    #[error("no radicle profile found at path '{0}'")]
     NotFound(PathBuf),
     #[error("error connecting to ssh-agent: {0}")]
     Agent(#[from] crate::crypto::ssh::agent::Error),
-    #[error("profile key `{0}` is not registered with ssh-agent")]
+    #[error("radicle key `{0}` is not registered; run `rad auth` to register it with ssh-agent")]
     KeyNotRegistered(PublicKey),
     #[error(transparent)]
     PolicyStore(#[from] node::policy::store::Error),
