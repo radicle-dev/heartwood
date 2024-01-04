@@ -1,0 +1,9 @@
+shell: |
+  cargo --version
+  rustc --version
+
+  cargo fmt --check
+  cargo clippy --all-targets --workspace -- --deny clippy::all
+  cargo build --all-targets --workspace
+  cargo doc --workspace
+  cargo test --workspace --no-fail-fast
