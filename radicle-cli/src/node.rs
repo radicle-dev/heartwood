@@ -7,8 +7,9 @@ use radicle::Node;
 
 use crate::terminal as term;
 
-pub fn sync(rid: Id, node: &mut Node) -> anyhow::Result<()> {
-    match sync_(rid, node) {
+/// Announce changes to the network.
+pub fn announce(rid: Id, node: &mut Node) -> anyhow::Result<()> {
+    match announce_(rid, node) {
         Ok(()) => Ok(()),
         Err(e) if e.is_connection_err() => {
             term::hint("Node is stopped. To announce changes to the network, start it with `rad node start`.");
@@ -18,8 +19,7 @@ pub fn sync(rid: Id, node: &mut Node) -> anyhow::Result<()> {
     }
 }
 
-/// Sync with the network.
-fn sync_(rid: Id, node: &mut Node) -> Result<(), radicle::node::Error> {
+fn announce_(rid: Id, node: &mut Node) -> Result<(), radicle::node::Error> {
     let seeds = node.seeds(rid)?;
     let connected = seeds.connected().map(|s| s.nid).collect::<Vec<_>>();
 

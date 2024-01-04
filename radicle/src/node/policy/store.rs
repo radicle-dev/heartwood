@@ -204,7 +204,7 @@ impl Store<Write> {
 /// `Config<Write>` can access these functions as well.
 impl<T> Store<T> {
     /// Check if a node is followed.
-    pub fn is_node_followed(&self, id: &NodeId) -> Result<bool, Error> {
+    pub fn is_followed(&self, id: &NodeId) -> Result<bool, Error> {
         Ok(matches!(
             self.follow_policy(id)?,
             Some(Node {
@@ -215,7 +215,7 @@ impl<T> Store<T> {
     }
 
     /// Check if a repository is seeded.
-    pub fn is_repo_seeded(&self, id: &Id) -> Result<bool, Error> {
+    pub fn is_seeded(&self, id: &Id) -> Result<bool, Error> {
         Ok(matches!(
             self.seed_policy(id)?,
             Some(Repo {
@@ -335,10 +335,10 @@ mod test {
         let mut db = Store::open(":memory:").unwrap();
 
         assert!(db.follow(&id, Some("eve")).unwrap());
-        assert!(db.is_node_followed(&id).unwrap());
+        assert!(db.is_followed(&id).unwrap());
         assert!(!db.follow(&id, Some("eve")).unwrap());
         assert!(db.unfollow(&id).unwrap());
-        assert!(!db.is_node_followed(&id).unwrap());
+        assert!(!db.is_followed(&id).unwrap());
     }
 
     #[test]
@@ -347,10 +347,10 @@ mod test {
         let mut db = Store::open(":memory:").unwrap();
 
         assert!(db.seed(&id, Scope::All).unwrap());
-        assert!(db.is_repo_seeded(&id).unwrap());
+        assert!(db.is_seeded(&id).unwrap());
         assert!(!db.seed(&id, Scope::All).unwrap());
         assert!(db.unseed(&id).unwrap());
-        assert!(!db.is_repo_seeded(&id).unwrap());
+        assert!(!db.is_seeded(&id).unwrap());
     }
 
     #[test]

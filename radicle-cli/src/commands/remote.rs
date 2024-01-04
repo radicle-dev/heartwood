@@ -39,6 +39,8 @@ List options
 Add options
 
     --name        Override the name of the remote that by default is set to the node alias
+    --[no-]fetch  Fetch the remote from local storage (default: fetch)
+    --[no-]sync   Sync the remote refs from the network (default: sync)
 
 Options
 
@@ -56,9 +58,18 @@ pub enum OperationName {
 
 #[derive(Debug)]
 pub enum Operation {
-    Add { id: NodeId, name: Option<RefString> },
-    Rm { name: RefString },
-    List { option: ListOption },
+    Add {
+        id: NodeId,
+        name: Option<RefString>,
+        fetch: bool,
+        sync: bool,
+    },
+    Rm {
+        name: RefString,
+    },
+    List {
+        option: ListOption,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -83,6 +94,8 @@ impl Args for Options {
         let mut id: Option<NodeId> = None;
         let mut name: Option<RefString> = None;
         let mut list_op: ListOption = ListOption::default();
+        let mut fetch = true;
+        let mut sync = true;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -114,6 +127,18 @@ impl Args for Options {
                 }
 
                 // Add options
+                Long("sync") if op == Some(OperationName::Add) => {
+                    sync = true;
+                }
+                Long("no-sync") if op == Some(OperationName::Add) => {
+                    sync = false;
+                }
+                Long("fetch") if op == Some(OperationName::Add) => {
+                    fetch = true;
+                }
+                Long("no-fetch") if op == Some(OperationName::Add) => {
+                    fetch = false;
+                }
                 Value(val) if op == Some(OperationName::Add) && id.is_none() => {
                     let nid = args::pubkey(&val)?;
                     id = Some(nid);
@@ -137,6 +162,8 @@ impl Args for Options {
                     "`DID` required, try running `rad remote add <did>`"
                 ))?,
                 name,
+                fetch,
+                sync,
             },
             OperationName::List => Operation::List { option: list_op },
             OperationName::Rm => Operation::Rm {
@@ -154,11 +181,25 @@ pub fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
 
     match options.op {
-        Operation::Add { ref id, name } => {
+        Operation::Add {
+            ref id,
+            name,
+            fetch,
+            sync,
+        } => {
             let proj = profile.storage.repository(rid)?.project()?;
             let branch = proj.default_branch();
 
-            self::add::run(rid, id, name, Some(branch.clone()), &profile, &working)?
+            self::add::run(
+                rid,
+                id,
+                name,
+                Some(branch.clone()),
+                &profile,
+                &working,
+                fetch,
+                sync,
+            )?
         }
         Operation::Rm { ref name } => self::rm::run(name, &working)?,
         Operation::List { option } => match option {

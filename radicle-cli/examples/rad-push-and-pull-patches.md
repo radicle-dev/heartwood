@@ -8,9 +8,6 @@ $ git push -o patch.message="Changes" rad HEAD:refs/patches
 ```
 
 ``` ~alice
-$ rad sync -f
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
-✓ Fetched repository from 1 seed(s)
 $ git checkout -b alice/1 -q
 $ git rev-parse HEAD
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
@@ -19,13 +16,12 @@ $ rad patch checkout 0fd67a0
 ✓ Switched to branch patch/0fd67a0
 ✓ Branch patch/0fd67a0 setup to track rad/patches/0fd67a0364af1f79ed8770a35ed09d85571d4c21
 $ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+✓ Follow policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
 ✓ Remote bob@z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk added
 ✓ Remote-tracking branch bob@z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk/master created for z6Mkt67…v4N1tRk
 $ git checkout master -q
-$ git fetch --all -q
 $ cat .git/FETCH_HEAD
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354		branch 'master' of rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-8d5f1bae4b69d8e3f6cbfc6f4bd675ed19990afc	not-for-merge	branch 'patches/0fd67a0364af1f79ed8770a35ed09d85571d4c21' of rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	not-for-merge	branch 'master' of rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 8d5f1bae4b69d8e3f6cbfc6f4bd675ed19990afc	not-for-merge	branch 'patches/0fd67a0364af1f79ed8770a35ed09d85571d4c21' of rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 $ git rev-parse master

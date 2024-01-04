@@ -156,7 +156,7 @@ pub fn setup_remote(
     remote_id: &NodeId,
     remote_name: Option<git::RefString>,
     aliases: &impl AliasStore,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<git::RefString> {
     let remote_name = if let Some(name) = remote_name {
         name
     } else {
@@ -168,7 +168,7 @@ pub fn setup_remote(
         git::RefString::try_from(name.as_str())
             .map_err(|_| anyhow!("invalid remote name: '{name}'"))?
     };
-    let (remote, branch) = setup.run(remote_name, *remote_id)?;
+    let (remote, branch) = setup.run(&remote_name, *remote_id)?;
 
     term::success!("Remote {} added", term::format::tertiary(remote.name));
 
@@ -179,5 +179,5 @@ pub fn setup_remote(
             term::format::tertiary(term::format::node(remote_id))
         );
     }
-    Ok(())
+    Ok(remote_name)
 }

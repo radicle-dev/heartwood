@@ -48,18 +48,9 @@ z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 We can then setup a git remote for `bob`:
 
 ```
-$ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob
+$ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob --no-sync --fetch
 ✓ Remote bob added
 ✓ Remote-tracking branch bob/master created for z6Mkt67…v4N1tRk
-```
-
-And fetch his refs:
-
-```
-$ git fetch --all
-Fetching rad
-Fetching alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-Fetching bob
 $ git branch --remotes
   alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
   bob/master

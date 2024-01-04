@@ -528,7 +528,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     if announce {
         let mut node = Node::new(profile.socket());
-        node::sync(rid, &mut node)?;
+        node::announce(rid, &mut node)?;
     }
 
     Ok(())

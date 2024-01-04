@@ -1,29 +1,16 @@
 Back to being the project maintainer.
 
-Changes have been proposed by another person (or peer) via a radicle patch.  To
-follow changes by another, we must 'follow' them.
+Changes have been proposed by another peer via a radicle patch. To track
+changes from another peer, we must first follow them, and then create
+a tracking branch in our working copy. The `rad remote add` command does all
+of this.
 
 ```
-$ rad follow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias bob
+$ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob --sync --fetch
 ✓ Follow policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
-```
-
-Additionally, we need to add a new 'git remote' to our working copy for the
-peer.  Upcoming versions of radicle will not require this step.
-
-```
-$ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
 ✓ Remote bob added
 ✓ Remote-tracking branch bob/master created for z6Mkt67…v4N1tRk
-$ rad sync -f
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
-✓ Fetched repository from 1 seed(s)
-```
-
-``` (stderr)
-$ git fetch bob
-From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
- * [new branch]      patches/3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c -> bob/patches/3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c
 ```
 
 The contributor's changes are now visible to us.

@@ -20,6 +20,7 @@ use thiserror::Error;
 use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
+use crate::node::policy::config::store::Read;
 use crate::node::{policy, Alias, AliasStore};
 use crate::prelude::Did;
 use crate::prelude::{Id, NodeId};
@@ -346,6 +347,17 @@ impl Profile {
         &self.home
     }
 
+    /// Return a read-only handle to the policies of the node.
+    pub fn policies(&self) -> Result<policy::config::Config<Read>, policy::store::Error> {
+        let path = self.node().join(node::POLICIES_DB_FILE);
+        let config = policy::config::Config::new(
+            self.config.node.policy,
+            self.config.node.scope,
+            policy::store::Store::reader(path)?,
+        );
+        Ok(config)
+    }
+
     /// Return a multi-source store for aliases.
     pub fn aliases(&self) -> Aliases {
         let policies = self.home.policies().ok();
@@ -471,15 +483,7 @@ impl Home {
             .unwrap_or_else(|| self.node().join(node::DEFAULT_SOCKET_NAME))
     }
 
-    /// Return a read-only handle to the policies of the node.
-    pub fn policies(&self) -> Result<policy::store::StoreReader, policy::store::Error> {
-        let path = self.node().join(node::POLICIES_DB_FILE);
-        let config = policy::store::Store::reader(path)?;
-
-        Ok(config)
-    }
-
-    /// Return a read-write handle to the policies of the node.
+    /// Return a read-write handle to the policies store of the node.
     pub fn policies_mut(&self) -> Result<policy::store::StoreWriter, policy::store::Error> {
         let path = self.node().join(node::POLICIES_DB_FILE);
         let config = policy::store::Store::open(path)?;
@@ -501,6 +505,17 @@ impl Home {
         let db = node::Database::open(path)?;
 
         Ok(db)
+    }
+}
+
+// Private methods.
+impl Home {
+    /// Return a read-only handle to the policies store of the node.
+    fn policies(&self) -> Result<policy::store::StoreReader, policy::store::Error> {
+        let path = self.node().join(node::POLICIES_DB_FILE);
+        let config = policy::store::Store::reader(path)?;
+
+        Ok(config)
     }
 }
 

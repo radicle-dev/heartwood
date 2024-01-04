@@ -106,7 +106,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         if refs.is_none() && !options.all {
             continue;
         }
-        let seeded = policy.is_repo_seeded(&rid)?;
+        let seeded = policy.is_seeded(&rid)?;
 
         if !seeded && !options.all {
             continue;
