@@ -2,6 +2,8 @@ use crate::{cell::Cell, Constraint, Element, Line, Paint, Size};
 
 /// Default text wrap width.
 pub const DEFAULT_WRAP: usize = 80;
+/// Soft tab replacement for '\t'.
+pub const SOFT_TAB: &str = "  ";
 
 /// Text area.
 ///
@@ -32,7 +34,13 @@ impl TextArea {
         let mut lines: Vec<String> = Vec::new();
         let mut fenced = false;
 
-        for line in self.body.content().lines() {
+        for line in self
+            .body
+            .content()
+            .lines()
+            // Replace tabs as their visual width cannot be calculated.
+            .map(|l| l.replace('\t', SOFT_TAB))
+        {
             // Fenced code block support.
             if line.starts_with("```") {
                 fenced = !fenced;
