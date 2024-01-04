@@ -17,6 +17,11 @@ impl Label {
         Self(Paint::default())
     }
 
+    /// Is this label empty.
+    pub fn is_blank(&self) -> bool {
+        self.content().is_empty()
+    }
+
     /// Get unstyled content.
     pub fn content(&self) -> &str {
         self.0.content()

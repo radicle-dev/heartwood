@@ -186,6 +186,10 @@ impl Line {
     pub fn spaced(items: impl IntoIterator<Item = Label>) -> Self {
         let mut line = Self::default();
         for item in items.into_iter() {
+            // Don't create spaces around empty labels.
+            if item.is_blank() {
+                continue;
+            }
             line.push(item);
             line.push(Label::space());
         }

@@ -136,7 +136,7 @@ pub struct Author<'a> {
 
 impl<'a> Author<'a> {
     pub fn new(nid: &'a NodeId, profile: &Profile) -> Author<'a> {
-        let alias = profile.aliases().alias(nid);
+        let alias = profile.alias(nid);
 
         Self {
             nid,
@@ -157,28 +157,31 @@ impl<'a> Author<'a> {
         }
     }
 
+    /// Get the labels of the `Author`. The labels can take the following forms:
+    ///
+    ///   * `(<alias>, (you))` -- the `Author` is the local peer and has an alias
+    ///   * `(<did>, (you))` -- the `Author` is the local peer and has no alias
+    ///   * `(<alias>, <did>)` -- the `Author` is another peer and has an alias
+    ///   * `(<blank>, <did>)` -- the `Author` is another peer and has no alias
     pub fn labels(self) -> (term::Label, term::Label) {
-        let alias = match &self.alias {
+        let alias = match self.alias.as_ref() {
             Some(alias) => term::format::primary(alias).into(),
-            None => term::format::primary(term::format::node(self.nid))
+            None if self.you => term::format::primary(term::format::node(self.nid))
                 .dim()
                 .into(),
+            None => term::Label::blank(),
         };
-        if let Some(you) = self.you() {
-            (alias, you)
-        } else {
-            (
-                alias,
-                term::format::primary(term::format::node(self.nid))
-                    .dim()
-                    .into(),
-            )
-        }
+        let author = self.you().unwrap_or_else(|| {
+            term::format::primary(term::format::node(self.nid))
+                .dim()
+                .into()
+        });
+        (alias, author)
     }
 
     pub fn line(self) -> Line {
-        let (first, second) = self.labels();
-        Line::spaced([first, second])
+        let (alias, author) = self.labels();
+        Line::spaced([alias, author])
     }
 }
 
