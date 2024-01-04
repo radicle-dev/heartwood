@@ -369,6 +369,12 @@ impl std::ops::DerefMut for Profile {
     }
 }
 
+impl AliasStore for Profile {
+    fn alias(&self, nid: &NodeId) -> Option<Alias> {
+        self.aliases().alias(nid)
+    }
+}
+
 /// Holds multiple alias stores, and will try
 /// them one by one when asking for an alias.
 pub struct Aliases {
