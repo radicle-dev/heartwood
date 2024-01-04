@@ -271,7 +271,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         &repo,
         &name,
         &description,
-        branch,
+        branch.clone(),
         visibility,
         &signer,
         &profile.storage,
@@ -304,7 +304,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                     radicle::git::refs::workdir::branch(proj.default_branch()),
                 )?;
             } else {
-                push_cmd = format!("git push {}", *radicle::rad::REMOTE_NAME);
+                push_cmd = format!("git push {} {branch}", *radicle::rad::REMOTE_NAME);
             }
 
             if options.setup_signing {
