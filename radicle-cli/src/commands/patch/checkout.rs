@@ -54,12 +54,20 @@ pub fn run(
 
     let commit =
         match working.find_branch(patch_branch.as_str(), radicle::git::raw::BranchType::Local) {
-            Ok(branch) if !opts.force => branch.get().peel_to_commit()?,
-            Ok(branch) => {
+            Ok(branch) if opts.force => {
                 let commit = find_patch_commit(revision, stored, working)?;
                 let mut r = branch.into_reference();
                 r.set_target(commit.id(), &format!("force update '{patch_branch}'"))?;
                 commit
+            }
+            Ok(branch) => {
+                let head = branch.get().peel_to_commit()?;
+                if head.id() != *revision.head() {
+                    anyhow::bail!(
+                        "branch '{patch_branch}' already exists (use `--force` to overwrite)"
+                    );
+                }
+                head
             }
             Err(e) if radicle::git::is_not_found_err(&e) => {
                 let commit = find_patch_commit(revision, stored, working)?;

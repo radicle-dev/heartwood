@@ -68,11 +68,16 @@ Your branch is behind 'rad/patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae' by 
 nothing to commit, working tree clean
 ```
 
-If Bob was to run `rad patch checkout` again, their branch would not
-update to the latest commit. This is because it sees that the branch
-already exists and does not want overwrite any changes. Bob can choose
-to use the `--force` (`-f`) flag to ensure that they are looking at
-the latest changes:
+If Bob was to run `rad patch checkout` again, it would error.
+This is because the branch already exists and `rad` does not want to
+overwrite any changes. Bob can choose to use the `--force` (`-f`) flag to
+ensure that they are looking at the latest changes:
+
+``` ~bob (fail)
+$ rad patch checkout 6ff4f09 --name alice-init
+✗ Performing checkout... <canceled>
+✗ Error: branch 'alice-init' already exists (use `--force` to overwrite)
+```
 
 ``` ~bob
 $ rad patch checkout 6ff4f09 -f --name alice-init

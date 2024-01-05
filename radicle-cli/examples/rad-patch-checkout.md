@@ -35,6 +35,15 @@ $ rad patch checkout 6ff4f09
 ✓ Branch patch/6ff4f09 setup to track rad/patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae
 ```
 
+Note that `rad patch checkout` can be used to switch to the patch branch
+as long as we haven't made changes to it.
+
+```
+$ git checkout master -q
+$ rad patch checkout 6ff4f09
+✓ Switched to branch patch/6ff4f09
+```
+
 Now, let's add a README too!
 
 ```
@@ -44,22 +53,6 @@ $ git commit --message "Add README, just for the fun"
 [patch/6ff4f09 27857ec] Add README, just for the fun
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
-```
-
-But maybe we first wanted to rebase `master` so we ended up being on
-that branch:
-
-``` (stderr)
-$ git checkout master
-Switched to branch 'master'
-```
-
-We can be safe in the knowledge that our changes on the
-`patch/6ff4f09` branch are still safe:
-
-```
-$ rad patch checkout 6ff4f09
-✓ Switched to branch patch/6ff4f09
 ```
 
 We can now finish off the update:
