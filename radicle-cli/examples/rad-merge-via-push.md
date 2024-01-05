@@ -63,6 +63,7 @@ When we push to `rad/master`, we automatically merge the patches:
 $ git push rad master
 ✓ Patch 8357a9f1d61e80309d314491aa754969d9f47d77 merged
 ✓ Patch a1207f6e82700e42cc46c9c38c7786b18cbd2040 merged
+✓ Canonical head updated to d6399c71702b40bae00825b3c444478d06b4e91c
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..d6399c7  master -> master
 ```

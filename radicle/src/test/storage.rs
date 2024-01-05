@@ -288,7 +288,7 @@ impl WriteRepository for MockRepository {
         todo!()
     }
 
-    fn set_head(&self) -> Result<Oid, RepositoryError> {
+    fn set_head(&self) -> Result<SetHead, RepositoryError> {
         todo!()
     }
 

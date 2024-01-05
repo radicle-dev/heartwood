@@ -10,10 +10,10 @@ fn main() -> anyhow::Result<()> {
     let repo = profile.storage.repository_mut(rid)?;
 
     let id_oid = repo.set_identity_head()?;
-    let branch_oid = repo.set_head()?;
+    let branch = repo.set_head()?;
 
     println!("ok: identity: {id_oid}");
-    println!("ok: branch: {branch_oid}");
+    println!("ok: branch: {}", branch.new);
 
     Ok(())
 }

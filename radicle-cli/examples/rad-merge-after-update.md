@@ -16,6 +16,7 @@ $ git commit --amend --allow-empty -q -m "Amended change"
 $ git checkout master -q
 $ git merge feature/1 -q
 $ git push rad master
+✓ Canonical head updated to 954bcdb5008447ce294a61a21d7eb87afbe7f4a6
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..954bcdb  master -> master
 ```

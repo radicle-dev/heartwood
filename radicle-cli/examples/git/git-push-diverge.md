@@ -62,6 +62,7 @@ f2de534 Second commit
 ```
 ``` ~alice RAD_SOCKET=/dev/null (stderr)
 $ git push rad
+✓ Canonical head updated to f6cff86594495e9beccfeda7c20173e55c1dd9fc
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..f6cff86  master -> master
 ```
@@ -79,6 +80,7 @@ We have to use the `allow.rollback` option:
 
 ``` ~alice RAD_SOCKET=/dev/null (stderr)
 $ git push -f -o allow.rollback
+✓ Canonical head updated to 319a7dc3b195368ded4b099f8c90bbb80addccd3
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + f6cff86...319a7dc master -> master (forced update)
 ```

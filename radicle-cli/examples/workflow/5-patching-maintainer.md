@@ -90,6 +90,7 @@ Fast-forward
 ``` (stderr)
 $ git push rad master
 ✓ Patch 3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c merged at revision abb0360
+✓ Canonical head updated to f567f695d25b4e8fb63b5f5ad2a584529826e908
 ✓ Synced with 1 node(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..f567f69  master -> master

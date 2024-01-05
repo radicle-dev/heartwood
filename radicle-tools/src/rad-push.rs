@@ -21,7 +21,7 @@ fn main() -> anyhow::Result<()> {
 
     radicle::Node::new(profile.socket()).announce_refs(id)?;
 
-    println!("head: {head}");
+    println!("head: {}", head.new);
     println!("ok: {}", sigrefs.signature);
 
     Ok(())

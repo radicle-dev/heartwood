@@ -37,6 +37,7 @@ Finally, we push master and expect the patch to be merged.
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad master
 ✓ Patch a1207f6e82700e42cc46c9c38c7786b18cbd2040 merged
+✓ Canonical head updated to 737a10cfa29111afeb0d43cf3545cee386b939ec
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..737a10c  master -> master
 ```

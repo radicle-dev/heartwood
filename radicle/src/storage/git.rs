@@ -19,8 +19,8 @@ use crate::identity::{Identity, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs, SignedRefsAt};
 use crate::storage::{
-    Inventory, ReadRepository, ReadStorage, Remote, Remotes, RepositoryError, SignRepository,
-    WriteRepository, WriteStorage,
+    Inventory, ReadRepository, ReadStorage, Remote, Remotes, RepositoryError, SetHead,
+    SignRepository, WriteRepository, WriteStorage,
 };
 
 pub use crate::git::{
@@ -799,19 +799,27 @@ impl ReadRepository for Repository {
 }
 
 impl WriteRepository for Repository {
-    fn set_head(&self) -> Result<Oid, RepositoryError> {
+    fn set_head(&self) -> Result<SetHead, RepositoryError> {
         let head_ref = refname!("HEAD");
-        let (branch_ref, head) = self.canonical_head()?;
+        let old = self
+            .raw()
+            .refname_to_id(&head_ref)
+            .ok()
+            .map(|oid| oid.into());
+        let (branch_ref, new) = self.canonical_head()?;
 
-        log::debug!(target: "storage", "Setting ref: {} -> {}", &branch_ref, head);
+        if old == Some(new) {
+            return Ok(SetHead { old, new });
+        }
+        log::debug!(target: "storage", "Setting ref: {} -> {}", &branch_ref, new);
         self.raw()
-            .reference(&branch_ref, *head, true, "set-local-branch (radicle)")?;
+            .reference(&branch_ref, *new, true, "set-local-branch (radicle)")?;
 
         log::debug!(target: "storage", "Setting ref: {} -> {}", head_ref, branch_ref);
         self.raw()
             .reference_symbolic(&head_ref, &branch_ref, true, "set-head (radicle)")?;
 
-        Ok(head)
+        Ok(SetHead { old, new })
     }
 
     fn set_identity_head_to(&self, commit: Oid) -> Result<(), RepositoryError> {

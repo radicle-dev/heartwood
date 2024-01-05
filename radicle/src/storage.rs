@@ -69,6 +69,21 @@ impl FromIterator<PublicKey> for Namespaces {
     }
 }
 
+/// Output of [`WriteRepository::set_head`].
+pub struct SetHead {
+    /// Old branch head.
+    pub old: Option<Oid>,
+    /// New branch head.
+    pub new: Oid,
+}
+
+impl SetHead {
+    /// Check if the head was updated.
+    pub fn is_updated(&self) -> bool {
+        self.old != Some(self.new)
+    }
+}
+
 /// Repository error.
 #[derive(Error, Debug)]
 pub enum RepositoryError {
@@ -536,7 +551,7 @@ where
 pub trait WriteRepository: ReadRepository + SignRepository {
     /// Set the repository head to the canonical branch.
     /// This computes the head based on the delegate set.
-    fn set_head(&self) -> Result<Oid, RepositoryError>;
+    fn set_head(&self) -> Result<SetHead, RepositoryError>;
     /// Set the repository 'rad/id' to the canonical commit, agreed by quorum.
     fn set_identity_head(&self) -> Result<Oid, RepositoryError> {
         let head = self.canonical_identity_head()?;

@@ -279,8 +279,16 @@ pub fn run(
 
     // Sign refs and sync if at least one ref pushed successfully.
     if !ok.is_empty() {
-        stored.sign_refs(&signer)?;
-        stored.set_head()?;
+        let _ = stored.sign_refs(&signer)?;
+        let head = stored.set_head()?;
+
+        if head.is_updated() {
+            eprintln!(
+                "{} Canonical head updated to {}",
+                cli::format::positive("✓"),
+                cli::format::secondary(head.new),
+            );
+        }
 
         if !opts.no_sync {
             // Connect to local node and announce refs to the network.
