@@ -144,7 +144,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     let profile = ctx.profile()?;
     let storage = &profile.storage;
-    let signer = term::signer(&profile)?;
     let repo = storage
         .repository(rid)
         .context("No project with the given RID exists")?;
@@ -210,7 +209,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Target::History => {
             let identity = Identity::load(&repo)?;
-            let head = repo.identity_head_of(signer.public_key())?;
+            let head = repo.identity_head()?;
             let history = repo.revwalk(head)?;
 
             for oid in history {
