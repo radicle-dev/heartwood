@@ -355,11 +355,17 @@ impl store::Cob for Identity {
         Ok(Identity::new(revision))
     }
 
-    fn op<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), ApplyError> {
+    fn op<'a, R: ReadRepository, I: IntoIterator<Item = &'a cob::Entry>>(
+        &mut self,
+        op: Op,
+        concurrent: I,
+        repo: &R,
+    ) -> Result<(), ApplyError> {
         let id = op.id;
+        let concurrent = concurrent.into_iter().collect::<Vec<_>>();
 
         for action in op.actions {
-            match self.action(action, id, op.author, op.timestamp, repo) {
+            match self.action(action, id, op.author, op.timestamp, &concurrent, repo) {
                 Ok(()) => {}
                 // This particular error is returned when there is a mismatch between the expected
                 // and the actual state of a revision, which can happen concurrently. Therefore
@@ -393,6 +399,7 @@ impl Identity {
         entry: EntryId,
         author: ActorId,
         timestamp: Timestamp,
+        _concurrent: &[&cob::Entry],
         repo: &R,
     ) -> Result<(), ApplyError> {
         let current = self.current().clone();
@@ -588,10 +595,16 @@ impl<R: ReadRepository> cob::Evaluate<R> for Identity {
         Ok(object)
     }
 
-    fn apply(&mut self, entry: &cob::Entry, repo: &R) -> Result<(), Self::Error> {
+    fn apply<'a, I: Iterator<Item = (&'a EntryId, &'a cob::Entry)>>(
+        &mut self,
+        entry: &cob::Entry,
+        concurrent: I,
+        repo: &R,
+    ) -> Result<(), Self::Error> {
         let op = Op::try_from(entry)?;
 
-        self.op(op, repo).map_err(Error::Apply)
+        self.op(op, concurrent.map(|(_, e)| e), repo)
+            .map_err(Error::Apply)
     }
 }
 

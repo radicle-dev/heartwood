@@ -37,9 +37,10 @@ pub trait Cob: Sized + PartialEq + Debug {
     fn from_root<R: ReadRepository>(op: Op<Self::Action>, repo: &R) -> Result<Self, Self::Error>;
 
     /// Apply an operation to the state.
-    fn op<R: ReadRepository>(
+    fn op<'a, R: ReadRepository, I: IntoIterator<Item = &'a cob::Entry>>(
         &mut self,
         op: Op<Self::Action>,
+        concurrent: I,
         repo: &R,
     ) -> Result<(), <Self as Cob>::Error>;
 
@@ -65,7 +66,7 @@ pub trait Cob: Sized + PartialEq + Debug {
         };
         let mut state = Self::from_root(init, repo)?;
         for op in ops {
-            state.op(op, repo)?;
+            state.op(op, [].into_iter(), repo)?;
         }
         Ok(state)
     }
@@ -388,7 +389,7 @@ pub mod test {
         let obj = history.traverse(initial, &children, |mut acc, _, entry| {
             match Op::try_from(entry) {
                 Ok(op) => {
-                    if let Err(err) = acc.op(op, repo) {
+                    if let Err(err) = acc.op(op, [].into_iter(), repo) {
                         log::warn!("Error applying op to `{}` state: {err}", T::type_name());
                         return ControlFlow::Break(acc);
                     }

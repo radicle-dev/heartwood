@@ -1,4 +1,5 @@
 // Copyright © 2022 The Radicle Link Contributors
+use std::iter;
 
 use git_ext::Oid;
 use nonempty::NonEmpty;
@@ -107,7 +108,7 @@ where
     // garbage-collected by Git.
     object
         .object
-        .apply(&entry, storage)
+        .apply(&entry, iter::empty(), storage)
         .map_err(error::Update::evaluate)?;
     object.history.extend(entry);
 

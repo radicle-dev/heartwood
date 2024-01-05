@@ -113,13 +113,16 @@ impl ChangeGraph {
         let manifest = root.manifest.clone();
         let root = root.id;
 
-        self.graph.prune(&children, |_, entry| {
+        self.graph.prune(&children, |_, entry, siblings| {
             // Check the entry signatures are valid.
             if !entry.valid_signatures() {
                 return ControlFlow::Break(());
             }
             // Apply the entry to the state, and if there's an error, prune that branch.
-            if object.apply(entry, store).is_err() {
+            if object
+                .apply(entry, siblings.map(|(k, n)| (k, &n.value)), store)
+                .is_err()
+            {
                 return ControlFlow::Break(());
             }
             ControlFlow::Continue(())

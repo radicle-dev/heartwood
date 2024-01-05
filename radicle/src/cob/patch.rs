@@ -696,12 +696,13 @@ impl Patch {
 
 impl Patch {
     /// Apply a single action to the patch.
-    fn action<R: ReadRepository>(
+    fn action<'a, R: ReadRepository>(
         &mut self,
         action: Action,
         entry: EntryId,
         author: ActorId,
         timestamp: Timestamp,
+        _concurrent: &[&'a cob::Entry],
         identity: &Doc<Verified>,
         repo: &R,
     ) -> Result<(), Error> {
@@ -1116,21 +1117,35 @@ impl store::Cob for Patch {
         let mut patch = Patch::new(title, target, (RevisionId(op.id), revision));
 
         for action in actions {
-            patch.action(action, op.id, op.author, op.timestamp, &doc, repo)?;
+            patch.action(action, op.id, op.author, op.timestamp, &[], &doc, repo)?;
         }
         Ok(patch)
     }
 
-    fn op<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
+    fn op<'a, R: ReadRepository, I: IntoIterator<Item = &'a cob::Entry>>(
+        &mut self,
+        op: Op,
+        concurrent: I,
+        repo: &R,
+    ) -> Result<(), Error> {
         debug_assert!(!self.timeline.contains(&op.id));
         self.timeline.push(op.id);
 
         let doc = op.identity_doc(repo)?.ok_or(Error::MissingIdentity)?;
+        let concurrent = concurrent.into_iter().collect::<Vec<_>>();
 
         for action in op.actions {
             match self.authorization(&action, &op.author, &doc)? {
                 Authorization::Allow => {
-                    self.action(action, op.id, op.author, op.timestamp, &doc, repo)?;
+                    self.action(
+                        action,
+                        op.id,
+                        op.author,
+                        op.timestamp,
+                        &concurrent,
+                        &doc,
+                        repo,
+                    )?;
                 }
                 Authorization::Deny => {
                     return Err(Error::NotAuthorized(op.author, action));
@@ -1158,10 +1173,15 @@ impl<R: ReadRepository> cob::Evaluate<R> for Patch {
         Ok(object)
     }
 
-    fn apply(&mut self, entry: &cob::Entry, repo: &R) -> Result<(), Self::Error> {
+    fn apply<'a, I: Iterator<Item = (&'a EntryId, &'a cob::Entry)>>(
+        &mut self,
+        entry: &cob::Entry,
+        concurrent: I,
+        repo: &R,
+    ) -> Result<(), Self::Error> {
         let op = Op::try_from(entry)?;
 
-        self.op(op, repo)
+        self.op(op, concurrent.map(|(_, e)| e), repo)
     }
 }
 
@@ -2603,11 +2623,11 @@ mod test {
         let mut patch = Patch::from_ops([a1, a2], &repo).unwrap();
         assert_eq!(patch.revisions().count(), 2);
 
-        patch.op(a3, &repo).unwrap();
+        patch.op(a3, [], &repo).unwrap();
         assert_eq!(patch.revisions().count(), 1);
 
-        patch.op(a4, &repo).unwrap();
-        patch.op(a5, &repo).unwrap();
+        patch.op(a4, [], &repo).unwrap();
+        patch.op(a5, [], &repo).unwrap();
     }
 
     #[test]

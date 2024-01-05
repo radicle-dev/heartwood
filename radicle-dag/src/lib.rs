@@ -12,6 +12,8 @@ use std::{
 /// A node in the graph.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Node<K, V> {
+    /// The node key.
+    pub key: K,
     /// The node value, stored by the user.
     pub value: V,
     /// Nodes depended on.
@@ -21,8 +23,9 @@ pub struct Node<K, V> {
 }
 
 impl<K, V> Node<K, V> {
-    fn new(value: V) -> Self {
+    fn new(key: K, value: V) -> Self {
         Self {
+            key,
             value,
             dependencies: BTreeSet::new(),
             dependents: BTreeSet::new(),
@@ -65,7 +68,7 @@ impl<K: Ord + Copy, V> Dag<K, V> {
     /// Create a DAG with a root node.
     pub fn root(key: K, value: V) -> Self {
         Self {
-            graph: BTreeMap::from_iter([(key, Node::new(value))]),
+            graph: BTreeMap::from_iter([(key, Node::new(key, value))]),
             tips: BTreeSet::from_iter([key]),
             roots: BTreeSet::from_iter([key]),
         }
@@ -88,6 +91,7 @@ impl<K: Ord + Copy, V> Dag<K, V> {
         self.graph.insert(
             key,
             Node {
+                key,
                 value,
                 dependencies: BTreeSet::new(),
                 dependents: BTreeSet::new(),
@@ -199,7 +203,11 @@ impl<K: Ord + Copy, V> Dag<K, V> {
     /// return [`ControlFlow::Break`].
     pub fn prune<F>(&mut self, roots: &[K], mut filter: F)
     where
-        F: for<'r> FnMut(&'r K, &'r Node<K, V>) -> ControlFlow<()>,
+        F: for<'r> FnMut(
+            &'r K,
+            &'r Node<K, V>,
+            Box<dyn Iterator<Item = (&'r K, &'r Node<K, V>)> + 'r>,
+        ) -> ControlFlow<()>,
     {
         let mut visited = BTreeSet::new();
         let mut result = VecDeque::new();
@@ -210,7 +218,12 @@ impl<K: Ord + Copy, V> Dag<K, V> {
 
         for next in result {
             if let Some(node) = self.graph.get(&next) {
-                match filter(&next, node) {
+                let siblings = self
+                    .siblings_of(node)
+                    .filter_map(|k| self.graph.get(k))
+                    .map(|node| (&node.key, node));
+
+                match filter(&next, node, Box::new(siblings)) {
                     ControlFlow::Continue(()) => {}
                     ControlFlow::Break(()) => {
                         // When pruning a node, we remove all transitive dependents on
@@ -309,6 +322,38 @@ impl<K: Ord + Copy, V> Dag<K, V> {
             }
         }
         nodes
+    }
+
+    fn ancestors_of(&self, from: &Node<K, V>) -> Vec<K> {
+        let mut visited = BTreeSet::new();
+        let mut stack = VecDeque::new();
+        let mut nodes = Vec::new();
+
+        stack.extend(from.dependencies.iter());
+
+        while let Some(key) = stack.pop_front() {
+            if let Some(node) = self.graph.get(&key) {
+                if visited.insert(key) {
+                    nodes.push(key);
+
+                    for &neighbour in &node.dependencies {
+                        stack.push_back(neighbour);
+                    }
+                }
+            }
+        }
+        nodes
+    }
+
+    /// Get the nodes that are neither an ancestor nor a descendant of the given node.
+    fn siblings_of(&self, node: &Node<K, V>) -> impl Iterator<Item = &K> {
+        let ancestors = self.ancestors_of(node);
+        let descendants = self.descendants_of(node);
+        let key = node.key;
+
+        self.graph
+            .keys()
+            .filter(move |k| !ancestors.contains(k) && !descendants.contains(k) && **k != key)
     }
 
     /// Add nodes recursively to the topological order, starting from the given node.
@@ -779,7 +824,7 @@ mod tests {
         let a1 = dag.get(&"A1").unwrap();
         assert_eq!(dag.descendants_of(a1), vec!["B1", "C1", "D1"]);
 
-        dag.prune(&["R"], |key, _| {
+        dag.prune(&["R"], |key, _, _| {
             if key == &"B1" {
                 ControlFlow::Break(())
             } else {
@@ -787,6 +832,53 @@ mod tests {
             }
         });
         assert_eq!(dag.sorted(), vec!["R", "A1", "A2"]);
+    }
+
+    #[test]
+    fn test_siblings() {
+        let mut dag = Dag::new();
+
+        dag.node("R", ());
+        dag.node("A1", ());
+        dag.node("A2", ());
+        dag.node("A3", ());
+        dag.node("A4", ());
+        dag.node("B1", ());
+        dag.node("C1", ());
+        dag.node("C2", ());
+        dag.node("C3", ());
+
+        dag.dependency("A1", "R");
+        dag.dependency("A2", "A1");
+        dag.dependency("A3", "A2");
+
+        dag.dependency("B1", "A2");
+
+        dag.dependency("C1", "R");
+        dag.dependency("C2", "C1");
+        dag.dependency("C3", "C2");
+
+        dag.dependency("A4", "B1");
+        dag.dependency("A4", "C3");
+        dag.dependency("A4", "A3");
+
+        let siblings: Vec<_> = dag.siblings_of(dag.get(&"A3").unwrap()).copied().collect();
+        assert_eq!(siblings, vec!["B1", "C1", "C2", "C3"]);
+
+        let siblings: Vec<_> = dag.siblings_of(dag.get(&"A4").unwrap()).copied().collect();
+        assert_eq!(siblings, Vec::<&str>::new());
+
+        let siblings: Vec<_> = dag.siblings_of(dag.get(&"C1").unwrap()).copied().collect();
+        assert_eq!(siblings, vec!["A1", "A2", "A3", "B1"]);
+
+        let siblings: Vec<_> = dag.siblings_of(dag.get(&"C2").unwrap()).copied().collect();
+        assert_eq!(siblings, vec!["A1", "A2", "A3", "B1"]);
+
+        let siblings: Vec<_> = dag.siblings_of(dag.get(&"B1").unwrap()).copied().collect();
+        assert_eq!(siblings, vec!["A3", "C1", "C2", "C3"]);
+
+        let siblings: Vec<_> = dag.siblings_of(dag.get(&"R").unwrap()).copied().collect();
+        assert_eq!(siblings, Vec::<&str>::new());
     }
 
     #[test]
@@ -817,7 +909,7 @@ mod tests {
 
         let mut order = VecDeque::new();
 
-        dag.prune(&["R"], |key, _| {
+        dag.prune(&["R"], |key, _, _| {
             order.push_back(*key);
             ControlFlow::Continue(())
         });

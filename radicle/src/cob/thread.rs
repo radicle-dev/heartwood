@@ -347,6 +347,7 @@ impl Thread {
         entry: EntryId,
         author: ActorId,
         timestamp: Timestamp,
+        _concurrent: &[&cob::Entry],
         _identity: git::Oid,
         _repo: &R,
     ) -> Result<(), Error> {
@@ -423,15 +424,29 @@ impl cob::store::Cob for Thread {
         )?;
 
         for action in actions {
-            thread.action(action, entry, author, timestamp, identity, repo)?;
+            thread.action(action, entry, author, timestamp, &[], identity, repo)?;
         }
         Ok(thread)
     }
 
-    fn op<R: ReadRepository>(&mut self, op: Op<Action>, repo: &R) -> Result<(), Error> {
+    fn op<'a, R: ReadRepository, I: IntoIterator<Item = &'a cob::Entry>>(
+        &mut self,
+        op: Op<Action>,
+        concurrent: I,
+        repo: &R,
+    ) -> Result<(), Error> {
         let identity = op.identity.ok_or(Error::MissingIdentity)?;
+        let concurrent = concurrent.into_iter().collect::<Vec<_>>();
         for action in op.actions {
-            self.action(action, op.id, op.author, op.timestamp, identity, repo)?;
+            self.action(
+                action,
+                op.id,
+                op.author,
+                op.timestamp,
+                &concurrent,
+                identity,
+                repo,
+            )?;
         }
         Ok(())
     }
@@ -447,10 +462,15 @@ impl<R: ReadRepository> cob::Evaluate<R> for Thread {
         Ok(object)
     }
 
-    fn apply(&mut self, entry: &cob::Entry, repo: &R) -> Result<(), Self::Error> {
+    fn apply<'a, I: Iterator<Item = (&'a EntryId, &'a cob::Entry)>>(
+        &mut self,
+        entry: &cob::Entry,
+        concurrent: I,
+        repo: &R,
+    ) -> Result<(), Self::Error> {
         let op = Op::try_from(entry)?;
 
-        self.op(op, repo)
+        self.op(op, concurrent.map(|(_, e)| e), repo)
     }
 }
 
@@ -677,7 +697,7 @@ mod tests {
 
         // Redact the second comment.
         let a3 = alice.redact(a1.id());
-        thread.op(a3, &repo).unwrap();
+        thread.op(a3, [], &repo).unwrap();
 
         let (_, comment0) = thread.comments().nth(0).unwrap();
         let (_, comment1) = thread.comments().nth(1).unwrap();
@@ -885,7 +905,7 @@ mod tests {
         let mut t = Thread::default();
         let id = arbitrary::entry_id();
 
-        t.op(alice.redact(id), &repo).unwrap_err();
+        t.op(alice.redact(id), [], &repo).unwrap_err();
     }
 
     #[test]
@@ -895,7 +915,7 @@ mod tests {
         let mut t = Thread::default();
         let id = arbitrary::entry_id();
 
-        t.op(alice.edit(id, "Edited"), &repo).unwrap_err();
+        t.op(alice.edit(id, "Edited"), [], &repo).unwrap_err();
     }
 
     #[test]

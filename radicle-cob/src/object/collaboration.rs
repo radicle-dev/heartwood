@@ -70,7 +70,12 @@ pub trait Evaluate<R>: Sized + Debug + 'static {
     fn init(entry: &Entry, store: &R) -> Result<Self, Self::Error>;
 
     /// Apply a history entry to the evaluated state.
-    fn apply(&mut self, entry: &Entry, store: &R) -> Result<(), Self::Error>;
+    fn apply<'a, I: Iterator<Item = (&'a Oid, &'a Entry)>>(
+        &mut self,
+        entry: &Entry,
+        concurrent: I,
+        store: &R,
+    ) -> Result<(), Self::Error>;
 }
 
 impl<R> Evaluate<R> for NonEmpty<Entry> {
@@ -80,7 +85,12 @@ impl<R> Evaluate<R> for NonEmpty<Entry> {
         Ok(Self::new(entry.clone()))
     }
 
-    fn apply(&mut self, entry: &Entry, _store: &R) -> Result<(), Self::Error> {
+    fn apply<'a, I: Iterator<Item = (&'a Oid, &'a Entry)>>(
+        &mut self,
+        entry: &Entry,
+        _concurrent: I,
+        _store: &R,
+    ) -> Result<(), Self::Error> {
         self.push(entry.clone());
 
         Ok(())

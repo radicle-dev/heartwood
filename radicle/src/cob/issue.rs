@@ -144,17 +144,31 @@ impl store::Cob for Issue {
         let mut issue = Issue::new(thread);
 
         for action in actions {
-            issue.action(action, op.id, op.author, op.timestamp, &doc, repo)?;
+            issue.action(action, op.id, op.author, op.timestamp, &[], &doc, repo)?;
         }
         Ok(issue)
     }
 
-    fn op<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
+    fn op<'a, R: ReadRepository, I: IntoIterator<Item = &'a cob::Entry>>(
+        &mut self,
+        op: Op,
+        concurrent: I,
+        repo: &R,
+    ) -> Result<(), Error> {
         let doc = op.identity_doc(repo)?.ok_or(Error::MissingIdentity)?;
+        let concurrent = concurrent.into_iter().collect::<Vec<_>>();
         for action in op.actions {
             match self.authorization(&action, &op.author, &doc)? {
                 Authorization::Allow => {
-                    self.action(action, op.id, op.author, op.timestamp, &doc, repo)?;
+                    self.action(
+                        action,
+                        op.id,
+                        op.author,
+                        op.timestamp,
+                        &concurrent,
+                        &doc,
+                        repo,
+                    )?;
                 }
                 Authorization::Deny => {
                     return Err(Error::NotAuthorized(op.author, action));
@@ -178,10 +192,15 @@ impl<R: ReadRepository> cob::Evaluate<R> for Issue {
         Ok(object)
     }
 
-    fn apply(&mut self, entry: &cob::Entry, repo: &R) -> Result<(), Self::Error> {
+    fn apply<'a, I: Iterator<Item = (&'a EntryId, &'a cob::Entry)>>(
+        &mut self,
+        entry: &cob::Entry,
+        concurrent: I,
+        repo: &R,
+    ) -> Result<(), Self::Error> {
         let op = Op::try_from(entry)?;
 
-        self.op(op, repo)
+        self.op(op, concurrent.map(|(_, e)| e), repo)
     }
 }
 
@@ -314,12 +333,13 @@ impl Issue {
 
 impl Issue {
     /// Apply a single action to the issue.
-    fn action<R: ReadRepository>(
+    fn action<'a, R: ReadRepository>(
         &mut self,
         action: Action,
         entry: EntryId,
         author: ActorId,
         timestamp: Timestamp,
+        _concurrent: &[&'a cob::Entry],
         _doc: &Doc<Verified>,
         _repo: &R,
     ) -> Result<(), Error> {
