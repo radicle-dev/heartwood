@@ -59,11 +59,12 @@ where
     if local == remote {
         return Err(Error::ReplicateSelf);
     }
-    let state = FetchState::default();
     let handshake = handle
         .transport
         .handshake()
         .map_err(|err| Error::Handshake { err })?;
+    let state = FetchState::default();
+
     // N.b. ensure that we ignore the local peer's key.
     handle.blocked.extend([local]);
     state
@@ -90,18 +91,7 @@ where
         .transport
         .handshake()
         .map_err(|err| Error::Handshake { err })?;
-    let mut state = FetchState::default();
-    state
-        .run_stage(
-            handle,
-            &handshake,
-            &stage::CanonicalId {
-                remote,
-                limit: limit.special,
-            },
-        )
-        .map_err(|e| Error::from(state::error::Protocol::from(e)))?;
-
+    let state = FetchState::default();
     state
         .run(handle, &handshake, limit, remote, None)
         .map_err(Error::Protocol)

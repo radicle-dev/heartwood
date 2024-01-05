@@ -378,6 +378,18 @@ impl FetchState {
     where
         S: transport::ConnectionStream,
     {
+        // N.b. we always fetch the `rad/id` since our delegate set
+        // might be further ahead than theirs, e.g. we are the
+        // deciding vote on adding a delegate.
+        self.run_stage(
+            handle,
+            &handshake,
+            &stage::CanonicalId {
+                remote,
+                limit: limit.special,
+            },
+        )?;
+
         // N.b. The error case here should not happen. In the case of
         // a `clone` we have asked for refs/rad/id and ensured it was
         // fetched. In the case of `pull` the repository should have
