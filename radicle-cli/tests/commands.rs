@@ -497,6 +497,20 @@ fn rad_patch_diff() {
 }
 
 #[test]
+fn rad_patch_edit() {
+    let mut environment = Environment::new();
+    let profile = environment.profile(config::profile("alice"));
+    let working = tempfile::tempdir().unwrap();
+    let home = &profile.home;
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+
+    test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
+    test("examples/rad-patch-edit.md", working.path(), Some(home), []).unwrap();
+}
+
+#[test]
 fn rad_patch_checkout() {
     let mut environment = Environment::new();
     let profile = environment.profile(config::profile("alice"));
