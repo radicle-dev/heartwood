@@ -256,6 +256,7 @@ pub enum Operation {
     },
     Edit {
         patch_id: Rev,
+        revision_id: Option<Rev>,
         message: Message,
     },
     Redact {
@@ -370,6 +371,14 @@ impl Args for Options {
                     let rev = term::args::rev(&val)?;
 
                     reply_to = Some(rev);
+                }
+
+                // Edit options.
+                Long("revision") | Short('r') if op == Some(OperationName::Edit) => {
+                    let val = parser.value()?;
+                    let rev = term::args::rev(&val)?;
+
+                    revision_id = Some(rev);
                 }
 
                 // Review/diff options.
@@ -611,6 +620,7 @@ impl Args for Options {
             },
             OperationName::Edit => Operation::Edit {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                revision_id,
                 message,
             },
             OperationName::Redact => Operation::Redact {
@@ -763,9 +773,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .map(patch::RevisionId::from);
             review::run(patch_id, revision_id, opts, &profile, &repository)?;
         }
-        Operation::Edit { patch_id, message } => {
+        Operation::Edit {
+            patch_id,
+            revision_id,
+            message,
+        } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
-            edit::run(&patch_id, message, &profile, &repository)?;
+            let revision_id = revision_id
+                .map(|id| id.resolve::<radicle::git::Oid>(&repository.backend))
+                .transpose()?
+                .map(patch::RevisionId::from);
+            edit::run(&patch_id, revision_id, message, &profile, &repository)?;
         }
         Operation::Redact { revision_id } => {
             redact::run(&revision_id, &profile, &repository)?;
