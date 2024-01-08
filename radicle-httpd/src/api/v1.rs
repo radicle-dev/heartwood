@@ -35,7 +35,7 @@ async fn root_handler(State(ctx): State<Context>) -> impl IntoResponse {
         "message": "Welcome!",
         "service": "radicle-httpd",
         "version": format!("{}-{}", VERSION, env!("GIT_HEAD")),
-        "node": { "id": ctx.profile.public_key },
+        "nid": ctx.profile.public_key,
         "path": "/api/v1",
         "links": [
             {

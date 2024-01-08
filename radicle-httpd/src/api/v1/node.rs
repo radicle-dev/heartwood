@@ -11,7 +11,7 @@ use radicle::node::{policy, Handle, DEFAULT_TIMEOUT};
 use radicle::Node;
 
 use crate::api::error::Error;
-use crate::api::{self, Context, PoliciesQuery};
+use crate::api::{self, Context, PoliciesQuery, VERSION};
 use crate::axum_extra::{Path, Query};
 
 pub fn router(ctx: Context) -> Router {
@@ -44,6 +44,7 @@ async fn node_handler(State(ctx): State<Context>) -> impl IntoResponse {
     };
     let response = json!({
         "id": node_id.to_string(),
+        "version": format!("{}-{}", VERSION, env!("GIT_HEAD")),
         "config": config,
         "state": node_state,
     });
