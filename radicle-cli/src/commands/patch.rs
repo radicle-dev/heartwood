@@ -73,6 +73,7 @@ Show options
 
     -p, --patch                Show the actual patch diff
     -v, --verbose              Show additional information about the patch
+        --debug                Show the patch as Rust debug output
 
 Diff options
 
@@ -206,6 +207,7 @@ pub enum Operation {
     Show {
         patch_id: Rev,
         diff: bool,
+        debug: bool,
     },
     Diff {
         patch_id: Rev,
@@ -314,6 +316,7 @@ impl Args for Options {
         let mut push = true;
         let mut filter = Filter::default();
         let mut diff = false;
+        let mut debug = false;
         let mut undo = false;
         let mut reply_to: Option<Rev> = None;
         let mut checkout_opts = checkout::Options::default();
@@ -341,7 +344,7 @@ impl Args for Options {
                 Long("no-announce") => {
                     announce = false;
                 }
-                Long("push") => {
+                Long("ppush") => {
                     push = true;
                 }
                 Long("no-push") => {
@@ -351,6 +354,9 @@ impl Args for Options {
                 // Show options.
                 Long("patch") | Short('p') if op == Some(OperationName::Show) => {
                     diff = true;
+                }
+                Long("debug") if op == Some(OperationName::Show) => {
+                    debug = true;
                 }
 
                 // Ready options.
@@ -570,6 +576,7 @@ impl Args for Options {
             OperationName::Show => Operation::Show {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
                 diff,
+                debug,
             },
             OperationName::Diff => Operation::Diff {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
@@ -663,11 +670,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
             list::run(f, authors, &repository, &profile)?;
         }
-        Operation::Show { patch_id, diff } => {
+        Operation::Show {
+            patch_id,
+            diff,
+            debug,
+        } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
             show::run(
                 &patch_id,
                 diff,
+                debug,
                 options.verbose,
                 &profile,
                 &repository,
