@@ -56,6 +56,7 @@ fn patch_commits(patch: &patch::Patch, stored: &Repository) -> anyhow::Result<Ve
 pub fn run(
     patch_id: &PatchId,
     diff: bool,
+    debug: bool,
     verbose: bool,
     profile: &Profile,
     stored: &Repository,
@@ -66,6 +67,12 @@ pub fn run(
     let Some(patch) = patches.get(patch_id)? else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };
+
+    if debug {
+        println!("{:#?}", patch);
+        return Ok(());
+    }
+
     let (_, revision) = patch.latest();
     let state = patch.state();
     let branches = common::branches(&revision.head(), workdir)?;

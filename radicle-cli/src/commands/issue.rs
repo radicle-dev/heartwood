@@ -58,6 +58,10 @@ Label options
 
     Note: --add takes precedence over --delete
 
+Show options
+
+        --debug                Show the issue as Rust debug output
+
 Options
 
         --no-announce      Don't announce issue to peers
@@ -106,6 +110,7 @@ pub enum Operation {
     Show {
         id: Rev,
         format: Format,
+        debug: bool,
     },
     Comment {
         id: Rev,
@@ -177,6 +182,7 @@ impl Args for Options {
         let mut reply_to = None;
         let mut announce = true;
         let mut quiet = false;
+        let mut debug = false;
         let mut assign_opts = AssignOptions::default();
         let mut label_opts = LabelOptions::default();
 
@@ -185,6 +191,8 @@ impl Args for Options {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
+
+                // List options.
                 Long("all") if op.is_none() || op == Some(OperationName::List) => {
                     state = None;
                 }
@@ -201,6 +209,8 @@ impl Args for Options {
                         reason: CloseReason::Solved,
                     });
                 }
+
+                // Open options.
                 Long("title") if op == Some(OperationName::Open) => {
                     title = Some(parser.value()?.to_string_lossy().into());
                 }
@@ -217,6 +227,11 @@ impl Args for Options {
 
                     assignees.push(did);
                 }
+                Long("description") if op == Some(OperationName::Open) => {
+                    description = Some(parser.value()?.to_string_lossy().into());
+                }
+
+                // State options.
                 Long("closed") if op == Some(OperationName::State) => {
                     state = Some(State::Closed {
                         reason: CloseReason::Other,
@@ -230,6 +245,8 @@ impl Args for Options {
                         reason: CloseReason::Solved,
                     });
                 }
+
+                // React options.
                 Long("emoji") if op == Some(OperationName::React) => {
                     if let Some(emoji) = parser.value()?.to_str() {
                         reaction =
@@ -240,17 +257,8 @@ impl Args for Options {
                     let oid: String = parser.value()?.to_string_lossy().into();
                     comment_id = Some(oid.parse()?);
                 }
-                Long("description") if op == Some(OperationName::Open) => {
-                    description = Some(parser.value()?.to_string_lossy().into());
-                }
-                Long("assigned") | Short('a') if assigned.is_none() => {
-                    if let Ok(val) = parser.value() {
-                        let peer = term::args::did(&val)?;
-                        assigned = Some(Assigned::Peer(peer));
-                    } else {
-                        assigned = Some(Assigned::Me);
-                    }
-                }
+
+                // Show options.
                 Long("format") if op == Some(OperationName::Show) => {
                     let val = parser.value()?;
                     let val = term::args::string(&val);
@@ -261,6 +269,11 @@ impl Args for Options {
                         _ => anyhow::bail!("unknown format '{val}'"),
                     }
                 }
+                Long("debug") if op == Some(OperationName::Show) => {
+                    debug = true;
+                }
+
+                // Comment options.
                 Long("message") | Short('m') if op == Some(OperationName::Comment) => {
                     let val = parser.value()?;
                     let txt = term::args::string(&val);
@@ -273,9 +286,6 @@ impl Args for Options {
 
                     reply_to = Some(rev);
                 }
-                Long("no-announce") => {
-                    announce = false;
-                }
 
                 // Assign options
                 Short('a') | Long("add") if op == Some(OperationName::Assign) => {
@@ -285,6 +295,14 @@ impl Args for Options {
                     assign_opts
                         .delete
                         .insert(term::args::did(&parser.value()?)?);
+                }
+                Long("assigned") | Short('a') if assigned.is_none() => {
+                    if let Ok(val) = parser.value() {
+                        let peer = term::args::did(&val)?;
+                        assigned = Some(Assigned::Peer(peer));
+                    } else {
+                        assigned = Some(Assigned::Me);
+                    }
                 }
 
                 // Label options
@@ -303,9 +321,14 @@ impl Args for Options {
                     label_opts.delete.insert(label);
                 }
 
+                // Options.
+                Long("no-announce") => {
+                    announce = false;
+                }
                 Long("quiet") | Short('q') => {
                     quiet = true;
                 }
+
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "c" | "comment" => op = Some(OperationName::Comment),
                     "w" | "show" => op = Some(OperationName::Show),
@@ -350,6 +373,7 @@ impl Args for Options {
             OperationName::Show => Operation::Show {
                 id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
                 format,
+                debug,
             },
             OperationName::State => Operation::State {
                 id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
@@ -442,12 +466,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 term::comment::widget(&comment_id, comment, &profile).print();
             }
         }
-        Operation::Show { id, format } => {
+        Operation::Show { id, format, debug } => {
             let id = id.resolve(&repo.backend)?;
             let issue = issues
                 .get(&id)?
                 .context("No issue with the given ID exists")?;
-            term::issue::show(&issue, &id, format, &profile)?;
+            if debug {
+                println!("{:#?}", issue);
+            } else {
+                term::issue::show(&issue, &id, format, &profile)?;
+            }
         }
         Operation::State { id, state } => {
             let id = id.resolve(&repo.backend)?;
