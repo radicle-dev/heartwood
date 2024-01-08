@@ -30,12 +30,16 @@ pub fn run(
         None => storage.backend.merge_base(*target_oid, *head_oid)?,
     };
 
-    let (_, revision) = patch.latest();
-    // N.b. we don't update if both the head and base are the same
-    if revision.head() == head_oid && **revision.base() == base_oid {
+    // N.b. we don't update if both the head and base are the same as
+    // any previous revision
+    if patch
+        .revisions()
+        .any(|(_, revision)| revision.head() == head_oid && **revision.base() == base_oid)
+    {
         return Ok(());
     }
 
+    let (_, revision) = patch.latest();
     let message = term::patch::get_update_message(message, workdir, revision, &head_oid)?;
     let signer = term::signer(profile)?;
     let revision = patch.update(message, base_oid, *head_oid, &signer)?;
