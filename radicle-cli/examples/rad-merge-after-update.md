@@ -27,7 +27,7 @@ update it, we expect it to be updated and merged:
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git checkout feature/1 -q
 $ git push -f
-✓ Patch a1207f6 updated to [...]
+✓ Patch a1207f6 updated to revision [...]
 ✓ Patch a1207f6e82700e42cc46c9c38c7786b18cbd2040 merged
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + 20aa5dd...954bcdb feature/1 -> patches/a1207f6e82700e42cc46c9c38c7786b18cbd2040 (forced update)

@@ -59,7 +59,7 @@ We can now finish off the update:
 
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun"
-✓ Patch 6ff4f09 updated to 0c0942e2ff2488617d950ede15567ca39a29972e
+✓ Patch 6ff4f09 updated to revision 0c0942e2ff2488617d950ede15567ca39a29972e
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    3e674d1..27857ec  patch/6ff4f09 -> patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae
 ```

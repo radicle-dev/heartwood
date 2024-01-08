@@ -473,10 +473,10 @@ fn patch_update<G: Signer>(
     let revision = patch.update(message, base, head, signer)?;
 
     eprintln!(
-        "{} Patch {} updated to {}",
+        "{} Patch {} updated to revision {}",
         cli::format::positive("✓"),
-        cli::format::dim(cli::format::cob(&patch_id)),
-        cli::format::tertiary(revision)
+        cli::format::tertiary(cli::format::cob(&patch_id)),
+        cli::format::dim(revision)
     );
 
     // In this case, the patch was already merged via git, and pushed to storage.
@@ -594,7 +594,7 @@ fn patch_merge<G: Signer>(
             "{} Patch {} merged at revision {}",
             cli::format::positive("✓"),
             cli::format::tertiary(merged.patch),
-            cli::format::oid(revision),
+            cli::format::dim(cli::format::oid(revision)),
         );
     }
 

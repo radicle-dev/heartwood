@@ -82,7 +82,7 @@ Bob then updates the patch.
 ``` ~bob (stderr)
 $ git commit --allow-empty -m "Bob's commit #2" -q
 $ git push rad -o sync -o patch.message="Updated."
-✓ Patch 48c3035 updated to 8c15a61af45f561b4bf0694aee03ade34a1b18f5
+✓ Patch 48c3035 updated to revision 8c15a61af45f561b4bf0694aee03ade34a1b18f5
 ✓ Synced with 1 node(s)
 To rad://zhbMU4DUXrzB8xT6qAJh6yZ7bFMK/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
    bdcdb30..cad2666  bob/feature -> patches/48c30356be83049458c0608d5a6f84789e9dc1d0

@@ -55,7 +55,7 @@ $ git commit -m "Use markdown for requirements"
 ```
 ``` (stderr)
 $ git push rad -o no-sync -o patch.message="Use markdown for requirements"
-✓ Patch 3581e83 updated to abb0360eae315bbd460743381303567587ab0e08
+✓ Patch 3581e83 updated to revision abb0360eae315bbd460743381303567587ab0e08
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new branch]      patch/3581e83 -> patches/3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c
 ```

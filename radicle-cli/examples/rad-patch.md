@@ -126,7 +126,7 @@ $ git commit --message "Add README, just for the fun"
 ```
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun"
-✓ Patch 6ff4f09 updated to e0fd9f00b51e10e1ca88868e68e46e859ed371d7
+✓ Patch 6ff4f09 updated to revision e0fd9f00b51e10e1ca88868e68e46e859ed371d7
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    3e674d1..27857ec  flux-capacitor-power -> patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae
 ```

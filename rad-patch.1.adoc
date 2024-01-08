@@ -204,7 +204,7 @@ To update a patch, we simply make our changes locally and push:
 
     $ git commit --amend
     $ git push --force
-    ✓ Patch 90c77f2 updated to d0018fcc21d87c91a1ff9155aed6b4e57535566b
+    ✓ Patch 90c77f2 updated to revision d0018fcc21d87c91a1ff9155aed6b4e57535566b
     ...
 
 Note that this will only work if the current branch upstream is set correctly.

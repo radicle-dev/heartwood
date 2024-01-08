@@ -32,7 +32,7 @@ f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 $ git checkout patch/0fd67a0 -q
 $ git commit --allow-empty -m "Changes #2" -q
 $ git push
-✓ Patch 0fd67a0 updated to c360232989049f6d95efe3512e68608317333a5e
+✓ Patch 0fd67a0 updated to revision c360232989049f6d95efe3512e68608317333a5e
 ✓ Synced with 1 node(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new branch]      patch/0fd67a0 -> patches/0fd67a0364af1f79ed8770a35ed09d85571d4c21
@@ -51,7 +51,7 @@ From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 $ git checkout - -q
 $ git commit --allow-empty -m "Changes #3" -q
 $ git push
-✓ Patch 0fd67a0 updated to c4115970191cd0e67212b6d26ad9e3bd992dce35
+✓ Patch 0fd67a0 updated to revision c4115970191cd0e67212b6d26ad9e3bd992dce35
 ✓ Synced with 1 node(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    c2aaf1c..d9f8caf  patch/0fd67a0 -> patches/0fd67a0364af1f79ed8770a35ed09d85571d4c21
