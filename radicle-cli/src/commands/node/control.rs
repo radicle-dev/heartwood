@@ -58,8 +58,8 @@ pub fn start(
             .args(options)
             .envs(envs)
             .stdin(process::Stdio::null())
-            .stdout(process::Stdio::from(log))
-            .stderr(process::Stdio::null())
+            .stdout(process::Stdio::from(log.try_clone()?))
+            .stderr(process::Stdio::from(log))
             .spawn()?;
         let pid = term::format::parens(term::format::dim(child.id()));
 
@@ -85,7 +85,10 @@ pub fn start(
                     );
                     break;
                 } else if started.elapsed() >= NODE_START_TIMEOUT {
-                    anyhow::bail!("node failed to start. Try running in verbose mode with `rad node start --verbose`");
+                    anyhow::bail!(
+                        "node failed to start. Try running it with `rad node start --foreground`, \
+                        or check the logs with `rad node logs`"
+                    );
                 }
                 thread::sleep(time::Duration::from_millis(60));
             }
