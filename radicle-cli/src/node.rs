@@ -1,3 +1,4 @@
+use std::ops::ControlFlow;
 use std::time::Duration;
 
 use radicle::identity::Id;
@@ -33,10 +34,11 @@ fn announce_(rid: Id, node: &mut Node) -> Result<(), radicle::node::Error> {
         rid,
         connected,
         Duration::from_secs(9),
-        |event| match event {
-            node::AnnounceEvent::Announced => {}
+        |event, _| match event {
+            node::AnnounceEvent::Announced => ControlFlow::Continue(()),
             node::AnnounceEvent::RefsSynced { remote } => {
                 spinner.message(format!("Synced with {remote}.."));
+                ControlFlow::Continue(())
             }
         },
     )?;

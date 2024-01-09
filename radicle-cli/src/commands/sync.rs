@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::ffi::OsString;
+use std::ops::ControlFlow;
 use std::str::FromStr;
 use std::time;
 
@@ -387,7 +388,7 @@ fn announce_refs(
         let synced = seeds.iter().filter(|s| s.is_synced());
 
         match mode {
-            RepoSync::Seeds(seeds) => {
+            RepoSync::Seeds(ref seeds) => {
                 let synced = synced.map(|s| s.nid).collect::<Vec<_>>();
                 if seeds.iter().all(|s| synced.contains(s)) {
                     term::success!(
@@ -431,10 +432,20 @@ fn announce_refs(
     }
 
     let mut spinner = term::spinner(format!("Syncing with {} node(s)..", unsynced.len()));
-    let result = node.announce(rid, unsynced, timeout, |event| match event {
-        node::AnnounceEvent::Announced => {}
+    let cutoff = if let RepoSync::Replicas(replicas) = mode {
+        Some(replicas)
+    } else {
+        None
+    };
+    let result = node.announce(rid, unsynced, timeout, |event, synced| match event {
+        node::AnnounceEvent::Announced => ControlFlow::Continue(()),
         node::AnnounceEvent::RefsSynced { remote } => {
             spinner.message(format!("Synced with {remote}.."));
+            if Some(synced.len()) == cutoff {
+                ControlFlow::Break(())
+            } else {
+                ControlFlow::Continue(())
+            }
         }
     })?;
 
