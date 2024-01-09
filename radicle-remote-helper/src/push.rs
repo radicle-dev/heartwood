@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::io::IsTerminal;
+use std::ops::ControlFlow;
 use std::path::Path;
 use std::str::FromStr;
 use std::time;
@@ -639,12 +640,18 @@ fn sync(rid: Id, mut node: radicle::Node) -> Result<(), radicle::node::Error> {
     } else {
         cli::spinner_to(message, io::stderr(), io::sink())
     };
-    let result = node.announce(rid, connected, DEFAULT_SYNC_TIMEOUT, |event| match event {
-        node::AnnounceEvent::Announced => {}
-        node::AnnounceEvent::RefsSynced { remote } => {
-            spinner.message(format!("Synced with {remote}.."));
-        }
-    })?;
+    let result = node.announce(
+        rid,
+        connected,
+        DEFAULT_SYNC_TIMEOUT,
+        |event, _| match event {
+            node::AnnounceEvent::Announced => ControlFlow::Continue(()),
+            node::AnnounceEvent::RefsSynced { remote } => {
+                spinner.message(format!("Synced with {remote}.."));
+                ControlFlow::Continue(())
+            }
+        },
+    )?;
 
     if result.synced.is_empty() {
         spinner.failed();

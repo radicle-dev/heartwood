@@ -63,12 +63,18 @@ $ rad sync --fetch --seed z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 ✓ Fetched repository from 1 seed(s)
 ```
 
-And the `--replicas` flag to sync with a number of nodes:
+And the `--replicas` flag to sync with a number of nodes. First we'll
+create a new issue so that we have something to announce:
 
 ```
-$ rad sync --fetch --replicas 1
+$ rad issue open --title "Test `rad sync --replicas`" --description "Check that the replicas works" -q --no-announce
+```
+
+```
+$ rad sync --replicas 1
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
 ✓ Fetched repository from 1 seed(s)
+✓ Synced with 1 node(s)
 ```
 
 We can check the sync status again to make sure everything's in sync:
@@ -78,8 +84,13 @@ $ rad sync status --sort-by alias
 ╭─────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   Node                      Address                  Status   Tip       Timestamp │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   alice   (you)             alice.radicle.xyz:8776            9f615f9   [  ...  ] │
-│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
-│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
+│ ●   alice   (you)             alice.radicle.xyz:8776            9ee4e68   [  ...  ] │
+│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.xyz:8776     synced   9ee4e68   [  ...  ] │
+│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.xyz:8776     synced   9ee4e68   [  ...  ] │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 ```
+
+Note that both `bob` and `eve` are in sync despite seeing `Synced with
+1 node(s)`. This is because the announcement was still made to `bob`
+and `eve`, but we will only wait for at least `1` replica to be
+synchronized.

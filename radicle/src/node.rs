@@ -10,7 +10,7 @@ pub mod seed;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::io::{BufRead, BufReader};
-use std::ops::Deref;
+use std::ops::{ControlFlow, Deref};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -901,16 +901,16 @@ impl Node {
         rid: Id,
         seeds: impl IntoIterator<Item = NodeId>,
         timeout: time::Duration,
-        mut callback: impl FnMut(AnnounceEvent),
+        mut callback: impl FnMut(AnnounceEvent, &Vec<PublicKey>) -> ControlFlow<()>,
     ) -> Result<AnnounceResult, Error> {
         let events = self.subscribe(timeout)?;
         let mut seeds = seeds.into_iter().collect::<BTreeSet<_>>();
         let refs = self.announce_refs(rid)?;
 
-        callback(AnnounceEvent::Announced);
-
         let mut synced = Vec::new();
         let mut timeout: Vec<NodeId> = Vec::new();
+
+        callback(AnnounceEvent::Announced, &synced);
 
         for e in events {
             match e {
@@ -921,7 +921,9 @@ impl Node {
                 }) if rid == rid_ => {
                     if seeds.remove(&remote) && refs.at == at {
                         synced.push(remote);
-                        callback(AnnounceEvent::RefsSynced { remote });
+                        if callback(AnnounceEvent::RefsSynced { remote }, &synced).is_break() {
+                            break;
+                        }
                     }
                 }
                 Ok(_) => {}
