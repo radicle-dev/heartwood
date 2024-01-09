@@ -362,8 +362,8 @@ pub struct Service<D, S, G> {
     last_prune: LocalTime,
     /// Last time the service announced its inventory.
     last_announce: LocalTime,
-    /// Time when the service was initialized.
-    start_time: LocalTime,
+    /// Time when the service was initialized, or `None` if it wasn't initialized.
+    started_at: Option<LocalTime>,
     /// Publishes events to subscribers.
     emitter: Emitter<Event>,
 }
@@ -421,9 +421,14 @@ where
             last_sync: LocalTime::default(),
             last_prune: LocalTime::default(),
             last_announce: LocalTime::default(),
-            start_time: LocalTime::default(),
+            started_at: None,
             emitter,
         }
+    }
+
+    /// Whether the service was started (initialized) and if so, at what time.
+    pub fn started(&self) -> Option<LocalTime> {
+        self.started_at
     }
 
     /// Return the next i/o action to execute.
@@ -522,7 +527,7 @@ where
         debug!(target: "service", "Init @{}", time.as_millis());
 
         let nid = self.node_id();
-        self.start_time = time;
+        self.started_at = Some(time);
 
         // Ensure that our local node is in our address database.
         self.db
@@ -609,15 +614,22 @@ where
     }
 
     pub fn tick(&mut self, now: LocalTime) {
-        trace!(target: "service", "Tick +{}", now - self.start_time);
-
+        trace!(
+            target: "service",
+            "Tick +{}",
+            now - self.started_at.expect("Service::tick: service must be initialized")
+        );
         self.clock = now;
     }
 
     pub fn wake(&mut self) {
         let now = self.clock;
 
-        trace!(target: "service", "Wake +{}", now - self.start_time);
+        trace!(
+            target: "service",
+            "Wake +{}",
+            now - self.started_at.expect("Service::wake: service must be initialized")
+        );
 
         if now - self.last_idle >= IDLE_INTERVAL {
             trace!(target: "service", "Running 'idle' task...");

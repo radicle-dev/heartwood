@@ -338,15 +338,12 @@ where
     G: Signer + Ecdh<Pk = NodeId>,
 {
     pub fn new(
-        mut service: Service<D, S, G>,
+        service: Service<D, S, G>,
         worker: chan::Sender<Task>,
         signer: G,
         proxy: net::SocketAddr,
-        clock: LocalTime,
     ) -> Self {
-        service
-            .initialize(clock)
-            .expect("Wire::new: error initializing service");
+        assert!(service.started().is_some(), "Service must be initialized");
 
         Self {
             service,

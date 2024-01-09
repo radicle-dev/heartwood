@@ -53,6 +53,9 @@ pub enum Error {
     /// An address database error.
     #[error("address database error: {0}")]
     Address(#[from] address::Error),
+    /// A service error.
+    #[error("service error: {0}")]
+    Service(#[from] service::Error),
     /// An I/O error.
     #[error("i/o error: {0}")]
     Io(#[from] io::Error),
@@ -209,7 +212,7 @@ impl Runtime {
         }
 
         let emitter: Emitter<Event> = Default::default();
-        let service = service::Service::new(
+        let mut service = service::Service::new(
             config,
             clock,
             db,
@@ -220,9 +223,10 @@ impl Runtime {
             announcement,
             emitter.clone(),
         );
+        service.initialize(clock)?;
 
         let (worker_send, worker_recv) = chan::unbounded::<worker::Task>();
-        let mut wire = Wire::new(service, worker_send, signer.clone(), proxy, clock);
+        let mut wire = Wire::new(service, worker_send, signer.clone(), proxy);
         let mut local_addrs = Vec::new();
 
         for addr in listen {
