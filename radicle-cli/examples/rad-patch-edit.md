@@ -53,7 +53,7 @@ $ rad patch show 0631b2d
 │ 8945f61 Define the LICENSE                                          │
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ● opened by z6MknSL…StBU8Vi (you) (03c02af) now                     │
 │ ↑ updated to bbc91fd4c74bfbbb162ec4b97cd8cefe623814d7 (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
@@ -78,7 +78,7 @@ $ rad patch show 0631b2d
 │ 8945f61 Define the LICENSE                                          │
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ● opened by z6MknSL…StBU8Vi (you) (03c02af) now                     │
 │ ↑ updated to bbc91fd4c74bfbbb162ec4b97cd8cefe623814d7 (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
@@ -106,7 +106,7 @@ $ rad patch show 0631b2d
 │ 8945f61 Define the LICENSE                                          │
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ● opened by z6MknSL…StBU8Vi (you) (03c02af) now                     │
 │ ↑ updated to bbc91fd4c74bfbbb162ec4b97cd8cefe623814d7 (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```

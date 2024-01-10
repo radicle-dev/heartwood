@@ -33,7 +33,7 @@ $ rad patch show 82faae29b2a2f11bf45bbba4c4787d6b32a12447
 ├────────────────────────────────────────────────────┤
 │ 42d894a Add things                                 │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now              │
+│ ● opened by z6MknSL…StBU8Vi (you) (42d894a) now    │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -145,7 +145,7 @@ $ rad patch show b77b2e8
 │ 02bef3f Improve code                                                │
 │ 8b0ea80 Add more things                                             │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ● opened by z6MknSL…StBU8Vi (you) (8b0ea80) now                     │
 │ ↑ updated to 8d6692ce2b2219a54d09ccd5feefedb2bae33eba (02bef3f) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
@@ -221,7 +221,7 @@ $ rad patch show b77b2e8
 │ 9304dbc Amended commit                                              │
 │ 8b0ea80 Add more things                                             │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ● opened by z6MknSL…StBU8Vi (you) (8b0ea80) now                     │
 │ ↑ updated to 8d6692ce2b2219a54d09ccd5feefedb2bae33eba (02bef3f) now │
 │ ↑ updated to 8438ab3940316abe65c93982a0a8f39688400359 (9304dbc) now │
 ╰─────────────────────────────────────────────────────────────────────╯

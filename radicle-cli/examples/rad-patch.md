@@ -56,7 +56,7 @@ $ rad patch show 6ff4f09c1b5a81347981f59b02ef43a31a07cdae -p
 ├────────────────────────────────────────────────────┤
 │ 3e674d1 Define power requirements                  │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now              │
+│ ● opened by z6MknSL…StBU8Vi (you) (3e674d1) now    │
 ╰────────────────────────────────────────────────────╯
 
 commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
@@ -110,7 +110,7 @@ $ rad patch show 6ff4f09
 ├────────────────────────────────────────────────────┤
 │ 3e674d1 Define power requirements                  │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now              │
+│ ● opened by z6MknSL…StBU8Vi (you) (3e674d1) now    │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -177,7 +177,7 @@ $ rad patch show 6ff4f09
 │ 27857ec Add README, just for the fun                                │
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ● opened by z6MknSL…StBU8Vi (you) (3e674d1) now                     │
 │ ↑ updated to e0fd9f00b51e10e1ca88868e68e46e859ed371d7 (27857ec) now │
 │   └─ ✓ accepted by z6MknSL…StBU8Vi (you) now                        │
 ╰─────────────────────────────────────────────────────────────────────╯
@@ -203,7 +203,7 @@ $ rad patch show 6ff4f09
 │ 27857ec Add README, just for the fun                                │
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ● opened by z6MknSL…StBU8Vi (you) (3e674d1) now                     │
 │ ↑ updated to e0fd9f00b51e10e1ca88868e68e46e859ed371d7 (27857ec) now │
 │   └─ ✓ accepted by z6MknSL…StBU8Vi (you) now                        │
 ╰─────────────────────────────────────────────────────────────────────╯

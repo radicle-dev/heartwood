@@ -30,7 +30,7 @@ $ rad patch show 6ff4f09
 │ 27857ec Add README, just for the fun                                │
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ● opened by z6MknSL…StBU8Vi (you) (3e674d1) now                     │
 │ ↑ updated to 0c0942e2ff2488617d950ede15567ca39a29972e (27857ec) now │
 │ ↑ updated to 2bf48de79e371014f084b5501ecc9c9c4182e7fc (639f44a) now │
 ╰─────────────────────────────────────────────────────────────────────╯

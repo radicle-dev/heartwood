@@ -183,6 +183,8 @@ struct Opened<'a> {
     author: Author<'a>,
     /// When the patch was created.
     timestamp: cob::Timestamp,
+    /// The commit head of the `Revision`.
+    head: git::Oid,
     /// Any updates performed on the root `Revision`.
     updates: Vec<Update<'a>>,
 }
@@ -216,6 +218,7 @@ impl<'a> Opened<'a> {
         Opened {
             author: Author::new(&patch.author().id, profile),
             timestamp: patch.timestamp(),
+            head: revision.head(),
             updates: updates.into_iter().map(|(_, up)| up).collect(),
         }
     }
@@ -229,7 +232,10 @@ impl<'a> Opened<'a> {
             .space()
             .extend(self.author.line())
             .space()
-            .extend([term::format::dim(term::format::timestamp(self.timestamp)).into()]),
+            .extend(term::Line::spaced([
+                term::format::parens(term::format::secondary(term::format::oid(self.head))).into(),
+                term::format::dim(term::format::timestamp(self.timestamp)).into(),
+            ])),
         )
         .chain(self.updates.into_iter().map(|up| {
             term::Line::spaced([term::Label::space(), term::Label::from("└─ ")])

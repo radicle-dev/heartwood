@@ -68,7 +68,7 @@ $ rad patch show -v -p f03f6ea
 ├────────────────────────────────────────────────────┤
 │ 5c88a79 Add Alan                                   │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now              │
+│ ● opened by z6MknSL…StBU8Vi (you) (5c88a79) now    │
 ╰────────────────────────────────────────────────────╯
 
 commit 5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7
@@ -115,7 +115,7 @@ $ rad patch show -v 13a3d64f00e1c3f01c4d65fe115d2a2ed57d6cb7
 │ 7f63fcb Add Mel                                    │
 │ 5c88a79 Add Alan                                   │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now              │
+│ ● opened by z6MknSL…StBU8Vi (you) (7f63fcb) now    │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -149,6 +149,6 @@ $ rad patch show -v c0083bdc7f7acda2e7a9db3134566dd385c7e88e
 ├────────────────────────────────────────────────────┤
 │ 7f63fcb Add Mel                                    │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now              │
+│ ● opened by z6MknSL…StBU8Vi (you) (7f63fcb) now    │
 ╰────────────────────────────────────────────────────╯
 ```

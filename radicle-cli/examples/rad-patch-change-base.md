@@ -57,7 +57,7 @@ $ rad patch show 11188b8 -v
 │ 27857ec Add README, just for the fun               │
 │ 3e674d1 Define power requirements                  │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now              │
+│ ● opened by z6MknSL…StBU8Vi (you) (27857ec) now    │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -87,7 +87,7 @@ $ rad patch show 11188b8 -v
 ├─────────────────────────────────────────────────────────────────────┤
 │ 27857ec Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ● opened by z6MknSL…StBU8Vi (you) (27857ec) now                     │
 │ ↑ updated to ea90a38b4df0b323149a06b0472ea1cf9a754dca (27857ec) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```

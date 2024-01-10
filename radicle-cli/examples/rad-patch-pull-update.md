@@ -103,7 +103,7 @@ $ rad patch show 48c3035
 │ cad2666 Bob's commit #2                                             │
 │ bdcdb30 Bob's commit #1                                             │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by bob z6Mkt67…v4N1tRk now                                 │
+│ ● opened by bob z6Mkt67…v4N1tRk (bdcdb30) now                       │
 │ ↑ updated to 8c15a61af45f561b4bf0694aee03ade34a1b18f5 (cad2666) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 $ git ls-remote rad
