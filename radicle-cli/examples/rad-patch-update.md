@@ -24,7 +24,7 @@ $ rad patch show 8f5dcedc07a89928fd450bce1479f2559bcfd1d4
 ├────────────────────────────────────────────────────┤
 │ 51b2f0f Not a real change                          │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now              │
+│ ● opened by z6MknSL…StBU8Vi (you) (51b2f0f) now    │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -66,7 +66,7 @@ $ rad patch show 8f5dcedc07a89928fd450bce1479f2559bcfd1d4
 │ 4d27214 Rename readme file                                          │
 │ 51b2f0f Not a real change                                           │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ● opened by z6MknSL…StBU8Vi (you) (51b2f0f) now                     │
 │ ↑ updated to 74d453f93d81bb535ffa4ef65c46e5bd0a76015d (4d27214) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```

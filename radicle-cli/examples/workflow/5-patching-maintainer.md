@@ -33,7 +33,7 @@ $ rad patch show 3581e83
 │ 27857ec Add README, just for the fun                                │
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by bob z6Mkt67…v4N1tRk now                                 │
+│ ● opened by bob z6Mkt67…v4N1tRk (3e674d1) now                       │
 │ ↑ updated to 6de8527cdf51f96e12649c7278efe1dccfdee885 (27857ec) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
@@ -103,7 +103,7 @@ $ rad patch show 3581e83
 │ 27857ec Add README, just for the fun                                │
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by bob z6Mkt67…v4N1tRk now                                 │
+│ ● opened by bob z6Mkt67…v4N1tRk (3e674d1) now                       │
 │ ↑ updated to 6de8527cdf51f96e12649c7278efe1dccfdee885 (27857ec) now │
 │ * revised by alice (you) in abb0360 (f567f69) now                   │
 │   └─ ✓ accepted by alice (you) now                                  │
