@@ -422,12 +422,12 @@ impl Repository {
     /// Create the repository's identity branch.
     pub fn init<G: Signer, S: WriteStorage>(
         doc: &Doc<Verified>,
-        storage: S,
+        storage: &S,
         signer: &G,
     ) -> Result<(Self, git::Oid), RepositoryError> {
         let (doc_oid, _) = doc.encode()?;
         let id = Id::from(doc_oid);
-        let repo = Self::create(paths::repository(&storage, &id), id, storage.info())?;
+        let repo = Self::create(paths::repository(storage, &id), id, storage.info())?;
         let commit = doc.init(&repo, signer)?;
 
         Ok((repo, commit))
