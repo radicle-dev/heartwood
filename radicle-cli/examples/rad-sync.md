@@ -28,6 +28,20 @@ $ rad sync --announce
 ✓ Synced with 2 node(s)
 ```
 
+Now, when we run `rad sync status` again, we can see that `bob` and
+`eve` are up-to-date:
+
+```
+$ rad sync status --sort-by alias
+╭─────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   Node                      Address                  Status   Tip       Timestamp │
+├─────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   alice   (you)             alice.radicle.xyz:8776            9f615f9   [  ...  ] │
+│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
+│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
+╰─────────────────────────────────────────────────────────────────────────────────────╯
+```
+
 If we try to sync again after the nodes have synced, we will already
 be up to date.
 
@@ -77,20 +91,8 @@ $ rad sync --replicas 1
 ✓ Synced with 1 node(s)
 ```
 
-We can check the sync status again to make sure everything's in sync:
-
-```
-$ rad sync status --sort-by alias
-╭─────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   Node                      Address                  Status   Tip       Timestamp │
-├─────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   alice   (you)             alice.radicle.xyz:8776            9ee4e68   [  ...  ] │
-│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.xyz:8776     synced   9ee4e68   [  ...  ] │
-│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.xyz:8776     synced   9ee4e68   [  ...  ] │
-╰─────────────────────────────────────────────────────────────────────────────────────╯
-```
-
-Note that both `bob` and `eve` are in sync despite seeing `Synced with
-1 node(s)`. This is because the announcement was still made to `bob`
-and `eve`, but we will only wait for at least `1` replica to be
-synchronized.
+Note that we see `✓ Fetched repository from 1 seed(s)` and `✓ Synced
+with 1 node(s)`. This does not necessarily mean that only `bob` or
+`eve` were synchronized with, since they both could have received the
+announcement of the new changes. However, it does mean that we only
+wait for at least 1 of the nodes to have fetched the changes from us.
