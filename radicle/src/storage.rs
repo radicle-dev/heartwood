@@ -371,9 +371,6 @@ pub trait WriteStorage: ReadStorage {
     /// Create a read-write repository.
     fn create(&self, rid: Id) -> Result<Self::RepositoryMut, Error>;
 
-    /// Delete all remote namespaces apart from the local node's and
-    /// delegates' namespace.
-
     /// Clean the repository found at `rid`.
     ///
     /// If the local peer has initialised `rad/sigrefs` by forking or

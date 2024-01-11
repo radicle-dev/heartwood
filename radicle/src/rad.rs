@@ -70,17 +70,44 @@ pub fn init<G: Signer, S: WriteStorage>(
         )
     })?;
     let doc = identity::Doc::initial(proj, delegate, visibility).verified()?;
-    let (project, _) = Repository::init(&doc, storage, signer)?;
+    let (project, _) = Repository::init(&doc, &storage, signer)?;
     let url = git::Url::from(project.id);
 
+    match init_configure(repo, &project, pk, &default_branch, &url, signer) {
+        Ok(signed) => Ok((project.id, doc, signed)),
+        Err(err) => {
+            if let Err(e) = project.remove() {
+                log::warn!(target: "radicle", "Failed to remove project during `rad::init` cleanup: {e}");
+            }
+            if repo.find_remote(&REMOTE_NAME).is_ok() {
+                if let Err(e) = repo.remote_delete(&REMOTE_NAME) {
+                    log::warn!(target: "radicle", "Failed to remove remote during `rad::init` cleanup: {e}");
+                }
+            }
+            Err(err)
+        }
+    }
+}
+
+fn init_configure<G>(
+    repo: &git2::Repository,
+    project: &Repository,
+    pk: &crypto::PublicKey,
+    default_branch: &BranchName,
+    url: &git::Url,
+    signer: &G,
+) -> Result<SignedRefs<Verified>, InitError>
+where
+    G: crypto::Signer,
+{
     git::configure_repository(repo)?;
-    git::configure_remote(repo, &REMOTE_NAME, &url, &url.clone().with_namespace(*pk))?;
+    git::configure_remote(repo, &REMOTE_NAME, url, &url.clone().with_namespace(*pk))?;
     git::push(
         repo,
         &REMOTE_NAME,
         [(
-            &git::fmt::lit::refs_heads(&default_branch).into(),
-            &git::fmt::lit::refs_heads(&default_branch).into(),
+            &git::fmt::lit::refs_heads(default_branch).into(),
+            &git::fmt::lit::refs_heads(default_branch).into(),
         )],
     )?;
 
@@ -88,7 +115,7 @@ pub fn init<G: Signer, S: WriteStorage>(
     let _head = project.set_identity_head()?;
     let _head = project.set_head()?;
 
-    Ok((project.id, doc, signed))
+    Ok(signed)
 }
 
 #[derive(Error, Debug)]
