@@ -123,8 +123,9 @@ This is essentially equivalent to *git checkout -b <name>* followed by
 Comment on a patch revision, optionally replying to an existing comment.
 
 *<revision-id>*::
-The patch revision to comment on. Since all Patch IDs are also Revision IDs,
-a Patch ID is also accepted.
+The patch revision to comment on. The Patch ID is also a Revision ID,
+and can be used for commenting on the initial revision of the patch.
+Any other Revision ID will comment on the revision specified.
 
 *--message*, *-m <string>*::
 Comment message. If omitted, Radicle will prompt for a comment string via
