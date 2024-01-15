@@ -383,7 +383,7 @@ impl FetchState {
         // deciding vote on adding a delegate.
         self.run_stage(
             handle,
-            &handshake,
+            handshake,
             &stage::CanonicalId {
                 remote,
                 limit: limit.special,
