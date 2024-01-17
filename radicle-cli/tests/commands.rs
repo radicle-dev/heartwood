@@ -26,7 +26,34 @@ const RAD_SEED: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 mod config {
     use super::*;
+    use radicle::node::config::{Config, Limits, Network, RateLimit, RateLimits};
     use radicle::profile;
+
+    /// Configuration for a test seed node.
+    ///
+    /// It sets the `RateLimit::capacity` to `usize::MAX` ensuring
+    /// that there are no rate limits for test nodes, since they all
+    /// operate on the same IP address. This prevents any announcement
+    /// messages from being dropped.
+    pub fn seed(alias: &'static str) -> Config {
+        Config {
+            network: Network::Test,
+            limits: Limits {
+                rate: RateLimits {
+                    inbound: RateLimit {
+                        fill_rate: 1.0,
+                        capacity: usize::MAX,
+                    },
+                    outbound: RateLimit {
+                        fill_rate: 1.0,
+                        capacity: usize::MAX,
+                    },
+                },
+                ..Limits::default()
+            },
+            ..node(alias)
+        }
+    }
 
     /// Test node config.
     pub fn node(alias: &'static str) -> Config {
@@ -378,8 +405,8 @@ fn rad_id_collaboration() {
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
     let eve = environment.node(Config::test(Alias::new("eve")));
-    let seed = environment.node(Config::seed(Alias::new("seed")));
-    let distrustful = environment.node(Config::seed(Alias::new("distrustful")));
+    let seed = environment.node(config::seed("seed"));
+    let distrustful = environment.node(config::seed("distrustful"));
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
     let acme = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
@@ -1785,15 +1812,16 @@ fn rad_patch_open_explore() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
-    let mut alice = environment
+    let seed = environment
         .node(Config {
             policy: Policy::Allow,
-            ..Config::test(Alias::new("alice"))
+            scope: Scope::All,
+            ..config::seed("seed")
         })
         .spawn();
 
     let bob = environment.profile(profile::Config {
-        preferred_seeds: vec![alice.address()],
+        preferred_seeds: vec![seed.address()],
         ..config::profile("bob")
     });
     let mut bob = Node::new(bob).spawn();
@@ -1801,10 +1829,9 @@ fn rad_patch_open_explore() {
 
     fixtures::repository(&working);
 
+    bob.connect(&seed);
     bob.init("heartwood", "", &working).unwrap();
-    bob.connect(&alice);
-    alice.handle.follow(bob.id, None).unwrap();
-    alice.converge([&bob]);
+    bob.converge([&seed]);
 
     test(
         "examples/rad-patch-open-explore.md",

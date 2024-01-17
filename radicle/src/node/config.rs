@@ -227,32 +227,6 @@ impl Config {
         }
     }
 
-    /// Configuration for a test seed node.
-    ///
-    /// It sets the `RateLimit::capacity` to `usize::MAX` ensuring
-    /// that there are no rate limits for test nodes, since they all
-    /// operate on the same IP address. This prevents any announcement
-    /// messages from being dropped.
-    pub fn seed(alias: Alias) -> Self {
-        Self {
-            network: Network::Test,
-            limits: Limits {
-                rate: RateLimits {
-                    inbound: RateLimit {
-                        fill_rate: 1.0,
-                        capacity: usize::MAX,
-                    },
-                    outbound: RateLimit {
-                        fill_rate: 1.0,
-                        capacity: usize::MAX,
-                    },
-                },
-                ..Limits::default()
-            },
-            ..Self::new(alias)
-        }
-    }
-
     pub fn new(alias: Alias) -> Self {
         Self {
             alias,
