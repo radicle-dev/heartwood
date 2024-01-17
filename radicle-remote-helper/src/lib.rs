@@ -122,6 +122,12 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
     let mut line = String::new();
     let mut opts = Options::default();
 
+    if let Err(e) = radicle::io::set_file_limit(4096) {
+        if debug {
+            eprintln!("git-remote-rad: unable to set open file limit: {e}");
+        }
+    }
+
     loop {
         let tokens = read_line(&stdin, &mut line)?;
 
