@@ -21,6 +21,12 @@ enum Command {
 }
 
 fn main() {
+    if let Some(lvl) = radicle::logger::env_level() {
+        radicle::logger::init(lvl).ok();
+    }
+    if let Err(e) = radicle::io::set_file_limit(4096) {
+        log::warn!(target: "cli", "Unable to set open file limit: {e}");
+    }
     match parse_args().map_err(Some).and_then(run) {
         Ok(_) => process::exit(0),
         Err(err) => {
