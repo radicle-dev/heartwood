@@ -14,6 +14,9 @@ pub fn set_file_limit(n: u64) -> io::Result<u64> {
             return Err(io::Error::last_os_error());
         }
     }
+    if rlim.rlim_cur >= n {
+        return Ok(rlim.rlim_cur);
+    }
     // Set the soft limit to the given value, up to the hard limit.
     rlim.rlim_cur = n.min(rlim.rlim_max);
     unsafe {
