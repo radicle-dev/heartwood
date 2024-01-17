@@ -17,6 +17,8 @@ pub enum EvaluateError {
     Init(Box<dyn std::error::Error + Sync + Send + 'static>),
     #[error("invalid signature for entry '{0}'")]
     Signature(EntryId),
+    #[error("root entry '{0}' missing from graph")]
+    MissingRoot(EntryId),
 }
 
 /// The graph of changes for a particular collaborative object
@@ -100,7 +102,7 @@ impl ChangeGraph {
         let root = self
             .graph
             .get(&root)
-            .expect("ChangeGraph::evaluate: root must be part of change graph");
+            .ok_or(EvaluateError::MissingRoot(root))?;
 
         if !root.valid_signatures() {
             return Err(EvaluateError::Signature(root.id));
