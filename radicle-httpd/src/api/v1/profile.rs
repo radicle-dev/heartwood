@@ -94,6 +94,7 @@ mod routes {
                     "routingMaxAge": 604800,
                     "gossipMaxAge": 1209600,
                     "fetchConcurrency": 1,
+                    "maxOpenFiles": 4096,
                     "rate": {
                       "inbound": {
                         "fillRate": 0.2,

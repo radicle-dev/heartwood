@@ -108,6 +108,10 @@ fn execute() -> anyhow::Result<()> {
         config.listen.clone()
     };
 
+    if let Err(e) = radicle::io::set_file_limit(config.limits.max_open_files as u64) {
+        log::warn!(target: "node", "Unable to set process open file limit: {e}");
+    }
+
     let (notify, signals) = chan::bounded(1);
     signals::install(notify)?;
 

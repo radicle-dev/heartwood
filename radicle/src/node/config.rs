@@ -80,6 +80,8 @@ pub struct Limits {
     pub gossip_max_age: LocalDuration,
     /// Maximum number of concurrent fetches per per connection.
     pub fetch_concurrency: usize,
+    /// Maximum number of open files.
+    pub max_open_files: usize,
     /// Rate limitter settings.
     #[serde(default)]
     pub rate: RateLimits,
@@ -92,6 +94,7 @@ impl Default for Limits {
             routing_max_age: LocalDuration::from_mins(7 * 24 * 60), // One week
             gossip_max_age: LocalDuration::from_mins(2 * 7 * 24 * 60), // Two weeks
             fetch_concurrency: 1,
+            max_open_files: 4096,
             rate: RateLimits::default(),
         }
     }

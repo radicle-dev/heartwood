@@ -2361,6 +2361,7 @@ dependencies = [
  "cyphernet",
  "fastrand",
  "git2",
+ "libc",
  "localtime",
  "log",
  "multibase",
