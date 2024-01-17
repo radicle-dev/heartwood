@@ -10,6 +10,9 @@ pub const GIT_HEAD: &str = env!("GIT_HEAD");
 fn main() {
     let mut args = env::args();
 
+    if let Some(lvl) = radicle::logger::env_level() {
+        radicle::logger::set(radicle::logger::StderrLogger::new(lvl), lvl).ok();
+    }
     if args.nth(1).as_deref() == Some("--version") {
         if let Err(e) = version::print(std::io::stdout(), NAME, VERSION, GIT_HEAD) {
             eprintln!("error: {e}");

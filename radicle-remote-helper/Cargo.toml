@@ -7,7 +7,8 @@ edition = "2021"
 build = "../build.rs"
 
 [dependencies]
-thiserror = "1"
+thiserror = { version = "1" }
+log = { version = "0.4.17" }
 radicle-git-ext = { version = "0.7.0" }
 
 [dependencies.radicle]

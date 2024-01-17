@@ -5,13 +5,15 @@
 #[cfg(feature = "test")]
 pub mod test;
 
-use std::io::{self, Write};
+use std::io;
+use std::io::Write;
 
 use chrono::prelude::*;
 use colored::*;
 use log::{Level, Log, Metadata, Record, SetLoggerError};
 
-struct Logger {
+/// A logger that logs to `stdout`.
+pub struct Logger {
     level: Level,
 }
 
@@ -44,8 +46,38 @@ impl Log for Logger {
                 Level::Debug => message.dimmed(),
                 Level::Trace => message.white().dimmed(),
             };
+            writeln!(&mut io::stdout(), "{message}").expect("write shouldn't fail");
+        }
+    }
 
-            writeln!(io::stdout(), "{message}").expect("write shouldn't fail");
+    fn flush(&self) {}
+}
+
+/// A logger that logs to `stderr`.
+pub struct StderrLogger {
+    level: Level,
+}
+
+impl StderrLogger {
+    pub fn new(level: Level) -> Self {
+        Self { level }
+    }
+}
+
+impl Log for StderrLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        metadata.level() <= self.level
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            let message = format!(
+                "{:<5} {:<8} {}",
+                record.level(),
+                record.target(),
+                record.args()
+            );
+            writeln!(&mut io::stderr(), "{message}").expect("write shouldn't fail");
         }
     }
 
@@ -54,8 +86,11 @@ impl Log for Logger {
 
 /// Initialize a new logger.
 pub fn init(level: Level) -> Result<(), SetLoggerError> {
-    let logger = Logger { level };
+    set(Logger { level }, level)
+}
 
+/// Set a logger.
+pub fn set(logger: impl Log + 'static, level: Level) -> Result<(), SetLoggerError> {
     log::set_boxed_logger(Box::new(logger))?;
     log::set_max_level(level.to_level_filter());
 

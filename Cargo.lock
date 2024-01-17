@@ -2613,6 +2613,7 @@ dependencies = [
 name = "radicle-remote-helper"
 version = "0.2.0"
 dependencies = [
+ "log",
  "radicle",
  "radicle-cli",
  "radicle-crypto",
