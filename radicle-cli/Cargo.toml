@@ -14,21 +14,21 @@ path = "src/main.rs"
 anyhow = { version = "1" }
 chrono = { version = "0.4.26", default-features = false, features = ["clock", "std"] }
 git-ref-format = { version = "0.3.0", features = ["macro"] }
-lexopt = { version = "0.2" }
+lexopt = { version = "0.3.0" }
 localtime = { version = "1.2.0" }
 log = { version = "0.4", features = ["std"] }
-nonempty = { version = "0.8" }
+nonempty = { version = "0.9.0" }
 # N.b. this is required to use macros, even though it's re-exported
 # through radicle
 radicle-git-ext = { version = "0.7.0", features = ["serde"] }
 radicle-surf = { version = "0.18.0" }
 serde = { version = "1.0" }
 serde_json = { version = "1" }
-serde_yaml = { version = "0.8" }
+serde_yaml = { version = "0.9.30" }
 shlex = { version = "1.1.0" }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }
-timeago = { version = "0.3", default-features = false }
+timeago = { version = "0.4.2", default-features = false }
 tree-sitter = { version = "0.20.0" }
 tree-sitter-highlight = { version = "0.20" }
 tree-sitter-json = { version = "0.20.1" }
@@ -37,7 +37,7 @@ tree-sitter-typescript = { version = "0.20.3" }
 # N.b. This crate has a C++ token scanner that causes problems when building
 # for the musl target. Hence it is optional for now.
 tree-sitter-html = { version = "0.19", optional = true }
-tree-sitter-css = { version = "0.19" }
+tree-sitter-css = { version = "0.20" }
 tree-sitter-toml = { version = "0.20" }
 tree-sitter-c = { version = "0.20" }
 tree-sitter-python = { version = "0.20" }

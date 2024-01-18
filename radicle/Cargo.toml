@@ -23,11 +23,11 @@ multibase = { version = "0.9.1" }
 localtime = { version = "1.2.0", features = ["serde"] }
 libc = { version = "0.2" }
 log = { version = "0.4.17", features = ["std"] }
-nonempty = { version = "0.8.1", features = ["serialize"] }
+nonempty = { version = "0.9.0", features = ["serialize"] }
 once_cell = { version = "1.13" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-siphasher = { version = "0.3.10" }
+siphasher = { version = "1.0.0" }
 radicle-git-ext = { version = "0.7.0", features = ["serde"] }
 sqlite = { version = "0.32.0", features = ["bundled"] }
 tempfile = { version = "3.3.0" }
@@ -41,7 +41,7 @@ features = ["clock"]
 optional = true
 
 [dependencies.colored]
-version = "1.9.0"
+version = "2.1.0"
 optional = true
 
 [dependencies.git2]

@@ -82,8 +82,8 @@ impl NodeAnnouncement {
     ///
     pub fn work(&self) -> u32 {
         let (n, r, p) = Announcement::POW_PARAMS;
-        let params = scrypt::Params::new(n, r, p).expect("proof-of-work parameters are valid");
-        let mut output = vec![0; 32];
+        let params = scrypt::Params::new(n, r, p, 32).expect("proof-of-work parameters are valid");
+        let mut output = [0u8; 32];
 
         scrypt::scrypt(
             wire::serialize(self).as_ref(),
