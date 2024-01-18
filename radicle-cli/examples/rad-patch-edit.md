@@ -16,7 +16,7 @@ $ git commit --message "Add README, just for the fun"
 
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun" HEAD:refs/patches
-✓ Patch 0631b2d1b5cd4ae44e92732ff3929528354a8405 opened
+✓ Patch 59e17793443e35a5e76b3dd58d419d316d8211ee opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -32,18 +32,18 @@ $ git commit -v -m "Define the LICENSE"
 
 ``` (stderr)
 $ git push -f -o patch.message="Add License"
-✓ Patch 0631b2d updated to revision bbc91fd4c74bfbbb162ec4b97cd8cefe623814d7
+✓ Patch 59e1779 updated to revision 7169d286cc0e3060ef97639c92b7c951260ade74
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   03c02af..8945f61  changes -> patches/0631b2d1b5cd4ae44e92732ff3929528354a8405
+   03c02af..8945f61  changes -> patches/59e17793443e35a5e76b3dd58d419d316d8211ee
 ```
 
 Let's look at the patch, to see what it looks like before editing it:
 
 ```
-$ rad patch show 0631b2d
+$ rad patch show 59e1779
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add README, just for the fun                              │
-│ Patch     0631b2d1b5cd4ae44e92732ff3929528354a8405                  │
+│ Patch     59e17793443e35a5e76b3dd58d419d316d8211ee                  │
 │ Author    z6MknSL…StBU8Vi (you)                                     │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
 │ Branches  changes                                                   │
@@ -54,7 +54,7 @@ $ rad patch show 0631b2d
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by z6MknSL…StBU8Vi (you) (03c02af) now                     │
-│ ↑ updated to bbc91fd4c74bfbbb162ec4b97cd8cefe623814d7 (8945f61) now │
+│ ↑ updated to 7169d286cc0e3060ef97639c92b7c951260ade74 (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -62,11 +62,11 @@ We can change the title and description of the patch itself by using a
 multi-line message (using two `--message` options here):
 
 ```
-$ rad patch edit 0631b2d --message "Add Metadata" --message "Add README & LICENSE" --no-announce
-$ rad patch show 0631b2d
+$ rad patch edit 59e1779 --message "Add Metadata" --message "Add README & LICENSE" --no-announce
+$ rad patch show 59e1779
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add Metadata                                              │
-│ Patch     0631b2d1b5cd4ae44e92732ff3929528354a8405                  │
+│ Patch     59e17793443e35a5e76b3dd58d419d316d8211ee                  │
 │ Author    z6MknSL…StBU8Vi (you)                                     │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
 │ Branches  changes                                                   │
@@ -79,7 +79,7 @@ $ rad patch show 0631b2d
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by z6MknSL…StBU8Vi (you) (03c02af) now                     │
-│ ↑ updated to bbc91fd4c74bfbbb162ec4b97cd8cefe623814d7 (8945f61) now │
+│ ↑ updated to 7169d286cc0e3060ef97639c92b7c951260ade74 (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -90,11 +90,11 @@ If we want to change a specific revision's description, we can use the
 `--revision` option:
 
 ```
-$ rad patch edit 0631b2d --revision bbc91fd --message "Changes: Adds LICENSE file" --no-announce
-$ rad patch show 0631b2d
+$ rad patch edit 59e1779 --revision 7169d28 --message "Changes: Adds LICENSE file" --no-announce
+$ rad patch show 59e1779
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add Metadata                                              │
-│ Patch     0631b2d1b5cd4ae44e92732ff3929528354a8405                  │
+│ Patch     59e17793443e35a5e76b3dd58d419d316d8211ee                  │
 │ Author    z6MknSL…StBU8Vi (you)                                     │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
 │ Branches  changes                                                   │
@@ -107,7 +107,7 @@ $ rad patch show 0631b2d
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by z6MknSL…StBU8Vi (you) (03c02af) now                     │
-│ ↑ updated to bbc91fd4c74bfbbb162ec4b97cd8cefe623814d7 (8945f61) now │
+│ ↑ updated to 7169d286cc0e3060ef97639c92b7c951260ade74 (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 

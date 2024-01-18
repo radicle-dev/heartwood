@@ -59,7 +59,7 @@ pub fn update<T, S, G>(
     storage: &S,
     signer: &G,
     resource: Option<Oid>,
-    parents: Vec<Oid>,
+    related: Vec<Oid>,
     identifier: &PublicKey,
     args: Update,
 ) -> Result<Updated<T>, error::Update>
@@ -88,7 +88,7 @@ where
     // Create a commit for this change, but don't update any references yet.
     let entry = storage.store(
         resource,
-        parents,
+        related,
         signer,
         change::Template {
             tips: object.history.tips().into_iter().collect(),

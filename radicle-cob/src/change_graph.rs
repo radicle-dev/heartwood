@@ -50,9 +50,7 @@ impl ChangeGraph {
 
             match storage.load(reference.target.id) {
                 Ok(change) => {
-                    let new_edges = builder
-                        .add_change(storage, reference.target.id, change)
-                        .ok()?;
+                    let new_edges = builder.add_change(reference.target.id, change);
                     edges_to_process.extend(new_edges);
                 }
                 Err(e) => {
@@ -76,7 +74,7 @@ impl ChangeGraph {
             );
             match storage.load(parent_commit_id) {
                 Ok(change) => {
-                    let new_edges = builder.add_change(storage, parent_commit_id, change).ok()?;
+                    let new_edges = builder.add_change(parent_commit_id, change);
                     edges_to_process.extend(new_edges);
                     builder.add_edge(child_commit_id, parent_commit_id);
                 }
@@ -158,32 +156,26 @@ impl Default for GraphBuilder {
 impl GraphBuilder {
     /// Add a change to the graph which we are building up, returning any edges
     /// corresponding to the parents of this node in the change graph
-    fn add_change<S>(
-        &mut self,
-        storage: &S,
-        commit_id: Oid,
-        change: Entry,
-    ) -> Result<Vec<(Oid, Oid)>, S::LoadError>
-    where
-        S: change::Storage<ObjectId = Oid, Parent = Oid, Signatures = ExtendedSignature>,
-    {
+    fn add_change(&mut self, commit_id: Oid, change: Entry) -> Vec<(Oid, Oid)> {
         let resource = change.resource().copied();
+        let parents = change.parents.clone();
 
         if !self.graph.contains(&commit_id) {
             self.graph.node(commit_id, change);
         }
 
-        Ok(storage
-            .parents_of(&commit_id)?
+        parents
             .into_iter()
             .filter_map(move |parent| {
-                if Some(parent) != resource && !self.graph.has_dependency(&commit_id, &parent) {
+                debug_assert_ne!(Some(parent), resource);
+
+                if !self.graph.has_dependency(&commit_id, &parent) {
                     Some((parent, commit_id))
                 } else {
                     None
                 }
             })
-            .collect::<Vec<(Oid, Oid)>>())
+            .collect()
     }
 
     fn add_edge(&mut self, child: Oid, parent: Oid) {

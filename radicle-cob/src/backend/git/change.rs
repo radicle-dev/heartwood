@@ -13,6 +13,7 @@ use radicle_git_ext::commit::trailers::OwnedTrailer;
 
 use crate::change::store::Version;
 use crate::signatures;
+use crate::trailers::CommitTrailer;
 use crate::{
     change,
     change::{store, Contents, Entry, Timestamp},
@@ -77,6 +78,8 @@ pub mod error {
         ChangeNotSigned(Oid),
         #[error("the 'change' found at '{0}' has more than one signature")]
         TooManySignatures(Oid),
+        #[error("the 'change' found at '{0}' has more than one resource trailer")]
+        TooManyResources(Oid),
         #[error(transparent)]
         ResourceTrailer(#[from] super::trailers::error::InvalidResourceTrailer),
         #[error("non utf-8 characters in commit message")]
@@ -95,7 +98,7 @@ impl change::Storage for git2::Repository {
     fn store<Signer>(
         &self,
         resource: Option<Self::Parent>,
-        mut parents: Vec<Self::Parent>,
+        mut related: Vec<Self::Parent>,
         signer: &Signer,
         spec: store::Template<Self::ObjectId>,
     ) -> Result<Entry, Self::StoreError>
@@ -118,9 +121,9 @@ impl change::Storage for git2::Repository {
             ExtendedSignature::new(*key, sig)
         };
 
-        // Make sure there are no duplicates in the parents list.
-        parents.dedup();
-        parents.sort();
+        // Make sure there are no duplicates in the related list.
+        related.sort();
+        related.dedup();
 
         let (id, timestamp) = write_commit(
             self,
@@ -128,12 +131,14 @@ impl change::Storage for git2::Repository {
             // Commit to tips, extra parents and resource.
             tips.iter()
                 .cloned()
-                .chain(parents.clone())
+                .chain(related.clone())
                 .chain(resource)
                 .map(git2::Oid::from),
             message,
             signature.clone(),
-            vec![],
+            related
+                .iter()
+                .map(|p| trailers::CommitTrailer::Related(**p).into()),
             tree,
         )?;
 
@@ -142,7 +147,8 @@ impl change::Storage for git2::Repository {
             revision: revision.into(),
             signature,
             resource,
-            parents: tips.into_iter().chain(parents).collect(),
+            parents: tips,
+            related,
             manifest,
             contents,
             timestamp,
@@ -160,11 +166,23 @@ impl change::Storage for git2::Repository {
     fn load(&self, id: Self::ObjectId) -> Result<Entry, Self::LoadError> {
         let commit = Commit::read(self, id.into())?;
         let timestamp = git2::Time::from(commit.committer().time).seconds() as u64;
-        let resource = parse_resource_trailer(commit.trailers())?;
+        let trailers = parse_trailers(commit.trailers())?;
+        let (resources, related): (Vec<_>, Vec<_>) = trailers.iter().partition(|t| match t {
+            CommitTrailer::Resource(_) => true,
+            CommitTrailer::Related(_) => false,
+        });
+        let mut resources = resources
+            .into_iter()
+            .map(|r| r.oid().into())
+            .collect::<Vec<_>>();
+        let related = related
+            .into_iter()
+            .map(|r| r.oid().into())
+            .collect::<Vec<_>>();
         let parents = commit
             .parents()
             .map(Oid::from)
-            .filter(|p| Some(*p) != resource)
+            .filter(|p| !resources.contains(p) && !related.contains(p))
             .collect();
         let mut signatures = Signatures::try_from(&commit)?
             .into_iter()
@@ -175,6 +193,9 @@ impl change::Storage for git2::Repository {
         if !signatures.is_empty() {
             return Err(error::Load::TooManySignatures(id));
         }
+        if resources.len() > 1 {
+            return Err(error::Load::TooManyResources(id));
+        };
 
         let tree = self.find_tree(commit.tree())?;
         let manifest = load_manifest(self, &tree)?;
@@ -184,7 +205,8 @@ impl change::Storage for git2::Repository {
             id,
             revision: tree.id().into(),
             signature: ExtendedSignature::new(key, sig),
-            resource,
+            resource: resources.pop(),
+            related,
             parents,
             manifest,
             contents,
@@ -193,19 +215,20 @@ impl change::Storage for git2::Repository {
     }
 }
 
-fn parse_resource_trailer<'a>(
+fn parse_trailers<'a>(
     trailers: impl Iterator<Item = &'a OwnedTrailer>,
-) -> Result<Option<Oid>, error::Load> {
+) -> Result<Vec<trailers::CommitTrailer>, error::Load> {
+    let mut parsed = Vec::new();
     for trailer in trailers {
-        match trailers::ResourceCommitTrailer::try_from(trailer) {
+        match trailers::CommitTrailer::try_from(trailer) {
             Err(trailers::error::InvalidResourceTrailer::WrongToken) => {
                 continue;
             }
             Err(err) => return Err(err.into()),
-            Ok(resource) => return Ok(Some(resource.oid().into())),
+            Ok(t) => parsed.push(t),
         }
     }
-    Ok(None)
+    Ok(parsed)
 }
 
 fn load_manifest(
@@ -260,7 +283,7 @@ fn write_commit(
 ) -> Result<(Oid, Timestamp), error::Create> {
     let trailers: Vec<OwnedTrailer> = trailers
         .into_iter()
-        .chain(resource.map(|r| trailers::ResourceCommitTrailer::from(r).into()))
+        .chain(resource.map(|r| trailers::CommitTrailer::Resource(r).into()))
         .collect();
     let author = repo.signature()?;
     #[allow(unused_variables)]

@@ -57,7 +57,7 @@ pub fn create<T, S, G>(
     storage: &S,
     signer: &G,
     resource: Option<Oid>,
-    parents: Vec<Oid>,
+    related: Vec<Oid>,
     identifier: &PublicKey,
     args: Create,
 ) -> Result<CollaborativeObject<T>, error::Create>
@@ -69,7 +69,7 @@ where
     let type_name = args.type_name.clone();
     let version = args.version;
     let init_change = storage
-        .store(resource, parents, signer, args.template())
+        .store(resource, related, signer, args.template())
         .map_err(error::Create::from)?;
     let object_id = init_change.id().into();
     let object = T::init(&init_change, storage).map_err(error::Create::evaluate)?;

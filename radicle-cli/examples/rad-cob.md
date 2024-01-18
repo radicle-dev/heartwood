@@ -45,7 +45,7 @@ $ rad patch
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                      Author                  Head     +   -   Updated │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  6ff4f09  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  now     │
+│ ●  0f3cd0b  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  now     │
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -55,17 +55,17 @@ Both issue and patch COBs can be listed.
 $ rad cob list --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue
 d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61
 $ rad cob list --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch
-6ff4f09c1b5a81347981f59b02ef43a31a07cdae
+0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f
 ```
 
 We can look at the issue COB.
 
 ```
 $ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue --object d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61
-commit d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61
-parent 0656c217f917c3e06234771e9ecae53aba5e173e
-author z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-date   Thu, 15 Dec 2022 17:28:04 +0000
+commit   d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61
+resource 0656c217f917c3e06234771e9ecae53aba5e173e
+author   z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+date     Thu, 15 Dec 2022 17:28:04 +0000
 
     {
       "body": "Flux capacitor power requirements exceed current supply",
@@ -92,13 +92,13 @@ date   Thu, 15 Dec 2022 17:28:04 +0000
 We can look at the patch COB too.
 
 ```
-$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object 6ff4f09c1b5a81347981f59b02ef43a31a07cdae
-commit 6ff4f09c1b5a81347981f59b02ef43a31a07cdae
-parent 0656c217f917c3e06234771e9ecae53aba5e173e
-parent 3e674d1a1df90807e934f9ae5da2591dd6848a33
-parent f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
-author z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-date   Thu, 15 Dec 2022 17:28:04 +0000
+$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object 0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f
+commit   0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f
+resource 0656c217f917c3e06234771e9ecae53aba5e173e
+rel      3e674d1a1df90807e934f9ae5da2591dd6848a33
+rel      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+author   z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+date     Thu, 15 Dec 2022 17:28:04 +0000
 
     {
       "base": "f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354",
@@ -110,6 +110,51 @@ date   Thu, 15 Dec 2022 17:28:04 +0000
     {
       "target": "delegates",
       "title": "Define power requirements",
+      "type": "edit"
+    }
+
+    {
+      "labels": [],
+      "type": "label"
+    }
+
+```
+
+Finally let's updated the issue and see the `parent` header:
+
+```
+$ rad issue label d185ee1 --add bug --no-announce
+$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue --object d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61
+commit   4dd9a3dfb60665e427a43dbf289e50b7fb90a655
+resource 0656c217f917c3e06234771e9ecae53aba5e173e
+parent   d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61
+author   z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+date     Thu, 15 Dec 2022 17:28:04 +0000
+
+    {
+      "labels": [
+        "bug"
+      ],
+      "type": "label"
+    }
+
+commit   d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61
+resource 0656c217f917c3e06234771e9ecae53aba5e173e
+author   z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+date     Thu, 15 Dec 2022 17:28:04 +0000
+
+    {
+      "body": "Flux capacitor power requirements exceed current supply",
+      "type": "comment"
+    }
+
+    {
+      "assignees": [],
+      "type": "assign"
+    }
+
+    {
+      "title": "flux capacitor underpowered",
       "type": "edit"
     }
 

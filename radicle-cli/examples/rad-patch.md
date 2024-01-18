@@ -26,7 +26,7 @@ Once the code is ready, we open (or create) a patch with our changes for the pro
 
 ``` (stderr)
 $ git push rad -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
-✓ Patch 6ff4f09c1b5a81347981f59b02ef43a31a07cdae opened
+✓ Patch 0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -38,14 +38,14 @@ $ rad patch
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                      Author                  Head     +   -   Updated │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  6ff4f09  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  now     │
+│ ●  0f3cd0b  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  now     │
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 ```
-$ rad patch show 6ff4f09c1b5a81347981f59b02ef43a31a07cdae -p
+$ rad patch show 0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f -p
 ╭────────────────────────────────────────────────────╮
 │ Title     Define power requirements                │
-│ Patch     6ff4f09c1b5a81347981f59b02ef43a31a07cdae │
+│ Patch     0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f │
 │ Author    z6MknSL…StBU8Vi (you)                    │
 │ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33 │
 │ Branches  flux-capacitor-power                     │
@@ -78,14 +78,14 @@ $ rad patch list --authored
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                      Author                  Head     +   -   Updated │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  6ff4f09  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  now     │
+│ ●  0f3cd0b  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  now     │
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 We can also see that it set an upstream for our patch branch:
 ```
 $ git branch -vv
-* flux-capacitor-power 3e674d1 [rad/patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae] Define power requirements
+* flux-capacitor-power 3e674d1 [rad/patches/0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f] Define power requirements
   master               f2de534 [rad/master] Second commit
 ```
 
@@ -93,12 +93,12 @@ We can also label patches as well as assign DIDs to the patch to help
 organise your workflow:
 
 ```
-$ rad patch label 6ff4f09 --add fun --no-announce
-$ rad patch assign 6ff4f09 --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --no-announce
-$ rad patch show 6ff4f09
+$ rad patch label 0f3cd0b --add fun --no-announce
+$ rad patch assign 0f3cd0b --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --no-announce
+$ rad patch show 0f3cd0b
 ╭────────────────────────────────────────────────────╮
 │ Title     Define power requirements                │
-│ Patch     6ff4f09c1b5a81347981f59b02ef43a31a07cdae │
+│ Patch     0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f │
 │ Author    z6MknSL…StBU8Vi (you)                    │
 │ Labels    fun                                      │
 │ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33 │
@@ -126,49 +126,49 @@ $ git commit --message "Add README, just for the fun"
 ```
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun"
-✓ Patch 6ff4f09 updated to revision e0fd9f00b51e10e1ca88868e68e46e859ed371d7
+✓ Patch 0f3cd0b updated to revision 8144632f7cc54793386279283a24565f5841e9f8
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   3e674d1..27857ec  flux-capacitor-power -> patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae
+   3e674d1..27857ec  flux-capacitor-power -> patches/0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f
 ```
 
 And let's leave a quick comment for our team:
 
 ```
-$ rad patch comment 6ff4f09 --message 'I cannot wait to get back to the 90s!' --no-announce
+$ rad patch comment 0f3cd0b --message 'I cannot wait to get back to the 90s!' --no-announce
 ╭───────────────────────────────────────╮
-│ z6MknSL…StBU8Vi (you) now f5b4613     │
+│ z6MknSL…StBU8Vi (you) now 0f81124     │
 │ I cannot wait to get back to the 90s! │
 ╰───────────────────────────────────────╯
-$ rad patch comment 6ff4f09 --message 'My favorite decade!' --reply-to f5b4613 -q --no-announce
-611df66ccb3803b604a59f2efa9a42d72256dd49
+$ rad patch comment 0f3cd0b --message 'My favorite decade!' --reply-to 0f81124 -q --no-announce
+7e96054a98a2dc4e3c66cd16479cbe9adf7015dc
 ```
 
 Now, let's checkout the patch that we just created:
 
 ```
-$ rad patch checkout 6ff4f09
-✓ Switched to branch patch/6ff4f09
-✓ Branch patch/6ff4f09 setup to track rad/patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae
+$ rad patch checkout 0f3cd0b
+✓ Switched to branch patch/0f3cd0b
+✓ Branch patch/0f3cd0b setup to track rad/patches/0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f
 ```
 
 We can also add a review verdict as such:
 
 ```
-$ rad patch review 6ff4f09 --accept --no-message --no-announce
-✓ Patch 6ff4f09 accepted
+$ rad patch review 0f3cd0b --accept --no-message --no-announce
+✓ Patch 0f3cd0b accepted
 ```
 
 Showing the patch list now will reveal the favorable verdict:
 
 ```
-$ rad patch show 6ff4f09
+$ rad patch show 0f3cd0b
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                 │
-│ Patch     6ff4f09c1b5a81347981f59b02ef43a31a07cdae                  │
+│ Patch     0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f                  │
 │ Author    z6MknSL…StBU8Vi (you)                                     │
 │ Labels    fun                                                       │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                  │
-│ Branches  flux-capacitor-power, patch/6ff4f09                       │
+│ Branches  flux-capacitor-power, patch/0f3cd0b                       │
 │ Commits   ahead 2, behind 0                                         │
 │ Status    open                                                      │
 │                                                                     │
@@ -178,7 +178,7 @@ $ rad patch show 6ff4f09
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by z6MknSL…StBU8Vi (you) (3e674d1) now                     │
-│ ↑ updated to e0fd9f00b51e10e1ca88868e68e46e859ed371d7 (27857ec) now │
+│ ↑ updated to 8144632f7cc54793386279283a24565f5841e9f8 (27857ec) now │
 │   └─ ✓ accepted by z6MknSL…StBU8Vi (you) now                        │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
@@ -186,15 +186,15 @@ $ rad patch show 6ff4f09
 If you make a mistake on the patch description, you can always change it!
 
 ```
-$ rad patch edit 6ff4f09 --message "Define power requirements" --message "Add requirements file" --no-announce
-$ rad patch show 6ff4f09
+$ rad patch edit 0f3cd0b --message "Define power requirements" --message "Add requirements file" --no-announce
+$ rad patch show 0f3cd0b
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                 │
-│ Patch     6ff4f09c1b5a81347981f59b02ef43a31a07cdae                  │
+│ Patch     0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f                  │
 │ Author    z6MknSL…StBU8Vi (you)                                     │
 │ Labels    fun                                                       │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                  │
-│ Branches  flux-capacitor-power, patch/6ff4f09                       │
+│ Branches  flux-capacitor-power, patch/0f3cd0b                       │
 │ Commits   ahead 2, behind 0                                         │
 │ Status    open                                                      │
 │                                                                     │
@@ -204,7 +204,7 @@ $ rad patch show 6ff4f09
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by z6MknSL…StBU8Vi (you) (3e674d1) now                     │
-│ ↑ updated to e0fd9f00b51e10e1ca88868e68e46e859ed371d7 (27857ec) now │
+│ ↑ updated to 8144632f7cc54793386279283a24565f5841e9f8 (27857ec) now │
 │   └─ ✓ accepted by z6MknSL…StBU8Vi (you) now                        │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```

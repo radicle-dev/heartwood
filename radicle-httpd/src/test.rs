@@ -39,7 +39,7 @@ pub const SESSION_ID: &str = "u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy";
 pub const TIMESTAMP: u64 = 1671125284;
 pub const CONTRIBUTOR_RID: &str = "rad:z4XaCmN3jLSeiMvW15YTDpNbDHFhG";
 pub const CONTRIBUTOR_DID: &str = "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
-pub const CONTRIBUTOR_PATCH_ID: &str = "0867c6389ee073304da0854a83885f47b1d7f5ed";
+pub const CONTRIBUTOR_PATCH_ID: &str = "89ddf1bf50a6e98f41372e8d554b4ac8e37e7d36";
 
 /// Create a new profile.
 pub fn profile(home: &Path, seed: [u8; 32]) -> radicle::Profile {

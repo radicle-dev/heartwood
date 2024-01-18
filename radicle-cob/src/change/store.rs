@@ -22,7 +22,7 @@ pub trait Storage {
     fn store<G>(
         &self,
         resource: Option<Self::Parent>,
-        parents: Vec<Self::Parent>,
+        related: Vec<Self::Parent>,
         signer: &G,
         template: Template<Self::ObjectId>,
     ) -> Result<Entry<Self::Parent, Self::ObjectId, Self::Signatures>, Self::StoreError>
@@ -71,8 +71,10 @@ pub struct Entry<Resource, Id, Signature> {
     /// The parent resource that this change lives under. For example,
     /// this change could be for a patch of a project.
     pub resource: Option<Resource>,
-    /// Other parents this change depends on.
+    /// Parent changes.
     pub parents: Vec<Resource>,
+    /// Other parents this change depends on.
+    pub related: Vec<Resource>,
     /// The manifest describing the type of object as well as the type
     /// of history for this entry.
     pub manifest: Manifest,

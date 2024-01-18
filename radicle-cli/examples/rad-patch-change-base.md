@@ -18,7 +18,7 @@ $ git push rad flux-capacitor-power
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new branch]      flux-capacitor-power -> flux-capacitor-power
 $ git push rad -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
-✓ Patch 6ff4f09c1b5a81347981f59b02ef43a31a07cdae opened
+✓ Patch 0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -35,7 +35,7 @@ $ git commit --message "Add README, just for the fun"
 ```
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun" HEAD:refs/patches
-✓ Patch 11188b84720e8ab2625be2be64987311fb046573 opened
+✓ Patch 3c3036d038ef50cccb9dbccb46302bf0867ba683 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -43,10 +43,10 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 Our second patch looks like the following:
 
 ```
-$ rad patch show 11188b8 -v
+$ rad patch show 3c3036d -v
 ╭────────────────────────────────────────────────────╮
 │ Title     Add README, just for the fun             │
-│ Patch     11188b84720e8ab2625be2be64987311fb046573 │
+│ Patch     3c3036d038ef50cccb9dbccb46302bf0867ba683 │
 │ Author    z6MknSL…StBU8Vi (you)                    │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66 │
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 │
@@ -66,18 +66,18 @@ commit `3e674d1` as part of this patch, so we create a new revision
 with a new `base`:
 
 ```
-$ rad patch update 11188b8 -b 3e674d1 -m "Whoops, forgot to set the base" --no-announce
-ea90a38b4df0b323149a06b0472ea1cf9a754dca
+$ rad patch update 3c3036d -b 3e674d1 -m "Whoops, forgot to set the base" --no-announce
+d94313559de9009d261135736a3c5f3f3e873b5d
 ```
 
 Now, if we show the patch we can see the patch's base has changed and
 we have a single commit:
 
 ```
-$ rad patch show 11188b8 -v
+$ rad patch show 3c3036d -v
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add README, just for the fun                              │
-│ Patch     11188b84720e8ab2625be2be64987311fb046573                  │
+│ Patch     3c3036d038ef50cccb9dbccb46302bf0867ba683                  │
 │ Author    z6MknSL…StBU8Vi (you)                                     │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                  │
 │ Base      3e674d1a1df90807e934f9ae5da2591dd6848a33                  │
@@ -88,6 +88,6 @@ $ rad patch show 11188b8 -v
 │ 27857ec Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by z6MknSL…StBU8Vi (you) (27857ec) now                     │
-│ ↑ updated to ea90a38b4df0b323149a06b0472ea1cf9a754dca (27857ec) now │
+│ ↑ updated to d94313559de9009d261135736a3c5f3f3e873b5d (27857ec) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```

@@ -22,23 +22,23 @@ where
     let references = storage
         .types(typename)
         .map_err(|err| error::Retrieve::Refs { err: Box::new(err) })?;
-    log::trace!("loaded {} references", references.len());
+    log::trace!(target: "cob", "Loaded {} references", references.len());
     let mut result = Vec::new();
     for (oid, tip_refs) in references {
-        log::trace!("loading object '{oid}'");
+        log::trace!(target: "cob", "Loading object '{oid}'");
         let loaded = ChangeGraph::load(storage, tip_refs.iter(), typename, &oid)
             .map(|graph| graph.evaluate(storage).map_err(error::Retrieve::evaluate));
 
         match loaded {
             Some(Ok(obj)) => {
-                log::trace!("object '{oid}' found");
+                log::trace!(target: "cob", "Object '{oid}' found");
                 result.push(obj);
             }
             Some(Err(e)) => {
-                log::trace!("object '{oid}' failed to load: {e}")
+                log::trace!(target: "cob", "Object '{oid}' failed to load: {e}")
             }
             None => {
-                log::trace!("object '{oid}' not found");
+                log::trace!(target: "cob", "Object '{oid}' not found");
             }
         }
     }

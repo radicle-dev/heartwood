@@ -2503,7 +2503,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_create_patches() {
-        const CREATED_PATCH_ID: &str = "e546f1784df29d0ffd424021ebae556cbd950993";
+        const CREATED_PATCH_ID: &str = "e21d5b18f8d6c75cfa9c35186b821b1764cb1ab8";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -2806,7 +2806,7 @@ mod routes {
                   "reviews": [],
                 },
                 {
-                  "id": "50d760ccbcfadddd81fe32bd94283cbfd80133fa",
+                  "id": "46fc3974dac96255e73daf2e1169cd929e713064",
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
@@ -3353,7 +3353,7 @@ mod routes {
                       "summary": "A small review",
                       "comments": [
                         {
-                          "id": "2ed1c517997d3f1a83c6830ebab069c6e2ee967e",
+                          "id": "9aebcd3b27fabb1700427d8ee7b8958b9a50a8f8",
                           "author": {
                             "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
                           },

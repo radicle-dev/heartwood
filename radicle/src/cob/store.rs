@@ -147,13 +147,13 @@ where
         signer: &G,
     ) -> Result<Updated<T>, Error> {
         let actions = actions.into();
-        let parents = actions.iter().flat_map(T::Action::parents).collect();
+        let related = actions.iter().flat_map(T::Action::parents).collect();
         let changes = actions.try_map(encoding::encode)?;
         let updated = cob::update(
             self.repo,
             signer,
             self.identity,
-            parents,
+            related,
             signer.public_key(),
             Update {
                 object_id,

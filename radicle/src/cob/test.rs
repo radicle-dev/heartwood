@@ -78,6 +78,7 @@ where
             timestamp: time.as_secs(),
             revision,
             parents: vec![],
+            related: vec![],
             manifest,
         };
 
@@ -113,6 +114,7 @@ where
             timestamp: timestamp.as_secs(),
             revision,
             parents: vec![],
+            related: vec![],
             manifest,
         };
         self.history.extend(change);
@@ -181,12 +183,14 @@ impl<G: Signer> Actor<G> {
         let actions = NonEmpty::from_vec(actions).unwrap();
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
         let parents = vec![];
+        let related = vec![];
 
         Op {
             id,
             actions,
             author,
             parents,
+            related,
             timestamp,
             identity,
             manifest,

@@ -61,7 +61,7 @@ $ git commit -q -m "Update files"
 
 ``` (stderr)
 $ git push rad HEAD:refs/patches
-✓ Patch 52da8356aa9beec08e6943cb3c4063fa37f3241b opened
+✓ Patch 09f4d8b2335190a38d462373f197492ce3e9c3ca opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -70,7 +70,7 @@ Finally, we do a review of the patch by hunk. The output of this command should
 match `git diff master -W100% -U5 --patience`:
 
 ```
-$ rad patch review --patch -U5 52da8356aa9beec08e6943cb3c4063fa37f3241b --no-announce
+$ rad patch review --patch -U5 09f4d8b2335190a38d462373f197492ce3e9c3ca --no-announce
 diff --git a/.gitignore b/.gitignore
 deleted file mode 100644
 index 7937fb3..0000000
@@ -116,8 +116,8 @@ rename to notes/INSTRUCTIONS.txt
 Now let's accept these hunks one by one..
 
 ```
-$ rad patch review --patch --accept --hunk 1 52da8356aa9beec08e6943cb3c4063fa37f3241b --no-announce
-✓ Loaded existing review ([..]) for patch 52da8356aa9beec08e6943cb3c4063fa37f3241b
+$ rad patch review --patch --accept --hunk 1 09f4d8b2335190a38d462373f197492ce3e9c3ca --no-announce
+✓ Loaded existing review ([..]) for patch 09f4d8b2335190a38d462373f197492ce3e9c3ca
 diff --git a/.gitignore b/.gitignore
 deleted file mode 100644
 index 7937fb3..0000000
@@ -127,8 +127,8 @@ index 7937fb3..0000000
 -*.draft
 ```
 ```
-$ rad patch review --patch --accept --hunk 1 52da8356aa9beec08e6943cb3c4063fa37f3241b --no-announce
-✓ Loaded existing review ([..]) for patch 52da8356aa9beec08e6943cb3c4063fa37f3241b
+$ rad patch review --patch --accept --hunk 1 09f4d8b2335190a38d462373f197492ce3e9c3ca --no-announce
+✓ Loaded existing review ([..]) for patch 09f4d8b2335190a38d462373f197492ce3e9c3ca
 diff --git a/DISCLAIMER.txt b/DISCLAIMER.txt
 new file mode 100644
 index 0000000..2b5bd86
@@ -138,8 +138,8 @@ index 0000000..2b5bd86
 +All food is served as-is, with no warranty!
 ```
 ```
-$ rad patch review --patch --accept -U3 --hunk 1 52da8356aa9beec08e6943cb3c4063fa37f3241b --no-announce
-✓ Loaded existing review ([..]) for patch 52da8356aa9beec08e6943cb3c4063fa37f3241b
+$ rad patch review --patch --accept -U3 --hunk 1 09f4d8b2335190a38d462373f197492ce3e9c3ca --no-announce
+✓ Loaded existing review ([..]) for patch 09f4d8b2335190a38d462373f197492ce3e9c3ca
 diff --git a/MENU.txt b/MENU.txt
 index 867958c..3af9741 100644
 --- a/MENU.txt
@@ -153,8 +153,8 @@ index 867958c..3af9741 100644
 [..]
 ```
 ```
-$ rad patch review --patch --accept -U3 --hunk 1 52da8356aa9beec08e6943cb3c4063fa37f3241b --no-announce
-✓ Loaded existing review ([..]) for patch 52da8356aa9beec08e6943cb3c4063fa37f3241b
+$ rad patch review --patch --accept -U3 --hunk 1 09f4d8b2335190a38d462373f197492ce3e9c3ca --no-announce
+✓ Loaded existing review ([..]) for patch 09f4d8b2335190a38d462373f197492ce3e9c3ca
 diff --git a/MENU.txt b/MENU.txt
 index 4e2e828..3af9741 100644
 --- a/MENU.txt
@@ -169,8 +169,8 @@ index 4e2e828..3af9741 100644
 ```
 
 ```
-$ rad patch review --patch --accept --hunk 1 52da8356aa9beec08e6943cb3c4063fa37f3241b --no-announce
-✓ Loaded existing review ([..]) for patch 52da8356aa9beec08e6943cb3c4063fa37f3241b
+$ rad patch review --patch --accept --hunk 1 09f4d8b2335190a38d462373f197492ce3e9c3ca --no-announce
+✓ Loaded existing review ([..]) for patch 09f4d8b2335190a38d462373f197492ce3e9c3ca
 diff --git a/INSTRUCTIONS.txt b/notes/INSTRUCTIONS.txt
 similarity index 100%
 rename from INSTRUCTIONS.txt
@@ -178,7 +178,7 @@ rename to notes/INSTRUCTIONS.txt
 ```
 
 ```
-$ rad patch review --patch --accept --hunk 1 52da8356aa9beec08e6943cb3c4063fa37f3241b --no-announce
-✓ Loaded existing review ([..]) for patch 52da8356aa9beec08e6943cb3c4063fa37f3241b
+$ rad patch review --patch --accept --hunk 1 09f4d8b2335190a38d462373f197492ce3e9c3ca --no-announce
+✓ Loaded existing review ([..]) for patch 09f4d8b2335190a38d462373f197492ce3e9c3ca
 ✓ All hunks have been reviewed
 ```

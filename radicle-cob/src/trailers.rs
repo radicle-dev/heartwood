@@ -17,29 +17,40 @@ pub mod error {
     }
 }
 
-pub struct ResourceCommitTrailer(git2::Oid);
+/// Commit trailer for COB commits.
+pub enum CommitTrailer {
+    /// Points to the owning resource.
+    Resource(git2::Oid),
+    /// Points to a related change.
+    Related(git2::Oid),
+}
 
-impl ResourceCommitTrailer {
+impl CommitTrailer {
     pub fn oid(&self) -> git2::Oid {
-        self.0
+        match self {
+            Self::Resource(oid) => *oid,
+            Self::Related(oid) => *oid,
+        }
     }
 }
 
-impl TryFrom<&Trailer<'_>> for ResourceCommitTrailer {
+impl TryFrom<&Trailer<'_>> for CommitTrailer {
     type Error = error::InvalidResourceTrailer;
 
     fn try_from(Trailer { value, token }: &Trailer<'_>) -> Result<Self, Self::Error> {
         let ext_oid =
             git_ext::Oid::try_from(value.as_ref()).map_err(|_| Self::Error::InvalidOid)?;
         if token.deref() == "Rad-Resource" {
-            Ok(ResourceCommitTrailer(ext_oid.into()))
+            Ok(CommitTrailer::Resource(ext_oid.into()))
+        } else if token.deref() == "Rad-Related" {
+            Ok(CommitTrailer::Related(ext_oid.into()))
         } else {
             Err(Self::Error::WrongToken)
         }
     }
 }
 
-impl TryFrom<&OwnedTrailer> for ResourceCommitTrailer {
+impl TryFrom<&OwnedTrailer> for CommitTrailer {
     type Error = error::InvalidResourceTrailer;
 
     fn try_from(trailer: &OwnedTrailer) -> Result<Self, Self::Error> {
@@ -47,31 +58,31 @@ impl TryFrom<&OwnedTrailer> for ResourceCommitTrailer {
     }
 }
 
-impl From<git2::Oid> for ResourceCommitTrailer {
-    fn from(oid: git2::Oid) -> Self {
-        Self(oid)
-    }
-}
-
-impl From<ResourceCommitTrailer> for Trailer<'_> {
-    fn from(containing: ResourceCommitTrailer) -> Self {
-        Trailer {
-            // SAFETY: "Rad-Resource" is a valid `Token`.
-            #[allow(clippy::unwrap_used)]
-            token: Token::try_from("Rad-Resource").unwrap(),
-            value: containing.0.to_string().into(),
+impl From<CommitTrailer> for Trailer<'_> {
+    fn from(t: CommitTrailer) -> Self {
+        match t {
+            CommitTrailer::Related(oid) => {
+                Trailer {
+                    // SAFETY: "Rad-Related" is a valid `Token`.
+                    #[allow(clippy::unwrap_used)]
+                    token: Token::try_from("Rad-Related").unwrap(),
+                    value: oid.to_string().into(),
+                }
+            }
+            CommitTrailer::Resource(oid) => {
+                Trailer {
+                    // SAFETY: "Rad-Resource" is a valid `Token`.
+                    #[allow(clippy::unwrap_used)]
+                    token: Token::try_from("Rad-Resource").unwrap(),
+                    value: oid.to_string().into(),
+                }
+            }
         }
     }
 }
 
-impl From<ResourceCommitTrailer> for OwnedTrailer {
-    fn from(containing: ResourceCommitTrailer) -> Self {
+impl From<CommitTrailer> for OwnedTrailer {
+    fn from(containing: CommitTrailer) -> Self {
         Trailer::from(containing).to_owned()
-    }
-}
-
-impl From<git_ext::Oid> for ResourceCommitTrailer {
-    fn from(oid: git_ext::Oid) -> Self {
-        Self(oid.into())
     }
 }
