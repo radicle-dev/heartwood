@@ -299,6 +299,15 @@ fn write_commit(
     );
     let author = Author::try_from(&author)?;
 
+    #[cfg(feature = "stable-commit-ids")]
+    // Ensures the commit id doesn't change on every run.
+    let (author, timestamp) = (
+        Author {
+            time: git_ext::author::Time::new(1514817556, 0),
+            ..author
+        },
+        1514817556,
+    );
     #[cfg(debug_assertions)]
     let (author, timestamp) = if let Ok(s) = std::env::var(crate::git::RAD_COMMIT_TIME) {
         // SAFETY: It's ok to panic here, since this is only enabled in debug mode.

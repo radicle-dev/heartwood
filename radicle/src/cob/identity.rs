@@ -369,8 +369,12 @@ impl store::Cob for Identity {
                 Ok(()) => {}
                 // This particular error is returned when there is a mismatch between the expected
                 // and the actual state of a revision, which can happen concurrently. Therefore
-                // it is not fatal and we simply ignore it.
-                Err(ApplyError::UnexpectedState) => {}
+                // if there are other concurrent ops, it is not fatal and we simply ignore it.
+                Err(ApplyError::UnexpectedState) => {
+                    if concurrent.is_empty() {
+                        return Err(ApplyError::UnexpectedState);
+                    }
+                }
                 // It's not a user error if the revision happens to be redacted by
                 // the time this action is processed.
                 Err(ApplyError::Redacted) => {}
@@ -1134,8 +1138,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
-    // Run with `RAD_COMMIT_TIME=1514817556`.
     fn test_identity_updates_concurrent() {
         let network = Network::default();
         let alice = &network.alice;
@@ -1187,8 +1189,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
-    // Run with `RAD_COMMIT_TIME=1514817556`.
     fn test_identity_redact_revision() {
         let network = Network::default();
         let alice = &network.alice;
@@ -1228,8 +1228,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
-    // Run with `RAD_COMMIT_TIME=1514817556`.
     fn test_identity_remove_delegate_concurrent() {
         let network = Network::default();
         let alice = &network.alice;
@@ -1242,8 +1240,8 @@ mod test {
         alice_doc.delegate(bob.signer.public_key());
         alice_doc.delegate(eve.signer.public_key());
         let a0 = alice_identity.root;
-        let a1 = alice_identity
-            .update("Add Bob and Eve", "Eh.", &alice_doc, &alice.signer)
+        let a1 = alice_identity // Change description to change traversal order.
+            .update("Add Bob and Eve", "Eh#!", &alice_doc, &alice.signer)
             .unwrap();
 
         alice_doc.rescind(eve.signer.public_key()).unwrap();
@@ -1265,16 +1263,28 @@ mod test {
         let e1 = eve_identity
             .update("Change visibility", "", &eve_doc, &eve.signer)
             .unwrap();
+        // Eve's revision is active.
+        assert!(eve_identity.revision(&e1).unwrap().is_active());
+
+        //  b1      (Accept "Remove Eve") 2/2
+        //  |  e1   (Change visibility)
+        //  | /
+        //  a2      (Propose "Remove Eve") 1/2
+        //  |
+        //  a1      (Add Bob and Eve)
+        //  |
+        //  a0
 
         eve.repo.fetch(bob);
         eve_identity.reload().unwrap();
-        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, e1, b1]);
+        // Now that Eve reloaded, since Bob's vote to remove Eve went through first (b1 < e1),
+        // her revision is no longer valid.
+        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, b1, e1]);
+        assert_eq!(eve_identity.revision(&e1), None);
         assert!(!eve_identity.is_delegate(eve.signer.public_key()));
     }
 
     #[test]
-    #[ignore]
-    // Run with `RAD_COMMIT_TIME=1514817556`.
     fn test_identity_reject_concurrent() {
         let network = Network::default();
         let alice = &network.alice;
@@ -1288,7 +1298,7 @@ mod test {
         alice_doc.delegate(eve.signer.public_key());
         let a0 = alice_identity.root;
         let a1 = alice_identity
-            .update("Add Bob and Eve", "Eh.", &alice_doc, &alice.signer)
+            .update("Add Bob and Eve", "Eh!#", &alice_doc, &alice.signer)
             .unwrap();
 
         alice_doc.visibility = Visibility::private([]);
@@ -1307,6 +1317,7 @@ mod test {
         // Eve rejects the revision, not knowing.
         let mut eve_identity = Identity::load_mut(&*eve.repo).unwrap();
         let e1 = eve_identity.reject(a2, &eve.signer).unwrap();
+        assert!(eve_identity.revision(&a2).unwrap().is_active());
 
         // Then she submits a new revision.
         let mut eve_doc = eve_identity.doc().clone();
@@ -1314,6 +1325,18 @@ mod test {
         let e2 = eve_identity
             .update("Change visibility", "", &eve_doc, &eve.signer)
             .unwrap();
+        assert!(eve_identity.revision(&e2).unwrap().is_active());
+
+        //     e2   (Propose "Change visibility") 1/2
+        //     |
+        //     e1   (Reject "Change visibility")  1/2
+        //  b1 |    (Accept "Change visibility")  2/2
+        //  | /
+        //  a2      (Propose "Change visibility") 1/2
+        //  |
+        //  a1      (Add Bob and Eve)
+        //  |
+        //  a0
 
         // Though the rules are that you cannot reject an already accepted revision,
         // since this update was done concurrently there was no way of knowing. Therefore,
@@ -1321,17 +1344,16 @@ mod test {
 
         eve.repo.fetch(bob);
         eve_identity.reload().unwrap();
-        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, e1, b1, e2]);
+        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, b1, e1, e2]);
 
         // Her revision is there, although stale, since another revision was accepted since.
         // However, it wasn't pruned, even though rejecting an accepted revision is an error.
         let e2 = eve_identity.revision(&e2).unwrap();
         assert_eq!(e2.state, State::Stale);
+        assert!(eve_identity.revision(&a2).unwrap().is_accepted());
     }
 
     #[test]
-    #[ignore]
-    // Run with `RAD_COMMIT_TIME=1514817556`.
     fn test_identity_updates_concurrent_outdated() {
         let network = Network::default();
         let alice = &network.alice;
@@ -1383,6 +1405,7 @@ mod test {
         assert_eq!(eve_identity.revisions().count(), 4);
         assert_eq!(eve_identity.revision(&e1).unwrap().state, State::Active);
 
+        alice_identity.reload().unwrap();
         let a2 = alice_identity.accept(&b1, &alice.signer).unwrap();
 
         eve.repo.fetch(alice);
