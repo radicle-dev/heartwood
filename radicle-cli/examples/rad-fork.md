@@ -22,7 +22,7 @@ wish to fork:
 
 ```
 $ rad fork rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Forked project rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+✓ Forked repository rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 ```
 
 Now, if we `rad inspect` the project's refs again we will see that we

@@ -20,7 +20,7 @@ use crate::terminal::{Args, Context, Help};
 
 pub const HELP: Help = Help {
     name: "remote",
-    description: "Manage a project's remotes",
+    description: "Manage a repository's remotes",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
@@ -177,7 +177,7 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
     let (working, rid) = radicle::rad::cwd()
-        .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
+        .map_err(|_| anyhow!("this command must be run in the context of a repository"))?;
     let profile = ctx.profile()?;
 
     match options.op {

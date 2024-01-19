@@ -20,7 +20,7 @@ $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope followed
 │ Radicle Heartwood Protocol & Stack │
 │ 0 issues · 0 patches               │
 ╰────────────────────────────────────╯
-Run `cd ./heartwood` to go to the project directory.
+Run `cd ./heartwood` to go to the repository directory.
 $ cd ./heartwood
 $ git push rad master
 ```
@@ -78,7 +78,7 @@ $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope followed
 │ Radicle Heartwood Protocol & Stack │
 │ 0 issues · 0 patches               │
 ╰────────────────────────────────────╯
-Run `cd ./heartwood` to go to the project directory.
+Run `cd ./heartwood` to go to the repository directory.
 $ cd ./heartwood
 $ git push rad master
 ```

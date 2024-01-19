@@ -139,11 +139,11 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     term::success!("You're all set.");
     term::blank();
     term::info!(
-        "To create a radicle project, run {} from a Git repository with at least one commit.",
+        "To create a Radicle repository, run {} from a Git repository with at least one commit.",
         term::format::command("rad init")
     );
     term::info!(
-        "To clone a project, run {}. For example, {} clones the Radicle 'heartwood' project.",
+        "To clone a repository, run {}. For example, {} clones the Radicle 'heartwood' repository.",
         term::format::command("rad clone <rid>"),
         term::format::command("rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5")
     );

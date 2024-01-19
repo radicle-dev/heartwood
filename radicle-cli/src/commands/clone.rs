@@ -29,7 +29,7 @@ use crate::terminal::Element as _;
 
 pub const HELP: Help = Help {
     name: "clone",
-    description: "Clone a project",
+    description: "Clone a Radicle repository",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
@@ -167,7 +167,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let default_branch = proj.default_branch().clone();
     let path = working.workdir().unwrap(); // SAFETY: The working copy is not bare.
 
-    // Configure repository and setup tracking for project delegates.
+    // Configure repository and setup tracking for repository delegates.
     radicle::git::configure_repository(&working)?;
     checkout::setup_remotes(
         project::SetupRemote {
@@ -205,7 +205,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         .directory
         .map_or(proj.name().to_string(), |loc| loc.display().to_string());
     term::info!(
-        "Run {} to go to the project directory.",
+        "Run {} to go to the repository directory.",
         term::format::command(format!("cd ./{location}")),
     );
 
@@ -264,7 +264,7 @@ pub fn clone<G: Signer>(
 
     let results = sync::fetch(id, mode, timeout, node)?;
     let Ok(repository) = storage.repository(id) else {
-        // If we don't have the project locally, even after attempting to fetch,
+        // If we don't have the repository locally, even after attempting to fetch,
         // there's nothing we can do.
         if results.is_empty() {
             return Err(CloneError::NoSeeds(id));

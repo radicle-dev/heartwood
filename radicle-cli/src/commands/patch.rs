@@ -655,7 +655,7 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let (workdir, id) = radicle::rad::cwd()
-        .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
+        .map_err(|_| anyhow!("this command must be run in the context of a repository"))?;
 
     let profile = ctx.profile()?;
     let repository = profile.storage.repository(id)?;

@@ -72,7 +72,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Some(rid) => rid,
         None => radicle::rad::cwd()
             .map(|(_, rid)| rid)
-            .context("Current directory is not a radicle project")?,
+            .context("Current directory is not a Radicle repository")?,
     };
 
     let repo = profile.storage.repository_mut(rid)?;

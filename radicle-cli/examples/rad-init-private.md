@@ -3,11 +3,11 @@ Alice can initialize a *private* repo using the `--private` flag.
 ```
 $ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --private
 
-Initializing private radicle 👾 project in .
+Initializing private radicle 👾 repository in .
 
-✓ Project heartwood created.
+✓ Repository heartwood created.
 
-Your project's Repository ID (RID) is rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu.
+Your Repository ID (RID) is rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu.
 You can show it any time by running `rad .` from this directory.
 
 You have created a private repository.

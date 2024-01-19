@@ -28,7 +28,7 @@ use crate::terminal::Interactive;
 
 pub const HELP: Help = Help {
     name: "init",
-    description: "Initialize a project from a git repository",
+    description: "Initialize Radicle repositories",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
@@ -37,9 +37,9 @@ Usage
 
 Options
 
-        --name <string>            Name of the project
-        --description <string>     Description of the project
-        --default-branch <name>    The default branch of the project
+        --name <string>            Name of the repository
+        --description <string>     Description of the repository
+        --default-branch <name>    The default branch of the repository
         --scope <scope>            Repository follow scope (default: all)
         --private                  Set repository visibility to *private*
         --public                   Set repository visibility to *public*
@@ -98,7 +98,7 @@ impl Args for Options {
                         .all(|c| c.is_alphanumeric() || allowed.contains(&c))
                     {
                         anyhow::bail!(
-                            "invalid project name specified with `--name`, \
+                            "invalid repository name specified with `--name`, \
                             only alphanumeric characters, '-', '_' and '.' are allowed"
                         );
                     }
@@ -109,7 +109,7 @@ impl Args for Options {
                         .value()?
                         .to_str()
                         .ok_or(anyhow::anyhow!(
-                            "invalid project description specified with `--description`"
+                            "invalid repository description specified with `--description`"
                         ))?
                         .to_owned();
 
@@ -213,7 +213,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         .ok_or_else(|| anyhow!("repository head must point to a commit"))?;
 
     term::headline(format!(
-        "Initializing{}radicle 👾 project in {}",
+        "Initializing{}radicle 👾 repository in {}",
         if let Some(visibility) = &options.visibility {
             term::format::spaced(term::format::visibility(visibility))
         } else {
@@ -281,7 +281,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             let proj = doc.project()?;
 
             spinner.message(format!(
-                "Project {} created.",
+                "Repository {} created.",
                 term::format::highlight(proj.name())
             ));
             spinner.finish();
@@ -315,7 +315,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
 
             term::blank();
             term::info!(
-                "Your project's Repository ID {} is {}.",
+                "Your Repository ID {} is {}.",
                 term::format::dim("(RID)"),
                 term::format::highlight(rid.urn())
             );
@@ -329,7 +329,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             if let Err(e) = announce(rid, doc, &mut node, &profile.config) {
                 term::blank();
                 term::warning(format!(
-                    "There was an error announcing your project to the network: {e}"
+                    "There was an error announcing your repository to the network: {e}"
                 ));
                 term::warning("Try again with `rad sync --announce`, or check your logs with `rad node logs`.");
                 term::blank();
@@ -416,7 +416,7 @@ fn sync(
 
     if !replicas.is_empty() {
         spinner.message(format!(
-            "Project successfully synced to {} node(s).",
+            "Repository successfully synced to {} node(s).",
             replicas.len()
         ));
         spinner.finish();
@@ -430,7 +430,7 @@ fn sync(
         }
         Ok(SyncResult::Synced { result: None })
     } else {
-        spinner.message("Project successfully announced to the network.");
+        spinner.message("Repository successfully announced to the network.");
         spinner.finish();
 
         Ok(SyncResult::NotSynced)
@@ -450,7 +450,7 @@ pub fn announce(
             }) => {
                 term::blank();
                 term::info!(
-                    "Your project has been synced to the network and is \
+                    "Your repository has been synced to the network and is \
                     now discoverable by peers.",
                 );
                 term::info!("View it in your browser at:");
@@ -461,12 +461,12 @@ pub fn announce(
             Ok(SyncResult::Synced { result: None, .. }) => {
                 term::blank();
                 term::info!(
-                    "Your project has been synced to the network and is \
+                    "Your repository has been synced to the network and is \
                     now discoverable by peers.",
                 );
                 if !config.preferred_seeds.is_empty() {
                     term::info!(
-                        "Unfortunately, you were unable to replicate your project to \
+                        "Unfortunately, you were unable to replicate your repository to \
                         your preferred seeds."
                     );
                 }
@@ -474,11 +474,11 @@ pub fn announce(
             Ok(SyncResult::NotSynced) => {
                 term::blank();
                 term::info!(
-                    "Your project has been announced to the network and is \
+                    "Your repository has been announced to the network and is \
                     now discoverable by peers.",
                 );
                 term::info!(
-                    "You can check for any nodes that have replicated your project by running \
+                    "You can check for any nodes that have replicated your repository by running \
                     `rad sync status`."
                 );
                 term::blank();
@@ -486,14 +486,14 @@ pub fn announce(
             Ok(SyncResult::NoPeersConnected) => {
                 term::blank();
                 term::info!(
-                    "You are not connected to any peers. Your project will be announced as soon as \
+                    "You are not connected to any peers. Your repository will be announced as soon as \
                     your node establishes a connection with the network.");
                 term::info!("Check for peer connections with `rad node status`.");
                 term::blank();
             }
             Ok(SyncResult::NodeStopped) => {
                 term::info!(
-                    "Your project will be announced to the network when you start your node."
+                    "Your repository will be announced to the network when you start your node."
                 );
                 term::info!(
                     "You can start your node with {}.",

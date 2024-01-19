@@ -16,12 +16,14 @@ use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "checkout",
-    description: "Checkout a project into the local directory",
+    description: "Checkout a repository into the local directory",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
 
     rad checkout <rid> [--remote <did>] [<option>...]
+
+    Creates a working copy from a repository in local storage.
 
 Options
 
@@ -63,7 +65,7 @@ impl Args for Options {
 
         Ok((
             Options {
-                id: id.ok_or_else(|| anyhow!("a project to checkout must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("a repository to checkout must be provided"))?,
                 remote,
             },
             vec![],
@@ -85,7 +87,7 @@ fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     let doc: Doc<_> = storage
         .repository(id)?
         .identity_doc()
-        .context("project could not be found in local storage")?
+        .context("repository could not be found in local storage")?
         .into();
     let payload = doc.project()?;
     let path = PathBuf::from(payload.name());

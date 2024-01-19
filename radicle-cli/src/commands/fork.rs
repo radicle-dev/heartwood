@@ -11,7 +11,7 @@ use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "fork",
-    description: "Create a fork of a project",
+    description: "Create a fork of a repository",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
@@ -60,14 +60,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Some(rid) => rid,
         None => {
             let (_, rid) =
-                radicle::rad::cwd().context("Current directory is not a radicle project")?;
+                radicle::rad::cwd().context("Current directory is not a Radicle repository")?;
 
             rid
         }
     };
 
     rad::fork(rid, &signer, &storage)?;
-    term::success!("Forked project {rid} for {}", profile.id());
+    term::success!("Forked repository {rid} for {}", profile.id());
 
     Ok(())
 }

@@ -14,7 +14,7 @@ $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope followed Developer/Radicle
 │ Radicle Heartwood Protocol & Stack │
 │ 0 issues · 0 patches               │
 ╰────────────────────────────────────╯
-Run `cd [..]/Developer/Radicle` to go to the project directory.
+Run `cd [..]/Developer/Radicle` to go to the repository directory.
 ```
 
 Note that attempting to clone into a directory that already exists,

@@ -10,8 +10,8 @@ Initializing your radicle 👾 identity
 ✓ Your Radicle DID is did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi. This identifies your device. Run `rad self` to show it at all times.
 ✓ You're all set.
 
-To create a radicle project, run `rad init` from a Git repository with at least one commit.
-To clone a project, run `rad clone <rid>`. For example, `rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5` clones the Radicle 'heartwood' project.
+To create a Radicle repository, run `rad init` from a Git repository with at least one commit.
+To clone a repository, run `rad clone <rid>`. For example, `rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5` clones the Radicle 'heartwood' repository.
 To get a list of all commands, run `rad help`.
 ```
 

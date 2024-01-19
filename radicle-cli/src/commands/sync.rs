@@ -263,7 +263,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Some(rid) => rid,
         None => {
             let (_, rid) =
-                radicle::rad::cwd().context("Current directory is not a radicle project")?;
+                radicle::rad::cwd().context("Current directory is not a Radicle repository")?;
 
             rid
         }

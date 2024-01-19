@@ -11,7 +11,7 @@ $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope all
 │ Radicle Heartwood Protocol & Stack │
 │ 0 issues · 0 patches               │
 ╰────────────────────────────────────╯
-Run `cd ./heartwood` to go to the project directory.
+Run `cd ./heartwood` to go to the repository directory.
 ```
 
 We can now have a look at the new working copy that was created from the cloned

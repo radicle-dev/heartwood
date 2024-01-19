@@ -126,7 +126,7 @@ pub enum ForkError {
     Storage(#[from] storage::Error),
     #[error("payload: {0}")]
     Payload(#[from] doc::PayloadError),
-    #[error("project `{0}` was not found in storage")]
+    #[error("repository `{0}` was not found in storage")]
     NotFound(RepoId),
     #[error("repository: {0}")]
     Repository(#[from] RepositoryError),
@@ -197,7 +197,7 @@ pub enum CheckoutError {
     Git(#[from] git2::Error),
     #[error("payload: {0}")]
     Payload(#[from] doc::PayloadError),
-    #[error("project `{0}` was not found in storage")]
+    #[error("repository `{0}` was not found in storage")]
     NotFound(RepoId),
     #[error("repository: {0}")]
     Repository(#[from] RepositoryError),
@@ -295,7 +295,7 @@ pub fn remove_remote(repo: &git2::Repository) -> Result<(), RemoteError> {
     Ok(())
 }
 
-/// Get the Id of project in current working directory
+/// Get the RID of the repository in current working directory
 ///
 /// It will atempt to search parent directories if `path` did not find
 /// a git repository.

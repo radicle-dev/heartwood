@@ -164,7 +164,7 @@ a working copy and run the *rad init* command:
     $ cd my-repo
     $ rad init
 
-You will be prompted to enter a project name and default branch. Once the
+You will be prompted to enter a repository name and default branch. Once the
 repository is created, the Repository Identifier (RID) will be printed.
 Share this with collaborators so that they can clone your repository.
 

@@ -41,5 +41,5 @@ $ rad clone rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --seed z6MknSLrJoTcukLrE435hVNQT4J
 │ radicle heartwood protocol & stack │
 │ 0 issues · 0 patches               │
 ╰────────────────────────────────────╯
-Run `cd ./heartwood` to go to the project directory.
+Run `cd ./heartwood` to go to the repository directory.
 ```

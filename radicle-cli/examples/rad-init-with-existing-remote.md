@@ -22,14 +22,14 @@ Then we initialize.
 ```
 $ rad init --name heartwood --description "Heartwood Protocol & Stack" --no-confirm --public
 
-Initializing public radicle 👾 project in .
+Initializing public radicle 👾 repository in .
 
-✓ Project heartwood created.
+✓ Repository heartwood created.
 
-Your project's Repository ID (RID) is rad:z2D6wQnKapY7dn5meBnbH2rUKNZbT.
+Your Repository ID (RID) is rad:z2D6wQnKapY7dn5meBnbH2rUKNZbT.
 You can show it any time by running `rad .` from this directory.
 
-Your project will be announced to the network when you start your node.
+Your repository will be announced to the network when you start your node.
 You can start your node with `rad node start`.
 To push changes, run `git push rad master`.
 ```

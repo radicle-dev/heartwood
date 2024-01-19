@@ -17,5 +17,5 @@ $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 │ Radicle Heartwood Protocol & Stack │
 │ 0 issues · 0 patches               │
 ╰────────────────────────────────────╯
-Run `cd ./heartwood` to go to the project directory.
+Run `cd ./heartwood` to go to the repository directory.
 ```

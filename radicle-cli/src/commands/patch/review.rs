@@ -58,7 +58,7 @@ pub fn run(
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
     let _project = repository.identity_doc().context(format!(
-        "couldn't load project {} from local state",
+        "couldn't load repository {} from local state",
         repository.id
     ))?;
     let mut patches = Patches::open(repository)?;

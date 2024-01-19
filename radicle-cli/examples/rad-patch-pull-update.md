@@ -1,21 +1,21 @@
 Let's look at how patch updates work.
 
-Alice creates a project and Bob clones it.
+Alice creates a repository and Bob clones it.
 
 ``` ~alice
 $ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --public
 
-Initializing public radicle 👾 project in .
+Initializing public radicle 👾 repository in .
 
-✓ Project heartwood created.
+✓ Repository heartwood created.
 
-Your project's Repository ID (RID) is rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK.
+Your Repository ID (RID) is rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK.
 You can show it any time by running `rad .` from this directory.
 
-✓ Project successfully announced to the network.
+✓ Repository successfully announced to the network.
 
-Your project has been announced to the network and is now discoverable by peers.
-You can check for any nodes that have replicated your project by running `rad sync status`.
+Your repository has been announced to the network and is now discoverable by peers.
+You can check for any nodes that have replicated your repository by running `rad sync status`.
 
 To push changes, run `git push`.
 ```
@@ -33,7 +33,7 @@ $ rad clone rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK
 │ radicle heartwood protocol & stack │
 │ 0 issues · 0 patches               │
 ╰────────────────────────────────────╯
-Run `cd ./heartwood` to go to the project directory.
+Run `cd ./heartwood` to go to the repository directory.
 ```
 
 We fork the repository by pushing to `master`, and wait for Alice to sync

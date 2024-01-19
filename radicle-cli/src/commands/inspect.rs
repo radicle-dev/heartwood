@@ -134,7 +134,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Some(rid) => rid,
         None => radicle::rad::cwd()
             .map(|(_, rid)| rid)
-            .context("Current directory is not a radicle project")?,
+            .context("Current directory is not a Radicle repository")?,
     };
 
     if options.target == Target::RepoId {
@@ -146,7 +146,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = &profile.storage;
     let repo = storage
         .repository(rid)
-        .context("No project with the given RID exists")?;
+        .context("No repository with the given RID exists")?;
     let project = repo.identity_doc()?;
 
     match options.target {

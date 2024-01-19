@@ -1,21 +1,21 @@
 
-To create your first radicle project, navigate to a git repository, and run
+To create your first radicle repository, navigate to a git repository, and run
 the `init` command:
 
 ```
 $ rad init --name heartwood --description "Radicle Heartwood Protocol & Stack" --no-confirm --public --scope followed
 
-Initializing public radicle 👾 project in .
+Initializing public radicle 👾 repository in .
 
-✓ Project heartwood created.
+✓ Repository heartwood created.
 
-Your project's Repository ID (RID) is rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji.
+Your Repository ID (RID) is rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji.
 You can show it any time by running `rad .` from this directory.
 
-✓ Project successfully announced to the network.
+✓ Repository successfully announced to the network.
 
-Your project has been announced to the network and is now discoverable by peers.
-You can check for any nodes that have replicated your project by running `rad sync status`.
+Your repository has been announced to the network and is now discoverable by peers.
+You can check for any nodes that have replicated your repository by running `rad sync status`.
 
 To push changes, run `git push`.
 ```
