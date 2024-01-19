@@ -658,7 +658,7 @@ fn sync(
             node::AnnounceEvent::Announced => ControlFlow::Continue(()),
             node::AnnounceEvent::RefsSynced { remote } => {
                 replicated.insert(remote);
-                spinner.message(format!("Synced with {remote}.."));
+                spinner.message(format!("Synced with {}..", cli::format::dim(remote)));
                 ControlFlow::Continue(())
             }
         },
