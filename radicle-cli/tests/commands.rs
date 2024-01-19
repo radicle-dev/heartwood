@@ -10,7 +10,7 @@ use radicle::node::Handle as _;
 use radicle::node::{Alias, DEFAULT_TIMEOUT};
 use radicle::prelude::Id;
 use radicle::profile;
-use radicle::profile::Home;
+use radicle::profile::{Home, PreferredSeeds};
 use radicle::storage::{ReadStorage, RemoteRepository};
 use radicle::test::fixtures;
 
@@ -1213,7 +1213,7 @@ fn rad_init_sync_preferred() {
         .spawn();
 
     let bob = environment.profile(profile::Config {
-        preferred_seeds: vec![alice.address()],
+        preferred_seeds: PreferredSeeds::from(vec![alice.address()]),
         ..config::profile("bob")
     });
     let mut bob = Node::new(bob).spawn();
@@ -1245,7 +1245,7 @@ fn rad_init_sync_timeout() {
         .spawn();
 
     let bob = environment.profile(profile::Config {
-        preferred_seeds: vec![alice.address()],
+        preferred_seeds: PreferredSeeds::from(vec![alice.address()]),
         ..config::profile("bob")
     });
     let mut bob = Node::new(bob).spawn();
@@ -1821,7 +1821,7 @@ fn rad_patch_open_explore() {
         .spawn();
 
     let bob = environment.profile(profile::Config {
-        preferred_seeds: vec![seed.address()],
+        preferred_seeds: PreferredSeeds::from(vec![seed.address()]),
         ..config::profile("bob")
     });
     let mut bob = Node::new(bob).spawn();

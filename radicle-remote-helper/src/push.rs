@@ -672,7 +672,7 @@ fn sync(
     }
     let mut urls = Vec::new();
 
-    for seed in &profile.config.preferred_seeds {
+    for seed in profile.config.preferred_seeds.iter() {
         if replicated.contains(&seed.id) {
             for resource in updated {
                 let url = profile

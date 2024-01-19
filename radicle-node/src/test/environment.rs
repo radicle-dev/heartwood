@@ -23,8 +23,7 @@ use radicle::node::Database;
 use radicle::node::{Alias, POLICIES_DB_FILE};
 use radicle::node::{ConnectOptions, Handle as _};
 use radicle::profile;
-use radicle::profile::Home;
-use radicle::profile::Profile;
+use radicle::profile::{Home, PreferredSeeds, Profile};
 use radicle::rad;
 use radicle::storage::{ReadStorage as _, RemoteRepository as _, SignRepository as _};
 use radicle::test::fixtures;
@@ -92,7 +91,7 @@ impl Environment {
             node: node::Config::test(alias),
             cli: cli::Config { hints: false },
             public_explorer: explorer::Explorer::default(),
-            preferred_seeds: vec![],
+            preferred_seeds: PreferredSeeds::from(vec![]),
         }
     }
 
