@@ -166,7 +166,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         .query_pairs_mut()
         .append_pair("pk", &session.public_key.to_string())
         .append_pair("sig", &signature.to_string())
-        .append_pair("addr", &options.listen.to_string());
+        .append_pair("addr", &connect.to_string());
 
     if options.open {
         #[cfg(target_os = "macos")]
