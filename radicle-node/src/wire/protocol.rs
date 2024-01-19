@@ -773,6 +773,7 @@ where
                         );
                         continue;
                     }
+                    self.service.attempted(node_id, addr.clone());
 
                     match dial::<G>(
                         addr.to_inner(),
@@ -785,7 +786,6 @@ where
                         NetTransport::<WireSession<G>>::with_session(session, Link::Outbound)
                     }) {
                         Ok(transport) => {
-                            self.service.attempted(node_id, addr.clone());
                             self.outbound.insert(
                                 transport.as_raw_fd(),
                                 Outbound {
@@ -798,7 +798,7 @@ where
                                 .push_back(reactor::Action::RegisterTransport(transport));
                         }
                         Err(err) => {
-                            log::error!(target: "wire", "Error establishing connection: {err}");
+                            log::error!(target: "wire", "Error establishing connection to {addr}: {err}");
 
                             self.service
                                 .disconnected(node_id, &DisconnectReason::Dial(Arc::new(err)));
