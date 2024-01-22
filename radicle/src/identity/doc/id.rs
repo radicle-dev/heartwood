@@ -4,11 +4,8 @@ use std::{ffi::OsString, fmt, str::FromStr};
 use git_ext::ref_format::{Component, RefString};
 use thiserror::Error;
 
-use crate::crypto;
 use crate::git;
 use crate::serde_ext;
-
-pub use crypto::PublicKey;
 
 /// Radicle identifier prefix.
 pub const RAD_PREFIX: &str = "rad:";
