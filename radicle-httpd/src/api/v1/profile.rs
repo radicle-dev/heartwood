@@ -75,6 +75,7 @@ mod routes {
                 "preferredSeeds": [
                   "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776"
                 ],
+                "web": { "pinned": { "repositories": [] } },
                 "cli": {
                   "hints": true
                 },

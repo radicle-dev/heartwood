@@ -13,7 +13,6 @@ use radicle::cob::issue;
 use radicle::crypto::ssh::{keystore::MemorySigner, Keystore};
 use radicle::crypto::test::signer::MockSigner;
 use radicle::crypto::{KeyPair, Seed, Signer};
-use radicle::git;
 use radicle::git::refname;
 use radicle::identity::{RepoId, Visibility};
 use radicle::node::config::ConnectAddress;
@@ -30,6 +29,7 @@ use radicle::test::fixtures;
 use radicle::Storage;
 use radicle::{cli, node};
 use radicle::{cob, explorer};
+use radicle::{git, web};
 
 use crate::node::NodeId;
 use crate::service::Event;
@@ -92,6 +92,7 @@ impl Environment {
             cli: cli::Config { hints: false },
             public_explorer: explorer::Explorer::default(),
             preferred_seeds: PreferredSeeds::from(vec![]),
+            web: web::Config::default(),
         }
     }
 

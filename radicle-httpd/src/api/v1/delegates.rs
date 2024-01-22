@@ -14,7 +14,7 @@ use radicle::storage::{ReadRepository, ReadStorage};
 use crate::api::error::Error;
 use crate::api::project::Info;
 use crate::api::Context;
-use crate::api::PaginationQuery;
+use crate::api::{PaginationQuery, ProjectQuery};
 use crate::axum_extra::{Path, Query};
 
 pub fn router(ctx: Context) -> Router {
@@ -34,19 +34,28 @@ async fn delegates_projects_handler(
     Path(delegate): Path<Did>,
     Query(qs): Query<PaginationQuery>,
 ) -> impl IntoResponse {
-    let PaginationQuery { page, per_page } = qs;
+    let PaginationQuery {
+        show,
+        page,
+        per_page,
+    } = qs;
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
     let storage = &ctx.profile.storage;
     let db = &ctx.profile.database()?;
-    let mut projects = storage
-        .repositories()?
-        .into_iter()
-        .filter(|id| match &id.doc.visibility {
-            Visibility::Private { .. } => addr.ip().is_loopback(),
-            Visibility::Public => true,
-        })
-        .collect::<Vec<_>>();
+    let pinned = &ctx.profile.config.web.pinned;
+
+    let mut projects = match show {
+        ProjectQuery::All => storage
+            .repositories()?
+            .into_iter()
+            .filter(|repo| match &repo.doc.visibility {
+                Visibility::Private { .. } => addr.ip().is_loopback(),
+                Visibility::Public => true,
+            })
+            .collect::<Vec<_>>(),
+        ProjectQuery::Pinned => storage.repositories_by_id(pinned.repositories.iter())?,
+    };
     projects.sort_by_key(|p| p.rid);
 
     let infos = projects
@@ -116,11 +125,16 @@ mod routes {
             .layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 8080))));
         let response = get(
             &app,
-            "/delegates/did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/projects",
+            "/delegates/did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/projects?show=all",
         )
         .await;
 
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "failed response: {:?}",
+            response.json().await
+        );
         assert_eq!(
             response.json().await,
             json!([
@@ -179,11 +193,16 @@ mod routes {
         ))));
         let response = get(
             &app,
-            "/delegates/did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/projects",
+            "/delegates/did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/projects?show=all",
         )
         .await;
 
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "failed response: {:?}",
+            response.json().await
+        );
         assert_eq!(
             response.json().await,
             json!([

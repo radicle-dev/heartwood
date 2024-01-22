@@ -125,8 +125,18 @@ async fn root_handler() -> impl IntoResponse {
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PaginationQuery {
+    #[serde(default)]
+    pub show: ProjectQuery,
     pub page: Option<usize>,
     pub per_page: Option<usize>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum ProjectQuery {
+    All,
+    #[default]
+    Pinned,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

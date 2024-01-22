@@ -389,7 +389,7 @@ pub mod test {
         let obj = history.traverse(initial, &children, |mut acc, _, entry| {
             match Op::try_from(entry) {
                 Ok(op) => {
-                    if let Err(err) = acc.op(op, [].into_iter(), repo) {
+                    if let Err(err) = acc.op(op, [], repo) {
                         log::warn!("Error applying op to `{}` state: {err}", T::type_name());
                         return ControlFlow::Break(acc);
                     }

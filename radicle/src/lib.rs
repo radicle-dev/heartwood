@@ -28,6 +28,7 @@ pub mod storage;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 pub mod version;
+pub mod web;
 
 pub use cob::{issue, patch};
 pub use node::Node;

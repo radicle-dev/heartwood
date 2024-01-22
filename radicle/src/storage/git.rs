@@ -252,6 +252,24 @@ impl Storage {
         Ok(repos)
     }
 
+    pub fn repositories_by_id<'a>(
+        &self,
+        mut rids: impl Iterator<Item = &'a RepoId>,
+    ) -> Result<Vec<RepositoryInfo<Verified>>, RepositoryError> {
+        rids.try_fold(Vec::new(), |mut infos, rid| {
+            let repo = self.repository(*rid)?;
+            let (_, head) = repo.head()?;
+            let info = RepositoryInfo {
+                rid: *rid,
+                head,
+                doc: repo.identity_doc()?.into(),
+                refs: refs::SignedRefsAt::load(self.info.key, &repo)?,
+            };
+            infos.push(info);
+            Ok(infos)
+        })
+    }
+
     pub fn inspect(&self) -> Result<(), Error> {
         for r in self.repositories()? {
             let rid = r.rid;
