@@ -5,7 +5,7 @@ use anyhow::{anyhow, Context};
 use nonempty::NonEmpty;
 use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
 use radicle::identity::{doc, Identity, Visibility};
-use radicle::prelude::{Did, Doc, Id, Signer};
+use radicle::prelude::{Did, Doc, RepoId, Signer};
 use radicle::storage::refs;
 use radicle::storage::{ReadRepository, ReadStorage as _, WriteRepository};
 use radicle::{cob, Profile};
@@ -92,7 +92,7 @@ pub enum OperationName {
 
 pub struct Options {
     pub op: Operation,
-    pub rid: Option<Id>,
+    pub rid: Option<RepoId>,
     pub interactive: Interactive,
     pub quiet: bool,
 }
@@ -104,7 +104,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut revision: Option<Rev> = None;
-        let mut rid: Option<Id> = None;
+        let mut rid: Option<RepoId> = None;
         let mut title: Option<String> = None;
         let mut description: Option<String> = None;
         let mut delegate: Vec<Did> = Vec::new();

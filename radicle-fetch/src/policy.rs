@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use radicle::crypto::PublicKey;
 use radicle::node::policy::config::Config;
 use radicle::node::policy::store::Read;
-use radicle::prelude::Id;
+use radicle::prelude::RepoId;
 
 pub use radicle::node::policy::{Policy, Scope};
 
@@ -14,7 +14,7 @@ pub enum Allowed {
 }
 
 impl Allowed {
-    pub fn from_config(rid: Id, config: &Config<Read>) -> Result<Self, error::Policy> {
+    pub fn from_config(rid: RepoId, config: &Config<Read>) -> Result<Self, error::Policy> {
         let entry = config
             .repo_policy(&rid)
             .map_err(|err| error::Policy::FailedPolicy { rid, err })?;
@@ -71,7 +71,7 @@ impl BlockList {
 
 pub mod error {
     use radicle::node::policy;
-    use radicle::prelude::Id;
+    use radicle::prelude::RepoId;
     use radicle::storage;
     use thiserror::Error;
 
@@ -83,15 +83,15 @@ pub mod error {
     pub enum Policy {
         #[error("failed to find policy for {rid}")]
         FailedPolicy {
-            rid: Id,
+            rid: RepoId,
             #[source]
             err: policy::store::Error,
         },
         #[error("cannot fetch {rid} as it is not seeded")]
-        BlockedPolicy { rid: Id },
+        BlockedPolicy { rid: RepoId },
         #[error("failed to get followed nodes for {rid}")]
         FailedNodes {
-            rid: Id,
+            rid: RepoId,
             #[source]
             err: policy::store::Error,
         },

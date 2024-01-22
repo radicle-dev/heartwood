@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::{
     crypto,
-    identity::{Id, IdError},
+    identity::{IdError, RepoId},
 };
 
 type NodeId = crypto::PublicKey;
@@ -40,7 +40,7 @@ pub struct Url {
     /// Node identifier.
     pub node: NodeId,
     /// Repository identifier.
-    pub repo: Id,
+    pub repo: RepoId,
     /// Repository sub-tree.
     pub namespace: Option<Namespace>,
 }
@@ -89,7 +89,7 @@ impl FromStr for Url {
         };
 
         let node = NodeId::from_str(node).map_err(UrlError::InvalidNode)?;
-        let resource = Id::from_canonical(resource).map_err(UrlError::InvalidRepository)?;
+        let resource = RepoId::from_canonical(resource).map_err(UrlError::InvalidRepository)?;
         let namespace = namespace
             .map(|pk| Namespace::from_str(pk).map_err(UrlError::InvalidNamespace))
             .transpose()?;
@@ -110,7 +110,7 @@ mod test {
     #[test]
     fn test_url_parse() {
         let node = NodeId::from_str("z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK").unwrap();
-        let repo = Id::from_canonical("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
+        let repo = RepoId::from_canonical("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
         let namespace =
             Namespace::from_str("z6Mkifeb5NPS6j7JP72kEQEeuqMTpCAVcHsJi1C86jGTzHRi").unwrap();
 

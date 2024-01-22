@@ -2557,7 +2557,7 @@ mod test {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let mut alice = Actor::new(MockSigner::default());
-        let rid = gen::<Id>(1);
+        let rid = gen::<RepoId>(1);
         let doc = Doc::new(
             gen::<Project>(1),
             nonempty::NonEmpty::new(alice.did()),

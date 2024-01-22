@@ -7,14 +7,14 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::prelude::Id;
+use crate::prelude::RepoId;
 
 pub use super::{Alias, NodeId};
 
 /// Repository seeding policy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Repo {
-    pub id: Id,
+    pub id: RepoId,
     pub scope: Scope,
     pub policy: Policy,
 }

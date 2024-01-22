@@ -6,7 +6,7 @@ use axum_auth::AuthBearer;
 use hyper::StatusCode;
 use serde_json::json;
 
-use radicle::identity::Id;
+use radicle::identity::RepoId;
 use radicle::node::{policy, Handle, DEFAULT_TIMEOUT};
 use radicle::Node;
 
@@ -74,7 +74,7 @@ async fn node_policies_repos_handler(State(ctx): State<Context>) -> impl IntoRes
 async fn node_policies_seed_handler(
     State(ctx): State<Context>,
     AuthBearer(token): AuthBearer,
-    Path(project): Path<Id>,
+    Path(project): Path<RepoId>,
     Query(qs): Query<PoliciesQuery>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
@@ -96,7 +96,7 @@ async fn node_policies_seed_handler(
 async fn node_policies_unseed_handler(
     State(ctx): State<Context>,
     AuthBearer(token): AuthBearer,
-    Path(project): Path<Id>,
+    Path(project): Path<RepoId>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
     let mut node = Node::new(ctx.profile.socket());

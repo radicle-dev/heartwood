@@ -4,7 +4,7 @@ use std::str::FromStr;
 use sqlite as sql;
 use sqlite::Value;
 
-use crate::identity::Id;
+use crate::identity::RepoId;
 use crate::node;
 use crate::node::Address;
 
@@ -28,12 +28,12 @@ pub fn transaction<T, E: From<sql::Error>>(
     }
 }
 
-impl TryFrom<&Value> for Id {
+impl TryFrom<&Value> for RepoId {
     type Error = sql::Error;
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
         match value {
-            Value::String(id) => Id::from_urn(id).map_err(|e| sql::Error {
+            Value::String(id) => RepoId::from_urn(id).map_err(|e| sql::Error {
                 code: None,
                 message: Some(e.to_string()),
             }),
@@ -45,7 +45,7 @@ impl TryFrom<&Value> for Id {
     }
 }
 
-impl sqlite::BindableWithIndex for &Id {
+impl sqlite::BindableWithIndex for &RepoId {
     fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
         self.urn().as_str().bind(stmt, i)
     }

@@ -16,7 +16,7 @@ use tower_http::cors::{self, CorsLayer};
 
 use radicle::cob::issue;
 use radicle::cob::patch;
-use radicle::identity::{DocAt, Id};
+use radicle::identity::{DocAt, RepoId};
 use radicle::node::policy::Scope;
 use radicle::node::routing::Store;
 use radicle::node::{Handle, NodeId};
@@ -52,7 +52,7 @@ impl Context {
         }
     }
 
-    pub fn project_info(&self, id: Id) -> Result<project::Info, error::Error> {
+    pub fn project_info(&self, id: RepoId) -> Result<project::Info, error::Error> {
         let storage = &self.profile.storage;
         let repo = storage.repository(id)?;
         let (_, head) = repo.head()?;
@@ -196,7 +196,7 @@ mod project {
     use radicle::cob;
     use radicle::git::Oid;
     use radicle::identity::project::Project;
-    use radicle::identity::{Id, Visibility};
+    use radicle::identity::{RepoId, Visibility};
     use radicle::prelude::Did;
 
     /// Project info.
@@ -211,13 +211,13 @@ mod project {
         pub head: Oid,
         pub patches: cob::patch::PatchCounts,
         pub issues: cob::issue::IssueCounts,
-        pub id: Id,
+        pub id: RepoId,
         pub seeding: usize,
     }
 }
 
 /// Announce refs to the network for the given RID.
-pub fn announce_refs(mut node: Node, rid: Id) -> Result<(), Error> {
+pub fn announce_refs(mut node: Node, rid: RepoId) -> Result<(), Error> {
     match node.announce_refs(rid) {
         Ok(_) => Ok(()),
         Err(e) if e.is_connection_err() => Ok(()),

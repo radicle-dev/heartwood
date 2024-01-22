@@ -87,7 +87,7 @@ pub mod error {
     use std::io;
 
     use radicle::node::policy;
-    use radicle::prelude::Id;
+    use radicle::prelude::RepoId;
     use radicle::{git, storage};
     use thiserror::Error;
 
@@ -103,15 +103,15 @@ pub mod error {
     pub enum Tracking {
         #[error("failed to find policy for {rid}")]
         FailedPolicy {
-            rid: Id,
+            rid: RepoId,
             #[source]
             err: policy::store::Error,
         },
         #[error("cannot fetch {rid} as it is not seeded")]
-        BlockedPolicy { rid: Id },
+        BlockedPolicy { rid: RepoId },
         #[error("failed to get tracking nodes for {rid}")]
         FailedNodes {
-            rid: Id,
+            rid: RepoId,
             #[source]
             err: policy::store::Error,
         },

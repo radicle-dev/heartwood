@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
-use crate::prelude::Id;
+use crate::prelude::RepoId;
 use crate::{cob, git};
 
 #[derive(Debug, Error)]
@@ -47,7 +47,7 @@ pub struct ExplorerUrl {
     /// Host serving the repository.
     pub host: String,
     /// Repository.
-    pub rid: Id,
+    pub rid: RepoId,
     /// Resource under the repository.
     pub resource: Option<ExplorerResource>,
 }
@@ -95,7 +95,7 @@ impl Default for Explorer {
 
 impl Explorer {
     /// Get the explorer URL, filling in the host and RID.
-    pub fn url(&self, host: impl ToString, rid: Id) -> ExplorerUrl {
+    pub fn url(&self, host: impl ToString, rid: RepoId) -> ExplorerUrl {
         ExplorerUrl {
             template: self.clone(),
             host: host.to_string(),

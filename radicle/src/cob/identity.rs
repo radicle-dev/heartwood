@@ -18,7 +18,7 @@ use crate::{
         ActorId, Timestamp,
     },
     identity::{
-        doc::{Doc, DocError, Id},
+        doc::{Doc, DocError, RepoId},
         Did,
     },
     storage::{ReadRepository, RepositoryError, WriteRepository},
@@ -137,7 +137,7 @@ pub enum Error {
 pub struct Identity {
     /// The canonical identifier for this identity.
     /// This is the object id of the initial document blob.
-    pub id: Id,
+    pub id: RepoId,
     /// The current revision of the document.
     /// Equal to the head of the identity branch.
     pub current: RevisionId,
@@ -241,7 +241,7 @@ impl Identity {
 
 impl Identity {
     /// The repository identifier.
-    pub fn id(&self) -> Id {
+    pub fn id(&self) -> RepoId {
         self.id
     }
 
@@ -1004,7 +1004,7 @@ mod test {
     use crate::identity::doc::PayloadId;
 
     #[quickcheck]
-    fn prop_json_eq_str(pk: PublicKey, proj: Id, did: Did) {
+    fn prop_json_eq_str(pk: PublicKey, proj: RepoId, did: Did) {
         let json = serde_json::to_string(&pk).unwrap();
         assert_eq!(format!("\"{pk}\""), json);
 

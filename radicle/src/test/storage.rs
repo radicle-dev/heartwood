@@ -6,7 +6,7 @@ use std::str::FromStr;
 use git_ext::ref_format as fmt;
 
 use crate::crypto::{Signer, Verified};
-use crate::identity::doc::{Doc, DocAt, DocError, Id};
+use crate::identity::doc::{Doc, DocAt, DocError, RepoId};
 use crate::node::NodeId;
 
 pub use crate::storage::*;
@@ -16,16 +16,16 @@ use super::fixtures;
 #[derive(Clone, Debug)]
 pub struct MockStorage {
     pub path: PathBuf,
-    pub inventory: HashMap<Id, DocAt>,
+    pub inventory: HashMap<RepoId, DocAt>,
     pub info: git::UserInfo,
 
     /// All refs keyed by RID.
     /// Each value is a map of refs keyed by node Id (public key).
-    pub remotes: HashMap<Id, HashMap<NodeId, refs::SignedRefsAt>>,
+    pub remotes: HashMap<RepoId, HashMap<NodeId, refs::SignedRefsAt>>,
 }
 
 impl MockStorage {
-    pub fn new(inventory: Vec<(Id, DocAt)>) -> Self {
+    pub fn new(inventory: Vec<(RepoId, DocAt)>) -> Self {
         Self {
             path: PathBuf::default(),
             info: fixtures::user(),
@@ -39,7 +39,7 @@ impl MockStorage {
     }
 
     /// Add a remote `node` with `signed_refs` for the repo `rid`.
-    pub fn insert_remote(&mut self, rid: Id, node: NodeId, refs: refs::SignedRefsAt) {
+    pub fn insert_remote(&mut self, rid: RepoId, node: NodeId, refs: refs::SignedRefsAt) {
         self.remotes.entry(rid).or_default().insert(node, refs);
     }
 }
@@ -55,11 +55,11 @@ impl ReadStorage for MockStorage {
         self.path.as_path()
     }
 
-    fn path_of(&self, rid: &Id) -> PathBuf {
+    fn path_of(&self, rid: &RepoId) -> PathBuf {
         self.path().join(rid.canonical())
     }
 
-    fn contains(&self, rid: &Id) -> Result<bool, RepositoryError> {
+    fn contains(&self, rid: &RepoId) -> Result<bool, RepositoryError> {
         Ok(self.inventory.contains_key(rid))
     }
 
@@ -67,7 +67,7 @@ impl ReadStorage for MockStorage {
         Ok(self.inventory.keys().cloned().collect::<Vec<_>>())
     }
 
-    fn repository(&self, rid: Id) -> Result<Self::Repository, Error> {
+    fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error> {
         let doc = self
             .inventory
             .get(&rid)
@@ -83,7 +83,7 @@ impl ReadStorage for MockStorage {
 impl WriteStorage for MockStorage {
     type RepositoryMut = MockRepository;
 
-    fn repository_mut(&self, rid: Id) -> Result<Self::RepositoryMut, Error> {
+    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error> {
         let doc = self.inventory.get(&rid).unwrap();
         Ok(MockRepository {
             id: rid,
@@ -92,24 +92,24 @@ impl WriteStorage for MockStorage {
         })
     }
 
-    fn create(&self, _rid: Id) -> Result<Self::RepositoryMut, Error> {
+    fn create(&self, _rid: RepoId) -> Result<Self::RepositoryMut, Error> {
         todo!()
     }
 
-    fn clean(&self, _rid: Id) -> Result<Vec<RemoteId>, RepositoryError> {
+    fn clean(&self, _rid: RepoId) -> Result<Vec<RemoteId>, RepositoryError> {
         todo!()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct MockRepository {
-    id: Id,
+    id: RepoId,
     doc: DocAt,
     remotes: HashMap<NodeId, refs::SignedRefsAt>,
 }
 
 impl MockRepository {
-    pub fn new(id: Id, doc: Doc<Verified>) -> Self {
+    pub fn new(id: RepoId, doc: Doc<Verified>) -> Self {
         let (blob, _) = doc.encode().unwrap();
 
         Self {
@@ -157,7 +157,7 @@ impl ValidateRepository for MockRepository {
 }
 
 impl ReadRepository for MockRepository {
-    fn id(&self) -> Id {
+    fn id(&self) -> RepoId {
         self.id
     }
 

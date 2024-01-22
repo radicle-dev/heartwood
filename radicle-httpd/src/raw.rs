@@ -9,7 +9,7 @@ use axum::Router;
 use hyper::HeaderMap;
 use tower_http::cors;
 
-use radicle::prelude::Id;
+use radicle::prelude::RepoId;
 use radicle::profile::Profile;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle_surf::{Oid, Repository};
@@ -107,7 +107,7 @@ pub fn router(profile: Arc<Profile>) -> Router {
 }
 
 async fn file_by_path_handler(
-    Path((project, sha, path)): Path<(Id, Oid, String)>,
+    Path((project, sha, path)): Path<(RepoId, Oid, String)>,
     State(profile): State<Arc<Profile>>,
 ) -> impl IntoResponse {
     let storage = &profile.storage;
@@ -134,7 +134,7 @@ async fn file_by_path_handler(
 }
 
 async fn file_by_oid_handler(
-    Path((project, oid)): Path<(Id, Oid)>,
+    Path((project, oid)): Path<(RepoId, Oid)>,
     State(profile): State<Arc<Profile>>,
     Query(qs): Query<RawQuery>,
 ) -> impl IntoResponse {

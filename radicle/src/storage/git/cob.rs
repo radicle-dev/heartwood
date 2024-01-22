@@ -250,7 +250,7 @@ impl<'a, R: storage::ValidateRepository> ValidateRepository for DraftStore<'a, R
 }
 
 impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
-    fn id(&self) -> identity::Id {
+    fn id(&self) -> identity::RepoId {
         self.repo.id()
     }
 

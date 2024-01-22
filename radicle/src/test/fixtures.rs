@@ -4,7 +4,7 @@ use std::str::FromStr;
 use crate::crypto::{PublicKey, Signer, Verified};
 use crate::git;
 use crate::identity::doc::Visibility;
-use crate::identity::Id;
+use crate::identity::RepoId;
 use crate::node::Alias;
 use crate::rad;
 use crate::storage::git::transport;
@@ -55,7 +55,7 @@ pub fn project<P: AsRef<Path>, G: Signer>(
     path: P,
     storage: &Storage,
     signer: &G,
-) -> Result<(Id, SignedRefs<Verified>, git2::Repository, git2::Oid), rad::InitError> {
+) -> Result<(RepoId, SignedRefs<Verified>, git2::Repository, git2::Oid), rad::InitError> {
     transport::local::register(storage.clone());
 
     let (working, head) = repository(path);

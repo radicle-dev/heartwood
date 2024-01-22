@@ -4,7 +4,7 @@ use anyhow::{anyhow, Context as _};
 
 use radicle::identity::{Identity, Visibility};
 use radicle::node::Handle as _;
-use radicle::prelude::Id;
+use radicle::prelude::RepoId;
 use radicle::storage::{SignRepository, ValidateRepository, WriteRepository, WriteStorage};
 
 use crate::terminal as term;
@@ -38,7 +38,7 @@ Options
 
 #[derive(Default, Debug)]
 pub struct Options {
-    pub rid: Option<Id>,
+    pub rid: Option<RepoId>,
 }
 
 impl Args for Options {

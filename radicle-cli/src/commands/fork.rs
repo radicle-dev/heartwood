@@ -2,7 +2,7 @@ use std::ffi::OsString;
 
 use anyhow::Context as _;
 
-use radicle::prelude::Id;
+use radicle::prelude::RepoId;
 use radicle::rad;
 
 use crate::terminal as term;
@@ -25,7 +25,7 @@ Options
 };
 
 pub struct Options {
-    rid: Option<Id>,
+    rid: Option<RepoId>,
 }
 
 impl Args for Options {

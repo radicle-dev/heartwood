@@ -18,23 +18,23 @@ pub enum IdError {
     Multibase(#[from] multibase::Error),
 }
 
-/// A radicle identifier. Commonly used to uniquely identify radicle projects.
+/// A repository identifier.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Id(git::Oid);
+pub struct RepoId(git::Oid);
 
-impl fmt::Display for Id {
+impl fmt::Display for RepoId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.urn().as_str())
     }
 }
 
-impl fmt::Debug for Id {
+impl fmt::Debug for RepoId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Id({self})")
+        write!(f, "RepoId({self})")
     }
 }
 
-impl Id {
+impl RepoId {
     /// Format the identifier as a human-readable URN.
     ///
     /// Eg. `rad:z3XncAdkZjeK9mQS5Sdc4qhw98BUX`.
@@ -69,7 +69,7 @@ impl Id {
     }
 }
 
-impl FromStr for Id {
+impl FromStr for RepoId {
     type Err = IdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -77,7 +77,7 @@ impl FromStr for Id {
     }
 }
 
-impl TryFrom<OsString> for Id {
+impl TryFrom<OsString> for RepoId {
     type Error = IdError;
 
     fn try_from(value: OsString) -> Result<Self, Self::Error> {
@@ -86,19 +86,19 @@ impl TryFrom<OsString> for Id {
     }
 }
 
-impl From<git::Oid> for Id {
+impl From<git::Oid> for RepoId {
     fn from(oid: git::Oid) -> Self {
         Self(oid)
     }
 }
 
-impl From<git2::Oid> for Id {
+impl From<git2::Oid> for RepoId {
     fn from(oid: git2::Oid) -> Self {
         Self(oid.into())
     }
 }
 
-impl Deref for Id {
+impl Deref for RepoId {
     type Target = git::Oid;
 
     fn deref(&self) -> &Self::Target {
@@ -106,7 +106,7 @@ impl Deref for Id {
     }
 }
 
-impl serde::Serialize for Id {
+impl serde::Serialize for RepoId {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -115,7 +115,7 @@ impl serde::Serialize for Id {
     }
 }
 
-impl<'de> serde::Deserialize<'de> for Id {
+impl<'de> serde::Deserialize<'de> for RepoId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -124,11 +124,11 @@ impl<'de> serde::Deserialize<'de> for Id {
     }
 }
 
-impl From<&Id> for Component<'_> {
-    fn from(id: &Id) -> Self {
+impl From<&RepoId> for Component<'_> {
+    fn from(id: &RepoId) -> Self {
         let refstr =
-            RefString::try_from(id.0.to_string()).expect("project id's are valid ref strings");
-        Component::from_refstr(refstr).expect("project id's are valid refname components")
+            RefString::try_from(id.0.to_string()).expect("repository id's are valid ref strings");
+        Component::from_refstr(refstr).expect("repository id's are valid refname components")
     }
 }
 
@@ -139,9 +139,9 @@ mod test {
     use qcheck_macros::quickcheck;
 
     #[quickcheck]
-    fn prop_from_str(input: Id) {
+    fn prop_from_str(input: RepoId) {
         let encoded = input.to_string();
-        let decoded = Id::from_str(&encoded).unwrap();
+        let decoded = RepoId::from_str(&encoded).unwrap();
 
         assert_eq!(input, decoded);
     }

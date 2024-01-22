@@ -21,7 +21,7 @@ pub mod prelude {
     pub use crate::bounded::BoundedVec;
     pub use crate::crypto::{PublicKey, Signature, Signer};
     pub use crate::deserializer::Deserializer;
-    pub use crate::identity::{Did, Id};
+    pub use crate::identity::{Did, RepoId};
     pub use crate::node::Address;
     pub use crate::service::filter::Filter;
     pub use crate::service::{DisconnectReason, Event, Message, Network, NodeId};

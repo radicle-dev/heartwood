@@ -14,20 +14,20 @@ use crate::storage::{refs, RefUpdate};
 pub enum Event {
     RefsFetched {
         remote: NodeId,
-        rid: Id,
+        rid: RepoId,
         updated: Vec<RefUpdate>,
     },
     RefsSynced {
         remote: NodeId,
-        rid: Id,
+        rid: RepoId,
         at: Oid,
     },
     SeedDiscovered {
-        rid: Id,
+        rid: RepoId,
         nid: NodeId,
     },
     SeedDropped {
-        rid: Id,
+        rid: RepoId,
         nid: NodeId,
     },
     PeerConnected {
@@ -39,12 +39,12 @@ pub enum Event {
     },
     InventoryAnnounced {
         nid: NodeId,
-        inventory: Vec<Id>,
+        inventory: Vec<RepoId>,
         timestamp: Timestamp,
     },
     RefsAnnounced {
         nid: NodeId,
-        rid: Id,
+        rid: RepoId,
         refs: Vec<refs::RefsAt>,
         timestamp: Timestamp,
     },

@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 use std::time::Duration;
 
-use radicle::identity::Id;
+use radicle::identity::RepoId;
 use radicle::node;
 use radicle::node::Handle as _;
 use radicle::Node;
@@ -9,7 +9,7 @@ use radicle::Node;
 use crate::terminal as term;
 
 /// Announce changes to the network.
-pub fn announce(rid: Id, node: &mut Node) -> anyhow::Result<()> {
+pub fn announce(rid: RepoId, node: &mut Node) -> anyhow::Result<()> {
     match announce_(rid, node) {
         Ok(()) => Ok(()),
         Err(e) if e.is_connection_err() => {
@@ -20,7 +20,7 @@ pub fn announce(rid: Id, node: &mut Node) -> anyhow::Result<()> {
     }
 }
 
-fn announce_(rid: Id, node: &mut Node) -> Result<(), radicle::node::Error> {
+fn announce_(rid: RepoId, node: &mut Node) -> Result<(), radicle::node::Error> {
     let seeds = node.seeds(rid)?;
     let connected = seeds.connected().map(|s| s.nid).collect::<Vec<_>>();
 

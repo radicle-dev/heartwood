@@ -9,7 +9,7 @@ use radicle::cob::{self, issue, patch};
 use radicle::crypto;
 use radicle::git::{Oid, RefString};
 use radicle::node::{Address, Alias};
-use radicle::prelude::{Did, Id, NodeId};
+use radicle::prelude::{Did, NodeId, RepoId};
 
 use crate::git::Rev;
 
@@ -116,9 +116,9 @@ pub fn nid(val: &OsString) -> anyhow::Result<NodeId> {
     NodeId::from_str(&val).map_err(|_| anyhow!("invalid Node ID '{}'", val))
 }
 
-pub fn rid(val: &OsString) -> anyhow::Result<Id> {
+pub fn rid(val: &OsString) -> anyhow::Result<RepoId> {
     let val = val.to_string_lossy();
-    Id::from_str(&val).map_err(|_| anyhow!("invalid Repository ID '{}'", val))
+    RepoId::from_str(&val).map_err(|_| anyhow!("invalid Repository ID '{}'", val))
 }
 
 pub fn pubkey(val: &OsString) -> anyhow::Result<NodeId> {

@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::{
     crypto,
-    identity::{Id, IdError},
+    identity::{IdError, RepoId},
 };
 
 /// Repository namespace.
@@ -38,7 +38,7 @@ pub enum UrlError {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Url {
     /// Repository identifier.
-    pub repo: Id,
+    pub repo: RepoId,
     /// Repository sub-tree.
     pub namespace: Option<Namespace>,
 }
@@ -54,8 +54,8 @@ impl Url {
     }
 }
 
-impl From<Id> for Url {
-    fn from(repo: Id) -> Self {
+impl From<RepoId> for Url {
+    fn from(repo: RepoId) -> Self {
         Self {
             repo,
             namespace: None,
@@ -88,7 +88,7 @@ impl FromStr for Url {
             _ => return Err(UrlError::InvalidFormat),
         };
 
-        let resource = Id::from_canonical(resource).map_err(UrlError::InvalidRepository)?;
+        let resource = RepoId::from_canonical(resource).map_err(UrlError::InvalidRepository)?;
         let namespace = namespace
             .map(|pk| Namespace::from_str(pk).map_err(UrlError::InvalidNamespace))
             .transpose()?;
@@ -107,7 +107,7 @@ mod test {
 
     #[test]
     fn test_url_parse() {
-        let repo = Id::from_canonical("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
+        let repo = RepoId::from_canonical("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
         let namespace =
             Namespace::from_str("z6Mkifeb5NPS6j7JP72kEQEeuqMTpCAVcHsJi1C86jGTzHRi").unwrap();
 
@@ -137,7 +137,7 @@ mod test {
 
     #[test]
     fn test_url_to_string() {
-        let repo = Id::from_canonical("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
+        let repo = RepoId::from_canonical("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
         let namespace =
             Namespace::from_str("z6Mkifeb5NPS6j7JP72kEQEeuqMTpCAVcHsJi1C86jGTzHRi").unwrap();
 

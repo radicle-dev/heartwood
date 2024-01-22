@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 use std::{collections::HashMap, process};
 
-use radicle::prelude::Id;
+use radicle::prelude::RepoId;
 use radicle_httpd as httpd;
 
 #[tokio::main]
@@ -39,7 +39,7 @@ fn parse_options() -> Result<httpd::Options, lexopt::Error> {
             }
             Long("alias") | Short('a') => {
                 let alias: String = parser.value()?.parse()?;
-                let id: Id = parser.value()?.parse()?;
+                let id: RepoId = parser.value()?.parse()?;
 
                 aliases.insert(alias, id);
             }

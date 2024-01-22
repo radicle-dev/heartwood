@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use radicle::git::Url;
-use radicle::identity::{Did, Id};
+use radicle::identity::{Did, RepoId};
 use radicle::node::{Alias, AliasStore as _, NodeId};
 use radicle::storage::ReadStorage as _;
 use radicle::Profile;
@@ -56,7 +56,7 @@ pub fn tracked(working: &git::Repository) -> anyhow::Result<Vec<Tracked>> {
 }
 
 pub fn untracked<'a>(
-    rid: Id,
+    rid: RepoId,
     profile: &Profile,
     tracked: impl Iterator<Item = &'a Tracked>,
 ) -> anyhow::Result<Vec<Untracked>> {

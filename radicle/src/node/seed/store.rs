@@ -10,7 +10,7 @@ use crate::node::address;
 use crate::node::address::Store as _;
 use crate::node::NodeId;
 use crate::node::{seed::SyncedSeed, Database, SyncedAt};
-use crate::prelude::{Id, Timestamp};
+use crate::prelude::{RepoId, Timestamp};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -29,7 +29,7 @@ pub trait Store: address::Store {
     /// Mark a repo as synced on the given node.
     fn synced(
         &mut self,
-        rid: &Id,
+        rid: &RepoId,
         nid: &NodeId,
         at: Oid,
         timestamp: Timestamp,
@@ -38,18 +38,18 @@ pub trait Store: address::Store {
     fn seeded_by(
         &self,
         nid: &NodeId,
-    ) -> Result<Box<dyn Iterator<Item = Result<(Id, SyncedAt), Error>> + '_>, Error>;
+    ) -> Result<Box<dyn Iterator<Item = Result<(RepoId, SyncedAt), Error>> + '_>, Error>;
     /// Get nodes that have synced the given repo.
     fn seeds_for(
         &self,
-        rid: &Id,
+        rid: &RepoId,
     ) -> Result<Box<dyn Iterator<Item = Result<SyncedSeed, Error>> + '_>, Error>;
 }
 
 impl Store for Database {
     fn synced(
         &mut self,
-        rid: &Id,
+        rid: &RepoId,
         nid: &NodeId,
         at: Oid,
         timestamp: Timestamp,
@@ -72,7 +72,7 @@ impl Store for Database {
 
     fn seeds_for(
         &self,
-        rid: &Id,
+        rid: &RepoId,
     ) -> Result<Box<dyn Iterator<Item = Result<SyncedSeed, Error>> + '_>, Error> {
         let mut stmt = self.db.prepare(
             "SELECT node, head, timestamp
@@ -106,7 +106,7 @@ impl Store for Database {
     fn seeded_by(
         &self,
         nid: &NodeId,
-    ) -> Result<Box<dyn Iterator<Item = Result<(Id, SyncedAt), Error>> + '_>, Error> {
+    ) -> Result<Box<dyn Iterator<Item = Result<(RepoId, SyncedAt), Error>> + '_>, Error> {
         let mut stmt = self.db.prepare(
             "SELECT repo, head, timestamp
              FROM `repo-sync-status`
@@ -116,7 +116,7 @@ impl Store for Database {
 
         Ok(Box::new(stmt.into_iter().map(|row| {
             let row = row?;
-            let rid = row.try_read::<Id, _>("repo")?;
+            let rid = row.try_read::<RepoId, _>("repo")?;
             let oid = row.try_read::<&str, _>("head")?;
             let oid = Oid::from_str(oid).map_err(|e| {
                 Error::Internal(sql::Error {

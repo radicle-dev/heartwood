@@ -12,7 +12,7 @@ use qcheck::Arbitrary;
 use crate::collections::RandomMap;
 use crate::identity::doc::Visibility;
 use crate::identity::{
-    doc::{Doc, DocAt, Id},
+    doc::{Doc, DocAt, RepoId},
     project::Project,
     Did,
 };
@@ -68,7 +68,7 @@ pub fn vec<T: Eq + Arbitrary>(size: usize) -> Vec<T> {
 pub fn nonempty_storage(size: usize) -> MockStorage {
     let mut storage = gen::<MockStorage>(size);
     for _ in 0..size {
-        storage.inventory.insert(gen::<Id>(1), gen::<DocAt>(1));
+        storage.inventory.insert(gen::<RepoId>(1), gen::<DocAt>(1));
     }
     storage
 }
@@ -224,7 +224,7 @@ impl Arbitrary for MockStorage {
 
 impl Arbitrary for MockRepository {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let rid = Id::arbitrary(g);
+        let rid = RepoId::arbitrary(g);
         let doc = Doc::<Verified>::arbitrary(g);
 
         Self::new(rid, doc)
@@ -241,12 +241,12 @@ impl Arbitrary for storage::Remote<crypto::Verified> {
     }
 }
 
-impl Arbitrary for Id {
+impl Arbitrary for RepoId {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let bytes = <[u8; 20]>::arbitrary(g);
         let oid = git::Oid::try_from(bytes.as_slice()).unwrap();
 
-        Id::from(oid)
+        RepoId::from(oid)
     }
 }
 

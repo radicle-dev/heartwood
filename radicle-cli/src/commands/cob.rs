@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use chrono::prelude::*;
 use nonempty::NonEmpty;
 use radicle::cob;
-use radicle::prelude::Id;
+use radicle::prelude::RepoId;
 use radicle::storage::ReadStorage;
 use radicle_cob::object::collaboration::list;
 
@@ -46,7 +46,7 @@ enum Operation {
 }
 
 pub struct Options {
-    rid: Id,
+    rid: RepoId,
     op: Operation,
     type_name: cob::TypeName,
 }
@@ -59,7 +59,7 @@ impl Args for Options {
         let mut op: Option<OperationName> = None;
         let mut type_name: Option<cob::TypeName> = None;
         let mut oid: Option<Rev> = None;
-        let mut rid: Option<Id> = None;
+        let mut rid: Option<RepoId> = None;
 
         while let Some(arg) = parser.next()? {
             match arg {

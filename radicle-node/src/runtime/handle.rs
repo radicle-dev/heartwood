@@ -9,7 +9,7 @@ use radicle::storage::refs::RefsAt;
 use reactor::poller::popol::PopolWaker;
 use thiserror::Error;
 
-use crate::identity::Id;
+use crate::identity::RepoId;
 use crate::node::{Alias, Command, FetchResult};
 use crate::profile::Home;
 use crate::runtime::Emitter;
@@ -178,7 +178,7 @@ impl radicle::node::Handle for Handle {
             .map_err(Error::from)
     }
 
-    fn seeds(&mut self, id: Id) -> Result<Seeds, Self::Error> {
+    fn seeds(&mut self, id: RepoId) -> Result<Seeds, Self::Error> {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::Seeds(id, sender))?;
         receiver.recv().map_err(Error::from)
@@ -192,7 +192,7 @@ impl radicle::node::Handle for Handle {
 
     fn fetch(
         &mut self,
-        id: Id,
+        id: RepoId,
         from: NodeId,
         timeout: time::Duration,
     ) -> Result<FetchResult, Error> {
@@ -213,19 +213,19 @@ impl radicle::node::Handle for Handle {
         receiver.recv().map_err(Error::from)
     }
 
-    fn seed(&mut self, id: Id, scope: policy::Scope) -> Result<bool, Error> {
+    fn seed(&mut self, id: RepoId, scope: policy::Scope) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::Seed(id, scope, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
-    fn unseed(&mut self, id: Id) -> Result<bool, Error> {
+    fn unseed(&mut self, id: RepoId) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::Unseed(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
-    fn announce_refs(&mut self, id: Id) -> Result<RefsAt, Error> {
+    fn announce_refs(&mut self, id: RepoId) -> Result<RefsAt, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::AnnounceRefs(id, sender))?;
         receiver.recv().map_err(Error::from)

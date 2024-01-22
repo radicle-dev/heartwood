@@ -19,7 +19,7 @@ use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 use crate::crypto::{PublicKey, Signature, Unverified};
 use crate::git;
 use crate::git::fmt;
-use crate::identity::Id;
+use crate::identity::RepoId;
 use crate::node;
 use crate::node::Alias;
 use crate::prelude::*;
@@ -215,7 +215,7 @@ impl Encode for git::Url {
     }
 }
 
-impl Encode for Id {
+impl Encode for RepoId {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
         self.deref().encode(writer)
     }
@@ -420,7 +420,7 @@ impl Decode for String {
     }
 }
 
-impl Decode for Id {
+impl Decode for RepoId {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
         let oid: git::Oid = Decode::decode(reader)?;
 
@@ -572,8 +572,8 @@ mod tests {
     }
 
     #[quickcheck]
-    fn prop_id(input: Id) {
-        assert_eq!(deserialize::<Id>(&serialize(&input)).unwrap(), input);
+    fn prop_id(input: RepoId) {
+        assert_eq!(deserialize::<RepoId>(&serialize(&input)).unwrap(), input);
     }
 
     #[quickcheck]

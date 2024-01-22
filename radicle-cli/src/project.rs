@@ -6,10 +6,10 @@ use radicle::node::policy::Scope;
 use radicle::node::{Handle, NodeId};
 use radicle::Node;
 
-/// Setup a project remote and tracking branch.
+/// Setup a repository remote and tracking branch.
 pub struct SetupRemote<'a> {
-    /// The project id.
-    pub rid: Id,
+    /// The repository id.
+    pub rid: RepoId,
     /// Whether or not to setup a remote tracking branch.
     pub tracking: Option<BranchName>,
     /// Whether or not to fetch the remote immediately.
@@ -55,7 +55,7 @@ impl<'a> SetupRemote<'a> {
 /// Seed a repository by first trying to seed through the node, and if the node isn't running,
 /// by updating the policy database directly.
 pub fn seed(
-    rid: Id,
+    rid: RepoId,
     scope: Scope,
     node: &mut Node,
     profile: &Profile,
@@ -72,7 +72,7 @@ pub fn seed(
 
 /// Unseed a repository by first trying to unseed through the node, and if the node isn't running,
 /// by updating the policy database directly.
-pub fn unseed(rid: Id, node: &mut Node, profile: &Profile) -> Result<bool, anyhow::Error> {
+pub fn unseed(rid: RepoId, node: &mut Node, profile: &Profile) -> Result<bool, anyhow::Error> {
     match node.unseed(rid) {
         Ok(updated) => Ok(updated),
         Err(e) if e.is_connection_err() => {

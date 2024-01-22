@@ -16,7 +16,7 @@ use radicle::storage::refs::RefsAt;
 
 use crate::collections::{RandomMap, RandomSet};
 use crate::crypto::test::signer::MockSigner;
-use crate::identity::Id;
+use crate::identity::RepoId;
 use crate::node;
 use crate::node::config::*;
 use crate::prelude::*;
@@ -57,7 +57,7 @@ use crate::{git, identity, rad, runtime, service, test};
 
 #[test]
 fn test_inventory_decode() {
-    let inventory: Vec<Id> = arbitrary::gen(300);
+    let inventory: Vec<RepoId> = arbitrary::gen(300);
     let timestamp = LocalTime::now().as_millis();
 
     let mut buf = Vec::new();
@@ -369,7 +369,9 @@ fn test_inventory_pruning() {
                 bob.id(),
                 Message::inventory(
                     InventoryAnnouncement {
-                        inventory: test::arbitrary::vec::<Id>(num_projs).try_into().unwrap(),
+                        inventory: test::arbitrary::vec::<RepoId>(num_projs)
+                            .try_into()
+                            .unwrap(),
                         timestamp: bob.local_time().as_millis(),
                     },
                     peer.signer(),
@@ -391,7 +393,7 @@ fn test_inventory_pruning() {
 #[test]
 fn test_seeding() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
-    let proj_id: identity::Id = test::arbitrary::gen(1);
+    let proj_id: identity::RepoId = test::arbitrary::gen(1);
 
     let (sender, receiver) = chan::bounded(1);
     alice.command(Command::Seed(proj_id, policy::Scope::default(), sender));
@@ -473,7 +475,7 @@ fn test_announcement_rebroadcast_duplicates() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let eve = Peer::new("eve", [9, 9, 9, 9]);
-    let rids = arbitrary::set::<Id>(3..=3);
+    let rids = arbitrary::set::<RepoId>(3..=3);
 
     alice.connect_to(&bob);
     alice.receive(bob.id, carol.node_announcement());
@@ -1249,7 +1251,7 @@ fn test_maintain_connections_failed_attempt() {
 fn test_seed_repo_subscribe() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
-    let rid = arbitrary::gen::<Id>(1);
+    let rid = arbitrary::gen::<RepoId>(1);
     let (send, recv) = chan::bounded(1);
 
     alice.connect_to(&bob);
@@ -1268,7 +1270,7 @@ fn test_seed_repo_subscribe() {
 
 #[test]
 fn test_fetch_missing_inventory_on_gossip() {
-    let rid = arbitrary::gen::<Id>(1);
+    let rid = arbitrary::gen::<RepoId>(1);
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let now = LocalTime::now();
@@ -1293,7 +1295,7 @@ fn test_fetch_missing_inventory_on_gossip() {
 
 #[test]
 fn test_fetch_missing_inventory_on_schedule() {
-    let rid = arbitrary::gen::<Id>(1);
+    let rid = arbitrary::gen::<RepoId>(1);
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let now = LocalTime::now();

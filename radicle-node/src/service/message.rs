@@ -5,7 +5,7 @@ use radicle::storage::refs::RefsAt;
 use radicle::storage::ReadRepository;
 
 use crate::crypto;
-use crate::identity::Id;
+use crate::identity::RepoId;
 use crate::node;
 use crate::node::{Address, Alias};
 use crate::prelude::BoundedVec;
@@ -158,7 +158,7 @@ impl wire::Decode for NodeAnnouncement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RefsAnnouncement {
     /// Repository identifier.
-    pub rid: Id,
+    pub rid: RepoId,
     /// Updated `rad/sigrefs`.
     pub refs: BoundedVec<RefsAt, REF_REMOTE_LIMIT>,
     /// Time of announcement.
@@ -247,7 +247,7 @@ impl RefsAnnouncement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InventoryAnnouncement {
     /// Node inventory.
-    pub inventory: BoundedVec<Id, INVENTORY_LIMIT>,
+    pub inventory: BoundedVec<RepoId, INVENTORY_LIMIT>,
     /// Time of announcement.
     pub timestamp: Timestamp,
 }
@@ -260,7 +260,7 @@ pub struct InventoryAnnouncement {
 pub enum Info {
     /// Tell a node that sent a refs announcement that it was already synced at the given `Oid`,
     /// for this particular `rid`.
-    RefsAlreadySynced { rid: Id, at: git::Oid },
+    RefsAlreadySynced { rid: RepoId, at: git::Oid },
 }
 
 /// Announcement messages are messages that are relayed between peers.
@@ -664,7 +664,7 @@ mod tests {
     }
 
     #[quickcheck]
-    fn prop_refs_announcement_signing(rid: Id) {
+    fn prop_refs_announcement_signing(rid: RepoId) {
         let signer = MockSigner::new(&mut fastrand::Rng::new());
         let timestamp = 0;
         let at = raw::Oid::zero().into();

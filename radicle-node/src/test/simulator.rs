@@ -15,7 +15,7 @@ use localtime::{LocalDuration, LocalTime};
 use log::*;
 
 use crate::crypto::Signer;
-use crate::prelude::{Address, Id};
+use crate::prelude::{Address, RepoId};
 use crate::service::io::Io;
 use crate::service::{DisconnectReason, Event, Message, NodeId};
 use crate::storage::Namespaces;
@@ -66,7 +66,7 @@ pub enum Input {
     /// Received a message from a remote peer.
     Received(NodeId, Vec<Message>),
     /// Fetch completed for a node.
-    Fetched(Id, NodeId, Rc<Result<fetch::FetchResult, FetchError>>),
+    Fetched(RepoId, NodeId, Rc<Result<fetch::FetchResult, FetchError>>),
     /// Used to advance the state machine after some wall time has passed.
     Wake,
 }

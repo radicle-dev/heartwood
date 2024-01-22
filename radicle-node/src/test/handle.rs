@@ -6,7 +6,7 @@ use std::time;
 use radicle::git;
 use radicle::storage::refs::RefsAt;
 
-use crate::identity::Id;
+use crate::identity::RepoId;
 use crate::node::{Alias, Config, ConnectOptions, ConnectResult, Event, FetchResult, Seeds};
 use crate::runtime::HandleError;
 use crate::service::policy;
@@ -14,8 +14,8 @@ use crate::service::NodeId;
 
 #[derive(Default, Clone)]
 pub struct Handle {
-    pub updates: Arc<Mutex<Vec<Id>>>,
-    pub seeding: Arc<Mutex<HashSet<Id>>>,
+    pub updates: Arc<Mutex<Vec<RepoId>>>,
+    pub seeding: Arc<Mutex<HashSet<RepoId>>>,
     pub following: Arc<Mutex<HashSet<NodeId>>>,
 }
 
@@ -44,13 +44,13 @@ impl radicle::node::Handle for Handle {
         unimplemented!();
     }
 
-    fn seeds(&mut self, _id: Id) -> Result<Seeds, Self::Error> {
+    fn seeds(&mut self, _id: RepoId) -> Result<Seeds, Self::Error> {
         unimplemented!();
     }
 
     fn fetch(
         &mut self,
-        _id: Id,
+        _id: RepoId,
         _from: NodeId,
         _timeout: time::Duration,
     ) -> Result<FetchResult, Self::Error> {
@@ -60,11 +60,11 @@ impl radicle::node::Handle for Handle {
         })
     }
 
-    fn seed(&mut self, id: Id, _scope: policy::Scope) -> Result<bool, Self::Error> {
+    fn seed(&mut self, id: RepoId, _scope: policy::Scope) -> Result<bool, Self::Error> {
         Ok(self.seeding.lock().unwrap().insert(id))
     }
 
-    fn unseed(&mut self, id: Id) -> Result<bool, Self::Error> {
+    fn unseed(&mut self, id: RepoId) -> Result<bool, Self::Error> {
         Ok(self.seeding.lock().unwrap().remove(&id))
     }
 
@@ -83,7 +83,7 @@ impl radicle::node::Handle for Handle {
         Ok(self.following.lock().unwrap().remove(&id))
     }
 
-    fn announce_refs(&mut self, id: Id) -> Result<RefsAt, Self::Error> {
+    fn announce_refs(&mut self, id: RepoId) -> Result<RefsAt, Self::Error> {
         self.updates.lock().unwrap().push(id);
 
         Ok(RefsAt {

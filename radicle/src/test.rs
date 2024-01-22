@@ -122,7 +122,7 @@ pub mod setup {
             }
         }
 
-        pub fn clone(&mut self, rid: Id, other: &Self) {
+        pub fn clone(&mut self, rid: RepoId, other: &Self) {
             let repo = self.storage.create(rid).unwrap();
             super::fetch(&repo, other.signer.public_key(), Namespaces::All).unwrap();
 
@@ -241,7 +241,7 @@ pub mod setup {
         pub alice: NodeWithRepo,
         pub bob: NodeWithRepo,
         pub eve: NodeWithRepo,
-        pub rid: Id,
+        pub rid: RepoId,
 
         #[allow(dead_code)]
         tmp: tempfile::TempDir,

@@ -13,7 +13,7 @@ use serde_json as json;
 use radicle::crypto::{ssh, Verified};
 use radicle::explorer::ExplorerUrl;
 use radicle::git::RefString;
-use radicle::identity::{Id, Visibility};
+use radicle::identity::{RepoId, Visibility};
 use radicle::node::policy::Scope;
 use radicle::node::{Event, Handle, NodeId};
 use radicle::prelude::Doc;
@@ -354,7 +354,7 @@ enum SyncResult<T> {
 }
 
 fn sync(
-    rid: Id,
+    rid: RepoId,
     node: &mut Node,
     config: &profile::Config,
 ) -> Result<SyncResult<Option<ExplorerUrl>>, radicle::node::Error> {
@@ -438,7 +438,7 @@ fn sync(
 }
 
 pub fn announce(
-    rid: Id,
+    rid: RepoId,
     doc: Doc<Verified>,
     node: &mut Node,
     config: &profile::Config,

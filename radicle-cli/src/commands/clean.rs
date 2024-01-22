@@ -2,7 +2,7 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
-use radicle::identity::Id;
+use radicle::identity::RepoId;
 use radicle::storage;
 use radicle::storage::WriteStorage;
 
@@ -32,7 +32,7 @@ Options
 };
 
 pub struct Options {
-    rid: Id,
+    rid: RepoId,
     confirm: bool,
 }
 
@@ -41,7 +41,7 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut id: Option<Id> = None;
+        let mut id: Option<RepoId> = None;
         let mut confirm = true;
 
         while let Some(arg) = parser.next()? {

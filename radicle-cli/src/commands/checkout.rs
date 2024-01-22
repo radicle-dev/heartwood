@@ -32,7 +32,7 @@ Options
 };
 
 pub struct Options {
-    pub id: Id,
+    pub id: RepoId,
     pub remote: Option<Did>,
 }
 

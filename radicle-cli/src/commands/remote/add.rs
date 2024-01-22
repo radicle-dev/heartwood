@@ -13,7 +13,7 @@ use crate::commands::rad_sync as sync;
 use crate::project::SetupRemote;
 
 pub fn run(
-    rid: Id,
+    rid: RepoId,
     nid: &PublicKey,
     name: Option<RefString>,
     tracking: Option<BranchName>,

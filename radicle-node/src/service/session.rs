@@ -5,7 +5,7 @@ use crate::node::config::Limits;
 use crate::node::Severity;
 use crate::service::message;
 use crate::service::message::Message;
-use crate::service::{Address, Id, LocalTime, NodeId, Outbox, Rng};
+use crate::service::{Address, LocalTime, NodeId, Outbox, RepoId, Rng};
 use crate::Link;
 
 pub use crate::node::{PingState, State};
@@ -155,7 +155,7 @@ impl Session {
         false
     }
 
-    pub fn is_fetching(&self, rid: &Id) -> bool {
+    pub fn is_fetching(&self, rid: &RepoId) -> bool {
         if let State::Connected { fetching, .. } = &self.state {
             return fetching.contains(rid);
         }
@@ -171,7 +171,7 @@ impl Session {
     /// # Panics
     ///
     /// If it is already fetching that RID, or the session is disconnected.
-    pub fn fetching(&mut self, rid: Id) {
+    pub fn fetching(&mut self, rid: RepoId) {
         if let State::Connected { fetching, .. } = &mut self.state {
             assert!(
                 fetching.insert(rid),
@@ -185,7 +185,7 @@ impl Session {
         }
     }
 
-    pub fn fetched(&mut self, rid: Id) {
+    pub fn fetched(&mut self, rid: RepoId) {
         if let State::Connected { fetching, .. } = &mut self.state {
             if !fetching.remove(&rid) {
                 log::warn!(target: "service", "Fetched unknown repository {rid}");

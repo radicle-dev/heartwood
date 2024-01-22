@@ -482,7 +482,7 @@ mod test {
         let tempdir = tempfile::tempdir().unwrap();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
         let remote = arbitrary::gen::<RemoteId>(1);
-        let proj = arbitrary::gen::<Id>(1);
+        let proj = arbitrary::gen::<RepoId>(1);
         let repo = storage.create(proj).unwrap();
         let oid = git2::Oid::from_str("2d52a53ce5e4f141148a5f770cfd3ead2d6a45b8").unwrap();
 

@@ -10,7 +10,7 @@ use crate::cob::ObjectId;
 use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::doc;
-use crate::identity::doc::{DocError, Id, Visibility};
+use crate::identity::doc::{DocError, RepoId, Visibility};
 use crate::identity::project::Project;
 use crate::storage::git::transport;
 use crate::storage::git::Repository;
@@ -52,7 +52,7 @@ pub fn init<G: Signer, S: WriteStorage>(
     visibility: Visibility,
     signer: &G,
     storage: S,
-) -> Result<(Id, identity::Doc<Verified>, SignedRefs<Verified>), InitError> {
+) -> Result<(RepoId, identity::Doc<Verified>, SignedRefs<Verified>), InitError> {
     // TODO: Better error when project id already exists in storage, but remote doesn't.
     let pk = signer.public_key();
     let delegate = identity::Did::from(*pk);
@@ -127,14 +127,14 @@ pub enum ForkError {
     #[error("payload: {0}")]
     Payload(#[from] doc::PayloadError),
     #[error("project `{0}` was not found in storage")]
-    NotFound(Id),
+    NotFound(RepoId),
     #[error("repository: {0}")]
     Repository(#[from] RepositoryError),
 }
 
 /// Create a local tree for an existing project, from an existing remote.
 pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
-    proj: Id,
+    proj: RepoId,
     remote: &RemoteId,
     signer: &G,
     storage: S,
@@ -169,7 +169,7 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
 }
 
 pub fn fork<G: Signer, S: storage::WriteStorage>(
-    rid: Id,
+    rid: RepoId,
     signer: &G,
     storage: &S,
 ) -> Result<(), ForkError> {
@@ -198,7 +198,7 @@ pub enum CheckoutError {
     #[error("payload: {0}")]
     Payload(#[from] doc::PayloadError),
     #[error("project `{0}` was not found in storage")]
-    NotFound(Id),
+    NotFound(RepoId),
     #[error("repository: {0}")]
     Repository(#[from] RepositoryError),
 }
@@ -206,7 +206,7 @@ pub enum CheckoutError {
 /// Checkout a project from storage as a working copy.
 /// This effectively does a `git-clone` from storage.
 pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
-    proj: Id,
+    proj: RepoId,
     remote: &RemoteId,
     path: P,
     storage: &S,
@@ -265,11 +265,11 @@ pub enum RemoteError {
     #[error("remote `{0}` not found")]
     NotFound(String),
     #[error("expected remote for {expected} but found {found}")]
-    RidMismatch { found: Id, expected: Id },
+    RidMismatch { found: RepoId, expected: RepoId },
 }
 
 /// Get the radicle ("rad") remote of a repository, and return the associated project id.
-pub fn remote(repo: &git2::Repository) -> Result<(git2::Remote<'_>, Id), RemoteError> {
+pub fn remote(repo: &git2::Repository) -> Result<(git2::Remote<'_>, RepoId), RemoteError> {
     let remote = repo.find_remote(&REMOTE_NAME).map_err(|e| {
         if e.code() == git2::ErrorCode::NotFound {
             RemoteError::NotFound(REMOTE_NAME.to_string())
@@ -305,7 +305,7 @@ pub fn remove_remote(repo: &git2::Repository) -> Result<(), RemoteError> {
 /// This function should only perform read operations since we do not
 /// want to modify the wrong repository in the case that it found a
 /// Git repository that is not a Radicle repository.
-pub fn cwd() -> Result<(git2::Repository, Id), RemoteError> {
+pub fn cwd() -> Result<(git2::Repository, RepoId), RemoteError> {
     let repo = repo()?;
     let (_, id) = remote(&repo)?;
 
@@ -313,7 +313,7 @@ pub fn cwd() -> Result<(git2::Repository, Id), RemoteError> {
 }
 
 /// Get the repository of project in specified directory
-pub fn at(path: impl AsRef<Path>) -> Result<(git2::Repository, Id), RemoteError> {
+pub fn at(path: impl AsRef<Path>) -> Result<(git2::Repository, RepoId), RemoteError> {
     let repo = git2::Repository::open(path)?;
     let (_, id) = remote(&repo)?;
 

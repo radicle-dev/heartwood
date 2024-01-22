@@ -149,7 +149,7 @@ impl wire::Encode for RefsAnnouncement {
 
 impl wire::Decode for RefsAnnouncement {
     fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
-        let rid = Id::decode(reader)?;
+        let rid = RepoId::decode(reader)?;
         let refs = BoundedVec::<_, REF_REMOTE_LIMIT>::decode(reader)?;
         let timestamp = Timestamp::decode(reader)?;
 
@@ -244,7 +244,7 @@ impl wire::Decode for Info {
 
         match InfoType::try_from(info_type) {
             Ok(InfoType::RefsAlreadySynced) => {
-                let rid = Id::decode(reader)?;
+                let rid = RepoId::decode(reader)?;
                 let at = Oid::decode(reader)?;
 
                 Ok(Self::RefsAlreadySynced { rid, at })
@@ -478,7 +478,7 @@ mod tests {
     #[test]
     fn test_inv_ann_max_size() {
         let signer = MockSigner::default();
-        let inv: [Id; INVENTORY_LIMIT] = arbitrary::gen(1);
+        let inv: [RepoId; INVENTORY_LIMIT] = arbitrary::gen(1);
         let ann = AnnouncementMessage::Inventory(InventoryAnnouncement {
             inventory: BoundedVec::collect_from(&mut inv.into_iter()),
             timestamp: arbitrary::gen(1),

@@ -4,7 +4,7 @@ use std::{thread, time};
 use anyhow::{anyhow, Context as _};
 
 use radicle::git;
-use radicle::prelude::{Id, NodeId};
+use radicle::prelude::{NodeId, RepoId};
 use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::terminal as term;
@@ -39,7 +39,7 @@ Options
 };
 
 pub struct Options {
-    rid: Option<Id>,
+    rid: Option<RepoId>,
     refstr: git::RefString,
     target: Option<git::Oid>,
     nid: Option<NodeId>,

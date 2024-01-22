@@ -4,7 +4,7 @@ use std::time;
 use anyhow::anyhow;
 
 use radicle::node::{Address, Node, NodeId, PeerAddr};
-use radicle::prelude::Id;
+use radicle::prelude::RepoId;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -73,7 +73,7 @@ pub enum Operation {
     },
     Routing {
         json: bool,
-        rid: Option<Id>,
+        rid: Option<RepoId>,
         nid: Option<NodeId>,
     },
     Start {
@@ -112,7 +112,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut nid: Option<NodeId> = None;
-        let mut rid: Option<Id> = None;
+        let mut rid: Option<RepoId> = None;
         let mut json: bool = false;
         let mut addr: Option<PeerAddr<NodeId, Address>> = None;
         let mut lines: usize = 60;

@@ -24,7 +24,7 @@ pub enum Io {
     /// Fetch repository data from a peer.
     Fetch {
         /// Repo being fetched.
-        rid: Id,
+        rid: RepoId,
         /// Remote node being fetched from.
         remote: NodeId,
         /// Namespaces being fetched.
@@ -113,7 +113,7 @@ impl Outbox {
     pub fn fetch(
         &mut self,
         remote: &mut Session,
-        rid: Id,
+        rid: RepoId,
         namespaces: Namespaces,
         refs_at: Vec<RefsAt>,
         timeout: time::Duration,

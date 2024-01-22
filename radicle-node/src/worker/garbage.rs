@@ -1,7 +1,7 @@
 use std::process::{Command, ExitStatus, Stdio};
 use std::{fmt, io};
 
-use radicle::prelude::Id;
+use radicle::prelude::RepoId;
 use radicle::storage::ReadStorage;
 
 /// Default expiry time for objects.
@@ -36,7 +36,7 @@ impl fmt::Display for Expiry {
 }
 
 /// Run Git garbage collector.
-pub fn collect(storage: &impl ReadStorage, rid: Id, expiry: Expiry) -> io::Result<ExitStatus> {
+pub fn collect(storage: &impl ReadStorage, rid: RepoId, expiry: Expiry) -> io::Result<ExitStatus> {
     let git_dir = storage.path_of(&rid);
     let mut gc = Command::new("git");
     gc.current_dir(git_dir)

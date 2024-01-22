@@ -15,7 +15,7 @@ use serde_json::json;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use radicle::cob::{issue, patch, resolve_embed, Embed, Label, Uri};
-use radicle::identity::{Did, Id, Visibility};
+use radicle::identity::{Did, RepoId, Visibility};
 use radicle::node::routing::Store;
 use radicle::node::{AliasStore, Node, NodeId};
 use radicle::storage::git::paths;
@@ -141,7 +141,7 @@ async fn project_root_handler(
 
 /// Get project metadata.
 /// `GET /projects/:project`
-async fn project_handler(State(ctx): State<Context>, Path(id): Path<Id>) -> impl IntoResponse {
+async fn project_handler(State(ctx): State<Context>, Path(id): Path<RepoId>) -> impl IntoResponse {
     let info = ctx.project_info(id)?;
 
     Ok::<_, Error>(Json(info))
@@ -161,7 +161,7 @@ pub struct CommitsQueryString {
 /// `GET /projects/:project/commits?since=<sha>`
 async fn history_handler(
     State(ctx): State<Context>,
-    Path(project): Path<Id>,
+    Path(project): Path<RepoId>,
     Query(qs): Query<CommitsQueryString>,
 ) -> impl IntoResponse {
     let CommitsQueryString {
@@ -242,7 +242,7 @@ async fn history_handler(
 /// `GET /projects/:project/commits/:sha`
 async fn commit_handler(
     State(ctx): State<Context>,
-    Path((project, sha)): Path<(Id, Oid)>,
+    Path((project, sha)): Path<(RepoId, Oid)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
@@ -308,7 +308,7 @@ async fn commit_handler(
 /// `GET /projects/:project/diff/:base/:oid`
 async fn diff_handler(
     State(ctx): State<Context>,
-    Path((project, base, oid)): Path<(Id, Oid, Oid)>,
+    Path((project, base, oid)): Path<(RepoId, Oid, Oid)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
@@ -375,7 +375,7 @@ async fn diff_handler(
 /// `GET /projects/:project/activity`
 async fn activity_handler(
     State(ctx): State<Context>,
-    Path(project): Path<Id>,
+    Path(project): Path<RepoId>,
 ) -> impl IntoResponse {
     let current_date = chrono::Utc::now().timestamp();
     let one_year_ago = chrono::Duration::weeks(52);
@@ -402,7 +402,7 @@ async fn activity_handler(
 /// `GET /projects/:project/tree/:sha/`
 async fn tree_handler_root(
     State(ctx): State<Context>,
-    Path((project, sha)): Path<(Id, Oid)>,
+    Path((project, sha)): Path<(RepoId, Oid)>,
 ) -> impl IntoResponse {
     tree_handler(State(ctx), Path((project, sha, String::new()))).await
 }
@@ -411,7 +411,7 @@ async fn tree_handler_root(
 /// `GET /projects/:project/tree/:sha/*path`
 async fn tree_handler(
     State(ctx): State<Context>,
-    Path((project, sha, path)): Path<(Id, Oid, String)>,
+    Path((project, sha, path)): Path<(RepoId, Oid, String)>,
 ) -> impl IntoResponse {
     if let Some(ref cache) = ctx.cache {
         let cache = &mut cache.tree.lock().await;
@@ -436,7 +436,10 @@ async fn tree_handler(
 
 /// Get all project remotes.
 /// `GET /projects/:project/remotes`
-async fn remotes_handler(State(ctx): State<Context>, Path(project): Path<Id>) -> impl IntoResponse {
+async fn remotes_handler(
+    State(ctx): State<Context>,
+    Path(project): Path<RepoId>,
+) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
     let delegates = repo.delegates()?;
@@ -478,7 +481,7 @@ async fn remotes_handler(State(ctx): State<Context>, Path(project): Path<Id>) ->
 /// `GET /projects/:project/remotes/:peer`
 async fn remote_handler(
     State(ctx): State<Context>,
-    Path((project, node_id)): Path<(Id, NodeId)>,
+    Path((project, node_id)): Path<(RepoId, NodeId)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
@@ -506,7 +509,7 @@ async fn remote_handler(
 /// `GET /projects/:project/blob/:sha/*path`
 async fn blob_handler(
     State(ctx): State<Context>,
-    Path((project, sha, path)): Path<(Id, Oid, String)>,
+    Path((project, sha, path)): Path<(RepoId, Oid, String)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
@@ -520,7 +523,7 @@ async fn blob_handler(
 /// `GET /projects/:project/readme/:sha`
 async fn readme_handler(
     State(ctx): State<Context>,
-    Path((project, sha)): Path<(Id, Oid)>,
+    Path((project, sha)): Path<(RepoId, Oid)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
@@ -551,7 +554,7 @@ async fn readme_handler(
 /// `GET /projects/:project/issues`
 async fn issues_handler(
     State(ctx): State<Context>,
-    Path(project): Path<Id>,
+    Path(project): Path<RepoId>,
     Query(qs): Query<CobsQuery<api::IssueState>>,
 ) -> impl IntoResponse {
     let CobsQuery {
@@ -599,7 +602,7 @@ pub struct IssueCreate {
 async fn issue_create_handler(
     State(ctx): State<Context>,
     AuthBearer(token): AuthBearer,
-    Path(project): Path<Id>,
+    Path(project): Path<RepoId>,
     Json(issue): Json<IssueCreate>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
@@ -641,7 +644,7 @@ async fn issue_create_handler(
 async fn issue_update_handler(
     State(ctx): State<Context>,
     AuthBearer(token): AuthBearer,
-    Path((project, issue_id)): Path<(Id, Oid)>,
+    Path((project, issue_id)): Path<(RepoId, Oid)>,
     Json(action): Json<issue::Action>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
@@ -696,7 +699,7 @@ async fn issue_update_handler(
 /// `GET /projects/:project/issues/:id`
 async fn issue_handler(
     State(ctx): State<Context>,
-    Path((project, issue_id)): Path<(Id, Oid)>,
+    Path((project, issue_id)): Path<(RepoId, Oid)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
@@ -722,7 +725,7 @@ pub struct PatchCreate {
 async fn patch_create_handler(
     State(ctx): State<Context>,
     AuthBearer(token): AuthBearer,
-    Path(project): Path<Id>,
+    Path(project): Path<RepoId>,
     Json(patch): Json<PatchCreate>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
@@ -761,7 +764,7 @@ async fn patch_create_handler(
 async fn patch_update_handler(
     State(ctx): State<Context>,
     AuthBearer(token): AuthBearer,
-    Path((project, patch_id)): Path<(Id, Oid)>,
+    Path((project, patch_id)): Path<(RepoId, Oid)>,
     Json(action): Json<patch::Action>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
@@ -901,7 +904,7 @@ async fn patch_update_handler(
 /// `GET /projects/:project/patches`
 async fn patches_handler(
     State(ctx): State<Context>,
-    Path(project): Path<Id>,
+    Path(project): Path<RepoId>,
     Query(qs): Query<CobsQuery<api::PatchState>>,
 ) -> impl IntoResponse {
     let CobsQuery {
@@ -938,7 +941,7 @@ async fn patches_handler(
 /// `GET /projects/:project/patches/:id`
 async fn patch_handler(
     State(ctx): State<Context>,
-    Path((project, patch_id)): Path<(Id, Oid)>,
+    Path((project, patch_id)): Path<(RepoId, Oid)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;

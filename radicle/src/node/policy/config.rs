@@ -6,7 +6,7 @@ use log::error;
 use thiserror::Error;
 
 use crate::crypto::PublicKey;
-use crate::prelude::{Id, NodeId};
+use crate::prelude::{NodeId, RepoId};
 use crate::storage::{Namespaces, ReadRepository as _, ReadStorage, RepositoryError};
 
 pub use crate::node::policy::store;
@@ -18,28 +18,28 @@ pub use crate::node::policy::{Alias, Node, Policy, Repo, Scope};
 pub enum NamespacesError {
     #[error("failed to find policy for {rid}")]
     FailedPolicy {
-        rid: Id,
+        rid: RepoId,
         #[source]
         err: Error,
     },
     #[error("cannot fetch {rid} as it is not seeded")]
-    BlockedPolicy { rid: Id },
+    BlockedPolicy { rid: RepoId },
     #[error("failed to get node policies for {rid}")]
     FailedNodes {
-        rid: Id,
+        rid: RepoId,
         #[source]
         err: Error,
     },
     #[error("failed to get delegates for {rid}")]
     FailedDelegates {
-        rid: Id,
+        rid: RepoId,
         #[source]
         err: RepositoryError,
     },
     #[error(transparent)]
     Git(#[from] crate::git::raw::Error),
     #[error("could not find any followed nodes for {rid}")]
-    NoFollowed { rid: Id },
+    NoFollowed { rid: RepoId },
 }
 
 /// Policies configuration.
@@ -75,7 +75,7 @@ impl<T> Config<T> {
     }
 
     /// Check if a repository is seeded.
-    pub fn is_seeding(&self, id: &Id) -> Result<bool, Error> {
+    pub fn is_seeding(&self, id: &RepoId) -> Result<bool, Error> {
         self.repo_policy(id)
             .map(|entry| entry.policy == Policy::Allow)
     }
@@ -98,7 +98,7 @@ impl<T> Config<T> {
 
     /// Get a repository's seediing information.
     /// Returns the default policy if the repo isn't found.
-    pub fn repo_policy(&self, id: &Id) -> Result<Repo, Error> {
+    pub fn repo_policy(&self, id: &RepoId) -> Result<Repo, Error> {
         Ok(self.store.seed_policy(id)?.unwrap_or(Repo {
             id: *id,
             scope: self.scope,
@@ -106,7 +106,11 @@ impl<T> Config<T> {
         }))
     }
 
-    pub fn namespaces_for<S>(&self, storage: &S, rid: &Id) -> Result<Namespaces, NamespacesError>
+    pub fn namespaces_for<S>(
+        &self,
+        storage: &S,
+        rid: &RepoId,
+    ) -> Result<Namespaces, NamespacesError>
     where
         S: ReadStorage,
     {

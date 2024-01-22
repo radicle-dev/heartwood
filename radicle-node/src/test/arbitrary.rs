@@ -3,7 +3,7 @@ use qcheck::Arbitrary;
 
 use crate::crypto;
 use crate::node::Alias;
-use crate::prelude::{BoundedVec, Id, NodeId, Timestamp};
+use crate::prelude::{BoundedVec, NodeId, RepoId, Timestamp};
 use crate::service::filter::{Filter, FILTER_SIZE_L, FILTER_SIZE_M, FILTER_SIZE_S};
 use crate::service::message::{
     Announcement, Info, InventoryAnnouncement, Message, NodeAnnouncement, Ping, RefsAnnouncement,
@@ -55,7 +55,7 @@ impl Arbitrary for Message {
             MessageType::RefsAnnouncement => Announcement {
                 node: NodeId::arbitrary(g),
                 message: RefsAnnouncement {
-                    rid: Id::arbitrary(g),
+                    rid: RepoId::arbitrary(g),
                     refs: BoundedVec::arbitrary(g),
                     timestamp: Timestamp::arbitrary(g),
                 }
@@ -84,7 +84,7 @@ impl Arbitrary for Message {
             }
             MessageType::Info => {
                 let message = Info::RefsAlreadySynced {
-                    rid: Id::arbitrary(g),
+                    rid: RepoId::arbitrary(g),
                     at: oid(),
                 };
                 Self::Info(message)

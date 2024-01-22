@@ -46,9 +46,15 @@ Options
 
 #[derive(Debug)]
 pub enum Operation {
-    Seed { rid: Id, fetch: bool, scope: Scope },
+    Seed {
+        rid: RepoId,
+        fetch: bool,
+        scope: Scope,
+    },
     List,
-    Unseed { rid: Id },
+    Unseed {
+        rid: RepoId,
+    },
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -69,7 +75,7 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut rid: Option<Id> = None;
+        let mut rid: Option<RepoId> = None;
         let mut scope: Option<Scope> = None;
         let mut fetch: Option<bool> = None;
         let mut op: Option<OperationName> = None;
@@ -144,7 +150,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 pub fn update(
-    rid: Id,
+    rid: RepoId,
     scope: Scope,
     node: &mut Node,
     profile: &Profile,
@@ -160,7 +166,7 @@ pub fn update(
     Ok(())
 }
 
-pub fn delete(rid: Id, node: &mut Node, profile: &Profile) -> anyhow::Result<()> {
+pub fn delete(rid: RepoId, node: &mut Node, profile: &Profile) -> anyhow::Result<()> {
     if project::unseed(rid, node, profile)? {
         term::success!("Seeding policy for {} removed", term::format::tertiary(rid));
     }

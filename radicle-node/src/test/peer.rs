@@ -17,7 +17,7 @@ use radicle::Storage;
 
 use crate::crypto::test::signer::MockSigner;
 use crate::crypto::Signer;
-use crate::identity::Id;
+use crate::identity::RepoId;
 use crate::node;
 use crate::prelude::*;
 use crate::runtime::Emitter;
@@ -132,7 +132,7 @@ impl Default for Config<MockSigner> {
 }
 
 impl<G: Signer> Peer<Storage, G> {
-    pub fn project(&mut self, name: &str, description: &str) -> Id {
+    pub fn project(&mut self, name: &str, description: &str) -> RepoId {
         radicle::storage::git::transport::local::register(self.storage().clone());
 
         let (repo, _) = fixtures::repository(self.tempdir.path().join(name));
@@ -256,7 +256,7 @@ where
         self.service.storage().inventory().unwrap()
     }
 
-    pub fn git_url(&self, repo: Id, namespace: Option<RemoteId>) -> remote::Url {
+    pub fn git_url(&self, repo: RepoId, namespace: Option<RemoteId>) -> remote::Url {
         remote::Url {
             node: self.node_id(),
             repo,
@@ -297,7 +297,7 @@ where
         )
     }
 
-    pub fn refs_announcement(&self, rid: Id) -> Message {
+    pub fn refs_announcement(&self, rid: RepoId) -> Message {
         let mut refs = BoundedVec::new();
         if let Ok(repo) = self.storage().repository(rid) {
             if let Ok(false) = repo.is_empty() {
@@ -468,7 +468,7 @@ where
     }
 
     /// Get a draining iterator over the peer's I/O outbox, which only returns fetches.
-    pub fn fetches(&mut self) -> impl Iterator<Item = (Id, NodeId, Namespaces)> + '_ {
+    pub fn fetches(&mut self) -> impl Iterator<Item = (RepoId, NodeId, Namespaces)> + '_ {
         iter::from_fn(|| self.service.outbox().next()).filter_map(|io| {
             if let Io::Fetch {
                 rid,

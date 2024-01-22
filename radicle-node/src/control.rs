@@ -10,7 +10,7 @@ use std::{io, net, time};
 use radicle::node::Handle;
 use serde_json as json;
 
-use crate::identity::Id;
+use crate::identity::RepoId;
 use crate::node::NodeId;
 use crate::node::{Command, CommandResult};
 use crate::runtime;
@@ -201,7 +201,7 @@ where
 }
 
 fn fetch<W: Write, H: Handle<Error = runtime::HandleError>>(
-    id: Id,
+    id: RepoId,
     node: NodeId,
     timeout: time::Duration,
     mut writer: W,
@@ -225,7 +225,7 @@ mod tests {
     use std::thread;
 
     use super::*;
-    use crate::identity::Id;
+    use crate::identity::RepoId;
     use crate::node::Handle;
     use crate::node::{Alias, Node, NodeId};
     use crate::service::policy::Scope;
@@ -236,7 +236,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let handle = test::handle::Handle::default();
         let socket = tmp.path().join("alice.sock");
-        let rids = test::arbitrary::set::<Id>(1..3);
+        let rids = test::arbitrary::set::<RepoId>(1..3);
         let listener = UnixListener::bind(&socket).unwrap();
 
         thread::spawn({
@@ -283,7 +283,7 @@ mod tests {
     fn test_seed_unseed() {
         let tmp = tempfile::tempdir().unwrap();
         let socket = tmp.path().join("node.sock");
-        let proj = test::arbitrary::gen::<Id>(1);
+        let proj = test::arbitrary::gen::<RepoId>(1);
         let peer = test::arbitrary::gen::<NodeId>(1);
         let listener = UnixListener::bind(&socket).unwrap();
         let mut handle = Node::new(&socket);

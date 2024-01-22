@@ -26,7 +26,7 @@ use serde_json as json;
 
 use crate::crypto::PublicKey;
 use crate::git;
-use crate::identity::Id;
+use crate::identity::RepoId;
 use crate::profile;
 use crate::storage::refs::RefsAt;
 use crate::storage::RefUpdate;
@@ -92,7 +92,7 @@ pub enum State {
         #[serde(skip)]
         ping: PingState,
         /// Ongoing fetches.
-        fetching: HashSet<Id>,
+        fetching: HashSet<RepoId>,
     },
     /// When a peer is disconnected.
     #[serde(rename_all = "camelCase")]
@@ -411,7 +411,7 @@ impl From<Address> for HostName {
 pub enum Command {
     /// Announce repository references for given repository to peers.
     #[serde(rename_all = "camelCase")]
-    AnnounceRefs { rid: Id },
+    AnnounceRefs { rid: RepoId },
 
     /// Announce local repositories to peers.
     #[serde(rename_all = "camelCase")]
@@ -432,7 +432,7 @@ pub enum Command {
 
     /// Lookup seeds for the given repository in the routing table.
     #[serde(rename_all = "camelCase")]
-    Seeds { rid: Id },
+    Seeds { rid: RepoId },
 
     /// Get the current peer sessions.
     Sessions,
@@ -440,18 +440,18 @@ pub enum Command {
     /// Fetch the given repository from the network.
     #[serde(rename_all = "camelCase")]
     Fetch {
-        rid: Id,
+        rid: RepoId,
         nid: NodeId,
         timeout: time::Duration,
     },
 
     /// Seed the given repository.
     #[serde(rename_all = "camelCase")]
-    Seed { rid: Id, scope: policy::Scope },
+    Seed { rid: RepoId, scope: policy::Scope },
 
     /// Unseed the given repository.
     #[serde(rename_all = "camelCase")]
-    Unseed { rid: Id },
+    Unseed { rid: RepoId },
 
     /// Follow the given node.
     #[serde(rename_all = "camelCase")]
@@ -803,25 +803,25 @@ pub trait Handle: Clone + Sync + Send {
         opts: ConnectOptions,
     ) -> Result<ConnectResult, Self::Error>;
     /// Lookup the seeds of a given repository in the routing table.
-    fn seeds(&mut self, id: Id) -> Result<Seeds, Self::Error>;
+    fn seeds(&mut self, id: RepoId) -> Result<Seeds, Self::Error>;
     /// Fetch a repository from the network.
     fn fetch(
         &mut self,
-        id: Id,
+        id: RepoId,
         from: NodeId,
         timeout: time::Duration,
     ) -> Result<FetchResult, Self::Error>;
     /// Start seeding the given repo. May update the scope. Does nothing if the
     /// repo is already seeded.
-    fn seed(&mut self, id: Id, scope: policy::Scope) -> Result<bool, Self::Error>;
+    fn seed(&mut self, id: RepoId, scope: policy::Scope) -> Result<bool, Self::Error>;
     /// Start following the given peer.
     fn follow(&mut self, id: NodeId, alias: Option<Alias>) -> Result<bool, Self::Error>;
     /// Un-seed the given repo and delete it from storage.
-    fn unseed(&mut self, id: Id) -> Result<bool, Self::Error>;
+    fn unseed(&mut self, id: RepoId) -> Result<bool, Self::Error>;
     /// Unfollow the given peer.
     fn unfollow(&mut self, id: NodeId) -> Result<bool, Self::Error>;
     /// Notify the service that a project has been updated, and announce local refs.
-    fn announce_refs(&mut self, id: Id) -> Result<RefsAt, Self::Error>;
+    fn announce_refs(&mut self, id: RepoId) -> Result<RefsAt, Self::Error>;
     /// Announce local inventory.
     fn announce_inventory(&mut self) -> Result<(), Self::Error>;
     /// Notify the service that our inventory was updated.
@@ -889,7 +889,7 @@ impl Node {
     /// within the given time.
     pub fn announce(
         &mut self,
-        rid: Id,
+        rid: RepoId,
         seeds: impl IntoIterator<Item = NodeId>,
         timeout: time::Duration,
         mut callback: impl FnMut(AnnounceEvent, &[PublicKey]) -> ControlFlow<()>,
@@ -984,7 +984,7 @@ impl Handle for Node {
         Ok(result)
     }
 
-    fn seeds(&mut self, rid: Id) -> Result<Seeds, Error> {
+    fn seeds(&mut self, rid: RepoId) -> Result<Seeds, Error> {
         let seeds = self
             .call::<Seeds>(Command::Seeds { rid }, DEFAULT_TIMEOUT)?
             .next()
@@ -995,7 +995,7 @@ impl Handle for Node {
 
     fn fetch(
         &mut self,
-        rid: Id,
+        rid: RepoId,
         from: NodeId,
         timeout: time::Duration,
     ) -> Result<FetchResult, Error> {
@@ -1021,7 +1021,7 @@ impl Handle for Node {
         Ok(response.updated)
     }
 
-    fn seed(&mut self, rid: Id, scope: policy::Scope) -> Result<bool, Error> {
+    fn seed(&mut self, rid: RepoId, scope: policy::Scope) -> Result<bool, Error> {
         let mut line = self.call::<Success>(Command::Seed { rid, scope }, DEFAULT_TIMEOUT)?;
         let response = line.next().ok_or(Error::EmptyResponse)??;
 
@@ -1035,14 +1035,14 @@ impl Handle for Node {
         Ok(response.updated)
     }
 
-    fn unseed(&mut self, rid: Id) -> Result<bool, Error> {
+    fn unseed(&mut self, rid: RepoId) -> Result<bool, Error> {
         let mut line = self.call::<Success>(Command::Unseed { rid }, DEFAULT_TIMEOUT)?;
         let response = line.next().ok_or(Error::EmptyResponse {})??;
 
         Ok(response.updated)
     }
 
-    fn announce_refs(&mut self, rid: Id) -> Result<RefsAt, Error> {
+    fn announce_refs(&mut self, rid: RepoId) -> Result<RefsAt, Error> {
         let refs: RefsAt = self
             .call(Command::AnnounceRefs { rid }, DEFAULT_TIMEOUT)?
             .next()

@@ -132,7 +132,7 @@ pub(super) mod pktline {
     use std::io::Read;
     use std::str;
 
-    use radicle::prelude::Id;
+    use radicle::prelude::RepoId;
 
     pub const HEADER_LEN: usize = 4;
 
@@ -195,7 +195,7 @@ pub(super) mod pktline {
     /// Example: `0032git-upload-pack /rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5.git\0host=myserver.com\0`
     #[derive(Debug)]
     pub struct GitRequest {
-        pub repo: Id,
+        pub repo: RepoId,
         pub path: String,
         pub host: Option<(String, Option<u16>)>,
         pub extra: Vec<(String, Option<String>)>,

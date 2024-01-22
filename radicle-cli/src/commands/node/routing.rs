@@ -1,12 +1,12 @@
 use radicle::node;
-use radicle::prelude::{Id, NodeId};
+use radicle::prelude::{NodeId, RepoId};
 
 use crate::terminal as term;
 use crate::terminal::Element;
 
 pub fn run<S: node::routing::Store>(
     routing: &S,
-    rid: Option<Id>,
+    rid: Option<RepoId>,
     nid: Option<NodeId>,
     json: bool,
 ) -> anyhow::Result<()> {
@@ -25,7 +25,7 @@ pub fn run<S: node::routing::Store>(
     Ok(())
 }
 
-fn print_table(entries: impl IntoIterator<Item = (Id, NodeId)>) {
+fn print_table(entries: impl IntoIterator<Item = (RepoId, NodeId)>) {
     let mut t = term::Table::new(term::table::TableOptions::bordered());
     t.push([
         term::format::default(String::from("RID")),
@@ -42,7 +42,7 @@ fn print_table(entries: impl IntoIterator<Item = (Id, NodeId)>) {
     t.print();
 }
 
-fn print_json(entries: impl IntoIterator<Item = (Id, NodeId)>) {
+fn print_json(entries: impl IntoIterator<Item = (RepoId, NodeId)>) {
     for (rid, nid) in entries {
         println!("{}", serde_json::json!({ "rid": rid, "nid": nid }));
     }

@@ -20,7 +20,7 @@ use crate::git::ext as git_ext;
 use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefString};
 use crate::identity::{Did, PayloadError};
 use crate::identity::{Doc, DocAt, DocError};
-use crate::identity::{Id, Identity};
+use crate::identity::{Identity, RepoId};
 use crate::storage::git::NAMESPACES_GLOB;
 use crate::storage::refs::Refs;
 
@@ -28,7 +28,7 @@ use self::git::UserInfo;
 use self::refs::SignedRefs;
 
 pub type BranchName = git::RefString;
-pub type Inventory = Vec<Id>;
+pub type Inventory = Vec<RepoId>;
 
 /// Describes one or more namespaces.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
@@ -344,16 +344,16 @@ pub trait ReadStorage {
     /// Get the storage base path.
     fn path(&self) -> &Path;
     /// Get a repository's path.
-    fn path_of(&self, rid: &Id) -> PathBuf;
+    fn path_of(&self, rid: &RepoId) -> PathBuf;
     /// Check whether storage contains a repository.
-    fn contains(&self, rid: &Id) -> Result<bool, RepositoryError>;
+    fn contains(&self, rid: &RepoId) -> Result<bool, RepositoryError>;
     /// Get the inventory of repositories hosted under this storage.
     /// This function should typically only return public repositories.
     fn inventory(&self) -> Result<Inventory, Error>;
     /// Open or create a read-only repository.
-    fn repository(&self, rid: Id) -> Result<Self::Repository, Error>;
+    fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error>;
     /// Get a repository's identity if it exists.
-    fn get(&self, rid: Id) -> Result<Option<Doc<Verified>>, RepositoryError> {
+    fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError> {
         match self.repository(rid) {
             Ok(repo) => Ok(Some(repo.identity_doc()?.into())),
             Err(e) if e.is_not_found() => Ok(None),
@@ -367,9 +367,9 @@ pub trait WriteStorage: ReadStorage {
     type RepositoryMut: WriteRepository;
 
     /// Open a read-write repository.
-    fn repository_mut(&self, rid: Id) -> Result<Self::RepositoryMut, Error>;
+    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error>;
     /// Create a read-write repository.
-    fn create(&self, rid: Id) -> Result<Self::RepositoryMut, Error>;
+    fn create(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error>;
 
     /// Clean the repository found at `rid`.
     ///
@@ -379,13 +379,13 @@ pub trait WriteStorage: ReadStorage {
     ///
     /// If the local peer has no initialised `rad/sigrefs`, then the
     /// repository will be entirely removed from storage.
-    fn clean(&self, rid: Id) -> Result<Vec<RemoteId>, RepositoryError>;
+    fn clean(&self, rid: RepoId) -> Result<Vec<RemoteId>, RepositoryError>;
 }
 
 /// Allows read-only access to a repository.
 pub trait ReadRepository: Sized + ValidateRepository {
     /// Return the repository id.
-    fn id(&self) -> Id;
+    fn id(&self) -> RepoId;
 
     /// Returns `true` if there are no references in the repository.
     fn is_empty(&self) -> Result<bool, git2::Error>;
@@ -585,11 +585,11 @@ where
         self.deref().path()
     }
 
-    fn path_of(&self, rid: &Id) -> PathBuf {
+    fn path_of(&self, rid: &RepoId) -> PathBuf {
         self.deref().path_of(rid)
     }
 
-    fn contains(&self, rid: &Id) -> Result<bool, RepositoryError> {
+    fn contains(&self, rid: &RepoId) -> Result<bool, RepositoryError> {
         self.deref().contains(rid)
     }
 
@@ -597,11 +597,11 @@ where
         self.deref().inventory()
     }
 
-    fn get(&self, rid: Id) -> Result<Option<Doc<Verified>>, RepositoryError> {
+    fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError> {
         self.deref().get(rid)
     }
 
-    fn repository(&self, rid: Id) -> Result<Self::Repository, Error> {
+    fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error> {
         self.deref().repository(rid)
     }
 }
@@ -613,15 +613,15 @@ where
 {
     type RepositoryMut = S::RepositoryMut;
 
-    fn repository_mut(&self, rid: Id) -> Result<Self::RepositoryMut, Error> {
+    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error> {
         self.deref().repository_mut(rid)
     }
 
-    fn create(&self, rid: Id) -> Result<Self::RepositoryMut, Error> {
+    fn create(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error> {
         self.deref().create(rid)
     }
 
-    fn clean(&self, rid: Id) -> Result<Vec<RemoteId>, RepositoryError> {
+    fn clean(&self, rid: RepoId) -> Result<Vec<RemoteId>, RepositoryError> {
         self.deref().clean(rid)
     }
 }

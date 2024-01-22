@@ -3,7 +3,7 @@ pub mod error;
 use std::collections::HashSet;
 
 use radicle::crypto::PublicKey;
-use radicle::prelude::Id;
+use radicle::prelude::RepoId;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadStorage as _, RefUpdate, WriteRepository as _};
 use radicle::Storage;
@@ -31,7 +31,7 @@ pub enum Handle {
 
 impl Handle {
     pub fn new(
-        rid: Id,
+        rid: RepoId,
         local: PublicKey,
         storage: &Storage,
         follow: Allowed,
@@ -52,7 +52,7 @@ impl Handle {
 
     pub fn fetch(
         self,
-        rid: Id,
+        rid: RepoId,
         storage: &Storage,
         limit: FetchLimit,
         remote: PublicKey,
@@ -113,7 +113,7 @@ impl Handle {
 ///
 /// # Errors
 ///   - Will fail if `storage` contains `rid` already.
-fn mv(tmp: tempfile::TempDir, storage: &Storage, rid: &Id) -> Result<(), error::Fetch> {
+fn mv(tmp: tempfile::TempDir, storage: &Storage, rid: &RepoId) -> Result<(), error::Fetch> {
     use std::io::{Error, ErrorKind};
 
     let from = tmp.path();

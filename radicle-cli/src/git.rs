@@ -22,7 +22,7 @@ use radicle::crypto::ssh;
 use radicle::git;
 use radicle::git::raw as git2;
 use radicle::git::{Version, VERSION_REQUIRED};
-use radicle::prelude::{Id, NodeId};
+use radicle::prelude::{NodeId, RepoId};
 use radicle::storage::git::transport;
 
 pub use radicle::git::raw::{
@@ -260,7 +260,7 @@ pub fn is_remote(repo: &git2::Repository, alias: &str) -> anyhow::Result<bool> {
 }
 
 /// Get the repository's "rad" remote.
-pub fn rad_remote(repo: &Repository) -> anyhow::Result<(git2::Remote, Id)> {
+pub fn rad_remote(repo: &Repository) -> anyhow::Result<(git2::Remote, RepoId)> {
     match radicle::rad::remote(repo) {
         Ok((remote, id)) => Ok((remote, id)),
         Err(radicle::rad::RemoteError::NotFound(_)) => Err(anyhow!(
@@ -270,7 +270,7 @@ pub fn rad_remote(repo: &Repository) -> anyhow::Result<(git2::Remote, Id)> {
     }
 }
 
-pub fn remove_remote(repo: &Repository, rid: &Id) -> anyhow::Result<()> {
+pub fn remove_remote(repo: &Repository, rid: &RepoId) -> anyhow::Result<()> {
     // N.b. ensure that we are removing the remote for the correct RID
     match radicle::rad::remote(repo) {
         Ok((_, rid_)) => {

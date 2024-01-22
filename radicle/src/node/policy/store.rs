@@ -7,7 +7,7 @@ use sqlite as sql;
 use thiserror::Error;
 
 use crate::node::{Alias, AliasStore};
-use crate::prelude::{Id, NodeId};
+use crate::prelude::{NodeId, RepoId};
 
 use super::{Node, Policy, Repo, Scope};
 
@@ -132,7 +132,7 @@ impl Store<Write> {
     }
 
     /// Seed a repository.
-    pub fn seed(&mut self, id: &Id, scope: Scope) -> Result<bool, Error> {
+    pub fn seed(&mut self, id: &RepoId, scope: Scope) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
             "INSERT INTO `seeding` (id, scope)
              VALUES (?1, ?2)
@@ -164,7 +164,7 @@ impl Store<Write> {
     }
 
     /// Set a repository's seeding policy.
-    pub fn set_seed_policy(&mut self, id: &Id, policy: Policy) -> Result<bool, Error> {
+    pub fn set_seed_policy(&mut self, id: &RepoId, policy: Policy) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
             "INSERT INTO `seeding` (id, policy)
              VALUES (?1, ?2)
@@ -190,7 +190,7 @@ impl Store<Write> {
     }
 
     /// Unseed a repository.
-    pub fn unseed(&mut self, id: &Id) -> Result<bool, Error> {
+    pub fn unseed(&mut self, id: &RepoId) -> Result<bool, Error> {
         let mut stmt = self.db.prepare("DELETE FROM `seeding` WHERE id = ?")?;
 
         stmt.bind((1, id))?;
@@ -215,7 +215,7 @@ impl<T> Store<T> {
     }
 
     /// Check if a repository is seeded.
-    pub fn is_seeded(&self, id: &Id) -> Result<bool, Error> {
+    pub fn is_seeded(&self, id: &RepoId) -> Result<bool, Error> {
         Ok(matches!(
             self.seed_policy(id)?,
             Some(Repo {
@@ -252,7 +252,7 @@ impl<T> Store<T> {
     }
 
     /// Get a repository's seeding policy.
-    pub fn seed_policy(&self, id: &Id) -> Result<Option<Repo>, Error> {
+    pub fn seed_policy(&self, id: &RepoId) -> Result<Option<Repo>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT scope, policy FROM `seeding` WHERE id = ?")?;
@@ -343,7 +343,7 @@ mod test {
 
     #[test]
     fn test_seed_and_unseed_repo() {
-        let id = arbitrary::gen::<Id>(1);
+        let id = arbitrary::gen::<RepoId>(1);
         let mut db = Store::open(":memory:").unwrap();
 
         assert!(db.seed(&id, Scope::All).unwrap());
@@ -369,7 +369,7 @@ mod test {
 
     #[test]
     fn test_repo_policies() {
-        let ids = arbitrary::vec::<Id>(3);
+        let ids = arbitrary::vec::<RepoId>(3);
         let mut db = Store::open(":memory:").unwrap();
 
         for id in &ids {
@@ -403,7 +403,7 @@ mod test {
 
     #[test]
     fn test_update_scope() {
-        let id = arbitrary::gen::<Id>(1);
+        let id = arbitrary::gen::<RepoId>(1);
         let mut db = Store::open(":memory:").unwrap();
 
         assert!(db.seed(&id, Scope::All).unwrap());
@@ -414,7 +414,7 @@ mod test {
 
     #[test]
     fn test_repo_policy() {
-        let id = arbitrary::gen::<Id>(1);
+        let id = arbitrary::gen::<RepoId>(1);
         let mut db = Store::open(":memory:").unwrap();
 
         assert!(db.seed(&id, Scope::All).unwrap());

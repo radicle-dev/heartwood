@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::node::Database;
 use crate::{
     prelude::Timestamp,
-    prelude::{Id, NodeId},
+    prelude::{NodeId, RepoId},
     sql::transaction,
 };
 
@@ -35,11 +35,11 @@ pub enum Error {
 /// Backing store for a routing table.
 pub trait Store {
     /// Get the nodes seeding the given id.
-    fn get(&self, id: &Id) -> Result<HashSet<NodeId>, Error>;
+    fn get(&self, id: &RepoId) -> Result<HashSet<NodeId>, Error>;
     /// Get the resources seeded by the given node.
-    fn get_resources(&self, node_id: &NodeId) -> Result<HashSet<Id>, Error>;
+    fn get_resources(&self, node_id: &NodeId) -> Result<HashSet<RepoId>, Error>;
     /// Get a specific entry.
-    fn entry(&self, id: &Id, node: &NodeId) -> Result<Option<Timestamp>, Error>;
+    fn entry(&self, id: &RepoId, node: &NodeId) -> Result<Option<Timestamp>, Error>;
     /// Checks if any entries are available.
     fn is_empty(&self) -> Result<bool, Error> {
         Ok(self.len()? == 0)
@@ -47,24 +47,24 @@ pub trait Store {
     /// Add a new node seeding the given id.
     fn insert<'a>(
         &mut self,
-        ids: impl IntoIterator<Item = &'a Id>,
+        ids: impl IntoIterator<Item = &'a RepoId>,
         node: NodeId,
         time: Timestamp,
-    ) -> Result<Vec<(Id, InsertResult)>, Error>;
+    ) -> Result<Vec<(RepoId, InsertResult)>, Error>;
     /// Remove a node for the given id.
-    fn remove(&mut self, id: &Id, node: &NodeId) -> Result<bool, Error>;
+    fn remove(&mut self, id: &RepoId, node: &NodeId) -> Result<bool, Error>;
     /// Iterate over all entries in the routing table.
-    fn entries(&self) -> Result<Box<dyn Iterator<Item = (Id, NodeId)>>, Error>;
+    fn entries(&self) -> Result<Box<dyn Iterator<Item = (RepoId, NodeId)>>, Error>;
     /// Get the total number of routing entries.
     fn len(&self) -> Result<usize, Error>;
     /// Prune entries older than the given timestamp.
     fn prune(&mut self, oldest: Timestamp, limit: Option<usize>) -> Result<usize, Error>;
     /// Count the number of routes for a specific repo RID.
-    fn count(&self, id: &Id) -> Result<usize, Error>;
+    fn count(&self, id: &RepoId) -> Result<usize, Error>;
 }
 
 impl Store for Database {
-    fn get(&self, id: &Id) -> Result<HashSet<NodeId>, Error> {
+    fn get(&self, id: &RepoId) -> Result<HashSet<NodeId>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT (node) FROM routing WHERE repo = ?")?;
@@ -77,18 +77,18 @@ impl Store for Database {
         Ok(nodes)
     }
 
-    fn get_resources(&self, node: &NodeId) -> Result<HashSet<Id>, Error> {
+    fn get_resources(&self, node: &NodeId) -> Result<HashSet<RepoId>, Error> {
         let mut stmt = self.db.prepare("SELECT repo FROM routing WHERE node = ?")?;
         stmt.bind((1, node))?;
 
         let mut resources = HashSet::new();
         for row in stmt.into_iter() {
-            resources.insert(row?.read::<Id, _>("repo"));
+            resources.insert(row?.read::<RepoId, _>("repo"));
         }
         Ok(resources)
     }
 
-    fn entry(&self, id: &Id, node: &NodeId) -> Result<Option<Timestamp>, Error> {
+    fn entry(&self, id: &RepoId, node: &NodeId) -> Result<Option<Timestamp>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT (timestamp) FROM routing WHERE repo = ? AND node = ?")?;
@@ -104,10 +104,10 @@ impl Store for Database {
 
     fn insert<'a>(
         &mut self,
-        ids: impl IntoIterator<Item = &'a Id>,
+        ids: impl IntoIterator<Item = &'a RepoId>,
         node: NodeId,
         time: Timestamp,
-    ) -> Result<Vec<(Id, InsertResult)>, Error> {
+    ) -> Result<Vec<(RepoId, InsertResult)>, Error> {
         let time: i64 = time.try_into().map_err(|_| Error::UnitOverflow)?;
         let mut results = Vec::new();
 
@@ -144,7 +144,7 @@ impl Store for Database {
         })
     }
 
-    fn entries(&self) -> Result<Box<dyn Iterator<Item = (Id, NodeId)>>, Error> {
+    fn entries(&self) -> Result<Box<dyn Iterator<Item = (RepoId, NodeId)>>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT repo, node FROM routing ORDER BY repo")?
@@ -160,7 +160,7 @@ impl Store for Database {
         Ok(Box::new(entries.into_iter()))
     }
 
-    fn remove(&mut self, id: &Id, node: &NodeId) -> Result<bool, Error> {
+    fn remove(&mut self, id: &RepoId, node: &NodeId) -> Result<bool, Error> {
         let mut stmt = self
             .db
             .prepare("DELETE FROM routing WHERE repo = ? AND node = ?")?;
@@ -201,7 +201,7 @@ impl Store for Database {
         Ok(self.db.change_count())
     }
 
-    fn count(&self, id: &Id) -> Result<usize, Error> {
+    fn count(&self, id: &RepoId) -> Result<usize, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT COUNT(*) FROM routing WHERE repo = ?")?;
@@ -237,7 +237,7 @@ mod test {
 
     #[test]
     fn test_insert_and_get() {
-        let ids = arbitrary::set::<Id>(5..10);
+        let ids = arbitrary::set::<RepoId>(5..10);
         let nodes = arbitrary::set::<NodeId>(5..10);
         let mut db = database(":memory:");
 
@@ -260,7 +260,7 @@ mod test {
 
     #[test]
     fn test_insert_and_get_resources() {
-        let ids = arbitrary::set::<Id>(5..10);
+        let ids = arbitrary::set::<RepoId>(5..10);
         let nodes = arbitrary::set::<NodeId>(5..10);
         let mut db = database(":memory:");
 
@@ -278,7 +278,7 @@ mod test {
 
     #[test]
     fn test_entries() {
-        let ids = arbitrary::set::<Id>(6..9);
+        let ids = arbitrary::set::<RepoId>(6..9);
         let nodes = arbitrary::set::<NodeId>(6..9);
         let mut db = database(":memory:");
 
@@ -301,7 +301,7 @@ mod test {
 
     #[test]
     fn test_insert_and_remove() {
-        let ids = arbitrary::set::<Id>(5..10);
+        let ids = arbitrary::set::<RepoId>(5..10);
         let nodes = arbitrary::set::<NodeId>(5..10);
         let mut db = database(":memory:");
 
@@ -320,7 +320,7 @@ mod test {
 
     #[test]
     fn test_insert_duplicate() {
-        let id = arbitrary::gen::<Id>(1);
+        let id = arbitrary::gen::<RepoId>(1);
         let node = arbitrary::gen::<NodeId>(1);
         let mut db = database(":memory:");
 
@@ -340,7 +340,7 @@ mod test {
 
     #[test]
     fn test_insert_existing_updated_time() {
-        let id = arbitrary::gen::<Id>(1);
+        let id = arbitrary::gen::<RepoId>(1);
         let node = arbitrary::gen::<NodeId>(1);
         let mut db = database(":memory:");
 
@@ -357,8 +357,8 @@ mod test {
 
     #[test]
     fn test_update_existing_multi() {
-        let id1 = arbitrary::gen::<Id>(1);
-        let id2 = arbitrary::gen::<Id>(1);
+        let id1 = arbitrary::gen::<RepoId>(1);
+        let id2 = arbitrary::gen::<RepoId>(1);
         let node = arbitrary::gen::<NodeId>(1);
         let mut db = database(":memory:");
 
@@ -384,7 +384,7 @@ mod test {
 
     #[test]
     fn test_remove_redundant() {
-        let id = arbitrary::gen::<Id>(1);
+        let id = arbitrary::gen::<RepoId>(1);
         let node = arbitrary::gen::<NodeId>(1);
         let mut db = database(":memory:");
 
@@ -399,7 +399,7 @@ mod test {
     #[test]
     fn test_len() {
         let mut db = database(":memory:");
-        let ids = arbitrary::vec::<Id>(10);
+        let ids = arbitrary::vec::<RepoId>(10);
         let node = arbitrary::gen(1);
 
         db.insert(&ids, node, LocalTime::now().as_millis()).unwrap();
@@ -411,7 +411,7 @@ mod test {
     fn test_prune() {
         let mut rng = fastrand::Rng::new();
         let now = LocalTime::now();
-        let ids = arbitrary::vec::<Id>(10);
+        let ids = arbitrary::vec::<RepoId>(10);
         let nodes = arbitrary::vec::<NodeId>(10);
         let mut db = database(":memory:");
 
@@ -420,7 +420,7 @@ mod test {
             db.insert(&ids, *node, time).unwrap();
         }
 
-        let ids = arbitrary::vec::<Id>(10);
+        let ids = arbitrary::vec::<RepoId>(10);
         let nodes = arbitrary::vec::<NodeId>(10);
 
         for node in &nodes {
@@ -441,7 +441,7 @@ mod test {
 
     #[test]
     fn test_count() {
-        let id = arbitrary::gen::<Id>(1);
+        let id = arbitrary::gen::<RepoId>(1);
         let nodes = arbitrary::set::<NodeId>(5..10);
         let mut db = database(":memory:");
 

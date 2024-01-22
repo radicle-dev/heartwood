@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 pub use bloomy::BloomFilter;
 
-use crate::identity::Id;
+use crate::identity::RepoId;
 
 /// Size in bytes of *large* bloom filter.
 /// It can store about 13'675 items with a false positive rate of 1%.
@@ -28,7 +28,7 @@ pub const FILTER_HASHES: usize = 7;
 /// The [`Default`] instance has all bits set to `1`, ie. it will match
 /// everything.
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct Filter(BloomFilter<Id>);
+pub struct Filter(BloomFilter<RepoId>);
 
 impl Default for Filter {
     fn default() -> Self {
@@ -40,7 +40,7 @@ impl Filter {
     /// Create a new filter with the given items.
     ///
     /// Uses the iterator's size hint to determine the size of the filter.
-    pub fn new(ids: impl IntoIterator<Item = Id>) -> Self {
+    pub fn new(ids: impl IntoIterator<Item = RepoId>) -> Self {
         let iterator = ids.into_iter();
         let (min, _) = iterator.size_hint();
         let size = bloomy::bloom::optimal_bits(min, FILTER_FP_RATE) / 8;
@@ -71,7 +71,7 @@ impl Filter {
 }
 
 impl Deref for Filter {
-    type Target = BloomFilter<Id>;
+    type Target = BloomFilter<RepoId>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -84,8 +84,8 @@ impl DerefMut for Filter {
     }
 }
 
-impl From<BloomFilter<Id>> for Filter {
-    fn from(bloom: BloomFilter<Id>) -> Self {
+impl From<BloomFilter<RepoId>> for Filter {
+    fn from(bloom: BloomFilter<RepoId>) -> Self {
         Self(bloom)
     }
 }
@@ -136,7 +136,7 @@ mod test {
 
     #[test]
     fn test_sizes() {
-        let ids = arbitrary::vec::<Id>(3420);
+        let ids = arbitrary::vec::<RepoId>(3420);
         let f = Filter::new(ids.iter().cloned().take(10));
         assert_eq!(f.size(), FILTER_SIZE_S);
 
@@ -147,7 +147,7 @@ mod test {
         assert_eq!(f.size(), FILTER_SIZE_L);
 
         // Just checking that iterators over hash sets give correct size hints.
-        let hs = arbitrary::set::<Id>(42..=42);
+        let hs = arbitrary::set::<RepoId>(42..=42);
         assert_eq!(hs.iter().size_hint(), (42, Some(42)));
     }
 }

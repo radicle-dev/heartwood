@@ -14,7 +14,7 @@ use tempfile::TempDir;
 use crate::crypto::Unverified;
 use crate::git;
 use crate::identity::doc::DocError;
-use crate::identity::{doc::DocAt, Doc, Id};
+use crate::identity::{doc::DocAt, Doc, RepoId};
 use crate::identity::{Identity, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs, SignedRefsAt};
@@ -46,7 +46,7 @@ pub static CANONICAL_IDENTITY: Lazy<git::Qualified> = Lazy::new(|| {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepositoryInfo<V> {
     /// Repository identifier.
-    pub rid: Id,
+    pub rid: RepoId,
     /// Head of default branch.
     pub head: Oid,
     /// Identity document.
@@ -101,11 +101,11 @@ impl ReadStorage for Storage {
         self.path.as_path()
     }
 
-    fn path_of(&self, rid: &Id) -> PathBuf {
+    fn path_of(&self, rid: &RepoId) -> PathBuf {
         paths::repository(&self, rid)
     }
 
-    fn contains(&self, rid: &Id) -> Result<bool, RepositoryError> {
+    fn contains(&self, rid: &RepoId) -> Result<bool, RepositoryError> {
         if paths::repository(&self, rid).exists() {
             let _ = self.repository(*rid)?.head()?;
             return Ok(true);
@@ -123,7 +123,7 @@ impl ReadStorage for Storage {
             .collect())
     }
 
-    fn repository(&self, rid: Id) -> Result<Self::Repository, Error> {
+    fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error> {
         Repository::open(paths::repository(self, &rid), rid)
     }
 }
@@ -131,15 +131,15 @@ impl ReadStorage for Storage {
 impl WriteStorage for Storage {
     type RepositoryMut = Repository;
 
-    fn repository_mut(&self, rid: Id) -> Result<Self::RepositoryMut, Error> {
+    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error> {
         Repository::open(paths::repository(self, &rid), rid)
     }
 
-    fn create(&self, rid: Id) -> Result<Self::RepositoryMut, Error> {
+    fn create(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error> {
         Repository::create(paths::repository(self, &rid), rid, &self.info)
     }
 
-    fn clean(&self, rid: Id) -> Result<Vec<RemoteId>, RepositoryError> {
+    fn clean(&self, rid: RepoId) -> Result<Vec<RemoteId>, RepositoryError> {
         let repo = self.repository(rid)?;
         // N.b. we remove the repository if the `local` peer has no
         // `rad/sigrefs`. There's no risk of them corrupting data.
@@ -173,7 +173,7 @@ impl Storage {
     /// N.b. it is important to keep the [`TempDir`] in scope while
     /// using the [`Repository`]. If it is dropped, any action on the
     /// `Repository` will fail.
-    pub fn lock_repository(&self, rid: Id) -> Result<(Repository, TempDir), RepositoryError> {
+    pub fn lock_repository(&self, rid: RepoId) -> Result<(Repository, TempDir), RepositoryError> {
         if self.contains(&rid)? {
             return Err(Error::Io(io::Error::new(
                 io::ErrorKind::AlreadyExists,
@@ -213,8 +213,8 @@ impl Storage {
                     continue;
                 }
             }
-            let rid =
-                Id::try_from(path.file_name()).map_err(|_| Error::InvalidId(path.file_name()))?;
+            let rid = RepoId::try_from(path.file_name())
+                .map_err(|_| Error::InvalidId(path.file_name()))?;
 
             let repo = match self.repository(rid) {
                 Ok(repo) => repo,
@@ -272,7 +272,7 @@ impl Storage {
 /// Git implementation of [`WriteRepository`] using the `git2` crate.
 pub struct Repository {
     /// The repository identifier (RID).
-    pub id: Id,
+    pub id: RepoId,
     /// The backing Git repository.
     pub backend: git2::Repository,
 }
@@ -335,14 +335,14 @@ pub enum Validation {
 
 impl Repository {
     /// Open an existing repository.
-    pub fn open<P: AsRef<Path>>(path: P, id: Id) -> Result<Self, Error> {
+    pub fn open<P: AsRef<Path>>(path: P, id: RepoId) -> Result<Self, Error> {
         let backend = git2::Repository::open_bare(path.as_ref())?;
 
         Ok(Self { id, backend })
     }
 
     /// Create a new repository.
-    pub fn create<P: AsRef<Path>>(path: P, id: Id, info: &UserInfo) -> Result<Self, Error> {
+    pub fn create<P: AsRef<Path>>(path: P, id: RepoId, info: &UserInfo) -> Result<Self, Error> {
         let backend = git2::Repository::init_opts(
             &path,
             git2::RepositoryInitOptions::new()
@@ -426,7 +426,7 @@ impl Repository {
         signer: &G,
     ) -> Result<(Self, git::Oid), RepositoryError> {
         let (doc_oid, _) = doc.encode()?;
-        let id = Id::from(doc_oid);
+        let id = RepoId::from(doc_oid);
         let repo = Self::create(paths::repository(storage, &id), id, storage.info())?;
         let commit = doc.init(&repo, signer)?;
 
@@ -577,7 +577,7 @@ impl ValidateRepository for Repository {
 }
 
 impl ReadRepository for Repository {
-    fn id(&self) -> Id {
+    fn id(&self) -> RepoId {
         self.id
     }
 
@@ -988,10 +988,10 @@ pub mod trailers {
 pub mod paths {
     use std::path::PathBuf;
 
-    use super::Id;
     use super::ReadStorage;
+    use super::RepoId;
 
-    pub fn repository<S: ReadStorage>(storage: &S, proj: &Id) -> PathBuf {
+    pub fn repository<S: ReadStorage>(storage: &S, proj: &RepoId) -> PathBuf {
         storage.path().join(proj.canonical())
     }
 }
@@ -1285,7 +1285,7 @@ mod tests {
         let mut rng = fastrand::Rng::new();
         let signer = MockSigner::new(&mut rng);
         let storage = Storage::open(tmp.path(), fixtures::user()).unwrap();
-        let proj_id = arbitrary::gen::<Id>(1);
+        let proj_id = arbitrary::gen::<RepoId>(1);
         let alice = *signer.public_key();
         let project = storage.create(proj_id).unwrap();
         let backend = &project.backend;

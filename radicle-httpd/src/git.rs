@@ -16,19 +16,19 @@ use axum::Router;
 use flate2::write::GzDecoder;
 use hyper::body::Buf as _;
 
-use radicle::identity::Id;
+use radicle::identity::RepoId;
 use radicle::profile::Profile;
 
 use crate::error::GitError as Error;
 
-pub fn router(profile: Arc<Profile>, aliases: HashMap<String, Id>) -> Router {
+pub fn router(profile: Arc<Profile>, aliases: HashMap<String, RepoId>) -> Router {
     Router::new()
         .route("/:project/*request", any(git_handler))
         .with_state((profile, aliases))
 }
 
 async fn git_handler(
-    State((profile, aliases)): State<(Arc<Profile>, HashMap<String, Id>)>,
+    State((profile, aliases)): State<(Arc<Profile>, HashMap<String, RepoId>)>,
     AxumPath((project, request)): AxumPath<(String, String)>,
     method: Method,
     headers: HeaderMap,
@@ -38,7 +38,7 @@ async fn git_handler(
 ) -> impl IntoResponse {
     let query = query.0.unwrap_or_default();
     let name = project.strip_suffix(".git").unwrap_or(&project);
-    let rid: Id = match name.parse() {
+    let rid: RepoId = match name.parse() {
         Ok(rid) => rid,
         Err(_) => {
             let Some(rid) = aliases.get(name) else {
@@ -70,7 +70,7 @@ async fn git_http_backend(
     headers: HeaderMap,
     mut body: Bytes,
     remote: net::SocketAddr,
-    id: Id,
+    id: RepoId,
     path: &str,
     query: String,
 ) -> Result<(StatusCode, HashMap<String, Vec<String>>, Vec<u8>), Error> {
@@ -210,7 +210,7 @@ mod routes {
 
     use axum::extract::connect_info::MockConnectInfo;
     use axum::http::StatusCode;
-    use radicle::identity::Id;
+    use radicle::identity::RepoId;
 
     use crate::test::{self, get, RID};
 
@@ -232,7 +232,7 @@ mod routes {
         let ctx = test::seed(tmp.path());
         let app = super::router(
             ctx.profile().to_owned(),
-            HashMap::from_iter([(String::from("heartwood"), Id::from_str(RID).unwrap())]),
+            HashMap::from_iter([(String::from("heartwood"), RepoId::from_str(RID).unwrap())]),
         )
         .layer(MockConnectInfo(SocketAddr::from(([0, 0, 0, 0], 8080))));
 

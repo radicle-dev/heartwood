@@ -15,7 +15,7 @@ use radicle::explorer::ExplorerResource;
 use radicle::identity::Did;
 use radicle::node;
 use radicle::node::{Handle, NodeId};
-use radicle::prelude::Id;
+use radicle::prelude::RepoId;
 use radicle::storage;
 use radicle::storage::git::transport::local::Url;
 use radicle::storage::{ReadRepository, SignRepository as _, WriteRepository};
@@ -631,7 +631,7 @@ fn push_ref(
 
 /// Sync with the network.
 fn sync(
-    rid: Id,
+    rid: RepoId,
     updated: impl Iterator<Item = ExplorerResource>,
     mut node: radicle::Node,
     profile: &Profile,

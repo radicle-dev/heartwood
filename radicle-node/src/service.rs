@@ -34,7 +34,7 @@ use radicle::storage::RepositoryError;
 
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
-use crate::identity::{Doc, Id};
+use crate::identity::{Doc, RepoId};
 use crate::node::routing;
 use crate::node::routing::InsertResult;
 use crate::node::{
@@ -105,11 +105,11 @@ pub use message::REF_REMOTE_LIMIT;
 #[derive(Default)]
 struct SyncedRouting {
     /// Repo entries added.
-    added: Vec<Id>,
+    added: Vec<RepoId>,
     /// Repo entries removed.
-    removed: Vec<Id>,
+    removed: Vec<RepoId>,
     /// Repo entries updated (time).
-    updated: Vec<Id>,
+    updated: Vec<RepoId>,
 }
 
 impl SyncedRouting {
@@ -166,7 +166,7 @@ pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<(), CommandError> + Se
 /// Commands sent to the service by the operator.
 pub enum Command {
     /// Announce repository references for given repository to peers.
-    AnnounceRefs(Id, chan::Sender<RefsAt>),
+    AnnounceRefs(RepoId, chan::Sender<RefsAt>),
     /// Announce local repositories to peers.
     AnnounceInventory,
     /// Announce local inventory to peers.
@@ -178,13 +178,13 @@ pub enum Command {
     /// Get the node configuration.
     Config(chan::Sender<Config>),
     /// Lookup seeds for the given repository in the routing table.
-    Seeds(Id, chan::Sender<Seeds>),
+    Seeds(RepoId, chan::Sender<Seeds>),
     /// Fetch the given repository from the network.
-    Fetch(Id, NodeId, time::Duration, chan::Sender<FetchResult>),
+    Fetch(RepoId, NodeId, time::Duration, chan::Sender<FetchResult>),
     /// Seed the given repository.
-    Seed(Id, Scope, chan::Sender<bool>),
+    Seed(RepoId, Scope, chan::Sender<bool>),
     /// Unseed the given repository.
-    Unseed(Id, chan::Sender<bool>),
+    Unseed(RepoId, chan::Sender<bool>),
     /// Follow the given node.
     Follow(NodeId, Option<Alias>, chan::Sender<bool>),
     /// Unfollow the given node.
@@ -261,7 +261,7 @@ impl FetchState {
 #[derive(Debug)]
 struct QueuedFetch {
     /// Repo being fetched.
-    rid: Id,
+    rid: RepoId,
     /// Peer being fetched from.
     from: NodeId,
     /// Result channel.
@@ -347,7 +347,7 @@ pub struct Service<D, S, G> {
     /// Source of entropy.
     rng: Rng,
     /// Ongoing fetches.
-    fetching: HashMap<Id, FetchState>,
+    fetching: HashMap<RepoId, FetchState>,
     /// Fetch queue.
     queue: VecDeque<QueuedFetch>,
     /// Request/connection rate limitter.
@@ -439,7 +439,7 @@ where
 
     /// Seed a repository.
     /// Returns whether or not the repo policy was updated.
-    pub fn seed(&mut self, id: &Id, scope: Scope) -> Result<bool, policy::Error> {
+    pub fn seed(&mut self, id: &RepoId, scope: Scope) -> Result<bool, policy::Error> {
         let updated = self.policies.seed(id, scope)?;
         self.filter.insert(id);
 
@@ -450,7 +450,7 @@ where
     /// Returns whether or not the repo policy was updated.
     /// Note that when unseeding, we don't announce anything to the network. This is because by
     /// simply not announcing it anymore, it will eventually be pruned by nodes.
-    pub fn unseed(&mut self, id: &Id) -> Result<bool, policy::Error> {
+    pub fn unseed(&mut self, id: &RepoId) -> Result<bool, policy::Error> {
         let updated = self.policies.unseed(id)?;
         // Nb. This is potentially slow if we have lots of repos. We should probably
         // only re-compute the filter when we've unseeded a certain amount of repos
@@ -514,7 +514,7 @@ where
     }
 
     /// Lookup a repository, both locally and in the routing table.
-    pub fn lookup(&self, rid: Id) -> Result<Lookup, LookupError> {
+    pub fn lookup(&self, rid: RepoId) -> Result<Lookup, LookupError> {
         let remote = self.db.routing().get(&rid)?.iter().cloned().collect();
 
         Ok(Lookup {
@@ -787,7 +787,7 @@ where
     /// another node's announcement.
     fn fetch_refs_at(
         &mut self,
-        rid: Id,
+        rid: RepoId,
         from: NodeId,
         refs: NonEmpty<RefsAt>,
         timeout: time::Duration,
@@ -798,7 +798,7 @@ where
     /// Initiate an outgoing fetch for some repository.
     fn fetch(
         &mut self,
-        rid: Id,
+        rid: RepoId,
         from: NodeId,
         timeout: time::Duration,
         channel: Option<chan::Sender<FetchResult>>,
@@ -808,7 +808,7 @@ where
 
     fn _fetch(
         &mut self,
-        rid: Id,
+        rid: RepoId,
         from: NodeId,
         refs_at: Vec<RefsAt>,
         timeout: time::Duration,
@@ -852,7 +852,7 @@ where
 
     fn try_fetch(
         &mut self,
-        rid: Id,
+        rid: RepoId,
         from: &NodeId,
         refs_at: Vec<RefsAt>,
         timeout: time::Duration,
@@ -897,7 +897,7 @@ where
 
     pub fn fetched(
         &mut self,
-        rid: Id,
+        rid: RepoId,
         remote: NodeId,
         result: Result<fetch::FetchResult, FetchError>,
     ) {
@@ -1683,12 +1683,12 @@ where
     /// given inventory.
     fn sync_routing(
         &mut self,
-        inventory: &[Id],
+        inventory: &[RepoId],
         from: NodeId,
         timestamp: Timestamp,
     ) -> Result<SyncedRouting, Error> {
         let mut synced = SyncedRouting::default();
-        let included: HashSet<&Id> = HashSet::from_iter(inventory);
+        let included: HashSet<&RepoId> = HashSet::from_iter(inventory);
 
         for (rid, result) in self.db.routing_mut().insert(inventory, from, timestamp)? {
             match result {
@@ -1726,7 +1726,7 @@ where
     /// Return a refs announcement including the given remotes.
     fn refs_announcement_for(
         &self,
-        rid: Id,
+        rid: RepoId,
         remotes: impl IntoIterator<Item = NodeId>,
     ) -> Result<(Announcement, Vec<RefsAt>), Error> {
         let repo = self.storage.repository(rid)?;
@@ -1757,7 +1757,7 @@ where
     /// Announce local refs for given id.
     fn announce_refs(
         &mut self,
-        rid: Id,
+        rid: RepoId,
         remotes: impl IntoIterator<Item = NodeId>,
     ) -> Result<Vec<RefsAt>, Error> {
         let repo = self.storage.repository(rid)?;
@@ -1850,7 +1850,7 @@ where
         true
     }
 
-    fn seeds(&self, rid: &Id) -> Result<Seeds, Error> {
+    fn seeds(&self, rid: &RepoId) -> Result<Seeds, Error> {
         let mut seeds = Seeds::new(self.rng.clone());
 
         // First build a list from peers that have synced our own refs, if any.
@@ -1915,7 +1915,7 @@ where
     ////////////////////////////////////////////////////////////////////////////
 
     /// Announce our inventory to all connected peers.
-    fn announce_inventory(&mut self, inventory: Vec<Id>) -> Result<(), storage::Error> {
+    fn announce_inventory(&mut self, inventory: Vec<RepoId>) -> Result<(), storage::Error> {
         let time = if self.clock > self.last_announce {
             self.clock.as_millis()
         } else if self.last_announce - self.clock < LocalDuration::from_secs(1) {
@@ -2140,7 +2140,7 @@ pub trait ServiceState {
     /// Get the existing sessions.
     fn sessions(&self) -> &Sessions;
     /// Get a repository from storage.
-    fn get(&self, rid: Id) -> Result<Option<Doc<Verified>>, RepositoryError>;
+    fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError>;
     /// Get the clock.
     fn clock(&self) -> &LocalTime;
     /// Get the clock mutably.
@@ -2163,7 +2163,7 @@ where
         &self.sessions
     }
 
-    fn get(&self, rid: Id) -> Result<Option<Doc<Verified>>, RepositoryError> {
+    fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError> {
         self.storage.get(rid)
     }
 

@@ -10,7 +10,7 @@ use thiserror::Error;
 use radicle::cob;
 use radicle::git::raw;
 use radicle::identity::doc;
-use radicle::identity::doc::{DocError, Id};
+use radicle::identity::doc::{DocError, RepoId};
 use radicle::node;
 use radicle::node::policy::Scope;
 use radicle::node::{Handle as _, Node};
@@ -55,7 +55,7 @@ Options
 #[derive(Debug)]
 pub struct Options {
     /// The RID of the repository.
-    id: Id,
+    id: RepoId,
     /// The target directory for the repository to be cloned into.
     directory: Option<PathBuf>,
     /// The seeding scope of the repository.
@@ -71,7 +71,7 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut id: Option<Id> = None;
+        let mut id: Option<RepoId> = None;
         let mut scope = Scope::All;
         let mut mode = sync::RepoSync::default();
         let mut timeout = time::Duration::from_secs(9);
@@ -110,7 +110,7 @@ impl Args for Options {
                 Value(val) if id.is_none() => {
                     let val = val.to_string_lossy();
                     let val = val.strip_prefix("rad://").unwrap_or(&val);
-                    let val = Id::from_str(val)?;
+                    let val = RepoId::from_str(val)?;
 
                     id = Some(val);
                 }
@@ -229,13 +229,13 @@ pub enum CloneError {
     #[error(transparent)]
     Repository(#[from] RepositoryError),
     #[error("repository {0} not found")]
-    NotFound(Id),
+    NotFound(RepoId),
     #[error("no seeds found for {0}")]
-    NoSeeds(Id),
+    NoSeeds(RepoId),
 }
 
 pub fn clone<G: Signer>(
-    id: Id,
+    id: RepoId,
     directory: Option<PathBuf>,
     scope: Scope,
     mode: sync::RepoSync,

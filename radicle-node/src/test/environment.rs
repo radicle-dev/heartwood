@@ -15,7 +15,7 @@ use radicle::crypto::test::signer::MockSigner;
 use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git;
 use radicle::git::refname;
-use radicle::identity::{Id, Visibility};
+use radicle::identity::{RepoId, Visibility};
 use radicle::node::config::ConnectAddress;
 use radicle::node::policy::store as policy;
 use radicle::node::routing::Store;
@@ -233,7 +233,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
     }
 
     /// Get routing table entries.
-    pub fn routing(&self) -> impl Iterator<Item = (Id, NodeId)> {
+    pub fn routing(&self) -> impl Iterator<Item = (RepoId, NodeId)> {
         Database::reader(self.home.node().join(node::NODE_DB_FILE))
             .unwrap()
             .entries()
@@ -244,13 +244,13 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
     pub fn converge<'a>(
         &'a self,
         remotes: impl IntoIterator<Item = &'a NodeHandle<G>>,
-    ) -> BTreeSet<(Id, NodeId)> {
+    ) -> BTreeSet<(RepoId, NodeId)> {
         converge(iter::once(self).chain(remotes))
     }
 
     /// Wait until this node's routing table contains the given routes.
     #[track_caller]
-    pub fn routes_to(&self, routes: &[(Id, NodeId)]) {
+    pub fn routes_to(&self, routes: &[(RepoId, NodeId)]) {
         log::debug!(target: "test", "Waiting for {} to route to {:?}", self.id, routes);
         let events = self.handle.events();
 
@@ -276,7 +276,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
 
     /// Wait until this node has the inventory of another node.
     #[track_caller]
-    pub fn has_inventory_of(&self, rid: &Id, nid: &NodeId) {
+    pub fn has_inventory_of(&self, rid: &RepoId, nid: &NodeId) {
         log::debug!(target: "test", "Waiting for {} to have {rid}/{nid}", self.id);
         let events = self.handle.events();
 
@@ -296,12 +296,12 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
     }
 
     /// Clone a repo into a directory.
-    pub fn clone<P: AsRef<Path>>(&self, rid: Id, cwd: P) -> io::Result<()> {
+    pub fn clone<P: AsRef<Path>>(&self, rid: RepoId, cwd: P) -> io::Result<()> {
         self.rad("clone", &[rid.to_string().as_str()], cwd)
     }
 
     /// Fork a repo.
-    pub fn fork<P: AsRef<Path>>(&self, rid: Id, cwd: P) -> io::Result<()> {
+    pub fn fork<P: AsRef<Path>>(&self, rid: RepoId, cwd: P) -> io::Result<()> {
         self.clone(rid, &cwd)?;
         self.rad("fork", &[rid.to_string().as_str()], &cwd)?;
         self.announce(rid, &cwd)?;
@@ -310,7 +310,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
     }
 
     /// Announce a repo.
-    pub fn announce<P: AsRef<Path>>(&self, rid: Id, cwd: P) -> io::Result<()> {
+    pub fn announce<P: AsRef<Path>>(&self, rid: RepoId, cwd: P) -> io::Result<()> {
         self.rad("sync", &[rid.to_string().as_str(), "--announce"], cwd)
     }
 
@@ -377,7 +377,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
     }
 
     /// Create an [`issue::Issue`] in the `NodeHandle`'s storage.
-    pub fn issue(&self, rid: Id, title: &str, desc: &str) -> cob::ObjectId {
+    pub fn issue(&self, rid: RepoId, title: &str, desc: &str) -> cob::ObjectId {
         let repo = self.storage.repository(rid).unwrap();
         let mut issues = issue::Issues::open(&repo).unwrap();
         *issues
@@ -459,7 +459,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
         name: &str,
         description: &str,
         repo: &git::raw::Repository,
-    ) -> Id {
+    ) -> RepoId {
         transport::local::register(self.storage.clone());
 
         let branch = refname!("master");
@@ -516,7 +516,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
     }
 
     /// Populate a storage instance with a project.
-    pub fn project(&mut self, name: &str, description: &str) -> Id {
+    pub fn project(&mut self, name: &str, description: &str) -> RepoId {
         let tmp = tempfile::tempdir().unwrap();
         let (repo, _) = fixtures::repository(tmp.path());
 
@@ -528,10 +528,10 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
 #[track_caller]
 pub fn converge<'a, G: Signer + cyphernet::Ecdh + 'static>(
     nodes: impl IntoIterator<Item = &'a NodeHandle<G>>,
-) -> BTreeSet<(Id, NodeId)> {
+) -> BTreeSet<(RepoId, NodeId)> {
     let nodes = nodes.into_iter().collect::<Vec<_>>();
 
-    let mut all_routes = BTreeSet::<(Id, NodeId)>::new();
+    let mut all_routes = BTreeSet::<(RepoId, NodeId)>::new();
     let mut remaining = BTreeMap::from_iter(nodes.iter().map(|node| (node.id, node)));
 
     // First build the set of all routes.

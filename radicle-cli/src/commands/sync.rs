@@ -10,7 +10,7 @@ use radicle::node;
 use radicle::node::AliasStore;
 use radicle::node::Seed;
 use radicle::node::{FetchResult, FetchResults, Handle as _, Node, SyncStatus};
-use radicle::prelude::{Id, NodeId, Profile};
+use radicle::prelude::{NodeId, Profile, RepoId};
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle_term::Element;
 
@@ -138,7 +138,7 @@ pub enum SyncDirection {
 
 #[derive(Default, Debug)]
 pub struct Options {
-    pub rid: Option<Id>,
+    pub rid: Option<RepoId>,
     pub verbose: bool,
     pub timeout: time::Duration,
     pub sort_by: SortBy,
@@ -306,7 +306,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 fn sync_status(
-    rid: Id,
+    rid: RepoId,
     node: &mut Node,
     profile: &Profile,
     options: &Options,
@@ -375,7 +375,7 @@ fn sync_status(
 }
 
 fn announce_refs(
-    rid: Id,
+    rid: RepoId,
     mode: RepoSync,
     timeout: time::Duration,
     mut node: Node,
@@ -482,7 +482,7 @@ pub fn announce_inventory(mut node: Node) -> anyhow::Result<()> {
 }
 
 pub fn fetch(
-    rid: Id,
+    rid: RepoId,
     mode: RepoSync,
     timeout: time::Duration,
     node: &mut Node,
@@ -501,7 +501,7 @@ pub fn fetch(
 }
 
 fn fetch_all(
-    rid: Id,
+    rid: RepoId,
     count: usize,
     timeout: time::Duration,
     node: &mut Node,
@@ -562,7 +562,7 @@ fn fetch_all(
 }
 
 fn fetch_from(
-    rid: Id,
+    rid: RepoId,
     seed: &NodeId,
     timeout: time::Duration,
     node: &mut Node,

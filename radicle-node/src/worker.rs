@@ -10,7 +10,7 @@ use std::{io, time};
 
 use crossbeam_channel as chan;
 
-use radicle::identity::Id;
+use radicle::identity::RepoId;
 use radicle::prelude::NodeId;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, ReadStorage};
@@ -78,7 +78,7 @@ pub enum UploadError {
     #[error(transparent)]
     Io(#[from] io::Error),
     #[error("{0} is not authorized to fetch {1}")]
-    Unauthorized(NodeId, Id),
+    Unauthorized(NodeId, RepoId),
     #[error(transparent)]
     Storage(#[from] radicle::storage::Error),
     #[error(transparent)]
@@ -103,7 +103,7 @@ pub enum FetchRequest {
     /// `rid` from the peer identified by `remote`.
     Initiator {
         /// Repo to fetch.
-        rid: Id,
+        rid: RepoId,
         /// Remote peer we are interacting with.
         remote: NodeId,
         /// If this fetch is for a particular set of `rad/sigrefs`.
@@ -132,7 +132,7 @@ impl FetchRequest {
 pub enum FetchResult {
     Initiator {
         /// Repo fetched.
-        rid: Id,
+        rid: RepoId,
         /// Fetch result, including remotes fetched.
         result: Result<fetch::FetchResult, FetchError>,
     },
@@ -261,7 +261,7 @@ impl Worker {
         }
     }
 
-    fn is_authorized(&self, remote: NodeId, rid: Id) -> Result<(), UploadError> {
+    fn is_authorized(&self, remote: NodeId, rid: RepoId) -> Result<(), UploadError> {
         let policy = self.policies.repo_policy(&rid)?.policy;
         let repo = self.storage.repository(rid)?;
         let doc = repo.canonical_identity_doc()?;
@@ -274,7 +274,7 @@ impl Worker {
 
     fn fetch(
         &mut self,
-        rid: Id,
+        rid: RepoId,
         remote: NodeId,
         refs_at: Option<Vec<RefsAt>>,
         channels: channels::ChannelsFlush,

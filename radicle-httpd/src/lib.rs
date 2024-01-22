@@ -21,7 +21,7 @@ use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing::Span;
 
-use radicle::identity::Id;
+use radicle::identity::RepoId;
 use radicle::Profile;
 
 use tracing_extra::{tracing_middleware, ColoredStatus, Paint, RequestId, TracingInfo};
@@ -40,7 +40,7 @@ pub const DEFAULT_CACHE_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecke
 
 #[derive(Debug, Clone)]
 pub struct Options {
-    pub aliases: HashMap<String, Id>,
+    pub aliases: HashMap<String, RepoId>,
     pub listen: SocketAddr,
     pub cache: Option<NonZeroUsize>,
 }

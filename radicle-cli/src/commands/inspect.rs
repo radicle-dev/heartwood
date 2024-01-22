@@ -7,8 +7,8 @@ use std::str::FromStr;
 use anyhow::{anyhow, Context as _};
 use chrono::prelude::*;
 
-use radicle::identity::Id;
 use radicle::identity::Identity;
+use radicle::identity::RepoId;
 use radicle::node::policy::Policy;
 use radicle::node::AliasStore as _;
 use radicle::storage::refs::RefsAt;
@@ -64,7 +64,7 @@ pub enum Target {
 
 #[derive(Default, Debug, Eq, PartialEq)]
 pub struct Options {
-    pub rid: Option<Id>,
+    pub rid: Option<RepoId>,
     pub target: Target,
 }
 
@@ -73,7 +73,7 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut rid: Option<Id> = None;
+        let mut rid: Option<RepoId> = None;
         let mut target = Target::default();
 
         while let Some(arg) = parser.next()? {
@@ -111,7 +111,7 @@ impl Args for Options {
                 Value(val) if rid.is_none() => {
                     let val = val.to_string_lossy();
 
-                    if let Ok(val) = Id::from_str(&val) {
+                    if let Ok(val) = RepoId::from_str(&val) {
                         rid = Some(val);
                     } else if let Ok(val) = PathBuf::from_str(&val) {
                         rid = radicle::rad::at(val)

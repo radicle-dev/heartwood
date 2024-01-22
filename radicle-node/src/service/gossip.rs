@@ -23,8 +23,8 @@ pub fn node(config: &Config, timestamp: Timestamp) -> NodeAnnouncement {
     }
 }
 
-pub fn inventory(timestamp: Timestamp, inventory: Vec<Id>) -> InventoryAnnouncement {
-    type Inventory = BoundedVec<Id, INVENTORY_LIMIT>;
+pub fn inventory(timestamp: Timestamp, inventory: Vec<RepoId>) -> InventoryAnnouncement {
+    type Inventory = BoundedVec<RepoId, INVENTORY_LIMIT>;
 
     if inventory.len() > Inventory::max() {
         error!(
