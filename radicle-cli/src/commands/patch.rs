@@ -34,17 +34,20 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use radicle::cob::patch;
 use radicle::cob::patch::PatchId;
-use radicle::cob::{patch, Label};
+use radicle::cob::{Label, ObjectId};
 use radicle::patch::cache::Patches as _;
-use radicle::storage::git::transport;
+use radicle::storage::git::{transport, Repository};
 use radicle::{prelude::*, Node};
+use radicle_term::command::CommandError;
 
-use crate::git::Rev;
+use crate::git::{self, Rev};
 use crate::node;
 use crate::terminal as term;
 use crate::terminal::args::{string, Args, Error, Help};
 use crate::terminal::patch::Message;
+use crate::tui::{self, TuiError};
 
 pub const HELP: Help = Help {
     name: "patch",
@@ -154,6 +157,8 @@ Other options
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub enum OperationName {
+    #[default]
+    Default,
     Assign,
     Show,
     Diff,
@@ -165,12 +170,28 @@ pub enum OperationName {
     Ready,
     Review,
     Label,
-    #[default]
     List,
     Edit,
     Redact,
     Set,
     Cache,
+}
+
+#[derive(Debug)]
+pub struct ListOptions {
+    pub status: Option<patch::Status>,
+    pub authored: bool,
+    pub authors: Vec<Did>,
+}
+
+impl Default for ListOptions {
+    fn default() -> Self {
+        Self {
+            status: Some(patch::Status::Open),
+            authored: false,
+            authors: vec![],
+        }
+    }
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -187,66 +208,69 @@ pub struct LabelOptions {
 
 #[derive(Debug)]
 pub enum Operation {
+    Default {
+        opts: ListOptions,
+    },
     Show {
-        patch_id: Rev,
+        patch_id: Option<Rev>,
         diff: bool,
         debug: bool,
     },
     Diff {
-        patch_id: Rev,
+        patch_id: Option<Rev>,
         revision_id: Option<Rev>,
     },
     Update {
-        patch_id: Rev,
+        patch_id: Option<Rev>,
         base_id: Option<Rev>,
         message: Message,
     },
     Archive {
-        patch_id: Rev,
+        patch_id: Option<Rev>,
     },
     Ready {
-        patch_id: Rev,
+        patch_id: Option<Rev>,
         undo: bool,
     },
     Delete {
-        patch_id: Rev,
+        patch_id: Option<Rev>,
     },
     Checkout {
-        patch_id: Rev,
+        patch_id: Option<Rev>,
         revision_id: Option<Rev>,
         opts: checkout::Options,
     },
     Comment {
-        revision_id: Rev,
+        revision_id: Option<Rev>,
         message: Message,
         reply_to: Option<Rev>,
     },
     Review {
-        patch_id: Rev,
+        patch_id: Option<Rev>,
         revision_id: Option<Rev>,
         opts: review::Options,
     },
     Assign {
-        patch_id: Rev,
+        patch_id: Option<Rev>,
         opts: AssignOptions,
     },
     Label {
-        patch_id: Rev,
+        patch_id: Option<Rev>,
         opts: LabelOptions,
     },
     List {
-        filter: Option<patch::Status>,
+        opts: ListOptions,
     },
     Edit {
-        patch_id: Rev,
+        patch_id: Option<Rev>,
         revision_id: Option<Rev>,
         message: Message,
     },
     Redact {
-        revision_id: Rev,
+        revision_id: Option<Rev>,
     },
     Set {
-        patch_id: Rev,
+        patch_id: Option<Rev>,
     },
     Cache {
         patch_id: Option<Rev>,
@@ -272,6 +296,7 @@ impl Operation {
             | Operation::Checkout { .. }
             | Operation::List { .. }
             | Operation::Cache { .. } => false,
+            Operation::Default { .. } => false,
         }
     }
 }
@@ -283,8 +308,6 @@ pub struct Options {
     pub announce: bool,
     pub verbose: bool,
     pub quiet: bool,
-    pub authored: bool,
-    pub authors: Vec<Did>,
 }
 
 impl Args for Options {
@@ -295,17 +318,15 @@ impl Args for Options {
         let mut op: Option<OperationName> = None;
         let mut verbose = false;
         let mut quiet = false;
-        let mut authored = false;
-        let mut authors = vec![];
         let mut announce = true;
         let mut patch_id = None;
         let mut revision_id = None;
         let mut message = Message::default();
-        let mut filter = Some(patch::Status::Open);
         let mut diff = false;
         let mut debug = false;
         let mut undo = false;
         let mut reply_to: Option<Rev> = None;
+        let mut list_opts = ListOptions::default();
         let mut checkout_opts = checkout::Options::default();
         let mut assign_opts = AssignOptions::default();
         let mut label_opts = LabelOptions::default();
@@ -478,25 +499,26 @@ impl Args for Options {
 
                 // List options.
                 Long("all") => {
-                    filter = None;
+                    list_opts.status = None;
                 }
                 Long("draft") => {
-                    filter = Some(patch::Status::Draft);
-                }
-                Long("archived") => {
-                    filter = Some(patch::Status::Archived);
-                }
-                Long("merged") => {
-                    filter = Some(patch::Status::Merged);
+                    list_opts.status = Some(patch::Status::Draft);
                 }
                 Long("open") => {
-                    filter = Some(patch::Status::Open);
+                    list_opts.status = Some(patch::Status::Open);
+                }
+                Long("merged") => {
+                    list_opts.status = Some(patch::Status::Merged);
+                }
+                Long("archived") => {
+                    list_opts.status = Some(patch::Status::Archived);
                 }
                 Long("authored") => {
-                    authored = true;
+                    list_opts.authored = true;
                 }
-                Long("author") if op == Some(OperationName::List) => {
-                    authors.push(term::args::did(&parser.value()?)?);
+                Long("author") => {
+                    let val = parser.value()?;
+                    list_opts.authors.push(term::args::did(&val)?);
                 }
 
                 // Common.
@@ -570,70 +592,58 @@ impl Args for Options {
         }
 
         let op = match op.unwrap_or_default() {
-            OperationName::List => Operation::List { filter },
+            OperationName::Default => Operation::Default { opts: list_opts },
+            OperationName::List => Operation::List { opts: list_opts },
             OperationName::Show => Operation::Show {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                patch_id,
                 diff,
                 debug,
             },
             OperationName::Diff => Operation::Diff {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                patch_id,
                 revision_id,
             },
-            OperationName::Delete => Operation::Delete {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-            },
+            OperationName::Delete => Operation::Delete { patch_id },
             OperationName::Update => Operation::Update {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                patch_id,
                 base_id,
                 message,
             },
-            OperationName::Archive => Operation::Archive {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
-            },
+            OperationName::Archive => Operation::Archive { patch_id },
             OperationName::Checkout => Operation::Checkout {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                patch_id,
                 revision_id,
                 opts: checkout_opts,
             },
             OperationName::Comment => Operation::Comment {
-                revision_id: patch_id
-                    .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
+                revision_id: patch_id,
                 message,
                 reply_to,
             },
             OperationName::Review => Operation::Review {
-                patch_id: patch_id
-                    .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
+                patch_id,
                 revision_id,
                 opts: review::Options {
                     message,
                     op: review_op,
                 },
             },
-            OperationName::Ready => Operation::Ready {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-                undo,
-            },
+            OperationName::Ready => Operation::Ready { patch_id, undo },
             OperationName::Edit => Operation::Edit {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                patch_id,
                 revision_id,
                 message,
             },
-            OperationName::Redact => Operation::Redact {
-                revision_id: revision_id.ok_or_else(|| anyhow!("a revision must be provided"))?,
-            },
+            OperationName::Redact => Operation::Redact { revision_id },
             OperationName::Assign => Operation::Assign {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                patch_id,
                 opts: assign_opts,
             },
             OperationName::Label => Operation::Label {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                patch_id,
                 opts: label_opts,
             },
-            OperationName::Set => Operation::Set {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-            },
+            OperationName::Set => Operation::Set { patch_id },
             OperationName::Cache => Operation::Cache { patch_id },
         };
 
@@ -644,15 +654,13 @@ impl Args for Options {
                 verbose,
                 quiet,
                 announce,
-                authored,
-                authors,
             },
             vec![],
         ))
     }
 }
 
-pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(mut options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let (workdir, rid) = if let Some(rid) = options.repo {
         (None, rid)
     } else {
@@ -668,19 +676,22 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     transport::local::register(profile.storage.clone());
 
     match options.op {
-        Operation::List { filter } => {
-            let mut authors: BTreeSet<Did> = options.authors.iter().cloned().collect();
-            if options.authored {
+        Operation::Default { opts } => {
+            run_default_operation(opts, &profile, &repository, workdir.as_ref())?;
+        }
+        Operation::List { opts } => {
+            let mut authors: BTreeSet<Did> = opts.authors.iter().cloned().collect();
+            if opts.authored {
                 authors.insert(profile.did());
             }
-            list::run(filter.as_ref(), authors, &repository, &profile)?;
+            list::run(opts.status.as_ref(), authors, &repository, &profile)?;
         }
         Operation::Show {
             patch_id,
             diff,
             debug,
         } => {
-            let patch_id = patch_id.resolve(&repository.backend)?;
+            let patch_id = resolve_patch_id(&repository, patch_id)?;
             show::run(
                 &patch_id,
                 diff,
@@ -695,7 +706,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             patch_id,
             revision_id,
         } => {
-            let patch_id = patch_id.resolve(&repository.backend)?;
+            let patch_id = resolve_patch_id(&repository, patch_id)?;
             let revision_id = revision_id
                 .map(|rev| rev.resolve::<radicle::git::Oid>(&repository.backend))
                 .transpose()?
@@ -703,11 +714,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             diff::run(&patch_id, revision_id, &repository, &profile)?;
         }
         Operation::Update {
-            ref patch_id,
+            patch_id,
             ref base_id,
             ref message,
         } => {
-            let patch_id = patch_id.resolve(&repository.backend)?;
+            let patch_id = resolve_patch_id(&repository, patch_id)?;
             let base_id = base_id
                 .as_ref()
                 .map(|base| base.resolve(&repository.backend))
@@ -725,16 +736,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 &workdir,
             )?;
         }
-        Operation::Archive { ref patch_id } => {
-            let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
+        Operation::Archive { patch_id } => {
+            let patch_id = resolve_patch_id(&repository, patch_id)?;
             archive::run(&patch_id, &profile, &repository)?;
         }
-        Operation::Ready { ref patch_id, undo } => {
-            let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
+        Operation::Ready { patch_id, undo } => {
+            let patch_id = resolve_patch_id(&repository, patch_id)?;
             ready::run(&patch_id, undo, &profile, &repository)?;
         }
         Operation::Delete { patch_id } => {
-            let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
+            let patch_id = resolve_patch_id(&repository, patch_id)?;
             delete::run(&patch_id, &profile, &repository)?;
         }
         Operation::Checkout {
@@ -742,7 +753,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             revision_id,
             opts,
         } => {
-            let patch_id = patch_id.resolve::<radicle::git::Oid>(&repository.backend)?;
+            let patch_id = resolve_patch_id(&repository, patch_id)?;
             let revision_id = revision_id
                 .map(|rev| rev.resolve::<radicle::git::Oid>(&repository.backend))
                 .transpose()?
@@ -764,6 +775,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             message,
             reply_to,
         } => {
+            let revision_id = revision_id.ok_or_else(|| anyhow!("a revision must be provided"))?;
             comment::run(
                 revision_id,
                 message,
@@ -778,7 +790,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             revision_id,
             opts,
         } => {
-            let patch_id = patch_id.resolve(&repository.backend)?;
+            let patch_id = resolve_patch_id(&repository, patch_id)?;
             let revision_id = revision_id
                 .map(|rev| rev.resolve::<radicle::git::Oid>(&repository.backend))
                 .transpose()?
@@ -790,7 +802,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             revision_id,
             message,
         } => {
-            let patch_id = patch_id.resolve(&repository.backend)?;
+            let patch_id = resolve_patch_id(&repository, patch_id)?;
             let revision_id = revision_id
                 .map(|id| id.resolve::<radicle::git::Oid>(&repository.backend))
                 .transpose()?
@@ -798,25 +810,26 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             edit::run(&patch_id, revision_id, message, &profile, &repository)?;
         }
         Operation::Redact { revision_id } => {
+            let revision_id = revision_id.ok_or_else(|| anyhow!("a revision must be provided"))?;
             redact::run(&revision_id, &profile, &repository)?;
         }
         Operation::Assign {
             patch_id,
             opts: AssignOptions { add, delete },
         } => {
-            let patch_id = patch_id.resolve(&repository.backend)?;
+            let patch_id = resolve_patch_id(&repository, patch_id)?;
             assign::run(&patch_id, add, delete, &profile, &repository)?;
         }
         Operation::Label {
             patch_id,
             opts: LabelOptions { add, delete },
         } => {
-            let patch_id = patch_id.resolve(&repository.backend)?;
+            let patch_id = resolve_patch_id(&repository, patch_id)?;
             label::run(&patch_id, add, delete, &profile, &repository)?;
         }
         Operation::Set { patch_id } => {
             let patches = profile.patches(&repository)?;
-            let patch_id = patch_id.resolve(&repository.backend)?;
+            let patch_id = resolve_patch_id(&repository, patch_id)?;
             let patch = patches
                 .get(&patch_id)?
                 .ok_or_else(|| anyhow!("patch {patch_id} not found"))?;
@@ -838,4 +851,81 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         node::announce(rid, &mut node)?;
     }
     Ok(())
+}
+
+fn resolve_patch_id(repository: &Repository, rev: Option<Rev>) -> anyhow::Result<ObjectId> {
+    if let Some(rev) = rev {
+        Ok(rev.resolve(&repository.backend)?)
+    } else {
+        match tui::select_patch_id() {
+            Ok(output) => {
+                let patch_id = output.and_then(|output| output.ids().first().cloned());
+                patch_id.ok_or_else(|| anyhow!("a patch must be provided"))
+            }
+            Err(TuiError::Command(CommandError::NotFound)) => {
+                term::hint("An optional patch TUI can be enabled by installing `rad-tui`. You can download it from https://files.radicle.xyz/latest.");
+                Err(anyhow!("a patch must be provided"))
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+}
+
+fn run_default_operation(
+    options: ListOptions,
+    profile: &Profile,
+    repository: &Repository,
+    workdir: Option<&git::Repository>,
+) -> anyhow::Result<()> {
+    let status = match options.status {
+        Some(status) => status.to_string(),
+        _ => "all".to_string(),
+    };
+
+    match tui::select_patch_operation(&status, options.authored, options.authors.clone()) {
+        Ok(Some(output)) => {
+            let operation = output
+                .operation()
+                .ok_or_else(|| anyhow!("an operation must be provided"))?;
+            let patch_id = output
+                .ids()
+                .first()
+                .ok_or_else(|| anyhow!("a patch must be provided"))?;
+
+            match operation.as_str() {
+                "show" => show::run(patch_id, false, false, false, profile, repository, workdir),
+                "checkout" => {
+                    let revision_id = None;
+                    let workdir = workdir.ok_or(anyhow!(
+                        "this command must be run from a repository checkout"
+                    ))?;
+                    checkout::run(
+                        patch_id,
+                        revision_id,
+                        repository,
+                        workdir,
+                        profile,
+                        checkout::Options::default(),
+                    )
+                }
+                "diff" => {
+                    let revision_id = None;
+                    diff::run(patch_id, revision_id, repository, profile)
+                }
+                _ => Ok(()),
+            }
+        }
+        Ok(None) => Ok(()),
+        Err(TuiError::Command(CommandError::NotFound)) => {
+            term::hint("An optional patch TUI can be enabled by installing `rad-tui`. You can download it from https://files.radicle.xyz/latest.");
+
+            let mut authors: BTreeSet<Did> = options.authors.iter().cloned().collect();
+            if options.authored {
+                authors.insert(profile.did());
+            }
+
+            list::run(options.status.as_ref(), authors, repository, profile)
+        }
+        Err(err) => Err(err.into()),
+    }
 }
