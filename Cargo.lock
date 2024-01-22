@@ -2596,6 +2596,7 @@ dependencies = [
  "pretty_assertions",
  "tempfile",
  "termion 3.0.0",
+ "thiserror",
  "unicode-display-width",
  "unicode-segmentation",
  "zeroize",
