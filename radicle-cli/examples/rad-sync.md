@@ -96,3 +96,16 @@ with 1 node(s)`. This does not necessarily mean that only `bob` or
 `eve` were synchronized with, since they both could have received the
 announcement of the new changes. However, it does mean that we only
 wait for at least 1 of the nodes to have fetched the changes from us.
+
+
+It's also possible to receive an error if a repository is not found anywhere.
+
+```
+$ rad seed rad:z39mP9rQAaGmERfUMPULfPUi473tY
+✓ Seeding policy updated for rad:z39mP9rQAaGmERfUMPULfPUi473tY with scope 'all'
+```
+``` (fail)
+$ rad sync rad:z39mP9rQAaGmERfUMPULfPUi473tY
+✗ Error: no seeds found for rad:z39mP9rQAaGmERfUMPULfPUi473tY
+✗ Error: nothing to announce, repository rad:z39mP9rQAaGmERfUMPULfPUi473tY is not available locally
+```

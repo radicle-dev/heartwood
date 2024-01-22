@@ -288,8 +288,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 let success = results.success().count();
                 let failed = results.failed().count();
 
-                if success == 0 {
-                    anyhow::bail!("repository fetch from {failed} seed(s) failed");
+                if results.is_empty() {
+                    term::error(format!("no seeds found for {rid}"));
+                } else if success == 0 {
+                    term::error(format!("repository fetch from {failed} seed(s) failed"));
                 } else {
                     term::success!("Fetched repository from {success} seed(s)");
                 }
@@ -381,7 +383,11 @@ fn announce_refs(
     mut node: Node,
     profile: &Profile,
 ) -> anyhow::Result<()> {
-    let repo = profile.storage.repository(rid)?;
+    let Ok(repo) = profile.storage.repository(rid) else {
+        return Err(anyhow!(
+            "nothing to announce, repository {rid} is not available locally"
+        ));
+    };
     let doc = repo.identity_doc()?;
     let unsynced: Vec<_> = if doc.visibility.is_public() {
         let seeds = node.seeds(rid)?;
