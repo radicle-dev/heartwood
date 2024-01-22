@@ -24,7 +24,7 @@ use radicle_surf::{diff, Glob, Oid, Repository};
 
 use crate::api::error::Error;
 use crate::api::project::Info;
-use crate::api::{self, announce_refs, CobsQuery, Context, PaginationQuery};
+use crate::api::{self, announce_refs, CobsQuery, Context, PaginationQuery, ProjectQuery};
 use crate::axum_extra::{Path, Query};
 
 const CACHE_1_HOUR: &str = "public, max-age=3600, must-revalidate";
@@ -79,19 +79,28 @@ async fn project_root_handler(
     State(ctx): State<Context>,
     Query(qs): Query<PaginationQuery>,
 ) -> impl IntoResponse {
-    let PaginationQuery { page, per_page } = qs;
+    let PaginationQuery {
+        show,
+        page,
+        per_page,
+    } = qs;
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
     let storage = &ctx.profile.storage;
     let db = &ctx.profile.database()?;
-    let mut projects = storage
-        .repositories()?
-        .into_iter()
-        .filter(|id| match &id.doc.visibility {
-            Visibility::Private { .. } => addr.ip().is_loopback(),
-            Visibility::Public => true,
-        })
-        .collect::<Vec<_>>();
+    let pinned = &ctx.profile.config.web.pinned;
+
+    let mut projects = match show {
+        ProjectQuery::All => storage
+            .repositories()?
+            .into_iter()
+            .filter(|repo| match &repo.doc.visibility {
+                Visibility::Private { .. } => addr.ip().is_loopback(),
+                Visibility::Public => true,
+            })
+            .collect::<Vec<_>>(),
+        ProjectQuery::Pinned => storage.get_repositories(pinned.repositories.iter())?,
+    };
     projects.sort_by_key(|p| p.rid);
 
     let infos = projects
@@ -973,7 +982,7 @@ mod routes {
         let seed = seed(tmp.path());
         let app = super::router(seed.clone())
             .layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 8080))));
-        let response = get(&app, "/projects").await;
+        let response = get(&app, "/projects?show=all").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -1032,7 +1041,7 @@ mod routes {
             [192, 168, 13, 37],
             8080,
         ))));
-        let response = get(&app, "/projects").await;
+        let response = get(&app, "/projects?show=all").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(

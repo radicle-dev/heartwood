@@ -27,7 +27,7 @@ use crate::prelude::Did;
 use crate::prelude::NodeId;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
-use crate::{cli, git, node};
+use crate::{cli, git, node, web};
 
 /// Environment variables used by radicle.
 pub mod env {
@@ -123,6 +123,10 @@ pub struct Config {
     /// and in other situations when a seed needs to be chosen.
     #[serde(default)]
     pub preferred_seeds: PreferredSeeds,
+    /// Pinned content. This can be used to pin certain content when
+    /// listing, e.g. pin repositories on a web client.
+    #[serde(default)]
+    pub web: web::Config,
     /// CLI configuration.
     #[serde(default)]
     pub cli: cli::Config,
@@ -136,6 +140,7 @@ impl Config {
         Self {
             public_explorer: Explorer::default(),
             preferred_seeds: PreferredSeeds::default(),
+            web: web::Config::default(),
             cli: cli::Config::default(),
             node: node::Config::new(alias),
         }

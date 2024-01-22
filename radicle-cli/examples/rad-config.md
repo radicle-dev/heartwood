@@ -6,6 +6,11 @@ $ rad config
 {
   "publicExplorer": "https://app.radicle.xyz/nodes/$host/$rid$path",
   "preferredSeeds": [],
+  "web": {
+    "pinned": {
+      "repositories": []
+    }
+  },
   "cli": {
     "hints": false
   },
