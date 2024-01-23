@@ -34,6 +34,8 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use lexopt::Arg;
+
 use radicle::cob::patch::PatchId;
 use radicle::cob::{patch, Label};
 use radicle::storage::git::transport;
@@ -171,20 +173,12 @@ pub enum OperationName {
 }
 
 #[derive(Default, Debug)]
-pub enum State {
-    All,
-    Draft,
-    #[default]
-    Open,
-    Merged,
-    Archived,
-}
-
-#[derive(Default, Debug)]
 pub struct ListOptions {
-    pub state: State,
+    pub filter: StateFilter,
     pub authored: bool,
     pub authors: Vec<Did>,
+    pub raw: Vec<OsString>,
+    // pub filter: Filter,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -199,22 +193,22 @@ pub struct LabelOptions {
     pub delete: BTreeSet<Label>,
 }
 
-pub struct Filter(fn(&patch::State) -> bool);
+pub struct StateFilter(fn(&patch::State) -> bool);
 
-impl Filter {
+impl StateFilter {
     /// Match everything.
     fn all() -> Self {
         Self(|_| true)
     }
 }
 
-impl Default for Filter {
+impl Default for StateFilter {
     fn default() -> Self {
         Self(|state| matches!(state, patch::State::Open { .. }))
     }
 }
 
-impl std::fmt::Debug for Filter {
+impl std::fmt::Debug for StateFilter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Filter(..)")
     }
@@ -270,7 +264,6 @@ pub enum Operation {
         opts: LabelOptions,
     },
     List {
-        // filter: Filter,
         opts: ListOptions,
     },
     Edit {
@@ -505,25 +498,35 @@ impl Args for Options {
 
                 // List options.
                 Long("all") => {
-                    list_opts.state = State::default();
+                    list_opts.raw.push(term::args::format(arg));
+                    list_opts.filter = StateFilter::all();
                 }
                 Long("draft") => {
-                    list_opts.state = State::Draft;
+                    list_opts.raw.push(term::args::format(arg));
+                    list_opts.filter = StateFilter(|s| s == &patch::State::Draft);
                 }
                 Long("archived") => {
-                    list_opts.state = State::Archived;
+                    list_opts.raw.push(term::args::format(arg));
+                    list_opts.filter = StateFilter(|s| s == &patch::State::Archived);
                 }
                 Long("merged") => {
-                    list_opts.state = State::Merged;
+                    list_opts.raw.push(term::args::format(arg));
+                    list_opts.filter = StateFilter(|s| matches!(s, patch::State::Merged { .. }));
                 }
                 Long("open") => {
-                    list_opts.state = State::Open;
+                    list_opts.raw.push(term::args::format(arg));
+                    list_opts.filter = StateFilter(|s| matches!(s, patch::State::Open { .. }));
                 }
                 Long("authored") => {
+                    list_opts.raw.push(term::args::format(arg));
                     list_opts.authored = true;
                 }
                 Long("author") if op == Some(OperationName::List) => {
-                    list_opts.authors.push(term::args::did(&parser.value()?)?);
+                    let val = parser.value()?;
+
+                    list_opts.raw.push(term::args::format(Arg::Long("author")));
+                    list_opts.raw.push(val.clone());
+                    list_opts.authors.push(term::args::did(&val)?);
                 }
 
                 // Common.
@@ -789,19 +792,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     match options.op {
         Operation::List { opts } => {
-            let filter = match opts.state {
-                State::All => Filter::all(),
-                State::Draft => Filter(|s| s == &patch::State::Draft),
-                State::Archived => Filter(|s| s == &patch::State::Archived),
-                State::Open => Filter(|s| matches!(s, patch::State::Open { .. })),
-                State::Merged => Filter(|s| matches!(s, patch::State::Merged { .. })),
-            };
-
             let mut authors: BTreeSet<Did> = opts.authors.iter().cloned().collect();
             if opts.authored {
                 authors.insert(profile.did());
             }
-            list::run(filter.0, authors, &repository, &profile)?;
+            list::run(opts.filter.0, authors, &repository, &profile)?;
         }
         Operation::Show {
             patch_id,
@@ -951,5 +946,3 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
     Ok(())
 }
-
-pub fn patch_select() {}
