@@ -696,13 +696,13 @@ impl Patch {
 
 impl Patch {
     /// Apply a single action to the patch.
-    fn action<'a, R: ReadRepository>(
+    fn action<R: ReadRepository>(
         &mut self,
         action: Action,
         entry: EntryId,
         author: ActorId,
         timestamp: Timestamp,
-        _concurrent: &[&'a cob::Entry],
+        _concurrent: &[&cob::Entry],
         identity: &Doc<Verified>,
         repo: &R,
     ) -> Result<(), Error> {

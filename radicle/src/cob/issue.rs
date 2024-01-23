@@ -333,13 +333,13 @@ impl Issue {
 
 impl Issue {
     /// Apply a single action to the issue.
-    fn action<'a, R: ReadRepository>(
+    fn action<R: ReadRepository>(
         &mut self,
         action: Action,
         entry: EntryId,
         author: ActorId,
         timestamp: Timestamp,
-        _concurrent: &[&'a cob::Entry],
+        _concurrent: &[&cob::Entry],
         _doc: &Doc<Verified>,
         _repo: &R,
     ) -> Result<(), Error> {
