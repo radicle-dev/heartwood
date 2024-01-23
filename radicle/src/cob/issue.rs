@@ -681,6 +681,13 @@ pub struct IssueCounts {
     pub closed: usize,
 }
 
+impl IssueCounts {
+    /// Total count.
+    pub fn total(&self) -> usize {
+        self.open + self.closed
+    }
+}
+
 impl<'a, R: WriteRepository> Issues<'a, R>
 where
     R: ReadRepository + cob::Store,

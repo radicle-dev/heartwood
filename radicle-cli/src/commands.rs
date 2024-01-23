@@ -42,6 +42,8 @@ pub mod rad_remote;
 pub mod rad_seed;
 #[path = "commands/self.rs"]
 pub mod rad_self;
+#[path = "commands/stats.rs"]
+pub mod rad_stats;
 #[path = "commands/sync.rs"]
 pub mod rad_sync;
 #[path = "commands/unfollow.rs"]

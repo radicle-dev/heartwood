@@ -2171,6 +2171,13 @@ pub struct PatchCounts {
     pub merged: usize,
 }
 
+impl PatchCounts {
+    /// Total count.
+    pub fn total(&self) -> usize {
+        self.open + self.draft + self.archived + self.merged
+    }
+}
+
 pub struct Patches<'a, R> {
     raw: store::Store<'a, Patch, R>,
 }

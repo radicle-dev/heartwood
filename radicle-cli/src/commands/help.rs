@@ -32,6 +32,7 @@ const COMMANDS: &[Help] = &[
     rad_follow::HELP,
     rad_unfollow::HELP,
     rad_remote::HELP,
+    rad_stats::HELP,
     rad_sync::HELP,
 ];
 

@@ -57,6 +57,8 @@ pub trait Store {
     fn remove(&mut self, id: &NodeId) -> Result<bool, Error>;
     /// Returns the number of addresses.
     fn len(&self) -> Result<usize, Error>;
+    /// Return the number of nodes.
+    fn nodes(&self) -> Result<usize, Error>;
     /// Returns true if there are no addresses.
     fn is_empty(&self) -> Result<bool, Error> {
         self.len().map(|l| l == 0)
@@ -141,6 +143,18 @@ impl Store for Database {
         let row = self
             .db
             .prepare("SELECT COUNT(*) FROM addresses")?
+            .into_iter()
+            .next()
+            .ok_or(Error::NoRows)??;
+        let count = row.read::<i64, _>(0) as usize;
+
+        Ok(count)
+    }
+
+    fn nodes(&self) -> Result<usize, Error> {
+        let row = self
+            .db
+            .prepare("SELECT COUNT(*) FROM nodes")?
             .into_iter()
             .next()
             .ok_or(Error::NoRows)??;

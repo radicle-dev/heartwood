@@ -261,6 +261,11 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             rad_remote::run,
             args.to_vec(),
         ),
+        "stats" => term::run_command_args::<rad_stats::Options, _>(
+            rad_stats::HELP,
+            rad_stats::run,
+            args.to_vec(),
+        ),
         "watch" => term::run_command_args::<rad_watch::Options, _>(
             rad_watch::HELP,
             rad_watch::run,
