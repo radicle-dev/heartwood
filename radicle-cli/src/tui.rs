@@ -6,6 +6,24 @@ use serde::Deserialize;
 use crate::git::Rev;
 use crate::terminal as term;
 
+use crate::commands::rad_patch::{ListOptions, State};
+
+pub trait ToArg<T> {
+    fn to_arg(&self) -> T;
+}
+
+impl ToArg<String> for State {
+    fn to_arg(&self) -> String {
+        match self {
+            State::All => "state:all".to_owned(),
+            State::Draft => "state:draft".to_owned(),
+            State::Open => "state:open".to_owned(),
+            State::Merged => "state:merged".to_owned(),
+            State::Archived => "state:archived".to_owned(),
+        }
+    }
+}
+
 /// A patch operation returned by the id / operation selection TUI.
 /// Structs of this type are being parsed and instanced from JSON
 /// if `--json` is given to the TUI call.
@@ -41,8 +59,7 @@ fn wait_for_tui(tui: Child) -> Result<Option<String>, Error> {
 }
 
 pub fn select_patch_id() -> Result<Option<Rev>, Error> {
-    match Command::new("rad")
-        .arg("tui")
+    match Command::new("rad-tui")
         .arg("patch")
         .arg("select")
         .arg("--id")
@@ -59,12 +76,33 @@ pub fn select_patch_id() -> Result<Option<Rev>, Error> {
     }
 }
 
-pub fn select_patch_operation() -> Result<Option<PatchOperation>, Error> {
-    match Command::new("rad")
-        .arg("tui")
+pub fn select_patch_operation(opts: &ListOptions) -> Result<Option<PatchOperation>, Error> {
+    let mut filter = opts.state.to_arg();
+
+    if opts.authored {
+        filter.push_str(",is:authored");
+    }
+    if !opts.authors.is_empty() {
+        let mut authors = opts.authors.iter().peekable();
+        let mut list = String::new();
+
+        while let Some(author) = authors.next() {
+            list.push_str(&author.to_string());
+            if authors.peek().is_some() {
+                list.push(',');
+            }
+        }
+        filter.push_str(&format!(",authors:[{list}]"));
+    }
+
+    println!("rad-tui patch --json select --filter {}", filter);
+
+    match Command::new("rad-tui")
         .arg("patch")
         .arg("--json")
         .arg("select")
+        .arg("--filter")
+        .arg(filter)
         .stderr(Stdio::piped())
         .spawn()
     {
