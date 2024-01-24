@@ -3,10 +3,7 @@
 # When running radicle-httpd on a server, it should be run as a separate user.
 #
 # Copy this file into /etc/systemd/system and set the User/Group parameters
-# under [Service] appropriately.
-#
-# For users wishing to run a configured version of the service, copy this
-# service file into the user's systemd directory, and edit appropriately.
+# under [Service] appropriately, or copy it into the user's systemd directory.
 #
 # For example:
 #
@@ -18,8 +15,8 @@ After=syslog.target network.target
 Description=Radicle HTTPd
 
 [Service]
-ExecStart=%h/.radicle/bin/radicle-httpd
-Environment=RAD_HOME=%h/.radicle
+ExecStart=%h/.radicle/bin/radicle-httpd --listen 127.0.0.1:8080
+Environment=RAD_HOME=%h/.radicle RUST_BACKTRACE=1 RUST_LOG=info
 KillMode=process
 Restart=always
 RestartSec=1
