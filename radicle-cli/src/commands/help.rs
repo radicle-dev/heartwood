@@ -1,4 +1,6 @@
 use std::ffi::OsString;
+use std::process::Command;
+use std::str;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -80,6 +82,16 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             term::format::bold(format!("{:-12}", help.name)),
             term::format::dim(help.description)
         );
+    }
+    // Obtain the rad-web help.
+    if let Ok(output) = Command::new("rad-web").arg("--help").output() {
+        if let Some(description) = str::from_utf8(&output.stdout)?.lines().nth(1) {
+            term::info!(
+                "\t{} {}",
+                term::format::bold(format!("{:-12}", "web")),
+                term::format::dim(description)
+            );
+        }
     }
     term::blank();
     term::print("See `rad <command> --help` to learn about a specific command.");

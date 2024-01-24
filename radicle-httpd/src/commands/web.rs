@@ -15,7 +15,7 @@ use radicle_cli::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "web",
-    description: "Start HTTP API server and connect the web explorer to it",
+    description: "Run the HTTP daemon and connect the web explorer to it",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
