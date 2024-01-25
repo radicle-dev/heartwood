@@ -59,12 +59,12 @@ impl TryFrom<&OwnedTrailer> for CommitTrailer {
 }
 
 impl From<CommitTrailer> for Trailer<'_> {
+    #[allow(clippy::unwrap_used)]
     fn from(t: CommitTrailer) -> Self {
         match t {
             CommitTrailer::Related(oid) => {
                 Trailer {
                     // SAFETY: "Rad-Related" is a valid `Token`.
-                    #[allow(clippy::unwrap_used)]
                     token: Token::try_from("Rad-Related").unwrap(),
                     value: oid.to_string().into(),
                 }
@@ -72,7 +72,6 @@ impl From<CommitTrailer> for Trailer<'_> {
             CommitTrailer::Resource(oid) => {
                 Trailer {
                     // SAFETY: "Rad-Resource" is a valid `Token`.
-                    #[allow(clippy::unwrap_used)]
                     token: Token::try_from("Rad-Resource").unwrap(),
                     value: oid.to_string().into(),
                 }
