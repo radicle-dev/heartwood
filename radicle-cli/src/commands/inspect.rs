@@ -172,22 +172,24 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Target::Policy => {
-            let tracking = profile.policies()?;
-            if let Some(repo) = tracking.seed_policy(&rid)? {
-                let tracking = match repo.policy {
-                    Policy::Allow => term::format::positive("tracked"),
-                    Policy::Block => term::format::negative("blocked"),
-                };
-                println!(
-                    "Repository {} is {} with scope {}",
-                    term::format::tertiary(&rid),
-                    tracking,
-                    term::format::dim(format!("`{}`", repo.scope))
-                );
-            } else {
-                term::print(term::format::italic(format!(
-                    "No tracking policy found for {rid}"
-                )));
+            let policies = profile.policies()?;
+            let seed = policies.seed_policy(&rid)?;
+            match seed.policy {
+                Policy::Allow => {
+                    println!(
+                        "Repository {} is {} with scope {}",
+                        term::format::tertiary(&rid),
+                        term::format::positive("being seeded"),
+                        term::format::dim(format!("`{}`", seed.scope))
+                    );
+                }
+                Policy::Block => {
+                    println!(
+                        "Repository {} is {}",
+                        term::format::tertiary(&rid),
+                        term::format::negative("not being seeded"),
+                    );
+                }
             }
         }
         Target::Delegates => {

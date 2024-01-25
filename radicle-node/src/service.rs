@@ -460,7 +460,7 @@ where
         self.filter = Filter::new(
             self.policies
                 .seed_policies()?
-                .filter_map(|t| (t.policy == Policy::Allow).then_some(t.id)),
+                .filter_map(|t| (t.policy == Policy::Allow).then_some(t.rid)),
         );
         Ok(updated)
     }
@@ -598,7 +598,7 @@ where
         self.filter = Filter::new(
             self.policies
                 .seed_policies()?
-                .filter_map(|t| (t.policy == Policy::Allow).then_some(t.id)),
+                .filter_map(|t| (t.policy == Policy::Allow).then_some(t.rid)),
         );
         // Connect to configured peers.
         let addrs = self.config.connect.clone();
@@ -1331,7 +1331,7 @@ where
                 }
 
                 // TODO: Buffer/throttle fetches.
-                let repo_entry = self.policies.repo_policy(&message.rid).expect(
+                let repo_entry = self.policies.seed_policy(&message.rid).expect(
                     "Service::handle_announcement: error accessing repo seeding configuration",
                 );
 
@@ -2029,7 +2029,7 @@ where
         let missing = self
             .policies
             .seed_policies()?
-            .filter_map(|t| (t.policy == Policy::Allow).then_some(t.id))
+            .filter_map(|t| (t.policy == Policy::Allow).then_some(t.rid))
             .filter(|rid| !inventory.contains(rid));
 
         for rid in missing {

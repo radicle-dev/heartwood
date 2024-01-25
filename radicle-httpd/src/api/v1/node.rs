@@ -58,7 +58,12 @@ async fn node_policies_repos_handler(State(ctx): State<Context>) -> impl IntoRes
     let policies = ctx.profile.policies()?;
     let mut repos = Vec::new();
 
-    for policy::Repo { id, scope, policy } in policies.seed_policies()? {
+    for policy::SeedPolicy {
+        rid: id,
+        scope,
+        policy,
+    } in policies.seed_policies()?
+    {
         repos.push(json!({
             "id": id,
             "scope": scope,

@@ -106,7 +106,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         if refs.is_none() && !options.all {
             continue;
         }
-        let seeded = policy.is_seeded(&rid)?;
+        let seeded = policy.is_seeding(&rid)?;
 
         if !seeded && !options.all {
             continue;
@@ -120,7 +120,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             if seeded {
                 term::format::visibility(&doc.visibility).into()
             } else {
-                term::format::tertiary("local").into()
+                term::format::dim("local").into()
             },
             term::format::secondary(head),
             term::format::italic(proj.description().to_owned()),

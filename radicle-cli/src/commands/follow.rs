@@ -166,9 +166,14 @@ pub fn following(profile: &Profile, alias: Option<Alias>) -> anyhow::Result<()> 
 fn push_policies(
     t: &mut Table<3, Paint<String>>,
     aliases: &impl AliasStore,
-    policies: impl Iterator<Item = policy::Node>,
+    policies: impl Iterator<Item = policy::FollowPolicy>,
 ) {
-    for policy::Node { id, alias, policy } in policies {
+    for policy::FollowPolicy {
+        nid: id,
+        alias,
+        policy,
+    } in policies
+    {
         t.push([
             term::format::highlight(Did::from(id).to_string()),
             match alias {

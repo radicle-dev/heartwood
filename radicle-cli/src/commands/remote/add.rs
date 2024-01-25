@@ -25,7 +25,7 @@ pub fn run(
     if sync {
         let mut node = radicle::Node::new(profile.socket());
 
-        if !profile.policies()?.is_followed(nid)? {
+        if !profile.policies()?.is_following(nid)? {
             let alias = name.as_ref().and_then(|n| Alias::from_str(n.as_str()).ok());
 
             follow::follow(*nid, alias, &mut node, profile)?;

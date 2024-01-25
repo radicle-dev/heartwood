@@ -12,7 +12,7 @@ use crate::storage::{Namespaces, ReadRepository as _, ReadStorage, RepositoryErr
 pub use crate::node::policy::store;
 pub use crate::node::policy::store::Error;
 pub use crate::node::policy::store::Store;
-pub use crate::node::policy::{Alias, Node, Policy, Repo, Scope};
+pub use crate::node::policy::{Alias, FollowPolicy, Policy, Scope, SeedPolicy};
 
 #[derive(Debug, Error)]
 pub enum NamespacesError {
@@ -75,32 +75,32 @@ impl<T> Config<T> {
     }
 
     /// Check if a repository is seeded.
-    pub fn is_seeding(&self, id: &RepoId) -> Result<bool, Error> {
-        self.repo_policy(id)
+    pub fn is_seeding(&self, rid: &RepoId) -> Result<bool, Error> {
+        self.seed_policy(rid)
             .map(|entry| entry.policy == Policy::Allow)
     }
 
     /// Check if a node is followed.
-    pub fn is_following(&self, id: &NodeId) -> Result<bool, Error> {
-        self.node_policy(id)
+    pub fn is_following(&self, nid: &NodeId) -> Result<bool, Error> {
+        self.follow_policy(nid)
             .map(|entry| entry.policy == Policy::Allow)
     }
 
     /// Get a node's following information.
     /// Returns the default policy if the node isn't found.
-    pub fn node_policy(&self, id: &NodeId) -> Result<Node, Error> {
-        Ok(self.store.follow_policy(id)?.unwrap_or(Node {
-            id: *id,
+    pub fn follow_policy(&self, nid: &NodeId) -> Result<FollowPolicy, Error> {
+        Ok(self.store.follow_policy(nid)?.unwrap_or(FollowPolicy {
+            nid: *nid,
             alias: None,
             policy: self.policy,
         }))
     }
 
-    /// Get a repository's seediing information.
+    /// Get a repository's seeding information.
     /// Returns the default policy if the repo isn't found.
-    pub fn repo_policy(&self, id: &RepoId) -> Result<Repo, Error> {
-        Ok(self.store.seed_policy(id)?.unwrap_or(Repo {
-            id: *id,
+    pub fn seed_policy(&self, rid: &RepoId) -> Result<SeedPolicy, Error> {
+        Ok(self.store.seed_policy(rid)?.unwrap_or(SeedPolicy {
+            rid: *rid,
             scope: self.scope,
             policy: self.policy,
         }))
@@ -117,7 +117,7 @@ impl<T> Config<T> {
         use NamespacesError::*;
 
         let entry = self
-            .repo_policy(rid)
+            .seed_policy(rid)
             .map_err(|err| FailedPolicy { rid: *rid, err })?;
         match entry.policy {
             Policy::Block => {
@@ -131,7 +131,7 @@ impl<T> Config<T> {
                         .follow_policies()
                         .map_err(|err| FailedNodes { rid: *rid, err })?;
                     let mut followed: HashSet<_> = nodes
-                        .filter_map(|node| (node.policy == Policy::Allow).then_some(node.id))
+                        .filter_map(|node| (node.policy == Policy::Allow).then_some(node.nid))
                         .collect();
 
                     if let Ok(repo) = storage.repository(*rid) {

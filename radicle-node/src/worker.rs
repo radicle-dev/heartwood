@@ -262,7 +262,7 @@ impl Worker {
     }
 
     fn is_authorized(&self, remote: NodeId, rid: RepoId) -> Result<(), UploadError> {
-        let policy = self.policies.repo_policy(&rid)?.policy;
+        let policy = self.policies.seed_policy(&rid)?.policy;
         let repo = self.storage.repository(rid)?;
         let doc = repo.canonical_identity_doc()?;
         if !doc.is_visible_to(&remote) || policy == Policy::Block {

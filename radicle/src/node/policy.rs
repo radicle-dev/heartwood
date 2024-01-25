@@ -13,16 +13,16 @@ pub use super::{Alias, NodeId};
 
 /// Repository seeding policy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Repo {
-    pub id: RepoId,
+pub struct SeedPolicy {
+    pub rid: RepoId,
     pub scope: Scope,
     pub policy: Policy,
 }
 
 /// Node following policy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Node {
-    pub id: NodeId,
+pub struct FollowPolicy {
+    pub nid: NodeId,
     pub alias: Option<Alias>,
     pub policy: Policy,
 }

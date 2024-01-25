@@ -183,7 +183,12 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
     ]);
     t.divider();
 
-    for policy::Repo { id, scope, policy } in store.seed_policies()? {
+    for policy::SeedPolicy {
+        rid: id,
+        scope,
+        policy,
+    } in store.seed_policies()?
+    {
         let id = id.to_string();
         let scope = scope.to_string();
         let policy = policy.to_string();

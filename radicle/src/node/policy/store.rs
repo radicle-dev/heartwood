@@ -9,7 +9,7 @@ use thiserror::Error;
 use crate::node::{Alias, AliasStore};
 use crate::prelude::{NodeId, RepoId};
 
-use super::{Node, Policy, Repo, Scope};
+use super::{FollowPolicy, Policy, Scope, SeedPolicy};
 
 /// How long to wait for the database lock to be released before failing a read.
 const DB_READ_TIMEOUT: time::Duration = time::Duration::from_secs(3);
@@ -204,10 +204,10 @@ impl Store<Write> {
 /// `Config<Write>` can access these functions as well.
 impl<T> Store<T> {
     /// Check if a node is followed.
-    pub fn is_followed(&self, id: &NodeId) -> Result<bool, Error> {
+    pub fn is_following(&self, id: &NodeId) -> Result<bool, Error> {
         Ok(matches!(
             self.follow_policy(id)?,
-            Some(Node {
+            Some(FollowPolicy {
                 policy: Policy::Allow,
                 ..
             })
@@ -215,10 +215,10 @@ impl<T> Store<T> {
     }
 
     /// Check if a repository is seeded.
-    pub fn is_seeded(&self, id: &RepoId) -> Result<bool, Error> {
+    pub fn is_seeding(&self, id: &RepoId) -> Result<bool, Error> {
         Ok(matches!(
             self.seed_policy(id)?,
-            Some(Repo {
+            Some(SeedPolicy {
                 policy: Policy::Allow,
                 ..
             })
@@ -226,7 +226,7 @@ impl<T> Store<T> {
     }
 
     /// Get a node's follow policy.
-    pub fn follow_policy(&self, id: &NodeId) -> Result<Option<Node>, Error> {
+    pub fn follow_policy(&self, id: &NodeId) -> Result<Option<FollowPolicy>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT alias, policy FROM `following` WHERE id = ?")?;
@@ -242,8 +242,8 @@ impl<T> Store<T> {
                 .and_then(|s| Alias::from_str(&s).ok());
             let policy = row.read::<Policy, _>("policy");
 
-            return Ok(Some(Node {
-                id: *id,
+            return Ok(Some(FollowPolicy {
+                nid: *id,
                 alias,
                 policy,
             }));
@@ -252,7 +252,7 @@ impl<T> Store<T> {
     }
 
     /// Get a repository's seeding policy.
-    pub fn seed_policy(&self, id: &RepoId) -> Result<Option<Repo>, Error> {
+    pub fn seed_policy(&self, id: &RepoId) -> Result<Option<SeedPolicy>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT scope, policy FROM `seeding` WHERE id = ?")?;
@@ -260,8 +260,8 @@ impl<T> Store<T> {
         stmt.bind((1, id))?;
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
-            return Ok(Some(Repo {
-                id: *id,
+            return Ok(Some(SeedPolicy {
+                rid: *id,
                 scope: row.read::<Scope, _>("scope"),
                 policy: row.read::<Policy, _>("policy"),
             }));
@@ -270,7 +270,7 @@ impl<T> Store<T> {
     }
 
     /// Get node follow policies.
-    pub fn follow_policies(&self) -> Result<Box<dyn Iterator<Item = Node>>, Error> {
+    pub fn follow_policies(&self) -> Result<Box<dyn Iterator<Item = FollowPolicy>>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT id, alias, policy FROM `following`")?
@@ -287,14 +287,18 @@ impl<T> Store<T> {
                 .and_then(|s| Alias::from_str(&s).ok());
             let policy = row.read::<Policy, _>("policy");
 
-            entries.push(Node { id, alias, policy });
+            entries.push(FollowPolicy {
+                nid: id,
+                alias,
+                policy,
+            });
         }
         Ok(Box::new(entries.into_iter()))
     }
 
     // TODO: see if sql can return iterator directly
     /// Get repository seed policies.
-    pub fn seed_policies(&self) -> Result<Box<dyn Iterator<Item = Repo>>, Error> {
+    pub fn seed_policies(&self) -> Result<Box<dyn Iterator<Item = SeedPolicy>>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT id, scope, policy FROM `seeding`")?
@@ -306,7 +310,11 @@ impl<T> Store<T> {
             let scope = row.read("scope");
             let policy = row.read::<Policy, _>("policy");
 
-            entries.push(Repo { id, scope, policy });
+            entries.push(SeedPolicy {
+                rid: id,
+                scope,
+                policy,
+            });
         }
         Ok(Box::new(entries.into_iter()))
     }
@@ -335,10 +343,10 @@ mod test {
         let mut db = Store::open(":memory:").unwrap();
 
         assert!(db.follow(&id, Some("eve")).unwrap());
-        assert!(db.is_followed(&id).unwrap());
+        assert!(db.is_following(&id).unwrap());
         assert!(!db.follow(&id, Some("eve")).unwrap());
         assert!(db.unfollow(&id).unwrap());
-        assert!(!db.is_followed(&id).unwrap());
+        assert!(!db.is_following(&id).unwrap());
     }
 
     #[test]
@@ -347,10 +355,10 @@ mod test {
         let mut db = Store::open(":memory:").unwrap();
 
         assert!(db.seed(&id, Scope::All).unwrap());
-        assert!(db.is_seeded(&id).unwrap());
+        assert!(db.is_seeding(&id).unwrap());
         assert!(!db.seed(&id, Scope::All).unwrap());
         assert!(db.unseed(&id).unwrap());
-        assert!(!db.is_seeded(&id).unwrap());
+        assert!(!db.is_seeding(&id).unwrap());
     }
 
     #[test]
@@ -362,9 +370,9 @@ mod test {
             assert!(db.follow(id, None).unwrap());
         }
         let mut entries = db.follow_policies().unwrap();
-        assert_matches!(entries.next(), Some(Node { id, .. }) if id == ids[0]);
-        assert_matches!(entries.next(), Some(Node { id, .. }) if id == ids[1]);
-        assert_matches!(entries.next(), Some(Node { id, .. }) if id == ids[2]);
+        assert_matches!(entries.next(), Some(FollowPolicy { nid, .. }) if nid == ids[0]);
+        assert_matches!(entries.next(), Some(FollowPolicy { nid, .. }) if nid == ids[1]);
+        assert_matches!(entries.next(), Some(FollowPolicy { nid, .. }) if nid == ids[2]);
     }
 
     #[test]
@@ -376,9 +384,9 @@ mod test {
             assert!(db.seed(id, Scope::All).unwrap());
         }
         let mut entries = db.seed_policies().unwrap();
-        assert_matches!(entries.next(), Some(Repo { id, .. }) if id == ids[0]);
-        assert_matches!(entries.next(), Some(Repo { id, .. }) if id == ids[1]);
-        assert_matches!(entries.next(), Some(Repo { id, .. }) if id == ids[2]);
+        assert_matches!(entries.next(), Some(SeedPolicy { rid, .. }) if rid == ids[0]);
+        assert_matches!(entries.next(), Some(SeedPolicy { rid, .. }) if rid == ids[1]);
+        assert_matches!(entries.next(), Some(SeedPolicy { rid, .. }) if rid == ids[2]);
     }
 
     #[test]

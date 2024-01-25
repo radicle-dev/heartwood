@@ -16,7 +16,7 @@ pub enum Allowed {
 impl Allowed {
     pub fn from_config(rid: RepoId, config: &Config<Read>) -> Result<Self, error::Policy> {
         let entry = config
-            .repo_policy(&rid)
+            .seed_policy(&rid)
             .map_err(|err| error::Policy::FailedPolicy { rid, err })?;
         match entry.policy {
             Policy::Block => {
@@ -30,7 +30,7 @@ impl Allowed {
                         .follow_policies()
                         .map_err(|err| error::Policy::FailedNodes { rid, err })?;
                     let followed: HashSet<_> = nodes
-                        .filter_map(|node| (node.policy == Policy::Allow).then_some(node.id))
+                        .filter_map(|node| (node.policy == Policy::Allow).then_some(node.nid))
                         .collect();
 
                     Ok(Allowed::Followed { remotes: followed })
@@ -64,7 +64,7 @@ impl BlockList {
     pub fn from_config(config: &Config<Read>) -> Result<BlockList, error::Blocked> {
         Ok(config
             .follow_policies()?
-            .filter_map(|entry| (entry.policy == Policy::Block).then_some(entry.id))
+            .filter_map(|entry| (entry.policy == Policy::Block).then_some(entry.nid))
             .collect())
     }
 }
