@@ -97,6 +97,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     profile.policies_mut().unwrap();
     profile.database_mut().unwrap(); // Create the database.
 
+    let mut policies = profile.policies_mut().unwrap();
     let workdir = dir.join("hello-world-private");
     fs::create_dir_all(&workdir).unwrap();
 
@@ -125,7 +126,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     let visibility = Visibility::Private {
         allow: BTreeSet::default(),
     };
-    radicle::rad::init(
+    let (rid, _, _) = radicle::rad::init(
         &repo,
         &name,
         &description,
@@ -135,6 +136,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
         &profile.storage,
     )
     .unwrap();
+    policies.seed(&rid, node::policy::Scope::All).unwrap();
 
     let workdir = dir.join("hello-world");
 
@@ -215,7 +217,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     let description = "Rad repository for tests".to_string();
     let branch = RefString::try_from(DEFAULT_BRANCH).unwrap();
     let visibility = Visibility::default();
-    let (id, _, _) = radicle::rad::init(
+    let (rid, _, _) = radicle::rad::init(
         &repo,
         &name,
         &description,
@@ -225,9 +227,10 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
         &profile.storage,
     )
     .unwrap();
+    policies.seed(&rid, node::policy::Scope::All).unwrap();
 
     let storage = &profile.storage;
-    let repo = storage.repository(id).unwrap();
+    let repo = storage.repository(rid).unwrap();
     let mut issues = Issues::open(&repo).unwrap();
     let issue = issues
         .create(

@@ -89,6 +89,7 @@ async fn project_root_handler(
     let storage = &ctx.profile.storage;
     let db = &ctx.profile.database()?;
     let pinned = &ctx.profile.config.web.pinned;
+    let policies = ctx.profile.policies()?;
 
     let mut projects = match show {
         ProjectQuery::All => storage
@@ -105,14 +106,17 @@ async fn project_root_handler(
 
     let infos = projects
         .into_iter()
-        .filter_map(|id| {
-            let Ok(repo) = storage.repository(id.rid) else {
+        .filter_map(|info| {
+            if !policies.is_seeding(&info.rid).unwrap_or_default() {
+                return None;
+            }
+            let Ok(repo) = storage.repository(info.rid) else {
                 return None;
             };
             let Ok((_, head)) = repo.head() else {
                 return None;
             };
-            let Ok(payload) = id.doc.project() else {
+            let Ok(payload) = info.doc.project() else {
                 return None;
             };
             let Ok(issues) = issue::Issues::open(&repo) else {
@@ -127,17 +131,17 @@ async fn project_root_handler(
             let Ok(patches) = patches.counts() else {
                 return None;
             };
-            let delegates = id.doc.delegates;
-            let seeding = db.count(&id.rid).unwrap_or_default();
+            let delegates = info.doc.delegates;
+            let seeding = db.count(&info.rid).unwrap_or_default();
 
             Some(Info {
                 payload,
                 delegates,
                 head,
-                visibility: id.doc.visibility,
+                visibility: info.doc.visibility,
                 issues,
                 patches,
-                id: id.rid,
+                id: info.rid,
                 seeding,
             })
         })
