@@ -250,6 +250,32 @@ fn rad_config() {
 }
 
 #[test]
+fn rad_config_pin() {
+    let mut environment = Environment::new();
+    let profile = environment.profile(config::profile("alice"));
+    let working = tempfile::tempdir().unwrap();
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+
+    test(
+        "examples/rad-init.md",
+        working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
+
+    test(
+        "examples/rad-config-pin.md",
+        working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_checkout() {
     let mut environment = Environment::new();
     let profile = environment.profile(config::profile("alice"));
