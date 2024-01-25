@@ -38,3 +38,8 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHahWSBEpuT1ESZbynOmBNkLBSnR32Ar4woZqSV2YNH1
 $ rad self --home
 [..]/home/alice/.radicle
 ```
+
+```
+$ rad self --address
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi@seed.alice.acme:8776
+```

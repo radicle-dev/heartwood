@@ -1161,7 +1161,10 @@ fn rad_sync_without_node() {
 #[test]
 fn rad_self() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node(Config {
+        external_addresses: vec!["seed.alice.acme:8776".parse().unwrap()],
+        ..Config::test(Alias::new("alice"))
+    });
     let working = environment.tmp().join("working");
 
     test("examples/rad-self.md", working, Some(&alice.home), []).unwrap();
