@@ -187,6 +187,19 @@ impl Config {
         Ok(())
     }
 
+    pub fn update(&self, path: &Path) -> Result<(), io::Error> {
+        let mut file = fs::OpenOptions::new().create(true).write(true).open(path)?;
+
+        let formatter = serde_json::ser::PrettyFormatter::with_indent(b"  ");
+        let mut serializer = serde_json::Serializer::with_formatter(&file, formatter);
+
+        self.serialize(&mut serializer)?;
+        file.write_all(b"\n")?;
+        file.sync_all()?;
+
+        Ok(())
+    }
+
     /// Get the user alias.
     pub fn alias(&self) -> &Alias {
         &self.node.alias
