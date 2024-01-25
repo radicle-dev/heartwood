@@ -17,6 +17,7 @@ Usage
 
     rad config [<option>...]
     rad config pin [rid] [<option>...]
+    rad config unpin [rid] [<option>...]
     rad config show [<option>...]
 
     If no argument is specified, prints the current radicle configuration as JSON.
@@ -31,12 +32,14 @@ Options
 #[derive(Default, PartialEq)]
 pub enum OperationName {
     Pin,
+    Unpin,
     #[default]
     Show,
 }
 
 pub enum Operation {
     Pin { rid: Option<RepoId> },
+    Unpin { rid: Option<RepoId> },
     Show,
 }
 
@@ -59,12 +62,13 @@ impl Args for Options {
                     return Err(Error::Help.into());
                 }
 
-                Value(val) if op == Some(OperationName::Pin) => {
+                Value(val) if matches!(op, Some(OperationName::Pin | OperationName::Unpin)) => {
                     rid = Some(term::args::rid(&val)?);
                 }
 
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "pin" => op = Some(OperationName::Pin),
+                    "unpin" => op = Some(OperationName::Unpin),
                     "show" => op = Some(OperationName::Show),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
@@ -74,6 +78,7 @@ impl Args for Options {
 
         let op = match op.unwrap_or_default() {
             OperationName::Pin => Operation::Pin { rid },
+            OperationName::Unpin => Operation::Unpin { rid },
             OperationName::Show => Operation::Show,
         };
         Ok((Options { op }, vec![]))
@@ -100,6 +105,23 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 term::success!("Successfully pinned {rid}")
             } else {
                 term::info!("Repository {rid} is already pinned")
+            }
+        }
+        Operation::Unpin { rid } => {
+            let rid = match rid {
+                Some(rid) => rid,
+                None => {
+                    let (_, rid) = radicle::rad::cwd().map_err(|_| {
+                        anyhow!("an RID must be supplied or run this command in the context of a repository")
+                    })?;
+                    rid
+                }
+            };
+            if profile.config.web.pinned.repositories.remove(&rid) {
+                profile.config.update(&path)?;
+                term::success!("Successfully unpinned {rid}")
+            } else {
+                term::info!("Repository {rid} was not pinned")
             }
         }
         Operation::Show => {

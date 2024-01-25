@@ -65,3 +65,10 @@ repository if we specify it:
 $ rad config pin rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5
 ✓ Successfully pinned rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5
 ```
+
+To remove that RID we can simply `unpin` it:
+
+```
+$ rad config unpin rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5
+✓ Successfully unpinned rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5
+```
