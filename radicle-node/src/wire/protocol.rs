@@ -331,16 +331,18 @@ where
     fn disconnect(&mut self, id: ResourceId, reason: DisconnectReason) {
         match self.peers.get_mut(&id) {
             Some(Peer::Disconnecting { .. }) => {
-                log::error!(target: "wire", "Peer (id={id}) is already disconnecting");
+                log::error!(target: "wire", "Peer with id={id} is already disconnecting");
             }
             Some(peer) => {
-                log::debug!(target: "wire", "Disconnecting peer (id={id}): {reason}");
+                log::debug!(target: "wire", "Disconnecting peer with id={id}: {reason}");
 
                 peer.disconnecting(reason);
                 self.actions.push_back(Action::UnregisterTransport(id));
             }
             None => {
-                log::error!(target: "wire", "Unknown peer (id={id}) cannot be disconnected");
+                // Connecting peer with no session.
+                log::debug!(target: "wire", "Disconnecting pending peer with id={id}: {reason}");
+                self.actions.push_back(Action::UnregisterTransport(id));
             }
         }
     }
@@ -411,6 +413,16 @@ where
             };
             self.actions
                 .push_back(reactor::Action::Send(fd, frame.to_bytes()));
+        }
+    }
+
+    fn cleanup(&mut self, id: ResourceId, fd: RawFd) {
+        if self.inbound.remove(&fd).is_some() {
+            log::debug!(target: "wire", "Cleaning up inbound peer state with id={id} (fd={fd})");
+        } else if self.outbound.remove(&fd).is_some() {
+            log::debug!(target: "wire", "Cleaning up outbound peer state with id={id} (fd={fd})");
+        } else {
+            log::warn!(target: "wire", "Tried to cleanup unknown peer with id={id} (fd={fd})");
         }
     }
 }
@@ -488,7 +500,7 @@ where
             log::debug!(target: "wire", "Inbound peer resource registered with id={id} (fd={fd})");
             inbound.id = Some(id);
         } else {
-            log::error!(target: "wire", "Unknown peer registered with fd={fd} and id={id}");
+            log::warn!(target: "wire", "Unknown peer registered with fd={fd} and id={id}");
         }
     }
 
@@ -661,8 +673,9 @@ where
                 // TODO: This should be a fatal error, there's nothing we can do here.
                 log::error!(target: "wire", "Received error: listener {} disconnected", id);
             }
-            reactor::Error::TransportDisconnect(fd, session) => {
-                log::error!(target: "wire", "Received error: peer (fd={fd}) disconnected");
+            reactor::Error::TransportDisconnect(id, session) => {
+                let fd = session.as_raw_fd();
+                log::error!(target: "wire", "Received error: peer id={id} (fd={fd}) disconnected");
 
                 // We're dropping the TCP connection here.
                 drop(session);
@@ -670,7 +683,7 @@ where
                 // The peer transport is already disconnected and removed from the reactor;
                 // therefore there is no need to initiate a disconnection. We simply remove
                 // the peer from the map.
-                match self.peers.remove(&fd) {
+                match self.peers.remove(&id) {
                     Some(mut peer) => {
                         let reason = DisconnectReason::Connection(Arc::new(io::Error::from(
                             io::ErrorKind::ConnectionReset,
@@ -686,16 +699,14 @@ where
                             log::debug!(target: "wire", "Inbound disconnection before handshake; ignoring..")
                         }
                     }
-                    None => {
-                        log::warn!(target: "wire", "Peer with fd {fd} is unknown");
-                    }
+                    None => self.cleanup(id, fd),
                 }
             }
         }
     }
 
-    fn handover_listener(&mut self, _id: ResourceId, _listener: Self::Listener) {
-        panic!("Wire::handover_listener: listener handover is not supported");
+    fn handover_listener(&mut self, id: ResourceId, _listener: Self::Listener) {
+        log::error!(target: "wire", "Listener handover is not supported (id={id})");
     }
 
     fn handover_transport(&mut self, id: ResourceId, transport: Self::Transport) {
@@ -721,9 +732,7 @@ where
                     }
                 }
             }
-            Entry::Vacant(_) => {
-                panic!("Wire::handover_transport: Unknown peer with id={id} (fd={fd}) handed over");
-            }
+            Entry::Vacant(_) => self.cleanup(id, fd),
         }
     }
 }
