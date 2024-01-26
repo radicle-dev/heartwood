@@ -196,6 +196,11 @@ impl Visibility {
         matches!(self, Self::Public)
     }
 
+    /// Check whether the visibility is private.
+    pub fn is_private(&self) -> bool {
+        matches!(self, Self::Private { .. })
+    }
+
     /// Private visibility with list of allowed DIDs beyond the repository delegates.
     pub fn private(allow: impl IntoIterator<Item = Did>) -> Self {
         Self::Private {

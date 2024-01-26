@@ -60,8 +60,8 @@ pub struct Options {
     directory: Option<PathBuf>,
     /// The seeding scope of the repository.
     scope: Scope,
-    /// Sync mode.
-    mode: sync::RepoSync,
+    /// Sync settings.
+    sync: sync::RepoSync,
     /// Fetch timeout.
     timeout: time::Duration,
 }
@@ -73,7 +73,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<RepoId> = None;
         let mut scope = Scope::All;
-        let mut mode = sync::RepoSync::default();
+        let mut sync = sync::RepoSync::default();
         let mut timeout = time::Duration::from_secs(9);
         let mut directory = None;
 
@@ -83,11 +83,8 @@ impl Args for Options {
                     let value = parser.value()?;
                     let value = term::args::nid(&value)?;
 
-                    if let sync::RepoSync::Seeds(seeds) = &mut mode {
-                        seeds.push(value);
-                    } else {
-                        mode = sync::RepoSync::Seeds(vec![value]);
-                    }
+                    sync.seeds.insert(value);
+                    sync.replicas = sync.seeds.len();
                 }
                 Long("scope") => {
                     let value = parser.value()?;
@@ -129,7 +126,7 @@ impl Args for Options {
                 id,
                 directory,
                 scope,
-                mode,
+                sync,
                 timeout,
             },
             vec![],
@@ -152,7 +149,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         options.id,
         options.directory.clone(),
         options.scope,
-        options.mode,
+        options.sync.with_profile(&profile),
         options.timeout,
         &mut node,
         &signer,
@@ -238,7 +235,7 @@ pub fn clone<G: Signer>(
     id: RepoId,
     directory: Option<PathBuf>,
     scope: Scope,
-    mode: sync::RepoSync,
+    settings: sync::RepoSync,
     timeout: time::Duration,
     node: &mut Node,
     signer: &G,
@@ -262,7 +259,7 @@ pub fn clone<G: Signer>(
         );
     }
 
-    let results = sync::fetch(id, mode, timeout, node)?;
+    let results = sync::fetch(id, settings, timeout, node)?;
     let Ok(repository) = storage.repository(id) else {
         // If we don't have the repository locally, even after attempting to fetch,
         // there's nothing we can do.

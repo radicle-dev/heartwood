@@ -691,6 +691,11 @@ impl FetchResults {
         self.0.push((nid, result));
     }
 
+    /// Check if the results contains the given NID.
+    pub fn contains(&self, nid: &NodeId) -> bool {
+        self.0.iter().any(|(n, _)| n == nid)
+    }
+
     /// Iterate over all fetch results.
     pub fn iter(&self) -> impl Iterator<Item = (&NodeId, &FetchResult)> {
         self.0.iter().map(|(nid, r)| (nid, r))
@@ -895,9 +900,9 @@ impl Node {
         mut callback: impl FnMut(AnnounceEvent, &[PublicKey]) -> ControlFlow<()>,
     ) -> Result<AnnounceResult, Error> {
         let events = self.subscribe(timeout)?;
-        let mut seeds = seeds.into_iter().collect::<BTreeSet<_>>();
         let refs = self.announce_refs(rid)?;
 
+        let mut unsynced = seeds.into_iter().collect::<BTreeSet<_>>();
         let mut synced = Vec::new();
         let mut timeout: Vec<NodeId> = Vec::new();
 
@@ -909,23 +914,22 @@ impl Node {
                     remote,
                     rid: rid_,
                     at,
-                }) if rid == rid_ => {
-                    if seeds.remove(&remote) && refs.at == at {
-                        synced.push(remote);
-                        if callback(AnnounceEvent::RefsSynced { remote }, &synced).is_break() {
-                            break;
-                        }
+                }) if rid == rid_ && refs.at == at => {
+                    unsynced.remove(&remote);
+                    synced.push(remote);
+                    if callback(AnnounceEvent::RefsSynced { remote }, &synced).is_break() {
+                        break;
                     }
                 }
                 Ok(_) => {}
 
                 Err(Error::TimedOut) => {
-                    timeout.extend(seeds.iter());
+                    timeout.extend(unsynced.iter());
                     break;
                 }
                 Err(e) => return Err(e),
             }
-            if seeds.is_empty() {
+            if unsynced.is_empty() {
                 break;
             }
         }

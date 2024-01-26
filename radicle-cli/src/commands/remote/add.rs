@@ -31,7 +31,7 @@ pub fn run(
             follow::follow(*nid, alias, &mut node, profile)?;
             sync::fetch(
                 rid,
-                sync::RepoSync::default(),
+                sync::RepoSync::default().with_profile(profile),
                 time::Duration::from_secs(9),
                 &mut node,
             )?;

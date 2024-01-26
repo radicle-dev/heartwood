@@ -47,7 +47,7 @@ be up to date.
 
 ```
 $ rad sync --announce
-✓ Nothing to announce, already in sync with network (see `rad sync status`)
+✓ Nothing to announce, already in sync with 2 node(s) (see `rad sync status`)
 ```
 
 We can also use the `--fetch` option to only fetch objects:
@@ -66,7 +66,7 @@ $ rad sync --fetch --announce
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
 ✓ Fetched repository from 2 seed(s)
-✓ Nothing to announce, already in sync with network (see `rad sync status`)
+✓ Nothing to announce, already in sync with 2 node(s) (see `rad sync status`)
 ```
 
 It's also possible to use the `--seed` flag to only sync with a specific node:
