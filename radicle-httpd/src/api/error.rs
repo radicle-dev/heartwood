@@ -46,6 +46,10 @@ pub enum Error {
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
 
+    /// Routing error.
+    #[error(transparent)]
+    Routing(#[from] radicle::node::routing::Error),
+
     /// Project doc error.
     #[error(transparent)]
     ProjectDoc(#[from] radicle::identity::doc::PayloadError),

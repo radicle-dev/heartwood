@@ -7,7 +7,8 @@ use hyper::StatusCode;
 use serde_json::json;
 
 use radicle::identity::RepoId;
-use radicle::node::{policy, Handle, DEFAULT_TIMEOUT};
+use radicle::node::routing::Store;
+use radicle::node::{policy, AliasStore, Handle, NodeId, DEFAULT_TIMEOUT};
 use radicle::Node;
 
 use crate::api::error::Error;
@@ -22,6 +23,8 @@ pub fn router(ctx: Context) -> Router {
             "/node/policies/repos/:rid",
             put(node_policies_seed_handler).delete(node_policies_unseed_handler),
         )
+        .route("/nodes/:nid", get(nodes_handler))
+        .route("/nodes/:nid/inventory", get(nodes_inventory_handler))
         .with_state(ctx)
 }
 
@@ -50,6 +53,29 @@ async fn node_handler(State(ctx): State<Context>) -> impl IntoResponse {
     });
 
     Ok::<_, Error>(Json(response))
+}
+
+/// Return stored information about other nodes.
+/// `GET /nodes/:nid`
+async fn nodes_handler(State(ctx): State<Context>, Path(nid): Path<NodeId>) -> impl IntoResponse {
+    let aliases = ctx.profile.aliases();
+    let response = json!({
+        "alias": aliases.alias(&nid),
+    });
+
+    Ok::<_, Error>(Json(response))
+}
+
+/// Return stored information about other nodes.
+/// `GET /nodes/:nid/inventory`
+async fn nodes_inventory_handler(
+    State(ctx): State<Context>,
+    Path(nid): Path<NodeId>,
+) -> impl IntoResponse {
+    let db = &ctx.profile.database()?;
+    let resources = db.get_resources(&nid)?;
+
+    Ok::<_, Error>(Json(resources))
 }
 
 /// Return local repo policies information.
