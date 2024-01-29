@@ -10,14 +10,14 @@ use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "path",
-    description: "Display the radicle home path",
+    description: "Display the Radicle home path",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
 
     rad path [<option>...]
 
-    If no argument is specified, the radicle home path is displayed.
+    If no argument is specified, the Radicle home path is displayed.
 
 Options
 

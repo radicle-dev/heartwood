@@ -21,7 +21,7 @@ use crate::terminal::json;
 
 pub const HELP: Help = Help {
     name: "inspect",
-    description: "Inspect a radicle repository",
+    description: "Inspect a Radicle repository",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
