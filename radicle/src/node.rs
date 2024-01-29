@@ -6,6 +6,7 @@ pub mod address;
 pub mod config;
 pub mod db;
 pub mod events;
+pub mod notifications;
 pub mod policy;
 pub mod routing;
 pub mod seed;
@@ -54,6 +55,8 @@ pub const PENALTY_THRESHOLD: u8 = 32;
 pub const NODE_DB_FILE: &str = "node.db";
 /// Filename of policies database under the node directory.
 pub const POLICIES_DB_FILE: &str = "policies.db";
+/// Filename of notifications database under the node directory.
+pub const NOTIFICATIONS_DB_FILE: &str = "notifications.db";
 /// Filename of last node announcement, when running in debug mode.
 #[cfg(debug_assertions)]
 pub const NODE_ANNOUNCEMENT_FILE: &str = "announcement.wire.debug";

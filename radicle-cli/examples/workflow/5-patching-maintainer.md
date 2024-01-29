@@ -16,6 +16,13 @@ $ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob --s
 The contributor's changes are now visible to us.
 
 ```
+$ rad inbox --sort-by id
+╭──────────────────────────────────────────────────────────────────────╮
+│ heartwood                                                            │
+├──────────────────────────────────────────────────────────────────────┤
+│ 1   ●   issue   flux capacitor underpowered   d060989   opened   now │
+│ 2   ●   patch   Define power requirements     a99d55e   opened   now │
+╰──────────────────────────────────────────────────────────────────────╯
 $ git branch -r
   bob/patches/a99d55e5958a8c52ff7efbc8ff000d9bbdac79c7
   rad/master

@@ -394,7 +394,7 @@ fn patch_open<G: Signer>(
             //
             //  refs/namespaces/<nid>/refs/heads/patches/<patch-id>
             //
-            let refname = git::refs::storage::patch(&patch).with_namespace(nid.into());
+            let refname = git::refs::patch(&patch).with_namespace(nid.into());
             let _ = stored.raw().reference(
                 refname.as_str(),
                 commit.id(),

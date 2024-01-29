@@ -18,6 +18,7 @@ use radicle::git;
 use radicle::node;
 use radicle::node::address;
 use radicle::node::address::Store as _;
+use radicle::node::notifications;
 use radicle::node::Handle as _;
 use radicle::profile::Home;
 use radicle::Storage;
@@ -27,8 +28,8 @@ use crate::crypto::Signer;
 use crate::node::{routing, NodeId};
 use crate::service::message::NodeAnnouncement;
 use crate::service::{gossip, policy, Event};
-use crate::wire::Wire;
-use crate::wire::{self, Decode};
+use crate::wire;
+use crate::wire::{Decode, Wire};
 use crate::worker;
 use crate::{service, LocalTime};
 
@@ -47,6 +48,9 @@ pub enum Error {
     /// A policies database error.
     #[error("policies database error: {0}")]
     Policy(#[from] policy::Error),
+    /// A notifications database error.
+    #[error("notifications database error: {0}")]
+    Notifications(#[from] notifications::Error),
     /// A gossip database error.
     #[error("gossip database error: {0}")]
     Gossip(#[from] gossip::Error),
@@ -151,6 +155,7 @@ impl Runtime {
         log::info!(target: "node", "Opening policy database..");
         let policies = home.policies_mut()?;
         let policies = policy::Config::new(policy, scope, policies);
+        let notifications = home.notifications_mut()?;
 
         log::info!(target: "node", "Default seeding policy set to '{}'", &policy);
         log::info!(target: "node", "Initializing service ({:?})..", network);
@@ -251,6 +256,7 @@ impl Runtime {
             worker_recv,
             nid,
             handle.clone(),
+            notifications,
             worker::Config {
                 capacity: 8,
                 timeout: time::Duration::from_secs(9),

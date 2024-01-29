@@ -1,0 +1,379 @@
+use std::ffi::OsString;
+use std::process;
+
+use anyhow::anyhow;
+
+use localtime::LocalTime;
+use radicle::issue::Issues;
+use radicle::node::notifications;
+use radicle::node::notifications::*;
+use radicle::patch::Patches;
+use radicle::prelude::{Profile, RepoId};
+use radicle::storage::RefUpdate;
+use radicle::storage::{ReadRepository, ReadStorage};
+use radicle::{cob, Storage};
+
+use term::Element as _;
+
+use crate::terminal as term;
+use crate::terminal::args;
+use crate::terminal::args::{Args, Error, Help};
+
+pub const HELP: Help = Help {
+    name: "inbox",
+    description: "Manage your Radicle notifications inbox",
+    version: env!("CARGO_PKG_VERSION"),
+    usage: r#"
+Usage
+
+    rad inbox [<option>...]
+    rad inbox list [<option>...]
+    rad inbox clear [<option>...]
+
+    By default, this command lists all items in your inbox.
+    If your working directory is a Radicle repository, it only shows item
+    belonging to this repository, unless `--all` is used.
+
+Options
+
+    --all                Operate on all repositories
+    --repo <rid>         Operate on the given repository (default: rad .)
+    --sort-by <field>    Sort by `id` or `timestamp` (default: timestamp)
+    --reverse, -r        Reverse the list
+    --help               Print help
+"#,
+};
+
+#[derive(Debug, Default, PartialEq, Eq)]
+enum Operation {
+    #[default]
+    List,
+    Show,
+    Clear,
+}
+
+#[derive(Default, Debug)]
+enum Mode {
+    #[default]
+    Contextual,
+    All,
+    ById(Vec<NotificationId>),
+    ByRepo(RepoId),
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SortBy {
+    reverse: bool,
+    field: &'static str,
+}
+
+pub struct Options {
+    op: Operation,
+    mode: Mode,
+    sort_by: SortBy,
+}
+
+impl Args for Options {
+    fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
+        use lexopt::prelude::*;
+
+        let mut parser = lexopt::Parser::from_args(args);
+        let mut op: Option<Operation> = None;
+        let mut mode = None;
+        let mut ids = Vec::new();
+        let mut reverse = None;
+        let mut field = None;
+
+        while let Some(arg) = parser.next()? {
+            match arg {
+                Long("help") | Short('h') => {
+                    return Err(Error::Help.into());
+                }
+                Long("all") | Short('a') if mode.is_none() => {
+                    mode = Some(Mode::All);
+                }
+                Long("reverse") | Short('r') => {
+                    reverse = Some(true);
+                }
+                Long("sort-by") => {
+                    let val = parser.value()?;
+
+                    match term::args::string(&val).as_str() {
+                        "timestamp" => field = Some("timestamp"),
+                        "id" => field = Some("rowid"),
+                        other => {
+                            return Err(anyhow!(
+                                "unknown sorting field `{other}`, see `rad inbox --help`"
+                            ))
+                        }
+                    }
+                }
+                Long("repo") if mode.is_none() && op.is_some() => {
+                    let val = parser.value()?;
+                    let repo = args::rid(&val)?;
+
+                    mode = Some(Mode::ByRepo(repo));
+                }
+                Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
+                    "list" => op = Some(Operation::List),
+                    "show" => op = Some(Operation::Show),
+                    "clear" => op = Some(Operation::Clear),
+                    cmd => return Err(anyhow!("unknown command `{cmd}`, see `rad inbox --help`")),
+                },
+                Value(val) if op.is_some() && mode.is_none() => {
+                    let id = term::args::number(&val)? as NotificationId;
+                    ids.push(id);
+                }
+                _ => return Err(anyhow::anyhow!(arg.unexpected())),
+            }
+        }
+        let mode = if ids.is_empty() {
+            mode.unwrap_or_default()
+        } else {
+            Mode::ById(ids)
+        };
+        let op = op.unwrap_or_default();
+
+        let sort_by = if let Some(field) = field {
+            SortBy {
+                field,
+                reverse: reverse.unwrap_or(false),
+            }
+        } else {
+            SortBy {
+                field: "timestamp",
+                reverse: true,
+            }
+        };
+
+        Ok((Options { op, mode, sort_by }, vec![]))
+    }
+}
+
+pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+    let profile = ctx.profile()?;
+    let storage = &profile.storage;
+    let mut notifs = profile.notifications_mut()?;
+    let Options { op, mode, sort_by } = options;
+
+    match op {
+        Operation::List => list(mode, sort_by, &notifs.read_only(), storage),
+        Operation::Clear => clear(mode, &mut notifs),
+        Operation::Show => show(mode, &mut notifs, storage, &profile),
+    }
+}
+
+fn list(
+    mode: Mode,
+    sort_by: SortBy,
+    notifs: &notifications::StoreReader,
+    storage: &Storage,
+) -> anyhow::Result<()> {
+    let repos: Vec<term::VStack<'_>> = match mode {
+        Mode::Contextual => {
+            if let Ok((_, rid)) = radicle::rad::cwd() {
+                list_repo(rid, sort_by, notifs, storage)?
+                    .into_iter()
+                    .collect()
+            } else {
+                list_all(sort_by, notifs, storage)?
+            }
+        }
+        Mode::ByRepo(rid) => list_repo(rid, sort_by, notifs, storage)?
+            .into_iter()
+            .collect(),
+        Mode::All => list_all(sort_by, notifs, storage)?,
+        Mode::ById(_) => anyhow::bail!("the `list` command does not take IDs"),
+    };
+
+    if repos.is_empty() {
+        term::print(term::format::italic("Your inbox is empty."));
+    } else {
+        for repo in repos {
+            repo.print();
+        }
+    }
+    Ok(())
+}
+
+fn list_all<'a>(
+    sort_by: SortBy,
+    notifs: &notifications::StoreReader,
+    storage: &Storage,
+) -> anyhow::Result<Vec<term::VStack<'a>>> {
+    let mut repos = Vec::new();
+    for repo in storage.repositories()? {
+        let repo = list_repo(repo.rid, sort_by, notifs, storage)?;
+        repos.extend(repo.into_iter());
+    }
+    Ok(repos)
+}
+
+fn list_repo<'a, R: ReadStorage>(
+    rid: RepoId,
+    sort_by: SortBy,
+    notifs: &notifications::StoreReader,
+    storage: &R,
+) -> anyhow::Result<Option<term::VStack<'a>>>
+where
+    <R as ReadStorage>::Repository: cob::Store,
+{
+    let mut table = term::Table::new(term::TableOptions {
+        spacing: 3,
+        ..term::TableOptions::default()
+    });
+    let repo = storage.repository(rid)?;
+    let doc = repo.identity_doc()?;
+    let proj = doc.project()?;
+    let issues = Issues::open(&repo)?;
+    let patches = Patches::open(&repo)?;
+
+    let mut notifs = notifs.by_repo(&rid, sort_by.field)?.collect::<Vec<_>>();
+    if !sort_by.reverse {
+        // Notifications are returned in descendant order by default.
+        notifs.reverse();
+    }
+
+    for n in notifs {
+        let n: Notification = n?;
+
+        let seen = if n.status.is_read() {
+            term::Label::blank()
+        } else {
+            term::format::tertiary(String::from("●")).into()
+        };
+        let (category, summary, status, name) = match n.kind {
+            NotificationKind::Branch { name } => {
+                let commit = if let Some(head) = n.update.new() {
+                    repo.commit(head)?.summary().unwrap_or_default().to_owned()
+                } else {
+                    String::new()
+                };
+                let status = match n.update {
+                    RefUpdate::Updated { .. } => "updated",
+                    RefUpdate::Created { .. } => "created",
+                    RefUpdate::Deleted { .. } => "deleted",
+                    RefUpdate::Skipped { .. } => "skipped",
+                };
+                ("branch".to_string(), commit, status, name.to_string())
+            }
+            NotificationKind::Cob { type_name, id } => {
+                let (category, summary) = if type_name == *cob::issue::TYPENAME {
+                    let issue = issues.get(&id)?.ok_or(anyhow!("missing"))?;
+                    (String::from("issue"), issue.title().to_owned())
+                } else if type_name == *cob::patch::TYPENAME {
+                    let patch = patches.get(&id)?.ok_or(anyhow!("missing"))?;
+                    (String::from("patch"), patch.title().to_owned())
+                } else {
+                    (type_name.to_string(), "".to_owned())
+                };
+                let status = match n.update {
+                    RefUpdate::Updated { .. } => "updated",
+                    RefUpdate::Created { .. } => "opened",
+                    RefUpdate::Deleted { .. } => "deleted",
+                    RefUpdate::Skipped { .. } => "skipped",
+                };
+                (category, summary, status, term::format::cob(&id))
+            }
+        };
+        table.push([
+            n.id.to_string().into(),
+            seen,
+            category.into(),
+            summary.into(),
+            name.into(),
+            status.into(),
+            term::format::timestamp(n.timestamp).into(),
+        ]);
+    }
+
+    if table.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(
+            term::VStack::default()
+                .border(Some(term::colors::FAINT))
+                .child(term::label(proj.name()))
+                .divider()
+                .child(table),
+        ))
+    }
+}
+
+fn clear(mode: Mode, notifs: &mut notifications::StoreWriter) -> anyhow::Result<()> {
+    let cleared = match mode {
+        Mode::All => notifs.clear_all()?,
+        Mode::ById(ids) => notifs.clear(&ids)?,
+        Mode::ByRepo(rid) => notifs.clear_by_repo(&rid)?,
+        Mode::Contextual => {
+            if let Ok((_, rid)) = radicle::rad::cwd() {
+                notifs.clear_by_repo(&rid)?
+            } else {
+                return Err(Error::WithHint {
+                    err: anyhow!("not a radicle repository"),
+                    hint: "to clear all repository notifications, use the `--all` flag",
+                }
+                .into());
+            }
+        }
+    };
+    if cleared > 0 {
+        term::success!("Cleared {cleared} item(s) from your inbox");
+    } else {
+        term::print(term::format::italic("Your inbox is empty."));
+    }
+    Ok(())
+}
+
+fn show(
+    mode: Mode,
+    notifs: &mut notifications::StoreWriter,
+    storage: &Storage,
+    profile: &Profile,
+) -> anyhow::Result<()> {
+    let id = match mode {
+        Mode::ById(ids) => match ids.as_slice() {
+            [id] => *id,
+            [] => anyhow::bail!("a Notification ID must be given"),
+            _ => anyhow::bail!("too many Notification IDs given"),
+        },
+        _ => anyhow::bail!("a Notification ID must be given"),
+    };
+    let n = notifs.get(id)?;
+    let repo = storage.repository(n.repo)?;
+
+    match n.kind {
+        NotificationKind::Cob { type_name, id } if type_name == *cob::issue::TYPENAME => {
+            let issues = Issues::open(&repo)?;
+            let issue = issues.get(&id)?.unwrap();
+
+            term::issue::show(&issue, &id, term::issue::Format::default(), profile)?;
+        }
+        NotificationKind::Cob { type_name, id } if type_name == *cob::patch::TYPENAME => {
+            let patches = Patches::open(&repo)?;
+            let patch = patches.get(&id)?.unwrap();
+
+            term::patch::show(&patch, &id, false, &repo, None, profile)?;
+        }
+        NotificationKind::Branch { .. } => {
+            let refstr = if let Some(remote) = n.remote {
+                n.qualified
+                    .with_namespace(remote.to_component())
+                    .to_string()
+            } else {
+                n.qualified.to_string()
+            };
+            process::Command::new("git")
+                .current_dir(repo.path())
+                .args(["log", refstr.as_str()])
+                .spawn()?
+                .wait()?;
+        }
+        _ => {
+            todo!();
+        }
+    }
+    notifs.set_status(NotificationStatus::ReadAt(LocalTime::now()), &[id])?;
+
+    Ok(())
+}

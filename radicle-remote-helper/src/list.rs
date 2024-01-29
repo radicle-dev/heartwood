@@ -84,7 +84,7 @@ fn patch_refs<R: ReadRepository + cob::Store + 'static>(stored: &R) -> Result<()
         let head = patch.head();
 
         if patch.is_open() && stored.commit(*head).is_ok() {
-            println!("{} {}", patch.head(), git::refs::storage::patch(&id));
+            println!("{} {}", patch.head(), git::refs::patch(&id));
         }
     }
     Ok(())

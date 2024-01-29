@@ -169,6 +169,11 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         "id" => {
             term::run_command_args::<rad_id::Options, _>(rad_id::HELP, rad_id::run, args.to_vec());
         }
+        "inbox" => term::run_command_args::<rad_inbox::Options, _>(
+            rad_inbox::HELP,
+            rad_inbox::run,
+            args.to_vec(),
+        ),
         "init" => {
             term::run_command_args::<rad_init::Options, _>(
                 rad_init::HELP,

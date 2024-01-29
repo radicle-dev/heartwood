@@ -374,7 +374,7 @@ pub fn setup_patch_upstream<'a>(
                 working,
                 &*REMOTE_NAME,
                 name.as_str(),
-                git::refs::workdir::patch(patch),
+                git::refs::patch(patch),
             )?;
         }
     }

@@ -13,8 +13,8 @@ pub mod test;
 pub use common::*;
 pub use op::{ActorId, Op};
 pub use radicle_cob::{
-    change, history::EntryId, object, object::collaboration::error, CollaborativeObject, Contents,
-    Create, Embed, Entry, Evaluate, History, Manifest, ObjectId, Store, TypeName, Update, Updated,
-    Version,
+    change, history::EntryId, object, object::collaboration::error, type_name::TypeNameParse,
+    CollaborativeObject, Contents, Create, Embed, Entry, Evaluate, History, Manifest, ObjectId,
+    Store, TypeName, Update, Updated, Version,
 };
 pub use radicle_cob::{create, get, git, list, remove, update};

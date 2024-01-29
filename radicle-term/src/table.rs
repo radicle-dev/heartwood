@@ -184,6 +184,10 @@ impl<const W: usize, T: Cell> Table<W, T> {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        !self.rows.iter().any(|r| matches!(r, Row::Data { .. }))
+    }
+
     fn inner(&self, c: Constraint) -> Size {
         let mut outer = self.outer(c);
 

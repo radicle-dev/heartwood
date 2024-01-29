@@ -2134,6 +2134,40 @@ fn rad_watch() {
 }
 
 #[test]
+fn rad_inbox() {
+    let mut environment = Environment::new();
+    let mut alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let working = environment.tmp().join("working");
+    let (repo1, _) = fixtures::repository(working.join("alice").join("heartwood"));
+    let (repo2, _) = fixtures::repository(working.join("alice").join("radicle-git"));
+    let rid1 = alice.project_from("heartwood", "Radicle Heartwood Protocol & Stack", &repo1);
+    let rid2 = alice.project_from("radicle-git", "Radicle Git", &repo2);
+
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    bob.connect(&alice).converge([&alice]);
+    bob.clone(rid1, working.join("bob")).unwrap();
+    bob.clone(rid2, working.join("bob")).unwrap();
+
+    formula(&environment.tmp(), "examples/rad-inbox.md")
+        .unwrap()
+        .home(
+            "alice",
+            working.join("alice"),
+            [("RAD_HOME", alice.home.path().display())],
+        )
+        .home(
+            "bob",
+            working.join("bob"),
+            [("RAD_HOME", bob.home.path().display())],
+        )
+        .run()
+        .unwrap();
+}
+
+#[test]
 fn rad_patch_fetch_2() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));

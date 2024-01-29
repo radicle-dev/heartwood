@@ -22,7 +22,7 @@ use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
 use crate::explorer::Explorer;
 use crate::node::policy::config::store::Read;
-use crate::node::{policy, Alias, AliasStore};
+use crate::node::{notifications, policy, Alias, AliasStore};
 use crate::prelude::Did;
 use crate::prelude::NodeId;
 use crate::storage::git::transport;
@@ -100,6 +100,8 @@ pub enum Error {
     KeyNotRegistered(PublicKey),
     #[error(transparent)]
     PolicyStore(#[from] node::policy::store::Error),
+    #[error(transparent)]
+    NotificationsStore(#[from] node::notifications::store::Error),
     #[error(transparent)]
     DatabaseStore(#[from] node::db::Error),
 }
@@ -219,6 +221,7 @@ impl Profile {
         // Create DBs.
         home.policies_mut()?;
         home.database_mut()?;
+        home.notifications_mut()?;
 
         transport::local::register(storage.clone());
 
@@ -448,6 +451,16 @@ impl Home {
         env::var_os(env::RAD_SOCKET)
             .map(PathBuf::from)
             .unwrap_or_else(|| self.node().join(node::DEFAULT_SOCKET_NAME))
+    }
+
+    /// Return a read-write handle to the notifications database.
+    pub fn notifications_mut(
+        &self,
+    ) -> Result<notifications::StoreWriter, notifications::store::Error> {
+        let path = self.node().join(node::NOTIFICATIONS_DB_FILE);
+        let db = notifications::Store::open(path)?;
+
+        Ok(db)
     }
 
     /// Return a read-write handle to the policies store of the node.

@@ -20,6 +20,8 @@ pub mod rad_fork;
 pub mod rad_help;
 #[path = "commands/id.rs"]
 pub mod rad_id;
+#[path = "commands/inbox.rs"]
+pub mod rad_inbox;
 #[path = "commands/init.rs"]
 pub mod rad_init;
 #[path = "commands/inspect.rs"]

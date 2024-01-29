@@ -160,6 +160,18 @@ pub mod refs {
         Qualified::from(lit::refs_heads(branch))
     }
 
+    /// A patch reference.
+    ///
+    /// `refs/heads/patches/<object_id>`
+    ///
+    pub fn patch<'a>(object_id: &cob::ObjectId) -> Qualified<'a> {
+        Qualified::from_components(
+            name::component!("heads"),
+            name::component!("patches"),
+            Some(object_id.into()),
+        )
+    }
+
     pub mod storage {
         use format::{
             lit,
@@ -272,18 +284,6 @@ pub mod refs {
                 .join(Component::from(object_id))
         }
 
-        /// A patch reference.
-        ///
-        /// `refs/heads/patches/<object_id>`
-        ///
-        pub fn patch<'a>(object_id: &cob::ObjectId) -> Qualified<'a> {
-            Qualified::from_components(
-                component!("heads"),
-                component!("patches"),
-                Some(object_id.into()),
-            )
-        }
-
         /// Draft references.
         ///
         /// These references are not replicated or signed.
@@ -382,18 +382,6 @@ pub mod refs {
         /// Create a [`RefString`] that corresponds to `refs/tags/<branch>`.
         pub fn tag(name: &RefStr) -> RefString {
             refname!("refs/tags").join(name)
-        }
-
-        /// A patch head.
-        ///
-        /// `refs/heads/patches/<patch-id>`
-        ///
-        pub fn patch<'a>(patch_id: &cob::ObjectId) -> Qualified<'a> {
-            Qualified::from_components(
-                component!("heads"),
-                component!("patches"),
-                Some(patch_id.into()),
-            )
         }
 
         /// A patch head.

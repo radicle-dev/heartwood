@@ -11,6 +11,7 @@ use std::{io, time};
 use crossbeam_channel as chan;
 
 use radicle::identity::RepoId;
+use radicle::node::notifications;
 use radicle::prelude::NodeId;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, ReadStorage};
@@ -177,6 +178,7 @@ struct Worker {
     tasks: chan::Receiver<Task>,
     handle: Handle,
     policies: policy::Config<policy::store::Read>,
+    notifications: notifications::StoreWriter,
 }
 
 impl Worker {
@@ -197,7 +199,7 @@ impl Worker {
         } = task;
         let remote = fetch.remote();
         let channels = channels::ChannelsFlush::new(self.handle.clone(), channels, remote, stream);
-        let result = self._process(fetch, stream, channels);
+        let result = self._process(fetch, stream, channels, self.notifications.clone());
 
         log::trace!(target: "worker", "Sending response back to service..");
 
@@ -219,6 +221,7 @@ impl Worker {
         fetch: FetchRequest,
         stream: StreamId,
         mut channels: channels::ChannelsFlush,
+        notifs: notifications::StoreWriter,
     ) -> FetchResult {
         match fetch {
             FetchRequest::Initiator {
@@ -229,7 +232,7 @@ impl Worker {
                 timeout: _timeout,
             } => {
                 log::debug!(target: "worker", "Worker processing outgoing fetch for {rid}");
-                let result = self.fetch(rid, remote, refs_at, channels);
+                let result = self.fetch(rid, remote, refs_at, channels, notifs);
                 FetchResult::Initiator { rid, result }
             }
             FetchRequest::Responder { remote } => {
@@ -278,6 +281,7 @@ impl Worker {
         remote: NodeId,
         refs_at: Option<Vec<RefsAt>>,
         channels: channels::ChannelsFlush,
+        notifs: notifications::StoreWriter,
     ) -> Result<fetch::FetchResult, FetchError> {
         let FetchConfig {
             limit,
@@ -289,7 +293,15 @@ impl Worker {
         let allowed = radicle_fetch::Allowed::from_config(rid, &self.policies)?;
         let blocked = radicle_fetch::BlockList::from_config(&self.policies)?;
 
-        let handle = fetch::Handle::new(rid, *local, &self.storage, allowed, blocked, channels)?;
+        let handle = fetch::Handle::new(
+            rid,
+            *local,
+            &self.storage,
+            allowed,
+            blocked,
+            channels,
+            notifs,
+        )?;
         let result = handle.fetch(rid, &self.storage, *limit, remote, refs_at)?;
 
         if let Err(e) = garbage::collect(&self.storage, rid, *expiry) {
@@ -313,6 +325,7 @@ impl Pool {
         tasks: chan::Receiver<Task>,
         nid: NodeId,
         handle: Handle,
+        notifications: notifications::StoreWriter,
         config: Config,
     ) -> Result<Self, policy::Error> {
         let mut pool = Vec::with_capacity(config.capacity);
@@ -329,6 +342,7 @@ impl Pool {
                 storage: config.storage.clone(),
                 fetch_config: config.fetch.clone(),
                 policies,
+                notifications: notifications.clone(),
             };
             let thread = thread::spawn(&nid, format!("worker#{i}"), || worker.run());
 

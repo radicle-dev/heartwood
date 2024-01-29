@@ -1,12 +1,15 @@
 pub mod error;
 
 use std::collections::HashSet;
+use std::str::FromStr;
+
+use localtime::LocalTime;
 
 use radicle::crypto::PublicKey;
 use radicle::prelude::RepoId;
 use radicle::storage::refs::RefsAt;
-use radicle::storage::{ReadStorage as _, RefUpdate, WriteRepository as _};
-use radicle::Storage;
+use radicle::storage::{ReadStorage as _, RefUpdate, RemoteRepository, WriteRepository as _};
+use radicle::{git, node, Storage};
 use radicle_fetch::{Allowed, BlockList, FetchLimit};
 
 use super::channels::ChannelsFlush;
@@ -26,6 +29,7 @@ pub enum Handle {
     },
     Pull {
         handle: radicle_fetch::Handle<ChannelsFlush>,
+        notifications: node::notifications::StoreWriter,
     },
 }
 
@@ -37,12 +41,16 @@ impl Handle {
         follow: Allowed,
         blocked: BlockList,
         channels: ChannelsFlush,
+        notifications: node::notifications::StoreWriter,
     ) -> Result<Self, error::Handle> {
         let exists = storage.contains(&rid)?;
         if exists {
             let repo = storage.repository(rid)?;
             let handle = radicle_fetch::Handle::new(local, repo, follow, blocked, channels)?;
-            Ok(Handle::Pull { handle })
+            Ok(Handle::Pull {
+                handle,
+                notifications,
+            })
         } else {
             let (repo, tmp) = storage.lock_repository(rid)?;
             let handle = radicle_fetch::Handle::new(local, repo, follow, blocked, channels)?;
@@ -58,16 +66,20 @@ impl Handle {
         remote: PublicKey,
         refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Fetch> {
-        let result = match self {
+        let (result, notifs) = match self {
             Self::Clone { mut handle, tmp } => {
                 log::debug!(target: "worker", "{} cloning from {remote}", handle.local());
                 let result = radicle_fetch::clone(&mut handle, limit, remote)?;
                 mv(tmp, storage, &rid)?;
-                result
+                (result, None)
             }
-            Self::Pull { mut handle } => {
+            Self::Pull {
+                mut handle,
+                notifications,
+            } => {
                 log::debug!(target: "worker", "{} pulling from {remote}", handle.local());
-                radicle_fetch::pull(&mut handle, limit, remote, refs_at)?
+                let result = radicle_fetch::pull(&mut handle, limit, remote, refs_at)?;
+                (result, Some(notifications))
             }
         };
 
@@ -94,6 +106,16 @@ impl Handle {
                 let repo = storage.repository(rid)?;
                 repo.set_identity_head()?;
                 repo.set_head()?;
+
+                // Notifications are only posted for pulls, not clones.
+                if let Some(mut store) = notifs {
+                    // Only create notifications for repos that we have
+                    // contributed to in some way, otherwise our inbox will
+                    // be flooded by all the repos we are seeding.
+                    if repo.remote(&storage.info().key).is_ok() {
+                        notify(&rid, &applied, &mut store)?;
+                    }
+                }
 
                 Ok(FetchResult {
                     updated: applied.updated,
@@ -130,5 +152,40 @@ fn mv(tmp: tempfile::TempDir, storage: &Storage, rid: &RepoId) -> Result<(), err
         .into());
     }
 
+    Ok(())
+}
+
+// Post notifications for the given refs.
+fn notify(
+    rid: &RepoId,
+    refs: &radicle_fetch::git::refs::Applied<'static>,
+    store: &mut node::notifications::StoreWriter,
+) -> Result<(), error::Fetch> {
+    let now = LocalTime::now();
+
+    for update in refs.updated.iter() {
+        if let Some(r) = update.name().to_namespaced() {
+            let r = r.strip_namespace();
+            if r == *git::refs::storage::SIGREFS_BRANCH {
+                // Don't notify about signed refs.
+                continue;
+            }
+            if let Some(rest) = r.strip_prefix(git::refname!("refs/heads/patches")) {
+                if radicle::cob::ObjectId::from_str(rest.as_str()).is_ok() {
+                    // Don't notify about patch branches, since we already get
+                    // notifications about patch updates.
+                    continue;
+                }
+            }
+        }
+        if let RefUpdate::Skipped { .. } = update {
+            // Don't notify about skipped refs.
+        } else if let Err(e) = store.insert(&rid, update, now) {
+            log::error!(
+                target: "worker",
+                "Failed to update notification store for {rid}: {e}"
+            );
+        }
+    }
     Ok(())
 }
