@@ -42,7 +42,7 @@ Options
     --identity   Inspect the identity document
     --visibility Inspect the repository's visibility
     --delegates  Inspect the repository's delegates
-    --policy     Inspect the repository's tracking policy
+    --policy     Inspect the repository's seeding policy
     --history    Show the history of the repository identity document
     --help       Print help
 "#,
