@@ -171,7 +171,7 @@ impl KnownAddress {
 pub enum Source {
     /// An address that was shared by another peer.
     Peer,
-    /// An bootstrap node address.
+    /// A bootstrap node address.
     Bootstrap,
     /// An address that came from some source external to the system, eg.
     /// specified by the user or added directly to the address manager.

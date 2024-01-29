@@ -14,7 +14,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::{fs, io, str::FromStr};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use thiserror::Error;
 
 use crate::crypto::ssh::agent::Agent;
@@ -122,7 +122,7 @@ pub struct Config {
     /// Preferred seeds. These seeds will be used for explorer links
     /// and in other situations when a seed needs to be chosen.
     #[serde(default)]
-    pub preferred_seeds: PreferredSeeds,
+    pub preferred_seeds: Vec<node::config::ConnectAddress>,
     /// Web configuration.
     #[serde(default)]
     pub web: web::Config,
@@ -136,12 +136,14 @@ pub struct Config {
 impl Config {
     /// Create a new, default configuration.
     pub fn new(alias: Alias) -> Self {
+        let node = node::Config::new(alias);
+
         Self {
             public_explorer: Explorer::default(),
-            preferred_seeds: PreferredSeeds::default(),
+            preferred_seeds: node.network.public_seeds(),
             web: web::Config::default(),
             cli: cli::Config::default(),
-            node: node::Config::new(alias),
+            node,
         }
     }
 
@@ -190,30 +192,6 @@ impl Config {
     /// Get the user alias.
     pub fn alias(&self) -> &Alias {
         &self.node.alias
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct PreferredSeeds(Vec<node::config::ConnectAddress>);
-
-impl From<Vec<node::config::ConnectAddress>> for PreferredSeeds {
-    fn from(value: Vec<node::config::ConnectAddress>) -> Self {
-        Self(value)
-    }
-}
-
-impl Default for PreferredSeeds {
-    fn default() -> Self {
-        Self(vec![node::config::seeds::RADICLE_COMMUNITY_NODE.clone()])
-    }
-}
-
-impl std::ops::Deref for PreferredSeeds {
-    type Target = Vec<node::config::ConnectAddress>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 

@@ -5,14 +5,16 @@ In its simplest form, `rad config` prints the current configuration.
 $ rad config
 {
   "publicExplorer": "https://app.radicle.xyz/nodes/$host/$rid$path",
-  "preferredSeeds": [],
+  "preferredSeeds": [
+    "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776"
+  ],
   "web": {
     "pinned": {
       "repositories": []
     }
   },
   "cli": {
-    "hints": false
+    "hints": true
   },
   "node": {
     "alias": "alice",
@@ -23,7 +25,7 @@ $ rad config
     },
     "connect": [],
     "externalAddresses": [],
-    "network": "test",
+    "network": "main",
     "relay": true,
     "limits": {
       "routingMaxSize": 1000,
