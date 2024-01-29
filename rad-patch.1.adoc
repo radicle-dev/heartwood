@@ -27,6 +27,8 @@ rad-patch - Manage radicle patches.
 *rad patch* _comment_ <revision-id> [<option>...] +
 *rad patch* _label_ <patch-id> [<option>...] +
 
+*git push rad* HEAD:refs/patches +
+
 == Description
 
 The Radicle *patch* command is used for managing changesets inside of Radicle
