@@ -1,4 +1,5 @@
 #![allow(clippy::type_complexity)]
+#![allow(clippy::collapsible_if)]
 mod features;
 
 pub mod address;
@@ -897,13 +898,13 @@ impl Node {
         rid: RepoId,
         seeds: impl IntoIterator<Item = NodeId>,
         timeout: time::Duration,
-        mut callback: impl FnMut(AnnounceEvent, &[PublicKey]) -> ControlFlow<()>,
+        mut callback: impl FnMut(AnnounceEvent, &HashSet<PublicKey>) -> ControlFlow<()>,
     ) -> Result<AnnounceResult, Error> {
         let events = self.subscribe(timeout)?;
         let refs = self.announce_refs(rid)?;
 
         let mut unsynced = seeds.into_iter().collect::<BTreeSet<_>>();
-        let mut synced = Vec::new();
+        let mut synced = HashSet::new();
         let mut timeout: Vec<NodeId> = Vec::new();
 
         callback(AnnounceEvent::Announced, &synced);
@@ -915,10 +916,15 @@ impl Node {
                     rid: rid_,
                     at,
                 }) if rid == rid_ && refs.at == at => {
+                    log::debug!(target: "radicle", "Received {e:?}");
+
                     unsynced.remove(&remote);
-                    synced.push(remote);
-                    if callback(AnnounceEvent::RefsSynced { remote }, &synced).is_break() {
-                        break;
+                    // We can receive synced events from nodes we didn't directly announce to,
+                    // and it's possible to receive duplicates as well.
+                    if synced.insert(remote) {
+                        if callback(AnnounceEvent::RefsSynced { remote }, &synced).is_break() {
+                            break;
+                        }
                     }
                 }
                 Ok(_) => {}
@@ -933,7 +939,10 @@ impl Node {
                 break;
             }
         }
-        Ok(AnnounceResult { timeout, synced })
+        Ok(AnnounceResult {
+            timeout,
+            synced: synced.into_iter().collect(),
+        })
     }
 }
 
