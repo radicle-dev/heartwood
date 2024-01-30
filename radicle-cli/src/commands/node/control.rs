@@ -1,7 +1,7 @@
 use std::ffi::OsString;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
-use std::{process, thread, time};
+use std::{path::Path, process, thread, time};
 
 use localtime::LocalTime;
 
@@ -21,6 +21,7 @@ pub fn start(
     daemon: bool,
     verbose: bool,
     mut options: Vec<OsString>,
+    cmd: &Path,
     profile: &Profile,
 ) -> anyhow::Result<()> {
     if node.is_running() {
@@ -54,7 +55,7 @@ pub fn start(
             .create(true)
             .open(profile.home.node().join("node.log"))?;
 
-        let child = process::Command::new("radicle-node")
+        let child = process::Command::new(cmd)
             .args(options)
             .envs(envs)
             .stdin(process::Stdio::null())
@@ -94,7 +95,7 @@ pub fn start(
             }
         }
     } else {
-        let mut child = process::Command::new("radicle-node")
+        let mut child = process::Command::new(cmd)
             .args(options)
             .envs(envs)
             .spawn()?;

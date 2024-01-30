@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::path::PathBuf;
 use std::time;
 
 use anyhow::anyhow;
@@ -38,6 +39,7 @@ Usage
 Start options
 
     --foreground         Start the node in the foreground
+    --path <path>        Start node binary at path (default: radicle-node)
     --verbose, -v        Verbose output
 
 Routing options
@@ -79,6 +81,7 @@ pub enum Operation {
     Start {
         foreground: bool,
         verbose: bool,
+        path: PathBuf,
         options: Vec<OsString>,
     },
     Logs {
@@ -118,6 +121,7 @@ impl Args for Options {
         let mut lines: usize = 60;
         let mut count: usize = usize::MAX;
         let mut timeout = time::Duration::MAX;
+        let mut path = None;
         let mut verbose = false;
 
         while let Some(arg) = parser.next()? {
@@ -166,6 +170,10 @@ impl Args for Options {
                 Long("verbose") | Short('v') if matches!(op, Some(OperationName::Start)) => {
                     verbose = true;
                 }
+                Long("path") if matches!(op, Some(OperationName::Start)) => {
+                    let val = parser.value()?;
+                    path = Some(PathBuf::from(val));
+                }
                 Short('n') if matches!(op, Some(OperationName::Logs)) => {
                     lines = parser.value()?.parse()?;
                 }
@@ -191,6 +199,7 @@ impl Args for Options {
                 foreground,
                 verbose,
                 options,
+                path: path.unwrap_or(PathBuf::from("radicle-node")),
             },
             OperationName::Status => Operation::Status,
             OperationName::Sessions => Operation::Sessions,
@@ -226,9 +235,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Start {
             foreground,
             options,
+            path,
             verbose,
         } => {
-            control::start(node, !foreground, verbose, options, &profile)?;
+            control::start(node, !foreground, verbose, options, &path, &profile)?;
         }
         Operation::Status => {
             control::status(&node, &profile)?;
