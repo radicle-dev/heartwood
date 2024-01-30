@@ -13,6 +13,7 @@ use radicle::node::address::Store;
 use radicle::node::routing::Store as _;
 use radicle::node::{ConnectOptions, DEFAULT_TIMEOUT};
 use radicle::storage::refs::RefsAt;
+use radicle::storage::RefUpdate;
 
 use crate::collections::{RandomMap, RandomSet};
 use crate::crypto::test::signer::MockSigner;
@@ -38,7 +39,6 @@ use crate::test::peer;
 use crate::test::peer::Peer;
 use crate::test::simulator;
 use crate::test::simulator::{Peer as _, Simulation};
-use crate::test::storage as mock_storage;
 use crate::test::storage::MockStorage;
 use crate::wire::Decode;
 use crate::wire::Encode;
@@ -763,37 +763,24 @@ fn test_refs_announcement_followed() {
 
     // Create MockStorage for Alice and Bob. Both will have repo with `rid`.
     let storage_alice = arbitrary::nonempty_storage(1);
-    let rid = *storage_alice.inventory.keys().next().unwrap();
+    let rid = *storage_alice.repos.keys().next().unwrap();
     let storage_bob = storage_alice.clone();
     let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage_alice);
     let mut bob = Peer::with_storage("bob", [8, 8, 8, 8], storage_bob);
 
-    let refs = arbitrary::gen::<Refs>(8);
-    let sigref_at = arbitrary::oid();
-    let signed_refs = refs.signed(bob.signer()).unwrap();
     let node_id = alice.id;
-    alice.storage_mut().insert_remote(
-        rid,
+    alice.storage_mut().repo_mut(&rid).remotes.insert(
         node_id,
-        mock_storage::refs::SignedRefsAt {
-            at: sigref_at,
-            sigrefs: signed_refs,
-        },
+        bob.signed_refs_at(arbitrary::gen::<Refs>(8), arbitrary::oid()),
     );
 
     // Generate some refs for Bob under their own node_id.
-    let refs = arbitrary::gen::<Refs>(8);
-    let sigref_at = arbitrary::oid();
-    let signed_refs = refs.signed(bob.signer()).unwrap();
+    let sigrefs = bob.signed_refs_at(arbitrary::gen::<Refs>(8), arbitrary::oid());
     let node_id = bob.id;
-    bob.storage_mut().insert_remote(
-        rid,
-        node_id,
-        mock_storage::refs::SignedRefsAt {
-            at: sigref_at,
-            sigrefs: signed_refs,
-        },
-    );
+    bob.storage_mut()
+        .repo_mut(&rid)
+        .remotes
+        .insert(node_id, sigrefs);
 
     // Alice uses Scope::Followed, and did not track Bob yet.
     alice.connect_to(&bob);
@@ -827,7 +814,7 @@ fn test_refs_announcement_followed() {
 #[test]
 fn test_refs_announcement_no_subscribe() {
     let storage = arbitrary::nonempty_storage(1);
-    let rid = *storage.inventory.keys().next().unwrap();
+    let rid = *storage.repos.keys().next().unwrap();
     let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let eve = Peer::new("eve", [9, 9, 9, 9]);
@@ -1330,7 +1317,7 @@ fn test_fetch_missing_inventory_on_schedule() {
 #[test]
 fn test_queued_fetch_max_capacity() {
     let storage = arbitrary::nonempty_storage(3);
-    let mut repo_keys = storage.inventory.keys();
+    let mut repo_keys = storage.repos.keys();
     let rid1 = *repo_keys.next().unwrap();
     let rid2 = *repo_keys.next().unwrap();
     let rid3 = *repo_keys.next().unwrap();
@@ -1375,9 +1362,77 @@ fn test_queued_fetch_max_capacity() {
 }
 
 #[test]
-fn test_queued_fetch_same_rid() {
+fn test_queued_fetch_from_ann_same_rid() {
     let storage = arbitrary::nonempty_storage(3);
-    let mut repo_keys = storage.inventory.keys();
+    let mut repo_keys = storage.repos.keys();
+    let rid = *repo_keys.next().unwrap();
+    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let carol = Peer::new("carol", [10, 10, 10, 10]);
+    let oid = arbitrary::oid();
+    let ann = RefsAnnouncement {
+        rid,
+        refs: vec![RefsAt {
+            remote: carol.id(),
+            at: oid,
+        }]
+        .try_into()
+        .unwrap(),
+        timestamp: bob.timestamp(),
+    };
+
+    logger::init(log::Level::Trace);
+
+    alice.seed(&rid, policy::Scope::All).unwrap();
+    alice.connect_to(&bob);
+    alice.connect_to(&eve);
+    alice.connect_to(&carol);
+
+    // Send the first announcement.
+    alice.receive(bob.id, bob.announcement(ann.clone()));
+    // Send the 2nd announcement that will be queued.
+    alice.receive(eve.id, eve.announcement(ann.clone()));
+    // Send the 3rd announcement that will be queued.
+    alice.receive(carol.id, carol.announcement(ann));
+
+    // The first fetch is initiated.
+    assert_matches!(alice.fetches().next(), Some((rid_, nid_, _)) if rid_ == rid && nid_ == bob.id);
+    // We shouldn't send out the 2nd, 3rd fetch while we're doing the 1st fetch.
+    assert_matches!(alice.outbox().next(), None);
+
+    // Have enough time pass that Alice sends a "ping" to Bob.
+    alice.elapse(KEEP_ALIVE_DELTA);
+
+    let refname = carol
+        .id()
+        .to_namespace()
+        .join(git::refname!("refs/sigrefs"));
+
+    // Finish the 1st fetch.
+    alice.storage_mut().repo_mut(&rid).remotes.insert(
+        carol.id(),
+        carol.signed_refs_at(arbitrary::gen::<Refs>(1), oid),
+    );
+    alice.fetched(
+        rid,
+        bob.id,
+        Ok(fetch::FetchResult {
+            updated: vec![RefUpdate::Created {
+                name: refname.clone(),
+                oid,
+            }],
+            namespaces: [carol.id()].into_iter().collect(),
+        }),
+    );
+    // Now the 1st fetch is done, but the 2nd and 3rd fetches are redundant.
+    assert_matches!(alice.fetches().next(), None);
+}
+
+#[test]
+fn test_queued_fetch_from_command_same_rid() {
+    let storage = arbitrary::nonempty_storage(3);
+    let mut repo_keys = storage.repos.keys();
     let rid1 = *repo_keys.next().unwrap();
     let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
@@ -1604,9 +1659,9 @@ fn prop_inventory_exchange_dense() {
         let mut routing = RandomMap::with_hasher(rng.clone().into());
 
         for (inv, peer) in &[
-            (alice_inv.inventory, alice.node_id()),
-            (bob_inv.inventory, bob.node_id()),
-            (eve_inv.inventory, eve.node_id()),
+            (alice_inv.repos, alice.node_id()),
+            (bob_inv.repos, bob.node_id()),
+            (eve_inv.repos, eve.node_id()),
         ] {
             for id in inv.keys() {
                 routing

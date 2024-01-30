@@ -176,6 +176,34 @@ pub struct RefsStatus {
 }
 
 impl RefsStatus {
+    /// Get the set of `fresh` and `stale` `RefsAt`'s for the given
+    /// announcement.
+    pub fn new<S: ReadStorage>(
+        rid: RepoId,
+        refs: Vec<RefsAt>,
+        storage: S,
+    ) -> Result<RefsStatus, storage::Error> {
+        let repo = match storage.repository(rid) {
+            // If the repo doesn't exist, we consider this
+            // announcement "fresh", since we obviously don't
+            // have the refs.
+            Err(e) if e.is_not_found() => {
+                return Ok(RefsStatus {
+                    fresh: refs.clone(),
+                    stale: Vec::new(),
+                })
+            }
+            Err(e) => return Err(e),
+            Ok(r) => r,
+        };
+
+        let mut status = RefsStatus::default();
+        for theirs in refs.iter() {
+            status.insert(*theirs, &repo)?;
+        }
+        Ok(status)
+    }
+
     fn insert<S: ReadRepository>(
         &mut self,
         theirs: RefsAt,
@@ -213,32 +241,6 @@ impl RefsStatus {
         } else {
             Ok(true)
         }
-    }
-}
-
-impl RefsAnnouncement {
-    /// Get the set of `fresh` and `stale` `RefsAt`'s for the given
-    /// announcement.
-    pub fn refs_status<S: ReadStorage>(&self, storage: S) -> Result<RefsStatus, storage::Error> {
-        let repo = match storage.repository(self.rid) {
-            // If the repo doesn't exist, we consider this
-            // announcement "fresh", since we obviously don't
-            // have the refs.
-            Err(e) if e.is_not_found() => {
-                return Ok(RefsStatus {
-                    fresh: self.refs.clone().into(),
-                    stale: Vec::new(),
-                })
-            }
-            Err(e) => return Err(e),
-            Ok(r) => r,
-        };
-
-        let mut status = RefsStatus::default();
-        for theirs in self.refs.iter() {
-            status.insert(*theirs, &repo)?;
-        }
-        Ok(status)
     }
 }
 

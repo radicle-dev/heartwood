@@ -264,6 +264,8 @@ struct QueuedFetch {
     rid: RepoId,
     /// Peer being fetched from.
     from: NodeId,
+    /// Refs being fetched.
+    refs_at: Vec<RefsAt>,
     /// Result channel.
     channel: Option<chan::Sender<FetchResult>>,
 }
@@ -791,8 +793,9 @@ where
         from: NodeId,
         refs: NonEmpty<RefsAt>,
         timeout: time::Duration,
+        channel: Option<chan::Sender<FetchResult>>,
     ) {
-        self._fetch(rid, from, refs.into(), timeout, None)
+        self._fetch(rid, from, refs.into(), timeout, channel)
     }
 
     /// Initiate an outgoing fetch for some repository.
@@ -814,7 +817,7 @@ where
         timeout: time::Duration,
         channel: Option<chan::Sender<FetchResult>>,
     ) {
-        match self.try_fetch(rid, &from, refs_at, timeout) {
+        match self.try_fetch(rid, &from, refs_at.clone(), timeout) {
             Ok(fetching) => {
                 if let Some(c) = channel {
                     fetching.subscribe(c);
@@ -832,12 +835,22 @@ where
                     }
                 } else {
                     debug!(target: "service", "Queueing fetch for {rid} with {from}..");
-                    self.queue.push_back(QueuedFetch { rid, from, channel });
+                    self.queue.push_back(QueuedFetch {
+                        rid,
+                        refs_at,
+                        from,
+                        channel,
+                    });
                 }
             }
             Err(TryFetchError::SessionCapacityReached) => {
                 debug!(target: "service", "Fetch capacity reached for {from}, queueing {rid}..");
-                self.queue.push_back(QueuedFetch { rid, from, channel });
+                self.queue.push_back(QueuedFetch {
+                    rid,
+                    refs_at,
+                    from,
+                    channel,
+                });
             }
             Err(e) => {
                 if let Some(c) = channel {
@@ -850,6 +863,7 @@ where
         }
     }
 
+    // TODO: Buffer/throttle fetches.
     fn try_fetch(
         &mut self,
         rid: RepoId,
@@ -862,6 +876,8 @@ where
             return Err(TryFetchError::SessionNotFound);
         };
         let fetching = self.fetching.entry(rid);
+
+        trace!(target: "service", "Trying to fetch {refs_at:?} for {rid}..");
 
         if let Entry::Occupied(fetching) = fetching {
             // We're already fetching this repo from some peer.
@@ -991,10 +1007,40 @@ where
     /// 1. The RID was already being fetched.
     /// 2. The session was already at fetch capacity.
     pub fn dequeue_fetch(&mut self) {
-        if let Some(QueuedFetch { rid, from, channel }) = self.queue.pop_front() {
+        while let Some(QueuedFetch {
+            rid,
+            from,
+            refs_at,
+            channel,
+        }) = self.queue.pop_front()
+        {
             debug!(target: "service", "Dequeued fetch for {rid} from session {from}..");
 
-            self.fetch(rid, from, FETCH_TIMEOUT, channel);
+            // If no refs are specified, always do a full fetch.
+            if refs_at.is_empty() {
+                self.fetch(rid, from, FETCH_TIMEOUT, channel);
+                return;
+            }
+
+            let repo_entry = self
+                .policies
+                .seed_policy(&rid)
+                .expect("Service::dequeue_fetch: error accessing repo seeding configuration");
+
+            match self.refs_status_of(rid, refs_at, &repo_entry.scope) {
+                Ok(status) => {
+                    if let Some(refs) = NonEmpty::from_vec(status.fresh) {
+                        self.fetch_refs_at(rid, from, refs, FETCH_TIMEOUT, channel);
+                        return;
+                    } else {
+                        debug!(target: "service", "Skipping dequeued fetch for {rid}, all refs are already in local storage");
+                    }
+                }
+                Err(e) => {
+                    error!(target: "service", "Error getting the refs status of {rid}: {e}");
+                    return;
+                }
+            }
         }
     }
 
@@ -1330,13 +1376,15 @@ where
                     }
                 }
 
-                // TODO: Buffer/throttle fetches.
                 let repo_entry = self.policies.seed_policy(&message.rid).expect(
                     "Service::handle_announcement: error accessing repo seeding configuration",
                 );
-
                 if repo_entry.policy == Policy::Allow {
-                    let (fresh, stale) = match self.refs_status_of(message, &repo_entry.scope) {
+                    let (fresh, stale) = match self.refs_status_of(
+                        message.rid,
+                        message.refs.clone().into(),
+                        &repo_entry.scope,
+                    ) {
                         Ok(RefsStatus { fresh, stale }) => (fresh, stale),
                         Err(e) => {
                             error!(target: "service", "Failed to check refs status: {e}");
@@ -1392,7 +1440,9 @@ where
                         // Finally, if there's anything to fetch, we fetch it from the
                         // remote.
                         if let Some(fresh) = NonEmpty::from_vec(fresh) {
-                            self.fetch_refs_at(message.rid, remote.id, fresh, FETCH_TIMEOUT);
+                            self.fetch_refs_at(message.rid, remote.id, fresh, FETCH_TIMEOUT, None);
+                        } else {
+                            debug!(target: "service", "Skipping fetch, all refs of {} are already in local storage", message.rid);
                         }
                     } else {
                         trace!(
@@ -1479,14 +1529,14 @@ where
     /// A convenient method to check if we should fetch from a `RefsAnnouncement` with `scope`.
     fn refs_status_of(
         &self,
-        message: &RefsAnnouncement,
+        rid: RepoId,
+        refs: Vec<RefsAt>,
         scope: &policy::Scope,
     ) -> Result<RefsStatus, Error> {
-        let mut refs = message.refs_status(&self.storage)?;
+        let mut refs = RefsStatus::new(rid, refs, &self.storage)?;
 
         // First, check the freshness.
         if refs.fresh.is_empty() {
-            debug!(target: "service", "All refs of {} are already in local storage", &message.rid);
             return Ok(refs);
         }
 
@@ -1494,7 +1544,7 @@ where
         match scope {
             policy::Scope::All => Ok(refs),
             policy::Scope::Followed => {
-                match self.policies.namespaces_for(&self.storage, &message.rid) {
+                match self.policies.namespaces_for(&self.storage, &rid) {
                     Ok(Namespaces::All) => Ok(refs),
                     Ok(Namespaces::Followed(mut followed)) => {
                         // Get the set of followed nodes except self.

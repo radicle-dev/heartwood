@@ -16,12 +16,11 @@ use super::fixtures;
 #[derive(Clone, Debug)]
 pub struct MockStorage {
     pub path: PathBuf,
-    pub inventory: HashMap<RepoId, DocAt>,
     pub info: git::UserInfo,
 
     /// All refs keyed by RID.
     /// Each value is a map of refs keyed by node Id (public key).
-    pub remotes: HashMap<RepoId, HashMap<NodeId, refs::SignedRefsAt>>,
+    pub repos: HashMap<RepoId, MockRepository>,
 }
 
 impl MockStorage {
@@ -29,18 +28,30 @@ impl MockStorage {
         Self {
             path: PathBuf::default(),
             info: fixtures::user(),
-            inventory: inventory.into_iter().collect(),
-            remotes: HashMap::new(),
+            repos: inventory
+                .into_iter()
+                .map(|(id, doc)| {
+                    (
+                        id,
+                        MockRepository {
+                            id,
+                            doc,
+                            remotes: HashMap::new(),
+                        },
+                    )
+                })
+                .collect(),
         }
+    }
+
+    pub fn repo_mut(&mut self, rid: &RepoId) -> &mut MockRepository {
+        self.repos
+            .get_mut(rid)
+            .expect("MockStorage::repo_mut: repository does not exist")
     }
 
     pub fn empty() -> Self {
         Self::new(Vec::new())
-    }
-
-    /// Add a remote `node` with `signed_refs` for the repo `rid`.
-    pub fn insert_remote(&mut self, rid: RepoId, node: NodeId, refs: refs::SignedRefsAt) {
-        self.remotes.entry(rid).or_default().insert(node, refs);
     }
 }
 
@@ -60,23 +71,18 @@ impl ReadStorage for MockStorage {
     }
 
     fn contains(&self, rid: &RepoId) -> Result<bool, RepositoryError> {
-        Ok(self.inventory.contains_key(rid))
+        Ok(self.repos.contains_key(rid))
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
-        Ok(self.inventory.keys().cloned().collect::<Vec<_>>())
+        Ok(self.repos.keys().cloned().collect::<Vec<_>>())
     }
 
     fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error> {
-        let doc = self
-            .inventory
+        self.repos
             .get(&rid)
-            .ok_or_else(|| Error::Io(io::Error::from(io::ErrorKind::NotFound)))?;
-        Ok(MockRepository {
-            id: rid,
-            doc: doc.clone(),
-            remotes: self.remotes.get(&rid).cloned().unwrap_or_default(),
-        })
+            .ok_or_else(|| Error::Io(io::Error::from(io::ErrorKind::NotFound)))
+            .cloned()
     }
 }
 
@@ -84,12 +90,10 @@ impl WriteStorage for MockStorage {
     type RepositoryMut = MockRepository;
 
     fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error> {
-        let doc = self.inventory.get(&rid).unwrap();
-        Ok(MockRepository {
-            id: rid,
-            doc: doc.clone(),
-            remotes: self.remotes.get(&rid).cloned().unwrap_or_default(),
-        })
+        self.repos
+            .get(&rid)
+            .ok_or(Error::Io(io::ErrorKind::NotFound.into()))
+            .cloned()
     }
 
     fn create(&self, _rid: RepoId) -> Result<Self::RepositoryMut, Error> {
@@ -103,9 +107,9 @@ impl WriteStorage for MockStorage {
 
 #[derive(Clone, Debug)]
 pub struct MockRepository {
-    id: RepoId,
-    doc: DocAt,
-    remotes: HashMap<NodeId, refs::SignedRefsAt>,
+    pub id: RepoId,
+    pub doc: DocAt,
+    pub remotes: HashMap<NodeId, refs::SignedRefsAt>,
 }
 
 impl MockRepository {

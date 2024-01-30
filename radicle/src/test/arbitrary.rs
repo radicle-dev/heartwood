@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::hash::Hash;
 use std::ops::RangeBounds;
 use std::str::FromStr;
@@ -68,7 +68,15 @@ pub fn vec<T: Eq + Arbitrary>(size: usize) -> Vec<T> {
 pub fn nonempty_storage(size: usize) -> MockStorage {
     let mut storage = gen::<MockStorage>(size);
     for _ in 0..size {
-        storage.inventory.insert(gen::<RepoId>(1), gen::<DocAt>(1));
+        let id = gen::<RepoId>(1);
+        storage.repos.insert(
+            id,
+            MockRepository {
+                id,
+                doc: gen::<DocAt>(1),
+                remotes: HashMap::new(),
+            },
+        );
     }
     storage
 }

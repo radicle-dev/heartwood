@@ -11,7 +11,7 @@ use radicle::node::address::Store as _;
 use radicle::node::Database;
 use radicle::node::{address, Alias, ConnectOptions};
 use radicle::rad;
-use radicle::storage::refs::RefsAt;
+use radicle::storage::refs::{RefsAt, SignedRefsAt};
 use radicle::storage::{ReadRepository, RemoteRepository};
 use radicle::Storage;
 
@@ -319,14 +319,22 @@ where
             }
         }
 
-        let ann = AnnouncementMessage::from(RefsAnnouncement {
+        self.announcement(RefsAnnouncement {
             rid,
             refs,
             timestamp: self.timestamp(),
-        });
-        let msg = ann.signed(self.signer());
+        })
+    }
 
-        msg.into()
+    pub fn announcement(&self, ann: impl Into<AnnouncementMessage>) -> Message {
+        ann.into().signed(self.signer()).into()
+    }
+
+    pub fn signed_refs_at(&self, refs: Refs, at: radicle::git::Oid) -> SignedRefsAt {
+        SignedRefsAt {
+            sigrefs: refs.signed(self.signer()).unwrap(),
+            at,
+        }
     }
 
     pub fn connect_from(&mut self, peer: &Self) {
