@@ -1218,7 +1218,7 @@ where
         match self.db.gossip_mut().announced(announcer, announcement) {
             Ok(fresh) => {
                 if !fresh {
-                    trace!(target: "service", "Ignoring stale inventory announcement from {announcer} (t={})", self.time());
+                    trace!(target: "service", "Ignoring stale announcement from {announcer} (t={})", self.time());
                     return Ok(false);
                 }
             }
