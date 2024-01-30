@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Context};
 use serde::{Deserialize, Serialize};
-use url::Url;
+use url::{Position, Url};
 
 use radicle::crypto::{PublicKey, Signature, Signer};
 
@@ -28,6 +28,7 @@ Options
 
     --listen, -l  <addr>     Address to bind the HTTP daemon to (default: 127.0.0.1:8080)
     --connect, -c [<addr>]   Connect the explorer to an already running daemon (default: 127.0.0.1:8080)
+    --path, -p  <path>       Path to be opened in the explorer after authentication
     --[no-]open              Open the authentication URL automatically (default: open)
     --help                   Print help
 "#,
@@ -44,6 +45,7 @@ pub struct SessionInfo {
 pub struct Options {
     pub app_url: Url,
     pub listen: SocketAddr,
+    pub path: Option<String>,
     pub connect: Option<SocketAddr>,
     pub open: bool,
 }
@@ -55,6 +57,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut listen = None;
         let mut connect = None;
+        let mut path = None;
         // SAFETY: This is a valid URL.
         #[allow(clippy::unwrap_used)]
         let mut app_url = Url::parse("https://app.radicle.xyz").unwrap();
@@ -65,6 +68,10 @@ impl Args for Options {
                 Long("listen") | Short('l') if listen.is_none() => {
                     let val = parser.value()?;
                     listen = Some(term::args::socket_addr(&val)?);
+                }
+                Long("path") | Short('p') if path.is_none() => {
+                    let val = parser.value()?;
+                    path = Some(term::args::string(&val));
                 }
                 Long("connect") | Short('c') if connect.is_none() => {
                     if let Ok(val) = parser.value() {
@@ -99,6 +106,7 @@ impl Args for Options {
                     IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
                     8080,
                 )),
+                path,
                 connect,
             },
             vec![],
@@ -167,6 +175,21 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         .append_pair("pk", &session.public_key.to_string())
         .append_pair("sig", &signature.to_string())
         .append_pair("addr", &connect.to_string());
+
+    let pathname = radicle::rad::cwd().ok().and_then(|(_, rid)| {
+        Url::parse(
+            &profile
+                .config
+                .public_explorer
+                .url(options.listen, rid)
+                .to_string(),
+        )
+        .map(|x| x[Position::BeforePath..].to_string())
+        .ok()
+    });
+    if let Some(path) = options.path.or(pathname) {
+        auth_url.query_pairs_mut().append_pair("path", &path);
+    }
 
     if options.open {
         #[cfg(target_os = "macos")]
