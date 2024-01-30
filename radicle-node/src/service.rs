@@ -2205,6 +2205,12 @@ impl DisconnectReason {
     pub fn is_connection_err(&self) -> bool {
         matches!(self, Self::Connection(_))
     }
+
+    pub fn connection() -> Self {
+        DisconnectReason::Connection(Arc::new(std::io::Error::from(
+            std::io::ErrorKind::ConnectionReset,
+        )))
+    }
 }
 
 impl fmt::Display for DisconnectReason {
