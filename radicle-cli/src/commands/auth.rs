@@ -193,10 +193,16 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
         ssh::keystore::MemorySigner::load(&profile.keystore, Some(passphrase))
             .map_err(|_| anyhow!("`{RAD_PASSPHRASE}` is invalid"))?;
         return Ok(());
-    };
+    }
 
-    // ssh-agent is the de-facto solution.
-    anyhow::bail!("ssh-agent not running");
+    term::print(term::format::dim(
+        "Nothing to do, ssh-agent is not running.",
+    ));
+    term::print(term::format::dim(
+        "You will be prompted for a passphrase when necessary.",
+    ));
+
+    Ok(())
 }
 
 /// Register key with ssh-agent.
