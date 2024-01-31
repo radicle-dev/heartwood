@@ -113,6 +113,7 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     let passphrase = passphrase.trim().is_empty().not().then_some(passphrase);
     let spinner = term::spinner("Creating your Ed25519 keypair...");
     let profile = Profile::init(home, alias, passphrase.clone())?;
+    let mut agent = true;
     spinner.finish();
 
     if let Some(passphrase) = passphrase {
@@ -126,7 +127,9 @@ pub fn init(options: Options) -> anyhow::Result<()> {
                     spinner.warn();
                 }
             }
-            Err(e) if e.is_not_running() => {}
+            Err(e) if e.is_not_running() => {
+                agent = false;
+            }
             Err(e) => Err(e)?,
         }
     }
@@ -138,6 +141,11 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     );
     term::success!("You're all set.");
     term::blank();
+
+    if profile.config.cli.hints && !agent {
+        term::hint("install ssh-agent to have it fill in your passphrase for you when signing.");
+        term::blank();
+    }
     term::info!(
         "To create a Radicle repository, run {} from a Git repository with at least one commit.",
         term::format::command("rad init")
