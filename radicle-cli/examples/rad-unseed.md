@@ -21,6 +21,8 @@ Now, if we run `rad ls`, we see it's gone:
 ```
 $ rad ls
 Nothing to show.
+$ rad ls --seeds
+Nothing to show.
 ```
 
 However, with the `--all` flag, we can see it still, but as local-only:
