@@ -1,7 +1,7 @@
 use std::ffi::OsString;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
-use std::{path::Path, process, thread, time};
+use std::{fs, io, path::Path, process, thread, time};
 
 use localtime::LocalTime;
 
@@ -15,6 +15,10 @@ use crate::terminal::Element as _;
 
 /// How long to wait for the node to start before returning an error.
 pub const NODE_START_TIMEOUT: time::Duration = time::Duration::from_secs(6);
+/// Node log file name.
+pub const NODE_LOG: &str = "node.log";
+/// Node log old file name, after rotation.
+pub const NODE_LOG_OLD: &str = "node.log.old";
 
 pub fn start(
     node: Node,
@@ -50,11 +54,7 @@ pub fn start(
         options.push(OsString::from("--force"));
     }
     if daemon {
-        let log = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(profile.home.node().join("node.log"))?;
-
+        let log = log_rotate(profile)?;
         let child = process::Command::new(cmd)
             .args(options)
             .envs(envs)
@@ -266,4 +266,21 @@ pub fn config(node: &Node) -> anyhow::Result<()> {
     println!("{cfg}");
 
     Ok(())
+}
+
+fn log_rotate(profile: &Profile) -> io::Result<File> {
+    let base = profile.home.node();
+    if base.join(NODE_LOG).exists() {
+        // Let this fail, eg. if the file doesn't exist.
+        fs::remove_file(base.join(NODE_LOG_OLD)).ok();
+        fs::rename(base.join(NODE_LOG), base.join(NODE_LOG_OLD))?;
+    }
+
+    let log = OpenOptions::new()
+        .append(false)
+        .truncate(true)
+        .create(true)
+        .open(base.join(NODE_LOG))?;
+
+    Ok(log)
 }
