@@ -216,6 +216,9 @@ impl Profile {
                 key: public_key,
             },
         )?;
+        // Create DBs.
+        home.policies_mut()?;
+        home.database_mut()?;
 
         transport::local::register(storage.clone());
 
