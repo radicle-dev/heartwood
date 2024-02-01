@@ -6,6 +6,7 @@ use std::str;
 
 use base64::prelude::{Engine, BASE64_STANDARD};
 use radicle::cob::{CodeLocation, Reaction};
+use radicle::patch::ReviewId;
 use serde_json::{json, Value};
 
 use radicle::cob::issue::{Issue, IssueId};
@@ -137,15 +138,19 @@ pub(crate) fn patch(
                         acc
                     });
                     reactions.iter().map(|(emoji, authors)|
-                        json!({"location": location, "emoji": emoji, "authors": authors })
+                        json!({ "location": location, "emoji": emoji, "authors": authors })
                     ).collect::<Vec<_>>()
                 }).collect::<Vec<_>>(),
                 "base": rev.base(),
                 "oid": rev.head(),
                 "refs": get_refs(repo, patch.author().id(), &rev.head()).unwrap_or_default(),
-                "discussions": rev.discussion().comments().map(|(id, c)| patch_comment(id, c,  aliases)).collect::<Vec<_>>(),
+                "discussions": rev.discussion().comments().map(|(id, c)| {
+                    patch_comment(id, c, aliases)
+                }).collect::<Vec<_>>(),
                 "timestamp": rev.timestamp().as_secs(),
-                "reviews": rev.reviews().map(|(nid, r)| review(nid, r, aliases)).collect::<Vec<_>>(),
+                "reviews": patch.reviews_of(id).map(move |(id, r)| {
+                    review(id, r, aliases)
+                }).collect::<Vec<_>>(),
             })
         }).collect::<Vec<_>>(),
     })
@@ -173,9 +178,11 @@ fn merge(nid: &NodeId, merge: &Merge, aliases: &impl AliasStore) -> Value {
 }
 
 /// Returns JSON for a patch `Review` and fills in `alias` when present.
-fn review(nid: &NodeId, review: &Review, aliases: &impl AliasStore) -> Value {
+fn review(id: &ReviewId, review: &Review, aliases: &impl AliasStore) -> Value {
+    let a = review.author();
     json!({
-        "author": author(&Author::from(*nid), aliases.alias(nid)),
+        "id": id,
+        "author": author(a, aliases.alias(a.id())),
         "verdict": review.verdict(),
         "summary": review.summary(),
         "comments": review.comments().map(|(id, c)| review_comment(id, c, aliases)).collect::<Vec<_>>(),

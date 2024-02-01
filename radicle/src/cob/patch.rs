@@ -497,6 +497,21 @@ impl Patch {
             .filter(move |(_, r)| (r.author.public_key() == author))
     }
 
+    /// List of patch reviews of the given revision.
+    pub fn reviews_of(&self, rev: RevisionId) -> impl Iterator<Item = (&ReviewId, &Review)> {
+        self.reviews.iter().filter_map(move |(review_id, t)| {
+            t.and_then(|(rev_id, pk)| {
+                if rev == rev_id {
+                    self.revision(&rev_id)
+                        .and_then(|r| r.review(&pk))
+                        .map(|r| (review_id, r))
+                } else {
+                    None
+                }
+            })
+        })
+    }
+
     /// List of patch assignees.
     pub fn assignees(&self) -> impl Iterator<Item = Did> + '_ {
         self.assignees.iter().map(Did::from)

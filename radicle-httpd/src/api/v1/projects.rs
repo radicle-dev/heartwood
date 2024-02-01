@@ -3446,6 +3446,7 @@ mod routes {
                   "timestamp": TIMESTAMP,
                   "reviews": [
                     {
+                      "id": "37ed60b8a11949d5db32bce3dd5ab117d3a82841",
                       "author": {
                           "id": CONTRIBUTOR_DID,
                       },
