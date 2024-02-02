@@ -476,10 +476,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
         .map(|(id, _, _)| id)
         .unwrap();
 
-        assert!(self
-            .policies
-            .seed(&id, node::policy::Scope::Followed)
-            .unwrap());
+        assert!(self.policies.seed(&id, node::policy::Scope::All).unwrap());
 
         log::debug!(
             target: "test",

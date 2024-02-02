@@ -17,7 +17,7 @@ pub use radicle_git_ext::Oid;
 use crate::cob;
 use crate::collections::RandomMap;
 use crate::git::ext as git_ext;
-use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefString};
+use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefStr, RefString};
 use crate::identity::{Did, PayloadError};
 use crate::identity::{Doc, DocAt, DocError};
 use crate::identity::{Identity, RepoId};
@@ -186,12 +186,34 @@ impl RefUpdate {
         }
     }
 
-    pub fn name(&self) -> &RefString {
-        match &self {
-            RefUpdate::Updated { name, .. } => name,
-            RefUpdate::Created { name, .. } => name,
-            RefUpdate::Deleted { name, .. } => name,
-            RefUpdate::Skipped { name, .. } => name,
+    /// Get the old OID, if any.
+    pub fn old(&self) -> Option<Oid> {
+        match self {
+            RefUpdate::Updated { old, .. } => Some(*old),
+            RefUpdate::Created { .. } => None,
+            RefUpdate::Deleted { oid, .. } => Some(*oid),
+            RefUpdate::Skipped { oid, .. } => Some(*oid),
+        }
+    }
+
+    /// Get the new OID, if any.
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(&self) -> Option<Oid> {
+        match self {
+            RefUpdate::Updated { new, .. } => Some(*new),
+            RefUpdate::Created { oid, .. } => Some(*oid),
+            RefUpdate::Deleted { .. } => None,
+            RefUpdate::Skipped { .. } => None,
+        }
+    }
+
+    /// Get the ref name.
+    pub fn name(&self) -> &RefStr {
+        match self {
+            RefUpdate::Updated { name, .. } => name.as_refstr(),
+            RefUpdate::Created { name, .. } => name.as_refstr(),
+            RefUpdate::Deleted { name, .. } => name.as_refstr(),
+            RefUpdate::Skipped { name, .. } => name.as_refstr(),
         }
     }
 }

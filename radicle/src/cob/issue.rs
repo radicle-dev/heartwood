@@ -688,7 +688,7 @@ impl IssueCounts {
     }
 }
 
-impl<'a, R: WriteRepository> Issues<'a, R>
+impl<'a, R> Issues<'a, R>
 where
     R: ReadRepository + cob::Store,
 {
@@ -699,7 +699,12 @@ where
 
         Ok(Self { raw })
     }
+}
 
+impl<'a, R> Issues<'a, R>
+where
+    R: WriteRepository + cob::Store,
+{
     /// Get an issue.
     pub fn get(&self, id: &ObjectId) -> Result<Option<Issue>, store::Error> {
         self.raw.get(id)

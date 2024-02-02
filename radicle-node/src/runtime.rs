@@ -240,14 +240,6 @@ impl Runtime {
         }
         let reactor = Reactor::named(wire, popol::Poller::new(), thread::name(&id, "service"))?;
         let handle = Handle::new(home.clone(), reactor.controller(), emitter);
-        let atomic = git::version()? >= git::VERSION_REQUIRED;
-
-        if !atomic {
-            log::warn!(
-                target: "node",
-                "Disabling atomic fetches; git version >= {} required", git::VERSION_REQUIRED
-            );
-        }
 
         let nid = *signer.public_key();
         let fetch = worker::FetchConfig {

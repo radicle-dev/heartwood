@@ -355,6 +355,11 @@ impl PublicKey {
     }
 
     #[cfg(feature = "radicle-git-ext")]
+    pub fn to_component(&self) -> radicle_git_ext::ref_format::Component {
+        radicle_git_ext::ref_format::Component::from(self)
+    }
+
+    #[cfg(feature = "radicle-git-ext")]
     pub fn from_namespaced(
         refstr: &radicle_git_ext::ref_format::Namespaced,
     ) -> Result<Self, PublicKeyError> {

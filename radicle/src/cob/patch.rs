@@ -2241,7 +2241,7 @@ impl<'a, R> Deref for Patches<'a, R> {
 
 impl<'a, R> Patches<'a, R>
 where
-    R: ReadRepository + cob::Store + 'static,
+    R: ReadRepository + cob::Store,
 {
     /// Open a patches store.
     pub fn open(repository: &'a R) -> Result<Self, RepositoryError> {
