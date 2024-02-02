@@ -3,8 +3,8 @@ use radicle::git;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
 
-use super::common::*;
 use crate::terminal as term;
+use crate::terminal::patch::*;
 
 /// Run patch update.
 pub fn run(

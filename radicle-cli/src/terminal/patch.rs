@@ -1,3 +1,6 @@
+mod common;
+mod timeline;
+
 use std::fmt;
 use std::fmt::Write;
 use std::io;
@@ -8,9 +11,15 @@ use thiserror::Error;
 use radicle::cob;
 use radicle::cob::patch;
 use radicle::git;
+use radicle::patch::{Patch, PatchId};
+use radicle::prelude::Profile;
+use radicle::storage::git::Repository;
+use radicle::storage::WriteRepository as _;
 
 use crate::terminal as term;
 use crate::terminal::Element;
+
+pub use common::*;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -327,6 +336,128 @@ pub fn print_commits_ahead_behind(
         }
     );
     Ok(())
+}
+
+pub fn show(
+    patch: &Patch,
+    id: &PatchId,
+    verbose: bool,
+    stored: &Repository,
+    workdir: Option<&git::raw::Repository>,
+    profile: &Profile,
+) -> anyhow::Result<()> {
+    let (_, revision) = patch.latest();
+    let state = patch.state();
+    let branches = if let Some(wd) = workdir {
+        common::branches(&revision.head(), wd)?
+    } else {
+        vec![]
+    };
+    let ahead_behind = common::ahead_behind(
+        stored.raw(),
+        *revision.head(),
+        *patch.target().head(stored)?,
+    )?;
+    let author = patch.author();
+    let author = term::format::Author::new(author.id(), profile);
+    let labels = patch.labels().map(|l| l.to_string()).collect::<Vec<_>>();
+
+    let mut attrs = term::Table::<2, term::Line>::new(term::TableOptions {
+        spacing: 2,
+        ..term::TableOptions::default()
+    });
+    attrs.push([
+        term::format::tertiary("Title".to_owned()).into(),
+        term::format::bold(patch.title().to_owned()).into(),
+    ]);
+    attrs.push([
+        term::format::tertiary("Patch".to_owned()).into(),
+        term::format::default(id.to_string()).into(),
+    ]);
+    attrs.push([
+        term::format::tertiary("Author".to_owned()).into(),
+        author.line(),
+    ]);
+    if !labels.is_empty() {
+        attrs.push([
+            term::format::tertiary("Labels".to_owned()).into(),
+            term::format::secondary(labels.join(", ")).into(),
+        ]);
+    }
+    attrs.push([
+        term::format::tertiary("Head".to_owned()).into(),
+        term::format::secondary(revision.head().to_string()).into(),
+    ]);
+    if verbose {
+        attrs.push([
+            term::format::tertiary("Base".to_owned()).into(),
+            term::format::secondary(revision.base().to_string()).into(),
+        ]);
+    }
+    if !branches.is_empty() {
+        attrs.push([
+            term::format::tertiary("Branches".to_owned()).into(),
+            term::format::yellow(branches.join(", ")).into(),
+        ]);
+    }
+    attrs.push([
+        term::format::tertiary("Commits".to_owned()).into(),
+        ahead_behind,
+    ]);
+    attrs.push([
+        term::format::tertiary("Status".to_owned()).into(),
+        match state {
+            patch::State::Open { .. } => term::format::positive(state.to_string()),
+            patch::State::Draft => term::format::dim(state.to_string()),
+            patch::State::Archived => term::format::yellow(state.to_string()),
+            patch::State::Merged { .. } => term::format::primary(state.to_string()),
+        }
+        .into(),
+    ]);
+
+    let commits = patch_commit_lines(patch, stored)?;
+    let description = patch.description().trim();
+    let mut widget = term::VStack::default()
+        .border(Some(term::colors::FAINT))
+        .child(attrs)
+        .children(if !description.is_empty() {
+            vec![
+                term::Label::blank().boxed(),
+                term::textarea(description).boxed(),
+            ]
+        } else {
+            vec![]
+        })
+        .divider()
+        .children(commits.into_iter().map(|l| l.boxed()))
+        .divider();
+
+    for line in timeline::timeline(profile, patch) {
+        widget.push(line);
+    }
+    widget.print();
+
+    Ok(())
+}
+
+fn patch_commit_lines(
+    patch: &patch::Patch,
+    stored: &Repository,
+) -> anyhow::Result<Vec<term::Line>> {
+    let (from, to) = patch.range()?;
+    let mut lines = Vec::new();
+
+    for commit in patch_commits(stored.raw(), &from, &to)? {
+        lines.push(term::Line::spaced([
+            term::label(term::format::secondary::<String>(
+                term::format::oid(commit.id()).into(),
+            )),
+            term::label(term::format::default(
+                commit.summary().unwrap_or_default().to_owned(),
+            )),
+        ]));
+    }
+    Ok(lines)
 }
 
 #[cfg(test)]

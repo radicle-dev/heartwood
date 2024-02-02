@@ -6,8 +6,6 @@ mod assign;
 mod checkout;
 #[path = "patch/comment.rs"]
 mod comment;
-#[path = "patch/common.rs"]
-mod common;
 #[path = "patch/delete.rs"]
 mod delete;
 #[path = "patch/diff.rs"]
