@@ -535,7 +535,7 @@ pub fn fetch(
     // Fetch from specified seeds, plus our preferred seeds.
     for nid in &settings.seeds {
         if !sessions.iter().any(|s| &s.nid == nid) {
-            term::warning("node {nid} is not connected.. skipping");
+            term::warning(format!("node {nid} is not connected.. skipping"));
             continue;
         }
         let result = fetch_from(rid, nid, timeout, node)?;
