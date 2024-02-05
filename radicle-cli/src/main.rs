@@ -152,6 +152,13 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "debug" => {
+            term::run_command_args::<rad_debug::Options, _>(
+                rad_debug::HELP,
+                rad_debug::run,
+                args.to_vec(),
+            );
+        }
         "follow" => {
             term::run_command_args::<rad_follow::Options, _>(
                 rad_follow::HELP,
