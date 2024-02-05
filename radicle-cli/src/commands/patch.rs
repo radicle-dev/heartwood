@@ -39,12 +39,12 @@ use radicle::cob::{patch, Label, ObjectId};
 use radicle::storage::git::{transport, Repository};
 use radicle::storage::ReadRepository;
 use radicle::{prelude::*, Node};
-use radicle_term::command::CommandError;
 
 use crate::git::Rev;
 use crate::node;
 use crate::terminal as term;
 use crate::terminal::args::{string, Args, Error, Help};
+use crate::terminal::command::CommandError;
 use crate::terminal::patch::Message;
 use crate::tui::{self, TuiError};
 
@@ -862,14 +862,14 @@ fn resolve_patch_id(repository: &Repository, rev: Option<Rev>) -> anyhow::Result
     if let Some(rev) = rev {
         Ok(rev.resolve(&repository.backend)?)
     } else {
-        match tui::select_patch_id() {
+        match tui::patch::select_id() {
             Ok(output) => {
-                let patch_id = output.and_then(|output| output.ids().first().cloned());
-                patch_id.ok_or_else(|| anyhow!("a patch must be provided"))
+                let issue_id = output.and_then(|output| output.ids().first().cloned());
+                issue_id.ok_or_else(|| anyhow!("an issue must be provided"))
             }
             Err(TuiError::Command(CommandError::NotFound)) => {
-                term::hint("An optional patch TUI can be enabled by installing `rad-tui`. You can download it from https://files.radicle.xyz/latest.");
-                Err(anyhow!("a patch must be provided"))
+                term::hint("An optional issue TUI can be enabled by installing `rad-tui`. You can download it from https://files.radicle.xyz/latest.");
+                Err(anyhow!("an issue must be provided"))
             }
             Err(err) => Err(err.into()),
         }
@@ -881,7 +881,7 @@ fn resolve_patch_operation(
     authored: bool,
     authors: Vec<Did>,
 ) -> anyhow::Result<Option<Operation>> {
-    match tui::select_patch_operation(&state.to_string(), authored, authors) {
+    match tui::patch::select_operation(&state.to_string(), authored, authors) {
         Ok(Some(output)) => {
             let operation = output
                 .operation()
