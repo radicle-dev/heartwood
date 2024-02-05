@@ -432,7 +432,6 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let signer = term::signer(&profile)?;
     let rid = if let Some(rid) = options.repo {
         rid
     } else {
@@ -458,6 +457,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             title,
             description,
         } => {
+            let signer = term::signer(&profile)?;
             let issue = edit(&mut issues, &repo, id, title, description, &signer)?;
             if !options.quiet {
                 term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
@@ -469,6 +469,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             labels,
             assignees,
         } => {
+            let signer = term::signer(&profile)?;
             let issue = issues.create(title, description, &labels, &assignees, [], &signer)?;
             if !options.quiet {
                 term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
@@ -479,6 +480,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             message,
             reply_to,
         } => {
+            let signer = term::signer(&profile)?;
             let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
             let mut issue = issues.get_mut(&issue_id)?;
             let (body, reply_to) = prompt_comment(message, reply_to, &issue, &repo)?;
@@ -503,6 +505,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Operation::State { id, state } => {
+            let signer = term::signer(&profile)?;
             let id = id.resolve(&repo.backend)?;
             let mut issue = issues.get_mut(&id)?;
             issue.lifecycle(state, &signer)?;
@@ -514,6 +517,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         } => {
             let id = id.resolve(&repo.backend)?;
             if let Ok(mut issue) = issues.get_mut(&id) {
+                let signer = term::signer(&profile)?;
                 let comment_id = comment_id.unwrap_or_else(|| {
                     let (comment_id, _) = term::io::comment_select(&issue).unwrap();
                     *comment_id
@@ -527,6 +531,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             ref labels,
             ref assignees,
         } => {
+            let signer = term::signer(&profile)?;
             open(
                 title.clone(),
                 description.clone(),
@@ -542,6 +547,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             id,
             opts: AssignOptions { add, delete },
         } => {
+            let signer = term::signer(&profile)?;
             let id = id.resolve(&repo.backend)?;
             let Ok(mut issue) = issues.get_mut(&id) else {
                 anyhow::bail!("Issue `{id}` not found");
@@ -558,6 +564,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             id,
             opts: LabelOptions { add, delete },
         } => {
+            let signer = term::signer(&profile)?;
             let id = id.resolve(&repo.backend)?;
             let Ok(mut issue) = issues.get_mut(&id) else {
                 anyhow::bail!("Issue `{id}` not found");
@@ -574,6 +581,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             list(issues, &assigned, &state, &profile)?;
         }
         Operation::Delete { id } => {
+            let signer = term::signer(&profile)?;
             let id = id.resolve(&repo.backend)?;
             issues.remove(&id, &signer)?;
         }
