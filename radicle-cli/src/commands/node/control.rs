@@ -277,9 +277,8 @@ fn log_rotate(profile: &Profile) -> io::Result<File> {
     }
 
     let log = OpenOptions::new()
-        .append(false)
-        .truncate(true)
-        .create(true)
+        .write(true)
+        .create_new(true)
         .open(base.join(NODE_LOG))?;
 
     Ok(log)
