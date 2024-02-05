@@ -40,12 +40,12 @@ use radicle::cob::{Label, ObjectId};
 use radicle::patch::cache::Patches as _;
 use radicle::storage::git::{transport, Repository};
 use radicle::{prelude::*, Node};
-use radicle_term::command::CommandError;
 
 use crate::git::{self, Rev};
 use crate::node;
 use crate::terminal as term;
 use crate::terminal::args::{string, Args, Error, Help};
+use crate::terminal::command::CommandError;
 use crate::terminal::patch::Message;
 use crate::tui;
 

@@ -9,25 +9,28 @@ use anyhow::{anyhow, Context as _};
 
 use radicle::cob::common::{Label, Reaction};
 use radicle::cob::issue;
-use radicle::cob::issue::{CloseReason, State};
+use radicle::cob::issue::CloseReason;
 use radicle::cob::thread;
+use radicle::cob::ObjectId;
 use radicle::crypto::Signer;
-use radicle::issue::cache::Issues as _;
+use radicle::issue::cache::Issues;
 use radicle::prelude::{Did, RepoId};
 use radicle::profile;
 use radicle::storage;
+use radicle::storage::git::Repository;
 use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
 use radicle::Profile;
 use radicle::{cob, Node};
 
 use crate::git::Rev;
-use crate::node;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::command::CommandError;
 use crate::terminal::format::Author;
 use crate::terminal::issue::Format;
 use crate::terminal::patch::Message;
 use crate::terminal::Element;
+use crate::{node, tui};
 
 pub const HELP: Help = Help {
     name: "issue",
@@ -72,6 +75,7 @@ Options
         --repo <rid>       Operate on the given repository (default: cwd)
         --no-announce      Don't announce issue to peers
         --header           Show only the issue header, hiding the comments
+    -i  --interactive      Allow usage of `rad-tui` to override the operation's default behaviour (default: false)
     -q, --quiet            Don't print anything
         --help             Print help
 "#,
@@ -79,18 +83,41 @@ Options
 
 #[derive(Default, Debug, PartialEq, Eq)]
 pub enum OperationName {
+    #[default]
+    Default,
     Assign,
     Edit,
     Open,
     Comment,
     Delete,
     Label,
-    #[default]
     List,
     React,
     Show,
     State,
     Cache,
+}
+
+impl TryFrom<&str> for OperationName {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "default" => Ok(OperationName::Default),
+            "assign" => Ok(OperationName::Assign),
+            "edit" => Ok(OperationName::Edit),
+            "open" => Ok(OperationName::Open),
+            "comment" => Ok(OperationName::Comment),
+            "delete" => Ok(OperationName::Delete),
+            "label" => Ok(OperationName::Label),
+            "list" => Ok(OperationName::List),
+            "react" => Ok(OperationName::React),
+            "show" => Ok(OperationName::Show),
+            "state" => Ok(OperationName::State),
+            "cache" => Ok(OperationName::Cache),
+            _ => Err(anyhow!("invalid operation name: {value}")),
+        }
+    }
 }
 
 /// Command line Peer argument.
@@ -104,7 +131,7 @@ pub enum Assigned {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Operation {
     Edit {
-        id: Rev,
+        id: Option<Rev>,
         title: Option<String>,
         description: Option<String>,
     },
@@ -115,42 +142,55 @@ pub enum Operation {
         assignees: Vec<Did>,
     },
     Show {
-        id: Rev,
+        id: Option<Rev>,
         format: Format,
         debug: bool,
     },
     Comment {
-        id: Rev,
+        id: Option<Rev>,
         message: Message,
         reply_to: Option<Rev>,
     },
     State {
-        id: Rev,
-        state: State,
+        id: Option<Rev>,
+        state: issue::State,
     },
     Delete {
-        id: Rev,
+        id: Option<Rev>,
     },
     React {
-        id: Rev,
+        id: Option<Rev>,
         reaction: Reaction,
         comment_id: Option<thread::CommentId>,
     },
     Assign {
-        id: Rev,
+        id: Option<Rev>,
         opts: AssignOptions,
     },
     Label {
-        id: Rev,
+        id: Option<Rev>,
         opts: LabelOptions,
     },
+    Default {
+        opts: ListOptions,
+    },
     List {
-        assigned: Option<Assigned>,
-        state: Option<State>,
+        opts: ListOptions,
     },
     Cache {
         id: Option<Rev>,
     },
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct ListOptions {
+    pub state: Option<issue::State>,
+    pub assigned: Option<Assigned>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct StateOptions {
+    pub state: Option<issue::State>,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -170,6 +210,7 @@ pub struct Options {
     pub op: Operation,
     pub repo: Option<RepoId>,
     pub announce: bool,
+    pub interactive: bool,
     pub quiet: bool,
 }
 
@@ -180,23 +221,25 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut id: Option<Rev> = None;
-        let mut assigned: Option<Assigned> = None;
         let mut title: Option<String> = None;
         let mut reaction: Option<Reaction> = None;
         let mut comment_id: Option<thread::CommentId> = None;
         let mut description: Option<String> = None;
-        let mut state: Option<State> = Some(State::Open);
         let mut labels = Vec::new();
         let mut assignees = Vec::new();
         let mut format = Format::default();
         let mut message = Message::default();
         let mut reply_to = None;
         let mut announce = true;
+        let mut interactive = false;
         let mut quiet = false;
         let mut debug = false;
         let mut assign_opts = AssignOptions::default();
         let mut label_opts = LabelOptions::default();
         let mut repo = None;
+
+        let mut list_opts = ListOptions::default();
+        let mut state_opts = StateOptions::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -206,20 +249,28 @@ impl Args for Options {
 
                 // List options.
                 Long("all") if op.is_none() || op == Some(OperationName::List) => {
-                    state = None;
+                    list_opts.state = None;
                 }
                 Long("closed") if op.is_none() || op == Some(OperationName::List) => {
-                    state = Some(State::Closed {
+                    list_opts.state = Some(issue::State::Closed {
                         reason: CloseReason::Other,
                     });
                 }
                 Long("open") if op.is_none() || op == Some(OperationName::List) => {
-                    state = Some(State::Open);
+                    list_opts.state = Some(issue::State::Open);
                 }
                 Long("solved") if op.is_none() || op == Some(OperationName::List) => {
-                    state = Some(State::Closed {
+                    list_opts.state = Some(issue::State::Closed {
                         reason: CloseReason::Solved,
                     });
+                }
+                Long("assigned") | Short('a') if list_opts.assigned.is_none() => {
+                    if let Ok(val) = parser.value() {
+                        let peer = term::args::did(&val)?;
+                        list_opts.assigned = Some(Assigned::Peer(peer));
+                    } else {
+                        list_opts.assigned = Some(Assigned::Me);
+                    }
                 }
 
                 // Open options.
@@ -245,15 +296,15 @@ impl Args for Options {
 
                 // State options.
                 Long("closed") if op == Some(OperationName::State) => {
-                    state = Some(State::Closed {
+                    state_opts.state = Some(issue::State::Closed {
                         reason: CloseReason::Other,
                     });
                 }
                 Long("open") if op == Some(OperationName::State) => {
-                    state = Some(State::Open);
+                    state_opts.state = Some(issue::State::Open);
                 }
                 Long("solved") if op == Some(OperationName::State) => {
-                    state = Some(State::Closed {
+                    state_opts.state = Some(issue::State::Closed {
                         reason: CloseReason::Solved,
                     });
                 }
@@ -308,14 +359,6 @@ impl Args for Options {
                         .delete
                         .insert(term::args::did(&parser.value()?)?);
                 }
-                Long("assigned") | Short('a') if assigned.is_none() => {
-                    if let Ok(val) = parser.value() {
-                        let peer = term::args::did(&val)?;
-                        assigned = Some(Assigned::Peer(peer));
-                    } else {
-                        assigned = Some(Assigned::Me);
-                    }
-                }
 
                 // Label options
                 Short('a') | Long("add") if matches!(op, Some(OperationName::Label)) => {
@@ -336,6 +379,9 @@ impl Args for Options {
                 // Options.
                 Long("no-announce") => {
                     announce = false;
+                }
+                Long("interactive") | Short('i') => {
+                    interactive = true;
                 }
                 Long("quiet") | Short('q') => {
                     quiet = true;
@@ -374,7 +420,7 @@ impl Args for Options {
 
         let op = match op.unwrap_or_default() {
             OperationName::Edit => Operation::Edit {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
+                id,
                 title,
                 description,
             },
@@ -385,37 +431,34 @@ impl Args for Options {
                 assignees,
             },
             OperationName::Comment => Operation::Comment {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
+                id,
                 message,
                 reply_to,
             },
-            OperationName::Show => Operation::Show {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                format,
-                debug,
-            },
+            OperationName::Show => Operation::Show { id, format, debug },
             OperationName::State => Operation::State {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                state: state.ok_or_else(|| anyhow!("a state operation must be provided"))?,
+                id,
+                state: state_opts
+                    .state
+                    .ok_or_else(|| anyhow!("a state operation must be provided"))?,
             },
             OperationName::React => Operation::React {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
+                id,
                 reaction: reaction.ok_or_else(|| anyhow!("a reaction emoji must be provided"))?,
                 comment_id,
             },
-            OperationName::Delete => Operation::Delete {
-                id: id.ok_or_else(|| anyhow!("an issue to remove must be provided"))?,
-            },
+            OperationName::Delete => Operation::Delete { id },
             OperationName::Assign => Operation::Assign {
-                id: id.ok_or_else(|| anyhow!("an issue to label must be provided"))?,
+                id,
                 opts: assign_opts,
             },
             OperationName::Label => Operation::Label {
-                id: id.ok_or_else(|| anyhow!("an issue to label must be provided"))?,
+                id,
                 opts: label_opts,
             },
-            OperationName::List => Operation::List { assigned, state },
             OperationName::Cache => Operation::Cache { id },
+            OperationName::List => Operation::List { opts: list_opts },
+            OperationName::Default => Operation::Default { opts: list_opts },
         };
 
         Ok((
@@ -423,6 +466,7 @@ impl Args for Options {
                 op,
                 repo,
                 announce,
+                interactive,
                 quiet,
             },
             vec![],
@@ -458,7 +502,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             description,
         } => {
             let signer = term::signer(&profile)?;
-            let issue = edit(&mut issues, &repo, id, title, description, &signer)?;
+            let id = resolve_issue_id(&repo, id)?;
+            let issue = edit(
+                &mut issues,
+                &repo,
+                Rev::from(id.to_string()),
+                title,
+                description,
+                &signer,
+            )?;
             if !options.quiet {
                 term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
             }
@@ -481,7 +533,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             reply_to,
         } => {
             let signer = term::signer(&profile)?;
-            let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
+            let issue_id = resolve_issue_id(&repo, id)?;
             let mut issue = issues.get_mut(&issue_id)?;
             let (body, reply_to) = prompt_comment(message, reply_to, &issue, &repo)?;
             let comment_id = issue.comment(body, reply_to, vec![], &signer)?;
@@ -494,7 +546,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Operation::Show { id, format, debug } => {
-            let id = id.resolve(&repo.backend)?;
+            let id = resolve_issue_id(&repo, id)?;
             let issue = issues
                 .get(&id)?
                 .context("No issue with the given ID exists")?;
@@ -506,7 +558,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::State { id, state } => {
             let signer = term::signer(&profile)?;
-            let id = id.resolve(&repo.backend)?;
+            let id = resolve_issue_id(&repo, id)?;
             let mut issue = issues.get_mut(&id)?;
             issue.lifecycle(state, &signer)?;
         }
@@ -515,7 +567,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             reaction,
             comment_id,
         } => {
-            let id = id.resolve(&repo.backend)?;
+            let id = resolve_issue_id(&repo, id)?;
             if let Ok(mut issue) = issues.get_mut(&id) {
                 let signer = term::signer(&profile)?;
                 let comment_id = comment_id.unwrap_or_else(|| {
@@ -548,7 +600,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             opts: AssignOptions { add, delete },
         } => {
             let signer = term::signer(&profile)?;
-            let id = id.resolve(&repo.backend)?;
+            let id = resolve_issue_id(&repo, id)?;
             let Ok(mut issue) = issues.get_mut(&id) else {
                 anyhow::bail!("Issue `{id}` not found");
             };
@@ -565,7 +617,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             opts: LabelOptions { add, delete },
         } => {
             let signer = term::signer(&profile)?;
-            let id = id.resolve(&repo.backend)?;
+            let id = resolve_issue_id(&repo, id)?;
             let Ok(mut issue) = issues.get_mut(&id) else {
                 anyhow::bail!("Issue `{id}` not found");
             };
@@ -577,12 +629,24 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .collect::<Vec<_>>();
             issue.label(labels, &signer)?;
         }
-        Operation::List { assigned, state } => {
-            list(issues, &assigned, &state, &profile)?;
+        Operation::List { opts } => {
+            list(issues, &opts.assigned, &opts.state, &profile)?;
+        }
+        Operation::Default { opts } => {
+            if options.interactive {
+                if tui::is_installed() {
+                    run_tui_operation(opts, &profile, &repo)?;
+                } else {
+                    list(issues, &opts.assigned, &opts.state, &profile)?;
+                    tui::installation_hint();
+                }
+            } else {
+                list(issues, &opts.assigned, &opts.state, &profile)?;
+            }
         }
         Operation::Delete { id } => {
             let signer = term::signer(&profile)?;
-            let id = id.resolve(&repo.backend)?;
+            let id = resolve_issue_id(&repo, id)?;
             issues.remove(&id, &signer)?;
         }
         Operation::Cache { id } => {
@@ -608,7 +672,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 fn list<C>(
     cache: C,
     assigned: &Option<Assigned>,
-    state: &Option<State>,
+    state: &Option<issue::State>,
     profile: &profile::Profile,
 ) -> anyhow::Result<()>
 where
@@ -685,8 +749,8 @@ where
 
         table.push([
             match issue.state() {
-                State::Open => term::format::positive("●").into(),
-                State::Closed { .. } => term::format::negative("●").into(),
+                issue::State::Open => term::format::positive("●").into(),
+                issue::State::Closed { .. } => term::format::negative("●").into(),
             },
             term::format::tertiary(term::format::cob(&id))
                 .to_owned()
@@ -823,4 +887,76 @@ pub fn prompt_comment<R: WriteRepository + radicle::cob::Store>(
         anyhow::bail!("aborting operation due to empty comment");
     }
     Ok((body, reply_to))
+}
+
+fn resolve_issue_id(repository: &Repository, rev: Option<Rev>) -> anyhow::Result<ObjectId> {
+    if let Some(rev) = rev {
+        Ok(rev.resolve(&repository.backend)?)
+    } else {
+        match tui::Selection::from_command(tui::Command::IssueSelectId) {
+            Ok(selection) => {
+                let issue_id = selection.and_then(|s| s.ids().first().cloned());
+                issue_id.ok_or_else(|| anyhow!("an issue must be provided"))
+            }
+            Err(tui::Error::Command(CommandError::NotFound)) => {
+                tui::installation_hint();
+                Err(anyhow!("an issue must be provided"))
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+}
+
+fn run_tui_operation(
+    options: ListOptions,
+    profile: &Profile,
+    repo: &Repository,
+) -> anyhow::Result<()> {
+    let mut issues = profile.issues_mut(repo)?;
+
+    let cmd = tui::Command::IssueSelectOperation {
+        state: options
+            .state
+            .map(|s| format!("{s}"))
+            .unwrap_or(String::from("all")),
+        assigned: options.assigned,
+    };
+
+    match tui::Selection::from_command(cmd) {
+        Ok(Some(selection)) => {
+            let operation = selection
+                .operation()
+                .ok_or_else(|| anyhow!("an operation must be provided"))?;
+            let issue_id = selection
+                .ids()
+                .first()
+                .ok_or_else(|| anyhow!("an issue must be provided"))?;
+
+            match OperationName::try_from(operation.as_str()) {
+                Ok(OperationName::Show) => {
+                    let issue = issues
+                        .get(issue_id)?
+                        .context("No issue with the given ID exists")?;
+                    term::issue::show(&issue, issue_id, Format::Full, profile)
+                }
+                Ok(OperationName::Edit) => {
+                    let signer = term::signer(&profile)?;
+                    let issue = edit(
+                        &mut issues,
+                        &repo,
+                        Rev::from(issue_id.to_string()),
+                        None,
+                        None,
+                        &signer,
+                    )?;
+
+                    term::issue::show(&issue, issue.id(), Format::Header, &profile)
+                }
+                Ok(_) => Err(anyhow!("operation not supported: {operation}")),
+                Err(err) => Err(err),
+            }
+        }
+        Ok(None) => Ok(()),
+        Err(err) => Err(err.into()),
+    }
 }

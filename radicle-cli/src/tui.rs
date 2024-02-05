@@ -8,8 +8,11 @@ use radicle::identity::Did;
 use serde::de;
 use serde::{Deserialize, Deserializer};
 
+use crate::commands::rad_issue::Assigned;
 use crate::terminal as term;
 use term::command::CommandError;
+
+// use self::issue::Assigned;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -122,20 +125,34 @@ where
 /// A `Command` defines a set of arguments and executes `rad-tui` with these
 /// when `run()` is called.
 pub enum Command {
+    /// Run patch id selection.
+    PatchSelectId,
     /// Run patch operation and id selection with the given filter applied.
     PatchSelectOperation {
         status: String,
         authored: bool,
         authors: Vec<Did>,
     },
-    /// Run patch id selection.
-    PatchSelectId,
+    /// Run issue id selection.
+    IssueSelectId,
+    /// Run issue operation and id selection with the given filter applied.
+    IssueSelectOperation {
+        state: String,
+        assigned: Option<Assigned>,
+    },
 }
 
 impl Command {
     /// Returns the required and potentially mapped arguments for a call to `rad-tui`
     fn args(&self) -> Vec<OsString> {
         match self {
+            Command::PatchSelectId => [
+                "patch".into(),
+                "select".into(),
+                "--mode".into(),
+                "id".into(),
+            ]
+            .to_vec(),
             Command::PatchSelectOperation {
                 status,
                 authored,
@@ -155,13 +172,31 @@ impl Command {
 
                 args
             }
-            Command::PatchSelectId => [
-                "patch".into(),
+            Command::IssueSelectId => [
+                "issue".into(),
                 "select".into(),
                 "--mode".into(),
                 "id".into(),
             ]
             .to_vec(),
+            Command::IssueSelectOperation { state, assigned } => {
+                let mut args: Vec<OsString> = vec!["issue".into(), "select".into()];
+
+                args.push(format!("--{}", state).into());
+
+                match assigned {
+                    Some(Assigned::Me) => {
+                        args.push("--assigned".into());
+                    }
+                    Some(Assigned::Peer(did)) => {
+                        args.push("--assigned".into());
+                        args.push(format!("{did}").into());
+                    }
+                    _ => {}
+                }
+
+                args
+            }
         }
     }
 
