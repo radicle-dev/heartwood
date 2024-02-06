@@ -60,6 +60,12 @@
         # Allow md files for testing purposes
         (lib.hasSuffix "\.md" path)
         ||
+        # Allow adoc files
+        (lib.hasSuffix "\.adoc" path)
+        ||
+        # Allow man page build script
+        (lib.hasSuffix "build-man-pages\.sh" path)
+        ||
         # Default filter from crane (allow .rs files)
         (craneLib.filterCargoSources path type);
 
@@ -90,6 +96,20 @@
       cargoArtifacts =
         craneLib.buildDepsOnly commonArgs;
 
+      # Build the listed .adoc files as man pages to the package.
+      buildManPages = pages: {
+        nativeBuildInputs = [ pkgs.asciidoctor ];
+        postInstall = ''
+          for f in ${lib.escapeShellArgs pages} ; do
+            cat=''${f%.adoc}
+            cat=''${cat##*.}
+            [ -d "$out/share/man/man$cat" ] || mkdir -p "$out/share/man/man$cat"
+            scripts/build-man-pages.sh "$out/share/man/man$cat" $f
+          done
+        '';
+        outputs = [ "out" "man" ];
+      };
+
       # Build the actual crate itself, reusing the dependency
       # artifacts from above.
       radicle = craneLib.buildPackage (commonArgs
@@ -97,7 +117,12 @@
           inherit (craneLib.crateNameFromCargoToml {cargoToml = ./radicle/Cargo.toml;});
           doCheck = false;
           inherit cargoArtifacts;
-        });
+        } // (buildManPages [
+          "git-remote-rad.1.adoc"
+          "rad.1.adoc"
+          "radicle-node.1.adoc"
+          "rad-patch.1.adoc"
+        ]));
     in {
       # Formatter
       formatter = pkgs.alejandra;
@@ -198,7 +223,9 @@
             inherit cargoArtifacts;
             cargoBuildCommand = "cargo build --release -p radicle-httpd";
             doCheck = false;
-          });
+          } // (buildManPages [
+            "radicle-httpd.1.adoc"
+          ]));
       };
 
       apps.default = flake-utils.lib.mkApp {
