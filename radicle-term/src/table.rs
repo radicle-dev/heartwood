@@ -56,6 +56,7 @@ impl TableOptions {
 
 #[derive(Debug)]
 enum Row<const W: usize, T> {
+    Header([T; W]),
     Data([T; W]),
     Divider,
 }
@@ -104,7 +105,7 @@ where
             let mut line = Line::default();
 
             match row {
-                Row::Data(cells) => {
+                Row::Header(cells) | Row::Data(cells) => {
                     if let Some(color) = border {
                         line.push(Paint::new("│ ").fg(color));
                     }
@@ -176,6 +177,13 @@ impl<const W: usize, T: Cell> Table<W, T> {
             self.widths[i] = self.widths[i].max(cell.width());
         }
         self.rows.push(Row::Data(row));
+    }
+
+    pub fn header(&mut self, row: [T; W]) {
+        for (i, cell) in row.iter().enumerate() {
+            self.widths[i] = self.widths[i].max(cell.width());
+        }
+        self.rows.push(Row::Header(row));
     }
 
     pub fn extend(&mut self, rows: impl IntoIterator<Item = [T; W]>) {

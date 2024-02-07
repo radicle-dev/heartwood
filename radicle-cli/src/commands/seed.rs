@@ -176,7 +176,7 @@ pub fn delete(rid: RepoId, node: &mut Node, profile: &Profile) -> anyhow::Result
 pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
     let store = profile.policies()?;
     let mut t = term::Table::new(term::table::TableOptions::bordered());
-    t.push([
+    t.header([
         term::format::default(String::from("RID")),
         term::format::default(String::from("Scope")),
         term::format::default(String::from("Policy")),
@@ -199,7 +199,12 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
             term::format::secondary(policy),
         ])
     }
-    t.print();
+
+    if t.is_empty() {
+        term::print(term::format::dim("No seeding policies to show."));
+    } else {
+        t.print();
+    }
 
     Ok(())
 }
