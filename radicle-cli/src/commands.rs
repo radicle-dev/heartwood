@@ -1,5 +1,7 @@
 #[path = "commands/auth.rs"]
 pub mod rad_auth;
+#[path = "commands/block.rs"]
+pub mod rad_block;
 #[path = "commands/checkout.rs"]
 pub mod rad_checkout;
 #[path = "commands/clean.rs"]

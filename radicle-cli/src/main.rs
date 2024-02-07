@@ -110,6 +110,13 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "block" => {
+            term::run_command_args::<rad_block::Options, _>(
+                rad_block::HELP,
+                rad_block::run,
+                args.to_vec(),
+            );
+        }
         "checkout" => {
             term::run_command_args::<rad_checkout::Options, _>(
                 rad_checkout::HELP,

@@ -974,6 +974,18 @@ fn rad_unseed() {
 }
 
 #[test]
+fn rad_block() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config {
+        policy: Policy::Allow,
+        ..Config::test(Alias::new("alice"))
+    });
+    let working = tempfile::tempdir().unwrap();
+
+    test("examples/rad-block.md", working, Some(&alice.home), []).unwrap();
+}
+
+#[test]
 fn rad_clone() {
     let mut environment = Environment::new();
     let mut alice = environment.node(Config::test(Alias::new("alice")));

@@ -16,6 +16,7 @@ pub const HELP: Help = Help {
 
 const COMMANDS: &[Help] = &[
     rad_auth::HELP,
+    rad_block::HELP,
     rad_checkout::HELP,
     rad_clone::HELP,
     rad_config::HELP,
