@@ -2050,6 +2050,7 @@ where
                     .filter(|entry| !entry.address.banned)
                     .filter(|entry| !entry.penalty.is_threshold_reached())
                     .filter(|entry| !self.sessions.contains_key(&entry.node))
+                    .filter(|entry| !self.config.external_addresses.contains(&entry.address.addr))
                     .filter(|entry| &entry.node != self.nid())
                     .fold(HashMap::new(), |mut acc, entry| {
                         acc.entry(entry.node)

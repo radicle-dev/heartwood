@@ -516,7 +516,18 @@ where
             SessionEvent::Established(fd, ProtocolArtifact { state, .. }) => {
                 // SAFETY: With the NoiseXK protocol, there is always a remote static key.
                 let nid: NodeId = state.remote_static_key.unwrap();
+                // Make sure we don't try to connect to ourselves by mistake.
+                if &nid == self.signer.public_key() {
+                    log::error!(target: "wire", "Self-connection detected, disconnecting..");
 
+                    self.disconnect(
+                        id,
+                        DisconnectReason::Dial(Arc::new(io::Error::from(
+                            io::ErrorKind::AlreadyExists,
+                        ))),
+                    );
+                    return;
+                }
                 log::debug!(target: "wire", "Session established with {nid} (id={id}) (fd={fd})");
 
                 let conflicting = self
@@ -669,15 +680,15 @@ where
         match err {
             reactor::Error::Poll(err) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
-                log::error!(target: "wire", "Can't poll connections: {}", err);
+                log::error!(target: "wire", "Can't poll connections: {err}");
             }
             reactor::Error::ListenerDisconnect(id, _) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
-                log::error!(target: "wire", "Received error: listener {} disconnected", id);
+                log::error!(target: "wire", "Listener {id} disconnected");
             }
             reactor::Error::TransportDisconnect(id, transport) => {
                 let fd = transport.as_raw_fd();
-                log::error!(target: "wire", "Received error: peer id={id} (fd={fd}) disconnected");
+                log::error!(target: "wire", "Peer id={id} (fd={fd}) disconnected");
 
                 // We're dropping the TCP connection here.
                 drop(transport);
@@ -715,7 +726,7 @@ where
             Entry::Occupied(e) => {
                 match e.get() {
                     Peer::Disconnecting { nid, reason, .. } => {
-                        log::debug!(target: "wire", "Received transport handover for disconnecting peer with id={id} (fd={fd})");
+                        log::debug!(target: "wire", "Transport handover for disconnecting peer with id={id} (fd={fd})");
 
                         // Disconnect TCP stream.
                         drop(transport);
