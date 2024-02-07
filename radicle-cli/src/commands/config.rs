@@ -1,5 +1,6 @@
 #![allow(clippy::or_fun_call)]
 use std::ffi::OsString;
+use std::path::Path;
 use std::process;
 
 use anyhow::anyhow;
@@ -16,9 +17,11 @@ pub const HELP: Help = Help {
 Usage
 
     rad config [<option>...]
-    rad config show
-    rad config init
-    rad config edit
+    rad config show [<option>...]
+    rad config init [<option>...]
+    rad config edit [<option>...]
+    rad config get <key> [<option>...]
+
 
     If no argument is specified, prints the current radicle configuration as JSON.
     To initialize a new configuration file, use `rad config init`.
@@ -34,6 +37,7 @@ Options
 enum Operation {
     #[default]
     Show,
+    Get(String),
     Init,
     Edit,
 }
@@ -59,6 +63,12 @@ impl Args for Options {
                     "show" => op = Some(Operation::Show),
                     "edit" => op = Some(Operation::Edit),
                     "init" => op = Some(Operation::Init),
+                    "get" => {
+                        let value = parser.value()?;
+                        let key = value.to_string_lossy();
+
+                        op = Some(Operation::Get(key.to_string()));
+                    }
                     unknown => anyhow::bail!("unknown operation '{unknown}'"),
                 },
                 _ => return Err(anyhow!(arg.unexpected())),
@@ -82,6 +92,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Show => {
             term::json::to_pretty(&profile.config, path.as_path())?.print();
         }
+        Operation::Get(key) => {
+            let data = serde_json::to_value(profile.config)?;
+            if let Some(value) = get_value(&data, &key) {
+                print_value(value)?;
+            }
+        }
         Operation::Init => {
             if path.try_exists()? {
                 anyhow::bail!("configuration file already exists at `{}`", path.display());
@@ -102,5 +118,31 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
     }
 
+    Ok(())
+}
+
+/// Get JSON value under a path.
+fn get_value<'a>(data: &'a serde_json::Value, path: &'a str) -> Option<&'a serde_json::Value> {
+    path.split('.').try_fold(data, |acc, key| {
+        if let serde_json::Value::Object(obj) = acc {
+            obj.get(key)
+        } else {
+            None
+        }
+    })
+}
+
+/// Print a JSON Value.
+fn print_value(value: &serde_json::Value) -> anyhow::Result<()> {
+    match value {
+        serde_json::Value::Null => {}
+        serde_json::Value::Bool(b) => term::print(b),
+        serde_json::Value::Array(a) => a.iter().try_for_each(print_value)?,
+        serde_json::Value::Number(n) => term::print(n),
+        serde_json::Value::String(s) => term::print(s),
+        serde_json::Value::Object(o) => {
+            term::json::to_pretty(&o, Path::new("config.json"))?.print()
+        }
+    }
     Ok(())
 }

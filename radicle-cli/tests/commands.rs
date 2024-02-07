@@ -5,6 +5,7 @@ use std::{env, thread, time};
 use radicle::git;
 use radicle::node;
 use radicle::node::address::Store as _;
+use radicle::node::config::seeds::{RADICLE_COMMUNITY_NODE, RADICLE_TEAM_NODE};
 use radicle::node::routing::Store as _;
 use radicle::node::Handle as _;
 use radicle::node::{Alias, DEFAULT_TIMEOUT};
@@ -238,7 +239,10 @@ fn rad_inspect() {
 fn rad_config() {
     let mut environment = Environment::new();
     let alias = Alias::new("alice");
-    let profile = environment.profile(profile::Config::new(alias));
+    let profile = environment.profile(profile::Config {
+        preferred_seeds: vec![RADICLE_COMMUNITY_NODE.clone(), RADICLE_TEAM_NODE.clone()],
+        ..profile::Config::new(alias)
+    });
     let working = tempfile::tempdir().unwrap();
 
     test(
