@@ -7,17 +7,18 @@ use std::str::FromStr;
 use anyhow::{anyhow, Context as _};
 use chrono::prelude::*;
 
-use radicle::identity::Identity;
 use radicle::identity::RepoId;
+use radicle::identity::{DocAt, Identity};
 use radicle::node::policy::Policy;
 use radicle::node::AliasStore as _;
+use radicle::storage::git::{Repository, Storage};
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, ReadStorage};
-use radicle_term::Element;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::json;
+use crate::terminal::Element;
 
 pub const HELP: Help = Help {
     name: "inspect",
@@ -141,25 +142,24 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         term::info!("{}", term::format::highlight(rid.urn()));
         return Ok(());
     }
-
     let profile = ctx.profile()?;
     let storage = &profile.storage;
-    let repo = storage
-        .repository(rid)
-        .context("No repository with the given RID exists")?;
-    let project = repo.identity_doc()?;
 
     match options.target {
         Target::Refs => {
+            let (repo, _) = repo(rid, storage)?;
             refs(&repo)?;
         }
         Target::Payload => {
-            json::to_pretty(&project.payload, Path::new("radicle.json"))?.print();
+            let (_, doc) = repo(rid, storage)?;
+            json::to_pretty(&doc.payload, Path::new("radicle.json"))?.print();
         }
         Target::Identity => {
-            json::to_pretty(&project.doc, Path::new("radicle.json"))?.print();
+            let (_, doc) = repo(rid, storage)?;
+            json::to_pretty(&*doc, Path::new("radicle.json"))?.print();
         }
         Target::Sigrefs => {
+            let (repo, _) = repo(rid, storage)?;
             for remote in repo.remote_ids()? {
                 let remote = remote?;
                 let refs = RefsAt::new(&repo, remote)?;
@@ -193,9 +193,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Target::Delegates => {
+            let (_, doc) = repo(rid, storage)?;
             let aliases = profile.aliases();
-            for did in project.doc.delegates {
-                if let Some(alias) = aliases.alias(&did) {
+            for did in &doc.delegates {
+                if let Some(alias) = aliases.alias(did) {
                     println!(
                         "{} {}",
                         term::format::tertiary(&did),
@@ -207,9 +208,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Target::Visibility => {
-            println!("{}", term::format::visibility(&project.doc.visibility));
+            let (_, doc) = repo(rid, storage)?;
+            println!("{}", term::format::visibility(&doc.visibility));
         }
         Target::History => {
+            let (repo, _) = repo(rid, storage)?;
             let identity = Identity::load(&repo)?;
             let head = repo.identity_head()?;
             let history = repo.revwalk(head)?;
@@ -274,6 +277,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn repo(rid: RepoId, storage: &Storage) -> anyhow::Result<(Repository, DocAt)> {
+    let repo = storage
+        .repository(rid)
+        .context("No repository with the given RID exists")?;
+    let doc = repo.identity_doc()?;
+
+    Ok((repo, doc))
 }
 
 fn refs(repo: &radicle::storage::git::Repository) -> anyhow::Result<()> {
