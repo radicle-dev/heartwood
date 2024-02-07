@@ -46,6 +46,7 @@ Options
     -u, --set-upstream             Setup the upstream of the default branch
         --setup-signing            Setup the radicle key as a signing key for this repository
         --no-confirm               Don't ask for confirmation during setup
+        --no-seed                  Don't seed this repository after initializing it
     -v, --verbose                  Verbose mode
         --help                     Print help
 "#,
