@@ -180,7 +180,7 @@ fn notify(
         }
         if let RefUpdate::Skipped { .. } = update {
             // Don't notify about skipped refs.
-        } else if let Err(e) = store.insert(&rid, update, now) {
+        } else if let Err(e) = store.insert(rid, update, now) {
             log::error!(
                 target: "worker",
                 "Failed to update notification store for {rid}: {e}"
