@@ -14,7 +14,6 @@ use reactor::poller::popol;
 use reactor::Reactor;
 use thiserror::Error;
 
-use radicle::git;
 use radicle::node;
 use radicle::node::address;
 use radicle::node::address::Store as _;
@@ -22,6 +21,7 @@ use radicle::node::notifications;
 use radicle::node::Handle as _;
 use radicle::profile::Home;
 use radicle::Storage;
+use radicle::{cob, git};
 
 use crate::control;
 use crate::crypto::Signer;
@@ -42,6 +42,9 @@ pub enum Error {
     /// A routing database error.
     #[error("routing database error: {0}")]
     Routing(#[from] routing::Error),
+    /// A cobs cache database error.
+    #[error("cobs cache database error: {0}")]
+    CobsCache(#[from] cob::cache::Error),
     /// A node database error.
     #[error("node database error: {0}")]
     Database(#[from] node::db::Error),
@@ -156,6 +159,7 @@ impl Runtime {
         let policies = home.policies_mut()?;
         let policies = policy::Config::new(policy, scope, policies);
         let notifications = home.notifications_mut()?;
+        let cobs_cache = cob::cache::Store::open(home.cobs().join(cob::cache::COBS_DB_FILE))?;
 
         log::info!(target: "node", "Default seeding policy set to '{}'", &policy);
         log::info!(target: "node", "Initializing service ({:?})..", network);
@@ -257,6 +261,7 @@ impl Runtime {
             nid,
             handle.clone(),
             notifications,
+            cobs_cache,
             worker::Config {
                 capacity: 8,
                 timeout: time::Duration::from_secs(9),

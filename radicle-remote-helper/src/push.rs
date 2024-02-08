@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use std::collections::{HashMap, HashSet};
 use std::io::IsTerminal;
 use std::ops::ControlFlow;
@@ -8,8 +9,10 @@ use std::{assert_eq, io};
 
 use thiserror::Error;
 
+use radicle::cob;
 use radicle::cob::object::ParseObjectId;
 use radicle::cob::patch;
+use radicle::cob::patch::cache::Patches as _;
 use radicle::crypto::Signer;
 use radicle::explorer::ExplorerResource;
 use radicle::identity::Did;
@@ -81,6 +84,9 @@ pub enum Error {
     /// Patch COB error.
     #[error(transparent)]
     Patch(#[from] radicle::cob::patch::Error),
+    /// Error from COB patch cache.
+    #[error(transparent)]
+    PatchCache(#[from] patch::cache::Error),
     /// Patch edit message error.
     #[error(transparent)]
     PatchEdit(#[from] cli::patch::Error),
@@ -209,7 +215,16 @@ pub fn run(
                 let working = git::raw::Repository::open(working)?;
 
                 if dst == &*rad::PATCHES_REFNAME {
-                    patch_open(src, &nid, &working, stored, &signer, profile, opts.clone())
+                    patch_open(
+                        src,
+                        &nid,
+                        &working,
+                        stored,
+                        profile.patches_mut(stored)?,
+                        &signer,
+                        profile,
+                        opts.clone(),
+                    )
                 } else {
                     let dst = git::Qualified::from_refstr(dst)
                         .ok_or_else(|| Error::InvalidQualifiedRef(dst.clone()))?;
@@ -225,6 +240,7 @@ pub fn run(
                             &nid,
                             &working,
                             stored,
+                            profile.patches_mut(stored)?,
                             &signer,
                             opts.clone(),
                         )
@@ -266,7 +282,16 @@ pub fn run(
                                 return Err(Error::HeadsDiverge(head.into(), *canonical_oid));
                             }
                         }
-                        push(src, &dst, *force, &nid, &working, stored, &signer)
+                        push(
+                            src,
+                            &dst,
+                            *force,
+                            &nid,
+                            &working,
+                            stored,
+                            profile.patches_mut(stored)?,
+                            &signer,
+                        )
                     }
                 }
             }
@@ -323,6 +348,10 @@ fn patch_open<G: Signer>(
     nid: &NodeId,
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
+    mut patches: patch::Cache<
+        patch::Patches<'_, storage::git::Repository>,
+        cob::cache::StoreWriter,
+    >,
     signer: &G,
     profile: &Profile,
     opts: Options,
@@ -353,7 +382,6 @@ fn patch_open<G: Signer>(
     let (title, description) =
         cli::patch::get_create_message(opts.message, &stored.backend, &base, &head)?;
 
-    let mut patches = patch::Patches::open(stored)?;
     let patch = if opts.draft {
         patches.draft(
             &title,
@@ -442,6 +470,10 @@ fn patch_update<G: Signer>(
     nid: &NodeId,
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
+    mut patches: patch::Cache<
+        patch::Patches<'_, storage::git::Repository>,
+        cob::cache::StoreWriter,
+    >,
     signer: &G,
     opts: Options,
 ) -> Result<Option<ExplorerResource>, Error> {
@@ -452,7 +484,6 @@ fn patch_update<G: Signer>(
 
     push_ref(src, &dst, force, working, stored.raw())?;
 
-    let mut patches = patch::Patches::open(stored)?;
     let Ok(mut patch) = patches.get_mut(&patch_id) else {
         return Err(Error::NotFound(patch_id));
     };
@@ -504,6 +535,7 @@ fn push<G: Signer>(
     nid: &NodeId,
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
+    patches: patch::Cache<patch::Patches<'_, storage::git::Repository>, cob::cache::StoreWriter>,
     signer: &G,
 ) -> Result<Option<ExplorerResource>, Error> {
     let head = working.find_reference(src.as_str())?;
@@ -524,7 +556,7 @@ fn push<G: Signer>(
             let old = old.peel_to_commit()?.id();
             // Only delegates should publish the merge result to the COB.
             if stored.delegates()?.contains(&nid.into()) {
-                patch_merge_all(old.into(), head.into(), working, stored, signer)?;
+                patch_merge_all(old.into(), head.into(), working, patches, signer)?;
             }
         }
     }
@@ -536,7 +568,10 @@ fn patch_merge_all<G: Signer>(
     old: git::Oid,
     new: git::Oid,
     working: &git::raw::Repository,
-    stored: &storage::git::Repository,
+    mut patches: patch::Cache<
+        patch::Patches<'_, storage::git::Repository>,
+        cob::cache::StoreWriter,
+    >,
     signer: &G,
 ) -> Result<(), Error> {
     let mut revwalk = working.revwalk()?;
@@ -547,15 +582,13 @@ fn patch_merge_all<G: Signer>(
         .map(|r| r.map(git::Oid::from))
         .collect::<Result<Vec<git::Oid>, _>>()?;
 
-    let mut patches = patch::Patches::open(stored)?;
-    for patch in patches.all()? {
-        let Ok((id, patch)) = patch else {
-            // Skip patches that failed to load.
-            continue;
-        };
-        if !patch.is_open() && !patch.is_draft() {
-            continue;
-        }
+    let all = patches
+        .opened()?
+        .chain(patches.drafted()?)
+        // Skip patches that failed to load.
+        .filter_map(|patch| patch.ok())
+        .collect::<Vec<_>>();
+    for (id, patch) in all {
         // Later revisions are more likely to be merged, so we build the list backwards.
         let revisions = patch
             .revisions()
@@ -578,8 +611,8 @@ fn patch_merge_all<G: Signer>(
     Ok(())
 }
 
-fn patch_merge<G: Signer>(
-    mut patch: patch::PatchMut<storage::git::Repository>,
+fn patch_merge<C: cob::cache::Update<patch::Patch>, G: Signer>(
+    mut patch: patch::PatchMut<storage::git::Repository, C>,
     revision: patch::RevisionId,
     commit: git::Oid,
     working: &git::raw::Repository,

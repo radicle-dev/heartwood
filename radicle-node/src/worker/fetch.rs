@@ -8,8 +8,10 @@ use localtime::LocalTime;
 use radicle::crypto::PublicKey;
 use radicle::prelude::RepoId;
 use radicle::storage::refs::RefsAt;
-use radicle::storage::{ReadStorage as _, RefUpdate, RemoteRepository, WriteRepository as _};
-use radicle::{git, node, Storage};
+use radicle::storage::{
+    ReadRepository, ReadStorage as _, RefUpdate, RemoteRepository, WriteRepository as _,
+};
+use radicle::{cob, git, node, Storage};
 use radicle_fetch::{Allowed, BlockList, FetchLimit};
 
 use super::channels::ChannelsFlush;
@@ -62,6 +64,7 @@ impl Handle {
         self,
         rid: RepoId,
         storage: &Storage,
+        cache: &mut cob::cache::StoreWriter,
         limit: FetchLimit,
         remote: PublicKey,
         refs_at: Option<Vec<RefsAt>>,
@@ -116,6 +119,8 @@ impl Handle {
                         notify(&rid, &applied, &mut store)?;
                     }
                 }
+
+                cache_cobs(&rid, &applied.updated, &repo, cache)?;
 
                 Ok(FetchResult {
                     updated: applied.updated,
@@ -187,5 +192,91 @@ fn notify(
             );
         }
     }
+    Ok(())
+}
+
+/// Write new `RefUpdate`s that are related a `Patch` or an `Issue`
+/// COB to the COB cache.
+fn cache_cobs<S, C>(
+    rid: &RepoId,
+    refs: &[RefUpdate],
+    storage: &S,
+    cache: &mut C,
+) -> Result<(), error::Cache>
+where
+    S: ReadRepository + cob::Store,
+    C: cob::cache::Update<cob::issue::Issue> + cob::cache::Update<cob::patch::Patch>,
+    C: cob::cache::Remove<cob::issue::Issue> + cob::cache::Remove<cob::patch::Patch>,
+{
+    let issues = cob::issue::Issues::open(storage)?;
+    let patches = cob::patch::Patches::open(storage)?;
+    for update in refs {
+        match update {
+            RefUpdate::Updated { name, .. } | RefUpdate::Created { name, .. } => {
+                match name.to_namespaced() {
+                    Some(name) => {
+                        let Some(identifier) = cob::TypedId::from_namespaced(&name)? else {
+                            continue;
+                        };
+                        if identifier.is_issue() {
+                            if let Some(issue) = issues.get(&identifier.id)? {
+                                cache
+                                    .update(rid, &identifier.id, &issue)
+                                    .map(|_| ())
+                                    .map_err(|e| error::Cache::Update {
+                                        id: identifier.id,
+                                        type_name: identifier.type_name,
+                                        err: e.into(),
+                                    })?;
+                            }
+                        } else if identifier.is_patch() {
+                            if let Some(patch) = patches.get(&identifier.id)? {
+                                cache
+                                    .update(rid, &identifier.id, &patch)
+                                    .map(|_| ())
+                                    .map_err(|e| error::Cache::Update {
+                                        id: identifier.id,
+                                        type_name: identifier.type_name,
+                                        err: e.into(),
+                                    })?;
+                            }
+                        }
+                    }
+                    None => continue,
+                }
+            }
+            RefUpdate::Deleted { name, .. } => match name.to_namespaced() {
+                Some(name) => {
+                    let Some(identifier) = cob::TypedId::from_namespaced(&name)? else {
+                        continue;
+                    };
+                    if identifier.is_issue() {
+                        cob::cache::Remove::<cob::issue::Issue>::remove(cache, &identifier.id)
+                            .map(|_| ())
+                            .map_err(|e| error::Cache::Remove {
+                                id: identifier.id,
+                                type_name: identifier.type_name,
+                                err: e.into(),
+                            })?;
+                    } else if identifier.is_patch() {
+                        cob::cache::Remove::<cob::patch::Patch>::remove(cache, &identifier.id)
+                            .map(|_| ())
+                            .map_err(
+                                |e: <C as cob::cache::Remove<cob::patch::Patch>>::RemoveError| {
+                                    error::Cache::Remove {
+                                        id: identifier.id,
+                                        type_name: identifier.type_name,
+                                        err: e.into(),
+                                    }
+                                },
+                            )?;
+                    }
+                }
+                None => continue,
+            },
+            RefUpdate::Skipped { .. } => { /* Do nothing */ }
+        }
+    }
+
     Ok(())
 }

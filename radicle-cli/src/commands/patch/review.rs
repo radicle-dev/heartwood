@@ -3,7 +3,7 @@ mod builder;
 
 use anyhow::{anyhow, Context};
 
-use radicle::cob::patch::{PatchId, Patches, RevisionId, Verdict};
+use radicle::cob::patch::{PatchId, RevisionId, Verdict};
 use radicle::git;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
@@ -61,8 +61,7 @@ pub fn run(
         "couldn't load repository {} from local state",
         repository.id
     ))?;
-    let mut patches = Patches::open(repository)?;
-
+    let mut patches = profile.patches_mut(repository)?;
     let mut patch = patches
         .get_mut(&patch_id)
         .context(format!("couldn't find patch {patch_id} locally"))?;

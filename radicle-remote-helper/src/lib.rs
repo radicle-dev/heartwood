@@ -185,7 +185,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                 .map_err(Error::from);
             }
             ["list"] => {
-                list::for_fetch(&url, &stored)?;
+                list::for_fetch(&url, &profile, &stored)?;
             }
             ["list", "for-push"] => {
                 list::for_push(&profile, &stored)?;

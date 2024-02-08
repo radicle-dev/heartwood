@@ -9,6 +9,8 @@ use axum::http::Method;
 use axum::response::{IntoResponse, Json};
 use axum::routing::get;
 use axum::Router;
+use radicle::issue::cache::Issues as _;
+use radicle::patch::cache::Patches as _;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::RwLock;
@@ -60,8 +62,8 @@ impl Context {
 
         let payload = doc.project()?;
         let delegates = doc.delegates;
-        let issues = issue::Issues::open(&repo)?.counts()?;
-        let patches = patch::Patches::open(&repo)?.counts()?;
+        let issues = self.profile.issues(&repo)?.counts()?;
+        let patches = self.profile.patches(&repo)?.counts()?;
         let db = &self.profile.database()?;
         let seeding = db.count(&id).unwrap_or_default();
 

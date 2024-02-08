@@ -4,10 +4,10 @@ use std::process;
 use anyhow::anyhow;
 
 use localtime::LocalTime;
-use radicle::issue::Issues;
+use radicle::issue::cache::Issues as _;
 use radicle::node::notifications;
 use radicle::node::notifications::*;
-use radicle::patch::Patches;
+use radicle::patch::cache::Patches as _;
 use radicle::prelude::{Profile, RepoId};
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{cob, Storage};
@@ -231,8 +231,8 @@ where
     let (_, head) = repo.head()?;
     let doc = repo.identity_doc()?;
     let proj = doc.project()?;
-    let issues = Issues::open(&repo)?;
-    let patches = Patches::open(&repo)?;
+    let issues = profile.issues(&repo)?;
+    let patches = profile.patches(&repo)?;
 
     let mut notifs = notifs.by_repo(&rid, sort_by.field)?.collect::<Vec<_>>();
     if !sort_by.reverse {
@@ -384,13 +384,13 @@ fn show(
 
     match n.kind {
         NotificationKind::Cob { type_name, id } if type_name == *cob::issue::TYPENAME => {
-            let issues = Issues::open(&repo)?;
+            let issues = profile.issues(&repo)?;
             let issue = issues.get(&id)?.unwrap();
 
             term::issue::show(&issue, &id, term::issue::Format::default(), profile)?;
         }
         NotificationKind::Cob { type_name, id } if type_name == *cob::patch::TYPENAME => {
-            let patches = Patches::open(&repo)?;
+            let patches = profile.patches(&repo)?;
             let patch = patches.get(&id)?.unwrap();
 
             term::patch::show(&patch, &id, false, &repo, None, profile)?;

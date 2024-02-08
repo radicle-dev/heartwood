@@ -35,6 +35,11 @@ pub enum Error {
     NoRows,
 }
 
+/// Read and write to the store.
+pub type StoreWriter = Store<Write>;
+/// Write to the store.
+pub type StoreReader = Store<Read>;
+
 /// Read-only type witness.
 #[derive(Clone)]
 pub struct Read;
@@ -194,7 +199,10 @@ pub trait Remove<T> {
     type Out;
     type RemoveError: std::error::Error + Send + Sync + 'static;
 
-    fn remove(&mut self, rid: &RepoId, id: &ObjectId) -> Result<Self::Out, Self::RemoveError>;
+    /// Delete an object in the COB cache.
+    ///
+    /// This assumes that the `id` is unique across repositories.
+    fn remove(&mut self, id: &ObjectId) -> Result<Self::Out, Self::RemoveError>;
 }
 
 /// An in-memory cache for storing COB objects.
@@ -259,7 +267,48 @@ impl<T> Remove<T> for NoCache {
     type Out = ();
     type RemoveError = Infallible;
 
-    fn remove(&mut self, _rid: &RepoId, _id: &ObjectId) -> Result<Self::Out, Self::RemoveError> {
+    fn remove(&mut self, _id: &ObjectId) -> Result<Self::Out, Self::RemoveError> {
         Ok(())
+    }
+}
+
+/// Track the progress of cache writes when transferring the
+/// repository COBs to their respective caches.
+///
+/// See [`crate::cob::issue::Cache::write_all`] and
+/// [`crate::cob::patch::Cache::write_all`].
+pub struct WriteAllProgress {
+    total: usize,
+    seen: usize,
+}
+
+impl WriteAllProgress {
+    /// Create a new progress tracker with the given `total` amount.
+    pub fn new(total: usize) -> Self {
+        Self { total, seen: 0 }
+    }
+
+    /// Increment the [`WriteAllProgress::seen`] progress.
+    pub fn inc(&mut self) {
+        self.seen += 1;
+    }
+
+    /// Return the `total` amount.
+    pub fn total(&self) -> usize {
+        self.total
+    }
+
+    /// Return the `seen` amount.
+    pub fn seen(&self) -> usize {
+        self.seen
+    }
+
+    /// Return the percentage of the progress made.
+    ///
+    /// # Panics
+    ///
+    /// If the `total` provided is `0`.
+    pub fn percentage(&self) -> f32 {
+        (self.seen as f32 / self.total as f32) * 100.0
     }
 }

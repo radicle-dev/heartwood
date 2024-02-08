@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use nonempty::NonEmpty;
+use radicle_cob::CollaborativeObject;
 use serde::{Deserialize, Serialize};
 
 use crate::cob::op::Op;
@@ -112,7 +113,10 @@ impl<'a, T, R> AsRef<R> for Store<'a, T, R> {
     }
 }
 
-impl<'a, T, R: ReadRepository + cob::Store> Store<'a, T, R> {
+impl<'a, T, R> Store<'a, T, R>
+where
+    R: ReadRepository + cob::Store,
+{
     /// Open a new generic store.
     pub fn open(repo: &'a R) -> Result<Self, Error> {
         Ok(Self {
@@ -234,7 +238,9 @@ where
     }
 
     /// Return all objects.
-    pub fn all(&self) -> Result<impl Iterator<Item = Result<(ObjectId, T), Error>> + 'a, Error> {
+    pub fn all(
+        &self,
+    ) -> Result<impl ExactSizeIterator<Item = Result<(ObjectId, T), Error>> + 'a, Error> {
         let raw = cob::list::<T, _>(self.repo, T::type_name())?;
 
         Ok(raw.into_iter().map(|o| Ok((*o.id(), o.object))))
@@ -271,7 +277,10 @@ impl<T: Cob + cob::Evaluate<R>, R> Default for Transaction<T, R> {
     }
 }
 
-impl<T: Cob + cob::Evaluate<R>, R> Transaction<T, R> {
+impl<T, R> Transaction<T, R>
+where
+    T: Cob + cob::Evaluate<R>,
+{
     /// Create a new transaction to be used as the initial set of operations for a COB.
     pub fn initial<G, F>(
         message: &str,
@@ -324,9 +333,13 @@ impl<T: Cob + cob::Evaluate<R>, R> Transaction<T, R> {
     {
         let actions = NonEmpty::from_vec(self.actions)
             .expect("Transaction::commit: transaction must not be empty");
-        let Updated { head, object, .. } = store.update(id, msg, actions, self.embeds, signer)?;
+        let Updated {
+            head,
+            object: CollaborativeObject { object, .. },
+            ..
+        } = store.update(id, msg, actions, self.embeds, signer)?;
 
-        Ok((object.object, head))
+        Ok((object, head))
     }
 }
 

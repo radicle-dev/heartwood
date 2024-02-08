@@ -4,9 +4,10 @@ use git_ref_format::Qualified;
 use radicle::cob::patch;
 use radicle::cob::patch::RevisionId;
 use radicle::git::RefString;
+use radicle::patch::cache::Patches as _;
 use radicle::patch::PatchId;
 use radicle::storage::git::Repository;
-use radicle::{git, rad};
+use radicle::{git, rad, Profile};
 
 use crate::terminal as term;
 
@@ -33,10 +34,10 @@ pub fn run(
     revision_id: Option<RevisionId>,
     stored: &Repository,
     working: &git::raw::Repository,
+    profile: &Profile,
     opts: Options,
 ) -> anyhow::Result<()> {
-    let patches = patch::Patches::open(stored)?;
-
+    let patches = profile.patches(stored)?;
     let patch = patches
         .get(patch_id)?
         .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;

@@ -30,6 +30,14 @@ pub enum Error {
     #[error(transparent)]
     Storage(#[from] radicle::storage::Error),
 
+    /// Cob cache error.
+    #[error(transparent)]
+    CobCache(#[from] radicle::cob::cache::Error),
+
+    /// Cob issue cache error.
+    #[error(transparent)]
+    CacheIssue(#[from] radicle::cob::issue::cache::Error),
+
     /// Cob issue error.
     #[error(transparent)]
     CobIssue(#[from] radicle::cob::issue::Error),
@@ -37,6 +45,10 @@ pub enum Error {
     /// Cob patch error.
     #[error(transparent)]
     CobPatch(#[from] radicle::cob::patch::Error),
+
+    /// Cob patch cache error.
+    #[error(transparent)]
+    CachePatch(#[from] radicle::cob::patch::cache::Error),
 
     /// Cob store error.
     #[error(transparent)]
@@ -123,6 +135,7 @@ impl IntoResponse for Error {
             Error::BadRequest(msg) => (StatusCode::BAD_REQUEST, Some(msg)),
             other => {
                 tracing::error!("Error: {message}");
+                tracing::debug!("Error Debug: {:?}", other);
 
                 if cfg!(debug_assertions) {
                     (StatusCode::INTERNAL_SERVER_ERROR, Some(other.to_string()))

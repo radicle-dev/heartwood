@@ -1,7 +1,8 @@
 use std::collections::BTreeSet;
 
 use radicle::cob::patch;
-use radicle::cob::patch::{Patch, PatchId, Patches};
+use radicle::cob::patch::{Patch, PatchId};
+use radicle::patch::cache::Patches as _;
 use radicle::prelude::*;
 use radicle::profile::Profile;
 use radicle::storage::git::Repository;
@@ -15,22 +16,23 @@ use crate::terminal::patch as common;
 
 /// List patches.
 pub fn run(
-    filter: fn(&patch::State) -> bool,
+    filter: Option<&patch::Status>,
     authors: BTreeSet<Did>,
     repository: &Repository,
     profile: &Profile,
 ) -> anyhow::Result<()> {
-    let patches = Patches::open(repository)?;
+    let patches = profile.patches(repository)?;
 
     let mut all = Vec::new();
-    for patch in patches.all()? {
+    let iter = match filter {
+        Some(status) => patches.list_by_status(status)?,
+        None => patches.list()?,
+    };
+    for patch in iter {
         let Ok((id, patch)) = patch else {
             // Skip patches that failed to load.
             continue;
         };
-        if !filter(patch.state()) {
-            continue;
-        }
         if !authors.is_empty() {
             if !authors.contains(patch.author().id()) {
                 continue;

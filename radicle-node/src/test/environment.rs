@@ -9,6 +9,7 @@ use std::{
 
 use crossbeam_channel as chan;
 
+use radicle::cob::cache::COBS_DB_FILE;
 use radicle::cob::issue;
 use radicle::crypto::ssh::{keystore::MemorySigner, Keystore};
 use radicle::crypto::test::signer::MockSigner;
@@ -110,6 +111,7 @@ impl Environment {
         let keystore = Keystore::new(&home.keys());
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
         let policies_db = home.node().join(POLICIES_DB_FILE);
+        let cobs_db = home.cobs().join(COBS_DB_FILE);
 
         config.write(&home.config()).unwrap();
 
@@ -124,6 +126,7 @@ impl Environment {
 
         policy::Store::open(policies_db).unwrap();
         home.database_mut().unwrap(); // Just create the database.
+        cob::cache::Store::open(cobs_db).unwrap();
 
         transport::local::register(storage.clone());
         keystore.store(keypair.clone(), "radicle", None).unwrap();
@@ -380,7 +383,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
     /// Create an [`issue::Issue`] in the `NodeHandle`'s storage.
     pub fn issue(&self, rid: RepoId, title: &str, desc: &str) -> cob::ObjectId {
         let repo = self.storage.repository(rid).unwrap();
-        let mut issues = issue::Issues::open(&repo).unwrap();
+        let mut issues = issue::Cache::no_cache(&repo).unwrap();
         *issues
             .create(title, desc, &[], &[], [], &self.signer)
             .unwrap()
