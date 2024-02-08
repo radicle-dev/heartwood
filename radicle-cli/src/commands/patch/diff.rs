@@ -9,8 +9,9 @@ pub fn run(
     patch_id: &PatchId,
     revision_id: Option<patch::RevisionId>,
     stored: &Repository,
+    profile: &Profile,
 ) -> anyhow::Result<()> {
-    let patches = patch::Patches::open(stored)?;
+    let patches = patch::Cache::reader(stored, profile.cob_cache()?)?;
     let Some(patch) = patches.get(patch_id)? else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };

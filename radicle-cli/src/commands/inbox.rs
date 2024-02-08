@@ -4,10 +4,12 @@ use std::process;
 use anyhow::anyhow;
 
 use localtime::LocalTime;
-use radicle::issue::Issues;
+use radicle::issue;
+use radicle::issue::cache::Issues as _;
 use radicle::node::notifications;
 use radicle::node::notifications::*;
-use radicle::patch::Patches;
+use radicle::patch;
+use radicle::patch::cache::Patches as _;
 use radicle::prelude::{Profile, RepoId};
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{cob, Storage};
@@ -169,20 +171,21 @@ fn list(
     storage: &Storage,
     profile: &Profile,
 ) -> anyhow::Result<()> {
+    let cache = profile.cob_cache()?;
     let repos: Vec<term::VStack<'_>> = match mode {
         Mode::Contextual => {
             if let Ok((_, rid)) = radicle::rad::cwd() {
-                list_repo(rid, sort_by, notifs, storage, profile)?
+                list_repo(rid, sort_by, notifs, cache, storage, profile)?
                     .into_iter()
                     .collect()
             } else {
-                list_all(sort_by, notifs, storage, profile)?
+                list_all(sort_by, notifs, cache, storage, profile)?
             }
         }
-        Mode::ByRepo(rid) => list_repo(rid, sort_by, notifs, storage, profile)?
+        Mode::ByRepo(rid) => list_repo(rid, sort_by, notifs, cache, storage, profile)?
             .into_iter()
             .collect(),
-        Mode::All => list_all(sort_by, notifs, storage, profile)?,
+        Mode::All => list_all(sort_by, notifs, cache, storage, profile)?,
         Mode::ById(_) => anyhow::bail!("the `list` command does not take IDs"),
     };
 
@@ -199,6 +202,7 @@ fn list(
 fn list_all<'a>(
     sort_by: SortBy,
     notifs: &notifications::StoreReader,
+    cache: cob::cache::StoreReader,
     storage: &Storage,
     profile: &Profile,
 ) -> anyhow::Result<Vec<term::VStack<'a>>> {
@@ -207,7 +211,7 @@ fn list_all<'a>(
 
     let mut vstacks = Vec::new();
     for repo in repos {
-        let vstack = list_repo(repo.rid, sort_by, notifs, storage, profile)?;
+        let vstack = list_repo(repo.rid, sort_by, notifs, cache.clone(), storage, profile)?;
         vstacks.extend(vstack.into_iter());
     }
     Ok(vstacks)
@@ -217,6 +221,7 @@ fn list_repo<'a, R: ReadStorage>(
     rid: RepoId,
     sort_by: SortBy,
     notifs: &notifications::StoreReader,
+    cache: cob::cache::StoreReader,
     storage: &R,
     profile: &Profile,
 ) -> anyhow::Result<Option<term::VStack<'a>>>
@@ -231,8 +236,8 @@ where
     let (_, head) = repo.head()?;
     let doc = repo.identity_doc()?;
     let proj = doc.project()?;
-    let issues = Issues::open(&repo)?;
-    let patches = Patches::open(&repo)?;
+    let issues = cob::issue::Cache::reader(&repo, cache.clone())?;
+    let patches = cob::patch::Cache::reader(&repo, cache)?;
 
     let mut notifs = notifs.by_repo(&rid, sort_by.field)?.collect::<Vec<_>>();
     if !sort_by.reverse {
@@ -381,16 +386,17 @@ fn show(
     };
     let n = notifs.get(id)?;
     let repo = storage.repository(n.repo)?;
+    let cache = profile.cob_cache()?;
 
     match n.kind {
         NotificationKind::Cob { type_name, id } if type_name == *cob::issue::TYPENAME => {
-            let issues = Issues::open(&repo)?;
+            let issues = issue::Cache::reader(&repo, cache)?;
             let issue = issues.get(&id)?.unwrap();
 
             term::issue::show(&issue, &id, term::issue::Format::default(), profile)?;
         }
         NotificationKind::Cob { type_name, id } if type_name == *cob::patch::TYPENAME => {
-            let patches = Patches::open(&repo)?;
+            let patches = patch::Cache::reader(&repo, cache)?;
             let patch = patches.get(&id)?.unwrap();
 
             term::patch::show(&patch, &id, false, &repo, None, profile)?;

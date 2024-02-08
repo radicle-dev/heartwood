@@ -5,6 +5,8 @@ use std::str::FromStr;
 use std::time;
 
 use anyhow::anyhow;
+use radicle::issue::cache::Issues as _;
+use radicle::patch::cache::Patches as _;
 use thiserror::Error;
 
 use radicle::cob;
@@ -186,8 +188,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     info.push([term::format::bold(proj.name()).into()]);
     info.push([term::format::italic(proj.description()).into()]);
 
-    let issues = cob::issue::Issues::open(&repo)?.counts()?;
-    let patches = cob::patch::Patches::open(&repo)?.counts()?;
+    let cache = profile.cob_cache()?;
+    let issues = cob::issue::Cache::reader(&repo, cache.clone())?.counts()?;
+    let patches = cob::patch::Cache::reader(&repo, cache)?.counts()?;
 
     info.push([term::Line::spaced([
         term::format::tertiary(issues.open).into(),

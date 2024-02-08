@@ -33,7 +33,7 @@ pub fn run(
     // TODO: Should be optional.
     workdir: &git::raw::Repository,
 ) -> anyhow::Result<()> {
-    let patches = patch::Patches::open(stored)?;
+    let patches = patch::Cache::reader(stored, profile.cob_cache()?)?;
     let Some(patch) = patches.get(patch_id)? else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };

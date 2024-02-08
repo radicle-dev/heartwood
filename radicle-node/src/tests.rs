@@ -8,6 +8,7 @@ use std::time;
 
 use crossbeam_channel as chan;
 use netservices::Direction as Link;
+use radicle::cob;
 use radicle::identity::Visibility;
 use radicle::node::address::Store;
 use radicle::node::routing::Store as _;
@@ -881,8 +882,17 @@ fn test_refs_announcement_offline() {
     let repo = alice.storage().repository(*rid).unwrap();
     let old_refs = RefsAt::new(&repo, alice.id).unwrap();
     let mut issues = radicle::issue::Issues::open(&repo).unwrap();
+    let mut cache = cob::cache::NoCache {};
     issues
-        .create("Issue while offline!", "", &[], &[], [], alice.signer())
+        .create(
+            "Issue while offline!",
+            "",
+            &[],
+            &[],
+            [],
+            &mut cache,
+            alice.signer(),
+        )
         .unwrap();
     let new_refs = RefsAt::new(&repo, alice.id).unwrap();
     assert_ne!(old_refs, new_refs);

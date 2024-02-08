@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use nonempty::NonEmpty;
+use radicle_cob::CollaborativeObject;
 use serde::{Deserialize, Serialize};
 
 use crate::cob::op::Op;
@@ -14,6 +15,8 @@ use crate::prelude::*;
 use crate::storage::git as storage;
 use crate::storage::SignRepository;
 use crate::{cob, identity};
+
+use super::cache;
 
 pub trait CobAction: Debug {
     /// Parent objects this action depends on. For example, patch revisions
@@ -97,6 +100,10 @@ pub enum Error {
         #[source]
         err: git::raw::Error,
     },
+    #[error("failed to update object in cache: {0}")]
+    CacheUpdate(#[source] Box<dyn std::error::Error + Send + Sync + 'static>),
+    #[error("failed to remove object from cache: {0}")]
+    CacheRemove(#[source] Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
 /// Storage for collaborative objects of a specific type `T` in a single repository.
@@ -112,7 +119,10 @@ impl<'a, T, R> AsRef<R> for Store<'a, T, R> {
     }
 }
 
-impl<'a, T, R: ReadRepository + cob::Store> Store<'a, T, R> {
+impl<'a, T, R> Store<'a, T, R>
+where
+    R: ReadRepository + cob::Store,
+{
     /// Open a new generic store.
     pub fn open(repo: &'a R) -> Result<Self, Error> {
         Ok(Self {
@@ -200,7 +210,12 @@ where
     }
 
     /// Remove an object.
-    pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), Error> {
+    pub fn remove<G: Signer>(
+        &self,
+        id: &ObjectId,
+        cache: &mut impl cache::Remove<T>,
+        signer: &G,
+    ) -> Result<(), Error> {
         let name = git::refs::storage::cob(signer.public_key(), T::type_name(), id);
         match self
             .repo
@@ -209,6 +224,9 @@ where
             Ok(_) => {
                 cob::remove(self.repo, signer.public_key(), T::type_name(), id)?;
                 self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
+                cache
+                    .remove(&self.repo.id(), id)
+                    .map_err(|e| Error::CacheRemove(e.into()))?;
                 Ok(())
             }
             Err(err) if err.code() == git::raw::ErrorCode::NotFound => Ok(()),
@@ -271,11 +289,15 @@ impl<T: Cob + cob::Evaluate<R>, R> Default for Transaction<T, R> {
     }
 }
 
-impl<T: Cob + cob::Evaluate<R>, R> Transaction<T, R> {
+impl<T, R> Transaction<T, R>
+where
+    T: Cob + cob::Evaluate<R>,
+{
     /// Create a new transaction to be used as the initial set of operations for a COB.
     pub fn initial<G, F>(
         message: &str,
         store: &mut Store<T, R>,
+        cache: &mut impl cache::Update<T>,
         signer: &G,
         operations: F,
     ) -> Result<(ObjectId, T), Error>
@@ -291,7 +313,12 @@ impl<T: Cob + cob::Evaluate<R>, R> Transaction<T, R> {
         let actions = NonEmpty::from_vec(tx.actions)
             .expect("Transaction::initial: transaction must contain at least one action");
 
-        store.create(message, actions, tx.embeds, signer)
+        let (id, object) = store.create(message, actions, tx.embeds, signer)?;
+        cache
+            .update(&store.repo.id(), &id, &object)
+            .map_err(|err| Error::CacheUpdate(err.into()))?;
+
+        Ok((id, object))
     }
 
     /// Add an operation to this transaction.
@@ -316,6 +343,7 @@ impl<T: Cob + cob::Evaluate<R>, R> Transaction<T, R> {
         msg: &str,
         id: ObjectId,
         store: &mut Store<T, R>,
+        cache: &mut impl cache::Update<T>,
         signer: &G,
     ) -> Result<(T, EntryId), Error>
     where
@@ -324,9 +352,16 @@ impl<T: Cob + cob::Evaluate<R>, R> Transaction<T, R> {
     {
         let actions = NonEmpty::from_vec(self.actions)
             .expect("Transaction::commit: transaction must not be empty");
-        let Updated { head, object, .. } = store.update(id, msg, actions, self.embeds, signer)?;
+        let Updated {
+            head,
+            object: CollaborativeObject { object, .. },
+            ..
+        } = store.update(id, msg, actions, self.embeds, signer)?;
+        cache
+            .update(&store.repo.id(), &id, &object)
+            .map_err(|err| Error::CacheUpdate(err.into()))?;
 
-        Ok((object.object, head))
+        Ok((object, head))
     }
 }
 

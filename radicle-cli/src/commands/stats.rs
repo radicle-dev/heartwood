@@ -6,8 +6,10 @@ use localtime::LocalTime;
 use radicle::cob::issue;
 use radicle::cob::patch;
 use radicle::git;
+use radicle::issue::cache::Issues as _;
 use radicle::node::address;
 use radicle::node::routing;
+use radicle::patch::cache::Patches as _;
 use radicle::storage::{ReadRepository, ReadStorage, WriteRepository};
 use radicle_term::Element;
 use serde::Serialize;
@@ -90,8 +92,9 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     for repo in storage.repositories()? {
         let repo = storage.repository(repo.rid)?;
-        let issues = issue::Issues::open(&repo)?.counts()?;
-        let patches = patch::Patches::open(&repo)?.counts()?;
+        let cache = profile.cob_cache()?;
+        let issues = issue::Cache::reader(&repo, cache.clone())?.counts()?;
+        let patches = patch::Cache::reader(&repo, cache)?.counts()?;
 
         stats.local.issues += issues.total();
         stats.local.patches += patches.total();

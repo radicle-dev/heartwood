@@ -14,7 +14,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tower_http::set_header::SetResponseHeaderLayer;
 
-use radicle::cob::{issue, patch, resolve_embed, Embed, Label, Uri};
+use radicle::cob::{
+    issue, issue::cache::Issues as _, patch, patch::cache::Patches as _, resolve_embed, Embed,
+    Label, Uri,
+};
 use radicle::identity::{Did, RepoId, Visibility};
 use radicle::node::routing::Store;
 use radicle::node::{AliasStore, Node, NodeId};
@@ -90,6 +93,7 @@ async fn project_root_handler(
     let db = &ctx.profile.database()?;
     let pinned = &ctx.profile.config.web.pinned;
     let policies = ctx.profile.policies()?;
+    let cache = ctx.profile.cob_cache()?;
 
     let mut projects = match show {
         ProjectQuery::All => storage
@@ -119,13 +123,13 @@ async fn project_root_handler(
             let Ok(payload) = info.doc.project() else {
                 return None;
             };
-            let Ok(issues) = issue::Issues::open(&repo) else {
+            let Ok(issues) = issue::Cache::reader(&repo, cache.clone()) else {
                 return None;
             };
             let Ok(issues) = issues.counts() else {
                 return None;
             };
-            let Ok(patches) = patch::Patches::open(&repo) else {
+            let Ok(patches) = patch::Cache::reader(&repo, cache.clone()) else {
                 return None;
             };
             let Ok(patches) = patches.counts() else {
@@ -580,9 +584,9 @@ async fn issues_handler(
     let state = state.unwrap_or_default();
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
-    let issues = issue::Issues::open(&repo)?;
+    let issues = issue::Cache::reader(&repo, ctx.profile.cob_cache()?)?;
     let mut issues: Vec<_> = issues
-        .all()?
+        .list()?
         .filter_map(|r| {
             let (id, issue) = r.ok()?;
             (state.matches(issue.state())).then_some((id, issue))
@@ -632,8 +636,9 @@ async fn issue_create_handler(
         .filter_map(|embed| resolve_embed(&repo, embed))
         .collect();
 
-    let mut issues = issue::Issues::open(&repo)?;
-    let issue = issues
+    let db = ctx.profile.cob_cache_mut()?;
+    let mut cache = issue::Cache::open(&repo, db)?;
+    let issue = cache
         .create(
             issue.title,
             issue.description,
@@ -665,8 +670,9 @@ async fn issue_update_handler(
     let storage = &ctx.profile.storage;
     let signer = ctx.profile.signer()?;
     let repo = storage.repository(project)?;
-    let mut issues = issue::Issues::open(&repo)?;
-    let mut issue = issues.get_mut(&issue_id.into())?;
+    let db = ctx.profile.cob_cache_mut()?;
+    let mut cache = issue::Cache::open(&repo, db)?;
+    let mut issue = cache.get_mut(&issue_id.into())?;
 
     let id = match action {
         issue::Action::Assign { assignees } => issue.assign(assignees, &signer)?,
@@ -716,7 +722,8 @@ async fn issue_handler(
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
-    let issue = issue::Issues::open(&repo)?
+    let db = ctx.profile.cob_cache()?;
+    let issue = issue::Cache::reader(&repo, db)?
         .get(&issue_id.into())?
         .ok_or(Error::NotFound)?;
     let aliases = ctx.profile.aliases();
@@ -749,10 +756,10 @@ async fn patch_create_handler(
         .signer()
         .map_err(|_| Error::Auth("Unauthorized"))?;
     let repo = storage.repository(project)?;
-    let mut patches = patch::Patches::open(&repo)?;
+    let mut cache = patch::Cache::open(&repo, ctx.profile.cob_cache_mut()?)?;
     let base_oid = repo.raw().merge_base(*patch.target, *patch.oid)?;
 
-    let patch = patches
+    let patch = cache
         .create(
             patch.title,
             patch.description,
@@ -788,8 +795,8 @@ async fn patch_update_handler(
         .signer()
         .map_err(|_| Error::Auth("Unauthorized"))?;
     let repo = storage.repository(project)?;
-    let mut patches = patch::Patches::open(&repo)?;
-    let mut patch = patches.get_mut(&patch_id.into())?;
+    let mut cache = patch::Cache::open(&repo, ctx.profile.cob_cache_mut()?)?;
+    let mut patch = cache.get_mut(&patch_id.into())?;
     let id = match action {
         patch::Action::Edit { title, target } => patch.edit(title, target, &signer)?,
         patch::Action::Label { labels } => patch.label(labels, &signer)?,
@@ -933,9 +940,9 @@ async fn patches_handler(
     let state = state.unwrap_or_default();
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
-    let patches = patch::Patches::open(&repo)?;
-    let mut patches = patches
-        .all()?
+    let cache = patch::Cache::reader(&repo, ctx.profile.cob_cache()?)?;
+    let mut patches = cache
+        .list()?
         .filter_map(|r| {
             let (id, patch) = r.ok()?;
             (state.matches(patch.state())).then_some((id, patch))
@@ -961,9 +968,8 @@ async fn patch_handler(
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
-    let patch = patch::Patches::open(&repo)?
-        .get(&patch_id.into())?
-        .ok_or(Error::NotFound)?;
+    let cache = patch::Cache::reader(&repo, ctx.profile.cob_cache()?)?;
+    let patch = cache.get(&patch_id.into())?.ok_or(Error::NotFound)?;
     let aliases = ctx.profile.aliases();
 
     Ok::<_, Error>(Json(api::json::patch(

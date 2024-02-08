@@ -1,3 +1,5 @@
+pub mod cache;
+
 use std::collections::BTreeSet;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -17,6 +19,8 @@ use crate::crypto::Signer;
 use crate::identity::doc::{Doc, DocError};
 use crate::prelude::{Did, ReadRepository, Verified};
 use crate::storage::{RepositoryError, WriteRepository};
+
+pub use cache::Cache;
 
 /// Issue operation.
 pub type Op = cob::Op<Action>;
@@ -398,8 +402,8 @@ impl Issue {
     }
 }
 
-impl<'a, 'g, R> From<IssueMut<'a, 'g, R>> for (IssueId, Issue) {
-    fn from(value: IssueMut<'a, 'g, R>) -> Self {
+impl<'a, 'g, R, C> From<IssueMut<'a, 'g, R, C>> for (IssueId, Issue) {
+    fn from(value: IssueMut<'a, 'g, R, C>) -> Self {
         (value.id, value.issue)
     }
 }
@@ -512,13 +516,14 @@ impl<R: ReadRepository> store::Transaction<Issue, R> {
     }
 }
 
-pub struct IssueMut<'a, 'g, R> {
+pub struct IssueMut<'a, 'g, R, C> {
     id: ObjectId,
     issue: Issue,
     store: &'g mut Issues<'a, R>,
+    cache: &'g mut C,
 }
 
-impl<'a, 'g, R> std::fmt::Debug for IssueMut<'a, 'g, R> {
+impl<'a, 'g, R, C> std::fmt::Debug for IssueMut<'a, 'g, R, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("IssueMut")
             .field("id", &self.id)
@@ -527,9 +532,10 @@ impl<'a, 'g, R> std::fmt::Debug for IssueMut<'a, 'g, R> {
     }
 }
 
-impl<'a, 'g, R> IssueMut<'a, 'g, R>
+impl<'a, 'g, R, C> IssueMut<'a, 'g, R, C>
 where
     R: WriteRepository + cob::Store,
+    C: cob::cache::Update<Issue>,
 {
     /// Reload the issue data from storage.
     pub fn reload(&mut self) -> Result<(), store::Error> {
@@ -647,14 +653,15 @@ where
         let mut tx = Transaction::default();
         operations(&mut tx)?;
 
-        let (issue, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        let (issue, commit) =
+            tx.commit(message, self.id, &mut self.store.raw, self.cache, signer)?;
         self.issue = issue;
 
         Ok(commit)
     }
 }
 
-impl<'a, 'g, R> Deref for IssueMut<'a, 'g, R> {
+impl<'a, 'g, R, C> Deref for IssueMut<'a, 'g, R, C> {
     type Target = Issue;
 
     fn deref(&self) -> &Self::Target {
@@ -712,7 +719,11 @@ where
     }
 
     /// Get an issue mutably.
-    pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<IssueMut<'a, 'g, R>, store::Error> {
+    pub fn get_mut<'g, C>(
+        &'g mut self,
+        id: &ObjectId,
+        cache: &'g mut C,
+    ) -> Result<IssueMut<'a, 'g, R, C>, store::Error> {
         let issue = self
             .raw
             .get(id)?
@@ -722,32 +733,40 @@ where
             id: *id,
             issue,
             store: self,
+            cache,
         })
     }
 
     /// Create a new issue.
-    pub fn create<'g, G: Signer>(
+    pub fn create<'g, G, C>(
         &'g mut self,
         title: impl ToString,
         description: impl ToString,
         labels: &[Label],
         assignees: &[Did],
         embeds: impl IntoIterator<Item = Embed>,
+        cache: &'g mut C,
         signer: &G,
-    ) -> Result<IssueMut<'a, 'g, R>, Error> {
-        let (id, issue) = Transaction::initial("Create issue", &mut self.raw, signer, |tx| {
-            tx.thread(description, embeds)?;
-            tx.assign(assignees.to_owned())?;
-            tx.edit(title)?;
-            tx.label(labels.to_owned())?;
+    ) -> Result<IssueMut<'a, 'g, R, C>, Error>
+    where
+        G: Signer,
+        C: cob::cache::Update<Issue>,
+    {
+        let (id, issue) =
+            Transaction::initial("Create issue", &mut self.raw, cache, signer, |tx| {
+                tx.thread(description, embeds)?;
+                tx.assign(assignees.to_owned())?;
+                tx.edit(title)?;
+                tx.label(labels.to_owned())?;
 
-            Ok(())
-        })?;
+                Ok(())
+            })?;
 
         Ok(IssueMut {
             id,
             issue,
             store: self,
+            cache,
         })
     }
 
@@ -768,8 +787,16 @@ where
     }
 
     /// Remove an issue.
-    pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), store::Error> {
-        self.raw.remove(id, signer)
+    pub fn remove<C, G: Signer>(
+        &self,
+        id: &ObjectId,
+        cache: &mut C,
+        signer: &G,
+    ) -> Result<(), store::Error>
+    where
+        C: cob::cache::Remove<Issue>,
+    {
+        self.raw.remove(id, cache, signer)
     }
 }
 
@@ -841,6 +868,7 @@ mod test {
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::cob::cache::NoCache;
     use crate::cob::{ActorId, Reaction};
     use crate::git::Oid;
     use crate::test;
@@ -852,7 +880,9 @@ mod test {
         let mut issues_alice = Issues::open(&*t.alice.repo).unwrap();
         let mut bob_issues = Issues::open(&*t.bob.repo).unwrap();
         let mut eve_issues = Issues::open(&*t.eve.repo).unwrap();
-
+        let mut alice_cache = NoCache {};
+        let mut bob_cache = NoCache {};
+        let mut eve_cache = NoCache {};
         let mut issue_alice = issues_alice
             .create(
                 "Alice Issue",
@@ -860,6 +890,7 @@ mod test {
                 &[],
                 &[],
                 [],
+                &mut alice_cache,
                 &t.alice.signer,
             )
             .unwrap();
@@ -868,8 +899,8 @@ mod test {
         t.bob.repo.fetch(&t.alice);
         t.eve.repo.fetch(&t.alice);
 
-        let mut issue_eve = eve_issues.get_mut(&id).unwrap();
-        let mut issue_bob = bob_issues.get_mut(&id).unwrap();
+        let mut issue_eve = eve_issues.get_mut(&id, &mut eve_cache).unwrap();
+        let mut issue_bob = bob_issues.get_mut(&id, &mut bob_cache).unwrap();
 
         issue_bob
             .comment("Bob's reply", *id, vec![], &t.bob.signer)
@@ -942,6 +973,7 @@ mod test {
 
         let assignee = Did::from(arbitrary::gen::<ActorId>(1));
         let assignee_two = Did::from(arbitrary::gen::<ActorId>(1));
+        let mut cache = NoCache {};
         let issue = issues
             .create(
                 "My first issue",
@@ -949,6 +981,7 @@ mod test {
                 &[],
                 &[assignee],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -960,7 +993,7 @@ mod test {
         assert_eq!(1, assignees.len());
         assert!(assignees.contains(&assignee));
 
-        let mut issue = issues.get_mut(&id).unwrap();
+        let mut issue = issues.get_mut(&id, &mut cache).unwrap();
         issue
             .assign([assignee, assignee_two], &node.signer)
             .unwrap();
@@ -978,6 +1011,7 @@ mod test {
     fn test_issue_create_and_reassign() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
 
         let assignee = Did::from(arbitrary::gen::<ActorId>(1));
         let assignee_two = Did::from(arbitrary::gen::<ActorId>(1));
@@ -986,8 +1020,9 @@ mod test {
                 "My first issue",
                 "Blah blah blah.",
                 &[],
-                &[assignee],
+                &[assignee, assignee_two],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1011,6 +1046,7 @@ mod test {
     fn test_issue_create_and_get() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
         let created = issues
             .create(
                 "My first issue",
@@ -1018,6 +1054,7 @@ mod test {
                 &[],
                 &[],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1037,6 +1074,7 @@ mod test {
     fn test_issue_create_and_change_state() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1044,6 +1082,7 @@ mod test {
                 &[],
                 &[],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1058,7 +1097,7 @@ mod test {
             .unwrap();
 
         let id = issue.id;
-        let mut issue = issues.get_mut(&id).unwrap();
+        let mut issue = issues.get_mut(&id, &mut cache).unwrap();
 
         assert_eq!(
             *issue.state(),
@@ -1077,6 +1116,7 @@ mod test {
     fn test_issue_create_and_unassign() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
 
         let assignee = Did::from(arbitrary::gen::<ActorId>(1));
         let assignee_two = Did::from(arbitrary::gen::<ActorId>(1));
@@ -1087,6 +1127,7 @@ mod test {
                 &[],
                 &[assignee, assignee_two],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1105,6 +1146,8 @@ mod test {
     fn test_issue_edit() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
+
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1112,6 +1155,7 @@ mod test {
                 &[],
                 &[],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1129,6 +1173,7 @@ mod test {
     fn test_issue_edit_description() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1136,6 +1181,7 @@ mod test {
                 &[],
                 &[],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1155,6 +1201,7 @@ mod test {
     fn test_issue_react() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1162,6 +1209,7 @@ mod test {
                 &[],
                 &[],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1185,6 +1233,7 @@ mod test {
     fn test_issue_reply() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1192,6 +1241,7 @@ mod test {
                 &[],
                 &[],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1206,7 +1256,7 @@ mod test {
             .unwrap();
 
         let id = issue.id;
-        let mut issue = issues.get_mut(&id).unwrap();
+        let mut issue = issues.get_mut(&id, &mut cache).unwrap();
         let (_, reply1) = &issue.replies_to(&root).nth(0).unwrap();
         let (_, reply2) = &issue.replies_to(&root).nth(1).unwrap();
 
@@ -1240,6 +1290,7 @@ mod test {
     fn test_issue_label() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
         let bug_label = Label::new("bug").unwrap();
         let ux_label = Label::new("ux").unwrap();
         let wontfix_label = Label::new("wontfix").unwrap();
@@ -1250,6 +1301,7 @@ mod test {
                 &[ux_label.clone()],
                 &[],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1278,6 +1330,7 @@ mod test {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let author = *node.signer.public_key();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1285,6 +1338,7 @@ mod test {
                 &[],
                 &[],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1318,6 +1372,7 @@ mod test {
     fn test_issue_comment_redact() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1325,6 +1380,7 @@ mod test {
                 &[],
                 &[],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1366,15 +1422,15 @@ mod test {
     fn test_issue_all() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
-
+        let mut cache = NoCache {};
         issues
-            .create("First", "Blah", &[], &[], [], &node.signer)
+            .create("First", "Blah", &[], &[], [], &mut cache, &node.signer)
             .unwrap();
         issues
-            .create("Second", "Blah", &[], &[], [], &node.signer)
+            .create("Second", "Blah", &[], &[], [], &mut cache, &node.signer)
             .unwrap();
         issues
-            .create("Third", "Blah", &[], &[], [], &node.signer)
+            .create("Third", "Blah", &[], &[], [], &mut cache, &node.signer)
             .unwrap();
 
         let issues = issues
@@ -1395,6 +1451,7 @@ mod test {
     fn test_issue_multilines() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
         let created = issues
             .create(
                 "My first issue",
@@ -1402,6 +1459,7 @@ mod test {
                 &[],
                 &[],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1433,6 +1491,7 @@ mod test {
             name: String::from("bin"),
             content: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
         };
+        let mut cache = NoCache {};
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1440,6 +1499,7 @@ mod test {
                 &[],
                 &[],
                 [embed1.clone(), embed2.clone()],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1479,6 +1539,7 @@ mod test {
     fn test_embeds_edit() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
         let embed1 = Embed {
             name: String::from("example.html"),
             content: b"<html>Hello World!</html>".to_vec(),
@@ -1498,6 +1559,7 @@ mod test {
                 &[],
                 &[],
                 [embed1, embed2],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1523,6 +1585,7 @@ mod test {
     fn test_invalid_actions() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1530,6 +1593,7 @@ mod test {
                 &[],
                 &[],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1557,6 +1621,7 @@ mod test {
     fn test_invalid_tx() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1564,6 +1629,7 @@ mod test {
                 &[],
                 &[],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();
@@ -1573,8 +1639,14 @@ mod test {
         // Even creating it via a transaction will trigger an error.
         let mut tx = Transaction::<Issue, _>::default();
         tx.comment("Invalid comment", missing, vec![]).unwrap();
-        tx.commit("Add comment", issue.id, &mut issue.store.raw, &node.signer)
-            .unwrap_err();
+        tx.commit(
+            "Add comment",
+            issue.id,
+            &mut issue.store.raw,
+            issue.cache,
+            &node.signer,
+        )
+        .unwrap_err();
 
         issue.reload().unwrap();
         assert_eq!(issue.comments().count(), 1);
@@ -1593,6 +1665,7 @@ mod test {
         let missing = arbitrary::oid();
         let type_name = Issue::type_name().clone();
         let mut issues = Issues::open(&*repo).unwrap();
+        let mut cache = NoCache {};
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1600,6 +1673,7 @@ mod test {
                 &[],
                 &[],
                 [],
+                &mut cache,
                 &node.signer,
             )
             .unwrap();

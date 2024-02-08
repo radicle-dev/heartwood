@@ -2,6 +2,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::{env, thread, time};
 
+use radicle::cob::cache::NoCache;
 use radicle::git;
 use radicle::node;
 use radicle::node::address::Store as _;
@@ -1456,6 +1457,7 @@ fn test_cob_replication() {
 
     let bob_repo = bob.storage.repository(rid).unwrap();
     let mut bob_issues = radicle::cob::issue::Issues::open(&bob_repo).unwrap();
+    let mut bob_cache = radicle::cob::cache::InMemory::default();
     let issue = bob_issues
         .create(
             "Something's fishy",
@@ -1463,6 +1465,7 @@ fn test_cob_replication() {
             &[],
             &[],
             [],
+            &mut bob_cache,
             &bob.signer,
         )
         .unwrap();
@@ -1506,6 +1509,7 @@ fn test_cob_deletion() {
 
     let alice_repo = alice.storage.repository(rid).unwrap();
     let mut alice_issues = radicle::cob::issue::Issues::open(&alice_repo).unwrap();
+    let mut alice_cache = radicle::cob::cache::NoCache {};
     let issue = alice_issues
         .create(
             "Something's fishy",
@@ -1513,6 +1517,7 @@ fn test_cob_deletion() {
             &[],
             &[],
             [],
+            &mut alice_cache,
             &alice.signer,
         )
         .unwrap();
@@ -1527,7 +1532,9 @@ fn test_cob_deletion() {
     assert!(bob_issues.get(issue_id).unwrap().is_some());
 
     let alice_issues = radicle::cob::issue::Issues::open(&alice_repo).unwrap();
-    alice_issues.remove(issue_id, &alice.signer).unwrap();
+    alice_issues
+        .remove(issue_id, &mut NoCache {}, &alice.signer)
+        .unwrap();
 
     log::debug!(target: "test", "Removing issue..");
 

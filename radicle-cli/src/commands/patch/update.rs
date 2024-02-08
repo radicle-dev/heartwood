@@ -12,22 +12,22 @@ pub fn run(
     base_id: Option<git::raw::Oid>,
     message: term::patch::Message,
     profile: &Profile,
-    storage: &Repository,
+    repository: &Repository,
     workdir: &git::raw::Repository,
 ) -> anyhow::Result<()> {
     // `HEAD`; This is what we are proposing as a patch.
     let head_branch = try_branch(workdir.head()?)?;
 
-    let (_, target_oid) = get_merge_target(storage, &head_branch)?;
-    let mut patches = patch::Patches::open(storage)?;
-    let Ok(mut patch) = patches.get_mut(&patch_id) else {
+    let (_, target_oid) = get_merge_target(repository, &head_branch)?;
+    let mut cache = patch::Cache::open(repository, profile.cob_cache_mut()?)?;
+    let Ok(mut patch) = cache.get_mut(&patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };
 
     let head_oid = branch_oid(&head_branch)?;
     let base_oid = match base_id {
         Some(oid) => oid,
-        None => storage.backend.merge_base(*target_oid, *head_oid)?,
+        None => repository.backend.merge_base(*target_oid, *head_oid)?,
     };
 
     // N.b. we don't update if both the head and base are the same as

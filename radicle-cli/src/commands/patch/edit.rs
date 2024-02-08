@@ -1,6 +1,6 @@
 use super::*;
 
-use radicle::cob::{patch, resolve_embed};
+use radicle::cob::{self, patch, resolve_embed};
 use radicle::crypto;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
@@ -15,8 +15,8 @@ pub fn run(
     repository: &Repository,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
-    let mut patches = patch::Patches::open(repository)?;
-    let Ok(patch) = patches.get_mut(patch_id) else {
+    let mut cache = patch::Cache::open(repository, profile.cob_cache_mut()?)?;
+    let Ok(patch) = cache.get_mut(patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };
 
@@ -29,7 +29,7 @@ pub fn run(
 }
 
 fn edit_root<G>(
-    mut patch: patch::PatchMut<'_, '_, Repository>,
+    mut patch: patch::PatchMut<'_, '_, Repository, cob::cache::StoreWriter>,
     title: String,
     description: String,
     repository: &Repository,
@@ -76,7 +76,7 @@ where
 }
 
 fn edit_revision<G>(
-    mut patch: patch::PatchMut<'_, '_, Repository>,
+    mut patch: patch::PatchMut<'_, '_, Repository, cob::cache::StoreWriter>,
     revision: patch::RevisionId,
     mut title: String,
     description: String,

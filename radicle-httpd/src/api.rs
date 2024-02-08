@@ -9,6 +9,8 @@ use axum::http::Method;
 use axum::response::{IntoResponse, Json};
 use axum::routing::get;
 use axum::Router;
+use radicle::issue::cache::Issues as _;
+use radicle::patch::cache::Patches as _;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::RwLock;
@@ -54,14 +56,15 @@ impl Context {
 
     pub fn project_info(&self, id: RepoId) -> Result<project::Info, error::Error> {
         let storage = &self.profile.storage;
+        let cache = self.profile.cob_cache_mut()?;
         let repo = storage.repository(id)?;
         let (_, head) = repo.head()?;
         let DocAt { doc, .. } = repo.identity_doc()?;
 
         let payload = doc.project()?;
         let delegates = doc.delegates;
-        let issues = issue::Issues::open(&repo)?.counts()?;
-        let patches = patch::Patches::open(&repo)?.counts()?;
+        let issues = issue::Cache::open(&repo, cache.clone())?.counts()?;
+        let patches = patch::Cache::open(&repo, cache)?.counts()?;
         let db = &self.profile.database()?;
         let seeding = db.count(&id).unwrap_or_default();
 

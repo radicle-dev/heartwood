@@ -15,7 +15,7 @@ use radicle::node::notifications;
 use radicle::prelude::NodeId;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, ReadStorage};
-use radicle::{crypto, Storage};
+use radicle::{cob, crypto, Storage};
 use radicle_fetch::FetchLimit;
 
 use crate::runtime::{thread, Handle};
@@ -179,6 +179,7 @@ struct Worker {
     handle: Handle,
     policies: policy::Config<policy::store::Read>,
     notifications: notifications::StoreWriter,
+    cache: cob::cache::StoreWriter,
 }
 
 impl Worker {
@@ -199,7 +200,13 @@ impl Worker {
         } = task;
         let remote = fetch.remote();
         let channels = channels::ChannelsFlush::new(self.handle.clone(), channels, remote, stream);
-        let result = self._process(fetch, stream, channels, self.notifications.clone());
+        let result = self._process(
+            fetch,
+            stream,
+            channels,
+            self.notifications.clone(),
+            self.cache.clone(),
+        );
 
         log::trace!(target: "worker", "Sending response back to service..");
 
@@ -222,6 +229,7 @@ impl Worker {
         stream: StreamId,
         mut channels: channels::ChannelsFlush,
         notifs: notifications::StoreWriter,
+        cache: cob::cache::StoreWriter,
     ) -> FetchResult {
         match fetch {
             FetchRequest::Initiator {
@@ -232,7 +240,7 @@ impl Worker {
                 timeout: _timeout,
             } => {
                 log::debug!(target: "worker", "Worker processing outgoing fetch for {rid}");
-                let result = self.fetch(rid, remote, refs_at, channels, notifs);
+                let result = self.fetch(rid, remote, refs_at, channels, notifs, cache);
                 FetchResult::Initiator { rid, result }
             }
             FetchRequest::Responder { remote } => {
@@ -282,6 +290,7 @@ impl Worker {
         refs_at: Option<Vec<RefsAt>>,
         channels: channels::ChannelsFlush,
         notifs: notifications::StoreWriter,
+        mut cache: cob::cache::StoreWriter,
     ) -> Result<fetch::FetchResult, FetchError> {
         let FetchConfig {
             limit,
@@ -302,7 +311,7 @@ impl Worker {
             channels,
             notifs,
         )?;
-        let result = handle.fetch(rid, &self.storage, *limit, remote, refs_at)?;
+        let result = handle.fetch(rid, &self.storage, &mut cache, *limit, remote, refs_at)?;
 
         if let Err(e) = garbage::collect(&self.storage, rid, *expiry) {
             // N.b. ensure that `git gc` works in debug mode.
@@ -326,6 +335,7 @@ impl Pool {
         nid: NodeId,
         handle: Handle,
         notifications: notifications::StoreWriter,
+        cache: cob::cache::StoreWriter,
         config: Config,
     ) -> Result<Self, policy::Error> {
         let mut pool = Vec::with_capacity(config.capacity);
@@ -343,6 +353,7 @@ impl Pool {
                 fetch_config: config.fetch.clone(),
                 policies,
                 notifications: notifications.clone(),
+                cache: cache.clone(),
             };
             let thread = thread::spawn(&nid, format!("worker#{i}"), || worker.run());
 

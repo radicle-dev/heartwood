@@ -6,13 +6,14 @@ use anyhow::{anyhow, Context as _};
 
 use radicle::cob::common::{Label, Reaction};
 use radicle::cob::issue;
-use radicle::cob::issue::{CloseReason, Issues, State};
+use radicle::cob::issue::{CloseReason, State};
 use radicle::cob::thread;
 use radicle::crypto::Signer;
+use radicle::issue::cache::Issues as _;
 use radicle::prelude::Did;
 use radicle::profile;
 use radicle::storage;
-use radicle::storage::{WriteRepository, WriteStorage};
+use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
 use radicle::Profile;
 use radicle::{cob, Node};
 
@@ -425,7 +426,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 | Operation::Label { .. }
         );
 
-    let mut issues = Issues::open(&repo)?;
+    let db = profile.cob_cache_mut()?;
+    let mut cache = issue::Cache::open(&repo, db)?;
 
     match options.op {
         Operation::Edit {
@@ -433,7 +435,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             title,
             description,
         } => {
-            let issue = edit(&mut issues, &repo, id, title, description, &signer)?;
+            let issue = edit(&mut cache, &repo, id, title, description, &signer)?;
             if !options.quiet {
                 term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
             }
@@ -444,7 +446,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             labels,
             assignees,
         } => {
-            let issue = issues.create(title, description, &labels, &assignees, [], &signer)?;
+            let issue = cache.create(title, description, &labels, &assignees, [], &signer)?;
             if !options.quiet {
                 term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
             }
@@ -455,7 +457,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             reply_to,
         } => {
             let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
-            let mut issue = issues.get_mut(&issue_id)?;
+            let mut issue = cache.get_mut(&issue_id)?;
             let (body, reply_to) = prompt_comment(message, reply_to, &issue, &repo)?;
             let comment_id = issue.comment(body, reply_to, vec![], &signer)?;
 
@@ -468,7 +470,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Show { id, format, debug } => {
             let id = id.resolve(&repo.backend)?;
-            let issue = issues
+            let issue = cache
                 .get(&id)?
                 .context("No issue with the given ID exists")?;
             if debug {
@@ -479,7 +481,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::State { id, state } => {
             let id = id.resolve(&repo.backend)?;
-            let mut issue = issues.get_mut(&id)?;
+            let mut issue = cache.get_mut(&id)?;
             issue.lifecycle(state, &signer)?;
         }
         Operation::React {
@@ -488,7 +490,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             comment_id,
         } => {
             let id = id.resolve(&repo.backend)?;
-            if let Ok(mut issue) = issues.get_mut(&id) {
+            if let Ok(mut issue) = cache.get_mut(&id) {
                 let comment_id = comment_id.unwrap_or_else(|| {
                     let (comment_id, _) = term::io::comment_select(&issue).unwrap();
                     *comment_id
@@ -508,7 +510,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 labels.to_vec(),
                 assignees.to_vec(),
                 &options,
-                &mut issues,
+                &mut cache,
                 &signer,
                 &profile,
             )?;
@@ -518,7 +520,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             opts: AssignOptions { add, delete },
         } => {
             let id = id.resolve(&repo.backend)?;
-            let Ok(mut issue) = issues.get_mut(&id) else {
+            let Ok(mut issue) = cache.get_mut(&id) else {
                 anyhow::bail!("Issue `{id}` not found");
             };
             let assignees = issue
@@ -534,7 +536,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             opts: LabelOptions { add, delete },
         } => {
             let id = id.resolve(&repo.backend)?;
-            let Ok(mut issue) = issues.get_mut(&id) else {
+            let Ok(mut issue) = cache.get_mut(&id) else {
                 anyhow::bail!("Issue `{id}` not found");
             };
             let labels = issue
@@ -546,11 +548,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             issue.label(labels, &signer)?;
         }
         Operation::List { assigned, state } => {
-            list(&issues, &assigned, &state, &profile)?;
+            list(cache, &assigned, &state, &profile)?;
         }
         Operation::Delete { id } => {
             let id = id.resolve(&repo.backend)?;
-            issues.remove(&id, &signer)?;
+            cache.remove(&id, &signer)?;
         }
     }
 
@@ -562,13 +564,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn list<R: WriteRepository + cob::Store>(
-    issues: &Issues<R>,
+fn list<C>(
+    cache: C,
     assigned: &Option<Assigned>,
     state: &Option<State>,
     profile: &profile::Profile,
-) -> anyhow::Result<()> {
-    if issues.is_empty()? {
+) -> anyhow::Result<()>
+where
+    C: issue::cache::Issues,
+{
+    if cache.is_empty()? {
         term::print(term::format::italic("Nothing to show."));
         return Ok(());
     }
@@ -580,7 +585,8 @@ fn list<R: WriteRepository + cob::Store>(
     };
 
     let mut all = Vec::new();
-    for result in issues.all()? {
+    let issues = cache.list()?;
+    for result in issues {
         let Ok((id, issue)) = result else {
             // Skip issues that failed to load.
             continue;
@@ -664,16 +670,20 @@ fn list<R: WriteRepository + cob::Store>(
     Ok(())
 }
 
-fn open<R: WriteRepository + cob::Store, G: Signer>(
+fn open<R, G>(
     title: Option<String>,
     description: Option<String>,
     labels: Vec<Label>,
     assignees: Vec<Did>,
     options: &Options,
-    issues: &mut Issues<R>,
+    cache: &mut issue::Cache<'_, R, cob::cache::StoreWriter>,
     signer: &G,
     profile: &Profile,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<()>
+where
+    R: ReadRepository + WriteRepository + cob::Store,
+    G: Signer,
+{
     let (title, description) = if let (Some(t), Some(d)) = (title.as_ref(), description.as_ref()) {
         (t.to_owned(), d.to_owned())
     } else if let Some((t, d)) = term::issue::get_title_description(title, description)? {
@@ -681,7 +691,7 @@ fn open<R: WriteRepository + cob::Store, G: Signer>(
     } else {
         anyhow::bail!("aborting issue creation due to empty title or description");
     };
-    let issue = issues.create(
+    let issue = cache.create(
         &title,
         description,
         labels.as_slice(),
@@ -696,14 +706,18 @@ fn open<R: WriteRepository + cob::Store, G: Signer>(
     Ok(())
 }
 
-fn edit<'a, 'g, R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
-    issues: &'a mut issue::Issues<'a, R>,
+fn edit<'a, 'g, R, G>(
+    issues: &'g mut issue::Cache<'a, R, cob::cache::StoreWriter>,
     repo: &storage::git::Repository,
     id: Rev,
     title: Option<String>,
     description: Option<String>,
     signer: &G,
-) -> anyhow::Result<issue::IssueMut<'a, 'g, R>> {
+) -> anyhow::Result<issue::IssueMut<'a, 'g, R, cob::cache::StoreWriter>>
+where
+    R: WriteRepository + ReadRepository + cob::Store,
+    G: radicle::crypto::Signer,
+{
     let id = id.resolve(&repo.backend)?;
     let mut issue = issues.get_mut(&id)?;
     let (root, _) = issue.root();

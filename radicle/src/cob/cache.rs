@@ -35,6 +35,11 @@ pub enum Error {
     NoRows,
 }
 
+/// Read and write to the store.
+pub type StoreWriter = Store<Write>;
+/// Write to the store.
+pub type StoreReader = Store<Read>;
+
 /// Read-only type witness.
 #[derive(Clone)]
 pub struct Read;

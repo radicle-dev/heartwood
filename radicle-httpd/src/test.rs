@@ -11,18 +11,17 @@ use serde_json::Value;
 use time::OffsetDateTime;
 use tower::ServiceExt;
 
-use radicle::cob::issue::Issues;
-use radicle::cob::patch::{MergeTarget, Patches};
+use radicle::cob::patch::MergeTarget;
 use radicle::crypto::ssh::keystore::MemorySigner;
 use radicle::crypto::ssh::Keystore;
 use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git::{raw as git2, RefString};
 use radicle::identity::Visibility;
-use radicle::node;
-use radicle::profile;
 use radicle::profile::Home;
 use radicle::storage::ReadStorage;
 use radicle::Storage;
+use radicle::{issue, profile};
+use radicle::{node, patch};
 use radicle_crypto::test::signer::MockSigner;
 
 use crate::api::{auth, Context};
@@ -230,8 +229,9 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     policies.seed(&rid, node::policy::Scope::All).unwrap();
 
     let storage = &profile.storage;
+    let cache = profile.cob_cache_mut().unwrap();
     let repo = storage.repository(rid).unwrap();
-    let mut issues = Issues::open(&repo).unwrap();
+    let mut issues = issue::Cache::open(&repo, cache.clone()).unwrap();
     let issue = issues
         .create(
             "Issue #1".to_string(),
@@ -245,7 +245,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     tracing::debug!(target: "test", "Contributor issue: {}", issue.id());
 
     // eq. rad patch open
-    let mut patches = Patches::open(&repo).unwrap();
+    let mut patches = patch::Cache::open(&repo, cache).unwrap();
     let oid = radicle::git::Oid::from_str(HEAD).unwrap();
     let base = radicle::git::Oid::from_str(PARENT).unwrap();
     let patch = patches

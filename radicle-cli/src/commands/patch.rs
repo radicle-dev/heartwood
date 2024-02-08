@@ -34,6 +34,7 @@ use anyhow::anyhow;
 
 use radicle::cob::patch::PatchId;
 use radicle::cob::{patch, Label};
+use radicle::patch::cache::Patches as _;
 use radicle::storage::git::transport;
 use radicle::{prelude::*, Node};
 
@@ -694,7 +695,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .map(|rev| rev.resolve::<radicle::git::Oid>(&repository.backend))
                 .transpose()?
                 .map(patch::RevisionId::from);
-            diff::run(&patch_id, revision_id, &repository)?;
+            diff::run(&patch_id, revision_id, &repository, &profile)?;
         }
         Operation::Update {
             ref patch_id,
@@ -742,6 +743,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 revision_id,
                 &repository,
                 &workdir,
+                &profile,
                 opts,
             )?;
         }
@@ -801,9 +803,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             label::run(&patch_id, add, delete, &profile, &repository)?;
         }
         Operation::Set { patch_id } => {
-            let patches = radicle::cob::patch::Patches::open(&repository)?;
+            let cache = radicle::cob::patch::Cache::reader(&repository, profile.cob_cache()?)?;
             let patch_id = patch_id.resolve(&repository.backend)?;
-            let patch = patches
+            let patch = cache
                 .get(&patch_id)?
                 .ok_or_else(|| anyhow!("patch {patch_id} not found"))?;
 

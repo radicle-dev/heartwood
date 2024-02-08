@@ -27,7 +27,7 @@ use crate::prelude::Did;
 use crate::prelude::NodeId;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
-use crate::{cli, git, node, web};
+use crate::{cli, cob, git, node, web};
 
 /// Environment variables used by radicle.
 pub mod env {
@@ -418,7 +418,7 @@ impl Home {
             path: path.canonicalize()?,
         };
 
-        for dir in &[home.storage(), home.keys(), home.node()] {
+        for dir in &[home.storage(), home.keys(), home.node(), home.cache()] {
             if !dir.exists() {
                 fs::create_dir_all(dir)?;
             }
@@ -445,6 +445,10 @@ impl Home {
 
     pub fn node(&self) -> PathBuf {
         self.path.join("node")
+    }
+
+    pub fn cache(&self) -> PathBuf {
+        self.path.join("cache")
     }
 
     pub fn socket(&self) -> PathBuf {
@@ -483,6 +487,22 @@ impl Home {
     pub fn database_mut(&self) -> Result<node::Database, node::db::Error> {
         let path = self.node().join(node::NODE_DB_FILE);
         let db = node::Database::open(path)?;
+
+        Ok(db)
+    }
+
+    // Return a handle to a read-only cache for COBs.
+    pub fn cob_cache(&self) -> Result<cob::cache::StoreReader, cob::cache::Error> {
+        let path = self.cache().join(cob::cache::COBS_DB_FILE);
+        let db = cob::cache::Store::reader(path)?;
+
+        Ok(db)
+    }
+
+    // Return a handle to a read-write cache for COBs.
+    pub fn cob_cache_mut(&self) -> Result<cob::cache::StoreWriter, cob::cache::Error> {
+        let path = self.cache().join(cob::cache::COBS_DB_FILE);
+        let db = cob::cache::Store::open(path)?;
 
         Ok(db)
     }

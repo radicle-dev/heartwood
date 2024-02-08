@@ -8,8 +8,10 @@ use localtime::LocalTime;
 use radicle::crypto::PublicKey;
 use radicle::prelude::RepoId;
 use radicle::storage::refs::RefsAt;
-use radicle::storage::{ReadStorage as _, RefUpdate, RemoteRepository, WriteRepository as _};
-use radicle::{git, node, Storage};
+use radicle::storage::{
+    ReadRepository, ReadStorage as _, RefUpdate, RemoteRepository, WriteRepository as _,
+};
+use radicle::{cob, git, node, Storage};
 use radicle_fetch::{Allowed, BlockList, FetchLimit};
 
 use super::channels::ChannelsFlush;
@@ -62,6 +64,7 @@ impl Handle {
         self,
         rid: RepoId,
         storage: &Storage,
+        cache: &mut cob::cache::StoreWriter,
         limit: FetchLimit,
         remote: PublicKey,
         refs_at: Option<Vec<RefsAt>>,
@@ -116,6 +119,8 @@ impl Handle {
                         notify(&rid, &applied, &mut store)?;
                     }
                 }
+
+                cache_cobs(&rid, &applied.updated, &repo, cache)?;
 
                 Ok(FetchResult {
                     updated: applied.updated,
@@ -188,4 +193,160 @@ fn notify(
         }
     }
     Ok(())
+}
+
+/// Write new `RefUpdate`s that are related a `Patch` or an `Issue`
+/// COB to the COB cache.
+fn cache_cobs<S, C>(
+    rid: &RepoId,
+    refs: &[RefUpdate],
+    storage: &S,
+    cache: &mut C,
+) -> Result<(), error::Cache>
+where
+    S: ReadRepository + cob::Store,
+    C: cob::cache::Update<cob::issue::Issue> + cob::cache::Update<cob::patch::Patch>,
+    C: cob::cache::Remove<cob::issue::Issue> + cob::cache::Remove<cob::patch::Patch>,
+{
+    let issues = cob::issue::Issues::open(storage)?;
+    let patches = cob::patch::Patches::open(storage)?;
+    for update in refs {
+        match update {
+            RefUpdate::Updated { name, .. } | RefUpdate::Created { name, .. } => {
+                match name.to_namespaced() {
+                    Some(name) => {
+                        let Some(identifier) = cob::TypedId::from_namespaced(&name)? else {
+                            continue;
+                        };
+                        if let Some(cacheable) = Cacheable::new(&patches, &issues, identifier)? {
+                            cacheable.update(rid, cache)?;
+                        }
+                    }
+                    None => continue,
+                }
+            }
+            RefUpdate::Deleted { name, .. } => match name.to_namespaced() {
+                Some(name) => {
+                    let Some(identifier) = cob::TypedId::from_namespaced(&name)? else {
+                        continue;
+                    };
+                    if let Some(cacheable) = Cacheable::new(&patches, &issues, identifier)? {
+                        cacheable.remove(rid, cache)?;
+                    }
+                }
+                None => continue,
+            },
+            RefUpdate::Skipped { .. } => { /* Do nothing */ }
+        }
+    }
+
+    Ok(())
+}
+
+enum Cacheable {
+    Patch {
+        id: cob::ObjectId,
+        patch: cob::patch::Patch,
+    },
+    Issue {
+        id: cob::ObjectId,
+        issue: cob::issue::Issue,
+    },
+}
+
+impl Cacheable {
+    fn new<'a, R>(
+        patches: &cob::patch::Patches<'a, R>,
+        issues: &cob::issue::Issues<'a, R>,
+        identifier: cob::TypedId,
+    ) -> Result<Option<Self>, cob::store::Error>
+    where
+        R: ReadRepository + cob::Store,
+    {
+        if identifier.is_patch() {
+            Self::as_patch(patches, identifier.id)
+        } else if identifier.is_issue() {
+            Self::as_issue(issues, identifier.id)
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn as_patch<R>(
+        patches: &cob::patch::Patches<R>,
+        id: cob::ObjectId,
+    ) -> Result<Option<Self>, cob::store::Error>
+    where
+        R: ReadRepository + cob::Store,
+    {
+        patches
+            .get(&id)
+            .map(|patch| patch.map(|patch| Self::Patch { id, patch }))
+    }
+
+    fn as_issue<R>(
+        issues: &cob::issue::Issues<R>,
+        id: cob::ObjectId,
+    ) -> Result<Option<Self>, cob::store::Error>
+    where
+        R: ReadRepository + cob::Store,
+    {
+        issues
+            .get(&id)
+            .map(|issue| issue.map(|issue| Self::Issue { id, issue }))
+    }
+
+    fn update<C>(&self, rid: &RepoId, cache: &mut C) -> Result<(), error::Cache>
+    where
+        C: cob::cache::Update<cob::issue::Issue> + cob::cache::Update<cob::patch::Patch>,
+    {
+        match self {
+            Cacheable::Patch { id, patch } => {
+                cache
+                    .update(rid, id, patch)
+                    .map(|_| ())
+                    .map_err(|e| error::Cache::Update {
+                        id: *id,
+                        type_name: (*cob::patch::TYPENAME).clone(),
+                        err: e.into(),
+                    })
+            }
+            Cacheable::Issue { id, issue } => {
+                cache
+                    .update(rid, id, issue)
+                    .map(|_| ())
+                    .map_err(|e| error::Cache::Update {
+                        id: *id,
+                        type_name: (*cob::issue::TYPENAME).clone(),
+                        err: e.into(),
+                    })
+            }
+        }
+    }
+
+    fn remove<C>(&self, rid: &RepoId, cache: &mut C) -> Result<(), error::Cache>
+    where
+        C: cob::cache::Remove<cob::issue::Issue> + cob::cache::Remove<cob::patch::Patch>,
+    {
+        match self {
+            Cacheable::Patch { id, .. } => {
+                cob::cache::Remove::<cob::patch::Patch>::remove(cache, rid, id)
+                    .map(|_| ())
+                    .map_err(|e| error::Cache::Remove {
+                        id: *id,
+                        type_name: (*cob::patch::TYPENAME).clone(),
+                        err: e.into(),
+                    })
+            }
+            Cacheable::Issue { id, .. } => {
+                cob::cache::Remove::<cob::issue::Issue>::remove(cache, rid, id)
+                    .map(|_| ())
+                    .map_err(|e| error::Cache::Remove {
+                        id: *id,
+                        type_name: (*cob::issue::TYPENAME).clone(),
+                        err: e.into(),
+                    })
+            }
+        }
+    }
 }

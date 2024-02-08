@@ -24,6 +24,7 @@ use crate::{
     storage::{ReadRepository, RepositoryError, WriteRepository},
 };
 
+use super::cache::NoCache;
 use super::{Author, EntryId};
 
 /// Type name of an identity proposal.
@@ -186,10 +187,13 @@ impl Identity {
         signer: &G,
     ) -> Result<IdentityMut<'a, R>, cob::store::Error> {
         let mut store = cob::store::Store::open(store)?;
-        let (id, identity) =
-            Transaction::<Identity, _>::initial("Initialize identity", &mut store, signer, |tx| {
-                tx.revision("Initial revision", "", doc, None, signer)
-            })?;
+        let (id, identity) = Transaction::<Identity, _>::initial(
+            "Initialize identity",
+            &mut store,
+            &mut NoCache {},
+            signer,
+            |tx| tx.revision("Initial revision", "", doc, None, signer),
+        )?;
 
         Ok(IdentityMut {
             id,
@@ -895,7 +899,8 @@ where
         let mut tx = Transaction::default();
         operations(&mut tx)?;
 
-        let (doc, commit) = tx.commit(message, self.id, &mut self.store, signer)?;
+        let (doc, commit) =
+            tx.commit(message, self.id, &mut self.store, &mut NoCache {}, signer)?;
         self.identity = doc;
 
         Ok(commit)

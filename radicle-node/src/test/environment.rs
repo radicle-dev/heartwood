@@ -124,6 +124,7 @@ impl Environment {
 
         policy::Store::open(policies_db).unwrap();
         home.database_mut().unwrap(); // Just create the database.
+        home.cob_cache_mut().unwrap(); // Just create the database.
 
         transport::local::register(storage.clone());
         keystore.store(keypair.clone(), "radicle", None).unwrap();
@@ -381,8 +382,9 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
     pub fn issue(&self, rid: RepoId, title: &str, desc: &str) -> cob::ObjectId {
         let repo = self.storage.repository(rid).unwrap();
         let mut issues = issue::Issues::open(&repo).unwrap();
+        let mut cache = cob::cache::NoCache {};
         *issues
-            .create(title, desc, &[], &[], [], &self.signer)
+            .create(title, desc, &[], &[], [], &mut cache, &self.signer)
             .unwrap()
             .id()
     }

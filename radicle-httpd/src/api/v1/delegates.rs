@@ -5,10 +5,12 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
 
-use radicle::cob::issue::Issues;
-use radicle::cob::patch::Patches;
+use radicle::cob::issue;
+use radicle::cob::patch;
 use radicle::identity::{Did, Visibility};
+use radicle::issue::cache::Issues as _;
 use radicle::node::routing::Store;
+use radicle::patch::cache::Patches as _;
 use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::api::error::Error;
@@ -44,6 +46,7 @@ async fn delegates_projects_handler(
     let storage = &ctx.profile.storage;
     let db = &ctx.profile.database()?;
     let pinned = &ctx.profile.config.web.pinned;
+    let cache = ctx.profile.cob_cache()?;
 
     let mut projects = match show {
         ProjectQuery::All => storage
@@ -73,13 +76,13 @@ async fn delegates_projects_handler(
             let Ok(payload) = id.doc.project() else {
                 return None;
             };
-            let Ok(issues) = Issues::open(&repo) else {
+            let Ok(issues) = issue::Cache::reader(&repo, cache.clone()) else {
                 return None;
             };
             let Ok(issues) = issues.counts() else {
                 return None;
             };
-            let Ok(patches) = Patches::open(&repo) else {
+            let Ok(patches) = patch::Cache::reader(&repo, cache.clone()) else {
                 return None;
             };
             let Ok(patches) = patches.counts() else {
