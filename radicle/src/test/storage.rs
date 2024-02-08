@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::convert::Infallible;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -310,6 +311,90 @@ impl SignRepository for MockRepository {
         &self,
         _signer: &G,
     ) -> Result<crate::storage::refs::SignedRefs<Verified>, Error> {
+        todo!()
+    }
+}
+
+impl radicle_cob::Store for MockRepository {}
+
+impl radicle_cob::object::Storage for MockRepository {
+    type ObjectsError = Infallible;
+    type TypesError = Infallible;
+    type UpdateError = Infallible;
+    type RemoveError = Infallible;
+
+    fn objects(
+        &self,
+        _typename: &radicle_cob::TypeName,
+        _object_id: &radicle_cob::ObjectId,
+    ) -> Result<radicle_cob::object::Objects, Self::ObjectsError> {
+        todo!()
+    }
+
+    fn types(
+        &self,
+        _typename: &radicle_cob::TypeName,
+    ) -> Result<
+        std::collections::BTreeMap<radicle_cob::ObjectId, radicle_cob::object::Objects>,
+        Self::TypesError,
+    > {
+        todo!()
+    }
+
+    fn update(
+        &self,
+        _identifier: &radicle_crypto::PublicKey,
+        _typename: &radicle_cob::TypeName,
+        _object_id: &radicle_cob::ObjectId,
+        _entry: &radicle_cob::EntryId,
+    ) -> Result<(), Self::UpdateError> {
+        todo!()
+    }
+
+    fn remove(
+        &self,
+        _identifier: &radicle_crypto::PublicKey,
+        _typename: &radicle_cob::TypeName,
+        _object_id: &radicle_cob::ObjectId,
+    ) -> Result<(), Self::RemoveError> {
+        todo!()
+    }
+}
+
+impl radicle_cob::change::Storage for MockRepository {
+    type StoreError = radicle_cob::git::change::error::Create;
+    type LoadError = radicle_cob::git::change::error::Load;
+    type ObjectId = Oid;
+    type Parent = Oid;
+    type Signatures = radicle_cob::signatures::ExtendedSignature;
+
+    fn store<G>(
+        &self,
+        _resource: Option<Self::Parent>,
+        _related: Vec<Self::Parent>,
+        _signer: &G,
+        _template: radicle_cob::change::Template<Self::ObjectId>,
+    ) -> Result<
+        radicle_cob::change::store::Entry<Self::Parent, Self::ObjectId, Self::Signatures>,
+        Self::StoreError,
+    >
+    where
+        G: radicle_crypto::Signer,
+    {
+        todo!()
+    }
+
+    fn load(
+        &self,
+        _id: Self::ObjectId,
+    ) -> Result<
+        radicle_cob::change::store::Entry<Self::Parent, Self::ObjectId, Self::Signatures>,
+        Self::LoadError,
+    > {
+        todo!()
+    }
+
+    fn parents_of(&self, _id: &Oid) -> Result<Vec<Oid>, Self::LoadError> {
         todo!()
     }
 }
