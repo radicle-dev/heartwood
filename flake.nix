@@ -89,6 +89,9 @@
             # Additional darwin specific inputs can be set here
             pkgs.libiconv
           ];
+        preBuild = lib.optionalString (self.shortRev or null != null) ''
+          export GIT_HEAD=${self.shortRev}
+        '';
       };
 
       # Build *just* the cargo dependencies, so we can reuse

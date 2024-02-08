@@ -1,4 +1,5 @@
 use std::process::Command;
+use std::env;
 
 fn main() {
     // Set a build-time `GIT_HEAD` env var which includes the commit id;
@@ -16,7 +17,7 @@ fn main() {
                 None
             }
         })
-        .unwrap_or_else(|| String::from("unknown"));
+        .unwrap_or(env::var("GIT_HEAD").unwrap_or("unknown".into()));
 
     println!("cargo:rustc-env=GIT_HEAD={hash}");
     println!("cargo:rustc-rerun-if-changed=.git/HEAD");
