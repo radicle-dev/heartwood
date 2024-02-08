@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
-use std::convert::Infallible;
 use std::str::FromStr;
 
 use once_cell::sync::Lazy;
@@ -54,7 +53,8 @@ pub type CommentId = EntryId;
 pub type Reactions = BTreeSet<(ActorId, Reaction)>;
 
 /// A comment edit is just some text and an edit time.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Edit {
     /// Edit author.
     pub author: ActorId,
@@ -83,22 +83,29 @@ impl Edit {
     }
 }
 
+/// The `Infallible` type does not have a `Serialize`/`Deserialize`
+/// implementation. The `Never` type imitates `Infallible` and
+/// provides the derived implementations.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Never {}
+
 /// A comment on a discussion thread.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Comment<T = Infallible> {
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Comment<T = Never> {
     /// Comment author.
-    author: ActorId,
+    pub(in crate::cob) author: ActorId,
     /// The comment body.
-    edits: Vec<Edit>,
+    pub(in crate::cob) edits: Vec<Edit>,
     /// Reactions to this comment.
-    reactions: Reactions,
+    pub(in crate::cob) reactions: Reactions,
     /// Comment this is a reply to.
     /// Should always be set, except for the root comment.
-    reply_to: Option<CommentId>,
+    pub(in crate::cob) reply_to: Option<CommentId>,
     /// Location of comment, if this is an inline comment.
-    location: Option<T>,
+    pub(in crate::cob) location: Option<T>,
     /// Whether the comment has been resolved.
-    resolved: bool,
+    pub(in crate::cob) resolved: bool,
 }
 
 impl<T: Serialize> Serialize for Comment<T> {
@@ -106,11 +113,8 @@ impl<T: Serialize> Serialize for Comment<T> {
     where
         S: serde::ser::Serializer,
     {
-        let mut state = serializer.serialize_struct("Comment", 9)?;
+        let mut state = serializer.serialize_struct("Comment", 8)?;
         state.serialize_field("author", &self.author())?;
-        if let Some(loc) = &self.location {
-            state.serialize_field("location", loc)?;
-        }
         if let Some(to) = self.reply_to {
             state.serialize_field("replyTo", &to)?;
         }
@@ -277,7 +281,8 @@ impl From<Action> for nonempty::NonEmpty<Action> {
 }
 
 /// A discussion thread.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Thread<T = Comment> {
     /// The comments under the thread.
     pub(crate) comments: BTreeMap<CommentId, Option<T>>,
