@@ -211,7 +211,7 @@ impl<L> Comment<L> {
     }
 
     /// Get comment resolution status.
-    pub fn resolved(&self) -> bool {
+    pub fn is_resolved(&self) -> bool {
         self.resolved
     }
 
