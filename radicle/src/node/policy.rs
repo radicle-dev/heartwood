@@ -95,9 +95,9 @@ impl TryFrom<&sqlite::Value> for Policy {
 #[serde(rename_all = "camelCase")]
 pub enum Scope {
     /// Seed remotes that are explicitly followed.
-    #[default]
     Followed,
     /// Seed all remotes.
+    #[default]
     All,
 }
 

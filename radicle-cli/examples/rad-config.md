@@ -46,7 +46,7 @@ $ rad config
       }
     },
     "policy": "block",
-    "scope": "followed"
+    "scope": "all"
   }
 }
 ```

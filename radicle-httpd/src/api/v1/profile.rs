@@ -108,7 +108,7 @@ mod routes {
                     }
                   },
                   "policy": "block",
-                  "scope": "followed"
+                  "scope": "all"
                 }
               },
               "home": seed.profile.path()

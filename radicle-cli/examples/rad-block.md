@@ -5,7 +5,7 @@ For instance, if our default policy is to seed, any unknown repository will
 have its policy set to allow seeding:
 ```
 $ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --policy
-Repository rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji is being seeded with scope `followed`
+Repository rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji is being seeded with scope `all`
 ```
 
 Since there is no policy specific to this repository, there's nothing to be
