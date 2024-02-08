@@ -1,4 +1,5 @@
 #![warn(clippy::unwrap_used)]
+pub mod cache;
 pub mod common;
 pub mod identity;
 pub mod issue;
