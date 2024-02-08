@@ -213,7 +213,7 @@ fn issue_comment(id: &CommentId, comment: &Comment, aliases: &impl AliasStore) -
         ).collect::<Vec<_>>(),
         "timestamp": comment.timestamp().as_secs(),
         "replyTo": comment.reply_to(),
-        "resolved": comment.resolved(),
+        "resolved": comment.is_resolved(),
     })
 }
 
@@ -235,7 +235,7 @@ fn patch_comment(
         "timestamp": comment.timestamp().as_secs(),
         "replyTo": comment.reply_to(),
         "location": comment.location(),
-        "resolved": comment.resolved(),
+        "resolved": comment.is_resolved(),
     })
 }
 
@@ -257,7 +257,7 @@ fn review_comment(
         "timestamp": comment.timestamp().as_secs(),
         "replyTo": comment.reply_to(),
         "location": comment.location(),
-        "resolved": comment.resolved(),
+        "resolved": comment.is_resolved(),
     })
 }
 
