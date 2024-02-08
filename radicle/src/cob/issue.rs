@@ -106,7 +106,8 @@ impl State {
 }
 
 /// Issue state. Accumulates [`Action`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Issue {
     /// Actors assigned to this issue.
     pub(super) assignees: BTreeSet<Did>,
@@ -674,7 +675,7 @@ impl<'a, R> Deref for Issues<'a, R> {
 }
 
 /// Detailed information on issue states
-#[derive(Default, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IssueCounts {
     pub open: usize,
