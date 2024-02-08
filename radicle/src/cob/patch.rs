@@ -1,4 +1,5 @@
-#![allow(clippy::too_many_arguments)]
+pub mod cache;
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::ops::Deref;
@@ -7,9 +8,8 @@ use std::str::FromStr;
 use amplify::Wrapper;
 use nonempty::NonEmpty;
 use once_cell::sync::Lazy;
-use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
-use storage::RepositoryError;
+use storage::{HasRepoId, RepositoryError};
 use thiserror::Error;
 
 use crate::cob;
@@ -26,6 +26,8 @@ use crate::identity::doc::DocError;
 use crate::identity::PayloadError;
 use crate::prelude::*;
 use crate::storage;
+
+pub use cache::Cache;
 
 /// Type name of a patch.
 pub static TYPENAME: Lazy<TypeName> =
@@ -124,6 +126,18 @@ pub enum Error {
     /// Initialization failed.
     #[error("initialization failed: {0}")]
     Init(&'static str),
+    #[error("failed to update patch {id} in cache: {err}")]
+    CacheUpdate {
+        id: PatchId,
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+    #[error("failed to remove patch {id} from cache : {err}")]
+    CacheRemove {
+        id: PatchId,
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
 }
 
 /// Patch operation.
@@ -359,7 +373,8 @@ impl MergeTarget {
 }
 
 /// Patch state.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Patch {
     /// Title of the patch.
     pub(super) title: String,
@@ -1301,7 +1316,8 @@ mod lookup {
 }
 
 /// A patch revision.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Revision {
     /// Author of the revision.
     pub(super) author: Author,
@@ -1320,6 +1336,10 @@ pub struct Revision {
     /// Review comments resolved by this revision.
     pub(super) resolves: BTreeSet<(EntryId, CommentId)>,
     /// Reactions on code locations and revision itself
+    #[serde(
+        serialize_with = "ser::serialize_reactions",
+        deserialize_with = "ser::deserialize_reactions"
+    )]
     pub(super) reactions: BTreeMap<Option<CodeLocation>, Reactions>,
 }
 
@@ -1443,6 +1463,39 @@ impl fmt::Display for State {
     }
 }
 
+impl From<&State> for Status {
+    fn from(value: &State) -> Self {
+        match value {
+            State::Draft => Self::Draft,
+            State::Open { .. } => Self::Open,
+            State::Archived => Self::Archived,
+            State::Merged { .. } => Self::Merged,
+        }
+    }
+}
+
+/// A simplified enumeration of a [`State`] that can be used for
+/// filtering purposes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Status {
+    Draft,
+    #[default]
+    Open,
+    Archived,
+    Merged,
+}
+
+impl fmt::Display for Status {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Archived => write!(f, "archived"),
+            Self::Draft => write!(f, "draft"),
+            Self::Open => write!(f, "open"),
+            Self::Merged => write!(f, "merged"),
+        }
+    }
+}
+
 /// A lifecycle operation, resulting in a new state.
 #[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
@@ -1485,7 +1538,8 @@ impl fmt::Display for Verdict {
 }
 
 /// A patch review on a revision.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Review {
     /// Review author.
     pub(super) author: Author,
@@ -1504,23 +1558,6 @@ pub struct Review {
     pub(super) labels: Vec<Label>,
     /// Review timestamp.
     pub(super) timestamp: Timestamp,
-}
-
-impl Serialize for Review {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::ser::Serializer,
-    {
-        let mut state = serializer.serialize_struct("Review", 4)?;
-        state.serialize_field("verdict", &self.verdict())?;
-        state.serialize_field("summary", &self.summary())?;
-        state.serialize_field(
-            "comments",
-            &self.comments().map(|(_, c)| c.body()).collect::<Vec<_>>(),
-        )?;
-        state.serialize_field("timestamp", &self.timestamp())?;
-        state.end()
-    }
 }
 
 impl Review {
@@ -1847,19 +1884,26 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
     }
 }
 
-pub struct PatchMut<'a, 'g, R> {
+pub struct PatchMut<'a, 'g, R, C> {
     pub id: ObjectId,
 
     patch: Patch,
     store: &'g mut Patches<'a, R>,
+    cache: &'g mut C,
 }
 
-impl<'a, 'g, R> PatchMut<'a, 'g, R>
+impl<'a, 'g, R, C> PatchMut<'a, 'g, R, C>
 where
-    R: ReadRepository + SignRepository + cob::Store + 'static,
+    C: cob::cache::Update<Patch>,
+    R: ReadRepository + SignRepository + cob::Store,
 {
-    pub fn new(id: ObjectId, patch: Patch, store: &'g mut Patches<'a, R>) -> Self {
-        Self { id, patch, store }
+    pub fn new(id: ObjectId, patch: Patch, cache: &'g mut Cache<Patches<'a, R>, C>) -> Self {
+        Self {
+            id,
+            patch,
+            store: &mut cache.store,
+            cache: &mut cache.cache,
+        }
     }
 
     pub fn id(&self) -> &ObjectId {
@@ -1890,6 +1934,12 @@ where
         operations(&mut tx)?;
 
         let (patch, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        self.cache
+            .update(&self.store.as_ref().id(), &self.id, &patch)
+            .map_err(|e| Error::CacheUpdate {
+                id: self.id,
+                err: e.into(),
+            })?;
         self.patch = patch;
 
         Ok(commit)
@@ -2214,7 +2264,7 @@ where
     }
 }
 
-impl<'a, 'g, R> Deref for PatchMut<'a, 'g, R> {
+impl<'a, 'g, R, C> Deref for PatchMut<'a, 'g, R, C> {
     type Target = Patch;
 
     fn deref(&self) -> &Self::Target {
@@ -2223,7 +2273,7 @@ impl<'a, 'g, R> Deref for PatchMut<'a, 'g, R> {
 }
 
 /// Detailed information on patch states
-#[derive(Default, Serialize)]
+#[derive(Debug, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PatchCounts {
     pub open: usize,
@@ -2239,6 +2289,17 @@ impl PatchCounts {
     }
 }
 
+/// Result of looking up a `Patch`'s `Revision`.
+///
+/// See [`Patches::find_by_revision`].
+#[derive(Debug, PartialEq, Eq)]
+pub struct ByRevision {
+    pub id: PatchId,
+    pub patch: Patch,
+    pub revision_id: RevisionId,
+    pub revision: Revision,
+}
+
 pub struct Patches<'a, R> {
     raw: store::Store<'a, Patch, R>,
 }
@@ -2248,6 +2309,15 @@ impl<'a, R> Deref for Patches<'a, R> {
 
     fn deref(&self) -> &Self::Target {
         &self.raw
+    }
+}
+
+impl<'a, R> HasRepoId for Patches<'a, R>
+where
+    R: ReadRepository,
+{
+    fn rid(&self) -> RepoId {
+        self.as_ref().id()
     }
 }
 
@@ -2282,23 +2352,27 @@ where
     }
 
     /// Find the `Patch` containing the given `Revision`.
-    pub fn find_by_revision(
-        &self,
-        revision: &RevisionId,
-    ) -> Result<Option<(PatchId, Patch, RevisionId, Revision)>, Error> {
+    pub fn find_by_revision(&self, revision: &RevisionId) -> Result<Option<ByRevision>, Error> {
         // Revision may be the patch's first, making it have the same ID.
         let p_id = ObjectId::from(revision.into_inner());
         if let Some(p) = self.get(&p_id)? {
-            return Ok(p
-                .revision(revision)
-                .map(|r| (p_id, p.clone(), *revision, r.clone())));
+            return Ok(p.revision(revision).map(|r| ByRevision {
+                id: p_id,
+                patch: p.clone(),
+                revision_id: *revision,
+                revision: r.clone(),
+            }));
         }
         let result = self
             .all()?
             .filter_map(|result| result.ok())
             .find_map(|(p_id, p)| {
-                p.revision(revision)
-                    .map(|r| (p_id, p.clone(), *revision, r.clone()))
+                p.revision(revision).map(|r| ByRevision {
+                    id: p_id,
+                    patch: p.clone(),
+                    revision_id: *revision,
+                    revision: r.clone(),
+                })
             });
 
         Ok(result)
@@ -2332,10 +2406,10 @@ where
 
 impl<'a, R> Patches<'a, R>
 where
-    R: ReadRepository + SignRepository + cob::Store + 'static,
+    R: ReadRepository + SignRepository + cob::Store,
 {
     /// Open a new patch.
-    pub fn create<'g, G: Signer>(
+    pub fn create<'g, C, G>(
         &'g mut self,
         title: impl ToString,
         description: impl ToString,
@@ -2343,8 +2417,13 @@ where
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         labels: &[Label],
+        cache: &'g mut C,
         signer: &G,
-    ) -> Result<PatchMut<'a, 'g, R>, Error> {
+    ) -> Result<PatchMut<'a, 'g, R, C>, Error>
+    where
+        C: cob::cache::Update<Patch>,
+        G: Signer,
+    {
         self._create(
             title,
             description,
@@ -2353,12 +2432,13 @@ where
             oid,
             labels,
             Lifecycle::default(),
+            cache,
             signer,
         )
     }
 
     /// Draft a patch. This patch will be created in a [`State::Draft`] state.
-    pub fn draft<'g, G: Signer>(
+    pub fn draft<'g, C, G: Signer>(
         &'g mut self,
         title: impl ToString,
         description: impl ToString,
@@ -2366,8 +2446,12 @@ where
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         labels: &[Label],
+        cache: &'g mut C,
         signer: &G,
-    ) -> Result<PatchMut<'a, 'g, R>, Error> {
+    ) -> Result<PatchMut<'a, 'g, R, C>, Error>
+    where
+        C: cob::cache::Update<Patch>,
+    {
         self._create(
             title,
             description,
@@ -2376,12 +2460,17 @@ where
             oid,
             labels,
             Lifecycle::Draft,
+            cache,
             signer,
         )
     }
 
     /// Get a patch mutably.
-    pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<PatchMut<'a, 'g, R>, store::Error> {
+    pub fn get_mut<'g, C>(
+        &'g mut self,
+        id: &ObjectId,
+        cache: &'g mut C,
+    ) -> Result<PatchMut<'a, 'g, R, C>, store::Error> {
         let patch = self
             .raw
             .get(id)?
@@ -2391,11 +2480,12 @@ where
             id: *id,
             patch,
             store: self,
+            cache,
         })
     }
 
     /// Create a patch. This is an internal function used by `create` and `draft`.
-    fn _create<'g, G: Signer>(
+    fn _create<'g, C, G: Signer>(
         &'g mut self,
         title: impl ToString,
         description: impl ToString,
@@ -2404,8 +2494,12 @@ where
         oid: impl Into<git::Oid>,
         labels: &[Label],
         state: Lifecycle,
+        cache: &'g mut C,
         signer: &G,
-    ) -> Result<PatchMut<'a, 'g, R>, Error> {
+    ) -> Result<PatchMut<'a, 'g, R, C>, Error>
+    where
+        C: cob::cache::Update<Patch>,
+    {
         let (id, patch) = Transaction::initial("Create patch", &mut self.raw, signer, |tx| {
             tx.revision(description, base, oid)?;
             tx.edit(title, target)?;
@@ -2418,8 +2512,135 @@ where
             }
             Ok(())
         })?;
+        cache
+            .update(&self.raw.as_ref().id(), &id, &patch)
+            .map_err(|e| Error::CacheUpdate { id, err: e.into() })?;
 
-        Ok(PatchMut::new(id, patch, self))
+        Ok(PatchMut {
+            id,
+            patch,
+            store: self,
+            cache,
+        })
+    }
+}
+
+/// Helpers for de/serialization of patch data types.
+mod ser {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use serde::ser::SerializeSeq;
+
+    use crate::cob::{thread::Reactions, ActorId, CodeLocation};
+
+    /// Serialize a `Revision`'s reaction as an object containing the
+    /// `location`, `emoji`, and all `authors` that have performed the
+    /// same reaction.
+    #[derive(Debug, serde::Serialize, serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Reaction {
+        location: Option<CodeLocation>,
+        emoji: super::Reaction,
+        authors: Vec<ActorId>,
+    }
+
+    impl Reaction {
+        fn as_revision_reactions(
+            reactions: Vec<Reaction>,
+        ) -> BTreeMap<Option<CodeLocation>, Reactions> {
+            reactions.into_iter().fold(
+                BTreeMap::<Option<CodeLocation>, Reactions>::new(),
+                |mut reactions,
+                 Reaction {
+                     location,
+                     emoji,
+                     authors,
+                 }| {
+                    let mut inner = authors
+                        .into_iter()
+                        .map(|author| (author, emoji))
+                        .collect::<BTreeSet<_>>();
+                    let entry = reactions.entry(location).or_default();
+                    entry.append(&mut inner);
+                    reactions
+                },
+            )
+        }
+    }
+
+    /// Helper to serialize a `Revision`'s reactions, since
+    /// `CodeLocation` cannot be a key for a JSON object.
+    ///
+    /// The set `reactions` are first turned into a set of
+    /// [`Reaction`]s and then serialized via a `Vec`.
+    pub fn serialize_reactions<S>(
+        reactions: &BTreeMap<Option<CodeLocation>, Reactions>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let reactions = reactions
+            .iter()
+            .flat_map(|(location, reaction)| {
+                let reactions = reaction.iter().fold(
+                    BTreeMap::new(),
+                    |mut acc: BTreeMap<&super::Reaction, Vec<_>>, (author, emoji)| {
+                        acc.entry(emoji).or_default().push(*author);
+                        acc
+                    },
+                );
+                reactions
+                    .into_iter()
+                    .map(|(emoji, authors)| Reaction {
+                        location: location.clone(),
+                        emoji: *emoji,
+                        authors,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let mut s = serializer.serialize_seq(Some(reactions.len()))?;
+        for r in &reactions {
+            s.serialize_element(r)?;
+        }
+        s.end()
+    }
+
+    /// Helper to deserialize a `Revision`'s reactions, the inverse of
+    /// `serialize_reactions`.
+    ///
+    /// The `Vec` of [`Reaction`]s are deserialized and converted to a
+    /// `BTreeMap<Option<CodeLocation>, Reactions>`.
+    pub fn deserialize_reactions<'de, D>(
+        deserializer: D,
+    ) -> Result<BTreeMap<Option<CodeLocation>, Reactions>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ReactionsVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ReactionsVisitor {
+            type Value = Vec<Reaction>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a reaction of the form {'location', 'emoji', 'authors'}")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut reactions = Vec::new();
+                while let Some(reaction) = seq.next_element()? {
+                    reactions.push(reaction);
+                }
+                Ok(reactions)
+            }
+        }
+
+        let reactions = deserializer.deserialize_seq(ReactionsVisitor)?;
+        Ok(Reaction::as_revision_reactions(reactions))
     }
 }
 
@@ -2437,6 +2658,7 @@ mod test {
     use crate::cob::test::Actor;
     use crate::crypto::test::signer::MockSigner;
     use crate::identity;
+    use crate::patch::cache::Patches as _;
     use crate::test;
     use crate::test::arbitrary;
     use crate::test::arbitrary::gen;
@@ -2454,11 +2676,53 @@ mod test {
     }
 
     #[test]
+    fn test_reactions_json_serialization() {
+        #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+        #[serde(rename_all = "camelCase")]
+        struct TestReactions {
+            #[serde(
+                serialize_with = "super::ser::serialize_reactions",
+                deserialize_with = "super::ser::deserialize_reactions"
+            )]
+            inner: BTreeMap<Option<CodeLocation>, Reactions>,
+        }
+
+        let reactions = TestReactions {
+            inner: [(
+                None,
+                [
+                    (
+                        "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8"
+                            .parse()
+                            .unwrap(),
+                        Reaction::new('🚀').unwrap(),
+                    ),
+                    (
+                        "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                            .parse()
+                            .unwrap(),
+                        Reaction::new('🙏').unwrap(),
+                    ),
+                ]
+                .into_iter()
+                .collect(),
+            )]
+            .into_iter()
+            .collect(),
+        };
+
+        assert_eq!(
+            reactions,
+            serde_json::from_str(&serde_json::to_string(&reactions).unwrap()).unwrap()
+        );
+    }
+
+    #[test]
     fn test_patch_create_and_get() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
-        let mut patches = Patches::open(&*alice.repo).unwrap();
+        let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let author: Did = alice.signer.public_key().into();
         let target = MergeTarget::Delegates;
         let patch = patches
@@ -2491,7 +2755,7 @@ mod test {
         assert_eq!(revision.oid, branch.oid);
         assert_eq!(revision.base, branch.base);
 
-        let (id, _, _, _) = patches.find_by_revision(&rev_id).unwrap().unwrap();
+        let ByRevision { id, .. } = patches.find_by_revision(&rev_id).unwrap().unwrap();
         assert_eq!(id, patch_id);
     }
 
@@ -2500,7 +2764,7 @@ mod test {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
-        let mut patches = Patches::open(&*alice.repo).unwrap();
+        let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let patch = patches
             .create(
                 "My first patch",
@@ -2533,7 +2797,7 @@ mod test {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
-        let mut patches = Patches::open(&*alice.repo).unwrap();
+        let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
@@ -2564,7 +2828,7 @@ mod test {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
-        let mut patches = Patches::open(&*alice.repo).unwrap();
+        let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
@@ -2616,7 +2880,7 @@ mod test {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
-        let mut patches = Patches::open(&*alice.repo).unwrap();
+        let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
@@ -2804,7 +3068,7 @@ mod test {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
-        let mut patches = Patches::open(&*alice.repo).unwrap();
+        let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
@@ -2847,7 +3111,7 @@ mod test {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
-        let mut patches = Patches::open(&*alice.repo).unwrap();
+        let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
@@ -2894,7 +3158,7 @@ mod test {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
-        let mut patches = Patches::open(&*alice.repo).unwrap();
+        let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
@@ -2928,7 +3192,7 @@ mod test {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
-        let mut patches = Patches::open(&*alice.repo).unwrap();
+        let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
@@ -2977,7 +3241,7 @@ mod test {
         let branch = repo
             .checkout()
             .branch_with([("README.md", b"Hello, World!")]);
-        let mut patches = Patches::open(&*repo).unwrap();
+        let mut patches = Cache::no_cache(&*repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",

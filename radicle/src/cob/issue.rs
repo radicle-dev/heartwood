@@ -1,3 +1,5 @@
+pub mod cache;
+
 use std::collections::BTreeSet;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -15,8 +17,10 @@ use crate::cob::thread::{Comment, CommentId, Thread};
 use crate::cob::{op, store, ActorId, Embed, EntryId, ObjectId, TypeName};
 use crate::crypto::Signer;
 use crate::identity::doc::{Doc, DocError};
-use crate::prelude::{Did, ReadRepository, Verified};
-use crate::storage::{RepositoryError, WriteRepository};
+use crate::prelude::{Did, ReadRepository, RepoId, Verified};
+use crate::storage::{HasRepoId, RepositoryError, WriteRepository};
+
+pub use cache::Cache;
 
 /// Issue operation.
 pub type Op = cob::Op<Action>;
@@ -56,6 +60,18 @@ pub enum Error {
     /// Error decoding an operation.
     #[error("op decoding failed: {0}")]
     Op(#[from] op::OpEncodingError),
+    #[error("failed to update issue {id} in cache: {err}")]
+    CacheUpdate {
+        id: IssueId,
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+    #[error("failed to remove issue {id} from cache : {err}")]
+    CacheRemove {
+        id: IssueId,
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
 }
 
 /// Reason why an issue was closed.
@@ -410,8 +426,8 @@ impl Issue {
     }
 }
 
-impl<'a, 'g, R> From<IssueMut<'a, 'g, R>> for (IssueId, Issue) {
-    fn from(value: IssueMut<'a, 'g, R>) -> Self {
+impl<'a, 'g, R, C> From<IssueMut<'a, 'g, R, C>> for (IssueId, Issue) {
+    fn from(value: IssueMut<'a, 'g, R, C>) -> Self {
         (value.id, value.issue)
     }
 }
@@ -524,13 +540,14 @@ impl<R: ReadRepository> store::Transaction<Issue, R> {
     }
 }
 
-pub struct IssueMut<'a, 'g, R> {
+pub struct IssueMut<'a, 'g, R, C> {
     id: ObjectId,
     issue: Issue,
     store: &'g mut Issues<'a, R>,
+    cache: &'g mut C,
 }
 
-impl<'a, 'g, R> std::fmt::Debug for IssueMut<'a, 'g, R> {
+impl<'a, 'g, R, C> std::fmt::Debug for IssueMut<'a, 'g, R, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("IssueMut")
             .field("id", &self.id)
@@ -539,9 +556,10 @@ impl<'a, 'g, R> std::fmt::Debug for IssueMut<'a, 'g, R> {
     }
 }
 
-impl<'a, 'g, R> IssueMut<'a, 'g, R>
+impl<'a, 'g, R, C> IssueMut<'a, 'g, R, C>
 where
     R: WriteRepository + cob::Store,
+    C: cob::cache::Update<Issue>,
 {
     /// Reload the issue data from storage.
     pub fn reload(&mut self) -> Result<(), store::Error> {
@@ -660,13 +678,19 @@ where
         operations(&mut tx)?;
 
         let (issue, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        self.cache
+            .update(&self.store.as_ref().id(), &self.id, &issue)
+            .map_err(|e| Error::CacheUpdate {
+                id: self.id,
+                err: e.into(),
+            })?;
         self.issue = issue;
 
         Ok(commit)
     }
 }
 
-impl<'a, 'g, R> Deref for IssueMut<'a, 'g, R> {
+impl<'a, 'g, R, C> Deref for IssueMut<'a, 'g, R, C> {
     type Target = Issue;
 
     fn deref(&self) -> &Self::Target {
@@ -683,6 +707,15 @@ impl<'a, R> Deref for Issues<'a, R> {
 
     fn deref(&self) -> &Self::Target {
         &self.raw
+    }
+}
+
+impl<'a, R> HasRepoId for Issues<'a, R>
+where
+    R: ReadRepository,
+{
+    fn rid(&self) -> RepoId {
+        self.raw.as_ref().id()
     }
 }
 
@@ -718,35 +751,21 @@ impl<'a, R> Issues<'a, R>
 where
     R: WriteRepository + cob::Store,
 {
-    /// Get an issue.
-    pub fn get(&self, id: &ObjectId) -> Result<Option<Issue>, store::Error> {
-        self.raw.get(id)
-    }
-
-    /// Get an issue mutably.
-    pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<IssueMut<'a, 'g, R>, store::Error> {
-        let issue = self
-            .raw
-            .get(id)?
-            .ok_or_else(move || store::Error::NotFound(TYPENAME.clone(), *id))?;
-
-        Ok(IssueMut {
-            id: *id,
-            issue,
-            store: self,
-        })
-    }
-
     /// Create a new issue.
-    pub fn create<'g, G: Signer>(
+    pub fn create<'g, G, C>(
         &'g mut self,
         title: impl ToString,
         description: impl ToString,
         labels: &[Label],
         assignees: &[Did],
         embeds: impl IntoIterator<Item = Embed>,
+        cache: &'g mut C,
         signer: &G,
-    ) -> Result<IssueMut<'a, 'g, R>, Error> {
+    ) -> Result<IssueMut<'a, 'g, R, C>, Error>
+    where
+        G: Signer,
+        C: cob::cache::Update<Issue>,
+    {
         let (id, issue) = Transaction::initial("Create issue", &mut self.raw, signer, |tx| {
             tx.thread(description, embeds)?;
             tx.edit(title)?;
@@ -759,11 +778,52 @@ where
             }
             Ok(())
         })?;
+        cache
+            .update(&self.raw.as_ref().id(), &id, &issue)
+            .map_err(|e| Error::CacheUpdate { id, err: e.into() })?;
 
         Ok(IssueMut {
             id,
             issue,
             store: self,
+            cache,
+        })
+    }
+
+    /// Remove an issue.
+    pub fn remove<C, G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), store::Error>
+    where
+        C: cob::cache::Remove<Issue>,
+    {
+        self.raw.remove(id, signer)
+    }
+}
+
+impl<'a, R> Issues<'a, R>
+where
+    R: ReadRepository + cob::Store,
+{
+    /// Get an issue.
+    pub fn get(&self, id: &ObjectId) -> Result<Option<Issue>, store::Error> {
+        self.raw.get(id)
+    }
+
+    /// Get an issue mutably.
+    pub fn get_mut<'g, C>(
+        &'g mut self,
+        id: &ObjectId,
+        cache: &'g mut C,
+    ) -> Result<IssueMut<'a, 'g, R, C>, store::Error> {
+        let issue = self
+            .raw
+            .get(id)?
+            .ok_or_else(move || store::Error::NotFound(TYPENAME.clone(), *id))?;
+
+        Ok(IssueMut {
+            id: *id,
+            issue,
+            store: self,
+            cache,
         })
     }
 
@@ -781,11 +841,6 @@ where
                 });
 
         Ok(state_groups)
-    }
-
-    /// Remove an issue.
-    pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), store::Error> {
-        self.raw.remove(id, signer)
     }
 }
 
@@ -859,16 +914,16 @@ mod test {
     use super::*;
     use crate::cob::{ActorId, Reaction};
     use crate::git::Oid;
+    use crate::issue::cache::Issues as _;
     use crate::test;
     use crate::test::arbitrary;
 
     #[test]
     fn test_concurrency() {
         let t = test::setup::Network::default();
-        let mut issues_alice = Issues::open(&*t.alice.repo).unwrap();
-        let mut bob_issues = Issues::open(&*t.bob.repo).unwrap();
-        let mut eve_issues = Issues::open(&*t.eve.repo).unwrap();
-
+        let mut issues_alice = Cache::no_cache(&*t.alice.repo).unwrap();
+        let mut bob_issues = Cache::no_cache(&*t.bob.repo).unwrap();
+        let mut eve_issues = Cache::no_cache(&*t.eve.repo).unwrap();
         let mut issue_alice = issues_alice
             .create(
                 "Alice Issue",
@@ -954,7 +1009,7 @@ mod test {
     #[test]
     fn test_issue_create_and_assign() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
 
         let assignee = Did::from(arbitrary::gen::<ActorId>(1));
         let assignee_two = Did::from(arbitrary::gen::<ActorId>(1));
@@ -993,7 +1048,7 @@ mod test {
     #[test]
     fn test_issue_create_and_reassign() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
 
         let assignee = Did::from(arbitrary::gen::<ActorId>(1));
         let assignee_two = Did::from(arbitrary::gen::<ActorId>(1));
@@ -1002,7 +1057,7 @@ mod test {
                 "My first issue",
                 "Blah blah blah.",
                 &[],
-                &[assignee],
+                &[assignee, assignee_two],
                 [],
                 &node.signer,
             )
@@ -1026,7 +1081,7 @@ mod test {
     #[test]
     fn test_issue_create_and_get() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let created = issues
             .create(
                 "My first issue",
@@ -1052,7 +1107,7 @@ mod test {
     #[test]
     fn test_issue_create_and_change_state() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1092,7 +1147,7 @@ mod test {
     #[test]
     fn test_issue_create_and_unassign() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
 
         let assignee = Did::from(arbitrary::gen::<ActorId>(1));
         let assignee_two = Did::from(arbitrary::gen::<ActorId>(1));
@@ -1120,7 +1175,8 @@ mod test {
     #[test]
     fn test_issue_edit() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
+
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1144,7 +1200,7 @@ mod test {
     #[test]
     fn test_issue_edit_description() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1170,7 +1226,7 @@ mod test {
     #[test]
     fn test_issue_react() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1200,7 +1256,7 @@ mod test {
     #[test]
     fn test_issue_reply() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1255,7 +1311,7 @@ mod test {
     #[test]
     fn test_issue_label() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let bug_label = Label::new("bug").unwrap();
         let ux_label = Label::new("ux").unwrap();
         let wontfix_label = Label::new("wontfix").unwrap();
@@ -1293,7 +1349,7 @@ mod test {
     fn test_issue_comment() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let author = *node.signer.public_key();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1333,7 +1389,7 @@ mod test {
     #[test]
     fn test_issue_comment_redact() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1381,8 +1437,7 @@ mod test {
     #[test]
     fn test_issue_all() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
-
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         issues
             .create("First", "Blah", &[], &[], [], &node.signer)
             .unwrap();
@@ -1394,7 +1449,7 @@ mod test {
             .unwrap();
 
         let issues = issues
-            .all()
+            .list()
             .unwrap()
             .map(|r| r.map(|(_, i)| i))
             .collect::<Result<Vec<_>, _>>()
@@ -1410,7 +1465,7 @@ mod test {
     #[test]
     fn test_issue_multilines() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let created = issues
             .create(
                 "My first issue",
@@ -1436,7 +1491,7 @@ mod test {
     #[test]
     fn test_embeds() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let embed1 = Embed {
             name: String::from("example.html"),
             content: b"<html>Hello World!</html>".to_vec(),
@@ -1494,7 +1549,7 @@ mod test {
     #[test]
     fn test_embeds_edit() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let embed1 = Embed {
             name: String::from("example.html"),
             content: b"<html>Hello World!</html>".to_vec(),
@@ -1538,7 +1593,7 @@ mod test {
     #[test]
     fn test_invalid_actions() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1572,7 +1627,7 @@ mod test {
     #[test]
     fn test_invalid_tx() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
                 "My first issue",
@@ -1608,7 +1663,7 @@ mod test {
         let identity = repo.identity().unwrap().head();
         let missing = arbitrary::oid();
         let type_name = Issue::type_name().clone();
-        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
                 "My first issue",

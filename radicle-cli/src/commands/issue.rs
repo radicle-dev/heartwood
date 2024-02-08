@@ -6,13 +6,14 @@ use anyhow::{anyhow, Context as _};
 
 use radicle::cob::common::{Label, Reaction};
 use radicle::cob::issue;
-use radicle::cob::issue::{CloseReason, Issues, State};
+use radicle::cob::issue::{CloseReason, State};
 use radicle::cob::thread;
 use radicle::crypto::Signer;
+use radicle::issue::cache::Issues as _;
 use radicle::prelude::Did;
 use radicle::profile;
 use radicle::storage;
-use radicle::storage::{WriteRepository, WriteStorage};
+use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
 use radicle::Profile;
 use radicle::{cob, Node};
 
@@ -425,7 +426,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 | Operation::Label { .. }
         );
 
-    let mut issues = Issues::open(&repo)?;
+    let mut issues = profile.issues_mut(&repo)?;
 
     match options.op {
         Operation::Edit {
@@ -546,7 +547,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             issue.label(labels, &signer)?;
         }
         Operation::List { assigned, state } => {
-            list(&issues, &assigned, &state, &profile)?;
+            list(issues, &assigned, &state, &profile)?;
         }
         Operation::Delete { id } => {
             let id = id.resolve(&repo.backend)?;
@@ -562,13 +563,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn list<R: WriteRepository + cob::Store>(
-    issues: &Issues<R>,
+fn list<C>(
+    cache: C,
     assigned: &Option<Assigned>,
     state: &Option<State>,
     profile: &profile::Profile,
-) -> anyhow::Result<()> {
-    if issues.is_empty()? {
+) -> anyhow::Result<()>
+where
+    C: issue::cache::Issues,
+{
+    if cache.is_empty()? {
         term::print(term::format::italic("Nothing to show."));
         return Ok(());
     }
@@ -580,7 +584,8 @@ fn list<R: WriteRepository + cob::Store>(
     };
 
     let mut all = Vec::new();
-    for result in issues.all()? {
+    let issues = cache.list()?;
+    for result in issues {
         let Ok((id, issue)) = result else {
             // Skip issues that failed to load.
             continue;
@@ -664,16 +669,20 @@ fn list<R: WriteRepository + cob::Store>(
     Ok(())
 }
 
-fn open<R: WriteRepository + cob::Store, G: Signer>(
+fn open<R, G>(
     title: Option<String>,
     description: Option<String>,
     labels: Vec<Label>,
     assignees: Vec<Did>,
     options: &Options,
-    issues: &mut Issues<R>,
+    cache: &mut issue::Cache<issue::Issues<'_, R>, cob::cache::StoreWriter>,
     signer: &G,
     profile: &Profile,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<()>
+where
+    R: ReadRepository + WriteRepository + cob::Store,
+    G: Signer,
+{
     let (title, description) = if let (Some(t), Some(d)) = (title.as_ref(), description.as_ref()) {
         (t.to_owned(), d.to_owned())
     } else if let Some((t, d)) = term::issue::get_title_description(title, description)? {
@@ -681,7 +690,7 @@ fn open<R: WriteRepository + cob::Store, G: Signer>(
     } else {
         anyhow::bail!("aborting issue creation due to empty title or description");
     };
-    let issue = issues.create(
+    let issue = cache.create(
         &title,
         description,
         labels.as_slice(),
@@ -696,14 +705,18 @@ fn open<R: WriteRepository + cob::Store, G: Signer>(
     Ok(())
 }
 
-fn edit<'a, 'g, R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
-    issues: &'a mut issue::Issues<'a, R>,
+fn edit<'a, 'g, R, G>(
+    issues: &'g mut issue::Cache<issue::Issues<'a, R>, cob::cache::StoreWriter>,
     repo: &storage::git::Repository,
     id: Rev,
     title: Option<String>,
     description: Option<String>,
     signer: &G,
-) -> anyhow::Result<issue::IssueMut<'a, 'g, R>> {
+) -> anyhow::Result<issue::IssueMut<'a, 'g, R, cob::cache::StoreWriter>>
+where
+    R: WriteRepository + ReadRepository + cob::Store,
+    G: radicle::crypto::Signer,
+{
     let id = id.resolve(&repo.backend)?;
     let mut issue = issues.get_mut(&id)?;
     let (root, _) = issue.root();

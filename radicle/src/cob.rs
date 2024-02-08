@@ -20,12 +20,16 @@ pub use radicle_cob::{
 };
 pub use radicle_cob::{create, get, git, list, remove, update};
 
+/// The exact identifier for a particular COB.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypedId {
+    /// The identifier of the COB in the store.
     pub id: ObjectId,
+    /// The type identifier of the COB in the store.
     pub type_name: TypeName,
 }
 
+/// Errors that occur when parsing a Git refname into a [`TypedId`].
 #[derive(Debug, thiserror::Error)]
 pub enum ParseIdentifierError {
     #[error(transparent)]
@@ -35,20 +39,39 @@ pub enum ParseIdentifierError {
 }
 
 impl TypedId {
+    /// Returns `true` is the [`TypedId::type_name`] is for an
+    /// [`issue::Issue`].
     pub fn is_issue(&self) -> bool {
         self.type_name == *issue::TYPENAME
     }
 
+    /// Returns `true` is the [`TypedId::type_name`] is for an
+    /// [`patch::Patch`].
     pub fn is_patch(&self) -> bool {
         self.type_name == *patch::TYPENAME
     }
 
+    /// Parse a [`crate::git::Namespaced`] refname into a [`TypedId`].
+    ///
+    /// All namespaces are stripped before parsing the suffix for the
+    /// [`TypedId`] (see [`TypedId::from_qualified`]).
     pub fn from_namespaced(
         n: &crate::git::Namespaced,
     ) -> Result<Option<Self>, ParseIdentifierError> {
-        Self::from_qualified(&n.strip_namespace())
+        Self::from_qualified(&n.strip_namespace_recursive())
     }
 
+    /// Parse a [`crate::git::Qualified`] refname into a [`TypedId`].
+    ///
+    /// The refname is expected to be of the form:
+    ///     `refs/cobs/<type name>/<object id>`
+    ///
+    /// If the refname is not of that form then `None` will be returned.
+    ///
+    /// # Errors
+    ///
+    /// This will fail if the refname is of the correct form, but the
+    /// type name or object id fail to parse.
     pub fn from_qualified(q: &crate::git::Qualified) -> Result<Option<Self>, ParseIdentifierError> {
         match q.non_empty_iter() {
             ("refs", "cobs", type_name, mut id) => {

@@ -880,7 +880,7 @@ fn test_refs_announcement_offline() {
     // Create an issue without telling the node.
     let repo = alice.storage().repository(*rid).unwrap();
     let old_refs = RefsAt::new(&repo, alice.id).unwrap();
-    let mut issues = radicle::issue::Issues::open(&repo).unwrap();
+    let mut issues = radicle::issue::Cache::no_cache(&repo).unwrap();
     issues
         .create("Issue while offline!", "", &[], &[], [], alice.signer())
         .unwrap();

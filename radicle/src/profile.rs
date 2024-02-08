@@ -27,7 +27,8 @@ use crate::prelude::Did;
 use crate::prelude::NodeId;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
-use crate::{cli, git, node, web};
+use crate::storage::{self, ReadRepository};
+use crate::{cli, cob, git, node, web};
 
 /// Environment variables used by radicle.
 pub mod env {
@@ -104,6 +105,10 @@ pub enum Error {
     NotificationsStore(#[from] node::notifications::store::Error),
     #[error(transparent)]
     DatabaseStore(#[from] node::db::Error),
+    #[error(transparent)]
+    Repository(#[from] storage::RepositoryError),
+    #[error(transparent)]
+    CobsCache(#[from] cob::cache::Error),
 }
 
 #[derive(Debug, Error)]
@@ -410,7 +415,7 @@ impl Home {
             path: path.canonicalize()?,
         };
 
-        for dir in &[home.storage(), home.keys(), home.node()] {
+        for dir in &[home.storage(), home.keys(), home.node(), home.cobs()] {
             if !dir.exists() {
                 fs::create_dir_all(dir)?;
             }
@@ -437,6 +442,10 @@ impl Home {
 
     pub fn node(&self) -> PathBuf {
         self.path.join("node")
+    }
+
+    pub fn cobs(&self) -> PathBuf {
+        self.path.join("cobs")
     }
 
     pub fn socket(&self) -> PathBuf {
@@ -477,6 +486,62 @@ impl Home {
         let db = node::Database::open(path)?;
 
         Ok(db)
+    }
+
+    /// Return a read-only handle for the issues cache.
+    pub fn issues<'a, R>(
+        &self,
+        repository: &'a R,
+    ) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreReader>, Error>
+    where
+        R: ReadRepository + cob::Store,
+    {
+        let path = self.cobs().join(cob::cache::COBS_DB_FILE);
+        let db = cob::cache::Store::reader(path)?;
+        let store = cob::issue::Issues::open(repository)?;
+        Ok(cob::issue::Cache::reader(store, db))
+    }
+
+    /// Return a read-write handle for the issues cache.
+    pub fn issues_mut<'a, R>(
+        &self,
+        repository: &'a R,
+    ) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreWriter>, Error>
+    where
+        R: ReadRepository + cob::Store,
+    {
+        let path = self.cobs().join(cob::cache::COBS_DB_FILE);
+        let db = cob::cache::Store::open(path)?;
+        let store = cob::issue::Issues::open(repository)?;
+        Ok(cob::issue::Cache::open(store, db))
+    }
+
+    /// Return a read-only handle for the patches cache.
+    pub fn patches<'a, R>(
+        &self,
+        repository: &'a R,
+    ) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreReader>, Error>
+    where
+        R: ReadRepository + cob::Store,
+    {
+        let path = self.cobs().join(cob::cache::COBS_DB_FILE);
+        let db = cob::cache::Store::reader(path)?;
+        let store = cob::patch::Patches::open(repository)?;
+        Ok(cob::patch::Cache::reader(store, db))
+    }
+
+    /// Return a read-write handle for the patches cache.
+    pub fn patches_mut<'a, R>(
+        &self,
+        repository: &'a R,
+    ) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreWriter>, Error>
+    where
+        R: ReadRepository + cob::Store,
+    {
+        let path = self.cobs().join(cob::cache::COBS_DB_FILE);
+        let db = cob::cache::Store::open(path)?;
+        let store = cob::patch::Patches::open(repository)?;
+        Ok(cob::patch::Cache::open(store, db))
     }
 }
 

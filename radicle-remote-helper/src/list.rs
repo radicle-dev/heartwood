@@ -1,3 +1,5 @@
+use radicle::patch::cache::Patches as _;
+use radicle::profile;
 use thiserror::Error;
 
 use radicle::cob;
@@ -17,9 +19,15 @@ pub enum Error {
     /// Git error.
     #[error(transparent)]
     Git(#[from] radicle::git::ext::Error),
+    /// Profile error.
+    #[error(transparent)]
+    Profile(#[from] profile::Error),
     /// COB store error.
     #[error(transparent)]
     CobStore(#[from] cob::store::Error),
+    /// Patch COB cache error.
+    #[error(transparent)]
+    PatchCache(#[from] radicle::patch::cache::Error),
     /// General repository error.
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
@@ -28,6 +36,7 @@ pub enum Error {
 /// List refs for fetching (`git fetch` and `git ls-remote`).
 pub fn for_fetch<R: ReadRepository + cob::Store + 'static>(
     url: &Url,
+    profile: &Profile,
     stored: &R,
 ) -> Result<(), Error> {
     if let Some(namespace) = url.namespace {
@@ -48,7 +57,7 @@ pub fn for_fetch<R: ReadRepository + cob::Store + 'static>(
         }
         // List the patch refs, but don't abort if there's an error, as this would break
         // all fetch behavior. Instead, just output an error to the user.
-        if let Err(e) = patch_refs(stored) {
+        if let Err(e) = patch_refs(profile, stored) {
             eprintln!("remote: error listing patch refs: {e}");
         }
     }
@@ -74,9 +83,12 @@ pub fn for_push<R: ReadRepository>(profile: &Profile, stored: &R) -> Result<(), 
 }
 
 /// List canonical patch references. These are magic refs that can be used to pull patch updates.
-fn patch_refs<R: ReadRepository + cob::Store + 'static>(stored: &R) -> Result<(), Error> {
-    let patches = radicle::cob::patch::Patches::open(stored)?;
-    for patch in patches.all()? {
+fn patch_refs<R: ReadRepository + cob::Store + 'static>(
+    profile: &Profile,
+    stored: &R,
+) -> Result<(), Error> {
+    let patches = profile.patches(stored)?;
+    for patch in patches.list()? {
         let Ok((id, patch)) = patch else {
             // Ignore patches that fail to decode.
             continue;

@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::env;
 
 use anyhow::anyhow;
-use radicle::cob::patch::{PatchId, Patches};
+use radicle::cob::patch::PatchId;
 use radicle::git::Oid;
 use radicle::storage::ReadStorage;
 use radicle_cli::terminal as term;
@@ -15,7 +15,7 @@ fn main() -> anyhow::Result<()> {
     let profile = radicle::Profile::load()?;
     let (working, rid) = radicle::rad::cwd()?;
     let stored = profile.storage.repository(rid)?;
-    let mut patches = Patches::open(&stored)?;
+    let mut patches = profile.patches_mut(&stored)?;
     let mut patch = patches.get_mut(&pid)?;
 
     if patch.is_merged() {

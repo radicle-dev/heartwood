@@ -3,6 +3,7 @@ use super::*;
 use radicle::cob;
 use radicle::cob::patch;
 use radicle::cob::thread::CommentId;
+use radicle::patch::ByRevision;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
 
@@ -19,10 +20,15 @@ pub fn run(
     profile: &Profile,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
-    let mut patches = patch::Patches::open(repo)?;
+    let mut patches = profile.patches_mut(repo)?;
 
     let revision_id = revision_id.resolve::<cob::EntryId>(&repo.backend)?;
-    let (patch_id, patch, revision_id, revision) = patches
+    let ByRevision {
+        id: patch_id,
+        patch,
+        revision_id,
+        revision,
+    } = patches
         .find_by_revision(&patch::RevisionId::from(revision_id))?
         .ok_or_else(|| anyhow!("Patch revision `{revision_id}` not found"))?;
     let mut patch = patch::PatchMut::new(patch_id, patch, &mut patches);

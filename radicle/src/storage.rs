@@ -404,6 +404,17 @@ pub trait WriteStorage: ReadStorage {
     fn clean(&self, rid: RepoId) -> Result<Vec<RemoteId>, RepositoryError>;
 }
 
+/// Anything can return the [`RepoId`] that it is associated with.
+pub trait HasRepoId {
+    fn rid(&self) -> RepoId;
+}
+
+impl<T: ReadRepository> HasRepoId for T {
+    fn rid(&self) -> RepoId {
+        ReadRepository::id(self)
+    }
+}
+
 /// Allows read-only access to a repository.
 pub trait ReadRepository: Sized + ValidateRepository {
     /// Return the repository id.

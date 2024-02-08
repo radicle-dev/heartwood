@@ -34,6 +34,7 @@ use anyhow::anyhow;
 
 use radicle::cob::patch::PatchId;
 use radicle::cob::{patch, Label};
+use radicle::patch::cache::Patches as _;
 use radicle::storage::git::transport;
 use radicle::{prelude::*, Node};
 
@@ -179,27 +180,6 @@ pub struct LabelOptions {
     pub delete: BTreeSet<Label>,
 }
 
-pub struct Filter(fn(&patch::State) -> bool);
-
-impl Filter {
-    /// Match everything.
-    fn all() -> Self {
-        Self(|_| true)
-    }
-}
-
-impl Default for Filter {
-    fn default() -> Self {
-        Self(|state| matches!(state, patch::State::Open { .. }))
-    }
-}
-
-impl std::fmt::Debug for Filter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Filter(..)")
-    }
-}
-
 #[derive(Debug)]
 pub enum Operation {
     Show {
@@ -250,7 +230,7 @@ pub enum Operation {
         opts: LabelOptions,
     },
     List {
-        filter: Filter,
+        filter: Option<patch::Status>,
     },
     Edit {
         patch_id: Rev,
@@ -311,7 +291,7 @@ impl Args for Options {
         let mut patch_id = None;
         let mut revision_id = None;
         let mut message = Message::default();
-        let mut filter = Filter::default();
+        let mut filter = Some(patch::Status::Open);
         let mut diff = false;
         let mut debug = false;
         let mut undo = false;
@@ -487,19 +467,19 @@ impl Args for Options {
 
                 // List options.
                 Long("all") => {
-                    filter = Filter::all();
+                    filter = None;
                 }
                 Long("draft") => {
-                    filter = Filter(|s| s == &patch::State::Draft);
+                    filter = Some(patch::Status::Draft);
                 }
                 Long("archived") => {
-                    filter = Filter(|s| s == &patch::State::Archived);
+                    filter = Some(patch::Status::Archived);
                 }
                 Long("merged") => {
-                    filter = Filter(|s| matches!(s, patch::State::Merged { .. }));
+                    filter = Some(patch::Status::Merged);
                 }
                 Long("open") => {
-                    filter = Filter(|s| matches!(s, patch::State::Open { .. }));
+                    filter = Some(patch::Status::Open);
                 }
                 Long("authored") => {
                     authored = true;
@@ -662,12 +642,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     transport::local::register(profile.storage.clone());
 
     match options.op {
-        Operation::List { filter: Filter(f) } => {
+        Operation::List { filter } => {
             let mut authors: BTreeSet<Did> = options.authors.iter().cloned().collect();
             if options.authored {
                 authors.insert(profile.did());
             }
-            list::run(f, authors, &repository, &profile)?;
+            list::run(filter.as_ref(), authors, &repository, &profile)?;
         }
         Operation::Show {
             patch_id,
@@ -694,7 +674,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .map(|rev| rev.resolve::<radicle::git::Oid>(&repository.backend))
                 .transpose()?
                 .map(patch::RevisionId::from);
-            diff::run(&patch_id, revision_id, &repository)?;
+            diff::run(&patch_id, revision_id, &repository, &profile)?;
         }
         Operation::Update {
             ref patch_id,
@@ -742,6 +722,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 revision_id,
                 &repository,
                 &workdir,
+                &profile,
                 opts,
             )?;
         }
@@ -801,7 +782,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             label::run(&patch_id, add, delete, &profile, &repository)?;
         }
         Operation::Set { patch_id } => {
-            let patches = radicle::cob::patch::Patches::open(&repository)?;
+            let patches = profile.patches(&repository)?;
             let patch_id = patch_id.resolve(&repository.backend)?;
             let patch = patches
                 .get(&patch_id)?
