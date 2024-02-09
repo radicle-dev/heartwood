@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::fmt;
 
 use crate::node::config::Limits;
@@ -119,6 +119,7 @@ impl Session {
                 since: time,
                 ping: PingState::default(),
                 fetching: HashSet::default(),
+                latencies: VecDeque::default(),
             },
             link: Link::Inbound,
             subscribe: None,
@@ -212,6 +213,7 @@ impl Session {
             since,
             ping: PingState::default(),
             fetching: HashSet::default(),
+            latencies: VecDeque::default(),
         };
     }
 
@@ -231,11 +233,13 @@ impl Session {
         self.state = State::Initial;
     }
 
-    pub fn ping(&mut self, reactor: &mut Outbox) -> Result<(), Error> {
+    pub fn ping(&mut self, since: LocalTime, reactor: &mut Outbox) -> Result<(), Error> {
         if let State::Connected { ping, .. } = &mut self.state {
             let msg = message::Ping::new(&mut self.rng);
-            *ping = PingState::AwaitingResponse(msg.ponglen);
-
+            *ping = PingState::AwaitingResponse {
+                len: msg.ponglen,
+                since,
+            };
             reactor.write(self, Message::Ping(msg));
         }
         Ok(())

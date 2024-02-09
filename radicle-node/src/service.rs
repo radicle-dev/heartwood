@@ -78,6 +78,8 @@ pub const PRUNE_INTERVAL: LocalDuration = LocalDuration::from_mins(30);
 pub const STALE_CONNECTION_TIMEOUT: LocalDuration = LocalDuration::from_mins(2);
 /// How much time should pass after a peer was last active for a *ping* to be sent.
 pub const KEEP_ALIVE_DELTA: LocalDuration = LocalDuration::from_mins(1);
+/// Maximum number of latency values to keep for a session.
+pub const MAX_LATENCIES: usize = 16;
 /// Maximum time difference between the local time, and an announcement timestamp.
 pub const MAX_TIME_DELTA: LocalDuration = LocalDuration::from_mins(60);
 /// Maximum attempts to connect to a peer before we give up.
@@ -1653,10 +1655,24 @@ where
                     },
                 );
             }
-            (session::State::Connected { ping, .. }, Message::Pong { zeroes }) => {
-                if let session::PingState::AwaitingResponse(ponglen) = *ping {
+            (
+                session::State::Connected {
+                    ping, latencies, ..
+                },
+                Message::Pong { zeroes },
+            ) => {
+                if let session::PingState::AwaitingResponse {
+                    len: ponglen,
+                    since,
+                } = *ping
+                {
                     if (ponglen as usize) == zeroes.len() {
                         *ping = session::PingState::Ok;
+                        // Keep track of peer latency.
+                        latencies.push_back(self.clock - since);
+                        if latencies.len() > MAX_LATENCIES {
+                            latencies.pop_front();
+                        }
                     }
                 }
             }
@@ -2036,7 +2052,7 @@ where
             .filter(|(_, session)| *now - session.last_active >= KEEP_ALIVE_DELTA)
             .map(|(_, session)| session);
         for session in inactive_sessions {
-            session.ping(&mut self.outbox).ok();
+            session.ping(self.clock, &mut self.outbox).ok();
         }
     }
 

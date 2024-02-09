@@ -11,7 +11,7 @@ pub mod policy;
 pub mod routing;
 pub mod seed;
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::io::{BufRead, BufReader};
 use std::ops::{ControlFlow, Deref};
 use std::os::unix::net::UnixStream;
@@ -21,7 +21,7 @@ use std::{fmt, io, net, thread, time};
 
 use amplify::WrapperMut;
 use cyphernet::addr::NetAddr;
-use localtime::LocalTime;
+use localtime::{LocalDuration, LocalTime};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json as json;
@@ -73,7 +73,12 @@ pub enum PingState {
     /// The peer has not been sent a ping.
     None,
     /// A ping has been sent and is waiting on the peer's response.
-    AwaitingResponse(u16),
+    AwaitingResponse {
+        /// Length of pong payload expected.
+        len: u16,
+        /// Since when are we waiting.
+        since: LocalTime,
+    },
     /// The peer was successfully pinged.
     Ok,
 }
@@ -97,6 +102,9 @@ pub enum State {
         ping: PingState,
         /// Ongoing fetches.
         fetching: HashSet<RepoId>,
+        /// Measured latencies for this peer.
+        #[serde(skip)]
+        latencies: VecDeque<LocalDuration>,
     },
     /// When a peer is disconnected.
     #[serde(rename_all = "camelCase")]
@@ -1177,6 +1185,7 @@ mod test {
                 since: LocalTime::now(),
                 ping: Default::default(),
                 fetching: Default::default(),
+                latencies: VecDeque::default(),
             }))
             .unwrap(),
         )
