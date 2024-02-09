@@ -124,7 +124,7 @@ impl Session {
             link: Link::Inbound,
             subscribe: None,
             persistent,
-            last_active: LocalTime::default(),
+            last_active: time,
             attempts: 0,
             rng,
             limits,
@@ -205,6 +205,7 @@ impl Session {
 
     pub fn to_connected(&mut self, since: LocalTime) {
         self.attempts = 0;
+        self.last_active = since;
 
         let State::Attempted = &self.state else {
             panic!("Session::to_connected: can only transition to 'connected' state from 'attempted' state");
