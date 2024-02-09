@@ -63,7 +63,7 @@ pub enum Input {
     },
     /// Disconnected from peer.
     Disconnected(NodeId, Rc<DisconnectReason>),
-    /// Received a message from a remote peer.
+    /// Received messages from a remote peer.
     Received(NodeId, Vec<Message>),
     /// Fetch completed for a node.
     Fetched(RepoId, NodeId, Rc<Result<fetch::FetchResult, FetchError>>),
@@ -175,6 +175,8 @@ pub struct Simulation<S, G> {
     inbox: Inbox,
     /// Events emitted during simulation.
     events: BTreeMap<NodeId, VecDeque<Event>>,
+    /// Messages received during simulation.
+    messages: Vec<Message>,
     /// Priority events that should happen immediately.
     priority: VecDeque<Scheduled>,
     /// Simulated latencies between nodes.
@@ -207,6 +209,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                 messages: BTreeMap::new(),
             },
             events: BTreeMap::new(),
+            messages: Vec::new(),
             priority: VecDeque::new(),
             partitions: BTreeSet::new(),
             latencies: BTreeMap::new(),
@@ -244,6 +247,11 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
     /// Get a node's emitted events.
     pub fn events(&mut self, node: &NodeId) -> impl Iterator<Item = Event> + '_ {
         self.events.entry(*node).or_default().drain(..)
+    }
+
+    /// Get all messages received by nodes during the simulation.
+    pub fn messages(&mut self) -> &[Message] {
+        &self.messages
     }
 
     /// Get the latency between two nodes. The minimum latency between nodes is 1 millisecond.
@@ -293,6 +301,10 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
         P: Peer<S, G>,
     {
         let mut nodes: BTreeMap<_, _> = peers.into_iter().map(|p| (p.id(), p)).collect();
+
+        self.messages.clear();
+        self.events.clear();
+        self.start_time = self.time;
 
         while self.step_(&mut nodes) {
             if !pred(self) {
@@ -406,9 +418,10 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     }
                     Input::Wake => p.wake(),
                     Input::Received(id, msgs) => {
-                        for msg in msgs {
+                        for msg in msgs.clone() {
                             p.received_message(id, msg);
                         }
+                        self.messages.extend(msgs);
                     }
                     Input::Fetched(rid, nid, result) => {
                         let result = Rc::try_unwrap(result).unwrap();
