@@ -140,6 +140,10 @@ pub enum Command {
         state: String,
         assigned: Option<Assigned>,
     },
+    /// Run notification id selection.
+    InboxSelectId,
+    /// Run patch operation and id selection with the given filter applied.
+    InboxSelectOperation {},
 }
 
 impl Command {
@@ -194,6 +198,18 @@ impl Command {
                     }
                     _ => {}
                 }
+
+                args
+            }
+            Command::InboxSelectId => [
+                "inbox".into(),
+                "select".into(),
+                "--mode".into(),
+                "id".into(),
+            ]
+            .to_vec(),
+            Command::InboxSelectOperation {} => {
+                let args: Vec<OsString> = vec!["inbox".into(), "select".into()];
 
                 args
             }
