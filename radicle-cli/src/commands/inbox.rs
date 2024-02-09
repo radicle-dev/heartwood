@@ -16,11 +16,14 @@ use radicle::prelude::{Profile, RepoId};
 use radicle::storage::{BranchName, ReadRepository, ReadStorage};
 use radicle::{cob, git, Storage};
 
+use radicle_term::Interactive;
 use term::Element as _;
 
 use crate::terminal as term;
 use crate::terminal::args;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::command::CommandError;
+use crate::tui;
 
 pub const HELP: Help = Help {
     name: "inbox",
@@ -58,9 +61,24 @@ Options
 #[derive(Debug, Default, PartialEq, Eq)]
 enum Operation {
     #[default]
+    Default,
     List,
     Show,
     Clear,
+}
+
+impl TryFrom<&str> for Operation {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "default" => Ok(Operation::Default),
+            "list" => Ok(Operation::List),
+            "show" => Ok(Operation::Show),
+            "clear" => Ok(Operation::Clear),
+            _ => Err(anyhow!("invalid operation name: {value}")),
+        }
+    }
 }
 
 #[derive(Default, Debug)]
@@ -73,9 +91,9 @@ enum Mode {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct SortBy {
-    reverse: bool,
-    field: &'static str,
+pub struct SortBy {
+    pub reverse: bool,
+    pub field: &'static str,
 }
 
 pub struct Options {
@@ -83,6 +101,7 @@ pub struct Options {
     mode: Mode,
     sort_by: SortBy,
     show_unknown: bool,
+    pub interactive: bool,
 }
 
 impl Args for Options {
@@ -96,11 +115,15 @@ impl Args for Options {
         let mut reverse = None;
         let mut field = None;
         let mut show_unknown = false;
+        let mut interactive = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
+                }
+                Long("interactive") | Short('i') => {
+                    interactive = true;
                 }
                 Long("all") | Short('a') if mode.is_none() => {
                     mode = Some(Mode::All);
@@ -168,6 +191,7 @@ impl Args for Options {
                 mode,
                 sort_by,
                 show_unknown,
+                interactive,
             },
             vec![],
         ))
@@ -178,14 +202,43 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
     let mut notifs = profile.notifications_mut()?;
+
     let Options {
         op,
         mode,
         sort_by,
         show_unknown,
+        interactive,
     } = options;
 
     match op {
+        Operation::Default => {
+            if interactive {
+                if tui::is_installed() {
+                    run_tui_operation(&profile, &storage, &mut notifs, sort_by, mode)?;
+                } else {
+                    list(
+                        mode,
+                        sort_by,
+                        show_unknown,
+                        &notifs.read_only(),
+                        storage,
+                        &profile,
+                    )?;
+                    tui::installation_hint();
+                }
+            } else {
+                list(
+                    mode,
+                    sort_by,
+                    show_unknown,
+                    &notifs.read_only(),
+                    storage,
+                    &profile,
+                )?;
+            }
+            Ok(())
+        }
         Operation::List => list(
             mode,
             sort_by,
@@ -573,4 +626,39 @@ fn show(
     notifs.set_status(NotificationStatus::ReadAt(LocalTime::now()), &[id])?;
 
     Ok(())
+}
+
+/// Calls the inbox operation selection with `rad-tui inbox select`. An empty selection
+/// signals that the user did not select anything and exited the program. If the selection
+/// is not empty, the operation given will be called on the notification given.
+fn run_tui_operation(
+    profile: &Profile,
+    storage: &Storage,
+    notifs: &mut notifications::StoreWriter,
+    sort_by: SortBy,
+    mode: Mode,
+) -> anyhow::Result<()> {
+    let cmd = tui::Command::InboxSelectOperation {};
+
+    match tui::Selection::from_command(cmd) {
+        Ok(Some(selection)) => {
+            let operation = selection
+                .operation()
+                .ok_or_else(|| anyhow!("an operation must be provided"))?;
+
+            let notif_id: NotificationId = *selection
+                .ids()
+                .first()
+                .ok_or_else(|| anyhow!("a notification must be provided"))?;
+
+            match Operation::try_from(operation.as_str()) {
+                Ok(Operation::Show) => show(mode, notifs, storage, &profile),
+                Ok(Operation::Clear) => clear(mode, notifs),
+                Ok(_) => Err(anyhow!("operation not supported: {operation}")),
+                Err(err) => Err(err),
+            }
+        }
+        Ok(None) => Ok(()),
+        Err(err) => Err(err.into()),
+    }
 }

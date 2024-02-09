@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use std::str::FromStr;
 
 use radicle::identity::Did;
+use radicle::node::notifications::NotificationId;
 
 use serde::de;
 use serde::{Deserialize, Deserializer};
@@ -130,6 +131,10 @@ pub enum Command {
     },
     /// Run patch id selection.
     PatchSelectId,
+    /// Run notification id selection.
+    InboxSelectId,
+    /// Run patch operation and id selection with the given filter applied.
+    InboxSelectOperation {},
 }
 
 impl Command {
@@ -162,6 +167,18 @@ impl Command {
                 "id".into(),
             ]
             .to_vec(),
+            Command::InboxSelectId => [
+                "inbox".into(),
+                "select".into(),
+                "--mode".into(),
+                "id".into(),
+            ]
+            .to_vec(),
+            Command::InboxSelectOperation {} => {
+                let mut args: Vec<OsString> = vec!["inbox".into(), "select".into()];
+
+                args
+            }
         }
     }
 
