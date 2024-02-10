@@ -453,6 +453,14 @@ impl Home {
             .unwrap_or_else(|| self.node().join(node::DEFAULT_SOCKET_NAME))
     }
 
+    /// Return a handle to a ready-only database of the notifications database.
+    pub fn notifications(&self) -> Result<notifications::StoreReader, notifications::store::Error> {
+        let path = self.node().join(node::NOTIFICATIONS_DB_FILE);
+        let db = notifications::Store::reader(path)?;
+
+        Ok(db)
+    }
+
     /// Return a read-write handle to the notifications database.
     pub fn notifications_mut(
         &self,
