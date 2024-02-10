@@ -13,7 +13,7 @@ use crate::storage::{RefUpdate, RemoteId};
 pub use store::{Error, Store};
 /// Read and write to the store.
 pub type StoreWriter = Store<store::Write>;
-/// Write to the store.
+/// Read from the store.
 pub type StoreReader = Store<store::Read>;
 
 /// Unique identifier for a notification.
