@@ -5,18 +5,19 @@ use std::path::Path;
 use std::str;
 
 use base64::prelude::{Engine, BASE64_STANDARD};
-use radicle::cob::{CodeLocation, Reaction};
-use radicle::patch::ReviewId;
 use serde_json::{json, Value};
 
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Merge, Patch, PatchId, Review};
 use radicle::cob::thread::{Comment, CommentId, Edit};
-use radicle::cob::{ActorId, Author};
+use radicle::cob::{ActorId, Author, ObjectId};
+use radicle::cob::{CodeLocation, Reaction};
 use radicle::git::RefString;
+use radicle::node::notifications::{Notification, NotificationStatus};
 use radicle::node::{Alias, AliasStore};
+use radicle::patch::ReviewId;
 use radicle::prelude::NodeId;
-use radicle::storage::{git, refs, RemoteRepository};
+use radicle::storage::{git, refs, BranchName, ReadRepository, RefUpdate, RemoteRepository};
 use radicle_surf::blob::Blob;
 use radicle_surf::tree::Tree;
 use radicle_surf::{Commit, Oid, Stats};
@@ -167,6 +168,18 @@ fn author(author: &Author, alias: Option<Alias>) -> Value {
     }
 }
 
+/// Returns JSON for a `notification`.
+fn notification_status(status: &NotificationStatus) -> Value {
+    match status {
+        NotificationStatus::ReadAt(time) => {
+            json!({ "type": "readAt", "timestamp": time.to_string() })
+        }
+        NotificationStatus::Unread => {
+            json!({ "type": "unread" })
+        }
+    }
+}
+
 /// Returns JSON for a patch `Merge` and fills in `alias` when present.
 fn merge(nid: &NodeId, merge: &Merge, aliases: &impl AliasStore) -> Value {
     json!({
@@ -288,4 +301,159 @@ fn get_refs(
         .collect::<Vec<_>>();
 
     Ok(refs)
+}
+
+pub enum CobNotification {
+    Issue {
+        object_id: ObjectId,
+        issue: Issue,
+        notification: Notification,
+    },
+    Patch {
+        object_id: ObjectId,
+        patch: Patch,
+        notification: Notification,
+    },
+}
+
+impl CobNotification {
+    pub fn issue(object_id: ObjectId, issue: Issue, notification: Notification) -> Self {
+        Self::Issue {
+            object_id,
+            issue,
+            notification,
+        }
+    }
+
+    pub fn patch(object_id: ObjectId, patch: Patch, notification: Notification) -> Self {
+        Self::Patch {
+            object_id,
+            patch,
+            notification,
+        }
+    }
+
+    pub fn as_json(&self, aliases: &impl AliasStore) -> Value {
+        match self {
+            CobNotification::Issue {
+                object_id,
+                issue,
+                notification:
+                    Notification {
+                        id,
+                        repo,
+                        remote,
+                        status,
+                        timestamp,
+                        ..
+                    },
+            } => json!({
+                "id": id,
+                "repo": repo,
+                "remote": remote.map(|a| author(&Author::from(a), aliases.alias(&a))),
+                "category": "issue",
+                "cob_id": object_id,
+                "title": issue.title(),
+                "labels": issue.labels().collect::<Vec<_>>(),
+                "state": issue.state(),
+                "status": notification_status(status),
+                "timestamp": timestamp.to_string(),
+            }),
+            CobNotification::Patch {
+                object_id,
+                patch,
+                notification:
+                    Notification {
+                        id,
+                        repo,
+                        remote,
+                        status,
+                        timestamp,
+                        ..
+                    },
+            } => json!({
+                "id": id,
+                "repo": repo,
+                "remote": remote.map(|a| author(&Author::from(a), aliases.alias(&a))),
+                "category": "issue",
+                "cob_id": object_id,
+                "title": patch.title(),
+                "labels": patch.labels().collect::<Vec<_>>(),
+                "state": patch.state(),
+                "status": notification_status(status),
+                "timestamp": timestamp.to_string(),
+            }),
+        }
+    }
+}
+
+pub struct BranchNotification<'a> {
+    name: BranchName,
+    commit: Option<git::raw::Commit<'a>>,
+    notification: Notification,
+    merged: bool,
+}
+
+impl<'a> BranchNotification<'a> {
+    pub fn new<S>(repo: &'a S, head: Oid, name: BranchName, notification: Notification) -> Self
+    where
+        S: ReadRepository,
+    {
+        let commit = notification
+            .update
+            .new()
+            .and_then(|head| repo.commit(head).ok());
+        let merged = notification
+            .update
+            .new()
+            .and_then(|oid| repo.is_ancestor_of(oid, head).ok())
+            .unwrap_or(false);
+        Self {
+            name,
+            commit,
+            notification,
+            merged,
+        }
+    }
+    pub fn as_json(&self, aliases: &impl AliasStore) -> Value {
+        let BranchNotification {
+            name,
+            commit,
+            merged,
+            notification:
+                Notification {
+                    id,
+                    repo,
+                    remote,
+                    update,
+                    status,
+                    timestamp,
+                    ..
+                },
+        } = self;
+        let state = if *merged {
+            "merged"
+        } else {
+            match update {
+                RefUpdate::Updated { .. } => "created",
+                RefUpdate::Created { .. } => "deleted",
+                RefUpdate::Deleted { .. } => "skipped",
+                RefUpdate::Skipped { .. } => "updated",
+            }
+        };
+        let title = commit.as_ref().map_or(String::new(), |commit| {
+            commit.summary().unwrap_or_default().to_string()
+        });
+        json!({
+            "id": id,
+            "repo": repo,
+            "remote": remote.map(|a| author(&Author::from(a), aliases.alias(&a))),
+            "category": "branch",
+            "name": name,
+            "title": title,
+            "state": state,
+            "status": notification_status(status),
+            "timestamp": timestamp.to_string(),
+        })
+    }
 }

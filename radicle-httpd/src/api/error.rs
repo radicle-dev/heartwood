@@ -46,6 +46,10 @@ pub enum Error {
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
 
+    /// Notification error.
+    #[error(transparent)]
+    Notification(#[from] radicle::node::notifications::Error),
+
     /// Routing error.
     #[error(transparent)]
     Routing(#[from] radicle::node::routing::Error),

@@ -303,6 +303,20 @@ impl<T> Store<T> {
         }))
     }
 
+    /// Get repos that have notifications.
+    pub fn repos_with_notifications(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<RepoId, Error>> + '_, Error> {
+        let stmt = self
+            .db
+            .prepare("SELECT DISTINCT repo FROM `repository-notifications`")?;
+
+        Ok(stmt.into_iter().map(move |row| {
+            let row = row?;
+            row.try_read::<RepoId, _>("repo").map_err(Error::from)
+        }))
+    }
+
     /// Get the total notification count.
     pub fn count(&self) -> Result<usize, Error> {
         let stmt = self

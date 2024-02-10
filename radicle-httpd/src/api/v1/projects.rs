@@ -9,15 +9,19 @@ use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use axum_auth::AuthBearer;
 use hyper::StatusCode;
+use localtime::LocalTime;
 use radicle_surf::blob::BlobRef;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tower_http::set_header::SetResponseHeaderLayer;
 
-use radicle::cob::{issue, patch, resolve_embed, Embed, Label, Uri};
+use radicle::cob::{self, issue, patch, resolve_embed, Embed, Label, Uri};
 use radicle::identity::{Did, RepoId, Visibility};
+use radicle::issue::Issues;
+use radicle::node::notifications::{NotificationKind, NotificationStatus};
 use radicle::node::routing::Store;
 use radicle::node::{AliasStore, Node, NodeId};
+use radicle::patch::Patches;
 use radicle::storage::git::paths;
 use radicle::storage::{ReadRepository, ReadStorage, RemoteRepository, WriteRepository};
 use radicle_surf::{diff, Glob, Oid, Repository};
@@ -33,10 +37,17 @@ const MAX_BODY_LIMIT: usize = 4_194_304;
 pub fn router(ctx: Context) -> Router {
     Router::new()
         .route("/projects", get(project_root_handler))
+        .route("/projects/inbox", get(project_inbox_handler))
         .route("/projects/:project", get(project_handler))
         .route("/projects/:project/commits", get(history_handler))
         .route("/projects/:project/commits/:sha", get(commit_handler))
         .route("/projects/:project/diff/:base/:oid", get(diff_handler))
+        .route(
+            "/projects/:project/inbox",
+            get(inbox_handler)
+                .patch(inbox_toggle_status_handler)
+                .delete(inbox_clear_handler),
+        )
         .route(
             "/projects/:project/activity",
             get(
@@ -148,6 +159,25 @@ async fn project_root_handler(
         .skip(page * per_page)
         .take(per_page)
         .collect::<Vec<_>>();
+
+    Ok::<_, Error>(Json(infos))
+}
+
+/// GET projects that have notifications.
+/// `GET /projects/inbox`
+async fn project_inbox_handler(State(ctx): State<Context>) -> impl IntoResponse {
+    let store = ctx.profile.notifications()?;
+    let storage = &ctx.profile.storage;
+    let repos = store
+        .repos_with_notifications()?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut infos = Vec::new();
+    for rid in repos {
+        let repo = storage.repository(rid)?;
+        let project = repo.project()?;
+        infos.push(json!({ "rid": rid, "name": project.name() }));
+    }
 
     Ok::<_, Error>(Json(infos))
 }
@@ -409,6 +439,101 @@ async fn activity_handler(
         .collect::<Vec<i64>>();
 
     Ok::<_, Error>((StatusCode::OK, Json(json!({ "activity": timestamps }))))
+}
+
+/// Get notifications by repo.
+/// `GET /projects/:project/inbox`
+async fn inbox_handler(
+    State(ctx): State<Context>,
+    Path(rid): Path<RepoId>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> impl IntoResponse {
+    if !addr.ip().is_loopback() {
+        return Err(Error::Auth("Node inbox data is only shown for localhost"));
+    }
+    let storage = &ctx.profile.storage;
+    let aliases = &ctx.profile.aliases();
+    let repo = storage.repository(rid)?;
+    let (_, head) = repo.head()?;
+    let issues = Issues::open(&repo)?;
+    let patches = Patches::open(&repo)?;
+    let store = ctx.profile.notifications()?;
+    let notifications: Vec<_> = store
+        .by_repo(&rid, "timestamp")?
+        .filter_map(|notification| {
+            notification.ok().and_then(|n| {
+                match &n.kind {
+                    NotificationKind::Cob { id, type_name } => {
+                        if type_name == &*cob::issue::TYPENAME {
+                            let Some(issue) = issues.get(id).ok().flatten() else {
+                                // Issue could have been deleted after notification was created.
+                                return None;
+                            };
+                            Some(api::json::CobNotification::issue(*id, issue, n).as_json(aliases))
+                        } else if type_name == &*cob::patch::TYPENAME {
+                            let Some(patch) = patches.get(id).ok().flatten() else {
+                                // Patch could have been deleted after notification was created.
+                                return None;
+                            };
+                            Some(api::json::CobNotification::patch(*id, patch, n).as_json(aliases))
+                        } else {
+                            None
+                        }
+                    }
+                    NotificationKind::Branch { name } => Some(
+                        api::json::BranchNotification::new(&repo, head, name.clone(), n)
+                            .as_json(aliases),
+                    ),
+                }
+            })
+        })
+        .collect();
+
+    Ok::<_, Error>(Json(notifications))
+}
+
+/// Mark as read all node inbox items by repo.
+/// `PATCH /projects/:rid/inbox`
+async fn inbox_toggle_status_handler(
+    State(ctx): State<Context>,
+    AuthBearer(token): AuthBearer,
+    Path(rid): Path<RepoId>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> impl IntoResponse {
+    if !addr.ip().is_loopback() {
+        return Err(Error::Auth(
+            "Node inbox data updates are only able for localhost",
+        ));
+    }
+    api::auth::validate(&ctx, &token).await?;
+    let mut store = ctx.profile.notifications_mut()?;
+    let ids = store
+        .by_repo(&rid, "timestamp")?
+        .filter_map(|n| n.ok().map(|x| x.id))
+        .collect::<Vec<_>>();
+    let success = store.set_status(NotificationStatus::ReadAt(LocalTime::now()), &ids)?;
+
+    Ok::<_, Error>(Json(json!({ "success": success })))
+}
+
+/// Clear a local node inbox by repo.
+/// `DELETE /projects/:rid/inbox`
+async fn inbox_clear_handler(
+    State(ctx): State<Context>,
+    AuthBearer(token): AuthBearer,
+    Path(rid): Path<RepoId>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> impl IntoResponse {
+    if !addr.ip().is_loopback() {
+        return Err(Error::Auth(
+            "Node inbox data updates are only able for localhost",
+        ));
+    }
+    api::auth::validate(&ctx, &token).await?;
+    let mut store = ctx.profile.notifications_mut()?;
+    let cleared = store.clear_by_repo(&rid)?;
+
+    Ok::<_, Error>(Json(json!({ "success": true, "count": cleared })))
 }
 
 /// Get project source tree for '/' path.

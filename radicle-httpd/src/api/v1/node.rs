@@ -1,12 +1,16 @@
-use axum::extract::State;
+use std::net::SocketAddr;
+
+use axum::extract::{ConnectInfo, State};
 use axum::response::IntoResponse;
-use axum::routing::{get, put};
+use axum::routing::{delete, get, patch, put};
 use axum::{Json, Router};
 use axum_auth::AuthBearer;
 use hyper::StatusCode;
+use localtime::LocalTime;
 use serde_json::json;
 
 use radicle::identity::RepoId;
+use radicle::node::notifications::{NotificationId, NotificationStatus};
 use radicle::node::routing::Store;
 use radicle::node::{policy, AliasStore, Handle, NodeId, DEFAULT_TIMEOUT};
 use radicle::Node;
@@ -18,6 +22,11 @@ use crate::axum_extra::{Path, Query};
 pub fn router(ctx: Context) -> Router {
     Router::new()
         .route("/node", get(node_handler))
+        .route("/node/inbox", delete(node_inbox_clear_handler))
+        .route(
+            "/node/inbox/:id",
+            patch(node_inbox_item_update_handler).delete(node_inbox_item_clear_handler),
+        )
         .route("/node/policies/repos", get(node_policies_repos_handler))
         .route(
             "/node/policies/repos/:rid",
@@ -53,6 +62,77 @@ async fn node_handler(State(ctx): State<Context>) -> impl IntoResponse {
     });
 
     Ok::<_, Error>(Json(response))
+}
+
+/// Toggle a local node inbox item read status.
+/// `PATCH /node/inbox/:id`
+async fn node_inbox_item_update_handler(
+    State(ctx): State<Context>,
+    AuthBearer(token): AuthBearer,
+    Path(id): Path<NotificationId>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> impl IntoResponse {
+    if !addr.ip().is_loopback() {
+        return Err(Error::Auth(
+            "Node inbox data updates are only able for localhost",
+        ));
+    }
+    api::auth::validate(&ctx, &token).await?;
+    let mut notifs = ctx.profile.notifications_mut()?;
+    let notification = notifs.get(id)?;
+    let state = match notification.status {
+        NotificationStatus::Unread => {
+            notifs.set_status(NotificationStatus::ReadAt(LocalTime::now()), &[id])?
+        }
+        NotificationStatus::ReadAt(..) => notifs.set_status(NotificationStatus::Unread, &[id])?,
+    };
+
+    Ok::<_, Error>((StatusCode::OK, Json(json!({ "success": state }))))
+}
+
+/// Clear a local node inbox item.
+/// `DELETE /node/inbox/:id`
+async fn node_inbox_item_clear_handler(
+    State(ctx): State<Context>,
+    AuthBearer(token): AuthBearer,
+    Path(id): Path<NotificationId>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> impl IntoResponse {
+    if !addr.ip().is_loopback() {
+        return Err(Error::Auth(
+            "Node inbox data updates are only able for localhost",
+        ));
+    }
+    api::auth::validate(&ctx, &token).await?;
+    let mut notifs = ctx.profile.notifications_mut()?;
+    let cleared = notifs.clear(&[id])?;
+
+    Ok::<_, Error>((
+        StatusCode::OK,
+        Json(json!({ "success": true, "count": cleared })),
+    ))
+}
+
+/// Clear a local node inbox.
+/// `DELETE /node/inbox`
+async fn node_inbox_clear_handler(
+    State(ctx): State<Context>,
+    AuthBearer(token): AuthBearer,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> impl IntoResponse {
+    if !addr.ip().is_loopback() {
+        return Err(Error::Auth(
+            "Node inbox data updates are only able for localhost",
+        ));
+    }
+    api::auth::validate(&ctx, &token).await?;
+    let mut notifs = ctx.profile.notifications_mut()?;
+    let cleared = notifs.clear_all()?;
+
+    Ok::<_, Error>((
+        StatusCode::OK,
+        Json(json!({ "success": true, "count": cleared })),
+    ))
 }
 
 /// Return stored information about other nodes.

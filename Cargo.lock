@@ -2477,6 +2477,7 @@ dependencies = [
  "flate2",
  "hyper",
  "lexopt",
+ "localtime",
  "lru",
  "nonempty 0.9.0",
  "pretty_assertions",
