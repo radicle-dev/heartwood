@@ -9,7 +9,6 @@ use radicle::node::notifications;
 use radicle::node::notifications::*;
 use radicle::patch::Patches;
 use radicle::prelude::{Profile, RepoId};
-use radicle::storage::RefUpdate;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{cob, Storage};
 
@@ -157,7 +156,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let Options { op, mode, sort_by } = options;
 
     match op {
-        Operation::List => list(mode, sort_by, &notifs.read_only(), storage),
+        Operation::List => list(mode, sort_by, &notifs.read_only(), storage, &profile),
         Operation::Clear => clear(mode, &mut notifs),
         Operation::Show => show(mode, &mut notifs, storage, &profile),
     }
@@ -168,21 +167,22 @@ fn list(
     sort_by: SortBy,
     notifs: &notifications::StoreReader,
     storage: &Storage,
+    profile: &Profile,
 ) -> anyhow::Result<()> {
     let repos: Vec<term::VStack<'_>> = match mode {
         Mode::Contextual => {
             if let Ok((_, rid)) = radicle::rad::cwd() {
-                list_repo(rid, sort_by, notifs, storage)?
+                list_repo(rid, sort_by, notifs, storage, profile)?
                     .into_iter()
                     .collect()
             } else {
-                list_all(sort_by, notifs, storage)?
+                list_all(sort_by, notifs, storage, profile)?
             }
         }
-        Mode::ByRepo(rid) => list_repo(rid, sort_by, notifs, storage)?
+        Mode::ByRepo(rid) => list_repo(rid, sort_by, notifs, storage, profile)?
             .into_iter()
             .collect(),
-        Mode::All => list_all(sort_by, notifs, storage)?,
+        Mode::All => list_all(sort_by, notifs, storage, profile)?,
         Mode::ById(_) => anyhow::bail!("the `list` command does not take IDs"),
     };
 
@@ -200,13 +200,14 @@ fn list_all<'a>(
     sort_by: SortBy,
     notifs: &notifications::StoreReader,
     storage: &Storage,
+    profile: &Profile,
 ) -> anyhow::Result<Vec<term::VStack<'a>>> {
     let mut repos = storage.repositories()?;
     repos.sort_by_key(|r| r.rid);
 
     let mut vstacks = Vec::new();
     for repo in repos {
-        let vstack = list_repo(repo.rid, sort_by, notifs, storage)?;
+        let vstack = list_repo(repo.rid, sort_by, notifs, storage, profile)?;
         vstacks.extend(vstack.into_iter());
     }
     Ok(vstacks)
@@ -217,6 +218,7 @@ fn list_repo<'a, R: ReadStorage>(
     sort_by: SortBy,
     notifs: &notifications::StoreReader,
     storage: &R,
+    profile: &Profile,
 ) -> anyhow::Result<Option<term::VStack<'a>>>
 where
     <R as ReadStorage>::Repository: cob::Store,
@@ -226,6 +228,7 @@ where
         ..term::TableOptions::default()
     });
     let repo = storage.repository(rid)?;
+    let (_, head) = repo.head()?;
     let doc = repo.identity_doc()?;
     let proj = doc.project()?;
     let issues = Issues::open(&repo)?;
@@ -245,48 +248,82 @@ where
         } else {
             term::format::tertiary(String::from("●")).into()
         };
-        let (category, summary, status, name) = match n.kind {
+        let (category, summary, state, name) = match n.kind {
             NotificationKind::Branch { name } => {
                 let commit = if let Some(head) = n.update.new() {
                     repo.commit(head)?.summary().unwrap_or_default().to_owned()
                 } else {
                     String::new()
                 };
-                let status = match n.update {
-                    RefUpdate::Updated { .. } => "updated",
-                    RefUpdate::Created { .. } => "created",
-                    RefUpdate::Deleted { .. } => "deleted",
-                    RefUpdate::Skipped { .. } => "skipped",
-                };
-                ("branch".to_string(), commit, status, name.to_string())
+
+                let state = match n
+                    .update
+                    .new()
+                    .map(|oid| repo.is_ancestor_of(oid, head))
+                    .transpose()
+                {
+                    Ok(Some(true)) => {
+                        term::Paint::<String>::from(term::format::secondary("merged"))
+                    }
+                    Ok(Some(false)) | Ok(None) => term::format::ref_update(n.update).into(),
+                    Err(e) => return Err(e.into()),
+                }
+                .to_owned();
+
+                (
+                    "branch".to_string(),
+                    commit,
+                    state,
+                    term::format::default(name.to_string()),
+                )
             }
             NotificationKind::Cob { type_name, id } => {
-                let (category, summary) = if type_name == *cob::issue::TYPENAME {
-                    let issue = issues.get(&id)?.ok_or(anyhow!("missing"))?;
-                    (String::from("issue"), issue.title().to_owned())
+                let (category, summary, state) = if type_name == *cob::issue::TYPENAME {
+                    let Some(issue) = issues.get(&id)? else {
+                        // Issue could have been deleted after notification was created.
+                        continue;
+                    };
+                    (
+                        String::from("issue"),
+                        issue.title().to_owned(),
+                        term::format::issue::state(issue.state()),
+                    )
                 } else if type_name == *cob::patch::TYPENAME {
-                    let patch = patches.get(&id)?.ok_or(anyhow!("missing"))?;
-                    (String::from("patch"), patch.title().to_owned())
+                    let Some(patch) = patches.get(&id)? else {
+                        // Patch could have been deleted after notification was created.
+                        continue;
+                    };
+                    (
+                        String::from("patch"),
+                        patch.title().to_owned(),
+                        term::format::patch::state(patch.state()),
+                    )
                 } else {
-                    (type_name.to_string(), "".to_owned())
+                    (
+                        type_name.to_string(),
+                        "".to_owned(),
+                        term::format::default(String::new()),
+                    )
                 };
-                let status = match n.update {
-                    RefUpdate::Updated { .. } => "updated",
-                    RefUpdate::Created { .. } => "opened",
-                    RefUpdate::Deleted { .. } => "deleted",
-                    RefUpdate::Skipped { .. } => "skipped",
-                };
-                (category, summary, status, term::format::cob(&id))
+                (category, summary, state, term::format::cob(&id))
             }
         };
+        let author = n
+            .remote
+            .map(|r| {
+                let (alias, _) = term::format::Author::new(&r, profile).labels();
+                alias
+            })
+            .unwrap_or_default();
         table.push([
-            n.id.to_string().into(),
+            term::format::dim(format!("{:-03}", n.id)).into(),
             seen,
-            category.into(),
+            term::format::tertiary(name).into(),
             summary.into(),
-            name.into(),
-            status.into(),
-            term::format::timestamp(n.timestamp).into(),
+            term::format::dim(category).into(),
+            state.into(),
+            author,
+            term::format::italic(term::format::timestamp(n.timestamp)).into(),
         ]);
     }
 
@@ -296,7 +333,7 @@ where
         Ok(Some(
             term::VStack::default()
                 .border(Some(term::colors::FAINT))
-                .child(term::label(proj.name()))
+                .child(term::label(term::format::bold(proj.name())))
                 .divider()
                 .child(table),
         ))

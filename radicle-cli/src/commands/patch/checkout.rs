@@ -22,9 +22,8 @@ impl Options {
             Some(refname) => Ok(Qualified::from_refstr(refname)
                 .map_or_else(|| refname.clone(), |q| q.to_ref_string())),
             // SAFETY: Patch IDs are valid refstrings.
-            None => Ok(
-                git::refname!("patch").join(RefString::try_from(term::format::cob(id)).unwrap())
-            ),
+            None => Ok(git::refname!("patch")
+                .join(RefString::try_from(term::format::cob(id).item).unwrap())),
         }
     }
 }

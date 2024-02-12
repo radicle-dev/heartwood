@@ -10,6 +10,7 @@ use radicle::identity::Visibility;
 use radicle::node::{Alias, AliasStore, NodeId};
 use radicle::prelude::Did;
 use radicle::profile::Profile;
+use radicle::storage::RefUpdate;
 use radicle_term::element::Line;
 
 use crate::terminal as term;
@@ -44,8 +45,8 @@ pub fn command<D: fmt::Display>(cmd: D) -> Paint<String> {
 }
 
 /// Format a COB id.
-pub fn cob(id: &ObjectId) -> String {
-    format!("{:.7}", id.to_string())
+pub fn cob(id: &ObjectId) -> Paint<String> {
+    Paint::new(format!("{:.7}", id.to_string()))
 }
 
 /// Format a DID.
@@ -70,6 +71,16 @@ pub fn timestamp(time: impl Into<LocalTime>) -> Paint<String> {
     let fmt = timeago::Formatter::new();
 
     Paint::new(fmt.convert(duration.into()))
+}
+
+/// Format a ref update.
+pub fn ref_update(update: RefUpdate) -> Paint<&'static str> {
+    match update {
+        RefUpdate::Updated { .. } => term::format::tertiary("updated"),
+        RefUpdate::Created { .. } => term::format::positive("created"),
+        RefUpdate::Deleted { .. } => term::format::negative("deleted"),
+        RefUpdate::Skipped { .. } => term::format::dim("skipped"),
+    }
 }
 
 /// Identity formatter that takes a profile and displays it as
@@ -219,6 +230,41 @@ pub mod html {
         }
 
         w.to_string()
+    }
+}
+
+/// Issue formatting
+pub mod issue {
+    use super::*;
+    use radicle::issue::{CloseReason, State};
+
+    /// Format issue state.
+    pub fn state(s: &State) -> term::Paint<String> {
+        match s {
+            State::Open => term::format::positive(s.to_string()),
+            State::Closed {
+                reason: CloseReason::Other,
+            } => term::format::negative(s.to_string()),
+            State::Closed {
+                reason: CloseReason::Solved,
+            } => term::format::secondary(s.to_string()),
+        }
+    }
+}
+
+/// Patch formatting
+pub mod patch {
+    use super::*;
+    use radicle::patch::State;
+
+    /// Format patch state.
+    pub fn state(s: &State) -> term::Paint<String> {
+        match s {
+            State::Draft { .. } => term::format::dim(s.to_string()),
+            State::Open { .. } => term::format::positive(s.to_string()),
+            State::Archived => term::format::yellow(s.to_string()),
+            State::Merged { .. } => term::format::secondary(s.to_string()),
+        }
     }
 }
 

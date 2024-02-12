@@ -17,12 +17,12 @@ The contributor's changes are now visible to us.
 
 ```
 $ rad inbox --sort-by id
-╭──────────────────────────────────────────────────────────────────────╮
-│ heartwood                                                            │
-├──────────────────────────────────────────────────────────────────────┤
-│ 1   ●   issue   flux capacitor underpowered   d060989   opened   now │
-│ 2   ●   patch   Define power requirements     a99d55e   opened   now │
-╰──────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────────╮
+│ heartwood                                                                  │
+├────────────────────────────────────────────────────────────────────────────┤
+│ 001   ●   d060989   flux capacitor underpowered   issue   open   bob   now │
+│ 002   ●   a99d55e   Define power requirements     patch   open   bob   now │
+╰────────────────────────────────────────────────────────────────────────────╯
 $ git branch -r
   bob/patches/a99d55e5958a8c52ff7efbc8ff000d9bbdac79c7
   rad/master
