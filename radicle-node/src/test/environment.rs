@@ -555,8 +555,8 @@ pub fn converge<'a, G: Signer + cyphernet::Ecdh + 'static>(
                 log::debug!(target: "test", "Node {} has converged", node.id);
                 return false;
             } else {
-                log::debug!(target: "test", "Node {} has {:?}", node.id, routes);
-                log::debug!(target: "test", "All routes {:?}", all_routes);
+                let diff = all_routes.symmetric_difference(&routes).collect::<Vec<_>>();
+                log::debug!(target: "test", "Node has missing routes: {diff:?}");
             }
             true
         });

@@ -654,6 +654,8 @@ where
             self.last_sync = now;
         }
         if now - self.last_announce >= ANNOUNCE_INTERVAL {
+            trace!(target: "service", "Running 'announce' task...");
+
             if let Err(err) = self
                 .storage
                 .inventory()

@@ -837,7 +837,10 @@ where
                     }
                 }
                 Io::Wakeup(d) => {
-                    self.actions.push_back(reactor::Action::SetTimer(d.into()));
+                    self.actions.push_back(reactor::Action::SetTimer(
+                        // TODO: Remove this when `io-reactor` can handle `0` duration timeouts.
+                        d.max(localtime::LocalDuration::from_millis(1)).into(),
+                    ));
                 }
                 Io::Fetch {
                     rid,

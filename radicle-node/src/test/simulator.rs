@@ -176,7 +176,7 @@ pub struct Simulation<S, G> {
     /// Events emitted during simulation.
     events: BTreeMap<NodeId, VecDeque<Event>>,
     /// Messages received during simulation.
-    messages: Vec<Message>,
+    messages: Vec<(NodeId, NodeId, Message)>,
     /// Priority events that should happen immediately.
     priority: VecDeque<Scheduled>,
     /// Simulated latencies between nodes.
@@ -250,7 +250,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
     }
 
     /// Get all messages received by nodes during the simulation.
-    pub fn messages(&mut self) -> &[Message] {
+    pub fn messages(&mut self) -> &[(NodeId, NodeId, Message)] {
         &self.messages
     }
 
@@ -400,11 +400,12 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         }
                     }
                     Input::Wake => p.wake(),
-                    Input::Received(id, msgs) => {
+                    Input::Received(from, msgs) => {
                         for msg in msgs.clone() {
-                            p.received_message(id, msg);
+                            p.received_message(from, msg);
                         }
-                        self.messages.extend(msgs);
+                        self.messages
+                            .extend(msgs.into_iter().map(|m| (from, p.node_id(), m)));
                     }
                     Input::Fetched(rid, nid, result) => {
                         let result = Rc::try_unwrap(result).unwrap();

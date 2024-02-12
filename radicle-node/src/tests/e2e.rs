@@ -60,11 +60,11 @@ fn test_inventory_sync_bridge() {
     eve.project("eve", "");
 
     let mut alice = alice.spawn();
-    let mut bob = bob.spawn();
-    let eve = eve.spawn();
+    let mut eve = eve.spawn();
+    let bob = bob.spawn();
 
     alice.connect(&bob);
-    bob.connect(&eve);
+    eve.connect(&bob);
 
     let routes = converge([&alice, &bob, &eve]);
     assert_eq!(routes.len(), 3);

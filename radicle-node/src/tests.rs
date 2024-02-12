@@ -477,6 +477,7 @@ fn test_announcement_rebroadcast_duplicates() {
     let eve = Peer::new("eve", [9, 9, 9, 9]);
     let rids = arbitrary::set::<RepoId>(3..=3);
 
+    carol.init();
     alice.connect_to(&bob);
     alice.receive(bob.id, carol.node_announcement());
 
@@ -936,6 +937,8 @@ fn test_inventory_relay() {
     let now = LocalTime::now().as_millis();
 
     // Inventory from Bob relayed to Eve.
+    alice.init();
+    alice.wake(); // Run all periodic tasks now so they don't trigger later.
     alice.connect_to(&bob);
     alice.connect_from(&eve);
     alice.receive(
@@ -1399,7 +1402,7 @@ fn test_queued_fetch_from_ann_same_rid() {
     // The first fetch is initiated.
     assert_matches!(alice.fetches().next(), Some((rid_, nid_, _)) if rid_ == rid && nid_ == bob.id);
     // We shouldn't send out the 2nd, 3rd fetch while we're doing the 1st fetch.
-    assert_matches!(alice.outbox().next(), None);
+    assert_matches!(alice.fetches().next(), None);
 
     // Have enough time pass that Alice sends a "ping" to Bob.
     alice.elapse(KEEP_ALIVE_DELTA);
