@@ -201,12 +201,15 @@ fn list_all<'a>(
     notifs: &notifications::StoreReader,
     storage: &Storage,
 ) -> anyhow::Result<Vec<term::VStack<'a>>> {
-    let mut repos = Vec::new();
-    for repo in storage.repositories()? {
-        let repo = list_repo(repo.rid, sort_by, notifs, storage)?;
-        repos.extend(repo.into_iter());
+    let mut repos = storage.repositories()?;
+    repos.sort_by_key(|r| r.rid);
+
+    let mut vstacks = Vec::new();
+    for repo in repos {
+        let vstack = list_repo(repo.rid, sort_by, notifs, storage)?;
+        vstacks.extend(vstack.into_iter());
     }
-    Ok(repos)
+    Ok(vstacks)
 }
 
 fn list_repo<'a, R: ReadStorage>(
