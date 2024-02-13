@@ -87,12 +87,13 @@ impl Message {
         placeholder.push_str(help);
 
         let output = Self::Edit.get(&placeholder)?;
-        let Some((title, description)) = output.split_once("\n\n") else {
-            return Ok(None);
+        let (title, description) = match output.split_once("\n\n") {
+            Some((x, y)) => (x, y),
+            None => (output.as_str(), ""),
         };
         let (title, description) = (title.trim(), description.trim());
 
-        if title.is_empty() {
+        if title.is_empty() | title.contains('\n') {
             return Ok(None);
         }
         Ok(Some((title.to_owned(), description.to_owned())))
