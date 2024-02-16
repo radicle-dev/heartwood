@@ -100,7 +100,14 @@ async fn project_root_handler(
                 Visibility::Public => true,
             })
             .collect::<Vec<_>>(),
-        ProjectQuery::Pinned => storage.repositories_by_id(pinned.repositories.iter())?,
+        ProjectQuery::Pinned => storage
+            .repositories_by_id(pinned.repositories.iter())?
+            .into_iter()
+            .filter(|repo| match &repo.doc.visibility {
+                Visibility::Private { .. } => addr.ip().is_loopback(),
+                Visibility::Public => true,
+            })
+            .collect::<Vec<_>>(),
     };
     projects.sort_by_key(|p| p.rid);
 
