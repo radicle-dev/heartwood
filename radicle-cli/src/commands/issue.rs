@@ -1,3 +1,6 @@
+#[path = "issue/cache.rs"]
+mod cache;
+
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::str::FromStr;
@@ -44,6 +47,7 @@ Usage
     rad issue comment <issue-id> [--message <message>] [--reply-to <comment-id>] [<option>...]
     rad issue show <issue-id> [<option>...]
     rad issue state <issue-id> [--closed | --open | --solved] [<option>...]
+    rad issue cache [<issue-id>] [<option>...]
 
 Assign options
 
@@ -85,6 +89,7 @@ pub enum OperationName {
     React,
     Show,
     State,
+    Cache,
 }
 
 /// Command line Peer argument.
@@ -141,6 +146,9 @@ pub enum Operation {
     List {
         assigned: Option<Assigned>,
         state: Option<State>,
+    },
+    Cache {
+        id: Option<Rev>,
     },
 }
 
@@ -341,6 +349,7 @@ impl Args for Options {
                     "s" | "state" => op = Some(OperationName::State),
                     "assign" => op = Some(OperationName::Assign),
                     "label" => op = Some(OperationName::Label),
+                    "cache" => op = Some(OperationName::Cache),
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
@@ -397,6 +406,7 @@ impl Args for Options {
                 opts: label_opts,
             },
             OperationName::List => Operation::List { assigned, state },
+            OperationName::Cache => Operation::Cache { id },
         };
 
         Ok((
@@ -552,6 +562,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Delete { id } => {
             let id = id.resolve(&repo.backend)?;
             issues.remove(&id, &signer)?;
+        }
+        Operation::Cache { id } => {
+            let id = id.map(|id| id.resolve(&repo.backend)).transpose()?;
+            cache::run(id, &repo, &profile)?;
         }
     }
 

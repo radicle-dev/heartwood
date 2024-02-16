@@ -2,6 +2,8 @@
 mod archive;
 #[path = "patch/assign.rs"]
 mod assign;
+#[path = "patch/cache.rs"]
+mod cache;
 #[path = "patch/checkout.rs"]
 mod checkout;
 #[path = "patch/comment.rs"]
@@ -67,6 +69,7 @@ Usage
     rad patch edit <patch-id> [<option>...]
     rad patch set <patch-id> [<option>...]
     rad patch comment <patch-id | revision-id> [<option>...]
+    rad patch cache [<patch-id>] [<option>...]
 
 Show options
 
@@ -166,6 +169,7 @@ pub enum OperationName {
     Edit,
     Redact,
     Set,
+    Cache,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -243,6 +247,9 @@ pub enum Operation {
     Set {
         patch_id: Rev,
     },
+    Cache {
+        patch_id: Option<Rev>,
+    },
 }
 
 impl Operation {
@@ -262,7 +269,8 @@ impl Operation {
             Operation::Show { .. }
             | Operation::Diff { .. }
             | Operation::Checkout { .. }
-            | Operation::List { .. } => false,
+            | Operation::List { .. }
+            | Operation::Cache { .. } => false,
         }
     }
 }
@@ -518,6 +526,7 @@ impl Args for Options {
                     "comment" => op = Some(OperationName::Comment),
                     "review" => op = Some(OperationName::Review),
                     "set" => op = Some(OperationName::Set),
+                    "cache" => op = Some(OperationName::Cache),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val) if op == Some(OperationName::Redact) => {
@@ -540,6 +549,7 @@ impl Args for Options {
                             Some(OperationName::Set),
                             Some(OperationName::Assign),
                             Some(OperationName::Label),
+                            Some(OperationName::Cache),
                         ]
                         .contains(&op) =>
                 {
@@ -615,6 +625,7 @@ impl Args for Options {
             OperationName::Set => Operation::Set {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
             },
+            OperationName::Cache => Operation::Cache { patch_id },
         };
 
         Ok((
@@ -789,6 +800,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .ok_or_else(|| anyhow!("patch {patch_id} not found"))?;
 
             radicle::rad::setup_patch_upstream(&patch_id, *patch.head(), &workdir, true)?;
+        }
+        Operation::Cache { patch_id } => {
+            let patch_id = patch_id
+                .map(|id| id.resolve(&repository.backend))
+                .transpose()?;
+            cache::run(patch_id, &repository, &profile)?;
         }
     }
 
