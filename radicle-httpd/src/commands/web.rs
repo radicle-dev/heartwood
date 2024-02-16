@@ -198,16 +198,22 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         let cmd_name = "xdg-open";
 
         let mut cmd = Command::new(cmd_name);
-
-        match cmd.arg(auth_url.as_str()).spawn()?.wait() {
-            Ok(exit_status) => {
-                if exit_status.success() {
-                    term::success!("Opened {auth_url}");
-                } else {
+        match cmd.arg(auth_url.as_str()).spawn() {
+            Ok(mut child) => match child.wait() {
+                Ok(exit_status) => {
+                    if exit_status.success() {
+                        term::success!("Opened {auth_url}");
+                    } else {
+                        term::info!("Visit {auth_url} to connect");
+                    }
+                }
+                Err(_) => {
                     term::info!("Visit {auth_url} to connect");
                 }
-            }
+            },
             Err(_) => {
+                term::error(format!("Could not open web browser via `{cmd_name}`"));
+                term::hint("Use `rad web --no-open` if this continues");
                 term::info!("Visit {auth_url} to connect");
             }
         }
