@@ -192,6 +192,13 @@
             cargoBuildCommand = "cargo build --release -p radicle-httpd";
             doCheck = false;
           });
+        rad-web = craneLib.buildPackage (commonArgs
+          // {
+            inherit (craneLib.crateNameFromCargoToml {cargoToml = ./radicle-httpd/Cargo.toml;});
+            inherit cargoArtifacts;
+            cargoBuildCommand = "cargo build --release --bin rad-web --manifest-path ./radicle-httpd/Cargo.toml";
+            doCheck = false;
+          });
       };
 
       apps.default = flake-utils.lib.mkApp {
@@ -216,6 +223,11 @@
       apps.radicle-httpd = flake-utils.lib.mkApp {
         name = "radicle-httpd";
         drv = self.packages.${system}.radicle-httpd;
+      };
+
+      apps.rad-web = flake-utils.lib.mkApp {
+        name = "rad-web";
+        drv = self.packages.${system}.rad-web;
       };
 
       devShells.default = craneLib.devShell {
