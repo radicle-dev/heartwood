@@ -9,10 +9,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    fenix = {
-      url = "github:nix-community/fenix";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.rust-analyzer-src.follows = "";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
     };
 
     flake-utils.url = "github:numtide/flake-utils";
@@ -31,18 +33,22 @@
     self,
     nixpkgs,
     crane,
-    fenix,
     flake-utils,
     advisory-db,
+    rust-overlay,
     ...
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pname = "Heartwood";
-      pkgs = nixpkgs.legacyPackages.${system};
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [(import rust-overlay)];
+      };
 
       inherit (pkgs) lib;
 
-      craneLib = crane.lib.${system};
+      rustToolChain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain;
+      craneLib = (crane.mkLib pkgs).overrideToolchain rustToolChain;
 
       srcFilters = path: type:
       # Allow sql schemas
