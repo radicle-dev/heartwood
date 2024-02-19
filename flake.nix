@@ -164,6 +164,13 @@
 
       packages = {
         default = radicle;
+        radicle-full = pkgs.buildEnv {
+          name = "radicle-full";
+          paths = with self.packages.${system}; [
+            default
+            radicle-httpd
+          ];
+        };
         radicle-remote-helper = craneLib.buildPackage (commonArgs
           // {
             inherit (craneLib.crateNameFromCargoToml {cargoToml = ./radicle-remote-helper/Cargo.toml;});
@@ -196,6 +203,11 @@
 
       apps.default = flake-utils.lib.mkApp {
         drv = radicle;
+      };
+
+      apps.radicle-full = flake-utils.lib.mkApp {
+        name = "rad";
+        drv = self.packages.${system}.radicle-full;
       };
 
       apps.rad = flake-utils.lib.mkApp {

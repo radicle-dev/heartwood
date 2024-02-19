@@ -14,6 +14,14 @@ logfmt = [
   "tracing-subscriber/env-filter"
 ]
 
+[[bin]]
+name = "radicle-httpd"
+path = "src/main.rs"
+
+[[bin]]
+name = "rad-web"
+path = "src/bin/rad-web.rs"
+
 [dependencies]
 anyhow = { version = "1" }
 axum = { version = "0.7.2", default-features = false, features = ["json", "query", "tokio", "http1"] }
