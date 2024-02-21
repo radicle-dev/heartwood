@@ -196,7 +196,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     let repo = match git::Repository::open(&path) {
         Ok(r) => r,
         Err(e) if radicle::git::ext::is_not_found_err(&e) => {
-            anyhow::bail!("a Git repository was not found at the current path")
+            anyhow::bail!("a Git repository was not found at the given path")
         }
         Err(e) => return Err(e.into()),
     };
@@ -316,8 +316,13 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                 term::format::dim("(RID)"),
                 term::format::highlight(rid.urn())
             );
+            let directory = if path == cwd {
+                "this directory".to_owned()
+            } else {
+                term::format::tertiary(path.display()).to_string()
+            };
             term::info!(
-                "You can show it any time by running {} from this directory.",
+                "You can show it any time by running {} from {directory}.",
                 term::format::command("rad .")
             );
             term::blank();

@@ -3,7 +3,7 @@ it will fail:
 
 ``` (fail)
 $ rad init
-✗ Error: a Git repository was not found at the current path
+✗ Error: a Git repository was not found at the given path
 ```
 
 Ok so let's initialize one.
