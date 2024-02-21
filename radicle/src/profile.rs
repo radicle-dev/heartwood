@@ -12,7 +12,7 @@
 //!
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::{fs, io, str::FromStr};
+use std::{fs, io};
 
 use serde::Serialize;
 use thiserror::Error;
@@ -163,15 +163,7 @@ impl Config {
             Ok(cfg) => {
                 serde_json::from_reader(cfg).map_err(|e| ConfigError::Load(path.to_path_buf(), e))
             }
-            Err(e) => {
-                let Ok(user) = env::var("USER") else {
-                    return Err(ConfigError::Io(path.to_owned(), e));
-                };
-                let Ok(alias) = Alias::from_str(&user) else {
-                    return Err(ConfigError::Io(path.to_owned(), e));
-                };
-                Ok(Config::new(alias))
-            }
+            Err(e) => Err(ConfigError::Io(path.to_path_buf(), e)),
         }
     }
 
