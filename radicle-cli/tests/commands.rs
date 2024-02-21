@@ -2318,6 +2318,51 @@ fn git_push_and_fetch() {
 }
 
 #[test]
+fn git_tag() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    bob.connect(&alice).converge([&alice]);
+
+    test(
+        "examples/rad-clone.md",
+        &working.join("bob"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+    formula(&environment.tmp(), "examples/git/git-tag.md")
+        .unwrap()
+        .home(
+            "alice",
+            working.join("alice"),
+            [("RAD_HOME", alice.home.path().display())],
+        )
+        .home(
+            "bob",
+            working.join("bob"),
+            [("RAD_HOME", bob.home.path().display())],
+        )
+        .run()
+        .unwrap();
+}
+
+#[test]
 fn rad_workflow() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
