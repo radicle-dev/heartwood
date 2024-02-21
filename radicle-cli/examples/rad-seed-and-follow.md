@@ -30,8 +30,8 @@ We can list the repositories we are seeding by omitting the RID:
 ```
 $ rad seed
 ╭───────────────────────────────────────────────────────╮
-│ RID                                 Scope      Policy │
+│ Repository                          Policy   Scope    │
 ├───────────────────────────────────────────────────────┤
-│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   followed   allow  │
+│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   allow    followed │
 ╰───────────────────────────────────────────────────────╯
 ```

@@ -177,9 +177,9 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
     let store = profile.policies()?;
     let mut t = term::Table::new(term::table::TableOptions::bordered());
     t.header([
-        term::format::default(String::from("RID")),
-        term::format::default(String::from("Scope")),
+        term::format::default(String::from("Repository")),
         term::format::default(String::from("Policy")),
+        term::format::default(String::from("Scope")),
     ]);
     t.divider();
 
@@ -191,13 +191,9 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
     {
         let id = id.to_string();
         let scope = scope.to_string();
-        let policy = policy.to_string();
+        let policy = term::format::policy(&policy);
 
-        t.push([
-            term::format::highlight(id),
-            term::format::secondary(scope),
-            term::format::secondary(policy),
-        ])
+        t.push([term::format::tertiary(id), policy, term::format::dim(scope)])
     }
 
     if t.is_empty() {

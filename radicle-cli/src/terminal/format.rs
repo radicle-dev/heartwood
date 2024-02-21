@@ -7,6 +7,7 @@ pub use radicle_term::{style, Paint};
 
 use radicle::cob::{ObjectId, Timestamp};
 use radicle::identity::Visibility;
+use radicle::node::policy::Policy;
 use radicle::node::{Alias, AliasStore, NodeId};
 use radicle::prelude::Did;
 use radicle::profile::Profile;
@@ -60,6 +61,14 @@ pub fn visibility(v: &Visibility) -> Paint<&str> {
     match v {
         Visibility::Public => term::format::positive("public"),
         Visibility::Private { .. } => term::format::secondary("private"),
+    }
+}
+
+/// Format a policy.
+pub fn policy(p: &Policy) -> Paint<String> {
+    match p {
+        Policy::Allow => term::format::positive(p.to_string()),
+        Policy::Block => term::format::negative(p.to_string()),
     }
 }
 

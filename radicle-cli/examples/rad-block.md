@@ -36,8 +36,8 @@ And a 'block' policy was added:
 ```
 $ rad seed
 ╭───────────────────────────────────────────────────────╮
-│ RID                                 Scope      Policy │
+│ Repository                          Policy   Scope    │
 ├───────────────────────────────────────────────────────┤
-│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   followed   block  │
+│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   block    followed │
 ╰───────────────────────────────────────────────────────╯
 ```

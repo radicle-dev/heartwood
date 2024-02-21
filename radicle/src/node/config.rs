@@ -86,7 +86,7 @@ pub struct Limits {
     /// How long to keep a gossip message entry before pruning it.
     #[serde(with = "crate::serde_ext::localtime::duration")]
     pub gossip_max_age: LocalDuration,
-    /// Maximum number of concurrent fetches per per connection.
+    /// Maximum number of concurrent fetches per peer connection.
     pub fetch_concurrency: usize,
     /// Maximum number of open files.
     pub max_open_files: usize,

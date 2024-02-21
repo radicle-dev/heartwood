@@ -35,9 +35,9 @@ repository that was already created:
 ```
 $ rad seed
 ╭───────────────────────────────────────────────────────╮
-│ RID                                 Scope      Policy │
+│ Repository                          Policy   Scope    │
 ├───────────────────────────────────────────────────────┤
-│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   followed   allow  │
+│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   allow    followed │
 ╰───────────────────────────────────────────────────────╯
 ```
 
