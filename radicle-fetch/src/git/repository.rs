@@ -1,7 +1,7 @@
 pub mod error;
 
 use either::Either;
-use radicle::git::{Namespaced, Oid, Qualified};
+use radicle::git::{self, Namespaced, Oid, Qualified};
 use radicle::storage::git::Repository;
 
 use super::refs::{Applied, Policy, RefUpdate, Update};
@@ -38,10 +38,29 @@ pub fn contains(repo: &Repository, oid: Oid) -> Result<bool, error::Contains> {
         .map_err(error::Contains)
 }
 
-pub fn ancestry(repo: &Repository, old: Oid, new: Oid) -> Result<Ancestry, error::Ancestry> {
-    if !contains(repo, old)? || !contains(repo, new)? {
-        return Err(error::Ancestry::Missing { a: old, b: new });
+/// Find the object identified by `oid` and peel it to its associated
+/// commit `Oid`.
+///
+/// # Errors
+///
+/// - The object was not found
+/// - The object does not peel to a commit
+/// - Attempting to find the object fails
+fn find_and_peel(repo: &Repository, oid: Oid) -> Result<Oid, error::Ancestry> {
+    match repo.backend.find_object(*oid, None) {
+        Ok(object) => Ok(object
+            .peel(git::raw::ObjectType::Commit)
+            .map_err(|err| error::Ancestry::Peel { oid, err })?
+            .id()
+            .into()),
+        Err(e) if git::is_not_found_err(&e) => Err(error::Ancestry::Missing { oid }),
+        Err(err) => Err(error::Ancestry::Object { oid, err }),
     }
+}
+
+pub fn ancestry(repo: &Repository, old: Oid, new: Oid) -> Result<Ancestry, error::Ancestry> {
+    let old = find_and_peel(repo, old)?;
+    let new = find_and_peel(repo, new)?;
 
     if old == new {
         return Ok(Ancestry::Equal);
@@ -49,7 +68,7 @@ pub fn ancestry(repo: &Repository, old: Oid, new: Oid) -> Result<Ancestry, error
 
     let (ahead, behind) = repo
         .backend
-        .graph_ahead_behind(new.into(), old.into())
+        .graph_ahead_behind(*new, *old)
         .map_err(|err| error::Ancestry::Check { old, new, err })?;
 
     if ahead > 0 && behind == 0 {

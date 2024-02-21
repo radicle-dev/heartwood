@@ -7,14 +7,24 @@ pub struct Contains(#[source] pub raw::Error);
 
 #[derive(Debug, Error)]
 pub enum Ancestry {
-    #[error("missing one of {a} or {b} while checking ancestry")]
-    Missing { a: Oid, b: Oid },
-    #[error(transparent)]
-    Contains(#[from] Contains),
-    #[error("failed to check ancestry for {old} and {new}")]
+    #[error("missing {oid} while checking ancestry")]
+    Missing { oid: Oid },
+    #[error("failed to check ancestry for {old} and {new}: {err}")]
     Check {
         old: Oid,
         new: Oid,
+        #[source]
+        err: raw::Error,
+    },
+    #[error("failed to peel object to commit {oid}: {err}")]
+    Peel {
+        oid: Oid,
+        #[source]
+        err: raw::Error,
+    },
+    #[error("failed to find object {oid}: {err}")]
+    Object {
+        oid: Oid,
         #[source]
         err: raw::Error,
     },
