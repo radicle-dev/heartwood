@@ -11,7 +11,7 @@ pub enum Ancestry {
     Missing { a: Oid, b: Oid },
     #[error(transparent)]
     Contains(#[from] Contains),
-    #[error("failed to check ancestry for {old} and {new}")]
+    #[error("failed to check ancestry for {old} and {new}: {err}")]
     Check {
         old: Oid,
         new: Oid,
