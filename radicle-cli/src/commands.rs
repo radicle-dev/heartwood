@@ -52,5 +52,7 @@ pub mod rad_stats;
 pub mod rad_sync;
 #[path = "commands/unfollow.rs"]
 pub mod rad_unfollow;
+#[path = "commands/unseed.rs"]
+pub mod rad_unseed;
 #[path = "commands/watch.rs"]
 pub mod rad_watch;

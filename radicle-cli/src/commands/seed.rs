@@ -20,14 +20,13 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad seed [<rid>] [-d | --delete] [--[no-]fetch] [--scope <scope>] [<option>...]
+    rad seed [<rid>] [--[no-]fetch] [--scope <scope>] [<option>...]
 
     The `seed` command, when no Repository ID (<rid>) is provided, will list the
     repositories being seeded.
 
-    When a Repository ID (<rid>) is provided it updates the seeding policy for
-    that repository. By default, a seeding policy will be created or updated.
-    To delete a policy, use the `--delete` flag.
+    When a Repository ID (<rid>) is provided it updates or creates the seeding policy for
+    that repository. To delete a seeding policy, use the `rad unseed` command.
 
     When seeding a repository, a scope can be specified: this can be either `all` or
     `followed`. When using `all`, all remote nodes will be followed for that repository.
@@ -36,7 +35,6 @@ Usage
 
 Options
 
-    --delete, -d           Delete the seeding policy
     --[no-]fetch           Fetch repository after updating seeding policy
     --scope <scope>        Peer follow scope for this repository
     --verbose, -v          Verbose output
@@ -52,16 +50,6 @@ pub enum Operation {
         scope: Scope,
     },
     List,
-    Unseed {
-        rid: RepoId,
-    },
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
-pub enum OperationName {
-    #[default]
-    Seed,
-    Unseed,
 }
 
 #[derive(Debug)]
@@ -78,7 +66,6 @@ impl Args for Options {
         let mut rid: Option<RepoId> = None;
         let mut scope: Option<Scope> = None;
         let mut fetch: Option<bool> = None;
-        let mut op: Option<OperationName> = None;
         let mut verbose = false;
 
         while let Some(arg) = parser.next()? {
@@ -86,17 +73,14 @@ impl Args for Options {
                 Value(val) => {
                     rid = Some(term::args::rid(val)?);
                 }
-                Long("delete") | Short('d') if op.is_none() => {
-                    op = Some(OperationName::Unseed);
-                }
-                Long("scope") if op.unwrap_or_default() == OperationName::Seed => {
+                Long("scope") => {
                     let val = parser.value()?;
                     scope = Some(term::args::parse_value("scope", val)?);
                 }
-                Long("fetch") if op.unwrap_or_default() == OperationName::Seed => {
+                Long("fetch") => {
                     fetch = Some(true);
                 }
-                Long("no-fetch") if op.unwrap_or_default() == OperationName::Seed => {
+                Long("no-fetch") => {
                     fetch = Some(false);
                 }
                 Long("verbose") | Short('v') => verbose = true,
@@ -110,13 +94,10 @@ impl Args for Options {
         }
 
         let op = match rid {
-            Some(rid) => match op.unwrap_or_default() {
-                OperationName::Seed => Operation::Seed {
-                    rid,
-                    fetch: fetch.unwrap_or(true),
-                    scope: scope.unwrap_or(Scope::All),
-                },
-                OperationName::Unseed => Operation::Unseed { rid },
+            Some(rid) => Operation::Seed {
+                rid,
+                fetch: fetch.unwrap_or(true),
+                scope: scope.unwrap_or(Scope::All),
             },
             None => Operation::List,
         };
@@ -130,7 +111,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut node = radicle::Node::new(profile.socket());
 
     match options.op {
-        Operation::Unseed { rid } => delete(rid, &mut node, &profile)?,
         Operation::Seed { rid, fetch, scope } => {
             update(rid, scope, &mut node, &profile)?;
 

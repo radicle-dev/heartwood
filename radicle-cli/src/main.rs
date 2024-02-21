@@ -268,6 +268,13 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "unseed" => {
+            term::run_command_args::<rad_unseed::Options, _>(
+                rad_unseed::HELP,
+                rad_unseed::run,
+                args.to_vec(),
+            );
+        }
         "remote" => term::run_command_args::<rad_remote::Options, _>(
             rad_remote::HELP,
             rad_remote::run,
