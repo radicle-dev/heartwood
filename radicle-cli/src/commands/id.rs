@@ -194,7 +194,9 @@ impl Args for Options {
                     let val = values
                         .next()
                         .ok_or(anyhow!("expected payload value, eg. '\"heartwood\"'"))?;
-                    let val = json::from_str(val.to_string_lossy().to_string().as_str())?;
+                    let val = val.to_string_lossy().to_string();
+                    let val = json::from_str(val.as_str())
+                        .map_err(|e| anyhow!("invalid JSON value `{val}`: {e}"))?;
 
                     payload.push((id, key, val));
                 }
