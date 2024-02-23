@@ -45,6 +45,9 @@ tree-sitter-bash = { version = "0.20" }
 tree-sitter-go = { version = "0.20.0" }
 tree-sitter-md = { version = "0.1.5" }
 zeroize = { version = "1.1" }
+clap = { path = "/home/icetan/src/radicle/clap", features = ["derive"] }
+clap_complete = { path = "/home/icetan/src/radicle/clap/clap_complete", features = ["unstable-dynamic"] }
+
 
 [dependencies.radicle]
 version = "0"
