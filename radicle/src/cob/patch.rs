@@ -632,7 +632,14 @@ impl Patch {
                 Lifecycle::Archived { .. } => actor == author,
             }),
             // Only delegates can carry out these actions.
-            Action::Label { .. } => Authorization::Deny,
+            Action::Label { labels } => {
+                if labels == &self.labels {
+                    // No-op is allowed for backwards compatibility.
+                    Authorization::Allow
+                } else {
+                    Authorization::Deny
+                }
+            }
             Action::Assign { .. } => Authorization::Deny,
             Action::Merge { .. } => match self.target() {
                 MergeTarget::Delegates => Authorization::Deny,

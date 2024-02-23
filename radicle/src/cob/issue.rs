@@ -329,7 +329,14 @@ impl Issue {
         let author: ActorId = *self.author().id().as_key();
         let outcome = match action {
             // Only delegate can assign someone to an issue.
-            Action::Assign { .. } => Authorization::Deny,
+            Action::Assign { assignees } => {
+                if assignees == &self.assignees {
+                    // No-op is allowed for backwards compatibility.
+                    Authorization::Allow
+                } else {
+                    Authorization::Deny
+                }
+            }
             // Issue authors can edit their own issues.
             Action::Edit { .. } => Authorization::from(*actor == author),
             // Issue authors can close or re-open their own issue.
@@ -338,7 +345,14 @@ impl Issue {
                 State::Open => *actor == author,
             }),
             // Only delegate can label an issue.
-            Action::Label { .. } => Authorization::Deny,
+            Action::Label { labels } => {
+                if labels == &self.labels {
+                    // No-op is allowed for backwards compatibility.
+                    Authorization::Allow
+                } else {
+                    Authorization::Deny
+                }
+            }
             // All roles can comment on an issues
             Action::Comment { .. } => Authorization::Allow,
             // All roles can edit or redact their own comments.
