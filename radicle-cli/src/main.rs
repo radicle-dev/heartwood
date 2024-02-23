@@ -7,6 +7,7 @@ use anyhow::anyhow;
 use radicle::version::Version;
 use radicle_cli::commands::*;
 use radicle_cli::terminal as term;
+use radicle_cli::cli;
 
 pub const NAME: &str = "rad";
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -226,11 +227,11 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             );
         }
         "issue" => {
-            term::run_command_args::<rad_issue::Options, _>(
-                rad_issue::HELP,
-                rad_issue::run,
-                args.to_vec(),
-            );
+            let options = cli::to_issue_options()?;
+            rad_issue::run(options, term::profile()?)?;
+        }
+        "complete" => {
+            cli::completer(args.to_vec());
         }
         "ls" => {
             term::run_command_args::<rad_ls::Options, _>(rad_ls::HELP, rad_ls::run, args.to_vec());
