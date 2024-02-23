@@ -18,7 +18,7 @@ use localtime::LocalTime;
 use netservices::resource::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
 use netservices::session::{ProtocolArtifact, Socks5Session};
 use netservices::{NetConnection, NetProtocol, NetReader, NetWriter};
-use reactor::{ResourceId, Timestamp};
+use reactor::{ResourceId, ResourceType, Timestamp};
 
 use radicle::collections::RandomMap;
 use radicle::node::NodeId;
@@ -456,20 +456,26 @@ where
     ) {
         match event {
             ListenerEvent::Accepted(connection) => {
-                let addr = connection.remote_addr();
+                let Ok(addr) = connection.remote_addr() else {
+                    log::warn!(target: "wire", "Accepted connection doesn't have remote address; dropping..");
+                    drop(connection);
+
+                    return;
+                };
+                let addr: NetAddr<HostName> = addr.into();
                 let fd = connection.as_raw_fd();
                 log::debug!(target: "wire", "Accepting inbound connection from {addr} (fd={fd})..");
 
                 // If the service doesn't want to accept this connection,
                 // we drop the connection here, which disconnects the socket.
-                if !self.service.accepted(NetAddr::from(addr.clone()).into()) {
+                if !self.service.accepted(addr.clone().into()) {
                     log::debug!(target: "wire", "Rejecting inbound connection from {addr} (fd={fd})..");
                     drop(connection);
 
                     return;
                 }
 
-                let session = accept::<G>(connection, self.signer.clone());
+                let session = accept::<G>(addr.clone(), connection, self.signer.clone());
                 let transport = match NetTransport::with_session(session, Link::Inbound) {
                     Ok(transport) => transport,
                     Err(err) => {
@@ -478,13 +484,7 @@ where
                     }
                 };
 
-                self.inbound.insert(
-                    fd,
-                    Inbound {
-                        id: None,
-                        addr: addr.into(),
-                    },
-                );
+                self.inbound.insert(fd, Inbound { id: None, addr });
                 self.actions
                     .push_back(reactor::Action::RegisterTransport(transport))
             }
@@ -494,7 +494,11 @@ where
         }
     }
 
-    fn handle_registered(&mut self, fd: RawFd, id: ResourceId) {
+    fn handle_registered(&mut self, fd: RawFd, id: ResourceId, typ: ResourceType) {
+        if typ == ResourceType::Listener {
+            // Not interested in listener resource registration.
+            return;
+        }
         if let Some(outbound) = self.outbound.get_mut(&fd) {
             log::debug!(target: "wire", "Outbound peer resource registered for {} with id={id} (fd={fd})", outbound.nid);
             outbound.id = Some(id);
@@ -837,10 +841,7 @@ where
                     }
                 }
                 Io::Wakeup(d) => {
-                    self.actions.push_back(reactor::Action::SetTimer(
-                        // TODO: Remove this when `io-reactor` can handle `0` duration timeouts.
-                        d.max(localtime::LocalDuration::from_millis(1)).into(),
-                    ));
+                    self.actions.push_back(reactor::Action::SetTimer(d.into()));
                 }
                 Io::Fetch {
                     rid,
@@ -924,16 +925,11 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
 
 /// Accept a new connection.
 pub fn accept<G: Signer + Ecdh<Pk = NodeId>>(
+    remote_addr: NetAddr<HostName>,
     connection: net::TcpStream,
     signer: G,
 ) -> WireSession<G> {
-    session::<G>(
-        connection.remote_addr().into(),
-        None,
-        connection,
-        signer,
-        false,
-    )
+    session::<G>(remote_addr, None, connection, signer, false)
 }
 
 /// Create a new [`WireSession`].

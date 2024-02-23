@@ -1604,9 +1604,9 @@ dependencies = [
 
 [[package]]
 name = "io-reactor"
-version = "0.3.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2457e8fb1b1f298809fcd93cd15d485f52ef565f7ad47970583c7a80ae6c7e78"
+checksum = "bd2eb3f6ef3b908c8144cd1d1a3069ecfdb60cbc795a303fd2d17b96c1c67c77"
 dependencies = [
  "amplify",
  "crossbeam-channel",
@@ -1838,9 +1838,9 @@ dependencies = [
 
 [[package]]
 name = "netservices"
-version = "0.5.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e227ff39744a414d32b9b473266c1739a950b89cd03694a58b624f4bde926c10"
+checksum = "dcd7e1d8a6763072326ece5a4329c6a924d7e8889a301334169e46613c5ef7a4"
 dependencies = [
  "amplify",
  "cyphernet",
