@@ -4,7 +4,7 @@ First, let's create a patch.
 $ git checkout -b feature/1 -q
 $ git commit --allow-empty -q -m "First change"
 $ git push rad HEAD:refs/patches
-✓ Patch b082560898736233790dedff7b1a725b18614480 opened
+✓ Patch 696ec5508494692899337afe6713fe1796d0315c opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -36,7 +36,7 @@ committer radicle <radicle@localhost> 1671125284 +0000
 Finally, we push master and expect the patch to be merged.
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad master
-✓ Patch b082560898736233790dedff7b1a725b18614480 merged
+✓ Patch 696ec5508494692899337afe6713fe1796d0315c merged
 ✓ Canonical head updated to 737a10cfa29111afeb0d43cf3545cee386b939ec
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..737a10c  master -> master

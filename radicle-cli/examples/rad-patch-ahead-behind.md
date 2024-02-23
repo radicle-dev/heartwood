@@ -37,7 +37,7 @@ $ git log --graph --decorate --abbrev-commit --pretty=oneline --all
 Then we create a patch from `feature/1`:
 ``` (stderr)
 $ git push rad feature/1:refs/patches
-✓ Patch 0d1b997bc21ffa5cb7cda244d94e1d6bfcc4a513 opened
+✓ Patch 217f050f8891def8fb863f7c0b4f85c89f97299d opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   feature/1 -> refs/patches
 ```
@@ -48,17 +48,17 @@ $ rad patch list
 ╭────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title     Author                  Head     +   -   Updated │
 ├────────────────────────────────────────────────────────────────────────┤
-│ ●  0d1b997  Add Alan  z6MknSL…StBU8Vi  (you)  5c88a79  +1  -0  now     │
+│ ●  217f050  Add Alan  z6MknSL…StBU8Vi  (you)  5c88a79  +1  -0  now     │
 ╰────────────────────────────────────────────────────────────────────────╯
 ```
 
 When showing the patch, we see that it is `ahead 1, behind 1`, since master has
 diverged by one commit:
 ```
-$ rad patch show -v -p 0d1b997
+$ rad patch show -v -p 217f050
 ╭────────────────────────────────────────────────────╮
 │ Title     Add Alan                                 │
-│ Patch     0d1b997bc21ffa5cb7cda244d94e1d6bfcc4a513 │
+│ Patch     217f050f8891def8fb863f7c0b4f85c89f97299d │
 │ Author    z6MknSL…StBU8Vi (you)                    │
 │ Head      5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7 │
 │ Base      f64fb2c8fe28f7c458c72ec8d700373924794943 │
@@ -93,7 +93,7 @@ $ git checkout -q -b feature/2 feature/1
 $ sed -i '$a Mel Farna' CONTRIBUTORS
 $ git commit -a -q -m "Add Mel"
 $ git push -o patch.message="Add Mel" rad HEAD:refs/patches
-✓ Patch f0064bba0336095123345a1f983edb72242f592c opened
+✓ Patch e22ff008e2a0ed47262890d13263031d7555b555 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -101,10 +101,10 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 When we look at the patch, we see that it has both commits, because this new
 patch uses the same base as the previous patch:
 ```
-$ rad patch show -v f0064bba0336095123345a1f983edb72242f592c
+$ rad patch show -v e22ff008e2a0ed47262890d13263031d7555b555
 ╭────────────────────────────────────────────────────╮
 │ Title     Add Mel                                  │
-│ Patch     f0064bba0336095123345a1f983edb72242f592c │
+│ Patch     e22ff008e2a0ed47262890d13263031d7555b555 │
 │ Author    z6MknSL…StBU8Vi (you)                    │
 │ Head      7f63fcbcf23fc39eea784c091ad3d20d7e4bd005 │
 │ Base      f64fb2c8fe28f7c458c72ec8d700373924794943 │
@@ -124,7 +124,7 @@ If we want to instead create a "stacked" patch, we can do so with the
 
 ``` (stderr)
 $ git push -o patch.message="Add Mel #2" -o patch.base=HEAD^ rad HEAD:refs/patches
-✓ Patch 9fbe7185ab3246dec08391f833fffb6c40f0760e opened
+✓ Patch a467ffa260c4fbe355b6fb550ba0c4956078717e opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -136,10 +136,10 @@ However, since the patch is still intended to be merged into `master`, we see
 that it is still two commits ahead and one behind from `master`.
 
 ```
-$ rad patch show -v 9fbe7185ab3246dec08391f833fffb6c40f0760e
+$ rad patch show -v a467ffa260c4fbe355b6fb550ba0c4956078717e
 ╭────────────────────────────────────────────────────╮
 │ Title     Add Mel #2                               │
-│ Patch     9fbe7185ab3246dec08391f833fffb6c40f0760e │
+│ Patch     a467ffa260c4fbe355b6fb550ba0c4956078717e │
 │ Author    z6MknSL…StBU8Vi (you)                    │
 │ Head      7f63fcbcf23fc39eea784c091ad3d20d7e4bd005 │
 │ Base      5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7 │

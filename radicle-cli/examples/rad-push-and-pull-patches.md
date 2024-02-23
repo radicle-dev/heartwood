@@ -12,9 +12,9 @@ $ git checkout -b alice/1 -q
 $ git rev-parse HEAD
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 $ git checkout master -q
-$ rad patch checkout 4895eaa
-✓ Switched to branch patch/4895eaa
-✓ Branch patch/4895eaa setup to track rad/patches/4895eaa8c751e0cd75ce5ef39c65e0cc05b7235d
+$ rad patch checkout d004b67
+✓ Switched to branch patch/d004b67
+✓ Branch patch/d004b67 setup to track rad/patches/d004b67355456c46de10c0d287e4a791ad1a6945
 $ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 ✓ Follow policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
@@ -23,19 +23,19 @@ $ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 $ git checkout master -q
 $ cat .git/FETCH_HEAD
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	not-for-merge	branch 'master' of rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-8d5f1bae4b69d8e3f6cbfc6f4bd675ed19990afc	not-for-merge	branch 'patches/4895eaa8c751e0cd75ce5ef39c65e0cc05b7235d' of rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+8d5f1bae4b69d8e3f6cbfc6f4bd675ed19990afc	not-for-merge	branch 'patches/d004b67355456c46de10c0d287e4a791ad1a6945' of rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 $ git rev-parse master
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 ```
 
 ``` ~alice (stderr)
-$ git checkout patch/4895eaa -q
+$ git checkout patch/d004b67 -q
 $ git commit --allow-empty -m "Changes #2" -q
 $ git push
-✓ Patch 4895eaa updated to revision aa9f560826c79344536fae8770687b9d4fbb99cd
+✓ Patch d004b67 updated to revision 2eb705c3da98e05c083df15be5b1bd6856a0bd77
 ✓ Synced with 1 node(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- * [new branch]      patch/4895eaa -> patches/4895eaa8c751e0cd75ce5ef39c65e0cc05b7235d
+ * [new branch]      patch/d004b67 -> patches/d004b67355456c46de10c0d287e4a791ad1a6945
 ```
 
 ``` ~bob
@@ -47,27 +47,27 @@ $ git push
 $ git checkout master -q
 $ git pull
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
- + c2aaf1c...8d5f1ba patches/4895eaa8c751e0cd75ce5ef39c65e0cc05b7235d -> rad/patches/4895eaa8c751e0cd75ce5ef39c65e0cc05b7235d  (forced update)
+ + c2aaf1c...8d5f1ba patches/d004b67355456c46de10c0d287e4a791ad1a6945 -> rad/patches/d004b67355456c46de10c0d287e4a791ad1a6945  (forced update)
 $ git checkout - -q
 $ git commit --allow-empty -m "Changes #3" -q
 $ git push
-✓ Patch 4895eaa updated to revision 9f997dc90ecc5e8a0562a81356ed0432fe3bdaf8
+✓ Patch d004b67 updated to revision 7b5015a8dac188bb0d44a334aa68a51298750b07
 ✓ Synced with 1 node(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   c2aaf1c..d9f8caf  patch/4895eaa -> patches/4895eaa8c751e0cd75ce5ef39c65e0cc05b7235d
+   c2aaf1c..d9f8caf  patch/d004b67 -> patches/d004b67355456c46de10c0d287e4a791ad1a6945
 ```
 
 ``` ~alice
 $ cat .git/FETCH_HEAD
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354		branch 'master' of rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-8d5f1bae4b69d8e3f6cbfc6f4bd675ed19990afc	not-for-merge	branch 'patches/4895eaa8c751e0cd75ce5ef39c65e0cc05b7235d' of rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+8d5f1bae4b69d8e3f6cbfc6f4bd675ed19990afc	not-for-merge	branch 'patches/d004b67355456c46de10c0d287e4a791ad1a6945' of rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ```
 
 ``` ~bob (stderr)
 $ git checkout master -q
 $ git pull
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
- + c2aaf1c...8d5f1ba patches/4895eaa8c751e0cd75ce5ef39c65e0cc05b7235d -> rad/patches/4895eaa8c751e0cd75ce5ef39c65e0cc05b7235d  (forced update)
+ + c2aaf1c...8d5f1ba patches/d004b67355456c46de10c0d287e4a791ad1a6945 -> rad/patches/d004b67355456c46de10c0d287e4a791ad1a6945  (forced update)
 ```
 
 ``` ~bob

@@ -36,9 +36,9 @@ $ rad sync status --sort-by alias
 ╭─────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   Node                      Address                  Status   Tip       Timestamp │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   alice   (you)             alice.radicle.xyz:8776            9f615f9   [  ...  ] │
-│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
-│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
+│ ●   alice   (you)             alice.radicle.xyz:8776            a9ce0d1   [  ...  ] │
+│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.xyz:8776     synced   a9ce0d1   [  ...  ] │
+│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.xyz:8776     synced   a9ce0d1   [  ...  ] │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 ```
 

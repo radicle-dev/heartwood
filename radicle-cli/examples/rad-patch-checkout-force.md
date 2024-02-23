@@ -13,7 +13,7 @@ $ git commit -v -m "Define power requirements"
 
 ``` ~alice (stderr)
 $ git push rad -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
-✓ Patch 0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f opened
+✓ Patch aa45913e757cacd46972733bddee5472c78fa32a opened
 ✓ Synced with 1 node(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
@@ -26,9 +26,9 @@ $ cd heartwood
 $ rad sync -f
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
 ✓ Fetched repository from 1 seed(s)
-$ rad patch checkout 0f3cd0b --name alice-init
+$ rad patch checkout aa45913 --name alice-init
 ✓ Switched to branch alice-init
-✓ Branch alice-init setup to track rad/patches/0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f
+✓ Branch alice-init setup to track rad/patches/aa45913e757cacd46972733bddee5472c78fa32a
 ```
 
 Meanwhile, we may see some more changes that we need to make, so we
@@ -45,10 +45,10 @@ $ git commit --message "Add README, just for the fun"
 
 ``` ~alice (stderr)
 $ git push rad -o patch.message="Add README, just for the fun"
-✓ Patch 0f3cd0b updated to revision 6e6644973e3ecd0965b7bc5743f05a5fe1c7bff9
+✓ Patch aa45913 updated to revision 3156bed9d64d4675d6cf56612d217fc5f4e8a53a
 ✓ Synced with 1 node(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   3e674d1..27857ec  flux-capacitor-power -> patches/0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f
+   3e674d1..27857ec  flux-capacitor-power -> patches/aa45913e757cacd46972733bddee5472c78fa32a
 ```
 
 Bob fetches these new changes and can see their branch is now behind:
@@ -56,13 +56,13 @@ Bob fetches these new changes and can see their branch is now behind:
 ``` ~bob (stderr)
 $ git fetch rad
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-   3e674d1..27857ec  patches/0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f -> rad/patches/0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f
+   3e674d1..27857ec  patches/aa45913e757cacd46972733bddee5472c78fa32a -> rad/patches/aa45913e757cacd46972733bddee5472c78fa32a
 ```
 
 ``` ~bob
 $ git status
 On branch alice-init
-Your branch is behind 'rad/patches/0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f' by 1 commit, and can be fast-forwarded.
+Your branch is behind 'rad/patches/aa45913e757cacd46972733bddee5472c78fa32a' by 1 commit, and can be fast-forwarded.
   (use "git pull" to update your local branch)
 
 nothing to commit, working tree clean
@@ -74,17 +74,17 @@ overwrite any changes. Bob can choose to use the `--force` (`-f`) flag to
 ensure that they are looking at the latest changes:
 
 ``` ~bob (fail)
-$ rad patch checkout 0f3cd0b --name alice-init
+$ rad patch checkout aa45913 --name alice-init
 ✗ Performing checkout... <canceled>
 ✗ Error: branch 'alice-init' already exists (use `--force` to overwrite)
 ```
 
 ``` ~bob
-$ rad patch checkout 0f3cd0b -f --name alice-init
+$ rad patch checkout aa45913 -f --name alice-init
 ✓ Switched to branch alice-init
 $ git status
 On branch alice-init
-Your branch is up to date with 'rad/patches/0f3cd0b3a69c8f70bfa2d3366122c07704e5bb5f'.
+Your branch is up to date with 'rad/patches/aa45913e757cacd46972733bddee5472c78fa32a'.
 
 nothing to commit, working tree clean
 ```

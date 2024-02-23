@@ -12,7 +12,7 @@ $ git push rad -o patch.message="Changes" HEAD:refs/patches
 $ git checkout master -q
 $ git branch -D alice/1 -q
 $ git update-ref -d refs/remotes/rad/alice/1
-$ git update-ref -d refs/remotes/rad/patches/eebe0783450d21db6e2a956b586fb728e747b12e
+$ git update-ref -d refs/remotes/rad/patches/5e2dedcc5d515fcbc1cca483d3376609fe889bfb
 $ git gc --prune=now
 $ git branch -r
   rad/master
@@ -23,5 +23,5 @@ $ git pull
 Already up to date.
 $ git branch -r
   rad/master
-  rad/patches/eebe0783450d21db6e2a956b586fb728e747b12e
+  rad/patches/5e2dedcc5d515fcbc1cca483d3376609fe889bfb
 ```

@@ -10,7 +10,7 @@ $ git commit -m "Add README" -q
 $ git push rad HEAD:refs/patches
 ```
 ```
-$ rad patch diff b1fbd2c
+$ rad patch diff 147309e
 ╭───────────────────────────╮
 │ README.md +1 ❲created❳    │
 ├───────────────────────────┤
@@ -31,7 +31,7 @@ $ git commit --amend -q
 $ git push -f
 ```
 ```
-$ rad patch diff b1fbd2c
+$ rad patch diff 147309e
 ╭─────────────────────────────╮
 │ RADICLE.md +1 ❲created❳     │
 ├─────────────────────────────┤
@@ -52,7 +52,7 @@ Buf if we only want to see the changes from the first revision, we can do that
 too.
 
 ```
-$ rad patch diff b1fbd2c --revision b1fbd2c
+$ rad patch diff 147309e --revision 147309e
 ╭───────────────────────────╮
 │ README.md +1 ❲created❳    │
 ├───────────────────────────┤

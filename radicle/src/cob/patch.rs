@@ -1132,7 +1132,19 @@ impl store::Cob for Patch {
         let mut patch = Patch::new(title, target, (RevisionId(op.id), revision));
 
         for action in actions {
-            patch.action(action, op.id, op.author, op.timestamp, &[], &doc, repo)?;
+            match patch.authorization(&action, &op.author, &doc)? {
+                Authorization::Allow => {
+                    patch.action(action, op.id, op.author, op.timestamp, &[], &doc, repo)?;
+                }
+                Authorization::Deny => {
+                    return Err(Error::NotAuthorized(op.author, action));
+                }
+                Authorization::Unknown => {
+                    // Note that this shouldn't really happen since there's no concurrency in the
+                    // root operation.
+                    continue;
+                }
+            }
         }
         Ok(patch)
     }
@@ -2397,8 +2409,10 @@ where
         let (id, patch) = Transaction::initial("Create patch", &mut self.raw, signer, |tx| {
             tx.revision(description, base, oid)?;
             tx.edit(title, target)?;
-            tx.label(labels.to_owned())?;
 
+            if !labels.is_empty() {
+                tx.label(labels.to_owned())?;
+            }
             if state != Lifecycle::default() {
                 tx.lifecycle(state)?;
             }

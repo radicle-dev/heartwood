@@ -596,7 +596,7 @@ mod test {
             .unwrap();
         let mut db = Store::open(":memory:").unwrap();
         let qualified =
-            qualified!("refs/cobs/xyz.radicle.issue/d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61");
+            qualified!("refs/cobs/xyz.radicle.issue/d87dcfe8c2b3200e78b128d9b959cfdf7063fefe");
         let namespaced = qualified.with_namespace((&nid).into());
         let update = RefUpdate::Updated {
             name: namespaced.to_ref_string(),
@@ -622,7 +622,7 @@ mod test {
                 update,
                 kind: NotificationKind::Cob {
                     type_name: cob::issue::TYPENAME.clone(),
-                    id: "d185ee16a00bac874c0bcbc2a8ad80fdce5e1e61".parse().unwrap(),
+                    id: "d87dcfe8c2b3200e78b128d9b959cfdf7063fefe".parse().unwrap(),
                 },
                 status: NotificationStatus::Unread,
                 timestamp,

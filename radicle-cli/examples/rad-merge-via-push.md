@@ -4,7 +4,7 @@ Let's start by creating two patches.
 $ git checkout -b feature/1 -q
 $ git commit --allow-empty -q -m "First change"
 $ git push rad HEAD:refs/patches
-✓ Patch b082560898736233790dedff7b1a725b18614480 opened
+✓ Patch 696ec5508494692899337afe6713fe1796d0315c opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -12,7 +12,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 $ git checkout -b feature/2 -q master
 $ git commit --allow-empty -q -m "Second change"
 $ git push rad HEAD:refs/patches
-✓ Patch 80fe6a0c283d7209f8839c79bc90ff9ecd9fdedd opened
+✓ Patch 356f73863a8920455ff6e77cd9c805d68910551b opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -22,8 +22,8 @@ This creates some remote tracking branches for us:
 ```
 $ git branch -r
   rad/master
-  rad/patches/80fe6a0c283d7209f8839c79bc90ff9ecd9fdedd
-  rad/patches/b082560898736233790dedff7b1a725b18614480
+  rad/patches/356f73863a8920455ff6e77cd9c805d68910551b
+  rad/patches/696ec5508494692899337afe6713fe1796d0315c
 ```
 
 And some remote refs:
@@ -36,13 +36,13 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
     │   ├── xyz.radicle.id
     │   │   └── 0656c217f917c3e06234771e9ecae53aba5e173e
     │   └── xyz.radicle.patch
-    │       ├── 80fe6a0c283d7209f8839c79bc90ff9ecd9fdedd
-    │       └── b082560898736233790dedff7b1a725b18614480
+    │       ├── 356f73863a8920455ff6e77cd9c805d68910551b
+    │       └── 696ec5508494692899337afe6713fe1796d0315c
     ├── heads
     │   ├── master
     │   └── patches
-    │       ├── 80fe6a0c283d7209f8839c79bc90ff9ecd9fdedd
-    │       └── b082560898736233790dedff7b1a725b18614480
+    │       ├── 356f73863a8920455ff6e77cd9c805d68910551b
+    │       └── 696ec5508494692899337afe6713fe1796d0315c
     └── rad
         ├── id
         └── sigrefs
@@ -61,8 +61,8 @@ When we push to `rad/master`, we automatically merge the patches:
 
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad master
-✓ Patch 80fe6a0c283d7209f8839c79bc90ff9ecd9fdedd merged
-✓ Patch b082560898736233790dedff7b1a725b18614480 merged
+✓ Patch 356f73863a8920455ff6e77cd9c805d68910551b merged
+✓ Patch 696ec5508494692899337afe6713fe1796d0315c merged
 ✓ Canonical head updated to d6399c71702b40bae00825b3c444478d06b4e91c
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..d6399c7  master -> master
@@ -75,10 +75,10 @@ $ rad patch --merged
 │ ✔  [ ... ]  Second change  alice   (you)  daf349f  +0  -0  now     │
 │ ✔  [ ... ]  First change   alice   (you)  20aa5dd  +0  -0  now     │
 ╰────────────────────────────────────────────────────────────────────╯
-$ rad patch show 80fe6a0c283d7209f8839c79bc90ff9ecd9fdedd
+$ rad patch show 356f73863a8920455ff6e77cd9c805d68910551b
 ╭────────────────────────────────────────────────────────────────╮
 │ Title     Second change                                        │
-│ Patch     80fe6a0c283d7209f8839c79bc90ff9ecd9fdedd             │
+│ Patch     356f73863a8920455ff6e77cd9c805d68910551b             │
 │ Author    alice (you)                                          │
 │ Head      daf349ff76bedf48c5f292290b682ee7be0683cf             │
 │ Branches  feature/2                                            │
@@ -88,7 +88,7 @@ $ rad patch show 80fe6a0c283d7209f8839c79bc90ff9ecd9fdedd
 │ daf349f Second change                                          │
 ├────────────────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (daf349f) now                          │
-│   └─ ✓ merged by alice (you) at revision 80fe6a0 (d6399c7) now │
+│   └─ ✓ merged by alice (you) at revision 356f738 (d6399c7) now │
 ╰────────────────────────────────────────────────────────────────╯
 ```
 
@@ -109,8 +109,8 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
     │   ├── xyz.radicle.id
     │   │   └── 0656c217f917c3e06234771e9ecae53aba5e173e
     │   └── xyz.radicle.patch
-    │       ├── 80fe6a0c283d7209f8839c79bc90ff9ecd9fdedd
-    │       └── b082560898736233790dedff7b1a725b18614480
+    │       ├── 356f73863a8920455ff6e77cd9c805d68910551b
+    │       └── 696ec5508494692899337afe6713fe1796d0315c
     ├── heads
     │   └── master
     └── rad

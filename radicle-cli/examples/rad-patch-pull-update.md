@@ -53,22 +53,22 @@ Bob then opens a patch.
 $ git checkout -b bob/feature -q
 $ git commit --allow-empty -m "Bob's commit #1" -q
 $ git push rad -o sync -o patch.message="Bob's patch" HEAD:refs/patches
-✓ Patch d83a9a0e808dea392a10c0a62246484a18842039 opened
+✓ Patch 55b9721ed7f6bfec38f43729e9b6631c5dc812fb opened
 ✓ Synced with 1 node(s)
 To rad://zhbMU4DUXrzB8xT6qAJh6yZ7bFMK/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new reference]   HEAD -> refs/patches
 ```
 ``` ~bob
 $ git status --short --branch
-## bob/feature...rad/patches/d83a9a0e808dea392a10c0a62246484a18842039
+## bob/feature...rad/patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb
 ```
 
 Alice checks it out.
 
 ``` ~alice
-$ rad patch checkout d83a9a0
-✓ Switched to branch patch/d83a9a0
-✓ Branch patch/d83a9a0 setup to track rad/patches/d83a9a0e808dea392a10c0a62246484a18842039
+$ rad patch checkout 55b9721ed7f6bfec38f43729e9b6631c5dc812fb
+✓ Switched to branch patch/55b9721
+✓ Branch patch/55b9721 setup to track rad/patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb
 $ git show
 commit bdcdb30b3c0f513620dd0f1c24ff8f4f71de956b
 Author: radicle <radicle@localhost>
@@ -82,19 +82,19 @@ Bob then updates the patch.
 ``` ~bob (stderr)
 $ git commit --allow-empty -m "Bob's commit #2" -q
 $ git push rad -o sync -o patch.message="Updated."
-✓ Patch d83a9a0 updated to revision 37d68f4660541fc4fcbba5b7f81cc8f79b6cb05c
+✓ Patch 55b9721 updated to revision f91e056da05b2d9a58af1160c76245bc3debf7a8
 ✓ Synced with 1 node(s)
 To rad://zhbMU4DUXrzB8xT6qAJh6yZ7bFMK/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-   bdcdb30..cad2666  bob/feature -> patches/d83a9a0e808dea392a10c0a62246484a18842039
+   bdcdb30..cad2666  bob/feature -> patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb
 ```
 
 Alice pulls the update.
 
 ``` ~alice
-$ rad patch show d83a9a0
+$ rad patch show 55b9721
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title    Bob's patch                                                │
-│ Patch    d83a9a0e808dea392a10c0a62246484a18842039                   │
+│ Patch    55b9721ed7f6bfec38f43729e9b6631c5dc812fb                   │
 │ Author   bob z6Mkt67…v4N1tRk                                        │
 │ Head     cad2666a8a2250e4dee175ed5044be2c251ff08b                   │
 │ Commits  ahead 2, behind 0                                          │
@@ -104,16 +104,16 @@ $ rad patch show d83a9a0
 │ bdcdb30 Bob's commit #1                                             │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by bob z6Mkt67…v4N1tRk (bdcdb30) now                       │
-│ ↑ updated to 37d68f4660541fc4fcbba5b7f81cc8f79b6cb05c (cad2666) now │
+│ ↑ updated to f91e056da05b2d9a58af1160c76245bc3debf7a8 (cad2666) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 $ git ls-remote rad
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
-cad2666a8a2250e4dee175ed5044be2c251ff08b	refs/heads/patches/d83a9a0e808dea392a10c0a62246484a18842039
+cad2666a8a2250e4dee175ed5044be2c251ff08b	refs/heads/patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb
 ```
 ``` ~alice
 $ git fetch rad
 $ git status --short --branch
-## patch/d83a9a0...rad/patches/d83a9a0e808dea392a10c0a62246484a18842039 [behind 1]
+## patch/55b9721...rad/patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb [behind 1]
 ```
 ``` ~alice
 $ git pull

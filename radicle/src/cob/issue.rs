@@ -144,7 +144,19 @@ impl store::Cob for Issue {
         let mut issue = Issue::new(thread);
 
         for action in actions {
-            issue.action(action, op.id, op.author, op.timestamp, &[], &doc, repo)?;
+            match issue.authorization(&action, &op.author, &doc)? {
+                Authorization::Allow => {
+                    issue.action(action, op.id, op.author, op.timestamp, &[], &doc, repo)?;
+                }
+                Authorization::Deny => {
+                    return Err(Error::NotAuthorized(op.author, action));
+                }
+                Authorization::Unknown => {
+                    // Note that this shouldn't really happen since there's no concurrency in the
+                    // root operation.
+                    continue;
+                }
+            }
         }
         Ok(issue)
     }
@@ -736,10 +748,14 @@ where
     ) -> Result<IssueMut<'a, 'g, R>, Error> {
         let (id, issue) = Transaction::initial("Create issue", &mut self.raw, signer, |tx| {
             tx.thread(description, embeds)?;
-            tx.assign(assignees.to_owned())?;
             tx.edit(title)?;
-            tx.label(labels.to_owned())?;
 
+            if !assignees.is_empty() {
+                tx.assign(assignees.to_owned())?;
+            }
+            if !labels.is_empty() {
+                tx.label(labels.to_owned())?;
+            }
             Ok(())
         })?;
 

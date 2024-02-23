@@ -2053,7 +2053,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_issues_create() {
-        const CREATED_ISSUE_ID: &str = "b2d0999498f98b0d1fa12d859d2d0306380333a0";
+        const CREATED_ISSUE_ID: &str = "fcd0d5940b55df596cf8079fd1845903f1104bcd";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -2528,7 +2528,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_create_patches() {
-        const CREATED_PATCH_ID: &str = "e21d5b18f8d6c75cfa9c35186b821b1764cb1ab8";
+        const CREATED_PATCH_ID: &str = "9aabc4055fd811f915c55e9a6ea9f525aa3e88f2";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -2835,7 +2835,7 @@ mod routes {
                   "reviews": [],
                 },
                 {
-                  "id": "46fc3974dac96255e73daf2e1169cd929e713064",
+                  "id": "cccf3b0675220f25b054b6625d84611cb6506d9a",
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
@@ -3453,7 +3453,7 @@ mod routes {
                   "timestamp": TIMESTAMP,
                   "reviews": [
                     {
-                      "id": "37ed60b8a11949d5db32bce3dd5ab117d3a82841",
+                      "id": "140a44a4eac2cdb74b2f5f95a9dce97847eb9636",
                       "author": {
                           "id": CONTRIBUTOR_DID,
                       },
@@ -3461,7 +3461,7 @@ mod routes {
                       "summary": "A small review",
                       "comments": [
                         {
-                          "id": "9aebcd3b27fabb1700427d8ee7b8958b9a50a8f8",
+                          "id": "0dcfca53416761cf975cc4cd6d452790cee06b49",
                           "author": {
                             "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
                           },
