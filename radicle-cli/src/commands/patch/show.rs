@@ -30,8 +30,7 @@ pub fn run(
     verbose: bool,
     profile: &Profile,
     stored: &Repository,
-    // TODO: Should be optional.
-    workdir: &git::raw::Repository,
+    workdir: Option<&git::raw::Repository>,
 ) -> anyhow::Result<()> {
     let patches = profile.patches(stored)?;
     let Some(patch) = patches.get(patch_id)? else {
@@ -42,7 +41,7 @@ pub fn run(
         println!("{:#?}", patch);
         return Ok(());
     }
-    term::patch::show(&patch, patch_id, verbose, stored, Some(workdir), profile)?;
+    term::patch::show(&patch, patch_id, verbose, stored, workdir, profile)?;
 
     if diff {
         term::blank();

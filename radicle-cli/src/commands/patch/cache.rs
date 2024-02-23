@@ -16,10 +16,13 @@ pub fn run(id: Option<PatchId>, repository: &Repository, profile: &Profile) -> a
         }
         None => patches.write_all(|result, progress| {
             match result {
-                Ok((id, _)) => term::success!("Successfully cached patch `{id}`"),
+                Ok((id, _)) => term::success!(
+                    "Successfully cached patch {id} ({}/{})",
+                    progress.seen(),
+                    progress.total()
+                ),
                 Err(e) => term::warning(format!("Failed to retrieve patch: {e}")),
             };
-            term::info!("Cached {} of {}", progress.seen(), progress.total());
             ControlFlow::Continue(())
         })?,
     }

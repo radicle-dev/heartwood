@@ -145,6 +145,7 @@ Checkout options
 
 Other options
 
+        --repo <rid>           Operate on the given repository (default: cwd)
         --[no-]announce        Announce changes made to the network
     -q, --quiet                Quiet output
         --help                 Print help
@@ -278,6 +279,7 @@ impl Operation {
 #[derive(Debug)]
 pub struct Options {
     pub op: Operation,
+    pub repo: Option<RepoId>,
     pub announce: bool,
     pub verbose: bool,
     pub quiet: bool,
@@ -309,6 +311,7 @@ impl Args for Options {
         let mut label_opts = LabelOptions::default();
         let mut review_op = review::Operation::default();
         let mut base_id = None;
+        let mut repo = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -503,6 +506,12 @@ impl Args for Options {
                 Long("quiet") | Short('q') => {
                     quiet = true;
                 }
+                Long("repo") => {
+                    let val = parser.value()?;
+                    let rid = term::args::rid(&val)?;
+
+                    repo = Some(rid);
+                }
                 Long("help") => {
                     return Err(Error::HelpManual { name: "rad-patch" }.into());
                 }
@@ -631,6 +640,7 @@ impl Args for Options {
         Ok((
             Options {
                 op,
+                repo,
                 verbose,
                 quiet,
                 announce,
@@ -643,11 +653,16 @@ impl Args for Options {
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
-    let (workdir, id) = radicle::rad::cwd()
-        .map_err(|_| anyhow!("this command must be run in the context of a repository"))?;
+    let (workdir, rid) = if let Some(rid) = options.repo {
+        (None, rid)
+    } else {
+        radicle::rad::cwd()
+            .map(|(workdir, rid)| (Some(workdir), rid))
+            .map_err(|_| anyhow!("this command must be run in the context of a repository"))?
+    };
 
     let profile = ctx.profile()?;
-    let repository = profile.storage.repository(id)?;
+    let repository = profile.storage.repository(rid)?;
     let announce = options.announce && options.op.is_announce();
 
     transport::local::register(profile.storage.clone());
@@ -673,7 +688,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 options.verbose,
                 &profile,
                 &repository,
-                &workdir,
+                workdir.as_ref(),
             )?;
         }
         Operation::Diff {
@@ -697,6 +712,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .as_ref()
                 .map(|base| base.resolve(&repository.backend))
                 .transpose()?;
+            let workdir = workdir.ok_or(anyhow!(
+                "this command must be run from a repository checkout"
+            ))?;
+
             update::run(
                 patch_id,
                 base_id,
@@ -728,6 +747,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .map(|rev| rev.resolve::<radicle::git::Oid>(&repository.backend))
                 .transpose()?
                 .map(patch::RevisionId::from);
+            let workdir = workdir.ok_or(anyhow!(
+                "this command must be run from a repository checkout"
+            ))?;
             checkout::run(
                 &patch::PatchId::from(patch_id),
                 revision_id,
@@ -798,7 +820,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let patch = patches
                 .get(&patch_id)?
                 .ok_or_else(|| anyhow!("patch {patch_id} not found"))?;
-
+            let workdir = workdir.ok_or(anyhow!(
+                "this command must be run from a repository checkout"
+            ))?;
             radicle::rad::setup_patch_upstream(&patch_id, *patch.head(), &workdir, true)?;
         }
         Operation::Cache { patch_id } => {
@@ -811,7 +835,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     if announce {
         let mut node = Node::new(profile.socket());
-        node::announce(id, &mut node)?;
+        node::announce(rid, &mut node)?;
     }
     Ok(())
 }

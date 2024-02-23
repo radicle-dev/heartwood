@@ -16,10 +16,13 @@ pub fn run(id: Option<IssueId>, repository: &Repository, profile: &Profile) -> a
         }
         None => issues.write_all(|result, progress| {
             match result {
-                Ok((id, _)) => term::success!("Successfully cached issue `{id}`"),
+                Ok((id, _)) => term::success!(
+                    "Successfully cached issue {id} ({}/{})",
+                    progress.seen(),
+                    progress.total()
+                ),
                 Err(e) => term::warning(format!("Failed to retrieve issue: {e}")),
             };
-            term::info!("Cached {} of {}", progress.seen(), progress.total());
             ControlFlow::Continue(())
         })?,
     }

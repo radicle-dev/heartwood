@@ -13,7 +13,7 @@ use radicle::cob::issue::{CloseReason, State};
 use radicle::cob::thread;
 use radicle::crypto::Signer;
 use radicle::issue::cache::Issues as _;
-use radicle::prelude::Did;
+use radicle::prelude::{Did, RepoId};
 use radicle::profile;
 use radicle::storage;
 use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
@@ -69,6 +69,7 @@ Show options
 
 Options
 
+        --repo <rid>       Operate on the given repository (default: cwd)
         --no-announce      Don't announce issue to peers
         --header           Show only the issue header, hiding the comments
     -q, --quiet            Don't print anything
@@ -167,6 +168,7 @@ pub struct LabelOptions {
 #[derive(Debug)]
 pub struct Options {
     pub op: Operation,
+    pub repo: Option<RepoId>,
     pub announce: bool,
     pub quiet: bool,
 }
@@ -194,6 +196,7 @@ impl Args for Options {
         let mut debug = false;
         let mut assign_opts = AssignOptions::default();
         let mut label_opts = LabelOptions::default();
+        let mut repo = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -337,6 +340,12 @@ impl Args for Options {
                 Long("quiet") | Short('q') => {
                     quiet = true;
                 }
+                Long("repo") => {
+                    let val = parser.value()?;
+                    let rid = term::args::rid(&val)?;
+
+                    repo = Some(rid);
+                }
 
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "c" | "comment" => op = Some(OperationName::Comment),
@@ -412,6 +421,7 @@ impl Args for Options {
         Ok((
             Options {
                 op,
+                repo,
                 announce,
                 quiet,
             },
@@ -423,7 +433,11 @@ impl Args for Options {
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let signer = term::signer(&profile)?;
-    let (_, rid) = radicle::rad::cwd()?;
+    let rid = if let Some(rid) = options.repo {
+        rid
+    } else {
+        radicle::rad::cwd().map(|(_, rid)| rid)?
+    };
     let repo = profile.storage.repository_mut(rid)?;
     let announce = options.announce
         && matches!(
