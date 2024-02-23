@@ -277,6 +277,22 @@ pub mod patch {
     }
 }
 
+/// Identity formatting
+pub mod identity {
+    use super::*;
+    use radicle::cob::identity::State;
+
+    /// Format identity revision state.
+    pub fn state(s: &State) -> term::Paint<String> {
+        match s {
+            State::Active { .. } => term::format::tertiary(s.to_string()),
+            State::Accepted { .. } => term::format::positive(s.to_string()),
+            State::Rejected { .. } => term::format::negative(s.to_string()),
+            State::Stale { .. } => term::format::dim(s.to_string()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

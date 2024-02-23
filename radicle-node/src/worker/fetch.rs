@@ -170,6 +170,11 @@ fn notify(
                 // Don't notify about signed refs.
                 continue;
             }
+            if r == *git::refs::storage::IDENTITY_BRANCH {
+                // Don't notify about the peers's identity branch pointer, since there will
+                // be a separate notification on the identity COB itself.
+                continue;
+            }
             if let Some(rest) = r.strip_prefix(git::refname!("refs/heads/patches")) {
                 if radicle::cob::ObjectId::from_str(rest.as_str()).is_ok() {
                     // Don't notify about patch branches, since we already get

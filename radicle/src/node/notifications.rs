@@ -1,6 +1,7 @@
 pub mod store;
 
 use localtime::LocalTime;
+use serde::Serialize;
 use sqlite as sql;
 use thiserror::Error;
 
@@ -19,7 +20,7 @@ pub type StoreReader = Store<store::Read>;
 /// Unique identifier for a notification.
 pub type NotificationId = u32;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize)]
 pub enum NotificationStatus {
     ReadAt(LocalTime),
     Unread,
@@ -32,7 +33,7 @@ impl NotificationStatus {
 }
 
 /// A notification for an updated ref.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize)]
 pub struct Notification {
     /// Unique notification ID.
     pub id: NotificationId,
@@ -53,7 +54,7 @@ pub struct Notification {
 }
 
 /// Type of notification.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize)]
 pub enum NotificationKind {
     /// A COB changed.
     Cob { type_name: TypeName, id: ObjectId },

@@ -1,9 +1,11 @@
 use std::ffi::OsString;
+use std::path::Path;
 use std::process;
 
 use anyhow::anyhow;
 
 use localtime::LocalTime;
+use radicle::identity::Identity;
 use radicle::issue::Issues;
 use radicle::node::notifications;
 use radicle::node::notifications::*;
@@ -298,6 +300,26 @@ where
                         patch.title().to_owned(),
                         term::format::patch::state(patch.state()),
                     )
+                } else if type_name == *cob::identity::TYPENAME {
+                    let Ok(identity) = Identity::get(&id, &repo) else {
+                        log::error!(
+                            target: "cli",
+                            "Error retrieving identity {id} for notification {}", n.id
+                        );
+                        continue;
+                    };
+                    let Some(rev) = n.update.new().and_then(|id| identity.revision(&id)) else {
+                        log::error!(
+                            target: "cli",
+                            "Error retrieving identity revision for notification {}", n.id
+                        );
+                        continue;
+                    };
+                    (
+                        String::from("id"),
+                        rev.title.clone(),
+                        term::format::identity::state(&rev.state),
+                    )
                 } else {
                     (
                         type_name.to_string(),
@@ -395,6 +417,11 @@ fn show(
 
             term::patch::show(&patch, &id, false, &repo, None, profile)?;
         }
+        NotificationKind::Cob { type_name, id } if type_name == *cob::identity::TYPENAME => {
+            let identity = Identity::get(&id, &repo)?;
+
+            term::json::to_pretty(&identity.doc, Path::new("radicle.json"))?.print();
+        }
         NotificationKind::Branch { .. } => {
             let refstr = if let Some(remote) = n.remote {
                 n.qualified
@@ -409,8 +436,8 @@ fn show(
                 .spawn()?
                 .wait()?;
         }
-        _ => {
-            todo!();
+        notification => {
+            term::json::to_pretty(&notification, Path::new("notification.json"))?.print();
         }
     }
     notifs.set_status(NotificationStatus::ReadAt(LocalTime::now()), &[id])?;

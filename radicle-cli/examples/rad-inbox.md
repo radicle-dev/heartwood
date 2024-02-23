@@ -106,3 +106,35 @@ $ rad inbox clear --all
 $ rad inbox clear --all
 Your inbox is empty.
 ```
+
+Now let's do an identity update.
+
+``` ~alice
+$ rad id update --title "Modify description" --description "Use website" --payload xyz.radicle.project description '"https://radicle.xyz"' -q
+[..]
+$ rad sync -a
+✓ Synced with 1 node(s)
+```
+
+``` ~bob
+$ rad inbox --all
+╭──────────────────────────────────────────────────────────────────────╮
+│ heartwood                                                            │
+├──────────────────────────────────────────────────────────────────────┤
+│ 001   ●   [ ... ]   Modify description   id   accepted   alice   now │
+╰──────────────────────────────────────────────────────────────────────╯
+$ rad inbox show 1
+{
+  "payload": {
+    "xyz.radicle.project": {
+      "defaultBranch": "master",
+      "description": "https://radicle.xyz",
+      "name": "heartwood"
+    }
+  },
+  "delegates": [
+    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+  ],
+  "threshold": 1
+}
+```
