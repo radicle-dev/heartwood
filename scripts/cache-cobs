@@ -1,0 +1,11 @@
+#!/bin/sh
+
+DIRECTORY="$(rad path)/storage"
+
+for repo in "$DIRECTORY"/*; do
+  repo="rad:$(basename $repo)"
+  echo "Processing $repo.."
+  rad issue cache --repo "$repo"
+  rad patch cache --repo "$repo"
+  echo
+done
