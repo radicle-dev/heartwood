@@ -2,8 +2,11 @@
 use std::ffi::OsString;
 use std::path::Path;
 use std::process;
+use std::str::FromStr;
 
 use anyhow::anyhow;
+use radicle::node::Alias;
+use radicle::profile::Config;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -18,10 +21,9 @@ Usage
 
     rad config [<option>...]
     rad config show [<option>...]
-    rad config init [<option>...]
+    rad config init --alias <alias> [<option>...]
     rad config edit [<option>...]
     rad config get <key> [<option>...]
-
 
     If no argument is specified, prints the current radicle configuration as JSON.
     To initialize a new configuration file, use `rad config init`.
@@ -44,6 +46,7 @@ enum Operation {
 
 pub struct Options {
     op: Operation,
+    alias: Option<Alias>,
 }
 
 impl Args for Options {
@@ -52,12 +55,20 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<Operation> = None;
+        let mut alias = None;
 
         #[allow(clippy::never_loop)]
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
+                }
+                Long("alias") => {
+                    let value = parser.value()?;
+                    let input = value.to_string_lossy();
+                    let input = Alias::from_str(&input)?;
+
+                    alias = Some(input);
                 }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "show" => op = Some(Operation::Show),
@@ -78,6 +89,7 @@ impl Args for Options {
         Ok((
             Options {
                 op: op.unwrap_or_default(),
+                alias,
             },
             vec![],
         ))
@@ -85,14 +97,16 @@ impl Args for Options {
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
-    let profile = ctx.profile()?;
-    let path = profile.home.config();
+    let home = ctx.home()?;
+    let path = home.config();
 
     match options.op {
         Operation::Show => {
+            let profile = ctx.profile()?;
             term::json::to_pretty(&profile.config, path.as_path())?.print();
         }
         Operation::Get(key) => {
+            let profile = ctx.profile()?;
             let data = serde_json::to_value(profile.config)?;
             if let Some(value) = get_value(&data, &key) {
                 print_value(value)?;
@@ -102,7 +116,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             if path.try_exists()? {
                 anyhow::bail!("configuration file already exists at `{}`", path.display());
             }
-            profile.config.write(&path)?;
+            Config::init(
+                options.alias.ok_or(anyhow!(
+                    "an alias must be provided to initialize a new configuration"
+                ))?,
+                &path,
+            )?;
+            term::success!(
+                "Initialized new Radicle configuration at {}",
+                path.display()
+            );
         }
         Operation::Edit => {
             let Some(cmd) = term::editor::default_editor() else {

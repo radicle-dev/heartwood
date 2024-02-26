@@ -75,7 +75,7 @@ fn print_help() -> anyhow::Result<()> {
     println!("{DESCRIPTION}");
     println!();
 
-    rad_help::run(Default::default(), term::profile)
+    rad_help::run(Default::default(), term::DefaultContext)
 }
 
 fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
