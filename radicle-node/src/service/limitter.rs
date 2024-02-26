@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use localtime::LocalTime;
-use radicle::node::{config, HostName};
+use radicle::node::{address, config, HostName};
 
 /// Peer rate limitter.
 ///
@@ -21,6 +21,12 @@ impl RateLimiter {
     /// Supplying a different amount of tokens per address is useful if for eg. a peer
     /// is outbound vs. inbound.
     pub fn limit<T: AsTokens>(&mut self, addr: HostName, tokens: &T, now: LocalTime) -> bool {
+        if let HostName::Ip(ip) = addr {
+            // Don't limit LAN addresses.
+            if !address::is_routable(&ip) {
+                return false;
+            }
+        }
         !self
             .buckets
             .entry(addr)
