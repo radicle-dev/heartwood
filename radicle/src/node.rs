@@ -435,6 +435,9 @@ pub enum Command {
     /// Get the current node condiguration.
     Config,
 
+    /// Get the node's listen addresses.
+    ListenAddrs,
+
     /// Connect to node with the given address.
     #[serde(rename_all = "camelCase")]
     Connect {
@@ -808,8 +811,10 @@ pub trait Handle: Clone + Sync + Send {
 
     /// Get the local Node ID.
     fn nid(&self) -> Result<NodeId, Self::Error>;
-    /// Check if the node is running. to a peer.
+    /// Check if the node is running.
     fn is_running(&self) -> bool;
+    /// Get the node's bound listen addresses.
+    fn listen_addrs(&self) -> Result<Vec<net::SocketAddr>, Self::Error>;
     /// Get the current node configuration.
     fn config(&self) -> Result<config::Config, Self::Error>;
     /// Connect to a peer.
@@ -965,6 +970,13 @@ impl Handle for Node {
 
     fn nid(&self) -> Result<NodeId, Error> {
         self.call::<NodeId>(Command::NodeId, DEFAULT_TIMEOUT)?
+            .next()
+            .ok_or(Error::EmptyResponse)?
+            .map_err(Error::from)
+    }
+
+    fn listen_addrs(&self) -> Result<Vec<net::SocketAddr>, Error> {
+        self.call::<Vec<net::SocketAddr>>(Command::ListenAddrs, DEFAULT_TIMEOUT)?
             .next()
             .ok_or(Error::EmptyResponse)?
             .map_err(Error::from)

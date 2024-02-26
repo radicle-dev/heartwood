@@ -292,6 +292,8 @@ pub struct Wire<D, S, G: Signer + Ecdh> {
     outbound: RandomMap<RawFd, Outbound>,
     /// Inbound peers without a session.
     inbound: RandomMap<RawFd, Inbound>,
+    /// Listening addresses that are not yet registered.
+    listening: RandomMap<RawFd, net::SocketAddr>,
     /// Peer (established) sessions.
     peers: Peers,
     /// SOCKS5 proxy address.
@@ -320,11 +322,14 @@ where
             actions: VecDeque::new(),
             inbound: RandomMap::default(),
             outbound: RandomMap::default(),
+            listening: RandomMap::default(),
             peers: Peers(RandomMap::default()),
         }
     }
 
     pub fn listen(&mut self, socket: NetAccept<WireSession<G>>) {
+        self.listening
+            .insert(socket.as_raw_fd(), socket.local_addr());
         self.actions.push_back(Action::RegisterListener(socket));
     }
 
@@ -495,18 +500,23 @@ where
     }
 
     fn handle_registered(&mut self, fd: RawFd, id: ResourceId, typ: ResourceType) {
-        if typ == ResourceType::Listener {
-            // Not interested in listener resource registration.
-            return;
-        }
-        if let Some(outbound) = self.outbound.get_mut(&fd) {
-            log::debug!(target: "wire", "Outbound peer resource registered for {} with id={id} (fd={fd})", outbound.nid);
-            outbound.id = Some(id);
-        } else if let Some(inbound) = self.inbound.get_mut(&fd) {
-            log::debug!(target: "wire", "Inbound peer resource registered with id={id} (fd={fd})");
-            inbound.id = Some(id);
-        } else {
-            log::warn!(target: "wire", "Unknown peer registered with fd={fd} and id={id}");
+        match typ {
+            ResourceType::Listener => {
+                if let Some(local_addr) = self.listening.remove(&fd) {
+                    self.service.listening(local_addr);
+                }
+            }
+            ResourceType::Transport => {
+                if let Some(outbound) = self.outbound.get_mut(&fd) {
+                    log::debug!(target: "wire", "Outbound peer resource registered for {} with id={id} (fd={fd})", outbound.nid);
+                    outbound.id = Some(id);
+                } else if let Some(inbound) = self.inbound.get_mut(&fd) {
+                    log::debug!(target: "wire", "Inbound peer resource registered with id={id} (fd={fd})");
+                    inbound.id = Some(id);
+                } else {
+                    log::warn!(target: "wire", "Unknown peer registered with fd={fd} and id={id}");
+                }
+            }
         }
     }
 

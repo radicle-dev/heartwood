@@ -189,7 +189,21 @@ pub fn connect(
 
 pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
     if node.is_running() {
-        term::success!("Node is {}.", term::format::positive("running"));
+        let listen = node
+            .listen_addrs()?
+            .into_iter()
+            .map(|addr| addr.to_string())
+            .collect::<Vec<_>>();
+
+        if listen.is_empty() {
+            term::success!("Node is {}.", term::format::positive("running"));
+        } else {
+            term::success!(
+                "Node is {} and listening on {}.",
+                term::format::positive("running"),
+                listen.join(", ")
+            );
+        }
     } else {
         term::info!("Node is {}.", term::format::negative("stopped"));
         term::info!(

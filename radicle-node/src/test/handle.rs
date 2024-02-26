@@ -31,6 +31,10 @@ impl radicle::node::Handle for Handle {
         true
     }
 
+    fn listen_addrs(&self) -> Result<Vec<std::net::SocketAddr>, Self::Error> {
+        Ok(vec![])
+    }
+
     fn config(&self) -> Result<Config, Self::Error> {
         Ok(Config::new(Alias::new("acme")))
     }

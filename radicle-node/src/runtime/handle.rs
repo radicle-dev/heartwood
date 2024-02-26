@@ -1,3 +1,4 @@
+use std::net;
 use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -187,6 +188,12 @@ impl radicle::node::Handle for Handle {
     fn config(&self) -> Result<Config, Self::Error> {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::Config(sender))?;
+        receiver.recv().map_err(Error::from)
+    }
+
+    fn listen_addrs(&self) -> Result<Vec<net::SocketAddr>, Self::Error> {
+        let (sender, receiver) = chan::bounded(1);
+        self.command(service::Command::ListenAddrs(sender))?;
         receiver.recv().map_err(Error::from)
     }
 

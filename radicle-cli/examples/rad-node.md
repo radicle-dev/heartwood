@@ -15,7 +15,7 @@ node status` command (or just `rad node` for short):
 
 ```
 $ rad node status
-✓ Node is running.
+✓ Node is running and listening on [..].
 ```
 
 The node also allows us to query data that it has access to such as

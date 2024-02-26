@@ -244,8 +244,6 @@ impl Runtime {
 
             local_addrs.push(local_addr);
             wire.listen(listener);
-
-            log::info!(target: "node", "Listening on {local_addr}..");
         }
         let reactor = Reactor::named(wire, popol::Poller::new(), thread::name(&id, "service"))?;
         let handle = Handle::new(home.clone(), reactor.controller(), emitter);

@@ -110,6 +110,11 @@ where
 
             CommandResult::Okay(config).to_writer(writer)?;
         }
+        Command::ListenAddrs => {
+            let addrs = handle.listen_addrs()?;
+
+            CommandResult::Okay(addrs).to_writer(writer)?;
+        }
         Command::Seeds { rid } => {
             let seeds = handle.seeds(rid)?;
 

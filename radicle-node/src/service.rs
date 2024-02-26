@@ -13,7 +13,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::{fmt, time};
+use std::{fmt, net, time};
 
 use crossbeam_channel as chan;
 use fastrand::Rng;
@@ -179,6 +179,8 @@ pub enum Command {
     Disconnect(NodeId),
     /// Get the node configuration.
     Config(chan::Sender<Config>),
+    /// Get the node's listen addresses.
+    ListenAddrs(chan::Sender<Vec<std::net::SocketAddr>>),
     /// Lookup seeds for the given repository in the routing table.
     Seeds(RepoId, chan::Sender<Seeds>),
     /// Fetch the given repository from the network.
@@ -204,6 +206,7 @@ impl fmt::Debug for Command {
             Self::Connect(id, addr, opts) => write!(f, "Connect({id}, {addr}, {opts:?})"),
             Self::Disconnect(id) => write!(f, "Disconnect({id})"),
             Self::Config(_) => write!(f, "Config"),
+            Self::ListenAddrs(_) => write!(f, "ListenAddrs"),
             Self::Seeds(id, _) => write!(f, "Seeds({id})"),
             Self::Fetch(id, node, _, _) => write!(f, "Fetch({id}, {node})"),
             Self::Seed(id, scope, _) => write!(f, "Seed({id}, {scope})"),
@@ -370,6 +373,8 @@ pub struct Service<D, S, G> {
     started_at: Option<LocalTime>,
     /// Publishes events to subscribers.
     emitter: Emitter<Event>,
+    /// Local listening addresses.
+    listening: Vec<net::SocketAddr>,
 }
 
 impl<D, S, G> Service<D, S, G>
@@ -427,6 +432,7 @@ where
             last_announce: LocalTime::default(),
             started_at: None,
             emitter,
+            listening: vec![],
         }
     }
 
@@ -704,6 +710,9 @@ where
             }
             Command::Config(resp) => {
                 resp.send(self.config.clone()).ok();
+            }
+            Command::ListenAddrs(resp) => {
+                resp.send(self.listening.clone()).ok();
             }
             Command::Seeds(rid, resp) => match self.seeds(&rid) {
                 Ok(seeds) => {
@@ -1075,6 +1084,12 @@ where
             #[cfg(debug_assertions)]
             panic!("Service::attempted: unknown session {nid}@{addr}");
         }
+    }
+
+    pub fn listening(&mut self, local_addr: net::SocketAddr) {
+        log::info!(target: "node", "Listening on {local_addr}..");
+
+        self.listening.push(local_addr);
     }
 
     pub fn connected(&mut self, remote: NodeId, addr: Address, link: Link) {
