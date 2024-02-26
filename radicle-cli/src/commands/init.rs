@@ -214,17 +214,13 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         .ok_or_else(|| anyhow!("repository head must point to a commit"))?;
 
     term::headline(format!(
-        "Initializing{}radicle 👾 repository in {}",
+        "Initializing{}radicle 👾 repository in {}..",
         if let Some(visibility) = &options.visibility {
             term::format::spaced(term::format::visibility(visibility))
         } else {
             term::format::default(" ").into()
         },
-        if path == cwd {
-            term::format::tertiary(".").to_string()
-        } else {
-            term::format::tertiary(path.display()).to_string()
-        }
+        term::format::dim(path.display())
     ));
 
     let name = match options.name {

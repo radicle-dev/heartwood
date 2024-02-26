@@ -3,7 +3,7 @@ Let's try initializing a new repository with a preferred seed configured.
 ```
 $ rad init --name heartwood --description "Radicle Heartwood Protocol & Stack" --no-confirm --public --scope followed
 
-Initializing public radicle 👾 repository in .
+Initializing public radicle 👾 repository in [..]
 
 ✓ Repository heartwood created.
 

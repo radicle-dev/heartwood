@@ -4,7 +4,7 @@ as the node will keep attempting to sync in the background.
 ```
 $ rad init --name heartwood --description "Radicle Heartwood Protocol & Stack" --no-confirm --public --scope followed
 
-Initializing public radicle 👾 repository in .
+Initializing public radicle 👾 repository in [..]
 
 ✓ Repository heartwood created.
 

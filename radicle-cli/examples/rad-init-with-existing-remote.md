@@ -22,7 +22,7 @@ Then we initialize.
 ```
 $ rad init --name heartwood --description "Heartwood Protocol & Stack" --no-confirm --public
 
-Initializing public radicle 👾 repository in .
+Initializing public radicle 👾 repository in [..]
 
 ✓ Repository heartwood created.
 
