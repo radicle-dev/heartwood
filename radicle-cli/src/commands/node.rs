@@ -4,6 +4,8 @@ use std::time;
 
 use anyhow::anyhow;
 
+use radicle::node::config::ConnectAddress;
+use radicle::node::Handle as _;
 use radicle::node::{Address, Node, NodeId, PeerAddr};
 use radicle::prelude::RepoId;
 
@@ -32,7 +34,7 @@ Usage
     rad node connect <nid>@<addr> [<option>...]
     rad node routing [--rid <rid>] [--nid <nid>] [--json] [<option>...]
     rad node events [--timeout <secs>] [-n <count>] [<option>...]
-    rad node config
+    rad node config [--addresses]
 
     For `<node-option>` see `radicle-node --help`.
 
@@ -68,7 +70,9 @@ pub enum Operation {
         addr: PeerAddr<NodeId, Address>,
         timeout: time::Duration,
     },
-    Config,
+    Config {
+        addresses: bool,
+    },
     Events {
         timeout: time::Duration,
         count: usize,
@@ -121,6 +125,7 @@ impl Args for Options {
         let mut lines: usize = 60;
         let mut count: usize = usize::MAX;
         let mut timeout = time::Duration::MAX;
+        let mut addresses = false;
         let mut path = None;
         let mut verbose = false;
 
@@ -167,6 +172,9 @@ impl Args for Options {
                 Long("foreground") if matches!(op, Some(OperationName::Start)) => {
                     foreground = true;
                 }
+                Long("addresses") if matches!(op, Some(OperationName::Config)) => {
+                    addresses = true;
+                }
                 Long("verbose") | Short('v') if matches!(op, Some(OperationName::Start)) => {
                     verbose = true;
                 }
@@ -191,7 +199,7 @@ impl Args for Options {
                 })?,
                 timeout,
             },
-            OperationName::Config => Operation::Config,
+            OperationName::Config => Operation::Config { addresses },
             OperationName::Events => Operation::Events { timeout, count },
             OperationName::Routing => Operation::Routing { rid, nid, json },
             OperationName::Logs => Operation::Logs { lines },
@@ -217,7 +225,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Connect { addr, timeout } => {
             control::connect(&mut node, addr.id, addr.addr, timeout)?
         }
-        Operation::Config => control::config(&node)?,
+        Operation::Config { addresses } => {
+            if addresses {
+                let cfg = node.config()?;
+                for addr in cfg.external_addresses {
+                    term::print(ConnectAddress::from((*profile.id(), addr)).to_string());
+                }
+            } else {
+                control::config(&node)?;
+            }
+        }
         Operation::Sessions => {
             let sessions = control::sessions(&node)?;
             if let Some(table) = sessions {

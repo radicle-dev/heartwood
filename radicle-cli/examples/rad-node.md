@@ -18,6 +18,12 @@ $ rad node status
 ✓ Node is running and listening on [..].
 ```
 
+```
+$ rad node config --addresses
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi@41.12.98.112:8776
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi@seed.cloudhead.io:8776
+```
+
 The node also allows us to query data that it has access to such as
 the follow policies and the routing table. Before we explore
 those commands we'll first follow a peer so that we have something to

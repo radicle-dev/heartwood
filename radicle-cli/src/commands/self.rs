@@ -1,7 +1,6 @@
 use std::ffi::OsString;
 
 use radicle::crypto::ssh;
-use radicle::node::config::ConnectAddress;
 use radicle::Profile;
 
 use crate::terminal as term;
@@ -22,7 +21,6 @@ Options
     --did                Show your DID
     --alias              Show your Node alias
     --nid                Show your Node ID (NID)
-    --address            Show your Node address(es)
     --home               Show your Radicle home
     --config             Show the location of your configuration file
     --ssh-key            Show your public key in OpenSSH format
@@ -34,7 +32,6 @@ Options
 #[derive(Debug)]
 enum Show {
     Alias,
-    Address,
     NodeId,
     Did,
     Home,
@@ -60,9 +57,6 @@ impl Args for Options {
             match arg {
                 Long("alias") if show.is_none() => {
                     show = Some(Show::Alias);
-                }
-                Long("address") if show.is_none() => {
-                    show = Some(Show::Address);
                 }
                 Long("nid") if show.is_none() => {
                     show = Some(Show::NodeId);
@@ -104,12 +98,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     match options.show {
         Show::Alias => {
             term::print(profile.config.alias());
-        }
-        Show::Address => {
-            let nid = profile.public_key;
-            for addr in profile.config.node.external_addresses {
-                term::print(ConnectAddress::from((nid, addr)).to_string());
-            }
         }
         Show::NodeId => {
             term::print(profile.id());

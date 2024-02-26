@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::str::FromStr;
-use std::{env, thread, time};
+use std::{env, net, thread, time};
 
 use radicle::git;
 use radicle::node;
@@ -8,7 +8,7 @@ use radicle::node::address::Store as _;
 use radicle::node::config::seeds::{RADICLE_COMMUNITY_NODE, RADICLE_TEAM_NODE};
 use radicle::node::routing::Store as _;
 use radicle::node::Handle as _;
-use radicle::node::{Alias, DEFAULT_TIMEOUT};
+use radicle::node::{Address, Alias, DEFAULT_TIMEOUT};
 use radicle::prelude::RepoId;
 use radicle::profile;
 use radicle::profile::Home;
@@ -582,7 +582,13 @@ fn rad_node_connect() {
 #[test]
 fn rad_node() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node(Config {
+        external_addresses: vec![
+            Address::from(net::SocketAddr::from(([41, 12, 98, 112], 8776))),
+            Address::from_str("seed.cloudhead.io:8776").unwrap(),
+        ],
+        ..Config::test(Alias::new("alice"))
+    });
     let working = tempfile::tempdir().unwrap();
     let alice = alice.spawn();
 
