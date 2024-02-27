@@ -2297,7 +2297,9 @@ mod routes {
                   "reactions": [
                     {
                       "emoji": "🚀",
-                      "authors": ["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8"]
+                      "authors": [
+                        { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8" }
+                      ],
                     },
                   ],
                   "timestamp": TIMESTAMP,
@@ -3131,9 +3133,10 @@ mod routes {
                   ],
                   "reactions": [
                     {
-                      "location": null,
                       "emoji": "🙏",
-                      "authors": ["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8"],
+                      "authors": [
+                        { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8" }
+                      ],
                     },
                     {
                       "location": {
@@ -3149,7 +3152,9 @@ mod routes {
                         }
                       },
                       "emoji": "🚀",
-                      "authors": ["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8"]
+                      "authors": [
+                        { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8" }
+                      ]
                     },
                   ],
                   "base": PARENT,
@@ -3338,7 +3343,9 @@ mod routes {
                       "reactions": [
                         {
                           "emoji": "🚀",
-                          "authors": ["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8"]
+                          "authors": [
+                            { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8" }
+                          ],
                         },
                       ],
                       "timestamp": TIMESTAMP,
@@ -3581,7 +3588,9 @@ mod routes {
                           "reactions": [
                             {
                               "emoji": "🚀",
-                              "authors": ["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8"],
+                              "authors": [
+                                { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8" }
+                              ],
                             },
                           ],
                           "timestamp": 1671125284,

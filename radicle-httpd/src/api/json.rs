@@ -137,13 +137,10 @@ pub(crate) fn patch(
                 "description": rev.description(),
                 "edits": rev.edits().map(|e| edit(e, aliases)).collect::<Vec<_>>(),
                 "reactions": rev.reactions().iter().flat_map(|(location, reaction)| {
-                    let reactions = reaction.iter().fold(BTreeMap::new(), |mut acc: BTreeMap<&Reaction, Vec<_>>, (author, emoji)| {
+                    reactions(reaction.iter().fold(BTreeMap::new(), |mut acc: BTreeMap<&Reaction, Vec<_>>, (author, emoji)| {
                         acc.entry(emoji).or_default().push(author);
                         acc
-                    });
-                    reactions.iter().map(|(emoji, authors)|
-                        json!({ "location": location, "emoji": emoji, "authors": authors })
-                    ).collect::<Vec<_>>()
+                    }), location.as_ref(), aliases)
                 }).collect::<Vec<_>>(),
                 "base": rev.base(),
                 "oid": rev.head(),
@@ -158,6 +155,28 @@ pub(crate) fn patch(
             })
         }).collect::<Vec<_>>(),
     })
+}
+
+/// Returns JSON for a `reaction`.
+fn reactions(
+    reactions: BTreeMap<&Reaction, Vec<&ActorId>>,
+    location: Option<&CodeLocation>,
+    aliases: &impl AliasStore,
+) -> Vec<Value> {
+    reactions
+        .into_iter()
+        .map(|(emoji, authors)| {
+            if let Some(l) = location {
+                json!({ "location": l, "emoji": emoji, "authors": authors.into_iter().map(|a|
+                    author(&Author::from(*a), aliases.alias(a))
+                ).collect::<Vec<_>>()})
+            } else {
+                json!({ "emoji": emoji, "authors": authors.into_iter().map(|a|
+                    author(&Author::from(*a), aliases.alias(a))
+                ).collect::<Vec<_>>()})
+            }
+        })
+        .collect::<Vec<_>>()
 }
 
 /// Returns JSON for an `author` and fills in `alias` when present.
@@ -212,9 +231,7 @@ fn issue_comment(id: &CommentId, comment: &Comment, aliases: &impl AliasStore) -
         "body": comment.body(),
         "edits": comment.edits().map(|e| edit(e, aliases)).collect::<Vec<_>>(),
         "embeds": comment.embeds().to_vec(),
-        "reactions": comment.reactions().iter().map(|(emoji, authors)|
-            json!({ "emoji": emoji, "authors": authors })
-        ).collect::<Vec<_>>(),
+        "reactions": reactions(comment.reactions(), None, aliases),
         "timestamp": comment.timestamp().as_secs(),
         "replyTo": comment.reply_to(),
         "resolved": comment.is_resolved(),
@@ -233,9 +250,7 @@ fn patch_comment(
         "body": comment.body(),
         "edits": comment.edits().map(|e| edit(e, aliases)).collect::<Vec<_>>(),
         "embeds": comment.embeds().to_vec(),
-        "reactions": comment.reactions().iter().map(|(emoji, authors)|
-            json!({ "emoji": emoji, "authors": authors })
-        ).collect::<Vec<_>>(),
+        "reactions": reactions(comment.reactions(), None, aliases),
         "timestamp": comment.timestamp().as_secs(),
         "replyTo": comment.reply_to(),
         "location": comment.location(),
@@ -255,9 +270,7 @@ fn review_comment(
         "body": comment.body(),
         "edits": comment.edits().map(|e| edit(e, aliases)).collect::<Vec<_>>(),
         "embeds": comment.embeds().to_vec(),
-        "reactions": comment.reactions().iter().map(|(emoji, authors)|
-            json!({ "emoji": emoji, "authors": authors })
-        ).collect::<Vec<_>>(),
+        "reactions": reactions(comment.reactions(), None, aliases),
         "timestamp": comment.timestamp().as_secs(),
         "replyTo": comment.reply_to(),
         "location": comment.location(),
