@@ -104,7 +104,9 @@ pub(crate) fn issue(id: IssueId, issue: Issue, aliases: &impl AliasStore) -> Val
         "author": author(&issue.author(), aliases.alias(issue.author().id())),
         "title": issue.title(),
         "state": issue.state(),
-        "assignees": issue.assignees().collect::<Vec<_>>(),
+        "assignees": issue.assignees().map(|assignee|
+            author(&Author::from(*assignee.as_key()), aliases.alias(assignee))
+        ).collect::<Vec<_>>(),
         "discussion": issue.comments().map(|(id, c)| issue_comment(id, c, aliases)).collect::<Vec<_>>(),
         "labels": issue.labels().collect::<Vec<_>>(),
     })
@@ -125,7 +127,9 @@ pub(crate) fn patch(
         "target": patch.target(),
         "labels": patch.labels().collect::<Vec<_>>(),
         "merges": patch.merges().map(|(nid, m)| merge(nid, m, aliases)).collect::<Vec<_>>(),
-        "assignees": patch.assignees().collect::<Vec<_>>(),
+        "assignees": patch.assignees().map(|assignee|
+            author(&Author::from(*assignee), aliases.alias(&assignee))
+        ).collect::<Vec<_>>(),
         "revisions": patch.revisions().map(|(id, rev)| {
             json!({
                 "id": id,

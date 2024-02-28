@@ -2311,6 +2311,78 @@ mod routes {
     }
 
     #[tokio::test]
+    async fn test_projects_issues_assign() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = contributor(tmp.path());
+        let app = super::router(ctx.to_owned());
+
+        create_session(ctx).await;
+
+        let body = serde_json::to_vec(&json!({
+          "type": "assign",
+          "assignees": [CONTRIBUTOR_DID],
+        }))
+        .unwrap();
+
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{ISSUE_DISCUSSION_ID}"),
+            Some(Body::from(body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = get(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{ISSUE_DISCUSSION_ID}"),
+        )
+        .await;
+
+        assert_eq!(
+            response.json().await,
+            json!({
+              "id": ISSUE_DISCUSSION_ID,
+              "author": {
+                "id": CONTRIBUTOR_DID,
+              },
+              "title": "Issue #1",
+              "state": {
+                "status": "open",
+              },
+              "assignees": [
+                { "id": CONTRIBUTOR_DID }
+              ],
+              "discussion": [
+                {
+                  "id": ISSUE_DISCUSSION_ID,
+                  "author": {
+                    "id": CONTRIBUTOR_DID,
+                  },
+                  "body": "Change 'hello world' to 'hello everyone'",
+                  "edits": [
+                    {
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "Change 'hello world' to 'hello everyone'",
+                      "timestamp": TIMESTAMP,
+                      "embeds": [],
+                    },
+                  ],
+                  "embeds": [],
+                  "reactions": [],
+                  "timestamp": TIMESTAMP,
+                  "replyTo": null,
+                  "resolved": false,
+                },
+              ],
+              "labels": [],
+            })
+        );
+    }
+
+    #[tokio::test]
     async fn test_projects_issues_reply() {
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -2661,7 +2733,9 @@ mod routes {
               "target": "delegates",
               "labels": [],
               "merges": [],
-              "assignees": [CONTRIBUTOR_DID],
+              "assignees": [
+                { "id": CONTRIBUTOR_DID }
+              ],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
