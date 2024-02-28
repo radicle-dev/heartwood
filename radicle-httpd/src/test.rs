@@ -37,6 +37,7 @@ pub const SESSION_ID: &str = "u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy";
 pub const TIMESTAMP: u64 = 1671125284;
 pub const CONTRIBUTOR_RID: &str = "rad:z4XaCmN3jLSeiMvW15YTDpNbDHFhG";
 pub const CONTRIBUTOR_DID: &str = "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
+pub const CONTRIBUTOR_ALIAS: &str = "seed";
 pub const CONTRIBUTOR_PATCH_ID: &str = "3e3f0dc34b3eeb64cfbc7218fbd52b97246e0564";
 
 /// Create a new profile.
@@ -53,6 +54,9 @@ pub fn profile(home: &Path, seed: [u8; 32]) -> radicle::Profile {
         },
     )
     .unwrap();
+
+    let mut db = home.policies_mut().unwrap();
+    db.follow(&keypair.pk.into(), Some(&alias)).unwrap();
 
     radicle::storage::git::transport::local::register(storage.clone());
     keystore.store(keypair.clone(), "radicle", None).unwrap();

@@ -1783,6 +1783,7 @@ mod routes {
             json!([
               {
                 "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                "alias": CONTRIBUTOR_ALIAS,
                 "heads": {
                   "master": HEAD
                 },
@@ -2027,7 +2028,8 @@ mod routes {
               {
                 "id": ISSUE_ID,
                 "author": {
-                  "id": DID
+                  "id": DID,
+                  "alias": CONTRIBUTOR_ALIAS
                 },
                 "title": "Issue #1",
                 "state": {
@@ -2038,13 +2040,15 @@ mod routes {
                   {
                     "id": ISSUE_ID,
                     "author": {
-                      "id": DID
+                      "id": DID,
+                      "alias": CONTRIBUTOR_ALIAS
                     },
                     "body": "Change 'hello world' to 'hello everyone'",
                     "edits": [
                       {
                         "author": {
                           "id": DID,
+                          "alias": CONTRIBUTOR_ALIAS
                         },
                         "body": "Change 'hello world' to 'hello everyone'",
                         "timestamp": TIMESTAMP,
@@ -2114,6 +2118,7 @@ mod routes {
               "id": CREATED_ISSUE_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
+                "alias": CONTRIBUTOR_ALIAS
               },
               "title": "Issue #2",
               "state": {
@@ -2124,12 +2129,14 @@ mod routes {
                 "id": CREATED_ISSUE_ID,
                 "author": {
                   "id": CONTRIBUTOR_DID,
+                  "alias": CONTRIBUTOR_ALIAS
                 },
                 "body": "Change 'hello world' to 'hello everyone'",
                 "edits": [
                   {
                     "author": {
                       "id": CONTRIBUTOR_DID,
+                      "alias": CONTRIBUTOR_ALIAS
                     },
                     "body": "Change 'hello world' to 'hello everyone'",
                     "timestamp": TIMESTAMP,
@@ -2261,6 +2268,7 @@ mod routes {
               "id": ISSUE_DISCUSSION_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
+                "alias": CONTRIBUTOR_ALIAS
               },
               "title": "Issue #1",
               "state": {
@@ -2272,12 +2280,14 @@ mod routes {
                   "id": ISSUE_DISCUSSION_ID,
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": CONTRIBUTOR_ALIAS
                   },
                   "body": "EDIT: Change 'hello world' to 'hello anyone'",
                   "edits": [
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "Change 'hello world' to 'hello everyone'",
                       "timestamp": TIMESTAMP,
@@ -2286,6 +2296,7 @@ mod routes {
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "EDIT: Change 'hello world' to 'hello anyone'",
                       "timestamp": TIMESTAMP,
@@ -2438,6 +2449,7 @@ mod routes {
               "id": ISSUE_DISCUSSION_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
+                "alias": CONTRIBUTOR_ALIAS
               },
               "title": "Issue #1",
               "state": {
@@ -2449,12 +2461,14 @@ mod routes {
                   "id": ISSUE_DISCUSSION_ID,
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": CONTRIBUTOR_ALIAS
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "edits": [
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "Change 'hello world' to 'hello everyone'",
                       "timestamp": TIMESTAMP,
@@ -2471,12 +2485,14 @@ mod routes {
                   "id": ISSUE_COMMENT_ID,
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": CONTRIBUTOR_ALIAS
                   },
                   "body": "This is a reply to the first comment",
                   "edits": [
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "This is a reply to the first comment",
                       "timestamp": TIMESTAMP,
@@ -2519,7 +2535,8 @@ mod routes {
               {
                 "id": CONTRIBUTOR_PATCH_ID,
                 "author": {
-                  "id": CONTRIBUTOR_DID
+                  "id": CONTRIBUTOR_DID,
+                  "alias": CONTRIBUTOR_ALIAS
                 },
                 "title": "A new `hello world`",
                 "state": { "status": "open" },
@@ -2533,12 +2550,14 @@ mod routes {
                     "reactions": [],
                     "author": {
                       "id": CONTRIBUTOR_DID,
+                      "alias": CONTRIBUTOR_ALIAS
                     },
                     "description": "change `hello world` in README to something else",
                     "edits": [
                       {
                         "author": {
                           "id": CONTRIBUTOR_DID,
+                          "alias": CONTRIBUTOR_ALIAS
                         },
                         "body": "change `hello world` in README to something else",
                         "timestamp": TIMESTAMP,
@@ -2572,7 +2591,8 @@ mod routes {
               {
                 "id": CONTRIBUTOR_PATCH_ID,
                 "author": {
-                  "id": CONTRIBUTOR_DID
+                  "id": CONTRIBUTOR_DID,
+                  "alias": CONTRIBUTOR_ALIAS
                 },
                 "title": "A new `hello world`",
                 "state": { "status": "open" },
@@ -2586,12 +2606,14 @@ mod routes {
                     "reactions": [],
                     "author": {
                       "id": CONTRIBUTOR_DID,
+                      "alias": CONTRIBUTOR_ALIAS
                     },
                     "description": "change `hello world` in README to something else",
                     "edits": [
                       {
                         "author": {
                           "id": CONTRIBUTOR_DID,
+                          "alias": CONTRIBUTOR_ALIAS
                         },
                         "body": "change `hello world` in README to something else",
                         "timestamp": TIMESTAMP,
@@ -2664,7 +2686,8 @@ mod routes {
               {
                 "id": CREATED_PATCH_ID,
                 "author": {
-                  "id": CONTRIBUTOR_DID
+                  "id": CONTRIBUTOR_DID,
+                  "alias": CONTRIBUTOR_ALIAS
                 },
                 "title": "Update README",
                 "state": { "status": "open" },
@@ -2678,12 +2701,14 @@ mod routes {
                     "reactions": [],
                     "author": {
                       "id": CONTRIBUTOR_DID,
+                      "alias": CONTRIBUTOR_ALIAS
                     },
                     "description": "Do some changes to README",
                     "edits": [
                       {
                         "author": {
                           "id": CONTRIBUTOR_DID,
+                          "alias": CONTRIBUTOR_ALIAS
                         },
                         "body": "Do some changes to README",
                         "timestamp": TIMESTAMP,
@@ -2738,6 +2763,7 @@ mod routes {
               "id": CONTRIBUTOR_PATCH_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
+                "alias": CONTRIBUTOR_ALIAS
               },
               "title": "A new `hello world`",
               "state": { "status": "open" },
@@ -2752,12 +2778,14 @@ mod routes {
                   "id": CONTRIBUTOR_PATCH_ID,
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": CONTRIBUTOR_ALIAS
                   },
                   "description": "change `hello world` in README to something else",
                   "edits": [
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "change `hello world` in README to something else",
                       "timestamp": TIMESTAMP,
@@ -2812,6 +2840,7 @@ mod routes {
               "id": CONTRIBUTOR_PATCH_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
+                "alias": CONTRIBUTOR_ALIAS
               },
               "title": "A new `hello world`",
               "state": { "status": "open" },
@@ -2827,12 +2856,14 @@ mod routes {
                   "id": CONTRIBUTOR_PATCH_ID,
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": CONTRIBUTOR_ALIAS
                   },
                   "description": "change `hello world` in README to something else",
                   "edits": [
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "change `hello world` in README to something else",
                       "timestamp": TIMESTAMP,
@@ -2889,6 +2920,7 @@ mod routes {
               "id": CONTRIBUTOR_PATCH_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
+                "alias": CONTRIBUTOR_ALIAS
               },
               "title": "A new `hello world`",
               "state": { "status": "open" },
@@ -2901,12 +2933,14 @@ mod routes {
                   "id": CONTRIBUTOR_PATCH_ID,
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": CONTRIBUTOR_ALIAS
                   },
                   "description": "change `hello world` in README to something else",
                   "edits": [
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "change `hello world` in README to something else",
                       "timestamp": TIMESTAMP,
@@ -2927,16 +2961,18 @@ mod routes {
                   "id": "cccf3b0675220f25b054b6625d84611cb6506d9a",
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": CONTRIBUTOR_ALIAS
                   },
                   "description": "This is a new revision",
                   "edits": [
                     {
-                        "author": {
-                            "id": CONTRIBUTOR_DID,
-                        },
-                        "body": "This is a new revision",
-                        "timestamp": TIMESTAMP,
-                        "embeds": [],
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
+                      },
+                      "body": "This is a new revision",
+                      "timestamp": TIMESTAMP,
+                      "embeds": [],
                     },
                   ],
                   "reactions": [],
@@ -2989,6 +3025,7 @@ mod routes {
               "id": CONTRIBUTOR_PATCH_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
+                "alias": CONTRIBUTOR_ALIAS
               },
               "title": "This is a updated title",
               "state": { "status": "open" },
@@ -3002,12 +3039,14 @@ mod routes {
                   "reactions": [],
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": CONTRIBUTOR_ALIAS
                   },
                   "description": "change `hello world` in README to something else",
                   "edits": [
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "change `hello world` in README to something else",
                       "timestamp": TIMESTAMP,
@@ -3108,6 +3147,7 @@ mod routes {
               "id": CONTRIBUTOR_PATCH_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
+                "alias": CONTRIBUTOR_ALIAS
               },
               "title": "A new `hello world`",
               "state": { "status": "open" },
@@ -3120,12 +3160,14 @@ mod routes {
                   "id": CONTRIBUTOR_PATCH_ID,
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": CONTRIBUTOR_ALIAS
                   },
                   "description": "Let's change the description a bit",
                   "edits": [
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "change `hello world` in README to something else",
                       "timestamp": TIMESTAMP,
@@ -3134,6 +3176,7 @@ mod routes {
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "Let's change the description a bit",
                       "timestamp": TIMESTAMP,
@@ -3278,6 +3321,7 @@ mod routes {
               "id": CONTRIBUTOR_PATCH_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
+                "alias": CONTRIBUTOR_ALIAS
               },
               "title": "A new `hello world`",
               "state": { "status": "open" },
@@ -3290,12 +3334,14 @@ mod routes {
                   "id": CONTRIBUTOR_PATCH_ID,
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": CONTRIBUTOR_ALIAS
                   },
                   "description": "change `hello world` in README to something else",
                   "edits": [
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "change `hello world` in README to something else",
                       "timestamp": TIMESTAMP,
@@ -3313,12 +3359,14 @@ mod routes {
                       "id": comment_id,
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "EDIT: This is a root level comment",
                       "edits": [
                         {
                           "author": {
                             "id": CONTRIBUTOR_DID,
+                            "alias": CONTRIBUTOR_ALIAS
                           },
                           "body": "This is a root level comment",
                           "timestamp": TIMESTAMP,
@@ -3332,6 +3380,7 @@ mod routes {
                         {
                           "author": {
                             "id": CONTRIBUTOR_DID,
+                            "alias": CONTRIBUTOR_ALIAS
                           },
                           "body": "EDIT: This is a root level comment",
                           "timestamp": TIMESTAMP,
@@ -3366,12 +3415,14 @@ mod routes {
                       "id": comment_id_2,
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "This is a root level comment",
                       "edits": [
                         {
                           "author": {
                             "id": CONTRIBUTOR_DID,
+                            "alias": CONTRIBUTOR_ALIAS
                           },
                           "body": "This is a root level comment",
                           "timestamp": TIMESTAMP,
@@ -3513,6 +3564,7 @@ mod routes {
               "id": CONTRIBUTOR_PATCH_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
+                "alias": CONTRIBUTOR_ALIAS
               },
               "title": "A new `hello world`",
               "state": { "status": "open" },
@@ -3525,12 +3577,14 @@ mod routes {
                   "id": CONTRIBUTOR_PATCH_ID,
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": CONTRIBUTOR_ALIAS
                   },
                   "description": "change `hello world` in README to something else",
                   "edits": [
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "change `hello world` in README to something else",
                       "timestamp": TIMESTAMP,
@@ -3550,6 +3604,7 @@ mod routes {
                       "id": "140a44a4eac2cdb74b2f5f95a9dce97847eb9636",
                       "author": {
                           "id": CONTRIBUTOR_DID,
+                          "alias": CONTRIBUTOR_ALIAS
                       },
                       "verdict": "accept",
                       "summary": "A small review",
@@ -3558,12 +3613,14 @@ mod routes {
                           "id": "0dcfca53416761cf975cc4cd6d452790cee06b49",
                           "author": {
                             "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                            "alias": CONTRIBUTOR_ALIAS
                           },
                           "body": "EDIT: This is a comment on a review",
                           "edits": [
                             {
                               "author": {
                                 "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                                "alias": CONTRIBUTOR_ALIAS
                               },
                               "body": "This is a comment on a review",
                               "timestamp": 1671125284,
@@ -3577,6 +3634,7 @@ mod routes {
                             {
                               "author": {
                                 "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                                "alias": CONTRIBUTOR_ALIAS
                               },
                               "body": "EDIT: This is a comment on a review",
                               "timestamp": 1671125284,
@@ -3662,6 +3720,7 @@ mod routes {
               "id": CONTRIBUTOR_PATCH_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
+                "alias": CONTRIBUTOR_ALIAS
               },
               "title": "A new `hello world`",
               "state": {
@@ -3674,6 +3733,7 @@ mod routes {
               "merges": [{
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": CONTRIBUTOR_ALIAS
                   },
                   "commit": PARENT,
                   "timestamp": TIMESTAMP,
@@ -3685,12 +3745,14 @@ mod routes {
                   "id": CONTRIBUTOR_PATCH_ID,
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": CONTRIBUTOR_ALIAS
                   },
                   "description": "change `hello world` in README to something else",
                   "edits": [
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": CONTRIBUTOR_ALIAS
                       },
                       "body": "change `hello world` in README to something else",
                       "timestamp": TIMESTAMP,
