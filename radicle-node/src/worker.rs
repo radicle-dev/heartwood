@@ -13,7 +13,7 @@ use crossbeam_channel as chan;
 use radicle::identity::RepoId;
 use radicle::node::notifications;
 use radicle::prelude::NodeId;
-use radicle::storage::refs::RefsAt;
+use radicle::storage::refs::SignedRefsUpdate;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{cob, crypto, Storage};
 use radicle_fetch::FetchLimit;
@@ -106,7 +106,7 @@ pub enum FetchRequest {
         /// Remote peer we are interacting with.
         remote: NodeId,
         /// If this fetch is for a particular set of `rad/sigrefs`.
-        refs_at: Option<Vec<RefsAt>>,
+        refs_at: Option<Vec<SignedRefsUpdate>>,
         /// Fetch timeout.
         timeout: time::Duration,
     },
@@ -285,7 +285,7 @@ impl Worker {
         &mut self,
         rid: RepoId,
         remote: NodeId,
-        refs_at: Option<Vec<RefsAt>>,
+        refs_at: Option<Vec<SignedRefsUpdate>>,
         channels: channels::ChannelsFlush,
         notifs: notifications::StoreWriter,
         mut cache: cob::cache::StoreWriter,

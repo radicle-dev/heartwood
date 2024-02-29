@@ -30,6 +30,7 @@ use radicle::node::routing::Store as _;
 use radicle::node::seed;
 use radicle::node::seed::Store as _;
 use radicle::node::{ConnectOptions, Penalty, Severity};
+use radicle::storage::refs::SignedRefsUpdate;
 use radicle::storage::RepositoryError;
 
 use crate::crypto;
@@ -250,7 +251,7 @@ struct FetchState {
     /// Node we're fetching from.
     from: NodeId,
     /// What refs we're fetching.
-    refs_at: Vec<RefsAt>,
+    refs_at: Vec<SignedRefsUpdate>,
     /// Channels waiting for fetch results.
     subscribers: Vec<chan::Sender<FetchResult>>,
 }
@@ -272,7 +273,7 @@ struct QueuedFetch {
     /// Peer being fetched from.
     from: NodeId,
     /// Refs being fetched.
-    refs_at: Vec<RefsAt>,
+    refs_at: Vec<SignedRefsUpdate>,
     /// Result channel.
     channel: Option<chan::Sender<FetchResult>>,
 }
@@ -806,7 +807,7 @@ where
         &mut self,
         rid: RepoId,
         from: NodeId,
-        refs: NonEmpty<RefsAt>,
+        refs: NonEmpty<SignedRefsUpdate>,
         timeout: time::Duration,
         channel: Option<chan::Sender<FetchResult>>,
     ) {
@@ -828,7 +829,7 @@ where
         &mut self,
         rid: RepoId,
         from: NodeId,
-        refs_at: Vec<RefsAt>,
+        refs_at: Vec<SignedRefsUpdate>,
         timeout: time::Duration,
         channel: Option<chan::Sender<FetchResult>>,
     ) {
@@ -883,7 +884,7 @@ where
         &mut self,
         rid: RepoId,
         from: &NodeId,
-        refs_at: Vec<RefsAt>,
+        refs_at: Vec<SignedRefsUpdate>,
         timeout: time::Duration,
     ) -> Result<&mut FetchState, TryFetchError> {
         let from = *from;
@@ -1043,6 +1044,7 @@ where
                 .seed_policy(&rid)
                 .expect("Service::dequeue_fetch: error accessing repo seeding configuration");
 
+            let refs_at = refs_at.iter().map(RefsAt::from).collect();
             match self.refs_status_of(rid, refs_at, &repo_entry.scope) {
                 Ok(status) => {
                     if let Some(refs) = NonEmpty::from_vec(status.fresh) {

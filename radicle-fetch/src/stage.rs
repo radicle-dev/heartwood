@@ -15,17 +15,18 @@
 //!      `rad/sigrefs`, for each configured namespace, i.e. followed
 //!      and delegate peers if the scope is "followed" and all peers is the
 //!      scope is all.
-//!   3. [`DataRefs`]: fetches the `Oid`s for each reference listed in
-//!      the `rad/sigrefs` for each fetched peer in the
-//!      [`SpecialRefs`] stage. Additionally, any references that have
-//!      been removed from `rad/sigrefs` are marked for deletion.
+//!   3. [`DataRefs`]/[`DiffedRefs`]: fetches the `Oid`s for each
+//!      reference listed in the `rad/sigrefs` for each fetched peer
+//!      in the [`SpecialRefs`] stage. Additionally, any references
+//!      that have been removed from `rad/sigrefs` are marked for
+//!      deletion.
 //!
 //! ### Pull
 //!
 //! A `pull` is split into two stages:
 //!
 //!   1. [`SpecialRefs`]: see above.
-//!   2. [`DataRefs`]: see above.
+//!   2. [`DataRefs`]/[`DiffedRefs`]: see above.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
@@ -380,7 +381,7 @@ impl ProtocolStage for SigrefsAt {
 }
 
 /// The [`ProtocolStage`] for fetching data refs from the set of
-/// remotes in `trusted`.
+/// `remotes`.
 ///
 /// All refs that are listed in the `remotes` sigrefs are checked
 /// against our refdb/odb to build a set of `wants` and `haves`. The
@@ -485,6 +486,112 @@ impl ProtocolStage for DataRefs {
                             prev: either::Left(target),
                         },
                     );
+                }
+            }
+        }
+
+        Ok(updates)
+    }
+}
+
+/// The [`ProtocolStage`] that is similar to [`DataRefs`], however it
+/// is aware that it is an update of `rad/sigrefs`. This means that it
+/// will only compute `wants` and `haves` based on any modified
+/// `Oid`s.
+///
+/// All refs and objects are prepared for updating as per usual, since
+/// we keep track of in-memory references for validation.
+#[derive(Debug)]
+pub struct DiffedRefs {
+    /// The node that is being fetched from.
+    pub remote: PublicKey,
+    /// The set of signed references from each remote that was
+    /// fetched.
+    pub remotes: sigrefs::RemoteDiffedRefs,
+    /// The data limit for this stage of fetching.
+    pub limit: u64,
+}
+
+impl ProtocolStage for DiffedRefs {
+    fn ls_refs(&self) -> Option<NonEmpty<BString>> {
+        None
+    }
+
+    fn ref_filter(&self, _r: Ref) -> Option<ReceivedRef> {
+        None
+    }
+
+    fn pre_validate(&self, _refs: &[ReceivedRef]) -> Result<(), error::Layout> {
+        Ok(())
+    }
+
+    fn wants_haves(
+        &self,
+        refdb: &Repository,
+        _refs: &[ReceivedRef],
+    ) -> Result<WantsHaves, error::WantsHaves> {
+        let mut wants_haves = WantsHaves::default();
+
+        for (remote, refs) in &self.remotes {
+            wants_haves.add(
+                refdb,
+                refs.iter().filter_map(|(refname, up)| {
+                    let refname = Qualified::from_refstr(refname)
+                        .map(|refname| refname.with_namespace(Component::from(remote)))?;
+                    let tip = up.modified()?;
+                    Some((refname, *tip))
+                }),
+            )?;
+        }
+
+        Ok(wants_haves)
+    }
+
+    fn prepare_updates<'a>(
+        &self,
+        _s: &FetchState,
+        _repo: &Repository,
+        _refs: &'a [ReceivedRef],
+    ) -> Result<Updates<'a>, error::Prepare> {
+        use radicle::storage::refs::Update::{Added, Changed, Deleted, Same};
+
+        let mut updates = Updates::default();
+        let prefix_rad = refname!("refs/rad");
+
+        for (remote, refs) in &self.remotes {
+            for (name, up) in refs.iter() {
+                let is_refs_rad = name.starts_with(prefix_rad.as_str());
+                let tracking: Namespaced<'_> = Qualified::from_refstr(name)
+                    .and_then(|q| refs::ReceivedRefname::remote(*remote, q).to_namespaced())
+                    .expect("we checked sigrefs well-formedness in wants_refs already");
+                match up {
+                    Added { oid } | Changed { oid } => updates.add(
+                        *remote,
+                        Update::Direct {
+                            name: tracking,
+                            target: *oid,
+                            no_ff: Policy::Allow,
+                        },
+                    ),
+                    Deleted { oid } if !is_refs_rad => updates.add(
+                        *remote,
+                        Update::Prune {
+                            name: tracking,
+                            prev: either::Left(*oid),
+                        },
+                    ),
+                    // N.b. create an update for this reference so
+                    // that the in-memory refdb is updated.
+                    Same { oid } => updates.add(
+                        *remote,
+                        Update::Direct {
+                            name: tracking,
+                            target: *oid,
+                            no_ff: Policy::Allow,
+                        },
+                    ),
+                    // N.b. `refs/rad` is not subject to pruning.
+                    Deleted { .. } => continue,
                 }
             }
         }

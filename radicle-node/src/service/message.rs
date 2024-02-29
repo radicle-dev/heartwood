@@ -1,7 +1,7 @@
 use std::{fmt, io, mem};
 
 use radicle::git;
-use radicle::storage::refs::RefsAt;
+use radicle::storage::refs::{RefsAt, SignedRefsUpdate};
 use radicle::storage::ReadRepository;
 
 use crate::crypto;
@@ -170,7 +170,7 @@ pub struct RefsAnnouncement {
 pub struct RefsStatus {
     /// The `rad/sigrefs` was missing or it's ahead of the local
     /// `rad/sigrefs`.
-    pub fresh: Vec<RefsAt>,
+    pub fresh: Vec<SignedRefsUpdate>,
     /// The `rad/sigrefs` has been seen before.
     pub stale: Vec<RefsAt>,
 }
@@ -188,10 +188,18 @@ impl RefsStatus {
             // announcement "fresh", since we obviously don't
             // have the refs.
             Err(e) if e.is_not_found() => {
+                let fresh = refs
+                    .into_iter()
+                    .map(|RefsAt { remote, at }| SignedRefsUpdate {
+                        remote,
+                        old: None,
+                        new: at,
+                    })
+                    .collect();
                 return Ok(RefsStatus {
-                    fresh: refs.clone(),
+                    fresh,
                     stale: Vec::new(),
-                })
+                });
             }
             Err(e) => return Err(e),
             Ok(r) => r,
@@ -212,12 +220,20 @@ impl RefsStatus {
         match RefsAt::new(repo, theirs.remote) {
             Ok(ours) => {
                 if Self::is_fresh(repo, theirs.at, ours.at)? {
-                    self.fresh.push(theirs);
+                    self.fresh.push(SignedRefsUpdate {
+                        remote: theirs.remote,
+                        old: Some(ours.at),
+                        new: theirs.at,
+                    });
                 } else {
                     self.stale.push(theirs);
                 }
             }
-            Err(e) if git::is_not_found_err(&e) => self.fresh.push(theirs),
+            Err(e) if git::is_not_found_err(&e) => self.fresh.push(SignedRefsUpdate {
+                remote: theirs.remote,
+                old: None,
+                new: theirs.at,
+            }),
             Err(e) => {
                 log::warn!(
                     target: "service",
