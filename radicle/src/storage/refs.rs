@@ -437,6 +437,156 @@ impl Deref for SignedRefsAt {
     }
 }
 
+/// A snapshot of a `rad/sigrefs` update.
+///
+/// If `old` is `None` then this is a newly seen `rad/sigrefs`,
+/// otherwise it is an update from `old` to `new`.
+///
+/// The [`RefsUpdate::difference`] method will compute the difference
+/// between the two `Oid`s, returning [`DiffedRefs`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SignedRefsUpdate {
+    /// The remote namespace of the `rad/sigrefs`.
+    pub remote: RemoteId,
+    /// The commit SHA of the previously seen `rad/sigrefs`.
+    pub old: Option<Oid>,
+    /// The commit SHA of the newly seen `rad/sigrefs`.
+    pub new: Oid,
+}
+
+/// A difference update between two references in a `rad/sigrefs`
+/// payload.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Update {
+    /// The reference was added and points to `oid`.
+    Added { oid: Oid },
+    /// The reference was changed to point to `oid`.
+    Changed { oid: Oid },
+    /// The reference was deleted and used to point to `oid`.
+    Deleted { oid: Oid },
+    /// The reference was not changed, and still points to `oid`.
+    Same { oid: Oid },
+}
+
+impl Update {
+    /// Return the `oid` of the update if it was `Added` or `Changed`.
+    pub fn modified(&self) -> Option<&Oid> {
+        match self {
+            Update::Added { oid } => Some(oid),
+            Update::Changed { oid } => Some(oid),
+            Update::Deleted { .. } | Update::Same { .. } => None,
+        }
+    }
+
+    /// Return the `oid` of the update.
+    fn oid(&self) -> &Oid {
+        match self {
+            Update::Added { oid } => oid,
+            Update::Changed { oid } => oid,
+            Update::Deleted { oid } => oid,
+            Update::Same { oid } => oid,
+        }
+    }
+}
+
+/// The set of [`Update`]s for a given [`git::RefString`].
+///
+/// To construct a `DiffedRefs` use [`RefsUpdate::difference`].
+#[derive(Clone, Debug, Default)]
+pub struct DiffedRefs(BTreeMap<git::RefString, Update>);
+
+impl Deref for DiffedRefs {
+    type Target = BTreeMap<git::RefString, Update>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for DiffedRefs {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl SignedRefsUpdate {
+    /// Get the difference between [`RefsUpdate::old`], if it exists,
+    /// and [`RefsUpdate::new`].
+    ///
+    /// If `old` is `None`, then all `Updates`s are `Added`.
+    ///
+    /// Otherwise, they are computed to be:
+    ///    - `Added` if the reference only exists in `new`.
+    ///    - `Changed` if the reference exists in `old` and `new`,
+    ///       and the `oid`s are different.
+    ///    - `Deleted` if the reference only exists in `old`.
+    ///    - `Same` if the reference exists in `old` and `new`, and
+    ///      the `oid`s are the same.
+    pub fn difference<S>(&self, repo: &S) -> Result<DiffedRefs, Error>
+    where
+        S: ReadRepository,
+    {
+        let new = self.load_new(repo)?;
+        let mut refs = DiffedRefs(
+            new.iter()
+                .map(|(refname, oid)| (refname.clone(), Update::Added { oid: *oid }))
+                .collect::<BTreeMap<_, _>>(),
+        );
+
+        match self.load_old(repo)? {
+            None => Ok(refs),
+            Some(old) => {
+                for (refname, old) in old.sigrefs.iter() {
+                    refs.entry(refname.clone())
+                        .and_modify(|update| {
+                            // N.b. we rely on the fact that is always the
+                            // newly added Oid.
+                            let new = update.oid();
+                            if new == old {
+                                *update = Update::Same { oid: *new };
+                            } else {
+                                *update = Update::Changed { oid: *update.oid() };
+                            }
+                        })
+                        .or_insert(Update::Deleted { oid: *old });
+                }
+                Ok(refs)
+            }
+        }
+    }
+
+    fn load_old<S>(&self, repo: &S) -> Result<Option<SignedRefsAt>, Error>
+    where
+        S: ReadRepository,
+    {
+        self.old
+            .map(|at| {
+                RefsAt {
+                    remote: self.remote,
+                    at,
+                }
+                .load(repo)
+            })
+            .transpose()
+    }
+
+    fn load_new<S>(&self, repo: &S) -> Result<SignedRefsAt, Error>
+    where
+        S: ReadRepository,
+    {
+        RefsAt::from(self).load(repo)
+    }
+}
+
+impl From<&SignedRefsUpdate> for RefsAt {
+    fn from(up: &SignedRefsUpdate) -> Self {
+        Self {
+            remote: up.remote,
+            at: up.new,
+        }
+    }
+}
+
 pub mod canonical {
     use super::*;
 

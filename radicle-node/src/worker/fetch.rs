@@ -7,7 +7,7 @@ use localtime::LocalTime;
 
 use radicle::crypto::PublicKey;
 use radicle::prelude::RepoId;
-use radicle::storage::refs::RefsAt;
+use radicle::storage::refs::SignedRefsUpdate;
 use radicle::storage::{
     ReadRepository, ReadStorage as _, RefUpdate, RemoteRepository, WriteRepository as _,
 };
@@ -67,7 +67,7 @@ impl Handle {
         cache: &mut cob::cache::StoreWriter,
         limit: FetchLimit,
         remote: PublicKey,
-        refs_at: Option<Vec<RefsAt>>,
+        refs_at: Option<Vec<SignedRefsUpdate>>,
     ) -> Result<FetchResult, error::Fetch> {
         let (result, notifs) = match self {
             Self::Clone { mut handle, tmp } => {
