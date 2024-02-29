@@ -249,6 +249,8 @@ enum TryFetchError<'a> {
 struct FetchState {
     /// Node we're fetching from.
     from: NodeId,
+    /// What refs we're fetching.
+    refs_at: Vec<RefsAt>,
     /// Channels waiting for fetch results.
     subscribers: Vec<chan::Sender<FetchResult>>,
 }
@@ -837,10 +839,10 @@ where
                 }
             }
             Err(TryFetchError::AlreadyFetching(fetching)) => {
-                // If we're already fetching from the requested peer, there's nothing to do, we
-                // simply add the supplied channel to the list of subscribers so that it is notified
-                // on completion. Otherwise, we queue a fetch with the requested peer.
-                if fetching.from == from {
+                // If we're already fetching the same refs from the requested peer, there's nothing
+                // to do, we simply add the supplied channel to the list of subscribers so that it
+                // is notified on completion. Otherwise, we queue a fetch with the requested peer.
+                if fetching.from == from && fetching.refs_at == refs_at {
                     debug!(target: "service", "Ignoring redundant fetch of {rid} from {from}");
 
                     if let Some(c) = channel {
@@ -912,6 +914,7 @@ where
 
         let fetching = fetching.or_insert(FetchState {
             from,
+            refs_at: refs_at.clone(),
             subscribers: vec![],
         });
         let namespaces = self.policies.namespaces_for(&self.storage, &rid)?;
