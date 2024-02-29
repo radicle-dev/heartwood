@@ -1,7 +1,6 @@
 use std::{collections::HashSet, thread, time};
 
 use radicle::crypto::{test::signer::MockSigner, Signer};
-use radicle::git;
 use radicle::node::{Alias, FetchResult, Handle as _, DEFAULT_TIMEOUT};
 use radicle::storage::{
     ReadRepository, ReadStorage, RefUpdate, RemoteRepository, SignRepository, ValidateRepository,
@@ -9,6 +8,7 @@ use radicle::storage::{
 };
 use radicle::test::fixtures;
 use radicle::{assert_matches, rad};
+use radicle::{git, issue};
 
 use crate::node::config::Limits;
 use crate::node::{Config, ConnectOptions};
@@ -969,7 +969,7 @@ fn test_outdated_sigrefs() {
     // At this stage, Alice and Bob have Eve's fork and Eve does not
     // have Bob's fork
 
-    eve.issue(
+    let issue_id = eve.issue(
         rid,
         "Outdated Sigrefs",
         "Outdated sigrefs are harshing my vibes",
@@ -984,6 +984,11 @@ fn test_outdated_sigrefs() {
         FetchResult::Success { .. }
     );
     let repo = alice.storage.repository(rid).unwrap();
+    let issues = issue::Issues::open(&repo).unwrap();
+    assert!(
+        issues.get(&issue_id).unwrap().is_some(),
+        "Alice did not fetch issue {issue_id}"
+    );
     let eve_remote = repo.remote(&eve.id).unwrap();
     let eves_refs_expected = eve_remote.refs;
     assert_ne!(eves_refs_expected, old_refs);
