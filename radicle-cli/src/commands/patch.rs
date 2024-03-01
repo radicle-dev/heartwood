@@ -84,6 +84,7 @@ Diff options
 Comment options
 
     -m, --message <string>     Provide a comment message via the command-line
+        --reply-to <comment>   The comment to reply to
 
 Edit options
 
