@@ -217,64 +217,35 @@ where
     let patches = cob::patch::Patches::open(storage)?;
     for update in refs {
         match update {
-            RefUpdate::Updated { name, .. } | RefUpdate::Created { name, .. } => {
-                match name.to_namespaced() {
-                    Some(name) => {
-                        let Some(identifier) = cob::TypedId::from_namespaced(&name)? else {
-                            continue;
-                        };
-                        if identifier.is_issue() {
-                            if let Some(issue) = issues.get(&identifier.id)? {
-                                cache
-                                    .update(rid, &identifier.id, &issue)
-                                    .map(|_| ())
-                                    .map_err(|e| error::Cache::Update {
-                                        id: identifier.id,
-                                        type_name: identifier.type_name,
-                                        err: e.into(),
-                                    })?;
-                            }
-                        } else if identifier.is_patch() {
-                            if let Some(patch) = patches.get(&identifier.id)? {
-                                cache
-                                    .update(rid, &identifier.id, &patch)
-                                    .map(|_| ())
-                                    .map_err(|e| error::Cache::Update {
-                                        id: identifier.id,
-                                        type_name: identifier.type_name,
-                                        err: e.into(),
-                                    })?;
-                            }
-                        }
-                    }
-                    None => continue,
-                }
-            }
-            RefUpdate::Deleted { name, .. } => match name.to_namespaced() {
+            RefUpdate::Updated { name, .. }
+            | RefUpdate::Created { name, .. }
+            | RefUpdate::Deleted { name, .. } => match name.to_namespaced() {
                 Some(name) => {
                     let Some(identifier) = cob::TypedId::from_namespaced(&name)? else {
                         continue;
                     };
                     if identifier.is_issue() {
-                        cob::cache::Remove::<cob::issue::Issue>::remove(cache, &identifier.id)
-                            .map(|_| ())
-                            .map_err(|e| error::Cache::Remove {
-                                id: identifier.id,
-                                type_name: identifier.type_name,
-                                err: e.into(),
-                            })?;
+                        if let Some(issue) = issues.get(&identifier.id)? {
+                            cache
+                                .update(rid, &identifier.id, &issue)
+                                .map(|_| ())
+                                .map_err(|e| error::Cache::Update {
+                                    id: identifier.id,
+                                    type_name: identifier.type_name,
+                                    err: e.into(),
+                                })?;
+                        }
                     } else if identifier.is_patch() {
-                        cob::cache::Remove::<cob::patch::Patch>::remove(cache, &identifier.id)
-                            .map(|_| ())
-                            .map_err(
-                                |e: <C as cob::cache::Remove<cob::patch::Patch>>::RemoveError| {
-                                    error::Cache::Remove {
-                                        id: identifier.id,
-                                        type_name: identifier.type_name,
-                                        err: e.into(),
-                                    }
-                                },
-                            )?;
+                        if let Some(patch) = patches.get(&identifier.id)? {
+                            cache
+                                .update(rid, &identifier.id, &patch)
+                                .map(|_| ())
+                                .map_err(|e| error::Cache::Update {
+                                    id: identifier.id,
+                                    type_name: identifier.type_name,
+                                    err: e.into(),
+                                })?;
+                        }
                     }
                 }
                 None => continue,
