@@ -108,6 +108,14 @@ impl Message {
     }
 }
 
+impl From<String> for Message {
+    fn from(value: String) -> Self {
+        let mut message = Message::default();
+        message.append(&value);
+        message
+    }
+}
+
 pub const PATCH_MSG: &str = r#"
 <!--
 Please enter a patch message for your changes. An empty

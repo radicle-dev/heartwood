@@ -529,7 +529,7 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.0"
+version = "4.5.1"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -537,7 +537,7 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.0"
+version = "4.5.1"
 dependencies = [
  "anstream",
  "anstyle",
@@ -547,7 +547,7 @@ dependencies = [
 
 [[package]]
 name = "clap_complete"
-version = "4.5.0"
+version = "4.5.1"
 dependencies = [
  "clap",
  "clap_lex",
