@@ -2,7 +2,8 @@ use axum::extract::path::ErrorKind;
 use axum::extract::rejection::{PathRejection, QueryRejection};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
-use axum::http::StatusCode;
+use axum::http::{header, StatusCode};
+use axum::response::IntoResponse;
 use axum::{async_trait, Json};
 
 use serde::de::DeserializeOwned;
@@ -86,4 +87,13 @@ where
 pub struct Error {
     success: bool,
     error: String,
+}
+
+/// Add a Cache-Control header that marks the response as immutable and
+/// instructs clients to cache the response for 7 days.
+pub fn immutable_response(data: impl serde::Serialize) -> impl IntoResponse {
+    (
+        [(header::CACHE_CONTROL, "public, max-age=604800, immutable")],
+        Json(data),
+    )
 }

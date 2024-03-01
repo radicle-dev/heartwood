@@ -28,7 +28,7 @@ use radicle_surf::{diff, Glob, Oid, Repository};
 use crate::api::error::Error;
 use crate::api::project::Info;
 use crate::api::{self, announce_refs, CobsQuery, Context, PaginationQuery, ProjectQuery};
-use crate::axum_extra::{Path, Query};
+use crate::axum_extra::{immutable_response, Path, Query};
 
 const CACHE_1_HOUR: &str = "public, max-age=3600, must-revalidate";
 const MAX_BODY_LIMIT: usize = 4_194_304;
@@ -181,7 +181,7 @@ pub struct CommitsQueryString {
 }
 
 /// Get project commit range.
-/// `GET /projects/:project/commits?since=<sha>`
+/// `GET /projects/:project/commits?parent=<sha>`
 async fn history_handler(
     State(ctx): State<Context>,
     Path(project): Path<RepoId>,
@@ -194,6 +194,11 @@ async fn history_handler(
         page,
         per_page,
     } = qs;
+
+    // If the parent commit is provided, the response depends only on the query
+    // string and not on the state of the repository. This means we can instruct
+    // the caches to treat the response as immutable.
+    let is_immutable = parent.is_some();
 
     let sha = match parent {
         Some(commit) => commit,
@@ -258,7 +263,11 @@ async fn history_handler(
         "stats":  repo.stats_from(&sha)?,
     });
 
-    Ok::<_, Error>((StatusCode::OK, Json(response)))
+    if is_immutable {
+        Ok::<_, Error>(immutable_response(response).into_response())
+    } else {
+        Ok::<_, Error>(Json(response).into_response())
+    }
 }
 
 /// Get project commit.
@@ -318,13 +327,13 @@ async fn commit_handler(
         }
     });
 
-    let response = json!({
+    let response: serde_json::Value = json!({
       "commit": api::json::commit(&commit),
       "diff": diff,
       "files": files,
       "branches": branches
     });
-    Ok::<_, Error>(Json(response))
+    Ok::<_, Error>(immutable_response(response))
 }
 
 /// Get diff between two commits
@@ -391,7 +400,7 @@ async fn diff_handler(
 
     let response = json!({ "diff": diff, "files": files, "commits": commits });
 
-    Ok::<_, Error>(Json(response))
+    Ok::<_, Error>(immutable_response(response))
 }
 
 /// Get project activity for the past year.
@@ -439,7 +448,7 @@ async fn tree_handler(
     if let Some(ref cache) = ctx.cache {
         let cache = &mut cache.tree.lock().await;
         if let Some(response) = cache.get(&(project, sha, path.clone())) {
-            return Ok::<_, Error>(Json(response.clone()));
+            return Ok::<_, Error>(immutable_response(response.clone()));
         }
     }
 
@@ -454,7 +463,7 @@ async fn tree_handler(
         cache.put((project, sha, path.clone()), response.clone());
     }
 
-    Ok::<_, Error>(Json(response))
+    Ok::<_, Error>(immutable_response(response))
 }
 
 /// Get all project remotes.
@@ -566,7 +575,7 @@ async fn readme_handler(
     {
         if let Ok(blob) = repo.blob(sha, &path) {
             let response = api::json::blob(&blob, &path);
-            return Ok::<_, Error>(Json(response));
+            return Ok::<_, Error>(immutable_response(response));
         }
     }
 
