@@ -435,6 +435,16 @@ pub fn show(
     for line in timeline::timeline(profile, patch) {
         widget.push(line);
     }
+
+    if verbose {
+        for (id, comment) in revision.replies() {
+            let hstack = term::comment::header(id, comment, profile);
+
+            widget = widget.divider();
+            widget.push(hstack);
+            widget.push(term::textarea(comment.body()).wrap(60));
+        }
+    }
     widget.print();
 
     Ok(())

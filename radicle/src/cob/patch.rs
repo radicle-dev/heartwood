@@ -1420,6 +1420,11 @@ impl Revision {
         &self.discussion
     }
 
+    /// Iterate over all top-level replies.
+    pub fn replies(&self) -> impl Iterator<Item = (&CommentId, &thread::Comment<CodeLocation>)> {
+        self.discussion.comments()
+    }
+
     /// Reviews of this revision's changes (one per actor).
     pub fn reviews(&self) -> impl DoubleEndedIterator<Item = (&PublicKey, &Review)> {
         self.reviews
