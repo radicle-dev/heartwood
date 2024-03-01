@@ -3,6 +3,8 @@ use std::io::{self, Write};
 use std::{io::ErrorKind, iter, process};
 
 use anyhow::anyhow;
+use clap::builder::styling::Style;
+use clap::builder::Styles;
 use clap::{CommandFactory, Parser, Subcommand};
 
 use radicle::version;
@@ -15,6 +17,7 @@ pub const NAME: &str = "rad";
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const RADICLE_VERSION: &str = env!("RADICLE_VERSION");
 pub const DESCRIPTION: &str = "Radicle command line interface";
+pub const LONG_DESCRIPTION: &str = "Radicle is a distributed GIT forge.";
 pub const GIT_HEAD: &str = env!("GIT_HEAD");
 pub const TIMESTAMP: &str = env!("GIT_COMMIT_TIME");
 pub const VERSION: Version = Version {
@@ -23,10 +26,28 @@ pub const VERSION: Version = Version {
     commit: GIT_HEAD,
     timestamp: TIMESTAMP,
 };
+pub const LONG_VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HEAD"), ")");
+pub const HELP_TEMPLATE: &str = r#"
+{before-help}{bin} {version}
+{about-with-newline}
+Usage: {usage}
 
+{all-args}
+{after-help}
+"#;
+
+/// Radicle command line interface
+///
+/// Radicle is a distributed GIT forge.
 #[derive(Parser, Debug)]
-#[command(name = "rad")]
-#[command(about = "The rad CLI", long_about = None)]
+#[command(name = NAME)]
+#[command(version = VERSION)]
+#[command(long_version = LONG_VERSION)]
+#[command(help_template = HELP_TEMPLATE)]
+#[command(propagate_version = true)]
+#[command(propagate_help_template = true)]
+// #[command(styles = Styles::styled().usage(AnsiColor::Blue.on_default()))]
+#[command(styles = Styles::plain().literal(Style::new().bold()))]
 struct CliArgs {
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -34,6 +55,9 @@ struct CliArgs {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Manage issues
+    ///
+    /// With issues you can organize your project and use it to discuss bugs and improvements.
     Issue(rad_issue::IssueArgs),
 }
 

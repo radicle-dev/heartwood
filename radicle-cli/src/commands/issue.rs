@@ -2,7 +2,7 @@
 mod cache;
 
 use anyhow::Context as _;
-use clap::{Parser, Subcommand, ValueHint};
+use clap::{ArgGroup, Parser, Subcommand, ValueHint};
 
 use radicle::cob::common::{Label, Reaction};
 use radicle::cob::issue;
@@ -107,14 +107,14 @@ pub struct IssueArgs {
 
 #[derive(Subcommand, Debug)]
 enum IssueCommands {
-    /// Delete an issue.
+    /// Delete an issue
     Delete {
         #[arg(value_name = "issue-id")]
         #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
         id: Rev,
     },
 
-    /// Edit an issue.
+    /// Edit an issue
     Edit {
         #[arg(value_name = "issue-id")]
         #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
@@ -127,15 +127,10 @@ enum IssueCommands {
         description: Option<String>,
     },
 
-    List {
-        #[clap(value_hint = ValueHint::Dynamic(get_assignee_did_hints))]
-        #[arg(long, name = "did")]
-        assigned: Option<Did>,
+    /// List and filter issues
+    List(ListArgs),
 
-        #[clap(value_enum, default_value_t=StateFilter::All)]
-        state: StateFilter,
-    },
-
+    /// Create a new issue
     Open {
         #[arg(long, short)]
         title: Option<String>,
@@ -150,6 +145,7 @@ enum IssueCommands {
         assignees: Vec<Did>,
     },
 
+    /// Add a reaction emoji to an issue or comment
     React {
         #[arg(value_name = "issue-id")]
         #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
@@ -184,7 +180,7 @@ enum IssueCommands {
         delete: Vec<Did>,
     },
 
-    /// Update lables on an issue.
+    /// Update labels on an issue
     Label {
         /// The issue to label.
         #[arg(value_name = "issue-id")]
@@ -219,6 +215,7 @@ enum IssueCommands {
         reply_to: Option<Rev>,
     },
 
+    /// Show a specific issue
     Show {
         #[arg(value_name = "issue-id")]
         #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
@@ -229,57 +226,89 @@ enum IssueCommands {
         debug: bool,
     },
 
-    State {
-        #[arg(value_name = "issue-id")]
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
-        id: Rev,
-
-        #[clap(value_enum)]
-        state: StateChoice,
-    },
     Cache {
         #[arg(value_name = "issue-id")]
         id: Option<Rev>,
     },
+
+    State(StateArgs),
 }
 
-#[derive(clap::ValueEnum, Clone, Debug)]
-enum StateFilter {
-    All,
-    Closed,
-    Open,
-    Solved,
+#[derive(Parser, Debug)]
+struct ListArgs {
+    /// List issues assigned to <did>
+    #[clap(value_hint = ValueHint::Dynamic(get_assignee_did_hints))]
+    #[arg(long, name = "did")]
+    assigned: Option<Did>,
+
+    /// List all issues (default)
+    #[arg(long, group = "state")]
+    all: bool,
+
+    /// List only open issues
+    #[arg(long, group = "state")]
+    open: bool,
+
+    /// List only closed issues
+    #[arg(long, group = "state")]
+    closed: bool,
+
+    /// List only solved issues
+    #[arg(long, group = "state")]
+    solved: bool,
 }
 
-fn to_state_filter(list_state: StateFilter) -> Option<State> {
-    match list_state {
-        StateFilter::All => None,
-        StateFilter::Open => Some(radicle::cob::issue::State::Open),
-        StateFilter::Closed => Some(State::Closed {
+#[derive(Parser, Debug)]
+#[clap(group(ArgGroup::new("state").required(true)))]
+struct StateArgs {
+    #[arg(value_name = "issue-id")]
+    #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
+    id: Rev,
+
+    /// Set issue state to open
+    #[arg(long, short, group = "state")]
+    open: bool,
+
+    /// Set issue state to closed
+    #[arg(long, short, group = "state")]
+    closed: bool,
+
+    /// Set issue state to solved
+    #[arg(long, short, group = "state")]
+    solved: bool,
+}
+
+
+fn to_state_filter(args: ListArgs) -> Option<State> {
+    if args.open {
+        Some(radicle::cob::issue::State::Open)
+    } else if args.closed {
+        Some(State::Closed {
             reason: CloseReason::Other,
-        }),
-        StateFilter::Solved => Some(State::Closed {
+        })
+    } else if args.solved {
+        Some(State::Closed {
             reason: CloseReason::Solved,
-        }),
+        })
+    } else {
+        None
     }
 }
 
-#[derive(clap::ValueEnum, Clone, Debug)]
-enum StateChoice {
-    Closed,
-    Open,
-    Solved,
-}
-
-fn to_state_choice(choice: StateChoice) -> State {
-    match choice {
-        StateChoice::Open => radicle::cob::issue::State::Open,
-        StateChoice::Closed => State::Closed {
+fn to_state(args: StateArgs) -> State {
+    if args.open {
+        radicle::cob::issue::State::Open
+    } else if args.closed {
+        State::Closed {
             reason: CloseReason::Other,
-        },
-        StateChoice::Solved => State::Closed {
+        }
+    } else if args.solved {
+        State::Closed {
             reason: CloseReason::Solved,
-        },
+        }
+    } else {
+        // FIXME:
+        unreachable!("State flag needed");
     }
 }
 
@@ -323,9 +352,9 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                     term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
                 }
             }
-            IssueCommands::List { assigned, state } => {
-                let assigned = assigned.map(Assigned::Peer);
-                let state = to_state_filter(state);
+            IssueCommands::List(list_args) => {
+                let assigned = list_args.assigned.map(Assigned::Peer);
+                let state = to_state_filter(list_args);
                 list(issues, &assigned, &state, &profile)?;
             }
             IssueCommands::Show { id, debug } => {
@@ -346,11 +375,11 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                     term::issue::show(&issue, &id, format, &profile)?;
                 }
             }
-            IssueCommands::State { id, state } => {
+            IssueCommands::State(state_args) => {
                 let signer = term::signer(&profile)?;
-                let id = id.resolve(&repo.backend)?;
+                let id = state_args.id.resolve(&repo.backend)?;
                 let mut issue = issues.get_mut(&id)?;
-                issue.lifecycle(to_state_choice(state), &signer)?;
+                issue.lifecycle(to_state(state_args), &signer)?;
             }
             IssueCommands::Assign { id, add, delete } => {
                 let signer = term::signer(&profile)?;
