@@ -1,11 +1,8 @@
 #[path = "issue/cache.rs"]
 mod cache;
 
-use std::collections::BTreeSet;
-use std::ffi::OsString;
-use std::str::FromStr;
-
-use anyhow::{anyhow, Context as _};
+use anyhow::Context as _;
+use clap::{Parser, Subcommand, ValueHint};
 
 use radicle::cob::common::{Label, Reaction};
 use radicle::cob::issue;
@@ -20,10 +17,11 @@ use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
 use radicle::Profile;
 use radicle::{cob, Node};
 
+use crate::cli::{get_assignee_did_hints, get_issue_id_hints};
 use crate::git::Rev;
 use crate::node;
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::args::Help;
 use crate::terminal::format::Author;
 use crate::terminal::issue::Format;
 use crate::terminal::patch::Message;
@@ -77,22 +75,6 @@ Options
 "#,
 };
 
-#[derive(Default, Debug, PartialEq, Eq)]
-pub enum OperationName {
-    Assign,
-    Edit,
-    Open,
-    Comment,
-    Delete,
-    Label,
-    #[default]
-    List,
-    React,
-    Show,
-    State,
-    Cache,
-}
-
 /// Command line Peer argument.
 #[derive(Default, Debug, PartialEq, Eq)]
 pub enum Assigned {
@@ -101,506 +83,374 @@ pub enum Assigned {
     Peer(Did),
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum Operation {
-    Edit {
+#[derive(Parser, Debug)]
+pub struct IssueArgs {
+    #[command(subcommand)]
+    command: Option<IssueCommands>,
+
+    /// Don't print anything
+    #[arg(short, long)]
+    quiet: bool,
+
+    /// Don't announce issue to peers
+    #[arg(long)]
+    #[arg(value_name = "no-announce")]
+    no_announce: bool,
+
+    /// Show only the issue header, hiding the comments
+    #[arg(long)]
+    header: bool,
+
+    #[arg(long, short)]
+    repo: Option<RepoId>,
+}
+
+#[derive(Subcommand, Debug)]
+enum IssueCommands {
+    /// Delete an issue.
+    Delete {
+        #[arg(value_name = "issue-id")]
+        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
         id: Rev,
+    },
+
+    /// Edit an issue.
+    Edit {
+        #[arg(value_name = "issue-id")]
+        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
+        id: Rev,
+
+        #[arg(long, short)]
         title: Option<String>,
+
+        #[arg(long, short)]
         description: Option<String>,
     },
+
+    List {
+        #[clap(value_hint = ValueHint::Dynamic(get_assignee_did_hints))]
+        #[arg(long, name = "did")]
+        assigned: Option<Did>,
+
+        #[clap(value_enum, default_value_t=StateFilter::All)]
+        state: StateFilter,
+    },
+
     Open {
+        #[arg(long, short)]
         title: Option<String>,
+
+        #[arg(long, short)]
         description: Option<String>,
+
+        #[arg(long)]
         labels: Vec<Label>,
+
+        #[arg(long)]
         assignees: Vec<Did>,
     },
-    Show {
-        id: Rev,
-        format: Format,
-        debug: bool,
-    },
-    Comment {
-        id: Rev,
-        message: Message,
-        reply_to: Option<Rev>,
-    },
-    State {
-        id: Rev,
-        state: State,
-    },
-    Delete {
-        id: Rev,
-    },
+
     React {
+        #[arg(value_name = "issue-id")]
+        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
         id: Rev,
+
+        #[arg(long = "emoji")]
+        #[arg(value_name = "char")]
         reaction: Reaction,
+
+        #[arg(long = "to")]
+        #[arg(value_name = "comment")]
+        // TODO: Add dynamic hint for comment ids
         comment_id: Option<thread::CommentId>,
     },
+
+    /// Manage assignees of an issue
     Assign {
+        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
+        #[arg(value_name = "issue-id")]
         id: Rev,
-        opts: AssignOptions,
+
+        /// Add an assignee to the issue (may be specified multiple times).
+        #[arg(long, short)]
+        #[arg(value_name = "did")]
+        #[arg(action = clap::ArgAction::Append)]
+        add: Vec<Did>,
+
+        /// Delete an assignee from the issue (may be specified multiple times).
+        #[arg(long, short)]
+        #[arg(value_name = "did")]
+        #[arg(action = clap::ArgAction::Append)]
+        delete: Vec<Did>,
     },
+
+    /// Update lables on an issue.
     Label {
+        /// The issue to label.
+        #[arg(value_name = "issue-id")]
+        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
         id: Rev,
-        opts: LabelOptions,
+
+        /// Add an assignee to the issue (may be specified multiple times).
+        #[arg(long, short)]
+        #[arg(value_name = "label")]
+        #[arg(action = clap::ArgAction::Append)]
+        add: Vec<Label>,
+
+        /// Delete an assignee from the issue (may be specified multiple times).
+        #[arg(long, short)]
+        #[arg(value_name = "label")]
+        #[arg(action = clap::ArgAction::Append)]
+        delete: Vec<Label>,
     },
-    List {
-        assigned: Option<Assigned>,
-        state: Option<State>,
+
+    /// Add a comment to an issue.
+    Comment {
+        #[arg(value_name = "issue-id")]
+        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
+        id: Rev,
+
+        /// Message text.
+        #[arg(long, short)]
+        #[arg(value_name = "message")]
+        message: Message,
+
+        #[arg(long, name = "comment-id")]
+        reply_to: Option<Rev>,
+    },
+
+    Show {
+        #[arg(value_name = "issue-id")]
+        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
+        id: Rev,
+
+        /// Show the issue as Rust debug output
+        #[arg(long)]
+        debug: bool,
+    },
+
+    State {
+        #[arg(value_name = "issue-id")]
+        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
+        id: Rev,
+
+        #[clap(value_enum)]
+        state: StateChoice,
     },
     Cache {
+        #[arg(value_name = "issue-id")]
         id: Option<Rev>,
     },
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct AssignOptions {
-    pub add: BTreeSet<Did>,
-    pub delete: BTreeSet<Did>,
+#[derive(clap::ValueEnum, Clone, Debug)]
+enum StateFilter {
+    All,
+    Closed,
+    Open,
+    Solved,
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct LabelOptions {
-    pub add: BTreeSet<Label>,
-    pub delete: BTreeSet<Label>,
-}
-
-#[derive(Debug)]
-pub struct Options {
-    pub op: Operation,
-    pub repo: Option<RepoId>,
-    pub announce: bool,
-    pub quiet: bool,
-}
-
-impl Args for Options {
-    fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
-        use lexopt::prelude::*;
-
-        let mut parser = lexopt::Parser::from_args(args);
-        let mut op: Option<OperationName> = None;
-        let mut id: Option<Rev> = None;
-        let mut assigned: Option<Assigned> = None;
-        let mut title: Option<String> = None;
-        let mut reaction: Option<Reaction> = None;
-        let mut comment_id: Option<thread::CommentId> = None;
-        let mut description: Option<String> = None;
-        let mut state: Option<State> = Some(State::Open);
-        let mut labels = Vec::new();
-        let mut assignees = Vec::new();
-        let mut format = Format::default();
-        let mut message = Message::default();
-        let mut reply_to = None;
-        let mut announce = true;
-        let mut quiet = false;
-        let mut debug = false;
-        let mut assign_opts = AssignOptions::default();
-        let mut label_opts = LabelOptions::default();
-        let mut repo = None;
-
-        while let Some(arg) = parser.next()? {
-            match arg {
-                Long("help") | Short('h') => {
-                    return Err(Error::Help.into());
-                }
-
-                // List options.
-                Long("all") if op.is_none() || op == Some(OperationName::List) => {
-                    state = None;
-                }
-                Long("closed") if op.is_none() || op == Some(OperationName::List) => {
-                    state = Some(State::Closed {
-                        reason: CloseReason::Other,
-                    });
-                }
-                Long("open") if op.is_none() || op == Some(OperationName::List) => {
-                    state = Some(State::Open);
-                }
-                Long("solved") if op.is_none() || op == Some(OperationName::List) => {
-                    state = Some(State::Closed {
-                        reason: CloseReason::Solved,
-                    });
-                }
-
-                // Open options.
-                Long("title") if op == Some(OperationName::Open) => {
-                    title = Some(parser.value()?.to_string_lossy().into());
-                }
-                Short('l') | Long("label") if matches!(op, Some(OperationName::Open)) => {
-                    let val = parser.value()?;
-                    let name = term::args::string(&val);
-                    let label = Label::new(name)?;
-
-                    labels.push(label);
-                }
-                Long("assign") if op == Some(OperationName::Open) => {
-                    let val = parser.value()?;
-                    let did = term::args::did(&val)?;
-
-                    assignees.push(did);
-                }
-                Long("description") if op == Some(OperationName::Open) => {
-                    description = Some(parser.value()?.to_string_lossy().into());
-                }
-
-                // State options.
-                Long("closed") if op == Some(OperationName::State) => {
-                    state = Some(State::Closed {
-                        reason: CloseReason::Other,
-                    });
-                }
-                Long("open") if op == Some(OperationName::State) => {
-                    state = Some(State::Open);
-                }
-                Long("solved") if op == Some(OperationName::State) => {
-                    state = Some(State::Closed {
-                        reason: CloseReason::Solved,
-                    });
-                }
-
-                // React options.
-                Long("emoji") if op == Some(OperationName::React) => {
-                    if let Some(emoji) = parser.value()?.to_str() {
-                        reaction =
-                            Some(Reaction::from_str(emoji).map_err(|_| anyhow!("invalid emoji"))?);
-                    }
-                }
-                Long("to") if op == Some(OperationName::React) => {
-                    let oid: String = parser.value()?.to_string_lossy().into();
-                    comment_id = Some(oid.parse()?);
-                }
-
-                // Show options.
-                Long("format") if op == Some(OperationName::Show) => {
-                    let val = parser.value()?;
-                    let val = term::args::string(&val);
-
-                    match val.as_str() {
-                        "header" => format = Format::Header,
-                        "full" => format = Format::Full,
-                        _ => anyhow::bail!("unknown format '{val}'"),
-                    }
-                }
-                Long("debug") if op == Some(OperationName::Show) => {
-                    debug = true;
-                }
-
-                // Comment options.
-                Long("message") | Short('m') if op == Some(OperationName::Comment) => {
-                    let val = parser.value()?;
-                    let txt = term::args::string(&val);
-
-                    message.append(&txt);
-                }
-                Long("reply-to") if op == Some(OperationName::Comment) => {
-                    let val = parser.value()?;
-                    let rev = term::args::rev(&val)?;
-
-                    reply_to = Some(rev);
-                }
-
-                // Assign options
-                Short('a') | Long("add") if op == Some(OperationName::Assign) => {
-                    assign_opts.add.insert(term::args::did(&parser.value()?)?);
-                }
-                Short('d') | Long("delete") if op == Some(OperationName::Assign) => {
-                    assign_opts
-                        .delete
-                        .insert(term::args::did(&parser.value()?)?);
-                }
-                Long("assigned") | Short('a') if assigned.is_none() => {
-                    if let Ok(val) = parser.value() {
-                        let peer = term::args::did(&val)?;
-                        assigned = Some(Assigned::Peer(peer));
-                    } else {
-                        assigned = Some(Assigned::Me);
-                    }
-                }
-
-                // Label options
-                Short('a') | Long("add") if matches!(op, Some(OperationName::Label)) => {
-                    let val = parser.value()?;
-                    let name = term::args::string(&val);
-                    let label = Label::new(name)?;
-
-                    label_opts.add.insert(label);
-                }
-                Short('d') | Long("delete") if matches!(op, Some(OperationName::Label)) => {
-                    let val = parser.value()?;
-                    let name = term::args::string(&val);
-                    let label = Label::new(name)?;
-
-                    label_opts.delete.insert(label);
-                }
-
-                // Options.
-                Long("no-announce") => {
-                    announce = false;
-                }
-                Long("quiet") | Short('q') => {
-                    quiet = true;
-                }
-                Long("repo") => {
-                    let val = parser.value()?;
-                    let rid = term::args::rid(&val)?;
-
-                    repo = Some(rid);
-                }
-
-                Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "c" | "comment" => op = Some(OperationName::Comment),
-                    "w" | "show" => op = Some(OperationName::Show),
-                    "d" | "delete" => op = Some(OperationName::Delete),
-                    "e" | "edit" => op = Some(OperationName::Edit),
-                    "l" | "list" => op = Some(OperationName::List),
-                    "o" | "open" => op = Some(OperationName::Open),
-                    "r" | "react" => op = Some(OperationName::React),
-                    "s" | "state" => op = Some(OperationName::State),
-                    "assign" => op = Some(OperationName::Assign),
-                    "label" => op = Some(OperationName::Label),
-                    "cache" => op = Some(OperationName::Cache),
-
-                    unknown => anyhow::bail!("unknown operation '{}'", unknown),
-                },
-                Value(val) if op.is_some() => {
-                    let val = term::args::rev(&val)?;
-                    id = Some(val);
-                }
-                _ => {
-                    return Err(anyhow!(arg.unexpected()));
-                }
-            }
-        }
-
-        let op = match op.unwrap_or_default() {
-            OperationName::Edit => Operation::Edit {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                title,
-                description,
-            },
-            OperationName::Open => Operation::Open {
-                title,
-                description,
-                labels,
-                assignees,
-            },
-            OperationName::Comment => Operation::Comment {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                message,
-                reply_to,
-            },
-            OperationName::Show => Operation::Show {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                format,
-                debug,
-            },
-            OperationName::State => Operation::State {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                state: state.ok_or_else(|| anyhow!("a state operation must be provided"))?,
-            },
-            OperationName::React => Operation::React {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                reaction: reaction.ok_or_else(|| anyhow!("a reaction emoji must be provided"))?,
-                comment_id,
-            },
-            OperationName::Delete => Operation::Delete {
-                id: id.ok_or_else(|| anyhow!("an issue to remove must be provided"))?,
-            },
-            OperationName::Assign => Operation::Assign {
-                id: id.ok_or_else(|| anyhow!("an issue to label must be provided"))?,
-                opts: assign_opts,
-            },
-            OperationName::Label => Operation::Label {
-                id: id.ok_or_else(|| anyhow!("an issue to label must be provided"))?,
-                opts: label_opts,
-            },
-            OperationName::List => Operation::List { assigned, state },
-            OperationName::Cache => Operation::Cache { id },
-        };
-
-        Ok((
-            Options {
-                op,
-                repo,
-                announce,
-                quiet,
-            },
-            vec![],
-        ))
+fn to_state_filter(list_state: StateFilter) -> Option<State> {
+    match list_state {
+        StateFilter::All => None,
+        StateFilter::Open => Some(radicle::cob::issue::State::Open),
+        StateFilter::Closed => Some(State::Closed {
+            reason: CloseReason::Other,
+        }),
+        StateFilter::Solved => Some(State::Closed {
+            reason: CloseReason::Solved,
+        }),
     }
 }
 
-pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+#[derive(clap::ValueEnum, Clone, Debug)]
+enum StateChoice {
+    Closed,
+    Open,
+    Solved,
+}
+
+fn to_state_choice(choice: StateChoice) -> State {
+    match choice {
+        StateChoice::Open => radicle::cob::issue::State::Open,
+        StateChoice::Closed => State::Closed {
+            reason: CloseReason::Other,
+        },
+        StateChoice::Solved => State::Closed {
+            reason: CloseReason::Solved,
+        },
+    }
+}
+
+pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let rid = if let Some(rid) = options.repo {
+    let rid = if let Some(rid) = args.repo {
         rid
     } else {
         radicle::rad::cwd().map(|(_, rid)| rid)?
     };
     let repo = profile.storage.repository_mut(rid)?;
-    let announce = options.announce
-        && matches!(
-            &options.op,
-            Operation::Open { .. }
-                | Operation::React { .. }
-                | Operation::State { .. }
-                | Operation::Delete { .. }
-                | Operation::Assign { .. }
-                | Operation::Label { .. }
-        );
 
     let mut issues = profile.issues_mut(&repo)?;
 
-    match options.op {
-        Operation::Edit {
-            id,
-            title,
-            description,
-        } => {
-            let signer = term::signer(&profile)?;
-            let issue = edit(&mut issues, &repo, id, title, description, &signer)?;
-            if !options.quiet {
-                term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
-            }
-        }
-        Operation::Open {
-            title: Some(title),
-            description: Some(description),
-            labels,
-            assignees,
-        } => {
-            let signer = term::signer(&profile)?;
-            let issue = issues.create(title, description, &labels, &assignees, [], &signer)?;
-            if !options.quiet {
-                term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
-            }
-        }
-        Operation::Comment {
-            id,
-            message,
-            reply_to,
-        } => {
-            let signer = term::signer(&profile)?;
-            let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
-            let mut issue = issues.get_mut(&issue_id)?;
-            let (body, reply_to) = prompt_comment(message, reply_to, &issue, &repo)?;
-            let comment_id = issue.comment(body, reply_to, vec![], &signer)?;
+    if let Some(command) = args.command {
+        let announce = !args.no_announce
+            && matches!(
+                &command,
+                IssueCommands::Open { .. }
+                    | IssueCommands::React { .. }
+                    | IssueCommands::State { .. }
+                    | IssueCommands::Delete { .. }
+                    | IssueCommands::Assign { .. }
+                    | IssueCommands::Label { .. }
+            );
 
-            if options.quiet {
-                term::print(comment_id);
-            } else {
-                let comment = issue.thread().comment(&comment_id).unwrap();
-                term::comment::widget(&comment_id, comment, &profile).print();
-            }
-        }
-        Operation::Show { id, format, debug } => {
-            let id = id.resolve(&repo.backend)?;
-            let issue = issues
-                .get(&id)?
-                .context("No issue with the given ID exists")?;
-            if debug {
-                println!("{:#?}", issue);
-            } else {
-                term::issue::show(&issue, &id, format, &profile)?;
-            }
-        }
-        Operation::State { id, state } => {
-            let signer = term::signer(&profile)?;
-            let id = id.resolve(&repo.backend)?;
-            let mut issue = issues.get_mut(&id)?;
-            issue.lifecycle(state, &signer)?;
-        }
-        Operation::React {
-            id,
-            reaction,
-            comment_id,
-        } => {
-            let id = id.resolve(&repo.backend)?;
-            if let Ok(mut issue) = issues.get_mut(&id) {
+        match command {
+            IssueCommands::Delete { id } => {
                 let signer = term::signer(&profile)?;
-                let comment_id = comment_id.unwrap_or_else(|| {
-                    let (comment_id, _) = term::io::comment_select(&issue).unwrap();
-                    *comment_id
-                });
-                issue.react(comment_id, reaction, true, &signer)?;
+                let id = id.resolve(&repo.backend)?;
+                issues.remove(&id, &signer)?;
+            }
+            IssueCommands::Edit {
+                id,
+                title,
+                description,
+            } => {
+                let signer = term::signer(&profile)?;
+                let issue = edit(&mut issues, &repo, id, title, description, &signer)?;
+                if !args.quiet {
+                    term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
+                }
+            }
+            IssueCommands::List { assigned, state } => {
+                let assigned = assigned.map(Assigned::Peer);
+                let state = to_state_filter(state);
+                list(issues, &assigned, &state, &profile)?;
+            }
+            IssueCommands::Show { id, debug } => {
+                let format = if args.header {
+                    term::issue::Format::Header
+                } else {
+                    term::issue::Format::Full
+                };
+
+                let id = id.resolve(&repo.backend)?;
+
+                let issue = issues
+                    .get(&id)?
+                    .context("No issue with the given ID exists")?;
+                if debug {
+                    println!("{:#?}", issue);
+                } else {
+                    term::issue::show(&issue, &id, format, &profile)?;
+                }
+            }
+            IssueCommands::State { id, state } => {
+                let signer = term::signer(&profile)?;
+                let id = id.resolve(&repo.backend)?;
+                let mut issue = issues.get_mut(&id)?;
+                issue.lifecycle(to_state_choice(state), &signer)?;
+            }
+            IssueCommands::Assign { id, add, delete } => {
+                let signer = term::signer(&profile)?;
+                let id = id.resolve(&repo.backend)?;
+                let Ok(mut issue) = issues.get_mut(&id) else {
+                    anyhow::bail!("Issue `{id}` not found");
+                };
+                let assignees = issue
+                    .assignees()
+                    .filter(|did| !delete.contains(did))
+                    .chain(add.iter())
+                    .cloned()
+                    .collect::<Vec<_>>();
+                issue.assign(assignees, &signer)?;
+            }
+            IssueCommands::Comment {
+                id,
+                message,
+                reply_to,
+            } => {
+                let signer = term::signer(&profile)?;
+                let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
+                let mut issue = issues.get_mut(&issue_id)?;
+                let (body, reply_to) = prompt_comment(message, reply_to, &issue, &repo)?;
+                let comment_id = issue.comment(body, reply_to, vec![], &signer)?;
+
+                if args.quiet {
+                    term::print(comment_id);
+                } else {
+                    let comment = issue.thread().comment(&comment_id).unwrap();
+                    term::comment::widget(&comment_id, comment, &profile).print();
+                }
+            }
+            IssueCommands::React {
+                id,
+                comment_id,
+                reaction,
+            } => {
+                let signer = term::signer(&profile)?;
+                let id = id.resolve(&repo.backend)?;
+                if let Ok(mut issue) = issues.get_mut(&id) {
+                    let comment_id = comment_id.unwrap_or_else(|| {
+                        let (comment_id, _) = term::io::comment_select(&issue).unwrap();
+                        *comment_id
+                    });
+                    issue.react(comment_id, reaction, true, &signer)?;
+                }
+            }
+            IssueCommands::Label { id, add, delete } => {
+                let signer = term::signer(&profile)?;
+                let id = id.resolve(&repo.backend)?;
+                let Ok(mut issue) = issues.get_mut(&id) else {
+                    anyhow::bail!("Issue `{id}` not found");
+                };
+                let labels = issue
+                    .labels()
+                    .filter(|did| !delete.contains(did))
+                    .chain(add.iter())
+                    .cloned()
+                    .collect::<Vec<_>>();
+                issue.label(labels, &signer)?;
+            }
+            IssueCommands::Open {
+                ref title,
+                ref description,
+                ref labels,
+                ref assignees,
+            } => {
+                let signer = term::signer(&profile)?;
+                open(
+                    title.clone(),
+                    description.clone(),
+                    labels.to_vec(),
+                    assignees.to_vec(),
+                    args.quiet,
+                    &mut issues,
+                    &signer,
+                    &profile,
+                )?;
+            }
+            IssueCommands::Cache { id } => {
+                let id = id.map(|id| id.resolve(&repo.backend)).transpose()?;
+                cache::run(id, &repo, &profile)?;
             }
         }
-        Operation::Open {
-            ref title,
-            ref description,
-            ref labels,
-            ref assignees,
-        } => {
-            let signer = term::signer(&profile)?;
-            open(
-                title.clone(),
-                description.clone(),
-                labels.to_vec(),
-                assignees.to_vec(),
-                &options,
-                &mut issues,
-                &signer,
+
+        if announce {
+            let mut node = Node::new(profile.socket());
+            node::announce(
+                &repo,
+                node::SyncSettings::default(),
+                node::SyncReporting::default(),
+                &mut node,
                 &profile,
             )?;
         }
-        Operation::Assign {
-            id,
-            opts: AssignOptions { add, delete },
-        } => {
-            let signer = term::signer(&profile)?;
-            let id = id.resolve(&repo.backend)?;
-            let Ok(mut issue) = issues.get_mut(&id) else {
-                anyhow::bail!("Issue `{id}` not found");
-            };
-            let assignees = issue
-                .assignees()
-                .filter(|did| !delete.contains(did))
-                .chain(add.iter())
-                .cloned()
-                .collect::<Vec<_>>();
-            issue.assign(assignees, &signer)?;
-        }
-        Operation::Label {
-            id,
-            opts: LabelOptions { add, delete },
-        } => {
-            let signer = term::signer(&profile)?;
-            let id = id.resolve(&repo.backend)?;
-            let Ok(mut issue) = issues.get_mut(&id) else {
-                anyhow::bail!("Issue `{id}` not found");
-            };
-            let labels = issue
-                .labels()
-                .filter(|did| !delete.contains(did))
-                .chain(add.iter())
-                .cloned()
-                .collect::<Vec<_>>();
-            issue.label(labels, &signer)?;
-        }
-        Operation::List { assigned, state } => {
-            list(issues, &assigned, &state, &profile)?;
-        }
-        Operation::Delete { id } => {
-            let signer = term::signer(&profile)?;
-            let id = id.resolve(&repo.backend)?;
-            issues.remove(&id, &signer)?;
-        }
-        Operation::Cache { id } => {
-            let id = id.map(|id| id.resolve(&repo.backend)).transpose()?;
-            cache::run(id, &repo, &profile)?;
-        }
-    }
-
-    if announce {
-        let mut node = Node::new(profile.socket());
-        node::announce(
-            &repo,
-            node::SyncSettings::default(),
-            node::SyncReporting::default(),
-            &mut node,
-            &profile,
-        )?;
-    }
+    } else {
+        // Default `issue` subcommand is `list`.
+        list(issues, &None, &None, &profile)?;
+    };
 
     Ok(())
 }
@@ -716,7 +566,7 @@ fn open<R, G>(
     description: Option<String>,
     labels: Vec<Label>,
     assignees: Vec<Did>,
-    options: &Options,
+    quiet: bool,
     cache: &mut issue::Cache<issue::Issues<'_, R>, cob::cache::StoreWriter>,
     signer: &G,
     profile: &Profile,
@@ -741,7 +591,7 @@ where
         signer,
     )?;
 
-    if !options.quiet {
+    if !quiet {
         term::issue::show(&issue, issue.id(), Format::Header, profile)?;
     }
     Ok(())

@@ -3,11 +3,13 @@ use std::io::{self, Write};
 use std::{io::ErrorKind, iter, process};
 
 use anyhow::anyhow;
+use clap::{CommandFactory, Parser, Subcommand};
 
-use radicle::version::Version;
+use radicle::version;
+use radicle_cli::cli;
+use radicle_cli::commands::rad_issue;
 use radicle_cli::commands::*;
 use radicle_cli::terminal as term;
-use radicle_cli::cli;
 
 pub const NAME: &str = "rad";
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -21,6 +23,19 @@ pub const VERSION: Version = Version {
     commit: GIT_HEAD,
     timestamp: TIMESTAMP,
 };
+
+#[derive(Parser, Debug)]
+#[command(name = "rad")]
+#[command(about = "The rad CLI", long_about = None)]
+struct CliArgs {
+    #[command(subcommand)]
+    pub command: Option<Commands>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    Issue(rad_issue::IssueArgs),
+}
 
 #[derive(Debug)]
 enum Command {
@@ -227,11 +242,21 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             );
         }
         "issue" => {
-            let options = cli::to_issue_options()?;
-            rad_issue::run(options, term::profile()?)?;
+            let args_ = CliArgs::parse();
+            if let Some(command) = args_.command {
+                match command {
+                    Commands::Issue(args_) => rad_issue::run(
+                        args_,
+                        radicle::Profile::load()
+                            .map_err(|e| anyhow!(e))?,
+                    )?,
+                }
+                // If clap parsed a command short circuit.
+                // return Ok(());
+            }
         }
         "complete" => {
-            cli::completer(args.to_vec());
+            cli::completer(CliArgs::command(), args.to_vec());
         }
         "ls" => {
             term::run_command_args::<rad_ls::Options, _>(rad_ls::HELP, rad_ls::run, args.to_vec());
