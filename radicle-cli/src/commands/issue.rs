@@ -421,6 +421,7 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                 let signer = term::signer(&profile)?;
                 let id = id.resolve(&repo.backend)?;
                 if let Ok(mut issue) = issues.get_mut(&id) {
+                    let signer = term::signer(&profile)?;
                     let comment_id = comment_id.unwrap_or_else(|| {
                         let (comment_id, _) = term::io::comment_select(&issue).unwrap();
                         *comment_id
