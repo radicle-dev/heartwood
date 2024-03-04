@@ -1,6 +1,8 @@
 #[path = "issue/cache.rs"]
 mod cache;
 
+use std::str::FromStr;
+
 use anyhow::Context as _;
 use clap::{ArgGroup, Parser, Subcommand, ValueHint};
 
@@ -9,15 +11,17 @@ use radicle::cob::issue;
 use radicle::cob::issue::{CloseReason, State};
 use radicle::cob::thread;
 use radicle::crypto::Signer;
+use radicle::identity::did::DidError;
+use radicle::identity::RepoId;
 use radicle::issue::cache::Issues as _;
-use radicle::prelude::{Did, RepoId};
+use radicle::issue::Issues;
+use radicle::prelude::Did;
 use radicle::profile;
-use radicle::storage;
+use radicle::storage::{self, ReadStorage as _};
 use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
 use radicle::Profile;
 use radicle::{cob, Node};
 
-use crate::cli::{get_assignee_did_hints, get_issue_id_hints};
 use crate::git::Rev;
 use crate::node;
 use crate::terminal as term;
@@ -76,7 +80,7 @@ Options
 };
 
 /// Command line Peer argument.
-#[derive(Default, Debug, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub enum Assigned {
     #[default]
     Me,
@@ -90,15 +94,18 @@ pub struct IssueArgs {
 
     /// Don't print anything
     #[arg(short, long)]
+    #[clap(global = true)]
     quiet: bool,
 
     /// Don't announce issue to peers
     #[arg(long)]
     #[arg(value_name = "no-announce")]
+    #[clap(global = true)]
     no_announce: bool,
 
     /// Show only the issue header, hiding the comments
     #[arg(long)]
+    #[clap(global = true)]
     header: bool,
 
     #[arg(long, short)]
@@ -236,10 +243,13 @@ enum IssueCommands {
 
 #[derive(Parser, Debug)]
 struct ListArgs {
-    /// List issues assigned to <did>
+    /// List issues assigned to <did> (default: me)
     #[clap(value_hint = ValueHint::Dynamic(get_assignee_did_hints))]
     #[arg(long, name = "did")]
-    assigned: Option<Did>,
+    #[arg(default_missing_value = "me")]
+    #[arg(num_args = 0..=1)]
+    #[arg(require_equals = true)]
+    assigned: Option<Assigned>,
 
     /// List all issues (default)
     #[arg(long, group = "state")]
@@ -278,6 +288,18 @@ struct StateArgs {
     solved: bool,
 }
 
+impl FromStr for Assigned {
+    type Err = DidError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "me" {
+            Ok(Assigned::Me)
+        } else {
+            let value = s.parse::<Did>()?;
+            Ok(Assigned::Peer(value))
+        }
+    }
+}
 
 fn to_state_filter(args: ListArgs) -> Option<State> {
     if args.open {
@@ -311,6 +333,143 @@ fn to_state(args: StateArgs) -> State {
         unreachable!("State flag needed");
     }
 }
+
+pub fn get_assignee_did_hints(input: &str) -> Option<Vec<String>> {
+    let (_, rid) = radicle::rad::cwd().ok()?;
+    radicle::Profile::load()
+        .ok()
+        .and_then(|profile| profile.storage.repository(rid).ok())
+        .and_then(|repo| {
+            Issues::open(&repo).ok().and_then(|issues| {
+                issues
+                    .all()
+                    .map(|issues| {
+                        issues
+                            .flat_map(|issue| {
+                                issue.map_or(vec![], |(_, issue)| {
+                                    issue.assignees().cloned().collect::<Vec<_>>()
+                                })
+                            })
+                            .filter_map(|did| {
+                                let did = did.to_human();
+                                did.starts_with(input).then(|| String::from(did))
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .ok()
+            })
+        })
+}
+
+pub fn get_issue_id_hints(input: &str) -> Option<Vec<String>> {
+    let (_, rid) = radicle::rad::cwd().ok()?;
+    radicle::Profile::load()
+        .ok()
+        .and_then(|profile| profile.storage.repository(rid).ok())
+        .and_then(|repo| {
+            Issues::open(&repo).ok().and_then(|issues| {
+                issues
+                    .all()
+                    .map(|issues| {
+                        issues
+                            .filter_map(|issue| {
+                                if let Ok((id, _)) = issue {
+                                    let id = id.to_string();
+                                    if id.starts_with(input) {
+                                        return Some(String::from(id.split_at(8).0));
+                                    }
+                                }
+                                None
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .ok()
+            })
+        })
+}
+
+pub fn get_did_hints<R: ReadRepository + radicle::cob::Store>(input: &str) -> Option<Vec<String>> {
+    let (_, rid) = radicle::rad::cwd().ok()?;
+    radicle::Profile::load()
+        .ok()
+        .and_then(|profile| profile.storage.repository(rid).ok())
+        .and_then(|repo| {
+            repo.remote_ids()
+                .map(|issues| {
+                    issues
+                        .filter_map(|id| {
+                            let id = id.map(|id| Did::from(id).to_human()).ok()?;
+                            id.starts_with(input).then_some(id)
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .ok()
+        })
+}
+
+// pub fn get_assignee_did_hints(input: &str) -> Option<Vec<String>> {
+//     let profile = term::profile().ok()?;
+//     let (_, rid) = radicle::rad::cwd().ok()?;
+//     let repo = profile.storage.repository_mut(rid).ok()?;
+//     let issues = Issues::open(&repo).ok()?;
+
+//     let completions = issues
+//         .all()
+//         .ok()?
+//         .flat_map(|issue| {
+//             issue.map_or(vec![], |(_, issue)| {
+//                 issue.assignees().cloned().collect::<Vec<_>>()
+//             })
+//         })
+//         .filter_map(|did| {
+//             let did = did.to_human();
+//             did.starts_with(input).then(|| String::from(did))
+//         })
+//         .collect::<Vec<_>>();
+
+//     Some(completions)
+// }
+
+// pub fn get_issue_id_hints(input: &str) -> Option<Vec<String>> {
+//     let profile = term::profile().ok()?;
+
+//     let (_, rid) = radicle::rad::cwd().ok()?;
+//     let repo = profile.storage.repository_mut(rid).ok()?;
+//     let issues = Issues::open(&repo).ok()?;
+
+//     let completions = issues
+//         .all()
+//         .ok()?
+//         .filter_map(|issue| {
+//             if let Ok((id, _)) = issue {
+//                 let id = id.to_string();
+//                 if id.starts_with(input) {
+//                     return Some(String::from(id.split_at(8).0));
+//                 }
+//             }
+//             None
+//         })
+//         .collect::<Vec<_>>();
+
+//     Some(completions)
+// }
+
+// pub fn get_did_hints(input: &str) -> Option<Vec<String>> {
+//     let profile = term::profile().ok()?;
+//     let (_, rid) = radicle::rad::cwd().ok()?;
+//     let repo = profile.storage.repository_mut(rid).ok()?;
+
+//     let ids = repo
+//         .remote_ids()
+//         .ok()?
+//         .filter_map(|id| {
+//             let id = id.map(|id| Did::from(id).to_human()).ok()?;
+//             id.starts_with(input).then_some(id)
+//         })
+//         .collect::<Vec<_>>();
+
+//     Some(ids)
+// }
 
 pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
@@ -353,7 +512,7 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
             }
             IssueCommands::List(list_args) => {
-                let assigned = list_args.assigned.map(Assigned::Peer);
+                let assigned = list_args.assigned.clone();
                 let state = to_state_filter(list_args);
                 list(issues, &assigned, &state, &profile)?;
             }

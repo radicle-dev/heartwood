@@ -7,4 +7,3 @@ pub mod node;
 pub mod pager;
 pub mod project;
 pub mod terminal;
-pub mod cli;
