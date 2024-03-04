@@ -5,10 +5,10 @@ use std::{io::ErrorKind, iter, process};
 use anyhow::anyhow;
 use clap::builder::styling::Style;
 use clap::builder::Styles;
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{CommandFactory, FromArgMatches as _, Parser, Subcommand};
 
+use clap_complete::dynamic::shells::CompleteCommand;
 use radicle::version;
-use radicle_cli::cli;
 use radicle_cli::commands::rad_issue;
 use radicle_cli::commands::*;
 use radicle_cli::terminal as term;
@@ -46,7 +46,6 @@ Usage: {usage}
 #[command(help_template = HELP_TEMPLATE)]
 #[command(propagate_version = true)]
 #[command(propagate_help_template = true)]
-// #[command(styles = Styles::styled().usage(AnsiColor::Blue.on_default()))]
 #[command(styles = Styles::plain().literal(Style::new().bold()))]
 struct CliArgs {
     #[command(subcommand)]
@@ -266,6 +265,8 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             );
         }
         "issue" => {
+            // Use clap instead to parse all CLI args and ignore `args` passed
+            // to `run_other`.
             let args_ = CliArgs::parse();
             if let Some(command) = args_.command {
                 match command {
@@ -275,12 +276,11 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                             .map_err(|e| anyhow!(e))?,
                     )?,
                 }
-                // If clap parsed a command short circuit.
-                // return Ok(());
             }
         }
+        // Used for dynamic shell completion (not user facing)
         "complete" => {
-            cli::completer(CliArgs::command(), args.to_vec());
+            run_completer(CliArgs::command());
         }
         "ls" => {
             term::run_command_args::<rad_ls::Options, _>(rad_ls::HELP, rad_ls::run, args.to_vec());
@@ -393,4 +393,14 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
     }
     Ok(())
+}
+
+/// Output shell completions
+fn run_completer(cmd: clap::Command) -> () {
+    let mut cmd = CompleteCommand::augment_subcommands(cmd);
+    let matches = cmd.clone().get_matches();
+
+    if let Ok(completions) = CompleteCommand::from_arg_matches(&matches) {
+        completions.complete(&mut cmd);
+    }
 }
