@@ -146,11 +146,12 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                 println!("ok");
             }
             ["option", "push-option", args @ ..] => {
-                if push_option(args, &mut opts).is_ok() {
-                    println!("ok");
-                } else {
-                    println!("unsupported");
-                }
+                // Nb. Git documentation says that we can print `error <msg>` or `unsupported`
+                // for options that are not supported, but this results in Git saying that
+                // "push-option" itself is an unsupported option, which is not helpful or correct.
+                // Hence, we just exit with an error in this case.
+                push_option(args, &mut opts)?;
+                println!("ok");
             }
             ["option", "progress", ..] => {
                 println!("unsupported");

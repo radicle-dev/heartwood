@@ -69,3 +69,9 @@ $ git push rad :master
 error: refusing to delete default branch ref 'refs/heads/master'
 error: failed to push some refs to 'rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi'
 ```
+
+If you pass an unsupported push option, you get an error:
+``` (stderr) (fail)
+$ git push -o alien rad HEAD:alice/2
+error: unknown push option "alien"
+```
