@@ -6,7 +6,7 @@ use anyhow::anyhow;
 use radicle::node::policy;
 use radicle::node::policy::Scope;
 use radicle::node::Handle;
-use radicle::{prelude::*, Node};
+use radicle::{prelude::*, storage, Node};
 use radicle_term::Element as _;
 
 use crate::commands::rad_sync as sync;
@@ -155,25 +155,32 @@ pub fn delete(rid: RepoId, node: &mut Node, profile: &Profile) -> anyhow::Result
 
 pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
     let store = profile.policies()?;
+    let storage = &profile.storage;
     let mut t = term::Table::new(term::table::TableOptions::bordered());
     t.header([
         term::format::default(String::from("Repository")),
+        term::format::default(String::from("Name")),
         term::format::default(String::from("Policy")),
         term::format::default(String::from("Scope")),
     ]);
     t.divider();
 
-    for policy::SeedPolicy {
-        rid: id,
-        scope,
-        policy,
-    } in store.seed_policies()?
-    {
-        let id = id.to_string();
+    for policy::SeedPolicy { rid, scope, policy } in store.seed_policies()? {
+        let id = rid.to_string();
+        let name = storage
+            .repository(rid)
+            .map_err(storage::RepositoryError::from)
+            .and_then(|repo| repo.project().map(|proj| proj.name().to_string()))
+            .unwrap_or_default();
         let scope = scope.to_string();
         let policy = term::format::policy(&policy);
 
-        t.push([term::format::tertiary(id), policy, term::format::dim(scope)])
+        t.push([
+            term::format::tertiary(id),
+            name.into(),
+            policy,
+            term::format::dim(scope),
+        ])
     }
 
     if t.is_empty() {
