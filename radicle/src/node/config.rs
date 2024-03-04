@@ -93,6 +93,9 @@ pub struct Limits {
     /// Rate limitter settings.
     #[serde(default)]
     pub rate: RateLimits,
+    /// Connection limits.
+    #[serde(default)]
+    pub connection: ConnectionLimits,
 }
 
 impl Default for Limits {
@@ -104,6 +107,27 @@ impl Default for Limits {
             fetch_concurrency: 1,
             max_open_files: 4096,
             rate: RateLimits::default(),
+            connection: ConnectionLimits::default(),
+        }
+    }
+}
+
+/// Connection limits.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionLimits {
+    /// Max inbound connections.
+    pub inbound: usize,
+    /// Max outbound connections. Note that this is higher than the *target* number
+    /// in [`TARGET_OUTBOUND_PEERS`].
+    pub outbound: usize,
+}
+
+impl Default for ConnectionLimits {
+    fn default() -> Self {
+        Self {
+            inbound: 128,
+            outbound: 16,
         }
     }
 }

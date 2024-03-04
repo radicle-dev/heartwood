@@ -43,6 +43,10 @@ $ rad config
           "fillRate": 1.0,
           "capacity": 64
         }
+      },
+      "connection": {
+        "inbound": 128,
+        "outbound": 16
       }
     },
     "policy": "block",

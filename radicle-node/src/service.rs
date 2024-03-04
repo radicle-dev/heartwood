@@ -1059,9 +1059,14 @@ where
 
     /// Inbound connection attempt.
     pub fn accepted(&mut self, addr: Address) -> bool {
-        // Always accept trusted connections.
+        // Always accept trusted connections, even if we already reached
+        // our inbound connection limit.
         if addr.is_trusted() {
             return true;
+        }
+        // Check for inbound connection limit.
+        if self.sessions.inbound().count() >= self.config.limits.connection.inbound {
+            return false;
         }
         let host: HostName = addr.into();
 
@@ -1912,6 +1917,10 @@ where
             error!(target: "service", "Attempted connection to self");
             return false;
         }
+        if self.sessions.outbound().count() >= self.config.limits.connection.outbound {
+            error!(target: "service", "Outbound connection limit reached when attempting {nid} ({addr})");
+            return false;
+        }
         let persistent = self.config.is_persistent(&nid);
         let time = self.time();
 
@@ -2343,6 +2352,16 @@ impl Sessions {
                 session::State::Connected { .. } => Some((id, sess)),
                 _ => None,
             })
+    }
+
+    /// Iterator over connected inbound peers.
+    pub fn inbound(&self) -> impl Iterator<Item = (&NodeId, &Session)> + Clone {
+        self.connected().filter(|(_, s)| s.link.is_inbound())
+    }
+
+    /// Iterator over outbound peers.
+    pub fn outbound(&self) -> impl Iterator<Item = (&NodeId, &Session)> + Clone {
+        self.connected().filter(|(_, s)| s.link.is_outbound())
     }
 
     /// Iterator over mutable fully connected peers.
