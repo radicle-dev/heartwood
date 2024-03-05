@@ -1,0 +1,1 @@
+complete -x -c rad -a "("'rad'" complete --shell fish -- (commandline --current-process --tokenize --cut-at-cursor) (commandline --current-token))"
