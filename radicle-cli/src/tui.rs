@@ -1,9 +1,12 @@
+use std::fmt;
+use std::marker::PhantomData;
 use std::str::FromStr;
 
 use radicle::cob::ObjectId;
 use radicle::identity::Did;
 
-use serde::de::{Error, Unexpected};
+use serde::de;
+use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
 use crate::terminal as term;
@@ -20,7 +23,12 @@ pub enum TuiError {
 /// The output that should be returned by selection interfaces.
 /// Structs of this type are being parsed and instanced from JSON.
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize)]
-pub struct Selection<Id: FromStr> {
+#[serde(rename_all = "camelCase")]
+pub struct Selection<Id>
+where
+    Id: FromStr,
+    Id::Err: fmt::Display,
+{
     /// The selected operation.
     operation: Option<String>,
     /// The selected id(s).
@@ -30,7 +38,11 @@ pub struct Selection<Id: FromStr> {
     args: Option<Vec<String>>,
 }
 
-impl<Id: FromStr> Selection<Id> {
+impl<Id> Selection<Id>
+where
+    Id::Err: fmt::Display,
+    Id: FromStr,
+{
     pub fn operation(&self) -> Option<&String> {
         self.operation.as_ref()
     }
@@ -48,18 +60,36 @@ fn deserialize_ids<'de, D, Id>(deserializer: D) -> Result<Vec<Id>, D::Error>
 where
     D: Deserializer<'de>,
     Id: FromStr,
+    Id::Err: fmt::Display,
 {
-    let values: Vec<&str> = Deserialize::deserialize(deserializer)?;
-    let mut ids = vec![];
+    struct IdsVisitor<Id>(PhantomData<Id>);
 
-    for val in values {
-        let id = Id::from_str(val).map_err(|_| {
-            D::Error::invalid_value(Unexpected::Str(val), &"an object or notification id")
-        })?;
-        ids.push(id);
+    impl<'de, Id> de::Visitor<'de> for IdsVisitor<Id>
+    where
+        Id: FromStr,
+        Id::Err: fmt::Display,
+    {
+        type Value = Vec<Id>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a list of selectable identifiers")
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: de::SeqAccess<'de>,
+        {
+            let mut ids = seq
+                .size_hint()
+                .map_or_else(|| Vec::new(), |n| Vec::with_capacity(n));
+            while let Some(id) = seq.next_element::<String>()? {
+                ids.push(id.parse().map_err(A::Error::custom)?);
+            }
+            Ok(ids)
+        }
     }
 
-    Ok(ids)
+    deserializer.deserialize_seq(IdsVisitor(PhantomData))
 }
 
 fn parse_output<'a, T: Deserialize<'a>>(output: &'a str) -> Result<T, TuiError> {
