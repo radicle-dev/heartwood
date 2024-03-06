@@ -88,6 +88,7 @@
           ++ lib.optionals pkgs.stdenv.isDarwin [
             # Additional darwin specific inputs can be set here
             pkgs.libiconv
+            pkgs.darwin.apple_sdk.frameworks.Security
           ];
         preBuild = lib.optionalString (self.shortRev or null != null) ''
           export GIT_HEAD=${self.shortRev}
