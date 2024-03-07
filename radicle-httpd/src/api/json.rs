@@ -18,7 +18,7 @@ use radicle::node::{Alias, AliasStore};
 use radicle::prelude::NodeId;
 use radicle::storage::{git, refs, RemoteRepository};
 use radicle_surf::blob::Blob;
-use radicle_surf::tree::Tree;
+use radicle_surf::tree::{EntryKind, Tree};
 use radicle_surf::{Commit, Oid, Stats};
 
 use crate::api::auth::Session;
@@ -82,8 +82,13 @@ pub(crate) fn tree(tree: &Tree, path: &str, stats: &Stats) -> Value {
         .map(|entry| {
             json!({
                 "path": prefix.join(entry.name()),
+                "oid": entry.object_id(),
                 "name": entry.name(),
-                "kind": if entry.is_tree() { "tree" } else { "blob" },
+                "kind": match entry.entry() {
+                    EntryKind::Tree(_) => "tree",
+                    EntryKind::Blob(_) => "blob",
+                    EntryKind::Submodule { .. } => "submodule"
+                },
             })
         })
         .collect::<Vec<_>>();

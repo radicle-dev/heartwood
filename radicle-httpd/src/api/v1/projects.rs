@@ -1678,11 +1678,13 @@ mod routes {
                 "entries": [
                   {
                     "path": "dir1",
+                    "oid": "2d1c3cbfcf1d190d7fc77ac8f9e53db0e91a9ad3",
                     "name": "dir1",
                     "kind": "tree"
                   },
                   {
                     "path": "README",
+                    "oid": "980a0d5f19a64b4b30a87d4206aade58726b60e3",
                     "name": "README",
                     "kind": "blob"
                   }
@@ -1707,8 +1709,8 @@ mod routes {
                 "name": "",
                 "path": "",
                 "stats": {
-                  "branches": 1,
                   "commits": 3,
+                  "branches": 1,
                   "contributors": 1
                 }
               }
@@ -1724,6 +1726,7 @@ mod routes {
               "entries": [
                 {
                   "path": "dir1/README",
+                  "oid": "1dd5654ca2d2cf9f33b14c92b5ca9e1d21a91ae1",
                   "name": "README",
                   "kind": "blob"
                 }
