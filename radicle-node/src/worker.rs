@@ -29,8 +29,6 @@ pub use channels::{ChannelEvent, Channels};
 pub struct Config {
     /// Number of worker threads.
     pub capacity: usize,
-    /// Timeout for all operations.
-    pub timeout: time::Duration,
     /// Git storage.
     pub storage: Storage,
     /// Configuration for performing fetched.

@@ -4,7 +4,7 @@ pub mod thread;
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::{fs, io, net, time};
+use std::{fs, io, net};
 
 use crossbeam_channel as chan;
 use cyphernet::Ecdh;
@@ -262,7 +262,6 @@ impl Runtime {
             cobs_cache,
             worker::Config {
                 capacity: 8,
-                timeout: time::Duration::from_secs(9),
                 storage: storage.clone(),
                 fetch,
                 policy,
