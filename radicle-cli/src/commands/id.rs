@@ -380,6 +380,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
                 proposal
             };
+            if proposal == current.doc {
+                return Err(Error::WithHint {
+                    err: anyhow!("no update specified"),
+                    hint: "an update to the identity must be specified, run `rad id update -h` to see the available options"
+                }.into());
+            }
             let revision = update(title, description, proposal, &mut identity, &signer)?;
 
             if revision.is_accepted() && revision.parent == Some(current.id) {
