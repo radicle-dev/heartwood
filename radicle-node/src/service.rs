@@ -1268,7 +1268,7 @@ where
             match self.db.addresses().get(announcer) {
                 Ok(node) => {
                     if node.is_none() {
-                        debug!(target: "service", "Ignoring announcement from unknown node {announcer}");
+                        trace!(target: "service", "Ignoring announcement from unknown node {announcer}");
                         return Ok(false);
                     }
                 }
@@ -1600,7 +1600,7 @@ where
             trace!(target: "service", "Rate limiting message from {remote} ({})", peer.addr);
             return Ok(());
         }
-        message.log(log::Level::Debug, remote, Link::Inbound);
+        message.log(log::Level::Trace, remote, Link::Inbound);
 
         trace!(target: "service", "Received message {:?} from {}", &message, peer.id);
 
