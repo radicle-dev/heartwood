@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::time::Instant;
 
 use gix_protocol::handshake;
 use radicle::crypto::PublicKey;
@@ -378,6 +379,7 @@ impl FetchState {
     where
         S: transport::ConnectionStream,
     {
+        let start = Instant::now();
         // N.b. we always fetch the `rad/id` since our delegate set
         // might be further ahead than theirs, e.g. we are the
         // deciding vote on adding a delegate.
@@ -389,6 +391,7 @@ impl FetchState {
                 limit: limit.special,
             },
         )?;
+        log::debug!(target: "fetch", "Fetched rad/id ({}ms)", start.elapsed().as_millis());
 
         // N.b. The error case here should not happen. In the case of
         // a `clone` we have asked for refs/rad/id and ensured it was
@@ -418,6 +421,12 @@ impl FetchState {
             remote,
             refs_at,
         )?;
+        log::debug!(
+            target: "fetch",
+            "Fetched rad/sigrefs for {} remotes ({}ms)",
+            signed_refs.len(),
+            start.elapsed().as_millis()
+        );
 
         let data_refs = stage::DataRefs {
             remote,
@@ -425,6 +434,12 @@ impl FetchState {
             limit: limit.refs,
         };
         self.run_stage(handle, handshake, &data_refs)?;
+        log::debug!(
+            target: "fetch",
+            "Fetched data refs for {} remotes ({}ms)",
+            data_refs.remotes.len(),
+            start.elapsed().as_millis()
+        );
 
         // Run validation of signed refs, pruning any offending
         // remotes from the tips, thus not updating the production Git
@@ -528,9 +543,15 @@ impl FetchState {
                 }
             }
         }
-
         // N.b. signal to exit the upload-pack sequence
         handle.transport.done()?;
+
+        log::debug!(
+            target: "fetch",
+            "Validated {} remotes ({}ms)",
+            remotes.len(),
+            start.elapsed().as_millis()
+        );
 
         // N.b. only apply to Git repository if no delegates have failed verification.
         if failures.is_empty() {
@@ -541,12 +562,20 @@ impl FetchState {
                     .into_values()
                     .flat_map(|ups| ups.into_iter()),
             )?;
+            log::debug!(target: "fetch", "Applied updates ({}ms)", start.elapsed().as_millis());
             Ok(FetchResult::Success {
                 applied,
                 remotes,
                 warnings,
             })
         } else {
+            log::debug!(
+                target: "fetch",
+                "Fetch failed: {} warning(s) and {} failure(s) ({}ms)",
+                warnings.len(),
+                failures.len(),
+                start.elapsed().as_millis()
+            );
             Ok(FetchResult::Failed { warnings, failures })
         }
     }
