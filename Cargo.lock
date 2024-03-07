@@ -2566,9 +2566,9 @@ checksum = "db20136bbc9ae63f3fec8e5a6c369f4902fac2244501b5dfc6d668e43475aaa4"
 
 [[package]]
 name = "radicle-surf"
-version = "0.18.0"
+version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9403736ddf2be5e7de42928f94a5f68ef0785916171d009809d19b4202b58d83"
+checksum = "fade014fab67a7bdb816e4cf821611af5f0bc55c6eb1018561027ba6ba3b6b28"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
@@ -2581,6 +2581,7 @@ dependencies = [
  "serde",
  "tar",
  "thiserror",
+ "url",
 ]
 
 [[package]]
@@ -3642,6 +3643,7 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]
