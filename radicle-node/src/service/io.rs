@@ -57,7 +57,7 @@ impl Outbox {
     }
 
     pub fn write(&mut self, remote: &Session, msg: Message) {
-        msg.log(log::Level::Debug, &remote.id, Link::Outbound);
+        msg.log(log::Level::Trace, &remote.id, Link::Outbound);
         trace!(target: "service", "Write {:?} to {}", &msg, remote);
 
         self.io.push_back(Io::Write(remote.id, vec![msg]));
@@ -101,7 +101,7 @@ impl Outbox {
                 ix + 1,
                 msgs.len()
             );
-            msg.log(log::Level::Debug, &remote.id, Link::Outbound);
+            msg.log(log::Level::Trace, &remote.id, Link::Outbound);
         }
         self.io.push_back(Io::Write(remote.id, msgs));
     }
