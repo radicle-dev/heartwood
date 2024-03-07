@@ -44,7 +44,7 @@ pub const NOISE_XK: HandshakePattern = HandshakePattern {
 
 /// Default time to wait to receive something from a worker channel. Applies to
 /// workers waiting for data from remotes as well.
-pub const DEFAULT_CHANNEL_TIMEOUT: time::Duration = time::Duration::from_secs(9);
+pub const DEFAULT_CHANNEL_TIMEOUT: time::Duration = time::Duration::from_secs(30);
 
 /// Default time to wait until a network connection is considered inactive.
 pub const DEFAULT_CONNECTION_TIMEOUT: time::Duration = time::Duration::from_secs(30);

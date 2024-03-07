@@ -46,7 +46,7 @@ pub const DEFAULT_SOCKET_NAME: &str = "control.sock";
 /// Default radicle protocol port.
 pub const DEFAULT_PORT: u16 = 8776;
 /// Default timeout when waiting for the node to respond with data.
-pub const DEFAULT_TIMEOUT: time::Duration = time::Duration::from_secs(9);
+pub const DEFAULT_TIMEOUT: time::Duration = time::Duration::from_secs(30);
 /// Maximum length in bytes of a node alias.
 pub const MAX_ALIAS_LENGTH: usize = 32;
 /// Penalty threshold at which point we avoid connecting to this node.
