@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::time::Instant;
 
 use gix_protocol::handshake;
 use radicle::crypto::PublicKey;
@@ -378,6 +379,7 @@ impl FetchState {
     where
         S: transport::ConnectionStream,
     {
+        let start = Instant::now();
         // N.b. we always fetch the `rad/id` since our delegate set
         // might be further ahead than theirs, e.g. we are the
         // deciding vote on adding a delegate.
@@ -389,6 +391,7 @@ impl FetchState {
                 limit: limit.special,
             },
         )?;
+        log::debug!(target: "fetch", "fetched rad/id ({}s)", start.elapsed().as_secs());
 
         // N.b. The error case here should not happen. In the case of
         // a `clone` we have asked for refs/rad/id and ensured it was
@@ -418,6 +421,7 @@ impl FetchState {
             remote,
             refs_at,
         )?;
+        log::debug!(target: "fetch", "fetched rad/sigrefs ({}s)", start.elapsed().as_secs());
 
         let data_refs = stage::DataRefs {
             remote,
@@ -425,6 +429,7 @@ impl FetchState {
             limit: limit.refs,
         };
         self.run_stage(handle, handshake, &data_refs)?;
+        log::debug!(target: "fetch", "fetched data refs ({}s)", start.elapsed().as_secs());
 
         // Run validation of signed refs, pruning any offending
         // remotes from the tips, thus not updating the production Git
@@ -528,6 +533,7 @@ impl FetchState {
                 }
             }
         }
+        log::debug!(target: "fetch", "validated remotes ({}s)", start.elapsed().as_secs());
 
         // N.b. signal to exit the upload-pack sequence
         handle.transport.done()?;
@@ -541,6 +547,7 @@ impl FetchState {
                     .into_values()
                     .flat_map(|ups| ups.into_iter()),
             )?;
+            log::debug!(target: "fetch", "applied updates ({}s)", start.elapsed().as_secs());
             Ok(FetchResult::Success {
                 applied,
                 remotes,

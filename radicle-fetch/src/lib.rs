@@ -15,6 +15,7 @@ pub use state::{FetchLimit, FetchResult};
 pub use transport::Transport;
 
 use std::io;
+use std::time::Instant;
 
 use radicle::crypto::PublicKey;
 use radicle::storage::refs::RefsAt;
@@ -55,6 +56,7 @@ pub fn pull<S>(
 where
     S: transport::ConnectionStream,
 {
+    let start = Instant::now();
     let local = *handle.local();
     if local == remote {
         return Err(Error::ReplicateSelf);
@@ -67,9 +69,12 @@ where
 
     // N.b. ensure that we ignore the local peer's key.
     handle.blocked.extend([local]);
-    state
+    let result = state
         .run(handle, &handshake, limit, remote, refs_at)
-        .map_err(Error::Protocol)
+        .map_err(Error::Protocol);
+
+    log::debug!(target: "fetch", "finished pull ({}s)", start.elapsed().as_secs());
+    result
 }
 
 /// Clone changes from the `remote`.
@@ -84,6 +89,7 @@ pub fn clone<S>(
 where
     S: transport::ConnectionStream,
 {
+    let start = Instant::now();
     if *handle.local() == remote {
         return Err(Error::ReplicateSelf);
     }
@@ -92,7 +98,10 @@ where
         .handshake()
         .map_err(|err| Error::Handshake { err })?;
     let state = FetchState::default();
-    state
+    let result = state
         .run(handle, &handshake, limit, remote, None)
-        .map_err(Error::Protocol)
+        .map_err(Error::Protocol);
+
+    log::debug!(target: "fetch", "finished clone ({}s)", start.elapsed().as_secs());
+    result
 }
