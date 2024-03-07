@@ -147,3 +147,11 @@ $ rad id update --title "Add Eve" --description "Add Eve as a delegate" --delega
 ✗ Error: missing delegate z6MkedT…47fovFn in local storage
 ✗ Error: fatal: refusing to update identity document
 ```
+
+If no updates are specified then the update will fail:
+
+``` (fail)
+$ rad id update --title "Update canonical branch" --description "Update the canonical branch to `main`"
+✗ Hint: an update to the identity must be specified, run `rad id update -h` to see the available options
+✗ Error: no update to the identity was specified
+```
