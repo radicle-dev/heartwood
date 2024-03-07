@@ -9,6 +9,7 @@ mod refs;
 mod stage;
 mod state;
 
+use gix_protocol::handshake;
 pub use handle::Handle;
 pub use policy::{Allowed, BlockList, Scope};
 use radicle::storage::ReadRepository as _;
@@ -62,10 +63,7 @@ where
     if local == remote {
         return Err(Error::ReplicateSelf);
     }
-    let handshake = handle
-        .transport
-        .handshake()
-        .map_err(|err| Error::Handshake { err })?;
+    let handshake = perform_handshake(handle)?;
     let state = FetchState::default();
 
     // N.b. ensure that we ignore the local peer's key.
@@ -99,10 +97,7 @@ where
     if *handle.local() == remote {
         return Err(Error::ReplicateSelf);
     }
-    let handshake = handle
-        .transport
-        .handshake()
-        .map_err(|err| Error::Handshake { err })?;
+    let handshake = perform_handshake(handle)?;
     let state = FetchState::default();
     let result = state
         .run(handle, &handshake, limit, remote, None)
@@ -115,4 +110,14 @@ where
         start.elapsed().as_millis(),
     );
     result
+}
+
+fn perform_handshake<S>(handle: &mut Handle<S>) -> Result<handshake::Outcome, Error>
+where
+    S: transport::ConnectionStream,
+{
+    handle.transport.handshake().map_err(|err| {
+        log::warn!(target: "fetch", "Failed to perform handshake: {err}");
+        Error::Handshake { err }
+    })
 }
