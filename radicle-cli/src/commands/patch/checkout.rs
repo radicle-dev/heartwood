@@ -42,11 +42,14 @@ pub fn run(
         .get(patch_id)?
         .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;
 
-    let revision = match revision_id {
-        Some(id) => patch
-            .revision(&id)
-            .ok_or_else(|| anyhow!("Patch revision `{id}` not found"))?,
-        None => patch.latest().1,
+    let (revision_id, revision) = match revision_id {
+        Some(id) => (
+            id,
+            patch
+                .revision(&id)
+                .ok_or_else(|| anyhow!("Patch revision `{id}` not found"))?,
+        ),
+        None => patch.latest(),
     };
 
     let mut spinner = term::spinner("Performing checkout...");
@@ -88,8 +91,9 @@ pub fn run(
     working.set_head(&git::refs::workdir::branch(&patch_branch))?;
 
     spinner.message(format!(
-        "Switched to branch {}",
-        term::format::highlight(&patch_branch)
+        "Switched to branch {} at revision {}",
+        term::format::highlight(&patch_branch),
+        term::format::secondary(term::format::oid(revision_id)),
     ));
     spinner.finish();
 

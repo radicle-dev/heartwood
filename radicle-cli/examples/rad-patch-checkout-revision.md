@@ -40,7 +40,7 @@ So, let's checkout the previous revision, `0c0942e2`:
 
 ```
 $ rad patch checkout aa45913 --revision 3156bed9d64d4675d6cf56612d217fc5f4e8a53a -f
-✓ Switched to branch patch/aa45913
+✓ Switched to branch patch/aa45913 at revision 3156bed
 ```
 
 And we can confirm that the current commit corresponds to `27857ec`:

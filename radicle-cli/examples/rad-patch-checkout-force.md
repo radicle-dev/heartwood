@@ -27,7 +27,7 @@ $ rad sync -f
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
 ✓ Fetched repository from 1 seed(s)
 $ rad patch checkout aa45913 --name alice-init
-✓ Switched to branch alice-init
+✓ Switched to branch alice-init at revision aa45913
 ✓ Branch alice-init setup to track rad/patches/aa45913e757cacd46972733bddee5472c78fa32a
 ```
 
@@ -81,7 +81,7 @@ $ rad patch checkout aa45913 --name alice-init
 
 ``` ~bob
 $ rad patch checkout aa45913 -f --name alice-init
-✓ Switched to branch alice-init
+✓ Switched to branch alice-init at revision 3156bed
 $ git status
 On branch alice-init
 Your branch is up to date with 'rad/patches/aa45913e757cacd46972733bddee5472c78fa32a'.
