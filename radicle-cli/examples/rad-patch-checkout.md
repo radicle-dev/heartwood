@@ -31,7 +31,7 @@ Now, let's checkout the patch that we just created:
 
 ```
 $ rad patch checkout aa45913e757cacd46972733bddee5472c78fa32a
-✓ Switched to branch patch/aa45913
+✓ Switched to branch patch/aa45913 at revision aa45913
 ✓ Branch patch/aa45913 setup to track rad/patches/aa45913e757cacd46972733bddee5472c78fa32a
 ```
 
@@ -41,7 +41,7 @@ as long as we haven't made changes to it.
 ```
 $ git checkout master -q
 $ rad patch checkout aa45913
-✓ Switched to branch patch/aa45913
+✓ Switched to branch patch/aa45913 at revision aa45913
 ```
 
 Now, let's add a README too!

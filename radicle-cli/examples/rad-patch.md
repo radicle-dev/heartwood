@@ -147,7 +147,7 @@ Now, let's checkout the patch that we just created:
 
 ```
 $ rad patch checkout aa45913
-✓ Switched to branch patch/aa45913
+✓ Switched to branch patch/aa45913 at revision 6e5a3b7
 ✓ Branch patch/aa45913 setup to track rad/patches/aa45913e757cacd46972733bddee5472c78fa32a
 ```
 

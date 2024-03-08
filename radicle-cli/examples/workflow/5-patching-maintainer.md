@@ -52,7 +52,7 @@ changes.
 
 ```
 $ rad patch checkout e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46
-✓ Switched to branch patch/e4934b6
+✓ Switched to branch patch/e4934b6 at revision 773b9aa
 ✓ Branch patch/e4934b6 setup to track rad/patches/e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46
 $ git mv REQUIREMENTS REQUIREMENTS.md
 $ git commit -m "Use markdown for requirements"

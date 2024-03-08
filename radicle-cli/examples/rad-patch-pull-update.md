@@ -67,7 +67,7 @@ Alice checks it out.
 
 ``` ~alice
 $ rad patch checkout 55b9721ed7f6bfec38f43729e9b6631c5dc812fb
-✓ Switched to branch patch/55b9721
+✓ Switched to branch patch/55b9721 at revision 55b9721
 ✓ Branch patch/55b9721 setup to track rad/patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb
 $ git show
 commit bdcdb30b3c0f513620dd0f1c24ff8f4f71de956b

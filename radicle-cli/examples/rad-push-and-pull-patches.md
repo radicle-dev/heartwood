@@ -13,7 +13,7 @@ $ git rev-parse HEAD
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 $ git checkout master -q
 $ rad patch checkout d004b67
-✓ Switched to branch patch/d004b67
+✓ Switched to branch patch/d004b67 at revision d004b67
 ✓ Branch patch/d004b67 setup to track rad/patches/d004b67355456c46de10c0d287e4a791ad1a6945
 $ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 ✓ Follow policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
