@@ -2,7 +2,6 @@ use axum::extract::State;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
-use radicle::storage::ReadStorage as _;
 use serde_json::json;
 
 use crate::api::error::Error;
@@ -17,12 +16,9 @@ pub fn router(ctx: Context) -> Router {
 /// Return the stats for the node.
 /// `GET /stats`
 async fn stats_handler(State(ctx): State<Context>) -> impl IntoResponse {
-    let storage = &ctx.profile.storage;
-    let projects = storage.inventory()?.len();
+    let total = ctx.profile.storage.repositories()?.len();
 
-    Ok::<_, Error>(Json(
-        json!({ "projects": { "count": projects }, "users": { "count": 0 } }),
-    ))
+    Ok::<_, Error>(Json(json!({ "repos": { "total": total } })))
 }
 
 #[cfg(test)]
@@ -39,16 +35,6 @@ mod routes {
         let response = get(&app, "/stats").await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(
-            response.json().await,
-            json!({
-                "projects": {
-                    "count": 1
-                },
-                "users": {
-                    "count": 0
-                }
-            })
-        );
+        assert_eq!(response.json().await, json!({ "repos": { "total": 2 } }));
     }
 }
