@@ -83,7 +83,7 @@ pub fn timestamp(time: impl Into<LocalTime>) -> Paint<String> {
 }
 
 /// Format a ref update.
-pub fn ref_update(update: RefUpdate) -> Paint<&'static str> {
+pub fn ref_update(update: &RefUpdate) -> Paint<&'static str> {
     match update {
         RefUpdate::Updated { .. } => term::format::tertiary("updated"),
         RefUpdate::Created { .. } => term::format::positive("created"),
