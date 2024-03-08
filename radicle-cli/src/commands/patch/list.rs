@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use radicle::cob::patch;
 use radicle::cob::patch::{Patch, PatchId};
@@ -46,7 +46,7 @@ pub fn run(
         return Ok(());
     }
 
-    let mut table = Table::<9, term::Line>::new(TableOptions {
+    let mut table = Table::<10, term::Line>::new(TableOptions {
         spacing: 2,
         border: Some(term::colors::FAINT),
         ..TableOptions::default()
@@ -58,6 +58,7 @@ pub fn run(
         term::format::bold(String::from("Title")).into(),
         term::format::bold(String::from("Author")).into(),
         term::Line::blank(),
+        term::format::bold(String::from("Reviews")).into(),
         term::format::bold(String::from("Head")).into(),
         term::format::bold(String::from("+")).into(),
         term::format::bold(String::from("-")).into(),
@@ -98,13 +99,39 @@ pub fn row(
     patch: &Patch,
     repository: &Repository,
     profile: &Profile,
-) -> anyhow::Result<[term::Line; 9]> {
+) -> anyhow::Result<[term::Line; 10]> {
     let state = patch.state();
     let (_, revision) = patch.latest();
     let (from, to) = revision.range();
     let stats = common::diff_stats(repository.raw(), &from, &to)?;
     let author = patch.author().id;
     let (alias, did) = Author::new(&author, profile).labels();
+    let mut delegates = repository
+        .delegates()?
+        .into_iter()
+        .map(|delegate| (*delegate, term::format::patch::verdict(None)))
+        .collect::<BTreeMap<_, _>>();
+    for (key, review) in revision.reviews() {
+        delegates
+            .entry(*key)
+            .and_modify(|verdict| *verdict = term::format::patch::verdict(review.verdict()));
+    }
+    let n = delegates.len();
+    let reviews = delegates
+        .values()
+        .cloned()
+        .map(term::Label::from)
+        // TODO(finto): poor man's intersperse
+        // https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.intersperse
+        .enumerate()
+        .flat_map(|(i, label)| {
+            if i == n - 1 {
+                vec![label].into_iter()
+            } else {
+                vec![label, term::Label::space()].into_iter()
+            }
+        })
+        .collect::<Vec<_>>();
 
     Ok([
         match state {
@@ -117,6 +144,7 @@ pub fn row(
         term::format::default(patch.title().to_owned()).into(),
         alias.into(),
         did.into(),
+        reviews.into(),
         term::format::secondary(term::format::oid(revision.head())).into(),
         term::format::positive(format!("+{}", stats.insertions())).into(),
         term::format::negative(format!("-{}", stats.deletions())).into(),
