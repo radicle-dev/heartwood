@@ -21,7 +21,7 @@ pub use radicle_cob::{
 pub use radicle_cob::{create, get, git, list, remove, update};
 
 /// The exact identifier for a particular COB.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
 pub struct TypedId {
     /// The identifier of the COB in the store.
     pub id: ObjectId,
@@ -49,6 +49,12 @@ impl TypedId {
     /// [`patch::Patch`].
     pub fn is_patch(&self) -> bool {
         self.type_name == *patch::TYPENAME
+    }
+
+    /// Returns `true` is the [`TypedId::type_name`] is for an
+    /// [`identity::Identity`].
+    pub fn is_identity(&self) -> bool {
+        self.type_name == *identity::TYPENAME
     }
 
     /// Parse a [`crate::git::Namespaced`] refname into a [`TypedId`].
