@@ -5,8 +5,8 @@ use serde::Serialize;
 use sqlite as sql;
 use thiserror::Error;
 
-use crate::cob::object::ParseObjectId;
-use crate::cob::{ObjectId, TypeName, TypeNameParse};
+use crate::cob;
+use crate::cob::TypedId;
 use crate::git::{BranchName, Qualified};
 use crate::prelude::RepoId;
 use crate::storage::{RefUpdate, RemoteId};
@@ -57,47 +57,44 @@ pub struct Notification {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize)]
 pub enum NotificationKind {
     /// A COB changed.
-    Cob { type_name: TypeName, id: ObjectId },
+    Cob {
+        #[serde(flatten)]
+        typed_id: TypedId,
+    },
     /// A source branch changed.
     Branch { name: BranchName },
+    /// Unknown reference.
+    Unknown { refname: Qualified<'static> },
 }
 
 #[derive(Error, Debug)]
 pub enum NotificationKindError {
-    /// Invalid COB type name.
-    #[error("invalid type name: {0}")]
-    TypeName(#[from] TypeNameParse),
-    /// Invalid COB object id.
-    #[error("invalid object id: {0}")]
-    ObjectId(#[from] ParseObjectId),
+    #[error("invalid cob identifier: {0}")]
+    TypedId(#[from] cob::ParseIdentifierError),
     /// Invalid Git ref format.
     #[error("invalid ref format: {0}")]
     RefFormat(#[from] radicle_git_ext::ref_format::Error),
-    /// Unknown notification kind.
-    #[error("unknown notification kind {0:?}")]
-    Unknown(Qualified<'static>),
 }
 
 impl<'a> TryFrom<Qualified<'a>> for NotificationKind {
     type Error = NotificationKindError;
 
     fn try_from(value: Qualified) -> Result<Self, Self::Error> {
-        let kind = match value.non_empty_iter() {
-            ("refs", "heads", head, rest) => NotificationKind::Branch {
-                name: [head]
-                    .into_iter()
-                    .chain(rest)
-                    .collect::<Vec<_>>()
-                    .join("/")
-                    .try_into()?,
+        let kind = match TypedId::from_qualified(&value)? {
+            Some(typed_id) => Self::Cob { typed_id },
+            None => match value.non_empty_iter() {
+                ("refs", "heads", head, rest) => Self::Branch {
+                    name: [head]
+                        .into_iter()
+                        .chain(rest)
+                        .collect::<Vec<_>>()
+                        .join("/")
+                        .try_into()?,
+                },
+                _ => Self::Unknown {
+                    refname: value.to_owned(),
+                },
             },
-            ("refs", "cobs", type_name, id) => NotificationKind::Cob {
-                type_name: type_name.parse()?,
-                id: id.collect::<String>().parse()?,
-            },
-            _ => {
-                return Err(NotificationKindError::Unknown(value.to_owned()));
-            }
         };
         Ok(kind)
     }
