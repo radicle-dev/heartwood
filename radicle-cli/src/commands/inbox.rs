@@ -4,15 +4,17 @@ use std::process;
 
 use anyhow::anyhow;
 
+use git_ref_format::Qualified;
 use localtime::LocalTime;
+use radicle::cob::TypedId;
 use radicle::identity::Identity;
 use radicle::issue::cache::Issues as _;
 use radicle::node::notifications;
 use radicle::node::notifications::*;
 use radicle::patch::cache::Patches as _;
 use radicle::prelude::{Profile, RepoId};
-use radicle::storage::{ReadRepository, ReadStorage};
-use radicle::{cob, Storage};
+use radicle::storage::{BranchName, ReadRepository, ReadStorage};
+use radicle::{cob, git, Storage};
 
 use term::Element as _;
 
@@ -41,6 +43,7 @@ Options
     --repo <rid>         Operate on the given repository (default: rad .)
     --sort-by <field>    Sort by `id` or `timestamp` (default: timestamp)
     --reverse, -r        Reverse the list
+    --show-unknown       Show any updates that were not recognized
     --help               Print help
 "#,
 };
@@ -72,6 +75,7 @@ pub struct Options {
     op: Operation,
     mode: Mode,
     sort_by: SortBy,
+    show_unknown: bool,
 }
 
 impl Args for Options {
@@ -84,6 +88,7 @@ impl Args for Options {
         let mut ids = Vec::new();
         let mut reverse = None;
         let mut field = None;
+        let mut show_unknown = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -95,6 +100,9 @@ impl Args for Options {
                 }
                 Long("reverse") | Short('r') => {
                     reverse = Some(true);
+                }
+                Long("show-unknown") => {
+                    show_unknown = true;
                 }
                 Long("sort-by") => {
                     let val = parser.value()?;
@@ -147,7 +155,15 @@ impl Args for Options {
             }
         };
 
-        Ok((Options { op, mode, sort_by }, vec![]))
+        Ok((
+            Options {
+                op,
+                mode,
+                sort_by,
+                show_unknown,
+            },
+            vec![],
+        ))
     }
 }
 
@@ -155,10 +171,22 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
     let mut notifs = profile.notifications_mut()?;
-    let Options { op, mode, sort_by } = options;
+    let Options {
+        op,
+        mode,
+        sort_by,
+        show_unknown,
+    } = options;
 
     match op {
-        Operation::List => list(mode, sort_by, &notifs.read_only(), storage, &profile),
+        Operation::List => list(
+            mode,
+            sort_by,
+            show_unknown,
+            &notifs.read_only(),
+            storage,
+            &profile,
+        ),
         Operation::Clear => clear(mode, &mut notifs),
         Operation::Show => show(mode, &mut notifs, storage, &profile),
     }
@@ -167,6 +195,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 fn list(
     mode: Mode,
     sort_by: SortBy,
+    show_unknown: bool,
     notifs: &notifications::StoreReader,
     storage: &Storage,
     profile: &Profile,
@@ -174,17 +203,17 @@ fn list(
     let repos: Vec<term::VStack<'_>> = match mode {
         Mode::Contextual => {
             if let Ok((_, rid)) = radicle::rad::cwd() {
-                list_repo(rid, sort_by, notifs, storage, profile)?
+                list_repo(rid, sort_by, show_unknown, notifs, storage, profile)?
                     .into_iter()
                     .collect()
             } else {
-                list_all(sort_by, notifs, storage, profile)?
+                list_all(sort_by, show_unknown, notifs, storage, profile)?
             }
         }
-        Mode::ByRepo(rid) => list_repo(rid, sort_by, notifs, storage, profile)?
+        Mode::ByRepo(rid) => list_repo(rid, sort_by, show_unknown, notifs, storage, profile)?
             .into_iter()
             .collect(),
-        Mode::All => list_all(sort_by, notifs, storage, profile)?,
+        Mode::All => list_all(sort_by, show_unknown, notifs, storage, profile)?,
         Mode::ById(_) => anyhow::bail!("the `list` command does not take IDs"),
     };
 
@@ -200,6 +229,7 @@ fn list(
 
 fn list_all<'a>(
     sort_by: SortBy,
+    show_unknown: bool,
     notifs: &notifications::StoreReader,
     storage: &Storage,
     profile: &Profile,
@@ -209,7 +239,7 @@ fn list_all<'a>(
 
     let mut vstacks = Vec::new();
     for repo in repos {
-        let vstack = list_repo(repo.rid, sort_by, notifs, storage, profile)?;
+        let vstack = list_repo(repo.rid, sort_by, show_unknown, notifs, storage, profile)?;
         vstacks.extend(vstack.into_iter());
     }
     Ok(vstacks)
@@ -218,6 +248,7 @@ fn list_all<'a>(
 fn list_repo<'a, R: ReadStorage>(
     rid: RepoId,
     sort_by: SortBy,
+    show_unknown: bool,
     notifs: &notifications::StoreReader,
     storage: &R,
     profile: &Profile,
@@ -250,86 +281,6 @@ where
         } else {
             term::format::tertiary(String::from("●")).into()
         };
-        let (category, summary, state, name) = match n.kind {
-            NotificationKind::Branch { name } => {
-                let commit = if let Some(head) = n.update.new() {
-                    repo.commit(head)?.summary().unwrap_or_default().to_owned()
-                } else {
-                    String::new()
-                };
-
-                let state = match n
-                    .update
-                    .new()
-                    .map(|oid| repo.is_ancestor_of(oid, head))
-                    .transpose()
-                {
-                    Ok(Some(true)) => {
-                        term::Paint::<String>::from(term::format::secondary("merged"))
-                    }
-                    Ok(Some(false)) | Ok(None) => term::format::ref_update(n.update).into(),
-                    Err(e) => return Err(e.into()),
-                }
-                .to_owned();
-
-                (
-                    "branch".to_string(),
-                    commit,
-                    state,
-                    term::format::default(name.to_string()),
-                )
-            }
-            NotificationKind::Cob { type_name, id } => {
-                let (category, summary, state) = if type_name == *cob::issue::TYPENAME {
-                    let Some(issue) = issues.get(&id)? else {
-                        // Issue could have been deleted after notification was created.
-                        continue;
-                    };
-                    (
-                        String::from("issue"),
-                        issue.title().to_owned(),
-                        term::format::issue::state(issue.state()),
-                    )
-                } else if type_name == *cob::patch::TYPENAME {
-                    let Some(patch) = patches.get(&id)? else {
-                        // Patch could have been deleted after notification was created.
-                        continue;
-                    };
-                    (
-                        String::from("patch"),
-                        patch.title().to_owned(),
-                        term::format::patch::state(patch.state()),
-                    )
-                } else if type_name == *cob::identity::TYPENAME {
-                    let Ok(identity) = Identity::get(&id, &repo) else {
-                        log::error!(
-                            target: "cli",
-                            "Error retrieving identity {id} for notification {}", n.id
-                        );
-                        continue;
-                    };
-                    let Some(rev) = n.update.new().and_then(|id| identity.revision(&id)) else {
-                        log::error!(
-                            target: "cli",
-                            "Error retrieving identity revision for notification {}", n.id
-                        );
-                        continue;
-                    };
-                    (
-                        String::from("id"),
-                        rev.title.clone(),
-                        term::format::identity::state(&rev.state),
-                    )
-                } else {
-                    (
-                        type_name.to_string(),
-                        "".to_owned(),
-                        term::format::default(String::new()),
-                    )
-                };
-                (category, summary, state, term::format::cob(&id))
-            }
-        };
         let author = n
             .remote
             .map(|r| {
@@ -337,15 +288,39 @@ where
                 alias
             })
             .unwrap_or_default();
+        let notification_id = term::format::dim(format!("{:-03}", n.id)).into();
+        let timestamp = term::format::italic(term::format::timestamp(n.timestamp)).into();
+
+        let NotificationRow {
+            category,
+            summary,
+            state,
+            name,
+        } = match &n.kind {
+            NotificationKind::Branch { name } => NotificationRow::branch(name, head, &n, &repo)?,
+            NotificationKind::Cob { typed_id } => {
+                match NotificationRow::cob(typed_id, &n, &issues, &patches, &repo)? {
+                    Some(row) => row,
+                    None => continue,
+                }
+            }
+            NotificationKind::Unknown { refname } => {
+                if show_unknown {
+                    NotificationRow::unknown(refname, &n, &repo)?
+                } else {
+                    continue;
+                }
+            }
+        };
         table.push([
-            term::format::dim(format!("{:-03}", n.id)).into(),
+            notification_id,
             seen,
-            term::format::tertiary(name).into(),
+            name.into(),
             summary.into(),
-            term::format::dim(category).into(),
+            category.into(),
             state.into(),
             author,
-            term::format::italic(term::format::timestamp(n.timestamp)).into(),
+            timestamp,
         ]);
     }
 
@@ -358,6 +333,149 @@ where
                 .child(term::label(term::format::bold(proj.name())))
                 .divider()
                 .child(table),
+        ))
+    }
+}
+
+struct NotificationRow {
+    category: term::Paint<String>,
+    summary: term::Paint<String>,
+    state: term::Paint<String>,
+    name: term::Paint<term::Paint<String>>,
+}
+
+impl NotificationRow {
+    fn new(
+        category: String,
+        summary: String,
+        state: term::Paint<String>,
+        name: term::Paint<String>,
+    ) -> Self {
+        Self {
+            category: term::format::dim(category),
+            summary: term::Paint::new(summary),
+            state,
+            name: term::format::tertiary(name),
+        }
+    }
+
+    fn branch<S>(
+        name: &BranchName,
+        head: git::Oid,
+        n: &Notification,
+        repo: &S,
+    ) -> anyhow::Result<Self>
+    where
+        S: ReadRepository,
+    {
+        let commit = if let Some(head) = n.update.new() {
+            repo.commit(head)?.summary().unwrap_or_default().to_owned()
+        } else {
+            String::new()
+        };
+
+        let state = match n
+            .update
+            .new()
+            .map(|oid| repo.is_ancestor_of(oid, head))
+            .transpose()
+        {
+            Ok(Some(true)) => term::Paint::<String>::from(term::format::secondary("merged")),
+            Ok(Some(false)) | Ok(None) => term::format::ref_update(&n.update).into(),
+            Err(e) => return Err(e.into()),
+        }
+        .to_owned();
+
+        Ok(Self::new(
+            "branch".to_string(),
+            commit,
+            state,
+            term::format::default(name.to_string()),
+        ))
+    }
+
+    fn cob<S, I, P>(
+        typed_id: &TypedId,
+        n: &Notification,
+        issues: &I,
+        patches: &P,
+        repo: &S,
+    ) -> anyhow::Result<Option<Self>>
+    where
+        S: ReadRepository + cob::Store,
+        I: cob::issue::cache::Issues,
+        P: cob::patch::cache::Patches,
+    {
+        let TypedId { id, .. } = typed_id;
+        let (category, summary, state) = if typed_id.is_issue() {
+            let Some(issue) = issues.get(id)? else {
+                // Issue could have been deleted after notification was created.
+                return Ok(None);
+            };
+            (
+                String::from("issue"),
+                issue.title().to_owned(),
+                term::format::issue::state(issue.state()),
+            )
+        } else if typed_id.is_patch() {
+            let Some(patch) = patches.get(id)? else {
+                // Patch could have been deleted after notification was created.
+                return Ok(None);
+            };
+            (
+                String::from("patch"),
+                patch.title().to_owned(),
+                term::format::patch::state(patch.state()),
+            )
+        } else if typed_id.is_identity() {
+            let Ok(identity) = Identity::get(id, repo) else {
+                log::error!(
+                    target: "cli",
+                    "Error retrieving identity {id} for notification {}", n.id
+                );
+                return Ok(None);
+            };
+            let Some(rev) = n.update.new().and_then(|id| identity.revision(&id)) else {
+                log::error!(
+                    target: "cli",
+                    "Error retrieving identity revision for notification {}", n.id
+                );
+                return Ok(None);
+            };
+            (
+                String::from("id"),
+                rev.title.clone(),
+                term::format::identity::state(&rev.state),
+            )
+        } else {
+            (
+                typed_id.type_name.to_string(),
+                "".to_owned(),
+                term::format::default(String::new()),
+            )
+        };
+        Ok(Some(Self::new(
+            category,
+            summary,
+            state,
+            term::format::cob(id),
+        )))
+    }
+
+    fn unknown<S>(refname: &Qualified<'static>, n: &Notification, repo: &S) -> anyhow::Result<Self>
+    where
+        S: ReadRepository,
+    {
+        let commit = if let Some(head) = n.update.new() {
+            repo.commit(head)?.summary().unwrap_or_default().to_owned()
+        } else {
+            String::new()
+        };
+        Ok(Self::new(
+            "unknown".to_string(),
+            commit,
+            "".into(),
+            term::format::default(refname.to_string()),
         ))
     }
 }
@@ -405,20 +523,25 @@ fn show(
     let repo = storage.repository(n.repo)?;
 
     match n.kind {
-        NotificationKind::Cob { type_name, id } if type_name == *cob::issue::TYPENAME => {
+        NotificationKind::Cob { typed_id } if typed_id.is_issue() => {
             let issues = profile.issues(&repo)?;
-            let issue = issues.get(&id)?.unwrap();
+            let issue = issues.get(&typed_id.id)?.unwrap();
 
-            term::issue::show(&issue, &id, term::issue::Format::default(), profile)?;
+            term::issue::show(
+                &issue,
+                &typed_id.id,
+                term::issue::Format::default(),
+                profile,
+            )?;
         }
-        NotificationKind::Cob { type_name, id } if type_name == *cob::patch::TYPENAME => {
+        NotificationKind::Cob { typed_id } if typed_id.is_patch() => {
             let patches = profile.patches(&repo)?;
-            let patch = patches.get(&id)?.unwrap();
+            let patch = patches.get(&typed_id.id)?.unwrap();
 
-            term::patch::show(&patch, &id, false, &repo, None, profile)?;
+            term::patch::show(&patch, &typed_id.id, false, &repo, None, profile)?;
         }
-        NotificationKind::Cob { type_name, id } if type_name == *cob::identity::TYPENAME => {
-            let identity = Identity::get(&id, &repo)?;
+        NotificationKind::Cob { typed_id } if typed_id.is_identity() => {
+            let identity = Identity::get(&typed_id.id, &repo)?;
 
             term::json::to_pretty(&identity.doc, Path::new("radicle.json"))?.print();
         }

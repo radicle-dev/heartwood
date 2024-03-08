@@ -621,8 +621,10 @@ mod test {
                 qualified,
                 update,
                 kind: NotificationKind::Cob {
-                    type_name: cob::issue::TYPENAME.clone(),
-                    id: "d87dcfe8c2b3200e78b128d9b959cfdf7063fefe".parse().unwrap(),
+                    typed_id: cob::TypedId {
+                        type_name: cob::issue::TYPENAME.clone(),
+                        id: "d87dcfe8c2b3200e78b128d9b959cfdf7063fefe".parse().unwrap(),
+                    },
                 },
                 status: NotificationStatus::Unread,
                 timestamp,
