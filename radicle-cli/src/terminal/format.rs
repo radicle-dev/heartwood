@@ -264,7 +264,15 @@ pub mod issue {
 /// Patch formatting
 pub mod patch {
     use super::*;
-    use radicle::patch::State;
+    use radicle::patch::{State, Verdict};
+
+    pub fn verdict(v: Option<Verdict>) -> term::Paint<String> {
+        match v {
+            Some(Verdict::Accept) => term::format::positive("✔".to_string()),
+            Some(Verdict::Reject) => term::format::negative("✗".to_string()),
+            None => term::format::secondary("●".to_string()),
+        }
+    }
 
     /// Format patch state.
     pub fn state(s: &State) -> term::Paint<String> {
