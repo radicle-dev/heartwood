@@ -29,9 +29,9 @@ We can list the repositories we are seeding by omitting the RID:
 
 ```
 $ rad seed
-╭───────────────────────────────────────────────────────╮
-│ Repository                          Policy   Scope    │
-├───────────────────────────────────────────────────────┤
-│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   allow    followed │
-╰───────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────╮
+│ Repository                          Name   Policy   Scope    │
+├──────────────────────────────────────────────────────────────┤
+│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji          allow    followed │
+╰──────────────────────────────────────────────────────────────╯
 ```
