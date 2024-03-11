@@ -121,6 +121,34 @@ impl State {
     }
 }
 
+/// A simplified enumeration of a [`State`] that can be used for
+/// filtering purposes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "status")]
+pub enum Status {
+    #[default]
+    Open,
+    Closed,
+}
+
+impl From<&State> for Status {
+    fn from(value: &State) -> Self {
+        match value {
+            State::Closed { .. } => Self::Closed,
+            State::Open => Status::Open,
+        }
+    }
+}
+
+impl std::fmt::Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Open => write!(f, "open"),
+            Self::Closed => write!(f, "closed"),
+        }
+    }
+}
+
 /// Issue state. Accumulates [`Action`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

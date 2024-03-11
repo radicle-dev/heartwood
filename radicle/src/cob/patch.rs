@@ -1488,7 +1488,8 @@ impl From<&State> for Status {
 
 /// A simplified enumeration of a [`State`] that can be used for
 /// filtering purposes.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "status")]
 pub enum Status {
     Draft,
     #[default]

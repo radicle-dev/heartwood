@@ -580,26 +580,25 @@ async fn readme_handler(
 async fn issues_handler(
     State(ctx): State<Context>,
     Path(project): Path<RepoId>,
-    Query(qs): Query<CobsQuery<api::IssueState>>,
+    Query(qs): Query<CobsQuery<issue::Status>>,
 ) -> impl IntoResponse {
     let (repo, _) = ctx.repo(project)?;
     let CobsQuery {
         page,
         per_page,
-        state,
+        status,
     } = qs;
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
-    let state = state.unwrap_or_default();
     let issues = ctx.profile.issues(&repo)?;
-    let mut issues: Vec<_> = issues
-        .list()?
-        .filter_map(|r| {
-            let (id, issue) = r.ok()?;
-            (state.matches(issue.state())).then_some((id, issue))
-        })
-        .collect::<Vec<_>>();
-
+    let mut issues = if let Some(status) = status {
+        issues
+            .list_by_status(&status)?
+            .filter_map(Result::ok)
+            .collect::<Vec<_>>()
+    } else {
+        issues.list()?.filter_map(Result::ok).collect::<Vec<_>>()
+    };
     issues.sort_by(|(_, a), (_, b)| b.timestamp().cmp(&a.timestamp()));
     let aliases = &ctx.profile.aliases();
     let issues = issues
@@ -932,26 +931,26 @@ async fn patch_update_handler(
 /// `GET /projects/:project/patches`
 async fn patches_handler(
     State(ctx): State<Context>,
-    Path(rid): Path<RepoId>,
-    Query(qs): Query<CobsQuery<api::PatchState>>,
+    Path(project): Path<RepoId>,
+    Query(qs): Query<CobsQuery<patch::Status>>,
 ) -> impl IntoResponse {
-    let (repo, _) = ctx.repo(rid)?;
+    let (repo, _) = ctx.repo(project)?;
     let CobsQuery {
         page,
         per_page,
-        state,
+        status,
     } = qs;
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
-    let state = state.unwrap_or_default();
     let patches = ctx.profile.patches(&repo)?;
-    let mut patches = patches
-        .list()?
-        .filter_map(|r| {
-            let (id, patch) = r.ok()?;
-            (state.matches(patch.state())).then_some((id, patch))
-        })
-        .collect::<Vec<_>>();
+    let mut patches = if let Some(status) = status {
+        patches
+            .list_by_status(&status)?
+            .filter_map(Result::ok)
+            .collect::<Vec<_>>()
+    } else {
+        patches.list()?.filter_map(Result::ok).collect::<Vec<_>>()
+    };
     patches.sort_by(|(_, a), (_, b)| b.timestamp().cmp(&a.timestamp()));
     let aliases = ctx.profile.aliases();
     let patches = patches

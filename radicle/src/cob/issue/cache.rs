@@ -14,7 +14,7 @@ use crate::prelude::{Did, RepoId};
 use crate::sql::transaction;
 use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
 
-use super::{Issue, IssueCounts, IssueId, IssueMut, State};
+use super::{Issue, IssueCounts, IssueId, IssueMut, State, Status};
 
 /// A set of read-only methods for a [`Issue`] store.
 pub trait Issues {
@@ -31,6 +31,10 @@ pub trait Issues {
 
     /// List all issues that are in the store.
     fn list(&self) -> Result<Self::Iter<'_>, Self::Error>;
+
+    /// List all issues in the store that match the provided
+    /// `status`.
+    fn list_by_status(&self, status: &Status) -> Result<Self::Iter<'_>, Self::Error>;
 
     /// Get the [`IssueCounts`] of all the issues in the store.
     fn counts(&self) -> Result<IssueCounts, Self::Error>;
@@ -355,6 +359,23 @@ where
             .map_err(super::Error::from)
     }
 
+    fn list_by_status(&self, status: &Status) -> Result<Self::Iter<'_>, Self::Error> {
+        let status = *status;
+        self.store
+            .all()
+            .map(move |inner| NoCacheIter {
+                inner: Box::new(inner.into_iter().filter_map(move |res| {
+                    match res {
+                        Ok((id, issue)) => (status == Status::from(&issue.state))
+                            .then_some((id, issue))
+                            .map(Ok),
+                        Err(e) => Some(Err(e.into())),
+                    }
+                })),
+            })
+            .map_err(super::Error::from)
+    }
+
     fn counts(&self) -> Result<IssueCounts, Self::Error> {
         self.store.counts().map_err(super::Error::from)
     }
@@ -412,6 +433,10 @@ where
         query::list(&self.cache.db, &self.rid())
     }
 
+    fn list_by_status(&self, status: &Status) -> Result<Self::Iter<'_>, Self::Error> {
+        query::list_by_status(&self.cache.db, &self.rid(), status)
+    }
+
     fn counts(&self) -> Result<IssueCounts, Self::Error> {
         query::counts(&self.cache.db, &self.rid())
     }
@@ -430,6 +455,10 @@ where
 
     fn list(&self) -> Result<Self::Iter<'_>, Self::Error> {
         query::list(&self.cache.db, &self.rid())
+    }
+
+    fn list_by_status(&self, status: &Status) -> Result<Self::Iter<'_>, Self::Error> {
+        query::list_by_status(&self.cache.db, &self.rid(), status)
     }
 
     fn counts(&self) -> Result<IssueCounts, Self::Error> {
@@ -484,6 +513,26 @@ mod query {
         })
     }
 
+    pub(super) fn list_by_status<'a>(
+        db: &'a sql::ConnectionThreadSafe,
+        rid: &RepoId,
+        filter: &Status,
+    ) -> Result<IssuesIter<'a>, Error> {
+        let mut stmt = db.prepare(
+            "SELECT id, issue
+             FROM issues
+             WHERE repo = ?1
+             AND issue->>'$.state.status' = ?2
+             ORDER BY id
+            ",
+        )?;
+        stmt.bind((1, rid))?;
+        stmt.bind((2, sql::Value::String(filter.to_string())))?;
+        Ok(IssuesIter {
+            inner: stmt.into_iter(),
+        })
+    }
+
     pub(super) fn counts(
         db: &sql::ConnectionThreadSafe,
         rid: &RepoId,
@@ -522,7 +571,7 @@ mod tests {
 
     use crate::cob::cache::{Store, Update, Write};
     use crate::cob::thread::Thread;
-    use crate::issue::{CloseReason, Issue, IssueCounts, IssueId, State};
+    use crate::issue::{CloseReason, Issue, IssueCounts, IssueId, State, Status};
     use crate::test::arbitrary;
     use crate::test::storage::MockRepository;
 
@@ -659,6 +708,69 @@ mod tests {
         list.sort_by_key(|(id, _)| *id);
         issues.sort_by_key(|(id, _)| *id);
         assert_eq!(issues, list);
+    }
+
+    fn gen_issues(state: State, n: u8) -> Vec<(ObjectId, Issue)> {
+        let ids = (0..n)
+            .map(|_| IssueId::from(arbitrary::oid()))
+            .collect::<BTreeSet<IssueId>>();
+
+        ids.into_iter()
+            .map(|id| {
+                (
+                    id,
+                    Issue {
+                        title: id.to_string(),
+                        state,
+                        ..Issue::new(Thread::default())
+                    },
+                )
+            })
+            .collect::<Vec<_>>()
+    }
+
+    #[test]
+    fn test_list_by_status() {
+        let repo = arbitrary::gen::<MockRepository>(1);
+        let mut cache = memory(repo);
+
+        let mut open_issues = gen_issues(State::Open, 5);
+        let mut closed_issues = gen_issues(
+            State::Closed {
+                reason: CloseReason::Solved,
+            },
+            5,
+        );
+        closed_issues.extend(gen_issues(
+            State::Closed {
+                reason: CloseReason::Other,
+            },
+            5,
+        ));
+
+        let rid = cache.rid();
+        for (id, issue) in open_issues.iter().chain(closed_issues.iter()) {
+            cache.update(&rid, id, issue).unwrap();
+        }
+
+        let mut open = cache
+            .list_by_status(&Status::Open)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        let mut closed = cache
+            .list_by_status(&Status::Closed)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        open.sort_by_key(|(id, _)| *id);
+        open_issues.sort_by_key(|(id, _)| *id);
+        assert_eq!(open, open_issues);
+
+        closed.sort_by_key(|(id, _)| *id);
+        closed_issues.sort_by_key(|(id, _)| *id);
+        assert_eq!(closed, closed_issues);
     }
 
     #[test]
