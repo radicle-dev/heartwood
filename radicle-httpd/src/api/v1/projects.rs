@@ -2318,7 +2318,7 @@ mod routes {
                     {
                       "emoji": "🚀",
                       "authors": [
-                        { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8" }
+                        { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8", "alias": "seed" }
                       ],
                     },
                   ],
@@ -2367,25 +2367,28 @@ mod routes {
               "id": ISSUE_DISCUSSION_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
+                "alias": "seed"
               },
               "title": "Issue #1",
               "state": {
                 "status": "open",
               },
               "assignees": [
-                { "id": CONTRIBUTOR_DID }
+                { "id": CONTRIBUTOR_DID, "alias": "seed" }
               ],
               "discussion": [
                 {
                   "id": ISSUE_DISCUSSION_ID,
                   "author": {
                     "id": CONTRIBUTOR_DID,
+                    "alias": "seed",
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "edits": [
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
+                        "alias": "seed",
                       },
                       "body": "Change 'hello world' to 'hello everyone'",
                       "timestamp": TIMESTAMP,
@@ -2771,7 +2774,7 @@ mod routes {
               "labels": [],
               "merges": [],
               "assignees": [
-                { "id": CONTRIBUTOR_DID }
+                { "id": CONTRIBUTOR_DID, "alias": "seed" }
               ],
               "revisions": [
                 {
@@ -3187,7 +3190,7 @@ mod routes {
                     {
                       "emoji": "🙏",
                       "authors": [
-                        { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8" }
+                        { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8", "alias": "seed" }
                       ],
                     },
                     {
@@ -3205,7 +3208,7 @@ mod routes {
                       },
                       "emoji": "🚀",
                       "authors": [
-                        { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8" }
+                        { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8", "alias": "seed" }
                       ]
                     },
                   ],
@@ -3402,7 +3405,7 @@ mod routes {
                         {
                           "emoji": "🚀",
                           "authors": [
-                            { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8" }
+                            { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8", "alias": "seed" }
                           ],
                         },
                       ],
@@ -3656,7 +3659,7 @@ mod routes {
                             {
                               "emoji": "🚀",
                               "authors": [
-                                { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8" }
+                                { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8", "alias": "seed" }
                               ],
                             },
                           ],
