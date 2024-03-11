@@ -21,7 +21,7 @@ Now, if we run `rad ls`, we see it's gone:
 ```
 $ rad ls
 Nothing to show.
-$ rad ls --seeds
+$ rad ls --seeded
 Nothing to show.
 ```
 

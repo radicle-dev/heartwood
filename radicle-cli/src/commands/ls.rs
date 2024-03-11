@@ -23,7 +23,7 @@ Options
 
     --private       Show only private repositories
     --public        Show only public repositories
-    --seeds, -s     Show all seeded repositories
+    --seeded, -s    Show all seeded repositories
     --all, -a       Show all repositories in storage
     --verbose, -v   Verbose output
     --help          Print help
@@ -36,7 +36,7 @@ pub struct Options {
     public: bool,
     private: bool,
     all: bool,
-    seeds: bool,
+    seeded: bool,
 }
 
 impl Args for Options {
@@ -48,7 +48,7 @@ impl Args for Options {
         let mut private = false;
         let mut public = false;
         let mut all = false;
-        let mut seeds = false;
+        let mut seeded = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -58,8 +58,8 @@ impl Args for Options {
                 Long("all") | Short('a') => {
                     all = true;
                 }
-                Long("seeds") | Short('s') => {
-                    seeds = true;
+                Long("seeded") | Short('s') => {
+                    seeded = true;
                 }
                 Long("private") => {
                     private = true;
@@ -78,7 +78,7 @@ impl Args for Options {
                 private,
                 public,
                 all,
-                seeds,
+                seeded,
             },
             vec![],
         ))
@@ -110,7 +110,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         if !doc.visibility.is_public() && !options.private && options.public {
             continue;
         }
-        if refs.is_none() && !options.all && !options.seeds {
+        if refs.is_none() && !options.all && !options.seeded {
             continue;
         }
         let seeded = policy.is_seeding(&rid)?;
@@ -118,7 +118,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         if !seeded && !options.all {
             continue;
         }
-        if !seeded && options.seeds {
+        if !seeded && options.seeded {
             continue;
         }
         let proj = doc.project()?;
