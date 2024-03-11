@@ -96,6 +96,9 @@ pub enum Error {
     /// Patch is empty.
     #[error("patch commits are already included in the base branch")]
     EmptyPatch,
+    /// Missing canonical head.
+    #[error("the canonical head is missing from your working copy; please pull before pushing")]
+    MissingCanonicalHead(git::Oid),
     /// COB store error.
     #[error(transparent)]
     Cob(#[from] radicle::cob::store::Error),
@@ -257,6 +260,13 @@ pub fn run(
                             && delegates.contains(&Did::from(nid))
                             && delegates.len() > 1
                         {
+                            if let Err(e) = working.find_commit(**canonical_oid) {
+                                return if git::ext::is_not_found_err(&e) {
+                                    Err(Error::MissingCanonicalHead(*canonical_oid))
+                                } else {
+                                    Err(e.into())
+                                };
+                            }
                             let head = working.find_reference(src.as_str())?;
                             let head = head.peel_to_commit()?.id();
                             // Rollback is allowed and head is an ancestor of the canonical head.
