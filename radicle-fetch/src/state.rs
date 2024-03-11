@@ -441,6 +441,16 @@ impl FetchState {
             start.elapsed().as_millis()
         );
 
+        // N.b. signal to exit the upload-pack sequence
+        // We're finished fetching on this side, and all that's left
+        // is validation.
+        match handle.transport.done() {
+            Ok(()) => log::debug!(target: "fetch", "Sent done signal to remote {remote}"),
+            Err(err) => {
+                log::warn!(target: "fetch", "Attempted to send done to remote {remote}: {err}")
+            }
+        }
+
         // Run validation of signed refs, pruning any offending
         // remotes from the tips, thus not updating the production Git
         // repository.
@@ -543,9 +553,6 @@ impl FetchState {
                 }
             }
         }
-        // N.b. signal to exit the upload-pack sequence
-        handle.transport.done()?;
-
         log::debug!(
             target: "fetch",
             "Validated {} remotes ({}ms)",

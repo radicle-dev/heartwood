@@ -9,18 +9,19 @@ mod refs;
 mod stage;
 mod state;
 
-use gix_protocol::handshake;
-pub use handle::Handle;
-pub use policy::{Allowed, BlockList, Scope};
-use radicle::storage::ReadRepository as _;
-pub use state::{FetchLimit, FetchResult};
-pub use transport::Transport;
-
 use std::io;
 use std::time::Instant;
 
+use gix_protocol::handshake;
+
+pub use handle::Handle;
+pub use policy::{Allowed, BlockList, Scope};
+pub use state::{FetchLimit, FetchResult};
+pub use transport::Transport;
+
 use radicle::crypto::PublicKey;
 use radicle::storage::refs::RefsAt;
+use radicle::storage::ReadRepository as _;
 use state::FetchState;
 use thiserror::Error;
 
