@@ -1,5 +1,5 @@
-use std::process::Command;
 use std::env;
+use std::process::Command;
 
 fn main() {
     // Set a build-time `GIT_HEAD` env var which includes the commit id;
