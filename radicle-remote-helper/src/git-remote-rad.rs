@@ -1,11 +1,14 @@
 use std::env;
 use std::process;
 
-use radicle::version;
+use radicle::version::Version;
 
-pub const NAME: &str = "git-remote-rad";
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const GIT_HEAD: &str = env!("GIT_HEAD");
+pub const VERSION: Version = Version {
+    name: "git-remote-rad",
+    commit: env!("GIT_HEAD"),
+    version: env!("CARGO_PKG_VERSION"),
+    timestamp: env!("GIT_COMMIT_TIME"),
+};
 
 fn main() {
     let mut args = env::args();
@@ -14,7 +17,7 @@ fn main() {
         radicle::logger::set(radicle::logger::StderrLogger::new(lvl), lvl).ok();
     }
     if args.nth(1).as_deref() == Some("--version") {
-        if let Err(e) = version::print(std::io::stdout(), NAME, VERSION, GIT_HEAD) {
+        if let Err(e) = VERSION.write(std::io::stdout()) {
             eprintln!("error: {e}");
             process::exit(1);
         };

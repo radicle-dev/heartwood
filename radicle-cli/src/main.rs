@@ -1,23 +1,30 @@
 use std::ffi::OsString;
-use std::io;
+use std::io::{self, Write};
 use std::{io::ErrorKind, iter, process};
 
 use anyhow::anyhow;
 
-use radicle::version;
+use radicle::version::Version;
 use radicle_cli::commands::*;
 use radicle_cli::terminal as term;
 
 pub const NAME: &str = "rad";
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const DESCRIPTION: &str = "Radicle command line interface";
 pub const GIT_HEAD: &str = env!("GIT_HEAD");
+pub const TIMESTAMP: &str = env!("GIT_COMMIT_TIME");
+pub const VERSION: Version = Version {
+    name: NAME,
+    version: PKG_VERSION,
+    commit: GIT_HEAD,
+    timestamp: TIMESTAMP,
+};
 
 #[derive(Debug)]
 enum Command {
     Other(Vec<OsString>),
     Help,
-    Version,
+    Version { json: bool },
 }
 
 fn main() {
@@ -43,18 +50,24 @@ fn parse_args() -> anyhow::Result<Command> {
 
     let mut parser = lexopt::Parser::from_env();
     let mut command = None;
+    let mut json = false;
 
     while let Some(arg) = parser.next()? {
         match arg {
+            Long("json") => {
+                json = true;
+            }
             Long("help") | Short('h') => {
                 command = Some(Command::Help);
             }
             Long("version") => {
-                command = Some(Command::Version);
+                command = Some(Command::Version { json: false });
             }
             Value(val) if command.is_none() => {
                 if val == *"." {
                     command = Some(Command::Other(vec![OsString::from("inspect")]));
+                } else if val == "version" {
+                    command = Some(Command::Version { json: false });
                 } else {
                     let args = iter::once(val)
                         .chain(iter::from_fn(|| parser.value().ok()))
@@ -66,12 +79,14 @@ fn parse_args() -> anyhow::Result<Command> {
             _ => return Err(anyhow::anyhow!(arg.unexpected())),
         }
     }
-
+    if let Some(Command::Version { json: j }) = &mut command {
+        *j = json;
+    }
     Ok(command.unwrap_or_else(|| Command::Other(vec![])))
 }
 
 fn print_help() -> anyhow::Result<()> {
-    version::print(&mut io::stdout(), NAME, VERSION, GIT_HEAD)?;
+    VERSION.write(&mut io::stdout())?;
     println!("{DESCRIPTION}");
     println!();
 
@@ -80,9 +95,16 @@ fn print_help() -> anyhow::Result<()> {
 
 fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
     match command {
-        Command::Version => {
-            version::print(&mut io::stdout(), NAME, VERSION, GIT_HEAD)
-                .map_err(|e| Some(e.into()))?;
+        Command::Version { json } => {
+            let mut stdout = io::stdout();
+            if json {
+                VERSION
+                    .write_json(&mut stdout)
+                    .map_err(|e| Some(e.into()))?;
+                writeln!(&mut stdout).ok();
+            } else {
+                VERSION.write(&mut stdout).map_err(|e| Some(e.into()))?;
+            }
         }
         Command::Help => {
             print_help()?;

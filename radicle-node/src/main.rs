@@ -7,14 +7,17 @@ use crossbeam_channel as chan;
 use radicle::logger;
 use radicle::prelude::Signer;
 use radicle::profile;
-use radicle::version;
+use radicle::version::Version;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::signals;
 use radicle_node::Runtime;
 
-pub const NAME: &str = "radicle-node";
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const GIT_HEAD: &str = env!("GIT_HEAD");
+pub const VERSION: Version = Version {
+    name: env!("CARGO_PKG_NAME"),
+    commit: env!("GIT_HEAD"),
+    version: env!("CARGO_PKG_VERSION"),
+    timestamp: env!("GIT_COMMIT_TIME"),
+};
 
 pub const HELP_MSG: &str = r#"
 Usage
@@ -68,7 +71,7 @@ impl Options {
                     process::exit(0);
                 }
                 Long("version") => {
-                    version::print(&mut io::stdout(), NAME, VERSION, GIT_HEAD)?;
+                    VERSION.write(&mut io::stdout())?;
                     process::exit(0);
                 }
                 _ => anyhow::bail!(arg.unexpected()),
