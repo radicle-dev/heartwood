@@ -2321,7 +2321,10 @@ mod routes {
                     {
                       "emoji": "🚀",
                       "authors": [
-                        { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8", "alias": "seed" }
+                        {
+                          "id": CONTRIBUTOR_DID,
+                          "alias": CONTRIBUTOR_ALIAS,
+                        }
                       ],
                     },
                   ],
@@ -2370,28 +2373,31 @@ mod routes {
               "id": ISSUE_DISCUSSION_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
-                "alias": "seed"
+                "alias": CONTRIBUTOR_ALIAS,
               },
               "title": "Issue #1",
               "state": {
                 "status": "open",
               },
               "assignees": [
-                { "id": CONTRIBUTOR_DID, "alias": "seed" }
+                {
+                  "id": CONTRIBUTOR_DID,
+                  "alias": CONTRIBUTOR_ALIAS,
+                }
               ],
               "discussion": [
                 {
                   "id": ISSUE_DISCUSSION_ID,
                   "author": {
                     "id": CONTRIBUTOR_DID,
-                    "alias": "seed",
+                    "alias": CONTRIBUTOR_ALIAS,
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "edits": [
                     {
                       "author": {
                         "id": CONTRIBUTOR_DID,
-                        "alias": "seed",
+                        "alias": CONTRIBUTOR_ALIAS,
                       },
                       "body": "Change 'hello world' to 'hello everyone'",
                       "timestamp": TIMESTAMP,
@@ -2777,7 +2783,10 @@ mod routes {
               "labels": [],
               "merges": [],
               "assignees": [
-                { "id": CONTRIBUTOR_DID, "alias": "seed" }
+                {
+                  "id": CONTRIBUTOR_DID,
+                  "alias": CONTRIBUTOR_ALIAS,
+                }
               ],
               "revisions": [
                 {
@@ -3193,7 +3202,10 @@ mod routes {
                     {
                       "emoji": "🙏",
                       "authors": [
-                        { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8", "alias": "seed" }
+                        {
+                          "id": CONTRIBUTOR_DID,
+                          "alias": CONTRIBUTOR_ALIAS
+                        }
                       ],
                     },
                     {
@@ -3211,7 +3223,10 @@ mod routes {
                       },
                       "emoji": "🚀",
                       "authors": [
-                        { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8", "alias": "seed" }
+                        {
+                          "id": CONTRIBUTOR_DID,
+                          "alias": CONTRIBUTOR_ALIAS
+                        }
                       ]
                     },
                   ],
@@ -3408,7 +3423,10 @@ mod routes {
                         {
                           "emoji": "🚀",
                           "authors": [
-                            { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8", "alias": "seed" }
+                            {
+                              "id": CONTRIBUTOR_DID,
+                              "alias": CONTRIBUTOR_ALIAS
+                            }
                           ],
                         },
                       ],
@@ -3618,14 +3636,14 @@ mod routes {
                         {
                           "id": "0dcfca53416761cf975cc4cd6d452790cee06b49",
                           "author": {
-                            "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                            "id": CONTRIBUTOR_DID,
                             "alias": CONTRIBUTOR_ALIAS
                           },
                           "body": "EDIT: This is a comment on a review",
                           "edits": [
                             {
                               "author": {
-                                "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                                "id": CONTRIBUTOR_DID,
                                 "alias": CONTRIBUTOR_ALIAS
                               },
                               "body": "This is a comment on a review",
@@ -3639,7 +3657,7 @@ mod routes {
                             },
                             {
                               "author": {
-                                "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                                "id": CONTRIBUTOR_DID,
                                 "alias": CONTRIBUTOR_ALIAS
                               },
                               "body": "EDIT: This is a comment on a review",
@@ -3662,7 +3680,10 @@ mod routes {
                             {
                               "emoji": "🚀",
                               "authors": [
-                                { "id": "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8", "alias": "seed" }
+                                {
+                                  "id": CONTRIBUTOR_DID,
+                                  "alias": CONTRIBUTOR_ALIAS
+                                }
                               ],
                             },
                           ],
