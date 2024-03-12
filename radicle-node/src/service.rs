@@ -1148,8 +1148,19 @@ where
         }
     }
 
-    pub fn disconnected(&mut self, remote: NodeId, reason: &DisconnectReason) {
+    pub fn disconnected(&mut self, remote: NodeId, link: Link, reason: &DisconnectReason) {
         let since = self.local_time();
+        let Some(session) = self.sessions.get_mut(&remote) else {
+            // Since we sometimes disconnect the service eagerly, it's not unusual to get a second
+            // disconnection event once the transport is dropped.
+            trace!(target: "service", "Redundant disconnection for {} ({})", remote, reason);
+            return;
+        };
+        // In cases of connection conflicts, there may be disconnections of one of the two
+        // connections. In that case we don't want the service to remove the session.
+        if session.link != link {
+            return;
+        }
 
         info!(target: "service", "Disconnected from {} ({})", remote, reason);
         self.emitter.emit(Event::PeerDisconnected {
@@ -1157,13 +1168,6 @@ where
             reason: reason.to_string(),
         });
 
-        let Some(session) = self.sessions.get_mut(&remote) else {
-            if cfg!(debug_assertions) {
-                panic!("Service::disconnected: unknown session {remote}");
-            } else {
-                return;
-            }
-        };
         let link = session.link;
         let addr = session.addr.clone();
 
@@ -1210,7 +1214,9 @@ where
                     }
                 }
                 DisconnectReason::Session(e) => e.severity(),
-                DisconnectReason::Command => Severity::Low,
+                DisconnectReason::Command
+                | DisconnectReason::Conflict
+                | DisconnectReason::SelfConnection => Severity::Low,
             };
 
             if let Err(e) = self
@@ -2307,6 +2313,10 @@ pub enum DisconnectReason {
     Fetch(FetchError),
     /// Session error.
     Session(session::Error),
+    /// Session conflicts with existing session.
+    Conflict,
+    /// Connection to self.
+    SelfConnection,
     /// User requested disconnect
     Command,
 }
@@ -2333,6 +2343,8 @@ impl fmt::Display for DisconnectReason {
             Self::Dial(err) => write!(f, "{err}"),
             Self::Connection(err) => write!(f, "{err}"),
             Self::Command => write!(f, "command"),
+            Self::SelfConnection => write!(f, "self-connection"),
+            Self::Conflict => write!(f, "conflict"),
             Self::Session(err) => write!(f, "{err}"),
             Self::Fetch(err) => write!(f, "fetch: {err}"),
         }

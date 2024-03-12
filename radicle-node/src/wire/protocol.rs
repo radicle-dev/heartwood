@@ -178,6 +178,7 @@ enum Peer {
     /// The peer was scheduled for disconnection. Once the transport is handed over
     /// by the reactor, we can consider it disconnected.
     Disconnecting {
+        link: Link,
         nid: Option<NodeId>,
         reason: DisconnectReason,
     },
@@ -201,6 +202,13 @@ impl Peer {
         }
     }
 
+    fn link(&self) -> Link {
+        match self {
+            Peer::Connected { link, .. } => *link,
+            Peer::Disconnecting { link, .. } => *link,
+        }
+    }
+
     /// Connected peer.
     fn connected(nid: NodeId, addr: NetAddr<HostName>, link: Link) -> Self {
         Self::Connected {
@@ -209,20 +217,6 @@ impl Peer {
             nid,
             inbox: Deserializer::default(),
             streams: Streams::new(link),
-        }
-    }
-
-    /// Switch to disconnecting state.
-    fn disconnecting(&mut self, reason: DisconnectReason) {
-        if let Self::Connected { nid, streams, .. } = self {
-            streams.shutdown();
-
-            *self = Self::Disconnecting {
-                nid: Some(*nid),
-                reason,
-            };
-        } else {
-            panic!("Peer::disconnected: session is not connected ({self:?})");
         }
     }
 }
@@ -263,9 +257,9 @@ impl Peers {
             .map(|(fd, peer)| (*fd, peer))
     }
 
-    fn active(&self) -> impl Iterator<Item = (ResourceId, &NodeId)> {
+    fn active(&self) -> impl Iterator<Item = (ResourceId, &NodeId, Link)> {
         self.0.iter().filter_map(|(id, peer)| match peer {
-            Peer::Connected { nid, .. } => Some((*id, nid)),
+            Peer::Connected { nid, link, .. } => Some((*id, nid, *link)),
             Peer::Disconnecting { .. } => None,
         })
     }
@@ -336,22 +330,44 @@ where
         self.actions.push_back(Action::RegisterListener(socket));
     }
 
-    fn disconnect(&mut self, id: ResourceId, reason: DisconnectReason) {
-        match self.peers.get_mut(&id) {
-            Some(Peer::Disconnecting { .. }) => {
-                log::error!(target: "wire", "Peer with id={id} is already disconnecting");
-            }
-            Some(peer) => {
-                log::debug!(target: "wire", "Disconnecting peer with id={id}: {reason}");
-
-                peer.disconnecting(reason);
-                self.actions.push_back(Action::UnregisterTransport(id));
-            }
-            None => {
+    fn disconnect(&mut self, id: ResourceId, reason: DisconnectReason) -> Option<(NodeId, Link)> {
+        match self.peers.entry(id) {
+            Entry::Vacant(_) => {
                 // Connecting peer with no session.
                 log::debug!(target: "wire", "Disconnecting pending peer with id={id}: {reason}");
                 self.actions.push_back(Action::UnregisterTransport(id));
+
+                // Check for attempted outbound connections. Unestablished inbound connections don't
+                // have an NID yet.
+                self.outbound
+                    .values()
+                    .find(|o| o.id == Some(id))
+                    .map(|o| (o.nid, Link::Outbound))
             }
+            Entry::Occupied(mut e) => match e.get_mut() {
+                Peer::Disconnecting { nid, link, .. } => {
+                    log::error!(target: "wire", "Peer with id={id} is already disconnecting");
+
+                    nid.map(|n| (n, *link))
+                }
+                Peer::Connected {
+                    nid, streams, link, ..
+                } => {
+                    log::debug!(target: "wire", "Disconnecting peer with id={id}: {reason}");
+                    let nid = *nid;
+                    let link = *link;
+
+                    streams.shutdown();
+                    e.insert(Peer::Disconnecting {
+                        nid: Some(nid),
+                        link,
+                        reason,
+                    });
+                    self.actions.push_back(Action::UnregisterTransport(id));
+
+                    Some((nid, link))
+                }
+            },
         }
     }
 
@@ -435,8 +451,11 @@ where
             log::debug!(target: "wire", "Cleaning up inbound peer state with id={id} (fd={fd})");
         } else if let Some(outbound) = self.outbound.remove(&fd) {
             log::debug!(target: "wire", "Cleaning up outbound peer state with id={id} (fd={fd})");
-            self.service
-                .disconnected(outbound.nid, &DisconnectReason::connection());
+            self.service.disconnected(
+                outbound.nid,
+                Link::Outbound,
+                &DisconnectReason::connection(),
+            );
         } else {
             log::warn!(target: "wire", "Tried to cleanup unknown peer with id={id} (fd={fd})");
         }
@@ -542,36 +561,10 @@ where
                 // Make sure we don't try to connect to ourselves by mistake.
                 if &nid == self.signer.public_key() {
                     log::error!(target: "wire", "Self-connection detected, disconnecting..");
+                    self.disconnect(id, DisconnectReason::SelfConnection);
 
-                    self.disconnect(
-                        id,
-                        DisconnectReason::Dial(Arc::new(io::Error::from(
-                            io::ErrorKind::AlreadyExists,
-                        ))),
-                    );
                     return;
                 }
-                log::debug!(target: "wire", "Session established with {nid} (id={id}) (fd={fd})");
-
-                let conflicting = self
-                    .peers
-                    .active()
-                    .filter(|(other, d)| **d == nid && *other != id)
-                    .map(|(id, _)| id)
-                    .collect::<Vec<_>>();
-
-                for id in conflicting {
-                    log::warn!(
-                        target: "wire", "Closing conflicting session with {nid} (id={id})"
-                    );
-                    self.disconnect(
-                        id,
-                        DisconnectReason::Dial(Arc::new(io::Error::from(
-                            io::ErrorKind::AlreadyExists,
-                        ))),
-                    );
-                }
-
                 let (addr, link) = if let Some(peer) = self.inbound.remove(&fd) {
                     (peer.addr, Link::Inbound)
                 } else if let Some(peer) = self.outbound.remove(&fd) {
@@ -581,9 +574,97 @@ where
                     log::error!(target: "wire", "Session for {nid} (id={id}) not found");
                     return;
                 };
-                self.peers
-                    .insert(id, Peer::connected(nid, addr.clone(), link));
-                self.service.connected(nid, addr.into(), link);
+                log::debug!(
+                    target: "wire",
+                    "Session established with {nid} (id={id}) (fd={fd}) ({})",
+                    if link.is_inbound() { "inbound" } else { "outbound" }
+                );
+
+                // Connections to close.
+                let mut disconnect = Vec::new();
+
+                // Handle conflicting connections.
+                // This is typical when nodes have mutually configured their nodes to connect to
+                // each other on startup. We handle this by deterministically choosing one node
+                // whos outbound connection is the one that is kept. The other connections are
+                // dropped.
+                {
+                    // Whether we have precedence in case of conflicting connections.
+                    // Having precedence means that our outbound connection will win over
+                    // the other node's outbound connection.
+                    let precedence = *self.signer.public_key() > nid;
+
+                    // Pre-existing connections that conflict with this newly established session.
+                    // Note that we can't know whether a connection is conflicting before we get the
+                    // remote static key.
+                    let mut conflicting = Vec::new();
+
+                    // Active sessions with the same NID but a different Resource ID are conflicting.
+                    conflicting.extend(
+                        self.peers
+                            .active()
+                            .filter(|(c_id, d, _)| **d == nid && *c_id != id)
+                            .map(|(c_id, _, link)| (c_id, link)),
+                    );
+
+                    // Outbound connection attempts with the same remote key but a different file
+                    // descriptor are conflicting.
+                    conflicting.extend(self.outbound.iter().filter_map(|(c_fd, other)| {
+                        if other.nid == nid && *c_fd != fd {
+                            other.id.map(|c_id| (c_id, Link::Outbound))
+                        } else {
+                            None
+                        }
+                    }));
+
+                    for (c_id, c_link) in conflicting {
+                        // If we have precedence, the inbound connection is closed.
+                        // In the case where both connections are inbound or outbound,
+                        // we close the newer connection, ie. the one with the higher
+                        // resource id.
+                        let close = match (link, c_link) {
+                            (Link::Inbound, Link::Outbound) => {
+                                if precedence {
+                                    id
+                                } else {
+                                    c_id
+                                }
+                            }
+                            (Link::Outbound, Link::Inbound) => {
+                                if precedence {
+                                    c_id
+                                } else {
+                                    id
+                                }
+                            }
+                            (Link::Inbound, Link::Inbound) => id.max(c_id),
+                            (Link::Outbound, Link::Outbound) => id.max(c_id),
+                        };
+
+                        log::warn!(
+                            target: "wire", "Established session (id={id}) conflicts with existing session for {nid} (id={c_id})"
+                        );
+                        disconnect.push(close);
+                    }
+                }
+                for id in &disconnect {
+                    log::warn!(
+                        target: "wire", "Closing conflicting session (id={id}) with {nid}.."
+                    );
+                    // Disconnect and return the associated NID of the peer, if available.
+                    if let Some((nid, link)) = self.disconnect(*id, DisconnectReason::Conflict) {
+                        // We disconnect the session eagerly because otherwise we will get the new
+                        // `connected` event before the `disconnect`, resulting in a duplicate
+                        // connection.
+                        self.service
+                            .disconnected(nid, link, &DisconnectReason::Conflict);
+                    }
+                }
+                if !disconnect.contains(&id) {
+                    self.peers
+                        .insert(id, Peer::connected(nid, addr.clone(), link));
+                    self.service.connected(nid, addr.into(), link);
+                }
             }
             SessionEvent::Data(data) => {
                 if let Some(Peer::Connected {
@@ -726,8 +807,11 @@ where
                         }
 
                         if let Some(id) = peer.id() {
-                            self.service
-                                .disconnected(*id, &DisconnectReason::connection());
+                            self.service.disconnected(
+                                *id,
+                                peer.link(),
+                                &DisconnectReason::connection(),
+                            );
                         } else {
                             log::debug!(target: "wire", "Inbound disconnection before handshake; ignoring..")
                         }
@@ -748,7 +832,9 @@ where
         match self.peers.entry(id) {
             Entry::Occupied(e) => {
                 match e.get() {
-                    Peer::Disconnecting { nid, reason, .. } => {
+                    Peer::Disconnecting {
+                        nid, reason, link, ..
+                    } => {
                         log::debug!(target: "wire", "Transport handover for disconnecting peer with id={id} (fd={fd})");
 
                         // Disconnect TCP stream.
@@ -756,7 +842,13 @@ where
 
                         // If there is no NID, the service is not aware of the peer.
                         if let Some(nid) = nid {
-                            self.service.disconnected(*nid, reason);
+                            // In the case of a conflicting connection, there will be two resources
+                            // for the peer. However, at the service level, there is only one, and
+                            // it is identified by NID.
+                            //
+                            // Therefore, we specify which of the connections we're closing by
+                            // passing the `link`.
+                            self.service.disconnected(*nid, *link, reason);
                         }
                         e.remove();
                     }
@@ -847,8 +939,11 @@ where
                         Err(err) => {
                             log::error!(target: "wire", "Error establishing connection to {addr}: {err}");
 
-                            self.service
-                                .disconnected(node_id, &DisconnectReason::Dial(Arc::new(err)));
+                            self.service.disconnected(
+                                node_id,
+                                Link::Outbound,
+                                &DisconnectReason::Dial(Arc::new(err)),
+                            );
                         }
                     }
                 }

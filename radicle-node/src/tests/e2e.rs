@@ -1,7 +1,7 @@
 use std::{collections::HashSet, thread, time};
 
 use radicle::crypto::{test::signer::MockSigner, Signer};
-use radicle::node::{Alias, FetchResult, Handle as _, DEFAULT_TIMEOUT};
+use radicle::node::{Alias, ConnectResult, FetchResult, Handle as _, DEFAULT_TIMEOUT};
 use radicle::storage::{
     ReadRepository, ReadStorage, RefUpdate, RemoteRepository, SignRepository, ValidateRepository,
     WriteRepository, WriteStorage,
@@ -769,10 +769,6 @@ fn test_concurrent_fetches() {
 }
 
 #[test]
-#[ignore = "failing"]
-#[should_panic]
-// TODO: This test currently passes but the behavior is wrong. The test should not panic.
-// We should figure out why we end up with no sessions established.
 fn test_connection_crossing() {
     logger::init(log::Level::Debug);
 
@@ -780,33 +776,61 @@ fn test_connection_crossing() {
     let alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
     let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
 
-    let mut alice = alice.spawn();
-    let mut bob = bob.spawn();
+    let alice = alice.spawn();
+    let bob = bob.spawn();
+    let preferred = alice.id.max(bob.id);
 
-    alice
-        .handle
-        .connect(bob.id, bob.addr.into(), ConnectOptions::default())
-        .unwrap();
-    bob.handle
-        .connect(alice.id, alice.addr.into(), ConnectOptions::default())
-        .unwrap();
+    log::debug!(target: "test", "Preferred peer is {preferred}");
+
+    let t1 = thread::spawn({
+        let mut alice = alice.handle.clone();
+
+        move || {
+            alice
+                .connect(bob.id, bob.addr.into(), ConnectOptions::default())
+                .unwrap()
+        }
+    });
+    let t2 = thread::spawn({
+        let mut bob = bob.handle.clone();
+        move || {
+            bob.connect(alice.id, alice.addr.into(), ConnectOptions::default())
+                .unwrap()
+        }
+    });
+
+    let r1 = t1.join().unwrap();
+    let r2 = t2.join().unwrap();
+
+    // Note that the non-preferred peer will have their outbound connection fail, and this
+    // could already show up as the result of the call here (but not always).
+    if preferred == alice.id {
+        assert_matches!(r1, ConnectResult::Connected);
+    } else {
+        assert_matches!(r2, ConnectResult::Connected);
+    }
 
     thread::sleep(time::Duration::from_secs(1));
 
-    let s1 = alice
-        .handle
-        .sessions()
-        .unwrap()
-        .iter()
-        .any(|s| s.nid == bob.id);
-    let s2 = bob
-        .handle
-        .sessions()
-        .unwrap()
-        .iter()
-        .any(|s| s.nid == alice.id);
+    let alice_s = alice.handle.sessions().unwrap();
+    let bob_s = bob.handle.sessions().unwrap();
 
-    assert!(s1 ^ s2, "Exactly one session should be established");
+    // Both sessions are established.
+    let s1 = alice_s.iter().find(|s| s.nid == bob.id).unwrap();
+    let s2 = bob_s.iter().find(|s| s.nid == alice.id).unwrap();
+
+    log::debug!(target: "test", "{:?}", alice.handle.sessions());
+    log::debug!(target: "test", "{:?}", bob.handle.sessions());
+
+    if preferred == alice.id {
+        assert_eq!(s1.link, radicle::node::Link::Outbound);
+        assert_eq!(s2.link, radicle::node::Link::Inbound);
+    } else {
+        assert_eq!(s1.link, radicle::node::Link::Inbound);
+        assert_eq!(s2.link, radicle::node::Link::Outbound);
+    }
+    assert_eq!(alice_s.len(), 1);
+    assert_eq!(bob_s.len(), 1);
 }
 
 #[test]

@@ -396,7 +396,8 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             log::error!(target: "sim", "Connection is attempted and connected at the same time");
                         }
                         if attempt || connection {
-                            p.disconnected(id, &reason);
+                            p.disconnected(id, Link::Inbound, &reason);
+                            p.disconnected(id, Link::Outbound, &reason);
                         }
                     }
                     Input::Wake => p.wake(),

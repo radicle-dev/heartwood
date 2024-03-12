@@ -506,10 +506,21 @@ impl Command {
     }
 }
 
+/// Connection link direction.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Link {
+    /// Outgoing connection.
+    Outbound,
+    /// Incoming connection.
+    Inbound,
+}
+
 /// An established network connection with a peer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub nid: NodeId,
+    pub link: Link,
     pub addr: Address,
     pub state: State,
 }

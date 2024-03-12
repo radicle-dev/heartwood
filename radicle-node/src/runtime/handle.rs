@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::{fmt, io, time};
 
 use crossbeam_channel as chan;
-use radicle::node::{ConnectOptions, ConnectResult, Seeds};
+use radicle::node::{ConnectOptions, ConnectResult, Link, Seeds};
 use radicle::storage::refs::RefsAt;
 use reactor::poller::popol::PopolWaker;
 use thiserror::Error;
@@ -264,6 +264,11 @@ impl radicle::node::Handle for Handle {
                 .iter()
                 .map(|(nid, s)| radicle::node::Session {
                     nid: *nid,
+                    link: if s.link.is_inbound() {
+                        Link::Inbound
+                    } else {
+                        Link::Outbound
+                    },
                     addr: s.addr.clone(),
                     state: s.state.clone(),
                 })

@@ -900,7 +900,11 @@ fn test_refs_announcement_offline() {
         .addresses_mut()
         .remove(&bob.id)
         .unwrap(); // Make sure we don't reconnect automatically.
-    alice.disconnected(bob.id, &DisconnectReason::Session(session::Error::Timeout));
+    alice.disconnected(
+        bob.id,
+        Link::Outbound,
+        &DisconnectReason::Session(session::Error::Timeout),
+    );
     alice.outbox().for_each(drop);
     alice.restart();
     alice.connect_to(&bob);
@@ -1079,7 +1083,7 @@ fn test_persistent_peer_reconnect_attempt() {
     let reason = DisconnectReason::Session(session::Error::Misbehavior);
 
     for _ in 0..3 {
-        alice.disconnected(bob.id(), &reason);
+        alice.disconnected(bob.id(), Link::Outbound, &reason);
         alice.elapse(service::MAX_RECONNECTION_DELTA);
         alice
             .outbox()
@@ -1116,7 +1120,11 @@ fn test_persistent_peer_reconnect_success() {
 
     // A transient error such as this will cause Alice to attempt a reconnection.
     let error = Arc::new(io::Error::from(io::ErrorKind::ConnectionReset));
-    alice.disconnected(bob.id(), &DisconnectReason::Connection(error));
+    alice.disconnected(
+        bob.id(),
+        Link::Outbound,
+        &DisconnectReason::Connection(error),
+    );
     alice.elapse(service::MIN_RECONNECTION_DELTA);
     alice.elapse(service::MIN_RECONNECTION_DELTA); // Trigger a second wakeup to test idempotence.
 
@@ -1163,7 +1171,7 @@ fn test_maintain_connections() {
     // A non-transient error such as this will cause Alice to attempt a different peer.
     let error = session::Error::Misbehavior;
     for peer in connected.iter() {
-        alice.disconnected(peer.id(), &DisconnectReason::Session(error));
+        alice.disconnected(peer.id(), Link::Outbound, &DisconnectReason::Session(error));
 
         let id = alice
             .outbox()
@@ -1197,7 +1205,11 @@ fn test_maintain_connections_transient() {
     // A transient error such as this will cause Alice to attempt a reconnection.
     let error = Arc::new(io::Error::from(io::ErrorKind::ConnectionReset));
     for peer in connected.iter() {
-        alice.disconnected(peer.id(), &DisconnectReason::Connection(error.clone()));
+        alice.disconnected(
+            peer.id(),
+            Link::Outbound,
+            &DisconnectReason::Connection(error.clone()),
+        );
         alice
             .outbox()
             .find(|o| matches!(o, Io::Connect(id, _) if id == &peer.id()))
@@ -1212,9 +1224,9 @@ fn test_maintain_connections_failed_attempt() {
     let reason =
         DisconnectReason::Connection(Arc::new(io::Error::from(io::ErrorKind::ConnectionReset)));
 
-    alice.connect_to(&eve);
     // Make sure Alice knows about Eve.
-    alice.disconnected(eve.id(), &reason);
+    alice.connect_to(&eve);
+    alice.disconnected(eve.id(), Link::Outbound, &reason);
     alice
         .outbox()
         .find(|o| matches!(o, Io::Connect(id, _) if id == &eve.id))
@@ -1222,7 +1234,7 @@ fn test_maintain_connections_failed_attempt() {
     alice.attempted(eve.id, eve.addr());
 
     // Disconnect Eve and make sure Alice doesn't try to re-connect immediately.
-    alice.disconnected(eve.id(), &reason);
+    alice.disconnected(eve.id(), Link::Outbound, &reason);
     assert_matches!(
         alice.outbox().find(|o| matches!(o, Io::Connect(_, _))),
         None
@@ -1236,7 +1248,7 @@ fn test_maintain_connections_failed_attempt() {
         .expect("Alice attempts Eve again");
 
     // Disconnect Eve and make sure Alice doesn't try to re-connect immediately.
-    alice.disconnected(eve.id(), &reason);
+    alice.disconnected(eve.id(), Link::Outbound, &reason);
     assert!(!alice.outbox().any(|o| matches!(o, Io::Connect(_, _))));
     // Or even after some short time..
     alice.elapse(MIN_RECONNECTION_DELTA);
