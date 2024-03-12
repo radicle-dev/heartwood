@@ -93,7 +93,7 @@ pub fn run(
     spinner.message(format!(
         "Switched to branch {} at revision {}",
         term::format::highlight(&patch_branch),
-        term::format::secondary(term::format::oid(revision_id)),
+        term::format::dim(term::format::oid(revision_id)),
     ));
     spinner.finish();
 
