@@ -22,9 +22,9 @@ jobs:
             docker_options: -v /home/runner/work/heartwood/heartwood:/home/rust/src -v /home/runner/.cargo/git:/root/.cargo/git -v /home/runner/.cargo/registry:/root/.cargo/registry
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Configure build cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -58,16 +58,16 @@ jobs:
           - aarch64-apple-darwin
           - x86_64-apple-darwin
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Configure build cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
           key: cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-      - uses: dtolnay/rust-toolchain@1.67
+      - uses: dtolnay/rust-toolchain@stable
       - name: Build the release binaries
         run: .github/workflows/build.bash "${{ matrix.target }}"
       - name: Build the debug binaries
@@ -80,7 +80,7 @@ jobs:
     needs: [release-linux-binaries, release-macos-binaries]
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
-      - run: .github/workflows/update-latest-symlink.bash "${{ github.sha }}"
+      - uses: actions/checkout@v4
+      - run: .github/workflows/update-latest-symlink.sh "${{ github.sha }}"
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
