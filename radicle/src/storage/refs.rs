@@ -442,7 +442,7 @@ impl Deref for SignedRefsAt {
 /// If `old` is `None` then this is a newly seen `rad/sigrefs`,
 /// otherwise it is an update from `old` to `new`.
 ///
-/// The [`RefsUpdate::difference`] method will compute the difference
+/// The [`SignedRefsUpdate::difference`] method will compute the difference
 /// between the two `Oid`s, returning [`DiffedRefs`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SignedRefsUpdate {
@@ -491,7 +491,7 @@ impl Update {
 
 /// The set of [`Update`]s for a given [`git::RefString`].
 ///
-/// To construct a `DiffedRefs` use [`RefsUpdate::difference`].
+/// To construct a `DiffedRefs` use [`SignedRefsUpdate::difference`].
 #[derive(Clone, Debug, Default)]
 pub struct DiffedRefs(BTreeMap<git::RefString, Update>);
 
@@ -510,8 +510,8 @@ impl DerefMut for DiffedRefs {
 }
 
 impl SignedRefsUpdate {
-    /// Get the difference between [`RefsUpdate::old`], if it exists,
-    /// and [`RefsUpdate::new`].
+    /// Get the difference between [`SignedRefsUpdate::old`], if it exists,
+    /// and [`SignedRefsUpdate::new`].
     ///
     /// If `old` is `None`, then all `Updates`s are `Added`.
     ///
