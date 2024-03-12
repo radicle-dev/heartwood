@@ -530,6 +530,7 @@ dependencies = [
 [[package]]
 name = "clap"
 version = "4.5.1"
+source = "git+https://github.com/icetan/clap.git?branch=propagate-template#362f08485f2d548fb5212e1a0b9c9632bbfb3ec1"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -538,6 +539,7 @@ dependencies = [
 [[package]]
 name = "clap_builder"
 version = "4.5.1"
+source = "git+https://github.com/icetan/clap.git?branch=propagate-template#362f08485f2d548fb5212e1a0b9c9632bbfb3ec1"
 dependencies = [
  "anstream",
  "anstyle",
@@ -548,6 +550,7 @@ dependencies = [
 [[package]]
 name = "clap_complete"
 version = "4.5.1"
+source = "git+https://github.com/icetan/clap.git?branch=propagate-template#362f08485f2d548fb5212e1a0b9c9632bbfb3ec1"
 dependencies = [
  "clap",
  "clap_lex",
@@ -560,6 +563,7 @@ dependencies = [
 [[package]]
 name = "clap_derive"
 version = "4.5.0"
+source = "git+https://github.com/icetan/clap.git?branch=propagate-template#362f08485f2d548fb5212e1a0b9c9632bbfb3ec1"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -570,6 +574,7 @@ dependencies = [
 [[package]]
 name = "clap_lex"
 version = "0.7.0"
+source = "git+https://github.com/icetan/clap.git?branch=propagate-template#362f08485f2d548fb5212e1a0b9c9632bbfb3ec1"
 
 [[package]]
 name = "colorchoice"
