@@ -175,16 +175,15 @@ impl Builder {
 }
 
 impl Highlighter {
-    /// Highlight a source code file. Returns `None` if the file type was not recognized.
-    pub fn highlight(
-        &mut self,
-        path: &Path,
-        code: &[u8],
-    ) -> Result<Option<Vec<term::Line>>, ts::Error> {
+    /// Highlight a source code file.
+    pub fn highlight(&mut self, path: &Path, code: &[u8]) -> Result<Vec<term::Line>, ts::Error> {
         let theme = Theme::default();
         let mut highlighter = ts::Highlighter::new();
         let Some(config) = self.detect(path, code) else {
-            return Ok(None);
+            let Ok(code) = std::str::from_utf8(code) else {
+                return Err(ts::Error::Unknown);
+            };
+            return Ok(code.lines().map(term::Line::new).collect());
         };
         config.configure(HIGHLIGHTS);
 
@@ -193,7 +192,7 @@ impl Highlighter {
             None
         })?;
 
-        Builder::default().run(highlights, code, &theme).map(Some)
+        Builder::default().run(highlights, code, &theme)
     }
 
     /// Detect language.

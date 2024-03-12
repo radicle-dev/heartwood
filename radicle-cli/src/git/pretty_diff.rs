@@ -13,7 +13,7 @@ use crate::terminal::highlight::{Highlighter, Theme};
 use super::unified_diff::{Decode, HunkHeader};
 
 /// Blob returned by the [`Repo`] trait.
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Blob {
     Binary,
     Empty,
@@ -222,10 +222,10 @@ impl ToPretty for DiffContent {
         let mut blobs = Blobs::default();
 
         if let Some(Blob::Plain(content)) = old {
-            blobs.old = hi.highlight(context.path(), &content).ok().flatten();
+            blobs.old = hi.highlight(context.path(), &content).ok();
         }
         if let Some(Blob::Plain(content)) = new {
-            blobs.new = hi.highlight(context.path(), &content).ok().flatten();
+            blobs.new = hi.highlight(context.path(), &content).ok();
         }
         let mut vstack = term::VStack::default()
             .border(Some(term::colors::FAINT))
