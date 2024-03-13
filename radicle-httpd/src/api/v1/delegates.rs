@@ -1,11 +1,9 @@
-use std::net::SocketAddr;
-
-use axum::extract::{ConnectInfo, State};
+use axum::extract::State;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
 
-use radicle::identity::{Did, Visibility};
+use radicle::identity::Did;
 use radicle::issue::cache::Issues as _;
 use radicle::node::routing::Store;
 use radicle::patch::cache::Patches as _;
@@ -29,7 +27,6 @@ pub fn router(ctx: Context) -> Router {
 /// List all projects which delegate is a part of.
 /// `GET /delegates/:delegate/projects`
 async fn delegates_projects_handler(
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(ctx): State<Context>,
     Path(delegate): Path<Did>,
     Query(qs): Query<PaginationQuery>,
@@ -48,10 +45,7 @@ async fn delegates_projects_handler(
         ProjectQuery::All => storage
             .repositories()?
             .into_iter()
-            .filter(|repo| match &repo.doc.visibility {
-                Visibility::Private { .. } => addr.ip().is_loopback(),
-                Visibility::Public => true,
-            })
+            .filter(|repo| repo.doc.visibility.is_public())
             .collect::<Vec<_>>(),
         ProjectQuery::Pinned => storage.repositories_by_id(pinned.repositories.iter())?,
     };
@@ -137,30 +131,6 @@ mod routes {
         assert_eq!(
             response.json().await,
             json!([
-              {
-                "name": "hello-world-private",
-                "description": "Private Rad repository for tests",
-                "defaultBranch": "master",
-                "delegates": [
-                  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-                ],
-                "visibility": {
-                  "type": "private",
-                },
-                "head": "d26ed310ed140fbef2a066aa486cf59a0f9f7812",
-                "patches": {
-                  "open": 0,
-                  "draft": 0,
-                  "archived": 0,
-                  "merged": 0,
-                },
-                "issues": {
-                  "open": 0,
-                  "closed": 0,
-                },
-                "id": "rad:zLuTzcmoWMcdK37xqArS8eckp9vK",
-                "seeding": 0,
-              },
               {
                 "name": "hello-world",
                 "description": "Rad repository for tests",

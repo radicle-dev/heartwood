@@ -18,6 +18,7 @@ use hyper::body::Buf as _;
 
 use radicle::identity::RepoId;
 use radicle::profile::Profile;
+use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::error::GitError as Error;
 
@@ -81,6 +82,12 @@ async fn git_http_backend(
         } else {
             ""
         };
+
+    // Don't allow cloning of private repositories.
+    let doc = profile.storage.repository(id)?.identity_doc()?;
+    if doc.visibility.is_private() {
+        return Err(Error::NotFound);
+    }
 
     // Reject push requests.
     match (path, query.as_str()) {

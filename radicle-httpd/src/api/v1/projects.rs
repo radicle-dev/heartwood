@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
-use std::net::SocketAddr;
 
-use axum::extract::{ConnectInfo, DefaultBodyLimit, State};
+use axum::extract::{DefaultBodyLimit, State};
 use axum::handler::Handler;
 use axum::http::{header, HeaderValue};
 use axum::response::IntoResponse;
@@ -18,10 +17,9 @@ use radicle::cob::{
     issue, issue::cache::Issues as _, patch, patch::cache::Patches as _, resolve_embed, Embed,
     Label, Uri,
 };
-use radicle::identity::{Did, RepoId, Visibility};
+use radicle::identity::{Did, RepoId};
 use radicle::node::routing::Store;
 use radicle::node::{AliasStore, Node, NodeId};
-use radicle::storage::git::paths;
 use radicle::storage::{ReadRepository, ReadStorage, RemoteRepository, WriteRepository};
 use radicle_surf::{diff, Glob, Oid, Repository};
 
@@ -78,7 +76,6 @@ pub fn router(ctx: Context) -> Router {
 /// List all projects.
 /// `GET /projects`
 async fn project_root_handler(
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(ctx): State<Context>,
     Query(qs): Query<PaginationQuery>,
 ) -> impl IntoResponse {
@@ -98,18 +95,12 @@ async fn project_root_handler(
         ProjectQuery::All => storage
             .repositories()?
             .into_iter()
-            .filter(|repo| match &repo.doc.visibility {
-                Visibility::Private { .. } => addr.ip().is_loopback(),
-                Visibility::Public => true,
-            })
+            .filter(|repo| repo.doc.visibility.is_public())
             .collect::<Vec<_>>(),
         ProjectQuery::Pinned => storage
             .repositories_by_id(pinned.repositories.iter())?
             .into_iter()
-            .filter(|repo| match &repo.doc.visibility {
-                Visibility::Private { .. } => addr.ip().is_loopback(),
-                Visibility::Public => true,
-            })
+            .filter(|repo| repo.doc.visibility.is_public())
             .collect::<Vec<_>>(),
     };
     projects.sort_by_key(|p| p.rid);
@@ -164,8 +155,9 @@ async fn project_root_handler(
 
 /// Get project metadata.
 /// `GET /projects/:project`
-async fn project_handler(State(ctx): State<Context>, Path(id): Path<RepoId>) -> impl IntoResponse {
-    let info = ctx.project_info(id)?;
+async fn project_handler(State(ctx): State<Context>, Path(rid): Path<RepoId>) -> impl IntoResponse {
+    let (repo, doc) = ctx.repo(rid)?;
+    let info = ctx.project_info(&repo, doc)?;
 
     Ok::<_, Error>(Json(info))
 }
@@ -184,9 +176,10 @@ pub struct CommitsQueryString {
 /// `GET /projects/:project/commits?parent=<sha>`
 async fn history_handler(
     State(ctx): State<Context>,
-    Path(project): Path<RepoId>,
+    Path(rid): Path<RepoId>,
     Query(qs): Query<CommitsQueryString>,
 ) -> impl IntoResponse {
+    let (repo, doc) = ctx.repo(rid)?;
     let CommitsQueryString {
         since,
         until,
@@ -202,15 +195,9 @@ async fn history_handler(
 
     let sha = match parent {
         Some(commit) => commit,
-        None => {
-            let info = ctx.project_info(project)?;
-
-            info.head.to_string()
-        }
+        None => ctx.project_info(&repo, doc)?.head.to_string(),
     };
-
-    let storage = &ctx.profile.storage;
-    let repo = Repository::open(paths::repository(storage, &project))?;
+    let repo = Repository::open(repo.path())?;
 
     // If a pagination is defined, we do not want to paginate the commits, and we return all of them on the first page.
     let page = page.unwrap_or(0);
@@ -276,8 +263,8 @@ async fn commit_handler(
     State(ctx): State<Context>,
     Path((project, sha)): Path<(RepoId, Oid)>,
 ) -> impl IntoResponse {
-    let storage = &ctx.profile.storage;
-    let repo = Repository::open(paths::repository(storage, &project))?;
+    let (repo, _) = ctx.repo(project)?;
+    let repo = Repository::open(repo.path())?;
     let commit = repo.commit(sha)?;
 
     let diff = repo.diff_commit(commit.id)?;
@@ -342,8 +329,8 @@ async fn diff_handler(
     State(ctx): State<Context>,
     Path((project, base, oid)): Path<(RepoId, Oid, Oid)>,
 ) -> impl IntoResponse {
-    let storage = &ctx.profile.storage;
-    let repo = Repository::open(paths::repository(storage, &project))?;
+    let (repo, _) = ctx.repo(project)?;
+    let repo = Repository::open(repo.path())?;
     let base = repo.commit(base)?;
     let commit = repo.commit(oid)?;
     let diff = repo.diff(base.id, commit.id)?;
@@ -409,10 +396,10 @@ async fn activity_handler(
     State(ctx): State<Context>,
     Path(project): Path<RepoId>,
 ) -> impl IntoResponse {
+    let (repo, _) = ctx.repo(project)?;
     let current_date = chrono::Utc::now().timestamp();
     let one_year_ago = chrono::Duration::weeks(52);
-    let storage = &ctx.profile.storage;
-    let repo = Repository::open(paths::repository(storage, &project))?;
+    let repo = Repository::open(repo.path())?;
     let head = repo.head()?;
     let timestamps = repo
         .history(head)?
@@ -434,9 +421,9 @@ async fn activity_handler(
 /// `GET /projects/:project/tree/:sha/`
 async fn tree_handler_root(
     State(ctx): State<Context>,
-    Path((project, sha)): Path<(RepoId, Oid)>,
+    Path((rid, sha)): Path<(RepoId, Oid)>,
 ) -> impl IntoResponse {
-    tree_handler(State(ctx), Path((project, sha, String::new()))).await
+    tree_handler(State(ctx), Path((rid, sha, String::new()))).await
 }
 
 /// Get project source tree.
@@ -445,6 +432,8 @@ async fn tree_handler(
     State(ctx): State<Context>,
     Path((project, sha, path)): Path<(RepoId, Oid, String)>,
 ) -> impl IntoResponse {
+    let (repo, _) = ctx.repo(project)?;
+
     if let Some(ref cache) = ctx.cache {
         let cache = &mut cache.tree.lock().await;
         if let Some(response) = cache.get(&(project, sha, path.clone())) {
@@ -452,13 +441,12 @@ async fn tree_handler(
         }
     }
 
-    let storage = &ctx.profile.storage;
-    let repo = Repository::open(paths::repository(storage, &project))?;
+    let repo = Repository::open(repo.path())?;
     let tree = repo.tree(sha, &path)?;
     let stats = repo.stats_from(&sha)?;
     let response = api::json::tree(&tree, &path, &stats);
 
-    if let Some(cache) = ctx.cache {
+    if let Some(cache) = &ctx.cache {
         let cache = &mut cache.tree.lock().await;
         cache.put((project, sha, path.clone()), response.clone());
     }
@@ -472,9 +460,8 @@ async fn remotes_handler(
     State(ctx): State<Context>,
     Path(project): Path<RepoId>,
 ) -> impl IntoResponse {
-    let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
-    let delegates = repo.delegates()?;
+    let (repo, doc) = ctx.repo(project)?;
+    let delegates = &doc.delegates;
     let aliases = &ctx.profile.aliases();
     let remotes = repo
         .remotes()?
@@ -515,9 +502,8 @@ async fn remote_handler(
     State(ctx): State<Context>,
     Path((project, node_id)): Path<(RepoId, NodeId)>,
 ) -> impl IntoResponse {
-    let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
-    let delegates = repo.delegates()?;
+    let (repo, doc) = ctx.repo(project)?;
+    let delegates = &doc.delegates;
     let remote = repo.remote(&node_id)?;
     let refs = remote
         .refs
@@ -543,8 +529,8 @@ async fn blob_handler(
     State(ctx): State<Context>,
     Path((project, sha, path)): Path<(RepoId, Oid, String)>,
 ) -> impl IntoResponse {
-    let storage = &ctx.profile.storage;
-    let repo = Repository::open(paths::repository(storage, &project))?;
+    let (repo, _) = ctx.repo(project)?;
+    let repo = Repository::open(repo.path())?;
     let blob = repo.blob(sha, &path)?;
     let response = api::json::blob(&blob, &path);
 
@@ -557,8 +543,8 @@ async fn readme_handler(
     State(ctx): State<Context>,
     Path((project, sha)): Path<(RepoId, Oid)>,
 ) -> impl IntoResponse {
-    let storage = &ctx.profile.storage;
-    let repo = Repository::open(paths::repository(storage, &project))?;
+    let (repo, _) = ctx.repo(project)?;
+    let repo = Repository::open(repo.path())?;
     let paths = [
         "README",
         "README.md",
@@ -589,6 +575,7 @@ async fn issues_handler(
     Path(project): Path<RepoId>,
     Query(qs): Query<CobsQuery<api::IssueState>>,
 ) -> impl IntoResponse {
+    let (repo, _) = ctx.repo(project)?;
     let CobsQuery {
         page,
         per_page,
@@ -597,8 +584,6 @@ async fn issues_handler(
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
     let state = state.unwrap_or_default();
-    let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
     let issues = ctx.profile.issues(&repo)?;
     let mut issues: Vec<_> = issues
         .list()?
@@ -638,13 +623,13 @@ async fn issue_create_handler(
     Json(issue): Json<IssueCreate>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
+
+    let (repo, _) = ctx.repo(project)?;
     let node = Node::new(ctx.profile.socket());
-    let storage = &ctx.profile.storage;
     let signer = ctx
         .profile
         .signer()
         .map_err(|_| Error::Auth("Unauthorized"))?;
-    let repo = storage.repository(project)?;
     let embeds: Vec<Embed> = issue
         .embeds
         .into_iter()
@@ -680,10 +665,10 @@ async fn issue_update_handler(
     Json(action): Json<issue::Action>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
+
+    let (repo, _) = ctx.repo(project)?;
     let node = Node::new(ctx.profile.socket());
-    let storage = &ctx.profile.storage;
     let signer = ctx.profile.signer()?;
-    let repo = storage.repository(project)?;
     let mut issues = ctx.profile.issues_mut(&repo)?;
     let mut issue = issues.get_mut(&issue_id.into())?;
 
@@ -733,8 +718,7 @@ async fn issue_handler(
     State(ctx): State<Context>,
     Path((project, issue_id)): Path<(RepoId, Oid)>,
 ) -> impl IntoResponse {
-    let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
+    let (repo, _) = ctx.repo(project)?;
     let issue = ctx
         .profile
         .issues(&repo)?
@@ -763,13 +747,13 @@ async fn patch_create_handler(
     Json(patch): Json<PatchCreate>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
+
     let node = Node::new(ctx.profile.socket());
-    let storage = &ctx.profile.storage;
     let signer = ctx
         .profile
         .signer()
         .map_err(|_| Error::Auth("Unauthorized"))?;
-    let repo = storage.repository(project)?;
+    let (repo, _) = ctx.repo(project)?;
     let mut patches = ctx.profile.patches_mut(&repo)?;
     let base_oid = repo.raw().merge_base(*patch.target, *patch.oid)?;
 
@@ -802,13 +786,13 @@ async fn patch_update_handler(
     Json(action): Json<patch::Action>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
+
     let node = Node::new(ctx.profile.socket());
-    let storage = &ctx.profile.storage;
     let signer = ctx
         .profile
         .signer()
         .map_err(|_| Error::Auth("Unauthorized"))?;
-    let repo = storage.repository(project)?;
+    let (repo, _) = ctx.repo(project)?;
     let mut patches = ctx.profile.patches_mut(&repo)?;
     let mut patch = patches.get_mut(&patch_id.into())?;
     let id = match action {
@@ -941,9 +925,10 @@ async fn patch_update_handler(
 /// `GET /projects/:project/patches`
 async fn patches_handler(
     State(ctx): State<Context>,
-    Path(project): Path<RepoId>,
+    Path(rid): Path<RepoId>,
     Query(qs): Query<CobsQuery<api::PatchState>>,
 ) -> impl IntoResponse {
+    let (repo, _) = ctx.repo(rid)?;
     let CobsQuery {
         page,
         per_page,
@@ -952,8 +937,6 @@ async fn patches_handler(
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
     let state = state.unwrap_or_default();
-    let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
     let patches = ctx.profile.patches(&repo)?;
     let mut patches = patches
         .list()?
@@ -978,10 +961,9 @@ async fn patches_handler(
 /// `GET /projects/:project/patches/:id`
 async fn patch_handler(
     State(ctx): State<Context>,
-    Path((project, patch_id)): Path<(RepoId, Oid)>,
+    Path((rid, patch_id)): Path<(RepoId, Oid)>,
 ) -> impl IntoResponse {
-    let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
+    let (repo, _) = ctx.repo(rid)?;
     let patches = ctx.profile.patches(&repo)?;
     let patch = patches.get(&patch_id.into())?.ok_or(Error::NotFound)?;
     let aliases = ctx.profile.aliases();
@@ -1002,6 +984,7 @@ mod routes {
     use axum::extract::connect_info::MockConnectInfo;
     use axum::http::StatusCode;
     use pretty_assertions::assert_eq;
+    use radicle::storage::ReadStorage;
     use serde_json::json;
 
     use crate::test::*;
@@ -1018,30 +1001,6 @@ mod routes {
         assert_eq!(
             response.json().await,
             json!([
-              {
-                "name": "hello-world-private",
-                "description": "Private Rad repository for tests",
-                "defaultBranch": "master",
-                "delegates": [
-                  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-                ],
-                "visibility": {
-                  "type": "private",
-                },
-                "head": "d26ed310ed140fbef2a066aa486cf59a0f9f7812",
-                "patches": {
-                  "open": 0,
-                  "draft": 0,
-                  "archived": 0,
-                  "merged": 0,
-                },
-                "issues": {
-                  "open": 0,
-                  "closed": 0,
-                },
-                "id": "rad:zLuTzcmoWMcdK37xqArS8eckp9vK",
-                "seeding": 0,
-              },
               {
                 "name": "hello-world",
                 "description": "Rad repository for tests",
@@ -3799,5 +3758,33 @@ mod routes {
               ],
             })
         );
+    }
+
+    #[tokio::test]
+    async fn test_projects_private() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = seed(tmp.path());
+        let app = super::router(ctx.to_owned());
+
+        // Check that the repo exists.
+        ctx.profile()
+            .storage
+            .repository(RID_PRIVATE.parse().unwrap())
+            .unwrap();
+
+        let response = get(&app, format!("/projects/{RID_PRIVATE}")).await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let response = get(&app, format!("/projects/{RID_PRIVATE}/patches")).await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let response = get(&app, format!("/projects/{RID_PRIVATE}/issues")).await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let response = get(&app, format!("/projects/{RID_PRIVATE}/commits")).await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let response = get(&app, format!("/projects/{RID_PRIVATE}/remotes")).await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }

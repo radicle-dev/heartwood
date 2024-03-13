@@ -22,6 +22,14 @@ pub enum GitError {
     #[error("invalid radicle identifier: {0}")]
     Id(#[from] radicle::identity::IdError),
 
+    /// Storage error.
+    #[error("storage: {0}")]
+    Storage(#[from] radicle::storage::Error),
+
+    /// Repository error.
+    #[error("repository: {0}")]
+    Repository(#[from] radicle::storage::RepositoryError),
+
     /// Git backend error.
     #[error("git-http-backend: exited with code {0}")]
     BackendExited(ExitStatus),
@@ -73,6 +81,10 @@ pub enum RawError {
     #[error(transparent)]
     Storage(#[from] radicle::storage::Error),
 
+    /// Repository error.
+    #[error(transparent)]
+    Repository(#[from] radicle::storage::RepositoryError),
+
     /// Http Headers error.
     #[error(transparent)]
     Headers(#[from] http::header::InvalidHeaderValue),
@@ -80,12 +92,16 @@ pub enum RawError {
     /// Surf file error.
     #[error(transparent)]
     SurfFile(#[from] radicle_surf::fs::error::File),
+
+    /// The entity was not found.
+    #[error("not found")]
+    NotFound,
 }
 
 impl RawError {
     pub fn status(&self) -> http::StatusCode {
         match self {
-            RawError::SurfFile(_) => http::StatusCode::NOT_FOUND,
+            RawError::SurfFile(_) | RawError::NotFound => http::StatusCode::NOT_FOUND,
             _ => http::StatusCode::INTERNAL_SERVER_ERROR,
         }
     }

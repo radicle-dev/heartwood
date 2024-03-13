@@ -11,6 +11,7 @@ use axum::routing::get;
 use axum::Router;
 use radicle::issue::cache::Issues as _;
 use radicle::patch::cache::Patches as _;
+use radicle::storage::git::Repository;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::RwLock;
@@ -54,16 +55,19 @@ impl Context {
         }
     }
 
-    pub fn project_info(&self, id: RepoId) -> Result<project::Info, error::Error> {
-        let storage = &self.profile.storage;
-        let repo = storage.repository(id)?;
+    pub fn project_info<R: ReadRepository + radicle::cob::Store>(
+        &self,
+        repo: &R,
+        doc: DocAt,
+    ) -> Result<project::Info, error::Error> {
         let (_, head) = repo.head()?;
-        let DocAt { doc, .. } = repo.identity_doc()?;
+        let DocAt { doc, .. } = doc;
+        let id = repo.id();
 
         let payload = doc.project()?;
         let delegates = doc.delegates;
-        let issues = self.profile.issues(&repo)?.counts()?;
-        let patches = self.profile.patches(&repo)?.counts()?;
+        let issues = self.profile.issues(repo)?.counts()?;
+        let patches = self.profile.patches(repo)?.counts()?;
         let db = &self.profile.database()?;
         let seeding = db.count(&id).unwrap_or_default();
 
@@ -77,6 +81,17 @@ impl Context {
             id,
             seeding,
         })
+    }
+
+    /// Get a repository by RID, checking to make sure we're allowed to view it.
+    pub fn repo(&self, rid: RepoId) -> Result<(Repository, DocAt), error::Error> {
+        let repo = self.profile.storage.repository(rid)?;
+        let doc = repo.identity_doc()?;
+        // Don't allow accessing private repos.
+        if doc.visibility.is_private() {
+            return Err(Error::NotFound);
+        }
+        Ok((repo, doc))
     }
 
     #[cfg(test)]

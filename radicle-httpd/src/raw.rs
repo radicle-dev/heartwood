@@ -107,11 +107,17 @@ pub fn router(profile: Arc<Profile>) -> Router {
 }
 
 async fn file_by_path_handler(
-    Path((project, sha, path)): Path<(RepoId, Oid, String)>,
+    Path((rid, sha, path)): Path<(RepoId, Oid, String)>,
     State(profile): State<Arc<Profile>>,
 ) -> impl IntoResponse {
     let storage = &profile.storage;
-    let repo = storage.repository(project)?;
+    let repo = storage.repository(rid)?;
+
+    // Don't allow downloading raw files for private repos.
+    if repo.identity_doc()?.visibility.is_private() {
+        return Err(Error::NotFound);
+    }
+
     let mut response_headers = HeaderMap::new();
     let repo: Repository = repo.backend.into();
     let blob = repo.blob(sha, &path)?;
@@ -134,12 +140,18 @@ async fn file_by_path_handler(
 }
 
 async fn file_by_oid_handler(
-    Path((project, oid)): Path<(RepoId, Oid)>,
+    Path((rid, oid)): Path<(RepoId, Oid)>,
     State(profile): State<Arc<Profile>>,
     Query(qs): Query<RawQuery>,
 ) -> impl IntoResponse {
     let storage = &profile.storage;
-    let repo = storage.repository(project)?;
+    let repo = storage.repository(rid)?;
+
+    // Don't allow downloading raw files for private repos.
+    if repo.identity_doc()?.visibility.is_private() {
+        return Err(Error::NotFound);
+    }
+
     let blob = repo.blob(oid)?;
     let mut response_headers = HeaderMap::new();
 
@@ -159,7 +171,8 @@ async fn file_by_oid_handler(
 mod routes {
     use axum::http::StatusCode;
 
-    use crate::test::{self, get, HEAD, RID};
+    use crate::test::{self, get, HEAD, RID, RID_PRIVATE};
+    use radicle::storage::{ReadRepository, ReadStorage};
 
     #[tokio::test]
     async fn test_file_handler() {
@@ -171,5 +184,16 @@ mod routes {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.body().await, "Hello World from dir1!\n");
+
+        // Make sure the repo exists in storage.
+        let repo = ctx
+            .profile()
+            .storage
+            .repository(RID_PRIVATE.parse().unwrap())
+            .unwrap();
+        let (_, head) = repo.head().unwrap();
+
+        let response = get(&app, format!("/{RID_PRIVATE}/{head}/README")).await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }
