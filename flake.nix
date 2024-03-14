@@ -126,6 +126,7 @@
           "rad.1.adoc"
           "radicle-node.1.adoc"
           "rad-patch.1.adoc"
+          "rad-id.1.adoc"
         ]));
     in {
       # Formatter

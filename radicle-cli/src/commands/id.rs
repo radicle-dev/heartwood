@@ -38,6 +38,11 @@ Usage
     rad id show <revision-id> [<option>...]
     rad id <accept | reject | redact> <revision-id> [<option>...]
 
+    The *rad id* command is used to manage and propose changes to the
+    identity of a Radicle repository.
+
+    See the rad-id(1) man page for more information.
+
 Options
 
     --repo <rid>           Repository (defaults to the current repository)
@@ -117,7 +122,10 @@ impl Args for Options {
 
         while let Some(arg) = parser.next()? {
             match arg {
-                Long("help") | Short('h') => {
+                Long("help") => {
+                    return Err(Error::HelpManual { name: "rad-id" }.into());
+                }
+                Short('h') => {
                     return Err(Error::Help.into());
                 }
                 Long("title")

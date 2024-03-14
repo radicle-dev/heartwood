@@ -1,0 +1,170 @@
+= rad-id(1)
+The Radicle Team <team@radicle.xyz>
+:doctype: manpage
+:revnumber: 0.8.0
+:revdate: 2024-03-14
+:mansource: rad {revnumber}
+:manmanual: Radicle CLI Manual
+
+== Name
+
+rad-id - Manage changes to a Radicle repository's identity.
+
+== Synopsis
+
+*rad id* [<option>...] +
+*rad id* _list_ [<option>...] +
+*rad id* _update_ [--title <string>] [--description <string>] <option>... +
+*rad id* _edit_ <revision-id> [--title <string>] [--description <string>] [<option>...] +
+*rad id* _show_ <revision-id> [<option>...] +
+*rad id* _accept_ | _reject_ <revision-id> [<option>...] +
+*rad id* _redact_ <revision-id> [<option>...]
+
+== Description
+
+The *rad id* command is used to manage and propose changes to the identity of a
+Radicle repository. Each repository has an associated identity document that
+contains metadata such as the repository name, description, and delegates. The
+identity document is versioned and changes to it must be signed by a quorum of
+delegates.
+
+The identity document is stored as a _Canonical JSON_ document.
+
+== Commands
+
+With no arguments, *rad id* defaults to the _list_ command, showing the list of
+revisions to the identity of the current repository.
+
+=== list
+
+Lists all revisions to the identity document.
+
+=== update
+
+Proposes a new revision to the identity document. Revisions have a title and a
+description in addition to the proposed updated identity document, just like
+source code commits.
+
+If a title and description are not provided on the command line, you will be
+prompted to enter one via your text editor.
+
+Note that if you are the repository's only delegate, proposed changes will be
+automatically accepted and included into the identity document.
+
+*--title* _<string>_::
+  Set the title for the new revision.
+
+*--description* _<string>_::
+  Set the description for the new revision.
+
+*--delegate* _<did>_::
+  Update the identity by adding a new delegate, identified by their DID.
+
+*--rescind* _<did>_::
+  Update the identity by removing a delegate identified by their DID.
+
+*--threshold* _<num>_::
+  Update the identity by setting the number of delegates required to accept a
+  revision.
+
+*--visibility* _<private>_ | _<public>_::
+  Update the identity by setting the repository visibility to private or public.
+
+*--allow* _<did>_::
+  Update the identity by giving a specific peer access to a private repository.
+
+*--payload* _<id> <key> <val>_::
+  Update the identity by setting metadata in one of the identity payloads.
+  This can be used to update a repository's project name or description, for
+  example.
+
+*--no-confirm*::
+  Don't ask for confirmation before creating the revision.
+
+=== edit
+
+Edit an existing revision to the identity document. The revision must still be
+in the "active" state. The same options as for *update* are available. Note
+that this edits a proposed revision to the identity; to edit the identity
+document itself, use *update*.
+
+=== show
+
+Show a specific revision of the identity document.
+
+=== accept
+
+Accept a proposed revision to the identity document. The revision must be in
+the "active" state and the caller must be a delegate.
+
+=== reject
+
+Reject a proposed revision to the identity document. The revision must be in
+the "active" state and the caller must be a delegate.
+
+=== redact
+
+Redact an existing revision to the identity document. The revision must not be
+in the "accepted" state and the caller must be the author of the revision.
+
+== Options
+
+*--repo* _<rid>_::
+  Specify the repository to operate on. Defaults to the current repository.
+
+*--quiet*, *-q*::
+  Suppress output.
+
+*--help*::
+  Print help information.
+
+== Examples
+
+=== Adding a delegate
+
+To add a new delegate to a repository and update the threshold, use the
+*update* command:
+
+    $ rad id update --title "Add Bob" --description "Add Bob as a delegate" \
+        --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk \
+        --threshold 2
+
+This will create a new revision proposing to add the delegate identified by the
+given DID and set the threshold to `2`, meaning two delegates must sign off on
+future identity changes.
+
+=== Changing repository visibility
+
+To change a repository from public to private:
+
+    $ rad id update --visibility private
+
+Note that this will require acceptance from a quorum of delegates to take
+effect.
+
+=== Changing a repository payload
+
+To change a repository's name and description, this is usually done through the
+*xyz.radicle.project* payload:
+
+    $ rad id update --title "Update title and description" \
+        --description "Improve clarity" \
+        --payload xyz.radicle.project title '"radicle-beans"' \
+        --payload xyz.radicle.project description '"Tasty Radicle beans"'
+
+Note that the values passed to *--payload*, eg. `"radicle-beans"` must be valid
+_JSON_ values. This means that strings should be double quoted, as in the
+example above.
+
+=== Removing a delegate
+
+To remove a delegate and update the threshold, use the *--rescind* option:
+
+    $ rad id update --title "Remove Bob" \
+        --description "Bob is no longer a delegate" \
+        --rescind did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk \
+        --threshold 1
+
+As with adding a delegate, this change will require approval from the remaining
+delegates. Make sure you set an appropriate new threshold when removing
+delegates!
