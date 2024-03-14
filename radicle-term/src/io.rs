@@ -1,5 +1,6 @@
 use std::ffi::OsStr;
 use std::fmt::Write;
+use std::process::Stdio;
 use std::{env, fmt, io, process};
 
 use inquire::ui::{ErrorMessageRenderConfig, StyleSheet, Styled};
@@ -139,7 +140,10 @@ pub fn help(name: &str, version: &str, description: &str, usage: &str) {
 }
 
 pub fn manual(name: &str) -> io::Result<process::ExitStatus> {
-    let mut child = process::Command::new("man").arg(name).spawn()?;
+    let mut child = process::Command::new("man")
+        .arg(name)
+        .stderr(Stdio::null())
+        .spawn()?;
 
     child.wait()
 }

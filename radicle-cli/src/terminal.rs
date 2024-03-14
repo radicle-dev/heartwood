@@ -79,14 +79,19 @@ where
         Err(err) => {
             let hint = match err.downcast_ref::<Error>() {
                 Some(Error::Help) => {
-                    term::help(help.name, help.version, help.description, help.usage);
+                    help.print();
                     process::exit(0);
                 }
+                // Print the manual, or the regular help if there's an error.
                 Some(Error::HelpManual { name }) => {
                     let Ok(status) = term::manual(name) else {
-                        io::error(format!("rad {}: failed to load manual page", help.name));
-                        process::exit(1);
+                        help.print();
+                        process::exit(0);
                     };
+                    if !status.success() {
+                        help.print();
+                        process::exit(0);
+                    }
                     process::exit(status.code().unwrap_or(0));
                 }
                 Some(Error::Usage) => {
