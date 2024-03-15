@@ -25,7 +25,7 @@ and freedom.
 
 Run the following command to install the latest binary release:
 
-    sh <(curl -sSf https://radicle.xyz/install)
+    curl -sSf https://radicle.xyz/install | sh
 
 ### 📦 From source
 
