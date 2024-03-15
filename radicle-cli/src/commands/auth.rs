@@ -157,7 +157,7 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     );
     term::info!(
         "To get a list of all commands, run {}.",
-        term::format::command("rad help"),
+        term::format::command("rad"),
     );
 
     Ok(())
