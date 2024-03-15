@@ -496,8 +496,8 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
 
         match command {
             IssueCommands::Delete { id } => {
-                let signer = term::signer(&profile)?;
                 let id = id.resolve(&repo.backend)?;
+                let signer = term::signer(&profile)?;
                 issues.remove(&id, &signer)?;
             }
             IssueCommands::Edit {
@@ -535,13 +535,12 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
             }
             IssueCommands::State(state_args) => {
-                let signer = term::signer(&profile)?;
                 let id = state_args.id.resolve(&repo.backend)?;
+                let signer = term::signer(&profile)?;
                 let mut issue = issues.get_mut(&id)?;
                 issue.lifecycle(to_state(state_args), &signer)?;
             }
             IssueCommands::Assign { id, add, delete } => {
-                let signer = term::signer(&profile)?;
                 let id = id.resolve(&repo.backend)?;
                 let Ok(mut issue) = issues.get_mut(&id) else {
                     anyhow::bail!("Issue `{id}` not found");
@@ -552,6 +551,7 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                     .chain(add.iter())
                     .cloned()
                     .collect::<Vec<_>>();
+                let signer = term::signer(&profile)?;
                 issue.assign(assignees, &signer)?;
             }
             IssueCommands::Comment {
@@ -559,10 +559,10 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                 message,
                 reply_to,
             } => {
-                let signer = term::signer(&profile)?;
                 let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
                 let mut issue = issues.get_mut(&issue_id)?;
                 let (body, reply_to) = prompt_comment(message, reply_to, &issue, &repo)?;
+                let signer = term::signer(&profile)?;
                 let comment_id = issue.comment(body, reply_to, vec![], &signer)?;
 
                 if args.quiet {
@@ -577,19 +577,17 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                 comment_id,
                 reaction,
             } => {
-                let signer = term::signer(&profile)?;
                 let id = id.resolve(&repo.backend)?;
                 if let Ok(mut issue) = issues.get_mut(&id) {
-                    let signer = term::signer(&profile)?;
                     let comment_id = comment_id.unwrap_or_else(|| {
                         let (comment_id, _) = term::io::comment_select(&issue).unwrap();
                         *comment_id
                     });
+                    let signer = term::signer(&profile)?;
                     issue.react(comment_id, reaction, true, &signer)?;
                 }
             }
             IssueCommands::Label { id, add, delete } => {
-                let signer = term::signer(&profile)?;
                 let id = id.resolve(&repo.backend)?;
                 let Ok(mut issue) = issues.get_mut(&id) else {
                     anyhow::bail!("Issue `{id}` not found");
@@ -600,6 +598,7 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                     .chain(add.iter())
                     .cloned()
                     .collect::<Vec<_>>();
+                let signer = term::signer(&profile)?;
                 issue.label(labels, &signer)?;
             }
             IssueCommands::Open {
