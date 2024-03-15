@@ -272,7 +272,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let repo = storage
         .repository(rid)
         .context(anyhow!("repository `{rid}` not found in local storage"))?;
-    let mut identity = Identity::load_mut(&repo)?;
+    let mut identities = profile.identities_mut(&repo)?;
+    let mut identity = identities.load_mut()?;
     let current = identity.current().clone();
 
     match options.op {
@@ -613,13 +614,18 @@ and description.
     Ok(result)
 }
 
-fn update<R: WriteRepository + cob::Store, G: Signer>(
+fn update<R, C, G>(
     title: Option<String>,
     description: Option<String>,
     doc: Doc<Verified>,
-    current: &mut IdentityMut<R>,
+    current: &mut IdentityMut<R, C>,
     signer: &G,
-) -> anyhow::Result<Revision> {
+) -> anyhow::Result<Revision>
+where
+    R: WriteRepository + cob::Store,
+    C: cob::cache::Update<Identity>,
+    G: Signer,
+{
     if let Some((title, description)) = edit_title_description(title, description)? {
         let id = current.update(title, description, &doc, signer)?;
         let revision = current

@@ -210,11 +210,14 @@ fn cache_cobs<S, C>(
 ) -> Result<(), error::Cache>
 where
     S: ReadRepository + cob::Store,
-    C: cob::cache::Update<cob::issue::Issue> + cob::cache::Update<cob::patch::Patch>,
+    C: cob::cache::Update<cob::issue::Issue>
+        + cob::cache::Update<cob::patch::Patch>
+        + cob::cache::Update<cob::identity::Identity>,
     C: cob::cache::Remove<cob::issue::Issue> + cob::cache::Remove<cob::patch::Patch>,
 {
     let issues = cob::issue::Issues::open(storage)?;
     let patches = cob::patch::Patches::open(storage)?;
+    let identities = cob::identity::Identities::open(storage)?;
     for update in refs {
         match update {
             RefUpdate::Updated { name, .. }
@@ -239,6 +242,17 @@ where
                         if let Some(patch) = patches.get(&identifier.id)? {
                             cache
                                 .update(rid, &identifier.id, &patch)
+                                .map(|_| ())
+                                .map_err(|e| error::Cache::Update {
+                                    id: identifier.id,
+                                    type_name: identifier.type_name,
+                                    err: e.into(),
+                                })?;
+                        }
+                    } else if identifier.is_identity() {
+                        if let Ok(identity) = identities.get(&identifier.id) {
+                            cache
+                                .update(rid, &identifier.id, &identity)
                                 .map(|_| ())
                                 .map_err(|e| error::Cache::Update {
                                     id: identifier.id,

@@ -6,7 +6,7 @@ use std::str::FromStr;
 use once_cell::sync::Lazy;
 use thiserror::Error;
 
-use crate::cob::ObjectId;
+use crate::cob::{cache, ObjectId};
 use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::doc;
@@ -44,15 +44,21 @@ pub enum InitError {
 }
 
 /// Initialize a new radicle project from a git repository.
-pub fn init<G: Signer, S: WriteStorage>(
+pub fn init<G, S, C>(
     repo: &git2::Repository,
+    cache: &mut C,
     name: &str,
     description: &str,
     default_branch: BranchName,
     visibility: Visibility,
     signer: &G,
     storage: S,
-) -> Result<(RepoId, identity::Doc<Verified>, SignedRefs<Verified>), InitError> {
+) -> Result<(RepoId, identity::Doc<Verified>, SignedRefs<Verified>), InitError>
+where
+    G: Signer,
+    S: WriteStorage,
+    C: cache::Update<identity::Identity>,
+{
     // TODO: Better error when project id already exists in storage, but remote doesn't.
     let pk = signer.public_key();
     let delegate = identity::Did::from(*pk);
@@ -70,7 +76,7 @@ pub fn init<G: Signer, S: WriteStorage>(
         )
     })?;
     let doc = identity::Doc::initial(proj, delegate, visibility).verified()?;
-    let (project, _) = Repository::init(&doc, &storage, signer)?;
+    let (project, _) = Repository::init(&doc, &storage, cache, signer)?;
     let url = git::Url::from(project.id);
 
     match init_configure(repo, &project, pk, &default_branch, &url, signer) {
@@ -388,6 +394,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use radicle_crypto::test::signer::MockSigner;
 
+    use crate::cob;
     use crate::git::{name::component, qualified};
     use crate::identity::Did;
     use crate::storage::git::transport;
@@ -409,6 +416,7 @@ mod tests {
         let (repo, _) = fixtures::repository(tempdir.path().join("working"));
         let (proj, _, refs) = init(
             &repo,
+            &mut cob::cache::NoCache,
             "acme",
             "Acme's repo",
             git::refname!("master"),
@@ -464,6 +472,7 @@ mod tests {
         let (original, _) = fixtures::repository(tempdir.path().join("original"));
         let (id, _, alice_refs) = init(
             &original,
+            &mut cob::cache::NoCache,
             "acme",
             "Acme's repo",
             git::refname!("master"),
@@ -500,6 +509,7 @@ mod tests {
         let (original, _) = fixtures::repository(tempdir.path().join("original"));
         let (id, _, _) = init(
             &original,
+            &mut cob::cache::NoCache,
             "acme",
             "Acme's repo",
             git::refname!("master"),

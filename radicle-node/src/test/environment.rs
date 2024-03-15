@@ -153,6 +153,7 @@ pub struct Node<G> {
     pub config: Config,
     pub db: service::Stores<Database>,
     pub policies: policy::Store<policy::Write>,
+    pub cache: cob::cache::StoreWriter,
 }
 
 impl Node<MemorySigner> {
@@ -163,6 +164,8 @@ impl Node<MemorySigner> {
         let policies = policy::Store::open(policies_db).unwrap();
         let db = profile.database_mut().unwrap();
         let db = service::Stores::from(db);
+        let cache = profile.home.cobs().join(COBS_DB_FILE);
+        let cache = cob::cache::Store::open(cache).unwrap();
 
         Node {
             id,
@@ -172,6 +175,7 @@ impl Node<MemorySigner> {
             db,
             policies,
             storage: profile.storage,
+            cache,
         }
     }
 }
@@ -412,6 +416,8 @@ impl Node<MockSigner> {
         let policies = home.policies_mut().unwrap();
         let db = home.database_mut().unwrap();
         let db = service::Stores::from(db);
+        let cache = home.cobs().join(COBS_DB_FILE);
+        let cache = cob::cache::Store::open(cache).unwrap();
 
         log::debug!(target: "test", "Node::init {}: {}", config.alias, signer.public_key());
         Self {
@@ -422,6 +428,7 @@ impl Node<MockSigner> {
             config,
             db,
             policies,
+            cache,
         }
     }
 }
@@ -469,6 +476,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
         let branch = refname!("master");
         let id = rad::init(
             repo,
+            &mut self.cache,
             name,
             description,
             branch.clone(),

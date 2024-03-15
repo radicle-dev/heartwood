@@ -6,8 +6,8 @@ use anyhow::anyhow;
 
 use git_ref_format::Qualified;
 use localtime::LocalTime;
+use radicle::cob::identity::cache::Identities as _;
 use radicle::cob::TypedId;
-use radicle::identity::Identity;
 use radicle::issue::cache::Issues as _;
 use radicle::node::notifications;
 use radicle::node::notifications::*;
@@ -273,6 +273,7 @@ where
     let proj = doc.project()?;
     let issues = profile.issues(&repo)?;
     let patches = profile.patches(&repo)?;
+    let identities = profile.identities(&repo)?;
 
     let mut notifs = notifs.by_repo(&rid, sort_by.field)?.collect::<Vec<_>>();
     if !sort_by.reverse {
@@ -306,7 +307,7 @@ where
         } = match &n.kind {
             NotificationKind::Branch { name } => NotificationRow::branch(name, head, &n, &repo)?,
             NotificationKind::Cob { typed_id } => {
-                match NotificationRow::cob(typed_id, &n, &issues, &patches, &repo)? {
+                match NotificationRow::cob(typed_id, &n, &issues, &patches, &identities)? {
                     Some(row) => row,
                     None => continue,
                 }
@@ -401,17 +402,17 @@ impl NotificationRow {
         ))
     }
 
-    fn cob<S, I, P>(
+    fn cob<I, P, Ids>(
         typed_id: &TypedId,
         n: &Notification,
         issues: &I,
         patches: &P,
-        repo: &S,
+        identities: &Ids,
     ) -> anyhow::Result<Option<Self>>
     where
-        S: ReadRepository + cob::Store,
         I: cob::issue::cache::Issues,
         P: cob::patch::cache::Patches,
+        Ids: cob::identity::cache::Identities,
     {
         let TypedId { id, .. } = typed_id;
         let (category, summary, state) = if typed_id.is_issue() {
@@ -435,7 +436,7 @@ impl NotificationRow {
                 term::format::patch::state(patch.state()),
             )
         } else if typed_id.is_identity() {
-            let Ok(identity) = Identity::get(id, repo) else {
+            let Ok(identity) = identities.get(id) else {
                 log::error!(
                     target: "cli",
                     "Error retrieving identity {id} for notification {}", n.id
@@ -548,7 +549,8 @@ fn show(
             term::patch::show(&patch, &typed_id.id, false, &repo, None, profile)?;
         }
         NotificationKind::Cob { typed_id } if typed_id.is_identity() => {
-            let identity = Identity::get(&typed_id.id, &repo)?;
+            let identities = profile.identities(&repo)?;
+            let identity = identities.get(&typed_id.id)?;
 
             term::json::to_pretty(&identity.doc, Path::new("radicle.json"))?.print();
         }

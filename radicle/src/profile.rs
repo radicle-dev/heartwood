@@ -543,6 +543,40 @@ impl Home {
         let store = cob::patch::Patches::open(repository)?;
         Ok(cob::patch::Cache::open(store, db))
     }
+
+    /// Return a read-only handle for the identities cache.
+    pub fn identities<'a, R>(
+        &self,
+        repository: &'a R,
+    ) -> Result<
+        cob::identity::Cache<cob::identity::Identities<'a, R>, cob::cache::StoreReader>,
+        Error,
+    >
+    where
+        R: ReadRepository + cob::Store,
+    {
+        let path = self.cobs().join(cob::cache::COBS_DB_FILE);
+        let db = cob::cache::Store::reader(path)?;
+        let store = cob::identity::Identities::open(repository)?;
+        Ok(cob::identity::Cache::reader(store, db))
+    }
+
+    /// Return a read-write handle for the identities cache.
+    pub fn identities_mut<'a, R>(
+        &self,
+        repository: &'a R,
+    ) -> Result<
+        cob::identity::Cache<cob::identity::Identities<'a, R>, cob::cache::StoreWriter>,
+        Error,
+    >
+    where
+        R: ReadRepository + cob::Store,
+    {
+        let path = self.cobs().join(cob::cache::COBS_DB_FILE);
+        let db = cob::cache::Store::open(path)?;
+        let store = cob::identity::Identities::open(repository)?;
+        Ok(cob::identity::Cache::open(store, db))
+    }
 }
 
 // Private methods.

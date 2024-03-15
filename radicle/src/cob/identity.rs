@@ -1,3 +1,5 @@
+pub mod cache;
+
 use std::collections::BTreeMap;
 use std::{fmt, ops::Deref, str::FromStr};
 
@@ -21,10 +23,12 @@ use crate::{
         doc::{Doc, DocError, RepoId},
         Did,
     },
-    storage::{ReadRepository, RepositoryError, WriteRepository},
+    storage::{HasRepoId, ReadRepository, RepositoryError, WriteRepository},
 };
 
 use super::{Author, EntryId};
+
+pub use cache::Cache;
 
 /// Type name of an identity proposal.
 pub static TYPENAME: Lazy<TypeName> =
@@ -130,10 +134,23 @@ pub enum Error {
     Doc(#[from] DocError),
     #[error("revision {0} was not found")]
     NotFound(RevisionId),
+    #[error("failed to update identity {id} in cache: {err}")]
+    CacheUpdate {
+        id: ObjectId,
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+    #[error("failed to remove identity {id} from cache : {err}")]
+    CacheRemove {
+        id: ObjectId,
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
 }
 
 /// An evolving identity document.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Identity {
     /// The canonical identifier for this identity.
     /// This is the object id of the initial document blob.
@@ -178,64 +195,6 @@ impl Identity {
             revisions: BTreeMap::from_iter([(root, Some(revision))]),
             timeline: vec![root],
         }
-    }
-
-    pub fn initialize<'a, R: WriteRepository + cob::Store, G: Signer>(
-        doc: &Doc<Verified>,
-        store: &'a R,
-        signer: &G,
-    ) -> Result<IdentityMut<'a, R>, cob::store::Error> {
-        let mut store = cob::store::Store::open(store)?;
-        let (id, identity) =
-            Transaction::<Identity, _>::initial("Initialize identity", &mut store, signer, |tx| {
-                tx.revision("Initial revision", "", doc, None, signer)
-            })?;
-
-        Ok(IdentityMut {
-            id,
-            identity,
-            store,
-        })
-    }
-
-    pub fn get<R: ReadRepository + cob::Store>(
-        object: &ObjectId,
-        repo: &R,
-    ) -> Result<Identity, store::Error> {
-        cob::get::<Self, _>(repo, Self::type_name(), object)
-            .map(|r| r.map(|cob| cob.object))?
-            .ok_or_else(move || store::Error::NotFound(TYPENAME.clone(), *object))
-    }
-
-    /// Get a proposal mutably.
-    pub fn get_mut<'a, R: WriteRepository + cob::Store>(
-        id: &ObjectId,
-        repo: &'a R,
-    ) -> Result<IdentityMut<'a, R>, store::Error> {
-        let obj = Self::get(id, repo)?;
-        let store = cob::store::Store::open(repo)?;
-
-        Ok(IdentityMut {
-            id: *id,
-            identity: obj,
-            store,
-        })
-    }
-
-    pub fn load<R: ReadRepository + cob::Store>(repo: &R) -> Result<Identity, RepositoryError> {
-        let oid = repo.identity_root()?;
-        let oid = ObjectId::from(oid);
-
-        Self::get(&oid, repo).map_err(RepositoryError::from)
-    }
-
-    pub fn load_mut<R: WriteRepository + cob::Store>(
-        repo: &R,
-    ) -> Result<IdentityMut<R>, RepositoryError> {
-        let oid = repo.identity_root()?;
-        let oid = ObjectId::from(oid);
-
-        Self::get_mut(&oid, repo).map_err(RepositoryError::from)
     }
 }
 
@@ -612,11 +571,12 @@ impl<R: ReadRepository> cob::Evaluate<R> for Identity {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "verdict")]
 pub enum Verdict {
     /// An accepting verdict must supply the [`Signature`] over the
     /// new proposed [`Doc`].
-    Accept(Signature),
+    Accept { signature: Signature },
     /// Rejecting the proposed [`Doc`].
     Reject,
 }
@@ -656,7 +616,8 @@ impl std::fmt::Display for State {
 ///
 /// Once a revision has reached the quorum threshold of the previous
 /// [`Identity`] it is then adopted as the current identity.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Revision {
     /// The id of this revision. Points to a commit.
     pub id: RevisionId,
@@ -692,7 +653,7 @@ impl std::ops::Deref for Revision {
 impl Revision {
     pub fn signatures(&self) -> impl Iterator<Item = (&PublicKey, Signature)> {
         self.verdicts().filter_map(|(key, verdict)| match verdict {
-            Verdict::Accept(sig) => Some((key, *sig)),
+            Verdict::Accept { signature } => Some((key, *signature)),
             Verdict::Reject => None,
         })
     }
@@ -715,7 +676,7 @@ impl Revision {
 
     pub fn rejected(&self) -> impl Iterator<Item = Did> + '_ {
         self.verdicts().filter_map(|(key, v)| match v {
-            Verdict::Accept(_) => None,
+            Verdict::Accept { .. } => None,
             Verdict::Reject => Some(key.into()),
         })
     }
@@ -739,7 +700,7 @@ impl Revision {
         parent: Option<RevisionId>,
         timestamp: Timestamp,
     ) -> Self {
-        let verdicts = BTreeMap::from_iter([(*author.public_key(), Verdict::Accept(signature))]);
+        let verdicts = BTreeMap::from_iter([(*author.public_key(), Verdict::Accept { signature })]);
 
         Self {
             id,
@@ -770,7 +731,7 @@ impl Revision {
         }
         if self
             .verdicts
-            .insert(author, Verdict::Accept(signature))
+            .insert(author, Verdict::Accept { signature })
             .is_some()
         {
             return Err(ApplyError::DuplicateVerdict);
@@ -852,14 +813,15 @@ impl<R: ReadRepository> store::Transaction<Identity, R> {
     }
 }
 
-pub struct IdentityMut<'a, R> {
+pub struct IdentityMut<'a, 'g, R, C> {
     pub id: ObjectId,
 
     identity: Identity,
-    store: store::Store<'a, Identity, R>,
+    store: &'g mut Identities<'a, R>,
+    cache: &'g mut C,
 }
 
-impl<'a, R> fmt::Debug for IdentityMut<'a, R> {
+impl<'a, 'g, R, C> fmt::Debug for IdentityMut<'a, 'g, R, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("IdentityMut")
             .field("id", &self.id)
@@ -868,16 +830,14 @@ impl<'a, R> fmt::Debug for IdentityMut<'a, R> {
     }
 }
 
-impl<'a, R> IdentityMut<'a, R>
+impl<'a, 'g, R, C> IdentityMut<'a, 'g, R, C>
 where
     R: WriteRepository + cob::Store,
+    C: cob::cache::Update<Identity>,
 {
     /// Reload the identity data from storage.
     pub fn reload(&mut self) -> Result<(), store::Error> {
-        self.identity = self
-            .store
-            .get(&self.id)?
-            .ok_or_else(|| store::Error::NotFound(TYPENAME.clone(), self.id))?;
+        self.identity = self.store.get(&self.id)?;
 
         Ok(())
     }
@@ -895,7 +855,13 @@ where
         let mut tx = Transaction::default();
         operations(&mut tx)?;
 
-        let (doc, commit) = tx.commit(message, self.id, &mut self.store, signer)?;
+        let (doc, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        self.cache
+            .update(&self.store.rid(), &self.id, &doc)
+            .map_err(|e| Error::CacheUpdate {
+                id: self.id,
+                err: e.into(),
+            })?;
         self.identity = doc;
 
         Ok(commit)
@@ -963,11 +929,104 @@ where
     }
 }
 
-impl<'a, R> Deref for IdentityMut<'a, R> {
+impl<'a, 'g, R, C> Deref for IdentityMut<'a, 'g, R, C> {
     type Target = Identity;
 
     fn deref(&self) -> &Self::Target {
         &self.identity
+    }
+}
+
+pub struct Identities<'a, R> {
+    raw: store::Store<'a, Identity, R>,
+}
+
+impl<'a, R> HasRepoId for Identities<'a, R>
+where
+    R: ReadRepository,
+{
+    fn rid(&self) -> RepoId {
+        self.raw.as_ref().id()
+    }
+}
+
+impl<'a, R> Identities<'a, R>
+where
+    R: ReadRepository + cob::Store,
+{
+    /// Open an issues store.
+    pub fn open(repository: &'a R) -> Result<Self, RepositoryError> {
+        let raw = store::Store::open(repository)?;
+
+        Ok(Self { raw })
+    }
+
+    pub fn initialize<'g, G, C>(
+        &'g mut self,
+        doc: &Doc<Verified>,
+        cache: &'g mut C,
+        signer: &G,
+    ) -> Result<IdentityMut<'a, 'g, R, C>, Error>
+    where
+        R: WriteRepository,
+        C: cob::cache::Update<Identity>,
+        G: Signer,
+    {
+        let (id, identity) = Transaction::<Identity, _>::initial(
+            "Initialize identity",
+            &mut self.raw,
+            signer,
+            |tx| tx.revision("Initial revision", "", doc, None, signer),
+        )?;
+        cache
+            .update(&self.rid(), &id, &identity)
+            .map_err(|e| Error::CacheUpdate { id, err: e.into() })?;
+
+        Ok(IdentityMut {
+            id,
+            identity,
+            store: self,
+            cache,
+        })
+    }
+
+    pub fn get(&self, object: &ObjectId) -> Result<Identity, store::Error> {
+        self.raw
+            .get(object)?
+            .ok_or_else(move || store::Error::NotFound(TYPENAME.clone(), *object))
+    }
+
+    /// Get a proposal mutably.
+    pub fn get_mut<'g, C>(
+        &'g mut self,
+        id: &ObjectId,
+        cache: &'g mut C,
+    ) -> Result<IdentityMut<'a, 'g, R, C>, store::Error> {
+        let obj = self.get(id)?;
+
+        Ok(IdentityMut {
+            id: *id,
+            identity: obj,
+            store: self,
+            cache,
+        })
+    }
+
+    pub fn load(&self) -> Result<Identity, RepositoryError> {
+        let oid = self.raw.as_ref().identity_root()?;
+        let oid = ObjectId::from(oid);
+
+        self.get(&oid).map_err(RepositoryError::from)
+    }
+
+    pub fn load_mut<'g, C>(
+        &'g mut self,
+        cache: &'g mut C,
+    ) -> Result<IdentityMut<'a, 'g, R, C>, RepositoryError> {
+        let oid = self.raw.as_ref().identity_root()?;
+        let oid = ObjectId::from(oid);
+
+        self.get_mut(&oid, cache).map_err(RepositoryError::from)
     }
 }
 
@@ -1037,7 +1096,9 @@ mod test {
         let NodeWithRepo { node, repo } = NodeWithRepo::default();
         let bob = MockSigner::default();
         let signer = &node.signer;
-        let mut identity = Identity::load_mut(&*repo).unwrap();
+        let mut identities = Identities::open(&*repo).unwrap();
+        let mut cache = cob::cache::NoCache;
+        let mut identity = identities.load_mut(&mut cache).unwrap();
         let mut doc = identity.doc().clone();
         let title = "Identity update";
         let description = "";
@@ -1093,7 +1154,9 @@ mod test {
         let bob = MockSigner::default();
         let eve = MockSigner::default();
         let signer = &node.signer;
-        let mut identity = Identity::load_mut(&*repo).unwrap();
+        let mut identities = Identities::open(&*repo).unwrap();
+        let mut cache = cob::cache::NoCache;
+        let mut identity = identities.load_mut(&mut cache).unwrap();
         let mut doc = identity.doc().clone();
         let title = "Identity update";
         let description = "";
@@ -1143,7 +1206,12 @@ mod test {
         let alice = &network.alice;
         let bob = &network.bob;
 
-        let mut alice_identity = Identity::load_mut(&*alice.repo).unwrap();
+        let mut alice_identities = Identities::open(&*alice.repo).unwrap();
+        let mut bob_identities = Identities::open(&*bob.repo).unwrap();
+        let mut cache = cob::cache::NoCache;
+
+        let mut alice_cache = cache;
+        let mut alice_identity = alice_identities.load_mut(&mut alice_cache).unwrap();
         let mut alice_doc = alice_identity.doc().clone();
 
         alice_doc.delegate(bob.signer.public_key());
@@ -1153,7 +1221,7 @@ mod test {
 
         bob.repo.fetch(alice);
 
-        let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
+        let mut bob_identity = bob_identities.load_mut(&mut cache).unwrap();
         let bob_doc = bob_identity.doc().clone();
         assert!(bob_doc.is_delegate(bob.signer.public_key()));
 
@@ -1195,7 +1263,11 @@ mod test {
         let bob = &network.bob;
         let eve = &network.eve;
 
-        let mut alice_identity = Identity::load_mut(&*alice.repo).unwrap();
+        let mut alice_identities = Identities::open(&*alice.repo).unwrap();
+        let mut bob_identities = Identities::open(&*bob.repo).unwrap();
+        let mut cache = cob::cache::NoCache;
+
+        let mut alice_identity = alice_identities.load_mut(&mut cache).unwrap();
         let mut alice_doc = alice_identity.doc().clone();
 
         alice_doc.delegate(bob.signer.public_key());
@@ -1214,7 +1286,7 @@ mod test {
         assert!(alice_identity.revision(&a1).is_some());
         assert_eq!(alice_identity.timeline, vec![a0, a1, a2, a3]);
 
-        let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
+        let mut bob_identity = bob_identities.load_mut(&mut cache).unwrap();
         let b1 = bob_identity.accept(&a2, &bob.signer).unwrap();
 
         assert_eq!(bob_identity.timeline, vec![a0, a1, a2, b1]);
@@ -1234,7 +1306,12 @@ mod test {
         let bob = &network.bob;
         let eve = &network.eve;
 
-        let mut alice_identity = Identity::load_mut(&*alice.repo).unwrap();
+        let mut alice_identities = Identities::open(&*alice.repo).unwrap();
+        let mut bob_identities = Identities::open(&*bob.repo).unwrap();
+        let mut eve_identities = Identities::open(&*eve.repo).unwrap();
+        let mut cache = cob::cache::NoCache;
+
+        let mut alice_identity = alice_identities.load_mut(&mut cache).unwrap();
         let mut alice_doc = alice_identity.doc().clone();
 
         alice_doc.delegate(bob.signer.public_key());
@@ -1253,11 +1330,11 @@ mod test {
         bob.repo.fetch(alice);
         eve.repo.fetch(bob);
 
-        let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
+        let mut bob_identity = bob_identities.load_mut(&mut cache).unwrap();
         let b1 = bob_identity.accept(&a2, &bob.signer).unwrap();
         assert_eq!(bob_identity.current, a2);
 
-        let mut eve_identity = Identity::load_mut(&*eve.repo).unwrap();
+        let mut eve_identity = eve_identities.load_mut(&mut cache).unwrap();
         let mut eve_doc = eve_identity.doc().clone();
         eve_doc.visibility = Visibility::private([eve.signer.public_key().into()]);
         let e1 = eve_identity
@@ -1291,7 +1368,12 @@ mod test {
         let bob = &network.bob;
         let eve = &network.eve;
 
-        let mut alice_identity = Identity::load_mut(&*alice.repo).unwrap();
+        let mut alice_identities = Identities::open(&*alice.repo).unwrap();
+        let mut bob_identities = Identities::open(&*bob.repo).unwrap();
+        let mut eve_identities = Identities::open(&*eve.repo).unwrap();
+        let mut cache = cob::cache::NoCache;
+
+        let mut alice_identity = alice_identities.load_mut(&mut cache).unwrap();
         let mut alice_doc = alice_identity.doc().clone();
 
         alice_doc.delegate(bob.signer.public_key());
@@ -1311,11 +1393,11 @@ mod test {
         eve.repo.fetch(bob);
 
         // Bob accepts alice's revision.
-        let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
+        let mut bob_identity = bob_identities.load_mut(&mut cache).unwrap();
         let b1 = bob_identity.accept(&a2, &bob.signer).unwrap();
 
         // Eve rejects the revision, not knowing.
-        let mut eve_identity = Identity::load_mut(&*eve.repo).unwrap();
+        let mut eve_identity = eve_identities.load_mut(&mut cache).unwrap();
         let e1 = eve_identity.reject(a2, &eve.signer).unwrap();
         assert!(eve_identity.revision(&a2).unwrap().is_active());
 
@@ -1360,7 +1442,13 @@ mod test {
         let bob = &network.bob;
         let eve = &network.eve;
 
-        let mut alice_identity = Identity::load_mut(&*alice.repo).unwrap();
+        let mut alice_identities = Identities::open(&*alice.repo).unwrap();
+        let mut bob_identities = Identities::open(&*bob.repo).unwrap();
+        let mut eve_identities = Identities::open(&*eve.repo).unwrap();
+        let mut cache = cob::cache::NoCache;
+
+        let mut alice_cache = cache;
+        let mut alice_identity = alice_identities.load_mut(&mut alice_cache).unwrap();
         let mut alice_doc = alice_identity.doc().clone();
 
         alice.repo.fetch(bob);
@@ -1375,7 +1463,7 @@ mod test {
         bob.repo.fetch(alice);
         eve.repo.fetch(alice);
 
-        let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
+        let mut bob_identity = bob_identities.load_mut(&mut cache).unwrap();
         let mut bob_doc = bob_identity.doc().clone();
         assert!(bob_doc.is_delegate(bob.signer.public_key()));
 
@@ -1396,7 +1484,7 @@ mod test {
         eve.repo.fetch(bob);
 
         // In the meantime, Eve does the same thing on her side.
-        let mut eve_identity = Identity::load_mut(&*eve.repo).unwrap();
+        let mut eve_identity = eve_identities.load_mut(&mut cache).unwrap();
         let mut eve_doc = eve_identity.doc().clone();
         eve_doc.visibility = Visibility::private([]);
         let e1 = eve_identity
@@ -1424,6 +1512,7 @@ mod test {
         let bob = MockSigner::new(&mut rng);
         let eve = MockSigner::new(&mut rng);
 
+        let mut cache = cob::cache::InMemory::default();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
         let (id, _, _, _) =
             fixtures::project(tempdir.path().join("copy"), &storage, &alice).unwrap();
@@ -1433,7 +1522,8 @@ mod test {
         rad::fork_remote(id, alice.public_key(), &eve, &storage).unwrap();
 
         let repo = storage.repository(id).unwrap();
-        let mut identity = Identity::load_mut(&repo).unwrap();
+        let mut identities = Identities::open(&repo).unwrap();
+        let mut identity = identities.load_mut(&mut cache).unwrap();
         let mut doc = identity.doc().clone();
         let prj = doc.project().unwrap();
 
@@ -1467,7 +1557,7 @@ mod test {
             .unwrap();
         identity.accept(&revision, &eve).unwrap();
 
-        let identity: Identity = Identity::load(&repo).unwrap();
+        let identity: Identity = identities.load().unwrap();
         let root = repo.identity_root().unwrap();
         let doc = repo.identity_doc_at(revision).unwrap();
 

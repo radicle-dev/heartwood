@@ -7,8 +7,9 @@ use std::str::FromStr;
 use anyhow::{anyhow, Context as _};
 use chrono::prelude::*;
 
+use radicle::cob::identity::cache::Identities as _;
+use radicle::identity::DocAt;
 use radicle::identity::RepoId;
-use radicle::identity::{DocAt, Identity};
 use radicle::node::policy::Policy;
 use radicle::node::AliasStore as _;
 use radicle::storage::git::{Repository, Storage};
@@ -213,7 +214,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Target::History => {
             let (repo, _) = repo(rid, storage)?;
-            let identity = Identity::load(&repo)?;
+            let identities = profile.identities(&repo)?;
+            let identity = identities.load()?;
             let head = repo.identity_head()?;
             let history = repo.revwalk(head)?;
 

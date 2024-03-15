@@ -2,7 +2,6 @@ use std::path::Path;
 use std::str::FromStr;
 
 use crate::crypto::{PublicKey, Signer, Verified};
-use crate::git;
 use crate::identity::doc::Visibility;
 use crate::identity::RepoId;
 use crate::node::Alias;
@@ -10,6 +9,7 @@ use crate::rad;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
 use crate::storage::refs::SignedRefs;
+use crate::{cob, git};
 
 /// The birth of the radicle project, January 1st, 2018.
 pub const RADICLE_EPOCH: i64 = 1514817556;
@@ -38,6 +38,7 @@ pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: &G) -> Result<Storage
         let (repo, _) = repository(path.join("workdir").join(name));
         rad::init(
             &repo,
+            &mut cob::cache::NoCache,
             name,
             desc,
             git::refname!("master"),
@@ -61,6 +62,7 @@ pub fn project<P: AsRef<Path>, G: Signer>(
     let (working, head) = repository(path);
     let (id, _, refs) = rad::init(
         &working,
+        &mut cob::cache::NoCache,
         "acme",
         "Acme's repository",
         git::refname!("master"),
