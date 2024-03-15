@@ -8,7 +8,7 @@ use clap::builder::Styles;
 use clap::{CommandFactory, FromArgMatches as _, Parser, Subcommand};
 
 use clap_complete::dynamic::shells::CompleteCommand;
-use radicle::version;
+use radicle::version::Version;
 use radicle_cli::commands::rad_issue;
 use radicle_cli::commands::*;
 use radicle_cli::terminal as term;
@@ -41,7 +41,7 @@ Usage: {usage}
 /// Radicle is a distributed GIT forge.
 #[derive(Parser, Debug)]
 #[command(name = NAME)]
-#[command(version = VERSION)]
+#[command(version = PKG_VERSION)]
 #[command(long_version = LONG_VERSION)]
 #[command(help_template = HELP_TEMPLATE)]
 #[command(propagate_version = true)]
