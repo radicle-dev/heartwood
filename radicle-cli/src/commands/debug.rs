@@ -68,6 +68,11 @@ fn debug(profile: &Profile) -> anyhow::Result<()> {
     }));
 
     let debug = DebugInfo {
+        rad_exe: if let Ok(filename) = std::fs::read_link("/proc/self/exe") {
+            Some(filename)
+        } else {
+            None
+        },
         rad_version: VERSION,
         radicle_node_version: stdout_of("radicle-node", &["--version"])
             .unwrap_or("<unknown>".into()),
@@ -92,6 +97,7 @@ fn debug(profile: &Profile) -> anyhow::Result<()> {
 #[allow(dead_code)]
 #[serde(rename_all = "camelCase")]
 struct DebugInfo {
+    rad_exe: Option<PathBuf>,
     rad_version: &'static str,
     radicle_node_version: String,
     git_remote_rad_version: String,
