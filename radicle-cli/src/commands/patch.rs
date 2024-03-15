@@ -57,7 +57,7 @@ Usage
     rad patch list [--all|--merged|--open|--archived|--draft|--authored] [--author <did>]... [<option>...]
     rad patch show <patch-id> [<option>...]
     rad patch diff <patch-id> [<option>...]
-    rad patch archive <patch-id> [<option>...]
+    rad patch archive <patch-id> [--undo] [<option>...]
     rad patch update <patch-id> [<option>...]
     rad patch checkout <patch-id> [<option>...]
     rad patch review <patch-id> [--accept | --reject] [-m [<string>]] [-d | --delete] [<option>...]
@@ -108,6 +108,10 @@ Assign options
 
     -d, --delete <did>         Delete an assignee from the patch (may be specified multiple times).
                                Note: --add will take precedence over --delete
+
+Archive options
+
+        --undo                 Unarchive a patch
 
 Label options
 
@@ -204,6 +208,7 @@ pub enum Operation {
     },
     Archive {
         patch_id: Rev,
+        undo: bool,
     },
     Ready {
         patch_id: Rev,
@@ -344,6 +349,11 @@ impl Args for Options {
 
                 // Ready options.
                 Long("undo") if op == Some(OperationName::Ready) => {
+                    undo = true;
+                }
+
+                // Archive options.
+                Long("undo") if op == Some(OperationName::Archive) => {
                     undo = true;
                 }
 
@@ -591,6 +601,7 @@ impl Args for Options {
             },
             OperationName::Archive => Operation::Archive {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
+                undo,
             },
             OperationName::Checkout => Operation::Checkout {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
@@ -726,9 +737,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 &workdir,
             )?;
         }
-        Operation::Archive { ref patch_id } => {
+        Operation::Archive { ref patch_id, undo } => {
             let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
-            archive::run(&patch_id, &profile, &repository)?;
+            archive::run(&patch_id, undo, &profile, &repository)?;
         }
         Operation::Ready { ref patch_id, undo } => {
             let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;

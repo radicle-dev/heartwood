@@ -2242,11 +2242,25 @@ where
     }
 
     /// Archive a patch.
-    pub fn archive<G: Signer>(&mut self, signer: &G) -> Result<EntryId, Error> {
-        self.lifecycle(Lifecycle::Archived, signer)
+    pub fn archive<G: Signer>(&mut self, signer: &G) -> Result<bool, Error> {
+        self.lifecycle(Lifecycle::Archived, signer)?;
+
+        Ok(true)
     }
 
-    /// Mark a patch as ready to be reviewed. Returns `false` if the patch was not a draft.
+    /// Mark an archived patch as ready to be reviewed again.
+    /// Returns `false` if the patch was not archived.
+    pub fn unarchive<G: Signer>(&mut self, signer: &G) -> Result<bool, Error> {
+        if !self.is_archived() {
+            return Ok(false);
+        }
+        self.lifecycle(Lifecycle::Open, signer)?;
+
+        Ok(true)
+    }
+
+    /// Mark a patch as ready to be reviewed.
+    /// Returns `false` if the patch was not a draft.
     pub fn ready<G: Signer>(&mut self, signer: &G) -> Result<bool, Error> {
         if !self.is_draft() {
             return Ok(false);
@@ -2256,7 +2270,8 @@ where
         Ok(true)
     }
 
-    /// Mark an open patch as a draft. Returns `false` if the patch was not open and free of merges.
+    /// Mark an open patch as a draft.
+    /// Returns `false` if the patch was not open and free of merges.
     pub fn unready<G: Signer>(&mut self, signer: &G) -> Result<bool, Error> {
         if !matches!(self.state(), State::Open { conflicts } if conflicts.is_empty()) {
             return Ok(false);
