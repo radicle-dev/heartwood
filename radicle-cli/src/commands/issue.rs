@@ -352,7 +352,7 @@ pub fn get_assignee_did_hints(input: &str) -> Option<Vec<String>> {
                             })
                             .filter_map(|did| {
                                 let did = did.to_human();
-                                did.starts_with(input).then(|| String::from(did))
+                                did.starts_with(input).then_some(did)
                             })
                             .collect::<Vec<_>>()
                     })
@@ -406,70 +406,6 @@ pub fn get_did_hints<R: ReadRepository + radicle::cob::Store>(input: &str) -> Op
                 .ok()
         })
 }
-
-// pub fn get_assignee_did_hints(input: &str) -> Option<Vec<String>> {
-//     let profile = term::profile().ok()?;
-//     let (_, rid) = radicle::rad::cwd().ok()?;
-//     let repo = profile.storage.repository_mut(rid).ok()?;
-//     let issues = Issues::open(&repo).ok()?;
-
-//     let completions = issues
-//         .all()
-//         .ok()?
-//         .flat_map(|issue| {
-//             issue.map_or(vec![], |(_, issue)| {
-//                 issue.assignees().cloned().collect::<Vec<_>>()
-//             })
-//         })
-//         .filter_map(|did| {
-//             let did = did.to_human();
-//             did.starts_with(input).then(|| String::from(did))
-//         })
-//         .collect::<Vec<_>>();
-
-//     Some(completions)
-// }
-
-// pub fn get_issue_id_hints(input: &str) -> Option<Vec<String>> {
-//     let profile = term::profile().ok()?;
-
-//     let (_, rid) = radicle::rad::cwd().ok()?;
-//     let repo = profile.storage.repository_mut(rid).ok()?;
-//     let issues = Issues::open(&repo).ok()?;
-
-//     let completions = issues
-//         .all()
-//         .ok()?
-//         .filter_map(|issue| {
-//             if let Ok((id, _)) = issue {
-//                 let id = id.to_string();
-//                 if id.starts_with(input) {
-//                     return Some(String::from(id.split_at(8).0));
-//                 }
-//             }
-//             None
-//         })
-//         .collect::<Vec<_>>();
-
-//     Some(completions)
-// }
-
-// pub fn get_did_hints(input: &str) -> Option<Vec<String>> {
-//     let profile = term::profile().ok()?;
-//     let (_, rid) = radicle::rad::cwd().ok()?;
-//     let repo = profile.storage.repository_mut(rid).ok()?;
-
-//     let ids = repo
-//         .remote_ids()
-//         .ok()?
-//         .filter_map(|id| {
-//             let id = id.map(|id| Did::from(id).to_human()).ok()?;
-//             id.starts_with(input).then_some(id)
-//         })
-//         .collect::<Vec<_>>();
-
-//     Some(ids)
-// }
 
 pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
