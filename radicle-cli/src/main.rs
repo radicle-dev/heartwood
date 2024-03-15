@@ -270,11 +270,9 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             let args_ = CliArgs::parse();
             if let Some(command) = args_.command {
                 match command {
-                    Commands::Issue(args_) => rad_issue::run(
-                        args_,
-                        radicle::Profile::load()
-                            .map_err(|e| anyhow!(e))?,
-                    )?,
+                    Commands::Issue(args_) => {
+                        rad_issue::run(args_, radicle::Profile::load().map_err(|e| anyhow!(e))?)?
+                    }
                 }
             }
         }
@@ -396,7 +394,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
 }
 
 /// Output shell completions
-fn run_completer(cmd: clap::Command) -> () {
+fn run_completer(cmd: clap::Command) {
     let mut cmd = CompleteCommand::augment_subcommands(cmd);
     let matches = cmd.clone().get_matches();
 
