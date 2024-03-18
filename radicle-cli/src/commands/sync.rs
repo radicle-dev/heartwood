@@ -64,6 +64,7 @@ Options
         --seed      <nid>     Sync with the given node (may be specified multiple times)
     -r, --replicas  <count>   Sync with a specific number of seeds
     -v, --verbose             Verbose output
+        --debug               Print debug information afer sync
         --help                Print help
 "#,
 };
@@ -171,6 +172,7 @@ pub enum SyncDirection {
 #[derive(Default, Debug)]
 pub struct Options {
     pub rid: Option<RepoId>,
+    pub debug: bool,
     pub verbose: bool,
     pub timeout: time::Duration,
     pub sort_by: SortBy,
@@ -188,6 +190,7 @@ impl Args for Options {
         let mut fetch = false;
         let mut announce = false;
         let mut inventory = false;
+        let mut debug = false;
         let mut replicas = None;
         let mut seeds = BTreeSet::new();
         let mut sort_by = SortBy::default();
@@ -195,6 +198,9 @@ impl Args for Options {
 
         while let Some(arg) = parser.next()? {
             match arg {
+                Long("debug") => {
+                    debug = true;
+                }
                 Long("verbose") | Short('v') => {
                     verbose = true;
                 }
@@ -279,6 +285,7 @@ impl Args for Options {
         Ok((
             Options {
                 rid,
+                debug,
                 verbose,
                 timeout,
                 sort_by,
@@ -334,7 +341,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
             }
             if [SyncDirection::Announce, SyncDirection::Both].contains(&direction) {
-                announce_refs(rid, settings, options.timeout, &mut node, &profile)?;
+                announce_refs(
+                    rid,
+                    settings,
+                    options.timeout,
+                    options.debug,
+                    &mut node,
+                    &profile,
+                )?;
             }
         }
         Operation::Synchronize(SyncMode::Inventory) => {
@@ -417,6 +431,7 @@ fn announce_refs(
     rid: RepoId,
     settings: RepoSync,
     timeout: time::Duration,
+    debug: bool,
     node: &mut Node,
     profile: &Profile,
 ) -> anyhow::Result<()> {
@@ -469,18 +484,18 @@ fn announce_refs(
         return Ok(());
     }
 
-    let mut spinner = term::spinner(format!("Syncing with {} node(s)..", unsynced.len()));
+    let mut spinner = term::spinner(format!("Found {} seed(s)..", unsynced.len()));
     let result = node.announce(rid, unsynced, timeout, |event, replicas| match event {
         node::AnnounceEvent::Announced => ControlFlow::Continue(()),
-        node::AnnounceEvent::RefsSynced { remote } => {
-            spinner.message(format!("Synced with {remote}.."));
+        node::AnnounceEvent::RefsSynced { remote, time } => {
+            spinner.message(format!("Synced with {remote} in {time:?}.."));
 
             // We're done syncing when both of these conditions are met:
             //
             // 1. We've matched or exceeded our target replica count.
             // 2. We've synced with the seeds specified manually.
             if replicas.len() >= settings.replicas
-                && settings.seeds.iter().all(|s| replicas.contains(s))
+                && settings.seeds.iter().all(|s| replicas.contains_key(s))
             {
                 ControlFlow::Break(())
             } else {
@@ -494,6 +509,14 @@ fn announce_refs(
     } else {
         spinner.message(format!("Synced with {} node(s)", result.synced.len()));
         spinner.finish();
+        if debug {
+            for (seed, time) in &result.synced {
+                term::println(
+                    " ",
+                    term::format::dim(format!("Synced with {seed} in {time:?}")),
+                );
+            }
+        }
     }
     for seed in result.timeout {
         term::notice!("Seed {seed} timed out..");

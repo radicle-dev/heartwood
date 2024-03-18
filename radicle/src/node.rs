@@ -633,14 +633,17 @@ pub struct AnnounceResult {
     /// Nodes that timed out.
     pub timeout: Vec<NodeId>,
     /// Nodes that synced.
-    pub synced: Vec<NodeId>,
+    pub synced: Vec<(NodeId, time::Duration)>,
 }
 
 /// A sync event, emitted by [`Node::announce`].
 #[derive(Debug)]
 pub enum AnnounceEvent {
     /// Refs were synced with the given node.
-    RefsSynced { remote: NodeId },
+    RefsSynced {
+        remote: NodeId,
+        time: time::Duration,
+    },
     /// Refs were announced to all given nodes.
     Announced,
 }
@@ -914,14 +917,15 @@ impl Node {
         rid: RepoId,
         seeds: impl IntoIterator<Item = NodeId>,
         timeout: time::Duration,
-        mut callback: impl FnMut(AnnounceEvent, &HashSet<PublicKey>) -> ControlFlow<()>,
+        mut callback: impl FnMut(AnnounceEvent, &HashMap<PublicKey, time::Duration>) -> ControlFlow<()>,
     ) -> Result<AnnounceResult, Error> {
         let events = self.subscribe(timeout)?;
         let refs = self.announce_refs(rid)?;
 
         let mut unsynced = seeds.into_iter().collect::<BTreeSet<_>>();
-        let mut synced = HashSet::new();
+        let mut synced = HashMap::new();
         let mut timeout: Vec<NodeId> = Vec::new();
+        let started = time::Instant::now();
 
         callback(AnnounceEvent::Announced, &synced);
 
@@ -932,13 +936,22 @@ impl Node {
                     rid: rid_,
                     at,
                 }) if rid == rid_ && refs.at == at => {
+                    let elapsed = started.elapsed();
                     log::debug!(target: "radicle", "Received {e:?}");
 
                     unsynced.remove(&remote);
                     // We can receive synced events from nodes we didn't directly announce to,
                     // and it's possible to receive duplicates as well.
-                    if synced.insert(remote) {
-                        if callback(AnnounceEvent::RefsSynced { remote }, &synced).is_break() {
+                    if synced.insert(remote, elapsed).is_none() {
+                        if callback(
+                            AnnounceEvent::RefsSynced {
+                                remote,
+                                time: elapsed,
+                            },
+                            &synced,
+                        )
+                        .is_break()
+                        {
                             break;
                         }
                     }

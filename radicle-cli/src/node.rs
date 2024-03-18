@@ -36,8 +36,8 @@ fn announce_(rid: RepoId, node: &mut Node) -> Result<(), radicle::node::Error> {
         Duration::from_secs(9),
         |event, _| match event {
             node::AnnounceEvent::Announced => ControlFlow::Continue(()),
-            node::AnnounceEvent::RefsSynced { remote } => {
-                spinner.message(format!("Synced with {remote}.."));
+            node::AnnounceEvent::RefsSynced { remote, time } => {
+                spinner.message(format!("Synced with {remote} in {time:?}.."));
                 ControlFlow::Continue(())
             }
         },

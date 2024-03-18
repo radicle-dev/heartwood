@@ -706,9 +706,12 @@ fn sync(
         DEFAULT_SYNC_TIMEOUT,
         |event, _| match event {
             node::AnnounceEvent::Announced => ControlFlow::Continue(()),
-            node::AnnounceEvent::RefsSynced { remote } => {
+            node::AnnounceEvent::RefsSynced { remote, time } => {
                 replicated.insert(remote);
-                spinner.message(format!("Synced with {}..", cli::format::dim(remote)));
+                spinner.message(format!(
+                    "Synced with {} in {time:?}..",
+                    cli::format::dim(remote)
+                ));
                 ControlFlow::Continue(())
             }
         },
