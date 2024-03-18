@@ -109,3 +109,13 @@ $ rad sync rad:z39mP9rQAaGmERfUMPULfPUi473tY
 ✗ Error: no seeds found for rad:z39mP9rQAaGmERfUMPULfPUi473tY
 ✗ Error: nothing to announce, repository rad:z39mP9rQAaGmERfUMPULfPUi473tY is not available locally
 ```
+
+Also note that you cannot sync an unseeded repo:
+```
+$ rad unseed rad:z39mP9rQAaGmERfUMPULfPUi473tY
+[...]
+```
+``` (fail)
+$ rad sync rad:z39mP9rQAaGmERfUMPULfPUi473tY
+✗ Error: repository rad:z39mP9rQAaGmERfUMPULfPUi473tY is not seeded
+```

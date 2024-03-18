@@ -71,6 +71,7 @@ error: failed to push some refs to 'rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLr
 ```
 
 If you pass an unsupported push option, you get an error:
+
 ``` (stderr) (fail)
 $ git push -o alien rad HEAD:alice/2
 error: unknown push option "alien"

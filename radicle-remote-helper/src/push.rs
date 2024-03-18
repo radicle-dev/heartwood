@@ -90,6 +90,9 @@ pub enum Error {
     /// Patch edit message error.
     #[error(transparent)]
     PatchEdit(#[from] cli::patch::Error),
+    /// Policy config error.
+    #[error("node policy: {0}")]
+    Policy(#[from] node::policy::config::Error),
     /// Patch not found in store.
     #[error("patch `{0}` not found")]
     NotFound(patch::PatchId),
@@ -332,16 +335,20 @@ pub fn run(
         }
 
         if !opts.no_sync {
-            // Connect to local node and announce refs to the network.
-            // If our node is not running, we simply skip this step, as the
-            // refs will be announced eventually, when the node restarts.
-            let node = radicle::Node::new(profile.socket());
-            if node.is_running() {
-                // Nb. allow this to fail. The push to local storage was still successful.
-                sync(stored.id, ok.into_values().flatten(), node, profile).ok();
+            if profile.policies()?.is_seeding(&stored.id)? {
+                // Connect to local node and announce refs to the network.
+                // If our node is not running, we simply skip this step, as the
+                // refs will be announced eventually, when the node restarts.
+                let node = radicle::Node::new(profile.socket());
+                if node.is_running() {
+                    // Nb. allow this to fail. The push to local storage was still successful.
+                    sync(stored.id, ok.into_values().flatten(), node, profile).ok();
+                } else if hints {
+                    hint("offline push, your node is not running");
+                    hint("to sync with the network, run `rad node start`");
+                }
             } else if hints {
-                hint("offline push, your node is not running");
-                hint("to sync with the network, run `rad node start`");
+                hint("you are not seeding this repository; skipping sync");
             }
         }
     }
