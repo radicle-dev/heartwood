@@ -173,7 +173,7 @@ pub fn run(
     let signer = profile.signer()?;
     let mut line = String::new();
     let mut ok = HashMap::new();
-    let hints = profile.hints();
+    let hints = opts.hints || profile.hints();
 
     assert_eq!(signer.public_key(), &nid);
 
