@@ -11,6 +11,8 @@ use crate::node::{Address, Alias, NodeId};
 
 /// Target number of peers to maintain connections to.
 pub const TARGET_OUTBOUND_PEERS: usize = 8;
+/// Default number of workers to spawn.
+pub const DEFAULT_WORKERS: usize = 8;
 
 /// Configured public seeds.
 pub mod seeds {
@@ -246,6 +248,9 @@ pub struct Config {
     /// Configured service limits.
     #[serde(default)]
     pub limits: Limits,
+    /// Number of worker threads to spawn.
+    #[serde(default = "defaults::workers")]
+    pub workers: usize,
     /// Default seeding policy.
     #[serde(default)]
     pub policy: Policy,
@@ -272,13 +277,12 @@ impl Config {
             network: Network::default(),
             relay: true,
             limits: Limits::default(),
+            workers: DEFAULT_WORKERS,
             policy: Policy::default(),
             scope: Scope::default(),
         }
     }
-}
 
-impl Config {
     pub fn peer(&self, id: &NodeId) -> Option<&Address> {
         self.connect
             .iter()
@@ -292,5 +296,13 @@ impl Config {
 
     pub fn features(&self) -> node::Features {
         node::Features::SEED
+    }
+}
+
+/// Defaults as functions, for serde.
+mod defaults {
+    /// Worker count.
+    pub fn workers() -> usize {
+        super::DEFAULT_WORKERS
     }
 }

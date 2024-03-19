@@ -222,7 +222,7 @@ impl Runtime {
 
         let emitter: Emitter<Event> = Default::default();
         let mut service = service::Service::new(
-            config,
+            config.clone(),
             clock,
             db,
             storage.clone(),
@@ -261,7 +261,7 @@ impl Runtime {
             notifications,
             cobs_cache,
             worker::Config {
-                capacity: 8,
+                capacity: config.workers,
                 storage: storage.clone(),
                 fetch,
                 policy,

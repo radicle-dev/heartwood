@@ -49,6 +49,7 @@ $ rad config
         "outbound": 16
       }
     },
+    "workers": 8,
     "policy": "block",
     "scope": "all"
   }
