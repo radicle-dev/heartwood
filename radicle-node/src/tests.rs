@@ -8,6 +8,7 @@ use std::time;
 
 use crossbeam_channel as chan;
 use netservices::Direction as Link;
+use radicle::cob;
 use radicle::identity::Visibility;
 use radicle::node::address::Store;
 use radicle::node::routing::Store as _;
@@ -1570,10 +1571,11 @@ fn test_push_and_pull() {
         eve.address(),
         ConnectOptions::default(),
     ));
-
+    let mut cache = cob::cache::NoCache;
     // Alice creates a new project.
     let (proj_id, _, _) = rad::init(
         &repo,
+        &mut cache,
         "alice",
         "alice's repo",
         git::refname!("master"),

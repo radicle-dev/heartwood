@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::canonical::formatter::CanonicalFormatter;
+use crate::cob;
 use crate::cob::identity;
 use crate::crypto;
 use crate::crypto::{Signature, Unverified, Verified};
@@ -354,12 +355,18 @@ impl Doc<Verified> {
         Doc::from_json(blob.content())?.verified()
     }
 
-    pub fn init<G: crypto::Signer>(
+    pub fn init<G, C>(
         &self,
         repo: &storage::git::Repository,
+        cache: &mut C,
         signer: &G,
-    ) -> Result<git::Oid, RepositoryError> {
-        let cob = identity::Identity::initialize(self, repo, signer)?;
+    ) -> Result<git::Oid, RepositoryError>
+    where
+        C: cob::cache::Update<identity::Identity>,
+        G: crypto::Signer,
+    {
+        let mut store = identity::Identities::open(repo)?;
+        let cob = store.initialize(self, cache, signer)?;
         let id_ref = git::refs::storage::id(signer.public_key());
         let cob_ref = git::refs::storage::cob(
             signer.public_key(),
@@ -462,6 +469,7 @@ mod test {
         let (repo, _) = fixtures::repository(tempdir.path().join("working"));
         let (id, _, _) = rad::init(
             &repo,
+            &mut cob::cache::NoCache,
             "heartwood",
             "Radicle Heartwood Protocol & Stack",
             git::refname!("master"),
@@ -509,6 +517,7 @@ mod test {
         let delegate = MockSigner::from_seed([0xff; 32]);
         let (rid, doc, _) = rad::init(
             &working,
+            &mut cob::cache::NoCache,
             "heartwood",
             "Radicle Heartwood Protocol & Stack",
             git::refname!("master"),

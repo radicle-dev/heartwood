@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use radicle::{git, identity::Visibility, Profile};
+use radicle::{cob, git, identity::Visibility, Profile};
 
 fn main() -> anyhow::Result<()> {
     let cwd = Path::new(".").canonicalize()?;
@@ -8,8 +8,10 @@ fn main() -> anyhow::Result<()> {
     let repo = radicle::git::raw::Repository::open(cwd)?;
     let profile = Profile::load()?;
     let signer = profile.signer()?;
+    let mut cache = cob::cache::Store::open(profile.cobs().join(cob::cache::COBS_DB_FILE))?;
     let (id, _, _) = radicle::rad::init(
         &repo,
+        &mut cache,
         &name,
         "",
         git::refname!("master"),

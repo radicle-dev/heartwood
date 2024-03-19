@@ -23,7 +23,10 @@ const DB_WRITE_TIMEOUT: time::Duration = time::Duration::from_secs(6);
 
 /// Database migrations.
 /// The first migration is the creation of the initial tables.
-const MIGRATIONS: &[&str] = &[include_str!("cache/migrations/1.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("cache/migrations/1.sql"),
+    include_str!("cache/migrations/2.sql"),
+];
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -247,6 +250,7 @@ where
 ///
 /// The intention is for this to be used in tests that do not expect
 /// any cache reads.
+#[derive(Clone, Copy)]
 pub struct NoCache;
 
 impl<T> Update<T> for NoCache {

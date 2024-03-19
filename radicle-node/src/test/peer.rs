@@ -6,6 +6,7 @@ use std::str::FromStr;
 
 use log::*;
 
+use radicle::cob;
 use radicle::identity::Visibility;
 use radicle::node::address::Store as _;
 use radicle::node::Database;
@@ -136,8 +137,10 @@ impl<G: Signer> Peer<Storage, G> {
         radicle::storage::git::transport::local::register(self.storage().clone());
 
         let (repo, _) = fixtures::repository(self.tempdir.path().join(name));
+        let mut cache = cob::cache::NoCache;
         let (rid, _, _) = rad::init(
             &repo,
+            &mut cache,
             name,
             description,
             radicle::git::refname!("master"),

@@ -17,7 +17,7 @@ use radicle::identity::{RepoId, Visibility};
 use radicle::node::policy::Scope;
 use radicle::node::{Event, Handle, NodeId};
 use radicle::prelude::Doc;
-use radicle::{profile, Node};
+use radicle::{cob, profile, Node};
 
 use crate as cli;
 use crate::commands;
@@ -265,8 +265,13 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     let mut spinner = term::spinner("Initializing...");
     let mut push_cmd = String::from("git push");
 
+    // N.b. we cannot use `profile.identities_mut` here because the
+    // Repository has not been initialised.
+    let mut cache = cob::cache::Store::open(profile.cobs().join(cob::cache::COBS_DB_FILE))?;
+
     match radicle::rad::init(
         &repo,
+        &mut cache,
         &name,
         &description,
         branch.clone(),

@@ -11,6 +11,7 @@ use crypto::{Signer, Verified};
 use once_cell::sync::Lazy;
 use tempfile::TempDir;
 
+use crate::cob::{cache, identity};
 use crate::crypto::Unverified;
 use crate::git;
 use crate::identity::doc::DocError;
@@ -438,16 +439,21 @@ impl Repository {
     }
 
     /// Create the repository's identity branch.
-    pub fn init<G: Signer, S: WriteStorage>(
+    pub fn init<G, S, C>(
         doc: &Doc<Verified>,
         storage: &S,
+        cache: &mut C,
         signer: &G,
-    ) -> Result<(Self, git::Oid), RepositoryError> {
+    ) -> Result<(Self, git::Oid), RepositoryError>
+    where
+        G: Signer,
+        S: WriteStorage,
+        C: cache::Update<Identity>,
+    {
         let (doc_oid, _) = doc.encode()?;
         let id = RepoId::from(doc_oid);
         let repo = Self::create(paths::repository(storage, &id), id, storage.info())?;
-        let commit = doc.init(&repo, signer)?;
-
+        let commit = doc.init(&repo, cache, signer)?;
         Ok((repo, commit))
     }
 
@@ -800,7 +806,8 @@ impl ReadRepository for Repository {
 
             // We've got an identity that goes back to the correct root.
             if blob.id() == **self.id {
-                let identity = Identity::get(&root.into(), self)?;
+                let store = identity::Identities::open(self)?;
+                let identity = store.get(&root.into())?;
 
                 return Ok(identity.head());
             }

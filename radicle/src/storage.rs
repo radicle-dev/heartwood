@@ -14,7 +14,8 @@ use crypto::{PublicKey, Signer, Unverified, Verified};
 pub use git::{Validation, Validations};
 pub use radicle_git_ext::Oid;
 
-use crate::cob;
+use crate::cob::identity::Identities;
+use crate::cob::{self, identity};
 use crate::collections::RandomMap;
 use crate::git::ext as git_ext;
 use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefStr, RefString};
@@ -103,6 +104,8 @@ pub enum RepositoryError {
     Quorum(#[from] git::QuorumError),
     #[error(transparent)]
     Refs(#[from] refs::Error),
+    #[error(transparent)]
+    Identity(#[from] identity::Error),
 }
 
 /// Storage error.
@@ -467,7 +470,7 @@ pub trait ReadRepository: Sized + ValidateRepository {
     where
         Self: cob::Store,
     {
-        Identity::load(self)
+        Identities::open(self)?.load()
     }
 
     /// Compute the canonical `rad/id` of this repository.

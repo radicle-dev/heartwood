@@ -19,7 +19,7 @@ use radicle::git::{raw as git2, RefString};
 use radicle::identity::Visibility;
 use radicle::profile::Home;
 use radicle::storage::ReadStorage;
-use radicle::Storage;
+use radicle::{cob, Storage};
 use radicle::{node, profile};
 use radicle_crypto::test::signer::MockSigner;
 
@@ -129,8 +129,10 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     let visibility = Visibility::Private {
         allow: BTreeSet::default(),
     };
+    let mut cache = cob::cache::NoCache;
     let (rid, _, _) = radicle::rad::init(
         &repo,
+        &mut cache,
         &name,
         &description,
         branch,
@@ -221,8 +223,10 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     let description = "Rad repository for tests".to_string();
     let branch = RefString::try_from(DEFAULT_BRANCH).unwrap();
     let visibility = Visibility::default();
+    let mut cache = cob::cache::NoCache;
     let (rid, _, _) = radicle::rad::init(
         &repo,
+        &mut cache,
         &name,
         &description,
         branch,
