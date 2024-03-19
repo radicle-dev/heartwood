@@ -1,1 +1,3 @@
 radicle binary: initial-upload-closes-no-bugs
+radicle binary: no-manual-page
+radicle binary: unstripped-binary-or-object

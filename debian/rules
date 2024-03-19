@@ -1,5 +1,7 @@
 #!/usr/bin/make -f
 
+DEB_BUILD_OPTIONS=nostrip
+
 %:
 	dh $@
 
