@@ -103,15 +103,19 @@ fn execute() -> anyhow::Result<()> {
     log::info!(target: "node", "Node ID is {}", signer.public_key());
 
     let config = options.config.unwrap_or_else(|| home.config());
-    let config = profile::Config::load(&config)?.node;
+    let mut config = profile::Config::load(&config)?;
+
+    // Add the preferred seeds as persistent peers so that we reconnect to them automatically.
+    config.node.connect.extend(config.preferred_seeds);
+
     let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
     let listen: Vec<std::net::SocketAddr> = if !options.listen.is_empty() {
         options.listen.clone()
     } else {
-        config.listen.clone()
+        config.node.listen.clone()
     };
 
-    if let Err(e) = radicle::io::set_file_limit(config.limits.max_open_files as u64) {
+    if let Err(e) = radicle::io::set_file_limit(config.node.limits.max_open_files as u64) {
         log::warn!(target: "node", "Unable to set process open file limit: {e}");
     }
 
@@ -122,7 +126,7 @@ fn execute() -> anyhow::Result<()> {
         log::debug!(target: "node", "Removing existing control socket..");
         fs::remove_file(home.socket()).ok();
     }
-    Runtime::init(home, config, listen, proxy, signals, signer)?.run()?;
+    Runtime::init(home, config.node, listen, proxy, signals, signer)?.run()?;
 
     Ok(())
 }
