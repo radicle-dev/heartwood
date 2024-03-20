@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::time::Instant;
 
 use gix_protocol::handshake;
 use radicle::crypto::PublicKey;
@@ -226,22 +225,30 @@ impl FetchState {
         F: ProtocolStage,
     {
         let refs = match step.ls_refs() {
-            Some(refs) => handle
-                .transport
-                .ls_refs(refs.into(), handshake)?
-                .into_iter()
-                .filter_map(|r| step.ref_filter(r))
-                .collect::<Vec<_>>(),
+            Some(refs) => radicle::logger::try_benchmark("fetch", "Running ls-refs", || {
+                Ok::<_, error::Step>(
+                    handle
+                        .transport
+                        .ls_refs(refs.into(), handshake)?
+                        .into_iter()
+                        .filter_map(|r| step.ref_filter(r))
+                        .collect::<Vec<_>>(),
+                )
+            })?,
             None => vec![],
         };
         log::trace!(target: "fetch", "Received refs {:?}", refs);
         step.pre_validate(&refs)?;
 
-        let wants_haves = step.wants_haves(&handle.repo, &refs)?;
+        let wants_haves = radicle::logger::benchmark("fetch", "Running wants-haves", || {
+            step.wants_haves(&handle.repo, &refs)
+        })?;
         if !wants_haves.wants.is_empty() {
-            handle
-                .transport
-                .fetch(wants_haves, handle.interrupt.clone(), handshake)?;
+            radicle::logger::benchmark("fetch", "Running fetch", || {
+                handle
+                    .transport
+                    .fetch(wants_haves, handle.interrupt.clone(), handshake)
+            })?;
         } else {
             log::trace!(target: "fetch", "Nothing to fetch")
         };
@@ -400,19 +407,19 @@ impl FetchState {
     where
         S: transport::ConnectionStream,
     {
-        let start = Instant::now();
         // N.b. we always fetch the `rad/id` since our delegate set
         // might be further ahead than theirs, e.g. we are the
         // deciding vote on adding a delegate.
-        self.run_stage(
-            handle,
-            handshake,
-            &stage::CanonicalId {
-                remote,
-                limit: limit.special,
-            },
-        )?;
-        log::debug!(target: "fetch", "Fetched rad/id ({}ms)", start.elapsed().as_millis());
+        radicle::logger::benchmark("fetch", "Fetching rad/id", || {
+            self.run_stage(
+                handle,
+                handshake,
+                &stage::CanonicalId {
+                    remote,
+                    limit: limit.special,
+                },
+            )
+        })?;
 
         // N.b. The error case here should not happen. In the case of
         // a `clone` we have asked for refs/rad/id and ensured it was
@@ -434,20 +441,16 @@ impl FetchState {
 
         log::trace!(target: "fetch", "Identity delegates {delegates:?}");
 
-        let fetched = self.run_special_refs(
-            handle,
-            handshake,
-            delegates.clone(),
-            &limit,
-            remote,
-            refs_at,
-        )?;
-        log::debug!(
-            target: "fetch",
-            "Fetched data refs for {} remotes ({}ms)",
-            fetched.len(),
-            start.elapsed().as_millis()
-        );
+        let fetched = radicle::logger::benchmark("fetch", "Fetching data refs", || {
+            self.run_special_refs(
+                handle,
+                handshake,
+                delegates.clone(),
+                &limit,
+                remote,
+                refs_at,
+            )
+        })?;
 
         // N.b. signal to exit the upload-pack sequence
         // We're finished fetching on this side, and all that's left
@@ -560,23 +563,18 @@ impl FetchState {
                 }
             }
         }
-        log::debug!(
-            target: "fetch",
-            "Validated {} remotes ({}ms)",
-            remotes.len(),
-            start.elapsed().as_millis()
-        );
 
         // N.b. only apply to Git repository if no delegates have failed verification.
         if failures.is_empty() {
-            let applied = repository::update(
-                &handle.repo,
-                self.tips
-                    .clone()
-                    .into_values()
-                    .flat_map(|ups| ups.into_iter()),
-            )?;
-            log::debug!(target: "fetch", "Applied updates ({}ms)", start.elapsed().as_millis());
+            let applied = radicle::logger::benchmark("fetch", "Applying ref updates", || {
+                repository::update(
+                    &handle.repo,
+                    self.tips
+                        .clone()
+                        .into_values()
+                        .flat_map(|ups| ups.into_iter()),
+                )
+            })?;
             Ok(FetchResult::Success {
                 applied,
                 remotes,
@@ -585,10 +583,9 @@ impl FetchState {
         } else {
             log::debug!(
                 target: "fetch",
-                "Fetch failed: {} warning(s) and {} failure(s) ({}ms)",
+                "Fetch failed: {} warning(s) and {} failure(s)",
                 warnings.len(),
                 failures.len(),
-                start.elapsed().as_millis()
             );
             Ok(FetchResult::Failed { warnings, failures })
         }

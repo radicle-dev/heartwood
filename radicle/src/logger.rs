@@ -103,3 +103,29 @@ pub fn env_level() -> Option<Level> {
     let level = std::env::var("RUST_LOG").ok()?;
     level.parse().ok()
 }
+
+pub fn benchmark<F, T>(target: &str, msg: &str, callback: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    use std::time::Instant;
+
+    let now = Instant::now();
+    let res = callback();
+    let elapsed = now.elapsed().as_millis();
+    log::debug!(target: target, "{msg} took {elapsed}ms",);
+    res
+}
+
+pub fn try_benchmark<T, E, F>(target: &str, msg: &str, callback: F) -> Result<T, E>
+where
+    F: FnOnce() -> Result<T, E>,
+{
+    use std::time::Instant;
+
+    let now = Instant::now();
+    let res = callback();
+    let elapsed = now.elapsed().as_millis();
+    log::debug!(target: target, "{msg} took {elapsed}ms",);
+    res
+}
