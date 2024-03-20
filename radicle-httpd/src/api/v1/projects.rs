@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use axum::extract::{DefaultBodyLimit, State};
 use axum::handler::Handler;
 use axum::http::{header, HeaderValue};
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use axum_auth::AuthBearer;
@@ -43,7 +43,12 @@ pub fn router(ctx: Context) -> Router {
             get(
                 activity_handler.layer(SetResponseHeaderLayer::if_not_present(
                     header::CACHE_CONTROL,
-                    HeaderValue::from_static(CACHE_1_HOUR),
+                    |response: &Response| {
+                        response
+                            .status()
+                            .is_success()
+                            .then_some(HeaderValue::from_static(CACHE_1_HOUR))
+                    },
                 )),
             ),
         )
