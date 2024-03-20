@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::convert::Infallible;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -76,8 +76,10 @@ impl ReadStorage for MockStorage {
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
-        Ok(self.repos.keys().cloned().collect::<Vec<_>>())
+        Ok(self.repos.keys().cloned().collect::<BTreeSet<_>>())
     }
+
+    fn insert(&self, _rid: RepoId) {}
 
     fn refresh(&self) -> Result<(), Error> {
         Ok(())

@@ -22,6 +22,8 @@ pub struct FetchResult {
     pub updated: Vec<RefUpdate>,
     /// The set of remote namespaces that were updated.
     pub namespaces: HashSet<PublicKey>,
+    /// The fetch was a full clone.
+    pub clone: bool,
 }
 
 pub enum Handle {
@@ -69,12 +71,12 @@ impl Handle {
         remote: PublicKey,
         refs_at: Option<Vec<SignedRefsUpdate>>,
     ) -> Result<FetchResult, error::Fetch> {
-        let (result, notifs) = match self {
+        let (result, clone, notifs) = match self {
             Self::Clone { mut handle, tmp } => {
                 log::debug!(target: "worker", "{} cloning from {remote}", handle.local());
                 let result = radicle_fetch::clone(&mut handle, limit, remote)?;
                 mv(tmp, storage, &rid)?;
-                (result, None)
+                (result, true, None)
             }
             Self::Pull {
                 mut handle,
@@ -82,7 +84,7 @@ impl Handle {
             } => {
                 log::debug!(target: "worker", "{} pulling from {remote}", handle.local());
                 let result = radicle_fetch::pull(&mut handle, limit, remote, refs_at)?;
-                (result, Some(notifications))
+                (result, false, Some(notifications))
             }
         };
 
@@ -125,6 +127,7 @@ impl Handle {
                 Ok(FetchResult {
                     updated: applied.updated,
                     namespaces: remotes.into_iter().collect(),
+                    clone,
                 })
             }
         }

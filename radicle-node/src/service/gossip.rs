@@ -23,10 +23,12 @@ pub fn node(config: &Config, timestamp: Timestamp) -> NodeAnnouncement {
     }
 }
 
-pub fn inventory(timestamp: Timestamp, inventory: Vec<RepoId>) -> InventoryAnnouncement {
-    type Inventory = BoundedVec<RepoId, INVENTORY_LIMIT>;
-
-    if inventory.len() > Inventory::max() {
+pub fn inventory(
+    timestamp: Timestamp,
+    inventory: impl IntoIterator<Item = RepoId>,
+) -> InventoryAnnouncement {
+    let inventory = inventory.into_iter().collect::<Vec<_>>();
+    if inventory.len() > INVENTORY_LIMIT {
         error!(
             target: "service",
             "inventory announcement limit ({}) exceeded, other nodes will see only some of your projects",

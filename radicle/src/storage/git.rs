@@ -89,7 +89,7 @@ impl<'a> TryFrom<git2::Reference<'a>> for Ref {
 pub struct Storage {
     path: PathBuf,
     info: UserInfo,
-    inventory: Arc<Mutex<Vec<RepoId>>>,
+    inventory: Arc<Mutex<BTreeSet<RepoId>>>,
 }
 
 impl ReadStorage for Storage {
@@ -121,6 +121,18 @@ impl ReadStorage for Storage {
             Err(poisoned) => {
                 let inv = poisoned.into_inner();
                 Ok(inv.clone())
+            }
+        }
+    }
+
+    fn insert(&self, rid: RepoId) {
+        match self.inventory.lock() {
+            Ok(mut locked) => {
+                locked.insert(rid);
+            }
+            Err(poisoned) => {
+                let mut inv = poisoned.into_inner();
+                inv.insert(rid);
             }
         }
     }
@@ -189,7 +201,7 @@ impl Storage {
         let storage = Self {
             path,
             info,
-            inventory: Arc::new(Mutex::new(vec![])),
+            inventory: Arc::new(Mutex::new(BTreeSet::new())),
         };
         storage.refresh()?;
 

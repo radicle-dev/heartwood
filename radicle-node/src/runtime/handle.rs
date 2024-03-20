@@ -243,9 +243,9 @@ impl radicle::node::Handle for Handle {
             .map_err(Error::from)
     }
 
-    fn sync_inventory(&mut self) -> Result<bool, Error> {
+    fn update_inventory(&mut self, rid: RepoId) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::SyncInventory(sender))?;
+        self.command(service::Command::UpdateInventory(rid, sender))?;
         receiver.recv().map_err(Error::from)
     }
 

@@ -10,7 +10,7 @@ pub mod message;
 pub mod session;
 
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::{fmt, net, time};
@@ -31,7 +31,7 @@ use radicle::node::seed;
 use radicle::node::seed::Store as _;
 use radicle::node::{ConnectOptions, Penalty, Severity};
 use radicle::storage::refs::SignedRefsUpdate;
-use radicle::storage::RepositoryError;
+use radicle::storage::{Inventory, RepositoryError};
 
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
@@ -172,8 +172,8 @@ pub enum Command {
     AnnounceRefs(RepoId, chan::Sender<RefsAt>),
     /// Announce local repositories to peers.
     AnnounceInventory,
-    /// Announce local inventory to peers.
-    SyncInventory(chan::Sender<bool>),
+    /// Update local inventory.
+    UpdateInventory(RepoId, chan::Sender<bool>),
     /// Connect to node with the given address.
     Connect(NodeId, Address, ConnectOptions),
     /// Disconnect from node.
@@ -203,7 +203,7 @@ impl fmt::Debug for Command {
         match self {
             Self::AnnounceRefs(id, _) => write!(f, "AnnounceRefs({id})"),
             Self::AnnounceInventory => write!(f, "AnnounceInventory"),
-            Self::SyncInventory(_) => write!(f, "SyncInventory(..)"),
+            Self::UpdateInventory(rid, _) => write!(f, "UpdateInventory({rid})"),
             Self::Connect(id, addr, opts) => write!(f, "Connect({id}, {addr}, {opts:?})"),
             Self::Disconnect(id) => write!(f, "Disconnect({id})"),
             Self::Config(_) => write!(f, "Config"),
@@ -788,7 +788,8 @@ where
                     error!(target: "service", "Error announcing inventory: {err}");
                 }
             }
-            Command::SyncInventory(resp) => {
+            Command::UpdateInventory(rid, resp) => {
+                self.storage.insert(rid);
                 let synced = self
                     .sync_inventory()
                     .expect("Service::command: error syncing inventory");
@@ -938,6 +939,7 @@ where
             Ok(fetch::FetchResult {
                 updated,
                 namespaces,
+                clone,
             }) => {
                 debug!(target: "service", "Fetched {rid} from {remote} successfully");
 
@@ -953,6 +955,7 @@ where
                 FetchResult::Success {
                     updated,
                     namespaces,
+                    clone,
                 }
             }
             Err(err) => {
@@ -999,6 +1002,7 @@ where
                 FetchResult::Success {
                     updated,
                     namespaces,
+                    ..
                 } if !updated.is_empty() => {
                     if let Err(e) = self.announce_refs(rid, namespaces.iter().cloned()) {
                         error!(target: "service", "Failed to announce new refs: {e}");
@@ -1007,14 +1011,12 @@ where
                 _ => debug!(target: "service", "Nothing to announce, no refs were updated.."),
             }
         }
-        // TODO: Since this fetch could be either a full clone
-        // or simply a ref update, we need to either announce
-        // new inventory, or new refs. Right now, we announce
-        // both in some cases.
-        //
-        // Announce the newly fetched repository to the
-        // network, if necessary.
-        self.sync_and_announce();
+
+        // Announce our new inventory if this fetch was a clone.
+        if let FetchResult::Success { clone: true, .. } = result {
+            self.storage.insert(rid);
+            self.sync_and_announce();
+        }
 
         // We can now try to dequeue another fetch.
         self.dequeue_fetch();
@@ -1311,7 +1313,11 @@ where
                     inventory: message.inventory.to_vec(),
                     timestamp: message.timestamp,
                 });
-                match self.sync_routing(&message.inventory, *announcer, message.timestamp) {
+                match self.sync_routing(
+                    message.inventory.iter().cloned(),
+                    *announcer,
+                    message.timestamp,
+                ) {
                     Ok(synced) => {
                         if synced.is_empty() {
                             trace!(target: "service", "No routes updated by inventory announcement from {announcer}");
@@ -1723,7 +1729,7 @@ where
                 // Other than crashing the node completely, there's nothing we can do
                 // here besides returning an empty inventory and logging an error.
                 error!(target: "service", "Error getting local inventory for initial messages: {e}");
-                vec![]
+                Default::default()
             }
         };
 
@@ -1765,10 +1771,8 @@ where
 
     /// Update our routing table with our local node's inventory.
     fn sync_inventory(&mut self) -> Result<SyncedRouting, Error> {
-        self.storage.refresh()?; // Refresh storage inventory cache.
-
         let inventory = self.storage.inventory()?;
-        let result = self.sync_routing(&inventory, self.node_id(), self.time())?;
+        let result = self.sync_routing(inventory, self.node_id(), self.time())?;
 
         Ok(result)
     }
@@ -1778,14 +1782,18 @@ where
     /// given inventory.
     fn sync_routing(
         &mut self,
-        inventory: &[RepoId],
+        inventory: impl IntoIterator<Item = RepoId>,
         from: NodeId,
         timestamp: Timestamp,
     ) -> Result<SyncedRouting, Error> {
         let mut synced = SyncedRouting::default();
-        let included: HashSet<&RepoId> = HashSet::from_iter(inventory);
+        let included = inventory.into_iter().collect::<BTreeSet<_>>();
 
-        for (rid, result) in self.db.routing_mut().insert(inventory, from, timestamp)? {
+        for (rid, result) in self
+            .db
+            .routing_mut()
+            .insert(included.iter(), from, timestamp)?
+        {
             match result {
                 InsertResult::SeedAdded => {
                     info!(target: "service", "Routing table updated for {rid} with seed {from}");
@@ -2014,7 +2022,7 @@ where
     ////////////////////////////////////////////////////////////////////////////
 
     /// Announce our inventory to all connected peers.
-    fn announce_inventory(&mut self, inventory: Vec<RepoId>) -> Result<(), storage::Error> {
+    fn announce_inventory(&mut self, inventory: Inventory) -> Result<(), storage::Error> {
         let time = if self.clock > self.last_announce {
             self.clock.as_millis()
         } else if self.last_announce - self.clock < LocalDuration::from_secs(1) {

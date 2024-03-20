@@ -367,7 +367,7 @@ fn sync(
     let events = node.subscribe(time::Duration::from_secs(3))?;
     let sessions = node.sessions()?;
 
-    node.sync_inventory()?;
+    node.update_inventory(rid)?;
     spinner.message("Announcing..");
 
     if !sessions.iter().any(|s| s.is_connected()) {

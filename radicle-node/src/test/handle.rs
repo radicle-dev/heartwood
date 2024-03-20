@@ -61,6 +61,7 @@ impl radicle::node::Handle for Handle {
         Ok(FetchResult::Success {
             updated: vec![],
             namespaces: HashSet::new(),
+            clone: false,
         })
     }
 
@@ -100,7 +101,7 @@ impl radicle::node::Handle for Handle {
         Ok(())
     }
 
-    fn sync_inventory(&mut self) -> Result<bool, Self::Error> {
+    fn update_inventory(&mut self, _rid: RepoId) -> Result<bool, Self::Error> {
         unimplemented!()
     }
 

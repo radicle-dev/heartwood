@@ -531,7 +531,6 @@ pub fn announce_inventory(mut node: Node) -> anyhow::Result<()> {
     let peers = node.sessions()?.iter().filter(|s| s.is_connected()).count();
     let spinner = term::spinner(format!("Announcing inventory to {peers} peers.."));
 
-    node.sync_inventory()?;
     node.announce_inventory()?;
     spinner.finish();
 

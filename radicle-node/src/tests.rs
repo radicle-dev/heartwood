@@ -674,7 +674,12 @@ fn test_refs_announcement_relay() {
             },
         )
     };
-    let bob_inv = bob.storage().inventory().unwrap();
+    let bob_inv = bob
+        .storage()
+        .inventory()
+        .unwrap()
+        .into_iter()
+        .collect::<Vec<_>>();
 
     alice.seed(&bob_inv[0], policy::Scope::All).unwrap();
     alice.seed(&bob_inv[1], policy::Scope::All).unwrap();
@@ -740,13 +745,13 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
         )
     };
     let bob_inv = bob.storage().inventory().unwrap();
-    let rid = bob_inv[0];
+    let rid = bob_inv.first().unwrap();
 
     alice.seed(&rid, policy::Scope::Followed).unwrap();
     alice.connect_to(&bob);
 
     // Alice receives Bob's refs.
-    alice.receive(bob.id(), bob.refs_announcement(rid));
+    alice.receive(bob.id(), bob.refs_announcement(*rid));
 
     // Alice fetches Bob's refs as this is a new repo.
     assert_matches!(alice.outbox().next(), Some(Io::Fetch { .. }));
@@ -1426,6 +1431,7 @@ fn test_queued_fetch_from_ann_same_rid() {
                 oid,
             }],
             namespaces: [carol.id()].into_iter().collect(),
+            clone: false,
         }),
     );
     // Now the 1st fetch is done, but the 2nd and 3rd fetches are redundant.
@@ -1616,7 +1622,7 @@ fn test_push_and_pull() {
     // We now expect Eve to fetch Alice's project from Alice.
     // Then we expect Bob to fetch Alice's project from Eve.
     alice.elapse(LocalDuration::from_secs(1)); // Make sure our announcement is fresh.
-    alice.command(service::Command::SyncInventory(send));
+    alice.command(service::Command::UpdateInventory(proj_id, send));
 
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 

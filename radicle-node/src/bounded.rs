@@ -1,4 +1,4 @@
-use std::ops;
+use std::{collections::BTreeSet, ops};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -186,6 +186,22 @@ impl<T, const N: usize> TryFrom<Vec<T>> for BoundedVec<T, N> {
             });
         }
         Ok(BoundedVec { v: value })
+    }
+}
+
+impl<T, const N: usize> TryFrom<BTreeSet<T>> for BoundedVec<T, N> {
+    type Error = Error;
+
+    fn try_from(value: BTreeSet<T>) -> Result<Self, Self::Error> {
+        if value.len() > N {
+            return Err(Error::InvalidSize {
+                expected: N,
+                actual: value.len(),
+            });
+        }
+        Ok(BoundedVec {
+            v: value.into_iter().collect(),
+        })
     }
 }
 

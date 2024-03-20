@@ -655,6 +655,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                                         Namespaces::Followed(hs) => hs,
                                         Namespaces::All => HashSet::new(),
                                     },
+                                    clone: true,
                                 })),
                             ),
                         },

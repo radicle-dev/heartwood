@@ -168,7 +168,7 @@ where
             }
             CommandResult::ok().to_writer(writer).ok();
         }
-        Command::SyncInventory => match handle.sync_inventory() {
+        Command::UpdateInventory { rid } => match handle.update_inventory(rid) {
             Ok(result) => {
                 CommandResult::updated(result).to_writer(writer)?;
             }

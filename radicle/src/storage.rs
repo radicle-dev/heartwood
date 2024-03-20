@@ -1,7 +1,7 @@
 pub mod git;
 pub mod refs;
 
-use std::collections::{hash_map, HashSet};
+use std::collections::{hash_map, BTreeSet, HashSet};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::{fmt, io};
@@ -28,7 +28,7 @@ use self::git::UserInfo;
 use self::refs::SignedRefs;
 
 pub type BranchName = git::RefString;
-pub type Inventory = Vec<RepoId>;
+pub type Inventory = BTreeSet<RepoId>;
 
 /// Describes one or more namespaces.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
@@ -374,6 +374,8 @@ pub trait ReadStorage {
     /// Get the inventory of repositories hosted under this storage.
     /// This function should typically only return public repositories.
     fn inventory(&self) -> Result<Inventory, Error>;
+    /// Insert this repository into the inventory.
+    fn insert(&self, rid: RepoId);
     /// Refresh storage inventory.
     fn refresh(&self) -> Result<(), Error>;
     /// Open or create a read-only repository.
@@ -624,6 +626,10 @@ where
 
     fn path_of(&self, rid: &RepoId) -> PathBuf {
         self.deref().path_of(rid)
+    }
+
+    fn insert(&self, rid: RepoId) {
+        self.deref().insert(rid)
     }
 
     fn contains(&self, rid: &RepoId) -> Result<bool, RepositoryError> {

@@ -429,8 +429,8 @@ pub enum Command {
     #[serde(rename_all = "camelCase")]
     AnnounceInventory,
 
-    /// Sync local inventory with node.
-    SyncInventory,
+    /// Update node's inventory.
+    UpdateInventory { rid: RepoId },
 
     /// Get the current node condiguration.
     Config,
@@ -654,6 +654,7 @@ pub enum FetchResult {
     Success {
         updated: Vec<RefUpdate>,
         namespaces: HashSet<NodeId>,
+        clone: bool,
     },
     // TODO: Create enum for reason.
     Failed {
@@ -671,6 +672,7 @@ impl FetchResult {
             Self::Success {
                 updated,
                 namespaces,
+                ..
             } => Some((updated, namespaces)),
             _ => None,
         }
@@ -685,12 +687,13 @@ impl FetchResult {
     }
 }
 
-impl<S: ToString> From<Result<(Vec<RefUpdate>, HashSet<NodeId>), S>> for FetchResult {
-    fn from(value: Result<(Vec<RefUpdate>, HashSet<NodeId>), S>) -> Self {
+impl<S: ToString> From<Result<(Vec<RefUpdate>, HashSet<NodeId>, bool), S>> for FetchResult {
+    fn from(value: Result<(Vec<RefUpdate>, HashSet<NodeId>, bool), S>) -> Self {
         match value {
-            Ok((updated, namespaces)) => Self::Success {
+            Ok((updated, namespaces, clone)) => Self::Success {
                 updated,
                 namespaces,
+                clone,
             },
             Err(err) => Self::Failed {
                 reason: err.to_string(),
@@ -725,6 +728,7 @@ impl FetchResults {
             if let FetchResult::Success {
                 updated,
                 namespaces,
+                ..
             } = r
             {
                 Some((nid, updated.as_slice(), namespaces.clone()))
@@ -849,8 +853,8 @@ pub trait Handle: Clone + Sync + Send {
     fn announce_refs(&mut self, id: RepoId) -> Result<RefsAt, Self::Error>;
     /// Announce local inventory.
     fn announce_inventory(&mut self) -> Result<(), Self::Error>;
-    /// Notify the service that our inventory was updated.
-    fn sync_inventory(&mut self) -> Result<bool, Self::Error>;
+    /// Notify the service that our inventory was updated with the given repository.
+    fn update_inventory(&mut self, rid: RepoId) -> Result<bool, Self::Error>;
     /// Ask the service to shutdown.
     fn shutdown(self) -> Result<(), Self::Error>;
     /// Query the peer session state.
@@ -1107,8 +1111,8 @@ impl Handle for Node {
         Ok(())
     }
 
-    fn sync_inventory(&mut self) -> Result<bool, Error> {
-        let mut line = self.call::<Success>(Command::SyncInventory, DEFAULT_TIMEOUT)?;
+    fn update_inventory(&mut self, rid: RepoId) -> Result<bool, Error> {
+        let mut line = self.call::<Success>(Command::UpdateInventory { rid }, DEFAULT_TIMEOUT)?;
         let response = line.next().ok_or(Error::EmptyResponse {})??;
 
         Ok(response.updated)
