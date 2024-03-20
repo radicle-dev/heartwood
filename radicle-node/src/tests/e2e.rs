@@ -182,6 +182,9 @@ fn test_replication() {
 
     log::debug!(target: "test", "Fetch complete with {}", bob.id);
 
+    alice.storage.refresh().unwrap();
+    bob.storage.refresh().unwrap();
+
     let inventory = alice.storage.inventory().unwrap();
     let alice_repo = alice.storage.repository(acme).unwrap();
     let bob_repo = bob.storage.repository(acme).unwrap();

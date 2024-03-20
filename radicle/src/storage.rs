@@ -122,6 +122,8 @@ pub enum Error {
     Ext(#[from] git::ext::Error),
     #[error("invalid repository identifier {0:?}")]
     InvalidId(std::ffi::OsString),
+    #[error("inventory: {0}")]
+    Inventory(io::Error),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
 }
@@ -372,6 +374,8 @@ pub trait ReadStorage {
     /// Get the inventory of repositories hosted under this storage.
     /// This function should typically only return public repositories.
     fn inventory(&self) -> Result<Inventory, Error>;
+    /// Refresh storage inventory.
+    fn refresh(&self) -> Result<(), Error>;
     /// Open or create a read-only repository.
     fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error>;
     /// Get a repository's identity if it exists.
@@ -628,6 +632,10 @@ where
 
     fn inventory(&self) -> Result<Inventory, Error> {
         self.deref().inventory()
+    }
+
+    fn refresh(&self) -> Result<(), Error> {
+        self.deref().refresh()
     }
 
     fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError> {

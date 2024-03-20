@@ -109,6 +109,8 @@ pub enum Error {
     Repository(#[from] storage::RepositoryError),
     #[error(transparent)]
     CobsCache(#[from] cob::cache::Error),
+    #[error(transparent)]
+    Storage(#[from] storage::Error),
 }
 
 #[derive(Debug, Error)]

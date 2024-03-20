@@ -5,6 +5,7 @@ pub mod transport;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::{fs, io};
 
 use crypto::{Signer, Verified};
@@ -88,6 +89,7 @@ impl<'a> TryFrom<git2::Reference<'a>> for Ref {
 pub struct Storage {
     path: PathBuf,
     info: UserInfo,
+    inventory: Arc<Mutex<Vec<RepoId>>>,
 }
 
 impl ReadStorage for Storage {
@@ -114,13 +116,33 @@ impl ReadStorage for Storage {
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
-        let repos = self.repositories()?;
+        match self.inventory.lock() {
+            Ok(locked) => Ok(locked.clone()),
+            Err(poisoned) => {
+                let inv = poisoned.into_inner();
+                Ok(inv.clone())
+            }
+        }
+    }
 
-        Ok(repos
+    fn refresh(&self) -> Result<(), Error> {
+        let repos = self.repositories()?;
+        let rids = repos
             .into_iter()
             .filter(|r| r.doc.visibility.is_public())
             .map(|r| r.rid)
-            .collect())
+            .collect();
+
+        match self.inventory.lock() {
+            Ok(mut locked) => {
+                *locked = rids;
+            }
+            Err(poisoned) => {
+                let mut inv = poisoned.into_inner();
+                *inv = rids;
+            }
+        }
+        Ok(())
     }
 
     fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error> {
@@ -155,17 +177,23 @@ impl WriteStorage for Storage {
 }
 
 impl Storage {
-    // TODO: Return a better error when not found.
-    pub fn open<P: AsRef<Path>>(path: P, info: UserInfo) -> Result<Self, io::Error> {
+    /// Open a new storage instance and load its inventory.
+    pub fn open<P: AsRef<Path>>(path: P, info: UserInfo) -> Result<Self, Error> {
         let path = path.as_ref().to_path_buf();
 
         match fs::create_dir_all(&path) {
             Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(err) => return Err(err),
+            Err(err) => return Err(Error::Io(err)),
             Ok(()) => {}
         }
+        let storage = Self {
+            path,
+            info,
+            inventory: Arc::new(Mutex::new(vec![])),
+        };
+        storage.refresh()?;
 
-        Ok(Self { path, info })
+        Ok(storage)
     }
 
     /// Create a [`Repository`] in a temporary directory.
@@ -1248,11 +1276,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let signer = MockSigner::default();
         let storage = fixtures::storage(dir.path(), &signer).unwrap();
-        let inv = storage.inventory().unwrap();
+        let inv = storage.repositories().unwrap();
         let proj = inv.first().unwrap();
-        let mut refs = git::remote_refs(&git::Url::from(*proj)).unwrap();
+        let mut refs = git::remote_refs(&git::Url::from(proj.rid)).unwrap();
 
-        let project = storage.repository(*proj).unwrap();
+        let project = storage.repository(proj.rid).unwrap();
         let remotes = project.remotes().unwrap();
 
         // Strip the remote refs of sigrefs so we can compare them.

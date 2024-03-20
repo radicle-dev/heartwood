@@ -20,6 +20,7 @@ use radicle::node::address::Store as _;
 use radicle::node::notifications;
 use radicle::node::Handle as _;
 use radicle::profile::Home;
+use radicle::storage;
 use radicle::Storage;
 use radicle::{cob, git};
 
@@ -48,6 +49,9 @@ pub enum Error {
     /// A node database error.
     #[error("node database error: {0}")]
     Database(#[from] node::db::Error),
+    /// A storage error.
+    #[error("storage error: {0}")]
+    Storage(#[from] storage::Error),
     /// A policies database error.
     #[error("policies database error: {0}")]
     Policy(#[from] policy::Error),

@@ -1765,6 +1765,8 @@ where
 
     /// Update our routing table with our local node's inventory.
     fn sync_inventory(&mut self) -> Result<SyncedRouting, Error> {
+        self.storage.refresh()?; // Refresh storage inventory cache.
+
         let inventory = self.storage.inventory()?;
         let result = self.sync_routing(&inventory, self.node_id(), self.time())?;
 

@@ -79,6 +79,10 @@ impl ReadStorage for MockStorage {
         Ok(self.repos.keys().cloned().collect::<Vec<_>>())
     }
 
+    fn refresh(&self) -> Result<(), Error> {
+        Ok(())
+    }
+
     fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error> {
         self.repos
             .get(&rid)

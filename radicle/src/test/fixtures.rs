@@ -10,6 +10,7 @@ use crate::rad;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
 use crate::storage::refs::SignedRefs;
+use crate::storage::ReadStorage;
 
 /// The birth of the radicle project, January 1st, 2018.
 pub const RADICLE_EPOCH: i64 = 1514817556;
@@ -46,6 +47,7 @@ pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: &G) -> Result<Storage
             &storage,
         )?;
     }
+    storage.refresh()?;
 
     Ok(storage)
 }
@@ -68,6 +70,7 @@ pub fn project<P: AsRef<Path>, G: Signer>(
         signer,
         storage,
     )?;
+    storage.refresh()?;
 
     Ok((id, refs, working, head))
 }
