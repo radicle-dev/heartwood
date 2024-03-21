@@ -1,10 +1,8 @@
 #![allow(clippy::too_many_arguments)]
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io::IsTerminal;
-use std::ops::ControlFlow;
 use std::path::Path;
 use std::str::FromStr;
-use std::time;
 use std::{assert_eq, io};
 
 use thiserror::Error;
@@ -18,18 +16,15 @@ use radicle::explorer::ExplorerResource;
 use radicle::identity::Did;
 use radicle::node;
 use radicle::node::{Handle, NodeId};
-use radicle::prelude::RepoId;
 use radicle::storage;
 use radicle::storage::git::transport::local::Url;
 use radicle::storage::{ReadRepository, SignRepository as _, WriteRepository};
 use radicle::Profile;
 use radicle::{git, rad};
-use radicle_cli::terminal as cli;
+use radicle_cli as cli;
+use radicle_cli::terminal as term;
 
 use crate::{hint, read_line, Options};
-
-/// Default timeout for syncing to the network after a push.
-const DEFAULT_SYNC_TIMEOUT: time::Duration = time::Duration::from_secs(9);
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -89,7 +84,7 @@ pub enum Error {
     PatchCache(#[from] patch::cache::Error),
     /// Patch edit message error.
     #[error(transparent)]
-    PatchEdit(#[from] cli::patch::Error),
+    PatchEdit(#[from] term::patch::Error),
     /// Policy config error.
     #[error("node policy: {0}")]
     Policy(#[from] node::policy::config::Error),
@@ -329,8 +324,8 @@ pub fn run(
         if head.is_updated() {
             eprintln!(
                 "{} Canonical head updated to {}",
-                cli::format::positive("✓"),
-                cli::format::secondary(head.new),
+                term::format::positive("✓"),
+                term::format::secondary(head.new),
             );
         }
 
@@ -342,7 +337,7 @@ pub fn run(
                 let node = radicle::Node::new(profile.socket());
                 if node.is_running() {
                     // Nb. allow this to fail. The push to local storage was still successful.
-                    sync(stored.id, ok.into_values().flatten(), node, profile).ok();
+                    sync(stored, ok.into_values().flatten(), opts, node, profile).ok();
                 } else if hints {
                     hint("offline push, your node is not running");
                     hint("to sync with the network, run `rad node start`");
@@ -397,7 +392,7 @@ fn patch_open<G: Signer>(
         return Err(Error::EmptyPatch);
     }
     let (title, description) =
-        cli::patch::get_create_message(opts.message, &stored.backend, &base, &head)?;
+        term::patch::get_create_message(opts.message, &stored.backend, &base, &head)?;
 
     let patch = if opts.draft {
         patches.draft(
@@ -431,8 +426,8 @@ fn patch_open<G: Signer>(
 
             eprintln!(
                 "{} Patch {} {action}",
-                cli::format::positive("✓"),
-                cli::format::tertiary(patch),
+                term::format::positive("✓"),
+                term::format::tertiary(patch),
             );
 
             // Create long-lived patch head reference, now that we know the Patch ID.
@@ -509,7 +504,7 @@ fn patch_update<G: Signer>(
     if patch.revisions().any(|(_, r)| *r.head() == commit.id()) {
         return Ok(None);
     }
-    let message = cli::patch::get_update_message(
+    let message = term::patch::get_update_message(
         opts.message,
         &stored.backend,
         patch.latest().1,
@@ -527,9 +522,9 @@ fn patch_update<G: Signer>(
 
     eprintln!(
         "{} Patch {} updated to revision {}",
-        cli::format::positive("✓"),
-        cli::format::tertiary(cli::format::cob(&patch_id)),
-        cli::format::dim(revision)
+        term::format::positive("✓"),
+        term::format::tertiary(term::format::cob(&patch_id)),
+        term::format::dim(revision)
     );
 
     // In this case, the patch was already merged via git, and pushed to storage.
@@ -641,15 +636,15 @@ fn patch_merge<C: cob::cache::Update<patch::Patch>, G: Signer>(
     if revision == latest {
         eprintln!(
             "{} Patch {} merged",
-            cli::format::positive("✓"),
-            cli::format::tertiary(merged.patch)
+            term::format::positive("✓"),
+            term::format::tertiary(merged.patch)
         );
     } else {
         eprintln!(
             "{} Patch {} merged at revision {}",
-            cli::format::positive("✓"),
-            cli::format::tertiary(merged.patch),
-            cli::format::dim(cli::format::oid(revision)),
+            term::format::positive("✓"),
+            term::format::tertiary(merged.patch),
+            term::format::dim(term::format::oid(revision)),
         );
     }
 
@@ -681,57 +676,38 @@ fn push_ref(
 
 /// Sync with the network.
 fn sync(
-    rid: RepoId,
+    repo: &storage::git::Repository,
     updated: impl Iterator<Item = ExplorerResource>,
+    opts: Options,
     mut node: radicle::Node,
     profile: &Profile,
-) -> Result<(), radicle::node::Error> {
-    let seeds = node.seeds(rid)?;
-    let connected = seeds.connected().map(|s| s.nid).collect::<Vec<_>>();
-    let mut replicated = HashSet::new();
-
-    if connected.is_empty() {
-        eprintln!("Not connected to any seeds.");
-        return Ok(());
-    }
-    let message = format!("Syncing with {} node(s)..", connected.len());
-    let mut spinner = if io::stderr().is_terminal() {
-        cli::spinner_to(message, io::stderr(), io::stderr())
+) -> Result<(), cli::node::SyncError> {
+    let progress = if io::stderr().is_terminal() {
+        cli::node::SyncWriter::Stderr(io::stderr())
     } else {
-        cli::spinner_to(message, io::stderr(), io::sink())
+        cli::node::SyncWriter::Sink
     };
-    let result = node.announce(
-        rid,
-        connected,
-        DEFAULT_SYNC_TIMEOUT,
-        |event, _| match event {
-            node::AnnounceEvent::Announced => ControlFlow::Continue(()),
-            node::AnnounceEvent::RefsSynced { remote, time } => {
-                replicated.insert(remote);
-                spinner.message(format!(
-                    "Synced with {} in {time:?}..",
-                    cli::format::dim(remote)
-                ));
-                ControlFlow::Continue(())
-            }
+    let result = cli::node::announce(
+        repo,
+        cli::node::SyncSettings::default().with_profile(profile),
+        cli::node::SyncReporting {
+            progress,
+            completion: cli::node::SyncWriter::Stderr(io::stderr()),
+            debug: opts.sync_debug,
         },
+        &mut node,
+        profile,
     )?;
 
-    if result.synced.is_empty() {
-        spinner.failed();
-    } else {
-        spinner.message(format!("Synced with {} node(s)", result.synced.len()));
-        spinner.finish();
-    }
     let mut urls = Vec::new();
 
     for seed in profile.config.preferred_seeds.iter() {
-        if replicated.contains(&seed.id) {
+        if result.synced(&seed.id).is_some() {
             for resource in updated {
                 let url = profile
                     .config
                     .public_explorer
-                    .url(seed.addr.host.clone(), rid)
+                    .url(seed.addr.host.clone(), repo.id)
                     .resource(resource);
 
                 urls.push(url);
@@ -744,7 +720,7 @@ fn sync(
     if !urls.is_empty() {
         eprintln!();
         for url in urls {
-            eprintln!("  {}", cli::format::dim(url));
+            eprintln!("  {}", term::format::dim(url));
         }
         eprintln!();
     }

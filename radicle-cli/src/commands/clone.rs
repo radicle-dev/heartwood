@@ -23,6 +23,7 @@ use radicle::storage::RepositoryError;
 
 use crate::commands::rad_checkout as checkout;
 use crate::commands::rad_sync as sync;
+use crate::node::SyncSettings;
 use crate::project;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -62,7 +63,7 @@ pub struct Options {
     /// The seeding scope of the repository.
     scope: Scope,
     /// Sync settings.
-    sync: sync::RepoSync,
+    sync: SyncSettings,
     /// Fetch timeout.
     timeout: time::Duration,
 }
@@ -74,7 +75,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<RepoId> = None;
         let mut scope = Scope::All;
-        let mut sync = sync::RepoSync::default();
+        let mut sync = SyncSettings::default();
         let mut timeout = time::Duration::from_secs(9);
         let mut directory = None;
 
@@ -150,8 +151,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         options.id,
         options.directory.clone(),
         options.scope,
-        options.sync.with_profile(&profile),
-        options.timeout,
+        options.sync.with_profile(&profile).timeout(options.timeout),
         &mut node,
         &signer,
         &profile.storage,
@@ -236,8 +236,7 @@ pub fn clone<G: Signer>(
     id: RepoId,
     directory: Option<PathBuf>,
     scope: Scope,
-    settings: sync::RepoSync,
-    timeout: time::Duration,
+    settings: SyncSettings,
     node: &mut Node,
     signer: &G,
     storage: &Storage,
@@ -260,7 +259,7 @@ pub fn clone<G: Signer>(
         );
     }
 
-    let results = sync::fetch(id, settings, timeout, node)?;
+    let results = sync::fetch(id, settings, node)?;
     let Ok(repository) = storage.repository(id) else {
         // If we don't have the repository locally, even after attempting to fetch,
         // there's nothing we can do.

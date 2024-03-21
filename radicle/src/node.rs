@@ -637,12 +637,22 @@ impl From<Vec<Seed>> for Seeds {
 }
 
 /// Announcement result returned by [`Node::announce`].
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AnnounceResult {
     /// Nodes that timed out.
     pub timed_out: Vec<NodeId>,
     /// Nodes that synced.
     pub synced: Vec<(NodeId, time::Duration)>,
+}
+
+impl AnnounceResult {
+    /// Check if a node synced successfully.
+    pub fn synced(&self, nid: &NodeId) -> Option<time::Duration> {
+        self.synced
+            .iter()
+            .find(|(id, _)| id == nid)
+            .map(|(_, time)| *time)
+    }
 }
 
 /// A sync event, emitted by [`Node::announce`].

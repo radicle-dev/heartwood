@@ -1,5 +1,4 @@
 use std::ffi::OsString;
-use std::time;
 
 use anyhow::anyhow;
 
@@ -10,6 +9,7 @@ use radicle::{prelude::*, storage, Node};
 use radicle_term::Element as _;
 
 use crate::commands::rad_sync as sync;
+use crate::node::SyncSettings;
 use crate::terminal::args::{Args, Error, Help};
 use crate::{project, terminal as term};
 
@@ -117,8 +117,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             if fetch && node.is_running() {
                 sync::fetch(
                     rid,
-                    sync::RepoSync::default().with_profile(&profile),
-                    time::Duration::from_secs(6),
+                    SyncSettings::default().with_profile(&profile),
                     &mut node,
                 )?;
             }

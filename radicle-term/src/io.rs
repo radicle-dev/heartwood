@@ -43,6 +43,9 @@ pub static CONFIG: Lazy<RenderConfig> = Lazy::new(|| RenderConfig {
 
 #[macro_export]
 macro_rules! info {
+    ($writer:expr; $($arg:tt)*) => ({
+        writeln!($writer, $($arg)*).ok();
+    });
     ($($arg:tt)*) => ({
         println!("{}", format_args!($($arg)*));
     })
@@ -50,9 +53,14 @@ macro_rules! info {
 
 #[macro_export]
 macro_rules! success {
+    // Pattern when a writer is provided.
+    ($writer:expr; $($arg:tt)*) => ({
+        $crate::io::success_args($writer, format_args!($($arg)*));
+    });
+    // Pattern without writer.
     ($($arg:tt)*) => ({
-        $crate::io::success_args(format_args!($($arg)*));
-    })
+        $crate::io::success_args(&mut std::io::stdout(), format_args!($($arg)*));
+    });
 }
 
 #[macro_export]
@@ -64,8 +72,12 @@ macro_rules! tip {
 
 #[macro_export]
 macro_rules! notice {
+    // Pattern when a writer is provided.
+    ($writer:expr; $($arg:tt)*) => ({
+        $crate::io::notice_args($writer, format_args!($($arg)*));
+    });
     ($($arg:tt)*) => ({
-        $crate::io::notice_args(format_args!($($arg)*));
+        $crate::io::notice_args(&mut std::io::stdout(), format_args!($($arg)*));
     })
 }
 
@@ -74,8 +86,8 @@ pub use notice;
 pub use success;
 pub use tip;
 
-pub fn success_args(args: fmt::Arguments) {
-    println!("{} {args}", Paint::green("✓"));
+pub fn success_args<W: io::Write>(w: &mut W, args: fmt::Arguments) {
+    writeln!(w, "{} {args}", Paint::green("✓")).ok();
 }
 
 pub fn tip_args(args: fmt::Arguments) {
@@ -86,8 +98,8 @@ pub fn tip_args(args: fmt::Arguments) {
     );
 }
 
-pub fn notice_args(args: fmt::Arguments) {
-    println!("{} {args}", Paint::new("!").dim());
+pub fn notice_args<W: io::Write>(w: &mut W, args: fmt::Arguments) {
+    writeln!(w, "{} {args}", Paint::new("!").dim()).ok();
 }
 
 pub fn columns() -> Option<usize> {

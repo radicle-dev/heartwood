@@ -1,5 +1,4 @@
 use std::str::FromStr;
-use std::time;
 
 use radicle::git;
 use radicle::git::RefString;
@@ -10,6 +9,7 @@ use radicle_crypto::PublicKey;
 use crate::commands::rad_checkout as checkout;
 use crate::commands::rad_follow as follow;
 use crate::commands::rad_sync as sync;
+use crate::node::SyncSettings;
 use crate::project::SetupRemote;
 
 pub fn run(
@@ -31,8 +31,7 @@ pub fn run(
             follow::follow(*nid, alias, &mut node, profile)?;
             sync::fetch(
                 rid,
-                sync::RepoSync::default().with_profile(profile),
-                time::Duration::from_secs(9),
+                SyncSettings::default().with_profile(profile),
                 &mut node,
             )?;
         }

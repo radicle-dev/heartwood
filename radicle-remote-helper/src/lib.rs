@@ -77,6 +77,8 @@ pub struct Allow {
 pub struct Options {
     /// Don't sync after push.
     no_sync: bool,
+    /// Sync debugging.
+    sync_debug: bool,
     /// Enable hints.
     hints: bool,
     /// Open patch in draft mode.
@@ -210,6 +212,7 @@ fn push_option(args: &[&str], opts: &mut Options) -> Result<(), Error> {
     match args {
         ["hints"] => opts.hints = true,
         ["sync"] => opts.no_sync = false,
+        ["sync.debug"] => opts.sync_debug = true,
         ["no-sync"] => opts.no_sync = true,
         ["patch.draft"] => opts.draft = true,
         ["allow.rollback"] => opts.allow.rollback = true,

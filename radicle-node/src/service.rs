@@ -1054,7 +1054,7 @@ where
                         self.fetch_refs_at(rid, from, refs, FETCH_TIMEOUT, channel);
                         return;
                     } else {
-                        debug!(target: "service", "Skipping dequeued fetch for {rid}, all refs are already in local storage");
+                        trace!(target: "service", "Skipping dequeued fetch for {rid}, all refs are already in local storage");
                     }
                 }
                 Err(e) => {

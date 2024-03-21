@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
-use std::ops::ControlFlow;
 use std::str::FromStr;
 use std::time;
 
@@ -12,9 +11,11 @@ use radicle::node::AliasStore;
 use radicle::node::Seed;
 use radicle::node::{FetchResult, FetchResults, Handle as _, Node, SyncStatus};
 use radicle::prelude::{NodeId, Profile, RepoId};
-use radicle::storage::{ReadRepository, ReadStorage};
+use radicle::storage::ReadStorage;
 use radicle_term::Element;
 
+use crate::node::SyncReporting;
+use crate::node::SyncSettings;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::format::Author;
@@ -100,7 +101,7 @@ impl FromStr for SortBy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SyncMode {
     Repo {
-        settings: RepoSync,
+        settings: SyncSettings,
         direction: SyncDirection,
     },
     Inventory,
@@ -109,54 +110,8 @@ pub enum SyncMode {
 impl Default for SyncMode {
     fn default() -> Self {
         Self::Repo {
-            settings: RepoSync::default(),
+            settings: SyncSettings::default(),
             direction: SyncDirection::default(),
-        }
-    }
-}
-
-/// Repository sync settings.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RepoSync {
-    /// Sync with at least N replicas.
-    pub replicas: usize,
-    /// Sync with the given list of seeds.
-    pub seeds: BTreeSet<NodeId>,
-}
-
-impl RepoSync {
-    pub fn from_seeds(seeds: impl IntoIterator<Item = NodeId>) -> Self {
-        let seeds = BTreeSet::from_iter(seeds);
-        Self {
-            replicas: seeds.len(),
-            seeds,
-        }
-    }
-
-    /// Use profile to populate sync settings, by adding preferred seeds if no seeds are specified,
-    /// and removing the local node from the set.
-    pub fn with_profile(mut self, profile: &Profile) -> Self {
-        // If no seeds were specified, add up to `replica` seeds from the preferred seeds.
-        if self.seeds.is_empty() {
-            self.seeds = profile
-                .config
-                .preferred_seeds
-                .iter()
-                .map(|p| p.id)
-                .take(self.replicas)
-                .collect();
-        }
-        // Remove our local node from the seed set just in case it was added by mistake.
-        self.seeds.remove(profile.id());
-        self
-    }
-}
-
-impl Default for RepoSync {
-    fn default() -> Self {
-        Self {
-            replicas: 3,
-            seeds: BTreeSet::new(),
         }
     }
 }
@@ -174,7 +129,6 @@ pub struct Options {
     pub rid: Option<RepoId>,
     pub debug: bool,
     pub verbose: bool,
-    pub timeout: time::Duration,
     pub sort_by: SortBy,
     pub op: Operation,
 }
@@ -266,16 +220,12 @@ impl Args for Options {
                 (false, true) => SyncDirection::Announce,
             };
             let settings = if seeds.is_empty() {
-                RepoSync {
-                    replicas: replicas.unwrap_or(3),
-                    seeds,
-                }
+                SyncSettings::from_replicas(replicas.unwrap_or(3))
             } else {
-                RepoSync {
-                    replicas: replicas.unwrap_or(seeds.len()),
-                    seeds,
-                }
-            };
+                SyncSettings::from_seeds(seeds)
+            }
+            .timeout(timeout);
+
             SyncMode::Repo {
                 settings,
                 direction,
@@ -287,7 +237,6 @@ impl Args for Options {
                 rid,
                 debug,
                 verbose,
-                timeout,
                 sort_by,
                 op: op.unwrap_or(Operation::Synchronize(sync)),
             },
@@ -335,7 +284,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 if !profile.policies()?.is_seeding(&rid)? {
                     anyhow::bail!("repository {rid} is not seeded");
                 }
-                let results = fetch(rid, settings.clone(), options.timeout, &mut node)?;
+                let results = fetch(rid, settings.clone(), &mut node)?;
                 let success = results.success().count();
                 let failed = results.failed().count();
 
@@ -348,14 +297,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
             }
             if [SyncDirection::Announce, SyncDirection::Both].contains(&direction) {
-                announce_refs(
-                    rid,
-                    settings,
-                    options.timeout,
-                    options.debug,
-                    &mut node,
-                    &profile,
-                )?;
+                announce_refs(rid, settings, options.debug, &mut node, &profile)?;
             }
         }
         Operation::Synchronize(SyncMode::Inventory) => {
@@ -436,8 +378,7 @@ fn sync_status(
 
 fn announce_refs(
     rid: RepoId,
-    settings: RepoSync,
-    timeout: time::Duration,
+    settings: SyncSettings,
     debug: bool,
     node: &mut Node,
     profile: &Profile,
@@ -447,90 +388,18 @@ fn announce_refs(
             "nothing to announce, repository {rid} is not available locally"
         ));
     };
-    let doc = repo.identity_doc()?;
-    let unsynced: Vec<_> = if doc.visibility.is_public() {
-        // All seeds.
-        let all = node.seeds(rid)?;
-        // Seeds in sync with us.
-        let synced = all.iter().filter(|s| s.is_synced());
-        // Replicas not counting our local replica.
-        let replicas = all
-            .iter()
-            .filter(|s| s.is_synced() && &s.nid != profile.id())
-            .count();
-        // Maximum replication factor we can achieve.
-        let max_replicas = all.iter().filter(|s| &s.nid != profile.id()).count();
-        // If the seeds we specified in the sync settings are all synced.
-        let is_seeds_synced = {
-            let synced = synced.map(|s| s.nid).collect::<BTreeSet<_>>();
-            settings.seeds.iter().all(|s| synced.contains(s))
-        };
-        // If we met our desired replica count. Note that this can never exceed the maximum count.
-        let is_replicas_synced = replicas >= settings.replicas.min(max_replicas);
 
-        // Nothing to do if we've met our sync state.
-        if is_seeds_synced && is_replicas_synced {
-            term::success!("Nothing to announce, already in sync with {replicas} node(s) (see `rad sync status`)");
-            return Ok(());
-        }
-        // Return nodes we can announce to.
-        all.connected()
-            .filter(|s| !s.is_synced())
-            .map(|s| s.nid)
-            .collect()
-    } else {
-        node.sessions()?
-            .into_iter()
-            .filter(|s| s.state.is_connected() && doc.is_visible_to(&s.nid))
-            .map(|s| s.nid)
-            .collect()
-    };
+    crate::node::announce(
+        &repo,
+        settings,
+        SyncReporting {
+            debug,
+            ..SyncReporting::default()
+        },
+        node,
+        profile,
+    )?;
 
-    if unsynced.is_empty() {
-        term::info!("Not connected to any seeds for {rid}.");
-        return Ok(());
-    }
-
-    let mut spinner = term::spinner(format!("Found {} seed(s)..", unsynced.len()));
-    let result = node.announce(rid, unsynced, timeout, |event, replicas| match event {
-        node::AnnounceEvent::Announced => ControlFlow::Continue(()),
-        node::AnnounceEvent::RefsSynced { remote, time } => {
-            spinner.message(format!("Synced with {remote} in {time:?}.."));
-
-            // We're done syncing when both of these conditions are met:
-            //
-            // 1. We've matched or exceeded our target replica count.
-            // 2. We've synced with the seeds specified manually.
-            if replicas.len() >= settings.replicas
-                && settings.seeds.iter().all(|s| replicas.contains_key(s))
-            {
-                ControlFlow::Break(())
-            } else {
-                ControlFlow::Continue(())
-            }
-        }
-    })?;
-
-    if result.synced.is_empty() {
-        spinner.failed();
-    } else {
-        spinner.message(format!("Synced with {} node(s)", result.synced.len()));
-        spinner.finish();
-        if debug {
-            for (seed, time) in &result.synced {
-                term::println(
-                    " ",
-                    term::format::dim(format!("Synced with {seed} in {time:?}")),
-                );
-            }
-        }
-    }
-    for seed in result.timed_out {
-        term::notice!("Seed {seed} timed out..");
-    }
-    if result.synced.is_empty() {
-        anyhow::bail!("all seeds timed out");
-    }
     Ok(())
 }
 
@@ -546,8 +415,7 @@ pub fn announce_inventory(mut node: Node) -> anyhow::Result<()> {
 
 pub fn fetch(
     rid: RepoId,
-    settings: RepoSync,
-    timeout: time::Duration,
+    settings: SyncSettings,
     node: &mut Node,
 ) -> Result<FetchResults, node::Error> {
     let local = node.nid()?;
@@ -567,7 +435,7 @@ pub fn fetch(
             term::warning(format!("node {nid} is not connected.. skipping"));
             continue;
         }
-        let result = fetch_from(rid, nid, timeout, node)?;
+        let result = fetch_from(rid, nid, settings.timeout, node)?;
         results.push(*nid, result);
     }
     if results.success().count() >= replicas {
@@ -582,7 +450,7 @@ pub fn fetch(
         .take(replicas)
         .collect::<Vec<_>>();
     for nid in connected {
-        let result = fetch_from(rid, &nid, timeout, node)?;
+        let result = fetch_from(rid, &nid, settings.timeout, node)?;
         results.push(nid, result);
     }
 
@@ -598,10 +466,10 @@ pub fn fetch(
         if connect(
             seed.nid,
             seed.addrs.into_iter().map(|ka| ka.addr),
-            timeout,
+            settings.timeout,
             node,
         )? {
-            let result = fetch_from(rid, &seed.nid, timeout, node)?;
+            let result = fetch_from(rid, &seed.nid, settings.timeout, node)?;
             results.push(seed.nid, result);
         }
     }
