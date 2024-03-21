@@ -640,7 +640,7 @@ impl From<Vec<Seed>> for Seeds {
 #[derive(Debug)]
 pub struct AnnounceResult {
     /// Nodes that timed out.
-    pub timeout: Vec<NodeId>,
+    pub timed_out: Vec<NodeId>,
     /// Nodes that synced.
     pub synced: Vec<(NodeId, time::Duration)>,
 }
@@ -937,34 +937,34 @@ impl Node {
 
         let mut unsynced = seeds.into_iter().collect::<BTreeSet<_>>();
         let mut synced = HashMap::new();
-        let mut timeout: Vec<NodeId> = Vec::new();
+        let mut timed_out: Vec<NodeId> = Vec::new();
         let started = time::Instant::now();
 
         callback(AnnounceEvent::Announced, &synced);
 
         for e in events {
+            let elapsed = started.elapsed();
+            if elapsed >= timeout {
+                timed_out.extend(unsynced.iter());
+                break;
+            }
             match e {
                 Ok(Event::RefsSynced {
                     remote,
                     rid: rid_,
                     at,
                 }) if rid == rid_ && refs.at == at => {
-                    let elapsed = started.elapsed();
                     log::debug!(target: "radicle", "Received {e:?}");
 
                     unsynced.remove(&remote);
                     // We can receive synced events from nodes we didn't directly announce to,
                     // and it's possible to receive duplicates as well.
                     if synced.insert(remote, elapsed).is_none() {
-                        if callback(
-                            AnnounceEvent::RefsSynced {
-                                remote,
-                                time: elapsed,
-                            },
-                            &synced,
-                        )
-                        .is_break()
-                        {
+                        let event = AnnounceEvent::RefsSynced {
+                            remote,
+                            time: elapsed,
+                        };
+                        if callback(event, &synced).is_break() {
                             break;
                         }
                     }
@@ -972,7 +972,7 @@ impl Node {
                 Ok(_) => {}
 
                 Err(Error::TimedOut) => {
-                    timeout.extend(unsynced.iter());
+                    timed_out.extend(unsynced.iter());
                     break;
                 }
                 Err(e) => return Err(e),
@@ -981,8 +981,9 @@ impl Node {
                 break;
             }
         }
+
         Ok(AnnounceResult {
-            timeout,
+            timed_out,
             synced: synced.into_iter().collect(),
         })
     }

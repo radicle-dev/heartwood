@@ -525,7 +525,7 @@ fn announce_refs(
             }
         }
     }
-    for seed in result.timeout {
+    for seed in result.timed_out {
         term::notice!("Seed {seed} timed out..");
     }
     if result.synced.is_empty() {
