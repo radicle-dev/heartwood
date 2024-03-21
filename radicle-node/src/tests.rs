@@ -747,7 +747,7 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
     let bob_inv = bob.storage().inventory().unwrap();
     let rid = bob_inv.first().unwrap();
 
-    alice.seed(&rid, policy::Scope::Followed).unwrap();
+    alice.seed(rid, policy::Scope::Followed).unwrap();
     alice.connect_to(&bob);
 
     // Alice receives Bob's refs.
