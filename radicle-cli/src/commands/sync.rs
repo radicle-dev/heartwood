@@ -298,15 +298,6 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let rid = match options.rid {
-        Some(rid) => rid,
-        None => {
-            let (_, rid) =
-                radicle::rad::cwd().context("Current directory is not a Radicle repository")?;
-
-            rid
-        }
-    };
     let mut node = radicle::Node::new(profile.socket());
     if !node.is_running() {
         anyhow::bail!(
@@ -316,13 +307,29 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     match options.op {
         Operation::Status => {
+            let rid = match options.rid {
+                Some(rid) => rid,
+                None => {
+                    let (_, rid) = radicle::rad::cwd()
+                        .context("Current directory is not a Radicle repository")?;
+                    rid
+                }
+            };
             sync_status(rid, &mut node, &profile, &options)?;
         }
         Operation::Synchronize(SyncMode::Repo {
             settings,
             direction,
         }) => {
-            let settings = settings.with_profile(&profile);
+            let rid = match options.rid {
+                Some(rid) => rid,
+                None => {
+                    let (_, rid) = radicle::rad::cwd()
+                        .context("Current directory is not a Radicle repository")?;
+                    rid
+                }
+            };
+            let settings = settings.clone().with_profile(&profile);
 
             if [SyncDirection::Fetch, SyncDirection::Both].contains(&direction) {
                 if !profile.policies()?.is_seeding(&rid)? {
