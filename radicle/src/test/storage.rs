@@ -81,10 +81,6 @@ impl ReadStorage for MockStorage {
 
     fn insert(&self, _rid: RepoId) {}
 
-    fn refresh(&self) -> Result<(), Error> {
-        Ok(())
-    }
-
     fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error> {
         self.repos
             .get(&rid)

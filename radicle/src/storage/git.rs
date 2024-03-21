@@ -137,26 +137,6 @@ impl ReadStorage for Storage {
         }
     }
 
-    fn refresh(&self) -> Result<(), Error> {
-        let repos = self.repositories()?;
-        let rids = repos
-            .into_iter()
-            .filter(|r| r.doc.visibility.is_public())
-            .map(|r| r.rid)
-            .collect();
-
-        match self.inventory.lock() {
-            Ok(mut locked) => {
-                *locked = rids;
-            }
-            Err(poisoned) => {
-                let mut inv = poisoned.into_inner();
-                *inv = rids;
-            }
-        }
-        Ok(())
-    }
-
     fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error> {
         Repository::open(paths::repository(self, &rid), rid)
     }
@@ -321,6 +301,26 @@ impl Storage {
                 let oid = r.resolve()?.target().ok_or(Error::InvalidRef)?;
 
                 println!("{} {oid} {name}", rid.urn());
+            }
+        }
+        Ok(())
+    }
+
+    fn refresh(&self) -> Result<(), Error> {
+        let repos = self.repositories()?;
+        let rids = repos
+            .into_iter()
+            .filter(|r| r.doc.visibility.is_public())
+            .map(|r| r.rid)
+            .collect();
+
+        match self.inventory.lock() {
+            Ok(mut locked) => {
+                *locked = rids;
+            }
+            Err(poisoned) => {
+                let mut inv = poisoned.into_inner();
+                *inv = rids;
             }
         }
         Ok(())

@@ -73,6 +73,9 @@ pub fn init<G: Signer, S: WriteStorage>(
     let (project, _) = Repository::init(&doc, &storage, signer)?;
     let url = git::Url::from(project.id);
 
+    // Update inventory cache for this storage instance.
+    storage.insert(project.id);
+
     match init_configure(repo, &project, pk, &default_branch, &url, signer) {
         Ok(signed) => Ok((project.id, doc, signed)),
         Err(err) => {

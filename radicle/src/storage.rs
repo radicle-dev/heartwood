@@ -376,8 +376,6 @@ pub trait ReadStorage {
     fn inventory(&self) -> Result<Inventory, Error>;
     /// Insert this repository into the inventory.
     fn insert(&self, rid: RepoId);
-    /// Refresh storage inventory.
-    fn refresh(&self) -> Result<(), Error>;
     /// Open or create a read-only repository.
     fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error>;
     /// Get a repository's identity if it exists.
@@ -638,10 +636,6 @@ where
 
     fn inventory(&self) -> Result<Inventory, Error> {
         self.deref().inventory()
-    }
-
-    fn refresh(&self) -> Result<(), Error> {
-        self.deref().refresh()
     }
 
     fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError> {
