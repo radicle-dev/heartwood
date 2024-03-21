@@ -89,7 +89,8 @@ impl<'a> TryFrom<git2::Reference<'a>> for Ref {
 pub struct Storage {
     path: PathBuf,
     info: UserInfo,
-    inventory: Arc<Mutex<BTreeSet<RepoId>>>,
+    /// Inventory cache. Set to `None` until the cache is populated.
+    inventory: Arc<Mutex<Option<BTreeSet<RepoId>>>>,
 }
 
 impl ReadStorage for Storage {
@@ -116,24 +117,31 @@ impl ReadStorage for Storage {
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
-        match self.inventory.lock() {
-            Ok(locked) => Ok(locked.clone()),
-            Err(poisoned) => {
-                let inv = poisoned.into_inner();
-                Ok(inv.clone())
+        let mut cache = self
+            .inventory
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        match *cache {
+            Some(ref cache) => Ok(cache.clone()),
+            None => {
+                let repos: BTreeSet<_> = self.public_repositories()?.collect();
+                *cache = Some(repos.clone());
+                Ok(repos)
             }
         }
     }
 
     fn insert(&self, rid: RepoId) {
-        match self.inventory.lock() {
-            Ok(mut locked) => {
-                locked.insert(rid);
-            }
-            Err(poisoned) => {
-                let mut inv = poisoned.into_inner();
-                inv.insert(rid);
-            }
+        let mut repos = self
+            .inventory
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        // If the cache hasn't been populated yet, we don't do anything, since this repo
+        // will be loaded when the cache is populated.
+        if let Some(ref mut repos) = *repos {
+            repos.insert(rid);
         }
     }
 
@@ -178,14 +186,11 @@ impl Storage {
             Err(err) => return Err(Error::Io(err)),
             Ok(()) => {}
         }
-        let storage = Self {
+        Ok(Self {
             path,
             info,
-            inventory: Arc::new(Mutex::new(BTreeSet::new())),
-        };
-        storage.refresh()?;
-
-        Ok(storage)
+            inventory: Default::default(),
+        })
     }
 
     /// Create a [`Repository`] in a temporary directory.
@@ -306,24 +311,12 @@ impl Storage {
         Ok(())
     }
 
-    fn refresh(&self) -> Result<(), Error> {
+    fn public_repositories(&self) -> Result<impl Iterator<Item = RepoId>, Error> {
         let repos = self.repositories()?;
-        let rids = repos
+        Ok(repos
             .into_iter()
             .filter(|r| r.doc.visibility.is_public())
-            .map(|r| r.rid)
-            .collect();
-
-        match self.inventory.lock() {
-            Ok(mut locked) => {
-                *locked = rids;
-            }
-            Err(poisoned) => {
-                let mut inv = poisoned.into_inner();
-                *inv = rids;
-            }
-        }
-        Ok(())
+            .map(|r| r.rid))
     }
 }
 

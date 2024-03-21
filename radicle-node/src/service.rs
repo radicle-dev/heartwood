@@ -790,6 +790,7 @@ where
             }
             Command::UpdateInventory(rid, resp) => {
                 self.storage.insert(rid);
+
                 let synced = self
                     .sync_inventory()
                     .expect("Service::command: error syncing inventory");
