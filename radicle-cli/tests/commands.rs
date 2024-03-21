@@ -129,6 +129,11 @@ fn rad_auth() {
 }
 
 #[test]
+fn rad_auth_errors() {
+    test("examples/rad-auth-errors.md", Path::new("."), None, []).unwrap();
+}
+
+#[test]
 fn rad_issue() {
     let mut environment = Environment::new();
     let profile = environment.profile(config::profile("alice"));

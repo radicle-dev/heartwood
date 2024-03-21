@@ -206,6 +206,7 @@ impl PartialOrd for SyncStatus {
 
 /// Node alias.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(try_from = "String", into = "String")]
 pub struct Alias(String);
 
 impl Alias {
@@ -285,6 +286,14 @@ impl FromStr for Alias {
             return Err(AliasError::MaxBytesExceeded);
         }
         Ok(Self(s.to_owned()))
+    }
+}
+
+impl TryFrom<String> for Alias {
+    type Error = AliasError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Alias::from_str(&value)
     }
 }
 

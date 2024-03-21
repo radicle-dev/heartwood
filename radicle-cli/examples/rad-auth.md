@@ -25,6 +25,7 @@ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 You can also show your alias:
+
 ```
 $ rad self --alias
 alice
