@@ -59,7 +59,7 @@ impl Store for Database {
              VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT DO UPDATE
              SET head = ?3, timestamp = ?4
-             WHERE timestamp < ?4",
+             WHERE timestamp < ?4 AND head <> ?3",
         )?;
         stmt.bind((1, rid))?;
         stmt.bind((2, nid))?;
