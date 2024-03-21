@@ -1,6 +1,6 @@
 //! Implementation of the transport protocol.
 //!
-//! We use the Noise NN handshake pattern to establish an encrypted stream with a remote peer.
+//! We use the Noise XK handshake pattern to establish an encrypted stream with a remote peer.
 //! The handshake itself is implemented in the external [`cyphernet`] and [`netservices`] crates.
 use std::collections::hash_map::Entry;
 use std::collections::VecDeque;
@@ -47,7 +47,10 @@ pub const NOISE_XK: HandshakePattern = HandshakePattern {
 pub const DEFAULT_CHANNEL_TIMEOUT: time::Duration = time::Duration::from_secs(30);
 
 /// Default time to wait until a network connection is considered inactive.
-pub const DEFAULT_CONNECTION_TIMEOUT: time::Duration = time::Duration::from_secs(30);
+pub const DEFAULT_CONNECTION_TIMEOUT: time::Duration = time::Duration::from_secs(6);
+
+/// Default time to wait when dialing a connection, before the remote is considered unreachable.
+pub const DEFAULT_DIAL_TIMEOUT: time::Duration = time::Duration::from_secs(6);
 
 /// Control message used internally between workers, users, and the service.
 #[allow(clippy::large_enum_variant)]
@@ -819,11 +822,6 @@ where
                         NetTransport::<WireSession<G>>::with_session(session, Link::Outbound)
                     }) {
                         Ok(transport) => {
-                            log::debug!(
-                                target: "wire",
-                                "Registering transport for {node_id} (fd={})..",
-                                transport.as_raw_fd()
-                            );
                             self.outbound.insert(
                                 transport.as_raw_fd(),
                                 Outbound {
@@ -831,6 +829,11 @@ where
                                     nid: node_id,
                                     addr: addr.to_inner(),
                                 },
+                            );
+                            log::debug!(
+                                target: "wire",
+                                "Registering outbound transport for {node_id} (fd={})..",
+                                transport.as_raw_fd()
                             );
                             self.actions
                                 .push_back(reactor::Action::RegisterTransport(transport));
@@ -917,13 +920,18 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
     force_proxy: bool,
 ) -> io::Result<WireSession<G>> {
     let connection = if force_proxy {
-        net::TcpStream::connect_nonblocking(proxy_addr, DEFAULT_CONNECTION_TIMEOUT)?
+        // Nb. This timeout is currently not used by the underlying library due to the
+        // `socket2` library not supporting non-blocking connect with timeout.
+        net::TcpStream::connect_nonblocking(proxy_addr, DEFAULT_DIAL_TIMEOUT)?
     } else {
         net::TcpStream::connect_nonblocking(
             remote_addr.connection_addr(proxy_addr),
-            DEFAULT_CONNECTION_TIMEOUT,
+            DEFAULT_DIAL_TIMEOUT,
         )?
     };
+    connection.set_read_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
+    connection.set_write_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
+
     Ok(session::<G>(
         remote_addr,
         Some(remote_id),

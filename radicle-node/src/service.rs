@@ -2188,7 +2188,7 @@ where
             return;
         }
 
-        for (id, ka) in self
+        let available = self
             .available_peers()
             .into_iter()
             .filter_map(|peer| {
@@ -2208,7 +2208,16 @@ where
                     .map(|ka| (peer.nid, ka))
             })
             .take(wanted)
-        {
+            .collect::<Vec<_>>();
+
+        if available.len() < target {
+            log::warn!(
+                target: "service",
+                "Not enough available peers to connect to (available={}, target={target})",
+                available.len()
+            );
+        }
+        for (id, ka) in available {
             self.connect(id, ka.addr.clone());
         }
     }

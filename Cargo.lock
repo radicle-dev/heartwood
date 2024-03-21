@@ -1838,9 +1838,9 @@ dependencies = [
 
 [[package]]
 name = "netservices"
-version = "0.7.0"
+version = "0.8.0-beta.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcd7e1d8a6763072326ece5a4329c6a924d7e8889a301334169e46613c5ef7a4"
+checksum = "56bee0bcdc62d83ff53321dde78c51a1ec2d727da9342ffafa8ae5df892e5a7d"
 dependencies = [
  "amplify",
  "cyphernet",
