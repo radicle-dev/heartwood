@@ -254,9 +254,10 @@ fn announce_<R: ReadRepository>(
                 // We're done syncing when both of these conditions are met:
                 //
                 // 1. We've matched or exceeded our target replica count.
-                // 2. We've synced with the seeds specified manually.
+                // 2. We've synced with one of the seeds specified manually.
                 if replicas.len() >= settings.replicas
-                    && settings.seeds.iter().all(|s| replicas.contains_key(s))
+                    && (settings.seeds.is_empty()
+                        || settings.seeds.iter().any(|s| replicas.contains_key(s)))
                 {
                     ControlFlow::Break(())
                 } else {
