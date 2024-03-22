@@ -57,7 +57,7 @@ impl Outbox {
     }
 
     pub fn write(&mut self, remote: &Session, msg: Message) {
-        msg.log(log::Level::Trace, &remote.id, Link::Outbound);
+        msg.log(log::Level::Debug, &remote.id, Link::Outbound);
         trace!(target: "service", "Write {:?} to {}", &msg, remote);
 
         self.io.push_back(Io::Write(remote.id, vec![msg]));
@@ -81,7 +81,18 @@ impl Outbox {
                 if let Some(subscribe) = &peer.subscribe {
                     if subscribe.filter.contains(&refs.rid) {
                         self.write(peer, ann.clone().into());
+                    } else {
+                        debug!(
+                            target: "service",
+                            "Skipping refs announcement relay to {peer}: peer isn't subscribed to {}",
+                            refs.rid
+                        );
                     }
+                } else {
+                    debug!(
+                        target: "service",
+                        "Skipping refs announcement relay to {peer}: peer didn't send a subscription filter"
+                    );
                 }
             } else {
                 self.write(peer, ann.clone().into());

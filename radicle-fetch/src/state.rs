@@ -444,7 +444,7 @@ impl FetchState {
         )?;
         log::debug!(
             target: "fetch",
-            "Fetched data refs for {} remotes ({}ms)",
+            "Fetched data refs for {} remote(s) ({}ms)",
             fetched.len(),
             start.elapsed().as_millis()
         );
@@ -562,7 +562,7 @@ impl FetchState {
         }
         log::debug!(
             target: "fetch",
-            "Validated {} remotes ({}ms)",
+            "Validated {} remote(s) ({}ms)",
             remotes.len(),
             start.elapsed().as_millis()
         );

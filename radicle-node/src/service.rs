@@ -1863,6 +1863,8 @@ where
         let peers = self.sessions.connected().map(|(_, p)| p);
         let (ann, refs) = self.refs_announcement_for(rid, remotes)?;
 
+        debug!(target: "service", "Announcing refs for {rid} to peers..");
+
         // Update our local sync status. This is useful for determining if refs were updated while
         // the node was stopped.
         if let Some(refs) = refs.iter().find(|r| r.remote == ann.node) {
