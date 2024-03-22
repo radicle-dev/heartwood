@@ -1285,7 +1285,7 @@ where
             match self.db.addresses().get(announcer) {
                 Ok(node) => {
                     if node.is_none() {
-                        trace!(target: "service", "Ignoring announcement from unknown node {announcer}");
+                        debug!(target: "service", "Ignoring announcement from unknown node {announcer}");
                         return Ok(false);
                     }
                 }
@@ -1408,6 +1408,11 @@ where
                                     "Updating sync status of {announcer} for {} to {}",
                                     message.rid, refs.at
                                 );
+                                self.emitter.emit(Event::RefsSynced {
+                                    rid: message.rid,
+                                    remote: *announcer,
+                                    at: refs.at,
+                                });
                             }
                         }
                         Err(e) => {
@@ -1431,21 +1436,6 @@ where
                             return Ok(relay);
                         }
                     };
-                    // If the ref announcement indicates that the announcer already has
-                    // our *owned* refs, then we emit an event, which can be used to
-                    // show sync status to the user.
-                    if let Some(at) = stale
-                        .iter()
-                        .find(|refs| &refs.remote == self.nid())
-                        .copied()
-                        .map(|RefsAt { at, .. }| at)
-                    {
-                        self.emitter.emit(Event::RefsSynced {
-                            rid: message.rid,
-                            remote: *announcer,
-                            at,
-                        });
-                    }
 
                     // Refs can be relayed by peers who don't have the data in storage,
                     // therefore we only check whether we are connected to the *announcer*,
