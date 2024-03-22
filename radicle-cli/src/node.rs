@@ -186,7 +186,7 @@ fn announce_<R: ReadRepository>(
 ) -> Result<AnnounceResult, SyncError> {
     let rid = repo.id();
     let doc = repo.identity_doc()?;
-    let settings = settings.with_profile(profile);
+    let mut settings = settings.with_profile(profile);
     let unsynced: Vec<_> = if doc.visibility.is_public() {
         // All seeds.
         let all = node.seeds(rid)?;
@@ -217,8 +217,8 @@ fn announce_<R: ReadRepository>(
             );
             return Ok(AnnounceResult::default());
         }
-        // Return nodes we can announce to.
-        all.connected()
+        // Return nodes we can announce to. They don't have to be connected directly.
+        all.iter()
             .filter(|s| !s.is_synced() && &s.nid != profile.id())
             .map(|s| s.nid)
             .collect()
@@ -234,6 +234,10 @@ fn announce_<R: ReadRepository>(
         term::info!(&mut reporting.completion; "No seeds to announce to for {rid}. (see `rad sync status`)");
         return Ok(AnnounceResult::default());
     }
+    // Cap the replicas to the maximum achievable.
+    // Nb. It's impossible to know if a replica follows our node. This means that if we announce
+    // only our refs, and the replica doesn't follow us, it won't fetch from us.
+    settings.replicas = settings.replicas.min(unsynced.len());
 
     let mut spinner = term::spinner_to(
         format!("Found {} seed(s)..", unsynced.len()),

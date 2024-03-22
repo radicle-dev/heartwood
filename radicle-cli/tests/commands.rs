@@ -332,7 +332,7 @@ fn rad_id() {
 
     let events = alice.handle.events();
     bob.fork(acme, bob.home.path()).unwrap();
-    bob.announce(acme, bob.home.path()).unwrap();
+    bob.announce(acme, 2, bob.home.path()).unwrap();
     alice.has_inventory_of(&acme, &bob.id);
 
     // Alice must have Bob to try add them as a delegate
@@ -540,7 +540,7 @@ fn rad_id_conflict() {
     alice.connect(&bob).converge([&bob]);
 
     bob.fork(acme, working.join("bob")).unwrap();
-    bob.announce(acme, bob.home.path()).unwrap();
+    bob.announce(acme, 2, bob.home.path()).unwrap();
     alice.has_inventory_of(&acme, &bob.id);
 
     formula(&environment.tmp(), "examples/rad-id-conflict.md")
@@ -982,7 +982,7 @@ fn rad_clean() {
     eve.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
 
     bob.fork(acme, bob.home.path()).unwrap();
-    bob.announce(acme, bob.home.path()).unwrap();
+    bob.announce(acme, 1, bob.home.path()).unwrap();
     bob.has_inventory_of(&acme, &alice.id);
     alice.has_inventory_of(&acme, &bob.id);
     eve.has_inventory_of(&acme, &alice.id);
@@ -1116,7 +1116,7 @@ fn rad_clone_all() {
 
     // Fork and sync repo.
     bob.fork(acme, bob.home.path()).unwrap();
-    bob.announce(acme, bob.home.path()).unwrap();
+    bob.announce(acme, 2, bob.home.path()).unwrap();
     bob.has_inventory_of(&acme, &alice.id);
     alice.has_inventory_of(&acme, &bob.id);
 
@@ -1762,13 +1762,13 @@ fn rad_remote() {
     bob.connect(&alice);
     bob.routes_to(&[(rid, alice.id)]);
     bob.fork(rid, bob.home.path()).unwrap();
-    bob.announce(rid, bob.home.path()).unwrap();
+    bob.announce(rid, 2, bob.home.path()).unwrap();
     alice.has_inventory_of(&rid, &bob.id);
 
     eve.connect(&bob);
     eve.routes_to(&[(rid, alice.id)]);
     eve.fork(rid, eve.home.path()).unwrap();
-    eve.announce(rid, eve.home.path()).unwrap();
+    eve.announce(rid, 2, eve.home.path()).unwrap();
     alice.has_inventory_of(&rid, &eve.id);
 
     test(

@@ -308,14 +308,23 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
     pub fn fork<P: AsRef<Path>>(&self, rid: RepoId, cwd: P) -> io::Result<()> {
         self.clone(rid, &cwd)?;
         self.rad("fork", &[rid.to_string().as_str()], &cwd)?;
-        self.announce(rid, &cwd)?;
+        self.announce(rid, 1, &cwd)?;
 
         Ok(())
     }
 
     /// Announce a repo.
-    pub fn announce<P: AsRef<Path>>(&self, rid: RepoId, cwd: P) -> io::Result<()> {
-        self.rad("sync", &[rid.to_string().as_str(), "--announce"], cwd)
+    pub fn announce<P: AsRef<Path>>(&self, rid: RepoId, replicas: usize, cwd: P) -> io::Result<()> {
+        self.rad(
+            "sync",
+            &[
+                rid.to_string().as_str(),
+                "--announce",
+                "--replicas",
+                replicas.to_string().as_str(),
+            ],
+            cwd,
+        )
     }
 
     /// Init a repo.
