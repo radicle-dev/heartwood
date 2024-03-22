@@ -3,6 +3,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::{fs, io, path::Path, process, thread, time};
 
+use anyhow::anyhow;
 use localtime::LocalTime;
 
 use radicle::node;
@@ -61,7 +62,8 @@ pub fn start(
             .stdin(process::Stdio::null())
             .stdout(process::Stdio::from(log.try_clone()?))
             .stderr(process::Stdio::from(log))
-            .spawn()?;
+            .spawn()
+            .map_err(|e| anyhow!("failed to start node process {cmd:?}: {e}"))?;
         let pid = term::format::parens(term::format::dim(child.id()));
 
         if verbose {
@@ -98,7 +100,8 @@ pub fn start(
         let mut child = process::Command::new(cmd)
             .args(options)
             .envs(envs)
-            .spawn()?;
+            .spawn()
+            .map_err(|e| anyhow!("failed to start node process {cmd:?}: {e}"))?;
 
         child.wait()?;
     }
