@@ -186,6 +186,9 @@ The full list of options follows:
   Whether or not to sync with the network after the patch is opened. Defaults
   to _sync_.
 
+*sync.debug*::
+  Show debug information about the syncing process.
+
 *patch.draft*::
   Open the patch as a _draft_. Turned off by default.
 
