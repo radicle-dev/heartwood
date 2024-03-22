@@ -83,13 +83,25 @@ impl Editor {
             process::Stdio::from(tty)
         };
 
-        process::Command::new(cmd)
+        process::Command::new(&cmd)
             .stdout(unsafe { process::Stdio::from_raw_fd(stderr) })
             .stderr(process::Stdio::inherit())
             .stdin(stdin)
             .arg(&self.path)
-            .spawn()?
-            .wait()?;
+            .spawn()
+            .map_err(|e| {
+                io::Error::new(
+                    e.kind(),
+                    format!("failed to spawn editor command {cmd:?}: {e}"),
+                )
+            })?
+            .wait()
+            .map_err(|e| {
+                io::Error::new(
+                    e.kind(),
+                    format!("editor command {cmd:?} didn't spawn: {e}"),
+                )
+            })?;
 
         let text = fs::read_to_string(&self.path)?;
         if text.trim().is_empty() {
