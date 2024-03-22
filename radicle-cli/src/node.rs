@@ -190,20 +190,22 @@ fn announce_<R: ReadRepository>(
     let unsynced: Vec<_> = if doc.visibility.is_public() {
         // All seeds.
         let all = node.seeds(rid)?;
+        if all.is_empty() {
+            term::info!(&mut reporting.completion; "No seeds found for {rid}.");
+            return Ok(AnnounceResult::default());
+        }
         // Seeds in sync with us.
-        let synced = all.iter().filter(|s| s.is_synced());
-        // Replicas not counting our local replica.
-        let replicas = all
+        let synced = all
             .iter()
-            .filter(|s| s.is_synced() && &s.nid != profile.id())
-            .count();
+            .filter(|s| s.is_synced())
+            .map(|s| s.nid)
+            .collect::<BTreeSet<_>>();
+        // Replicas not counting our local replica.
+        let replicas = synced.iter().filter(|nid| *nid != profile.id()).count();
         // Maximum replication factor we can achieve.
         let max_replicas = all.iter().filter(|s| &s.nid != profile.id()).count();
         // If the seeds we specified in the sync settings are all synced.
-        let is_seeds_synced = {
-            let synced = synced.map(|s| s.nid).collect::<BTreeSet<_>>();
-            settings.seeds.iter().all(|s| synced.contains(s))
-        };
+        let is_seeds_synced = settings.seeds.iter().all(|s| synced.contains(s));
         // If we met our desired replica count. Note that this can never exceed the maximum count.
         let is_replicas_synced = replicas >= settings.replicas.min(max_replicas);
 
@@ -217,7 +219,7 @@ fn announce_<R: ReadRepository>(
         }
         // Return nodes we can announce to.
         all.connected()
-            .filter(|s| !s.is_synced())
+            .filter(|s| !s.is_synced() && &s.nid != profile.id())
             .map(|s| s.nid)
             .collect()
     } else {
@@ -229,7 +231,7 @@ fn announce_<R: ReadRepository>(
     };
 
     if unsynced.is_empty() {
-        term::info!(&mut reporting.completion; "Not connected to any seeds for {rid}.");
+        term::info!(&mut reporting.completion; "No seeds to announce to for {rid}. (see `rad sync status`)");
         return Ok(AnnounceResult::default());
     }
 
