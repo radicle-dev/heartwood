@@ -222,9 +222,10 @@ pub fn passphrase<V: validator::StringValidator + 'static>(
     validate: V,
 ) -> Result<Passphrase, inquire::InquireError> {
     Ok(Passphrase::from(
-        Password::new("Passphrase:")
+        Password::new("Passphrase (use Ctrl+R to reveal input):")
             .with_render_config(*CONFIG)
             .with_display_mode(inquire::PasswordDisplayMode::Masked)
+            .with_display_toggle_enabled()
             .without_confirmation()
             .with_validator(validate)
             .prompt()?,
