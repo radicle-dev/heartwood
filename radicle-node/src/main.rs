@@ -32,6 +32,7 @@ Options
     --config             <path>         Config file to use (default ~/.radicle/config.json)
     --force                             Force start even if an existing control socket is found
     --listen             <address>      Address to listen on
+    --log                <level>        Set log level (default: info)
     --version                           Print program version
     --help                              Print help
 "#;
@@ -40,6 +41,7 @@ Options
 struct Options {
     config: Option<PathBuf>,
     listen: Vec<net::SocketAddr>,
+    log: log::Level,
     force: bool,
 }
 
@@ -51,6 +53,7 @@ impl Options {
         let mut listen = Vec::new();
         let mut config = None;
         let mut force = false;
+        let mut log = log::Level::Info;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -65,6 +68,9 @@ impl Options {
                 Long("listen") => {
                     let addr = parser.value()?.parse()?;
                     listen.push(addr);
+                }
+                Long("log") => {
+                    log = parser.value()?.parse()?;
                 }
                 Long("help") | Short('h') => {
                     println!("{HELP_MSG}");
@@ -81,16 +87,17 @@ impl Options {
         Ok(Self {
             force,
             listen,
+            log,
             config,
         })
     }
 }
 
 fn execute() -> anyhow::Result<()> {
-    logger::init(log::Level::Debug)?;
-
     let home = profile::home()?;
     let options = Options::from_env()?;
+
+    logger::init(options.log)?;
 
     log::info!(target: "node", "Starting node..");
     log::info!(target: "node", "Version {} ({})", env!("CARGO_PKG_VERSION"), env!("GIT_HEAD"));

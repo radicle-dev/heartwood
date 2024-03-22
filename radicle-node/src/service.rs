@@ -942,10 +942,14 @@ where
                 namespaces,
                 clone,
             }) => {
-                debug!(target: "service", "Fetched {rid} from {remote} successfully");
+                info!(target: "service", "Fetched {rid} from {remote} successfully");
 
                 for update in &updated {
-                    debug!(target: "service", "Ref updated: {update} for {rid}");
+                    if update.old() != update.new() {
+                        debug!(target: "service", "Ref updated: {update} for {rid}");
+                    } else {
+                        trace!(target: "service", "Ref skipped: {update} for {rid}");
+                    }
                 }
                 self.emitter.emit(Event::RefsFetched {
                     remote,
@@ -1100,7 +1104,7 @@ where
     }
 
     pub fn listening(&mut self, local_addr: net::SocketAddr) {
-        log::info!(target: "node", "Listening on {local_addr}..");
+        info!(target: "node", "Listening on {local_addr}..");
 
         self.listening.push(local_addr);
     }
@@ -1147,7 +1151,7 @@ where
     pub fn disconnected(&mut self, remote: NodeId, reason: &DisconnectReason) {
         let since = self.local_time();
 
-        debug!(target: "service", "Disconnected from {} ({})", remote, reason);
+        info!(target: "service", "Disconnected from {} ({})", remote, reason);
         self.emitter.emit(Event::PeerDisconnected {
             nid: remote,
             reason: reason.to_string(),
@@ -1296,7 +1300,7 @@ where
         match self.db.gossip_mut().announced(announcer, announcement) {
             Ok(fresh) => {
                 if !fresh {
-                    trace!(target: "service", "Ignoring stale announcement from {announcer} (t={})", self.time());
+                    debug!(target: "service", "Ignoring stale announcement from {announcer} (t={})", self.time());
                     return Ok(false);
                 }
             }
@@ -1617,7 +1621,7 @@ where
             trace!(target: "service", "Rate limiting message from {remote} ({})", peer.addr);
             return Ok(());
         }
-        message.log(log::Level::Trace, remote, Link::Inbound);
+        message.log(log::Level::Debug, remote, Link::Inbound);
 
         trace!(target: "service", "Received message {:?} from {}", &message, peer.id);
 
