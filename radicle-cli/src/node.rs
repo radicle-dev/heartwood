@@ -27,7 +27,7 @@ pub struct SyncSettings {
 }
 
 impl SyncSettings {
-    /// Create a [`RepoSync`] from a list of seeds.
+    /// Create a [`SyncSettings`] from a list of seeds.
     pub fn from_seeds(seeds: impl IntoIterator<Item = NodeId>) -> Self {
         let seeds = BTreeSet::from_iter(seeds);
         Self {
@@ -37,7 +37,7 @@ impl SyncSettings {
         }
     }
 
-    /// Create a [`RepoSync`] from a replica count.
+    /// Create a [`SyncSettings`] from a replica count.
     pub fn from_replicas(replicas: usize) -> Self {
         Self {
             replicas,

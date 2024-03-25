@@ -783,6 +783,7 @@ fn test_refs_announcement_followed() {
     // Generate some refs for Bob under their own node_id.
     let sigrefs = bob.signed_refs_at(arbitrary::gen::<Refs>(8), arbitrary::oid());
     let node_id = bob.id;
+    bob.init();
     bob.storage_mut()
         .repo_mut(&rid)
         .remotes

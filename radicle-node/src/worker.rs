@@ -136,6 +136,8 @@ pub enum FetchResult {
         result: Result<fetch::FetchResult, FetchError>,
     },
     Responder {
+        /// Repo requested.
+        rid: Option<RepoId>,
         /// Upload result.
         result: Result<(), UploadError>,
     },
@@ -249,6 +251,7 @@ impl Worker {
                     Ok(header) => header,
                     Err(e) => {
                         return FetchResult::Responder {
+                            rid: None,
                             result: Err(e.into()),
                         }
                     }
@@ -256,7 +259,10 @@ impl Worker {
                 log::debug!(target: "worker", "Spawning upload-pack process for {} on stream {stream}..", header.repo);
 
                 if let Err(e) = self.is_authorized(remote, header.repo) {
-                    return FetchResult::Responder { result: Err(e) };
+                    return FetchResult::Responder {
+                        rid: Some(header.repo),
+                        result: Err(e),
+                    };
                 }
 
                 let result =
@@ -265,7 +271,10 @@ impl Worker {
                         .map_err(|e| e.into());
                 log::debug!(target: "worker", "Upload process on stream {stream} exited with result {result:?}");
 
-                FetchResult::Responder { result }
+                FetchResult::Responder {
+                    rid: Some(header.repo),
+                    result,
+                }
             }
         }
     }

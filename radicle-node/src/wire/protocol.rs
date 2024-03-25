@@ -381,8 +381,14 @@ where
             FetchResult::Initiator { rid, result } => {
                 self.service.fetched(rid, *nid, result);
             }
-            FetchResult::Responder { .. } => {
-                // We don't do anything with upload results for now.
+            FetchResult::Responder { rid, result } => {
+                if let Some(rid) = rid {
+                    if let Some(err) = result.err() {
+                        log::info!(target: "wire", "Peer {nid} failed to fetch {rid} from us: {err}");
+                    } else {
+                        log::info!(target: "wire", "Peer {nid} fetched {rid} from us successfully");
+                    }
+                }
             }
         }
 
