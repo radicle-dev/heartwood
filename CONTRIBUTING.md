@@ -6,6 +6,17 @@ simple guidelines.
 * Follow the coding guidelines when proposing code changes ([see below](#code-style)).
 * Write properly formatted git commits messages ([see below](#writing-git-commit-messages)).
 * Read the DCO and if you are contributing a significant amount of code, make sure your commits are signed off, using `git commit -s`.
+* Contribute code via a Radicle Patch, by following the [guide][].
+* If it's a feature addition or major change, check with the maintainers first
+  before submitting a patch. We wouldn't want you to waste your time!
+* If you need help or would like to discuss your changes, come to our community chat on [Zulip][zulip].
+
+[guide]: https://radicle.xyz/guides/user#working-with-patches
+[zulip]: https://radicle.zulipchat.com
+
+## Submitting patches
+
+Patch formatting follows the same rules as commit formatting. See below.
 
 ## Linting & formatting
 
