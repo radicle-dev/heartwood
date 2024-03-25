@@ -23,7 +23,7 @@ pub mod routing;
 pub const HELP: Help = Help {
     name: "node",
     description: "Control and query the Radicle Node",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

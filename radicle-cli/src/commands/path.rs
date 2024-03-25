@@ -11,7 +11,7 @@ use crate::terminal::args::{Args, Error, Help};
 pub const HELP: Help = Help {
     name: "path",
     description: "Display the Radicle home path",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

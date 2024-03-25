@@ -25,7 +25,7 @@ use crate::terminal::args::{Args, Error, Help};
 pub const HELP: Help = Help {
     name: "inbox",
     description: "Manage your Radicle notifications inbox",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

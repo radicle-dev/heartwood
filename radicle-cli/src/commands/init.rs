@@ -29,7 +29,7 @@ use crate::terminal::Interactive;
 pub const HELP: Help = Help {
     name: "init",
     description: "Initialize Radicle repositories",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

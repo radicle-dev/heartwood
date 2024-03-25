@@ -21,7 +21,7 @@ use crate::terminal::{Args, Context, Help};
 pub const HELP: Help = Help {
     name: "remote",
     description: "Manage a repository's remotes",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

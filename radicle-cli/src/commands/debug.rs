@@ -14,14 +14,14 @@ use crate::terminal as term;
 use crate::terminal::args::{Args, Help};
 
 pub const NAME: &str = "rad";
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = env!("RADICLE_VERSION");
 pub const DESCRIPTION: &str = "Radicle command line interface";
 pub const GIT_HEAD: &str = env!("GIT_HEAD");
 
 pub const HELP: Help = Help {
     name: "debug",
     description: "Write out information to help debug your Radicle node remotely",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

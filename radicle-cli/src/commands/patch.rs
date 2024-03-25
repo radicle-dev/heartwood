@@ -49,7 +49,7 @@ use crate::terminal::patch::Message;
 pub const HELP: Help = Help {
     name: "patch",
     description: "Manage patches",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

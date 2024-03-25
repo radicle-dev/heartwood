@@ -34,7 +34,7 @@ use crate::api::error::Error;
 use crate::cache::Cache;
 use crate::Options;
 
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = env!("RADICLE_VERSION");
 
 /// Identifier for sessions
 type SessionId = String;

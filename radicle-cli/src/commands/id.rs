@@ -24,7 +24,7 @@ use crate::terminal::Interactive;
 pub const HELP: Help = Help {
     name: "id",
     description: "Manage repository identities",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

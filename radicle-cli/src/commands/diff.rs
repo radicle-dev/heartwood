@@ -16,7 +16,7 @@ use crate::terminal::highlight::Highlighter;
 pub const HELP: Help = Help {
     name: "diff",
     description: "Show changes between commits",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

@@ -23,7 +23,7 @@ use crate::terminal::Element;
 pub const HELP: Help = Help {
     name: "inspect",
     description: "Inspect a Radicle repository",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

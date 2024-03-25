@@ -32,7 +32,7 @@ use crate::terminal::Element as _;
 pub const HELP: Help = Help {
     name: "clone",
     description: "Clone a Radicle repository",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

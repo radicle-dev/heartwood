@@ -12,7 +12,7 @@ use crate::terminal::args::{Args, Error, Help};
 pub const HELP: Help = Help {
     name: "follow",
     description: "Manage node follow policies",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

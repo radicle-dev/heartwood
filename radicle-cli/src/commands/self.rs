@@ -10,7 +10,7 @@ use crate::terminal::Element as _;
 pub const HELP: Help = Help {
     name: "self",
     description: "Show information about your identity and device",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

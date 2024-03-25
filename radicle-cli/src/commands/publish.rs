@@ -13,7 +13,7 @@ use crate::terminal::args::{Args, Error, Help};
 pub const HELP: Help = Help {
     name: "publish",
     description: "Publish a repository to the network",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

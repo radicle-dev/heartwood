@@ -15,7 +15,7 @@ use radicle_node::Runtime;
 pub const VERSION: Version = Version {
     name: env!("CARGO_PKG_NAME"),
     commit: env!("GIT_HEAD"),
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     timestamp: env!("GIT_COMMIT_TIME"),
 };
 
@@ -100,7 +100,7 @@ fn execute() -> anyhow::Result<()> {
     logger::init(options.log)?;
 
     log::info!(target: "node", "Starting node..");
-    log::info!(target: "node", "Version {} ({})", env!("CARGO_PKG_VERSION"), env!("GIT_HEAD"));
+    log::info!(target: "node", "Version {} ({})", env!("RADICLE_VERSION"), env!("GIT_HEAD"));
     log::info!(target: "node", "Unlocking node keystore..");
 
     let passphrase = profile::env::passphrase();

@@ -24,7 +24,7 @@ use crate::terminal::{Table, TableOptions};
 pub const HELP: Help = Help {
     name: "sync",
     description: "Sync repositories to the network",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

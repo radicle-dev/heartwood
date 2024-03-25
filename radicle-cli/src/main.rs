@@ -10,12 +10,13 @@ use radicle_cli::terminal as term;
 
 pub const NAME: &str = "rad";
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const RADICLE_VERSION: &str = env!("RADICLE_VERSION");
 pub const DESCRIPTION: &str = "Radicle command line interface";
 pub const GIT_HEAD: &str = env!("GIT_HEAD");
 pub const TIMESTAMP: &str = env!("GIT_COMMIT_TIME");
 pub const VERSION: Version = Version {
     name: NAME,
-    version: PKG_VERSION,
+    version: RADICLE_VERSION,
     commit: GIT_HEAD,
     timestamp: TIMESTAMP,
 };

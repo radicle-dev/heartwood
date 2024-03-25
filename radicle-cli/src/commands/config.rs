@@ -15,7 +15,7 @@ use crate::terminal::Element as _;
 pub const HELP: Help = Help {
     name: "config",
     description: "Manage your local Radicle configuration",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

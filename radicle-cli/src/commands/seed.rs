@@ -16,7 +16,7 @@ use crate::{project, terminal as term};
 pub const HELP: Help = Help {
     name: "seed",
     description: "Manage repository seeding policies",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

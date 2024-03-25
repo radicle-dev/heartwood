@@ -6,7 +6,7 @@ use radicle::version::Version;
 pub const VERSION: Version = Version {
     name: "git-remote-rad",
     commit: env!("GIT_HEAD"),
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     timestamp: env!("GIT_COMMIT_TIME"),
 };
 

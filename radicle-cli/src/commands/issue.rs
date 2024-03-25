@@ -32,7 +32,7 @@ use crate::terminal::Element;
 pub const HELP: Help = Help {
     name: "issue",
     description: "Manage issues",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

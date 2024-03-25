@@ -10,7 +10,7 @@ async fn main() -> anyhow::Result<()> {
 
     // SAFETY: The logger is only initialized once.
     httpd::logger::init().unwrap();
-    tracing::info!("version {}-{}", env!("CARGO_PKG_VERSION"), env!("GIT_HEAD"));
+    tracing::info!("version {}-{}", env!("RADICLE_VERSION"), env!("GIT_HEAD"));
 
     match httpd::run(options).await {
         Ok(()) => {}

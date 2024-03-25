@@ -10,7 +10,7 @@ use term::Element;
 pub const HELP: Help = Help {
     name: "ls",
     description: "List repositories",
-    version: env!("CARGO_PKG_VERSION"),
+    version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
 

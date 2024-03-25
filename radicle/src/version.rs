@@ -12,9 +12,6 @@ pub struct Version<'a> {
 
 impl<'a> Version<'a> {
     /// Write program version as string.
-    ///
-    /// The program version follows [semantic versioning](https://semver.org).
-    ///
     /// Adjust with caution, third party applications parse the string for version info.
     pub fn write(&self, mut w: impl std::io::Write) -> Result<(), io::Error> {
         let Version {
