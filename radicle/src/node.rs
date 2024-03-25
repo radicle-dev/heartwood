@@ -1090,7 +1090,7 @@ impl Handle for Node {
                     nid: from,
                     timeout,
                 },
-                DEFAULT_TIMEOUT,
+                DEFAULT_TIMEOUT.max(timeout),
             )?
             .next()
             .ok_or(Error::EmptyResponse)??;
