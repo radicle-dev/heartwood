@@ -32,6 +32,17 @@ pub mod seeds {
         .into()
     });
 
+    /// The radicle public `ash` seed node.
+    pub static RADICLE_ASH_NODE: Lazy<ConnectAddress> = Lazy::new(|| {
+        // SAFETY: `ConnectAddress` is known at compile time.
+        #[allow(clippy::unwrap_used)]
+        PeerAddr::from_str(
+            "z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo@ash.radicle.garden:8776",
+        )
+        .unwrap()
+        .into()
+    });
+
     /// The radicle team node.
     pub static RADICLE_TEAM_NODE: Lazy<ConnectAddress> = Lazy::new(|| {
         // SAFETY: `ConnectAddress` is known at compile time.
@@ -70,7 +81,10 @@ impl Network {
     /// Public seeds for this network.
     pub fn public_seeds(&self) -> Vec<ConnectAddress> {
         match self {
-            Self::Main => vec![seeds::RADICLE_COMMUNITY_NODE.clone()],
+            Self::Main => vec![
+                seeds::RADICLE_COMMUNITY_NODE.clone(),
+                seeds::RADICLE_ASH_NODE.clone(),
+            ],
             Self::Test => vec![],
         }
     }
