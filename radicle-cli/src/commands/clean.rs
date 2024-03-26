@@ -11,7 +11,7 @@ use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "clean",
-    description: "Clean a repository",
+    description: "Remove all remotes from a repository",
     version: env!("RADICLE_VERSION"),
     usage: r#"
 Usage
