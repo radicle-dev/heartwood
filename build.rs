@@ -1,8 +1,6 @@
 use std::env;
 use std::process::Command;
 
-// TODO: Update to `cargo::` syntax after rust 1.77.
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Set a build-time `GIT_HEAD` env var which includes the commit id;
     // such that we can tell which code is running.
@@ -88,10 +86,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .unwrap_or(0.to_string());
 
-    println!("cargo:rustc-env=RADICLE_VERSION={version}");
-    println!("cargo:rustc-env=GIT_COMMIT_TIME={commit_time}");
-    println!("cargo:rustc-env=GIT_HEAD={hash}");
-    println!("cargo:rustc-rerun-if-changed=.git/HEAD");
+    println!("cargo::rustc-env=RADICLE_VERSION={version}");
+    println!("cargo::rustc-env=GIT_COMMIT_TIME={commit_time}");
+    println!("cargo::rustc-env=GIT_HEAD={hash}");
 
     Ok(())
 }
