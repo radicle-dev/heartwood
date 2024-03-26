@@ -143,8 +143,8 @@ pub fn spinner_to(
 
                             write!(
                                 animation,
-                                "{}{spinner} {message}\r",
-                                termion::clear::AfterCursor,
+                                "\r{}{spinner} {message}",
+                                termion::clear::UntilNewline,
                             )
                             .ok();
 
@@ -155,7 +155,7 @@ pub fn spinner_to(
                             state: State::Done,
                             message,
                         } => {
-                            write!(animation, "{}", termion::clear::AfterCursor).ok();
+                            write!(animation, "\r{}", termion::clear::UntilNewline).ok();
                             writeln!(completion, "{} {message}", Paint::green("✓")).ok();
                             break;
                         }
@@ -163,7 +163,7 @@ pub fn spinner_to(
                             state: State::Canceled,
                             message,
                         } => {
-                            write!(animation, "{}", termion::clear::AfterCursor).ok();
+                            write!(animation, "\r{}", termion::clear::UntilNewline).ok();
                             writeln!(
                                 completion,
                                 "{ERROR_PREFIX} {message} {}",
@@ -176,6 +176,7 @@ pub fn spinner_to(
                             state: State::Warn,
                             message,
                         } => {
+                            write!(animation, "\r{}", termion::clear::UntilNewline).ok();
                             writeln!(completion, "{WARNING_PREFIX} {message}").ok();
                             break;
                         }
@@ -183,6 +184,7 @@ pub fn spinner_to(
                             state: State::Error,
                             message,
                         } => {
+                            write!(animation, "\r{}", termion::clear::UntilNewline).ok();
                             writeln!(completion, "{ERROR_PREFIX} {message}").ok();
                             break;
                         }
