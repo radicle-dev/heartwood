@@ -29,7 +29,7 @@ pub use crate::git::{
 };
 pub use crate::storage::Error;
 
-use super::{RemoteId, RemoteRepository, ValidateRepository};
+use super::{ReadOdb, RemoteId, RemoteRepository, ValidateRepository};
 
 pub static NAMESPACES_GLOB: Lazy<git::refspec::PatternString> =
     Lazy::new(|| git::refspec::pattern!("refs/namespaces/*"));
@@ -328,6 +328,13 @@ pub struct Repository {
     pub backend: git2::Repository,
 }
 
+/// Limited handle to a `git2::Odb`
+///
+/// See [`ReadOdb`].
+pub struct Odb<'a> {
+    pub(crate) backend: git2::Odb<'a>,
+}
+
 /// A set of [`Validation`] errors that a caller **must use**.
 #[must_use]
 #[derive(Debug, Default)]
@@ -565,6 +572,12 @@ impl Repository {
     }
 }
 
+impl<'a> ReadOdb for Odb<'a> {
+    fn contains(&self, oid: Oid) -> bool {
+        self.backend.exists(*oid)
+    }
+}
+
 impl RemoteRepository for Repository {
     fn remotes(&self) -> Result<Remotes<Verified>, refs::Error> {
         let mut remotes = Vec::new();
@@ -628,6 +641,12 @@ impl ValidateRepository for Repository {
 }
 
 impl ReadRepository for Repository {
+    type Odb<'a> = Odb<'a>;
+
+    fn odb(&self) -> Result<Self::Odb<'_>, git2::Error> {
+        self.backend.odb().map(|backend| Odb { backend })
+    }
+
     fn id(&self) -> RepoId {
         self.id
     }

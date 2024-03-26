@@ -163,7 +163,23 @@ impl ValidateRepository for MockRepository {
     }
 }
 
+impl ReadOdb for MockRepository {
+    fn contains(&self, oid: Oid) -> bool {
+        self.remotes
+            .values()
+            .any(|sigrefs| sigrefs.at == oid || sigrefs.refs.values().any(|oid_| *oid_ == oid))
+    }
+}
+
 impl ReadRepository for MockRepository {
+    type Odb<'a> = Self
+    where
+        Self: 'a;
+
+    fn odb(&self) -> Result<Self::Odb<'_>, git2::Error> {
+        Ok(self.clone())
+    }
+
     fn id(&self) -> RepoId {
         self.id
     }

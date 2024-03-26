@@ -2,7 +2,7 @@ use std::{fmt, io, mem};
 
 use radicle::git;
 use radicle::storage::refs::{RefsAt, SignedRefsUpdate};
-use radicle::storage::ReadRepository;
+use radicle::storage::{ReadOdb, ReadRepository};
 
 use crate::crypto;
 use crate::identity::RepoId;
@@ -205,21 +205,23 @@ impl RefsStatus {
             Ok(r) => r,
         };
 
+        let odb = repo.odb()?;
         let mut status = RefsStatus::default();
         for theirs in refs.iter() {
-            status.insert(*theirs, &repo)?;
+            status.insert(*theirs, &repo, &odb)?;
         }
         Ok(status)
     }
 
-    fn insert<S: ReadRepository>(
+    fn insert<S: ReadRepository, O: ReadOdb>(
         &mut self,
         theirs: RefsAt,
         repo: &S,
+        odb: &O,
     ) -> Result<(), storage::Error> {
         match RefsAt::new(repo, theirs.remote) {
             Ok(ours) => {
-                if Self::is_fresh(repo, theirs.at, ours.at)? {
+                if Self::is_fresh(repo, odb, theirs.at, ours.at)? {
                     self.fresh.push(SignedRefsUpdate {
                         remote: theirs.remote,
                         old: Some(ours.at),
@@ -247,12 +249,13 @@ impl RefsStatus {
     /// If `theirs` is not the same as `ours` and we have not seen
     /// `theirs` before, i.e. it's not a previous `rad/sigrefs`, then
     /// we can consider `theirs` a fresh update.
-    fn is_fresh<S: ReadRepository>(
+    fn is_fresh<S: ReadRepository, O: ReadOdb>(
         repo: &S,
+        odb: &O,
         theirs: git::Oid,
         ours: git::Oid,
     ) -> Result<bool, git::ext::Error> {
-        if repo.contains(theirs)? {
+        if odb.contains(theirs) {
             Ok(theirs != ours && !repo.is_ancestor_of(theirs, ours)?)
         } else {
             Ok(true)

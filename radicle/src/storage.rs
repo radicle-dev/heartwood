@@ -419,8 +419,20 @@ impl<T: ReadRepository> HasRepoId for T {
     }
 }
 
+pub trait ReadOdb: Sized {
+    /// Check if the underlying ODB contains the given `oid`.
+    fn contains(&self, oid: Oid) -> bool;
+}
+
 /// Allows read-only access to a repository.
 pub trait ReadRepository: Sized + ValidateRepository {
+    type Odb<'a>: ReadOdb
+    where
+        Self: 'a;
+
+    /// Provide a handle to the ODB
+    fn odb(&self) -> Result<Self::Odb<'_>, git2::Error>;
+
     /// Return the repository id.
     fn id(&self) -> RepoId;
 

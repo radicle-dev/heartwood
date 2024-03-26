@@ -250,6 +250,14 @@ impl<'a, R: storage::ValidateRepository> ValidateRepository for DraftStore<'a, R
 }
 
 impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
+    type Odb<'b> = R::Odb<'b>
+    where
+        Self: 'b;
+
+    fn odb(&self) -> Result<Self::Odb<'_>, raw::Error> {
+        self.repo.odb()
+    }
+
     fn id(&self) -> identity::RepoId {
         self.repo.id()
     }
