@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+      - name: Get tags
+        run: git fetch --tags origin
       - name: Configure build cache
         uses: actions/cache@v4
         with:
@@ -59,6 +61,8 @@ jobs:
           - x86_64-apple-darwin
     steps:
       - uses: actions/checkout@v4
+      - name: Get tags
+        run: git fetch --tags origin
       - name: Configure build cache
         uses: actions/cache@v4
         with:
