@@ -52,6 +52,7 @@ impl Editor {
         let mut file = fs::OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(&self.path)?;
 
         if file.metadata()?.len() == 0 {

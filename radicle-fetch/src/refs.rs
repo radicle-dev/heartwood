@@ -4,7 +4,6 @@ use radicle::crypto::PublicKey;
 use radicle::git::{self, Component, Namespaced, Oid, Qualified};
 use thiserror::Error;
 
-pub use radicle::git::refs::storage;
 pub use radicle::git::refs::storage::Special;
 
 use crate::git::refs::{Policy, Update};

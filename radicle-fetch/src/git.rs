@@ -17,6 +17,6 @@ pub(crate) mod oid {
 
     /// Convert from an [`Oid`] to an [`ObjectId`].
     pub fn to_object_id(oid: Oid) -> ObjectId {
-        ObjectId::try_from(oid.as_bytes()).expect("invalid git-ext Oid")
+        ObjectId::from(oid.as_bytes())
     }
 }

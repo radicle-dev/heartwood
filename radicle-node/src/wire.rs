@@ -280,8 +280,7 @@ impl Decode for PublicKey {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
         let buf: [u8; 32] = Decode::decode(reader)?;
 
-        PublicKey::try_from(buf)
-            .map_err(|e| Error::Io(io::Error::new(io::ErrorKind::InvalidInput, e.to_string())))
+        Ok(PublicKey::from(buf))
     }
 }
 

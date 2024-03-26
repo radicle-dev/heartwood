@@ -534,7 +534,7 @@ impl Patch {
 
     /// Get the merges.
     pub fn merges(&self) -> impl Iterator<Item = (&ActorId, &Merge)> {
-        self.merges.iter().map(|(a, m)| (a, m))
+        self.merges.iter()
     }
 
     /// Reference to the Git object containing the code on the latest revision.

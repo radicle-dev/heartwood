@@ -373,7 +373,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
 
         for line in io::BufReader::new(io::Cursor::new(&result.stdout))
             .lines()
-            .flatten()
+            .map_while(Result::ok)
         {
             log::debug!(target: "test", "rad {cmd}: {line}");
         }
