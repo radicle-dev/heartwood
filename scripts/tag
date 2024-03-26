@@ -1,0 +1,38 @@
+#!/bin/sh
+set -e
+
+if [ $# -ne 1 ]; then
+  echo "Usage: $0 <version-number>"
+  exit 1
+fi
+
+version="$1"
+tag="v$version"
+commit="$(git rev-parse HEAD)"
+signing_key=$(git config user.signingKey)
+
+git show "$commit"
+
+if [ "$signing_key" != "$(rad self --ssh-key)" ]; then
+  echo "The Git signing key does not match the output of 'rad self --ssh-key'."
+  exit 1
+fi
+
+printf "\n"
+printf "Tag the above commit with \033[35m$tag\033[0m, using \033[35m$(rad self --did)\033[0m? [y/N] "
+read confirmation
+rad auth
+
+case "$confirmation" in
+  [Yy]*)
+    if git tag --annotate --sign "$tag" -m "Release $version" "$commit"; then
+      echo "Tag $tag created and signed over $commit."
+    else
+      echo "Failed to create tag."
+      exit 1
+    fi ;;
+  *)
+    echo "Operation aborted."
+    exit 1 ;;
+esac
+
