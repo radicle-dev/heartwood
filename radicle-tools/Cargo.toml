@@ -1,7 +1,7 @@
 [package]
 name = "radicle-tools"
 license = "MIT OR Apache-2.0"
-version = "0.2.0"
+version = "0.9.0"
 authors = ["Alexis Sellier <alexis@radicle.xyz>"]
 edition = "2021"
 

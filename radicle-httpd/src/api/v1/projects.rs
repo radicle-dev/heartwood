@@ -403,7 +403,9 @@ async fn activity_handler(
 ) -> impl IntoResponse {
     let (repo, _) = ctx.repo(project)?;
     let current_date = chrono::Utc::now().timestamp();
-    let one_year_ago = chrono::Duration::weeks(52);
+    // SAFETY: The number of weeks is static and not out of bounds.
+    #[allow(clippy::unwrap_used)]
+    let one_year_ago = chrono::Duration::try_weeks(52).unwrap();
     let repo = Repository::open(repo.path())?;
     let head = repo.head()?;
     let timestamps = repo

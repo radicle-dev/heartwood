@@ -1,10 +1,12 @@
 [package]
 name = "radicle-remote-helper"
+description = "Radicle git remote helper"
+homepage = "https://radicle.xyz"
 license = "MIT OR Apache-2.0"
-version = "0.2.0"
-authors = ["Alexis Sellier <alexis@radicle.xyz>"]
+version = "0.9.0"
+authors = ["cloudhead <cloudhead@radicle.xyz>"]
 edition = "2021"
-build = "../build.rs"
+build = "build.rs"
 
 [dependencies]
 thiserror = { version = "1" }

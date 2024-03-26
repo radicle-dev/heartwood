@@ -5,7 +5,7 @@ homepage = "https://radicle.xyz"
 repository = "https://app.radicle.xyz/seeds/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
 license = "MIT OR Apache-2.0"
 authors = ["cloudhead <cloudhead@radicle.xyz>"]
-version = "0.2.0"
+version = "0.9.0"
 edition = "2021"
 
 [dependencies]

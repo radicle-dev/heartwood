@@ -505,14 +505,14 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.31"
+version = "0.4.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f2c685bad3eb3d45a01354cedb7d5faa66194d1d58ba6e267a8de788f79db38"
+checksum = "8eaf5903dcbc0a39312feb77df2ff4c76387d591b9fc7b04a238dcf8bb62639a"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
  "num-traits",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.0",
 ]
 
 [[package]]
@@ -1534,9 +1534,9 @@ dependencies = [
 
 [[package]]
 name = "iana-time-zone"
-version = "0.1.59"
+version = "0.1.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6a67363e2aa4443928ce15e57ebae94fd8949958fd1223c4cfc0cd473ad7539"
+checksum = "e7ffbb5a1b541ea2561f8c41c087286cc091e21e556a4f09a8f6cbf17b69b141"
 dependencies = [
  "android_system_properties",
  "core-foundation-sys",
@@ -2279,7 +2279,7 @@ dependencies = [
 
 [[package]]
 name = "radicle"
-version = "0.2.0"
+version = "0.9.0"
 dependencies = [
  "amplify",
  "base64 0.21.7",
@@ -2313,7 +2313,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cli"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2356,7 +2356,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cli-test"
-version = "0.1.1"
+version = "0.9.0"
 dependencies = [
  "escargot",
  "log",
@@ -2369,7 +2369,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cob"
-version = "0.2.0"
+version = "0.9.0"
 dependencies = [
  "fastrand",
  "git2",
@@ -2403,7 +2403,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-crypto"
-version = "0.2.0"
+version = "0.9.0"
 dependencies = [
  "amplify",
  "cyphernet",
@@ -2424,14 +2424,14 @@ dependencies = [
 
 [[package]]
 name = "radicle-dag"
-version = "0.2.0"
+version = "0.9.0"
 dependencies = [
  "fastrand",
 ]
 
 [[package]]
 name = "radicle-fetch"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
  "bstr",
  "either",
@@ -2465,7 +2465,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-httpd"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2502,7 +2502,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-node"
-version = "0.2.0"
+version = "0.9.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -2538,7 +2538,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-remote-helper"
-version = "0.2.0"
+version = "0.9.0"
 dependencies = [
  "log",
  "radicle",
@@ -2550,7 +2550,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-ssh"
-version = "0.2.0"
+version = "0.9.0"
 dependencies = [
  "byteorder",
  "log",
@@ -2586,7 +2586,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-term"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
  "anstyle-query",
  "anyhow",
@@ -2604,7 +2604,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-tools"
-version = "0.2.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "radicle",

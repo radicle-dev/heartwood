@@ -1,15 +1,11 @@
 [package]
 name = "radicle-cli-test"
+description = "Radicle CLI test library"
+homepage = "https://radicle.xyz"
 license = "MIT OR Apache-2.0"
-version = "0.1.1"
-authors = [
-  "Alexis Sellier <alexis@radicle.xyz>",
-  "xla <self@xla.is>"
-]
+version = "0.9.0"
+authors = ["cloudhead <cloudhead@radicle.xyz>"]
 edition = "2021"
-rust-version = "1.67"
-repository = "https://github.com/radicle-dev/heartwood"
-description = "Test your cli with markdown descriptions"
 categories = ["development-tools::testing"]
 keywords = ["cli", "test", "command"]
 readme = "README.md"
@@ -24,5 +20,5 @@ thiserror = { version = "1" }
 
 [dependencies.radicle]
 path = "../radicle"
-version = "0.2.0"
+version = "0.9.0"
 features = ["logger", "test"]
