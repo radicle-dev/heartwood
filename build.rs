@@ -68,7 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|last| format!("{}-dev", last.trim()))
     }
     // If there are no tags found, we'll just call this a pre-release.
-    .unwrap_or(String::from("1.0.0-rc.1"));
+    .unwrap_or(String::from("pre-release"));
 
     // Set a build-time `GIT_COMMIT_TIME` env var which includes the commit time.
     let commit_time = Command::new("git")
