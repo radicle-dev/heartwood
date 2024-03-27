@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::time;
 
 use log::*;
-use radicle::storage::refs::SignedRefsUpdate;
+use radicle::storage::refs::RefsAt;
 
 use crate::prelude::*;
 use crate::service::session::Session;
@@ -30,7 +30,7 @@ pub enum Io {
         /// Namespaces being fetched.
         namespaces: Namespaces,
         /// If the node is fetching specific `rad/sigrefs`.
-        refs_at: Option<Vec<SignedRefsUpdate>>,
+        refs_at: Option<Vec<RefsAt>>,
         /// Fetch timeout.
         timeout: time::Duration,
     },
@@ -126,7 +126,7 @@ impl Outbox {
         remote: &mut Session,
         rid: RepoId,
         namespaces: Namespaces,
-        refs_at: Vec<SignedRefsUpdate>,
+        refs_at: Vec<RefsAt>,
         timeout: time::Duration,
     ) {
         remote.fetching(rid);

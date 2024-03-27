@@ -7,7 +7,7 @@ use localtime::LocalTime;
 
 use radicle::crypto::PublicKey;
 use radicle::prelude::RepoId;
-use radicle::storage::refs::SignedRefsUpdate;
+use radicle::storage::refs::RefsAt;
 use radicle::storage::{
     ReadRepository, ReadStorage as _, RefUpdate, RemoteRepository, WriteRepository as _,
 };
@@ -62,14 +62,15 @@ impl Handle {
         }
     }
 
-    pub fn fetch(
+    pub fn fetch<D: node::refs::Store>(
         self,
         rid: RepoId,
         storage: &Storage,
         cache: &mut cob::cache::StoreWriter,
+        refsdb: &mut D,
         limit: FetchLimit,
         remote: PublicKey,
-        refs_at: Option<Vec<SignedRefsUpdate>>,
+        refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Fetch> {
         let (result, clone, notifs) = match self {
             Self::Clone { mut handle, tmp } => {
@@ -123,6 +124,7 @@ impl Handle {
                 }
 
                 cache_cobs(&rid, &applied.updated, &repo, cache)?;
+                cache_refs(&rid, &applied.updated, refsdb)?;
 
                 Ok(FetchResult {
                     updated: applied.updated,
@@ -198,6 +200,45 @@ fn notify(
                 target: "worker",
                 "Failed to update notification store for {rid}: {e}"
             );
+        }
+    }
+    Ok(())
+}
+
+/// Cache certain ref updates in our database.
+fn cache_refs<D>(repo: &RepoId, refs: &[RefUpdate], db: &mut D) -> Result<(), node::refs::Error>
+where
+    D: node::refs::Store,
+{
+    let time = LocalTime::now();
+
+    for r in refs {
+        let name = r.name();
+        let (namespace, qualified) = match radicle::git::parse_ref_namespaced(name) {
+            Err(e) => {
+                log::error!(target: "worker", "Git reference is invalid: {name:?}: {e}");
+                log::warn!(target: "worker", "Skipping refs caching for fetch of {repo}");
+                break;
+            }
+            Ok((n, q)) => (n, q),
+        };
+        if qualified != *git::refs::storage::SIGREFS_BRANCH {
+            // Only cache `rad/sigrefs`.
+            continue;
+        }
+        log::trace!(target: "node", "Updating cache for {name} in {repo}");
+
+        let result = match r {
+            RefUpdate::Updated { new, .. } => db.set(repo, &namespace, &qualified, *new, time),
+            RefUpdate::Created { oid, .. } => db.set(repo, &namespace, &qualified, *oid, time),
+            RefUpdate::Deleted { .. } => db.delete(repo, &namespace, &qualified),
+            RefUpdate::Skipped { .. } => continue,
+        };
+
+        if let Err(e) = result {
+            log::error!(target: "worker", "Error updating git refs cache for {name:?}: {e}");
+            log::warn!(target: "worker", "Skipping refs caching for fetch of {repo}");
+            break;
         }
     }
     Ok(())

@@ -10,6 +10,7 @@ use crossbeam_channel as chan;
 use netservices::Direction as Link;
 use radicle::identity::Visibility;
 use radicle::node::address::Store;
+use radicle::node::refs::Store as _;
 use radicle::node::routing::Store as _;
 use radicle::node::{ConnectOptions, DEFAULT_TIMEOUT};
 use radicle::storage::refs::RefsAt;
@@ -29,6 +30,7 @@ use crate::service::ServiceState as _;
 use crate::service::*;
 use crate::storage::git::transport::{local, remote};
 use crate::storage::git::Storage;
+use crate::storage::refs::SIGREFS_BRANCH;
 use crate::storage::ReadStorage;
 use crate::test::arbitrary;
 use crate::test::assert_matches;
@@ -1431,10 +1433,16 @@ fn test_queued_fetch_from_ann_same_rid() {
         .join(git::refname!("refs/sigrefs"));
 
     // Finish the 1st fetch.
+    // Ensure the ref is in the storage and cache.
     alice.storage_mut().repo_mut(&rid).remotes.insert(
         carol.id(),
         carol.signed_refs_at(arbitrary::gen::<Refs>(1), oid),
     );
+    alice
+        .database_mut()
+        .refs_mut()
+        .set(&rid, &carol.id, &SIGREFS_BRANCH, oid, LocalTime::now())
+        .unwrap();
     alice.fetched(
         rid,
         bob.id,

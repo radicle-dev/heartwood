@@ -17,6 +17,8 @@ pub enum Fetch {
     StorageCopy(#[from] io::Error),
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
+    #[error(transparent)]
+    RefsDb(#[from] radicle::node::refs::Error),
     #[error("validation of storage repository failed")]
     Validation,
     #[error(transparent)]

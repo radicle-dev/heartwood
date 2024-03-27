@@ -8,7 +8,7 @@ use radicle::identity::{Doc, DocError};
 
 use radicle::prelude::Verified;
 use radicle::storage;
-use radicle::storage::refs::{RefsAt, SignedRefs, SignedRefsUpdate};
+use radicle::storage::refs::{RefsAt, SignedRefs};
 use radicle::storage::{
     git::Validation, Remote, RemoteId, RemoteRepository, Remotes, ValidateRepository, Validations,
 };
@@ -273,23 +273,18 @@ impl FetchState {
         Ok(fetched)
     }
 
-    /// Fetch the set of special refs, depending on `refs_updates`.
+    /// Fetch the set of special refs, depending on `refs_at`.
     ///
-    /// If `refs_updates` is `Some`, then run the [`SigrefsAt`] stage,
+    /// If `refs_at` is `Some`, then run the [`SigrefsAt`] stage,
     /// which specifically fetches `rad/sigrefs` which are listed in
-    /// `refs_at`. It then runs the [`DiffedRefs`] stage to fetch the
-    /// difference between old references listed existing
-    /// `rad/sigrefs` and the new `rad/sigrefs` fetched in the
-    /// previous step.
+    /// `refs_at`.
     ///
-    /// If `refs_updates` is `None`, then run the [`SpecialRefs`]
-    /// stage, which fetches `rad/sigrefs` and `rad/id` from all
-    /// tracked and delegate peers (scope dependent). It then runs the
-    /// [`DataRefs`] stage to fetch the references listed in the
-    /// `rad/sigrefs` fetched in the previous step.
+    /// If `refs_at` is `None`, then run the [`SpecialRefs`] stage,
+    /// which fetches `rad/sigrefs` and `rad/id` from all tracked and
+    /// delegate peers (scope dependent).
     ///
-    /// The resulting `Vec<PublicKey>` will be the set of fetched
-    /// remotes.
+    /// The resulting [`sigrefs::RemoteRefs`] will be the set of
+    /// `rad/sigrefs` of the fetched remotes.
     fn run_special_refs<S>(
         &mut self,
         handle: &mut Handle<S>,
@@ -297,19 +292,18 @@ impl FetchState {
         delegates: BTreeSet<PublicKey>,
         limit: &FetchLimit,
         remote: PublicKey,
-        refs_updates: Option<Vec<SignedRefsUpdate>>,
-    ) -> Result<Vec<PublicKey>, error::Protocol>
+        refs_at: Option<Vec<RefsAt>>,
+    ) -> Result<sigrefs::RemoteRefs, error::Protocol>
     where
         S: transport::ConnectionStream,
     {
-        match refs_updates {
-            Some(refs_updates) => {
-                let (must, may): (BTreeSet<PublicKey>, BTreeSet<PublicKey>) = refs_updates
+        match refs_at {
+            Some(refs_at) => {
+                let (must, may): (BTreeSet<PublicKey>, BTreeSet<PublicKey>) = refs_at
                     .iter()
                     .map(|refs_at| refs_at.remote)
                     .partition(|id| delegates.contains(id));
 
-                let refs_at = refs_updates.iter().map(RefsAt::from).collect();
                 let sigrefs_at = stage::SigrefsAt {
                     remote,
                     delegates,
@@ -320,22 +314,14 @@ impl FetchState {
                 log::trace!(target: "fetch", "{sigrefs_at:?}");
                 self.run_stage(handle, handshake, &sigrefs_at)?;
 
-                let remotes = sigrefs::RemoteDiffedRefs::load(
+                let signed_refs = sigrefs::RemoteRefs::load(
                     &self.as_cached(handle),
-                    refs_updates,
                     sigrefs::Select {
                         must: &must,
                         may: &may,
                     },
                 )?;
-                let fetched = remotes.keys().copied().collect();
-                let refs = stage::DiffedRefs {
-                    remote,
-                    remotes,
-                    limit: limit.refs,
-                };
-                self.run_stage(handle, handshake, &refs)?;
-                Ok(fetched)
+                Ok(signed_refs)
             }
             None => {
                 let followed = handle.allowed();
@@ -350,7 +336,7 @@ impl FetchState {
                 log::trace!(target: "fetch", "{special_refs:?}");
                 let fetched = self.run_stage(handle, handshake, &special_refs)?;
 
-                let remotes = sigrefs::RemoteRefs::load(
+                let signed_refs = sigrefs::RemoteRefs::load(
                     &self.as_cached(handle),
                     sigrefs::Select {
                         must: &delegates,
@@ -361,14 +347,7 @@ impl FetchState {
                             .collect(),
                     },
                 )?;
-                let fetched = remotes.keys().copied().collect();
-                let refs = stage::DataRefs {
-                    remote,
-                    remotes,
-                    limit: limit.refs,
-                };
-                self.run_stage(handle, handshake, &refs)?;
-                Ok(fetched)
+                Ok(signed_refs)
             }
         }
     }
@@ -395,7 +374,7 @@ impl FetchState {
         handshake: &handshake::Outcome,
         limit: FetchLimit,
         remote: PublicKey,
-        refs_at: Option<Vec<SignedRefsUpdate>>,
+        refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Protocol>
     where
         S: transport::ConnectionStream,
@@ -434,7 +413,7 @@ impl FetchState {
 
         log::trace!(target: "fetch", "Identity delegates {delegates:?}");
 
-        let fetched = self.run_special_refs(
+        let signed_refs = self.run_special_refs(
             handle,
             handshake,
             delegates.clone(),
@@ -444,8 +423,21 @@ impl FetchState {
         )?;
         log::debug!(
             target: "fetch",
-            "Fetched data refs for {} remote(s) ({}ms)",
-            fetched.len(),
+            "Fetched data for {} remote(s) ({}ms)",
+            signed_refs.len(),
+            start.elapsed().as_millis()
+        );
+
+        let data_refs = stage::DataRefs {
+            remote,
+            remotes: signed_refs,
+            limit: limit.refs,
+        };
+        self.run_stage(handle, handshake, &data_refs)?;
+        log::debug!(
+            target: "fetch",
+            "Fetched data refs for {} remotes ({}ms)",
+            data_refs.remotes.len(),
             start.elapsed().as_millis()
         );
 
@@ -467,6 +459,7 @@ impl FetchState {
         // added to `warnings`.
         let mut warnings = sigrefs::Validations::default();
         let mut failures = sigrefs::Validations::default();
+        let signed_refs = data_refs.remotes;
 
         // We may prune fetched remotes, so we keep track of
         // non-pruned, fetched remotes here.
@@ -474,7 +467,7 @@ impl FetchState {
 
         // TODO(finto): this might read better if it got its own
         // private function.
-        for remote in &fetched {
+        for remote in signed_refs.keys() {
             if handle.is_blocked(remote) {
                 continue;
             }
@@ -642,13 +635,6 @@ impl<'a, S> Cached<'a, S> {
             None => SignedRefsAt::load(*remote, &self.handle.repo),
             Some(tip) => SignedRefsAt::load_at(*tip, *remote, &self.handle.repo).map(Some),
         }
-    }
-
-    pub fn load_diffed_refs(
-        &self,
-        update: &SignedRefsUpdate,
-    ) -> Result<storage::refs::DiffedRefs, sigrefs::error::Load> {
-        update.difference(&self.handle.repo)
     }
 
     #[allow(dead_code)]

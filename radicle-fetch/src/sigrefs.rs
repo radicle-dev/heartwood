@@ -1,10 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::ops::{Deref, DerefMut, Not as _};
+use std::ops::{Deref, Not as _};
 
-pub use radicle::storage::refs::{DiffedRefs, SignedRefsAt};
+pub use radicle::storage::refs::SignedRefsAt;
 pub use radicle::storage::{git::Validation, Validations};
-
-use radicle::storage::refs;
 use radicle::{crypto::PublicKey, storage::ValidateRepository};
 
 use crate::state::Cached;
@@ -146,67 +144,6 @@ impl Deref for RemoteRefs {
 impl<'a> IntoIterator for &'a RemoteRefs {
     type Item = <&'a BTreeMap<PublicKey, SignedRefsAt> as IntoIterator>::Item;
     type IntoIter = <&'a BTreeMap<PublicKey, SignedRefsAt> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
-}
-
-/// A set of [`DiffedRefs`] per remote `PublicKey`.
-///
-/// To construct use [`DiffedRefs::load`].
-#[derive(Clone, Debug, Default)]
-pub struct RemoteDiffedRefs(BTreeMap<PublicKey, DiffedRefs>);
-
-impl RemoteDiffedRefs {
-    /// Given a set of [`refs::RefsUpdate`]s, compute its
-    /// [`DiffedRefs`] and use its [`refs::RefsUpdate::remote`] as the
-    /// key for the `RemoteDiffedRefs` entry.
-    ///
-    /// If the `remote` is in the `may` set, then it is allowed to
-    /// fail and will not be inserted in the set iff it does fail to
-    /// load.
-    ///
-    /// If the `remote` is in the `must` set, then this method will
-    /// fail iff loading the `DiffedRefs` fails.
-    pub(crate) fn load<S>(
-        cached: &Cached<S>,
-        updates: Vec<refs::SignedRefsUpdate>,
-        Select { must, may }: Select,
-    ) -> Result<Self, error::Load> {
-        updates
-            .into_iter()
-            .try_fold(Self::default(), |mut refs, update| {
-                match cached.load_diffed_refs(&update) {
-                    Ok(diff) => {
-                        refs.insert(update.remote, diff);
-                        Ok(refs)
-                    }
-                    Err(e) if must.contains(&update.remote) => Err(e),
-                    Err(_) if may.contains(&update.remote) => Ok(refs),
-                    Err(e) => Err(e),
-                }
-            })
-    }
-}
-
-impl Deref for RemoteDiffedRefs {
-    type Target = BTreeMap<PublicKey, DiffedRefs>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for RemoteDiffedRefs {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl<'a> IntoIterator for &'a RemoteDiffedRefs {
-    type Item = <&'a BTreeMap<PublicKey, DiffedRefs> as IntoIterator>::Item;
-    type IntoIter = <&'a BTreeMap<PublicKey, DiffedRefs> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()

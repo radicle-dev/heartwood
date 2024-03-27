@@ -1,8 +1,7 @@
 use std::{fmt, io, mem};
 
 use radicle::git;
-use radicle::storage::refs::{RefsAt, SignedRefsUpdate};
-use radicle::storage::ReadRepository;
+use radicle::storage::refs::RefsAt;
 
 use crate::crypto;
 use crate::identity::RepoId;
@@ -12,7 +11,6 @@ use crate::prelude::BoundedVec;
 use crate::service::filter::Filter;
 use crate::service::{Link, NodeId, Timestamp};
 use crate::storage;
-use crate::storage::ReadStorage;
 use crate::wire;
 
 /// Maximum number of addresses which can be announced to other nodes.
@@ -170,7 +168,7 @@ pub struct RefsAnnouncement {
 pub struct RefsStatus {
     /// The `rad/sigrefs` was missing or it's ahead of the local
     /// `rad/sigrefs`.
-    pub fresh: Vec<SignedRefsUpdate>,
+    pub fresh: Vec<RefsAt>,
     /// The `rad/sigrefs` has been seen before.
     pub stale: Vec<RefsAt>,
 }
@@ -178,85 +176,48 @@ pub struct RefsStatus {
 impl RefsStatus {
     /// Get the set of `fresh` and `stale` `RefsAt`'s for the given
     /// announcement.
-    pub fn new<S: ReadStorage>(
+    ///
+    /// Nb. We use the refs database as a cache for quick lookups. This does *not* check
+    /// for ancestry matches, since we don't cache the whole history (only the tips).
+    /// This, however, is not a problem because the signed refs branch is fast-forward only,
+    /// and old refs announcements will be discarded due to their lower timestamps.
+    pub fn new<D: node::refs::Store>(
         rid: RepoId,
         refs: Vec<RefsAt>,
-        storage: S,
+        db: &D,
     ) -> Result<RefsStatus, storage::Error> {
-        let repo = match storage.repository(rid) {
-            // If the repo doesn't exist, we consider this
-            // announcement "fresh", since we obviously don't
-            // have the refs.
-            Err(e) if e.is_not_found() => {
-                let fresh = refs
-                    .into_iter()
-                    .map(|RefsAt { remote, at }| SignedRefsUpdate {
-                        remote,
-                        old: None,
-                        new: at,
-                    })
-                    .collect();
-                return Ok(RefsStatus {
-                    fresh,
-                    stale: Vec::new(),
-                });
-            }
-            Err(e) => return Err(e),
-            Ok(r) => r,
-        };
-
         let mut status = RefsStatus::default();
         for theirs in refs.iter() {
-            status.insert(*theirs, &repo)?;
+            status.insert(&rid, *theirs, db)?;
         }
         Ok(status)
     }
 
-    fn insert<S: ReadRepository>(
+    fn insert<D: node::refs::Store>(
         &mut self,
+        repo: &RepoId,
         theirs: RefsAt,
-        repo: &S,
+        db: &D,
     ) -> Result<(), storage::Error> {
-        match RefsAt::new(repo, theirs.remote) {
-            Ok(ours) => {
-                if Self::is_fresh(repo, theirs.at, ours.at)? {
-                    self.fresh.push(SignedRefsUpdate {
-                        remote: theirs.remote,
-                        old: Some(ours.at),
-                        new: theirs.at,
-                    });
+        match db.get(repo, &theirs.remote, &storage::refs::SIGREFS_BRANCH) {
+            Ok(Some((ours, _))) => {
+                if theirs.at != ours {
+                    self.fresh.push(theirs);
                 } else {
                     self.stale.push(theirs);
                 }
             }
-            Err(e) if git::is_not_found_err(&e) => self.fresh.push(SignedRefsUpdate {
-                remote: theirs.remote,
-                old: None,
-                new: theirs.at,
-            }),
+            Ok(None) => {
+                self.fresh.push(theirs);
+            }
             Err(e) => {
                 log::warn!(
                     target: "service",
-                    "failed to load 'refs/namespaces/{}/rad/sigrefs': {e}", theirs.remote
-                )
+                    "Error getting cached ref of {repo} for refs status: {e}"
+                );
             }
         }
         Ok(())
-    }
-
-    /// If `theirs` is not the same as `ours` and we have not seen
-    /// `theirs` before, i.e. it's not a previous `rad/sigrefs`, then
-    /// we can consider `theirs` a fresh update.
-    fn is_fresh<S: ReadRepository>(
-        repo: &S,
-        theirs: git::Oid,
-        ours: git::Oid,
-    ) -> Result<bool, git::ext::Error> {
-        if repo.contains(theirs)? {
-            Ok(theirs != ours && !repo.is_ancestor_of(theirs, ours)?)
-        } else {
-            Ok(true)
-        }
     }
 }
 

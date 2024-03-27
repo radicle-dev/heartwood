@@ -20,7 +20,7 @@ pub use state::{FetchLimit, FetchResult};
 pub use transport::Transport;
 
 use radicle::crypto::PublicKey;
-use radicle::storage::refs::SignedRefsUpdate;
+use radicle::storage::refs::RefsAt;
 use radicle::storage::ReadRepository as _;
 use state::FetchState;
 use thiserror::Error;
@@ -54,7 +54,7 @@ pub fn pull<S>(
     handle: &mut Handle<S>,
     limit: FetchLimit,
     remote: PublicKey,
-    refs_at: Option<Vec<SignedRefsUpdate>>,
+    refs_at: Option<Vec<RefsAt>>,
 ) -> Result<FetchResult, Error>
 where
     S: transport::ConnectionStream,

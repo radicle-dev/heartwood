@@ -8,6 +8,7 @@
 //! The database schema is contained within the first migration. See [`version`], [`bump`] and
 //! [`migrate`] for how this works.
 use std::path::Path;
+use std::sync::Arc;
 use std::{fmt, time};
 
 use sqlite as sql;
@@ -38,8 +39,9 @@ pub enum Error {
 }
 
 /// A file-backed database storing information about the network.
+#[derive(Clone)]
 pub struct Database {
-    pub db: sql::ConnectionThreadSafe,
+    pub db: Arc<sql::ConnectionThreadSafe>,
 }
 
 impl fmt::Debug for Database {
@@ -50,7 +52,7 @@ impl fmt::Debug for Database {
 
 impl From<sql::ConnectionThreadSafe> for Database {
     fn from(db: sql::ConnectionThreadSafe) -> Self {
-        Self { db }
+        Self { db: Arc::new(db) }
     }
 }
 
@@ -65,7 +67,7 @@ impl Database {
         db.execute(Self::PRAGMA)?;
         migrate(&db)?;
 
-        Ok(Self { db })
+        Ok(Self { db: Arc::new(db) })
     }
 
     /// Same as [`Self::open`], but in read-only mode. This is useful to have multiple
@@ -78,7 +80,7 @@ impl Database {
         db.set_busy_timeout(DB_READ_TIMEOUT.as_millis() as usize)?;
         db.execute(Self::PRAGMA)?;
 
-        Ok(Self { db })
+        Ok(Self { db: Arc::new(db) })
     }
 
     /// Create a new in-memory database.
@@ -87,7 +89,7 @@ impl Database {
         db.execute(Self::PRAGMA)?;
         migrate(&db)?;
 
-        Ok(Self { db })
+        Ok(Self { db: Arc::new(db) })
     }
 
     /// Get the database version. This is updated on schema changes.

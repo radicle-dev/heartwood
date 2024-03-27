@@ -13,7 +13,7 @@ use crossbeam_channel as chan;
 use radicle::identity::RepoId;
 use radicle::node::notifications;
 use radicle::prelude::NodeId;
-use radicle::storage::refs::SignedRefsUpdate;
+use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{cob, crypto, Storage};
 use radicle_fetch::FetchLimit;
@@ -106,7 +106,7 @@ pub enum FetchRequest {
         /// Remote peer we are interacting with.
         remote: NodeId,
         /// If this fetch is for a particular set of `rad/sigrefs`.
-        refs_at: Option<Vec<SignedRefsUpdate>>,
+        refs_at: Option<Vec<RefsAt>>,
         /// Fetch timeout.
         timeout: time::Duration,
     },
@@ -180,6 +180,7 @@ struct Worker {
     policies: policy::Config<policy::store::Read>,
     notifications: notifications::StoreWriter,
     cache: cob::cache::StoreWriter,
+    db: radicle::node::Database,
 }
 
 impl Worker {
@@ -200,13 +201,7 @@ impl Worker {
         } = task;
         let remote = fetch.remote();
         let channels = channels::ChannelsFlush::new(self.handle.clone(), channels, remote, stream);
-        let result = self._process(
-            fetch,
-            stream,
-            channels,
-            self.notifications.clone(),
-            self.cache.clone(),
-        );
+        let result = self._process(fetch, stream, channels, self.notifications.clone());
 
         log::trace!(target: "worker", "Sending response back to service..");
 
@@ -229,7 +224,6 @@ impl Worker {
         stream: StreamId,
         mut channels: channels::ChannelsFlush,
         notifs: notifications::StoreWriter,
-        cache: cob::cache::StoreWriter,
     ) -> FetchResult {
         match fetch {
             FetchRequest::Initiator {
@@ -240,7 +234,7 @@ impl Worker {
                 timeout: _timeout,
             } => {
                 log::debug!(target: "worker", "Worker processing outgoing fetch for {rid}");
-                let result = self.fetch(rid, remote, refs_at, channels, notifs, cache);
+                let result = self.fetch(rid, remote, refs_at, channels, notifs);
                 FetchResult::Initiator { rid, result }
             }
             FetchRequest::Responder { remote } => {
@@ -294,10 +288,9 @@ impl Worker {
         &mut self,
         rid: RepoId,
         remote: NodeId,
-        refs_at: Option<Vec<SignedRefsUpdate>>,
+        refs_at: Option<Vec<RefsAt>>,
         channels: channels::ChannelsFlush,
         notifs: notifications::StoreWriter,
-        mut cache: cob::cache::StoreWriter,
     ) -> Result<fetch::FetchResult, FetchError> {
         let FetchConfig {
             limit,
@@ -309,6 +302,7 @@ impl Worker {
         let allowed = radicle_fetch::Allowed::from_config(rid, &self.policies)?;
         let blocked = radicle_fetch::BlockList::from_config(&self.policies)?;
 
+        let mut cache = self.cache.clone();
         let handle = fetch::Handle::new(
             rid,
             *local,
@@ -318,7 +312,15 @@ impl Worker {
             channels,
             notifs,
         )?;
-        let result = handle.fetch(rid, &self.storage, &mut cache, *limit, remote, refs_at)?;
+        let result = handle.fetch(
+            rid,
+            &self.storage,
+            &mut cache,
+            &mut self.db,
+            *limit,
+            remote,
+            refs_at,
+        )?;
 
         if let Err(e) = garbage::collect(&self.storage, rid, *expiry) {
             // N.b. ensure that `git gc` works in debug mode.
@@ -343,6 +345,7 @@ impl Pool {
         handle: Handle,
         notifications: notifications::StoreWriter,
         cache: cob::cache::StoreWriter,
+        db: radicle::node::Database,
         config: Config,
     ) -> Result<Self, policy::Error> {
         let mut pool = Vec::with_capacity(config.capacity);
@@ -361,6 +364,7 @@ impl Pool {
                 policies,
                 notifications: notifications.clone(),
                 cache: cache.clone(),
+                db: db.clone(),
             };
             let thread = thread::spawn(&nid, format!("worker#{i}"), || worker.run());
 
