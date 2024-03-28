@@ -138,16 +138,6 @@ $ rad id accept 0ca42d376bd566631083c8913cf86bec722da392
 ✗ Error: [..]
 ```
 
-If we attempt to add a delegate that we do not have locally, then we
-will be told that they are missing in our repository:
-
-``` (fail)
-$ rad id update --title "Add Eve" --description "Add Eve as a delegate" --delegate did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn
-✗ Error: failed to verify delegates for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✗ Error: missing delegate z6MkedT…47fovFn in local storage
-✗ Error: fatal: refusing to update identity document
-```
-
 If no updates are specified then the update will fail:
 
 ``` (fail)

@@ -258,11 +258,11 @@ impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
         self.repo.is_empty()
     }
 
-    fn head(&self) -> Result<(fmt::Qualified, Oid), RepositoryError> {
+    fn head(&self) -> Result<(Qualified, Oid), RepositoryError> {
         self.repo.head()
     }
 
-    fn canonical_head(&self) -> Result<(fmt::Qualified, Oid), RepositoryError> {
+    fn canonical_head(&self) -> Result<(Qualified, Oid), RepositoryError> {
         self.repo.canonical_head()
     }
 
