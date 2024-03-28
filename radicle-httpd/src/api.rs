@@ -60,7 +60,7 @@ impl Context {
         repo: &R,
         doc: DocAt,
     ) -> Result<project::Info, error::Error> {
-        let (_, head) = repo.head()?;
+        let (_, head) = repo.head()?.into_inner();
         let DocAt { doc, .. } = doc;
         let id = repo.id();
 

@@ -256,7 +256,7 @@ fn test_replication_invalid() {
     let carol = MockSigner::default();
     let acme = bob.project("acme", "");
     let repo = bob.storage.repository_mut(acme).unwrap();
-    let (_, head) = repo.head().unwrap();
+    let (_, head) = repo.head().unwrap().into_inner();
     let id = repo.identity_head().unwrap();
 
     // Create some unsigned refs for Carol in Bob's storage.
@@ -554,7 +554,8 @@ fn test_clone() {
         .repository(acme)
         .unwrap()
         .canonical_head()
-        .unwrap();
+        .unwrap()
+        .into_inner();
 
     assert_eq!(oid, *canonical);
 

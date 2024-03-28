@@ -5,6 +5,7 @@ use std::path::Path;
 use cob::object::Objects;
 use radicle_cob as cob;
 use radicle_cob::change;
+use storage::Canonical;
 use storage::RemoteRepository;
 use storage::RepositoryError;
 use storage::SignRepository;
@@ -258,11 +259,11 @@ impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
         self.repo.is_empty()
     }
 
-    fn head(&self) -> Result<(fmt::Qualified, Oid), RepositoryError> {
+    fn head(&self) -> Result<Canonical, RepositoryError> {
         self.repo.head()
     }
 
-    fn canonical_head(&self) -> Result<(fmt::Qualified, Oid), RepositoryError> {
+    fn canonical_head(&self) -> Result<Canonical, RepositoryError> {
         self.repo.canonical_head()
     }
 

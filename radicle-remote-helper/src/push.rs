@@ -103,6 +103,9 @@ pub enum Error {
     /// General repository error.
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
+    /// Quorum error.
+    #[error(transparent)]
+    Quorum(#[from] radicle::storage::git::QuorumError),
 }
 
 /// Push command.
@@ -188,7 +191,7 @@ pub fn run(
             _ => return Err(Error::InvalidCommand(line.trim().to_owned())),
         }
     }
-    let canonical = stored.head()?;
+    let canonical = stored.head()?.into_inner();
     let delegates = stored.delegates()?;
 
     // For each refspec, push a ref or delete a ref.
@@ -381,7 +384,7 @@ fn patch_open<G: Signer>(
     // not fail, since the reference will already exist with the correct OID.
     push_ref(src, &dst, false, working, stored.raw())?;
 
-    let (_, target) = stored.canonical_head()?;
+    let (_, target) = stored.canonical_head()?.into_inner();
     let head = commit.id().into();
     let base = if let Some(base) = opts.base {
         base.resolve(working)?
@@ -511,7 +514,7 @@ fn patch_update<G: Signer>(
         &commit.id().into(),
     )?;
 
-    let (_, target) = stored.canonical_head()?;
+    let (_, target) = stored.canonical_head()?.into_inner();
     let head: git::Oid = commit.id().into();
     let base = if let Some(base) = opts.base {
         base.resolve(working)?

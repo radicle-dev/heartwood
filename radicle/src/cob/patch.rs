@@ -365,7 +365,7 @@ impl MergeTarget {
     pub fn head<R: ReadRepository>(&self, repo: &R) -> Result<git::Oid, RepositoryError> {
         match self {
             MergeTarget::Delegates => {
-                let (_, target) = repo.head()?;
+                let (_, target) = repo.head()?.into_inner();
                 Ok(target)
             }
         }

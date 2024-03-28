@@ -107,26 +107,16 @@ impl RemoteRefs {
     ///
     /// The `may` remotes do not have to be present and any missing
     /// sigrefs for that remote will be ignored.
-    pub(crate) fn load<S>(
+    pub(crate) fn load<'a, S>(
         cached: &Cached<S>,
-        Select { must, may }: Select,
+        remotes: impl Iterator<Item = &'a PublicKey>,
     ) -> Result<Self, error::RemoteRefs> {
-        let must = must.iter().map(|id| {
-            cached
-                .load(id)
-                .map_err(error::RemoteRefs::from)
-                .and_then(|sr| match sr {
-                    None => Err(error::RemoteRefs::NotFound(*id)),
-                    Some(sr) => Ok((id, sr)),
-                })
-        });
-        let may = may.iter().filter_map(|id| match cached.load(id) {
-            Ok(None) => None,
-            Ok(Some(sr)) => Some(Ok((id, sr))),
-            Err(e) => Some(Err(e.into())),
-        });
-
-        must.chain(may)
+        remotes
+            .filter_map(|id| match cached.load(id) {
+                Ok(None) => None,
+                Ok(Some(sr)) => Some(Ok((id, sr))),
+                Err(e) => Some(Err(e)),
+            })
             .try_fold(RemoteRefs::default(), |mut acc, remote_refs| {
                 let (id, sigrefs) = remote_refs?;
                 acc.0.insert(*id, sigrefs);
@@ -213,6 +203,7 @@ impl<'a> IntoIterator for &'a RemoteDiffedRefs {
     }
 }
 
+// TODO(finto): remove Select when the RemoteDiffedRefs is removed
 pub struct Select<'a> {
     pub must: &'a BTreeSet<PublicKey>,
     pub may: &'a BTreeSet<PublicKey>,

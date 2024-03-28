@@ -119,7 +119,7 @@ async fn project_root_handler(
             let Ok(repo) = storage.repository(info.rid) else {
                 return None;
             };
-            let Ok((_, head)) = repo.head() else {
+            let Ok((_, head)) = repo.head().map(|head| head.into_inner()) else {
                 return None;
             };
             let Ok(payload) = info.doc.project() else {

@@ -191,7 +191,7 @@ mod routes {
             .storage
             .repository(RID_PRIVATE.parse().unwrap())
             .unwrap();
-        let (_, head) = repo.head().unwrap();
+        let (_, head) = repo.head().unwrap().into_inner();
 
         let response = get(&app, format!("/{RID_PRIVATE}/{head}/README")).await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND);

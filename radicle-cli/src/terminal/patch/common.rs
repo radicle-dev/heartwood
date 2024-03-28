@@ -29,7 +29,7 @@ pub fn get_merge_target(
     storage: &Repository,
     head_branch: &git::raw::Branch,
 ) -> anyhow::Result<(git::RefString, git::Oid)> {
-    let (qualified_ref, target_oid) = storage.canonical_head()?;
+    let (qualified_ref, target_oid) = storage.canonical_head()?.ok_or_error()?;
     let head_oid = branch_oid(head_branch)?;
     let merge_base = storage.raw().merge_base(*head_oid, *target_oid)?;
 

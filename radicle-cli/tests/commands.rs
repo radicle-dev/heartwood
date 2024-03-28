@@ -353,6 +353,64 @@ fn rad_id() {
 }
 
 #[test]
+fn rad_id_stress_test() {
+    let mut environment = Environment::new();
+    let alice = environment.node(config::node("alice"));
+    let bob = environment.node(config::node("bob"));
+    let seed = environment.node(config::node("seed"));
+    let working = tempfile::tempdir().unwrap();
+    let working = working.path();
+    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+
+    // Setup a test repository.
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let mut alice = alice.spawn();
+    let mut seed = seed.spawn();
+    let mut bob = bob.spawn();
+
+    seed.handle.seed(acme, Scope::All).unwrap();
+    alice.handle.seed(acme, Scope::Followed).unwrap();
+    alice
+        .handle
+        .follow(seed.id, Some(Alias::new("seed")))
+        .unwrap();
+
+    alice.connect(&seed);
+    bob.connect(&seed).connect(&alice);
+    alice.routes_to(&[(acme, seed.id)]);
+    seed.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
+
+    formula(&environment.tmp(), "examples/rad-id-stress-test.md")
+        .unwrap()
+        .home(
+            "alice",
+            working.join("alice"),
+            [("RAD_HOME", alice.home.path().display())],
+        )
+        .home(
+            "bob",
+            working.join("bob"),
+            [("RAD_HOME", bob.home.path().display())],
+        )
+        .home(
+            "seed",
+            working.join("seed"),
+            [("RAD_HOME", seed.home.path().display())],
+        )
+        .run()
+        .unwrap();
+}
+
+#[test]
 fn rad_id_multi_delegate() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));

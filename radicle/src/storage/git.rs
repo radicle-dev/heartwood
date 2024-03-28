@@ -29,7 +29,7 @@ pub use crate::git::{
 };
 pub use crate::storage::Error;
 
-use super::{RemoteId, RemoteRepository, ValidateRepository};
+use super::{Canonical, RemoteId, RemoteRepository, ValidateRepository};
 
 pub static NAMESPACES_GLOB: Lazy<git::refspec::PatternString> =
     Lazy::new(|| git::refspec::pattern!("refs/namespaces/*"));
@@ -257,7 +257,7 @@ impl Storage {
             };
 
             // For performance reasons, we don't do a full repository check here.
-            let head = match repo.head() {
+            let head = match repo.head().map(|head| head.into_inner()) {
                 Ok((_, head)) => head,
                 Err(e) => {
                     log::warn!(target: "storage", "Repository {rid} is invalid: looking up head: {e}");
@@ -283,7 +283,7 @@ impl Storage {
     ) -> Result<Vec<RepositoryInfo<Verified>>, RepositoryError> {
         rids.try_fold(Vec::new(), |mut infos, rid| {
             let repo = self.repository(*rid)?;
-            let (_, head) = repo.head()?;
+            let (_, head) = repo.head()?.into_inner();
             let info = RepositoryInfo {
                 rid: *rid,
                 head,
@@ -754,17 +754,20 @@ impl ReadRepository for Repository {
         Doc::<Verified>::load_at(head, self)
     }
 
-    fn head(&self) -> Result<(Qualified, Oid), RepositoryError> {
+    fn head(&self) -> Result<Canonical, RepositoryError> {
         // If `HEAD` is already set locally, just return that.
         if let Ok(head) = self.backend.head() {
             if let Ok((name, oid)) = git::refs::qualified_from(&head) {
-                return Ok((name.to_owned(), oid));
+                return Ok(Canonical::Met {
+                    refname: name.to_owned(),
+                    oid,
+                });
             }
         }
         self.canonical_head()
     }
 
-    fn canonical_head(&self) -> Result<(Qualified, Oid), RepositoryError> {
+    fn canonical_head(&self) -> Result<Canonical, RepositoryError> {
         let doc = self.identity_doc()?;
         let project = doc.project()?;
         let branch_ref = git::refs::branch(project.default_branch());
@@ -772,13 +775,32 @@ impl ReadRepository for Repository {
         let mut heads = Vec::new();
 
         for delegate in doc.delegates.iter() {
-            let r = self.reference_oid(delegate, &branch_ref)?;
+            let r = match self.reference_oid(delegate, &branch_ref) {
+                Ok(oid) => oid,
+                Err(e) if ext::is_not_found_err(&e) => {
+                    log::warn!("missing {branch_ref}");
+                    continue;
+                }
+                Err(e) => return Err(e.into()),
+            };
 
             heads.push(*r);
         }
-        let quorum = self::quorum(&heads, doc.threshold, raw)?;
 
-        Ok((branch_ref, quorum))
+        match self::quorum(&heads, doc.threshold, raw) {
+            Ok(quorum) => Ok(Canonical::Met {
+                refname: branch_ref,
+                oid: quorum,
+            }),
+            Err(QuorumError::NoQuorum) => {
+                let cached = raw.refname_to_id(branch_ref.as_str())?.into();
+                Ok(Canonical::Previous {
+                    refname: branch_ref,
+                    oid: cached,
+                })
+            }
+            Err(QuorumError::Git(e)) => return Err(e.into()),
+        }
     }
 
     fn identity_head(&self) -> Result<Oid, RepositoryError> {
@@ -857,7 +879,9 @@ impl WriteRepository for Repository {
             .refname_to_id(&head_ref)
             .ok()
             .map(|oid| oid.into());
-        let (branch_ref, new) = self.canonical_head()?;
+
+        // TODO(finto): I think this will just hit the if case below
+        let (branch_ref, new) = self.canonical_head()?.into_inner();
 
         if old == Some(new) {
             return Ok(SetHead { old, new });

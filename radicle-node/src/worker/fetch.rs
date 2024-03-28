@@ -92,20 +92,29 @@ impl Handle {
             log::warn!(target: "worker", "Rejected update for {}", rejected.refname())
         }
 
-        for warn in result.warnings() {
-            log::warn!(target: "worker", "Validation error: {}", warn);
-        }
-
         match result {
-            radicle_fetch::FetchResult::Failed { failures, .. } => {
+            radicle_fetch::FetchResult::Failed {
+                threshold,
+                delegates,
+                failures,
+            } => {
                 for fail in failures.iter() {
                     log::error!(target: "worker", "Validation error: {}", fail);
                 }
-                Err(error::Fetch::Validation)
+                Err(error::Fetch::Validation {
+                    threshold,
+                    delegates: delegates.into_iter().map(|key| key.to_string()).collect(),
+                })
             }
             radicle_fetch::FetchResult::Success {
-                applied, remotes, ..
+                applied,
+                remotes,
+                warnings,
             } => {
+                for warn in warnings {
+                    log::warn!(target: "worker", "Validation error: {}", warn);
+                }
+
                 // N.b. We do not go through handle for this since the cloning handle
                 // points to a repository that is temporary and gets moved by [`mv`].
                 let repo = storage.repository(rid)?;

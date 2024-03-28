@@ -178,7 +178,7 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
 ) -> Result<(), ForkError> {
     let me = signer.public_key();
     let repository = storage.repository_mut(rid)?;
-    let (canonical_branch, canonical_head) = repository.head()?;
+    let (canonical_branch, canonical_head) = repository.head()?.into_inner();
     let raw = repository.raw();
 
     raw.reference(
@@ -432,7 +432,7 @@ mod tests {
             .unwrap();
 
         let project_repo = storage.repository(proj).unwrap();
-        let (_, head) = project_repo.head().unwrap();
+        let (_, head) = project_repo.head().unwrap().ok_or_error().unwrap();
 
         // Test canonical refs.
         assert_eq!(refs.head(component!("master")).unwrap(), head);

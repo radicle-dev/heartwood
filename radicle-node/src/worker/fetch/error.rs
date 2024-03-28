@@ -17,8 +17,11 @@ pub enum Fetch {
     StorageCopy(#[from] io::Error),
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
-    #[error("validation of storage repository failed")]
-    Validation,
+    #[error("validation of the storage repository failed: the delegates {delegates:?} failed to validate to meet a threshold of {threshold}")]
+    Validation {
+        threshold: usize,
+        delegates: Vec<String>,
+    },
     #[error(transparent)]
     Cache(#[from] Cache),
 }

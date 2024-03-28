@@ -60,7 +60,7 @@ async fn delegates_projects_handler(
             let Ok(repo) = storage.repository(id.rid) else {
                 return None;
             };
-            let Ok((_, head)) = repo.head() else {
+            let Ok((_, head)) = repo.head().map(|head| head.into_inner()) else {
                 return None;
             };
             let Ok(payload) = id.doc.project() else {

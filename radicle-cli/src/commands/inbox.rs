@@ -268,7 +268,7 @@ where
         ..term::TableOptions::default()
     });
     let repo = storage.repository(rid)?;
-    let (_, head) = repo.head()?;
+    let (_, head) = repo.head()?.into_inner();
     let doc = repo.identity_doc()?;
     let proj = doc.project()?;
     let issues = profile.issues(&repo)?;

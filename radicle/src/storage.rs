@@ -24,7 +24,7 @@ use crate::identity::{Identity, RepoId};
 use crate::storage::git::NAMESPACES_GLOB;
 use crate::storage::refs::Refs;
 
-use self::git::UserInfo;
+use self::git::{QuorumError, UserInfo};
 use self::refs::SignedRefs;
 
 pub type BranchName = git::RefString;
@@ -66,6 +66,33 @@ impl Namespaces {
 impl FromIterator<PublicKey> for Namespaces {
     fn from_iter<T: IntoIterator<Item = PublicKey>>(iter: T) -> Self {
         Self::Followed(iter.into_iter().collect())
+    }
+}
+
+pub enum Canonical {
+    Met {
+        refname: Qualified<'static>,
+        oid: Oid,
+    },
+    Previous {
+        refname: Qualified<'static>,
+        oid: Oid,
+    },
+}
+
+impl Canonical {
+    pub fn into_inner(self) -> (Qualified<'static>, Oid) {
+        match self {
+            Canonical::Met { refname, oid } => (refname, oid),
+            Canonical::Previous { refname, oid } => (refname, oid),
+        }
+    }
+
+    pub fn ok_or_error(self) -> Result<(Qualified<'static>, Oid), QuorumError> {
+        match self {
+            Canonical::Met { refname, oid } => Ok((refname, oid)),
+            Canonical::Previous { .. } => Err(QuorumError::NoQuorum),
+        }
     }
 }
 
@@ -442,14 +469,14 @@ pub trait ReadRepository: Sized + ValidateRepository {
     /// head using [`ReadRepository::canonical_head`].
     ///
     /// Returns the [`Oid`] as well as the qualified reference name.
-    fn head(&self) -> Result<(Qualified, Oid), RepositoryError>;
+    fn head(&self) -> Result<Canonical, RepositoryError>;
 
     /// Compute the canonical head of this repository.
     ///
     /// Ignores any existing `HEAD` reference.
     ///
     /// Returns the [`Oid`] as well as the qualified reference name.
-    fn canonical_head(&self) -> Result<(Qualified, Oid), RepositoryError>;
+    fn canonical_head(&self) -> Result<Canonical, RepositoryError>;
 
     /// Get the head of the `rad/id` reference in this repository.
     ///

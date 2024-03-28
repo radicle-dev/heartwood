@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::convert::Infallible;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -172,11 +172,11 @@ impl ReadRepository for MockRepository {
         Ok(self.remotes.is_empty())
     }
 
-    fn head(&self) -> Result<(fmt::Qualified, Oid), RepositoryError> {
+    fn head(&self) -> Result<Canonical, RepositoryError> {
         todo!()
     }
 
-    fn canonical_head(&self) -> Result<(fmt::Qualified, Oid), RepositoryError> {
+    fn canonical_head(&self) -> Result<Canonical, RepositoryError> {
         todo!()
     }
 
