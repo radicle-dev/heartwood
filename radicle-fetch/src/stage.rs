@@ -58,6 +58,11 @@ pub mod error {
     pub enum Layout {
         #[error("missing required refs: {0:?}")]
         MissingRequiredRefs(Vec<String>),
+        #[error("expected threshold of {threshold} of references, missing: {missing:?}")]
+        InsufficientRefs {
+            threshold: usize,
+            missing: Vec<String>,
+        },
     }
 
     #[derive(Debug, Error)]
@@ -232,6 +237,8 @@ pub struct SpecialRefs {
     /// The set of delegates to be fetched, with the local node
     /// removed in the case of a `pull`.
     pub delegates: BTreeSet<PublicKey>,
+    /// The threshold of delegates that needs to be fetched.
+    pub threshold: usize,
     /// The data limit for this stage of fetching.
     pub limit: u64,
 }
@@ -268,7 +275,7 @@ impl ProtocolStage for SpecialRefs {
     }
 
     fn pre_validate(&self, refs: &[ReceivedRef]) -> Result<(), error::Layout> {
-        ensure_refs(
+        ensure_threshold(
             self.delegates
                 .iter()
                 .filter(|id| !self.blocked.is_blocked(id))
@@ -281,6 +288,7 @@ impl ProtocolStage for SpecialRefs {
                 .filter_map(|r| r.name.to_namespaced())
                 .map(|r| r.to_string().into())
                 .collect(),
+            self.threshold,
         )
     }
 
@@ -567,4 +575,35 @@ where
             diff.into_iter().map(|ns| ns.to_string()).collect(),
         ))
     }
+}
+
+fn ensure_threshold<T>(
+    wants: BTreeSet<T>,
+    haves: BTreeSet<T>,
+    threshold: usize,
+) -> Result<(), error::Layout>
+where
+    T: Ord + ToString,
+    T: std::fmt::Debug,
+{
+    // N.b. there's no threshold to meet. This generally means that
+    // the local peer is a delegate and the original threshold is 1,
+    // so they don't require the other peer.
+    if threshold == 0 {
+        return Ok(());
+    }
+
+    if wants.is_empty() {
+        return Ok(());
+    }
+
+    if haves.len() < threshold {
+        let missing = wants
+            .difference(&haves)
+            .map(|ns| ns.to_string())
+            .collect::<Vec<_>>();
+        return Err(error::Layout::InsufficientRefs { threshold, missing });
+    }
+
+    Ok(())
 }

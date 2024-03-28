@@ -772,13 +772,23 @@ impl ReadRepository for Repository {
         let mut heads = Vec::new();
 
         for delegate in doc.delegates.iter() {
-            let r = self.reference_oid(delegate, &branch_ref)?;
+            let r = match self.reference_oid(delegate, &branch_ref) {
+                Ok(oid) => oid,
+                Err(e) if ext::is_not_found_err(&e) => {
+                    log::warn!(
+                        target: "radicle",
+                        "Missing `refs/namespaces/{delegate}/{branch_ref}` while calculating the canonical head"
+                    );
+                    continue;
+                }
+                Err(e) => return Err(e.into()),
+            };
 
             heads.push(*r);
         }
-        let quorum = self::quorum(&heads, doc.threshold, raw)?;
 
-        Ok((branch_ref, quorum))
+        let oid = self::quorum(&heads, doc.threshold, raw)?;
+        Ok((branch_ref, oid))
     }
 
     fn identity_head(&self) -> Result<Oid, RepositoryError> {
@@ -857,6 +867,7 @@ impl WriteRepository for Repository {
             .refname_to_id(&head_ref)
             .ok()
             .map(|oid| oid.into());
+
         let (branch_ref, new) = self.canonical_head()?;
 
         if old == Some(new) {

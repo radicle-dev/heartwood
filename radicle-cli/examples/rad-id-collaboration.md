@@ -25,34 +25,52 @@ $ cd ./heartwood
 $ git push rad master
 ```
 
-At this point Alice can follow Bob, fetch his fork, and add him to the delegate
-set:
+If Alice wants to ensure that both her and Bob need to agree on merges
+to the default branch, she must set the `threshold` to `2` when adding
+Bob as a delegate:
+
+``` ~alice (fails)
+$ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --description "" --threshold 2 --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm -q
+✗ Error: failed to verify delegates for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+✗ Error: a threshold of 2 delegates cannot be met, found 1 delegate(s) and the following delegates are missing [did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk]
+✗ Hint: run `rad follow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk` to follow this missing peer
+✗ Hint: run `rad sync -f` to attempt to fetch the newly followed peers
+✗ Error: fatal: refusing to update identity document
+```
+
+We can see that `a threshold of 2 delegates cannot be met` when Alice
+attempts to do this. This is because she requires Bob's default branch
+to ensure that the threshold can be met and the canonical version of
+the default branch (`refs/heads/<default branch>` at the top-level of
+the storage) can be updated.
+
+So, instead Alice needs to first follow Bob and fetch his references:
 
 ``` ~alice
 $ rad follow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias bob
 ✓ Follow policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
 $ rad sync
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
 ✓ Fetched repository from 2 seed(s)
-✓ Nothing to announce, already in sync with network (see `rad sync status`)
+✓ Synced with 1 node(s)
 $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --description "" --threshold 2 --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm -q
 069e7d58faa9a7473d27f5510d676af33282796f
 $ rad sync
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
 ✓ Fetched repository from 2 seed(s)
-✓ Synced with 2 node(s)
+✓ Synced with 3 node(s)
 ```
 
 Bob can confirm that he was made a delegate by fetching the update:
 
 ``` ~bob
 $ rad sync
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
 ✓ Fetched repository from 2 seed(s)
-✓ Nothing to announce, already in sync with network (see `rad sync status`)
+✓ Synced with 1 node(s)
 $ rad inspect --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
@@ -65,8 +83,8 @@ between Alice and Bob. Eve first needs to setup a fork:
 ``` ~eve
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope followed
 ✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'followed'
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
 ✓ Creating checkout in ./heartwood..
 ✓ Remote alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi added
 ✓ Remote-tracking branch alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi
@@ -83,34 +101,31 @@ $ cd ./heartwood
 $ git push rad master
 ```
 
-Bob then follows Eve and fetches her fork and adds her as a delegate:
+Bob then adds Eve as a delegate:
 
 ``` ~bob
-$ rad follow did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --alias eve
-✓ Follow policy updated for z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z (eve)
-$ rad sync
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
-✓ Fetched repository from 2 seed(s)
-✓ Nothing to announce, already in sync with network (see `rad sync status`)
 $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --description "" --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --no-confirm -q
 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3
 $ rad sync
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
 ✓ Fetched repository from 2 seed(s)
-✓ Synced with 2 node(s)
+✓ Synced with 3 node(s)
 ```
 
-Since the `threshold` is set to `2` it's necessary for Alice to also
-accept this change:
+Notice how there was no need to follow Eve right away in this case?
+This is because Bob can meet the threshold of 2 without Eve, he
+has Alice and his default reference.
+
+Since there are two delegates when Bob adds Eve, Alice needs to accept
+the change to meet a quorum of votes (`votes >= (delegates / 2) + 1`):
 
 ``` ~alice
 $ rad sync
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
 ✓ Fetched repository from 2 seed(s)
-✓ Nothing to announce, already in sync with network (see `rad sync status`)
+✓ Nothing to announce, already in sync with 3 node(s) (see `rad sync status`)
 $ rad id list
 ╭────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title              Author                     Status     Created │
@@ -137,26 +152,20 @@ $ rad id accept 3cd3c7f
 ╰────────────────────────────────────────────────────────────────────────╯
 ```
 
-At this point Alice will want to fetch so that she can get Eve's fork:
+At this point, when Alice runs `rad sync`, she will fetch Eve's fork
+since she has become a delegate:
 
 ``` ~alice
 $ rad sync --timeout 3
-✗ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD.. error: missing required refs: ["refs/namespaces/z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z/refs/rad/sigrefs"]
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
-✓ Fetched repository from 1 seed(s)
-✓ Synced with 1 node(s)
-! Seed z6MkvVv69U1HGuN6yUd8RiYE8py6QYRzuQoG45xSpZ1Ct4tD timed out..
+✓ Fetched repository from 2 seed(s)
+✓ Synced with 3 node(s)
 $ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 1f716870f890be0c13fdd0af9f527af849fec792
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk c40018821dc1b41cad75e91e0c9d00827e815324
 z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z 95cd447c57de8d232c6154f5dba0451aa593520e
 ```
-
-Note that `z6MkvVv69U1HGuN6yUd8RiYE8py6QYRzuQoG45xSpZ1Ct4tD` fails to
-fetch since it did not have Eve's fork, and similarly, it could not
-fetch from Alice and times out for the same reason. However, Alice was
-able to successfully fetch from `z6MkvVv…Z1Ct4tD`, since it did have
-Eve's fork.
 
 Since the network is eventually consistent, if Eve decides to `sync`
 (this could also happen through a transient announcement), then we can
@@ -167,13 +176,14 @@ $ rad sync
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
 ✓ Fetched repository from 2 seed(s)
-✓ Synced with 1 node(s)
+✓ Synced with 3 node(s)
 $ rad sync status
-╭────────────────────────────────────────────────────────────────────────────╮
-│ ●   Node                            Address   Status   Tip       Timestamp │
-├────────────────────────────────────────────────────────────────────────────┤
-│ ●   eve           (you)                                95cd447   now       │
-│ ●   distrustful   z6MkvVv…Z1Ct4tD             synced   95cd447   now       │
-│ ●   seed          z6MkuPZ…xEuaPUp             synced   95cd447   now       │
-╰────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   Node                            Address                        Status   Tip       Timestamp │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   eve           (you)                                                     95cd447   now       │
+│ ●   bob           z6Mkt67…v4N1tRk                                  synced   95cd447   now       │
+│ ●   distrustful   z6MkvVv…Z1Ct4tD   distrustful.radicle.xyz:8776   synced   95cd447   now       │
+│ ●   seed          z6MkuPZ…xEuaPUp   seed.radicle.xyz:8776          synced   95cd447   now       │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
