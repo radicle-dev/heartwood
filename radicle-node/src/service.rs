@@ -50,7 +50,7 @@ use crate::service::message::{
 };
 use crate::service::policy::{store::Write, Policy, Scope};
 use crate::storage;
-use crate::storage::{refs::RefsAt, Namespaces, ReadRepository, ReadStorage};
+use crate::storage::{refs::RefsAt, Namespaces, ReadStorage};
 use crate::worker::fetch;
 use crate::worker::FetchError;
 use crate::Link;
@@ -780,18 +780,32 @@ where
                     .expect("Service::command: error unfollowing node");
                 resp.send(updated).ok();
             }
-            Command::AnnounceRefs(id, resp) => match self.announce_own_refs(id) {
-                Ok(refs) => match refs.as_slice() {
-                    &[refs] => {
-                        resp.send(refs).ok();
+            Command::AnnounceRefs(id, resp) => {
+                let doc = match self.storage.get(id) {
+                    Ok(Some(doc)) => doc,
+                    Ok(None) => {
+                        error!(target: "service", "Error announcing refs: repository {id} not found");
+                        return;
                     }
-                    // SAFETY: Since we passed in one NID, we should get exactly one item back.
-                    [..] => panic!("Service::command: unexpected refs returned"),
-                },
-                Err(err) => {
-                    error!(target: "service", "Error announcing refs: {err}");
+                    Err(e) => {
+                        error!(target: "service", "Error announcing refs: doc error: {e}");
+                        return;
+                    }
+                };
+
+                match self.announce_own_refs(id, doc) {
+                    Ok(refs) => match refs.as_slice() {
+                        &[refs] => {
+                            resp.send(refs).ok();
+                        }
+                        // SAFETY: Since we passed in one NID, we should get exactly one item back.
+                        [..] => panic!("Service::command: unexpected refs returned"),
+                    },
+                    Err(err) => {
+                        error!(target: "service", "Error announcing refs: {err}");
+                    }
                 }
-            },
+            }
             Command::AnnounceInventory => {
                 if let Err(err) = self
                     .storage
@@ -954,6 +968,7 @@ where
                 updated,
                 namespaces,
                 clone,
+                doc,
             }) => {
                 info!(target: "service", "Fetched {rid} from {remote} successfully");
 
@@ -974,6 +989,7 @@ where
                     updated,
                     namespaces,
                     clone,
+                    doc,
                 }
             }
             Err(err) => {
@@ -1013,6 +1029,7 @@ where
         if fetching.subscribers.is_empty() {
             trace!(target: "service", "No fetch requests found for {rid}..");
 
+            // TODO: Combine this with the below.
             // We only announce refs here when the fetch wasn't user-requested. This is
             // because the user might want to announce his fork, once he has created one,
             // or may choose to not announce anything.
@@ -1020,9 +1037,12 @@ where
                 FetchResult::Success {
                     updated,
                     namespaces,
+                    doc,
                     ..
                 } if !updated.is_empty() => {
-                    if let Err(e) = self.announce_refs(rid, namespaces.iter().cloned()) {
+                    if let Err(e) =
+                        self.announce_refs(rid, doc.clone().into(), namespaces.iter().cloned())
+                    {
                         error!(target: "service", "Failed to announce new refs: {e}");
                     }
                 }
@@ -1031,8 +1051,14 @@ where
         }
 
         // Announce our new inventory if this fetch was a clone.
-        if let FetchResult::Success { clone: true, .. } = result {
-            self.storage.insert(rid);
+        if let FetchResult::Success {
+            doc, clone: true, ..
+        } = result
+        {
+            // Only add inventory for public repositories.
+            if doc.visibility.is_public() {
+                self.storage.insert(rid);
+            }
             self.sync_and_announce();
         }
 
@@ -1832,8 +1858,8 @@ where
     }
 
     /// Announce our own refs for the given repo.
-    fn announce_own_refs(&mut self, rid: RepoId) -> Result<Vec<RefsAt>, Error> {
-        let refs = self.announce_refs(rid, [self.node_id()])?;
+    fn announce_own_refs(&mut self, rid: RepoId, doc: Doc<Verified>) -> Result<Vec<RefsAt>, Error> {
+        let refs = self.announce_refs(rid, doc, [self.node_id()])?;
 
         // Update refs database with our signed refs branches.
         // This isn't strictly necessary for now, as we only use the database for fetches, and
@@ -1860,10 +1886,9 @@ where
     fn announce_refs(
         &mut self,
         rid: RepoId,
+        doc: Doc<Verified>,
         remotes: impl IntoIterator<Item = NodeId>,
     ) -> Result<Vec<RefsAt>, Error> {
-        let repo = self.storage.repository(rid)?;
-        let doc = repo.identity_doc()?;
         let peers = self.sessions.connected().map(|(_, p)| p);
         let (ann, refs) = self.refs_announcement_for(rid, remotes)?;
 

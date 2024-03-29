@@ -394,7 +394,7 @@ pub trait ReadStorage {
         match self.repository(rid) {
             Ok(repo) => Ok(Some(repo.identity_doc()?.into())),
             Err(e) if e.is_not_found() => Ok(None),
-            Err(e) => Err(e.into()),
+            Err(e) => Err(e),
         }
     }
 }

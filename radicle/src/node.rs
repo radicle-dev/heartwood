@@ -29,7 +29,7 @@ use serde_json as json;
 
 use crate::crypto::PublicKey;
 use crate::git;
-use crate::identity::RepoId;
+use crate::identity::{DocAt, RepoId};
 use crate::profile;
 use crate::storage::refs::RefsAt;
 use crate::storage::RefUpdate;
@@ -686,6 +686,7 @@ pub enum FetchResult {
         updated: Vec<RefUpdate>,
         namespaces: HashSet<NodeId>,
         clone: bool,
+        doc: DocAt,
     },
     // TODO: Create enum for reason.
     Failed {
@@ -718,13 +719,14 @@ impl FetchResult {
     }
 }
 
-impl<S: ToString> From<Result<(Vec<RefUpdate>, HashSet<NodeId>, bool), S>> for FetchResult {
-    fn from(value: Result<(Vec<RefUpdate>, HashSet<NodeId>, bool), S>) -> Self {
+impl<S: ToString> From<Result<(Vec<RefUpdate>, HashSet<NodeId>, bool, DocAt), S>> for FetchResult {
+    fn from(value: Result<(Vec<RefUpdate>, HashSet<NodeId>, bool, DocAt), S>) -> Self {
         match value {
-            Ok((updated, namespaces, clone)) => Self::Success {
+            Ok((updated, namespaces, clone, doc)) => Self::Success {
                 updated,
                 namespaces,
                 clone,
+                doc,
             },
             Err(err) => Self::Failed {
                 reason: err.to_string(),

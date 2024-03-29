@@ -6,6 +6,7 @@ use std::str::FromStr;
 use localtime::LocalTime;
 
 use radicle::crypto::PublicKey;
+use radicle::identity::DocAt;
 use radicle::prelude::RepoId;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{
@@ -16,14 +17,27 @@ use radicle_fetch::{Allowed, BlockList, FetchLimit};
 
 use super::channels::ChannelsFlush;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone)]
 pub struct FetchResult {
-    /// The set of updates references.
+    /// The set of updated references.
     pub updated: Vec<RefUpdate>,
     /// The set of remote namespaces that were updated.
     pub namespaces: HashSet<PublicKey>,
     /// The fetch was a full clone.
     pub clone: bool,
+    /// Identity doc of fetched repo.
+    pub doc: DocAt,
+}
+
+impl FetchResult {
+    pub fn new(doc: DocAt) -> Self {
+        Self {
+            updated: vec![],
+            namespaces: HashSet::new(),
+            clone: false,
+            doc,
+        }
+    }
 }
 
 pub enum Handle {
@@ -129,6 +143,7 @@ impl Handle {
                 Ok(FetchResult {
                     updated: applied.updated,
                     namespaces: remotes.into_iter().collect(),
+                    doc: repo.identity_doc()?,
                     clone,
                 })
             }

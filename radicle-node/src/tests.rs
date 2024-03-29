@@ -1344,6 +1344,7 @@ fn test_queued_fetch_max_capacity() {
     let rid1 = *repo_keys.next().unwrap();
     let rid2 = *repo_keys.next().unwrap();
     let rid3 = *repo_keys.next().unwrap();
+    let doc = storage.repos.get(&rid1).unwrap().doc.clone();
     let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
 
@@ -1372,14 +1373,14 @@ fn test_queued_fetch_max_capacity() {
     alice.elapse(KEEP_ALIVE_DELTA);
 
     // Finish the 1st fetch.
-    alice.fetched(rid1, bob.id, Ok(fetch::FetchResult::default()));
+    alice.fetched(rid1, bob.id, Ok(fetch::FetchResult::new(doc.clone())));
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid2);
     // ... but not the third.
     assert_matches!(alice.fetches().next(), None);
 
     // Finish the 2nd fetch.
-    alice.fetched(rid2, bob.id, Ok(fetch::FetchResult::default()));
+    alice.fetched(rid2, bob.id, Ok(fetch::FetchResult::new(doc)));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid3);
 }
@@ -1453,6 +1454,7 @@ fn test_queued_fetch_from_ann_same_rid() {
             }],
             namespaces: [carol.id()].into_iter().collect(),
             clone: false,
+            doc: arbitrary::gen(1),
         }),
     );
     // Now the 1st fetch is done, but the 2nd and 3rd fetches are redundant.
@@ -1496,14 +1498,14 @@ fn test_queued_fetch_from_command_same_rid() {
     alice.elapse(KEEP_ALIVE_DELTA);
 
     // Finish the 1st fetch.
-    alice.fetched(rid1, bob.id, Ok(fetch::FetchResult::default()));
+    alice.fetched(rid1, bob.id, Ok(arbitrary::gen::<fetch::FetchResult>(1)));
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, nid, _)) if rid == rid1 && nid == eve.id);
     // ... but not the third.
     assert_matches!(alice.fetches().next(), None);
 
     // Finish the 2nd fetch.
-    alice.fetched(rid1, eve.id, Ok(fetch::FetchResult::default()));
+    alice.fetched(rid1, eve.id, Ok(arbitrary::gen::<fetch::FetchResult>(1)));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, nid, _)) if rid == rid1 && nid == carol.id);
 }
