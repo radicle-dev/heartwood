@@ -129,6 +129,9 @@ impl IntoResponse for Error {
             Error::Storage(err) if err.is_not_found() => {
                 (StatusCode::NOT_FOUND, Some(err.to_string()))
             }
+            Error::Repository(err) if err.is_not_found() => {
+                (StatusCode::NOT_FOUND, Some(err.to_string()))
+            }
             Error::StorageRef(err) if err.is_not_found() => {
                 (StatusCode::NOT_FOUND, Some(err.to_string()))
             }

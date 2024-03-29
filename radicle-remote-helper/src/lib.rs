@@ -54,9 +54,9 @@ pub enum Error {
     /// Invalid reference name.
     #[error("invalid ref: {0}")]
     InvalidRef(#[from] radicle::git::fmt::Error),
-    /// Storage error.
+    /// Repository error.
     #[error(transparent)]
-    Storage(#[from] radicle::storage::Error),
+    Repository(#[from] radicle::storage::RepositoryError),
     /// Fetch error.
     #[error(transparent)]
     Fetch(#[from] fetch::Error),

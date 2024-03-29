@@ -145,7 +145,7 @@ impl ReadStorage for Storage {
         }
     }
 
-    fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error> {
+    fn repository(&self, rid: RepoId) -> Result<Self::Repository, RepositoryError> {
         Repository::open(paths::repository(self, &rid), rid)
     }
 }
@@ -153,7 +153,7 @@ impl ReadStorage for Storage {
 impl WriteStorage for Storage {
     type RepositoryMut = Repository;
 
-    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error> {
+    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, RepositoryError> {
         Repository::open(paths::repository(self, &rid), rid)
     }
 
@@ -295,7 +295,7 @@ impl Storage {
         })
     }
 
-    pub fn inspect(&self) -> Result<(), Error> {
+    pub fn inspect(&self) -> Result<(), RepositoryError> {
         for r in self.repositories()? {
             let rid = r.rid;
             let repo = self.repository(rid)?;
@@ -386,7 +386,7 @@ pub enum Validation {
 
 impl Repository {
     /// Open an existing repository.
-    pub fn open<P: AsRef<Path>>(path: P, id: RepoId) -> Result<Self, Error> {
+    pub fn open<P: AsRef<Path>>(path: P, id: RepoId) -> Result<Self, RepositoryError> {
         let backend = git2::Repository::open_bare(path.as_ref())?;
 
         Ok(Self { id, backend })
