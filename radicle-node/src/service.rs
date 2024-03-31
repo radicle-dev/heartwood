@@ -1436,10 +1436,6 @@ where
                         info!(target: "service", "Routing table updated for {} with seed {announcer}", message.rid);
                     }
                 }
-                let Some(refs) = NonEmpty::from_vec(message.refs.to_vec()) else {
-                    debug!(target: "service", "Skipping fetch, empty refs announcement for {}", message.rid);
-                    return Ok(false);
-                };
 
                 // Update sync status of announcer for this repo.
                 if let Some(refs) = message.refs.iter().find(|r| &r.remote == self.nid()) {
@@ -1468,7 +1464,6 @@ where
                         }
                     }
                 }
-
                 let repo_entry = self.policies.seed_policy(&message.rid).expect(
                     "Service::handle_announcement: error accessing repo seeding configuration",
                 );
@@ -1491,9 +1486,20 @@ where
                     );
                     return Ok(relay);
                 };
-                // Finally, if there's anything to fetch, we fetch it from the remote.
-                self.fetch_refs_at(message.rid, remote.id, refs, FETCH_TIMEOUT, None);
 
+                // Finally, if there's anything to fetch, we fetch it from the remote.
+                if let Some(refs) = NonEmpty::from_vec(
+                    message
+                        .refs
+                        .iter()
+                        .filter(|r| r.remote != self.node_id()) // Don't fetch our own refs.
+                        .cloned()
+                        .collect(),
+                ) {
+                    self.fetch_refs_at(message.rid, remote.id, refs, FETCH_TIMEOUT, None);
+                } else {
+                    debug!(target: "service", "Skipping fetch, no remote refs in announcement for {}", message.rid);
+                }
                 return Ok(relay);
             }
             AnnouncementMessage::Node(
