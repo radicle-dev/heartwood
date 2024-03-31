@@ -5,9 +5,8 @@ use std::time;
 
 use radicle::git;
 use radicle::storage::refs::RefsAt;
-use radicle::test::arbitrary;
 
-use crate::identity::{DocAt, RepoId};
+use crate::identity::RepoId;
 use crate::node::{Alias, Config, ConnectOptions, ConnectResult, Event, FetchResult, Seeds};
 use crate::runtime::HandleError;
 use crate::service::policy;
@@ -63,7 +62,6 @@ impl radicle::node::Handle for Handle {
             updated: vec![],
             namespaces: HashSet::new(),
             clone: false,
-            doc: arbitrary::gen::<DocAt>(1),
         })
     }
 

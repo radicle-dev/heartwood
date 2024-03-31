@@ -963,7 +963,40 @@ where
         remote: NodeId,
         result: Result<fetch::FetchResult, FetchError>,
     ) {
-        let result = match result {
+        let Some(fetching) = self.fetching.remove(&rid) else {
+            error!(target: "service", "Received unexpected fetch result for {rid}, from {remote}");
+            return;
+        };
+        debug_assert_eq!(fetching.from, remote);
+
+        if let Some(s) = self.sessions.get_mut(&remote) {
+            // Mark this RID as fetched for this session.
+            s.fetched(rid);
+        }
+
+        // Notify all fetch subscribers of the fetch result. This is used when the user requests
+        // a fetch via the CLI, for example.
+        for sub in &fetching.subscribers {
+            debug!(target: "service", "Found existing fetch request from {remote}, sending result..");
+
+            let result = match &result {
+                Ok(success) => FetchResult::Success {
+                    updated: success.updated.clone(),
+                    namespaces: success.namespaces.clone(),
+                    clone: success.clone,
+                },
+                Err(e) => FetchResult::Failed {
+                    reason: e.to_string(),
+                },
+            };
+            if sub.send(result).is_err() {
+                error!(target: "service", "Error sending fetch result for {rid} from {remote}..");
+            } else {
+                debug!(target: "service", "Sent fetch result for {rid} from {remote}..");
+            }
+        }
+
+        match result {
             Ok(fetch::FetchResult {
                 updated,
                 namespaces,
@@ -985,81 +1018,35 @@ where
                     updated: updated.clone(),
                 });
 
-                FetchResult::Success {
-                    updated,
-                    namespaces,
-                    clone,
-                    doc,
+                // Announce our new inventory if this fetch was a full clone.
+                // Only update and announce inventory for public repositories.
+                if clone && doc.visibility.is_public() {
+                    debug!(target: "service", "Updating and announcing inventory for cloned repository {rid}..");
+
+                    self.storage.insert(rid);
+                    self.sync_and_announce_inventory();
+                }
+
+                // It's possible for a fetch to succeed but nothing was updated.
+                if updated.is_empty() {
+                    debug!(target: "service", "Nothing to announce, no refs were updated..");
+                } else {
+                    // Finally, announce the refs. This is useful for nodes to know what we've synced,
+                    // beyond just knowing that we have added an item to our inventory.
+                    if let Err(e) = self.announce_refs(rid, doc.into(), namespaces) {
+                        error!(target: "service", "Failed to announce new refs: {e}");
+                    }
                 }
             }
             Err(err) => {
-                let reason = err.to_string();
-                error!(target: "service", "Fetch failed for {rid} from {remote}: {reason}");
+                error!(target: "service", "Fetch failed for {rid} from {remote}: {err}");
 
                 // For now, we only disconnect the remote in case of timeout. In the future,
                 // there may be other reasons to disconnect.
                 if err.is_timeout() {
                     self.outbox.disconnect(remote, DisconnectReason::Fetch(err));
                 }
-                FetchResult::Failed { reason }
             }
-        };
-
-        let Some(fetching) = self.fetching.remove(&rid) else {
-            warn!(target: "service", "Received unexpected fetch result for {rid}, from {remote}");
-            return;
-        };
-        debug_assert_eq!(fetching.from, remote);
-
-        if let Some(s) = self.sessions.get_mut(&remote) {
-            // Mark this RID as fetched for this session.
-            s.fetched(rid);
-        }
-
-        for sub in &fetching.subscribers {
-            debug!(target: "service", "Found existing fetch request from {remote}, sending result..");
-
-            if sub.send(result.clone()).is_err() {
-                error!(target: "service", "Error sending fetch result for {rid} from {remote}..");
-            } else {
-                debug!(target: "service", "Sent fetch result for {rid} from {remote}..");
-            }
-        }
-
-        if fetching.subscribers.is_empty() {
-            trace!(target: "service", "No fetch requests found for {rid}..");
-
-            // TODO: Combine this with the below.
-            // We only announce refs here when the fetch wasn't user-requested. This is
-            // because the user might want to announce his fork, once he has created one,
-            // or may choose to not announce anything.
-            match &result {
-                FetchResult::Success {
-                    updated,
-                    namespaces,
-                    doc,
-                    ..
-                } if !updated.is_empty() => {
-                    if let Err(e) =
-                        self.announce_refs(rid, doc.clone().into(), namespaces.iter().cloned())
-                    {
-                        error!(target: "service", "Failed to announce new refs: {e}");
-                    }
-                }
-                _ => debug!(target: "service", "Nothing to announce, no refs were updated.."),
-            }
-        }
-
-        // Announce our new inventory if this fetch was a clone.
-        if let FetchResult::Success {
-            doc, clone: true, ..
-        } = result
-        {
-            // Only add inventory for public repositories.
-            if doc.visibility.is_public() {
-                self.storage.insert(rid);
-            }
-            self.sync_and_announce();
         }
 
         // We can now try to dequeue another fetch.
@@ -1898,8 +1885,9 @@ where
         let peers = self.sessions.connected().map(|(_, p)| p);
         let (ann, refs) = self.refs_announcement_for(rid, remotes)?;
 
-        // Update our local sync status. This is useful for determining if refs were updated while
-        // the node was stopped.
+        // Update our sync status for our own refs. This is useful for determining if refs were
+        // updated while the node was stopped.
+        // TODO: Move to `announce_own_refs`.
         if let Some(refs) = refs.iter().find(|r| r.remote == ann.node) {
             info!(target: "service", "Announcing local refs for {rid} to peers ({})..", refs.at);
 
@@ -1923,7 +1911,7 @@ where
         Ok(refs)
     }
 
-    fn sync_and_announce(&mut self) {
+    fn sync_and_announce_inventory(&mut self) {
         match self.sync_inventory() {
             Ok(synced) => {
                 // Only announce if our inventory changed.

@@ -938,7 +938,8 @@ fn test_non_fastforward_sigrefs() {
 
     assert_matches!(
         alice.handle.fetch(rid, eve.id, DEFAULT_TIMEOUT).unwrap(),
-        FetchResult::Success { updated, .. } if updated.is_empty()
+        FetchResult::Success { updated, .. }
+        if updated.iter().all(|u| u.is_skipped())
     );
 }
 

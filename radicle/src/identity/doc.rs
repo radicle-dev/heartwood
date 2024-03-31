@@ -130,7 +130,7 @@ impl Deref for Payload {
 }
 
 /// A verified identity document at a specific commit.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocAt {
     /// The commit at which this document exists.
     pub commit: Oid,

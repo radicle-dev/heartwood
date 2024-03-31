@@ -389,6 +389,8 @@ fn rad_id_multi_delegate() {
     eve.fork(acme, working.join("eve")).unwrap();
     eve.has_remote_of(&acme, &bob.id);
     alice.has_remote_of(&acme, &eve.id);
+    alice.is_synced_with(&acme, &eve.id);
+    alice.is_synced_with(&acme, &bob.id);
 
     // TODO: Have formula with two connected nodes and a tracked project.
 

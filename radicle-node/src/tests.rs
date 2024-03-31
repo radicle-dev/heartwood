@@ -1652,21 +1652,24 @@ fn test_init_and_seed() {
 
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 
+    log::debug!(target: "test", "Simulation is over");
+
     // TODO: Refs should be compared between the two peers.
 
-    assert!(eve.storage().get(proj_id).unwrap().is_some());
-    assert!(bob.storage().get(proj_id).unwrap().is_some());
-
+    log::debug!(target: "test", "Waiting for {} to fetch {} from {}..", bob.id, proj_id,eve.id);
     bob_events
         .iter()
         .find(|e| {
             matches!(
                 e,
                 service::Event::RefsFetched { remote, .. }
-                if *remote == eve.node_id(),
+                if *remote == eve.node_id()
             )
         })
         .expect("Bob fetched from Eve");
+
+    assert!(eve.storage().get(proj_id).unwrap().is_some());
+    assert!(bob.storage().get(proj_id).unwrap().is_some());
 }
 
 #[test]

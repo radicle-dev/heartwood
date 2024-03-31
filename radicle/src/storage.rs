@@ -239,6 +239,11 @@ impl RefUpdate {
     pub fn is_created(&self) -> bool {
         matches!(self, RefUpdate::Created { .. })
     }
+
+    /// Is it a skip.
+    pub fn is_skipped(&self) -> bool {
+        matches!(self, RefUpdate::Skipped { .. })
+    }
 }
 
 impl fmt::Display for RefUpdate {
