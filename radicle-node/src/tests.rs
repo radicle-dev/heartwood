@@ -1559,7 +1559,7 @@ fn test_refs_synced_event() {
 }
 
 #[test]
-fn test_push_and_pull() {
+fn test_init_and_seed() {
     let tempdir = tempfile::tempdir().unwrap();
 
     let storage_alice = Storage::open(
@@ -1626,19 +1626,22 @@ fn test_push_and_pull() {
     assert!(bob.get(proj_id).unwrap().is_none());
 
     // Bob seeds Alice's project.
-    let (sender, _) = chan::bounded(1);
+    let (sender, receiver) = chan::bounded(1);
     bob.command(service::Command::Seed(
         proj_id,
         policy::Scope::default(),
         sender,
     ));
+    assert!(receiver.recv().unwrap());
+
     // Eve seeds Alice's project.
-    let (sender, _) = chan::bounded(1);
+    let (sender, receiver) = chan::bounded(1);
     eve.command(service::Command::Seed(
         proj_id,
         policy::Scope::default(),
         sender,
     ));
+    assert!(receiver.recv().unwrap());
 
     let (send, _) = chan::bounded(1);
     // Alice announces her inventory.

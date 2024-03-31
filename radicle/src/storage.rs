@@ -229,6 +229,16 @@ impl RefUpdate {
             RefUpdate::Skipped { name, .. } => name.as_refstr(),
         }
     }
+
+    /// Is it an update.
+    pub fn is_updated(&self) -> bool {
+        matches!(self, RefUpdate::Updated { .. })
+    }
+
+    /// Is it a create.
+    pub fn is_created(&self) -> bool {
+        matches!(self, RefUpdate::Created { .. })
+    }
 }
 
 impl fmt::Display for RefUpdate {

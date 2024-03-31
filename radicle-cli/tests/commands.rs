@@ -12,7 +12,7 @@ use radicle::node::{Address, Alias, DEFAULT_TIMEOUT};
 use radicle::prelude::RepoId;
 use radicle::profile;
 use radicle::profile::Home;
-use radicle::storage::{ReadStorage, RemoteRepository};
+use radicle::storage::{ReadStorage, RefUpdate, RemoteRepository};
 use radicle::test::fixtures;
 
 use radicle_cli_test::TestFormula;
@@ -333,7 +333,7 @@ fn rad_id() {
     let events = alice.handle.events();
     bob.fork(acme, bob.home.path()).unwrap();
     bob.announce(acme, 2, bob.home.path()).unwrap();
-    alice.has_inventory_of(&acme, &bob.id);
+    alice.has_remote_of(&acme, &bob.id);
 
     // Alice must have Bob to try add them as a delegate
     events
@@ -383,12 +383,12 @@ fn rad_id_multi_delegate() {
     eve.connect(&alice).converge([&alice]);
 
     bob.fork(acme, working.join("bob")).unwrap();
-    bob.has_inventory_of(&acme, &alice.id);
-    alice.has_inventory_of(&acme, &bob.id);
+    bob.has_remote_of(&acme, &alice.id);
+    alice.has_remote_of(&acme, &bob.id);
 
     eve.fork(acme, working.join("eve")).unwrap();
-    eve.has_inventory_of(&acme, &bob.id);
-    alice.has_inventory_of(&acme, &eve.id);
+    eve.has_remote_of(&acme, &bob.id);
+    alice.has_remote_of(&acme, &eve.id);
 
     // TODO: Have formula with two connected nodes and a tracked project.
 
@@ -541,7 +541,7 @@ fn rad_id_conflict() {
 
     bob.fork(acme, working.join("bob")).unwrap();
     bob.announce(acme, 2, bob.home.path()).unwrap();
-    alice.has_inventory_of(&acme, &bob.id);
+    alice.has_remote_of(&acme, &bob.id);
 
     formula(&environment.tmp(), "examples/rad-id-conflict.md")
         .unwrap()
@@ -983,9 +983,9 @@ fn rad_clean() {
 
     bob.fork(acme, bob.home.path()).unwrap();
     bob.announce(acme, 1, bob.home.path()).unwrap();
-    bob.has_inventory_of(&acme, &alice.id);
-    alice.has_inventory_of(&acme, &bob.id);
-    eve.has_inventory_of(&acme, &alice.id);
+    bob.has_remote_of(&acme, &alice.id);
+    alice.has_remote_of(&acme, &bob.id);
+    eve.has_remote_of(&acme, &alice.id);
 
     formula(&environment.tmp(), "examples/rad-clean.md")
         .unwrap()
@@ -1117,8 +1117,8 @@ fn rad_clone_all() {
     // Fork and sync repo.
     bob.fork(acme, bob.home.path()).unwrap();
     bob.announce(acme, 2, bob.home.path()).unwrap();
-    bob.has_inventory_of(&acme, &alice.id);
-    alice.has_inventory_of(&acme, &bob.id);
+    bob.has_remote_of(&acme, &alice.id);
+    alice.has_remote_of(&acme, &bob.id);
 
     test(
         "examples/rad-clone-all.md",
@@ -1127,7 +1127,7 @@ fn rad_clone_all() {
         [],
     )
     .unwrap();
-    eve.has_inventory_of(&acme, &bob.id);
+    eve.has_remote_of(&acme, &bob.id);
 }
 
 #[test]
@@ -1509,7 +1509,14 @@ fn test_cob_replication() {
     // Wait for Alice to fetch the clone refs.
     events
         .wait(
-            |e| matches!(e, Event::RefsFetched { .. }).then_some(()),
+            |e| {
+                matches!(
+                    e,
+                    Event::RefsFetched { updated, .. }
+                    if updated.iter().any(|u| matches!(u, RefUpdate::Created { .. }))
+                )
+                .then_some(())
+            },
             time::Duration::from_secs(6),
         )
         .unwrap();
@@ -1634,6 +1641,8 @@ fn rad_sync() {
     bob.routes_to(&[(acme, alice.id)]);
     eve.routes_to(&[(acme, alice.id)]);
     alice.routes_to(&[(acme, alice.id), (acme, eve.id), (acme, bob.id)]);
+    alice.is_synced_with(&acme, &eve.id);
+    alice.is_synced_with(&acme, &bob.id);
 
     test(
         "examples/rad-sync.md",
@@ -1709,12 +1718,18 @@ fn test_replication_via_seed() {
     seed.routes_to(&[(rid, alice.id), (rid, seed.id), (rid, bob.id)]);
     bob.routes_to(&[(rid, alice.id), (rid, seed.id), (rid, bob.id)]);
 
-    seed_events
-        .iter()
-        .any(|e| matches!(e, Event::RefsFetched { remote, .. } if remote == bob.id));
-    alice_events
-        .iter()
-        .any(|e| matches!(e, Event::RefsFetched { remote, .. } if remote == seed.id));
+    seed_events.iter().any(|e| {
+        matches!(
+            e, Event::RefsFetched { updated, remote, .. }
+            if remote == bob.id && updated.iter().any(|u| u.is_created())
+        )
+    });
+    alice_events.iter().any(|e| {
+        matches!(
+            e, Event::RefsFetched { updated, remote, .. }
+            if remote == seed.id && updated.iter().any(|u| u.is_created())
+        )
+    });
 
     seed.storage
         .repository(rid)
@@ -1763,13 +1778,13 @@ fn rad_remote() {
     bob.routes_to(&[(rid, alice.id)]);
     bob.fork(rid, bob.home.path()).unwrap();
     bob.announce(rid, 2, bob.home.path()).unwrap();
-    alice.has_inventory_of(&rid, &bob.id);
+    alice.has_remote_of(&rid, &bob.id);
 
     eve.connect(&bob);
     eve.routes_to(&[(rid, alice.id)]);
     eve.fork(rid, eve.home.path()).unwrap();
     eve.announce(rid, 2, eve.home.path()).unwrap();
-    alice.has_inventory_of(&rid, &eve.id);
+    alice.has_remote_of(&rid, &eve.id);
 
     test(
         "examples/rad-remote.md",
@@ -2090,7 +2105,7 @@ fn git_push_diverge() {
 
     bob.connect(&alice).converge([&alice]);
     bob.fork(acme, working.join("bob")).unwrap();
-    alice.has_inventory_of(&acme, &bob.id);
+    alice.has_remote_of(&acme, &bob.id);
 
     formula(&environment.tmp(), "examples/git/git-push-diverge.md")
         .unwrap()
@@ -2131,7 +2146,7 @@ fn rad_push_and_pull_patches() {
 
     bob.connect(&alice).converge([&alice]);
     bob.fork(acme, working.join("bob")).unwrap();
-    alice.has_inventory_of(&acme, &bob.id);
+    alice.has_remote_of(&acme, &bob.id);
 
     formula(&environment.tmp(), "examples/rad-push-and-pull-patches.md")
         .unwrap()
