@@ -26,6 +26,7 @@ const DB_WRITE_TIMEOUT: time::Duration = time::Duration::from_secs(6);
 const MIGRATIONS: &[&str] = &[
     include_str!("db/migrations/1.sql"),
     include_str!("db/migrations/2.sql"),
+    include_str!("db/migrations/3.sql"),
 ];
 
 #[derive(Error, Debug)]
