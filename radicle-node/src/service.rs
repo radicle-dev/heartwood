@@ -1653,7 +1653,7 @@ where
                 }
             }
             (session::State::Attempted { .. } | session::State::Initial, msg) => {
-                error!(target: "service", "Received {:?} from connecting peer {}", msg, peer.id);
+                debug!(target: "service", "Ignoring unexpected message {:?} from connecting peer {}", msg, peer.id);
             }
             (session::State::Disconnected { .. }, msg) => {
                 debug!(target: "service", "Ignoring {:?} from disconnected peer {}", msg, peer.id);
