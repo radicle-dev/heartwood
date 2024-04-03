@@ -8,6 +8,7 @@ pub mod db;
 pub mod events;
 pub mod notifications;
 pub mod policy;
+pub mod refs;
 pub mod routing;
 pub mod seed;
 

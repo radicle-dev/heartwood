@@ -59,11 +59,11 @@ pub fn fetch<W: WriteRepository>(
 
     repo.set_identity_head()?;
     repo.set_head()?;
+
     let validations = repo.validate()?;
     if !validations.is_empty() {
         return Err(crate::storage::FetchError::Validation { validations });
     }
-
     Ok(updates)
 }
 

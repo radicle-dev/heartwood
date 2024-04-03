@@ -26,11 +26,12 @@ use radicle::node::address;
 use radicle::node::address::Store as _;
 use radicle::node::address::{AddressBook, KnownAddress};
 use radicle::node::config::PeerConfig;
+use radicle::node::refs::Store as _;
 use radicle::node::routing::Store as _;
 use radicle::node::seed;
 use radicle::node::seed::Store as _;
 use radicle::node::{ConnectOptions, Penalty, Severity};
-use radicle::storage::refs::SignedRefsUpdate;
+use radicle::storage::refs::SIGREFS_BRANCH;
 use radicle::storage::{Inventory, RepositoryError};
 
 use crate::crypto;
@@ -44,13 +45,12 @@ use crate::node::{
 use crate::prelude::*;
 use crate::runtime::Emitter;
 use crate::service::gossip::Store as _;
-use crate::service::message::{Announcement, AnnouncementMessage, Info, Ping};
-use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
+use crate::service::message::{
+    Announcement, AnnouncementMessage, Info, NodeAnnouncement, Ping, RefsAnnouncement, RefsStatus,
+};
 use crate::service::policy::{store::Write, Policy, Scope};
 use crate::storage;
-use crate::storage::refs::RefsAt;
-use crate::storage::ReadRepository;
-use crate::storage::{Namespaces, ReadStorage};
+use crate::storage::{refs::RefsAt, Namespaces, ReadStorage};
 use crate::worker::fetch;
 use crate::worker::FetchError;
 use crate::Link;
@@ -64,7 +64,7 @@ pub use radicle::node::policy::config as policy;
 
 use self::io::Outbox;
 use self::limitter::RateLimiter;
-use self::message::{InventoryAnnouncement, RefsStatus};
+use self::message::InventoryAnnouncement;
 use self::policy::NamespacesError;
 
 /// How often to run the "idle" task.
@@ -159,7 +159,10 @@ pub enum Error {
 }
 
 /// A store for all node data.
-pub trait Store: address::Store + gossip::Store + routing::Store + seed::Store {}
+pub trait Store:
+    address::Store + gossip::Store + routing::Store + seed::Store + node::refs::Store
+{
+}
 
 impl Store for node::Database {}
 
@@ -251,7 +254,7 @@ struct FetchState {
     /// Node we're fetching from.
     from: NodeId,
     /// What refs we're fetching.
-    refs_at: Vec<SignedRefsUpdate>,
+    refs_at: Vec<RefsAt>,
     /// Channels waiting for fetch results.
     subscribers: Vec<chan::Sender<FetchResult>>,
 }
@@ -273,7 +276,7 @@ struct QueuedFetch {
     /// Peer being fetched from.
     from: NodeId,
     /// Refs being fetched.
-    refs_at: Vec<SignedRefsUpdate>,
+    refs_at: Vec<RefsAt>,
     /// Result channel.
     channel: Option<chan::Sender<FetchResult>>,
 }
@@ -323,6 +326,16 @@ where
 
     /// Get the database as a seed store, mutably.
     pub fn seeds_mut(&mut self) -> &mut impl seed::Store {
+        &mut self.0
+    }
+
+    /// Get the database as a refs db.
+    pub fn refs(&self) -> &impl node::refs::Store {
+        &self.0
+    }
+
+    /// Get the database as a refs db, mutably.
+    pub fn refs_mut(&mut self) -> &mut impl node::refs::Store {
         &mut self.0
     }
 }
@@ -767,18 +780,32 @@ where
                     .expect("Service::command: error unfollowing node");
                 resp.send(updated).ok();
             }
-            Command::AnnounceRefs(id, resp) => match self.announce_refs(id, [self.node_id()]) {
-                Ok(refs) => match refs.as_slice() {
-                    &[refs] => {
-                        resp.send(refs).ok();
+            Command::AnnounceRefs(id, resp) => {
+                let doc = match self.storage.get(id) {
+                    Ok(Some(doc)) => doc,
+                    Ok(None) => {
+                        error!(target: "service", "Error announcing refs: repository {id} not found");
+                        return;
                     }
-                    // SAFETY: Since we passed in one NID, we should get exactly one item back.
-                    [..] => panic!("Service::command: unexpected refs returned"),
-                },
-                Err(err) => {
-                    error!(target: "service", "Error announcing refs: {err}");
+                    Err(e) => {
+                        error!(target: "service", "Error announcing refs: doc error: {e}");
+                        return;
+                    }
+                };
+
+                match self.announce_own_refs(id, doc) {
+                    Ok(refs) => match refs.as_slice() {
+                        &[refs] => {
+                            resp.send(refs).ok();
+                        }
+                        // SAFETY: Since we passed in one NID, we should get exactly one item back.
+                        [..] => panic!("Service::command: unexpected refs returned"),
+                    },
+                    Err(err) => {
+                        error!(target: "service", "Error announcing refs: {err}");
+                    }
                 }
-            },
+            }
             Command::AnnounceInventory => {
                 if let Err(err) = self
                     .storage
@@ -809,7 +836,7 @@ where
         &mut self,
         rid: RepoId,
         from: NodeId,
-        refs: NonEmpty<SignedRefsUpdate>,
+        refs: NonEmpty<RefsAt>,
         timeout: time::Duration,
         channel: Option<chan::Sender<FetchResult>>,
     ) {
@@ -831,7 +858,7 @@ where
         &mut self,
         rid: RepoId,
         from: NodeId,
-        refs_at: Vec<SignedRefsUpdate>,
+        refs_at: Vec<RefsAt>,
         timeout: time::Duration,
         channel: Option<chan::Sender<FetchResult>>,
     ) {
@@ -886,7 +913,7 @@ where
         &mut self,
         rid: RepoId,
         from: &NodeId,
-        refs_at: Vec<SignedRefsUpdate>,
+        refs_at: Vec<RefsAt>,
         timeout: time::Duration,
     ) -> Result<&mut FetchState, TryFetchError> {
         let from = *from;
@@ -936,11 +963,45 @@ where
         remote: NodeId,
         result: Result<fetch::FetchResult, FetchError>,
     ) {
-        let result = match result {
+        let Some(fetching) = self.fetching.remove(&rid) else {
+            error!(target: "service", "Received unexpected fetch result for {rid}, from {remote}");
+            return;
+        };
+        debug_assert_eq!(fetching.from, remote);
+
+        if let Some(s) = self.sessions.get_mut(&remote) {
+            // Mark this RID as fetched for this session.
+            s.fetched(rid);
+        }
+
+        // Notify all fetch subscribers of the fetch result. This is used when the user requests
+        // a fetch via the CLI, for example.
+        for sub in &fetching.subscribers {
+            debug!(target: "service", "Found existing fetch request from {remote}, sending result..");
+
+            let result = match &result {
+                Ok(success) => FetchResult::Success {
+                    updated: success.updated.clone(),
+                    namespaces: success.namespaces.clone(),
+                    clone: success.clone,
+                },
+                Err(e) => FetchResult::Failed {
+                    reason: e.to_string(),
+                },
+            };
+            if sub.send(result).is_err() {
+                error!(target: "service", "Error sending fetch result for {rid} from {remote}..");
+            } else {
+                debug!(target: "service", "Sent fetch result for {rid} from {remote}..");
+            }
+        }
+
+        match result {
             Ok(fetch::FetchResult {
                 updated,
                 namespaces,
                 clone,
+                doc,
             }) => {
                 info!(target: "service", "Fetched {rid} from {remote} successfully");
 
@@ -957,70 +1018,35 @@ where
                     updated: updated.clone(),
                 });
 
-                FetchResult::Success {
-                    updated,
-                    namespaces,
-                    clone,
+                // Announce our new inventory if this fetch was a full clone.
+                // Only update and announce inventory for public repositories.
+                if clone && doc.visibility.is_public() {
+                    debug!(target: "service", "Updating and announcing inventory for cloned repository {rid}..");
+
+                    self.storage.insert(rid);
+                    self.sync_and_announce_inventory();
+                }
+
+                // It's possible for a fetch to succeed but nothing was updated.
+                if updated.is_empty() {
+                    debug!(target: "service", "Nothing to announce, no refs were updated..");
+                } else {
+                    // Finally, announce the refs. This is useful for nodes to know what we've synced,
+                    // beyond just knowing that we have added an item to our inventory.
+                    if let Err(e) = self.announce_refs(rid, doc.into(), namespaces) {
+                        error!(target: "service", "Failed to announce new refs: {e}");
+                    }
                 }
             }
             Err(err) => {
-                let reason = err.to_string();
-                error!(target: "service", "Fetch failed for {rid} from {remote}: {reason}");
+                error!(target: "service", "Fetch failed for {rid} from {remote}: {err}");
 
                 // For now, we only disconnect the remote in case of timeout. In the future,
                 // there may be other reasons to disconnect.
                 if err.is_timeout() {
                     self.outbox.disconnect(remote, DisconnectReason::Fetch(err));
                 }
-                FetchResult::Failed { reason }
             }
-        };
-
-        let Some(fetching) = self.fetching.remove(&rid) else {
-            warn!(target: "service", "Received unexpected fetch result for {rid}, from {remote}");
-            return;
-        };
-        debug_assert_eq!(fetching.from, remote);
-
-        if let Some(s) = self.sessions.get_mut(&remote) {
-            // Mark this RID as fetched for this session.
-            s.fetched(rid);
-        }
-
-        for sub in &fetching.subscribers {
-            debug!(target: "service", "Found existing fetch request from {remote}, sending result..");
-
-            if sub.send(result.clone()).is_err() {
-                error!(target: "service", "Error sending fetch result for {rid} from {remote}..");
-            } else {
-                debug!(target: "service", "Sent fetch result for {rid} from {remote}..");
-            }
-        }
-
-        if fetching.subscribers.is_empty() {
-            trace!(target: "service", "No fetch requests found for {rid}..");
-
-            // We only announce refs here when the fetch wasn't user-requested. This is
-            // because the user might want to announce his fork, once he has created one,
-            // or may choose to not announce anything.
-            match &result {
-                FetchResult::Success {
-                    updated,
-                    namespaces,
-                    ..
-                } if !updated.is_empty() => {
-                    if let Err(e) = self.announce_refs(rid, namespaces.iter().cloned()) {
-                        error!(target: "service", "Failed to announce new refs: {e}");
-                    }
-                }
-                _ => debug!(target: "service", "Nothing to announce, no refs were updated.."),
-            }
-        }
-
-        // Announce our new inventory if this fetch was a clone.
-        if let FetchResult::Success { clone: true, .. } = result {
-            self.storage.insert(rid);
-            self.sync_and_announce();
         }
 
         // We can now try to dequeue another fetch.
@@ -1051,7 +1077,6 @@ where
                 .seed_policy(&rid)
                 .expect("Service::dequeue_fetch: error accessing repo seeding configuration");
 
-            let refs_at = refs_at.iter().map(RefsAt::from).collect();
             match self.refs_status_of(rid, refs_at, &repo_entry.scope) {
                 Ok(status) => {
                     if let Some(refs) = NonEmpty::from_vec(status.fresh) {
@@ -1399,7 +1424,7 @@ where
                     }
                 }
 
-                // Update sync status for this repo.
+                // Update sync status of announcer for this repo.
                 if let Some(refs) = message.refs.iter().find(|r| &r.remote == self.nid()) {
                     match self.db.seeds_mut().synced(
                         &message.rid,
@@ -1426,75 +1451,43 @@ where
                         }
                     }
                 }
-
                 let repo_entry = self.policies.seed_policy(&message.rid).expect(
                     "Service::handle_announcement: error accessing repo seeding configuration",
                 );
-                if repo_entry.policy == Policy::Allow {
-                    let (fresh, stale) = match self.refs_status_of(
-                        message.rid,
-                        message.refs.clone().into(),
-                        &repo_entry.scope,
-                    ) {
-                        Ok(RefsStatus { fresh, stale }) => (fresh, stale),
-                        Err(e) => {
-                            error!(target: "service", "Failed to check refs status: {e}");
-                            return Ok(relay);
-                        }
-                    };
-
-                    // Refs can be relayed by peers who don't have the data in storage,
-                    // therefore we only check whether we are connected to the *announcer*,
-                    // which is required by the protocol to only announce refs it has.
-                    if let Some(remote) = self.sessions.get(announcer).cloned() {
-                        // If the relayer is also the origin of the message, we inform it
-                        // about any refs that are already in sync (stale).
-                        if relayer == announcer {
-                            // If the stale refs contain refs announced by the peer, let it know
-                            // that we're already in sync.
-                            if let Some(at) = stale
-                                .iter()
-                                .find(|refs| refs.remote == remote.id)
-                                .copied()
-                                .map(|RefsAt { at, .. }| at)
-                            {
-                                debug!(
-                                    target: "service", "Refs of {} already synced for {} at {at}",
-                                    remote.id,
-                                    message.rid,
-                                );
-                                self.outbox.write(
-                                    &remote,
-                                    Info::RefsAlreadySynced {
-                                        rid: message.rid,
-                                        at,
-                                    }
-                                    .into(),
-                                );
-                            }
-                        }
-                        // Finally, if there's anything to fetch, we fetch it from the
-                        // remote.
-                        if let Some(fresh) = NonEmpty::from_vec(fresh) {
-                            self.fetch_refs_at(message.rid, remote.id, fresh, FETCH_TIMEOUT, None);
-                        } else {
-                            debug!(target: "service", "Skipping fetch, all refs of {} are already in local storage", message.rid);
-                        }
-                    } else {
-                        trace!(
-                            target: "service",
-                            "Skipping fetch of {}, no sessions connected to {announcer}",
-                            message.rid
-                        );
-                    }
-                    return Ok(relay);
-                } else {
+                if repo_entry.policy != Policy::Allow {
                     debug!(
                         target: "service",
                         "Ignoring refs announcement from {announcer}: repository {} isn't seeded",
                         message.rid
                     );
+                    return Ok(false);
                 }
+                // Refs can be relayed by peers who don't have the data in storage,
+                // therefore we only check whether we are connected to the *announcer*,
+                // which is required by the protocol to only announce refs it has.
+                let Some(remote) = self.sessions.get(announcer).cloned() else {
+                    trace!(
+                        target: "service",
+                        "Skipping fetch of {}, no sessions connected to {announcer}",
+                        message.rid
+                    );
+                    return Ok(relay);
+                };
+
+                // Finally, if there's anything to fetch, we fetch it from the remote.
+                if let Some(refs) = NonEmpty::from_vec(
+                    message
+                        .refs
+                        .iter()
+                        .filter(|r| r.remote != self.node_id()) // Don't fetch our own refs.
+                        .cloned()
+                        .collect(),
+                ) {
+                    self.fetch_refs_at(message.rid, remote.id, refs, FETCH_TIMEOUT, None);
+                } else {
+                    debug!(target: "service", "Skipping fetch, no remote refs in announcement for {}", message.rid);
+                }
+                return Ok(relay);
             }
             AnnouncementMessage::Node(
                 ann @ NodeAnnouncement {
@@ -1549,6 +1542,7 @@ where
 
     pub fn handle_info(&mut self, remote: NodeId, info: &Info) -> Result<(), session::Error> {
         match info {
+            // Nb. We don't currently send this message.
             Info::RefsAlreadySynced { rid, at } => {
                 debug!(target: "service", "Refs already synced for {rid} by {remote}");
                 self.emitter.emit(Event::RefsSynced {
@@ -1560,39 +1554,6 @@ where
         }
 
         Ok(())
-    }
-
-    /// A convenient method to check if we should fetch from a `RefsAnnouncement` with `scope`.
-    fn refs_status_of(
-        &self,
-        rid: RepoId,
-        refs: Vec<RefsAt>,
-        scope: &policy::Scope,
-    ) -> Result<RefsStatus, Error> {
-        let mut refs = RefsStatus::new(rid, refs, &self.storage)?;
-
-        // First, check the freshness.
-        if refs.fresh.is_empty() {
-            return Ok(refs);
-        }
-
-        // Second, check the scope.
-        match scope {
-            policy::Scope::All => Ok(refs),
-            policy::Scope::Followed => {
-                match self.policies.namespaces_for(&self.storage, &rid) {
-                    Ok(Namespaces::All) => Ok(refs),
-                    Ok(Namespaces::Followed(mut followed)) => {
-                        // Get the set of followed nodes except self.
-                        followed.remove(self.nid());
-                        refs.fresh.retain(|r| followed.contains(&r.remote));
-
-                        Ok(refs)
-                    }
-                    Err(e) => Err(e.into()),
-                }
-            }
-        }
     }
 
     pub fn handle_message(
@@ -1711,13 +1672,44 @@ where
                 }
             }
             (session::State::Attempted { .. } | session::State::Initial, msg) => {
-                error!(target: "service", "Received {:?} from connecting peer {}", msg, peer.id);
+                debug!(target: "service", "Ignoring unexpected message {:?} from connecting peer {}", msg, peer.id);
             }
             (session::State::Disconnected { .. }, msg) => {
                 debug!(target: "service", "Ignoring {:?} from disconnected peer {}", msg, peer.id);
             }
         }
         Ok(())
+    }
+
+    /// A convenient method to check if we should fetch from a `RefsAnnouncement` with `scope`.
+    fn refs_status_of(
+        &self,
+        rid: RepoId,
+        refs: Vec<RefsAt>,
+        scope: &policy::Scope,
+    ) -> Result<RefsStatus, Error> {
+        let mut refs = RefsStatus::new(rid, refs, self.db.refs())?;
+        // First, check the freshness.
+        if refs.fresh.is_empty() {
+            return Ok(refs);
+        }
+        // Second, check the scope.
+        match scope {
+            policy::Scope::All => Ok(refs),
+            policy::Scope::Followed => {
+                match self.policies.namespaces_for(&self.storage, &rid) {
+                    Ok(Namespaces::All) => Ok(refs),
+                    Ok(Namespaces::Followed(mut followed)) => {
+                        // Get the set of followed nodes except self.
+                        followed.remove(self.nid());
+                        refs.fresh.retain(|r| followed.contains(&r.remote));
+
+                        Ok(refs)
+                    }
+                    Err(e) => Err(e.into()),
+                }
+            }
+        }
     }
 
     /// Set of initial messages to send to a peer.
@@ -1858,19 +1850,44 @@ where
         Ok((msg.signed(&self.signer), refs.into()))
     }
 
-    /// Announce local refs for given id.
+    /// Announce our own refs for the given repo.
+    fn announce_own_refs(&mut self, rid: RepoId, doc: Doc<Verified>) -> Result<Vec<RefsAt>, Error> {
+        let refs = self.announce_refs(rid, doc, [self.node_id()])?;
+
+        // Update refs database with our signed refs branches.
+        // This isn't strictly necessary for now, as we only use the database for fetches, and
+        // we don't fetch our own refs that are announced, but it's for good measure.
+        if let &[r] = refs.as_slice() {
+            let now = self.local_time();
+
+            if let Err(e) =
+                self.database_mut()
+                    .refs_mut()
+                    .set(&rid, &r.remote, &SIGREFS_BRANCH, r.at, now)
+            {
+                error!(
+                    target: "service",
+                    "Error updating refs database for `rad/sigrefs` of {} in {rid}: {e}",
+                    r.remote
+                );
+            }
+        }
+        Ok(refs)
+    }
+
+    /// Announce local refs for given repo.
     fn announce_refs(
         &mut self,
         rid: RepoId,
+        doc: Doc<Verified>,
         remotes: impl IntoIterator<Item = NodeId>,
     ) -> Result<Vec<RefsAt>, Error> {
-        let repo = self.storage.repository(rid)?;
-        let doc = repo.identity_doc()?;
         let peers = self.sessions.connected().map(|(_, p)| p);
         let (ann, refs) = self.refs_announcement_for(rid, remotes)?;
 
-        // Update our local sync status. This is useful for determining if refs were updated while
-        // the node was stopped.
+        // Update our sync status for our own refs. This is useful for determining if refs were
+        // updated while the node was stopped.
+        // TODO: Move to `announce_own_refs`.
         if let Some(refs) = refs.iter().find(|r| r.remote == ann.node) {
             info!(target: "service", "Announcing local refs for {rid} to peers ({})..", refs.at);
 
@@ -1882,6 +1899,7 @@ where
                 error!(target: "service", "Error updating sync status for local node: {e}");
             }
         }
+
         self.outbox.announce(
             ann,
             peers.filter(|p| {
@@ -1890,11 +1908,10 @@ where
             }),
             self.db.gossip_mut(),
         );
-
         Ok(refs)
     }
 
-    fn sync_and_announce(&mut self) {
+    fn sync_and_announce_inventory(&mut self) {
         match self.sync_inventory() {
             Ok(synced) => {
                 // Only announce if our inventory changed.

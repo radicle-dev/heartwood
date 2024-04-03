@@ -4,11 +4,11 @@ use std::time::Instant;
 use gix_protocol::handshake;
 use radicle::crypto::PublicKey;
 use radicle::git::{Oid, Qualified};
-use radicle::identity::{Doc, DocError};
+use radicle::identity::{Did, Doc, DocError};
 
 use radicle::prelude::Verified;
 use radicle::storage;
-use radicle::storage::refs::{RefsAt, SignedRefs, SignedRefsUpdate};
+use radicle::storage::refs::{RefsAt, SignedRefs};
 use radicle::storage::{
     git::Validation, Remote, RemoteId, RemoteRepository, Remotes, ValidateRepository, Validations,
 };
@@ -73,6 +73,8 @@ pub mod error {
         Refs(#[from] radicle::storage::refs::Error),
         #[error(transparent)]
         RemoteRefs(#[from] sigrefs::error::RemoteRefs),
+        #[error("failed to get remote namespaces: {0}")]
+        RemoteIds(#[source] radicle::git::raw::Error),
         #[error(transparent)]
         Step(#[from] Step),
         #[error(transparent)]
@@ -115,17 +117,16 @@ pub enum FetchResult {
         applied: Applied<'static>,
         /// The set of namespaces that were fetched.
         remotes: BTreeSet<PublicKey>,
-        /// Validation errors that were found while fetching for
-        /// **non-delegate** remotes.
-        warnings: sigrefs::Validations,
+        /// Any validation errors that were found while fetching.
+        validations: sigrefs::Validations,
     },
     Failed {
-        /// Validation errors that were found while fetching for
-        /// **non-delegate** remotes.
-        warnings: sigrefs::Validations,
-        /// Validation errors that were found while fetching for
-        /// **delegate** remotes.
-        failures: sigrefs::Validations,
+        /// The threshold that needed to be met.
+        threshold: usize,
+        /// The offending delegates.
+        delegates: BTreeSet<PublicKey>,
+        /// Validation errors that were found while fetching.
+        validations: sigrefs::Validations,
     },
 }
 
@@ -134,13 +135,6 @@ impl FetchResult {
         match self {
             Self::Success { applied, .. } => either::Either::Left(applied.rejected.iter()),
             Self::Failed { .. } => either::Either::Right(std::iter::empty()),
-        }
-    }
-
-    pub fn warnings(&self) -> impl Iterator<Item = &sigrefs::Validation> {
-        match self {
-            Self::Success { warnings, .. } => warnings.iter(),
-            Self::Failed { warnings, .. } => warnings.iter(),
         }
     }
 
@@ -273,69 +267,47 @@ impl FetchState {
         Ok(fetched)
     }
 
-    /// Fetch the set of special refs, depending on `refs_updates`.
+    /// Fetch the set of special refs, depending on `refs_at`.
     ///
-    /// If `refs_updates` is `Some`, then run the [`SigrefsAt`] stage,
+    /// If `refs_at` is `Some`, then run the [`SigrefsAt`] stage,
     /// which specifically fetches `rad/sigrefs` which are listed in
-    /// `refs_at`. It then runs the [`DiffedRefs`] stage to fetch the
-    /// difference between old references listed existing
-    /// `rad/sigrefs` and the new `rad/sigrefs` fetched in the
-    /// previous step.
+    /// `refs_at`.
     ///
-    /// If `refs_updates` is `None`, then run the [`SpecialRefs`]
-    /// stage, which fetches `rad/sigrefs` and `rad/id` from all
-    /// tracked and delegate peers (scope dependent). It then runs the
-    /// [`DataRefs`] stage to fetch the references listed in the
-    /// `rad/sigrefs` fetched in the previous step.
+    /// If `refs_at` is `None`, then run the [`SpecialRefs`] stage,
+    /// which fetches `rad/sigrefs` and `rad/id` from all tracked and
+    /// delegate peers (scope dependent).
     ///
-    /// The resulting `Vec<PublicKey>` will be the set of fetched
-    /// remotes.
+    /// The resulting [`sigrefs::RemoteRefs`] will be the set of
+    /// `rad/sigrefs` of the fetched remotes.
+    #[allow(clippy::too_many_arguments)]
     fn run_special_refs<S>(
         &mut self,
         handle: &mut Handle<S>,
         handshake: &handshake::Outcome,
         delegates: BTreeSet<PublicKey>,
+        threshold: usize,
         limit: &FetchLimit,
         remote: PublicKey,
-        refs_updates: Option<Vec<SignedRefsUpdate>>,
-    ) -> Result<Vec<PublicKey>, error::Protocol>
+        refs_at: Option<Vec<RefsAt>>,
+    ) -> Result<sigrefs::RemoteRefs, error::Protocol>
     where
         S: transport::ConnectionStream,
     {
-        match refs_updates {
-            Some(refs_updates) => {
-                let (must, may): (BTreeSet<PublicKey>, BTreeSet<PublicKey>) = refs_updates
-                    .iter()
-                    .map(|refs_at| refs_at.remote)
-                    .partition(|id| delegates.contains(id));
-
-                let refs_at = refs_updates.iter().map(RefsAt::from).collect();
+        match refs_at {
+            Some(refs_at) => {
                 let sigrefs_at = stage::SigrefsAt {
                     remote,
-                    delegates,
-                    refs_at,
+                    delegates: delegates.clone(),
+                    refs_at: refs_at.clone(),
                     blocked: handle.blocked.clone(),
                     limit: limit.special,
                 };
                 log::trace!(target: "fetch", "{sigrefs_at:?}");
                 self.run_stage(handle, handshake, &sigrefs_at)?;
+                let remotes = refs_at.iter().map(|r| &r.remote);
 
-                let remotes = sigrefs::RemoteDiffedRefs::load(
-                    &self.as_cached(handle),
-                    refs_updates,
-                    sigrefs::Select {
-                        must: &must,
-                        may: &may,
-                    },
-                )?;
-                let fetched = remotes.keys().copied().collect();
-                let refs = stage::DiffedRefs {
-                    remote,
-                    remotes,
-                    limit: limit.refs,
-                };
-                self.run_stage(handle, handshake, &refs)?;
-                Ok(fetched)
+                let signed_refs = sigrefs::RemoteRefs::load(&self.as_cached(handle), remotes)?;
+                Ok(signed_refs)
             }
             None => {
                 let followed = handle.allowed();
@@ -345,30 +317,17 @@ impl FetchState {
                     remote,
                     delegates: delegates.clone(),
                     followed,
+                    threshold,
                     limit: limit.special,
                 };
                 log::trace!(target: "fetch", "{special_refs:?}");
                 let fetched = self.run_stage(handle, handshake, &special_refs)?;
 
-                let remotes = sigrefs::RemoteRefs::load(
+                let signed_refs = sigrefs::RemoteRefs::load(
                     &self.as_cached(handle),
-                    sigrefs::Select {
-                        must: &delegates,
-                        may: &fetched
-                            .iter()
-                            .filter(|id| !delegates.contains(id))
-                            .copied()
-                            .collect(),
-                    },
+                    fetched.iter().chain(delegates.iter()),
                 )?;
-                let fetched = remotes.keys().copied().collect();
-                let refs = stage::DataRefs {
-                    remote,
-                    remotes,
-                    limit: limit.refs,
-                };
-                self.run_stage(handle, handshake, &refs)?;
-                Ok(fetched)
+                Ok(signed_refs)
             }
         }
     }
@@ -395,7 +354,7 @@ impl FetchState {
         handshake: &handshake::Outcome,
         limit: FetchLimit,
         remote: PublicKey,
-        refs_at: Option<Vec<SignedRefsUpdate>>,
+        refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Protocol>
     where
         S: transport::ConnectionStream,
@@ -423,6 +382,7 @@ impl FetchState {
             .canonical()?
             .ok_or(error::Protocol::MissingRadId)?;
 
+        let is_delegate = anchor.delegates.contains(&Did::from(handle.local()));
         // TODO: not sure we should allow to block *any* peer from the
         // delegate set. We could end up ignoring delegates.
         let delegates = anchor
@@ -434,18 +394,39 @@ impl FetchState {
 
         log::trace!(target: "fetch", "Identity delegates {delegates:?}");
 
-        let fetched = self.run_special_refs(
+        // The local peer does not need to count towards the threshold
+        // since they must be valid already.
+        let threshold = if is_delegate {
+            anchor.threshold - 1
+        } else {
+            anchor.threshold
+        };
+        let signed_refs = self.run_special_refs(
             handle,
             handshake,
             delegates.clone(),
+            threshold,
             &limit,
             remote,
             refs_at,
         )?;
         log::debug!(
             target: "fetch",
-            "Fetched data refs for {} remote(s) ({}ms)",
-            fetched.len(),
+            "Fetched data for {} remote(s) ({}ms)",
+            signed_refs.len(),
+            start.elapsed().as_millis()
+        );
+
+        let data_refs = stage::DataRefs {
+            remote,
+            remotes: signed_refs,
+            limit: limit.refs,
+        };
+        self.run_stage(handle, handshake, &data_refs)?;
+        log::debug!(
+            target: "fetch",
+            "Fetched data refs for {} remotes ({}ms)",
+            data_refs.remotes.len(),
             start.elapsed().as_millis()
         );
 
@@ -462,34 +443,51 @@ impl FetchState {
         // Run validation of signed refs, pruning any offending
         // remotes from the tips, thus not updating the production Git
         // repository.
-        // N.b. any delegate validation errors are added to
-        // `failures`, while any non-delegate validation errors are
-        // added to `warnings`.
-        let mut warnings = sigrefs::Validations::default();
         let mut failures = sigrefs::Validations::default();
+        let signed_refs = data_refs.remotes;
 
         // We may prune fetched remotes, so we keep track of
         // non-pruned, fetched remotes here.
         let mut remotes = BTreeSet::new();
 
+        // The valid delegates start with all delegates that this peer
+        // currently has valid references for
+        let mut valid_delegates = handle
+            .repository()
+            .remote_ids()
+            .map_err(error::Protocol::RemoteIds)?
+            .filter_map(|id| id.ok())
+            .filter(|id| delegates.contains(id))
+            .collect::<BTreeSet<_>>();
+        let mut failed_delegates = BTreeSet::new();
+
         // TODO(finto): this might read better if it got its own
         // private function.
-        for remote in &fetched {
+        for remote in signed_refs.keys() {
             if handle.is_blocked(remote) {
+                log::trace!(target: "fetch", "Skipping blocked remote {remote}");
                 continue;
             }
 
-            let remote = sigrefs::DelegateStatus::empty(*remote, &delegates);
-            match remote.load(&self.as_cached(handle))? {
+            let remote = sigrefs::DelegateStatus::empty(*remote, &delegates)
+                .load(&self.as_cached(handle))?;
+            match remote {
                 sigrefs::DelegateStatus::NonDelegate { remote, data: None } => {
                     log::debug!(target: "fetch", "Pruning non-delegate {remote} tips, missing 'rad/sigrefs'");
-                    warnings.push(sigrefs::Validation::MissingRadSigRefs(remote));
-                    self.prune(&remote)
+                    failures.push(sigrefs::Validation::MissingRadSigRefs(remote));
+                    self.prune(&remote);
                 }
                 sigrefs::DelegateStatus::Delegate { remote, data: None } => {
                     log::warn!(target: "fetch", "Pruning delegate {remote} tips, missing 'rad/sigrefs'");
                     failures.push(sigrefs::Validation::MissingRadSigRefs(remote));
-                    self.prune(&remote)
+                    self.prune(&remote);
+                    // This delegate has removed their `rad/sigrefs`.
+                    // Technically, we can continue with their
+                    // previous `rad/sigrefs` but if this occurs with
+                    // enough delegates also failing validation we
+                    // would rather surface the issue and fail the fetch.
+                    valid_delegates.remove(&remote);
+                    failed_delegates.insert(remote);
                 }
                 sigrefs::DelegateStatus::NonDelegate {
                     remote,
@@ -516,7 +514,7 @@ impl FetchState {
                             "Pruning non-delegate {remote} tips, due to validation failures"
                         );
                         self.prune(&remote);
-                        warnings.append(warns);
+                        failures.append(warns);
                     } else {
                         remotes.insert(remote);
                     }
@@ -529,6 +527,7 @@ impl FetchState {
                     {
                         let ancestry = repository::ancestry(&handle.repo, at, sigrefs.at)?;
                         if matches!(ancestry, repository::Ancestry::Behind) {
+                            log::trace!(target: "fetch", "Advertised `rad/sigrefs` {} is behind {at} for {remote}", sigrefs.at);
                             self.prune(&remote);
                             continue;
                         } else if matches!(ancestry, repository::Ancestry::Diverged) {
@@ -541,20 +540,23 @@ impl FetchState {
                     }
 
                     let cache = self.as_cached(handle);
+                    let mut fails = Validations::default();
                     // N.b. we only validate the existence of the
                     // default branch for delegates, since it safe for
                     // non-delegates to not have this branch.
                     let branch_validation =
                         validate_project_default_branch(&anchor, &sigrefs.sigrefs);
-                    let fails = sigrefs::validate(&cache, sigrefs)?.map(|mut fails| {
-                        fails.extend(branch_validation);
-                        fails
-                    });
-                    if let Some(mut fails) = fails {
+                    fails.extend(branch_validation.into_iter());
+                    let validations = sigrefs::validate(&cache, sigrefs)?;
+                    fails.extend(validations.into_iter().flatten());
+                    if !fails.is_empty() {
                         log::warn!(target: "fetch", "Pruning delegate {remote} tips, due to validation failures");
                         self.prune(&remote);
+                        valid_delegates.remove(&remote);
+                        failed_delegates.insert(remote);
                         failures.append(&mut fails)
                     } else {
+                        valid_delegates.insert(remote);
                         remotes.insert(remote);
                     }
                 }
@@ -567,8 +569,9 @@ impl FetchState {
             start.elapsed().as_millis()
         );
 
-        // N.b. only apply to Git repository if no delegates have failed verification.
-        if failures.is_empty() {
+        // N.b. only apply to Git repository if there are enough valid
+        // delegates that pass the threshold.
+        if valid_delegates.len() >= threshold {
             let applied = repository::update(
                 &handle.repo,
                 self.tips
@@ -580,17 +583,20 @@ impl FetchState {
             Ok(FetchResult::Success {
                 applied,
                 remotes,
-                warnings,
+                validations: failures,
             })
         } else {
             log::debug!(
                 target: "fetch",
-                "Fetch failed: {} warning(s) and {} failure(s) ({}ms)",
-                warnings.len(),
+                "Fetch failed: {} failure(s) ({}ms)",
                 failures.len(),
                 start.elapsed().as_millis()
             );
-            Ok(FetchResult::Failed { warnings, failures })
+            Ok(FetchResult::Failed {
+                threshold,
+                delegates: failed_delegates,
+                validations: failures,
+            })
         }
     }
 }
@@ -642,13 +648,6 @@ impl<'a, S> Cached<'a, S> {
             None => SignedRefsAt::load(*remote, &self.handle.repo),
             Some(tip) => SignedRefsAt::load_at(*tip, *remote, &self.handle.repo).map(Some),
         }
-    }
-
-    pub fn load_diffed_refs(
-        &self,
-        update: &SignedRefsUpdate,
-    ) -> Result<storage::refs::DiffedRefs, sigrefs::error::Load> {
-        update.difference(&self.handle.repo)
     }
 
     #[allow(dead_code)]

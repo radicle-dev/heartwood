@@ -1,7 +1,10 @@
+use std::collections::HashSet;
+
 use bloomy::BloomFilter;
 use qcheck::Arbitrary;
 
 use crate::crypto;
+use crate::identity::DocAt;
 use crate::node::Alias;
 use crate::prelude::{BoundedVec, NodeId, RepoId, Timestamp};
 use crate::service::filter::{Filter, FILTER_SIZE_L, FILTER_SIZE_M, FILTER_SIZE_S};
@@ -10,6 +13,7 @@ use crate::service::message::{
     Subscribe, ZeroBytes,
 };
 use crate::wire::MessageType;
+use crate::worker::fetch::FetchResult;
 
 pub use radicle::test::arbitrary::*;
 
@@ -24,6 +28,17 @@ impl Arbitrary for Filter {
             bytes[index] = u8::arbitrary(g);
         }
         Self::from(BloomFilter::from(bytes))
+    }
+}
+
+impl Arbitrary for FetchResult {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        FetchResult {
+            updated: vec![],
+            namespaces: HashSet::arbitrary(g),
+            clone: bool::arbitrary(g),
+            doc: DocAt::arbitrary(g),
+        }
     }
 }
 

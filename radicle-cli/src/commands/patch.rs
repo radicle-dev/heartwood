@@ -743,7 +743,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Ready { ref patch_id, undo } => {
             let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
-            ready::run(&patch_id, undo, &profile, &repository)?;
+
+            if !ready::run(&patch_id, undo, &profile, &repository)? {
+                if undo {
+                    anyhow::bail!("the patch must be open to be put in draft state");
+                } else {
+                    anyhow::bail!("this patch must be in draft state to be put in open state");
+                }
+            }
         }
         Operation::Delete { patch_id } => {
             let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;

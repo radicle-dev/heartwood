@@ -1,10 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::ops::{Deref, DerefMut, Not as _};
+use std::ops::{Deref, Not as _};
 
-pub use radicle::storage::refs::{DiffedRefs, SignedRefsAt};
+pub use radicle::storage::refs::SignedRefsAt;
 pub use radicle::storage::{git::Validation, Validations};
-
-use radicle::storage::refs;
 use radicle::{crypto::PublicKey, storage::ValidateRepository};
 
 use crate::state::Cached;
@@ -100,33 +98,20 @@ pub(crate) fn validate(
 pub struct RemoteRefs(BTreeMap<PublicKey, SignedRefsAt>);
 
 impl RemoteRefs {
-    /// Load the sigrefs for the given `must` and `may` remotes.
+    /// Load the sigrefs for each remote in `remotes`.
     ///
-    /// The `must` remotes have to be present, otherwise an error will
-    /// be returned.
-    ///
-    /// The `may` remotes do not have to be present and any missing
-    /// sigrefs for that remote will be ignored.
-    pub(crate) fn load<S>(
+    /// If the sigrefs are missing for a given remote, regardless of delegate
+    /// status, then that remote is filtered out.
+    pub(crate) fn load<'a, S>(
         cached: &Cached<S>,
-        Select { must, may }: Select,
+        remotes: impl Iterator<Item = &'a PublicKey>,
     ) -> Result<Self, error::RemoteRefs> {
-        let must = must.iter().map(|id| {
-            cached
-                .load(id)
-                .map_err(error::RemoteRefs::from)
-                .and_then(|sr| match sr {
-                    None => Err(error::RemoteRefs::NotFound(*id)),
-                    Some(sr) => Ok((id, sr)),
-                })
-        });
-        let may = may.iter().filter_map(|id| match cached.load(id) {
-            Ok(None) => None,
-            Ok(Some(sr)) => Some(Ok((id, sr))),
-            Err(e) => Some(Err(e.into())),
-        });
-
-        must.chain(may)
+        remotes
+            .filter_map(|id| match cached.load(id) {
+                Ok(None) => None,
+                Ok(Some(sr)) => Some(Ok((id, sr))),
+                Err(e) => Some(Err(e)),
+            })
             .try_fold(RemoteRefs::default(), |mut acc, remote_refs| {
                 let (id, sigrefs) = remote_refs?;
                 acc.0.insert(*id, sigrefs);
@@ -150,70 +135,4 @@ impl<'a> IntoIterator for &'a RemoteRefs {
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
     }
-}
-
-/// A set of [`DiffedRefs`] per remote `PublicKey`.
-///
-/// To construct use [`DiffedRefs::load`].
-#[derive(Clone, Debug, Default)]
-pub struct RemoteDiffedRefs(BTreeMap<PublicKey, DiffedRefs>);
-
-impl RemoteDiffedRefs {
-    /// Given a set of [`refs::RefsUpdate`]s, compute its
-    /// [`DiffedRefs`] and use its [`refs::RefsUpdate::remote`] as the
-    /// key for the `RemoteDiffedRefs` entry.
-    ///
-    /// If the `remote` is in the `may` set, then it is allowed to
-    /// fail and will not be inserted in the set iff it does fail to
-    /// load.
-    ///
-    /// If the `remote` is in the `must` set, then this method will
-    /// fail iff loading the `DiffedRefs` fails.
-    pub(crate) fn load<S>(
-        cached: &Cached<S>,
-        updates: Vec<refs::SignedRefsUpdate>,
-        Select { must, may }: Select,
-    ) -> Result<Self, error::Load> {
-        updates
-            .into_iter()
-            .try_fold(Self::default(), |mut refs, update| {
-                match cached.load_diffed_refs(&update) {
-                    Ok(diff) => {
-                        refs.insert(update.remote, diff);
-                        Ok(refs)
-                    }
-                    Err(e) if must.contains(&update.remote) => Err(e),
-                    Err(_) if may.contains(&update.remote) => Ok(refs),
-                    Err(e) => Err(e),
-                }
-            })
-    }
-}
-
-impl Deref for RemoteDiffedRefs {
-    type Target = BTreeMap<PublicKey, DiffedRefs>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for RemoteDiffedRefs {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl<'a> IntoIterator for &'a RemoteDiffedRefs {
-    type Item = <&'a BTreeMap<PublicKey, DiffedRefs> as IntoIterator>::Item;
-    type IntoIter = <&'a BTreeMap<PublicKey, DiffedRefs> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
-}
-
-pub struct Select<'a> {
-    pub must: &'a BTreeSet<PublicKey>,
-    pub may: &'a BTreeSet<PublicKey>,
 }

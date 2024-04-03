@@ -6,8 +6,9 @@ use std::str::FromStr;
 use localtime::LocalTime;
 
 use radicle::crypto::PublicKey;
+use radicle::identity::DocAt;
 use radicle::prelude::RepoId;
-use radicle::storage::refs::SignedRefsUpdate;
+use radicle::storage::refs::RefsAt;
 use radicle::storage::{
     ReadRepository, ReadStorage as _, RefUpdate, RemoteRepository, WriteRepository as _,
 };
@@ -16,14 +17,27 @@ use radicle_fetch::{Allowed, BlockList, FetchLimit};
 
 use super::channels::ChannelsFlush;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone)]
 pub struct FetchResult {
-    /// The set of updates references.
+    /// The set of updated references.
     pub updated: Vec<RefUpdate>,
     /// The set of remote namespaces that were updated.
     pub namespaces: HashSet<PublicKey>,
     /// The fetch was a full clone.
     pub clone: bool,
+    /// Identity doc of fetched repo.
+    pub doc: DocAt,
+}
+
+impl FetchResult {
+    pub fn new(doc: DocAt) -> Self {
+        Self {
+            updated: vec![],
+            namespaces: HashSet::new(),
+            clone: false,
+            doc,
+        }
+    }
 }
 
 pub enum Handle {
@@ -62,14 +76,15 @@ impl Handle {
         }
     }
 
-    pub fn fetch(
+    pub fn fetch<D: node::refs::Store>(
         self,
         rid: RepoId,
         storage: &Storage,
         cache: &mut cob::cache::StoreWriter,
+        refsdb: &mut D,
         limit: FetchLimit,
         remote: PublicKey,
-        refs_at: Option<Vec<SignedRefsUpdate>>,
+        refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Fetch> {
         let (result, clone, notifs) = match self {
             Self::Clone { mut handle, tmp } => {
@@ -92,20 +107,29 @@ impl Handle {
             log::warn!(target: "worker", "Rejected update for {}", rejected.refname())
         }
 
-        for warn in result.warnings() {
-            log::warn!(target: "worker", "Validation error: {}", warn);
-        }
-
         match result {
-            radicle_fetch::FetchResult::Failed { failures, .. } => {
-                for fail in failures.iter() {
+            radicle_fetch::FetchResult::Failed {
+                threshold,
+                delegates,
+                validations,
+            } => {
+                for fail in validations.iter() {
                     log::error!(target: "worker", "Validation error: {}", fail);
                 }
-                Err(error::Fetch::Validation)
+                Err(error::Fetch::Validation {
+                    threshold,
+                    delegates: delegates.into_iter().map(|key| key.to_string()).collect(),
+                })
             }
             radicle_fetch::FetchResult::Success {
-                applied, remotes, ..
+                applied,
+                remotes,
+                validations,
             } => {
+                for warn in validations {
+                    log::warn!(target: "worker", "Validation error: {}", warn);
+                }
+
                 // N.b. We do not go through handle for this since the cloning handle
                 // points to a repository that is temporary and gets moved by [`mv`].
                 let repo = storage.repository(rid)?;
@@ -123,10 +147,12 @@ impl Handle {
                 }
 
                 cache_cobs(&rid, &applied.updated, &repo, cache)?;
+                cache_refs(&rid, &applied.updated, refsdb)?;
 
                 Ok(FetchResult {
                     updated: applied.updated,
                     namespaces: remotes.into_iter().collect(),
+                    doc: repo.identity_doc()?,
                     clone,
                 })
             }
@@ -198,6 +224,45 @@ fn notify(
                 target: "worker",
                 "Failed to update notification store for {rid}: {e}"
             );
+        }
+    }
+    Ok(())
+}
+
+/// Cache certain ref updates in our database.
+fn cache_refs<D>(repo: &RepoId, refs: &[RefUpdate], db: &mut D) -> Result<(), node::refs::Error>
+where
+    D: node::refs::Store,
+{
+    let time = LocalTime::now();
+
+    for r in refs {
+        let name = r.name();
+        let (namespace, qualified) = match radicle::git::parse_ref_namespaced(name) {
+            Err(e) => {
+                log::error!(target: "worker", "Git reference is invalid: {name:?}: {e}");
+                log::warn!(target: "worker", "Skipping refs caching for fetch of {repo}");
+                break;
+            }
+            Ok((n, q)) => (n, q),
+        };
+        if qualified != *git::refs::storage::SIGREFS_BRANCH {
+            // Only cache `rad/sigrefs`.
+            continue;
+        }
+        log::trace!(target: "node", "Updating cache for {name} in {repo}");
+
+        let result = match r {
+            RefUpdate::Updated { new, .. } => db.set(repo, &namespace, &qualified, *new, time),
+            RefUpdate::Created { oid, .. } => db.set(repo, &namespace, &qualified, *oid, time),
+            RefUpdate::Deleted { .. } => db.delete(repo, &namespace, &qualified),
+            RefUpdate::Skipped { .. } => continue,
+        };
+
+        if let Err(e) = result {
+            log::error!(target: "worker", "Error updating git refs cache for {name:?}: {e}");
+            log::warn!(target: "worker", "Skipping refs caching for fetch of {repo}");
+            break;
         }
     }
     Ok(())

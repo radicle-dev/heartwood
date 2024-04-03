@@ -105,6 +105,17 @@ pub enum RepositoryError {
     Refs(#[from] refs::Error),
 }
 
+impl RepositoryError {
+    pub fn is_not_found(&self) -> bool {
+        match self {
+            Self::Storage(e) if e.is_not_found() => true,
+            Self::Git(e) if git_ext::is_not_found_err(e) => true,
+            Self::GitExt(git_ext::Error::NotFound(_)) => true,
+            _ => false,
+        }
+    }
+}
+
 /// Storage error.
 #[derive(Error, Debug)]
 pub enum Error {
@@ -217,6 +228,21 @@ impl RefUpdate {
             RefUpdate::Deleted { name, .. } => name.as_refstr(),
             RefUpdate::Skipped { name, .. } => name.as_refstr(),
         }
+    }
+
+    /// Is it an update.
+    pub fn is_updated(&self) -> bool {
+        matches!(self, RefUpdate::Updated { .. })
+    }
+
+    /// Is it a create.
+    pub fn is_created(&self) -> bool {
+        matches!(self, RefUpdate::Created { .. })
+    }
+
+    /// Is it a skip.
+    pub fn is_skipped(&self) -> bool {
+        matches!(self, RefUpdate::Skipped { .. })
     }
 }
 
@@ -377,13 +403,13 @@ pub trait ReadStorage {
     /// Insert this repository into the inventory.
     fn insert(&self, rid: RepoId);
     /// Open or create a read-only repository.
-    fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error>;
+    fn repository(&self, rid: RepoId) -> Result<Self::Repository, RepositoryError>;
     /// Get a repository's identity if it exists.
     fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError> {
         match self.repository(rid) {
             Ok(repo) => Ok(Some(repo.identity_doc()?.into())),
             Err(e) if e.is_not_found() => Ok(None),
-            Err(e) => Err(e.into()),
+            Err(e) => Err(e),
         }
     }
 }
@@ -393,7 +419,7 @@ pub trait WriteStorage: ReadStorage {
     type RepositoryMut: WriteRepository;
 
     /// Open a read-write repository.
-    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error>;
+    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, RepositoryError>;
     /// Create a read-write repository.
     fn create(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error>;
 
@@ -642,7 +668,7 @@ where
         self.deref().get(rid)
     }
 
-    fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error> {
+    fn repository(&self, rid: RepoId) -> Result<Self::Repository, RepositoryError> {
         self.deref().repository(rid)
     }
 }
@@ -654,7 +680,7 @@ where
 {
     type RepositoryMut = S::RepositoryMut;
 
-    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error> {
+    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, RepositoryError> {
         self.deref().repository_mut(rid)
     }
 

@@ -10,6 +10,7 @@ use crossbeam_channel as chan;
 use netservices::Direction as Link;
 use radicle::identity::Visibility;
 use radicle::node::address::Store;
+use radicle::node::refs::Store as _;
 use radicle::node::routing::Store as _;
 use radicle::node::{ConnectOptions, DEFAULT_TIMEOUT};
 use radicle::storage::refs::RefsAt;
@@ -29,6 +30,7 @@ use crate::service::ServiceState as _;
 use crate::service::*;
 use crate::storage::git::transport::{local, remote};
 use crate::storage::git::Storage;
+use crate::storage::refs::SIGREFS_BRANCH;
 use crate::storage::ReadStorage;
 use crate::test::arbitrary;
 use crate::test::assert_matches;
@@ -1342,6 +1344,7 @@ fn test_queued_fetch_max_capacity() {
     let rid1 = *repo_keys.next().unwrap();
     let rid2 = *repo_keys.next().unwrap();
     let rid3 = *repo_keys.next().unwrap();
+    let doc = storage.repos.get(&rid1).unwrap().doc.clone();
     let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
 
@@ -1370,14 +1373,14 @@ fn test_queued_fetch_max_capacity() {
     alice.elapse(KEEP_ALIVE_DELTA);
 
     // Finish the 1st fetch.
-    alice.fetched(rid1, bob.id, Ok(fetch::FetchResult::default()));
+    alice.fetched(rid1, bob.id, Ok(fetch::FetchResult::new(doc.clone())));
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid2);
     // ... but not the third.
     assert_matches!(alice.fetches().next(), None);
 
     // Finish the 2nd fetch.
-    alice.fetched(rid2, bob.id, Ok(fetch::FetchResult::default()));
+    alice.fetched(rid2, bob.id, Ok(fetch::FetchResult::new(doc)));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid3);
 }
@@ -1431,10 +1434,16 @@ fn test_queued_fetch_from_ann_same_rid() {
         .join(git::refname!("refs/sigrefs"));
 
     // Finish the 1st fetch.
+    // Ensure the ref is in the storage and cache.
     alice.storage_mut().repo_mut(&rid).remotes.insert(
         carol.id(),
         carol.signed_refs_at(arbitrary::gen::<Refs>(1), oid),
     );
+    alice
+        .database_mut()
+        .refs_mut()
+        .set(&rid, &carol.id, &SIGREFS_BRANCH, oid, LocalTime::now())
+        .unwrap();
     alice.fetched(
         rid,
         bob.id,
@@ -1445,6 +1454,7 @@ fn test_queued_fetch_from_ann_same_rid() {
             }],
             namespaces: [carol.id()].into_iter().collect(),
             clone: false,
+            doc: arbitrary::gen(1),
         }),
     );
     // Now the 1st fetch is done, but the 2nd and 3rd fetches are redundant.
@@ -1488,14 +1498,14 @@ fn test_queued_fetch_from_command_same_rid() {
     alice.elapse(KEEP_ALIVE_DELTA);
 
     // Finish the 1st fetch.
-    alice.fetched(rid1, bob.id, Ok(fetch::FetchResult::default()));
+    alice.fetched(rid1, bob.id, Ok(arbitrary::gen::<fetch::FetchResult>(1)));
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, nid, _)) if rid == rid1 && nid == eve.id);
     // ... but not the third.
     assert_matches!(alice.fetches().next(), None);
 
     // Finish the 2nd fetch.
-    alice.fetched(rid1, eve.id, Ok(fetch::FetchResult::default()));
+    alice.fetched(rid1, eve.id, Ok(arbitrary::gen::<fetch::FetchResult>(1)));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, nid, _)) if rid == rid1 && nid == carol.id);
 }
@@ -1549,7 +1559,7 @@ fn test_refs_synced_event() {
 }
 
 #[test]
-fn test_push_and_pull() {
+fn test_init_and_seed() {
     let tempdir = tempfile::tempdir().unwrap();
 
     let storage_alice = Storage::open(
@@ -1616,19 +1626,22 @@ fn test_push_and_pull() {
     assert!(bob.get(proj_id).unwrap().is_none());
 
     // Bob seeds Alice's project.
-    let (sender, _) = chan::bounded(1);
+    let (sender, receiver) = chan::bounded(1);
     bob.command(service::Command::Seed(
         proj_id,
         policy::Scope::default(),
         sender,
     ));
+    assert!(receiver.recv().unwrap());
+
     // Eve seeds Alice's project.
-    let (sender, _) = chan::bounded(1);
+    let (sender, receiver) = chan::bounded(1);
     eve.command(service::Command::Seed(
         proj_id,
         policy::Scope::default(),
         sender,
     ));
+    assert!(receiver.recv().unwrap());
 
     let (send, _) = chan::bounded(1);
     // Alice announces her inventory.
@@ -1639,21 +1652,24 @@ fn test_push_and_pull() {
 
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 
+    log::debug!(target: "test", "Simulation is over");
+
     // TODO: Refs should be compared between the two peers.
 
-    assert!(eve.storage().get(proj_id).unwrap().is_some());
-    assert!(bob.storage().get(proj_id).unwrap().is_some());
-
+    log::debug!(target: "test", "Waiting for {} to fetch {} from {}..", bob.id, proj_id,eve.id);
     bob_events
         .iter()
         .find(|e| {
             matches!(
                 e,
                 service::Event::RefsFetched { remote, .. }
-                if *remote == eve.node_id(),
+                if *remote == eve.node_id()
             )
         })
         .expect("Bob fetched from Eve");
+
+    assert!(eve.storage().get(proj_id).unwrap().is_some());
+    assert!(bob.storage().get(proj_id).unwrap().is_some());
 }
 
 #[test]

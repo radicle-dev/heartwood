@@ -19,7 +19,8 @@ use crate::prelude::{Address, RepoId};
 use crate::service::io::Io;
 use crate::service::{DisconnectReason, Event, Message, NodeId};
 use crate::storage::Namespaces;
-use crate::storage::WriteStorage;
+use crate::storage::{ReadRepository, WriteStorage};
+use crate::test::arbitrary;
 use crate::test::peer::Service;
 use crate::worker::{fetch, FetchError};
 use crate::Link;
@@ -409,20 +410,30 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             .extend(msgs.into_iter().map(|m| (from, p.node_id(), m)));
                     }
                     Input::Fetched(rid, nid, result) => {
-                        let result = Rc::try_unwrap(result).unwrap();
+                        let mut result = Rc::try_unwrap(result).unwrap();
                         let repo = match p.storage().repository_mut(rid) {
                             Ok(repo) => repo,
                             Err(e) if e.is_not_found() => p.storage().create(rid).unwrap(),
                             Err(e) => panic!("Failed to open repository: {e}"),
                         };
-                        match &result {
-                            Ok(fetch::FetchResult { namespaces, .. }) => {
-                                radicle::test::fetch(
-                                    &repo,
-                                    &nid,
-                                    Namespaces::Followed(namespaces.clone()),
-                                )
-                                .unwrap();
+
+                        match &mut result {
+                            Ok(fetch::FetchResult {
+                                namespaces,
+                                updated,
+                                doc,
+                                ..
+                            }) => {
+                                *updated =
+                                    radicle::test::fetch(&repo, &nid, Namespaces::All).unwrap();
+                                *namespaces = updated
+                                    .iter()
+                                    .map(|r| {
+                                        NodeId::from_namespaced(&r.name().to_namespaced().unwrap())
+                                            .unwrap()
+                                    })
+                                    .collect();
+                                *doc = repo.identity_doc().unwrap();
                             }
                             Err(err) => panic!("Error fetching: {err}"),
                         }
@@ -657,6 +668,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                                         Namespaces::All => HashSet::new(),
                                     },
                                     clone: true,
+                                    doc: arbitrary::gen(1),
                                 })),
                             ),
                         },

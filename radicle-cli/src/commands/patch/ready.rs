@@ -8,7 +8,7 @@ pub fn run(
     undo: bool,
     profile: &Profile,
     repository: &Repository,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
     let signer = term::signer(profile)?;
     let mut patches = profile.patches_mut(repository)?;
     let Ok(mut patch) = patches.get_mut(patch_id) else {
@@ -16,9 +16,9 @@ pub fn run(
     };
 
     if undo {
-        patch.unready(&signer)?;
+        patch.unready(&signer)
     } else {
-        patch.ready(&signer)?;
+        patch.ready(&signer)
     }
-    Ok(())
+    .map_err(anyhow::Error::from)
 }

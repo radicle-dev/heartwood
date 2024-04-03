@@ -145,7 +145,7 @@ impl ReadStorage for Storage {
         }
     }
 
-    fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error> {
+    fn repository(&self, rid: RepoId) -> Result<Self::Repository, RepositoryError> {
         Repository::open(paths::repository(self, &rid), rid)
     }
 }
@@ -153,7 +153,7 @@ impl ReadStorage for Storage {
 impl WriteStorage for Storage {
     type RepositoryMut = Repository;
 
-    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error> {
+    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, RepositoryError> {
         Repository::open(paths::repository(self, &rid), rid)
     }
 
@@ -295,7 +295,7 @@ impl Storage {
         })
     }
 
-    pub fn inspect(&self) -> Result<(), Error> {
+    pub fn inspect(&self) -> Result<(), RepositoryError> {
         for r in self.repositories()? {
             let rid = r.rid;
             let repo = self.repository(rid)?;
@@ -386,7 +386,7 @@ pub enum Validation {
 
 impl Repository {
     /// Open an existing repository.
-    pub fn open<P: AsRef<Path>>(path: P, id: RepoId) -> Result<Self, Error> {
+    pub fn open<P: AsRef<Path>>(path: P, id: RepoId) -> Result<Self, RepositoryError> {
         let backend = git2::Repository::open_bare(path.as_ref())?;
 
         Ok(Self { id, backend })
@@ -772,13 +772,23 @@ impl ReadRepository for Repository {
         let mut heads = Vec::new();
 
         for delegate in doc.delegates.iter() {
-            let r = self.reference_oid(delegate, &branch_ref)?;
+            let r = match self.reference_oid(delegate, &branch_ref) {
+                Ok(oid) => oid,
+                Err(e) if ext::is_not_found_err(&e) => {
+                    log::warn!(
+                        target: "radicle",
+                        "Missing `refs/namespaces/{delegate}/{branch_ref}` while calculating the canonical head"
+                    );
+                    continue;
+                }
+                Err(e) => return Err(e.into()),
+            };
 
             heads.push(*r);
         }
-        let quorum = self::quorum(&heads, doc.threshold, raw)?;
 
-        Ok((branch_ref, quorum))
+        let oid = self::quorum(&heads, doc.threshold, raw)?;
+        Ok((branch_ref, oid))
     }
 
     fn identity_head(&self) -> Result<Oid, RepositoryError> {
@@ -857,6 +867,7 @@ impl WriteRepository for Repository {
             .refname_to_id(&head_ref)
             .ok()
             .map(|oid| oid.into());
+
         let (branch_ref, new) = self.canonical_head()?;
 
         if old == Some(new) {

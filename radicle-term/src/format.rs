@@ -77,7 +77,7 @@ pub fn badge_secondary<D: std::fmt::Display>(input: D) -> Paint<String> {
 }
 
 pub fn bold<D: std::fmt::Display>(input: D) -> Paint<D> {
-    Paint::white(input).bold()
+    Paint::new(input).bold()
 }
 
 pub fn dim<D: std::fmt::Display>(input: D) -> Paint<D> {

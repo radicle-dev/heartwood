@@ -16,7 +16,7 @@ rad-patch - Manage radicle patches.
 *rad patch* _list_ [--all|--merged|--open|--archived|--draft] [<option>...] +
 *rad patch* _show_ <patch-id> [<option>...] +
 *rad patch* _diff_ <patch-id> [--revision <revision-id>] [<option>...] +
-*rad patch* _archive_ <patch-id> [<option>...] +
+*rad patch* _archive_ <patch-id> [--undo] [<option>...] +
 *rad patch* _update_ <patch-id> [<option>...] +
 *rad patch* _checkout_ <patch-id> [<option>...] +
 *rad patch* _delete_ <patch-id> [<option>...] +
@@ -94,6 +94,12 @@ Mark a patch as ready to review. This changes the state of a patch from *draft*
 to *open*.
 
 *--undo*::                 Change a patch back to *draft*
+
+=== archive
+
+Archive a patch.
+
+*--undo*::                 Unarchive a patch
 
 === set
 

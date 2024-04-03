@@ -81,10 +81,12 @@ impl ReadStorage for MockStorage {
 
     fn insert(&self, _rid: RepoId) {}
 
-    fn repository(&self, rid: RepoId) -> Result<Self::Repository, Error> {
+    fn repository(&self, rid: RepoId) -> Result<Self::Repository, RepositoryError> {
         self.repos
             .get(&rid)
-            .ok_or_else(|| Error::Io(io::Error::from(io::ErrorKind::NotFound)))
+            .ok_or_else(|| {
+                RepositoryError::Storage(Error::Io(io::Error::from(io::ErrorKind::NotFound)))
+            })
             .cloned()
     }
 }
@@ -92,10 +94,12 @@ impl ReadStorage for MockStorage {
 impl WriteStorage for MockStorage {
     type RepositoryMut = MockRepository;
 
-    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, Error> {
+    fn repository_mut(&self, rid: RepoId) -> Result<Self::RepositoryMut, RepositoryError> {
         self.repos
             .get(&rid)
-            .ok_or(Error::Io(io::ErrorKind::NotFound.into()))
+            .ok_or(RepositoryError::Storage(Error::Io(io::Error::from(
+                io::ErrorKind::NotFound,
+            ))))
             .cloned()
     }
 

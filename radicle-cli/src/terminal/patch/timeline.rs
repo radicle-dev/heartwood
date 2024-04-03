@@ -81,12 +81,12 @@ impl<'a> Opened<'a> {
                 },
             )
         }));
-        updates.extend(patch.merges().filter_map(|(_, merge)| {
+        updates.extend(patch.merges().filter_map(|(nid, merge)| {
             if merge.revision == root {
                 Some((
                     merge.timestamp,
                     Update::Merged {
-                        author: Author::new(&revision.author().id, profile),
+                        author: Author::new(nid, profile),
                         merge: merge.clone(),
                     },
                 ))
@@ -157,7 +157,7 @@ enum RevisionEntry<'a> {
 
 impl<'a> RevisionEntry<'a> {
     fn from_revision(
-        patch: &Patch,
+        patch: &'a Patch,
         id: RevisionId,
         revision: &'a Revision,
         profile: &Profile,
@@ -171,12 +171,12 @@ impl<'a> RevisionEntry<'a> {
                 },
             )
         }));
-        updates.extend(patch.merges().filter_map(|(_, merge)| {
+        updates.extend(patch.merges().filter_map(|(nid, merge)| {
             if merge.revision == id {
                 Some((
                     merge.timestamp,
                     Update::Merged {
-                        author: Author::new(&revision.author().id, profile),
+                        author: Author::new(nid, profile),
                         merge: merge.clone(),
                     },
                 ))

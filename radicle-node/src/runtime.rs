@@ -157,7 +157,8 @@ impl Runtime {
         let policy = config.policy;
 
         log::info!(target: "node", "Opening node database..");
-        let mut db: service::Stores<_> = home.database_mut()?.into();
+        let db = home.database_mut()?;
+        let mut stores: service::Stores<_> = db.clone().into();
 
         log::info!(target: "node", "Opening policy database..");
         let policies = home.policies_mut()?;
@@ -206,13 +207,13 @@ impl Runtime {
                 .expect("Runtime::init: unable to solve proof-of-work puzzle")
         };
 
-        if config.connect.is_empty() && db.addresses().is_empty()? {
+        if config.connect.is_empty() && stores.addresses().is_empty()? {
             log::info!(target: "node", "Address book is empty. Adding bootstrap nodes..");
 
             for (alias, addr) in config.network.bootstrap() {
                 let (id, addr) = addr.into();
 
-                db.addresses_mut().insert(
+                stores.addresses_mut().insert(
                     &id,
                     radicle::node::Features::SEED,
                     alias,
@@ -221,14 +222,14 @@ impl Runtime {
                     [node::KnownAddress::new(addr, address::Source::Bootstrap)],
                 )?;
             }
-            log::info!(target: "node", "{} nodes added to address book", db.addresses().len()?);
+            log::info!(target: "node", "{} nodes added to address book", stores.addresses().len()?);
         }
 
         let emitter: Emitter<Event> = Default::default();
         let mut service = service::Service::new(
             config.clone(),
             clock,
-            db,
+            stores,
             storage.clone(),
             policies,
             signer.clone(),
@@ -264,6 +265,7 @@ impl Runtime {
             handle.clone(),
             notifications,
             cobs_cache,
+            db,
             worker::Config {
                 capacity: config.workers,
                 storage: storage.clone(),

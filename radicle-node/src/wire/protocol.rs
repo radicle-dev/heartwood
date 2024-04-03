@@ -905,6 +905,8 @@ where
                             target: "wire",
                             "Attempt to connect to already connected peer {node_id}"
                         );
+                        // FIXME: The problem here is the session will stay in "initial" state,
+                        // because it can't transition to attempted.
                         continue;
                     }
                     self.service.attempted(node_id, addr.clone());

@@ -19,6 +19,7 @@ use radicle::identity::{RepoId, Visibility};
 use radicle::node::config::ConnectAddress;
 use radicle::node::policy::store as policy;
 use radicle::node::routing::Store;
+use radicle::node::seed::Store as _;
 use radicle::node::Database;
 use radicle::node::{Alias, POLICIES_DB_FILE};
 use radicle::node::{ConnectOptions, Handle as _};
@@ -244,6 +245,14 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
             .unwrap()
     }
 
+    /// Get sync status of a repo.
+    pub fn synced_seeds(&self, rid: &RepoId) -> Vec<node::seed::SyncedSeed> {
+        let db = Database::reader(self.home.node().join(node::NODE_DB_FILE)).unwrap();
+        let seeds = db.seeds_for(rid).unwrap();
+
+        seeds.into_iter().collect::<Result<Vec<_>, _>>().unwrap()
+    }
+
     /// Wait until this node's routing table matches the remotes.
     pub fn converge<'a>(
         &'a self,
@@ -278,9 +287,23 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
         }
     }
 
+    /// Wait until this node is synced with another node, for the given repository.
+    #[track_caller]
+    pub fn is_synced_with(&mut self, rid: &RepoId, nid: &NodeId) {
+        log::debug!(target: "test", "Waiting for {} to be in sync with {nid} for {rid}", self.id);
+
+        loop {
+            let seeds = self.handle.seeds(*rid).unwrap();
+            if seeds.iter().any(|s| s.nid == *nid && s.is_synced()) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+    }
+
     /// Wait until this node has the inventory of another node.
     #[track_caller]
-    pub fn has_inventory_of(&self, rid: &RepoId, nid: &NodeId) {
+    pub fn has_remote_of(&self, rid: &RepoId, nid: &NodeId) {
         log::debug!(target: "test", "Waiting for {} to have {rid}/{nid}", self.id);
         let events = self.handle.events();
 
