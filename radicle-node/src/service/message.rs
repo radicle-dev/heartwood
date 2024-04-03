@@ -7,7 +7,7 @@ use radicle::storage::refs::RefsAt;
 use crate::crypto;
 use crate::identity::RepoId;
 use crate::node;
-use crate::node::{Address, Alias};
+use crate::node::{Address, Alias, UserAgent};
 use crate::prelude::BoundedVec;
 use crate::service::filter::Filter;
 use crate::service::{Link, NodeId, Timestamp};
@@ -64,6 +64,8 @@ pub struct NodeAnnouncement {
     pub addresses: BoundedVec<Address, ADDRESS_LIMIT>,
     /// Nonce used for announcement proof-of-work.
     pub nonce: u64,
+    /// User-agent string.
+    pub agent: UserAgent,
 }
 
 impl NodeAnnouncement {
@@ -130,6 +132,7 @@ impl wire::Encode for NodeAnnouncement {
         n += self.alias.encode(writer)?;
         n += self.addresses.encode(writer)?;
         n += self.nonce.encode(writer)?;
+        n += self.agent.encode(writer)?;
 
         Ok(n)
     }
@@ -142,6 +145,11 @@ impl wire::Decode for NodeAnnouncement {
         let alias = wire::Decode::decode(reader)?;
         let addresses = BoundedVec::<Address, ADDRESS_LIMIT>::decode(reader)?;
         let nonce = u64::decode(reader)?;
+        let agent = match UserAgent::decode(reader) {
+            Ok(ua) => ua,
+            Err(e) if e.is_eof() => UserAgent::default(),
+            Err(e) => return Err(e),
+        };
 
         Ok(Self {
             features,
@@ -149,6 +157,7 @@ impl wire::Decode for NodeAnnouncement {
             alias,
             addresses,
             nonce,
+            agent,
         })
     }
 }
@@ -576,15 +585,17 @@ impl ZeroBytes {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use super::*;
-    use crate::prelude::*;
-    use crate::wire::Encode;
+    use std::str::FromStr;
 
-    use crate::crypto::test::signer::MockSigner;
-    use crate::test::arbitrary;
     use fastrand;
     use qcheck_macros::quickcheck;
     use radicle::git::raw;
+
+    use super::*;
+    use crate::crypto::test::signer::MockSigner;
+    use crate::prelude::*;
+    use crate::test::arbitrary;
+    use crate::wire::Encode;
 
     #[test]
     fn test_ref_remote_limit() {
@@ -677,11 +688,12 @@ mod tests {
             alias: Alias::new("alice"),
             addresses: BoundedVec::new(),
             nonce: 0,
+            agent: UserAgent::from_str("/heartwood:1.0.0/").unwrap(),
         };
 
-        assert_eq!(ann.work(), 0);
+        assert_eq!(ann.work(), 1);
         assert_eq!(ann.clone().solve(1).unwrap().work(), 4);
         assert_eq!(ann.clone().solve(8).unwrap().work(), 9);
-        assert_eq!(ann.solve(14).unwrap().work(), 14);
+        assert_eq!(ann.solve(14).unwrap().work(), 15);
     }
 }

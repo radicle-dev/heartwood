@@ -647,6 +647,7 @@ where
                 self.node.features,
                 self.node.alias.clone(),
                 self.node.work(),
+                &self.node.agent,
                 self.node.timestamp,
                 self.node
                     .addresses
@@ -1636,6 +1637,7 @@ where
                     *features,
                     ann.alias.clone(),
                     ann.work(),
+                    &ann.agent,
                     timestamp,
                     addresses
                         .iter()

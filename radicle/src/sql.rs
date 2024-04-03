@@ -6,7 +6,7 @@ use sqlite::Value;
 
 use crate::identity::RepoId;
 use crate::node;
-use crate::node::Address;
+use crate::node::{Address, UserAgent};
 
 /// Run an SQL query inside a transaction.
 /// Commits the transaction on success, and rolls back on error.
@@ -91,5 +91,22 @@ impl TryFrom<&sql::Value> for Address {
 impl sql::BindableWithIndex for &Address {
     fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
         self.to_string().bind(stmt, i)
+    }
+}
+
+impl TryFrom<&Value> for UserAgent {
+    type Error = sql::Error;
+
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::String(ua) => UserAgent::from_str(ua).map_err(|e| sql::Error {
+                code: None,
+                message: Some(e.to_string()),
+            }),
+            _ => Err(sql::Error {
+                code: None,
+                message: Some("sql: invalid type for user-agent".to_owned()),
+            }),
+        }
     }
 }

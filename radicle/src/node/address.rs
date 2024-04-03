@@ -10,7 +10,7 @@ use localtime::LocalTime;
 use nonempty::NonEmpty;
 
 use crate::collections::RandomMap;
-use crate::node::{Address, Alias, Penalty};
+use crate::node::{Address, Alias, Penalty, UserAgent};
 use crate::prelude::Timestamp;
 use crate::{node, profile};
 
@@ -130,6 +130,8 @@ pub struct Node {
     pub pow: u32,
     /// When this data was published.
     pub timestamp: Timestamp,
+    /// User agent string.
+    pub agent: UserAgent,
     /// Node connection penalty.
     pub penalty: Penalty,
     /// Whether the node is banned.

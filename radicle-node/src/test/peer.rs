@@ -9,6 +9,7 @@ use log::*;
 use radicle::identity::Visibility;
 use radicle::node::address::Store as _;
 use radicle::node::Database;
+use radicle::node::UserAgent;
 use radicle::node::{address, Alias, ConnectOptions};
 use radicle::rad;
 use radicle::storage::refs::{RefsAt, SignedRefsAt};
@@ -244,6 +245,7 @@ where
                     radicle::node::Features::default(),
                     Alias::from_str(peer.name).unwrap(),
                     0,
+                    &UserAgent::default(),
                     timestamp,
                     Some(known_address),
                 )
@@ -293,6 +295,7 @@ where
                 alias: Alias::from_str(self.name).unwrap(),
                 addresses: Some(net::SocketAddr::from((self.ip, node::DEFAULT_PORT)).into()).into(),
                 nonce: 0,
+                agent: UserAgent::from_str("/radicle:test/").unwrap(),
             }
             .solve(0)
             .unwrap(),

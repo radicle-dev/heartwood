@@ -458,6 +458,7 @@ impl wire::Decode for ZeroBytes {
 mod tests {
     use super::*;
     use qcheck_macros::quickcheck;
+    use radicle::node::UserAgent;
     use radicle::storage::refs::RefsAt;
     use radicle_crypto::test::signer::MockSigner;
 
@@ -507,6 +508,7 @@ mod tests {
             addresses: BoundedVec::collect_from(&mut addrs.into_iter()),
             timestamp: arbitrary::gen(1),
             nonce: u64::MAX,
+            agent: UserAgent::default(),
         });
         let ann = ann.signed(&signer);
         let msg = Message::Announcement(ann);
@@ -555,10 +557,10 @@ mod tests {
 
     #[quickcheck]
     fn prop_message_encode_decode(message: Message) {
-        assert_eq!(
-            wire::deserialize::<Message>(&wire::serialize(&message)).unwrap(),
-            message
-        );
+        let encoded = &wire::serialize(&message);
+        let decoded = wire::deserialize::<Message>(encoded).unwrap();
+
+        assert_eq!(message, decoded);
     }
 
     #[test]

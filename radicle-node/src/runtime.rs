@@ -14,11 +14,11 @@ use reactor::poller::popol;
 use reactor::Reactor;
 use thiserror::Error;
 
-use radicle::node;
 use radicle::node::address;
 use radicle::node::address::Store as _;
 use radicle::node::notifications;
 use radicle::node::Handle as _;
+use radicle::node::{self, UserAgent};
 use radicle::profile::Home;
 use radicle::{cob, git, storage, Storage};
 
@@ -182,6 +182,7 @@ impl Runtime {
                     radicle::node::Features::SEED,
                     alias,
                     0,
+                    &UserAgent::default(),
                     clock.into(),
                     [node::KnownAddress::new(addr, address::Source::Bootstrap)],
                 )?;

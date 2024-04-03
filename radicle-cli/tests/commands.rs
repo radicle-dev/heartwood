@@ -8,6 +8,7 @@ use radicle::node::address::Store as _;
 use radicle::node::config::seeds::{RADICLE_COMMUNITY_NODE, RADICLE_TEAM_NODE};
 use radicle::node::routing::Store as _;
 use radicle::node::Handle as _;
+use radicle::node::UserAgent;
 use radicle::node::{Address, Alias, DEFAULT_TIMEOUT};
 use radicle::prelude::{NodeId, RepoId};
 use radicle::profile;
@@ -1299,6 +1300,7 @@ fn rad_clone_partial_fail() {
             node::Features::SEED,
             Alias::new("carol"),
             0,
+            &UserAgent::default(),
             localtime::LocalTime::now().into(),
             [node::KnownAddress::new(
                 // Eve will fail to connect to this address.
@@ -1341,6 +1343,7 @@ fn rad_clone_connect() {
     let bob = environment.node(Config::test(Alias::new("bob")));
     let mut eve = environment.node(Config::test(Alias::new("eve")));
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let ua = UserAgent::default();
     let now = localtime::LocalTime::now().into();
 
     fixtures::repository(working.join("acme"));
@@ -1364,6 +1367,7 @@ fn rad_clone_connect() {
             node::Features::SEED,
             Alias::new("alice"),
             0,
+            &ua,
             now,
             [node::KnownAddress::new(
                 node::Address::from(alice.addr),
@@ -1378,6 +1382,7 @@ fn rad_clone_connect() {
             node::Features::SEED,
             Alias::new("bob"),
             0,
+            &ua,
             now,
             [node::KnownAddress::new(
                 node::Address::from(bob.addr),

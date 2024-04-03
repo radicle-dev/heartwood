@@ -19,7 +19,7 @@ use crate::identity::{
     Did,
 };
 use crate::node::address::{AddressType, Source};
-use crate::node::{Address, Alias, KnownAddress, Timestamp};
+use crate::node::{Address, Alias, KnownAddress, Timestamp, UserAgent};
 use crate::storage;
 use crate::storage::refs::{Refs, RefsAt, SignedRefs};
 use crate::test::storage::{MockRepository, MockStorage};
@@ -322,5 +322,11 @@ impl Arbitrary for Alias {
 impl Arbitrary for Timestamp {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         Self::try_from(u64::arbitrary(g).min(*Self::MAX)).unwrap()
+    }
+}
+
+impl Arbitrary for UserAgent {
+    fn arbitrary(_: &mut qcheck::Gen) -> Self {
+        UserAgent::from_str("/radicle:1.0.0/").unwrap()
     }
 }

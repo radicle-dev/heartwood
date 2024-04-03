@@ -29,6 +29,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("db/migrations/2.sql"),
     include_str!("db/migrations/3.sql"),
     include_str!("db/migrations/4.sql"),
+    include_str!("db/migrations/5.sql"),
 ];
 
 #[derive(Error, Debug)]

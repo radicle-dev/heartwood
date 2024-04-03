@@ -1,9 +1,20 @@
 pub mod store;
 
+use std::str::FromStr;
+
 use super::*;
+use crate::VERSION;
+use once_cell::sync::Lazy;
+use radicle::node::UserAgent;
 
 pub use store::Error;
 pub use store::Store;
+
+/// This node's user agent string.
+pub static USER_AGENT: Lazy<UserAgent> = Lazy::new(|| {
+    FromStr::from_str(format!("/radicle:{}/", VERSION.version).as_str())
+        .expect("user agent is valid")
+});
 
 pub fn node(config: &Config, timestamp: Timestamp) -> NodeAnnouncement {
     let features = config.features();
@@ -13,6 +24,7 @@ pub fn node(config: &Config, timestamp: Timestamp) -> NodeAnnouncement {
         .clone()
         .try_into()
         .expect("external addresses are within the limit");
+    let agent = USER_AGENT.clone();
 
     NodeAnnouncement {
         features,
@@ -20,6 +32,7 @@ pub fn node(config: &Config, timestamp: Timestamp) -> NodeAnnouncement {
         alias,
         addresses,
         nonce: 0,
+        agent,
     }
 }
 

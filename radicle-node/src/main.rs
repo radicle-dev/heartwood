@@ -7,17 +7,9 @@ use crossbeam_channel as chan;
 use radicle::logger;
 use radicle::prelude::Signer;
 use radicle::profile;
-use radicle::version::Version;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
-use radicle_node::Runtime;
+use radicle_node::{Runtime, VERSION};
 use radicle_signals as signals;
-
-pub const VERSION: Version = Version {
-    name: env!("CARGO_PKG_NAME"),
-    commit: env!("GIT_HEAD"),
-    version: env!("RADICLE_VERSION"),
-    timestamp: env!("GIT_COMMIT_TIME"),
-};
 
 pub const HELP_MSG: &str = r#"
 Usage
