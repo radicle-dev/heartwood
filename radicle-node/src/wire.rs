@@ -6,6 +6,7 @@ mod varint;
 pub use frame::StreamId;
 pub use message::{AddressType, MessageType};
 pub use protocol::{Control, Wire, WireReader, WireSession, WireWriter};
+use radicle::node::UserAgent;
 
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
@@ -54,6 +55,8 @@ pub enum Error {
     InvalidRefName(#[from] fmt::Error),
     #[error(transparent)]
     InvalidAlias(#[from] node::AliasError),
+    #[error("invalid user agent string: {0:?}")]
+    InvalidUserAgent(String),
     #[error("invalid control message with type `{0}`")]
     InvalidControlMessage(u8),
     #[error("invalid protocol version header `{0:x?}`")]
@@ -62,8 +65,8 @@ pub enum Error {
     InvalidOnionAddr(#[from] tor::OnionAddrDecodeError),
     #[error("invalid timestamp: {0}")]
     InvalidTimestamp(u64),
-    #[error("unknown protocol version `{0}`")]
-    UnknownProtocolVersion(u8),
+    #[error("wrong protocol version `{0}`")]
+    WrongProtocolVersion(u8),
     #[error("unknown address type `{0}`")]
     UnknownAddressType(u8),
     #[error("unknown message type `{0}`")]
@@ -251,6 +254,12 @@ impl Encode for cyphernet::addr::tor::OnionAddrV3 {
     }
 }
 
+impl Encode for UserAgent {
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        self.as_ref().encode(writer)
+    }
+}
+
 impl Encode for Alias {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
         self.as_ref().encode(writer)
@@ -318,6 +327,13 @@ impl Decode for git::RefString {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
         let ref_str = String::decode(reader)?;
         git::RefString::try_from(ref_str).map_err(Error::from)
+    }
+}
+
+impl Decode for UserAgent {
+    fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
+        String::decode(reader)
+            .and_then(|s| UserAgent::from_str(&s).map_err(Error::InvalidUserAgent))
     }
 }
 

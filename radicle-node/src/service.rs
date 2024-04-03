@@ -36,7 +36,6 @@ use radicle::storage::refs::SIGREFS_BRANCH;
 use radicle::storage::RepositoryError;
 use radicle_fetch::policy::SeedingPolicy;
 
-use crate::crypto;
 use crate::crypto::{Signer, Verified};
 use crate::identity::{Doc, RepoId};
 use crate::node::routing;
@@ -56,6 +55,7 @@ use crate::storage::{refs::RefsAt, Namespaces, ReadStorage};
 use crate::worker::fetch;
 use crate::worker::FetchError;
 use crate::Link;
+use crate::{crypto, PROTOCOL_VERSION};
 
 pub use crate::node::events::{Event, Events};
 pub use crate::node::{config::Network, Config, NodeId};
@@ -1693,9 +1693,11 @@ where
 
                 match self.db.addresses_mut().insert(
                     announcer,
-                    *features,
+                    ann.version,
+                    ann.features,
                     ann.alias.clone(),
                     ann.work(),
+                    &ann.agent,
                     timestamp,
                     addresses
                         .iter()
@@ -2380,6 +2382,7 @@ where
                 // Nb. we don't want to connect to any peers that already have a session with us,
                 // even if it's in a disconnected state. Those sessions are re-attempted automatically.
                 let mut peers = entries
+                    .filter(|entry| entry.version == PROTOCOL_VERSION)
                     .filter(|entry| !entry.address.banned)
                     .filter(|entry| !entry.penalty.is_connect_threshold_reached())
                     .filter(|entry| !self.sessions.contains_key(&entry.node))

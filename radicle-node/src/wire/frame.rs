@@ -2,10 +2,8 @@
 #![warn(clippy::missing_docs_in_private_items)]
 use std::{fmt, io};
 
-use crate::{wire, wire::varint, wire::varint::VarInt, wire::Message, Link};
+use crate::{wire, wire::varint, wire::varint::VarInt, wire::Message, Link, PROTOCOL_VERSION};
 
-/// Protocol version.
-pub const PROTOCOL_VERSION: u8 = 1;
 /// Protocol version strings all start with the magic sequence `rad`, followed
 /// by a version number.
 pub const PROTOCOL_VERSION_STRING: Version = Version([b'r', b'a', b'd', PROTOCOL_VERSION]);
@@ -315,8 +313,8 @@ impl wire::Encode for Control {
 impl wire::Decode for Frame {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
         let version = Version::decode(reader)?;
-        if version.number() > PROTOCOL_VERSION {
-            return Err(wire::Error::UnknownProtocolVersion(version.number()));
+        if version.number() != PROTOCOL_VERSION {
+            return Err(wire::Error::WrongProtocolVersion(version.number()));
         }
         let stream = StreamId::decode(reader)?;
 

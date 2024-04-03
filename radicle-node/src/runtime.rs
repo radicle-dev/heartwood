@@ -19,6 +19,7 @@ use radicle::node::address;
 use radicle::node::address::Store as _;
 use radicle::node::notifications;
 use radicle::node::Handle as _;
+use radicle::node::UserAgent;
 use radicle::profile::Home;
 use radicle::{cob, git, storage, Storage};
 
@@ -127,7 +128,6 @@ impl Runtime {
         for (key, _) in &config.extra {
             log::warn!(target: "node", "Unused or deprecated configuration attribute {:?}", key);
         }
-        log::info!(target: "node", "Opening node database..");
 
         log::info!(target: "node", "Opening policy database..");
         let policies = home.policies_mut()?;
@@ -174,6 +174,7 @@ impl Runtime {
                 .expect("Runtime::init: unable to solve proof-of-work puzzle")
         };
 
+        log::info!(target: "node", "Opening node database..");
         let db = home
             .database_mut()?
             .journal_mode(node::db::JournalMode::default())?
@@ -181,6 +182,7 @@ impl Runtime {
                 &id,
                 announcement.features,
                 announcement.alias.clone(),
+                &announcement.agent,
                 announcement.timestamp,
                 announcement.addresses.iter(),
             )?;
@@ -189,14 +191,16 @@ impl Runtime {
         if config.connect.is_empty() && stores.addresses().is_empty()? {
             log::info!(target: "node", "Address book is empty. Adding bootstrap nodes..");
 
-            for (alias, addr) in config.network.bootstrap() {
+            for (alias, version, addr) in config.network.bootstrap() {
                 let (id, addr) = addr.into();
 
                 stores.addresses_mut().insert(
                     &id,
+                    version,
                     radicle::node::Features::SEED,
                     alias,
                     0,
+                    &UserAgent::default(),
                     clock.into(),
                     [node::KnownAddress::new(addr, address::Source::Bootstrap)],
                 )?;

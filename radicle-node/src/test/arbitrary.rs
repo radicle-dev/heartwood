@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use bloomy::BloomFilter;
 use qcheck::Arbitrary;
+use radicle::node::UserAgent;
 
 use crate::crypto;
 use crate::identity::DocAt;
@@ -80,11 +81,13 @@ impl Arbitrary for Message {
             .into(),
             MessageType::NodeAnnouncement => {
                 let message = NodeAnnouncement {
+                    version: u8::arbitrary(g),
                     features: u64::arbitrary(g).into(),
                     timestamp: Timestamp::arbitrary(g),
                     alias: Alias::arbitrary(g),
                     addresses: Arbitrary::arbitrary(g),
                     nonce: u64::arbitrary(g),
+                    agent: UserAgent::arbitrary(g),
                 }
                 .into();
                 let bytes: [u8; 64] = Arbitrary::arbitrary(g);

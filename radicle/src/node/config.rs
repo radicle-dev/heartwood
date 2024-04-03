@@ -10,6 +10,9 @@ use crate::node;
 use crate::node::policy::SeedingPolicy;
 use crate::node::{Address, Alias, NodeId};
 
+/// Peer-to-peer protocol version.
+pub type ProtocolVersion = u8;
+
 /// Default number of workers to spawn.
 pub const DEFAULT_WORKERS: usize = 8;
 
@@ -63,14 +66,14 @@ pub enum Network {
 
 impl Network {
     /// Bootstrap nodes for this network.
-    pub fn bootstrap(&self) -> Vec<(Alias, ConnectAddress)> {
+    pub fn bootstrap(&self) -> Vec<(Alias, ProtocolVersion, ConnectAddress)> {
         match self {
             Self::Main => [
                 ("seed.radicle.garden", seeds::RADICLE_COMMUNITY_NODE.clone()),
                 ("seed.radicle.xyz", seeds::RADICLE_TEAM_NODE.clone()),
             ]
             .into_iter()
-            .map(|(a, s)| (Alias::new(a), s))
+            .map(|(a, s)| (Alias::new(a), 1, s))
             .collect(),
 
             Self::Test => vec![],

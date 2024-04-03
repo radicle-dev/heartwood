@@ -27,7 +27,7 @@ use crate::node::policy::config::store::Read;
 use crate::node::{
     notifications, policy,
     policy::{Policy, Scope, SeedingPolicy},
-    Alias, AliasStore, Handle as _, Node,
+    Alias, AliasStore, Handle as _, Node, UserAgent,
 };
 use crate::prelude::{Did, NodeId, RepoId};
 use crate::storage::git::transport;
@@ -319,6 +319,7 @@ impl Profile {
                 &public_key,
                 config.node.features(),
                 config.node.alias.clone(),
+                &UserAgent::default(),
                 LocalTime::now().into(),
                 config.node.external_addresses.iter(),
             )?;

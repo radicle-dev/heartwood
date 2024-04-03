@@ -45,6 +45,8 @@ pub use features::Features;
 pub use seed::SyncedAt;
 pub use timestamp::Timestamp;
 
+/// Peer-to-peer protocol version.
+pub const PROTOCOL_VERSION: u8 = 1;
 /// Default name for control socket file.
 pub const DEFAULT_SOCKET_NAME: &str = "control.sock";
 /// Default radicle protocol port.
@@ -214,6 +216,77 @@ impl Ord for SyncStatus {
 impl PartialOrd for SyncStatus {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+/// Node user agent.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UserAgent(String);
+
+impl UserAgent {
+    /// Return a reference to the user agent string.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl Default for UserAgent {
+    fn default() -> Self {
+        UserAgent(String::from("/radicle/"))
+    }
+}
+
+impl std::fmt::Display for UserAgent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl FromStr for UserAgent {
+    type Err = String;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let reserved = ['/', ':'];
+
+        if input.len() > 64 {
+            return Err(input.to_owned());
+        }
+        let Some(s) = input.strip_prefix('/') else {
+            return Err(input.to_owned());
+        };
+        let Some(s) = s.strip_suffix('/') else {
+            return Err(input.to_owned());
+        };
+        if s.is_empty() {
+            return Err(input.to_owned());
+        }
+        if s.split('/').all(|segment| {
+            if let Some((client, version)) = segment.split_once(':') {
+                if client.is_empty() || version.is_empty() {
+                    false
+                } else {
+                    let client = client
+                        .chars()
+                        .all(|c| c.is_ascii_graphic() && !reserved.contains(&c));
+                    let version = version
+                        .chars()
+                        .all(|c| c.is_ascii_graphic() || !reserved.contains(&c));
+                    client && version
+                }
+            } else {
+                true
+            }
+        }) {
+            Ok(Self(input.to_owned()))
+        } else {
+            Err(input.to_owned())
+        }
+    }
+}
+
+impl AsRef<str> for UserAgent {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
     }
 }
 
@@ -1281,6 +1354,27 @@ impl AliasStore for HashMap<NodeId, Alias> {
 mod test {
     use super::*;
     use crate::assert_matches;
+
+    #[test]
+    fn test_user_agent() {
+        assert!(UserAgent::from_str("/radicle:1.0.0/").is_ok());
+        assert!(UserAgent::from_str("/radicle:1.0.0/heartwood:0.9/").is_ok());
+        assert!(UserAgent::from_str("/radicle:1.0.0/heartwood:0.9/rust:1.77/").is_ok());
+        assert!(UserAgent::from_str("/radicle:1.0.0-rc.1/").is_ok());
+        assert!(UserAgent::from_str("/radicle:1.0.0-rc.1/").is_ok());
+        assert!(UserAgent::from_str("/radicle:@a.b.c/").is_ok());
+        assert!(UserAgent::from_str("/radicle/").is_ok());
+        assert!(UserAgent::from_str("/rad/icle/").is_ok());
+        assert!(UserAgent::from_str("/rad:ic/le/").is_ok());
+
+        assert!(UserAgent::from_str("/:/").is_err());
+        assert!(UserAgent::from_str("//").is_err());
+        assert!(UserAgent::from_str("").is_err());
+        assert!(UserAgent::from_str("radicle:1.0.0/").is_err());
+        assert!(UserAgent::from_str("/radicle:1.0.0").is_err());
+        assert!(UserAgent::from_str("/radi cle:1.0/").is_err());
+        assert!(UserAgent::from_str("/radi\ncle:1.0/").is_err());
+    }
 
     #[test]
     fn test_alias() {

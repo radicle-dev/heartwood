@@ -20,8 +20,7 @@ use radicle::identity::{RepoId, Visibility};
 use radicle::node::config::ConnectAddress;
 use radicle::node::policy::store as policy;
 use radicle::node::seed::Store as _;
-use radicle::node::Database;
-use radicle::node::{Alias, POLICIES_DB_FILE};
+use radicle::node::{Alias, Database, UserAgent, POLICIES_DB_FILE};
 use radicle::node::{ConnectOptions, Handle as _};
 use radicle::profile;
 use radicle::profile::{env, Home, Profile};
@@ -135,6 +134,7 @@ impl Environment {
                 &public_key,
                 config.node.features(),
                 Alias::new(alias),
+                &UserAgent::default(),
                 now.into(),
                 config.node.external_addresses.iter(),
             )

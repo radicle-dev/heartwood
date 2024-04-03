@@ -274,8 +274,8 @@ impl wire::Encode for Message {
                 signature,
             }) => {
                 n += node.encode(writer)?;
-                n += message.encode(writer)?;
                 n += signature.encode(writer)?;
+                n += message.encode(writer)?;
             }
             Self::Info(info) => {
                 n += info.encode(writer)?;
@@ -317,8 +317,8 @@ impl wire::Decode for Message {
             }
             Ok(MessageType::NodeAnnouncement) => {
                 let node = NodeId::decode(reader)?;
-                let message = NodeAnnouncement::decode(reader)?.into();
                 let signature = Signature::decode(reader)?;
+                let message = NodeAnnouncement::decode(reader)?.into();
 
                 Ok(Announcement {
                     node,
@@ -329,8 +329,8 @@ impl wire::Decode for Message {
             }
             Ok(MessageType::InventoryAnnouncement) => {
                 let node = NodeId::decode(reader)?;
-                let message = InventoryAnnouncement::decode(reader)?.into();
                 let signature = Signature::decode(reader)?;
+                let message = InventoryAnnouncement::decode(reader)?.into();
 
                 Ok(Announcement {
                     node,
@@ -341,8 +341,8 @@ impl wire::Decode for Message {
             }
             Ok(MessageType::RefsAnnouncement) => {
                 let node = NodeId::decode(reader)?;
-                let message = RefsAnnouncement::decode(reader)?.into();
                 let signature = Signature::decode(reader)?;
+                let message = RefsAnnouncement::decode(reader)?.into();
 
                 Ok(Announcement {
                     node,
@@ -458,6 +458,7 @@ impl wire::Decode for ZeroBytes {
 mod tests {
     use super::*;
     use qcheck_macros::quickcheck;
+    use radicle::node::UserAgent;
     use radicle::storage::refs::RefsAt;
     use radicle_crypto::test::signer::MockSigner;
 
@@ -502,11 +503,13 @@ mod tests {
         let addrs: [Address; ADDRESS_LIMIT] = arbitrary::gen(1);
         let alias = ['@'; radicle::node::MAX_ALIAS_LENGTH];
         let ann = AnnouncementMessage::Node(NodeAnnouncement {
+            version: 1,
             features: Default::default(),
             alias: radicle::node::Alias::new(String::from_iter(alias)),
             addresses: BoundedVec::collect_from(&mut addrs.into_iter()),
             timestamp: arbitrary::gen(1),
             nonce: u64::MAX,
+            agent: UserAgent::default(),
         });
         let ann = ann.signed(&signer);
         let msg = Message::Announcement(ann);
@@ -555,10 +558,10 @@ mod tests {
 
     #[quickcheck]
     fn prop_message_encode_decode(message: Message) {
-        assert_eq!(
-            wire::deserialize::<Message>(&wire::serialize(&message)).unwrap(),
-            message
-        );
+        let encoded = &wire::serialize(&message);
+        let decoded = wire::deserialize::<Message>(encoded).unwrap();
+
+        assert_eq!(message, decoded);
     }
 
     #[test]

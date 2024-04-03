@@ -1,4 +1,5 @@
 use std::net::IpAddr;
+use std::num::TryFromIntError;
 use std::str::FromStr;
 
 use localtime::LocalTime;
@@ -7,6 +8,7 @@ use thiserror::Error;
 
 use crate::node;
 use crate::node::address::{AddressType, KnownAddress, Node, Source};
+use crate::node::UserAgent;
 use crate::node::{Address, Alias, AliasError, AliasStore, Database, NodeId, Penalty, Severity};
 use crate::prelude::Timestamp;
 use crate::sql::transaction;
@@ -18,6 +20,8 @@ pub enum Error {
     Internal(#[from] sql::Error),
     #[error("alias error: {0}")]
     InvalidAlias(#[from] AliasError),
+    #[error("integer conversion error: {0}")]
+    TryFromInt(#[from] TryFromIntError),
     /// No rows returned in query result.
     #[error("no rows returned")]
     NoRows,
@@ -28,6 +32,8 @@ pub enum Error {
 pub struct AddressEntry {
     /// Node ID.
     pub node: NodeId,
+    /// Node protocol version.
+    pub version: u8,
     /// Node penalty.
     pub penalty: Penalty,
     /// Node address.
@@ -48,9 +54,11 @@ pub trait Store {
     fn insert(
         &mut self,
         node: &NodeId,
+        version: u8,
         features: node::Features,
         alias: Alias,
         pow: u32,
+        agent: &UserAgent,
         timestamp: Timestamp,
         addrs: impl IntoIterator<Item = KnownAddress>,
     ) -> Result<bool, Error>;
@@ -89,24 +97,30 @@ pub trait Store {
 impl Store for Database {
     fn get(&self, node: &NodeId) -> Result<Option<Node>, Error> {
         let mut stmt = self.db.prepare(
-            "SELECT features, alias, pow, penalty, banned, timestamp FROM nodes WHERE id = ?",
+            "SELECT version, features, alias, pow, penalty, banned, agent, timestamp
+             FROM nodes
+             WHERE id = ?",
         )?;
         stmt.bind((1, node))?;
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
+            let version = row.read::<i64, _>("version").try_into()?;
             let features = row.read::<node::Features, _>("features");
             let alias = Alias::from_str(row.read::<&str, _>("alias"))?;
             let timestamp = row.read::<Timestamp, _>("timestamp");
             let pow = row.read::<i64, _>("pow") as u32;
+            let agent = row.read::<UserAgent, _>("agent");
             let penalty = row.read::<i64, _>("penalty").min(u8::MAX as i64);
             let penalty = Penalty(penalty as u8);
             let banned = row.read::<i64, _>("banned").is_positive();
             let addrs = self.addresses_of(node)?;
 
             Ok(Some(Node {
+                version,
                 features,
                 alias,
                 pow,
+                agent,
                 timestamp,
                 penalty,
                 addrs,
@@ -207,26 +221,30 @@ impl Store for Database {
     fn insert(
         &mut self,
         node: &NodeId,
+        version: u8,
         features: node::Features,
         alias: Alias,
         pow: u32,
+        agent: &UserAgent,
         timestamp: Timestamp,
         addrs: impl IntoIterator<Item = KnownAddress>,
     ) -> Result<bool, Error> {
         transaction(&self.db, move |db| {
             let mut stmt = db.prepare(
-                "INSERT INTO nodes (id, features, alias, pow, timestamp)
-                 VALUES (?1, ?2, ?3, ?4, ?5)
+                "INSERT INTO nodes (id, version, features, alias, pow, agent, timestamp)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
                  ON CONFLICT DO UPDATE
-                 SET features = ?2, alias = ?3, pow = ?4, timestamp = ?5
-                 WHERE timestamp < ?5",
+                 SET version = ?2, features = ?3, alias = ?4, pow = ?5, agent = ?6, timestamp = ?7
+                 WHERE timestamp < ?7",
             )?;
 
             stmt.bind((1, node))?;
-            stmt.bind((2, features))?;
-            stmt.bind((3, sql::Value::String(alias.into())))?;
-            stmt.bind((4, pow as i64))?;
-            stmt.bind((5, &timestamp))?;
+            stmt.bind((2, version as i64))?;
+            stmt.bind((3, features))?;
+            stmt.bind((4, sql::Value::String(alias.into())))?;
+            stmt.bind((5, pow as i64))?;
+            stmt.bind((6, agent.as_str()))?;
+            stmt.bind((7, &timestamp))?;
             stmt.next()?;
 
             for addr in addrs {
@@ -261,7 +279,7 @@ impl Store for Database {
         let mut stmt = self
             .db
             .prepare(
-                "SELECT a.node, a.type, a.value, a.source, a.last_success, a.last_attempt, a.banned, n.penalty
+                "SELECT a.node, a.type, a.value, a.source, a.last_success, a.last_attempt, a.banned, n.version, n.penalty
                  FROM addresses AS a
                  JOIN nodes AS n ON a.node = n.id
                  ORDER BY n.penalty ASC, n.id ASC",
@@ -278,12 +296,14 @@ impl Store for Database {
             let last_attempt = row.read::<Option<i64>, _>("last_attempt");
             let last_success = last_success.map(|t| LocalTime::from_millis(t as u128));
             let last_attempt = last_attempt.map(|t| LocalTime::from_millis(t as u128));
+            let version = row.read::<i64, _>("version").try_into()?;
             let banned = row.read::<i64, _>("banned").is_positive();
             let penalty = row.read::<i64, _>("penalty");
             let penalty = Penalty(penalty as u8); // Clamped at `u8::MAX`.
 
             entries.push(AddressEntry {
                 node,
+                version,
                 penalty,
                 address: KnownAddress {
                     addr,
@@ -510,15 +530,34 @@ mod test {
         let mut cache = Database::memory().unwrap();
         let features = node::Features::SEED;
         let timestamp = Timestamp::from(LocalTime::now());
+        let ua = UserAgent::default();
 
         cache
-            .insert(&alice, features, Alias::new("alice"), 16, timestamp, [])
+            .insert(
+                &alice,
+                1,
+                features,
+                Alias::new("alice"),
+                16,
+                &ua,
+                timestamp,
+                [],
+            )
             .unwrap();
         let node = cache.get(&alice).unwrap().unwrap();
         assert_eq!(node.alias.as_ref(), "alice");
 
         cache
-            .insert(&alice, features, Alias::new("bob"), 16, timestamp + 1, [])
+            .insert(
+                &alice,
+                1,
+                features,
+                Alias::new("bob"),
+                16,
+                &ua,
+                timestamp + 1,
+                [],
+            )
             .unwrap();
         let node = cache.get(&alice).unwrap().unwrap();
         assert_eq!(node.alias.as_ref(), "bob");
@@ -528,8 +567,10 @@ mod test {
     fn test_insert_and_get() {
         let alice = arbitrary::gen::<NodeId>(1);
         let mut cache = Database::memory().unwrap();
+        let version = 2;
         let features = node::Features::SEED;
         let timestamp = LocalTime::now().into();
+        let ua = UserAgent::default();
 
         let ka = KnownAddress {
             addr: net::SocketAddr::from(([4, 4, 4, 4], 8776)).into(),
@@ -541,9 +582,11 @@ mod test {
         let inserted = cache
             .insert(
                 &alice,
+                version,
                 features,
                 Alias::new("alice"),
                 16,
+                &ua,
                 timestamp,
                 [ka.clone()],
             )
@@ -552,6 +595,7 @@ mod test {
 
         let node = cache.get(&alice).unwrap().unwrap();
 
+        assert_eq!(node.version, version);
         assert_eq!(node.features, features);
         assert_eq!(node.pow, 16);
         assert_eq!(node.timestamp, timestamp);
@@ -566,6 +610,7 @@ mod test {
         let features = node::Features::SEED;
         let timestamp = LocalTime::now().into();
         let alias = Alias::new("alice");
+        let ua = UserAgent::default();
 
         let ka = KnownAddress {
             addr: net::SocketAddr::from(([4, 4, 4, 4], 8776)).into(),
@@ -575,12 +620,21 @@ mod test {
             banned: false,
         };
         let inserted = cache
-            .insert(&alice, features, alias.clone(), 0, timestamp, [ka.clone()])
+            .insert(
+                &alice,
+                1,
+                features,
+                alias.clone(),
+                0,
+                &ua,
+                timestamp,
+                [ka.clone()],
+            )
             .unwrap();
         assert!(inserted);
 
         let inserted = cache
-            .insert(&alice, features, alias, 0, timestamp, [ka])
+            .insert(&alice, 1, features, alias, 0, &ua, timestamp, [ka])
             .unwrap();
         assert!(!inserted);
 
@@ -593,6 +647,8 @@ mod test {
         let mut cache = Database::memory().unwrap();
         let timestamp = LocalTime::now().into();
         let features = node::Features::SEED;
+        let ua1 = UserAgent::default();
+        let ua2 = UserAgent::default();
         let alias1 = Alias::new("alice");
         let alias2 = Alias::new("~alice~");
         let ka = KnownAddress {
@@ -604,17 +660,35 @@ mod test {
         };
 
         let updated = cache
-            .insert(&alice, features, alias1, 0, timestamp, [ka.clone()])
+            .insert(
+                &alice,
+                1,
+                features,
+                alias1,
+                0,
+                &ua1,
+                timestamp,
+                [ka.clone()],
+            )
             .unwrap();
         assert!(updated);
 
         let updated = cache
-            .insert(&alice, features, alias2.clone(), 0, timestamp, [])
+            .insert(&alice, 1, features, alias2.clone(), 0, &ua1, timestamp, [])
             .unwrap();
         assert!(!updated, "Can't update using the same timestamp");
 
         let updated = cache
-            .insert(&alice, features, alias2.clone(), 0, timestamp - 1, [])
+            .insert(
+                &alice,
+                1,
+                features,
+                alias2.clone(),
+                0,
+                &ua1,
+                timestamp - 1,
+                [],
+            )
             .unwrap();
         assert!(!updated, "Can't update using a smaller timestamp");
 
@@ -624,12 +698,30 @@ mod test {
         assert_eq!(node.pow, 0);
 
         let updated = cache
-            .insert(&alice, features, alias2.clone(), 0, timestamp + 1, [])
+            .insert(
+                &alice,
+                1,
+                features,
+                alias2.clone(),
+                0,
+                &ua2,
+                timestamp + 1,
+                [],
+            )
             .unwrap();
         assert!(updated, "Can update with a larger timestamp");
 
         let updated = cache
-            .insert(&alice, node::Features::NONE, alias2, 1, timestamp + 2, [])
+            .insert(
+                &alice,
+                1,
+                node::Features::NONE,
+                alias2,
+                1,
+                &ua2,
+                timestamp + 2,
+                [],
+            )
             .unwrap();
         assert!(updated);
 
@@ -639,6 +731,7 @@ mod test {
         assert_eq!(node.timestamp, timestamp + 2);
         assert_eq!(node.pow, 1);
         assert_eq!(node.addrs, vec![ka]);
+        assert_eq!(node.agent, ua2);
     }
 
     #[test]
@@ -647,6 +740,7 @@ mod test {
         let bob = arbitrary::gen::<NodeId>(1);
         let mut cache = Database::memory().unwrap();
         let timestamp = LocalTime::now().into();
+        let ua = UserAgent::default();
         let features = node::Features::SEED;
         let alice_alias = Alias::new("alice");
         let bob_alias = Alias::new("bob");
@@ -666,15 +760,26 @@ mod test {
             cache
                 .insert(
                     &alice,
+                    1,
                     features,
                     alice_alias.clone(),
                     0,
+                    &ua,
                     timestamp,
                     [ka.clone()],
                 )
                 .unwrap();
             cache
-                .insert(&bob, features, bob_alias.clone(), 0, timestamp, [ka])
+                .insert(
+                    &bob,
+                    1,
+                    features,
+                    bob_alias.clone(),
+                    0,
+                    &ua,
+                    timestamp,
+                    [ka],
+                )
                 .unwrap();
         }
         assert_eq!(cache.len().unwrap(), 6);
@@ -695,6 +800,7 @@ mod test {
         let mut cache = Database::memory().unwrap();
         let mut expected = Vec::new();
         let timestamp = LocalTime::now().into();
+        let ua = UserAgent::default();
         let features = node::Features::SEED;
         let alias = Alias::new("alice");
 
@@ -711,11 +817,12 @@ mod test {
             };
             expected.push(AddressEntry {
                 node: id,
+                version: 3,
                 penalty: Penalty::default(),
                 address: ka.clone(),
             });
             cache
-                .insert(&id, features, alias.clone(), 0, timestamp, [ka])
+                .insert(&id, 3, features, alias.clone(), 0, &ua, timestamp, [ka])
                 .unwrap();
         }
 
@@ -735,9 +842,19 @@ mod test {
         let mut cache = Database::memory().unwrap();
         let features = node::Features::SEED;
         let timestamp = Timestamp::from(LocalTime::now());
+        let ua = UserAgent::default();
 
         cache
-            .insert(&alice, features, Alias::new("alice"), 16, timestamp, [])
+            .insert(
+                &alice,
+                1,
+                features,
+                Alias::new("alice"),
+                16,
+                &ua,
+                timestamp,
+                [],
+            )
             .unwrap();
         let node = cache.get(&alice).unwrap().unwrap();
         assert_eq!(node.penalty, Penalty::default());
@@ -762,6 +879,7 @@ mod test {
     #[test]
     fn test_disconnected_ban() {
         let alice = arbitrary::gen::<NodeId>(1);
+        let ua = UserAgent::default();
         let ip1: net::Ipv4Addr = [8, 8, 8, 8].into();
         let ip2: net::Ipv4Addr = [9, 9, 9, 9].into();
         let ka1 = arbitrary::gen::<KnownAddress>(1);
@@ -780,9 +898,11 @@ mod test {
 
         db.insert(
             &alice,
+            1,
             features,
             Alias::new("alice"),
             16,
+            &ua,
             timestamp,
             [ka1.clone(), ka2.clone()],
         )

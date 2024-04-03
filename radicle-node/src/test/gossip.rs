@@ -1,11 +1,15 @@
+use std::str::FromStr;
+
 use radicle::crypto::test::signer::MockSigner;
 use radicle::node;
+use radicle::node::UserAgent;
 use radicle::test::fixtures::gen;
 
 use crate::test::arbitrary;
 use crate::{
     prelude::{LocalDuration, LocalTime, Message},
     service::message::{InventoryAnnouncement, NodeAnnouncement},
+    PROTOCOL_VERSION,
 };
 
 pub fn messages(count: usize, now: LocalTime, delta: LocalDuration) -> Vec<Message> {
@@ -28,11 +32,13 @@ pub fn messages(count: usize, now: LocalTime, delta: LocalDuration) -> Vec<Messa
 
         msgs.push(Message::node(
             NodeAnnouncement {
+                version: PROTOCOL_VERSION,
                 features: node::Features::SEED,
                 timestamp: time.into(),
                 alias: node::Alias::new(gen::string(5)),
                 addresses: None.into(),
                 nonce: 0,
+                agent: UserAgent::from_str("/radicle:test/").unwrap(),
             }
             .solve(0)
             .unwrap(),

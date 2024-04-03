@@ -15,7 +15,9 @@ use std::{fmt, time};
 use sqlite as sql;
 use thiserror::Error;
 
-use crate::node::{address, Address, Alias, Features, KnownAddress, NodeId, Timestamp};
+use crate::node::{
+    address, Address, Alias, Features, KnownAddress, NodeId, Timestamp, UserAgent, PROTOCOL_VERSION,
+};
 use crate::sql::transaction;
 
 /// How long to wait for the database lock to be released before failing a read.
@@ -31,6 +33,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("db/migrations/3.sql"),
     include_str!("db/migrations/4.sql"),
     include_str!("db/migrations/5.sql"),
+    include_str!("db/migrations/6.sql"),
 ];
 
 #[derive(Error, Debug)]
@@ -131,15 +134,18 @@ impl Database {
         node: &NodeId,
         features: Features,
         alias: Alias,
+        agent: &UserAgent,
         timestamp: Timestamp,
         addrs: impl IntoIterator<Item = &'a Address>,
     ) -> Result<Self, Error> {
         address::Store::insert(
             &mut self,
             node,
+            PROTOCOL_VERSION,
             features,
             alias,
             0,
+            agent,
             timestamp,
             addrs
                 .into_iter()

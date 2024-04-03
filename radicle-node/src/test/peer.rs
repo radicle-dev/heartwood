@@ -10,6 +10,7 @@ use log::*;
 use radicle::identity::Visibility;
 use radicle::node::address::Store as _;
 use radicle::node::Database;
+use radicle::node::UserAgent;
 use radicle::node::{address, Alias, ConnectOptions};
 use radicle::rad;
 use radicle::storage::refs::{RefsAt, SignedRefsAt};
@@ -33,8 +34,7 @@ use crate::storage::{RemoteId, WriteStorage};
 use crate::test::storage::MockStorage;
 use crate::test::{arbitrary, fixtures, simulator};
 use crate::wire::MessageType;
-use crate::Link;
-use crate::{LocalDuration, LocalTime};
+use crate::{Link, LocalDuration, LocalTime, PROTOCOL_VERSION};
 
 /// Service instantiation used for testing.
 pub type Service<S, G> = service::Service<Database, S, G>;
@@ -175,6 +175,7 @@ where
                 &id,
                 config.config.features(),
                 config.config.alias.clone(),
+                &UserAgent::default(),
                 config.local_time.into(),
                 config.config.external_addresses.iter(),
             )
@@ -251,9 +252,11 @@ where
                 .addresses_mut()
                 .insert(
                     &peer.node_id(),
+                    PROTOCOL_VERSION,
                     radicle::node::Features::default(),
                     Alias::from_str(peer.name).unwrap(),
                     0,
+                    &UserAgent::default(),
                     timestamp,
                     Some(known_address),
                 )
@@ -303,11 +306,13 @@ where
     pub fn node_announcement(&self) -> Message {
         Message::node(
             NodeAnnouncement {
+                version: PROTOCOL_VERSION,
                 features: node::Features::SEED,
                 timestamp: self.timestamp(),
                 alias: Alias::from_str(self.name).unwrap(),
                 addresses: Some(net::SocketAddr::from((self.ip, node::DEFAULT_PORT)).into()).into(),
                 nonce: 0,
+                agent: UserAgent::from_str("/radicle:test/").unwrap(),
             }
             .solve(0)
             .unwrap(),
