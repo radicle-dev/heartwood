@@ -7,7 +7,6 @@ use radicle::storage::refs::RefsAt;
 use crate::prelude::*;
 use crate::service::session::Session;
 use crate::service::Link;
-use crate::storage::Namespaces;
 
 use super::gossip;
 use super::message::{Announcement, AnnouncementMessage};
@@ -27,8 +26,6 @@ pub enum Io {
         rid: RepoId,
         /// Remote node being fetched from.
         remote: NodeId,
-        /// Namespaces being fetched.
-        namespaces: Namespaces,
         /// If the node is fetching specific `rad/sigrefs`.
         refs_at: Option<Vec<RefsAt>>,
         /// Fetch timeout.
@@ -125,7 +122,6 @@ impl Outbox {
         &mut self,
         remote: &mut Session,
         rid: RepoId,
-        namespaces: Namespaces,
         refs_at: Vec<RefsAt>,
         timeout: time::Duration,
     ) {
@@ -134,7 +130,6 @@ impl Outbox {
         let refs_at = (!refs_at.is_empty()).then_some(refs_at);
         self.io.push_back(Io::Fetch {
             rid,
-            namespaces,
             refs_at,
             remote: remote.id,
             timeout,

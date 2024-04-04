@@ -28,7 +28,7 @@ use crate::service::policy::{Policy, Scope};
 use crate::service::*;
 use crate::storage::git::transport::remote;
 use crate::storage::Inventory;
-use crate::storage::{Namespaces, RemoteId, WriteStorage};
+use crate::storage::{RemoteId, WriteStorage};
 use crate::test::storage::MockStorage;
 use crate::test::{arbitrary, fixtures, simulator};
 use crate::wire::MessageType;
@@ -476,16 +476,10 @@ where
     }
 
     /// Get a draining iterator over the peer's I/O outbox, which only returns fetches.
-    pub fn fetches(&mut self) -> impl Iterator<Item = (RepoId, NodeId, Namespaces)> + '_ {
+    pub fn fetches(&mut self) -> impl Iterator<Item = (RepoId, NodeId)> + '_ {
         iter::from_fn(|| self.service.outbox().next()).filter_map(|io| {
-            if let Io::Fetch {
-                rid,
-                remote,
-                namespaces,
-                ..
-            } = io
-            {
-                Some((rid, remote, namespaces))
+            if let Io::Fetch { rid, remote, .. } = io {
+                Some((rid, remote))
             } else {
                 None
             }

@@ -963,10 +963,7 @@ where
             refs_at: refs_at.clone(),
             subscribers: vec![],
         });
-        let namespaces = self.policies.namespaces_for(&self.storage, &rid)?;
-
-        self.outbox
-            .fetch(session, rid, namespaces, refs_at, timeout);
+        self.outbox.fetch(session, rid, refs_at, timeout);
 
         debug!(
             target: "service",

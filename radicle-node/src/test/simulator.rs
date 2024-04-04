@@ -627,12 +627,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     );
                 }
             }
-            Io::Fetch {
-                rid,
-                remote,
-                namespaces,
-                ..
-            } => {
+            Io::Fetch { rid, remote, .. } => {
                 log::info!(
                     target: "sim",
                     "{:05} {} ~> {} ({}): Fetch outgoing",
@@ -663,10 +658,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                                 remote,
                                 Rc::new(Ok(fetch::FetchResult {
                                     updated: vec![],
-                                    namespaces: match namespaces {
-                                        Namespaces::Followed(hs) => hs,
-                                        Namespaces::All => HashSet::new(),
-                                    },
+                                    namespaces: HashSet::new(),
                                     clone: true,
                                     doc: arbitrary::gen(1),
                                 })),

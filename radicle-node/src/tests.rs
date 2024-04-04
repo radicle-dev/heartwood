@@ -1365,7 +1365,7 @@ fn test_queued_fetch_max_capacity() {
     alice.command(Command::Fetch(rid3, bob.id, DEFAULT_TIMEOUT, send3));
 
     // The first fetch is initiated.
-    assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid1);
+    assert_matches!(alice.fetches().next(), Some((rid, _)) if rid == rid1);
     // We shouldn't send out the 2nd, 3rd fetch while we're doing the 1st fetch.
     assert_matches!(alice.outbox().next(), None);
 
@@ -1375,14 +1375,14 @@ fn test_queued_fetch_max_capacity() {
     // Finish the 1st fetch.
     alice.fetched(rid1, bob.id, Ok(fetch::FetchResult::new(doc.clone())));
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
-    assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid2);
+    assert_matches!(alice.fetches().next(), Some((rid, _)) if rid == rid2);
     // ... but not the third.
     assert_matches!(alice.fetches().next(), None);
 
     // Finish the 2nd fetch.
     alice.fetched(rid2, bob.id, Ok(fetch::FetchResult::new(doc)));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
-    assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid3);
+    assert_matches!(alice.fetches().next(), Some((rid, _)) if rid == rid3);
 }
 
 #[test]
@@ -1421,7 +1421,7 @@ fn test_queued_fetch_from_ann_same_rid() {
     alice.receive(carol.id, carol.announcement(ann));
 
     // The first fetch is initiated.
-    assert_matches!(alice.fetches().next(), Some((rid_, nid_, _)) if rid_ == rid && nid_ == bob.id);
+    assert_matches!(alice.fetches().next(), Some((rid_, nid_)) if rid_ == rid && nid_ == bob.id);
     // We shouldn't send out the 2nd, 3rd fetch while we're doing the 1st fetch.
     assert_matches!(alice.fetches().next(), None);
 
@@ -1490,7 +1490,7 @@ fn test_queued_fetch_from_command_same_rid() {
     alice.command(Command::Fetch(rid1, carol.id, DEFAULT_TIMEOUT, send3));
 
     // The first fetch is initiated.
-    assert_matches!(alice.fetches().next(), Some((rid, nid, _)) if rid == rid1 && nid == bob.id);
+    assert_matches!(alice.fetches().next(), Some((rid, nid)) if rid == rid1 && nid == bob.id);
     // We shouldn't send out the 2nd, 3rd fetch while we're doing the 1st fetch.
     assert_matches!(alice.outbox().next(), None);
 
@@ -1500,14 +1500,14 @@ fn test_queued_fetch_from_command_same_rid() {
     // Finish the 1st fetch.
     alice.fetched(rid1, bob.id, Ok(arbitrary::gen::<fetch::FetchResult>(1)));
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
-    assert_matches!(alice.fetches().next(), Some((rid, nid, _)) if rid == rid1 && nid == eve.id);
+    assert_matches!(alice.fetches().next(), Some((rid, nid)) if rid == rid1 && nid == eve.id);
     // ... but not the third.
     assert_matches!(alice.fetches().next(), None);
 
     // Finish the 2nd fetch.
     alice.fetched(rid1, eve.id, Ok(arbitrary::gen::<fetch::FetchResult>(1)));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
-    assert_matches!(alice.fetches().next(), Some((rid, nid, _)) if rid == rid1 && nid == carol.id);
+    assert_matches!(alice.fetches().next(), Some((rid, nid)) if rid == rid1 && nid == carol.id);
 }
 
 #[test]

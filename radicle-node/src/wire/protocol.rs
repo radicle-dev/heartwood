@@ -964,7 +964,6 @@ where
                     remote,
                     timeout,
                     refs_at,
-                    ..
                 } => {
                     log::trace!(target: "wire", "Processing fetch for {rid} from {remote}..");
 
