@@ -2595,6 +2595,7 @@ dependencies = [
  "libc",
  "once_cell",
  "pretty_assertions",
+ "shlex",
  "tempfile",
  "termion 3.0.0",
  "unicode-display-width",

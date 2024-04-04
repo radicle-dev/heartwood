@@ -17,6 +17,7 @@ anstyle-query = { version = "1.0.0" }
 inquire = { version = "0.6.2", default-features = false, features = ["termion", "editor"] }
 libc = { version = "0.2" }
 once_cell = { version = "1.13" }
+shlex = { version = "1.1" }
 termion = { version = "3" }
 unicode-display-width = { version = "0.3.0" }
 unicode-segmentation = { version = "1.7.1" }

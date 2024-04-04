@@ -69,6 +69,18 @@ impl Editor {
                 "editor not configured: the `EDITOR` environment variable is not set",
             ));
         };
+        let Some(parts) = shlex::split(cmd.to_string_lossy().as_ref()) else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("invalid editor command {cmd:?}"),
+            ));
+        };
+        let Some((program, args)) = parts.split_first() else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("invalid editor command {cmd:?}"),
+            ));
+        };
 
         // We duplicate the stderr file descriptor to pass it to the child process, otherwise, if
         // we simply pass the `RawFd` of our stderr, `Command` will close our stderr when the
@@ -84,10 +96,11 @@ impl Editor {
             process::Stdio::from(tty)
         };
 
-        process::Command::new(&cmd)
+        process::Command::new(program)
             .stdout(unsafe { process::Stdio::from_raw_fd(stderr) })
             .stderr(process::Stdio::inherit())
             .stdin(stdin)
+            .args(args)
             .arg(&self.path)
             .spawn()
             .map_err(|e| {
