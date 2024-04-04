@@ -957,18 +957,12 @@ where
             return Err(TryFetchError::SessionCapacityReached);
         }
 
-        let remotes = refs_at.len();
         let fetching = fetching.or_insert(FetchState {
             from,
             refs_at: refs_at.clone(),
             subscribers: vec![],
         });
         self.outbox.fetch(session, rid, refs_at, timeout);
-
-        debug!(
-            target: "service",
-            "Fetch initiated for {rid} with {} ({remotes} remote(s))..", session.id
-        );
 
         Ok(fetching)
     }
@@ -1435,6 +1429,11 @@ where
 
                 // Update sync status of announcer for this repo.
                 if let Some(refs) = message.refs.iter().find(|r| &r.remote == self.nid()) {
+                    debug!(
+                        target: "service",
+                        "Refs announcement of {announcer} for {} contains our own remote at {} (t={})",
+                        message.rid, refs.at, message.timestamp
+                    );
                     match self.db.seeds_mut().synced(
                         &message.rid,
                         announcer,
@@ -1453,6 +1452,12 @@ where
                                     remote: *announcer,
                                     at: refs.at,
                                 });
+                            } else {
+                                debug!(
+                                    target: "service",
+                                    "Sync status of {announcer} was not updated for {}",
+                                    message.rid,
+                                );
                             }
                         }
                         Err(e) => {
@@ -1897,7 +1902,11 @@ where
         // updated while the node was stopped.
         // TODO: Move to `announce_own_refs`.
         if let Some(refs) = refs.iter().find(|r| r.remote == ann.node) {
-            info!(target: "service", "Announcing local refs for {rid} to peers ({})..", refs.at);
+            info!(
+                target: "service",
+                "Announcing own refs for {rid} to peers ({}) (t={})..",
+                refs.at, ann.timestamp()
+            );
 
             if let Err(e) = self
                 .db

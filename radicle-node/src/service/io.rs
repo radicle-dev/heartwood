@@ -120,18 +120,28 @@ impl Outbox {
 
     pub fn fetch(
         &mut self,
-        remote: &mut Session,
+        peer: &mut Session,
         rid: RepoId,
         refs_at: Vec<RefsAt>,
         timeout: time::Duration,
     ) {
-        remote.fetching(rid);
+        peer.fetching(rid);
 
         let refs_at = (!refs_at.is_empty()).then_some(refs_at);
+
+        if let Some(refs_at) = &refs_at {
+            debug!(
+                target: "service",
+                "Fetch initiated for {rid} with {peer} ({} remote(s))..", refs_at.len()
+            );
+        } else {
+            debug!(target: "service", "Fetch initiated for {rid} with {peer} (all remotes)..");
+        }
+
         self.io.push_back(Io::Fetch {
             rid,
             refs_at,
-            remote: remote.id,
+            remote: peer.id,
             timeout,
         });
     }
