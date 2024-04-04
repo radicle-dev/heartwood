@@ -164,7 +164,10 @@ pub(super) mod pktline {
             let mut pktline = [0u8; 1024];
             let length = self.read_pktline(&mut pktline)?;
             let Some(cmd) = GitRequest::parse(&pktline[4..length]) else {
-                return Err(io::ErrorKind::InvalidInput.into());
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "failed to parse git-upload-pack request",
+                ));
             };
             Ok((cmd, Vec::from(&pktline[..length])))
         }

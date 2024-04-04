@@ -362,7 +362,10 @@ impl CommandResult<()> {
 impl<T: Serialize> CommandResult<T> {
     /// Write this command result to a stream, including a terminating LF character.
     pub fn to_writer(&self, mut w: impl io::Write) -> io::Result<()> {
-        json::to_writer(&mut w, self).map_err(|_| io::ErrorKind::InvalidInput)?;
+        json::to_writer(&mut w, self).map_err(|e| {
+            log::error!(target: "radicle", "failed to write command result: {e}");
+            io::Error::new(io::ErrorKind::InvalidInput, e)
+        })?;
         w.write_all(b"\n")
     }
 }
@@ -502,7 +505,10 @@ pub enum Command {
 impl Command {
     /// Write this command to a stream, including a terminating LF character.
     pub fn to_writer(&self, mut w: impl io::Write) -> io::Result<()> {
-        json::to_writer(&mut w, self).map_err(|_| io::ErrorKind::InvalidInput)?;
+        json::to_writer(&mut w, self).map_err(|e| {
+            log::error!(target: "radicle", "failed to write command result: {e}");
+            io::Error::new(io::ErrorKind::InvalidInput, e)
+        })?;
         w.write_all(b"\n")
     }
 }
