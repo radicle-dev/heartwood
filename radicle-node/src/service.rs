@@ -1006,10 +1006,10 @@ where
                 info!(target: "service", "Fetched {rid} from {remote} successfully");
 
                 for update in &updated {
-                    if update.old() != update.new() {
-                        debug!(target: "service", "Ref updated: {update} for {rid}");
-                    } else {
+                    if update.is_skipped() {
                         trace!(target: "service", "Ref skipped: {update} for {rid}");
+                    } else {
+                        debug!(target: "service", "Ref updated: {update} for {rid}");
                     }
                 }
                 self.emitter.emit(Event::RefsFetched {
