@@ -1,5 +1,6 @@
 use std::{fmt, io, mem};
 
+use nonempty::NonEmpty;
 use radicle::git;
 use radicle::storage::refs::RefsAt;
 
@@ -167,14 +168,14 @@ pub struct RefsAnnouncement {
 #[derive(Default)]
 pub struct RefsStatus {
     /// The `rad/sigrefs` was missing or it's ahead of the local
-    /// `rad/sigrefs`.
-    pub fresh: Vec<RefsAt>,
-    /// The `rad/sigrefs` has been seen before.
-    pub stale: Vec<RefsAt>,
+    /// `rad/sigrefs`. We want it.
+    pub want: Vec<RefsAt>,
+    /// The `rad/sigrefs` has been seen before. We already have it.
+    pub have: Vec<RefsAt>,
 }
 
 impl RefsStatus {
-    /// Get the set of `fresh` and `stale` `RefsAt`'s for the given
+    /// Get the set of `want` and `have` `RefsAt`'s for the given
     /// announcement.
     ///
     /// Nb. We use the refs database as a cache for quick lookups. This does *not* check
@@ -183,7 +184,7 @@ impl RefsStatus {
     /// and old refs announcements will be discarded due to their lower timestamps.
     pub fn new<D: node::refs::Store>(
         rid: RepoId,
-        refs: Vec<RefsAt>,
+        refs: NonEmpty<RefsAt>,
         db: &D,
     ) -> Result<RefsStatus, storage::Error> {
         let mut status = RefsStatus::default();
@@ -202,13 +203,13 @@ impl RefsStatus {
         match db.get(repo, &theirs.remote, &storage::refs::SIGREFS_BRANCH) {
             Ok(Some((ours, _))) => {
                 if theirs.at != ours {
-                    self.fresh.push(theirs);
+                    self.want.push(theirs);
                 } else {
-                    self.stale.push(theirs);
+                    self.have.push(theirs);
                 }
             }
             Ok(None) => {
-                self.fresh.push(theirs);
+                self.want.push(theirs);
             }
             Err(e) => {
                 log::warn!(
