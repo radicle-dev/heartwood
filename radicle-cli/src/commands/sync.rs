@@ -11,7 +11,7 @@ use radicle::node::AliasStore;
 use radicle::node::Seed;
 use radicle::node::{FetchResult, FetchResults, Handle as _, Node, SyncStatus};
 use radicle::prelude::{NodeId, Profile, RepoId};
-use radicle::storage::ReadStorage;
+use radicle::storage::{ReadStorage, RemoteRepository};
 use radicle_term::Element;
 
 use crate::node::SyncReporting;
@@ -388,6 +388,16 @@ fn announce_refs(
             "nothing to announce, repository {rid} is not available locally"
         ));
     };
+    if let Err(e) = repo.remote(&profile.public_key) {
+        if e.is_not_found() {
+            term::print(term::format::italic(
+                "Nothing to announce, you don't have a fork of this repository.",
+            ));
+            return Ok(());
+        } else {
+            return Err(anyhow!("failed to load local fork of {rid}: {e}"));
+        }
+    }
 
     crate::node::announce(
         &repo,
