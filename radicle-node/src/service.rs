@@ -1411,6 +1411,11 @@ where
                     refs: message.refs.to_vec(),
                     timestamp: message.timestamp,
                 });
+                // Empty announcements can be safely ignored.
+                let Some(refs) = NonEmpty::from_vec(message.refs.to_vec()) else {
+                    debug!(target: "service", "Skipping fetch, no refs in announcement for {}", message.rid);
+                    return Ok(false);
+                };
                 // We update inventories when receiving ref announcements, as these could come
                 // from a new repository being initialized.
                 if let Ok(result) =
@@ -1428,7 +1433,7 @@ where
                 }
 
                 // Update sync status of announcer for this repo.
-                if let Some(refs) = message.refs.iter().find(|r| &r.remote == self.nid()) {
+                if let Some(refs) = refs.iter().find(|r| &r.remote == self.nid()) {
                     debug!(
                         target: "service",
                         "Refs announcement of {announcer} for {} contains our own remote at {} (t={})",
@@ -1487,20 +1492,15 @@ where
                     );
                     return Ok(relay);
                 };
-
-                // Finally, if there's anything to fetch, we fetch it from the remote.
-                if let Some(refs) = NonEmpty::from_vec(message.refs.to_vec()) {
-                    self.fetch_refs_at(
-                        message.rid,
-                        remote.id,
-                        refs,
-                        repo_entry.scope,
-                        FETCH_TIMEOUT,
-                        None,
-                    );
-                } else {
-                    debug!(target: "service", "Skipping fetch, no remote refs in announcement for {}", message.rid);
-                }
+                // Finally, start the fetch.
+                self.fetch_refs_at(
+                    message.rid,
+                    remote.id,
+                    refs,
+                    repo_entry.scope,
+                    FETCH_TIMEOUT,
+                    None,
+                );
                 return Ok(relay);
             }
             AnnouncementMessage::Node(
