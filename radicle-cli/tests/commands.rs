@@ -967,6 +967,7 @@ fn rad_patch_delete() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
+    let seed = environment.node(Config::test(Alias::new("seed")));
     let working = environment.tmp().join("working");
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
@@ -983,9 +984,11 @@ fn rad_patch_delete() {
 
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
+    let mut seed = seed.spawn();
 
     bob.handle.seed(acme, Scope::All).unwrap();
-    alice.connect(&bob).converge([&bob]);
+    seed.handle.seed(acme, Scope::All).unwrap();
+    alice.connect(&bob).connect(&seed).converge([&bob, &seed]);
 
     test(
         "examples/rad-clone.md",
@@ -1006,6 +1009,11 @@ fn rad_patch_delete() {
             "bob",
             working.join("bob"),
             [("RAD_HOME", bob.home.path().display())],
+        )
+        .home(
+            "seed",
+            working.join("seed"),
+            [("RAD_HOME", seed.home.path().display())],
         )
         .run()
         .unwrap();

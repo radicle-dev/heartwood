@@ -302,6 +302,16 @@ where
                                     type_name: identifier.type_name,
                                     err: e.into(),
                                 })?;
+                        } else {
+                            // N.b. the issue has been removed entirely from the
+                            // repository so we also remove it from the cache
+                            cob::cache::Remove::<cob::issue::Issue>::remove(cache, &identifier.id)
+                                .map(|_| ())
+                                .map_err(|e| error::Cache::Remove {
+                                    id: identifier.id,
+                                    type_name: identifier.type_name,
+                                    err: Box::new(e),
+                                })?;
                         }
                     } else if identifier.is_patch() {
                         if let Some(patch) = patches.get(&identifier.id)? {
@@ -312,6 +322,16 @@ where
                                     id: identifier.id,
                                     type_name: identifier.type_name,
                                     err: e.into(),
+                                })?;
+                        } else {
+                            // N.b. the patch has been removed entirely from the
+                            // repository so we also remove it from the cache
+                            cob::cache::Remove::<cob::patch::Patch>::remove(cache, &identifier.id)
+                                .map(|_| ())
+                                .map_err(|e| error::Cache::Remove {
+                                    id: identifier.id,
+                                    type_name: identifier.type_name,
+                                    err: Box::new(e),
                                 })?;
                         }
                     }
