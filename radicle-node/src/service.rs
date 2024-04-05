@@ -555,6 +555,19 @@ where
         let nid = self.node_id();
         self.started_at = Some(time);
 
+        // Populate refs database. This is only useful as part of the upgrade process for nodes
+        // that have been online since before the refs database was created.
+        match self.db.refs().count() {
+            Ok(0) => {
+                info!(target: "service", "Empty refs database, populating from storage..");
+                if let Err(e) = self.db.refs_mut().populate(&self.storage) {
+                    error!(target: "service", "Failed to populate refs database: {e}");
+                }
+            }
+            Ok(n) => debug!(target: "service", "Refs database has {n} cached references"),
+            Err(e) => error!(target: "service", "Error checking refs database: {e}"),
+        }
+
         // Ensure that our local node is in our address database.
         self.db
             .addresses_mut()
