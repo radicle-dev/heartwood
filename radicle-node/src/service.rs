@@ -1038,7 +1038,7 @@ where
                 }
 
                 // It's possible for a fetch to succeed but nothing was updated.
-                if updated.is_empty() {
+                if updated.is_empty() || updated.iter().all(|u| u.is_skipped()) {
                     debug!(target: "service", "Nothing to announce, no refs were updated..");
                 } else {
                     // Finally, announce the refs. This is useful for nodes to know what we've synced,
@@ -1058,7 +1058,6 @@ where
                 }
             }
         }
-
         // We can now try to dequeue another fetch.
         self.dequeue_fetch();
     }
