@@ -20,8 +20,8 @@ use crate::identity::{Identity, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs, SignedRefsAt};
 use crate::storage::{
-    Inventory, ReadRepository, ReadStorage, Remote, Remotes, RepositoryError, SetHead,
-    SignRepository, WriteRepository, WriteStorage,
+    Inventory, ReadRepository, ReadStorage, Remote, Remotes, RepositoryError, RepositoryInfo,
+    SetHead, SignRepository, WriteRepository, WriteStorage,
 };
 
 pub use crate::git::{
@@ -29,6 +29,7 @@ pub use crate::git::{
 };
 pub use crate::storage::Error;
 
+use super::refs::RefsAt;
 use super::{RemoteId, RemoteRepository, ValidateRepository};
 
 pub static NAMESPACES_GLOB: Lazy<git::refspec::PatternString> =
@@ -42,20 +43,6 @@ pub static CANONICAL_IDENTITY: Lazy<git::Qualified> = Lazy::new(|| {
         None,
     )
 });
-
-/// Basic repository information.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RepositoryInfo<V> {
-    /// Repository identifier.
-    pub rid: RepoId,
-    /// Head of default branch.
-    pub head: Oid,
-    /// Identity document.
-    pub doc: Doc<V>,
-    /// Local signed refs, if any.
-    /// Repositories with this set to `None` are ones that are seeded but not forked.
-    pub refs: Option<refs::SignedRefsAt>,
-}
 
 /// A parsed Git reference.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -148,6 +135,65 @@ impl ReadStorage for Storage {
     fn repository(&self, rid: RepoId) -> Result<Self::Repository, RepositoryError> {
         Repository::open(paths::repository(self, &rid), rid)
     }
+
+    fn repositories(&self) -> Result<Vec<RepositoryInfo<Verified>>, Error> {
+        let mut repos = Vec::new();
+
+        for result in fs::read_dir(&self.path)? {
+            let path = result?;
+
+            // Skip non-directories.
+            if !path.file_type()?.is_dir() {
+                continue;
+            }
+            // Skip hidden files.
+            if path.file_name().to_string_lossy().starts_with('.') {
+                continue;
+            }
+            // Skip lock files.
+            if let Some(ext) = path.path().extension() {
+                if ext == "lock" {
+                    continue;
+                }
+            }
+            let rid = RepoId::try_from(path.file_name())
+                .map_err(|_| Error::InvalidId(path.file_name()))?;
+
+            let repo = match self.repository(rid) {
+                Ok(repo) => repo,
+                Err(e) => {
+                    log::warn!(target: "storage", "Repository {rid} is invalid: {e}");
+                    continue;
+                }
+            };
+            let doc = match repo.identity_doc() {
+                Ok(doc) => doc.into(),
+                Err(e) => {
+                    log::warn!(target: "storage", "Repository {rid} is invalid: looking up doc: {e}");
+                    continue;
+                }
+            };
+
+            // For performance reasons, we don't do a full repository check here.
+            let head = match repo.head() {
+                Ok((_, head)) => head,
+                Err(e) => {
+                    log::warn!(target: "storage", "Repository {rid} is invalid: looking up head: {e}");
+                    continue;
+                }
+            };
+            // Nb. This will be `None` if they were not found.
+            let refs = refs::SignedRefsAt::load(self.info.key, &repo)?;
+
+            repos.push(RepositoryInfo {
+                rid,
+                head,
+                doc,
+                refs,
+            });
+        }
+        Ok(repos)
+    }
 }
 
 impl WriteStorage for Storage {
@@ -216,65 +262,6 @@ impl Storage {
 
     pub fn path(&self) -> &Path {
         self.path.as_path()
-    }
-
-    pub fn repositories(&self) -> Result<Vec<RepositoryInfo<Verified>>, Error> {
-        let mut repos = Vec::new();
-
-        for result in fs::read_dir(&self.path)? {
-            let path = result?;
-
-            // Skip non-directories.
-            if !path.file_type()?.is_dir() {
-                continue;
-            }
-            // Skip hidden files.
-            if path.file_name().to_string_lossy().starts_with('.') {
-                continue;
-            }
-            // Skip lock files.
-            if let Some(ext) = path.path().extension() {
-                if ext == "lock" {
-                    continue;
-                }
-            }
-            let rid = RepoId::try_from(path.file_name())
-                .map_err(|_| Error::InvalidId(path.file_name()))?;
-
-            let repo = match self.repository(rid) {
-                Ok(repo) => repo,
-                Err(e) => {
-                    log::warn!(target: "storage", "Repository {rid} is invalid: {e}");
-                    continue;
-                }
-            };
-            let doc = match repo.identity_doc() {
-                Ok(doc) => doc.into(),
-                Err(e) => {
-                    log::warn!(target: "storage", "Repository {rid} is invalid: looking up doc: {e}");
-                    continue;
-                }
-            };
-
-            // For performance reasons, we don't do a full repository check here.
-            let head = match repo.head() {
-                Ok((_, head)) => head,
-                Err(e) => {
-                    log::warn!(target: "storage", "Repository {rid} is invalid: looking up head: {e}");
-                    continue;
-                }
-            };
-            // Nb. This will be `None` if they were not found.
-            let refs = refs::SignedRefsAt::load(self.info.key, &repo)?;
-
-            repos.push(RepositoryInfo {
-                rid,
-                head,
-                doc,
-                refs,
-            });
-        }
-        Ok(repos)
     }
 
     pub fn repositories_by_id<'a>(
@@ -577,6 +564,18 @@ impl RemoteRepository for Repository {
     fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
         let refs = SignedRefs::load(*remote, self)?;
         Ok(Remote::<Verified>::new(refs))
+    }
+
+    fn remote_refs_at(&self) -> Result<Vec<RefsAt>, refs::Error> {
+        let mut all = Vec::new();
+
+        for remote in self.remote_ids()? {
+            let remote = remote?;
+            let refs_at = RefsAt::new(self, remote)?;
+
+            all.push(refs_at);
+        }
+        Ok(all)
     }
 }
 

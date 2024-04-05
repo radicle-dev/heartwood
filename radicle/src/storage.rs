@@ -25,10 +25,24 @@ use crate::storage::git::NAMESPACES_GLOB;
 use crate::storage::refs::Refs;
 
 use self::git::UserInfo;
-use self::refs::SignedRefs;
+use self::refs::{RefsAt, SignedRefs};
 
 pub type BranchName = git::RefString;
 pub type Inventory = BTreeSet<RepoId>;
+
+/// Basic repository information.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepositoryInfo<V> {
+    /// Repository identifier.
+    pub rid: RepoId,
+    /// Head of default branch.
+    pub head: Oid,
+    /// Identity document.
+    pub doc: Doc<V>,
+    /// Local signed refs, if any.
+    /// Repositories with this set to `None` are ones that are seeded but not forked.
+    pub refs: Option<refs::SignedRefsAt>,
+}
 
 /// Describes one or more namespaces.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
@@ -400,6 +414,8 @@ pub trait ReadStorage {
     /// Get the inventory of repositories hosted under this storage.
     /// This function should typically only return public repositories.
     fn inventory(&self) -> Result<Inventory, Error>;
+    /// Return all repositories (public and private).
+    fn repositories(&self) -> Result<Vec<RepositoryInfo<Verified>>, Error>;
     /// Insert this repository into the inventory.
     fn insert(&self, rid: RepoId);
     /// Open or create a read-only repository.
@@ -585,6 +601,9 @@ pub trait RemoteRepository {
 
     /// Get all remotes.
     fn remotes(&self) -> Result<Remotes<Verified>, refs::Error>;
+
+    /// Get [`RefsAt`] of all remotes.
+    fn remote_refs_at(&self) -> Result<Vec<RefsAt>, refs::Error>;
 }
 
 pub trait ValidateRepository
@@ -670,6 +689,10 @@ where
 
     fn repository(&self, rid: RepoId) -> Result<Self::Repository, RepositoryError> {
         self.deref().repository(rid)
+    }
+
+    fn repositories(&self) -> Result<Vec<RepositoryInfo<Verified>>, Error> {
+        self.deref().repositories()
     }
 }
 

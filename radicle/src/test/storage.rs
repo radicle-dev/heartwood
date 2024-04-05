@@ -12,7 +12,7 @@ use crate::node::NodeId;
 
 pub use crate::storage::*;
 
-use super::fixtures;
+use super::{arbitrary, fixtures};
 
 #[derive(Clone, Debug)]
 pub struct MockStorage {
@@ -89,6 +89,19 @@ impl ReadStorage for MockStorage {
             })
             .cloned()
     }
+
+    fn repositories(&self) -> Result<Vec<RepositoryInfo<Verified>>, Error> {
+        Ok(self
+            .repos
+            .iter()
+            .map(|(rid, r)| RepositoryInfo {
+                rid: *rid,
+                head: r.head().unwrap().1,
+                doc: r.doc.clone().into(),
+                refs: None,
+            })
+            .collect())
+    }
 }
 
 impl WriteStorage for MockStorage {
@@ -159,6 +172,17 @@ impl RemoteRepository for MockRepository {
             })
             .collect())
     }
+
+    fn remote_refs_at(&self) -> Result<Vec<refs::RefsAt>, refs::Error> {
+        Ok(self
+            .remotes
+            .values()
+            .map(|s| refs::RefsAt {
+                remote: s.id,
+                at: s.at,
+            })
+            .collect())
+    }
 }
 
 impl ValidateRepository for MockRepository {
@@ -177,7 +201,7 @@ impl ReadRepository for MockRepository {
     }
 
     fn head(&self) -> Result<(fmt::Qualified, Oid), RepositoryError> {
-        todo!()
+        Ok((fmt::qualified!("refs/heads/master"), arbitrary::oid()))
     }
 
     fn canonical_head(&self) -> Result<(fmt::Qualified, Oid), RepositoryError> {

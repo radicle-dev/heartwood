@@ -1,6 +1,6 @@
 use std::ffi::OsString;
 
-use radicle::storage::git::RepositoryInfo;
+use radicle::storage::{ReadStorage, RepositoryInfo};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};

@@ -387,6 +387,10 @@ impl RefsAt {
     pub fn load<S: ReadRepository>(&self, repo: &S) -> Result<SignedRefsAt, Error> {
         SignedRefsAt::load_at(self.at, self.remote, repo)
     }
+
+    pub fn path(&self) -> &git::Qualified {
+        &SIGREFS_BRANCH
+    }
 }
 
 /// Verified [`SignedRefs`] that keeps track of their content address

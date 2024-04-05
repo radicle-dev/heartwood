@@ -10,6 +10,8 @@ use crate::git::{Oid, Qualified};
 use crate::node::Database;
 use crate::node::NodeId;
 use crate::prelude::RepoId;
+use crate::storage;
+use crate::storage::{ReadRepository, ReadStorage, RemoteRepository, RepositoryError};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -19,12 +21,25 @@ pub enum Error {
     /// Timestamp error.
     #[error("invalid timestamp: {0}")]
     Timestamp(#[from] TryFromIntError),
+    /// Repository error.
+    #[error("repository error: {0}")]
+    Repository(#[from] RepositoryError),
+    /// Storage error.
+    #[error("storage error: {0}")]
+    Storage(#[from] storage::Error),
+    /// Storage refs error.
+    #[error("storage refs error: {0}")]
+    Refs(#[from] storage::refs::Error),
+    /// No rows returned in query result.
+    #[error("no rows returned")]
+    NoRows,
 }
 
 /// Refs store.
 ///
 /// Used to cache git references.
 pub trait Store {
+    /// Set a reference under a remote namespace to the given [`Oid`].
     fn set(
         &mut self,
         repo: &RepoId,
@@ -33,16 +48,28 @@ pub trait Store {
         oid: Oid,
         timestamp: LocalTime,
     ) -> Result<bool, Error>;
-
+    /// Get a reference's [`Oid`] and timestamp.
     fn get(
         &self,
         repo: &RepoId,
         namespace: &NodeId,
         refname: &Qualified,
     ) -> Result<Option<(Oid, LocalTime)>, Error>;
-
-    fn delete(&self, repo: &RepoId, namespace: &NodeId, refname: &Qualified)
-        -> Result<bool, Error>;
+    /// Delete a reference.
+    fn delete(
+        &mut self,
+        repo: &RepoId,
+        namespace: &NodeId,
+        refname: &Qualified,
+    ) -> Result<bool, Error>;
+    /// Populate the database from storage.
+    fn populate<S: ReadStorage>(&mut self, storage: &S) -> Result<(), Error>;
+    /// Return the number of references.
+    fn count(&self) -> Result<usize, Error>;
+    /// Check if there are any references.
+    fn is_empty(&self) -> Result<bool, Error> {
+        self.count().map(|l| l == 0)
+    }
 }
 
 impl Store for Database {
@@ -103,7 +130,7 @@ impl Store for Database {
     }
 
     fn delete(
-        &self,
+        &mut self,
         repo: &RepoId,
         namespace: &NodeId,
         refname: &Qualified,
@@ -119,6 +146,30 @@ impl Store for Database {
 
         Ok(self.db.change_count() > 0)
     }
+
+    fn count(&self) -> Result<usize, Error> {
+        let row = self
+            .db
+            .prepare("SELECT COUNT(*) FROM refs")?
+            .into_iter()
+            .next()
+            .ok_or(Error::NoRows)??;
+        let count = row.read::<i64, _>(0) as usize;
+
+        Ok(count)
+    }
+
+    fn populate<S: ReadStorage>(&mut self, storage: &S) -> Result<(), Error> {
+        let now = LocalTime::now();
+
+        for info in storage.repositories()? {
+            let repo = storage.repository(info.rid)?;
+            for refs_at in repo.remote_refs_at()? {
+                self.set(&repo.id(), &refs_at.remote, refs_at.path(), refs_at.at, now)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -127,6 +178,32 @@ mod test {
     use crate::git::qualified;
     use crate::test::arbitrary;
     use localtime::{LocalDuration, LocalTime};
+
+    #[test]
+    fn test_count() {
+        let mut db = Database::memory().unwrap();
+        let oid = arbitrary::oid();
+
+        let repo = arbitrary::gen::<RepoId>(1);
+        let namespace = arbitrary::gen::<NodeId>(1);
+        let refname1 = qualified!("refs/heads/master");
+        let refname2 = qualified!("refs/heads/main");
+        let timestamp = LocalTime::now();
+
+        assert!(db.is_empty().unwrap());
+        assert_eq!(db.count().unwrap(), 0);
+
+        assert!(db
+            .set(&repo, &namespace, &refname1, oid, timestamp)
+            .unwrap());
+        assert!(!db.is_empty().unwrap());
+        assert_eq!(db.count().unwrap(), 1);
+
+        assert!(db
+            .set(&repo, &namespace, &refname2, oid, timestamp)
+            .unwrap());
+        assert_eq!(db.count().unwrap(), 2);
+    }
 
     #[test]
     fn test_set_and_delete() {

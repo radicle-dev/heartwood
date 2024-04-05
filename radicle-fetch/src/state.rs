@@ -670,6 +670,10 @@ impl<'a, S> RemoteRepository for Cached<'a, S> {
             .map(|id| self.remote(id).map(|remote| (*id, remote)))
             .collect::<Result<_, _>>()
     }
+
+    fn remote_refs_at(&self) -> Result<Vec<RefsAt>, storage::refs::Error> {
+        self.handle.repo.remote_refs_at()
+    }
 }
 
 impl<'a, S> ValidateRepository for Cached<'a, S> {

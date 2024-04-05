@@ -241,6 +241,10 @@ impl<'a, R: storage::RemoteRepository> RemoteRepository for DraftStore<'a, R> {
     fn remotes(&self) -> Result<Remotes<Verified>, storage::refs::Error> {
         RemoteRepository::remotes(self.repo)
     }
+
+    fn remote_refs_at(&self) -> Result<Vec<storage::refs::RefsAt>, storage::refs::Error> {
+        RemoteRepository::remote_refs_at(self.repo)
+    }
 }
 
 impl<'a, R: storage::ValidateRepository> ValidateRepository for DraftStore<'a, R> {
