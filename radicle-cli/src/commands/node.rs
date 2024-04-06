@@ -13,6 +13,8 @@ use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::Element as _;
 
+#[path = "node/commands.rs"]
+mod commands;
 #[path = "node/control.rs"]
 pub mod control;
 #[path = "node/events.rs"]
@@ -35,6 +37,7 @@ Usage
     rad node routing [--rid <rid>] [--nid <nid>] [--json] [<option>...]
     rad node events [--timeout <secs>] [-n <count>] [<option>...]
     rad node config [--addresses]
+    rad node db <command> [<option>..]
 
     For `<node-option>` see `radicle-node --help`.
 
@@ -73,6 +76,9 @@ pub enum Operation {
     Config {
         addresses: bool,
     },
+    Db {
+        args: Vec<OsString>,
+    },
     Events {
         timeout: time::Duration,
         count: usize,
@@ -100,6 +106,7 @@ pub enum Operation {
 pub enum OperationName {
     Connect,
     Config,
+    Db,
     Events,
     Routing,
     Logs,
@@ -136,6 +143,7 @@ impl Args for Options {
                 }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "connect" => op = Some(OperationName::Connect),
+                    "db" => op = Some(OperationName::Db),
                     "events" => op = Some(OperationName::Events),
                     "logs" => op = Some(OperationName::Logs),
                     "config" => op = Some(OperationName::Config),
@@ -188,6 +196,9 @@ impl Args for Options {
                 Value(val) if matches!(op, Some(OperationName::Start)) => {
                     options.push(val);
                 }
+                Value(val) if matches!(op, Some(OperationName::Db)) => {
+                    options.push(val);
+                }
                 _ => return Err(anyhow!(arg.unexpected())),
             }
         }
@@ -200,6 +211,7 @@ impl Args for Options {
                 timeout,
             },
             OperationName::Config => Operation::Config { addresses },
+            OperationName::Db => Operation::Db { args: options },
             OperationName::Events => Operation::Events { timeout, count },
             OperationName::Routing => Operation::Routing { rid, nid, json },
             OperationName::Logs => Operation::Logs { lines },
@@ -234,6 +246,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             } else {
                 control::config(&node)?;
             }
+        }
+        Operation::Db { args } => {
+            commands::db(&profile, args)?;
         }
         Operation::Sessions => {
             let sessions = control::sessions(&node)?;

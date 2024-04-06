@@ -7,6 +7,7 @@
 //!
 //! The database schema is contained within the first migration. See [`version`], [`bump`] and
 //! [`migrate`] for how this works.
+use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 use std::{fmt, time};
@@ -43,6 +44,14 @@ pub enum Error {
 #[derive(Clone)]
 pub struct Database {
     pub db: Arc<sql::ConnectionThreadSafe>,
+}
+
+impl Deref for Database {
+    type Target = sql::ConnectionThreadSafe;
+
+    fn deref(&self) -> &Self::Target {
+        &self.db
+    }
 }
 
 impl fmt::Debug for Database {
