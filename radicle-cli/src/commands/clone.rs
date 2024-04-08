@@ -41,13 +41,14 @@ Usage
     The `clone` command will use your local node's routing table to find seeds from
     which it can clone the repository.
 
-    For private repositories, the `--seed` option can be passed to clone directly
-    from a known seed in the privacy set.
+    For private repositories, use the `--private` and `--seed` options, to clone directly
+    from known seeds in the privacy set.
 
 Options
 
         --scope <scope>     Follow scope: `followed` or `all` (default: all)
     -s, --seed <nid>        Clone from this seed (may be specified multiple times)
+        --private           Clone a private repository
         --timeout <secs>    Timeout for fetching repository (default: 9)
         --help              Print help
 
@@ -64,8 +65,6 @@ pub struct Options {
     scope: Scope,
     /// Sync settings.
     sync: SyncSettings,
-    /// Fetch timeout.
-    timeout: time::Duration,
 }
 
 impl Args for Options {
@@ -76,7 +75,6 @@ impl Args for Options {
         let mut id: Option<RepoId> = None;
         let mut scope = Scope::All;
         let mut sync = SyncSettings::default();
-        let mut timeout = time::Duration::from_secs(9);
         let mut directory = None;
 
         while let Some(arg) = parser.next()? {
@@ -93,11 +91,14 @@ impl Args for Options {
 
                     scope = term::args::parse_value("scope", value)?;
                 }
+                Long("private") => {
+                    sync.force = true;
+                }
                 Long("timeout") => {
                     let value = parser.value()?;
                     let secs = term::args::number(&value)?;
 
-                    timeout = time::Duration::from_secs(secs as u64);
+                    sync.timeout = time::Duration::from_secs(secs as u64);
                 }
                 Long("no-confirm") => {
                     // We keep this flag here for consistency though it doesn't have any effect,
@@ -129,7 +130,6 @@ impl Args for Options {
                 directory,
                 scope,
                 sync,
-                timeout,
             },
             vec![],
         ))
@@ -151,7 +151,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         options.id,
         options.directory.clone(),
         options.scope,
-        options.sync.with_profile(&profile).timeout(options.timeout),
+        options.sync.with_profile(&profile),
         &mut node,
         &signer,
         &profile.storage,

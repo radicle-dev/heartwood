@@ -29,7 +29,7 @@ $ rad inspect --identity
 
 ``` ~bob
 $ rad ls --all --private
-$ rad clone rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --timeout 1
+$ rad clone rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --private --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --timeout 1
 ✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'all'
 ✓ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi..
 ✓ Creating checkout in ./heartwood..

@@ -435,14 +435,13 @@ pub fn fetch(
     let replicas = settings
         .replicas
         .min(seeds.iter().filter(|s| s.nid != local).count());
-    let sessions = node.sessions()?;
     let mut results = FetchResults::default();
     let (connected, mut disconnected) = seeds.partition();
 
-    // Fetch from specified seeds, plus our preferred seeds.
+    // Fetch from specified seeds.
     for nid in &settings.seeds {
-        if !sessions.iter().any(|s| &s.nid == nid) {
-            term::warning(format!("node {nid} is not connected.. skipping"));
+        if !seeds.is_connected(nid) && !settings.force {
+            term::warning(format!("node {nid} is not connected or seeding.. skipping"));
             continue;
         }
         let result = fetch_from(rid, nid, settings.timeout, node)?;
@@ -462,6 +461,9 @@ pub fn fetch(
     for nid in connected {
         let result = fetch_from(rid, &nid, settings.timeout, node)?;
         results.push(nid, result);
+    }
+    if results.success().count() >= replicas {
+        return Ok(results);
     }
 
     // Try to connect to disconnected seeds and fetch from them.

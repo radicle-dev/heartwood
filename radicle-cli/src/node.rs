@@ -22,6 +22,9 @@ pub struct SyncSettings {
     pub replicas: usize,
     /// Sync with the given list of seeds.
     pub seeds: BTreeSet<NodeId>,
+    /// Sync with the given seeds even if they aren't in our routing table.
+    /// Can be used to fetch private repositories, for example.
+    pub force: bool,
     /// How long to wait for syncing to complete.
     pub timeout: time::Duration,
 }
@@ -33,6 +36,7 @@ impl SyncSettings {
         Self {
             replicas: seeds.len(),
             seeds,
+            force: false,
             timeout: DEFAULT_SYNC_TIMEOUT,
         }
     }
@@ -51,17 +55,22 @@ impl SyncSettings {
         self
     }
 
+    /// Set the 'force' option.
+    pub fn force(mut self, force: bool) -> Self {
+        self.force = force;
+        self
+    }
+
     /// Use profile to populate sync settings, by adding preferred seeds if no seeds are specified,
     /// and removing the local node from the set.
     pub fn with_profile(mut self, profile: &Profile) -> Self {
-        // If no seeds were specified, add up to `replica` seeds from the preferred seeds.
+        // If no seeds were specified, add the preferred seeds.
         if self.seeds.is_empty() {
             self.seeds = profile
                 .config
                 .preferred_seeds
                 .iter()
                 .map(|p| p.id)
-                .take(self.replicas)
                 .collect();
         }
         // Remove our local node from the seed set just in case it was added by mistake.
@@ -75,6 +84,7 @@ impl Default for SyncSettings {
         Self {
             replicas: 3,
             seeds: BTreeSet::new(),
+            force: false,
             timeout: DEFAULT_SYNC_TIMEOUT,
         }
     }
