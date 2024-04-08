@@ -103,13 +103,23 @@ where
     let result = state
         .run(handle, &handshake, limit, remote, None)
         .map_err(Error::Protocol);
+    let elapsed = start.elapsed().as_millis();
+    let rid = handle.repo.id();
 
-    log::debug!(
-        target: "fetch",
-        "Finished clone of {} ({}ms)",
-        handle.repo.id(),
-        start.elapsed().as_millis(),
-    );
+    match &result {
+        Ok(_) => {
+            log::debug!(
+                target: "fetch",
+                "Finished clone of {rid} from {remote} ({elapsed}ms)",
+            );
+        }
+        Err(e) => {
+            log::debug!(
+                target: "fetch",
+                "Clone of {rid} from {remote} failed with '{e}' ({elapsed}ms)",
+            );
+        }
+    }
     result
 }
 

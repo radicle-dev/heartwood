@@ -372,7 +372,7 @@ where
     }
 
     fn worker_result(&mut self, task: TaskResult) {
-        log::trace!(
+        log::debug!(
             target: "wire",
             "Received fetch result from worker for stream {}, remote {}: {:?}",
             task.stream, task.remote, task.result
