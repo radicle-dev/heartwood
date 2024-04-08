@@ -1088,23 +1088,20 @@ where
         {
             debug!(target: "service", "Dequeued fetch for {rid} from session {from}..");
 
-            // If no refs are specified, always do a full fetch.
-            if refs_at.is_empty() {
-                self.fetch(rid, from, FETCH_TIMEOUT, channel);
-                return;
-            }
-
-            let repo_entry = self
-                .policies
-                .seed_policy(&rid)
-                .expect("Service::dequeue_fetch: error accessing repo seeding configuration");
-
             if let Some(refs) = NonEmpty::from_vec(refs_at) {
+                let repo_entry = self
+                    .policies
+                    .seed_policy(&rid)
+                    .expect("Service::dequeue_fetch: error accessing repo seeding configuration");
+
+                // Keep dequeueing if there was nothing to fetch, otherwise break.
                 if self.fetch_refs_at(rid, from, refs, repo_entry.scope, FETCH_TIMEOUT, channel) {
                     break;
                 }
             } else {
+                // If no refs are specified, always do a full fetch.
                 self.fetch(rid, from, FETCH_TIMEOUT, channel);
+                break;
             }
         }
     }
