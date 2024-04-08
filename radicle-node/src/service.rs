@@ -281,6 +281,16 @@ struct QueuedFetch {
     channel: Option<chan::Sender<FetchResult>>,
 }
 
+impl PartialEq for QueuedFetch {
+    fn eq(&self, other: &Self) -> bool {
+        self.rid == other.rid
+            && self.from == other.from
+            && self.refs_at == other.refs_at
+            && self.channel.is_none()
+            && other.channel.is_none()
+    }
+}
+
 /// Holds all node stores.
 #[derive(Debug)]
 pub struct Stores<D>(D);
@@ -907,13 +917,18 @@ where
                         fetching.subscribe(c);
                     }
                 } else {
-                    debug!(target: "service", "Queueing fetch for {rid} with {from}..");
-                    self.queue.push_back(QueuedFetch {
+                    let fetch = QueuedFetch {
                         rid,
                         refs_at,
                         from,
                         channel,
-                    });
+                    };
+                    if self.queue.contains(&fetch) {
+                        debug!(target: "service", "Fetch for {rid} with {from} is already queued..");
+                    } else {
+                        debug!(target: "service", "Queueing fetch for {rid} with {from}..");
+                        self.queue.push_back(fetch);
+                    }
                 }
             }
             Err(TryFetchError::SessionCapacityReached) => {
