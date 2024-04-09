@@ -8,6 +8,7 @@ use radicle::node::config::ConnectAddress;
 use radicle::node::Handle as _;
 use radicle::node::{Address, Node, NodeId, PeerAddr};
 use radicle::prelude::RepoId;
+use radicle::profile;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -237,7 +238,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Connect { addr, timeout } => {
             control::connect(&mut node, addr.id, addr.addr, timeout)?
         }
-        Operation::Config { addresses } => {
+        Operation::Config { addresses } if node.is_running() => {
             if addresses {
                 let cfg = node.config()?;
                 for addr in cfg.external_addresses {
@@ -246,6 +247,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             } else {
                 control::config(&node)?;
             }
+        }
+        Operation::Config { .. } => {
+            let config = profile::Config::load(profile.config().as_path())?;
+            println!("{}", serde_json::to_string_pretty(&config.node)?);
         }
         Operation::Db { args } => {
             commands::db(&profile, args)?;
