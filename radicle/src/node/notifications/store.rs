@@ -196,12 +196,16 @@ impl Store<Write> {
                 .db
                 .prepare("DELETE FROM `repository-notifications` WHERE rowid = ?")?;
 
+            // N.b. we need to keep the count manually since the change count
+            // will always be `1` because of each reset.
+            let mut count = 0;
             for id in ids {
                 stmt.bind((1, *id as i64))?;
                 stmt.next()?;
                 stmt.reset()?;
+                count += self.db.change_count();
             }
-            Ok(self.db.change_count())
+            Ok(count)
         })
     }
 
