@@ -9,7 +9,7 @@ use radicle::node::config::seeds::{RADICLE_COMMUNITY_NODE, RADICLE_TEAM_NODE};
 use radicle::node::routing::Store as _;
 use radicle::node::Handle as _;
 use radicle::node::{Address, Alias, DEFAULT_TIMEOUT};
-use radicle::prelude::RepoId;
+use radicle::prelude::{NodeId, RepoId};
 use radicle::profile;
 use radicle::profile::Home;
 use radicle::storage::{ReadStorage, RefUpdate, RemoteRepository};
@@ -1188,6 +1188,63 @@ fn rad_clone_all() {
     )
     .unwrap();
     eve.has_remote_of(&acme, &bob.id);
+}
+
+#[test]
+fn rad_clone_partial_fail() {
+    let mut environment = Environment::new();
+    let mut alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let mut eve = environment.node(Config::test(Alias::new("eve")));
+    let working = environment.tmp().join("working");
+    let carol = NodeId::from_str("z6MksFqXN3Yhqk8pTJdUGLwBTkRfQvwZXPqR2qMEhbS9wzpT").unwrap();
+
+    // Setup a test project.
+    let acme = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    // Make Even think she knows about a seed called "carol" that has the repo.
+    eve.db
+        .addresses_mut()
+        .insert(
+            &carol,
+            node::Features::SEED,
+            Alias::new("carol"),
+            0,
+            localtime::LocalTime::now().as_secs(),
+            [node::KnownAddress::new(
+                // Eve will fail to connect to this address.
+                node::Address::from(net::SocketAddr::from(([0, 0, 0, 0], 19873))),
+                node::address::Source::Imported,
+            )],
+        )
+        .unwrap();
+    eve.db
+        .routing_mut()
+        .insert([&acme], carol, localtime::LocalTime::now().as_secs())
+        .unwrap();
+    eve.config.peers = node::config::PeerConfig::Static;
+
+    let mut eve = eve.spawn();
+
+    alice.handle.seed(acme, Scope::All).unwrap();
+    bob.handle.seed(acme, Scope::All).unwrap();
+
+    bob.connect(&alice).converge([&alice]);
+    eve.connect(&alice);
+    eve.connect(&bob);
+    eve.routes_to(&[(acme, carol), (acme, bob.id), (acme, alice.id)]);
+    bob.handle.unseed(acme).unwrap(); // Cause the fetch with bob to fail.
+
+    test(
+        "examples/rad-clone-partial-fail.md",
+        working.join("eve"),
+        Some(&eve.home),
+        [],
+    )
+    .unwrap();
 }
 
 #[test]

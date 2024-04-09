@@ -540,8 +540,8 @@ fn connect(
                 spinner.finish();
                 return true;
             }
-            Ok(node::ConnectResult::Disconnected { .. }) => {
-                spinner.failed();
+            Ok(node::ConnectResult::Disconnected { reason }) => {
+                spinner.error(reason);
                 continue;
             }
             Err(e) => {

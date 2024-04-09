@@ -22,7 +22,7 @@ $ rad sync --announce --timeout 3
 ```
 
 Bob can now fetch the private repo without specifying a seed, because he knows
-that alice has the repo after she announced her refs:
+that Alice has the repo after she announced her refs:
 
 ``` ~bob
 $ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch
