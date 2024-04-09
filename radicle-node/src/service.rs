@@ -867,7 +867,7 @@ where
         match self.refs_status_of(rid, refs, &scope) {
             Ok(status) => {
                 if status.want.is_empty() {
-                    debug!(target: "service", "Skipping  fetch for {rid}, all refs are already in storage");
+                    debug!(target: "service", "Skipping fetch for {rid}, all refs are already in storage");
                 } else {
                     self._fetch(rid, from, status.want, timeout, channel);
                     return true;
