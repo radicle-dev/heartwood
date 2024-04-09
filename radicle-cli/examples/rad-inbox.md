@@ -85,7 +85,7 @@ $ rad inbox show 1
 ```
 
 ``` ~alice
-$ rad inbox clear
+$ rad inbox clear 1 2
 ✓ Cleared 2 item(s) from your inbox
 $ rad inbox
 Your inbox is empty.
