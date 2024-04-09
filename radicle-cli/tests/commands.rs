@@ -2017,6 +2017,44 @@ fn rad_init_private() {
 }
 
 #[test]
+fn rad_init_private_seed() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    test(
+        "examples/rad-init-private.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    bob.connect(&alice).converge([&alice]);
+
+    formula(&environment.tmp(), "examples/rad-init-private-seed.md")
+        .unwrap()
+        .home(
+            "alice",
+            working.join("alice"),
+            [("RAD_HOME", alice.home.path().display())],
+        )
+        .home(
+            "bob",
+            bob.home.path(),
+            [("RAD_HOME", bob.home.path().display())],
+        )
+        .run()
+        .unwrap();
+}
+
+#[test]
 fn rad_init_private_clone() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
