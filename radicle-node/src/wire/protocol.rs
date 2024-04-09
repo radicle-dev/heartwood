@@ -409,34 +409,34 @@ where
             return;
         };
 
-        let Peer::Connected {
-            nid, link, streams, ..
-        } = peer
-        else {
+        if let Peer::Connected { link, streams, .. } = peer {
+            // Nb. It's possible that the stream would already be unregistered if we received an
+            // early "close" from the remote. Otherwise, we unregister it here and send the "close"
+            // ourselves.
+            if let Some(s) = streams.unregister(&task.stream) {
+                log::debug!(
+                    target: "wire", "Stream {} of {} closing with {} byte(s) sent and {} byte(s) received",
+                    task.stream, task.remote, s.sent_bytes, s.received_bytes
+                );
+                let frame = Frame::control(
+                    *link,
+                    frame::Control::Close {
+                        stream: task.stream,
+                    },
+                );
+                self.actions.push_back(Action::Send(fd, frame.to_bytes()));
+            }
+        } else {
+            // If the peer disconnected, we'll get here, but we still want to let the service know
+            // about the fetch result, so we don't return here.
             log::warn!(target: "wire", "Peer {nid} is not connected; ignoring fetch result");
             return;
         };
 
-        // Nb. It's possible that the stream would already be unregistered if we received an early
-        // "close" from the remote. Otherwise, we unregister it here and send the "close" ourselves.
-        if let Some(s) = streams.unregister(&task.stream) {
-            log::debug!(
-                target: "wire", "Stream {} of {} closing with {} byte(s) sent and {} byte(s) received",
-                task.stream, task.remote, s.sent_bytes, s.received_bytes
-            );
-            let frame = Frame::control(
-                *link,
-                frame::Control::Close {
-                    stream: task.stream,
-                },
-            );
-            self.actions.push_back(Action::Send(fd, frame.to_bytes()));
-        }
-
         // Only call into the service if we initiated this fetch.
         match task.result {
             FetchResult::Initiator { rid, result } => {
-                self.service.fetched(rid, *nid, result);
+                self.service.fetched(rid, nid, result);
             }
             FetchResult::Responder { rid, result } => {
                 if let Some(rid) = rid {
