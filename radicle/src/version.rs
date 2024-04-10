@@ -21,11 +21,8 @@ impl<'a> Version<'a> {
             ..
         } = self;
 
-        if version.ends_with("-dev") {
-            writeln!(w, "{name} {version}+{commit}")?;
-        } else {
-            writeln!(w, "{name} {version} ({commit})")?;
-        };
+        writeln!(w, "{name} {version} ({commit})")?;
+
         Ok(())
     }
 
@@ -52,17 +49,5 @@ mod test {
         .unwrap();
         let res = std::str::from_utf8(&buffer).unwrap();
         assert_eq!("rad 1.2.3 (28b341d)\n", res);
-
-        let mut buffer = Vec::new();
-        Version {
-            name: "rad",
-            version: "1.2.3-dev",
-            commit: "28b341d",
-            timestamp: "",
-        }
-        .write(&mut buffer)
-        .unwrap();
-        let res = std::str::from_utf8(&buffer).unwrap();
-        assert_eq!("rad 1.2.3-dev+28b341d\n", res);
     }
 }
