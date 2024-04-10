@@ -214,41 +214,21 @@ async fn history_handler(
 
     let commits = repo
         .history(&sha)?
-        .filter(|q| {
-            if let Ok(q) = q {
-                if let (Some(since), Some(until)) = (since, until) {
-                    q.committer.time.seconds() >= since && q.committer.time.seconds() < until
-                } else if let Some(since) = since {
-                    q.committer.time.seconds() >= since
-                } else if let Some(until) = until {
-                    q.committer.time.seconds() < until
-                } else {
-                    // If neither `since` nor `until` are specified, we include the commit.
-                    true
-                }
-            } else {
-                false
+        .filter_map(|commit| {
+            let commit = commit.ok()?;
+            let time = commit.committer.time.seconds();
+            let commit = api::json::commit(&commit);
+            match (since, until) {
+                (Some(since), Some(until)) if time >= since && time < until => Some(commit),
+                (Some(since), None) if time >= since => Some(commit),
+                (None, Some(until)) if time < until => Some(commit),
+                (None, None) => Some(commit),
+                _ => None,
             }
         })
         .skip(page * per_page)
         .take(per_page)
-        .map(|r| {
-            r.and_then(|c| {
-                let glob = Glob::all_heads().branches().and(Glob::all_remotes());
-                let branches: Vec<String> = repo
-                    .revision_branches(c.id, glob)?
-                    .iter()
-                    .map(|b| b.refname().to_string())
-                    .collect();
-                let diff = repo.diff_commit(c.id)?;
-                Ok(json!({
-                    "commit": api::json::commit(&c),
-                    "diff": diff,
-                    "branches": branches
-                }))
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Vec<_>>();
 
     let response = json!({
         "commits": commits,
@@ -1124,320 +1104,54 @@ mod routes {
             json!({
               "commits": [
                 {
-                  "commit": {
-                    "id": HEAD,
-                    "author": {
-                      "name": "Alice Liddell",
-                      "email": "alice@radicle.xyz"
-                    },
-                    "summary": "Add another folder",
-                    "description": "",
-                    "parents": [
-                      "ee8d6a29304623a78ebfa5eeed5af674d0e58f83",
-                    ],
-                    "committer": {
-                      "name": "Alice Liddell",
-                      "email": "alice@radicle.xyz",
-                      "time": 1673003014
-                    },
+                  "id": HEAD,
+                  "author": {
+                    "name": "Alice Liddell",
+                    "email": "alice@radicle.xyz"
                   },
-                  "diff": {
-                    "added": [
-                      {
-                        "path": "README",
-                        "diff": {
-                          "type": "plain",
-                          "hunks": [
-                            {
-                              "header": "@@ -0,0 +1 @@\n",
-                              "lines": [
-                                {
-                                  "line": "Hello World!\n",
-                                  "lineNo": 1,
-                                  "type": "addition",
-                                },
-                              ],
-                              "old":  {
-                                "start": 0,
-                                "end": 0,
-                              },
-                              "new": {
-                                "start": 1,
-                                "end": 2,
-                              },
-                            },
-                          ],
-                          "stats": {
-                            "additions": 1,
-                            "deletions": 0,
-                          },
-                          "eof": "noneMissing",
-                        },
-                        "new": {
-                          "oid": "980a0d5f19a64b4b30a87d4206aade58726b60e3",
-                          "mode": "blob",
-                        },
-                      },
-                      {
-                        "path": "dir1/README",
-                        "diff": {
-                          "type": "plain",
-                          "hunks": [
-                            {
-                              "header": "@@ -0,0 +1 @@\n",
-                              "lines": [
-                                {
-                                  "line": "Hello World from dir1!\n",
-                                  "lineNo": 1,
-                                  "type": "addition"
-                                }
-                              ],
-                              "old":  {
-                                "start": 0,
-                                "end": 0,
-                              },
-                              "new": {
-                                "start": 1,
-                                "end": 2,
-                              },
-                            }
-                          ],
-                          "stats": {
-                            "additions": 1,
-                            "deletions": 0,
-                          },
-                          "eof": "noneMissing",
-                        },
-                        "new": {
-                          "oid": "1dd5654ca2d2cf9f33b14c92b5ca9e1d21a91ae1",
-                          "mode": "blob",
-                        },
-                      }
-                    ],
-                    "deleted": [
-                      {
-                        "path": "CONTRIBUTING",
-                        "diff": {
-                          "type": "plain",
-                          "hunks": [
-                            {
-                              "header": "@@ -1 +0,0 @@\n",
-                              "lines": [
-                                {
-                                  "line": "Thank you very much!\n",
-                                  "lineNo": 1,
-                                  "type": "deletion",
-                                },
-                              ],
-                              "old":  {
-                                "start": 1,
-                                "end": 2,
-                              },
-                              "new": {
-                                "start": 0,
-                                "end": 0,
-                              },
-                            },
-                          ],
-                          "stats": {
-                            "additions": 0,
-                            "deletions": 1,
-                          },
-                          "eof": "noneMissing",
-                        },
-                        "old": {
-                          "oid": "82eb77880c693655bce074e3dbbd9fa711dc018b",
-                          "mode": "blob",
-                        },
-                      },
-                    ],
-                    "moved": [],
-                    "copied": [],
-                    "modified": [],
-                    "stats": {
-                      "filesChanged": 3,
-                      "insertions": 2,
-                      "deletions": 1
-                    }
-                  },
-                  "branches": [
-                    "refs/heads/master"
-                  ]
-                },
-                {
-                  "commit": {
-                    "id": PARENT,
-                    "author": {
-                      "name": "Alice Liddell",
-                      "email": "alice@radicle.xyz"
-                    },
-                    "summary": "Add contributing file",
-                    "description": "",
-                    "parents": [
-                      "f604ce9fd5b7cc77b7609beda45ea8760bee78f7",
-                    ],
-                    "committer": {
-                      "name": "Alice Liddell",
-                      "email": "alice@radicle.xyz",
-                      "time": 1673002014,
-                    },
-                  },
-                  "diff": {
-                    "added": [
-                      {
-                        "path": "CONTRIBUTING",
-                        "diff": {
-                          "type": "plain",
-                          "hunks": [
-                            {
-                              "header": "@@ -0,0 +1 @@\n",
-                              "lines": [
-                                {
-                                  "line": "Thank you very much!\n",
-                                  "lineNo": 1,
-                                  "type": "addition",
-                                },
-                              ],
-                              "old":  {
-                                "start": 0,
-                                "end": 0,
-                              },
-                              "new": {
-                                "start": 1,
-                                "end": 2,
-                              },
-                            },
-                          ],
-                          "stats": {
-                            "additions": 1,
-                            "deletions": 0,
-                          },
-                          "eof": "noneMissing",
-                        },
-                        "new": {
-                          "oid": "82eb77880c693655bce074e3dbbd9fa711dc018b",
-                          "mode": "blob",
-                        },
-                      },
-                    ],
-                    "deleted": [
-                      {
-                        "path": "README",
-                        "diff": {
-                          "type": "plain",
-                          "hunks": [
-                            {
-                              "header": "@@ -1 +0,0 @@\n",
-                              "lines": [
-                                {
-                                  "line": "Hello World!\n",
-                                  "lineNo": 1,
-                                  "type": "deletion",
-                                },
-                              ],
-                              "old":  {
-                                "start": 1,
-                                "end": 2,
-                              },
-                              "new": {
-                                "start": 0,
-                                "end": 0,
-                              },
-                            },
-                          ],
-                          "stats": {
-                            "additions": 0,
-                            "deletions": 1,
-                          },
-                          "eof": "noneMissing",
-                        },
-                        "old": {
-                          "oid": "980a0d5f19a64b4b30a87d4206aade58726b60e3",
-                          "mode": "blob",
-                        },
-                      },
-                    ],
-                    "moved": [],
-                    "copied": [],
-                    "modified": [],
-                    "stats": {
-                      "filesChanged": 2,
-                      "insertions": 1,
-                      "deletions": 1,
-                    },
-                  },
-                  "branches": [
-                    "refs/heads/master",
+                  "summary": "Add another folder",
+                  "description": "",
+                  "parents": [
+                    "ee8d6a29304623a78ebfa5eeed5af674d0e58f83",
                   ],
+                  "committer": {
+                    "name": "Alice Liddell",
+                    "email": "alice@radicle.xyz",
+                    "time": 1673003014
+                  },
                 },
                 {
-                  "commit": {
-                    "id": INITIAL_COMMIT,
-                    "author": {
-                      "name": "Alice Liddell",
-                      "email": "alice@radicle.xyz",
-                    },
-                    "summary": "Initial commit",
-                    "description": "",
-                    "parents": [],
-                    "committer": {
-                      "name": "Alice Liddell",
-                      "email": "alice@radicle.xyz",
-                      "time": 1673001014,
-                    },
+                  "id": PARENT,
+                  "author": {
+                    "name": "Alice Liddell",
+                    "email": "alice@radicle.xyz"
                   },
-                  "diff": {
-                    "added": [
-                      {
-                        "path": "README",
-                        "diff": {
-                          "type": "plain",
-                          "hunks": [
-                            {
-                              "header": "@@ -0,0 +1 @@\n",
-                              "lines": [
-                                {
-                                  "line": "Hello World!\n",
-                                  "lineNo": 1,
-                                  "type": "addition"
-                                }
-                              ],
-                              "old":  {
-                                "start": 0,
-                                "end": 0,
-                              },
-                              "new": {
-                                "start": 1,
-                                "end": 2,
-                              },
-                            }
-                          ],
-                          "stats": {
-                            "additions": 1,
-                            "deletions": 0,
-                          },
-                          "eof": "noneMissing",
-                        },
-                        "new": {
-                          "oid": "980a0d5f19a64b4b30a87d4206aade58726b60e3",
-                          "mode": "blob",
-                        },
-                      }
-                    ],
-                    "deleted": [],
-                    "moved": [],
-                    "copied": [],
-                    "modified": [],
-                    "stats": {
-                      "filesChanged": 1,
-                      "insertions": 1,
-                      "deletions": 0
-                    }
+                  "summary": "Add contributing file",
+                  "description": "",
+                  "parents": [
+                    "f604ce9fd5b7cc77b7609beda45ea8760bee78f7",
+                  ],
+                  "committer": {
+                    "name": "Alice Liddell",
+                    "email": "alice@radicle.xyz",
+                    "time": 1673002014,
                   },
-                  "branches": [
-                    "refs/heads/master"
-                  ]
-                }
+                },
+                {
+                  "id": INITIAL_COMMIT,
+                  "author": {
+                    "name": "Alice Liddell",
+                    "email": "alice@radicle.xyz",
+                  },
+                  "summary": "Initial commit",
+                  "description": "",
+                  "parents": [],
+                  "committer": {
+                    "name": "Alice Liddell",
+                    "email": "alice@radicle.xyz",
+                    "time": 1673001014,
+                  },
+                },
               ],
               "stats": {
                 "commits": 3,
