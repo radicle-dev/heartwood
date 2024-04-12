@@ -70,6 +70,8 @@ pub fn fetch<W: WriteRepository>(
 pub mod setup {
     use std::path::{Path, PathBuf};
 
+    use tempfile::{tempdir, TempDir};
+
     use super::storage::{Namespaces, RefUpdate};
     use crate::crypto::test::signer::MockSigner;
     use crate::storage::git::transport::remote;
@@ -86,6 +88,7 @@ pub mod setup {
     ///
     /// Note that this isn't a real node; only a profile with storage and a signing key.
     pub struct Node {
+        pub tmp: TempDir,
         pub root: PathBuf,
         pub storage: Storage,
         pub signer: MockSigner,
@@ -93,15 +96,15 @@ pub mod setup {
 
     impl Default for Node {
         fn default() -> Self {
-            let root = tempfile::tempdir().unwrap();
+            let root = tempdir().unwrap();
 
             Self::new(root, MockSigner::default(), "Radcliff")
         }
     }
 
     impl Node {
-        pub fn new(root: impl AsRef<Path>, signer: MockSigner, alias: &str) -> Self {
-            let root = root.as_ref().to_path_buf();
+        pub fn new(tmp: TempDir, signer: MockSigner, alias: &str) -> Self {
+            let root = tmp.path().to_path_buf();
             let home = root.join("home");
             let paths = Home::new(home.as_path()).unwrap();
             let storage = Storage::open(
@@ -116,6 +119,7 @@ pub mod setup {
             remote::mock::register(signer.public_key(), storage.path());
 
             Self {
+                tmp,
                 root,
                 storage,
                 signer,
@@ -242,29 +246,13 @@ pub mod setup {
         pub bob: NodeWithRepo,
         pub eve: NodeWithRepo,
         pub rid: RepoId,
-
-        #[allow(dead_code)]
-        tmp: tempfile::TempDir,
     }
 
     impl Default for Network {
         fn default() -> Self {
-            let tmp = tempfile::tempdir().unwrap();
-            let alice = Node::new(
-                tmp.path().join("alice"),
-                MockSigner::from_seed([!0; 32]),
-                "alice",
-            );
-            let mut bob = Node::new(
-                tmp.path().join("bob"),
-                MockSigner::from_seed([!1; 32]),
-                "bob",
-            );
-            let mut eve = Node::new(
-                tmp.path().join("eve"),
-                MockSigner::from_seed([!2; 32]),
-                "eve",
-            );
+            let alice = Node::new(tempdir().unwrap(), MockSigner::from_seed([!0; 32]), "alice");
+            let mut bob = Node::new(tempdir().unwrap(), MockSigner::from_seed([!1; 32]), "bob");
+            let mut eve = Node::new(tempdir().unwrap(), MockSigner::from_seed([!2; 32]), "eve");
             let repo = alice.project();
             let rid = repo.id;
 
@@ -294,7 +282,6 @@ pub mod setup {
                 bob,
                 eve,
                 rid,
-                tmp,
             }
         }
     }
