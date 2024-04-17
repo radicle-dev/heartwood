@@ -1190,8 +1190,45 @@ mod routes {
                 },
               },
               "diff": {
-                "added": [
+                "files": [
                   {
+                    "state": "deleted",
+                    "path": "CONTRIBUTING",
+                    "diff": {
+                      "type": "plain",
+                      "hunks": [
+                        {
+                          "header": "@@ -1 +0,0 @@\n",
+                          "lines": [
+                            {
+                              "line": "Thank you very much!\n",
+                              "lineNo": 1,
+                              "type": "deletion",
+                            },
+                          ],
+                          "old":  {
+                            "start": 1,
+                            "end": 2,
+                          },
+                          "new": {
+                            "start": 0,
+                            "end": 0,
+                          },
+                        },
+                      ],
+                      "stats": {
+                        "additions": 0,
+                        "deletions": 1,
+                      },
+                      "eof": "noneMissing",
+                    },
+                    "old": {
+                      "oid": "82eb77880c693655bce074e3dbbd9fa711dc018b",
+                      "mode": "blob",
+                    },
+                  },
+                  {
+                    "state": "added",
                     "path": "README",
                     "diff": {
                       "type": "plain",
@@ -1227,6 +1264,7 @@ mod routes {
                     },
                   },
                   {
+                    "state": "added",
                     "path": "dir1/README",
                     "diff": {
                       "type": "plain",
@@ -1260,48 +1298,8 @@ mod routes {
                       "oid": "1dd5654ca2d2cf9f33b14c92b5ca9e1d21a91ae1",
                       "mode": "blob",
                     },
-                  }
-                ],
-                "deleted": [
-                  {
-                    "path": "CONTRIBUTING",
-                    "diff": {
-                      "type": "plain",
-                      "hunks": [
-                        {
-                          "header": "@@ -1 +0,0 @@\n",
-                          "lines": [
-                            {
-                              "line": "Thank you very much!\n",
-                              "lineNo": 1,
-                              "type": "deletion",
-                            },
-                          ],
-                          "old":  {
-                            "start": 1,
-                            "end": 2,
-                          },
-                          "new": {
-                            "start": 0,
-                            "end": 0,
-                          },
-                        },
-                      ],
-                      "stats": {
-                        "additions": 0,
-                        "deletions": 1,
-                      },
-                      "eof": "noneMissing",
-                    },
-                    "old": {
-                      "oid": "82eb77880c693655bce074e3dbbd9fa711dc018b",
-                      "mode": "blob",
-                    },
                   },
                 ],
-                "moved": [],
-                "copied": [],
-                "modified": [],
                 "stats": {
                   "filesChanged": 3,
                   "insertions": 2,
@@ -1604,8 +1602,9 @@ mod routes {
             response.json().await,
             json!({
                 "diff": {
-                  "added": [
+                  "files": [
                     {
+                      "state": "added",
                       "path": "dir1/README",
                       "diff": {
                         "type": "plain",
@@ -1641,10 +1640,6 @@ mod routes {
                       },
                     },
                   ],
-                  "deleted": [],
-                  "moved": [],
-                  "copied": [],
-                  "modified": [],
                   "stats": {
                     "filesChanged": 1,
                     "insertions": 1,
