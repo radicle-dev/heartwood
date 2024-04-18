@@ -1042,6 +1042,9 @@ where
                 doc,
             }) => {
                 info!(target: "service", "Fetched {rid} from {remote} successfully");
+                // Update our routing table in case this fetch was user-initiated and doesn't
+                // come from an announcement.
+                self.seed_discovered(rid, remote, self.time());
 
                 for update in &updated {
                     if update.is_skipped() {
@@ -1305,7 +1308,6 @@ where
     /// and `false` if it should not.
     pub fn handle_announcement(
         &mut self,
-        relayer: &NodeId,
         relayer_addr: &Address,
         announcement: &Announcement,
     ) -> Result<bool, session::Error> {
@@ -1442,19 +1444,7 @@ where
                 };
                 // We update inventories when receiving ref announcements, as these could come
                 // from a new repository being initialized.
-                if let Ok(result) =
-                    self.db
-                        .routing_mut()
-                        .insert([&message.rid], *announcer, message.timestamp)
-                {
-                    if let &[(_, InsertResult::SeedAdded)] = result.as_slice() {
-                        self.emitter.emit(Event::SeedDiscovered {
-                            rid: message.rid,
-                            nid: *relayer,
-                        });
-                        info!(target: "service", "Routing table updated for {} with seed {announcer}", message.rid);
-                    }
-                }
+                self.seed_discovered(message.rid, *announcer, message.timestamp);
 
                 // Update sync status of announcer for this repo.
                 if let Some(refs) = refs.iter().find(|r| &r.remote == self.nid()) {
@@ -1555,6 +1545,8 @@ where
                     timestamp,
                     addresses
                         .iter()
+                        // Ignore non-routable addresses unless received from a local network
+                        // peer. This allows the node to function in a local network.
                         .filter(|a| a.is_routable() || relayer_addr.is_local())
                         .map(|a| KnownAddress::new(a.clone(), address::Source::Peer)),
                 ) {
@@ -1628,7 +1620,7 @@ where
                 let announcer = ann.node;
 
                 // Returning true here means that the message should be relayed.
-                if self.handle_announcement(&relayer, &relayer_addr, &ann)? {
+                if self.handle_announcement(&relayer_addr, &ann)? {
                     // Choose peers we should relay this message to.
                     // 1. Don't relay to the peer who sent us this message.
                     // 2. Don't relay to the peer who signed this announcement.
@@ -1747,6 +1739,16 @@ where
         refs.want.retain(|r| r.remote != self.node_id());
 
         Ok(refs)
+    }
+
+    /// Add a seed to our routing table.
+    fn seed_discovered(&mut self, rid: RepoId, nid: NodeId, time: Timestamp) {
+        if let Ok(result) = self.db.routing_mut().insert([&rid], nid, time) {
+            if let &[(_, InsertResult::SeedAdded)] = result.as_slice() {
+                self.emitter.emit(Event::SeedDiscovered { rid, nid });
+                info!(target: "service", "Routing table updated for {} with seed {nid}", rid);
+            }
+        }
     }
 
     /// Set of initial messages to send to a peer.
