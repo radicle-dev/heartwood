@@ -1892,13 +1892,17 @@ where
     /// Announce our own refs for the given repo.
     fn announce_own_refs(&mut self, rid: RepoId, doc: Doc<Verified>) -> Result<Vec<RefsAt>, Error> {
         let refs = self.announce_refs(rid, doc, [self.node_id()])?;
+        let now = self.local_time();
 
         // Update refs database with our signed refs branches.
         // This isn't strictly necessary for now, as we only use the database for fetches, and
         // we don't fetch our own refs that are announced, but it's for good measure.
         if let &[r] = refs.as_slice() {
-            let now = self.local_time();
-
+            self.emitter.emit(Event::LocalRefsAnnounced {
+                rid,
+                refs: r,
+                timestamp: now.as_millis(),
+            });
             if let Err(e) =
                 self.database_mut()
                     .refs_mut()

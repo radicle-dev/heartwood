@@ -37,6 +37,11 @@ pub enum Event {
         nid: NodeId,
         reason: String,
     },
+    LocalRefsAnnounced {
+        rid: RepoId,
+        refs: refs::RefsAt,
+        timestamp: Timestamp,
+    },
     InventoryAnnounced {
         nid: NodeId,
         inventory: Vec<RepoId>,
