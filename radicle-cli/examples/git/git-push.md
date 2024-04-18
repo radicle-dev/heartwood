@@ -76,3 +76,15 @@ If you pass an unsupported push option, you get an error:
 $ git push -o alien rad HEAD:alice/2
 error: unknown push option "alien"
 ```
+
+We can also push a SHA-1:
+
+```
+$ git commit -m "Something good" --allow-empty -s
+[alice/1 ddcc1f1] Something good
+```
+``` (stderr)
+$ git push -o no-sync rad ddcc1f164eacfd7dba41da9bff3261da3ee79fd3:refs/heads/alice/2
+To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+ * [new branch]      ddcc1f164eacfd7dba41da9bff3261da3ee79fd3 -> alice/2
+```

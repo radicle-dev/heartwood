@@ -553,8 +553,18 @@ fn push<G: Signer>(
     patches: patch::Cache<patch::Patches<'_, storage::git::Repository>, cob::cache::StoreWriter>,
     signer: &G,
 ) -> Result<Option<ExplorerResource>, Error> {
-    let head = working.find_reference(src.as_str())?;
-    let head = head.peel_to_commit()?.id();
+    let head = match working.find_reference(src.as_str()) {
+        Ok(obj) => obj.peel_to_commit()?,
+        Err(e) => {
+            if let Ok(oid) = git::Oid::from_str(src.as_str()) {
+                working.find_commit(oid.into())?
+            } else {
+                return Err(e.into());
+            }
+        }
+    }
+    .id();
+
     let dst = dst.with_namespace(nid.into());
     // It's ok for the destination reference to be unknown, eg. when pushing a new branch.
     let old = stored.backend.find_reference(dst.as_str()).ok();
