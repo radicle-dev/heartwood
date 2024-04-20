@@ -318,12 +318,11 @@ impl Highlighter {
                 )
                 .expect("Highlighter::config: highlight configuration must be valid")
             })),
-            #[cfg(feature = "tree-sitter-html")]
             "html" => Some(self.configs.entry(language).or_insert_with(|| {
                 ts::HighlightConfiguration::new(
                     tree_sitter_html::language(),
-                    tree_sitter_html::HIGHLIGHT_QUERY,
-                    tree_sitter_html::INJECTION_QUERY,
+                    tree_sitter_html::HIGHLIGHTS_QUERY,
+                    tree_sitter_html::INJECTIONS_QUERY,
                     "",
                 )
                 .expect("Highlighter::config: highlight configuration must be valid")
