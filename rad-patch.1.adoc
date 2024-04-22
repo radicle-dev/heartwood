@@ -1,8 +1,8 @@
 = rad-patch(1)
 The Radicle Team <team@radicle.xyz>
 :doctype: manpage
-:revnumber: 0.8.0
-:revdate: 2023-08-01
+:revnumber: 1.0.0
+:revdate: 2024-04-22
 :mansource: rad {revnumber}
 :manmanual: Radicle CLI Manual
 

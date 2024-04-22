@@ -1,8 +1,8 @@
 = rad(1)
 The Radicle Team <team@radicle.xyz>
 :doctype: manpage
-:revnumber: 0.8.0
-:revdate: 2023-07-01
+:revnumber: 1.0.0
+:revdate: 2024-04-22
 :mansource: rad {revnumber}
 :manmanual: Radicle CLI Manual
 
@@ -150,7 +150,7 @@ Under the hood, the *clone* command does a few important things:
 
 You can see all replicated and locally-available repositories using:
 
-    $ rad ls
+    $ rad ls --all
 
 By default, your node will subscribe to updates from _all_ peers. This
 behavior can be changed by passing *--scope followed* when cloning. It can
