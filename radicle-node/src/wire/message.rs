@@ -1,7 +1,7 @@
 use std::{io, mem, net};
 
 use byteorder::{NetworkEndian, ReadBytesExt};
-use cyphernet::addr::{Addr, HostName, NetAddr};
+use cyphernet::addr::{tor, Addr, HostName, NetAddr};
 use radicle::git::Oid;
 use radicle::node::Address;
 
@@ -386,8 +386,12 @@ impl wire::Encode for Address {
                 n += u8::from(AddressType::Dns).encode(writer)?;
                 n += dns.encode(writer)?;
             }
+            HostName::Tor(addr) => {
+                n += u8::from(AddressType::Onion).encode(writer)?;
+                n += addr.encode(writer)?;
+            }
             _ => {
-                todo!();
+                return Err(io::ErrorKind::Unsupported.into());
             }
         }
         n += self.port().encode(writer)?;
@@ -418,7 +422,9 @@ impl wire::Decode for Address {
                 HostName::Dns(dns)
             }
             Ok(AddressType::Onion) => {
-                todo!();
+                let onion: tor::OnionAddrV3 = wire::Decode::decode(reader)?;
+
+                HostName::Tor(onion)
             }
             Err(other) => return Err(wire::Error::UnknownAddressType(other)),
         };

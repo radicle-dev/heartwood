@@ -6,6 +6,8 @@ use std::{iter, net};
 
 use crypto::test::signer::MockSigner;
 use crypto::{PublicKey, Unverified, Verified};
+use cyphernet::addr::tor::OnionAddrV3;
+use cyphernet::EcPk;
 use nonempty::NonEmpty;
 use qcheck::Arbitrary;
 
@@ -260,7 +262,7 @@ impl Arbitrary for RepoId {
 
 impl Arbitrary for AddressType {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let t = *g.choose(&[1, 2, 3]).unwrap() as u8;
+        let t = *g.choose(&[1, 2, 3, 4]).unwrap() as u8;
 
         AddressType::try_from(t).unwrap()
     }
@@ -285,7 +287,13 @@ impl Arbitrary for Address {
                 .unwrap()
                 .to_string(),
             ),
-            AddressType::Onion => todo!(),
+            AddressType::Onion => {
+                let pk = PublicKey::arbitrary(g);
+                let addr = OnionAddrV3::from(
+                    cyphernet::ed25519::PublicKey::from_pk_compressed(**pk).unwrap(),
+                );
+                cyphernet::addr::HostName::Tor(addr)
+            }
         };
 
         Address::from(cyphernet::addr::NetAddr {
