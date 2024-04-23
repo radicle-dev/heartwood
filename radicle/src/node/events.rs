@@ -1,3 +1,7 @@
+//! Events for `upload-pack` processes.
+pub mod upload_pack;
+pub use upload_pack::UploadPack;
+
 use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -62,6 +66,13 @@ pub enum Event {
         features: node::Features,
         addresses: Vec<node::Address>,
     },
+    UploadPack(upload_pack::UploadPack),
+}
+
+impl From<upload_pack::UploadPack> for Event {
+    fn from(value: upload_pack::UploadPack) -> Self {
+        Self::UploadPack(value)
+    }
 }
 
 /// Events feed.
