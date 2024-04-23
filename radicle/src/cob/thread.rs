@@ -632,6 +632,7 @@ mod tests {
     use crate::cob::test;
     use crate::crypto::test::signer::MockSigner;
     use crate::crypto::Signer;
+    use crate::profile::env;
     use crate::test::arbitrary;
     use crate::test::arbitrary::gen;
     use crate::test::storage::MockRepository;
@@ -743,14 +744,14 @@ mod tests {
         let bob = MockSigner::default();
         let eve = MockSigner::default();
         let repo = gen::<MockRepository>(1);
-        let time = Timestamp::now();
+        let time = env::local_time();
 
         let mut a = test::history::<Thread, _>(
             &[Action::Comment {
                 body: "Thread root".to_owned(),
                 reply_to: None,
             }],
-            time,
+            time.into(),
             &alice,
         );
         a.comment("Alice comment", Some(*a.root().id()), &alice);
@@ -810,14 +811,14 @@ mod tests {
         let repo = gen::<MockRepository>(1);
         let alice = MockSigner::default();
         let bob = MockSigner::default();
-        let time = Timestamp::now();
+        let time = env::local_time();
 
         let mut a = test::history::<Thread, _>(
             &[Action::Comment {
                 body: "Thread root".to_owned(),
                 reply_to: None,
             }],
-            time,
+            time.into(),
             &alice,
         );
         let mut b = a.clone();

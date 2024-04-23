@@ -14,6 +14,7 @@ use thiserror::Error;
 use crate::git;
 use crate::git::ext as git_ext;
 use crate::git::Oid;
+use crate::profile::env;
 use crate::storage;
 use crate::storage::{ReadRepository, RemoteId, WriteRepository};
 
@@ -309,17 +310,17 @@ impl SignedRefs<Verified> {
         }?;
 
         let sigref = sigref.with_namespace(remote.into());
-        let author = raw.signature()?;
-
-        #[cfg(debug_assertions)]
-        let author = if let Ok(s) = std::env::var("RAD_COMMIT_TIME") {
-            // SAFETY: Only used in test code.
-            #[allow(clippy::unwrap_used)]
-            let timestamp = s.trim().parse::<i64>().unwrap();
+        let author = if let Ok(s) = env::var(env::GIT_COMMITTER_DATE) {
+            let Ok(timestamp) = s.trim().parse::<i64>() else {
+                panic!(
+                    "Invalid timestamp value {s:?} for `{}`",
+                    env::GIT_COMMITTER_DATE
+                );
+            };
             let time = git2::Time::new(timestamp, 0);
             git2::Signature::new("radicle", remote.to_string().as_str(), &time)?
         } else {
-            author
+            raw.signature()?
         };
 
         let commit = raw.commit(

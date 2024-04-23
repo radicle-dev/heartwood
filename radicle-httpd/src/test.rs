@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
+use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::{env, fs};
 
 use axum::body::{Body, Bytes};
 use axum::http::{Method, Request};
@@ -17,7 +17,7 @@ use radicle::crypto::ssh::Keystore;
 use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git::{raw as git2, RefString};
 use radicle::identity::Visibility;
-use radicle::profile::Home;
+use radicle::profile::{env, Home};
 use radicle::storage::ReadStorage;
 use radicle::Storage;
 use radicle::{node, profile};
@@ -144,7 +144,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
 
     let workdir = dir.join("hello-world");
 
-    env::set_var("RAD_COMMIT_TIME", TIMESTAMP.to_string());
+    env::set_var(env::GIT_COMMITTER_DATE, TIMESTAMP.to_string());
 
     fs::create_dir_all(&workdir).unwrap();
 

@@ -19,27 +19,6 @@ use crate::storage::ReadRepository;
 pub struct Timestamp(LocalTime);
 
 impl Timestamp {
-    /// Construct a `Timestamp` corresponding to the current time.
-    ///
-    /// # Note
-    ///
-    /// If this is used in debug mode, `RAD_COMMIT_TIME` will be used
-    /// to construct the timestamp.
-    pub fn now() -> Self {
-        if cfg!(debug_assertions) {
-            if let Ok(s) = std::env::var("RAD_COMMIT_TIME") {
-                // SAFETY: Only used in test code.
-                #[allow(clippy::unwrap_used)]
-                let secs = s.trim().parse::<u64>().unwrap();
-                Self::from_secs(secs)
-            } else {
-                Self(LocalTime::now())
-            }
-        } else {
-            Self(LocalTime::now())
-        }
-    }
-
     pub fn from_secs(secs: u64) -> Self {
         Self(LocalTime::from_secs(secs))
     }

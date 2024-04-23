@@ -485,43 +485,6 @@ impl sqlite::BindableWithIndex for &Signature {
     }
 }
 
-pub mod keypair {
-    use super::*;
-
-    /// Generate a new keypair using OS randomness.
-    pub fn generate() -> KeyPair {
-        #[cfg(debug_assertions)]
-        if let Some(seed) = env::seed() {
-            // Generate a keypair based on the given environment variable.
-            // This is useful for debugging and testing, since the
-            // public key can be known in advance.
-            return KeyPair::from_seed(Seed::new(seed));
-        }
-        KeyPair::generate()
-    }
-}
-
-pub mod env {
-    use std::env;
-
-    /// Return the seed stored in the `RAD_SEED` environment variable, if any.
-    pub fn seed() -> Option<[u8; 32]> {
-        if let Ok(seed) = env::var("RAD_SEED") {
-            let seed = (0..seed.len())
-                .step_by(2)
-                .map(|i| u8::from_str_radix(&seed[i..i + 2], 16))
-                .collect::<Result<Vec<u8>, _>>()
-                .expect("env::seed: invalid hexadecimal value set in `RAD_SEED`");
-            let seed: [u8; 32] = seed
-                .try_into()
-                .expect("env::seed: invalid seed length set in `RAD_SEED`");
-
-            return Some(seed);
-        }
-        None
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::KeyPair;

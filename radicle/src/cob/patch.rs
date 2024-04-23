@@ -2686,6 +2686,7 @@ mod test {
     use crate::crypto::test::signer::MockSigner;
     use crate::identity;
     use crate::patch::cache::Patches as _;
+    use crate::profile::env;
     use crate::test;
     use crate::test::arbitrary;
     use crate::test::arbitrary::gen;
@@ -2996,7 +2997,7 @@ mod test {
         let base = arbitrary::oid();
         let oid = arbitrary::oid();
         let repo = gen::<MockRepository>(1);
-        let time = Timestamp::now();
+        let time = env::local_time();
         let alice = MockSigner::default();
         let bob = MockSigner::default();
         let mut h0: cob::test::HistoryBuilder<Patch> = cob::test::history(
@@ -3012,7 +3013,7 @@ mod test {
                     target: MergeTarget::Delegates,
                 },
             ],
-            time,
+            time.into(),
             &alice,
         );
         let r1 = h0.commit(

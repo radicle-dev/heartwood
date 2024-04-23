@@ -18,6 +18,7 @@ use crate::git::ext::commit::headers::Headers;
 use crate::git::ext::commit::{trailers::OwnedTrailer, Commit};
 use crate::git::Oid;
 use crate::prelude::Did;
+use crate::profile::env;
 use crate::storage::ReadRepository;
 use crate::test::arbitrary;
 
@@ -203,9 +204,9 @@ impl<G: Signer> Actor<G> {
         T::Action: Clone + Serialize,
     {
         let identity = arbitrary::oid();
-        let timestamp = Timestamp::now();
+        let timestamp = env::commit_time();
 
-        self.op_with::<T>(actions, Some(identity), timestamp)
+        self.op_with::<T>(actions, Some(identity), timestamp.into())
     }
 
     /// Get the actor's DID.

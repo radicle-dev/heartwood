@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::str::FromStr;
-use std::{env, net, thread, time};
+use std::{net, thread, time};
 
 use radicle::git;
 use radicle::node;
@@ -11,7 +11,7 @@ use radicle::node::Handle as _;
 use radicle::node::{Address, Alias, DEFAULT_TIMEOUT};
 use radicle::prelude::{NodeId, RepoId};
 use radicle::profile;
-use radicle::profile::Home;
+use radicle::profile::{env, Home};
 use radicle::storage::{ReadStorage, RefUpdate, RemoteRepository};
 use radicle::test::fixtures;
 
@@ -105,14 +105,14 @@ fn formula(root: &Path, test: impl AsRef<Path>) -> Result<TestFormula, Box<dyn s
         .env("GIT_COMMITTER_DATE", "1671125284")
         .env("GIT_COMMITTER_EMAIL", "radicle@localhost")
         .env("GIT_COMMITTER_NAME", "radicle")
-        .env("RAD_PASSPHRASE", "radicle")
-        .env("RAD_SEED", RAD_SEED)
-        .env("RAD_RNG_SEED", "0")
         .env("EDITOR", "true")
         .env("TZ", "UTC")
         .env("LANG", "C")
         .env("USER", "alice")
-        .env(radicle_cob::git::RAD_COMMIT_TIME, "1671125284")
+        .env(env::RAD_PASSPHRASE, "radicle")
+        .env(env::RAD_SEED, RAD_SEED)
+        .env(env::RAD_RNG_SEED, "0")
+        .env(env::RAD_LOCAL_TIME, "1671125284")
         .envs(git::env::GIT_DEFAULT_CONFIG)
         .build(&[
             ("radicle-remote-helper", "git-remote-rad"),

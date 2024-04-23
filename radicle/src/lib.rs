@@ -46,7 +46,3 @@ pub mod prelude {
         BranchName, ReadRepository, ReadStorage, SignRepository, WriteRepository, WriteStorage,
     };
 }
-
-pub mod env {
-    pub use crypto::env::*;
-}

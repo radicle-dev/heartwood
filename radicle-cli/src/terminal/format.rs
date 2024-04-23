@@ -5,12 +5,12 @@ use localtime::LocalTime;
 pub use radicle_term::format::*;
 pub use radicle_term::{style, Paint};
 
-use radicle::cob::{ObjectId, Timestamp};
+use radicle::cob::ObjectId;
 use radicle::identity::Visibility;
 use radicle::node::policy::Policy;
 use radicle::node::{Alias, AliasStore, NodeId};
 use radicle::prelude::Did;
-use radicle::profile::Profile;
+use radicle::profile::{env, Profile};
 use radicle::storage::RefUpdate;
 use radicle_term::element::Line;
 
@@ -74,8 +74,8 @@ pub fn policy(p: &Policy) -> Paint<String> {
 
 /// Format a timestamp.
 pub fn timestamp(time: impl Into<LocalTime>) -> Paint<String> {
-    let time: LocalTime = time.into();
-    let now: LocalTime = Timestamp::now().into();
+    let time = time.into();
+    let now = env::local_time();
     let duration = now - time;
     let fmt = timeago::Formatter::new();
 

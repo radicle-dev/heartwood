@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    env, fs, io, iter, net, process, thread, time,
+    fs, io, iter, net, process, thread, time,
     time::Duration,
 };
 
@@ -24,7 +24,7 @@ use radicle::node::Database;
 use radicle::node::{Alias, POLICIES_DB_FILE};
 use radicle::node::{ConnectOptions, Handle as _};
 use radicle::profile;
-use radicle::profile::{Home, Profile};
+use radicle::profile::{env, Home, Profile};
 use radicle::rad;
 use radicle::storage::{ReadStorage as _, RemoteRepository as _, SignRepository as _};
 use radicle::test::fixtures;
@@ -413,11 +413,14 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
             .env("GIT_COMMITTER_DATE", "1671125284")
             .env("GIT_COMMITTER_EMAIL", "radicle@localhost")
             .env("GIT_COMMITTER_NAME", "radicle")
-            .env("RAD_HOME", self.home.path().to_string_lossy().to_string())
-            .env("RAD_PASSPHRASE", "radicle")
+            .env(
+                env::RAD_HOME,
+                self.home.path().to_string_lossy().to_string(),
+            )
+            .env(env::RAD_PASSPHRASE, "radicle")
+            .env(env::RAD_LOCAL_TIME, "1671125284")
             .env("TZ", "UTC")
             .env("LANG", "C")
-            .env(radicle::cob::git::RAD_COMMIT_TIME, "1671125284")
             .envs(git::env::GIT_DEFAULT_CONFIG)
             .current_dir(cwd)
             .arg(cmd)

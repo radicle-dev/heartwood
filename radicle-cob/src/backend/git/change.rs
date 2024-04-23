@@ -308,11 +308,13 @@ fn write_commit(
         },
         1514817556,
     );
-    #[cfg(debug_assertions)]
-    let (author, timestamp) = if let Ok(s) = std::env::var(crate::git::RAD_COMMIT_TIME) {
-        // SAFETY: It's ok to panic here, since this is only enabled in debug mode.
-        #[allow(clippy::unwrap_used)]
-        let timestamp = s.trim().parse::<i64>().unwrap();
+    let (author, timestamp) = if let Ok(s) = std::env::var(crate::git::GIT_COMMITTER_DATE) {
+        let Ok(timestamp) = s.trim().parse::<i64>() else {
+            panic!(
+                "Invalid timestamp value {s:?} for `{}`",
+                crate::git::GIT_COMMITTER_DATE
+            );
+        };
         let author = Author {
             time: git_ext::author::Time::new(timestamp, 0),
             ..author

@@ -1,5 +1,4 @@
 #![allow(clippy::or_fun_call)]
-use std::env;
 use std::ffi::OsString;
 use std::ops::Not as _;
 use std::str::FromStr;
@@ -9,7 +8,7 @@ use anyhow::anyhow;
 use radicle::crypto::ssh;
 use radicle::crypto::ssh::Passphrase;
 use radicle::node::Alias;
-use radicle::profile::env::RAD_PASSPHRASE;
+use radicle::profile::env;
 use radicle::{profile, Profile};
 
 use crate::terminal as term;
@@ -108,11 +107,11 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     let passphrase = if options.stdin {
         term::passphrase_stdin()
     } else {
-        term::passphrase_confirm("Enter a passphrase:", RAD_PASSPHRASE)
+        term::passphrase_confirm("Enter a passphrase:", env::RAD_PASSPHRASE)
     }?;
     let passphrase = passphrase.trim().is_empty().not().then_some(passphrase);
     let spinner = term::spinner("Creating your Ed25519 keypair...");
-    let profile = Profile::init(home, alias, passphrase.clone())?;
+    let profile = Profile::init(home, alias, passphrase.clone(), env::seed())?;
     let mut agent = true;
     spinner.finish();
 
@@ -199,7 +198,7 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
     // Try RAD_PASSPHRASE fallback.
     if let Some(passphrase) = profile::env::passphrase() {
         ssh::keystore::MemorySigner::load(&profile.keystore, Some(passphrase))
-            .map_err(|_| anyhow!("`{RAD_PASSPHRASE}` is invalid"))?;
+            .map_err(|_| anyhow!("`{}` is invalid", env::RAD_PASSPHRASE))?;
         return Ok(());
     }
 

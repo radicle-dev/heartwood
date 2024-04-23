@@ -8,7 +8,7 @@ use cyphernet::{EcSk, EcSkInvalid, Ecdh};
 use thiserror::Error;
 use zeroize::Zeroizing;
 
-use crate::{keypair, KeyPair, PublicKey, SecretKey, Signature, Signer, SignerError};
+use crate::{KeyPair, PublicKey, SecretKey, Signature, Signer, SignerError};
 
 /// A secret key passphrase.
 pub type Passphrase = Zeroizing<String>;
@@ -58,10 +58,16 @@ impl Keystore {
     ///
     /// The `comment` is associated with the private key.
     /// The `passphrase` is used to encrypt the private key.
+    /// The `seed` is used to derive the private key and should almost always be generated.
     ///
     /// If `passphrase` is `None`, the key is not encrypted.
-    pub fn init(&self, comment: &str, passphrase: Option<Passphrase>) -> Result<PublicKey, Error> {
-        self.store(keypair::generate(), comment, passphrase)
+    pub fn init(
+        &self,
+        comment: &str,
+        passphrase: Option<Passphrase>,
+        seed: ec25519::Seed,
+    ) -> Result<PublicKey, Error> {
+        self.store(KeyPair::from_seed(seed), comment, passphrase)
     }
 
     /// Store a keypair on disk. Returns an error if the key already exists.
@@ -285,7 +291,11 @@ mod tests {
         let store = Keystore::new(&tmp.path());
 
         let public = store
-            .init("test", Some("hunter".to_owned().into()))
+            .init(
+                "test",
+                Some("hunter".to_owned().into()),
+                ec25519::Seed::default(),
+            )
             .unwrap();
         assert_eq!(public, store.public_key().unwrap().unwrap());
         assert!(store.is_encrypted().unwrap());
@@ -306,7 +316,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let store = Keystore::new(&tmp.path());
 
-        let public = store.init("test", None).unwrap();
+        let public = store.init("test", None, ec25519::Seed::default()).unwrap();
         assert_eq!(public, store.public_key().unwrap().unwrap());
         assert!(!store.is_encrypted().unwrap());
 
@@ -320,7 +330,11 @@ mod tests {
         let store = Keystore::new(&tmp.path());
 
         let public = store
-            .init("test", Some("hunter".to_owned().into()))
+            .init(
+                "test",
+                Some("hunter".to_owned().into()),
+                ec25519::Seed::default(),
+            )
             .unwrap();
         let signer = MemorySigner::load(&store, Some("hunter".to_owned().into())).unwrap();
 

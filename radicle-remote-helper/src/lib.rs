@@ -120,7 +120,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
         .map(PathBuf::from)
         .map_err(|_| Error::NoGitDir)?;
     // Whether we should output debug logs.
-    let debug = env::var("RAD_DEBUG").is_ok();
+    let debug = radicle::profile::env::debug();
 
     let stdin = io::stdin();
     let mut line = String::new();

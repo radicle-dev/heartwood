@@ -42,8 +42,38 @@ pub mod env {
     pub const RAD_PASSPHRASE: &str = "RAD_PASSPHRASE";
     /// RNG seed. Must be convertible to a `u64`.
     pub const RAD_RNG_SEED: &str = "RAD_RNG_SEED";
+    /// Private key seed. Used for generating deterministic keypairs.
+    pub const RAD_SEED: &str = "RAD_SEED";
     /// Show radicle hints.
     pub const RAD_HINT: &str = "RAD_HINT";
+    /// Environment variable to set to overwrite the commit date for both
+    /// the author and the committer.
+    ///
+    /// The format must be a unix timestamp.
+    pub const RAD_COMMIT_TIME: &str = "RAD_COMMIT_TIME";
+    /// Override the device's local time.
+    /// The format must be a unix timestamp.
+    pub const RAD_LOCAL_TIME: &str = "RAD_LOCAL_TIME";
+    // Turn debug mode on.
+    pub const RAD_DEBUG: &str = "RAD_DEBUG";
+    // Used to set the Git committer timestamp. Can be overridden
+    // to generate deterministic COB IDs.
+    pub const GIT_COMMITTER_DATE: &str = "GIT_COMMITTER_DATE";
+
+    /// Commit timestamp to use. Can be overriden by [`RAD_COMMIT_TIME`].
+    pub fn commit_time() -> localtime::LocalTime {
+        time(RAD_COMMIT_TIME).unwrap_or_else(local_time)
+    }
+
+    /// Local time. Can be overriden by [`RAD_LOCAL_TIME`].
+    pub fn local_time() -> localtime::LocalTime {
+        time(RAD_LOCAL_TIME).unwrap_or_else(localtime::LocalTime::now)
+    }
+
+    /// Whether debug mode is on.
+    pub fn debug() -> bool {
+        var(RAD_DEBUG).is_ok()
+    }
 
     /// Whether or not to show hints.
     pub fn hints() -> bool {
@@ -74,12 +104,44 @@ pub mod env {
     /// Get a random number generator from the environment.
     pub fn rng() -> fastrand::Rng {
         if let Ok(seed) = var(RAD_RNG_SEED) {
-            return fastrand::Rng::with_seed(
-                seed.parse()
-                    .expect("env::rng: invalid seed specified in `RAD_RNG_SEED`"),
-            );
+            let Ok(seed) = seed.parse() else {
+                panic!("env::rng: invalid seed specified in `{RAD_RNG_SEED}`");
+            };
+            fastrand::Rng::with_seed(seed)
+        } else {
+            fastrand::Rng::new()
         }
-        fastrand::Rng::new()
+    }
+
+    /// Return the seed stored in the [`RAD_SEED`] environment variable, or generate a random one.
+    pub fn seed() -> crypto::Seed {
+        if let Ok(seed) = var(RAD_SEED) {
+            let Ok(seed) = (0..seed.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&seed[i..i + 2], 16))
+                .collect::<Result<Vec<u8>, _>>()
+            else {
+                panic!("env::seed: invalid hexadecimal value set in `{RAD_SEED}`");
+            };
+            let Ok(seed): Result<[u8; 32], _> = seed.try_into() else {
+                panic!("env::seed: invalid seed length set in `{RAD_SEED}`");
+            };
+            crypto::Seed::new(seed)
+        } else {
+            crypto::Seed::generate()
+        }
+    }
+
+    fn time(key: &str) -> Option<localtime::LocalTime> {
+        if let Ok(s) = var(key) {
+            match s.trim().parse::<u64>() {
+                Ok(t) => return Some(localtime::LocalTime::from_secs(t)),
+                Err(e) => {
+                    panic!("env::time: invalid value {s:?} for `{key}` environment variable: {e}");
+                }
+            }
+        }
+        None
     }
 }
 
@@ -206,9 +268,14 @@ pub struct Profile {
 }
 
 impl Profile {
-    pub fn init(home: Home, alias: Alias, passphrase: Option<Passphrase>) -> Result<Self, Error> {
+    pub fn init(
+        home: Home,
+        alias: Alias,
+        passphrase: Option<Passphrase>,
+        seed: crypto::Seed,
+    ) -> Result<Self, Error> {
         let keystore = Keystore::new(&home.keys());
-        let public_key = keystore.init("radicle", passphrase)?;
+        let public_key = keystore.init("radicle", passphrase, seed)?;
         let config = Config::init(alias.clone(), home.config().as_path())?;
         let storage = Storage::open(
             home.storage(),

@@ -689,11 +689,12 @@ mod tests {
 
     use crate::cob::cache::{Store, Update, Write};
     use crate::cob::thread::{Comment, Thread};
-    use crate::cob::{Author, Timestamp};
+    use crate::cob::Author;
     use crate::patch::{
         ByRevision, MergeTarget, Patch, PatchCounts, PatchId, Revision, RevisionId, State, Status,
     };
     use crate::prelude::Did;
+    use crate::profile::env;
     use crate::test::arbitrary;
     use crate::test::storage::MockRepository;
 
@@ -709,14 +710,14 @@ mod tests {
         let description = arbitrary::gen::<String>(1);
         let base = arbitrary::oid();
         let oid = arbitrary::oid();
-        let timestamp = Timestamp::now();
+        let timestamp = env::local_time();
         let resolves = BTreeSet::new();
         let mut revision = Revision::new(
             Author { id: author },
             description,
             base,
             oid,
-            timestamp,
+            timestamp.into(),
             resolves,
         );
         let comment = Comment::new(
@@ -725,7 +726,7 @@ mod tests {
             None,
             None,
             vec![],
-            Timestamp::now(),
+            timestamp.into(),
         );
         let thread = Thread::new(arbitrary::oid(), comment);
         revision.discussion = thread;
