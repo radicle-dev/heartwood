@@ -33,12 +33,12 @@ RUN cargo build --locked --release \
 # We use Zig as the linker to perform the compilation from a Linux host.
 # Zig is not yet available on Debian, so we download the official binary.
 # Compilation is done via `cargo-zigbuild` which is a wrapper around `zig`.
-RUN curl -sSf -o zig.tar.xz         https://ziglang.org/builds/zig-linux-x86_64-0.12.0-dev.3678+130fb5cb0.tar.xz && \
-    curl -sSf -o zig.tar.xz.minisig https://ziglang.org/builds/zig-linux-x86_64-0.12.0-dev.3678+130fb5cb0.tar.xz.minisig && \
+RUN curl -sSf -o zig.tar.xz         https://ziglang.org/download/0.12.0/zig-linux-x86_64-0.12.0.tar.xz && \
+    curl -sSf -o zig.tar.xz.minisig https://ziglang.org/download/0.12.0/zig-linux-x86_64-0.12.0.tar.xz.minisig && \
     minisign -Vm zig.tar.xz -P RWSGOq2NVecA2UPNdBUZykf1CCb147pkmdtYxgb3Ti+JO/wCYvhbAb/U && \
     xz -d -c zig.tar.xz | tar -x && \
-    mv zig-linux-x86_64-0.12.0-dev.3678+130fb5cb0/zig /usr/bin/zig && \
-    mv zig-linux-x86_64-0.12.0-dev.3678+130fb5cb0/lib /usr/lib/zig && \
+    mv zig-linux-x86_64-0.12.0/zig /usr/bin/zig && \
+    mv zig-linux-x86_64-0.12.0/lib /usr/lib/zig && \
     cargo install cargo-zigbuild@0.18.3
 
 
@@ -63,6 +63,7 @@ FROM alpine:3.19 as packager
 COPY --from=builder \
      /src/*.1 \
      /src/target/x86_64-unknown-linux-musl/release/rad \
+     /src/target/x86_64-unknown-linux-musl/release/rad-web \
      /src/target/x86_64-unknown-linux-musl/release/git-remote-rad \
      /src/target/x86_64-unknown-linux-musl/release/radicle-node \
      /src/target/x86_64-unknown-linux-musl/release/radicle-httpd \
@@ -70,6 +71,7 @@ COPY --from=builder \
 COPY --from=builder \
      /src/*.1 \
      /src/target/aarch64-unknown-linux-musl/release/rad \
+     /src/target/aarch64-unknown-linux-musl/release/rad-web \
      /src/target/aarch64-unknown-linux-musl/release/git-remote-rad \
      /src/target/aarch64-unknown-linux-musl/release/radicle-node \
      /src/target/aarch64-unknown-linux-musl/release/radicle-httpd \
@@ -77,6 +79,7 @@ COPY --from=builder \
 COPY --from=builder \
      /src/*.1 \
      /src/target/aarch64-apple-darwin/release/rad \
+     /src/target/aarch64-apple-darwin/release/rad-web \
      /src/target/aarch64-apple-darwin/release/git-remote-rad \
      /src/target/aarch64-apple-darwin/release/radicle-node \
      /src/target/aarch64-apple-darwin/release/radicle-httpd \
@@ -84,6 +87,7 @@ COPY --from=builder \
 COPY --from=builder \
      /src/*.1 \
      /src/target/x86_64-apple-darwin/release/rad \
+     /src/target/x86_64-apple-darwin/release/rad-web \
      /src/target/x86_64-apple-darwin/release/git-remote-rad \
      /src/target/x86_64-apple-darwin/release/radicle-node \
      /src/target/x86_64-apple-darwin/release/radicle-httpd \
