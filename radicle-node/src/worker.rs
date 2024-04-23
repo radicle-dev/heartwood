@@ -5,8 +5,8 @@ mod upload_pack;
 pub mod fetch;
 pub mod garbage;
 
+use std::io;
 use std::path::PathBuf;
-use std::{io, time};
 
 use crossbeam_channel as chan;
 
@@ -107,8 +107,6 @@ pub enum FetchRequest {
         remote: NodeId,
         /// If this fetch is for a particular set of `rad/sigrefs`.
         refs_at: Option<Vec<RefsAt>>,
-        /// Fetch timeout.
-        timeout: time::Duration,
     },
     /// Server is responding to a fetch request by uploading the
     /// specified `refspecs` sent by the client.
@@ -230,8 +228,6 @@ impl Worker {
                 rid,
                 remote,
                 refs_at,
-                // TODO: nowhere to use this currently
-                timeout: _timeout,
             } => {
                 log::debug!(target: "worker", "Worker processing outgoing fetch for {rid}");
                 let result = self.fetch(rid, remote, refs_at, channels, notifs);

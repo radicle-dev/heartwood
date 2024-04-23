@@ -29,6 +29,7 @@ use crate::crypto::Signer;
 use crate::prelude::Deserializer;
 use crate::service;
 use crate::service::io::Io;
+use crate::service::FETCH_TIMEOUT;
 use crate::service::{session, DisconnectReason, Service};
 use crate::wire::frame;
 use crate::wire::frame::{Frame, FrameData, StreamId};
@@ -42,10 +43,6 @@ pub const NOISE_XK: HandshakePattern = HandshakePattern {
     initiator: cyphernet::encrypt::noise::InitiatorPattern::Xmitted,
     responder: cyphernet::encrypt::noise::OneWayPattern::Known,
 };
-
-/// Default time to wait to receive something from a worker channel. Applies to
-/// workers waiting for data from remotes as well.
-pub const DEFAULT_CHANNEL_TIMEOUT: time::Duration = time::Duration::from_secs(30);
 
 /// Default time to wait until a network connection is considered inactive.
 pub const DEFAULT_CONNECTION_TIMEOUT: time::Duration = time::Duration::from_secs(6);
@@ -131,22 +128,22 @@ impl Streams {
     }
 
     /// Open a new stream.
-    fn open(&mut self) -> (StreamId, worker::Channels) {
+    fn open(&mut self, timeout: time::Duration) -> (StreamId, worker::Channels) {
         self.seq += 1;
 
         let id = StreamId::git(self.link)
             .nth(self.seq)
             .expect("Streams::open: too many streams");
         let channels = self
-            .register(id)
+            .register(id, timeout)
             .expect("Streams::open: stream was already open");
 
         (id, channels)
     }
 
     /// Register an open stream.
-    fn register(&mut self, stream: StreamId) -> Option<worker::Channels> {
-        let (wire, worker) = worker::Channels::pair(DEFAULT_CHANNEL_TIMEOUT)
+    fn register(&mut self, stream: StreamId, timeout: time::Duration) -> Option<worker::Channels> {
+        let (wire, worker) = worker::Channels::pair(timeout)
             .expect("Streams::register: fatal: unable to create channels");
 
         match self.streams.entry(stream) {
@@ -718,7 +715,7 @@ where
                             })) => {
                                 log::debug!(target: "wire", "Received `open` command for stream {stream} from {nid}");
 
-                                let Some(channels) = streams.register(stream) else {
+                                let Some(channels) = streams.register(stream, FETCH_TIMEOUT) else {
                                     log::warn!(target: "wire", "Peer attempted to open already-open stream stream {stream}");
                                     continue;
                                 };
@@ -1017,7 +1014,7 @@ where
                         log::error!(target: "wire", "Peer {remote} is not connected: dropping fetch");
                         continue;
                     };
-                    let (stream, channels) = streams.open();
+                    let (stream, channels) = streams.open(timeout);
 
                     log::debug!(target: "wire", "Opened new stream with id {stream} for {rid} and remote {remote}");
 
@@ -1027,7 +1024,6 @@ where
                             rid,
                             remote,
                             refs_at,
-                            timeout,
                         },
                         stream,
                         channels,

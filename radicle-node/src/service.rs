@@ -280,6 +280,8 @@ struct QueuedFetch {
     from: NodeId,
     /// Refs being fetched.
     refs_at: Vec<RefsAt>,
+    /// The timeout given for the fetch request.
+    timeout: time::Duration,
     /// Result channel.
     channel: Option<chan::Sender<FetchResult>>,
 }
@@ -948,6 +950,7 @@ where
                         rid,
                         refs_at,
                         from,
+                        timeout,
                         channel,
                     };
                     if self.queue.contains(&fetch) {
@@ -964,6 +967,7 @@ where
                     rid,
                     refs_at,
                     from,
+                    timeout,
                     channel,
                 });
             }
@@ -1128,6 +1132,7 @@ where
             rid,
             from,
             refs_at,
+            timeout,
             channel,
         }) = self.queue.pop_front()
         {
@@ -1140,12 +1145,12 @@ where
                     .expect("Service::dequeue_fetch: error accessing repo seeding configuration");
 
                 // Keep dequeueing if there was nothing to fetch, otherwise break.
-                if self.fetch_refs_at(rid, from, refs, repo_entry.scope, FETCH_TIMEOUT, channel) {
+                if self.fetch_refs_at(rid, from, refs, repo_entry.scope, timeout, channel) {
                     break;
                 }
             } else {
                 // If no refs are specified, always do a full fetch.
-                self.fetch(rid, from, FETCH_TIMEOUT, channel);
+                self.fetch(rid, from, timeout, channel);
                 break;
             }
         }
