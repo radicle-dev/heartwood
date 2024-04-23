@@ -3,7 +3,6 @@ pub mod thread;
 
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 use std::{fs, io, net};
 
 use crossbeam_channel as chan;
@@ -35,6 +34,7 @@ use crate::{service, LocalTime};
 
 pub use handle::Error as HandleError;
 pub use handle::Handle;
+pub use node::events::Emitter;
 
 /// A client error.
 #[derive(Error, Debug)]
@@ -82,39 +82,6 @@ pub enum Error {
     /// A git version error.
     #[error("git version error: {0}")]
     GitVersion(#[from] git::VersionError),
-}
-
-/// Publishes events to subscribers.
-#[derive(Debug, Clone)]
-pub struct Emitter<T> {
-    subscribers: Arc<Mutex<Vec<chan::Sender<T>>>>,
-}
-
-impl<T> Default for Emitter<T> {
-    fn default() -> Emitter<T> {
-        Emitter {
-            subscribers: Default::default(),
-        }
-    }
-}
-
-impl<T: Clone> Emitter<T> {
-    /// Emit event to subscribers and drop those who can't receive it.
-    pub(crate) fn emit(&self, event: T) {
-        self.subscribers
-            .lock()
-            .unwrap()
-            .retain(|s| s.try_send(event.clone()).is_ok());
-    }
-
-    /// Subscribe to events stream.
-    pub fn subscribe(&self) -> chan::Receiver<T> {
-        let (sender, receiver) = chan::unbounded();
-        let mut subs = self.subscribers.lock().unwrap();
-        subs.push(sender);
-
-        receiver
-    }
 }
 
 /// Holds join handles to the client threads, as well as a client handle.

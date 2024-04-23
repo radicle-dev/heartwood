@@ -1,4 +1,6 @@
 use std::ops::Deref;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time;
 
 use crossbeam_channel as chan;
@@ -117,5 +119,38 @@ impl Events {
                 return Err(chan::RecvTimeoutError::Timeout);
             }
         }
+    }
+}
+
+/// Publishes events to subscribers.
+#[derive(Debug, Clone)]
+pub struct Emitter<T> {
+    subscribers: Arc<Mutex<Vec<chan::Sender<T>>>>,
+}
+
+impl<T> Default for Emitter<T> {
+    fn default() -> Emitter<T> {
+        Emitter {
+            subscribers: Default::default(),
+        }
+    }
+}
+
+impl<T: Clone> Emitter<T> {
+    /// Emit event to subscribers and drop those who can't receive it.
+    pub fn emit(&self, event: T) {
+        self.subscribers
+            .lock()
+            .unwrap()
+            .retain(|s| s.try_send(event.clone()).is_ok());
+    }
+
+    /// Subscribe to events stream.
+    pub fn subscribe(&self) -> chan::Receiver<T> {
+        let (sender, receiver) = chan::unbounded();
+        let mut subs = self.subscribers.lock().unwrap();
+        subs.push(sender);
+
+        receiver
     }
 }
