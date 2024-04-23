@@ -1,8 +1,13 @@
 use std::io;
 use std::io::Write;
 use std::process::{Command, ExitStatus, Stdio};
+use std::time::Instant;
 
-use radicle::node::NodeId;
+use gix_protocol::transport::bstr::ByteSlice;
+use radicle::identity::RepoId;
+use radicle::node::events;
+use radicle::node::events::Emitter;
+use radicle::node::{Event, NodeId};
 use radicle::storage::git::paths;
 use radicle::Storage;
 
@@ -16,15 +21,18 @@ use crate::runtime::thread;
 /// send the EOF file message.
 pub fn upload_pack<R, W>(
     nid: &NodeId,
+    remote: NodeId,
     storage: &Storage,
+    emitter: &Emitter<Event>,
     header: &pktline::GitRequest,
     mut recv: R,
-    mut send: W,
+    send: W,
 ) -> io::Result<ExitStatus>
 where
     R: io::Read + Send,
     W: io::Write + Send,
 {
+    let timer = Instant::now();
     let protocol_version = header
         .extra
         .iter()
@@ -75,14 +83,21 @@ where
 
     let mut stdin = child.stdin.take().unwrap();
     let mut stdout = io::BufReader::new(child.stdout.take().unwrap());
+    let mut reporter = Reporter {
+        rid: header.repo,
+        remote,
+        emitter: emitter.clone(),
+        send,
+    };
     thread::scope(|s| {
         thread::spawn_scoped(nid, "upload-pack", s, || {
             // N.b. we indefinitely copy stdout to the sender,
             // i.e. there's no need for a loop.
-            match io::copy(&mut stdout, &mut send) {
+            match io::copy(&mut stdout, &mut reporter) {
                 Ok(_) => {}
                 Err(e) => {
                     log::error!(target: "worker", "Worker channel disconnected for {}; aborting: {e}", header.repo);
+                    emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
                 }
             }
         });
@@ -104,6 +119,7 @@ where
                     }
                     Err(e) => {
                         log::error!(target: "worker", "Error on upload-pack channel read for {}: {e}", header.repo);
+                        emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
                         break;
                     }
                 }
@@ -124,7 +140,60 @@ where
     })?;
 
     let status = child.wait()?;
+    emitter.emit(events::UploadPack::done(header.repo, remote, status).into());
+    log::debug!(target: "worker", "Upload pack finished ({}ms)", timer.elapsed().as_millis());
     Ok(status)
+}
+
+/// A combination of the upload-pack sender with an [`Emitter`] for reporting
+/// the progress events to subscribers.
+struct Reporter<W> {
+    rid: RepoId,
+    remote: NodeId,
+    emitter: Emitter<Event>,
+    send: W,
+}
+
+impl<W> Reporter<W> {
+    fn emit(&self, buf: &[u8]) {
+        if let Some(progress) = Self::as_upload_pack_progress(buf) {
+            log::trace!(target: "worker", "upload-pack progress: {progress}");
+            self.emitter
+                .emit(events::UploadPack::write(self.rid, self.remote, progress).into());
+        }
+    }
+
+    fn as_upload_pack_progress(buf: &[u8]) -> Option<events::upload_pack::Progress> {
+        use events::upload_pack::Progress::*;
+        let gix_protocol::RemoteProgress {
+            action, step, max, ..
+        } = gix_protocol::RemoteProgress::from_bytes(buf)?;
+        if action.contains_str("Counting objects") {
+            step.and_then(|processed| max.map(|total| Counting { processed, total }))
+        } else if action.contains_str("Compressing objects") {
+            step.and_then(|processed| max.map(|total| Compressing { processed, total }))
+        } else if action.contains_str("Enumerating objects") {
+            max.map(|total| Enumerating { total })
+        } else {
+            None
+        }
+    }
+}
+
+impl<W> io::Write for Reporter<W>
+where
+    W: io::Write,
+{
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let n = self.send.write(buf)?;
+        self.send.flush()?;
+        self.emit(buf);
+        Ok(n)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.send.flush()
+    }
 }
 
 pub(super) mod pktline {

@@ -721,7 +721,10 @@ where
                                 };
 
                                 let task = Task {
-                                    fetch: FetchRequest::Responder { remote: *nid },
+                                    fetch: FetchRequest::Responder {
+                                        remote: *nid,
+                                        emitter: self.service.emitter(),
+                                    },
                                     stream,
                                     channels,
                                 };

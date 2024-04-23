@@ -21,6 +21,7 @@ colored = { version = "2.1.0" }
 crossbeam-channel = { version = "0.5.6" }
 cyphernet = { version = "0.5.0", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
 fastrand = { version = "2.0.0" }
+gix-protocol = { version = "0.41.1", features = ["blocking-client"] }
 io-reactor = { version = "0.5.1", features = ["popol"] }
 lexopt = { version = "0.3.0" }
 libc = { version = "0.2.137" }

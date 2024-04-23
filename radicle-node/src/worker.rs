@@ -11,14 +11,14 @@ use std::path::PathBuf;
 use crossbeam_channel as chan;
 
 use radicle::identity::RepoId;
-use radicle::node::notifications;
+use radicle::node::{notifications, Event};
 use radicle::prelude::NodeId;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{cob, crypto, Storage};
 use radicle_fetch::FetchLimit;
 
-use crate::runtime::{thread, Handle};
+use crate::runtime::{thread, Emitter, Handle};
 use crate::service::policy;
 use crate::service::policy::Policy;
 use crate::wire::StreamId;
@@ -113,13 +113,15 @@ pub enum FetchRequest {
     Responder {
         /// Remote peer we are interacting with.
         remote: NodeId,
+        /// Reporter for upload-pack progress.
+        emitter: Emitter<Event>,
     },
 }
 
 impl FetchRequest {
     pub fn remote(&self) -> NodeId {
         match self {
-            Self::Initiator { remote, .. } | Self::Responder { remote } => *remote,
+            Self::Initiator { remote, .. } | Self::Responder { remote, .. } => *remote,
         }
     }
 }
@@ -233,7 +235,7 @@ impl Worker {
                 let result = self.fetch(rid, remote, refs_at, channels, notifs);
                 FetchResult::Initiator { rid, result }
             }
-            FetchRequest::Responder { remote } => {
+            FetchRequest::Responder { remote, emitter } => {
                 log::debug!(target: "worker", "Worker processing incoming fetch for {remote} on stream {stream}..");
 
                 let (mut stream_r, stream_w) = channels.split();
@@ -255,10 +257,17 @@ impl Worker {
                     };
                 }
 
-                let result =
-                    upload_pack::upload_pack(&self.nid, &self.storage, &header, stream_r, stream_w)
-                        .map(|_| ())
-                        .map_err(|e| e.into());
+                let result = upload_pack::upload_pack(
+                    &self.nid,
+                    remote,
+                    &self.storage,
+                    &emitter,
+                    &header,
+                    stream_r,
+                    stream_w,
+                )
+                .map(|_| ())
+                .map_err(|e| e.into());
                 log::debug!(target: "worker", "Upload process on stream {stream} exited with result {result:?}");
 
                 FetchResult::Responder {

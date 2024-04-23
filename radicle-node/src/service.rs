@@ -425,6 +425,10 @@ where
     pub fn local_time(&self) -> LocalTime {
         self.clock
     }
+
+    pub fn emitter(&self) -> Emitter<Event> {
+        self.emitter.clone()
+    }
 }
 
 impl<D, S, G> Service<D, S, G>
