@@ -1,10 +1,13 @@
 use std::time;
 
-use radicle::node::Handle;
+use radicle::node::{Event, Handle};
 
-pub fn run(node: impl Handle, count: usize, timeout: time::Duration) -> anyhow::Result<()> {
+pub fn run<H>(node: H, count: usize, timeout: time::Duration) -> anyhow::Result<()>
+where
+    H: Handle<Event = Result<Event, <H as Handle>::Error>>,
+{
     let events = node.subscribe(timeout)?;
-    for (i, event) in events.enumerate() {
+    for (i, event) in events.into_iter().enumerate() {
         let event = event?;
         let obj = serde_json::to_string(&event)?;
 

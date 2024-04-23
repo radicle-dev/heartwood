@@ -15,6 +15,7 @@ pub mod timestamp;
 
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::io::{BufRead, BufReader};
+use std::marker::PhantomData;
 use std::ops::{ControlFlow, Deref};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
@@ -50,6 +51,9 @@ pub const DEFAULT_SOCKET_NAME: &str = "control.sock";
 pub const DEFAULT_PORT: u16 = 8776;
 /// Default timeout when waiting for the node to respond with data.
 pub const DEFAULT_TIMEOUT: time::Duration = time::Duration::from_secs(30);
+/// Default timeout when waiting for an event to be received on the
+/// [`Handle::subscribe`] channel.
+pub const DEFAULT_SUBSCRIBE_TIMEOUT: time::Duration = time::Duration::from_secs(5);
 /// Maximum length in bytes of a node alias.
 pub const MAX_ALIAS_LENGTH: usize = 32;
 /// Penalty threshold at which point we avoid connecting to this node.
@@ -336,6 +340,26 @@ pub enum CommandResult<T> {
         #[serde(rename = "error")]
         reason: String,
     },
+}
+
+impl<T, E> From<Result<T, E>> for CommandResult<T>
+where
+    E: std::error::Error,
+{
+    fn from(result: Result<T, E>) -> Self {
+        match result {
+            Ok(t) => Self::Okay(t),
+            Err(e) => Self::Error {
+                reason: e.to_string(),
+            },
+        }
+    }
+}
+
+impl From<Event> for CommandResult<Event> {
+    fn from(event: Event) -> Self {
+        Self::Okay(event)
+    }
 }
 
 /// A success response.
@@ -856,6 +880,8 @@ pub enum ConnectResult {
 pub trait Handle: Clone + Sync + Send {
     /// The peer sessions type.
     type Sessions;
+    type Events: IntoIterator<Item = Self::Event>;
+    type Event;
     /// The error returned by all methods.
     type Error: std::error::Error + Send + Sync + 'static;
 
@@ -905,10 +931,53 @@ pub trait Handle: Clone + Sync + Send {
     /// Query the peer session state.
     fn sessions(&self) -> Result<Self::Sessions, Self::Error>;
     /// Subscribe to node events.
-    fn subscribe(
-        &self,
-        timeout: time::Duration,
-    ) -> Result<Box<dyn Iterator<Item = Result<Event, Self::Error>>>, Self::Error>;
+    fn subscribe(&self, timeout: time::Duration) -> Result<Self::Events, Self::Error>;
+}
+
+/// Iterator of results `T` when passing a [`Command`] to [`Node::call`].
+///
+/// The iterator blocks for a `timeout` duration, returning [`Error::TimedOut`]
+/// if the duration is reached.
+pub struct LineIter<T> {
+    stream: BufReader<UnixStream>,
+    timeout: time::Duration,
+    witness: PhantomData<T>,
+}
+
+impl<T: DeserializeOwned> Iterator for LineIter<T> {
+    type Item = Result<T, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut l = String::new();
+
+        self.stream
+            .get_ref()
+            .set_read_timeout(Some(self.timeout))
+            .ok();
+
+        match self.stream.read_line(&mut l) {
+            Ok(0) => None,
+            Ok(_) => {
+                let result: CommandResult<T> = match json::from_str(&l) {
+                    Err(e) => {
+                        return Some(Err(Error::InvalidJson {
+                            response: l.clone(),
+                            error: e,
+                        }))
+                    }
+                    Ok(result) => result,
+                };
+                match result {
+                    CommandResult::Okay(result) => Some(Ok(result)),
+                    CommandResult::Error { reason } => Some(Err(Error::Command { reason })),
+                }
+            }
+            Err(e) => match e.kind() {
+                io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => Some(Err(Error::TimedOut)),
+                _ => Some(Err(Error::Io(e))),
+            },
+        }
+    }
 }
 
 /// Public node & device identifier.
@@ -929,33 +998,19 @@ impl Node {
     }
 
     /// Call a command on the node.
-    pub fn call<T: DeserializeOwned>(
+    pub fn call<T: DeserializeOwned + Send + 'static>(
         &self,
         cmd: Command,
         timeout: time::Duration,
-    ) -> Result<impl Iterator<Item = Result<T, Error>>, Error> {
+    ) -> Result<LineIter<T>, Error> {
         let stream = UnixStream::connect(&self.socket)
             .map_err(|e| Error::Connect(self.socket.clone(), e.kind()))?;
         cmd.to_writer(&stream)?;
-
-        stream.set_read_timeout(Some(timeout))?;
-
-        Ok(BufReader::new(stream).lines().map(move |l| {
-            let l = l.map_err(|e| match e.kind() {
-                io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => Error::TimedOut,
-                _ => Error::Io(e),
-            })?;
-
-            let result: CommandResult<T> = json::from_str(&l).map_err(|e| Error::InvalidJson {
-                response: l.clone(),
-                error: e,
-            })?;
-
-            match result {
-                CommandResult::Okay(result) => Ok(result),
-                CommandResult::Error { reason } => Err(Error::Command { reason }),
-            }
-        }))
+        Ok(LineIter {
+            stream: BufReader::new(stream),
+            timeout,
+            witness: PhantomData,
+        })
     }
 
     /// Announce refs of the given `rid` to the given seeds.
@@ -1029,6 +1084,8 @@ impl Node {
 // attempt to return iterators instead of allocating vecs.
 impl Handle for Node {
     type Sessions = Vec<Session>;
+    type Events = LineIter<Event>;
+    type Event = Result<Event, Error>;
     type Error = Error;
 
     fn nid(&self) -> Result<NodeId, Error> {
@@ -1049,6 +1106,7 @@ impl Handle for Node {
         let Ok(mut lines) = self.call::<Success>(Command::Status, DEFAULT_TIMEOUT) else {
             return false;
         };
+
         let Some(Ok(_)) = lines.next() else {
             return false;
         };
@@ -1122,29 +1180,29 @@ impl Handle for Node {
     }
 
     fn follow(&mut self, nid: NodeId, alias: Option<Alias>) -> Result<bool, Error> {
-        let mut line = self.call::<Success>(Command::Follow { nid, alias }, DEFAULT_TIMEOUT)?;
-        let response = line.next().ok_or(Error::EmptyResponse)??;
+        let mut lines = self.call::<Success>(Command::Follow { nid, alias }, DEFAULT_TIMEOUT)?;
+        let response = lines.next().ok_or(Error::EmptyResponse)??;
 
         Ok(response.updated)
     }
 
     fn seed(&mut self, rid: RepoId, scope: policy::Scope) -> Result<bool, Error> {
-        let mut line = self.call::<Success>(Command::Seed { rid, scope }, DEFAULT_TIMEOUT)?;
-        let response = line.next().ok_or(Error::EmptyResponse)??;
+        let mut lines = self.call::<Success>(Command::Seed { rid, scope }, DEFAULT_TIMEOUT)?;
+        let response = lines.next().ok_or(Error::EmptyResponse)??;
 
         Ok(response.updated)
     }
 
     fn unfollow(&mut self, nid: NodeId) -> Result<bool, Error> {
-        let mut line = self.call::<Success>(Command::Unfollow { nid }, DEFAULT_TIMEOUT)?;
-        let response = line.next().ok_or(Error::EmptyResponse)??;
+        let mut lines = self.call::<Success>(Command::Unfollow { nid }, DEFAULT_TIMEOUT)?;
+        let response = lines.next().ok_or(Error::EmptyResponse)??;
 
         Ok(response.updated)
     }
 
     fn unseed(&mut self, rid: RepoId) -> Result<bool, Error> {
-        let mut line = self.call::<Success>(Command::Unseed { rid }, DEFAULT_TIMEOUT)?;
-        let response = line.next().ok_or(Error::EmptyResponse {})??;
+        let mut lines = self.call::<Success>(Command::Unseed { rid }, DEFAULT_TIMEOUT)?;
+        let response = lines.next().ok_or(Error::EmptyResponse)??;
 
         Ok(response.updated)
     }
@@ -1166,26 +1224,21 @@ impl Handle for Node {
     }
 
     fn update_inventory(&mut self, rid: RepoId) -> Result<bool, Error> {
-        let mut line = self.call::<Success>(Command::UpdateInventory { rid }, DEFAULT_TIMEOUT)?;
-        let response = line.next().ok_or(Error::EmptyResponse {})??;
+        let mut lines = self.call::<Success>(Command::UpdateInventory { rid }, DEFAULT_TIMEOUT)?;
+        let response = lines.next().ok_or(Error::EmptyResponse)??;
 
         Ok(response.updated)
     }
 
-    fn subscribe(
-        &self,
-        timeout: time::Duration,
-    ) -> Result<Box<dyn Iterator<Item = Result<Event, Error>>>, Error> {
-        let events = self.call(Command::Subscribe, timeout)?;
-
-        Ok(Box::new(events))
+    fn subscribe(&self, timeout: time::Duration) -> Result<LineIter<Event>, Error> {
+        self.call(Command::Subscribe, timeout)
     }
 
     fn sessions(&self) -> Result<Self::Sessions, Error> {
         let sessions = self
             .call::<Vec<Session>>(Command::Sessions, DEFAULT_TIMEOUT)?
             .next()
-            .ok_or(Error::EmptyResponse {})??;
+            .ok_or(Error::EmptyResponse)??;
 
         Ok(sessions)
     }

@@ -22,6 +22,8 @@ pub struct Handle {
 impl radicle::node::Handle for Handle {
     type Error = HandleError;
     type Sessions = Vec<radicle::node::Session>;
+    type Events = Vec<Self::Event>;
+    type Event = Result<Event, Self::Error>;
 
     fn nid(&self) -> Result<NodeId, Self::Error> {
         Ok(NodeId::from_str("z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK").unwrap())
@@ -81,11 +83,8 @@ impl radicle::node::Handle for Handle {
         Ok(self.following.lock().unwrap().insert(id))
     }
 
-    fn subscribe(
-        &self,
-        _timeout: time::Duration,
-    ) -> Result<Box<dyn Iterator<Item = Result<Event, Self::Error>>>, Self::Error> {
-        Ok(Box::new(std::iter::empty()))
+    fn subscribe(&self, _timeout: time::Duration) -> Result<Self::Events, Self::Error> {
+        Ok(vec![])
     }
 
     fn unfollow(&mut self, id: NodeId) -> Result<bool, Self::Error> {

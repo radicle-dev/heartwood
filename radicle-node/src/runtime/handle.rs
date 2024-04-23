@@ -124,6 +124,8 @@ impl Handle {
 
 impl radicle::node::Handle for Handle {
     type Sessions = Vec<radicle::node::Session>;
+    type Events = Events;
+    type Event = Event;
     type Error = Error;
 
     fn nid(&self) -> Result<NodeId, Self::Error> {
@@ -263,11 +265,8 @@ impl radicle::node::Handle for Handle {
         receiver.recv().map_err(Error::from)
     }
 
-    fn subscribe(
-        &self,
-        _timeout: time::Duration,
-    ) -> Result<Box<dyn Iterator<Item = Result<Event, Error>>>, Error> {
-        Ok(Box::new(self.events().into_iter().map(Ok)))
+    fn subscribe(&self, _timeout: time::Duration) -> Result<Self::Events, Self::Error> {
+        Ok(self.events())
     }
 
     fn sessions(&self) -> Result<Self::Sessions, Error> {

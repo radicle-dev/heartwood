@@ -30,12 +30,12 @@ pub enum Error {
 }
 
 /// Listen for commands on the control socket, and process them.
-pub fn listen<H: Handle<Error = runtime::HandleError> + 'static>(
-    listener: UnixListener,
-    handle: H,
-) -> Result<(), Error>
+pub fn listen<E, H>(listener: UnixListener, handle: H) -> Result<(), Error>
 where
+    H: Handle<Error = runtime::HandleError> + 'static,
     H::Sessions: serde::Serialize,
+    CommandResult<E>: From<H::Event>,
+    E: serde::Serialize,
 {
     log::debug!(target: "control", "Control thread listening on socket..");
     let nid = handle.nid()?;
@@ -74,12 +74,12 @@ enum CommandError {
     Io(#[from] io::Error),
 }
 
-fn command<H: Handle<Error = runtime::HandleError> + 'static>(
-    stream: &UnixStream,
-    mut handle: H,
-) -> Result<(), CommandError>
+fn command<E, H>(stream: &UnixStream, mut handle: H) -> Result<(), CommandError>
 where
+    H: Handle<Error = runtime::HandleError> + 'static,
     H::Sessions: serde::Serialize,
+    CommandResult<E>: From<H::Event>,
+    E: serde::Serialize,
 {
     let mut reader = BufReader::new(stream);
     let mut writer = LineWriter::new(stream);
@@ -185,8 +185,7 @@ where
         Command::Subscribe => match handle.subscribe(MAX_TIMEOUT) {
             Ok(events) => {
                 for e in events {
-                    let event = e?;
-                    CommandResult::Okay(event).to_writer(&mut writer)?;
+                    CommandResult::from(e).to_writer(&mut writer)?;
                 }
             }
             Err(e) => return Err(CommandError::Runtime(e)),
