@@ -48,6 +48,10 @@ impl radicle::node::Handle for Handle {
         unimplemented!();
     }
 
+    fn disconnect(&mut self, _node: NodeId) -> Result<(), Self::Error> {
+        unimplemented!();
+    }
+
     fn seeds(&mut self, _id: RepoId) -> Result<Seeds, Self::Error> {
         unimplemented!();
     }

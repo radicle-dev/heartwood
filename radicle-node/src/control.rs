@@ -102,6 +102,12 @@ where
                 }
             }
         }
+        Command::Disconnect { nid } => match handle.disconnect(nid) {
+            Err(e) => return Err(CommandError::Runtime(e)),
+            Ok(()) => {
+                CommandResult::ok().to_writer(writer).ok();
+            }
+        },
         Command::Fetch { rid, nid, timeout } => {
             fetch(rid, nid, timeout, writer, &mut handle)?;
         }

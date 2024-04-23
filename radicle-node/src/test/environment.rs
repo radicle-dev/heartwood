@@ -232,6 +232,15 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
         self
     }
 
+    pub fn disconnect(&mut self, remote: &NodeHandle<G>) {
+        self.handle.disconnect(remote.id).unwrap();
+    }
+
+    /// Shutdown node.
+    pub fn shutdown(self) {
+        drop(self)
+    }
+
     /// Get the full address of this node.
     pub fn address(&self) -> ConnectAddress {
         (self.id, node::Address::from(self.addr)).into()
@@ -301,6 +310,26 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
         }
     }
 
+    /// Wait until this node has a repository.
+    #[track_caller]
+    pub fn has_repository(&self, rid: &RepoId) {
+        log::debug!(target: "test", "Waiting for {} to have {rid}", self.id);
+        let events = self.handle.events();
+
+        loop {
+            if self.storage.repository(*rid).is_ok() {
+                log::debug!(target: "test", "Node {} has {rid}", self.id);
+                break;
+            }
+            events
+                .wait(
+                    |e| matches!(e, Event::RefsFetched { .. }).then_some(()),
+                    time::Duration::from_secs(6),
+                )
+                .unwrap();
+        }
+    }
+
     /// Wait until this node has the inventory of another node.
     #[track_caller]
     pub fn has_remote_of(&self, rid: &RepoId, nid: &NodeId) {
@@ -310,6 +339,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
         loop {
             if let Ok(repo) = self.storage.repository(*rid) {
                 if repo.remote(nid).is_ok() {
+                    log::debug!(target: "test", "Node {} has {rid}/{nid}", self.id);
                     break;
                 }
             }

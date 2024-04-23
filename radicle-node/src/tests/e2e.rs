@@ -1265,3 +1265,43 @@ fn test_background_foreground_fetch() {
     assert_ne!(eves_refs_expected, old_refs);
     assert_eq!(eves_refs_expected, eves_refs);
 }
+
+#[test]
+/// Alice is offline while Bob pushes some changes to the repo. When Alice reconnects,
+/// she is made aware of the changes via the `subscribe` message, and fetches from the seed.
+fn test_catchup_on_refs_announcements() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
+    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let bob_id = bob.id;
+    let seed = Node::init(tmp.path(), Config::test(Alias::new("seed")));
+    let acme = alice.project("acme", "");
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+    let mut seed = seed.spawn();
+
+    bob.handle.seed(acme, Scope::All).unwrap();
+    seed.handle.seed(acme, Scope::All).unwrap();
+
+    alice.connect(&seed);
+    seed.has_repository(&acme);
+    alice.disconnect(&seed);
+    bob.connect(&seed);
+    bob.has_repository(&acme);
+
+    log::debug!(target: "test", "Bob creating his issue..");
+    bob.issue(acme, "Bob's issue", "[..]");
+    bob.handle.announce_refs(acme).unwrap();
+
+    log::debug!(target: "test", "Waiting for seed to fetch Bob's refs from Bob..");
+    seed.has_remote_of(&acme, &bob.id); // Seed fetches Bob's refs.
+    bob.disconnect(&seed);
+    bob.shutdown();
+
+    log::debug!(target: "test", "Alice re-connects to the seed..");
+    alice.connect(&seed);
+    alice.has_remote_of(&acme, &bob_id);
+}

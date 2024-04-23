@@ -179,6 +179,20 @@ impl radicle::node::Handle for Handle {
             .map_err(Error::from)
     }
 
+    fn disconnect(&mut self, node: NodeId) -> Result<(), Self::Error> {
+        let events = self.events();
+        self.command(service::Command::Disconnect(node))?;
+        events
+            .wait(
+                |e| match e {
+                    Event::PeerDisconnected { nid, .. } if nid == &node => Some(()),
+                    _ => None,
+                },
+                time::Duration::MAX,
+            )
+            .map_err(Error::from)
+    }
+
     fn seeds(&mut self, id: RepoId) -> Result<Seeds, Self::Error> {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::Seeds(id, sender))?;
