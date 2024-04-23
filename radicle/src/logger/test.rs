@@ -12,13 +12,22 @@ impl Log for Logger {
 
     fn log(&self, record: &Record) {
         use colored::Colorize;
+        let time = LocalTime::now().as_secs();
 
         match record.target() {
             "test" => {
-                println!("{} {}", "test:".cyan(), record.args().to_string().cyan())
+                println!(
+                    "{time} {} {}",
+                    "test:".cyan(),
+                    record.args().to_string().cyan()
+                )
             }
             "sim" => {
-                println!("{}  {}", "sim:".bold(), record.args().to_string().bold())
+                println!(
+                    "{time} {}  {}",
+                    "sim:".bold(),
+                    record.args().to_string().bold()
+                )
             }
             target => {
                 if self.enabled(record.metadata()) {

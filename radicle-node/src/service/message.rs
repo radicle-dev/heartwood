@@ -461,17 +461,17 @@ impl Message {
         };
         let msg = match self {
             Self::Announcement(Announcement { node, message, .. }) => match message {
-                AnnouncementMessage::Node(NodeAnnouncement { addresses, .. }) => format!(
-                    "{verb} node announcement of {node} with {} address(es) {prep} {remote}",
+                AnnouncementMessage::Node(NodeAnnouncement { addresses, timestamp, .. }) => format!(
+                    "{verb} node announcement of {node} with {} address(es) {prep} {remote} (t={timestamp})",
                     addresses.len()
                 ),
-                AnnouncementMessage::Refs(RefsAnnouncement { rid, refs, .. }) => format!(
-                    "{verb} refs announcement of {node} for {rid} with {} remote(s) {prep} {remote}",
+                AnnouncementMessage::Refs(RefsAnnouncement { rid, refs, timestamp }) => format!(
+                    "{verb} refs announcement of {node} for {rid} with {} remote(s) {prep} {remote} (t={timestamp})",
                     refs.len()
                 ),
-                AnnouncementMessage::Inventory(InventoryAnnouncement { inventory, .. }) => {
+                AnnouncementMessage::Inventory(InventoryAnnouncement { inventory, timestamp }) => {
                     format!(
-                        "{verb} inventory announcement of {node} with {} item(s) {prep} {remote}",
+                        "{verb} inventory announcement of {node} with {} item(s) {prep} {remote} (t={timestamp})",
                         inventory.len()
                     )
                 }
