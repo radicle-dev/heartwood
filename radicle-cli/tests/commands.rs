@@ -1221,7 +1221,7 @@ fn rad_clone_partial_fail() {
             node::Features::SEED,
             Alias::new("carol"),
             0,
-            localtime::LocalTime::now().as_secs(),
+            localtime::LocalTime::now().into(),
             [node::KnownAddress::new(
                 // Eve will fail to connect to this address.
                 node::Address::from(net::SocketAddr::from(([0, 0, 0, 0], 19873))),
@@ -1231,7 +1231,7 @@ fn rad_clone_partial_fail() {
         .unwrap();
     eve.db
         .routing_mut()
-        .insert([&acme], carol, localtime::LocalTime::now().as_secs())
+        .insert([&acme], carol, localtime::LocalTime::now().into())
         .unwrap();
     eve.config.peers = node::config::PeerConfig::Static;
 
@@ -1263,7 +1263,7 @@ fn rad_clone_connect() {
     let bob = environment.node(Config::test(Alias::new("bob")));
     let mut eve = environment.node(Config::test(Alias::new("eve")));
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
-    let now = localtime::LocalTime::now().as_secs();
+    let now = localtime::LocalTime::now().into();
 
     fixtures::repository(working.join("acme"));
 

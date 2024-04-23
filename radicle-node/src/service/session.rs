@@ -6,7 +6,7 @@ use crate::node::Severity;
 use crate::service::message;
 use crate::service::message::Message;
 use crate::service::{Address, LocalTime, NodeId, Outbox, RepoId, Rng};
-use crate::Link;
+use crate::{Link, Timestamp};
 
 pub use crate::node::{PingState, State};
 
@@ -15,7 +15,7 @@ pub enum Error {
     /// The remote peer sent an invalid announcement timestamp,
     /// for eg. a timestamp far in the future.
     #[error("invalid announcement timestamp: {0}")]
-    InvalidTimestamp(u64),
+    InvalidTimestamp(Timestamp),
     /// The remote peer sent git protocol messages while we were expecting
     /// gossip messages. Or vice-versa.
     #[error("protocol mismatch")]

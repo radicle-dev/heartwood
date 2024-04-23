@@ -1,3 +1,4 @@
+use std::num::TryFromIntError;
 use std::{fmt, io};
 
 use radicle::crypto::Signature;
@@ -17,6 +18,9 @@ pub enum Error {
     /// An Internal error.
     #[error("internal error: {0}")]
     Internal(#[from] sql::Error),
+    /// Unit overflow.
+    #[error("unit overflow:: {0}")]
+    UnitOverflow(#[from] TryFromIntError),
 }
 
 /// A database that has access to historical gossip messages.
@@ -54,7 +58,7 @@ impl Store for Database {
             .db
             .prepare("DELETE FROM `announcements` WHERE timestamp < ?1")?;
 
-        stmt.bind((1, cutoff.try_into().unwrap_or(i64::MAX)))?;
+        stmt.bind((1, &cutoff))?;
         stmt.next()?;
 
         Ok(self.db.change_count())
@@ -66,9 +70,10 @@ impl Store for Database {
             .prepare("SELECT MAX(timestamp) AS latest FROM `announcements`")?;
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
-            let latest = row.try_read::<Option<i64>, _>(0)?;
-
-            return Ok(latest.map(|l| l as Timestamp));
+            return match row.try_read::<Option<i64>, _>(0)? {
+                Some(i) => Ok(Some(Timestamp::from(u64::try_from(i)?))),
+                None => Ok(None),
+            };
         }
         Ok(None)
     }
@@ -101,7 +106,7 @@ impl Store for Database {
             }
         }
         stmt.bind((5, &ann.signature))?;
-        stmt.bind((6, ann.message.timestamp().try_into().unwrap_or(i64::MAX)))?;
+        stmt.bind((6, &ann.message.timestamp()))?;
         stmt.next()?;
 
         Ok(self.db.change_count() > 0)
@@ -119,10 +124,10 @@ impl Store for Database {
              WHERE timestamp >= ?1 and timestamp < ?2
              ORDER BY timestamp, node, type",
         )?;
-        assert!(from <= to);
+        assert!(*from <= *to);
 
-        stmt.bind((1, i64::try_from(from).unwrap_or(i64::MAX)))?;
-        stmt.bind((2, i64::try_from(to).unwrap_or(i64::MAX)))?;
+        stmt.bind((1, &from))?;
+        stmt.bind((2, &to))?;
 
         Ok(Box::new(
             stmt.into_iter()
@@ -145,9 +150,9 @@ impl Store for Database {
                         }
                     };
                     let signature = row.read::<Signature, _>("signature");
-                    let timestamp = row.read::<i64, _>("timestamp");
+                    let timestamp = row.read::<Timestamp, _>("timestamp");
 
-                    debug_assert_eq!(timestamp, message.timestamp() as i64);
+                    debug_assert_eq!(timestamp, message.timestamp());
 
                     Ok(Announcement {
                         node,

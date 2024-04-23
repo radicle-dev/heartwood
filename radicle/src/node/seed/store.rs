@@ -64,7 +64,7 @@ impl Store for Database {
         stmt.bind((1, rid))?;
         stmt.bind((2, nid))?;
         stmt.bind((3, at.to_string().as_str()))?;
-        stmt.bind((4, timestamp as i64))?;
+        stmt.bind((4, &timestamp))?;
         stmt.next()?;
 
         Ok(self.db.change_count() > 0)

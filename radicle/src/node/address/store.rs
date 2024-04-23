@@ -89,7 +89,7 @@ impl Store for Database {
         if let Some(Ok(row)) = stmt.into_iter().next() {
             let features = row.read::<node::Features, _>("features");
             let alias = Alias::from_str(row.read::<&str, _>("alias"))?;
-            let timestamp = row.read::<i64, _>("timestamp") as Timestamp;
+            let timestamp = row.read::<Timestamp, _>("timestamp");
             let pow = row.read::<i64, _>("pow") as u32;
             let penalty = row.read::<i64, _>("penalty").min(u8::MAX as i64);
             let penalty = Penalty(penalty as u8);
@@ -185,7 +185,7 @@ impl Store for Database {
             stmt.bind((2, features))?;
             stmt.bind((3, sql::Value::String(alias.into())))?;
             stmt.bind((4, pow as i64))?;
-            stmt.bind((5, timestamp as i64))?;
+            stmt.bind((5, &timestamp))?;
             stmt.next()?;
 
             for addr in addrs {
@@ -200,7 +200,7 @@ impl Store for Database {
                 stmt.bind((2, AddressType::from(&addr.addr)))?;
                 stmt.bind((3, &addr.addr))?;
                 stmt.bind((4, addr.source))?;
-                stmt.bind((5, timestamp as i64))?;
+                stmt.bind((5, &timestamp))?;
                 stmt.next()?;
             }
             Ok::<_, Error>(db.change_count() > 0)
@@ -265,7 +265,7 @@ impl Store for Database {
              AND value = ?4",
         )?;
 
-        stmt.bind((1, time as i64))?;
+        stmt.bind((1, &time))?;
         stmt.bind((2, nid))?;
         stmt.bind((3, AddressType::from(addr)))?;
         stmt.bind((4, addr))?;
@@ -284,7 +284,7 @@ impl Store for Database {
                  AND value = ?4",
             )?;
 
-            stmt.bind((1, time as i64))?;
+            stmt.bind((1, &time))?;
             stmt.bind((2, nid))?;
             stmt.bind((3, AddressType::from(addr)))?;
             stmt.bind((4, addr))?;
@@ -435,7 +435,7 @@ mod test {
         let alice = arbitrary::gen::<NodeId>(1);
         let mut cache = Database::memory().unwrap();
         let features = node::Features::SEED;
-        let timestamp = LocalTime::now().as_millis();
+        let timestamp = Timestamp::from(LocalTime::now());
 
         cache
             .insert(&alice, features, Alias::new("alice"), 16, timestamp, [])
@@ -455,7 +455,7 @@ mod test {
         let alice = arbitrary::gen::<NodeId>(1);
         let mut cache = Database::memory().unwrap();
         let features = node::Features::SEED;
-        let timestamp = LocalTime::now().as_millis();
+        let timestamp = LocalTime::now().into();
 
         let ka = KnownAddress {
             addr: net::SocketAddr::from(([4, 4, 4, 4], 8776)).into(),
@@ -490,7 +490,7 @@ mod test {
         let alice = arbitrary::gen::<NodeId>(1);
         let mut cache = Database::memory().unwrap();
         let features = node::Features::SEED;
-        let timestamp = LocalTime::now().as_millis();
+        let timestamp = LocalTime::now().into();
         let alias = Alias::new("alice");
 
         let ka = KnownAddress {
@@ -517,7 +517,7 @@ mod test {
     fn test_insert_and_update() {
         let alice = arbitrary::gen::<NodeId>(1);
         let mut cache = Database::memory().unwrap();
-        let timestamp = LocalTime::now().as_millis();
+        let timestamp = LocalTime::now().into();
         let features = node::Features::SEED;
         let alias1 = Alias::new("alice");
         let alias2 = Alias::new("~alice~");
@@ -572,7 +572,7 @@ mod test {
         let alice = arbitrary::gen::<NodeId>(1);
         let bob = arbitrary::gen::<NodeId>(1);
         let mut cache = Database::memory().unwrap();
-        let timestamp = LocalTime::now().as_millis();
+        let timestamp = LocalTime::now().into();
         let features = node::Features::SEED;
         let alice_alias = Alias::new("alice");
         let bob_alias = Alias::new("bob");
@@ -620,7 +620,7 @@ mod test {
         let mut rng = fastrand::Rng::new();
         let mut cache = Database::memory().unwrap();
         let mut expected = Vec::new();
-        let timestamp = LocalTime::now().as_millis();
+        let timestamp = LocalTime::now().into();
         let features = node::Features::SEED;
         let alias = Alias::new("alice");
 
@@ -660,7 +660,7 @@ mod test {
         let addr = arbitrary::gen::<Address>(1);
         let mut cache = Database::memory().unwrap();
         let features = node::Features::SEED;
-        let timestamp = LocalTime::now().as_millis();
+        let timestamp = Timestamp::from(LocalTime::now());
 
         cache
             .insert(&alice, features, Alias::new("alice"), 16, timestamp, [])

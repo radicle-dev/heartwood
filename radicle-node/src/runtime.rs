@@ -176,9 +176,7 @@ impl Runtime {
                 // If our announcement was made some time ago, the timestamp on it will be old,
                 // and it might not get gossiped to new nodes since it will be purged from caches.
                 // Therefore, we make sure it's never too old.
-                if clock.as_millis() - ann.timestamp
-                    <= config.limits.gossip_max_age.as_millis() as u64
-                {
+                if clock - ann.timestamp.to_local_time() <= config.limits.gossip_max_age {
                     Some(ann)
                 } else {
                     None
@@ -202,7 +200,7 @@ impl Runtime {
             );
             ann
         } else {
-            service::gossip::node(&config, clock.as_millis())
+            service::gossip::node(&config, clock.into())
                 .solve(Default::default())
                 .expect("Runtime::init: unable to solve proof-of-work puzzle")
         };
@@ -218,7 +216,7 @@ impl Runtime {
                     radicle::node::Features::SEED,
                     alias,
                     0,
-                    clock.as_millis(),
+                    clock.into(),
                     [node::KnownAddress::new(addr, address::Source::Bootstrap)],
                 )?;
             }

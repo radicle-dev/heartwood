@@ -97,7 +97,7 @@ impl Store for Database {
         stmt.bind((2, node))?;
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
-            return Ok(Some(row.read::<i64, _>("timestamp") as Timestamp));
+            return Ok(Some(row.read::<Timestamp, _>("timestamp")));
         }
         Ok(None)
     }
@@ -108,7 +108,6 @@ impl Store for Database {
         node: NodeId,
         time: Timestamp,
     ) -> Result<Vec<(RepoId, InsertResult)>, Error> {
-        let time: i64 = time.try_into().map_err(|_| Error::UnitOverflow)?;
         let mut results = Vec::new();
 
         transaction(&self.db, |db| {
@@ -130,7 +129,7 @@ impl Store for Database {
 
                 stmt.bind((1, id))?;
                 stmt.bind((2, &node))?;
-                stmt.bind((3, time))?;
+                stmt.bind((3, &time))?;
                 stmt.next()?;
 
                 let result = match (self.db.change_count() > 0, existed) {
@@ -184,7 +183,6 @@ impl Store for Database {
     }
 
     fn prune(&mut self, oldest: Timestamp, limit: Option<usize>) -> Result<usize, Error> {
-        let oldest: i64 = oldest.try_into().map_err(|_| Error::UnitOverflow)?;
         let limit: i64 = limit
             .unwrap_or(i64::MAX as usize)
             .try_into()
@@ -194,7 +192,7 @@ impl Store for Database {
             "DELETE FROM routing WHERE rowid IN
             (SELECT rowid FROM routing WHERE timestamp < ? LIMIT ?)",
         )?;
-        stmt.bind((1, oldest))?;
+        stmt.bind((1, &oldest))?;
         stmt.bind((2, limit))?;
         stmt.next()?;
 
@@ -243,7 +241,7 @@ mod test {
 
         for node in &nodes {
             assert_eq!(
-                db.insert(&ids, *node, 0).unwrap(),
+                db.insert(&ids, *node, Timestamp::EPOCH).unwrap(),
                 ids.iter()
                     .map(|id| (*id, InsertResult::SeedAdded))
                     .collect::<Vec<_>>()
@@ -265,7 +263,7 @@ mod test {
         let mut db = database(":memory:");
 
         for node in &nodes {
-            db.insert(&ids, *node, 0).unwrap();
+            db.insert(&ids, *node, Timestamp::EPOCH).unwrap();
         }
 
         for node in &nodes {
@@ -284,7 +282,7 @@ mod test {
 
         for node in &nodes {
             assert!(db
-                .insert(&ids, *node, 0)
+                .insert(&ids, *node, Timestamp::EPOCH)
                 .unwrap()
                 .iter()
                 .all(|(_, r)| *r == InsertResult::SeedAdded));
@@ -306,7 +304,7 @@ mod test {
         let mut db = database(":memory:");
 
         for node in &nodes {
-            db.insert(&ids, *node, 0).unwrap();
+            db.insert(&ids, *node, Timestamp::EPOCH).unwrap();
         }
         for id in &ids {
             for node in &nodes {
@@ -325,15 +323,15 @@ mod test {
         let mut db = database(":memory:");
 
         assert_eq!(
-            db.insert([&id], node, 0).unwrap(),
+            db.insert([&id], node, Timestamp::EPOCH).unwrap(),
             vec![(id, InsertResult::SeedAdded)]
         );
         assert_eq!(
-            db.insert([&id], node, 0).unwrap(),
+            db.insert([&id], node, Timestamp::EPOCH).unwrap(),
             vec![(id, InsertResult::NotUpdated)]
         );
         assert_eq!(
-            db.insert([&id], node, 0).unwrap(),
+            db.insert([&id], node, Timestamp::EPOCH).unwrap(),
             vec![(id, InsertResult::NotUpdated)]
         );
     }
@@ -345,14 +343,14 @@ mod test {
         let mut db = database(":memory:");
 
         assert_eq!(
-            db.insert([&id], node, 0).unwrap(),
+            db.insert([&id], node, Timestamp::EPOCH).unwrap(),
             vec![(id, InsertResult::SeedAdded)]
         );
         assert_eq!(
-            db.insert([&id], node, 1).unwrap(),
+            db.insert([&id], node, Timestamp::from(1)).unwrap(),
             vec![(id, InsertResult::TimeUpdated)]
         );
-        assert_eq!(db.entry(&id, &node).unwrap(), Some(1));
+        assert_eq!(db.entry(&id, &node).unwrap(), Some(Timestamp::from(1)));
     }
 
     #[test]
@@ -363,18 +361,18 @@ mod test {
         let mut db = database(":memory:");
 
         assert_eq!(
-            db.insert([&id1], node, 0).unwrap(),
+            db.insert([&id1], node, Timestamp::EPOCH).unwrap(),
             vec![(id1, InsertResult::SeedAdded)]
         );
         assert_eq!(
-            db.insert([&id1, &id2], node, 0).unwrap(),
+            db.insert([&id1, &id2], node, Timestamp::EPOCH).unwrap(),
             vec![
                 (id1, InsertResult::NotUpdated),
                 (id2, InsertResult::SeedAdded)
             ]
         );
         assert_eq!(
-            db.insert([&id1, &id2], node, 1).unwrap(),
+            db.insert([&id1, &id2], node, Timestamp::from(1)).unwrap(),
             vec![
                 (id1, InsertResult::TimeUpdated),
                 (id2, InsertResult::TimeUpdated)
@@ -389,7 +387,7 @@ mod test {
         let mut db = database(":memory:");
 
         assert_eq!(
-            db.insert([&id], node, 0).unwrap(),
+            db.insert([&id], node, Timestamp::EPOCH).unwrap(),
             vec![(id, InsertResult::SeedAdded)]
         );
         assert!(db.remove(&id, &node).unwrap());
@@ -402,7 +400,7 @@ mod test {
         let ids = arbitrary::vec::<RepoId>(10);
         let node = arbitrary::gen(1);
 
-        db.insert(&ids, node, LocalTime::now().as_millis()).unwrap();
+        db.insert(&ids, node, LocalTime::now().into()).unwrap();
 
         assert_eq!(10, db.len().unwrap(), "correct number of rows in table");
     }
@@ -417,7 +415,7 @@ mod test {
 
         for node in &nodes {
             let time = rng.u64(..now.as_millis());
-            db.insert(&ids, *node, time).unwrap();
+            db.insert(&ids, *node, Timestamp::from(time)).unwrap();
         }
 
         let ids = arbitrary::vec::<RepoId>(10);
@@ -425,16 +423,16 @@ mod test {
 
         for node in &nodes {
             let time = rng.u64(now.as_millis()..i64::MAX as u64);
-            db.insert(&ids, *node, time).unwrap();
+            db.insert(&ids, *node, Timestamp::from(time)).unwrap();
         }
 
-        let pruned = db.prune(now.as_millis(), None).unwrap();
+        let pruned = db.prune(now.into(), None).unwrap();
         assert_eq!(pruned, ids.len() * nodes.len());
 
         for id in &ids {
             for node in &nodes {
                 let t = db.entry(id, node).unwrap().unwrap();
-                assert!(t >= now.as_millis());
+                assert!(*t >= *Timestamp::from(now));
             }
         }
     }
@@ -446,7 +444,7 @@ mod test {
         let mut db = database(":memory:");
 
         for node in &nodes {
-            db.insert([&id], *node, 0).unwrap();
+            db.insert([&id], *node, Timestamp::EPOCH).unwrap();
         }
         assert_eq!(db.count(&id).unwrap(), nodes.len());
     }

@@ -393,10 +393,10 @@ pub struct Service<D, S, G> {
     last_sync: LocalTime,
     /// Last time the service routing table was pruned.
     last_prune: LocalTime,
-    /// Last time the service announced something.
-    last_timestamp: LocalTime,
     /// Last time the inventory was announced.
     last_announce: LocalTime,
+    /// Last timestamp used for announcements.
+    last_timestamp: Timestamp,
     /// Time when the service was initialized, or `None` if it wasn't initialized.
     started_at: Option<LocalTime>,
     /// Publishes events to subscribers.
@@ -457,7 +457,7 @@ where
             last_idle: LocalTime::default(),
             last_sync: LocalTime::default(),
             last_prune: LocalTime::default(),
-            last_timestamp: LocalTime::default(),
+            last_timestamp: Timestamp::MIN,
             last_announce: LocalTime::default(),
             started_at: None,
             emitter,
@@ -601,7 +601,7 @@ where
         // all of it. It can happen that inventory is not properly seeded if for eg. the
         // user creates a new repository while the node is stopped.
         let rids = self.storage.inventory()?;
-        self.db.routing_mut().insert(&rids, nid, time.as_millis())?;
+        self.db.routing_mut().insert(&rids, nid, time.into())?;
 
         let announced = self
             .db
@@ -632,7 +632,7 @@ where
                 &rid,
                 &nid,
                 updated_at.oid,
-                updated_at.timestamp.as_millis(),
+                updated_at.timestamp.into(),
             )? {
                 debug!(target: "service", "Saved local sync status for {rid}..");
             }
@@ -722,7 +722,7 @@ where
             if let Err(err) = self
                 .db
                 .gossip_mut()
-                .prune((now - self.config.limits.gossip_max_age).as_millis())
+                .prune((now - self.config.limits.gossip_max_age).into())
             {
                 error!(target: "service", "Error pruning gossip entries: {err}");
             }
@@ -782,7 +782,7 @@ where
 
                 // Let all our peers know that we're interested in this repo from now on.
                 self.outbox.broadcast(
-                    Message::subscribe(self.filter(), self.clock.as_millis(), Timestamp::MAX),
+                    Message::subscribe(self.filter(), self.clock.into(), Timestamp::MAX),
                     self.sessions.connected().map(|(_, s)| s),
                 );
             }
@@ -1047,7 +1047,7 @@ where
                 info!(target: "service", "Fetched {rid} from {remote} successfully");
                 // Update our routing table in case this fetch was user-initiated and doesn't
                 // come from an announcement.
-                self.seed_discovered(rid, remote, self.clock.as_millis());
+                self.seed_discovered(rid, remote, self.clock.into());
 
                 for update in &updated {
                     if update.is_skipped() {
@@ -1181,7 +1181,7 @@ where
                 if let Err(e) =
                     self.db
                         .addresses_mut()
-                        .connected(&remote, &peer.addr, self.clock.as_millis())
+                        .connected(&remote, &peer.addr, self.clock.into())
                 {
                     error!(target: "service", "Error updating address book with connection: {e}");
                 }
@@ -1782,8 +1782,8 @@ where
         // If this is our first connection to the network, we just ask for a fixed backlog
         // of messages to get us started.
         let since = match self.db.gossip().last() {
-            Ok(Some(last)) => last - MAX_TIME_DELTA.as_millis() as Timestamp,
-            Ok(None) => (*now - INITIAL_SUBSCRIBE_BACKLOG_DELTA).as_millis() as Timestamp,
+            Ok(Some(last)) => Timestamp::from(last.to_local_time() - MAX_TIME_DELTA),
+            Ok(None) => (*now - INITIAL_SUBSCRIBE_BACKLOG_DELTA).into(),
             Err(e) => {
                 error!(target: "service", "Error getting the lastest gossip message from storage: {e}");
                 return vec![];
@@ -1811,7 +1811,7 @@ where
     /// Update our routing table with our local node's inventory.
     fn sync_inventory(&mut self) -> Result<SyncedRouting, Error> {
         let inventory = self.storage.inventory()?;
-        let result = self.sync_routing(inventory, self.node_id(), self.clock.as_millis())?;
+        let result = self.sync_routing(inventory, self.node_id(), self.clock.into())?;
 
         Ok(result)
     }
@@ -1914,7 +1914,7 @@ where
                 &r.remote,
                 &SIGREFS_BRANCH,
                 r.at,
-                LocalTime::from_millis(timestamp as u128),
+                timestamp.to_local_time(),
             ) {
                 error!(
                     target: "service",
@@ -2013,7 +2013,7 @@ where
             return false;
         }
         let persistent = self.config.is_persistent(&nid);
-        let timestamp = self.clock().as_millis();
+        let timestamp: Timestamp = self.clock.into();
 
         if let Err(e) = self.db.addresses_mut().attempted(&nid, &addr, timestamp) {
             error!(target: "service", "Error updating address book with connection attempt: {e}");
@@ -2091,12 +2091,13 @@ where
     /// Get a timestamp for using in announcements.
     /// Never returns the same timestamp twice.
     fn timestamp(&mut self) -> Timestamp {
-        if self.clock > self.last_timestamp {
-            self.last_timestamp = self.clock;
+        let now = Timestamp::from(self.clock);
+        if *now > *self.last_timestamp {
+            self.last_timestamp = now;
         } else {
-            self.last_timestamp = self.last_timestamp + LocalDuration::from_millis(1);
+            self.last_timestamp = self.last_timestamp + 1;
         }
-        self.last_timestamp.as_millis()
+        self.last_timestamp
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -2113,7 +2114,7 @@ where
             self.sessions.connected().map(|(_, p)| p),
             self.db.gossip_mut(),
         );
-        self.last_announce = LocalTime::from_millis(time as u128);
+        self.last_announce = time.to_local_time();
 
         Ok(())
     }
@@ -2126,7 +2127,7 @@ where
 
         let delta = count - self.config.limits.routing_max_size;
         self.db.routing_mut().prune(
-            (*now - self.config.limits.routing_max_age).as_millis(),
+            (*now - self.config.limits.routing_max_age).into(),
             Some(delta),
         )?;
         Ok(())

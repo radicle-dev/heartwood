@@ -174,7 +174,7 @@ where
         for rid in storage.inventory().unwrap() {
             policies.seed(&rid, Scope::Followed).unwrap();
         }
-        let announcement = service::gossip::node(&config.config, config.local_time.as_secs());
+        let announcement = service::gossip::node(&config.config, config.local_time.into());
         let emitter: Emitter<Event> = Default::default();
         let service = Service::new(
             config.config,
@@ -249,7 +249,7 @@ where
     }
 
     pub fn timestamp(&self) -> Timestamp {
-        self.clock().as_millis()
+        (*self.clock()).into()
     }
 
     pub fn inventory(&self) -> Inventory {

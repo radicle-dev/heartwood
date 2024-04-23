@@ -601,7 +601,7 @@ mod tests {
         let msg: Message = AnnouncementMessage::from(RefsAnnouncement {
             rid: arbitrary::gen(1),
             refs,
-            timestamp: LocalTime::now().as_millis(),
+            timestamp: LocalTime::now().into(),
         })
         .signed(&MockSigner::default())
         .into();
@@ -621,7 +621,7 @@ mod tests {
                 inventory: arbitrary::vec(INVENTORY_LIMIT)
                     .try_into()
                     .expect("size within bounds limit"),
-                timestamp: LocalTime::now().as_millis(),
+                timestamp: LocalTime::now().into(),
             },
             &MockSigner::default(),
         );
@@ -646,7 +646,7 @@ mod tests {
     #[quickcheck]
     fn prop_refs_announcement_signing(rid: RepoId) {
         let signer = MockSigner::new(&mut fastrand::Rng::new());
-        let timestamp = 0;
+        let timestamp = Timestamp::EPOCH;
         let at = raw::Oid::zero().into();
         let refs = BoundedVec::collect_from(
             &mut [RefsAt {
@@ -669,7 +669,7 @@ mod tests {
     fn test_node_announcement_validate() {
         let ann = NodeAnnouncement {
             features: node::Features::SEED,
-            timestamp: 42491841,
+            timestamp: Timestamp::from(42491841),
             alias: Alias::new("alice"),
             addresses: BoundedVec::new(),
             nonce: 0,

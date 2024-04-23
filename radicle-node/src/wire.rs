@@ -28,6 +28,7 @@ use crate::service::filter;
 use crate::storage::refs::Refs;
 use crate::storage::refs::RefsAt;
 use crate::storage::refs::SignedRefs;
+use crate::Timestamp;
 
 /// The default type we use to represent sizes on the wire.
 ///
@@ -524,6 +525,20 @@ impl Decode for tor::OnionAddrV3 {
         let addr = tor::OnionAddrV3::from_raw_bytes(bytes)?;
 
         Ok(addr)
+    }
+}
+
+impl Encode for Timestamp {
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        self.deref().encode(writer)
+    }
+}
+
+impl Decode for Timestamp {
+    fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
+        let millis = u64::decode(reader)?;
+
+        Ok(Timestamp::from(millis))
     }
 }
 

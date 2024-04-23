@@ -60,7 +60,7 @@ use crate::{git, identity, rad, runtime, service, test};
 #[test]
 fn test_inventory_decode() {
     let inventory: Vec<RepoId> = arbitrary::gen(300);
-    let timestamp = LocalTime::now().as_millis();
+    let timestamp: Timestamp = LocalTime::now().into();
 
     let mut buf = Vec::new();
     inventory.as_slice().encode(&mut buf).unwrap();
@@ -260,7 +260,7 @@ fn test_inventory_sync() {
     let bob_signer = MockSigner::default();
     let bob_storage = fixtures::storage(tmp.path().join("bob"), &bob_signer).unwrap();
     let bob = Peer::config("bob", [8, 8, 8, 8], bob_storage, peer::Config::default());
-    let now = LocalTime::now().as_millis();
+    let now = LocalTime::now().into();
     let projs = bob.storage().inventory().unwrap();
 
     alice.connect_to(&bob);
@@ -374,7 +374,7 @@ fn test_inventory_pruning() {
                         inventory: test::arbitrary::vec::<RepoId>(num_projs)
                             .try_into()
                             .unwrap(),
-                        timestamp: bob.local_time().as_millis(),
+                        timestamp: bob.local_time().into(),
                     },
                     peer.signer(),
                 ),
@@ -567,8 +567,8 @@ fn test_announcement_rebroadcast_timestamp_filtered() {
         eve.id(),
         Message::Subscribe(Subscribe {
             filter: Filter::default(),
-            since: alice.local_time().as_millis(),
-            until: (alice.local_time() + delta).as_millis(),
+            since: alice.local_time().into(),
+            until: (alice.local_time() + delta).into(),
         }),
     );
 
@@ -946,7 +946,7 @@ fn test_inventory_relay() {
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let eve = Peer::new("eve", [9, 9, 9, 9]);
     let inv = BoundedVec::try_from(arbitrary::vec(1)).unwrap();
-    let now = LocalTime::now().as_millis();
+    let now = LocalTime::now().into();
 
     // Inventory from Bob relayed to Eve.
     alice.init();
@@ -1274,7 +1274,7 @@ fn test_seed_repo_subscribe() {
             filter,
             since,
             ..
-        })) if since == alice.clock().as_millis() && filter.contains(&rid)
+        })) if since == alice.timestamp() && filter.contains(&rid)
     );
 }
 
@@ -1292,7 +1292,7 @@ fn test_fetch_missing_inventory_on_gossip() {
         Message::inventory(
             InventoryAnnouncement {
                 inventory: vec![rid].try_into().unwrap(),
-                timestamp: now.as_millis(),
+                timestamp: now.into(),
             },
             bob.signer(),
         ),
@@ -1317,7 +1317,7 @@ fn test_fetch_missing_inventory_on_schedule() {
         Message::inventory(
             InventoryAnnouncement {
                 inventory: vec![rid].try_into().unwrap(),
-                timestamp: now.as_millis(),
+                timestamp: now.into(),
             },
             bob.signer(),
         ),
