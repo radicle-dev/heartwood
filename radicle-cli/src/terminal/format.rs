@@ -60,7 +60,7 @@ pub fn did(did: &Did) -> Paint<String> {
 pub fn visibility(v: &Visibility) -> Paint<&str> {
     match v {
         Visibility::Public => term::format::positive("public"),
-        Visibility::Private { .. } => term::format::secondary("private"),
+        Visibility::Private { .. } => term::format::yellow("private"),
     }
 }
 
