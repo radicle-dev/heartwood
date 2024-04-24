@@ -1,23 +1,21 @@
-use std::{
-    borrow::Cow,
-    io::{self, BufRead},
-    path::PathBuf,
-    sync::{atomic::AtomicBool, Arc},
-};
+use std::borrow::Cow;
+use std::io;
+use std::io::BufRead;
+use std::path::PathBuf;
+use std::sync::{atomic::AtomicBool, Arc};
 
 use gix_features::progress::NestedProgress;
 use gix_pack as pack;
-use gix_protocol::{
-    fetch::{self, Delegate, DelegateBlocking},
-    handshake::{self, Ref},
-    ls_refs, FetchConnection,
-};
-use gix_transport::{
-    bstr::BString,
-    client,
-    client::{ExtendedBufRead, MessageKind},
-    Protocol,
-};
+use gix_protocol::fetch;
+use gix_protocol::fetch::{Delegate, DelegateBlocking};
+use gix_protocol::handshake;
+use gix_protocol::handshake::Ref;
+use gix_protocol::ls_refs;
+use gix_protocol::FetchConnection;
+use gix_transport::bstr::BString;
+use gix_transport::client;
+use gix_transport::client::{ExtendedBufRead, MessageKind};
+use gix_transport::Protocol;
 
 use super::{agent_name, indicate_end_of_interaction, Connection, WantsHaves};
 
@@ -253,6 +251,7 @@ where
             if !sideband_all {
                 setup_remote_progress(progress, &mut reader);
             }
+            let timer = std::time::Instant::now();
             // TODO: remove delegate in favor of functional style to fix progress-hack,
             //       needed as it needs `'static`. As the top-level seems to pass `Discard`,
             //       there should be no repercussions right now.
@@ -262,6 +261,7 @@ where
                 &[],
                 &response,
             )?;
+            log::trace!(target: "fetch", "Received pack ({}ms)", timer.elapsed().as_millis());
             assert_eq!(
                 reader.stopped_at(),
                 None,
@@ -286,6 +286,7 @@ where
     if matches!(protocol, Protocol::V2)
         && matches!(conn.mode, FetchConnection::TerminateOnSuccessfulCompletion)
     {
+        log::trace!(target: "fetch", "Indicating end of interaction");
         indicate_end_of_interaction(&mut conn)?;
     }
 
