@@ -10,6 +10,7 @@ Initializing public radicle 👾 repository in [..]
 Your Repository ID (RID) is rad:z3Rry7rpdWuGpfjPYGzdJKQADsoNW.
 You can show it any time by running `rad .` from this directory.
 
+✓ Repository successfully synced to z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ✓ Repository successfully synced to 1 node(s).
 
 Your repository has been synced to the network and is now discoverable by peers.

@@ -2,10 +2,10 @@
 #![allow(clippy::collapsible_else_if)]
 use std::collections::HashSet;
 use std::convert::TryFrom;
+use std::env;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::{env, time};
 
 use anyhow::{anyhow, bail, Context as _};
 use serde_json as json;
@@ -14,8 +14,9 @@ use radicle::crypto::{ssh, Verified};
 use radicle::explorer::ExplorerUrl;
 use radicle::git::RefString;
 use radicle::identity::{RepoId, Visibility};
+use radicle::node::events::UploadPack;
 use radicle::node::policy::Scope;
-use radicle::node::{Event, Handle, NodeId};
+use radicle::node::{Event, Handle, NodeId, DEFAULT_SUBSCRIBE_TIMEOUT};
 use radicle::prelude::Doc;
 use radicle::{profile, Node};
 
@@ -364,7 +365,9 @@ fn sync(
         return Ok(SyncResult::NodeStopped);
     }
     let mut spinner = term::spinner("Updating inventory..");
-    let events = node.subscribe(time::Duration::from_secs(3))?;
+    // N.b. indefinitely subscribe to events and set a lower timeout on events
+    // below.
+    let events = node.subscribe(DEFAULT_SUBSCRIBE_TIMEOUT)?;
     let sessions = node.sessions()?;
 
     node.update_inventory(rid)?;
@@ -392,16 +395,39 @@ fn sync(
     spinner.message("Syncing..");
 
     let mut replicas = HashSet::new();
+
     for e in events {
         match e {
             Ok(Event::RefsSynced {
                 remote, rid: rid_, ..
             }) if rid == rid_ => {
+                term::success!("Repository successfully synced to {remote}");
                 replicas.insert(remote);
                 // If we manage to replicate to one of our preferred seeds, we can stop waiting.
                 if config.preferred_seeds.iter().any(|s| s.id == remote) {
                     break;
                 }
+            }
+            Ok(Event::UploadPack(UploadPack::Write {
+                rid: rid_,
+                remote,
+                progress,
+            })) if rid == rid_ => {
+                spinner.message(format!("Uploading {rid} to {remote} {progress}"));
+            }
+            Ok(Event::UploadPack(UploadPack::Done {
+                rid: rid_,
+                remote,
+                status,
+            })) if rid == rid_ => {
+                spinner.message(format!("Upload done for {rid} to {remote}: {status}"));
+            }
+            Ok(Event::UploadPack(UploadPack::Error {
+                rid: rid_,
+                remote,
+                err,
+            })) if rid == rid_ => {
+                spinner.message(format!("Upload error for {rid} to {remote}: {err}"));
             }
             Ok(_) => {
                 // Some other irrelevant event received.
