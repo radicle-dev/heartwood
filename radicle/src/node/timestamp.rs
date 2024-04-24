@@ -1,5 +1,6 @@
 use std::{
     fmt,
+    num::TryFromIntError,
     ops::{Add, Deref, Sub},
 };
 
@@ -15,7 +16,7 @@ impl Add<u64> for Timestamp {
     type Output = Timestamp;
 
     fn add(self, millis: u64) -> Self::Output {
-        Self(self.0 + millis)
+        Self(self.0.saturating_add(millis))
     }
 }
 
@@ -23,7 +24,7 @@ impl Sub<u64> for Timestamp {
     type Output = Timestamp;
 
     fn sub(self, millis: u64) -> Self::Output {
-        Self(self.0 - millis)
+        Self(self.0.saturating_sub(millis))
     }
 }
 
@@ -69,9 +70,23 @@ impl From<Timestamp> for LocalTime {
     }
 }
 
-impl From<u64> for Timestamp {
-    fn from(u: u64) -> Self {
-        Self(u)
+impl TryFrom<u64> for Timestamp {
+    type Error = u64;
+
+    fn try_from(u: u64) -> Result<Self, u64> {
+        if u <= *Self::MAX {
+            Ok(Self(u))
+        } else {
+            Err(u)
+        }
+    }
+}
+
+impl TryFrom<i64> for Timestamp {
+    type Error = TryFromIntError;
+
+    fn try_from(i: i64) -> Result<Self, Self::Error> {
+        i.try_into().map(Self)
     }
 }
 
@@ -84,7 +99,7 @@ impl TryFrom<&sql::Value> for Timestamp {
                 Ok(u) => Ok(Timestamp(u)),
                 Err(e) => Err(sql::Error {
                     code: None,
-                    message: Some(format!("sql: invalid integer for timestamp: {e}")),
+                    message: Some(format!("sql: invalid integer `{i}` for timestamp: {e}")),
                 }),
             },
             _ => Err(sql::Error {
@@ -101,8 +116,18 @@ impl sql::BindableWithIndex for &Timestamp {
             Ok(integer) => integer.bind(stmt, i),
             Err(e) => Err(sql::Error {
                 code: None,
-                message: Some(format!("sql: invalid timestamp: {e}")),
+                message: Some(format!("sql: invalid timestamp `{self}`: {e}")),
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_timestamp_max() {
+        assert_eq!(i64::try_from(*Timestamp::MAX), Ok(i64::MAX));
     }
 }

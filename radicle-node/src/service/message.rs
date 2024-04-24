@@ -669,7 +669,7 @@ mod tests {
     fn test_node_announcement_validate() {
         let ann = NodeAnnouncement {
             features: node::Features::SEED,
-            timestamp: Timestamp::from(42491841),
+            timestamp: Timestamp::try_from(42491841u64).unwrap(),
             alias: Alias::new("alice"),
             addresses: BoundedVec::new(),
             nonce: 0,

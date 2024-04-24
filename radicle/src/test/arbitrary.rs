@@ -315,6 +315,6 @@ impl Arbitrary for Alias {
 
 impl Arbitrary for Timestamp {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        Self::from(u64::arbitrary(g))
+        Self::try_from(u64::arbitrary(g).min(*Self::MAX)).unwrap()
     }
 }

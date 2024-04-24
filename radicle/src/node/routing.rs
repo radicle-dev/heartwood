@@ -347,10 +347,14 @@ mod test {
             vec![(id, InsertResult::SeedAdded)]
         );
         assert_eq!(
-            db.insert([&id], node, Timestamp::from(1)).unwrap(),
+            db.insert([&id], node, Timestamp::try_from(1u64).unwrap())
+                .unwrap(),
             vec![(id, InsertResult::TimeUpdated)]
         );
-        assert_eq!(db.entry(&id, &node).unwrap(), Some(Timestamp::from(1)));
+        assert_eq!(
+            db.entry(&id, &node).unwrap(),
+            Some(Timestamp::try_from(1u64).unwrap())
+        );
     }
 
     #[test]
@@ -372,7 +376,8 @@ mod test {
             ]
         );
         assert_eq!(
-            db.insert([&id1, &id2], node, Timestamp::from(1)).unwrap(),
+            db.insert([&id1, &id2], node, Timestamp::try_from(1u64).unwrap())
+                .unwrap(),
             vec![
                 (id1, InsertResult::TimeUpdated),
                 (id2, InsertResult::TimeUpdated)
@@ -415,7 +420,8 @@ mod test {
 
         for node in &nodes {
             let time = rng.u64(..now.as_millis());
-            db.insert(&ids, *node, Timestamp::from(time)).unwrap();
+            db.insert(&ids, *node, Timestamp::try_from(time).unwrap())
+                .unwrap();
         }
 
         let ids = arbitrary::vec::<RepoId>(10);
@@ -423,7 +429,8 @@ mod test {
 
         for node in &nodes {
             let time = rng.u64(now.as_millis()..i64::MAX as u64);
-            db.insert(&ids, *node, Timestamp::from(time)).unwrap();
+            db.insert(&ids, *node, Timestamp::try_from(time).unwrap())
+                .unwrap();
         }
 
         let pruned = db.prune(now.into(), None).unwrap();

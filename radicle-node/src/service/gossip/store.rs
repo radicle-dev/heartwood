@@ -71,7 +71,7 @@ impl Store for Database {
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
             return match row.try_read::<Option<i64>, _>(0)? {
-                Some(i) => Ok(Some(Timestamp::from(u64::try_from(i)?))),
+                Some(i) => Ok(Some(Timestamp::try_from(i)?)),
                 None => Ok(None),
             };
         }

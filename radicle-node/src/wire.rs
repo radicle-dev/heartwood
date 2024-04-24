@@ -60,6 +60,8 @@ pub enum Error {
     InvalidProtocolVersion([u8; 4]),
     #[error("invalid onion address: {0}")]
     InvalidOnionAddr(#[from] tor::OnionAddrDecodeError),
+    #[error("invalid timestamp: {0}")]
+    InvalidTimestamp(u64),
     #[error("unknown address type `{0}`")]
     UnknownAddressType(u8),
     #[error("unknown message type `{0}`")]
@@ -537,8 +539,9 @@ impl Encode for Timestamp {
 impl Decode for Timestamp {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
         let millis = u64::decode(reader)?;
+        let ts = Timestamp::try_from(millis).map_err(Error::InvalidTimestamp)?;
 
-        Ok(Timestamp::from(millis))
+        Ok(ts)
     }
 }
 
