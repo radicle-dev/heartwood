@@ -86,7 +86,7 @@ pub const MAX_TIME_DELTA: LocalDuration = LocalDuration::from_mins(60);
 /// Maximum attempts to connect to a peer before we give up.
 pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
 /// How far back from the present time should we request gossip messages when connecting to a peer,
-/// when we initially come online.
+/// when we come online for the first time.
 pub const INITIAL_SUBSCRIBE_BACKLOG_DELTA: LocalDuration = LocalDuration::from_mins(60 * 24);
 /// Minimum amount of time to wait before reconnecting to a peer.
 pub const MIN_RECONNECTION_DELTA: LocalDuration = LocalDuration::from_secs(3);
@@ -1332,7 +1332,13 @@ where
         }
         let now = self.clock;
         let timestamp = message.timestamp();
-        let relay = self.config.relay;
+        // To avoid spamming peers on startup with historical gossip messages,
+        // don't relay messages that are too old.
+        let relay = if now - timestamp.to_local_time() > MAX_TIME_DELTA {
+            false
+        } else {
+            self.config.relay
+        };
 
         // Don't allow messages from too far in the future.
         if timestamp.saturating_sub(now.as_millis()) > MAX_TIME_DELTA.as_millis() as u64 {
@@ -1351,7 +1357,7 @@ where
             match self.db.addresses().get(announcer) {
                 Ok(node) => {
                     if node.is_none() {
-                        debug!(target: "service", "Ignoring announcement from unknown node {announcer}");
+                        debug!(target: "service", "Ignoring announcement from unknown node {announcer} (t={timestamp})");
                         return Ok(false);
                     }
                 }
@@ -1445,7 +1451,7 @@ where
                 });
                 // Empty announcements can be safely ignored.
                 let Some(refs) = NonEmpty::from_vec(message.refs.to_vec()) else {
-                    debug!(target: "service", "Skipping fetch, no refs in announcement for {}", message.rid);
+                    debug!(target: "service", "Skipping fetch, no refs in announcement for {} (t={timestamp})", message.rid);
                     return Ok(false);
                 };
                 // We update inventories when receiving ref announcements, as these could come
@@ -1496,7 +1502,7 @@ where
                 if repo_entry.policy != Policy::Allow {
                     debug!(
                         target: "service",
-                        "Ignoring refs announcement from {announcer}: repository {} isn't seeded",
+                        "Ignoring refs announcement from {announcer}: repository {} isn't seeded (t={timestamp})",
                         message.rid
                     );
                     return Ok(false);
