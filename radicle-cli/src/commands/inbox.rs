@@ -124,7 +124,7 @@ impl Args for Options {
                         }
                     }
                 }
-                Long("repo") if mode.is_none() && op.is_some() => {
+                Long("repo") if mode.is_none() => {
                     let val = parser.value()?;
                     let repo = args::rid(&val)?;
 
