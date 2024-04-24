@@ -492,13 +492,11 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
     /// Spawn a node in its own thread.
     pub fn spawn(self) -> NodeHandle<G> {
         let listen = vec![([0, 0, 0, 0], 0).into()];
-        let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
         let (_, signals) = chan::bounded(1);
         let rt = Runtime::init(
             self.home.clone(),
             self.config,
             listen,
-            proxy,
             signals,
             self.signer.clone(),
         )

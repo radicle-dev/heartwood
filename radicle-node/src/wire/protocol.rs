@@ -21,6 +21,7 @@ use netservices::{NetConnection, NetProtocol, NetReader, NetWriter};
 use reactor::{ResourceId, ResourceType, Timestamp};
 
 use radicle::collections::RandomMap;
+use radicle::node::config::TorConfig;
 use radicle::node::NodeId;
 use radicle::storage::WriteStorage;
 
@@ -318,8 +319,6 @@ pub struct Wire<D, S, G: Signer + Ecdh> {
     listening: RandomMap<RawFd, net::SocketAddr>,
     /// Peer (established) sessions.
     peers: Peers,
-    /// SOCKS5 proxy address.
-    proxy: net::SocketAddr,
 }
 
 impl<D, S, G> Wire<D, S, G>
@@ -328,19 +327,13 @@ where
     S: WriteStorage + 'static,
     G: Signer + Ecdh<Pk = NodeId>,
 {
-    pub fn new(
-        service: Service<D, S, G>,
-        worker: chan::Sender<Task>,
-        signer: G,
-        proxy: net::SocketAddr,
-    ) -> Self {
+    pub fn new(service: Service<D, S, G>, worker: chan::Sender<Task>, signer: G) -> Self {
         assert!(service.started().is_some(), "Service must be initialized");
 
         Self {
             service,
             worker,
             signer,
-            proxy,
             actions: VecDeque::new(),
             inbound: RandomMap::default(),
             outbound: RandomMap::default(),
@@ -954,8 +947,7 @@ where
                         addr.to_inner(),
                         node_id,
                         self.signer.clone(),
-                        self.proxy.into(),
-                        false,
+                        self.service.config(),
                     )
                     .and_then(|session| {
                         NetTransport::<WireSession<G>>::with_session(session, Link::Outbound)
@@ -1057,19 +1049,46 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
     remote_addr: NetAddr<HostName>,
     remote_id: <G as EcSk>::Pk,
     signer: G,
-    proxy_addr: NetAddr<InetHost>,
-    force_proxy: bool,
+    config: &service::Config,
 ) -> io::Result<WireSession<G>> {
-    let connection = if force_proxy {
-        // Nb. This timeout is currently not used by the underlying library due to the
-        // `socket2` library not supporting non-blocking connect with timeout.
-        net::TcpStream::connect_nonblocking(proxy_addr, DEFAULT_DIAL_TIMEOUT)?
-    } else {
-        net::TcpStream::connect_nonblocking(
-            remote_addr.connection_addr(proxy_addr),
-            DEFAULT_DIAL_TIMEOUT,
-        )?
+    // Convert the remote address into an internet protocol address (IP or DNS).
+    let inet_addr: NetAddr<InetHost> = match config.tor {
+        // In Tor proxy mode, simply specify a different connection address.
+        Some(TorConfig::Proxy { address: proxy }) => remote_addr.connection_addr(proxy.into()),
+        // In transparent Tor mode, we treat `.onion` addresses as regular DNS names.
+        Some(TorConfig::Transparent) => {
+            let host = match &remote_addr.host {
+                HostName::Ip(ip) => InetHost::Ip(*ip),
+                HostName::Dns(dns) => InetHost::Dns(dns.clone()),
+                HostName::Tor(onion) => InetHost::Dns(onion.to_string()),
+                _ => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        "unsupported remote address type",
+                    ))
+                }
+            };
+            NetAddr::new(host, remote_addr.port)
+        }
+        // Without any Tor configuration, refuse to connect to a `.onion` address.
+        None => {
+            let host = match &remote_addr.host {
+                HostName::Ip(ip) => InetHost::Ip(*ip),
+                HostName::Dns(dns) => InetHost::Dns(dns.clone()),
+                _ => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        "unsupported remote address type",
+                    ))
+                }
+            };
+            NetAddr::new(host, remote_addr.port)
+        }
     };
+    // Nb. This timeout is currently not used by the underlying library due to the
+    // `socket2` library not supporting non-blocking connect with timeout.
+    let connection = net::TcpStream::connect_nonblocking(inet_addr, DEFAULT_DIAL_TIMEOUT)?;
+
     connection.set_read_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
     connection.set_write_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
 
@@ -1078,7 +1097,6 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
         Some(remote_id),
         connection,
         signer,
-        force_proxy,
     ))
 }
 
@@ -1088,7 +1106,7 @@ pub fn accept<G: Signer + Ecdh<Pk = NodeId>>(
     connection: net::TcpStream,
     signer: G,
 ) -> WireSession<G> {
-    session::<G>(remote_addr, None, connection, signer, false)
+    session::<G>(remote_addr, None, connection, signer)
 }
 
 /// Create a new [`WireSession`].
@@ -1097,9 +1115,8 @@ fn session<G: Signer + Ecdh<Pk = NodeId>>(
     remote_id: Option<NodeId>,
     connection: net::TcpStream,
     signer: G,
-    force_proxy: bool,
 ) -> WireSession<G> {
-    let socks5 = socks5::Socks5::with(remote_addr, force_proxy);
+    let socks5 = socks5::Socks5::with(remote_addr, false);
     let proxy = Socks5Session::with(connection, socks5);
     let pair = G::generate_keypair();
     let keyset = Keyset {

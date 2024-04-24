@@ -139,7 +139,6 @@ impl Runtime {
         home: Home,
         config: service::Config,
         listen: Vec<net::SocketAddr>,
-        proxy: net::SocketAddr,
         signals: chan::Receiver<()>,
         signer: G,
     ) -> Result<Runtime, Error>
@@ -238,7 +237,7 @@ impl Runtime {
         service.initialize(clock)?;
 
         let (worker_send, worker_recv) = chan::unbounded::<worker::Task>();
-        let mut wire = Wire::new(service, worker_send, signer.clone(), proxy);
+        let mut wire = Wire::new(service, worker_send, signer.clone());
         let mut local_addrs = Vec::new();
 
         for addr in listen {

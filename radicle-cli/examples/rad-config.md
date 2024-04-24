@@ -26,6 +26,7 @@ $ rad config
     },
     "connect": [],
     "externalAddresses": [],
+    "tor": null,
     "network": "main",
     "relay": true,
     "limits": {

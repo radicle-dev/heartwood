@@ -552,6 +552,11 @@ where
         &mut self.outbox
     }
 
+    /// Get configuration.
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+
     /// Lookup a repository, both locally and in the routing table.
     pub fn lookup(&self, rid: RepoId) -> Result<Lookup, LookupError> {
         let remote = self.db.routing().get(&rid)?.iter().cloned().collect();

@@ -115,7 +115,6 @@ fn execute() -> anyhow::Result<()> {
     // Add the preferred seeds as persistent peers so that we reconnect to them automatically.
     config.node.connect.extend(config.preferred_seeds);
 
-    let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
     let listen: Vec<std::net::SocketAddr> = if !options.listen.is_empty() {
         options.listen.clone()
     } else {
@@ -133,7 +132,7 @@ fn execute() -> anyhow::Result<()> {
         log::debug!(target: "node", "Removing existing control socket..");
         fs::remove_file(home.socket()).ok();
     }
-    Runtime::init(home, config.node, listen, proxy, signals, signer)?.run()?;
+    Runtime::init(home, config.node, listen, signals, signer)?.run()?;
 
     Ok(())
 }

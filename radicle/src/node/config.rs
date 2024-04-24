@@ -234,6 +234,19 @@ impl Default for PeerConfig {
     }
 }
 
+/// Tor configuration.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", tag = "mode")]
+pub enum TorConfig {
+    /// Connect via SOCKS5 proxy.
+    Proxy {
+        /// Tor proxy address.
+        address: net::SocketAddr,
+    },
+    /// Treat Tor onion addresses as DNS names.
+    Transparent,
+}
+
 /// Service configuration.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -253,6 +266,9 @@ pub struct Config {
     /// Specify the node's public addresses
     #[serde(default)]
     pub external_addresses: Vec<Address>,
+    /// Tor configuration.
+    #[serde(default)]
+    pub tor: Option<TorConfig>,
     /// Peer-to-peer network.
     #[serde(default)]
     pub network: Network,
@@ -289,6 +305,7 @@ impl Config {
             connect: HashSet::default(),
             external_addresses: vec![],
             network: Network::default(),
+            tor: None,
             relay: true,
             limits: Limits::default(),
             workers: DEFAULT_WORKERS,
