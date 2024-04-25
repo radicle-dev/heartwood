@@ -61,37 +61,37 @@ RUN cargo zigbuild --locked --release \
 # save some space.
 FROM alpine:3.19 as packager
 COPY --from=builder \
-     /src/*.1 \
      /src/target/x86_64-unknown-linux-musl/release/rad \
      /src/target/x86_64-unknown-linux-musl/release/rad-web \
      /src/target/x86_64-unknown-linux-musl/release/git-remote-rad \
      /src/target/x86_64-unknown-linux-musl/release/radicle-node \
      /src/target/x86_64-unknown-linux-musl/release/radicle-httpd \
-     /builds/x86_64-unknown-linux-musl/
+     /builds/x86_64-unknown-linux-musl/bin/
 COPY --from=builder \
-     /src/*.1 \
      /src/target/aarch64-unknown-linux-musl/release/rad \
      /src/target/aarch64-unknown-linux-musl/release/rad-web \
      /src/target/aarch64-unknown-linux-musl/release/git-remote-rad \
      /src/target/aarch64-unknown-linux-musl/release/radicle-node \
      /src/target/aarch64-unknown-linux-musl/release/radicle-httpd \
-     /builds/aarch64-unknown-linux-musl/
+     /builds/aarch64-unknown-linux-musl/bin/
 COPY --from=builder \
-     /src/*.1 \
      /src/target/aarch64-apple-darwin/release/rad \
      /src/target/aarch64-apple-darwin/release/rad-web \
      /src/target/aarch64-apple-darwin/release/git-remote-rad \
      /src/target/aarch64-apple-darwin/release/radicle-node \
      /src/target/aarch64-apple-darwin/release/radicle-httpd \
-     /builds/aarch64-apple-darwin/
+     /builds/aarch64-apple-darwin/bin/
 COPY --from=builder \
-     /src/*.1 \
      /src/target/x86_64-apple-darwin/release/rad \
      /src/target/x86_64-apple-darwin/release/rad-web \
      /src/target/x86_64-apple-darwin/release/git-remote-rad \
      /src/target/x86_64-apple-darwin/release/radicle-node \
      /src/target/x86_64-apple-darwin/release/radicle-httpd \
-     /builds/x86_64-apple-darwin/
+     /builds/x86_64-apple-darwin/bin/
+COPY --from=builder /src/*.1 /builds/x86_64-unknown-linux-musl/man/man1/
+COPY --from=builder /src/*.1 /builds/aarch64-unknown-linux-musl/man/man1/
+COPY --from=builder /src/*.1 /builds/aarch64-apple-darwin/man/man1/
+COPY --from=builder /src/*.1 /builds/x86_64-apple-darwin/man/man1/
 
 # Create and compress reproducible archive.
 WORKDIR /builds
