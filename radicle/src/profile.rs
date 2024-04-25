@@ -43,7 +43,7 @@ pub mod env {
     /// RNG seed. Must be convertible to a `u64`.
     pub const RAD_RNG_SEED: &str = "RAD_RNG_SEED";
     /// Private key seed. Used for generating deterministic keypairs.
-    pub const RAD_SEED: &str = "RAD_SEED";
+    pub const RAD_KEYGEN_SEED: &str = "RAD_KEYGEN_SEED";
     /// Show radicle hints.
     pub const RAD_HINT: &str = "RAD_HINT";
     /// Environment variable to set to overwrite the commit date for both
@@ -115,16 +115,16 @@ pub mod env {
 
     /// Return the seed stored in the [`RAD_SEED`] environment variable, or generate a random one.
     pub fn seed() -> crypto::Seed {
-        if let Ok(seed) = var(RAD_SEED) {
+        if let Ok(seed) = var(RAD_KEYGEN_SEED) {
             let Ok(seed) = (0..seed.len())
                 .step_by(2)
                 .map(|i| u8::from_str_radix(&seed[i..i + 2], 16))
                 .collect::<Result<Vec<u8>, _>>()
             else {
-                panic!("env::seed: invalid hexadecimal value set in `{RAD_SEED}`");
+                panic!("env::seed: invalid hexadecimal value set in `{RAD_KEYGEN_SEED}`");
             };
             let Ok(seed): Result<[u8; 32], _> = seed.try_into() else {
-                panic!("env::seed: invalid seed length set in `{RAD_SEED}`");
+                panic!("env::seed: invalid seed length set in `{RAD_KEYGEN_SEED}`");
             };
             crypto::Seed::new(seed)
         } else {

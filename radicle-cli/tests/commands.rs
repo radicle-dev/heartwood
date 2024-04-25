@@ -110,7 +110,7 @@ fn formula(root: &Path, test: impl AsRef<Path>) -> Result<TestFormula, Box<dyn s
         .env("LANG", "C")
         .env("USER", "alice")
         .env(env::RAD_PASSPHRASE, "radicle")
-        .env(env::RAD_SEED, RAD_SEED)
+        .env(env::RAD_KEYGEN_SEED, RAD_SEED)
         .env(env::RAD_RNG_SEED, "0")
         .env(env::RAD_LOCAL_TIME, "1671125284")
         .envs(git::env::GIT_DEFAULT_CONFIG)
