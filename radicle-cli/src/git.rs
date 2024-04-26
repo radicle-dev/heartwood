@@ -9,10 +9,12 @@ use std::fmt::Display;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::Write;
+use std::num::ParseIntError;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str::FromStr;
+use std::sync::OnceLock;
 
 use anyhow::anyhow;
 use anyhow::Context as _;
@@ -35,6 +37,10 @@ pub const CONFIG_SIGNING_KEY: &str = "user.signingkey";
 pub const CONFIG_GPG_FORMAT: &str = "gpg.format";
 pub const CONFIG_GPG_SSH_PROGRAM: &str = "gpg.ssh.program";
 pub const CONFIG_GPG_SSH_ALLOWED_SIGNERS: &str = "gpg.ssh.allowedSignersFile";
+
+pub const CONFIG_ABBREV_DEFAULT: usize = 7;
+
+pub static CONFIG_ABBREV: OnceLock<usize> = OnceLock::new();
 
 /// Git revision parameter. Supports extended SHA-1 syntax.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -331,6 +337,130 @@ pub fn check_version() -> Result<Version, anyhow::Error> {
     Ok(git_version)
 }
 
+/// Values that match the possible values of [`core.abbrev`][coreabbrev].
+///
+/// `Abbreviation::default` gives a default value of [`CONFIG_ABBREV_DEFAULT`]
+/// characters.
+///
+/// [coreabbrev]: https://git-scm.com/docs/git-config#Documentation/git-config.txt-coreabbrev
+#[derive(Clone, Copy, Debug)]
+pub enum Abbreviation {
+    /// Automatically decide the length by using `git` to find the shortest
+    /// abbreviation to uniquely identify any SHA in this repository.
+    Auto,
+    /// Use the maximum abbreviation, i.e. 40 characters.
+    No,
+    /// Use the defined length found at `core.abbrev`.
+    ///
+    /// Note that the value must be between 4 and 40. If a smaller or larger
+    /// value is used, it is clamped.
+    Length(usize),
+}
+
+impl FromStr for Abbreviation {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "auto" => Ok(Self::Auto),
+            "no" => Ok(Self::No),
+            n => n
+                .parse::<usize>()
+                .map(|n| Self::Length(n.clamp(Self::MIN, Self::MAX))),
+        }
+    }
+}
+
+impl Default for Abbreviation {
+    fn default() -> Self {
+        Self::Length(CONFIG_ABBREV_DEFAULT)
+    }
+}
+
+impl Abbreviation {
+    /// The minimum number of characters to abbreviate a SHA to.
+    const MIN: usize = 4;
+    /// The maximum number of characters of SHA1.
+    const MAX: usize = 40;
+    /// The Git config key for the abbreviation.
+    const KEY: &'static str = "core.abbrev";
+    /// The Git value for automatically getting the abbreviation length.
+    const AUTO: &'static str = "auto";
+
+    /// Construct the `Abbreviation`.
+    ///
+    /// The `Abbreviation` is constructed by:
+    ///   1. First check the local Git configuration.
+    ///   2. If it could not determine the value in 1., then check the global
+    ///        Git configuration.
+    ///   3. Otherwise, default to [`CONFIG_ABBREV_DEFAULT`].
+    pub fn new() -> Result<Self, git2::Error> {
+        match repository().and_then(|repo| Ok(repo.config()?)) {
+            Ok(local) => Self::from_config(&local).or_else(|_| Self::from_global()),
+            Err(_) => Self::from_global(),
+        }
+    }
+
+    fn from_global() -> Result<Self, git2::Error> {
+        git2::Config::open_default()
+            .and_then(|cfg| Self::from_config(&cfg))
+            .or(Ok(Self::default()))
+    }
+
+    fn from_config(config: &git2::Config) -> Result<Self, git2::Error> {
+        let entry = config.get_entry(Self::KEY)?;
+        entry
+            .value()
+            .unwrap_or(Self::AUTO)
+            .trim()
+            .parse::<Self>()
+            .map_err(|e| {
+                git2::Error::new(
+                    git2::ErrorCode::User,
+                    git2::ErrorClass::Config,
+                    e.to_string(),
+                )
+            })
+    }
+
+    /// Get the abbreviation length.
+    ///
+    /// In the case of `Abbreviation::Auto`, the `git` CLI is used to determine
+    /// the shortest abbreviation length to use, if this fails a default of
+    /// [`CONFIG_ABBREV_DEFAULT`] is returned.
+    pub fn length(&self) -> usize {
+        match self {
+            Abbreviation::Auto => git(Path::new("."), ["rev-parse", "--short", "HEAD"])
+                .unwrap_or("a".repeat(CONFIG_ABBREV_DEFAULT))
+                .trim()
+                .len(),
+            Abbreviation::No => Self::MAX,
+            Abbreviation::Length(n) => *n,
+        }
+    }
+}
+
+/// Get the abbreviation length to use for Git SHA formatting.
+///
+/// The Git config is used to lookup [`core.abbrev`][coreabbrev] to determine
+/// the strategy for how many characters to abbreviate to (see [`Abbreviation`]
+/// for more details).
+///
+/// [coreabbrev]: https://git-scm.com/docs/git-config#Documentation/git-config.txt-coreabbrev
+pub fn get_abbrev() -> usize {
+    match CONFIG_ABBREV.get() {
+        None => {
+            let abbrev = Abbreviation::new().unwrap_or_default();
+            let length = abbrev.length();
+            // N.b. ensure that we set the `OnceLock` value so that we can read
+            // from it again.
+            let _ = CONFIG_ABBREV.set(length);
+            length
+        }
+        Some(x) => *x,
+    }
+}
+
 /// Parse a remote refspec into a peer id and ref.
 pub fn parse_remote(refspec: &str) -> Option<(NodeId, &str)> {
     refspec
@@ -348,9 +478,9 @@ pub fn view_diff(
     let workdir = repo
         .workdir()
         .ok_or_else(|| anyhow!("Could not get workdir current repository."))?;
-
-    let left = format!("{:.7}", left.to_string());
-    let right = format!("{:.7}", right.to_string());
+    let abbrev = get_abbrev();
+    let left = format!("{:.abbrev$}", left.to_string());
+    let right = format!("{:.abbrev$}", right.to_string());
 
     let mut git = Command::new("git")
         .current_dir(workdir)

@@ -14,6 +14,7 @@ use radicle::profile::{env, Profile};
 use radicle::storage::RefUpdate;
 use radicle_term::element::Line;
 
+use crate::git;
 use crate::terminal as term;
 
 /// Format a node id to be more compact.
@@ -27,7 +28,11 @@ pub fn node(node: &NodeId) -> Paint<String> {
 
 /// Format a git Oid.
 pub fn oid(oid: impl Into<radicle::git::Oid>) -> Paint<String> {
-    Paint::new(format!("{:.7}", oid.into()))
+    Paint::new(format!(
+        "{:.abbrev$}",
+        oid.into(),
+        abbrev = git::get_abbrev()
+    ))
 }
 
 /// Wrap parenthesis around styled input, eg. `"input"` -> `"(input)"`.
@@ -47,7 +52,11 @@ pub fn command<D: fmt::Display>(cmd: D) -> Paint<String> {
 
 /// Format a COB id.
 pub fn cob(id: &ObjectId) -> Paint<String> {
-    Paint::new(format!("{:.7}", id.to_string()))
+    Paint::new(format!(
+        "{:.abbrev$}",
+        id.to_string(),
+        abbrev = git::get_abbrev()
+    ))
 }
 
 /// Format a DID.
