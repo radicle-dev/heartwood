@@ -274,6 +274,10 @@ impl AnnouncementMessage {
             Self::Node(NodeAnnouncement { timestamp, .. }) => *timestamp,
         }
     }
+
+    pub fn is_node_announcement(&self) -> bool {
+        matches!(self, Self::Node(_))
+    }
 }
 
 impl From<NodeAnnouncement> for AnnouncementMessage {

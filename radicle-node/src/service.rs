@@ -1338,11 +1338,14 @@ where
         let now = self.clock;
         let timestamp = message.timestamp();
         // To avoid spamming peers on startup with historical gossip messages,
-        // don't relay messages that are too old.
-        let relay = if now - timestamp.to_local_time() > MAX_TIME_DELTA {
-            false
-        } else {
+        // don't relay messages that are too old. We make an exception for node announcements,
+        // since they are cached, and will hence often carry old timestamps.
+        let relay = if message.is_node_announcement()
+            || now - timestamp.to_local_time() <= MAX_TIME_DELTA
+        {
             self.config.relay
+        } else {
+            false
         };
 
         // Don't allow messages from too far in the future.
