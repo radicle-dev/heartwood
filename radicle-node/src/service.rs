@@ -1625,7 +1625,7 @@ where
             .limiter
             .limit(peer.addr.clone().into(), limit, self.clock)
         {
-            trace!(target: "service", "Rate limiting message from {remote} ({})", peer.addr);
+            debug!(target: "service", "Rate limiting message from {remote} ({})", peer.addr);
             return Ok(());
         }
         message.log(log::Level::Debug, remote, Link::Inbound);
