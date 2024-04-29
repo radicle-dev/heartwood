@@ -34,7 +34,9 @@ use crate::api::error::Error;
 use crate::cache::Cache;
 use crate::Options;
 
-pub const VERSION: &str = env!("RADICLE_VERSION");
+pub const RADICLE_VERSION: &str = env!("RADICLE_VERSION");
+// This version has to be updated on every breaking change to the radicle-httpd API.
+pub const API_VERSION: &str = "0.1.0";
 
 /// Identifier for sessions
 type SessionId = String;
