@@ -28,7 +28,7 @@ use crate::control;
 use crate::crypto::Signer;
 use crate::node::{routing, NodeId};
 use crate::service::message::NodeAnnouncement;
-use crate::service::{gossip, policy, Event};
+use crate::service::{gossip, policy, Event, INITIAL_SUBSCRIBE_BACKLOG_DELTA};
 use crate::wire;
 use crate::wire::{Decode, Wire};
 use crate::worker;
@@ -175,7 +175,7 @@ impl Runtime {
                 // If our announcement was made some time ago, the timestamp on it will be old,
                 // and it might not get gossiped to new nodes since it will be purged from caches.
                 // Therefore, we make sure it's never too old.
-                if clock - ann.timestamp.to_local_time() <= config.limits.gossip_max_age {
+                if clock - ann.timestamp.to_local_time() <= INITIAL_SUBSCRIBE_BACKLOG_DELTA {
                     Some(ann)
                 } else {
                     None
