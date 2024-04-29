@@ -25,12 +25,7 @@ main() {
   tempdir="$(mktemp -d)"
   gitarchive="$tempdir/heartwood-$rev.tar.gz"
   keypath="$(rad path)/keys/radicle.pub"
-
-  if ! version="$(git describe --match='v*' --candidates=1 2>/dev/null)"; then
-    echo "fatal: no version tag found by 'git describe'" ; exit 1
-  fi
-  # Remove `v` prefix from version.
-  version=${version#v}
+  version="$(build/version.sh)"
   image=radicle-build-$version
 
   if [ ! -f "$keypath" ]; then
@@ -54,24 +49,16 @@ main() {
   echo "Creating container (radicle-build-container).."
   podman --cgroup-manager=cgroupfs create --replace --name radicle-build-container $image
 
-  targets="\
-    x86_64-unknown-linux-musl \
-    aarch64-unknown-linux-musl \
-    x86_64-apple-darwin \
-    aarch64-apple-darwin"
+  # Copy build artifacts to output folder.
+  outdir=build/artifacts/
+  mkdir -p $outdir
+  podman cp --overwrite radicle-build-container:/builds/. $outdir
 
-  for target in $targets; do
-    outdir=build/artifacts/$target
-
-    echo "Copying artifacts for $target.."
-    mkdir -p $outdir
-    rm -rf $outdir/*
+  for target in $(cat build/targets); do
+    echo "Signing artifacts for $target.."
 
     filename="radicle-$version-$target.tar.xz"
     filepath="$outdir/$filename"
-
-    # Copy archive to target folder.
-    podman cp radicle-build-container:/builds/$filename $outdir
 
     # Output SHA256 digest of archive.
     checksum="$(cd $outdir && sha256sum $filename)"

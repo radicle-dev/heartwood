@@ -9,9 +9,9 @@ versions which follow [Semantic Versioning][semver].
 
 ## Format
 
-Versioning of the Radicle Stack is based on Git tags. During the build phase
-(`build.rs`), we search for the most recent tag that starts with a `v`
-character, eg. `v1.0.0`, and use that as the basis for computing the version.
+Versioning of the Radicle Stack is based on Git tags. During the build phase,
+we search for the most recent tag that starts with a `v` character, eg.
+`v1.0.0`, and use that as the basis for computing the version.
 
 If we're building code that is pointed to by that tag directly, that code will
 inherit that version number, with the `v` character stripped. For example:
@@ -19,12 +19,11 @@ inherit that version number, with the `v` character stripped. For example:
     1.0.0
 
 If on the other hand, the commit we are building has no version tag pointing to
-it, we will use the most recent version tag by walking the history backwards
-until we hit a tagged commit, and suffixing the version number with `-dev`,
-plus the short hash of the commit. This indicates a development version that is
-not released and not meant to be packaged or distributed. For example:
+it, the output of `git describe` is used as-is. This indicates a development
+version that is not released and not meant to be packaged or distributed. For
+example:
 
-    1.0.0-dev+5a3cd6d
+    1.0.0-6-ga3ffe51d
 
 Tags used for versioning are always annotated and signed, and follow the format:
 
@@ -40,7 +39,7 @@ For example:
 
     1.0.0-rc.2
 
-These releases are meant to be packaged (they don't have `-dev` in them).
+These releases are meant to be packaged.
 
 ## Semantics
 

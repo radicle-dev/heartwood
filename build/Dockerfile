@@ -95,6 +95,7 @@ COPY --from=builder /src/*.1 /builds/x86_64-apple-darwin/man/man1/
 
 # Create and compress reproducible archive.
 WORKDIR /builds
+RUN x86_64-unknown-linux-musl/bin/rad version --json > radicle.json
 RUN apk update && apk add --no-cache tar xz
 RUN find * -maxdepth 0 -type d -exec mv '{}' "radicle-$RADICLE_VERSION-{}" \; && \
     find * -maxdepth 0 -type d -exec tar \
@@ -107,6 +108,7 @@ RUN find * -maxdepth 0 -type d -exec mv '{}' "radicle-$RADICLE_VERSION-{}" \; &&
     --format=posix \
     --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime \
     --mode='go+u,go-w' \
+    --remove-files \
     --create --xz \
     --file="{}.tar.xz" \
     '{}' \;
