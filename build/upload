@@ -6,7 +6,7 @@ SSH_ADDRESS=${SSH_ADDRESS:-$SSH_LOGIN@files.radicle.xyz}
 SSH_KEY="$(rad path)/keys/radicle"
 
 main() {
-  version="$(build/version.sh)"
+  version="$(build/version)"
 
   echo "Uploading Radicle $version..."
 
@@ -20,7 +20,7 @@ main() {
   scp -i $SSH_KEY build/artifacts/radicle-$version* $SSH_ADDRESS:/mnt/radicle/files/releases/$version
   scp -i $SSH_KEY build/artifacts/radicle.json $SSH_ADDRESS:/mnt/radicle/files/releases/$version
 
-  for target in $(cat build/targets); do
+  for target in $(cat build/TARGETS); do
     archive=/mnt/radicle/files/releases/$version/radicle-$version-$target.tar.xz
     symlink=/mnt/radicle/files/releases/$version/radicle-$target.tar.xz
 

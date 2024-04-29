@@ -14,7 +14,7 @@ be reproducible, byte for byte.
 
 To run the build, simply enter the following command from the repository root:
 
-    build/build.sh
+    build/build
 
 This will build all targets and place the output in `build/artifacts` with
 one sub-directory per build target.
@@ -36,7 +36,7 @@ Here's an example output for a development version of Radicle:
     1a8327854f16ea90491fb90e0c3291a63c4b2ab01742c8435faec7d370cacb79  radicle-1.0.0-rc.4-3-gb299f3b5-x86_64-apple-darwin.tar.xz
     709ac67541ff0c0c570ac22ab2de9f98320e0cc2cc9b67f1909c014a2bb5bd49  radicle-1.0.0-rc.4-3-gb299f3b5-x86_64-unknown-linux-musl.tar.xz
 
-A script is included in `build/checksums.sh` to output these checksums after
+A script is included in `build/checksums` to output these checksums after
 the artifacts are built.
 
 ## Requirements
