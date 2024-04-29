@@ -3,13 +3,16 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
 
+use radicle::cob::Author;
 use radicle::identity::Did;
 use radicle::issue::cache::Issues as _;
 use radicle::node::routing::Store;
+use radicle::node::AliasStore;
 use radicle::patch::cache::Patches as _;
 use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::api::error::Error;
+use crate::api::json;
 use crate::api::project::Info;
 use crate::api::Context;
 use crate::api::{PaginationQuery, ProjectQuery};
@@ -79,7 +82,13 @@ async fn delegates_projects_handler(
                 return None;
             };
 
-            let delegates = id.doc.delegates;
+            let aliases = ctx.profile.aliases();
+            let delegates = id
+                .doc
+                .delegates
+                .into_iter()
+                .map(|did| json::author(&Author::new(did), aliases.alias(did.as_key())))
+                .collect::<Vec<_>>();
             let seeding = db.count(&id.rid).unwrap_or_default();
 
             Some(Info {
@@ -135,7 +144,12 @@ mod routes {
                 "name": "hello-world",
                 "description": "Rad repository for tests",
                 "defaultBranch": "master",
-                "delegates": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"],
+                "delegates": [
+                  {
+                    "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                    "alias": "seed"
+                  }
+                ],
                 "visibility": {
                   "type": "public"
                 },
@@ -179,7 +193,12 @@ mod routes {
                 "name": "hello-world",
                 "description": "Rad repository for tests",
                 "defaultBranch": "master",
-                "delegates": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"],
+                "delegates": [
+                  {
+                    "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                    "alias": "seed"
+                  }
+                ],
                 "visibility": {
                   "type": "public"
                 },

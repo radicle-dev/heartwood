@@ -17,11 +17,11 @@ use serde_json::json;
 use tokio::sync::RwLock;
 use tower_http::cors::{self, CorsLayer};
 
-use radicle::cob::issue;
-use radicle::cob::patch;
+use radicle::cob::{issue, patch, Author};
 use radicle::identity::{DocAt, RepoId};
 use radicle::node::policy::Scope;
 use radicle::node::routing::Store;
+use radicle::node::AliasStore;
 use radicle::node::{Handle, NodeId};
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{Node, Profile};
@@ -65,7 +65,12 @@ impl Context {
         let id = repo.id();
 
         let payload = doc.project()?;
-        let delegates = doc.delegates;
+        let aliases = self.profile.aliases();
+        let delegates = doc
+            .delegates
+            .into_iter()
+            .map(|did| json::author(&Author::new(did), aliases.alias(did.as_key())))
+            .collect::<Vec<_>>();
         let issues = self.profile.issues(repo)?.counts()?;
         let patches = self.profile.patches(repo)?.counts()?;
         let db = &self.profile.database()?;
@@ -217,14 +222,13 @@ impl PatchState {
 }
 
 mod project {
-    use nonempty::NonEmpty;
     use serde::Serialize;
+    use serde_json::Value;
 
     use radicle::cob;
     use radicle::git::Oid;
     use radicle::identity::project::Project;
     use radicle::identity::{RepoId, Visibility};
-    use radicle::prelude::Did;
 
     /// Project info.
     #[derive(Serialize)]
@@ -233,7 +237,7 @@ mod project {
         /// Project metadata.
         #[serde(flatten)]
         pub payload: Project,
-        pub delegates: NonEmpty<Did>,
+        pub delegates: Vec<Value>,
         pub visibility: Visibility,
         pub head: Oid,
         pub patches: cob::patch::PatchCounts,

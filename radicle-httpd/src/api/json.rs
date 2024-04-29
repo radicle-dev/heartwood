@@ -184,7 +184,7 @@ fn reactions(
 }
 
 /// Returns JSON for an `author` and fills in `alias` when present.
-fn author(author: &Author, alias: Option<Alias>) -> Value {
+pub(crate) fn author(author: &Author, alias: Option<Alias>) -> Value {
     match alias {
         Some(alias) => json!({
             "id": author.id,

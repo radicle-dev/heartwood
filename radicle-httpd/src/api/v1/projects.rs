@@ -14,8 +14,8 @@ use serde_json::json;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use radicle::cob::{
-    issue, issue::cache::Issues as _, patch, patch::cache::Patches as _, resolve_embed, Embed,
-    Label, Uri,
+    issue, issue::cache::Issues as _, patch, patch::cache::Patches as _, resolve_embed, Author,
+    Embed, Label, Uri,
 };
 use radicle::identity::{Did, RepoId};
 use radicle::node::routing::Store;
@@ -141,7 +141,13 @@ async fn project_root_handler(
             let Ok(patches) = patches.counts() else {
                 return None;
             };
-            let delegates = info.doc.delegates;
+            let aliases = ctx.profile.aliases();
+            let delegates = info
+                .doc
+                .delegates
+                .into_iter()
+                .map(|did| api::json::author(&Author::new(did), aliases.alias(did.as_key())))
+                .collect::<Vec<_>>();
             let seeding = db.count(&info.rid).unwrap_or_default();
 
             Some(Info {
@@ -1003,7 +1009,12 @@ mod routes {
                 "name": "hello-world",
                 "description": "Rad repository for tests",
                 "defaultBranch": "master",
-                "delegates": [DID],
+                "delegates": [
+                  {
+                    "id": DID,
+                    "alias": "seed"
+                  }
+                ],
                 "visibility": {
                   "type": "public"
                 },
@@ -1038,7 +1049,12 @@ mod routes {
                 "name": "hello-world",
                 "description": "Rad repository for tests",
                 "defaultBranch": "master",
-                "delegates": [DID],
+                "delegates": [
+                  {
+                    "id": DID,
+                    "alias": "seed"
+                  }
+                ],
                 "visibility": {
                   "type": "public"
                 },
@@ -1073,7 +1089,12 @@ mod routes {
                "name": "hello-world",
                "description": "Rad repository for tests",
                "defaultBranch": "master",
-               "delegates": [DID],
+               "delegates": [
+                 {
+                   "id": DID,
+                   "alias": "seed"
+                 }
+               ],
                "visibility": {
                  "type": "public"
                },
