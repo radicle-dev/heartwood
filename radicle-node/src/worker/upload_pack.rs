@@ -83,12 +83,8 @@ where
 
     let mut stdin = child.stdin.take().unwrap();
     let mut stdout = io::BufReader::new(child.stdout.take().unwrap());
-    let mut reporter = Reporter {
-        rid: header.repo,
-        remote,
-        emitter: emitter.clone(),
-        send,
-    };
+    let mut reporter = Reporter::new(header.repo, remote, emitter.clone(), send);
+
     thread::scope(|s| {
         thread::spawn_scoped(nid, "upload-pack", s, || {
             // N.b. we indefinitely copy stdout to the sender,
@@ -152,15 +148,30 @@ struct Reporter<W> {
     remote: NodeId,
     emitter: Emitter<Event>,
     send: W,
+    total: usize,
 }
 
 impl<W> Reporter<W> {
-    fn emit(&self, buf: &[u8]) {
-        if let Some(progress) = Self::as_upload_pack_progress(buf) {
-            log::trace!(target: "worker", "upload-pack progress: {progress}");
-            self.emitter
-                .emit(events::UploadPack::write(self.rid, self.remote, progress).into());
+    fn new(rid: RepoId, remote: NodeId, emitter: Emitter<Event>, send: W) -> Self {
+        Self {
+            rid,
+            remote,
+            emitter,
+            send,
+            total: 0,
         }
+    }
+
+    fn emit(&mut self, buf: &[u8]) {
+        let event = match Self::as_upload_pack_progress(buf) {
+            Some(progress) => events::UploadPack::write(self.rid, self.remote, progress),
+            None => {
+                self.total += buf.len();
+                events::UploadPack::pack_progress(self.rid, self.remote, self.total)
+            }
+        };
+        log::trace!(target: "worker", "upload-pack progress: {event:?}");
+        self.emitter.emit(event.into())
     }
 
     fn as_upload_pack_progress(buf: &[u8]) -> Option<events::upload_pack::Progress> {

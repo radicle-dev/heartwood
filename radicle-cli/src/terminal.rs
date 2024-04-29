@@ -8,6 +8,7 @@ pub mod highlight;
 pub mod issue;
 pub mod json;
 pub mod patch;
+pub mod upload_pack;
 
 use std::ffi::OsString;
 use std::process;

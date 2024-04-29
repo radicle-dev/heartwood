@@ -29,6 +29,7 @@ pub enum UploadPack {
         /// The progress metadata of the upload-pack.
         progress: Progress,
     },
+    /// An error occurred during the upload-pack process.
     Error {
         /// The repository being fetched.
         rid: RepoId,
@@ -37,9 +38,27 @@ pub enum UploadPack {
         /// The error that occurred during the upload-pack.
         err: String,
     },
+    /// The upload-pack packfile transmission progress.
+    PackProgress {
+        /// The repository being fetched.
+        rid: RepoId,
+        /// The node being fetched from.
+        remote: NodeId,
+        /// The total number of bytes transmitted.
+        transmitted: usize,
+    },
 }
 
 impl UploadPack {
+    /// Construct a `UploadPack::PackProgress` event.
+    pub fn pack_progress(rid: RepoId, remote: NodeId, transmitted: usize) -> Self {
+        Self::PackProgress {
+            rid,
+            remote,
+            transmitted,
+        }
+    }
+
     /// Construct a `UploadPack::Write` event.
     pub fn write(rid: RepoId, remote: NodeId, progress: Progress) -> Self {
         Self::Write {
