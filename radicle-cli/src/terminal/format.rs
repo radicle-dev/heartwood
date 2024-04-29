@@ -82,6 +82,22 @@ pub fn timestamp(time: impl Into<LocalTime>) -> Paint<String> {
     Paint::new(fmt.convert(duration.into()))
 }
 
+pub fn bytes(size: usize) -> Paint<String> {
+    const KB: usize = 1024;
+    const MB: usize = 1024usize.pow(2);
+    const GB: usize = 1024usize.pow(3);
+    let size = if size < KB {
+        format!("{size} B")
+    } else if size < MB {
+        format!("{} KiB", size / KB)
+    } else if size < GB {
+        format!("{} MiB", size / MB)
+    } else {
+        format!("{} GiB", size / GB)
+    };
+    Paint::new(size)
+}
+
 /// Format a ref update.
 pub fn ref_update(update: &RefUpdate) -> Paint<&'static str> {
     match update {
@@ -357,5 +373,15 @@ mod test {
 
         let res = strip_comments(test);
         assert_eq!(exp, res);
+    }
+
+    #[test]
+    fn test_bytes() {
+        assert_eq!(bytes(1023).to_string(), "1023 B");
+        assert_eq!(bytes(1024).to_string(), "1 KiB");
+        assert_eq!(bytes(1024 * 9).to_string(), "9 KiB");
+        assert_eq!(bytes(1024usize.pow(2)).to_string(), "1 MiB");
+        assert_eq!(bytes(1024usize.pow(2) * 56).to_string(), "56 MiB");
+        assert_eq!(bytes(1024usize.pow(3) * 1024).to_string(), "1024 GiB");
     }
 }

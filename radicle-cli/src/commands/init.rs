@@ -395,6 +395,8 @@ fn sync(
     spinner.message("Syncing..");
 
     let mut replicas = HashSet::new();
+    // Start upload pack as None and set it if we encounter an event
+    let mut upload_pack = term::upload_pack::UploadPack::new();
 
     for e in events {
         match e {
@@ -413,21 +415,27 @@ fn sync(
                 remote,
                 progress,
             })) if rid == rid_ => {
-                spinner.message(format!("Uploading {rid} to {remote} {progress}"));
+                log::debug!("Upload progress for {remote}: {progress}");
             }
+            Ok(Event::UploadPack(UploadPack::PackProgress {
+                rid: rid_,
+                remote,
+                transmitted,
+            })) if rid == rid_ => spinner.message(upload_pack.transmitted(remote, transmitted)),
             Ok(Event::UploadPack(UploadPack::Done {
                 rid: rid_,
                 remote,
                 status,
             })) if rid == rid_ => {
-                spinner.message(format!("Upload done for {rid} to {remote}: {status}"));
+                log::debug!("Upload done for {rid} to {remote} with status: {status}");
+                spinner.message(upload_pack.done(&remote));
             }
             Ok(Event::UploadPack(UploadPack::Error {
                 rid: rid_,
                 remote,
                 err,
             })) if rid == rid_ => {
-                spinner.message(format!("Upload error for {rid} to {remote}: {err}"));
+                term::warning(format!("Upload error for {rid} to {remote}: {err}"));
             }
             Ok(_) => {
                 // Some other irrelevant event received.
