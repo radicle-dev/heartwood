@@ -91,6 +91,7 @@ mod routes {
                   "externalAddresses": [],
                   "tor": null,
                   "network": "main",
+                  "log": "INFO",
                   "relay": true,
                   "limits": {
                     "routingMaxSize": 1000,

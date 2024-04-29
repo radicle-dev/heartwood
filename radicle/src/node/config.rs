@@ -272,6 +272,10 @@ pub struct Config {
     /// Peer-to-peer network.
     #[serde(default)]
     pub network: Network,
+    /// Log level.
+    #[serde(default = "defaults::log")]
+    #[serde(with = "crate::serde_ext::string")]
+    pub log: log::Level,
     /// Whether or not our node should relay inventories.
     #[serde(default = "crate::serde_ext::bool::yes")]
     pub relay: bool,
@@ -309,6 +313,7 @@ impl Config {
             relay: true,
             limits: Limits::default(),
             workers: DEFAULT_WORKERS,
+            log: defaults::log(),
             policy: Policy::default(),
             scope: Scope::default(),
         }
@@ -335,5 +340,10 @@ mod defaults {
     /// Worker count.
     pub fn workers() -> usize {
         super::DEFAULT_WORKERS
+    }
+
+    /// Log level.
+    pub fn log() -> log::Level {
+        log::Level::Info
     }
 }

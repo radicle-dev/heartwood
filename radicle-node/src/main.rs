@@ -41,7 +41,7 @@ Options
 struct Options {
     config: Option<PathBuf>,
     listen: Vec<net::SocketAddr>,
-    log: log::Level,
+    log: Option<log::Level>,
     force: bool,
 }
 
@@ -53,7 +53,7 @@ impl Options {
         let mut listen = Vec::new();
         let mut config = None;
         let mut force = false;
-        let mut log = log::Level::Info;
+        let mut log = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -70,7 +70,7 @@ impl Options {
                     listen.push(addr);
                 }
                 Long("log") => {
-                    log = parser.value()?.parse()?;
+                    log = Some(parser.value()?.parse()?);
                 }
                 Long("help") | Short('h') => {
                     println!("{HELP_MSG}");
@@ -96,8 +96,10 @@ impl Options {
 fn execute() -> anyhow::Result<()> {
     let home = profile::home()?;
     let options = Options::from_env()?;
+    let config = options.config.unwrap_or_else(|| home.config());
+    let mut config = profile::Config::load(&config)?;
 
-    logger::init(options.log)?;
+    logger::init(options.log.unwrap_or(config.node.log))?;
 
     log::info!(target: "node", "Starting node..");
     log::info!(target: "node", "Version {} ({})", env!("RADICLE_VERSION"), env!("GIT_HEAD"));
@@ -108,9 +110,6 @@ fn execute() -> anyhow::Result<()> {
     let signer = MemorySigner::load(&keystore, passphrase).context("couldn't load secret key")?;
 
     log::info!(target: "node", "Node ID is {}", signer.public_key());
-
-    let config = options.config.unwrap_or_else(|| home.config());
-    let mut config = profile::Config::load(&config)?;
 
     // Add the preferred seeds as persistent peers so that we reconnect to them automatically.
     config.node.connect.extend(config.preferred_seeds);
