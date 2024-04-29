@@ -50,9 +50,9 @@ main() {
   podman --cgroup-manager=cgroupfs create --replace --name radicle-build-container $image
 
   # Copy build artifacts to output folder.
-  outdir=build/artifacts/
+  outdir=build/artifacts
   mkdir -p $outdir
-  podman cp --overwrite radicle-build-container:/builds/. $outdir
+  podman cp --overwrite radicle-build-container:/builds/. $outdir/
 
   for target in $(cat build/TARGETS); do
     echo "Signing artifacts for $target.."
