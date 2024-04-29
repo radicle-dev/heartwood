@@ -30,6 +30,8 @@ Run the following command to install the latest binary release:
 
     curl -sSf https://radicle.xyz/install | sh
 
+Or visit our [download][https://radicle.xyz/download] page.
+
 ### 📦 From source
 
 > Requires the Rust toolchain.
@@ -51,8 +53,6 @@ Or directly from our seed node:
 *Systemd* unit files are provided for the node and HTTP daemon under the
 `/systemd` folder. They can be used as a starting point for further
 customization.
-
-Additionally, a `Dockerfile` is included under both crates.
 
 For running in debug mode, see [HACKING.md](HACKING.md).
 
