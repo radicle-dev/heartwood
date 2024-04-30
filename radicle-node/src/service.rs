@@ -5,7 +5,7 @@
 pub mod filter;
 pub mod gossip;
 pub mod io;
-pub mod limitter;
+pub mod limiter;
 pub mod message;
 pub mod session;
 
@@ -63,7 +63,7 @@ pub use crate::service::session::Session;
 pub use radicle::node::policy::config as policy;
 
 use self::io::Outbox;
-use self::limitter::RateLimiter;
+use self::limiter::RateLimiter;
 use self::message::InventoryAnnouncement;
 use self::policy::NamespacesError;
 
@@ -383,7 +383,7 @@ pub struct Service<D, S, G> {
     fetching: HashMap<RepoId, FetchState>,
     /// Fetch queue.
     queue: VecDeque<QueuedFetch>,
-    /// Request/connection rate limitter.
+    /// Request/connection rate limiter.
     limiter: RateLimiter,
     /// Current seeded repositories bloom filter.
     filter: Filter,
@@ -1159,7 +1159,7 @@ where
             .limiter
             .limit(host.clone(), &self.config.limits.rate.inbound, self.clock)
         {
-            trace!(target: "service", "Rate limitting inbound connection from {host}..");
+            trace!(target: "service", "Rate limiting inbound connection from {host}..");
             return false;
         }
         true

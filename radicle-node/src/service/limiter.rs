@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use localtime::LocalTime;
 use radicle::node::{address, config, HostName};
 
-/// Peer rate limitter.
+/// Peer rate limiter.
 ///
 /// Uses a token bucket algorithm, where each address starts with a certain amount of tokens,
 /// and every request from that address consumes one token. Tokens refill at a predefined
