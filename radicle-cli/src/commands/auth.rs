@@ -84,13 +84,13 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     if let Ok(version) = radicle::git::version() {
         if version < radicle::git::VERSION_REQUIRED {
             term::warning(format!(
-                "Your git version is unsupported, please upgrade to {} or later",
+                "Your Git version is unsupported, please upgrade to {} or later",
                 radicle::git::VERSION_REQUIRED,
             ));
             term::blank();
         }
     } else {
-        anyhow::bail!("Error retrieving git version; please check your installation");
+        anyhow::bail!("a Git installation is required for Radicle to run");
     }
 
     let alias: Alias = if let Some(alias) = options.alias {
