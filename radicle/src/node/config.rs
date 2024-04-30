@@ -326,6 +326,10 @@ impl Config {
             .map(|ca| &ca.addr)
     }
 
+    pub fn peers(&self) -> impl Iterator<Item = NodeId> + '_ {
+        self.connect.iter().cloned().map(|p| p.id)
+    }
+
     pub fn is_persistent(&self, id: &NodeId) -> bool {
         self.peer(id).is_some()
     }

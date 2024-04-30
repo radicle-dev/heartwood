@@ -438,6 +438,7 @@ where
         emitter: Emitter<Event>,
     ) -> Self {
         let sessions = Sessions::new(rng.clone());
+        let limiter = RateLimiter::new(config.peers());
 
         Self {
             config,
@@ -449,7 +450,7 @@ where
             clock,
             db,
             outbox: Outbox::default(),
-            limiter: RateLimiter::default(),
+            limiter,
             sessions,
             fetching: HashMap::new(),
             queue: VecDeque::new(),
@@ -1155,10 +1156,12 @@ where
         }
         let host: HostName = addr.into();
 
-        if self
-            .limiter
-            .limit(host.clone(), &self.config.limits.rate.inbound, self.clock)
-        {
+        if self.limiter.limit(
+            host.clone(),
+            None,
+            &self.config.limits.rate.inbound,
+            self.clock,
+        ) {
             trace!(target: "service", "Rate limiting inbound connection from {host}..");
             return false;
         }
@@ -1633,7 +1636,7 @@ where
         };
         if self
             .limiter
-            .limit(peer.addr.clone().into(), limit, self.clock)
+            .limit(peer.addr.clone().into(), Some(remote), limit, self.clock)
         {
             debug!(target: "service", "Rate limiting message from {remote} ({})", peer.addr);
             return Ok(());
