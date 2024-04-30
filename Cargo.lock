@@ -1736,9 +1736,9 @@ checksum = "01cda141df6706de531b6c46c3a33ecca755538219bd484262fa09410c13539c"
 
 [[package]]
 name = "localtime"
-version = "1.3.0"
+version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71c67b83b03434bb31132aef0b314b8a49a0db55ce195c7e3c29d27bbf003819"
+checksum = "016a009e0bb8ba6e3229fb74bf11a8fe6ef24542cc6ef35ef38863ac13f96d87"
 dependencies = [
  "serde",
 ]

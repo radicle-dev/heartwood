@@ -676,7 +676,17 @@ where
             "Tick +{}",
             now - self.started_at.expect("Service::tick: service must be initialized")
         );
-        self.clock = now;
+        if now >= self.clock {
+            self.clock = now;
+        } else {
+            // Nb. In tests, we often move the clock forwards in time to test different behaviors,
+            // so this warning isn't applicable there.
+            #[cfg(not(test))]
+            warn!(
+                target: "service",
+                "System clock is not monotonic: {now} is not greater or equal to {}", self.clock
+            );
+        }
     }
 
     pub fn wake(&mut self) {
