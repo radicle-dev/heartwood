@@ -94,6 +94,7 @@ async fn delegates_projects_handler(
             Some(Info {
                 payload,
                 delegates,
+                threshold: id.doc.threshold,
                 visibility: id.doc.visibility,
                 head,
                 issues,
@@ -150,6 +151,7 @@ mod routes {
                     "alias": "seed"
                   }
                 ],
+                "threshold": 1,
                 "visibility": {
                   "type": "public"
                 },
@@ -199,6 +201,7 @@ mod routes {
                     "alias": "seed"
                   }
                 ],
+                "threshold": 1,
                 "visibility": {
                   "type": "public"
                 },

@@ -154,6 +154,7 @@ async fn project_root_handler(
                 payload,
                 delegates,
                 head,
+                threshold: info.doc.threshold,
                 visibility: info.doc.visibility,
                 issues,
                 patches,
@@ -1015,6 +1016,7 @@ mod routes {
                     "alias": "seed"
                   }
                 ],
+                "threshold": 1,
                 "visibility": {
                   "type": "public"
                 },
@@ -1055,6 +1057,7 @@ mod routes {
                     "alias": "seed"
                   }
                 ],
+                "threshold": 1,
                 "visibility": {
                   "type": "public"
                 },
@@ -1095,6 +1098,7 @@ mod routes {
                    "alias": "seed"
                  }
                ],
+               "threshold": 1,
                "visibility": {
                  "type": "public"
                },

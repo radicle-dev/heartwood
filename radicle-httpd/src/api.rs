@@ -79,6 +79,7 @@ impl Context {
         Ok(project::Info {
             payload,
             delegates,
+            threshold: doc.threshold,
             visibility: doc.visibility,
             head,
             issues,
@@ -238,6 +239,7 @@ mod project {
         #[serde(flatten)]
         pub payload: Project,
         pub delegates: Vec<Value>,
+        pub threshold: usize,
         pub visibility: Visibility,
         pub head: Oid,
         pub patches: cob::patch::PatchCounts,
