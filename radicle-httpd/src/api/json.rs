@@ -19,7 +19,7 @@ use radicle::prelude::NodeId;
 use radicle::storage::{git, refs, RemoteRepository};
 use radicle_surf::blob::Blob;
 use radicle_surf::tree::{EntryKind, Tree};
-use radicle_surf::{Commit, Oid, Stats};
+use radicle_surf::{Commit, Oid};
 
 use crate::api::auth::Session;
 
@@ -74,7 +74,7 @@ pub fn blob_content<T: AsRef<[u8]>>(blob: &Blob<T>) -> String {
 }
 
 /// Returns JSON for a tree with a given `path` and `stats`.
-pub(crate) fn tree(tree: &Tree, path: &str, stats: &Stats) -> Value {
+pub(crate) fn tree(tree: &Tree, path: &str) -> Value {
     let prefix = Path::new(path);
     let entries = tree
         .entries()
@@ -98,7 +98,6 @@ pub(crate) fn tree(tree: &Tree, path: &str, stats: &Stats) -> Value {
         "lastCommit": commit(tree.commit()),
         "name": name_in_path(path),
         "path": path,
-        "stats": stats,
     })
 }
 

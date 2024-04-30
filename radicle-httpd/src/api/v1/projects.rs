@@ -54,6 +54,10 @@ pub fn router(ctx: Context) -> Router {
         )
         .route("/projects/:project/tree/:sha/", get(tree_handler_root))
         .route("/projects/:project/tree/:sha/*path", get(tree_handler))
+        .route(
+            "/projects/:project/stats/tree/:sha",
+            get(stats_tree_handler),
+        )
         .route("/projects/:project/remotes", get(remotes_handler))
         .route("/projects/:project/remotes/:peer", get(remote_handler))
         .route("/projects/:project/blob/:sha/*path", get(blob_handler))
@@ -230,15 +234,10 @@ async fn history_handler(
         .take(per_page)
         .collect::<Vec<_>>();
 
-    let response = json!({
-        "commits": commits,
-        "stats":  repo.stats_from(&sha)?,
-    });
-
     if is_immutable {
-        Ok::<_, Error>(immutable_response(response).into_response())
+        Ok::<_, Error>(immutable_response(commits).into_response())
     } else {
-        Ok::<_, Error>(Json(response).into_response())
+        Ok::<_, Error>(Json(commits).into_response())
     }
 }
 
@@ -430,8 +429,7 @@ async fn tree_handler(
 
     let repo = Repository::open(repo.path())?;
     let tree = repo.tree(sha, &path)?;
-    let stats = repo.stats_from(&sha)?;
-    let response = api::json::tree(&tree, &path, &stats);
+    let response = api::json::tree(&tree, &path);
 
     if let Some(cache) = &ctx.cache {
         let cache = &mut cache.tree.lock().await;
@@ -439,6 +437,19 @@ async fn tree_handler(
     }
 
     Ok::<_, Error>(immutable_response(response))
+}
+
+/// Get project source tree stats.
+/// `GET /projects/:project/stats/tree/:sha`
+async fn stats_tree_handler(
+    State(ctx): State<Context>,
+    Path((project, sha)): Path<(RepoId, Oid)>,
+) -> impl IntoResponse {
+    let (repo, _) = ctx.repo(project)?;
+    let repo = Repository::open(repo.path())?;
+    let stats = repo.stats_from(&sha)?;
+
+    Ok::<_, Error>(immutable_response(stats))
 }
 
 /// Get all project remotes.
@@ -1101,8 +1112,7 @@ mod routes {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response.json().await,
-            json!({
-              "commits": [
+            json!([
                 {
                   "id": HEAD,
                   "author": {
@@ -1152,13 +1162,7 @@ mod routes {
                     "time": 1673001014,
                   },
                 },
-              ],
-              "stats": {
-                "commits": 3,
-                "branches": 1,
-                "contributors": 1
-              }
-            })
+            ])
         );
     }
 
@@ -1344,6 +1348,25 @@ mod routes {
     }
 
     #[tokio::test]
+    async fn test_projects_stats() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = super::router(seed(tmp.path()));
+        let response = get(&app, format!("/projects/{RID}/stats/tree/{HEAD}")).await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.json().await,
+            json!(
+              {
+                "commits": 3,
+                "branches": 1,
+                "contributors": 1
+              }
+            )
+        );
+    }
+
+    #[tokio::test]
     async fn test_projects_tree() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(seed(tmp.path()));
@@ -1386,11 +1409,6 @@ mod routes {
                 },
                 "name": "",
                 "path": "",
-                "stats": {
-                  "commits": 3,
-                  "branches": 1,
-                  "contributors": 1
-                }
               }
             )
         );
@@ -1428,11 +1446,6 @@ mod routes {
               },
               "name": "dir1",
               "path": "dir1",
-              "stats": {
-                "commits": 3,
-                "branches": 1,
-                "contributors": 1
-              }
             })
         );
     }
