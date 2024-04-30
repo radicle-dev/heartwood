@@ -7,7 +7,7 @@ COPY . .
 # Copy cargo configuration we're going to use to specify compiler options.
 RUN mkdir -p .cargo && cp build/config.toml .cargo/config.toml
 # Install dependencies.
-RUN apk update && apk add --no-cache mold clang git musl-dev minisign curl xz asciidoctor
+RUN apk update && apk add --no-cache git musl-dev minisign curl xz asciidoctor
 # Build man pages and strip metadata. Removes all comments, since they include
 # non-reproducible information, such as version numbers.
 RUN asciidoctor --doctype manpage --backend manpage --destination-dir . *.1.adoc && \
@@ -18,16 +18,6 @@ RUN rustup target add \
     aarch64-unknown-linux-musl \
     x86_64-apple-darwin \
     aarch64-apple-darwin
-
-# Linux x86_64 and aarch64 build.
-ENV CC=clang C_INCLUDE_PATH=/usr/include/x86_64-linux-musl
-RUN cargo build --locked --release \
-    --target=x86_64-unknown-linux-musl \
-    --target=aarch64-unknown-linux-musl \
-    -p radicle-node \
-    -p radicle-httpd \
-    -p radicle-remote-helper \
-    -p radicle-cli
 
 # Install dependencies for cross-compiling to macOS.
 # We use Zig as the linker to perform the compilation from a Linux host.
@@ -48,10 +38,12 @@ RUN xz -d -c build/macos-sdk-11.3.tar.xz | tar -x
 # This env var is used by `cargo-zigbuild` to find the SDK.
 ENV SDKROOT /src/macos-sdk-11.3
 
-# Darwin x86_64 and aarch64 build.
+# Build binaries.
 RUN cargo zigbuild --locked --release \
     --target=x86_64-apple-darwin \
     --target=aarch64-apple-darwin \
+    --target=aarch64-unknown-linux-musl \
+    --target=x86_64-unknown-linux-musl \
     -p radicle-node \
     -p radicle-httpd \
     -p radicle-remote-helper \
