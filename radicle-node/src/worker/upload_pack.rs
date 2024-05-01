@@ -1,7 +1,7 @@
 use std::io;
 use std::io::Write;
 use std::process::{Command, ExitStatus, Stdio};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use gix_protocol::transport::bstr::ByteSlice;
 use radicle::identity::RepoId;
@@ -27,6 +27,7 @@ pub fn upload_pack<R, W>(
     header: &pktline::GitRequest,
     mut recv: R,
     send: W,
+    timeout: Duration,
 ) -> io::Result<ExitStatus>
 where
     R: io::Read + Send,
@@ -72,6 +73,7 @@ where
                 "lsrefs.unborn=ignore",
                 "upload-pack",
                 "--strict",
+                format!("--timeout={}", timeout.as_secs()).as_str(),
                 ".",
             ])
             .stdout(Stdio::piped())
@@ -111,6 +113,12 @@ where
                     }
                     Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
                         log::debug!(target: "worker", "Exiting upload-pack reader thread for {}", header.repo);
+                        break;
+                    }
+                    // N.b. if the read timed out, ensure that the sender isn't
+                    // still sending messages.
+                    Err(e) if e.kind() == io::ErrorKind::TimedOut => {
+                        log::warn!(target: "worker", "Read channel timed out for upload-pack {}", header.repo);
                         break;
                     }
                     Err(e) => {
@@ -167,7 +175,7 @@ impl<W> Reporter<W> {
             }
         };
         log::trace!(target: "worker", "upload-pack progress: {event:?}");
-        self.emitter.emit(event.into())
+        self.emitter.emit(event.into());
     }
 
     fn as_upload_pack_progress(buf: &[u8]) -> Option<events::upload_pack::Progress> {
