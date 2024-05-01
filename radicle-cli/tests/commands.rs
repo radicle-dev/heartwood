@@ -39,6 +39,7 @@ mod config {
     pub fn seed(alias: &'static str) -> Config {
         Config {
             network: Network::Test,
+            relay: node::config::Relay::Always,
             limits: Limits {
                 rate: RateLimits {
                     inbound: RateLimit {
@@ -52,18 +53,25 @@ mod config {
                 },
                 ..Limits::default()
             },
+            external_addresses: vec![node::Address::from_str(&format!(
+                "{alias}.radicle.example:8776"
+            ))
+            .unwrap()],
+            ..node(alias)
+        }
+    }
+
+    /// Relay node config.
+    pub fn relay(alias: &'static str) -> Config {
+        Config {
+            relay: node::config::Relay::Always,
             ..node(alias)
         }
     }
 
     /// Test node config.
     pub fn node(alias: &'static str) -> Config {
-        Config {
-            external_addresses: vec![
-                node::Address::from_str(&format!("{alias}.radicle.xyz:8776")).unwrap(),
-            ],
-            ..Config::test(Alias::new(alias))
-        }
+        Config::test(Alias::new(alias))
     }
 
     /// Test profile config.
@@ -965,9 +973,9 @@ fn rad_review_by_hunk() {
 #[test]
 fn rad_patch_delete() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
-    let seed = environment.node(Config::test(Alias::new("seed")));
+    let alice = environment.node(config::relay("alice"));
+    let bob = environment.node(config::relay("bob"));
+    let seed = environment.node(config::relay("seed"));
     let working = environment.tmp().join("working");
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
@@ -1332,9 +1340,9 @@ fn rad_clone_connect() {
 #[test]
 fn rad_sync_without_node() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
-    let mut eve = environment.node(Config::test(Alias::new("eve")));
+    let alice = environment.node(config::seed("alice"));
+    let bob = environment.node(config::seed("bob"));
+    let mut eve = environment.node(config::seed("eve"));
 
     let rid = RepoId::from_urn("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5").unwrap();
     eve.policies.seed(&rid, Scope::All).unwrap();
@@ -1738,9 +1746,9 @@ fn test_cob_deletion() {
 fn rad_sync() {
     let mut environment = Environment::new();
     let working = environment.tmp().join("working");
-    let alice = environment.node(config::node("alice"));
-    let bob = environment.node(config::node("bob"));
-    let eve = environment.node(config::node("eve"));
+    let alice = environment.node(config::seed("alice"));
+    let bob = environment.node(config::seed("bob"));
+    let eve = environment.node(config::seed("eve"));
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
     fixtures::repository(working.join("acme"));
@@ -1784,12 +1792,12 @@ fn rad_sync() {
 //
 fn test_replication_via_seed() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node(config::relay("alice"));
+    let bob = environment.node(config::relay("bob"));
     let seed = environment.node(Config {
         policy: Policy::Allow,
         scope: Scope::All,
-        ..Config::test(Alias::new("seed"))
+        ..config::relay("seed")
     });
     let working = environment.tmp().join("working");
     let rid = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
@@ -1874,9 +1882,9 @@ fn test_replication_via_seed() {
 #[test]
 fn rad_remote() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
-    let eve = environment.node(Config::test(Alias::new("eve")));
+    let alice = environment.node(config::relay("alice"));
+    let bob = environment.node(config::relay("bob"));
+    let eve = environment.node(config::relay("eve"));
     let working = environment.tmp().join("working");
     let home = alice.home.clone();
     let rid = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();

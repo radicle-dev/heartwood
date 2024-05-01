@@ -11,13 +11,13 @@ If we check the sync status, we see that our peers are out of sync.
 
 ```
 $ rad sync status --sort-by alias
-╭──────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   Node                      Address                  Status        Tip       Timestamp │
-├──────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   alice   (you)             alice.radicle.xyz:8776                 f209c9f   [  ...  ] │
-│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.xyz:8776     out-of-sync   f209c9f   [  ...  ] │
-│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.xyz:8776     out-of-sync   f209c9f   [  ...  ] │
-╰──────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   Node                      Address                      Status        Tip       Timestamp │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   alice   (you)             alice.radicle.example:8776                 f209c9f   [  ...  ] │
+│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.example:8776     out-of-sync   f209c9f   [  ...  ] │
+│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.example:8776     out-of-sync   f209c9f   [  ...  ] │
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Now let's run `rad sync`. This will announce the issue refs to the network and
@@ -33,13 +33,13 @@ Now, when we run `rad sync status` again, we can see that `bob` and
 
 ```
 $ rad sync status --sort-by alias
-╭─────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   Node                      Address                  Status   Tip       Timestamp │
-├─────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   alice   (you)             alice.radicle.xyz:8776            a9ce0d1   [  ...  ] │
-│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.xyz:8776     synced   a9ce0d1   [  ...  ] │
-│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.xyz:8776     synced   a9ce0d1   [  ...  ] │
-╰─────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   Node                      Address                      Status   Tip       Timestamp │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   alice   (you)             alice.radicle.example:8776            a9ce0d1   [  ...  ] │
+│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.example:8776     synced   a9ce0d1   [  ...  ] │
+│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.example:8776     synced   a9ce0d1   [  ...  ] │
+╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 If we try to sync again after the nodes have synced, we will already

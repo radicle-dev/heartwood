@@ -92,7 +92,7 @@ mod routes {
                   "tor": null,
                   "network": "main",
                   "log": "INFO",
-                  "relay": true,
+                  "relay": "auto",
                   "limits": {
                     "routingMaxSize": 1000,
                     "routingMaxAge": 604800,

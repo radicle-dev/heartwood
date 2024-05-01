@@ -25,7 +25,7 @@ use radicle::node;
 use radicle::node::address;
 use radicle::node::address::Store as _;
 use radicle::node::address::{AddressBook, KnownAddress};
-use radicle::node::config::PeerConfig;
+use radicle::node::config::{PeerConfig, Relay};
 use radicle::node::refs::Store as _;
 use radicle::node::routing::Store as _;
 use radicle::node::seed;
@@ -1334,7 +1334,7 @@ where
         &mut self,
         relayer_addr: &Address,
         announcement: &Announcement,
-    ) -> Result<bool, session::Error> {
+    ) -> Result<Relay, session::Error> {
         if !announcement.verify() {
             return Err(session::Error::Misbehavior);
         }
@@ -1346,7 +1346,7 @@ where
 
         // Ignore our own announcements, in case the relayer sent one by mistake.
         if announcer == self.nid() {
-            return Ok(false);
+            return Ok(Relay::Never);
         }
         let now = self.clock;
         let timestamp = message.timestamp();
@@ -1358,7 +1358,7 @@ where
         {
             self.config.relay
         } else {
-            false
+            Relay::Never
         };
 
         // Don't allow messages from too far in the future.
@@ -1379,12 +1379,12 @@ where
                 Ok(node) => {
                     if node.is_none() {
                         debug!(target: "service", "Ignoring announcement from unknown node {announcer} (t={timestamp})");
-                        return Ok(false);
+                        return Ok(Relay::Never);
                     }
                 }
                 Err(e) => {
                     error!(target: "service", "Error looking up node in address book: {e}");
-                    return Ok(false);
+                    return Ok(Relay::Never);
                 }
             }
         }
@@ -1394,12 +1394,12 @@ where
             Ok(fresh) => {
                 if !fresh {
                     debug!(target: "service", "Ignoring stale announcement from {announcer} (t={timestamp})");
-                    return Ok(false);
+                    return Ok(Relay::Never);
                 }
             }
             Err(e) => {
                 error!(target: "service", "Error updating gossip entry from {announcer}: {e}");
-                return Ok(false);
+                return Ok(Relay::Never);
             }
         }
 
@@ -1419,12 +1419,12 @@ where
                     Ok(synced) => {
                         if synced.is_empty() {
                             trace!(target: "service", "No routes updated by inventory announcement from {announcer}");
-                            return Ok(false);
+                            return Ok(Relay::Never);
                         }
                     }
                     Err(e) => {
                         error!(target: "service", "Error processing inventory from {announcer}: {e}");
-                        return Ok(false);
+                        return Ok(Relay::Never);
                     }
                 }
 
@@ -1473,7 +1473,7 @@ where
                 // Empty announcements can be safely ignored.
                 let Some(refs) = NonEmpty::from_vec(message.refs.to_vec()) else {
                     debug!(target: "service", "Skipping fetch, no refs in announcement for {} (t={timestamp})", message.rid);
-                    return Ok(false);
+                    return Ok(Relay::Never);
                 };
                 // We update inventories when receiving ref announcements, as these could come
                 // from a new repository being initialized.
@@ -1526,7 +1526,7 @@ where
                         "Ignoring refs announcement from {announcer}: repository {} isn't seeded (t={timestamp})",
                         message.rid
                     );
-                    return Ok(false);
+                    return Ok(Relay::Never);
                 }
                 // Refs can be relayed by peers who don't have the data in storage,
                 // therefore we only check whether we are connected to the *announcer*,
@@ -1600,7 +1600,7 @@ where
                 }
             }
         }
-        Ok(false)
+        Ok(Relay::Never)
     }
 
     pub fn handle_info(&mut self, remote: NodeId, info: &Info) -> Result<(), session::Error> {
@@ -1652,8 +1652,15 @@ where
                 let relayer_addr = peer.addr.clone();
                 let announcer = ann.node;
 
-                // Returning true here means that the message should be relayed.
-                if self.handle_announcement(&relayer_addr, &ann)? {
+                let relay = match self.handle_announcement(&relayer_addr, &ann)? {
+                    // In "auto" mode, we only relay if we're a public seed node.
+                    // This reduces traffic for private nodes, as well as message redundancy.
+                    Relay::Auto => !self.config.external_addresses.is_empty(),
+                    Relay::Never => false,
+                    Relay::Always => true,
+                };
+
+                if relay {
                     // Choose peers we should relay this message to.
                     // 1. Don't relay to the peer who sent us this message.
                     // 2. Don't relay to the peer who signed this announcement.

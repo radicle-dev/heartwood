@@ -18,6 +18,19 @@ use crate::storage::git::transport;
 use crate::test::environment::{converge, Environment, Node};
 use crate::test::logger;
 
+mod config {
+    use super::*;
+    use radicle::node::config::{Config, Relay};
+
+    /// Relay node config.
+    pub fn relay(alias: &'static str) -> Config {
+        Config {
+            relay: Relay::Always,
+            ..Config::test(Alias::new(alias))
+        }
+    }
+}
+
 #[test]
 //
 //     alice -- bob
@@ -27,8 +40,8 @@ fn test_inventory_sync_basic() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let mut bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let mut bob = Node::init(tmp.path(), config::relay("bob"));
 
     alice.project("alice", "");
     bob.project("bob", "");
@@ -51,9 +64,9 @@ fn test_inventory_sync_bridge() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let mut bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
-    let mut eve = Node::init(tmp.path(), Config::test(Alias::new("eve")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let mut bob = Node::init(tmp.path(), config::relay("bob"));
+    let mut eve = Node::init(tmp.path(), config::relay("eve"));
 
     alice.project("alice", "");
     bob.project("bob", "");
@@ -81,9 +94,9 @@ fn test_inventory_sync_ring() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let mut bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
-    let mut eve = Node::init(tmp.path(), Config::test(Alias::new("eve")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let mut bob = Node::init(tmp.path(), config::relay("bob"));
+    let mut eve = Node::init(tmp.path(), config::relay("eve"));
     let mut carol = Node::init(tmp.path(), Config::test(Alias::new("carol")));
 
     alice.project("alice", "");
@@ -118,9 +131,9 @@ fn test_inventory_sync_star() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let mut bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
-    let mut eve = Node::init(tmp.path(), Config::test(Alias::new("eve")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let mut bob = Node::init(tmp.path(), config::relay("bob"));
+    let mut eve = Node::init(tmp.path(), config::relay("eve"));
     let mut carol = Node::init(tmp.path(), Config::test(Alias::new("carol")));
     let mut dave = Node::init(tmp.path(), Config::test(Alias::new("dave")));
 
@@ -150,8 +163,8 @@ fn test_replication() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let mut bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let alice = Node::init(tmp.path(), config::relay("alice"));
+    let mut bob = Node::init(tmp.path(), config::relay("bob"));
     let acme = bob.project("acme", "");
 
     let mut alice = alice.spawn();
@@ -210,8 +223,8 @@ fn test_replication_ref_in_sigrefs() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let mut bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let alice = Node::init(tmp.path(), config::relay("alice"));
+    let mut bob = Node::init(tmp.path(), config::relay("bob"));
 
     let acme = bob.project("acme", "");
     // Delete one of the signed refs.
@@ -251,8 +264,8 @@ fn test_replication_ref_in_sigrefs() {
 #[test]
 fn test_replication_invalid() {
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let mut bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let alice = Node::init(tmp.path(), config::relay("alice"));
+    let mut bob = Node::init(tmp.path(), config::relay("bob"));
     let carol = MockSigner::default();
     let acme = bob.project("acme", "");
     let repo = bob.storage.repository_mut(acme).unwrap();
@@ -304,8 +317,8 @@ fn test_migrated_clone() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
     let acme = alice.project("acme", "");
 
     let mut alice = alice.spawn();
@@ -357,8 +370,8 @@ fn test_dont_fetch_owned_refs() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
     let acme = alice.project("acme", "");
 
     let mut alice = alice.spawn();
@@ -384,8 +397,8 @@ fn test_fetch_followed_remotes() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
     let acme = alice.project("acme", "");
     let mut signers = Vec::with_capacity(5);
     {
@@ -439,8 +452,8 @@ fn test_missing_remote() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
     let acme = alice.project("acme", "");
 
     let mut alice = alice.spawn();
@@ -468,8 +481,8 @@ fn test_fetch_preserve_owned_refs() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
     let acme = alice.project("acme", "");
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
@@ -514,8 +527,8 @@ fn test_clone() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let mut bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let alice = Node::init(tmp.path(), config::relay("alice"));
+    let mut bob = Node::init(tmp.path(), config::relay("bob"));
     let acme = bob.project("acme", "");
 
     let mut alice = alice.spawn();
@@ -572,8 +585,8 @@ fn test_fetch_up_to_date() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let mut bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let alice = Node::init(tmp.path(), config::relay("alice"));
+    let mut bob = Node::init(tmp.path(), config::relay("bob"));
     let acme = bob.project("acme", "");
 
     let mut alice = alice.spawn();
@@ -601,8 +614,8 @@ fn test_fetch_unseeded() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let mut bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let alice = Node::init(tmp.path(), config::relay("alice"));
+    let mut bob = Node::init(tmp.path(), config::relay("bob"));
     let acme = bob.project("acme", "");
 
     let mut alice = alice.spawn();
@@ -631,8 +644,8 @@ fn test_large_fetch() {
 
     let env = Environment::new();
     let scale = env.scale();
-    let mut alice = Node::init(&env.tmp(), Config::test(Alias::new("alice")));
-    let bob = Node::init(&env.tmp(), Config::test(Alias::new("bob")));
+    let mut alice = Node::init(&env.tmp(), config::relay("alice"));
+    let bob = Node::init(&env.tmp(), config::relay("bob"));
 
     let tmp = tempfile::tempdir().unwrap();
     let (repo, _) = fixtures::repository(tmp.path());
@@ -681,14 +694,16 @@ fn test_concurrent_fetches() {
         &env.tmp(),
         service::Config {
             limits: limits.clone(),
-            ..service::Config::test(Alias::new("alice"))
+            relay: radicle::node::config::Relay::Always,
+            ..config::relay("alice")
         },
     );
     let mut bob = Node::init(
         &env.tmp(),
         service::Config {
             limits,
-            ..service::Config::test(Alias::new("bob"))
+            relay: radicle::node::config::Relay::Always,
+            ..config::relay("bob")
         },
     );
 
@@ -773,8 +788,8 @@ fn test_connection_crossing() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
 
     let alice = alice.spawn();
     let bob = bob.spawn();
@@ -841,9 +856,9 @@ fn test_non_fastforward_sigrefs() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let mut bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
-    let eve = Node::init(tmp.path(), Config::test(Alias::new("eve")));
+    let alice = Node::init(tmp.path(), config::relay("alice"));
+    let mut bob = Node::init(tmp.path(), config::relay("bob"));
+    let eve = Node::init(tmp.path(), config::relay("eve"));
 
     let rid = bob.project("acme", "");
 
@@ -949,9 +964,9 @@ fn test_outdated_sigrefs() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
-    let eve = Node::init(tmp.path(), Config::test(Alias::new("eve")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
+    let eve = Node::init(tmp.path(), config::relay("eve"));
 
     let rid = alice.project("acme", "");
 
@@ -1045,9 +1060,9 @@ fn test_outdated_delegate_sigrefs() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
-    let eve = Node::init(tmp.path(), Config::test(Alias::new("eve")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
+    let eve = Node::init(tmp.path(), config::relay("eve"));
 
     let rid = alice.project("acme", "");
 
@@ -1133,8 +1148,8 @@ fn missing_default_branch() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
 
     let rid = alice.project("acme", "");
 
@@ -1185,9 +1200,9 @@ fn test_background_foreground_fetch() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
-    let eve = Node::init(tmp.path(), Config::test(Alias::new("eve")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
+    let eve = Node::init(tmp.path(), config::relay("eve"));
 
     let rid = alice.project("acme", "");
 
@@ -1273,10 +1288,10 @@ fn test_catchup_on_refs_announcements() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
-    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
     let bob_id = bob.id;
-    let seed = Node::init(tmp.path(), Config::test(Alias::new("seed")));
+    let seed = Node::init(tmp.path(), config::relay("seed"));
     let acme = alice.project("acme", "");
 
     let mut alice = alice.spawn();

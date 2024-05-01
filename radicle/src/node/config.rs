@@ -234,6 +234,19 @@ impl Default for PeerConfig {
     }
 }
 
+/// Relay configuration.
+#[derive(Debug, Copy, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Relay {
+    /// Always relay messages.
+    Always,
+    /// Never relay messages.
+    Never,
+    /// Relay messages when applicable.
+    #[default]
+    Auto,
+}
+
 /// Tor configuration.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", tag = "mode")]
@@ -276,9 +289,9 @@ pub struct Config {
     #[serde(default = "defaults::log")]
     #[serde(with = "crate::serde_ext::string")]
     pub log: log::Level,
-    /// Whether or not our node should relay inventories.
-    #[serde(default = "crate::serde_ext::bool::yes")]
-    pub relay: bool,
+    /// Whether or not our node should relay messages.
+    #[serde(default, deserialize_with = "crate::serde_ext::ok_or_default")]
+    pub relay: Relay,
     /// Configured service limits.
     #[serde(default)]
     pub limits: Limits,
@@ -310,7 +323,7 @@ impl Config {
             external_addresses: vec![],
             network: Network::default(),
             tor: None,
-            relay: true,
+            relay: Relay::default(),
             limits: Limits::default(),
             workers: DEFAULT_WORKERS,
             log: defaults::log(),

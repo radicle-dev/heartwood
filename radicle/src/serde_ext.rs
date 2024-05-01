@@ -110,6 +110,16 @@ pub fn is_default<T: Default + PartialEq>(t: &T) -> bool {
     t == &T::default()
 }
 
+/// Deserialize a value, but if it fails, return the default value.
+pub fn ok_or_default<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    T: serde::Deserialize<'de> + Default,
+    D: serde::Deserializer<'de>,
+{
+    let v: serde_json::Value = serde::Deserialize::deserialize(deserializer)?;
+    Ok(T::deserialize(v).unwrap_or_default())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
