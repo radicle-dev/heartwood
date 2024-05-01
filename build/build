@@ -10,15 +10,15 @@ main() {
   export SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
 
   if ! command -v rad > /dev/null; then
-    echo "fatal: rad is not installed" ; exit 1
+    echo "fatal: rad is not installed" >&2 ; exit 1
   fi
 
   if ! command -v podman > /dev/null; then
-    echo "fatal: podman is not installed" ; exit 1
+    echo "fatal: podman is not installed" >&2 ; exit 1
   fi
 
   if ! command -v sha256sum > /dev/null; then
-    echo "fatal: sha256sum is not installed" ; exit 1
+    echo "fatal: sha256sum is not installed" >&2 ; exit 1
   fi
 
   rev="$(git rev-parse --short HEAD)"
@@ -29,7 +29,7 @@ main() {
   image=radicle-build-$version
 
   if [ ! -f "$keypath" ]; then
-    echo "fatal: no key found at $keypath" ; exit 1
+    echo "fatal: no key found at $keypath" >&2 ; exit 1
   fi
   # Authenticate user for signing
   rad auth
@@ -41,6 +41,8 @@ main() {
   echo "Building image ($image).."
   podman --cgroup-manager=cgroupfs build \
     --env SOURCE_DATE_EPOCH \
+    --env TZ \
+    --env LC_ALL \
     --env GIT_COMMIT_TIME=$SOURCE_DATE_EPOCH \
     --env GIT_HEAD=$rev \
     --env RADICLE_VERSION=$version \
@@ -86,4 +88,4 @@ echo
 build/checksums
 echo
 
-echo "Build ran successfully."
+echo "Build successful."
