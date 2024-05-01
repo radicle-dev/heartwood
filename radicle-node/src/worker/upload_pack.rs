@@ -124,14 +124,10 @@ where
 
         // N.b. we only care if the `reader` is finished. We then kill
         // the child which will end the thread for the sender.
-        loop {
-            if reader.is_finished() {
-                child.kill()?;
-                break;
-            } else {
-                std::thread::sleep(std::time::Duration::from_millis(100));
-            }
+        if let Err(e) = reader.join() {
+            log::warn!(target: "worker", "Upload pack thread panicked: {e:?}");
         }
+        child.kill()?;
         Ok::<_, io::Error>(())
     })?;
 
