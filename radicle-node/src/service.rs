@@ -98,8 +98,8 @@ pub const MIN_RECONNECTION_DELTA: LocalDuration = LocalDuration::from_secs(3);
 pub const MAX_RECONNECTION_DELTA: LocalDuration = LocalDuration::from_mins(60);
 /// Connection retry delta used for ephemeral peers that failed to connect previously.
 pub const CONNECTION_RETRY_DELTA: LocalDuration = LocalDuration::from_mins(10);
-/// How long to wait for a fetch to stall before aborting, default is 1 hour.
-pub const FETCH_TIMEOUT: time::Duration = time::Duration::from_secs(3600);
+/// How long to wait for a fetch to stall before aborting, default is 3s.
+pub const FETCH_TIMEOUT: time::Duration = time::Duration::from_secs(3);
 
 /// Maximum external address limit imposed by message size limits.
 pub use message::ADDRESS_LIMIT;

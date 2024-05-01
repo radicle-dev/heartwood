@@ -34,6 +34,10 @@ impl ChannelsFlush {
     pub fn split(&mut self) -> (&mut ChannelReader, &mut ChannelFlushWriter) {
         (&mut self.receiver, &mut self.sender)
     }
+
+    pub fn timeout(&self) -> time::Duration {
+        self.sender.writer.timeout.max(self.receiver.timeout)
+    }
 }
 
 impl radicle_fetch::transport::ConnectionStream for ChannelsFlush {

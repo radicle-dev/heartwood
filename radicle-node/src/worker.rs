@@ -238,6 +238,7 @@ impl Worker {
             FetchRequest::Responder { remote, emitter } => {
                 log::debug!(target: "worker", "Worker processing incoming fetch for {remote} on stream {stream}..");
 
+                let timeout = channels.timeout();
                 let (mut stream_r, stream_w) = channels.split();
                 let header = match upload_pack::pktline::git_request(&mut stream_r) {
                     Ok(header) => header,
@@ -265,6 +266,7 @@ impl Worker {
                     &header,
                     stream_r,
                     stream_w,
+                    timeout,
                 )
                 .map(|_| ())
                 .map_err(|e| e.into());
