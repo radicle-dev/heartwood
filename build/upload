@@ -37,6 +37,10 @@ main() {
   else
     echo "Skipping 'latest' symlink creation for development build."
   fi
+
+  echo "Pushing tags.."
+  git push rad --tags
+
   echo "Done."
 }
 
