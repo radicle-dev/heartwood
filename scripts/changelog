@@ -1,0 +1,23 @@
+#!/bin/sh
+set -e
+
+echo "# 👾 Radicle $(git describe)"
+echo
+echo "Radicle $(git describe) ($(git rev-parse --short HEAD)) is released."
+echo
+echo "## Notes"
+echo
+echo "* This update is recommended for everyone. No manual intervention is required."
+echo
+echo "## Changelog"
+echo
+
+git log --pretty=format:'* `%h` **%s** *<%ae>*' $(git describe --abbrev=0 HEAD^)..HEAD
+
+echo
+echo "## Checksums"
+echo
+
+echo '```'
+build/checksums
+echo '```'
