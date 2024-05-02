@@ -38,12 +38,12 @@ $ rad config
       "maxOpenFiles": 4096,
       "rate": {
         "inbound": {
-          "fillRate": 2.0,
-          "capacity": 128
+          "fillRate": 5.0,
+          "capacity": 1024
         },
         "outbound": {
-          "fillRate": 5.0,
-          "capacity": 256
+          "fillRate": 10.0,
+          "capacity": 2048
         }
       },
       "connection": {

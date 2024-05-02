@@ -168,12 +168,12 @@ impl Default for RateLimits {
     fn default() -> Self {
         Self {
             inbound: RateLimit {
-                fill_rate: 2.0,
-                capacity: 128,
+                fill_rate: 5.0,
+                capacity: 1024,
             },
             outbound: RateLimit {
-                fill_rate: 5.0,
-                capacity: 256,
+                fill_rate: 10.0,
+                capacity: 2048,
             },
         }
     }
