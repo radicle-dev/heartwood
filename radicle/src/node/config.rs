@@ -347,6 +347,17 @@ impl Config {
         self.peer(id).is_some()
     }
 
+    /// Are we a relay node? This determines what we do with gossip messages from other peers.
+    pub fn is_relay(&self) -> bool {
+        match self.relay {
+            // In "auto" mode, we only relay if we're a public seed node.
+            // This reduces traffic for private nodes, as well as message redundancy.
+            Relay::Auto => !self.external_addresses.is_empty(),
+            Relay::Never => false,
+            Relay::Always => true,
+        }
+    }
+
     pub fn features(&self) -> node::Features {
         node::Features::SEED
     }
