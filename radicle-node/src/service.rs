@@ -32,7 +32,7 @@ use radicle::node::seed;
 use radicle::node::seed::Store as _;
 use radicle::node::{ConnectOptions, Penalty, Severity};
 use radicle::storage::refs::SIGREFS_BRANCH;
-use radicle::storage::{Inventory, RepositoryError};
+use radicle::storage::RepositoryError;
 
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
@@ -380,6 +380,8 @@ pub struct Service<D, S, G> {
     outbox: Outbox,
     /// Cached local node announcement.
     node: NodeAnnouncement,
+    /// Cached local inventory announcement.
+    inventory: InventoryAnnouncement,
     /// Source of entropy.
     rng: Rng,
     /// Ongoing fetches.
@@ -431,7 +433,6 @@ where
 {
     pub fn new(
         config: Config,
-        clock: LocalTime,
         db: Stores<D>,
         storage: S,
         policies: policy::Config<Write>,
@@ -442,6 +443,9 @@ where
     ) -> Self {
         let sessions = Sessions::new(rng.clone());
         let limiter = RateLimiter::new(config.peers());
+        let last_timestamp = node.timestamp;
+        let clock = LocalTime::default(); // Updated on initialize.
+        let inventory = gossip::inventory(clock.into(), []); // Updated on initialize.
 
         Self {
             config,
@@ -449,6 +453,7 @@ where
             policies,
             signer,
             rng,
+            inventory,
             node,
             clock,
             db,
@@ -461,9 +466,9 @@ where
             last_idle: LocalTime::default(),
             last_sync: LocalTime::default(),
             last_prune: LocalTime::default(),
-            last_timestamp: Timestamp::MIN,
+            last_timestamp,
             last_announce: LocalTime::default(),
-            started_at: None,
+            started_at: None, // Updated on initialize.
             emitter,
             listening: vec![],
         }
@@ -571,11 +576,17 @@ where
         })
     }
 
+    /// Initialize service with current time. Call this once.
     pub fn initialize(&mut self, time: LocalTime) -> Result<(), Error> {
         debug!(target: "service", "Init @{}", time.as_millis());
+        assert_ne!(time, LocalTime::default());
 
         let nid = self.node_id();
+        let inventory = self.storage.inventory()?;
+
         self.started_at = Some(time);
+        self.clock = time;
+        self.inventory = gossip::inventory(self.timestamp(), inventory.clone());
 
         // Populate refs database. This is only useful as part of the upgrade process for nodes
         // that have been online since before the refs database was created.
@@ -609,15 +620,16 @@ where
         // Ensure that our inventory is recorded in our routing table, and we are seeding
         // all of it. It can happen that inventory is not properly seeded if for eg. the
         // user creates a new repository while the node is stopped.
-        let rids = self.storage.inventory()?;
-        self.db.routing_mut().insert(&rids, nid, time.into())?;
+        self.db
+            .routing_mut()
+            .insert(inventory.iter(), nid, time.into())?;
 
         let announced = self
             .db
             .seeds()
             .seeded_by(&nid)?
             .collect::<Result<HashMap<_, _>, _>>()?;
-        for rid in rids {
+        for rid in inventory {
             let repo = self.storage.repository(rid)?;
 
             // If we're not seeding this repo, just skip it.
@@ -723,11 +735,7 @@ where
         if now - self.last_announce >= ANNOUNCE_INTERVAL {
             trace!(target: "service", "Running 'announce' task...");
 
-            if let Err(err) = self
-                .storage
-                .inventory()
-                .and_then(|i| self.announce_inventory(i))
-            {
+            if let Err(err) = self.announce_inventory() {
                 error!(target: "service", "Error announcing inventory: {err}");
             }
             self.outbox.wakeup(ANNOUNCE_INTERVAL);
@@ -852,11 +860,7 @@ where
                 }
             }
             Command::AnnounceInventory => {
-                if let Err(err) = self
-                    .storage
-                    .inventory()
-                    .and_then(|i| self.announce_inventory(i))
-                {
+                if let Err(err) = self.announce_inventory() {
                     error!(target: "service", "Error announcing inventory: {err}");
                 }
             }
@@ -1788,18 +1792,8 @@ where
 
     /// Set of initial messages to send to a peer.
     fn initial(&mut self, _link: Link) -> Vec<Message> {
-        let timestamp = self.timestamp();
         let now = self.clock();
         let filter = self.filter();
-        let inventory = match self.storage.inventory() {
-            Ok(i) => i,
-            Err(e) => {
-                // Other than crashing the node completely, there's nothing we can do
-                // here besides returning an empty inventory and logging an error.
-                error!(target: "service", "Error getting local inventory for initial messages: {e}");
-                Default::default()
-            }
-        };
 
         // TODO: Only subscribe to outbound connections, otherwise we will consume too
         // much bandwidth.
@@ -1823,7 +1817,7 @@ where
 
         vec![
             Message::node(self.node.clone(), &self.signer),
-            Message::inventory(gossip::inventory(timestamp, inventory), &self.signer),
+            Message::inventory(self.inventory.clone(), &self.signer),
             Message::subscribe(filter, since, Timestamp::MAX),
         ]
     }
@@ -1840,7 +1834,9 @@ where
     /// Update our routing table with our local node's inventory.
     fn sync_inventory(&mut self) -> Result<SyncedRouting, Error> {
         let inventory = self.storage.inventory()?;
-        let result = self.sync_routing(inventory, self.node_id(), self.clock.into())?;
+        let result = self.sync_routing(inventory.clone(), self.node_id(), self.clock.into())?;
+        // Update cached inventory message.
+        self.inventory = gossip::inventory(self.timestamp(), inventory);
 
         Ok(result)
     }
@@ -2001,11 +1997,7 @@ where
             Ok(synced) => {
                 // Only announce if our inventory changed.
                 if synced.added.len() + synced.removed.len() > 0 {
-                    if let Err(e) = self
-                        .storage
-                        .inventory()
-                        .and_then(|i| self.announce_inventory(i))
-                    {
+                    if let Err(e) = self.announce_inventory() {
                         error!(target: "service", "Failed to announce inventory: {e}");
                     }
                 }
@@ -2134,16 +2126,15 @@ where
     ////////////////////////////////////////////////////////////////////////////
 
     /// Announce our inventory to all connected peers.
-    fn announce_inventory(&mut self, inventory: Inventory) -> Result<(), storage::Error> {
-        let time = self.timestamp();
-        let msg = AnnouncementMessage::from(gossip::inventory(time, inventory));
+    fn announce_inventory(&mut self) -> Result<(), storage::Error> {
+        let msg = AnnouncementMessage::from(self.inventory.clone());
 
         self.outbox.announce(
             msg.signed(&self.signer),
             self.sessions.connected().map(|(_, p)| p),
             self.db.gossip_mut(),
         );
-        self.last_announce = time.to_local_time();
+        self.last_announce = self.clock;
 
         Ok(())
     }

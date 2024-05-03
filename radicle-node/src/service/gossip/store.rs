@@ -79,6 +79,11 @@ impl Store for Database {
     }
 
     fn announced(&mut self, nid: &NodeId, ann: &Announcement) -> Result<bool, Error> {
+        assert_ne!(
+            ann.timestamp(),
+            Timestamp::MIN,
+            "Timestamp of {ann:?} must not be zero"
+        );
         let mut stmt = self.db.prepare(
             "INSERT INTO `announcements` (node, repo, type, message, signature, timestamp)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
@@ -289,5 +294,42 @@ impl TryFrom<&sql::Value> for GossipType {
                 message: Some("sql: invalid type for gossip type".to_owned()),
             }),
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod test {
+    use super::*;
+    use crate::prelude::{BoundedVec, RepoId};
+    use crate::test::arbitrary;
+    use localtime::LocalTime;
+    use radicle_crypto::test::signer::MockSigner;
+
+    #[test]
+    fn test_announced() {
+        let mut db = Database::memory().unwrap();
+        let nid = arbitrary::gen::<NodeId>(1);
+        let rid = arbitrary::gen::<RepoId>(1);
+        let timestamp = LocalTime::now().into();
+        let signer = MockSigner::default();
+        let refs = AnnouncementMessage::Refs(RefsAnnouncement {
+            rid,
+            refs: BoundedVec::new(),
+            timestamp,
+        })
+        .signed(&signer);
+        let inv = AnnouncementMessage::Inventory(InventoryAnnouncement {
+            inventory: BoundedVec::new(),
+            timestamp,
+        })
+        .signed(&signer);
+
+        // Only the first announcement of each type is recognized as new.
+        assert!(db.announced(&nid, &refs).unwrap());
+        assert!(!db.announced(&nid, &refs).unwrap());
+
+        assert!(db.announced(&nid, &inv).unwrap());
+        assert!(!db.announced(&nid, &inv).unwrap());
     }
 }

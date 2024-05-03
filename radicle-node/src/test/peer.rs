@@ -44,6 +44,7 @@ pub struct Peer<S, G> {
     pub service: Service<S, G>,
     pub id: NodeId,
     pub ip: net::IpAddr,
+    pub local_time: LocalTime,
     pub rng: fastrand::Rng,
     pub local_addr: net::SocketAddr,
     pub tempdir: tempfile::TempDir,
@@ -56,9 +57,7 @@ where
     S: WriteStorage + 'static,
     G: Signer + 'static,
 {
-    fn init(&mut self) {
-        self.initialize();
-    }
+    fn init(&mut self) {}
 
     fn addr(&self) -> Address {
         self.address()
@@ -85,7 +84,7 @@ impl<S, G> DerefMut for Peer<S, G> {
 
 impl Peer<MockStorage, MockSigner> {
     pub fn new(name: &'static str, ip: impl Into<net::IpAddr>) -> Self {
-        Self::with_storage(name, ip, MockStorage::empty())
+        Self::with_storage(name, ip, MockStorage::empty()).initialized()
     }
 }
 
@@ -94,7 +93,7 @@ where
     S: WriteStorage + 'static,
 {
     pub fn with_storage(name: &'static str, ip: impl Into<net::IpAddr>, storage: S) -> Self {
-        Self::config(name, ip, storage, Config::default())
+        Self::config(name, ip, storage, Config::default()).initialized()
     }
 }
 
@@ -167,18 +166,18 @@ where
         let id = *config.signer.public_key();
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, config.rng.u16(..));
+        let inventory = storage.inventory().unwrap();
 
         // Make sure the peer address is advertized.
         config.config.external_addresses.push(local_addr.into());
-
-        for rid in storage.inventory().unwrap() {
-            policies.seed(&rid, Scope::Followed).unwrap();
+        for rid in &inventory {
+            policies.seed(rid, Scope::Followed).unwrap();
         }
-        let announcement = service::gossip::node(&config.config, config.local_time.into());
+        let announcement =
+            service::gossip::node(&config.config, Timestamp::from(config.local_time) + 1);
         let emitter: Emitter<Event> = Default::default();
         let service = Service::new(
             config.config,
-            config.local_time,
             config.db,
             storage,
             policies,
@@ -194,25 +193,29 @@ where
             id,
             ip,
             local_addr,
+            local_time: config.local_time,
             rng: config.rng,
             initialized: false,
             tempdir: config.tmp,
         }
     }
 
-    pub fn initialize(&mut self) -> bool {
-        if !self.initialized {
-            info!(
-                target: "test",
-                "{}: Initializing: id = {}, address = {}",
-                self.name, self.id, self.ip
-            );
+    pub fn initialize(&mut self) -> &mut Self {
+        info!(
+            target: "test",
+            "{}: Initializing: id = {}, address = {}",
+            self.name, self.id, self.ip
+        );
+        assert_ne!(self.local_time, LocalTime::default());
 
-            self.initialized = true;
-            self.service.initialize(LocalTime::now()).unwrap();
-            return true;
-        }
-        false
+        self.initialized = true;
+        self.service.initialize(self.local_time).unwrap();
+        self
+    }
+
+    pub fn initialized(mut self) -> Self {
+        self.initialize();
+        self
     }
 
     pub fn restart(&mut self) {
@@ -222,7 +225,7 @@ where
             "{}: Restarting: id = {}, address = {}",
             self.name, self.id, self.ip
         );
-        self.service.initialize(LocalTime::now()).unwrap();
+        self.service.initialize(*self.service.clock()).unwrap();
     }
 
     pub fn address(&self) -> Address {
@@ -340,7 +343,6 @@ where
     pub fn connect_from(&mut self, peer: &Self) {
         let remote_id = simulator::Peer::<S, G>::id(peer);
 
-        self.initialize();
         self.service
             .connected(remote_id, peer.address(), Link::Inbound);
         self.service
@@ -366,7 +368,6 @@ where
         let remote_id = simulator::Peer::<T, H>::id(peer);
         let remote_addr = simulator::Peer::<T, H>::addr(peer);
 
-        self.initialize();
         self.service.command(Command::Connect(
             remote_id,
             remote_addr.clone(),

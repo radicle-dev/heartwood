@@ -21,9 +21,7 @@ use radicle::node::address::Store as _;
 use radicle::node::notifications;
 use radicle::node::Handle as _;
 use radicle::profile::Home;
-use radicle::storage;
-use radicle::Storage;
-use radicle::{cob, git};
+use radicle::{cob, git, storage, Storage};
 
 use crate::control;
 use crate::crypto::Signer;
@@ -152,6 +150,7 @@ impl Runtime {
         let network = config.network;
         let rng = fastrand::Rng::new();
         let clock = LocalTime::now();
+        let timestamp = clock.into();
         let storage = Storage::open(home.storage(), git::UserInfo { alias, key: id })?;
         let scope = config.scope;
         let policy = config.policy;
@@ -200,7 +199,7 @@ impl Runtime {
             );
             ann
         } else {
-            service::gossip::node(&config, clock.into())
+            service::gossip::node(&config, timestamp)
                 .solve(Default::default())
                 .expect("Runtime::init: unable to solve proof-of-work puzzle")
         };
@@ -226,7 +225,6 @@ impl Runtime {
         let emitter: Emitter<Event> = Default::default();
         let mut service = service::Service::new(
             config.clone(),
-            clock,
             stores,
             storage.clone(),
             policies,

@@ -8,7 +8,9 @@ use localtime::LocalTime;
 use sqlite as sql;
 
 /// Milliseconds since epoch.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 #[serde(transparent)]
 pub struct Timestamp(u64);
 

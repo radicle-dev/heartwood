@@ -132,7 +132,7 @@ fn test_redundant_connect() {
 
     // Only one connection attempt is made.
     assert_matches!(
-        alice.outbox().collect::<Vec<_>>().as_slice(),
+        alice.outbox().filter(|o| matches!(o, Io::Connect { .. })).collect::<Vec<_>>().as_slice(),
         [Io::Connect(id, addr)]
         if *id == bob.id() && *addr == bob.addr()
     );
@@ -233,9 +233,8 @@ fn test_persistent_peer_connect() {
             },
             ..peer::Config::default()
         },
-    );
-
-    alice.initialize();
+    )
+    .initialized();
 
     let outbox = alice.outbox().collect::<Vec<_>>();
     outbox
@@ -251,15 +250,14 @@ fn test_persistent_peer_connect() {
 #[test]
 fn test_inventory_sync() {
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Peer::config(
+    let mut alice = Peer::with_storage(
         "alice",
         [7, 7, 7, 7],
         Storage::open(tmp.path().join("alice"), fixtures::user()).unwrap(),
-        peer::Config::default(),
     );
     let bob_signer = MockSigner::default();
     let bob_storage = fixtures::storage(tmp.path().join("bob"), &bob_signer).unwrap();
-    let bob = Peer::config("bob", [8, 8, 8, 8], bob_storage, peer::Config::default());
+    let bob = Peer::with_storage("bob", [8, 8, 8, 8], bob_storage);
     let now = LocalTime::now().into();
     let projs = bob.storage().inventory().unwrap();
 
@@ -349,7 +347,8 @@ fn test_inventory_pruning() {
                 },
                 ..peer::Config::default()
             },
-        );
+        )
+        .initialized();
 
         let bob = Peer::config(
             "bob",
@@ -359,7 +358,8 @@ fn test_inventory_pruning() {
                 local_time: alice.local_time(),
                 ..peer::Config::default()
             },
-        );
+        )
+        .initialized();
 
         // Tell Alice about the amazing projects available
         alice.connect_to(&bob);
@@ -597,14 +597,14 @@ fn test_announcement_relay() {
         Some(Message::Announcement(_))
     );
 
-    alice.receive(bob.id(), bob.inventory_announcement());
+    alice.receive(bob.id(), dbg!(bob.inventory_announcement()));
     assert!(
         alice.messages(eve.id()).next().is_none(),
         "Another inventory with the same timestamp is ignored"
     );
 
     bob.elapse(LocalDuration::from_mins(1));
-    alice.receive(bob.id(), bob.inventory_announcement());
+    alice.receive(bob.id(), dbg!(bob.inventory_announcement()));
     assert_matches!(
         alice.messages(eve.id()).next(),
         Some(Message::Announcement(_)),
@@ -647,17 +647,15 @@ fn test_announcement_relay() {
 #[test]
 fn test_refs_announcement_relay() {
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Peer::config(
+    let mut alice = Peer::with_storage(
         "alice",
         [7, 7, 7, 7],
         Storage::open(tmp.path().join("alice"), fixtures::user()).unwrap(),
-        peer::Config::default(),
     );
-    let eve = Peer::config(
+    let eve = Peer::with_storage(
         "eve",
         [8, 8, 8, 8],
         Storage::open(tmp.path().join("eve"), fixtures::user()).unwrap(),
-        peer::Config::default(),
     );
 
     let bob = {
@@ -675,6 +673,7 @@ fn test_refs_announcement_relay() {
                 ..peer::Config::default()
             },
         )
+        .initialized()
     };
     let bob_inv = bob
         .storage()
@@ -724,11 +723,10 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Peer::config(
+    let mut alice = Peer::with_storage(
         "alice",
         [7, 7, 7, 7],
         Storage::open(tmp.path().join("alice"), fixtures::user()).unwrap(),
-        peer::Config::default(),
     );
     let bob = {
         let mut rng = fastrand::Rng::new();
@@ -745,6 +743,7 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
                 ..peer::Config::default()
             },
         )
+        .initialized()
     };
     let bob_inv = bob.storage().inventory().unwrap();
     let rid = bob_inv.first().unwrap();
@@ -861,8 +860,9 @@ fn test_refs_announcement_offline() {
     bob.seed(rid, policy::Scope::All).unwrap();
 
     // Make sure alice's service wasn't initialized before.
-    assert!(alice.initialize());
+    assert_eq!(*alice.clock(), LocalTime::default());
 
+    alice.initialize();
     alice.connect_to(&bob);
     alice.receive(bob.id, Message::Subscribe(Subscribe::all()));
 
@@ -1057,7 +1057,8 @@ fn test_persistent_peer_reconnect_attempt() {
             },
             ..peer::Config::default()
         },
-    );
+    )
+    .initialized();
 
     let mut sim = Simulation::new(
         LocalTime::now(),
@@ -1100,12 +1101,7 @@ fn test_persistent_peer_reconnect_attempt() {
 fn test_persistent_peer_reconnect_success() {
     use std::collections::HashSet;
 
-    let bob = Peer::config(
-        "bob",
-        [9, 9, 9, 9],
-        MockStorage::empty(),
-        peer::Config::default(),
-    );
+    let bob = Peer::with_storage("bob", [9, 9, 9, 9], MockStorage::empty());
     let mut alice = Peer::config(
         "alice",
         [7, 7, 7, 7],
@@ -1117,7 +1113,8 @@ fn test_persistent_peer_reconnect_success() {
             },
             ..peer::Config::default()
         },
-    );
+    )
+    .initialized();
     alice.connect_to(&bob);
 
     // A transient error such as this will cause Alice to attempt a reconnection.
@@ -1568,20 +1565,15 @@ fn test_init_and_seed() {
     )
     .unwrap();
     let (repo, _) = fixtures::repository(tempdir.path().join("working"));
-    let mut alice = Peer::config(
-        "alice",
-        [7, 7, 7, 7],
-        storage_alice,
-        peer::Config::default(),
-    );
+    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage_alice);
 
     let storage_bob =
         Storage::open(tempdir.path().join("bob").join("storage"), fixtures::user()).unwrap();
-    let mut bob = Peer::config("bob", [8, 8, 8, 8], storage_bob, peer::Config::default());
+    let mut bob = Peer::with_storage("bob", [8, 8, 8, 8], storage_bob);
 
     let storage_eve =
         Storage::open(tempdir.path().join("eve").join("storage"), fixtures::user()).unwrap();
-    let mut eve = Peer::config("eve", [9, 9, 9, 9], storage_eve, peer::Config::default());
+    let mut eve = Peer::with_storage("eve", [9, 9, 9, 9], storage_eve);
 
     remote::mock::register(&alice.node_id(), alice.storage().path());
     remote::mock::register(&eve.node_id(), eve.storage().path());
@@ -1676,24 +1668,9 @@ fn test_init_and_seed() {
 fn prop_inventory_exchange_dense() {
     fn property(alice_inv: MockStorage, bob_inv: MockStorage, eve_inv: MockStorage) {
         let rng = fastrand::Rng::new();
-        let alice = Peer::config(
-            "alice",
-            [7, 7, 7, 7],
-            alice_inv.clone(),
-            peer::Config::default(),
-        );
-        let mut bob = Peer::config(
-            "bob",
-            [8, 8, 8, 8],
-            bob_inv.clone(),
-            peer::Config::default(),
-        );
-        let mut eve = Peer::config(
-            "eve",
-            [9, 9, 9, 9],
-            eve_inv.clone(),
-            peer::Config::default(),
-        );
+        let alice = Peer::with_storage("alice", [7, 7, 7, 7], alice_inv.clone());
+        let mut bob = Peer::with_storage("bob", [8, 8, 8, 8], bob_inv.clone());
+        let mut eve = Peer::with_storage("eve", [9, 9, 9, 9], eve_inv.clone());
         let mut routing = RandomMap::with_hasher(rng.clone().into());
 
         for (inv, peer) in &[
