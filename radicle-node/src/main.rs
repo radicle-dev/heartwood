@@ -9,8 +9,8 @@ use radicle::prelude::Signer;
 use radicle::profile;
 use radicle::version::Version;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
-use radicle_node::signals;
 use radicle_node::Runtime;
+use radicle_signals as signals;
 
 pub const VERSION: Version = Version {
     name: env!("CARGO_PKG_NAME"),

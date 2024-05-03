@@ -10,6 +10,7 @@ use crossbeam_channel as chan;
 use cyphernet::Ecdh;
 use netservices::resource::NetAccept;
 use radicle_fetch::FetchLimit;
+use radicle_signals::Signal;
 use reactor::poller::popol;
 use reactor::Reactor;
 use thiserror::Error;
@@ -128,7 +129,7 @@ pub struct Runtime {
     pub reactor: Reactor<wire::Control, popol::Poller>,
     pub pool: worker::Pool,
     pub local_addrs: Vec<net::SocketAddr>,
-    pub signals: chan::Receiver<()>,
+    pub signals: chan::Receiver<Signal>,
 }
 
 impl Runtime {
@@ -139,7 +140,7 @@ impl Runtime {
         home: Home,
         config: service::Config,
         listen: Vec<net::SocketAddr>,
-        signals: chan::Receiver<()>,
+        signals: chan::Receiver<Signal>,
         signer: G,
     ) -> Result<Runtime, Error>
     where
@@ -306,7 +307,7 @@ impl Runtime {
             || control::listen(self.control, handle)
         });
         let _signals = thread::spawn(&self.id, "signals", move || {
-            if let Ok(()) = self.signals.recv() {
+            if let Ok(Signal::Terminate | Signal::Interrupt) = self.signals.recv() {
                 log::info!(target: "node", "Termination signal received; shutting down..");
                 self.handle.shutdown().ok();
             }

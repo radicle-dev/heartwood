@@ -3,11 +3,38 @@ use std::sync::Mutex;
 
 use crossbeam_channel as chan;
 
-/// Signal notifications are sent via this channel.
-static NOTIFY: Mutex<Option<chan::Sender<()>>> = Mutex::new(None);
+/// Operating system signal.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Signal {
+    /// `SIGINT`.
+    Interrupt,
+    /// `SIGTERM`.
+    Terminate,
+    /// `SIGHUP`.
+    Hangup,
+    /// `SIGWINCH`.
+    WindowChanged,
+}
 
-/// Install global signal handlers for `SIGTERM` and `SIGINT`.
-pub fn install(notify: chan::Sender<()>) -> io::Result<()> {
+impl TryFrom<i32> for Signal {
+    type Error = i32;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            libc::SIGTERM => Ok(Self::Terminate),
+            libc::SIGINT => Ok(Self::Interrupt),
+            libc::SIGWINCH => Ok(Self::WindowChanged),
+            libc::SIGHUP => Ok(Self::Hangup),
+            _ => Err(value),
+        }
+    }
+}
+
+/// Signal notifications are sent via this channel.
+static NOTIFY: Mutex<Option<chan::Sender<Signal>>> = Mutex::new(None);
+
+/// Install global signal handlers.
+pub fn install(notify: chan::Sender<Signal>) -> io::Result<()> {
     if let Ok(mut channel) = NOTIFY.try_lock() {
         if channel.is_some() {
             return Err(io::Error::new(
@@ -27,7 +54,7 @@ pub fn install(notify: chan::Sender<()>) -> io::Result<()> {
     Ok(())
 }
 
-/// Install global signal handlers for `SIGTERM` and `SIGINT`.
+/// Install global signal handlers.
 ///
 /// # Safety
 ///
@@ -39,17 +66,23 @@ unsafe fn _install() -> io::Result<()> {
     if libc::signal(libc::SIGINT, handler as libc::sighandler_t) == libc::SIG_ERR {
         return Err(io::Error::last_os_error());
     }
+    if libc::signal(libc::SIGHUP, handler as libc::sighandler_t) == libc::SIG_ERR {
+        return Err(io::Error::last_os_error());
+    }
+    if libc::signal(libc::SIGWINCH, handler as libc::sighandler_t) == libc::SIG_ERR {
+        return Err(io::Error::last_os_error());
+    }
     Ok(())
 }
 
 /// Called by `libc` when a signal is received.
 extern "C" fn handler(sig: libc::c_int, _info: *mut libc::siginfo_t, _data: *mut libc::c_void) {
-    if sig != libc::SIGTERM && sig != libc::SIGINT {
+    let Ok(sig) = sig.try_into() else {
         return;
-    }
+    };
     if let Ok(guard) = NOTIFY.try_lock() {
         if let Some(c) = &*guard {
-            c.try_send(()).ok();
+            c.try_send(sig).ok();
         }
     }
 }

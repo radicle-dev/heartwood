@@ -3,7 +3,6 @@ pub mod control;
 pub mod deserializer;
 pub mod runtime;
 pub mod service;
-pub mod signals;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 #[cfg(test)]

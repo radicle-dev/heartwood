@@ -1,0 +1,10 @@
+[package]
+name = "radicle-signals"
+homepage = "https://radicle.xyz"
+repository = "https://app.radicle.xyz/seeds/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
+edition = "2021"
+version = "0.9.0"
+
+[dependencies]
+crossbeam-channel = { version = "0.5.6" }
+libc = { version = "0.2" }

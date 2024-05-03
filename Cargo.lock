@@ -2551,6 +2551,7 @@ dependencies = [
  "radicle-crypto",
  "radicle-fetch",
  "radicle-git-ext",
+ "radicle-signals",
  "scrypt",
  "serde",
  "serde_json",
@@ -2570,6 +2571,14 @@ dependencies = [
  "radicle-crypto",
  "radicle-git-ext",
  "thiserror",
+]
+
+[[package]]
+name = "radicle-signals"
+version = "0.9.0"
+dependencies = [
+ "crossbeam-channel",
+ "libc",
 ]
 
 [[package]]
