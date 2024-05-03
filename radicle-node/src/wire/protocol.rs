@@ -53,6 +53,9 @@ pub const DEFAULT_CONNECTION_TIMEOUT: time::Duration = time::Duration::from_secs
 /// Default time to wait when dialing a connection, before the remote is considered unreachable.
 pub const DEFAULT_DIAL_TIMEOUT: time::Duration = time::Duration::from_secs(6);
 
+/// Maximum size of a peer inbox, in bytes.
+pub const MAX_INBOX_SIZE: usize = 1024 * 1024 * 2;
+
 /// Control message used internally between workers, users, and the service.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
@@ -699,6 +702,12 @@ where
                     ..
                 }) = self.peers.get_mut(&id)
                 {
+                    if inbox.len() + data.len() > MAX_INBOX_SIZE {
+                        log::error!(target: "wire", "Maximum inbox size ({MAX_INBOX_SIZE}) reached for peer {nid}");
+                        log::error!(target: "wire", "Unable to process messages fast enough for peer {nid}; disconnecting..");
+                        self.disconnect(id, DisconnectReason::Session(session::Error::Misbehavior));
+                        return;
+                    }
                     inbox.input(&data);
 
                     loop {
@@ -781,7 +790,7 @@ where
                                 log::error!(target: "wire", "Invalid gossip message from {nid}: {e}");
 
                                 if !inbox.is_empty() {
-                                    log::debug!(target: "wire", "Dropping read buffer for {nid} with {} bytes", inbox.unparsed().count());
+                                    log::debug!(target: "wire", "Dropping read buffer for {nid} with {} bytes", inbox.len());
                                 }
                                 self.disconnect(
                                     id,

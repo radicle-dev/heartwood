@@ -67,6 +67,11 @@ impl<D: wire::Decode> Deserializer<D> {
     pub fn is_empty(&self) -> bool {
         self.unparsed.is_empty()
     }
+
+    /// Return the size of the unparsed data.
+    pub fn len(&self) -> usize {
+        self.unparsed.len()
+    }
 }
 
 impl<D: wire::Decode> io::Write for Deserializer<D> {
