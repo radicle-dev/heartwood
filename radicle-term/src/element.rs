@@ -64,7 +64,7 @@ impl Constraint {
 }
 
 /// A text element that has a size and can be rendered to the terminal.
-pub trait Element: fmt::Debug {
+pub trait Element: fmt::Debug + Send + Sync {
     /// Get the size of the element, in rows and columns.
     fn size(&self, parent: Constraint) -> Size;
 

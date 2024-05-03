@@ -8,7 +8,6 @@ use radicle_surf as surf;
 
 use crate::git::pretty_diff::ToPretty as _;
 use crate::git::Rev;
-use crate::pager;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::highlight::Highlighter;
@@ -145,7 +144,7 @@ pub fn run(options: Options, _ctx: impl term::Context) -> anyhow::Result<()> {
     let mut hi = Highlighter::default();
     let pretty = diff.pretty(&mut hi, &(), &repo);
 
-    pager::run(pretty)?;
+    term::pager::page(pretty)?;
 
     Ok(())
 }

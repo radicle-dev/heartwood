@@ -78,7 +78,7 @@ impl<const W: usize, T> Default for Table<W, T> {
     }
 }
 
-impl<const W: usize, T: Cell + fmt::Debug> Element for Table<W, T>
+impl<const W: usize, T: Cell + fmt::Debug + Send + Sync> Element for Table<W, T>
 where
     T::Padded: Into<Line>,
 {
