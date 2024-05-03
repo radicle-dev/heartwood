@@ -7,6 +7,7 @@ fn main() -> anyhow::Result<()> {
         "Choose something to try out:",
         &[
             "confirm",
+            "pager",
             "spinner",
             "spinner-drop",
             "spinner-error",
@@ -21,6 +22,17 @@ fn main() -> anyhow::Result<()> {
             if terminal::confirm("Would you like to proceed?") {
                 terminal::success!("You said 'yes'");
             }
+        }
+        "pager" => {
+            let mut table = radicle_term::Table::<1, radicle_term::Label>::new(
+                radicle_term::TableOptions::bordered(),
+            );
+            let rows = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/rad-cli-demo.rs"));
+
+            for row in rows.lines() {
+                table.push([row.into()]);
+            }
+            radicle_term::pager::page(table)?;
         }
         "editor" => {
             let output = terminal::editor::Editor::new()

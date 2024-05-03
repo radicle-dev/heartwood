@@ -8,6 +8,7 @@ pub mod format;
 pub mod hstack;
 pub mod io;
 pub mod label;
+pub mod pager;
 pub mod spinner;
 pub mod table;
 pub mod textarea;

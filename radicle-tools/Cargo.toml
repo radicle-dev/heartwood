@@ -19,6 +19,10 @@ path = "../radicle"
 version = "0"
 path = "../radicle-cli"
 
+[dependencies.radicle-term]
+version = "0"
+path = "../radicle-term"
+
 [[bin]]
 name = "rad-init"
 path = "src/rad-init.rs"

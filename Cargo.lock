@@ -2623,14 +2623,17 @@ version = "0.9.0"
 dependencies = [
  "anstyle-query",
  "anyhow",
+ "crossbeam-channel",
  "git2",
  "inquire",
  "libc",
  "once_cell",
  "pretty_assertions",
+ "radicle-signals",
  "shlex",
  "tempfile",
  "termion 3.0.0",
+ "thiserror",
  "unicode-display-width",
  "unicode-segmentation",
  "zeroize",
@@ -2644,6 +2647,7 @@ dependencies = [
  "radicle",
  "radicle-cli",
  "radicle-git-ext",
+ "radicle-term",
 ]
 
 [[package]]
