@@ -564,7 +564,7 @@ mod tests {
     #[test]
     fn prop_message_decoder() {
         fn property(items: Vec<Message>) {
-            let mut decoder = Deserializer::<Message>::new(8);
+            let mut decoder = Deserializer::<1048576, Message>::new(8);
 
             for item in &items {
                 item.encode(&mut decoder).unwrap();

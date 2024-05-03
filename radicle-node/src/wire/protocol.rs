@@ -201,7 +201,7 @@ enum Peer {
         addr: NetAddr<HostName>,
         link: Link,
         nid: NodeId,
-        inbox: Deserializer<Frame>,
+        inbox: Deserializer<MAX_INBOX_SIZE, Frame>,
         streams: Streams,
     },
     /// The peer was scheduled for disconnection. Once the transport is handed over
@@ -702,13 +702,13 @@ where
                     ..
                 }) = self.peers.get_mut(&id)
                 {
-                    if inbox.len() + data.len() > MAX_INBOX_SIZE {
+                    if inbox.input(&data).is_err() {
                         log::error!(target: "wire", "Maximum inbox size ({MAX_INBOX_SIZE}) reached for peer {nid}");
                         log::error!(target: "wire", "Unable to process messages fast enough for peer {nid}; disconnecting..");
                         self.disconnect(id, DisconnectReason::Session(session::Error::Misbehavior));
+
                         return;
                     }
-                    inbox.input(&data);
 
                     loop {
                         match inbox.deserialize_next() {
@@ -1176,8 +1176,8 @@ mod test {
         // Encode gossip message using the varint-prefix format into the stream.
         varint::payload::encode(&gossip, &mut stream).unwrap();
 
-        let mut de = deserializer::Deserializer::<Frame>::new(1024);
-        de.input(&stream);
+        let mut de = deserializer::Deserializer::<1024, Frame>::new(1024);
+        de.input(&stream).unwrap();
 
         // The "pong" message decodes successfully, even though there is trailing data.
         assert_eq!(

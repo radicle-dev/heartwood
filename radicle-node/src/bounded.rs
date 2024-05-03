@@ -1,4 +1,7 @@
-use std::{collections::BTreeSet, ops};
+use std::{
+    collections::BTreeSet,
+    ops::{self, RangeBounds},
+};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -154,6 +157,26 @@ impl<T, const N: usize> BoundedVec<T, N> {
     /// ```
     pub fn unbound(self) -> Vec<T> {
         self.v
+    }
+
+    /// Calls [`Vec::Drain`].
+    pub fn drain<R: RangeBounds<usize>>(&mut self, range: R) -> std::vec::Drain<T> {
+        self.v.drain(range)
+    }
+}
+
+impl<T: Clone, const N: usize> BoundedVec<T, N> {
+    /// Like [`Vec::extend_from_slice`] but returns an error if out of bounds.
+    pub fn extend_from_slice(&mut self, slice: &[T]) -> Result<(), Error> {
+        if self.len() + slice.len() > N {
+            return Err(Error::InvalidSize {
+                expected: N,
+                actual: self.len() + slice.len(),
+            });
+        }
+        self.v.extend_from_slice(slice);
+
+        Ok(())
     }
 }
 
