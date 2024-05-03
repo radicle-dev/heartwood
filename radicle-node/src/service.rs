@@ -1456,7 +1456,7 @@ where
                                     self.fetch(*id, *announcer, FETCH_TIMEOUT, None);
                                 }
                                 Err(e) => {
-                                    error!(target: "service", "Error checking local inventory: {e}");
+                                    error!(target: "service", "Error checking local inventory for {id}: {e}");
                                 }
                             }
                         }
