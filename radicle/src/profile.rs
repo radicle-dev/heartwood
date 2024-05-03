@@ -113,7 +113,8 @@ pub mod env {
         }
     }
 
-    /// Return the seed stored in the [`RAD_SEED`] environment variable, or generate a random one.
+    /// Return the seed stored in the [`RAD_KEYGEN_SEED`] environment variable,
+    /// or generate a random one.
     pub fn seed() -> crypto::Seed {
         if let Ok(seed) = var(RAD_KEYGEN_SEED) {
             let Ok(seed) = (0..seed.len())
