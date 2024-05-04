@@ -30,7 +30,7 @@ Run the following command to install the latest binary release:
 
     curl -sSf https://radicle.xyz/install | sh
 
-Or visit our [download][https://radicle.xyz/download] page.
+Or visit our [download](https://radicle.xyz/download) page.
 
 ### 📦 From source
 
