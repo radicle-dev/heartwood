@@ -1085,6 +1085,8 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
             NetAddr::new(host, remote_addr.port)
         }
     };
+    // Whether to tunnel regular connections through the proxy.
+    let force_proxy = matches!(config.tor, Some(TorConfig::Proxy { .. }));
     // Nb. This timeout is currently not used by the underlying library due to the
     // `socket2` library not supporting non-blocking connect with timeout.
     let connection = net::TcpStream::connect_nonblocking(inet_addr, DEFAULT_DIAL_TIMEOUT)?;
@@ -1096,6 +1098,7 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
         remote_addr,
         Some(remote_id),
         connection,
+        force_proxy,
         signer,
     ))
 }
@@ -1106,7 +1109,7 @@ pub fn accept<G: Signer + Ecdh<Pk = NodeId>>(
     connection: net::TcpStream,
     signer: G,
 ) -> WireSession<G> {
-    session::<G>(remote_addr, None, connection, signer)
+    session::<G>(remote_addr, None, connection, false, signer)
 }
 
 /// Create a new [`WireSession`].
@@ -1114,9 +1117,10 @@ fn session<G: Signer + Ecdh<Pk = NodeId>>(
     remote_addr: NetAddr<HostName>,
     remote_id: Option<NodeId>,
     connection: net::TcpStream,
+    force_proxy: bool,
     signer: G,
 ) -> WireSession<G> {
-    let socks5 = socks5::Socks5::with(remote_addr, false);
+    let socks5 = socks5::Socks5::with(remote_addr, force_proxy);
     let proxy = Socks5Session::with(connection, socks5);
     let pair = G::generate_keypair();
     let keyset = Keyset {
