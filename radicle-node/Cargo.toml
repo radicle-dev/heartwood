@@ -19,14 +19,14 @@ byteorder = { version = "1" }
 chrono = { version = "0.4.0", default-features = false, features = ["clock"] }
 colored = { version = "2.1.0" }
 crossbeam-channel = { version = "0.5.6" }
-cyphernet = { version = "0.4.1", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
+cyphernet = { version = "0.5.0", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
 fastrand = { version = "2.0.0" }
-io-reactor = { version = "0.5.0", features = ["popol"] }
+io-reactor = { version = "0.5.1", features = ["popol"] }
 lexopt = { version = "0.3.0" }
 libc = { version = "0.2.137" }
 log = { version = "0.4.17", features = ["std"] }
 localtime = { version = "1.2.0" }
-netservices = { version = "0.8.0-beta.1", features = ["io-reactor", "socket2"] }
+netservices = { version = "0.8.0", features = ["io-reactor", "socket2"] }
 nonempty = { version = "0.9.0", features = ["serialize"] }
 once_cell = { version = "1.13" }
 qcheck = { version = "1", default-features = false, optional = true }

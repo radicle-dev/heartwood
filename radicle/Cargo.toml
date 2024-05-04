@@ -17,7 +17,7 @@ logger = ["colored", "chrono"]
 amplify = { version = "4.0.0", default-features = false, features = ["std"] }
 base64 = { version = "0.21.3" }
 crossbeam-channel = { version = "0.5.6" }
-cyphernet = { version = "0.4.1", features = ["tor", "dns", "p2p-ed25519"] }
+cyphernet = { version = "0.5.0", features = ["tor", "dns", "p2p-ed25519"] }
 fastrand = { version = "2.0.0" }
 multibase = { version = "0.9.1" }
 localtime = { version = "1.2.0", features = ["serde"] }
