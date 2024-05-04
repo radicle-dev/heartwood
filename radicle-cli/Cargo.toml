@@ -40,9 +40,7 @@ tree-sitter-css = { version = "0.20" }
 tree-sitter-toml = { version = "0.20" }
 tree-sitter-c = { version = "0.20" }
 tree-sitter-python = { version = "0.20" }
-# N.b. This crate has a C++ token scanner that causes problems when building
-# for the musl target. Hence it is optional for now.
-tree-sitter-ruby = { version = "0.20", optional = true }
+tree-sitter-ruby = { version = "0.20" }
 tree-sitter-bash = { version = "0.20" }
 tree-sitter-go = { version = "0.20.0" }
 tree-sitter-md = { version = "0.1.5" }
