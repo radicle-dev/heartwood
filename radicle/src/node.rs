@@ -105,6 +105,9 @@ pub enum State {
         /// Measured latencies for this peer.
         #[serde(skip)]
         latencies: VecDeque<LocalDuration>,
+        /// Whether the connection is stable.
+        #[serde(skip)]
+        stable: bool,
     },
     /// When a peer is disconnected.
     #[serde(rename_all = "camelCase")]
@@ -1260,6 +1263,7 @@ mod test {
                 ping: Default::default(),
                 fetching: Default::default(),
                 latencies: VecDeque::default(),
+                stable: false,
             }))
             .unwrap(),
         )

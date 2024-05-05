@@ -5,10 +5,13 @@ use crate::node::config::Limits;
 use crate::node::Severity;
 use crate::service::message;
 use crate::service::message::Message;
-use crate::service::{Address, LocalTime, NodeId, Outbox, RepoId, Rng};
+use crate::service::{Address, LocalDuration, LocalTime, NodeId, Outbox, RepoId, Rng};
 use crate::{Link, Timestamp};
 
 pub use crate::node::{PingState, State};
+
+/// Time after which a connection is considered stable.
+pub const CONNECTION_STABLE_THRESHOLD: LocalDuration = LocalDuration::from_mins(1);
 
 #[derive(thiserror::Error, Debug, Clone, Copy)]
 pub enum Error {
@@ -61,7 +64,7 @@ pub struct Session {
 
     /// Connection attempts. For persistent peers, Tracks
     /// how many times we've attempted to connect. We reset this to zero
-    /// upon successful connection.
+    /// upon successful connection, once the connection is stable.
     attempts: usize,
     /// Source of entropy.
     rng: Rng,
@@ -120,6 +123,7 @@ impl Session {
                 ping: PingState::default(),
                 fetching: HashSet::default(),
                 latencies: VecDeque::default(),
+                stable: false,
             },
             link: Link::Inbound,
             subscribe: None,
@@ -133,6 +137,10 @@ impl Session {
 
     pub fn is_connecting(&self) -> bool {
         matches!(self.state, State::Attempted { .. })
+    }
+
+    pub fn is_stable(&self) -> bool {
+        matches!(self.state, State::Connected { stable: true, .. })
     }
 
     pub fn is_connected(&self) -> bool {
@@ -165,6 +173,22 @@ impl Session {
 
     pub fn attempts(&self) -> usize {
         self.attempts
+    }
+
+    /// Run 'idle' task for session.
+    pub fn idle(&mut self, now: LocalTime) {
+        if let State::Connected {
+            since,
+            ref mut stable,
+            ..
+        } = self.state
+        {
+            if now >= since && now.duration_since(since) >= CONNECTION_STABLE_THRESHOLD {
+                *stable = true;
+                // Reset number of attempts for stable connections.
+                self.attempts = 0;
+            }
+        }
     }
 
     /// Mark this session as fetching the given RID.
@@ -204,7 +228,6 @@ impl Session {
     }
 
     pub fn to_connected(&mut self, since: LocalTime) {
-        self.attempts = 0;
         self.last_active = since;
 
         let State::Attempted = &self.state else {
@@ -215,6 +238,7 @@ impl Session {
             ping: PingState::default(),
             fetching: HashSet::default(),
             latencies: VecDeque::default(),
+            stable: false,
         };
     }
 

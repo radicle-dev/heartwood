@@ -719,6 +719,7 @@ where
 
             self.keep_alive(&now);
             self.disconnect_unresponsive_peers(&now);
+            self.idle_connections();
             self.maintain_connections();
             self.outbox.wakeup(IDLE_INTERVAL);
             self.last_idle = now;
@@ -1202,14 +1203,6 @@ where
             if let Some(peer) = self.sessions.get_mut(&remote) {
                 peer.to_connected(self.clock);
                 self.outbox.write_all(peer, msgs);
-
-                if let Err(e) =
-                    self.db
-                        .addresses_mut()
-                        .connected(&remote, &peer.addr, self.clock.into())
-                {
-                    error!(target: "service", "Error updating address book with connection: {e}");
-                }
             }
         } else {
             match self.sessions.entry(remote) {
@@ -2255,6 +2248,25 @@ where
         Ok(())
     }
 
+    /// Run idle task for all connections.
+    fn idle_connections(&mut self) {
+        for (_, sess) in self.sessions.iter_mut() {
+            sess.idle(self.clock);
+
+            if sess.is_stable() {
+                // Mark as connected once connection is stable.
+                if let Err(e) =
+                    self.db
+                        .addresses_mut()
+                        .connected(&sess.id, &sess.addr, self.clock.into())
+                {
+                    error!(target: "service", "Error updating address book with connection: {e}");
+                }
+            }
+        }
+    }
+
+    /// Try to maintain a target number of connections.
     fn maintain_connections(&mut self) {
         let PeerConfig::Dynamic { target } = self.config.peers else {
             return;
