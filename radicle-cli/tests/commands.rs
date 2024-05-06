@@ -628,6 +628,35 @@ fn rad_id_conflict() {
 }
 
 #[test]
+fn rad_id_unknown_field() {
+    let mut environment = Environment::new();
+    let alice = environment.node(config::node("alice"));
+    let working = tempfile::tempdir().unwrap();
+    let working = working.path();
+
+    // Setup a test repository.
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let alice = alice.spawn();
+
+    test(
+        "examples/rad-id-unknown-field.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_node_connect() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
