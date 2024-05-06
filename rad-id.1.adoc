@@ -149,7 +149,7 @@ To change a repository's name and description, this is usually done through the
 
     $ rad id update --title "Update title and description" \
         --description "Improve clarity" \
-        --payload xyz.radicle.project title '"radicle-beans"' \
+        --payload xyz.radicle.project name '"radicle-beans"' \
         --payload xyz.radicle.project description '"Tasty Radicle beans"'
 
 Note that the values passed to *--payload*, eg. `"radicle-beans"` must be valid
