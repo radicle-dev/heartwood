@@ -120,6 +120,13 @@ pub fn stop(node: Node) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn debug(node: &mut Node) -> anyhow::Result<()> {
+    let json = node.debug()?;
+    term::json::to_pretty(&json, Path::new("debug.json"))?.print();
+
+    Ok(())
+}
+
 pub fn logs(lines: usize, follow: Option<time::Duration>, profile: &Profile) -> anyhow::Result<()> {
     let logs = profile.home.node().join("node.log");
 

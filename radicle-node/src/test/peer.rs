@@ -406,13 +406,15 @@ where
     pub fn messages(&mut self, remote: NodeId) -> impl Iterator<Item = Message> {
         let mut msgs = Vec::new();
 
-        self.service.outbox().queue().retain(|o| match o {
-            Io::Write(a, messages) if *a == remote => {
-                msgs.extend(messages.clone());
-                false
-            }
-            _ => true,
-        });
+        Service::outbox(&mut self.service)
+            .queue()
+            .retain(|o| match o {
+                Io::Write(a, messages) if *a == remote => {
+                    msgs.extend(messages.clone());
+                    false
+                }
+                _ => true,
+            });
 
         msgs.into_iter()
     }
@@ -423,7 +425,7 @@ where
         let mut filtered: Vec<Message> = Vec::new();
         let nid = *self.nid();
 
-        for o in self.service.outbox().queue() {
+        for o in Service::outbox(&mut self.service).queue() {
             match o {
                 Io::Write(a, messages) if *a == remote => {
                     let (relayed, other): (Vec<Message>, _) =
@@ -448,7 +450,7 @@ where
     pub fn inventory_announcements(&mut self, remote: NodeId) -> impl Iterator<Item = Message> {
         let mut invs: Vec<Message> = Vec::new();
 
-        for o in self.service.outbox().queue() {
+        for o in Service::outbox(&mut self.service).queue() {
             match o {
                 Io::Write(a, messages) if *a == remote => {
                     let (inventories, other): (Vec<Message>, _) =
@@ -473,12 +475,12 @@ where
 
     /// Get a draining iterator over the peer's I/O outbox.
     pub fn outbox(&mut self) -> impl Iterator<Item = Io> + '_ {
-        iter::from_fn(|| self.service.outbox().next())
+        iter::from_fn(|| Service::outbox(&mut self.service).next())
     }
 
     /// Get a draining iterator over the peer's I/O outbox, which only returns fetches.
     pub fn fetches(&mut self) -> impl Iterator<Item = (RepoId, NodeId)> + '_ {
-        iter::from_fn(|| self.service.outbox().next()).filter_map(|io| {
+        iter::from_fn(|| Service::outbox(&mut self.service).next()).filter_map(|io| {
             if let Io::Fetch { rid, remote, .. } = io {
                 Some((rid, remote))
             } else {

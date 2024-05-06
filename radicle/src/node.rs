@@ -516,6 +516,9 @@ pub enum Command {
     /// Get the node's status.
     Status,
 
+    /// Get node debug information.
+    Debug,
+
     /// Get the node's NID.
     NodeId,
 
@@ -928,6 +931,8 @@ pub trait Handle: Clone + Sync + Send {
     fn sessions(&self) -> Result<Self::Sessions, Self::Error>;
     /// Subscribe to node events.
     fn subscribe(&self, timeout: time::Duration) -> Result<Self::Events, Self::Error>;
+    /// Return debug information as a JSON value.
+    fn debug(&self) -> Result<json::Value, Self::Error>;
 }
 
 /// Iterator of results `T` when passing a [`Command`] to [`Node::call`].
@@ -1237,6 +1242,15 @@ impl Handle for Node {
             .ok_or(Error::EmptyResponse)??;
 
         Ok(sessions)
+    }
+
+    fn debug(&self) -> Result<json::Value, Self::Error> {
+        let debug = self
+            .call::<json::Value>(Command::Debug, DEFAULT_TIMEOUT)?
+            .next()
+            .ok_or(Error::EmptyResponse {})??;
+
+        Ok(debug)
     }
 
     fn shutdown(self) -> Result<(), Error> {

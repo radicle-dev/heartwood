@@ -30,7 +30,7 @@ use crate::prelude::Deserializer;
 use crate::service;
 use crate::service::io::Io;
 use crate::service::FETCH_TIMEOUT;
-use crate::service::{session, DisconnectReason, Service};
+use crate::service::{session, DisconnectReason, Metrics, Service};
 use crate::wire::frame;
 use crate::wire::frame::{Frame, FrameData, StreamId};
 use crate::wire::Encode;
@@ -309,6 +309,8 @@ pub struct Wire<D, S, G: Signer + Ecdh> {
     worker: chan::Sender<Task>,
     /// Used for authentication.
     signer: G,
+    /// Node metrics.
+    metrics: service::Metrics,
     /// Internal queue of actions to send to the reactor.
     actions: VecDeque<Action<G>>,
     /// Outbound attempted peers without a session.
@@ -334,6 +336,7 @@ where
             service,
             worker,
             signer,
+            metrics: Metrics::default(),
             actions: VecDeque::new(),
             inbound: RandomMap::default(),
             outbound: RandomMap::default(),
@@ -456,11 +459,13 @@ where
             log::debug!(target: "wire", "Stream {stream} cannot be found; ignoring flush");
             return;
         };
+        let metrics = self.metrics.peer(remote);
 
         for data in s.channels.try_iter() {
             let frame = match data {
                 ChannelEvent::Data(data) => {
-                    s.sent_bytes += data.len();
+                    metrics.sent_git_bytes += data.len();
+                    metrics.sent_bytes += data.len();
                     Frame::git(stream, data)
                 }
                 ChannelEvent::Close => Frame::control(*link, frame::Control::Close { stream }),
@@ -498,8 +503,10 @@ where
     type Command = Control;
 
     fn tick(&mut self, time: Timestamp) {
-        self.service
-            .tick(LocalTime::from_millis(time.as_millis() as u128));
+        self.service.tick(
+            LocalTime::from_millis(time.as_millis() as u128),
+            &self.metrics,
+        );
     }
 
     fn handle_timer(&mut self) {
@@ -603,6 +610,7 @@ where
                     return;
                 }
                 let (addr, link) = if let Some(peer) = self.inbound.remove(&fd) {
+                    self.metrics.peer(nid).inbound_connection_attempts += 1;
                     (peer.addr, Link::Inbound)
                 } else if let Some(peer) = self.outbound.remove(&fd) {
                     assert_eq!(nid, peer.nid);
@@ -711,6 +719,9 @@ where
                     ..
                 }) = self.peers.get_mut(&id)
                 {
+                    let metrics = self.metrics.peer(*nid);
+                    metrics.received_bytes += data.len();
+
                     if inbox.input(&data).is_err() {
                         log::error!(target: "wire", "Maximum inbox size ({MAX_INBOX_SIZE}) reached for peer {nid}");
                         log::error!(target: "wire", "Unable to process messages fast enough for peer {nid}; disconnecting..");
@@ -726,6 +737,8 @@ where
                                 ..
                             })) => {
                                 log::debug!(target: "wire", "Received `open` command for stream {stream} from {nid}");
+                                metrics.streams_opened += 1;
+                                metrics.received_fetch_requests += 1;
 
                                 let Some(channels) = streams.register(stream, FETCH_TIMEOUT) else {
                                     log::warn!(target: "wire", "Peer attempted to open already-open stream stream {stream}");
@@ -777,6 +790,7 @@ where
                                 data: FrameData::Gossip(msg),
                                 ..
                             })) => {
+                                metrics.received_gossip_messages += 1;
                                 self.service.received_message(*nid, msg);
                             }
                             Ok(Some(Frame {
@@ -785,7 +799,7 @@ where
                                 ..
                             })) => {
                                 if let Some(s) = streams.get_mut(&stream) {
-                                    s.received_bytes += data.len();
+                                    metrics.received_git_bytes += data.len();
 
                                     if s.channels.send(ChannelEvent::Data(data)).is_err() {
                                         log::error!(target: "wire", "Worker is disconnected; cannot send data");
@@ -943,13 +957,17 @@ where
                     log::trace!(
                         target: "wire", "Writing {} message(s) to {}", msgs.len(), node_id
                     );
-
                     let mut data = Vec::new();
+                    let metrics = self.metrics.peer(node_id);
+                    metrics.sent_gossip_messages += msgs.len();
+
                     for msg in msgs {
                         Frame::gossip(link, msg)
                             .encode(&mut data)
                             .expect("in-memory writes never fail");
                     }
+                    metrics.sent_bytes += data.len();
+
                     self.actions.push_back(reactor::Action::Send(fd, data));
                 }
                 Io::Connect(node_id, addr) => {
@@ -963,6 +981,7 @@ where
                         continue;
                     }
                     self.service.attempted(node_id, addr.clone());
+                    self.metrics.peer(node_id).outbound_connection_attempts += 1;
 
                     match dial::<G>(
                         addr.to_inner(),
@@ -1003,7 +1022,9 @@ where
                 }
                 Io::Disconnect(nid, reason) => {
                     if let Some((id, Peer::Connected { .. })) = self.peers.lookup(&nid) {
-                        self.disconnect(id, reason);
+                        if let Some((nid, _)) = self.disconnect(id, reason) {
+                            self.metrics.peer(nid).disconnects += 1;
+                        }
                     } else {
                         log::warn!(target: "wire", "Peer {nid} is not connected: ignoring disconnect");
                     }
@@ -1053,6 +1074,10 @@ where
                     if self.worker.send(task).is_err() {
                         log::error!(target: "wire", "Worker pool is disconnected; cannot send fetch request");
                     }
+                    let metrics = self.metrics.peer(remote);
+                    metrics.streams_opened += 1;
+                    metrics.sent_fetch_requests += 1;
+
                     self.actions.push_back(Action::Send(
                         fd,
                         Frame::control(link, frame::Control::Open { stream }).to_bytes(),

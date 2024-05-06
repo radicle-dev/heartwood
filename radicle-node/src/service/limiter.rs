@@ -11,8 +11,8 @@ use radicle::node::{address, config, HostName, NodeId};
 /// bucket's capacity.
 #[derive(Debug, Default)]
 pub struct RateLimiter {
-    buckets: HashMap<HostName, TokenBucket>,
-    bypass: HashSet<NodeId>,
+    pub buckets: HashMap<HostName, TokenBucket>,
+    pub bypass: HashSet<NodeId>,
 }
 
 impl RateLimiter {
@@ -74,7 +74,8 @@ impl AsTokens for config::RateLimit {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TokenBucket {
     /// Token refill rate per second.
     rate: f64,

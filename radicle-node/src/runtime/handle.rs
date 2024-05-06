@@ -8,6 +8,7 @@ use crossbeam_channel as chan;
 use radicle::node::{ConnectOptions, ConnectResult, Link, Seeds};
 use radicle::storage::refs::RefsAt;
 use reactor::poller::popol::PopolWaker;
+use serde_json::json;
 use thiserror::Error;
 
 use crate::identity::RepoId;
@@ -318,5 +319,46 @@ impl radicle::node::Handle for Handle {
         self.controller
             .shutdown()
             .map_err(|_| Error::ChannelDisconnected)
+    }
+
+    fn debug(&self) -> Result<serde_json::Value, Self::Error> {
+        let (sender, receiver) = chan::bounded(1);
+        let query: Arc<QueryState> = Arc::new(move |state| {
+            let debug = serde_json::json!({
+                "outboxSize": state.outbox().len(),
+                "fetching": state.fetching().iter().map(|(rid, state)| {
+                    json!({
+                        "rid": rid,
+                        "from": state.from,
+                        "refsAt": state.refs_at,
+                        "subscribers": state.subscribers.len(),
+                    })
+                }).collect::<Vec<_>>(),
+                "queue": state.queue().iter().map(|fetch| {
+                    json!({
+                        "rid": fetch.rid,
+                        "from": fetch.from,
+                        "refsAt": fetch.refs_at,
+                    })
+                }).collect::<Vec<_>>(),
+                "rateLimiter": state.limiter().buckets.iter().map(|(host, bucket)| {
+                    json!({
+                        "host": host.to_string(),
+                        "bucket": bucket
+                    })
+                }).collect::<Vec<_>>(),
+                "metrics": state.metrics(),
+            });
+            sender.send(debug).ok();
+
+            Ok(())
+        });
+        let (err_sender, err_receiver) = chan::bounded(1);
+        self.command(service::Command::QueryState(query, err_sender))?;
+        err_receiver.recv()??;
+
+        let debug = receiver.recv()?;
+
+        Ok(debug)
     }
 }

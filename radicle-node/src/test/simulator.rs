@@ -17,7 +17,7 @@ use log::*;
 use crate::crypto::Signer;
 use crate::prelude::{Address, RepoId};
 use crate::service::io::Io;
-use crate::service::{DisconnectReason, Event, Message, NodeId};
+use crate::service::{DisconnectReason, Event, Message, Metrics, NodeId};
 use crate::storage::Namespaces;
 use crate::storage::{ReadRepository, WriteStorage};
 use crate::test::arbitrary;
@@ -368,7 +368,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
             let Scheduled { input, node, .. } = next;
 
             if let Some(ref mut p) = nodes.get_mut(&node) {
-                p.tick(time);
+                p.tick(time, &Metrics::default());
 
                 match input {
                     Input::Connecting { id, addr } => {

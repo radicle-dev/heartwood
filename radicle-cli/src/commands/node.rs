@@ -33,6 +33,7 @@ Usage
     rad node start [--foreground] [--verbose] [<option>...] [-- <node-option>...]
     rad node stop [<option>...]
     rad node logs [-n <lines>]
+    rad node debug [<option>...]
     rad node connect <nid>@<addr> [<option>...]
     rad node routing [--rid <rid>] [--nid <nid>] [--json] [<option>...]
     rad node events [--timeout <secs>] [-n <count>] [<option>...]
@@ -98,6 +99,7 @@ pub enum Operation {
         lines: usize,
     },
     Status,
+    Debug,
     Sessions,
     Stop,
 }
@@ -113,6 +115,7 @@ pub enum OperationName {
     Start,
     #[default]
     Status,
+    Debug,
     Sessions,
     Stop,
 }
@@ -152,6 +155,7 @@ impl Args for Options {
                     "status" => op = Some(OperationName::Status),
                     "stop" => op = Some(OperationName::Stop),
                     "sessions" => op = Some(OperationName::Sessions),
+                    "debug" => op = Some(OperationName::Debug),
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
@@ -222,6 +226,7 @@ impl Args for Options {
                 path: path.unwrap_or(PathBuf::from("radicle-node")),
             },
             OperationName::Status => Operation::Status,
+            OperationName::Debug => Operation::Debug,
             OperationName::Sessions => Operation::Sessions,
             OperationName::Stop => Operation::Stop,
         };
@@ -249,6 +254,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Db { args } => {
             commands::db(&profile, args)?;
+        }
+        Operation::Debug => {
+            control::debug(&mut node)?;
         }
         Operation::Sessions => {
             let sessions = control::sessions(&node)?;

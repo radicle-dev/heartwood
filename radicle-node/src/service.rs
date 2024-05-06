@@ -108,6 +108,38 @@ pub use message::INVENTORY_LIMIT;
 /// Maximum number of project git references imposed by message size limits.
 pub use message::REF_REMOTE_LIMIT;
 
+/// Metrics we track.
+#[derive(Clone, Debug, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Metrics {
+    peers: HashMap<NodeId, PeerMetrics>,
+}
+
+impl Metrics {
+    /// Get metrics for the given peer.
+    pub fn peer(&mut self, nid: NodeId) -> &mut PeerMetrics {
+        self.peers.entry(nid).or_default()
+    }
+}
+
+/// Per-peer metrics we track.
+#[derive(Clone, Debug, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeerMetrics {
+    pub received_git_bytes: usize,
+    pub received_fetch_requests: usize,
+    pub received_bytes: usize,
+    pub received_gossip_messages: usize,
+    pub sent_bytes: usize,
+    pub sent_fetch_requests: usize,
+    pub sent_git_bytes: usize,
+    pub sent_gossip_messages: usize,
+    pub streams_opened: usize,
+    pub inbound_connection_attempts: usize,
+    pub outbound_connection_attempts: usize,
+    pub disconnects: usize,
+}
+
 /// Result of syncing our routing table with a node's inventory.
 #[derive(Default)]
 struct SyncedRouting {
@@ -252,13 +284,13 @@ enum TryFetchError<'a> {
 
 /// Fetch state for an ongoing fetch.
 #[derive(Debug)]
-struct FetchState {
+pub struct FetchState {
     /// Node we're fetching from.
-    from: NodeId,
+    pub from: NodeId,
     /// What refs we're fetching.
-    refs_at: Vec<RefsAt>,
+    pub refs_at: Vec<RefsAt>,
     /// Channels waiting for fetch results.
-    subscribers: Vec<chan::Sender<FetchResult>>,
+    pub subscribers: Vec<chan::Sender<FetchResult>>,
 }
 
 impl FetchState {
@@ -272,13 +304,13 @@ impl FetchState {
 
 /// Fetch waiting to be processed, in the fetch queue.
 #[derive(Debug)]
-struct QueuedFetch {
+pub struct QueuedFetch {
     /// Repo being fetched.
-    rid: RepoId,
+    pub rid: RepoId,
     /// Peer being fetched from.
-    from: NodeId,
+    pub from: NodeId,
     /// Refs being fetched.
-    refs_at: Vec<RefsAt>,
+    pub refs_at: Vec<RefsAt>,
     /// The timeout given for the fetch request.
     timeout: time::Duration,
     /// Result channel.
@@ -409,6 +441,8 @@ pub struct Service<D, S, G> {
     emitter: Emitter<Event>,
     /// Local listening addresses.
     listening: Vec<net::SocketAddr>,
+    /// Latest metrics for all nodes connected to since the last start.
+    metrics: Metrics,
 }
 
 impl<D, S, G> Service<D, S, G>
@@ -476,6 +510,7 @@ where
             started_at: None, // Updated on initialize.
             emitter,
             listening: vec![],
+            metrics: Metrics::default(),
         }
     }
 
@@ -695,7 +730,7 @@ where
         Ok(())
     }
 
-    pub fn tick(&mut self, now: LocalTime) {
+    pub fn tick(&mut self, now: LocalTime, metrics: &Metrics) {
         trace!(
             target: "service",
             "Tick +{}",
@@ -712,6 +747,7 @@ where
                 "System clock is not monotonic: {now} is not greater or equal to {}", self.clock
             );
         }
+        self.metrics = metrics.clone();
     }
 
     pub fn wake(&mut self) {
@@ -2391,6 +2427,14 @@ pub trait ServiceState {
     fn nid(&self) -> &NodeId;
     /// Get the existing sessions.
     fn sessions(&self) -> &Sessions;
+    /// Get fetch state.
+    fn fetching(&self) -> &HashMap<RepoId, FetchState>;
+    /// Get fetch queue.
+    fn queue(&self) -> &VecDeque<QueuedFetch>;
+    /// Get outbox.
+    fn outbox(&self) -> &Outbox;
+    /// Get rate limitter.
+    fn limiter(&self) -> &RateLimiter;
     /// Get a repository from storage.
     fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError>;
     /// Get the clock.
@@ -2399,6 +2443,8 @@ pub trait ServiceState {
     fn clock_mut(&mut self) -> &mut LocalTime;
     /// Get service configuration.
     fn config(&self) -> &Config;
+    /// Get service metrics.
+    fn metrics(&self) -> &Metrics;
 }
 
 impl<D, S, G> ServiceState for Service<D, S, G>
@@ -2415,6 +2461,22 @@ where
         &self.sessions
     }
 
+    fn fetching(&self) -> &HashMap<RepoId, FetchState> {
+        &self.fetching
+    }
+
+    fn queue(&self) -> &VecDeque<QueuedFetch> {
+        &self.queue
+    }
+
+    fn outbox(&self) -> &Outbox {
+        &self.outbox
+    }
+
+    fn limiter(&self) -> &RateLimiter {
+        &self.limiter
+    }
+
     fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError> {
         self.storage.get(rid)
     }
@@ -2429,6 +2491,10 @@ where
 
     fn config(&self) -> &Config {
         &self.config
+    }
+
+    fn metrics(&self) -> &Metrics {
+        &self.metrics
     }
 }
 

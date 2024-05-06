@@ -115,4 +115,8 @@ impl radicle::node::Handle for Handle {
     fn shutdown(self) -> Result<(), Self::Error> {
         Ok(())
     }
+
+    fn debug(&self) -> Result<serde_json::Value, Self::Error> {
+        Ok(serde_json::Value::Null)
+    }
 }

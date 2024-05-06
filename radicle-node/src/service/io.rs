@@ -177,6 +177,12 @@ impl Outbox {
         }
     }
 
+    /// Number of items in outbox.
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.io.len()
+    }
+
     #[cfg(any(test, feature = "test"))]
     pub(crate) fn queue(&mut self) -> &mut VecDeque<Io> {
         &mut self.io

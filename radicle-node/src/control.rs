@@ -199,6 +199,11 @@ where
             }
             Err(e) => return Err(CommandError::Runtime(e)),
         },
+        Command::Debug => {
+            let debug = handle.debug()?;
+
+            CommandResult::Okay(debug).to_writer(writer)?;
+        }
         Command::Shutdown => {
             log::debug!(target: "control", "Shutdown requested..");
             // Channel might already be disconnected if shutdown
