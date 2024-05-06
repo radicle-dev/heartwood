@@ -16,8 +16,8 @@ use cyphernet::proxy::socks5;
 use cyphernet::{Digest, EcSk, Ecdh, Sha256};
 use localtime::LocalTime;
 use netservices::resource::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
-use netservices::session::{ProtocolArtifact, Socks5Session};
-use netservices::{NetConnection, NetProtocol, NetReader, NetWriter};
+use netservices::session::{NoiseSession, ProtocolArtifact, Socks5Session};
+use netservices::{NetConnection, NetReader, NetWriter};
 use reactor::{ResourceId, ResourceType, Timestamp};
 
 use radicle::collections::RandomMap;
@@ -66,7 +66,7 @@ pub enum Control {
 }
 
 /// Peer session type.
-pub type WireSession<G> = NetProtocol<NoiseState<G, Sha256>, Socks5Session<net::TcpStream>>;
+pub type WireSession<G> = NoiseSession<G, Sha256, Socks5Session<net::TcpStream>>;
 /// Peer session type (read-only).
 pub type WireReader = NetReader<Socks5Session<net::TcpStream>>;
 /// Peer session type (write-only).
