@@ -2295,6 +2295,50 @@ fn git_push_diverge() {
 }
 
 #[test]
+fn git_push_concurrent_diverge() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let working = environment.tmp().join("working");
+    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    bob.connect(&alice).converge([&alice]);
+    bob.fork(acme, working.join("bob")).unwrap();
+    alice.has_remote_of(&acme, &bob.id);
+
+    formula(
+        &environment.tmp(),
+        "examples/git/git-push-concurrent-diverge.md",
+    )
+    .unwrap()
+    .home(
+        "alice",
+        working.join("alice"),
+        [("RAD_HOME", alice.home.path().display())],
+    )
+    .home(
+        "bob",
+        working.join("bob").join("heartwood"),
+        [("RAD_HOME", bob.home.path().display())],
+    )
+    .run()
+    .unwrap();
+}
+
+#[test]
 fn rad_push_and_pull_patches() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
