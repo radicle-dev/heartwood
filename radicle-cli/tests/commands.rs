@@ -419,6 +419,33 @@ fn rad_id_threshold() {
 }
 
 #[test]
+fn rad_id_update_delete_field() {
+    let mut environment = Environment::new();
+    let alice = environment.node(config::node("alice"));
+    let working = tempfile::tempdir().unwrap();
+    let working = working.path();
+
+    // Setup a test repository.
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    test(
+        "examples/rad-id-update-delete-field.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_id_multi_delegate() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));

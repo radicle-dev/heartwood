@@ -378,7 +378,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 for (id, key, val) in payload {
                     if let Some(ref mut payload) = proposal.payload.get_mut(&id) {
                         if let Some(obj) = payload.as_object_mut() {
-                            obj.insert(key, val);
+                            if val.is_null() {
+                                obj.remove(&key);
+                            } else {
+                                obj.insert(key, val);
+                            }
                         } else {
                             anyhow::bail!("payload `{id}` is not a map");
                         }

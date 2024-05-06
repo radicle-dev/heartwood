@@ -76,7 +76,7 @@ automatically accepted and included into the identity document.
 *--payload* _<id> <key> <val>_::
   Update the identity by setting metadata in one of the identity payloads.
   This can be used to update a repository's project name or description, for
-  example.
+  example. To delete a field from a payload, simply set it to *null*.
 
 *--no-confirm*::
   Don't ask for confirmation before creating the revision.
