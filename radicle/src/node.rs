@@ -53,7 +53,9 @@ pub const DEFAULT_TIMEOUT: time::Duration = time::Duration::from_secs(30);
 /// Maximum length in bytes of a node alias.
 pub const MAX_ALIAS_LENGTH: usize = 32;
 /// Penalty threshold at which point we avoid connecting to this node.
-pub const PENALTY_THRESHOLD: u8 = 32;
+pub const PENALTY_CONNECT_THRESHOLD: u8 = 32;
+/// Penalty threshold at which point we ban this node.
+pub const PENALTY_BAN_THRESHOLD: u8 = 64;
 /// Filename of node database under the node directory.
 pub const NODE_DB_FILE: &str = "node.db";
 /// Filename of policies database under the node directory.
@@ -162,8 +164,12 @@ pub struct Penalty(u8);
 impl Penalty {
     /// If the penalty threshold is reached, at which point we should just avoid
     /// connecting to this node.
-    pub fn is_threshold_reached(&self) -> bool {
-        self.0 >= PENALTY_THRESHOLD
+    pub fn is_connect_threshold_reached(&self) -> bool {
+        self.0 >= PENALTY_CONNECT_THRESHOLD
+    }
+
+    pub fn is_ban_threshold_reached(&self) -> bool {
+        self.0 >= PENALTY_BAN_THRESHOLD
     }
 }
 

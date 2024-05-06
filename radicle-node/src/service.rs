@@ -1162,6 +1162,14 @@ where
         if self.sessions.inbound().count() >= self.config.limits.connection.inbound {
             return false;
         }
+        match self.db.addresses().is_banned(&addr) {
+            Ok(banned) => {
+                if banned {
+                    return false;
+                }
+            }
+            Err(e) => error!(target: "service", "Error querying ban status for {addr}: {e}"),
+        }
         let host: HostName = addr.into();
 
         if self.limiter.limit(
@@ -2185,7 +2193,7 @@ where
                 // even if it's in a disconnected state. Those sessions are re-attempted automatically.
                 let mut peers = entries
                     .filter(|entry| !entry.address.banned)
-                    .filter(|entry| !entry.penalty.is_threshold_reached())
+                    .filter(|entry| !entry.penalty.is_connect_threshold_reached())
                     .filter(|entry| !self.sessions.contains_key(&entry.node))
                     .filter(|entry| !self.config.external_addresses.contains(&entry.address.addr))
                     .filter(|entry| &entry.node != self.nid())

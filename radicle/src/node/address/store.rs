@@ -63,6 +63,9 @@ pub trait Store {
     fn is_empty(&self) -> Result<bool, Error> {
         self.len().map(|l| l == 0)
     }
+    /// Check if an address is banned. Also returns `true` if the node this address belongs
+    /// to is banned.
+    fn is_banned(&self, addr: &Address) -> Result<bool, Error>;
     /// Get the address entries in the store.
     fn entries(&self) -> Result<Box<dyn Iterator<Item = AddressEntry>>, Error>;
     /// Mark a node as attempted at a certain time.
@@ -80,10 +83,9 @@ pub trait Store {
 
 impl Store for Database {
     fn get(&self, node: &NodeId) -> Result<Option<Node>, Error> {
-        let mut stmt = self
-            .db
-            .prepare("SELECT features, alias, pow, penalty, timestamp FROM nodes WHERE id = ?")?;
-
+        let mut stmt = self.db.prepare(
+            "SELECT features, alias, pow, penalty, banned, timestamp FROM nodes WHERE id = ?",
+        )?;
         stmt.bind((1, node))?;
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
@@ -93,6 +95,7 @@ impl Store for Database {
             let pow = row.read::<i64, _>("pow") as u32;
             let penalty = row.read::<i64, _>("penalty").min(u8::MAX as i64);
             let penalty = Penalty(penalty as u8);
+            let banned = row.read::<i64, _>("banned").is_positive();
             let addrs = self.addresses_of(node)?;
 
             Ok(Some(Node {
@@ -102,9 +105,31 @@ impl Store for Database {
                 timestamp,
                 penalty,
                 addrs,
+                banned,
             }))
         } else {
             Ok(None)
+        }
+    }
+
+    fn is_banned(&self, addr: &Address) -> Result<bool, Error> {
+        let mut stmt = self.db.prepare(
+            "SELECT a.banned, n.banned
+             FROM addresses AS a
+             JOIN nodes AS n ON a.node = n.id
+             WHERE value = ?1 AND type =?2",
+        )?;
+        stmt.bind((1, addr))?;
+        stmt.bind((2, AddressType::from(addr)))?;
+
+        if let Some(row) = stmt.into_iter().next() {
+            let row = row?;
+            let addr_banned = row.read::<i64, _>(0).is_positive();
+            let node_banned = row.read::<i64, _>(1).is_positive();
+
+            Ok(node_banned || addr_banned)
+        } else {
+            Ok(false)
         }
     }
 
@@ -306,17 +331,29 @@ impl Store for Database {
         _addr: &Address,
         severity: Severity,
     ) -> Result<(), Error> {
-        let mut stmt = self.db.prepare(
-            "UPDATE `nodes`
-             SET penalty = penalty + ?2
-             WHERE id = ?1",
-        )?;
+        transaction(&self.db, |db| {
+            let mut stmt = self.db.prepare(
+                "UPDATE `nodes`
+                 SET penalty = penalty + ?2
+                 WHERE id = ?1",
+            )?;
+            stmt.bind((1, nid))?;
+            stmt.bind((2, severity as i64))?;
+            stmt.next()?;
 
-        stmt.bind((1, nid))?;
-        stmt.bind((2, severity as i64))?;
-        stmt.next()?;
+            // If the ban threshold is reached, we ban the node and its addresses.
+            let node = self.get(nid)?.ok_or(Error::NoRows)?;
+            if node.penalty.is_ban_threshold_reached() {
+                let mut stmt = db.prepare("UPDATE `nodes` SET banned = 1 WHERE id = ?1")?;
+                stmt.bind((1, nid))?;
+                stmt.next()?;
 
-        Ok(())
+                let mut stmt = db.prepare("UPDATE `addresses` SET banned = 1 WHERE node = ?1")?;
+                stmt.bind((1, nid))?;
+                stmt.next()?;
+            }
+            Ok(())
+        })
     }
 }
 
@@ -683,5 +720,47 @@ mod test {
         cache.connected(&alice, &addr, timestamp + 1).unwrap();
         let node = cache.get(&alice).unwrap().unwrap();
         assert_eq!(node.penalty, Penalty(4));
+    }
+
+    #[test]
+    fn test_disconnected_ban() {
+        let alice = arbitrary::gen::<NodeId>(1);
+        let ka1 = arbitrary::gen::<KnownAddress>(1);
+        let ka2 = arbitrary::gen::<KnownAddress>(1);
+        let mut db = Database::memory().unwrap();
+        let features = node::Features::SEED;
+        let timestamp = Timestamp::from(LocalTime::now());
+
+        db.insert(
+            &alice,
+            features,
+            Alias::new("alice"),
+            16,
+            timestamp,
+            [ka1.clone(), ka2.clone()],
+        )
+        .unwrap();
+        let node = db.get(&alice).unwrap().unwrap();
+        assert_eq!(node.penalty, Penalty::default());
+
+        for _ in 0..7 {
+            db.disconnected(&alice, &ka1.addr, Severity::High).unwrap();
+            let node = db.get(&alice).unwrap().unwrap();
+
+            assert!(!node.penalty.is_ban_threshold_reached());
+            assert!(!node.banned);
+        }
+
+        db.disconnected(&alice, &ka1.addr, Severity::High).unwrap();
+        let node = db.get(&alice).unwrap().unwrap();
+
+        assert!(node.penalty.is_ban_threshold_reached());
+        assert!(node.banned);
+
+        for addr in node.addrs {
+            assert!(addr.banned);
+        }
+        assert!(db.is_banned(&ka1.addr).unwrap());
+        assert!(db.is_banned(&ka2.addr).unwrap()); // Banned because node is banned.
     }
 }

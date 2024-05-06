@@ -132,6 +132,8 @@ pub struct Node {
     pub timestamp: Timestamp,
     /// Node connection penalty.
     pub penalty: Penalty,
+    /// Whether the node is banned.
+    pub banned: bool,
 }
 
 /// A known address.

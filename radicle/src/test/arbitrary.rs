@@ -18,8 +18,8 @@ use crate::identity::{
     project::Project,
     Did,
 };
-use crate::node::address::AddressType;
-use crate::node::{Address, Alias, Timestamp};
+use crate::node::address::{AddressType, Source};
+use crate::node::{Address, Alias, KnownAddress, Timestamp};
 use crate::storage;
 use crate::storage::refs::{Refs, RefsAt, SignedRefs};
 use crate::test::storage::{MockRepository, MockStorage};
@@ -300,6 +300,12 @@ impl Arbitrary for Address {
             host,
             port: u16::arbitrary(g),
         })
+    }
+}
+
+impl Arbitrary for KnownAddress {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        KnownAddress::new(Address::arbitrary(g), Source::Peer)
     }
 }
 
