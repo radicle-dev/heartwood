@@ -47,6 +47,9 @@ impl<'de> Deserialize<'de> for Project {
             Name,
             Description,
             DefaultBranch,
+            /// A catch-all variant to allow for unknown fields
+            #[allow(dead_code)]
+            Unknown(String),
         }
 
         struct ProjectVisitor;
@@ -86,6 +89,7 @@ impl<'de> Deserialize<'de> for Project {
                             }
                             default_branch = Some(map.next_value()?);
                         }
+                        Field::Unknown(_) => continue,
                     }
                 }
                 let name = name.ok_or_else(|| de::Error::missing_field("name"))?;
