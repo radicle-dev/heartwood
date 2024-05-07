@@ -6,6 +6,9 @@ use chrono::prelude::*;
 use nonempty::NonEmpty;
 use radicle::cob;
 use radicle::cob::Op;
+use radicle::identity::Identity;
+use radicle::issue::cache::Issues;
+use radicle::patch::cache::Patches;
 use radicle::prelude::RepoId;
 use radicle::storage::ReadStorage;
 use radicle_cob::object::collaboration::list;
@@ -26,6 +29,8 @@ Usage
     rad cob list  --repo <rid> --type <typename>
     rad cob log   --repo <rid> --type <typename> --object <oid>
                   [--format pretty|json]
+    rad cob show  --repo <rid> --type <typename> --object <oid>
+                  [--format json]
 
 Commands
 
@@ -37,6 +42,10 @@ Log options
 
     --format [pretty|json]  Desired output format (default: pretty)
 
+Show options
+
+    --format json           Desired output format (default: json)
+
 Other options
 
     --help                  Print help
@@ -47,11 +56,13 @@ Other options
 enum OperationName {
     List,
     Log,
+    Show,
 }
 
 enum Operation {
     List,
     Log(Rev),
+    Show(Rev),
 }
 
 enum Format {
@@ -82,6 +93,7 @@ impl Args for Options {
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "list" => op = Some(OperationName::List),
                     "log" => op = Some(OperationName::Log),
+                    "show" => op = Some(OperationName::Show),
                     unknown => anyhow::bail!("unknown operation '{unknown}'"),
                 },
                 Long("type") | Short('t') => {
@@ -106,10 +118,12 @@ impl Args for Options {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
-                Long("format") if op == Some(OperationName::Log) => {
+                Long("format")
+                    if op == Some(OperationName::Log) || op == Some(OperationName::Show) =>
+                {
                     let v: String = term::args::string(&parser.value()?);
                     match v.as_ref() {
-                        "pretty" => format = Some(Format::Pretty),
+                        "pretty" if op == Some(OperationName::Log) => format = Some(Format::Pretty),
                         "json" => format = Some(Format::Json),
                         unknown => anyhow::bail!("unknown format '{unknown}'"),
                     }
@@ -124,7 +138,10 @@ impl Args for Options {
                     match op.ok_or_else(|| anyhow!("a command must be specified"))? {
                         OperationName::List => Operation::List,
                         OperationName::Log => Operation::Log(oid.ok_or_else(|| {
-                            anyhow!("an object id must be specified with `--object")
+                            anyhow!("an object id must be specified with `--object`")
+                        })?),
+                        OperationName::Show => Operation::Show(oid.ok_or_else(|| {
+                            anyhow!("an object id must be specified with `--object`")
                         })?),
                     }
                 },
@@ -159,6 +176,31 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 Format::Json => ops.try_for_each(print_op_json)?,
                 Format::Pretty => ops.rev().try_for_each(print_op_pretty)?,
             }
+        }
+        Operation::Show(oid) => {
+            let oid = &oid.resolve(&repo.backend)?;
+
+            if options.type_name == cob::patch::TYPENAME.clone() {
+                let patches = profile.patches(&repo)?;
+                let Some(patch) = patches.get(oid)? else {
+                    anyhow::bail!(cob::store::Error::NotFound(options.type_name, *oid))
+                };
+                serde_json::to_writer_pretty(std::io::stdout(), &patch)?
+            } else if options.type_name == cob::issue::TYPENAME.clone() {
+                let issues = profile.issues(&repo)?;
+                let Some(issue) = issues.get(oid)? else {
+                    anyhow::bail!(cob::store::Error::NotFound(options.type_name, *oid))
+                };
+                serde_json::to_writer_pretty(std::io::stdout(), &issue)?
+            } else if options.type_name == cob::identity::TYPENAME.clone() {
+                let Some(cob) = cob::get::<Identity, _>(&repo, &options.type_name, oid)? else {
+                    anyhow::bail!(cob::store::Error::NotFound(options.type_name, *oid))
+                };
+                serde_json::to_writer_pretty(std::io::stdout(), &cob.object)?
+            } else {
+                anyhow::bail!("the type name '{}' is unknown", options.type_name);
+            }
+            println!();
         }
     }
 

@@ -156,7 +156,7 @@ fn rad_issue() {
 }
 
 #[test]
-fn rad_cob() {
+fn rad_cob_log() {
     let mut environment = Environment::new();
     let profile = environment.profile(config::profile("alice"));
     let home = &profile.home;
@@ -167,6 +167,20 @@ fn rad_cob() {
 
     test("examples/rad-init.md", &working, Some(home), []).unwrap();
     test("examples/rad-cob-log.md", &working, Some(home), []).unwrap();
+}
+
+#[test]
+fn rad_cob_show() {
+    let mut environment = Environment::new();
+    let profile = environment.profile(config::profile("alice"));
+    let home = &profile.home;
+    let working = environment.tmp().join("working");
+
+    // Setup a test repository.
+    fixtures::repository(&working);
+
+    test("examples/rad-init.md", &working, Some(home), []).unwrap();
+    test("examples/rad-cob-show.md", &working, Some(home), []).unwrap();
 }
 
 #[test]
