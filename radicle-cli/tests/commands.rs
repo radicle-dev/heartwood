@@ -166,7 +166,7 @@ fn rad_cob() {
     fixtures::repository(&working);
 
     test("examples/rad-init.md", &working, Some(home), []).unwrap();
-    test("examples/rad-cob.md", &working, Some(home), []).unwrap();
+    test("examples/rad-cob-log.md", &working, Some(home), []).unwrap();
 }
 
 #[test]
