@@ -93,7 +93,7 @@ $ rad inspect --identity
 
 We can also look at the document's COB directly:
 ```
-$ rad cob show --object 0656c217f917c3e06234771e9ecae53aba5e173e --type xyz.radicle.id --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad cob log --object 0656c217f917c3e06234771e9ecae53aba5e173e --type xyz.radicle.id --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 commit   0ca42d376bd566631083c8913cf86bec722da392
 parent   0656c217f917c3e06234771e9ecae53aba5e173e
 author   z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi

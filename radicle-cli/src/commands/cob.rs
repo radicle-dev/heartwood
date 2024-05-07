@@ -22,12 +22,12 @@ Usage
 
     rad cob <command> [<option>...]
     rad cob list --repo <rid> --type <typename>
-    rad cob show --repo <rid> --type <typename> --object <oid>
+    rad cob log  --repo <rid> --type <typename> --object <oid>
 
 Commands
 
     list       List all COBs of a given type (--object is not needed)
-    show       Show a COB as raw operations
+    log        Print a log of all raw operations on a COB
 
 Options
 
@@ -37,12 +37,12 @@ Options
 
 enum OperationName {
     List,
-    Show,
+    Log,
 }
 
 enum Operation {
     List,
-    Show(Rev),
+    Log(Rev),
 }
 
 pub struct Options {
@@ -64,8 +64,8 @@ impl Args for Options {
         while let Some(arg) = parser.next()? {
             match arg {
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "l" | "list" => op = Some(OperationName::List),
-                    "s" | "show" => op = Some(OperationName::Show),
+                    "list" => op = Some(OperationName::List),
+                    "log" => op = Some(OperationName::Log),
                     unknown => anyhow::bail!("unknown operation '{unknown}'"),
                 },
                 Long("type") | Short('t') => {
@@ -99,7 +99,7 @@ impl Args for Options {
                 op: {
                     match op.ok_or_else(|| anyhow!("a command must be specified"))? {
                         OperationName::List => Operation::List,
-                        OperationName::Show => Operation::Show(oid.ok_or_else(|| {
+                        OperationName::Log => Operation::Log(oid.ok_or_else(|| {
                             anyhow!("an object id must be specified with `--object")
                         })?),
                     }
@@ -126,7 +126,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 println!("{}", cob.id);
             }
         }
-        Operation::Show(oid) => {
+        Operation::Log(oid) => {
             let oid = oid.resolve(&repo.backend)?;
             let ops = cob::store::ops(&oid, &options.type_name, &repo)?;
 

@@ -61,7 +61,7 @@ aa45913e757cacd46972733bddee5472c78fa32a
 We can look at the issue COB.
 
 ```
-$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue --object d87dcfe8c2b3200e78b128d9b959cfdf7063fefe
+$ rad cob log --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue --object d87dcfe8c2b3200e78b128d9b959cfdf7063fefe
 commit   d87dcfe8c2b3200e78b128d9b959cfdf7063fefe
 resource 0656c217f917c3e06234771e9ecae53aba5e173e
 author   z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
@@ -82,7 +82,7 @@ date     Thu, 15 Dec 2022 17:28:04 +0000
 We can look at the patch COB too.
 
 ```
-$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object aa45913e757cacd46972733bddee5472c78fa32a
+$ rad cob log --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object aa45913e757cacd46972733bddee5472c78fa32a
 commit   aa45913e757cacd46972733bddee5472c78fa32a
 resource 0656c217f917c3e06234771e9ecae53aba5e173e
 rel      3e674d1a1df90807e934f9ae5da2591dd6848a33
@@ -109,7 +109,7 @@ Finally let's updated the issue and see the `parent` header:
 
 ```
 $ rad issue label d87dcfe --add bug --no-announce
-$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue --object d87dcfe8c2b3200e78b128d9b959cfdf7063fefe
+$ rad cob log --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue --object d87dcfe8c2b3200e78b128d9b959cfdf7063fefe
 commit   abec0a9f3c945594c4e78d24d8ec679e56b22b79
 resource 0656c217f917c3e06234771e9ecae53aba5e173e
 parent   d87dcfe8c2b3200e78b128d9b959cfdf7063fefe
