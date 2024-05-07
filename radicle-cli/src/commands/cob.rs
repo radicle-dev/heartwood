@@ -142,34 +142,18 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let ops = cob::store::ops(&oid, &options.type_name, &repo)?;
 
             for op in ops.into_iter().rev() {
-                let time = DateTime::<Utc>::from(
-                    std::time::UNIX_EPOCH + std::time::Duration::from_secs(op.timestamp.as_secs()),
-                )
-                .to_rfc2822();
-
-                term::print(term::format::yellow(format!("commit   {}", op.id)));
-                if let Some(oid) = op.identity {
-                    term::print(term::format::tertiary(format!("resource {oid}")));
-                }
-                for parent in op.parents {
-                    term::print(format!("parent   {}", parent));
-                }
-                for parent in op.related {
-                    term::print(format!("rel      {}", parent));
-                }
-                term::print(format!("author   {}", op.author));
-                term::print(format!("date     {}", time));
-                term::blank();
-
-                for action in op.actions {
-                    let obj: serde_json::Value = serde_json::from_slice(&action)?;
-                    let val = serde_json::to_string_pretty(&obj)?;
-
-                    for line in val.lines() {
-                        term::indented(term::format::dim(line));
-                    }
-                    term::blank();
-                }
+                let mut ser = json!(op);
+                ser.as_object_mut().unwrap().insert(
+                    "actions".to_string(),
+                    json!(op
+                        .actions
+                        .iter()
+                        .map(|action: &Vec<u8>| -> Result<serde_json::Value, _> {
+                            serde_json::from_slice(&action)
+                        })
+                        .collect::<Result<Vec<serde_json::Value>, _>>()?),
+                );
+                term::print(ser)
             }
         }
         Operation::Show(oid) => {
