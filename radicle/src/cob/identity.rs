@@ -133,7 +133,8 @@ pub enum Error {
 }
 
 /// An evolving identity document.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Identity {
     /// The canonical identifier for this identity.
     /// This is the object id of the initial document blob.
@@ -612,7 +613,7 @@ impl<R: ReadRepository> cob::Evaluate<R> for Identity {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum Verdict {
     /// An accepting verdict must supply the [`Signature`] over the
     /// new proposed [`Doc`].
@@ -656,7 +657,7 @@ impl std::fmt::Display for State {
 ///
 /// Once a revision has reached the quorum threshold of the previous
 /// [`Identity`] it is then adopted as the current identity.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Revision {
     /// The id of this revision. Points to a commit.
     pub id: RevisionId,
