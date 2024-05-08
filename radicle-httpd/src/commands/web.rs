@@ -192,6 +192,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     if options.open {
+        #[cfg(target_os = "windows")]
+        let cmd_name = "echo";
         #[cfg(target_os = "macos")]
         let cmd_name = "open";
         #[cfg(target_os = "linux")]
