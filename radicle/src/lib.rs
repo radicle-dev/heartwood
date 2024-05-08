@@ -18,6 +18,7 @@ pub mod explorer;
 pub mod git;
 pub mod identity;
 pub mod io;
+pub mod keys;
 #[cfg(feature = "logger")]
 pub mod logger;
 pub mod node;

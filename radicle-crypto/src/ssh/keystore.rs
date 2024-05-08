@@ -21,8 +21,8 @@ pub enum Error {
     Ssh(#[from] ssh_key::Error),
     #[error("invalid key type, expected ed25519 key")]
     InvalidKeyType,
-    #[error("keystore already initialized")]
-    AlreadyInitialized,
+    #[error("keystore already initialized, {0} exists")]
+    AlreadyInitialized(PathBuf),
     #[error("keystore is encrypted; a passphrase is required")]
     PassphraseMissing,
 }
@@ -37,20 +37,27 @@ impl Error {
 /// Stores keys on disk, in OpenSSH format.
 #[derive(Debug, Clone)]
 pub struct Keystore {
-    path: PathBuf,
+    secret_path: PathBuf,
+    public_path: PathBuf,
 }
 
 impl Keystore {
-    /// Create a new keystore pointing to the given path. Use [`Keystore::init`] to initialize.
-    pub fn new<P: AsRef<Path>>(path: &P) -> Self {
+    /// Create a new keystore pointing to the given paths. Use [`Keystore::init`] to initialize.
+    pub fn new<P: AsRef<Path>>(secret: &P, public: &P) -> Self {
         Self {
-            path: path.as_ref().to_path_buf(),
+            secret_path: secret.as_ref().to_path_buf(),
+            public_path: public.as_ref().to_path_buf(),
         }
     }
 
-    /// Get the path to the keystore.
-    pub fn path(&self) -> &Path {
-        self.path.as_path()
+    /// Get the path to the secret key backing the keystore.
+    pub fn secret_key_path(&self) -> &Path {
+        self.secret_path.as_path()
+    }
+
+    /// Get the path to the public key backing the keystore.
+    pub fn public_key_path(&self) -> &Path {
+        self.public_path.as_path()
     }
 
     /// Initialize a keystore by generating a key pair and storing the secret and public key
@@ -70,7 +77,7 @@ impl Keystore {
         self.store(KeyPair::from_seed(seed), comment, passphrase)
     }
 
-    /// Store a keypair on disk. Returns an error if the key already exists.
+    /// Store a keypair on disk. Returns an error if any of the two key files already exist.
     pub fn store(
         &self,
         keypair: KeyPair,
@@ -86,31 +93,44 @@ impl Keystore {
             secret
         };
         let public = secret.public_key();
-        let path = self.path.join("radicle");
 
-        if path.exists() {
-            return Err(Error::AlreadyInitialized);
+        if self.secret_path.exists() {
+            return Err(Error::AlreadyInitialized(self.secret_path.to_path_buf()));
         }
 
-        fs::DirBuilder::new()
-            .recursive(true)
-            .mode(0o700)
-            .create(&self.path)?;
+        if self.public_path.exists() {
+            return Err(Error::AlreadyInitialized(self.public_path.to_path_buf()));
+        }
 
-        secret.write_openssh_file(&path, ssh_key::LineEnding::default())?;
-        public.write_openssh_file(&path.with_extension("pub"))?;
+        // NOTE: If [`PathBuf::parent`] returns `None`,
+        // then the path is at root or empty, so don't
+        // attempt to create any parents.
+        self.secret_path.parent().map_or(Ok(()), |parent| {
+            fs::DirBuilder::new()
+                .recursive(true)
+                .mode(0o700)
+                .create(parent)
+        })?;
+        self.public_path.parent().map_or(Ok(()), |parent| {
+            fs::DirBuilder::new()
+                .recursive(true)
+                .mode(0o700)
+                .create(parent)
+        })?;
+
+        secret.write_openssh_file(&self.secret_path, ssh_key::LineEnding::default())?;
+        public.write_openssh_file(&self.public_path)?;
 
         Ok(keypair.pk.into())
     }
 
     /// Load the public key from the store. Returns `None` if it wasn't found.
     pub fn public_key(&self) -> Result<Option<PublicKey>, Error> {
-        let path = self.path.join("radicle.pub");
-        if !path.exists() {
+        if !self.public_path.exists() {
             return Ok(None);
         }
 
-        let public = ssh_key::PublicKey::read_openssh_file(&path)?;
+        let public = ssh_key::PublicKey::read_openssh_file(&self.public_path)?;
         match public.try_into() {
             Ok(public) => Ok(Some(public)),
             _ => Err(Error::InvalidKeyType),
@@ -123,12 +143,11 @@ impl Keystore {
         &self,
         passphrase: Option<Passphrase>,
     ) -> Result<Option<Zeroizing<SecretKey>>, Error> {
-        let path = self.path.join("radicle");
-        if !path.exists() {
+        if !self.secret_path.exists() {
             return Ok(None);
         }
 
-        let secret = ssh_key::PrivateKey::read_openssh_file(&path)?;
+        let secret = ssh_key::PrivateKey::read_openssh_file(&self.secret_path)?;
         let secret = if let Some(p) = passphrase {
             secret.decrypt(p)?
         } else if secret.is_encrypted() {
@@ -146,12 +165,11 @@ impl Keystore {
 
     /// Check that the passphrase is valid.
     pub fn is_valid_passphrase(&self, passphrase: &Passphrase) -> Result<bool, Error> {
-        let path = self.path.join("radicle");
-        if !path.exists() {
+        if !self.secret_path.exists() {
             return Err(Error::Io(io::ErrorKind::NotFound.into()));
         }
 
-        let secret = ssh_key::PrivateKey::read_openssh_file(&path)?;
+        let secret = ssh_key::PrivateKey::read_openssh_file(&self.secret_path)?;
         let valid = secret.decrypt(passphrase).is_ok();
 
         Ok(valid)
@@ -159,8 +177,7 @@ impl Keystore {
 
     /// Check whether the secret key is encrypted.
     pub fn is_encrypted(&self) -> Result<bool, Error> {
-        let path = self.path.join("radicle");
-        let secret = ssh_key::PrivateKey::read_openssh_file(&path)?;
+        let secret = ssh_key::PrivateKey::read_openssh_file(&self.secret_path)?;
 
         Ok(secret.is_encrypted())
     }
@@ -236,7 +253,7 @@ impl MemorySigner {
     ) -> Result<Self, MemorySignerError> {
         let public = keystore
             .public_key()?
-            .ok_or_else(|| MemorySignerError::NotFound(keystore.path().to_path_buf()))?;
+            .ok_or_else(|| MemorySignerError::NotFound(keystore.public_key_path().to_path_buf()))?;
         let secret = keystore
             .secret_key(passphrase)
             .map_err(|e| {
@@ -246,7 +263,7 @@ impl MemorySigner {
                     e.into()
                 }
             })?
-            .ok_or_else(|| MemorySignerError::NotFound(keystore.path().to_path_buf()))?;
+            .ok_or_else(|| MemorySignerError::NotFound(keystore.secret_key_path().to_path_buf()))?;
 
         Ok(Self { public, secret })
     }
@@ -285,10 +302,15 @@ impl TryFrom<ssh_key::PublicKey> for PublicKey {
 mod tests {
     use super::*;
 
+    /// Creates a new [`Keystore`] for testing, using a temporary directory.
+    fn keystore(tmp: &tempfile::TempDir) -> Keystore {
+        Keystore::new(&tmp.path().join("test"), &tmp.path().join("test.pub"))
+    }
+
     #[test]
     fn test_init_passphrase() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Keystore::new(&tmp.path());
+        let store = keystore(&tmp);
 
         let public = store
             .init(
@@ -314,7 +336,7 @@ mod tests {
     #[test]
     fn test_init_no_passphrase() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Keystore::new(&tmp.path());
+        let store = keystore(&tmp);
 
         let public = store.init("test", None, ec25519::Seed::default()).unwrap();
         assert_eq!(public, store.public_key().unwrap().unwrap());
@@ -327,7 +349,7 @@ mod tests {
     #[test]
     fn test_signer() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Keystore::new(&tmp.path());
+        let store = keystore(&tmp);
 
         let public = store
             .init(

@@ -38,6 +38,8 @@ use crate::{runtime, runtime::Handle, service, Runtime};
 
 pub use service::Config;
 
+const BOGUS_FILE_NAME: &str = "bogus";
+
 /// Test environment.
 pub struct Environment {
     tempdir: tempfile::TempDir,
@@ -78,8 +80,10 @@ impl Environment {
     /// is required. Use [`Environment::profile`] otherwise.
     pub fn node(&mut self, node: Config) -> Node<MemorySigner> {
         let alias = node.alias.clone();
+        let home = self.home(&alias);
         let profile = self.profile(profile::Config {
             node,
+            keys: home.default_keys(),
             ..Environment::config(alias)
         });
         Node::new(profile)
@@ -93,6 +97,10 @@ impl Environment {
             public_explorer: explorer::Explorer::default(),
             preferred_seeds: vec![],
             web: web::Config::default(),
+            keys: radicle::keys::Config {
+                secret: PathBuf::from(BOGUS_FILE_NAME),
+                public: PathBuf::from(BOGUS_FILE_NAME),
+            },
         }
     }
 
@@ -100,14 +108,10 @@ impl Environment {
     /// This should be used when a running node is not required.
     pub fn profile(&mut self, config: profile::Config) -> Profile {
         let alias = config.alias().clone();
-        let home = Home::new(
-            self.tmp()
-                .join("home")
-                .join(alias.to_string())
-                .join(".radicle"),
-        )
-        .unwrap();
-        let keystore = Keystore::new(&home.keys());
+        let home = self.home(&alias);
+        let keys = home.default_keys();
+        let keystore = Keystore::new(&keys.secret, &keys.public);
+        let config = profile::Config { keys, ..config };
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
         let policies_db = home.node().join(POLICIES_DB_FILE);
         let now = LocalTime::now();
@@ -153,6 +157,17 @@ impl Environment {
             public_key,
             config,
         }
+    }
+
+    /// We don't have `RAD_HOME` or `HOME` to rely on to compute a home as usual.
+    pub fn home(&mut self, alias: &Alias) -> Home {
+        Home::new(
+            self.tmp()
+                .join("home")
+                .join(alias.to_string())
+                .join(profile::DOT_RADICLE),
+        )
+        .unwrap()
     }
 }
 

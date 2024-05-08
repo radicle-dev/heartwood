@@ -17,6 +17,10 @@ $ rad config
   "cli": {
     "hints": true
   },
+  "keys": {
+    "secret": "[..]/home/alice/.radicle/keys/radicle",
+    "public": "[..]/home/alice/.radicle/keys/radicle.pub"
+  },
   "node": {
     "alias": "alice",
     "listen": [],
@@ -106,7 +110,7 @@ $ rad config unset web.name
 
 ``` (fail)
 $ rad config get web.name
-✗ Error: configuration error: web.name does not exist
+✗ Error: configuration key 'web.name' does not exist
 ```
 
 Values along the path will be created if necessary.

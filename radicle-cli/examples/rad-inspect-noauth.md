@@ -2,7 +2,7 @@ The `rad inspect` command can be run without being authenticated with radicle:
 
 ``` (fail)
 $ rad self
-✗ Error: Radicle profile not found in '[..]'.
+✗ Error: Radicle configuration not found in '[..]'.
 ✗ Hint: To setup your radicle profile, run `rad auth`.
 ```
 

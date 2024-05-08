@@ -164,8 +164,18 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
 
     let ssh_long = ssh::fmt::key(node_id);
     table.push([
-        term::format::style("└╴Key (full)").into(),
+        term::format::style("├╴Key (full)").into(),
         term::format::tertiary(ssh_long).into(),
+    ]);
+
+    table.push([
+        term::format::style("├╴Key (file)").into(),
+        term::format::tertiary(profile.config.keys.public.display()).into(),
+    ]);
+
+    table.push([
+        term::format::style("└╴Secret").into(),
+        term::format::tertiary(profile.config.keys.secret.display()).into(),
     ]);
 
     let home = profile.home();
@@ -184,12 +194,6 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
     table.push([
         term::format::style("├╴Storage").into(),
         term::format::tertiary(storage_path.display()).into(),
-    ]);
-
-    let keys_path = profile.home.keys();
-    table.push([
-        term::format::style("├╴Keys").into(),
-        term::format::tertiary(keys_path.display()).into(),
     ]);
 
     table.push([

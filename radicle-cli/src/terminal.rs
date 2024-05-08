@@ -138,6 +138,16 @@ impl Context for DefaultContext {
                 hint: "To setup your radicle profile, run `rad auth`.",
             }
             .into()),
+            Err(radicle::profile::Error::Config(radicle::profile::ConfigError::NotFound(path))) => {
+                Err(args::Error::WithHint {
+                    err: anyhow::anyhow!(
+                        "Radicle configuration not found in '{}'.",
+                        path.display()
+                    ),
+                    hint: "To setup your radicle profile, run `rad auth`.",
+                }
+                .into())
+            }
             Err(radicle::profile::Error::Config(e)) => Err(e.into()),
             Err(e) => Err(anyhow::anyhow!("Could not load radicle profile: {e}")),
         }
