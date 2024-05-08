@@ -120,7 +120,7 @@ fn execute() -> anyhow::Result<()> {
         config.node.listen.clone()
     };
 
-    if let Err(e) = radicle::io::set_file_limit(config.node.limits.max_open_files as u64) {
+    if let Err(e) = radicle::io::set_file_limit(config.node.limits.max_open_files) {
         log::warn!(target: "node", "Unable to set process open file limit: {e}");
     }
 
