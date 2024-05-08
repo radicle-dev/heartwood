@@ -1,9 +1,25 @@
+use std::fmt;
 use std::io;
 
 use libc::{getrlimit, rlimit, setrlimit, RLIMIT_NOFILE};
 
+#[cfg(not(target_os = "freebsd"))]
+type Int = u64;
+#[cfg(target_os = "freebsd")]
+type Int = i64;
+
 /// Sets the open file limit to the given value, or the maximum allowed value.
-pub fn set_file_limit(n: u64) -> io::Result<u64> {
+pub fn set_file_limit<N>(n: N) -> io::Result<Int>
+where
+    N: Copy + fmt::Display,
+    Int: TryFrom<N>,
+{
+    let Ok(n) = Int::try_from(n) else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("invalid file limit '{n}'"),
+        ));
+    };
     let mut rlim = rlimit {
         rlim_cur: 0, // Initial soft limit value
         rlim_max: 0, // Initial hard limit value
