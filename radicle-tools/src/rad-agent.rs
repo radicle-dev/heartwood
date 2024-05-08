@@ -22,7 +22,9 @@ fn main() -> anyhow::Result<()> {
             let secret = profile
                 .keystore
                 .secret_key(Some(passphrase))?
-                .ok_or_else(|| anyhow!("Key not found in {:?}", profile.keystore.path()))?;
+                .ok_or_else(|| {
+                    anyhow!("Key not found in {:?}", profile.keystore.secret_key_path())
+                })?;
 
             agent.register(&secret)?;
             println!("ok");

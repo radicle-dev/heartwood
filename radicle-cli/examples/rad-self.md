@@ -8,11 +8,12 @@ DID             did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 └╴Node ID (NID) z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 SSH             not running
 ├╴Key (hash)    SHA256:UIedaL6Cxm6OUErh9GQUzzglSk7VpQlVTI1TAFB/HWA
-└╴Key (full)    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHahWSBEpuT1ESZbynOmBNkLBSnR32Ar4woZqSV2YNH1
+├╴Key (full)    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHahWSBEpuT1ESZbynOmBNkLBSnR32Ar4woZqSV2YNH1
+├╴Key (file)    [..]/home/alice/.radicle/keys/radicle.pub
+└╴Secret        [..]/home/alice/.radicle/keys/radicle
 Home            [..]/home/alice/.radicle
 ├╴Config        [..]/home/alice/.radicle/config.json
 ├╴Storage       [..]/home/alice/.radicle/storage
-├╴Keys          [..]/home/alice/.radicle/keys
 └╴Node          [..]/home/alice/.radicle/node
 ```
 

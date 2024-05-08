@@ -64,6 +64,8 @@ pub const PENALTY_CONNECT_THRESHOLD: u8 = 32;
 pub const PENALTY_BAN_THRESHOLD: u8 = 64;
 /// Filename of node database under the node directory.
 pub const NODE_DB_FILE: &str = "node.db";
+/// Filename of node fingerprint under the node directory.
+pub const NODE_FINGERPRINT_FILE: &str = "fingerprint";
 /// Filename of policies database under the node directory.
 pub const POLICIES_DB_FILE: &str = "policies.db";
 /// Filename of notifications database under the node directory.

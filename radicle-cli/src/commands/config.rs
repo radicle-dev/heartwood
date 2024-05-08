@@ -145,7 +145,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let key: ConfigPath = key.into();
             let value = temp_config
                 .get_mut(&key)
-                .ok_or_else(|| ConfigError::Custom(format!("{key} does not exist")))?;
+                .ok_or_else(|| ConfigError::KeyNotFound(key.to_string()))?;
             print_value(value)?;
         }
         Operation::Set(key, value) => {
@@ -180,7 +180,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 options.alias.ok_or(anyhow!(
                     "an alias must be provided to initialize a new configuration"
                 ))?,
-                &path,
+                ctx.profile()?.home(),
             )?;
             term::success!(
                 "Initialized new Radicle configuration at {}",

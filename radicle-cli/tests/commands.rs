@@ -327,9 +327,10 @@ fn rad_inspect() {
 fn rad_config() {
     let mut environment = Environment::new();
     let alias = Alias::new("alice");
+    let home = environment.home(&alias);
     let profile = environment.profile(profile::Config {
         preferred_seeds: vec![RADICLE_COMMUNITY_NODE.clone(), RADICLE_TEAM_NODE.clone()],
-        ..profile::Config::new(alias)
+        ..profile::Config::new(alias, &home)
     });
     let working = tempfile::tempdir().unwrap();
 
