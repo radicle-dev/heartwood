@@ -1060,10 +1060,10 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
     signer: G,
     config: &service::Config,
 ) -> io::Result<WireSession<G>> {
-    // Convert the remote address into an internet protocol address (IP or DNS).
     let inet_addr: NetAddr<InetHost> = match config.tor {
-        // In Tor proxy mode, simply specify a different connection address.
-        Some(TorConfig::Proxy { address: proxy }) => remote_addr.connection_addr(proxy.into()),
+        // In Tor proxy mode, simply specify the proxy address for all connections,
+        // since we'll be routing all connections through the proxy.
+        Some(TorConfig::Proxy { address: proxy }) => proxy.into(),
         // In transparent Tor mode, we treat `.onion` addresses as regular DNS names.
         Some(TorConfig::Transparent) => {
             let host = match &remote_addr.host {
