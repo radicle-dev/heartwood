@@ -39,7 +39,6 @@
     ...
   }:
     flake-utils.lib.eachDefaultSystem (system: let
-      pname = "Heartwood";
       pkgs = import nixpkgs {
         inherit system;
         overlays = [(import rust-overlay)];
@@ -66,51 +65,65 @@
         filter = srcFilters;
       };
 
-      # Common arguments can be set here to avoid repeating them later
-      commonArgs = {
-        inherit pname;
+      basicArgs = {
+        pname = "Heartwood";
         inherit src;
-        strictDeps = true;
-
-        buildInputs =
-          [
-            pkgs.git
-            # Add additional build inputs here
-          ]
-          ++ lib.optionals pkgs.stdenv.isDarwin [
-            # Additional darwin specific inputs can be set here
-            pkgs.libiconv
-            pkgs.darwin.apple_sdk.frameworks.Security
-          ];
-
-        env =
-          {
-            RADICLE_VERSION = "nix-" + (self.shortRev or self.dirtyShortRev or "unknown");
-          }
-          // (
-            if self ? rev || self ? dirtyRev
-            then {
-              GIT_HEAD = self.rev or self.dirtyRev;
-            }
-            else {}
-          );
       };
+
+      # Common arguments can be set here to avoid repeating them later
+      commonArgs =
+        basicArgs
+        // {
+          inherit cargoArtifacts;
+          strictDeps = true;
+
+          buildInputs =
+            [
+              pkgs.git
+              # Add additional build inputs here
+            ]
+            ++ lib.optionals pkgs.stdenv.isDarwin [
+              # Additional darwin specific inputs can be set here
+              pkgs.libiconv
+              pkgs.darwin.apple_sdk.frameworks.Security
+            ];
+
+          env =
+            {
+              RADICLE_VERSION = "nix-" + (self.shortRev or self.dirtyShortRev or "unknown");
+            }
+            // (
+              if self ? rev || self ? dirtyRev
+              then {
+                GIT_HEAD = self.rev or self.dirtyRev;
+              }
+              else {}
+            );
+        };
 
       # Build *just* the cargo dependencies, so we can reuse
       # all of that work (e.g. via cachix) when running in CI
-      cargoArtifacts =
-        craneLib.buildDepsOnly commonArgs;
+      cargoArtifacts = craneLib.buildDepsOnly basicArgs;
 
-      # Build the listed .adoc files as man pages to the package.
-      buildManPages = pages: {
-        nativeBuildInputs = with pkgs; [asciidoctor installShellFiles];
-        postInstall = ''
-          for page in ${lib.escapeShellArgs pages}; do
-            asciidoctor -d manpage -b manpage $page
-            installManPage ''${page::-5}
-          done
-        '';
-      };
+      crate = {
+        name,
+        package ? name,
+        pages ? [],
+      }:
+        craneLib.buildPackage (commonArgs
+          // {
+            inherit (craneLib.crateNameFromCargoToml {cargoToml = src + "/" + package + "/Cargo.toml";}) pname version;
+            cargoExtraArgs = lib.optionalString (package != "") "-p ${package}";
+            doCheck = false;
+
+            nativeBuildInputs = with pkgs; [asciidoctor installShellFiles];
+            postInstall = ''
+              for page in ${lib.escapeShellArgs pages}; do
+                asciidoctor -d manpage -b manpage $page
+                installManPage ''${page::-5}
+              done
+            '';
+          });
     in {
       # Formatter
       formatter = pkgs.alejandra;
@@ -128,20 +141,13 @@
         # prevent downstream consumers from building our crate by itself.
         clippy = craneLib.cargoClippy (commonArgs
           // {
-            inherit cargoArtifacts;
             cargoClippyExtraArgs = "--all-targets -- --deny warnings";
           });
 
-        doc = craneLib.cargoDoc (commonArgs
-          // {
-            inherit cargoArtifacts;
-          });
+        doc = craneLib.cargoDoc commonArgs;
 
         # Check formatting
-        fmt = craneLib.cargoFmt {
-          inherit pname;
-          inherit src;
-        };
+        fmt = craneLib.cargoFmt basicArgs;
 
         # TODO: audits are failing so skip this check for now
         # Audit dependencies
@@ -150,10 +156,7 @@
         # };
 
         # Audit licenses
-        deny = craneLib.cargoDeny {
-          inherit pname;
-          inherit src;
-        };
+        deny = craneLib.cargoDeny basicArgs;
 
         # Run tests with cargo-nextest
         nextest = craneLib.cargoNextest (commonArgs
@@ -175,55 +178,49 @@
           });
       };
 
-      packages = {
-        default = self.packages.${system}.radicle;
-        radicle-full = pkgs.buildEnv {
-          name = "radicle-full";
-          paths = with self.packages.${system}; [
-            default
-            radicle-httpd
-          ];
-        };
-        radicle = craneLib.buildPackage (commonArgs
-          // {
-            doCheck = false;
-            inherit cargoArtifacts;
-          }
-          // (buildManPages [
-            "git-remote-rad.1.adoc"
-            "rad.1.adoc"
-            "radicle-node.1.adoc"
-            "rad-patch.1.adoc"
-            "rad-id.1.adoc"
+      packages =
+        {
+          default = self.packages.${system}.radicle;
+          radicle-full = pkgs.buildEnv {
+            name = "radicle-full";
+            paths = with self.packages.${system}; [
+              default
+              radicle-httpd
+            ];
+          };
+        }
+        // (builtins.listToAttrs (map (
+            package:
+              if builtins.isString package
+              then {
+                name = package;
+                value = crate {name = package;};
+              }
+              else {
+                inherit (package) name;
+                value = crate package;
+              }
+          )
+          [
+            {
+              package = "";
+              name = "radicle";
+              pages = [
+                "git-remote-rad.1.adoc"
+                "rad.1.adoc"
+                "radicle-node.1.adoc"
+                "rad-patch.1.adoc"
+                "rad-id.1.adoc"
+              ];
+            }
+            {
+              name = "radicle-httpd";
+              pages = ["radicle-httpd.1.adoc"];
+            }
+            "radicle-cli"
+            "radicle-remote-helper"
+            "radicle-node"
           ]));
-        radicle-remote-helper = craneLib.buildPackage (commonArgs
-          // {
-            inherit cargoArtifacts;
-            cargoBuildCommand = "cargo build --release -p radicle-remote-helper";
-            doCheck = false;
-          });
-        radicle-cli = craneLib.buildPackage (commonArgs
-          // {
-            inherit cargoArtifacts;
-            cargoBuildCommand = "cargo build --release -p radicle-cli";
-            doCheck = false;
-          });
-        radicle-node = craneLib.buildPackage (commonArgs
-          // {
-            inherit cargoArtifacts;
-            cargoBuildCommand = "cargo build --release -p radicle-node";
-            doCheck = false;
-          });
-        radicle-httpd = craneLib.buildPackage (commonArgs
-          // {
-            inherit cargoArtifacts;
-            cargoBuildCommand = "cargo build --release -p radicle-httpd";
-            doCheck = false;
-          }
-          // (buildManPages [
-            "radicle-httpd.1.adoc"
-          ]));
-      };
 
       apps.default = flake-utils.lib.mkApp {
         drv = self.packages.${system}.radicle;
