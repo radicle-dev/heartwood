@@ -186,6 +186,13 @@ fn mv(tmp: tempfile::TempDir, storage: &Storage, rid: &RepoId) -> Result<(), err
         .into());
     }
 
+    // N.b. Attempt to explicitly close the `TempDir`, since open file handles
+    // causes issues on WSL
+    let path = tmp.path().to_path_buf();
+    if let Err(e) = tmp.close() {
+        log::warn!(target: "worker", "Failed to cleanup temporary repository path {:?}: {e}", path);
+    }
+
     Ok(())
 }
 
