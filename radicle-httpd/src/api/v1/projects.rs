@@ -537,9 +537,18 @@ async fn blob_handler(
     let (repo, _) = ctx.repo(project)?;
     let repo = Repository::open(repo.path())?;
     let blob = repo.blob(sha, &path)?;
-    let response = api::json::blob(&blob, &path);
 
-    Ok::<_, Error>(immutable_response(response))
+    if blob.size() > MAX_BODY_LIMIT {
+        return Ok::<_, Error>(
+            (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                [(header::CACHE_CONTROL, "no-cache")],
+                Json(json!([])),
+            )
+                .into_response(),
+        );
+    }
+    Ok::<_, Error>(immutable_response(api::json::blob(&blob, &path)).into_response())
 }
 
 /// Get project readme.
@@ -565,8 +574,20 @@ async fn readme_handler(
         .chain(paths.iter().map(|p| p.to_lowercase()))
     {
         if let Ok(blob) = repo.blob(sha, &path) {
-            let response = api::json::blob(&blob, &path);
-            return Ok::<_, Error>(immutable_response(response));
+            if blob.size() > MAX_BODY_LIMIT {
+                return Ok::<_, Error>(
+                    (
+                        StatusCode::PAYLOAD_TOO_LARGE,
+                        [(header::CACHE_CONTROL, "no-cache")],
+                        Json(json!([])),
+                    )
+                        .into_response(),
+                );
+            }
+
+            return Ok::<_, Error>(
+                immutable_response(api::json::blob(&blob, &path)).into_response(),
+            );
         }
     }
 
