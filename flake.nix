@@ -107,13 +107,12 @@
 
       crate = {
         name,
-        package ? name,
         pages ? [],
       }:
         craneLib.buildPackage (commonArgs
           // {
-            inherit (craneLib.crateNameFromCargoToml {cargoToml = src + "/" + package + "/Cargo.toml";}) pname version;
-            cargoExtraArgs = lib.optionalString (package != "") "-p ${package}";
+            inherit (craneLib.crateNameFromCargoToml {cargoToml = src + "/" + name + "/Cargo.toml";}) pname version;
+            cargoExtraArgs = "-p ${name}";
             doCheck = false;
 
             nativeBuildInputs = with pkgs; [asciidoctor installShellFiles];
@@ -149,14 +148,13 @@
         # Check formatting
         fmt = craneLib.cargoFmt basicArgs;
 
-        # TODO: audits are failing so skip this check for now
-        # Audit dependencies
+        # FIXME: Broken.
         # audit = craneLib.cargoAudit {
         #   inherit src advisory-db;
         # };
 
-        # Audit licenses
-        deny = craneLib.cargoDeny basicArgs;
+        # FIXME: Broken as of 2024-05-09.
+        # deny = craneLib.cargoDeny basicArgs;
 
         # Run tests with cargo-nextest
         nextest = craneLib.cargoNextest (commonArgs
@@ -175,49 +173,53 @@
           });
       };
 
-      packages =
-        {
-          default = self.packages.${system}.radicle;
-          radicle-full = pkgs.buildEnv {
-            name = "radicle-full";
-            paths = with self.packages.${system}; [
-              default
-              radicle-httpd
-            ];
-          };
-        }
-        // (builtins.listToAttrs (map (
-            package:
-              if builtins.isString package
-              then {
-                name = package;
-                value = crate {name = package;};
-              }
-              else {
-                inherit (package) name;
-                value = crate package;
-              }
+      packages = let
+        crates = builtins.listToAttrs (map (
+            package: lib.nameValuePair (package.name) (crate package)
           )
           [
-            {
-              package = "";
-              name = "radicle";
-              pages = [
-                "git-remote-rad.1.adoc"
-                "rad.1.adoc"
-                "radicle-node.1.adoc"
-                "rad-patch.1.adoc"
-                "rad-id.1.adoc"
-              ];
-            }
             {
               name = "radicle-httpd";
               pages = ["radicle-httpd.1.adoc"];
             }
-            "radicle-cli"
-            "radicle-remote-helper"
-            "radicle-node"
-          ]));
+            {
+              name = "radicle-cli";
+              pages = [
+                "rad.1.adoc"
+                "rad-id.1.adoc"
+                "rad-patch.1.adoc"
+              ];
+            }
+            {
+              name = "radicle-remote-helper";
+              pages = [
+                "git-remote-rad.1.adoc"
+              ];
+            }
+            {
+              name = "radicle-node";
+              pages = [
+                "radicle-node.1.adoc"
+              ];
+            }
+          ]);
+      in
+        crates
+        // rec {
+          default = radicle;
+          radicle = pkgs.buildEnv {
+            name = "radicle";
+            paths = with crates; [
+              radicle-cli
+              radicle-node
+              radicle-remote-helper
+            ];
+          };
+          radicle-full = pkgs.buildEnv {
+            name = "radicle-full";
+            paths = builtins.attrValues crates;
+          };
+        };
 
       apps.default = flake-utils.lib.mkApp {
         drv = self.packages.${system}.radicle;
