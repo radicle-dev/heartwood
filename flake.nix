@@ -78,15 +78,15 @@
           strictDeps = true;
 
           buildInputs =
-            [
-              pkgs.git
+            with pkgs; [
+              git
               # Add additional build inputs here
             ]
-            ++ lib.optionals pkgs.stdenv.isDarwin [
+            ++ lib.optionals pkgs.stdenv.isDarwin (with pkgs; [
               # Additional darwin specific inputs can be set here
-              pkgs.libiconv
-              pkgs.darwin.apple_sdk.frameworks.Security
-            ];
+              libiconv
+              darwin.apple_sdk.frameworks.Security
+            ]);
 
           env =
             {
@@ -252,12 +252,12 @@
 
       devShells.default = craneLib.devShell {
         # Extra inputs can be added here; cargo and rustc are provided by default.
-        packages = [
-          pkgs.cargo-watch
-          pkgs.cargo-nextest
-          pkgs.ripgrep
-          pkgs.rust-analyzer
-          pkgs.sqlite
+        packages = with pkgs; [
+          cargo-watch
+          cargo-nextest
+          ripgrep
+          rust-analyzer
+          sqlite
         ];
       };
     });
