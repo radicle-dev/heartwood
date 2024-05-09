@@ -65,19 +65,23 @@
       };
 
       basicArgs = {
-        pname = "Heartwood";
         inherit src;
+        pname = "Heartwood";
+        strictDeps = true;
       };
+
+      # Build *just* the cargo dependencies, so we can reuse
+      # all of that work (e.g. via cachix) when running in CI
+      cargoArtifacts = craneLib.buildDepsOnly basicArgs;
 
       # Common arguments can be set here to avoid repeating them later
       commonArgs =
         basicArgs
         // {
           inherit cargoArtifacts;
-          strictDeps = true;
 
-          buildInputs =
-            with pkgs; [
+          nativeBuildInputs = with pkgs;
+            [
               git
               # Add additional build inputs here
             ]
@@ -99,29 +103,6 @@
               else {}
             );
         };
-
-      # Build *just* the cargo dependencies, so we can reuse
-      # all of that work (e.g. via cachix) when running in CI
-      cargoArtifacts = craneLib.buildDepsOnly basicArgs;
-
-      crate = {
-        name,
-        pages ? [],
-      }:
-        craneLib.buildPackage (commonArgs
-          // {
-            inherit (craneLib.crateNameFromCargoToml {cargoToml = src + "/" + name + "/Cargo.toml";}) pname version;
-            cargoExtraArgs = "-p ${name}";
-            doCheck = false;
-
-            nativeBuildInputs = with pkgs; [asciidoctor installShellFiles];
-            postInstall = ''
-              for page in ${lib.escapeShellArgs pages}; do
-                asciidoctor -d manpage -b manpage $page
-                installManPage ''${page::-5}
-              done
-            '';
-          });
     in {
       # Formatter
       formatter = pkgs.alejandra;
@@ -173,9 +154,26 @@
       };
 
       packages = let
-        crates = builtins.listToAttrs (map (
-            package: lib.nameValuePair (package.name) (crate package)
-          )
+        crate = {
+          name,
+          pages ? [],
+        }:
+          craneLib.buildPackage (commonArgs
+            // {
+              inherit (craneLib.crateNameFromCargoToml {cargoToml = src + "/" + name + "/Cargo.toml";}) pname version;
+              cargoExtraArgs = "-p ${name}";
+              doCheck = false;
+
+              nativeBuildInputs = with pkgs; [asciidoctor installShellFiles];
+              postInstall = ''
+                for page in ${lib.escapeShellArgs pages}; do
+                  asciidoctor -d manpage -b manpage $page
+                  installManPage ''${page::-5}
+                done
+              '';
+            });
+        crates = builtins.listToAttrs (map
+          ({name, ...} @ package: lib.nameValuePair name (crate package))
           [
             {
               name = "radicle-httpd";
@@ -191,15 +189,11 @@
             }
             {
               name = "radicle-remote-helper";
-              pages = [
-                "git-remote-rad.1.adoc"
-              ];
+              pages = ["git-remote-rad.1.adoc"];
             }
             {
               name = "radicle-node";
-              pages = [
-                "radicle-node.1.adoc"
-              ];
+              pages = ["radicle-node.1.adoc"];
             }
           ]);
       in
