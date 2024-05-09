@@ -161,7 +161,6 @@
         # Run tests with cargo-nextest
         nextest = craneLib.cargoNextest (commonArgs
           // {
-            inherit cargoArtifacts;
             partitions = 1;
             partitionType = "count";
             nativeBuildInputs = [
@@ -172,9 +171,7 @@
             ];
             # Ensure dev is used since we rely on env variables being
             # set in tests.
-            buildPhase = ''
-              export CARGO_PROFILE=dev;
-            '';
+            env.CARGO_PROFILE = "dev";
           });
       };
 
