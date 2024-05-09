@@ -118,7 +118,6 @@
       # artifacts from above.
       radicle = craneLib.buildPackage (commonArgs
         // {
-          inherit (craneLib.crateNameFromCargoToml {cargoToml = ./radicle/Cargo.toml;});
           doCheck = false;
           inherit cargoArtifacts;
         } // (buildManPages [
@@ -203,28 +202,24 @@
         };
         radicle-remote-helper = craneLib.buildPackage (commonArgs
           // {
-            inherit (craneLib.crateNameFromCargoToml {cargoToml = ./radicle-remote-helper/Cargo.toml;});
             inherit cargoArtifacts;
             cargoBuildCommand = "cargo build --release -p radicle-remote-helper";
             doCheck = false;
           });
         radicle-cli = craneLib.buildPackage (commonArgs
           // {
-            inherit (craneLib.crateNameFromCargoToml {cargoToml = ./radicle-cli/Cargo.toml;});
             inherit cargoArtifacts;
             cargoBuildCommand = "cargo build --release -p radicle-cli";
             doCheck = false;
           });
         radicle-node = craneLib.buildPackage (commonArgs
           // {
-            inherit (craneLib.crateNameFromCargoToml {cargoToml = ./radicle-node/Cargo.toml;});
             inherit cargoArtifacts;
             cargoBuildCommand = "cargo build --release -p radicle-node";
             doCheck = false;
           });
         radicle-httpd = craneLib.buildPackage (commonArgs
           // {
-            inherit (craneLib.crateNameFromCargoToml {cargoToml = ./radicle-httpd/Cargo.toml;});
             inherit cargoArtifacts;
             cargoBuildCommand = "cargo build --release -p radicle-httpd";
             doCheck = false;
