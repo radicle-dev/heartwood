@@ -39,32 +39,22 @@
     ...
   }:
     flake-utils.lib.eachDefaultSystem (system: let
-      pname = "Heartwood";
+      lib = nixpkgs.lib;
       pkgs = import nixpkgs {
         inherit system;
         overlays = [(import rust-overlay)];
       };
 
-      inherit (pkgs) lib;
-
       rustToolChain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain;
       craneLib = (crane.mkLib pkgs).overrideToolchain rustToolChain;
 
       srcFilters = path: type:
-      # Allow sql schemas
-        (lib.hasSuffix "\.sql" path)
-        ||
-        # Allow diff files for testing purposes
-        (lib.hasSuffix "\.diff" path)
-        ||
-        # Allow md files for testing purposes
-        (lib.hasSuffix "\.md" path)
-        ||
-        # Allow adoc files
-        (lib.hasSuffix "\.adoc" path)
-        ||
-        # Allow man page build script
-        (lib.hasSuffix "build-man-pages\.sh" path)
+        builtins.any (suffix: lib.hasSuffix suffix path) [
+          ".sql" # schemas
+          ".diff" # testing
+          ".md" # testing
+          ".adoc" # man pages
+        ]
         ||
         # Default filter from crane (allow .rs files)
         (craneLib.filterCargoSources path type);
@@ -74,60 +64,45 @@
         filter = srcFilters;
       };
 
-      # Common arguments can be set here to avoid repeating them later
-      commonArgs = {
-        inherit pname;
+      basicArgs = {
         inherit src;
+        pname = "Heartwood";
         strictDeps = true;
-
-        buildInputs =
-          [
-            pkgs.git
-            # Add additional build inputs here
-          ]
-          ++ lib.optionals pkgs.stdenv.isDarwin [
-            # Additional darwin specific inputs can be set here
-            pkgs.libiconv
-            pkgs.darwin.apple_sdk.frameworks.Security
-          ];
-        preBuild = lib.optionalString (self.shortRev or null != null) ''
-          export GIT_HEAD=${self.shortRev}
-        '';
       };
 
       # Build *just* the cargo dependencies, so we can reuse
       # all of that work (e.g. via cachix) when running in CI
-      cargoArtifacts =
-        craneLib.buildDepsOnly commonArgs;
+      cargoArtifacts = craneLib.buildDepsOnly basicArgs;
 
-      # Build the listed .adoc files as man pages to the package.
-      buildManPages = pages: {
-        nativeBuildInputs = [ pkgs.asciidoctor ];
-        postInstall = ''
-          for f in ${lib.escapeShellArgs pages} ; do
-            cat=''${f%.adoc}
-            cat=''${cat##*.}
-            [ -d "$out/share/man/man$cat" ] || mkdir -p "$out/share/man/man$cat"
-            scripts/build-man-pages.sh "$out/share/man/man$cat" $f
-          done
-        '';
-        outputs = [ "out" "man" ];
-      };
-
-      # Build the actual crate itself, reusing the dependency
-      # artifacts from above.
-      radicle = craneLib.buildPackage (commonArgs
+      # Common arguments can be set here to avoid repeating them later
+      commonArgs =
+        basicArgs
         // {
-          inherit (craneLib.crateNameFromCargoToml {cargoToml = ./radicle/Cargo.toml;});
-          doCheck = false;
           inherit cargoArtifacts;
-        } // (buildManPages [
-          "git-remote-rad.1.adoc"
-          "rad.1.adoc"
-          "radicle-node.1.adoc"
-          "rad-patch.1.adoc"
-          "rad-id.1.adoc"
-        ]));
+
+          nativeBuildInputs = with pkgs;
+            [
+              git
+              # Add additional build inputs here
+            ]
+            ++ lib.optionals pkgs.stdenv.isDarwin (with pkgs; [
+              # Additional darwin specific inputs can be set here
+              libiconv
+              darwin.apple_sdk.frameworks.Security
+            ]);
+
+          env =
+            {
+              RADICLE_VERSION = "nix-" + (self.shortRev or self.dirtyShortRev or "unknown");
+            }
+            // (
+              if self ? rev || self ? dirtyRev
+              then {
+                GIT_HEAD = self.rev or self.dirtyRev;
+              }
+              else {}
+            );
+        };
     in {
       # Formatter
       formatter = pkgs.alejandra;
@@ -135,7 +110,7 @@
       # Set of checks that are run: `nix flake check`
       checks = {
         # Build the crate as part of `nix flake check` for convenience
-        inherit radicle;
+        inherit (self.packages.${system}) radicle;
 
         # Run clippy (and deny all warnings) on the crate source,
         # again, reusing the dependency artifacts from above.
@@ -145,37 +120,20 @@
         # prevent downstream consumers from building our crate by itself.
         clippy = craneLib.cargoClippy (commonArgs
           // {
-            inherit cargoArtifacts;
             cargoClippyExtraArgs = "--all-targets -- --deny warnings";
           });
 
-        doc = craneLib.cargoDoc (commonArgs
-          // {
-            inherit cargoArtifacts;
-          });
+        doc = craneLib.cargoDoc commonArgs;
+        deny = craneLib.cargoDeny commonArgs;
+        fmt = craneLib.cargoFmt basicArgs;
 
-        # Check formatting
-        fmt = craneLib.cargoFmt {
-          inherit pname;
-          inherit src;
-        };
-
-        # TODO: audits are failing so skip this check for now
-        # Audit dependencies
-        # audit = craneLib.cargoAudit {
-        #   inherit src advisory-db;
-        # };
-
-        # Audit licenses
-        deny = craneLib.cargoDeny {
-          inherit pname;
-          inherit src;
+        audit = craneLib.cargoAudit {
+          inherit src advisory-db;
         };
 
         # Run tests with cargo-nextest
         nextest = craneLib.cargoNextest (commonArgs
           // {
-            inherit cargoArtifacts;
             partitions = 1;
             partitionType = "count";
             nativeBuildInputs = [
@@ -186,55 +144,73 @@
             ];
             # Ensure dev is used since we rely on env variables being
             # set in tests.
-            buildPhase = ''
-              export CARGO_PROFILE=dev;
-            '';
+            env.CARGO_PROFILE = "dev";
           });
       };
 
-      packages = {
-        default = radicle;
-        radicle-full = pkgs.buildEnv {
-          name = "radicle-full";
-          paths = with self.packages.${system}; [
-            default
-            radicle-httpd
-          ];
+      packages = let
+        crate = {
+          name,
+          pages ? [],
+        }:
+          craneLib.buildPackage (commonArgs
+            // {
+              inherit (craneLib.crateNameFromCargoToml {cargoToml = src + "/" + name + "/Cargo.toml";}) pname version;
+              cargoExtraArgs = "-p ${name}";
+              doCheck = false;
+
+              nativeBuildInputs = with pkgs; [asciidoctor installShellFiles];
+              postInstall = ''
+                for page in ${lib.escapeShellArgs pages}; do
+                  asciidoctor -d manpage -b manpage $page
+                  installManPage ''${page::-5}
+                done
+              '';
+            });
+        crates = builtins.listToAttrs (map
+          ({name, ...} @ package: lib.nameValuePair name (crate package))
+          [
+            {
+              name = "radicle-httpd";
+              pages = ["radicle-httpd.1.adoc"];
+            }
+            {
+              name = "radicle-cli";
+              pages = [
+                "rad.1.adoc"
+                "rad-id.1.adoc"
+                "rad-patch.1.adoc"
+              ];
+            }
+            {
+              name = "radicle-remote-helper";
+              pages = ["git-remote-rad.1.adoc"];
+            }
+            {
+              name = "radicle-node";
+              pages = ["radicle-node.1.adoc"];
+            }
+          ]);
+      in
+        crates
+        // rec {
+          default = radicle;
+          radicle = pkgs.buildEnv {
+            name = "radicle";
+            paths = with crates; [
+              radicle-cli
+              radicle-node
+              radicle-remote-helper
+            ];
+          };
+          radicle-full = pkgs.buildEnv {
+            name = "radicle-full";
+            paths = builtins.attrValues crates;
+          };
         };
-        radicle-remote-helper = craneLib.buildPackage (commonArgs
-          // {
-            inherit (craneLib.crateNameFromCargoToml {cargoToml = ./radicle-remote-helper/Cargo.toml;});
-            inherit cargoArtifacts;
-            cargoBuildCommand = "cargo build --release -p radicle-remote-helper";
-            doCheck = false;
-          });
-        radicle-cli = craneLib.buildPackage (commonArgs
-          // {
-            inherit (craneLib.crateNameFromCargoToml {cargoToml = ./radicle-cli/Cargo.toml;});
-            inherit cargoArtifacts;
-            cargoBuildCommand = "cargo build --release -p radicle-cli";
-            doCheck = false;
-          });
-        radicle-node = craneLib.buildPackage (commonArgs
-          // {
-            inherit (craneLib.crateNameFromCargoToml {cargoToml = ./radicle-node/Cargo.toml;});
-            inherit cargoArtifacts;
-            cargoBuildCommand = "cargo build --release -p radicle-node";
-            doCheck = false;
-          });
-        radicle-httpd = craneLib.buildPackage (commonArgs
-          // {
-            inherit (craneLib.crateNameFromCargoToml {cargoToml = ./radicle-httpd/Cargo.toml;});
-            inherit cargoArtifacts;
-            cargoBuildCommand = "cargo build --release -p radicle-httpd";
-            doCheck = false;
-          } // (buildManPages [
-            "radicle-httpd.1.adoc"
-          ]));
-      };
 
       apps.default = flake-utils.lib.mkApp {
-        drv = radicle;
+        drv = self.packages.${system}.radicle;
       };
 
       apps.radicle-full = flake-utils.lib.mkApp {
@@ -264,12 +240,12 @@
 
       devShells.default = craneLib.devShell {
         # Extra inputs can be added here; cargo and rustc are provided by default.
-        packages = [
-          pkgs.cargo-watch
-          pkgs.cargo-nextest
-          pkgs.ripgrep
-          pkgs.rust-analyzer
-          pkgs.sqlite
+        packages = with pkgs; [
+          cargo-watch
+          cargo-nextest
+          ripgrep
+          rust-analyzer
+          sqlite
         ];
       };
     });
