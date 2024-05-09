@@ -51,20 +51,13 @@
       craneLib = (crane.mkLib pkgs).overrideToolchain rustToolChain;
 
       srcFilters = path: type:
-      # Allow sql schemas
-        (lib.hasSuffix "\.sql" path)
-        ||
-        # Allow diff files for testing purposes
-        (lib.hasSuffix "\.diff" path)
-        ||
-        # Allow md files for testing purposes
-        (lib.hasSuffix "\.md" path)
-        ||
-        # Allow adoc files
-        (lib.hasSuffix "\.adoc" path)
-        ||
-        # Allow man page build script
-        (lib.hasSuffix "build-man-pages\.sh" path)
+        builtins.any (suffix: lib.hasSuffix suffix path) [
+          ".sql" # schemas
+          ".diff" # testing
+          ".md" # testing
+          ".adoc" # man pages
+          "build-man-pages.sh" # man page build script
+        ]
         ||
         # Default filter from crane (allow .rs files)
         (craneLib.filterCargoSources path type);
@@ -102,7 +95,7 @@
 
       # Build the listed .adoc files as man pages to the package.
       buildManPages = pages: {
-        nativeBuildInputs = [ pkgs.asciidoctor ];
+        nativeBuildInputs = [pkgs.asciidoctor];
         postInstall = ''
           for f in ${lib.escapeShellArgs pages} ; do
             cat=''${f%.adoc}
@@ -111,7 +104,7 @@
             scripts/build-man-pages.sh "$out/share/man/man$cat" $f
           done
         '';
-        outputs = [ "out" "man" ];
+        outputs = ["out" "man"];
       };
 
       # Build the actual crate itself, reusing the dependency
@@ -120,7 +113,8 @@
         // {
           doCheck = false;
           inherit cargoArtifacts;
-        } // (buildManPages [
+        }
+        // (buildManPages [
           "git-remote-rad.1.adoc"
           "rad.1.adoc"
           "radicle-node.1.adoc"
@@ -223,7 +217,8 @@
             inherit cargoArtifacts;
             cargoBuildCommand = "cargo build --release -p radicle-httpd";
             doCheck = false;
-          } // (buildManPages [
+          }
+          // (buildManPages [
             "radicle-httpd.1.adoc"
           ]));
       };
