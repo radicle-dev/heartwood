@@ -82,9 +82,18 @@
             pkgs.libiconv
             pkgs.darwin.apple_sdk.frameworks.Security
           ];
-        preBuild = lib.optionalString (self.shortRev or null != null) ''
-          export GIT_HEAD=${self.shortRev}
-        '';
+
+        env =
+          {
+            RADICLE_VERSION = "nix-" + (self.shortRev or self.dirtyShortRev or "unknown");
+          }
+          // (
+            if self ? rev || self ? dirtyRev
+            then {
+              GIT_HEAD = self.rev or self.dirtyRev;
+            }
+            else {}
+          );
       };
 
       # Build *just* the cargo dependencies, so we can reuse
