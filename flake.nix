@@ -39,12 +39,11 @@
     ...
   }:
     flake-utils.lib.eachDefaultSystem (system: let
+      lib = nixpkgs.lib;
       pkgs = import nixpkgs {
         inherit system;
         overlays = [(import rust-overlay)];
       };
-
-      inherit (pkgs) lib;
 
       rustToolChain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain;
       craneLib = (crane.mkLib pkgs).overrideToolchain rustToolChain;
