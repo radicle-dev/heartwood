@@ -56,7 +56,6 @@
           ".diff" # testing
           ".md" # testing
           ".adoc" # man pages
-          "build-man-pages.sh" # man page build script
         ]
         ||
         # Default filter from crane (allow .rs files)
@@ -95,16 +94,13 @@
 
       # Build the listed .adoc files as man pages to the package.
       buildManPages = pages: {
-        nativeBuildInputs = [pkgs.asciidoctor];
+        nativeBuildInputs = with pkgs; [asciidoctor installShellFiles];
         postInstall = ''
-          for f in ${lib.escapeShellArgs pages} ; do
-            cat=''${f%.adoc}
-            cat=''${cat##*.}
-            [ -d "$out/share/man/man$cat" ] || mkdir -p "$out/share/man/man$cat"
-            scripts/build-man-pages.sh "$out/share/man/man$cat" $f
+          for page in ${lib.escapeShellArgs pages}; do
+            asciidoctor -d manpage -b manpage $page
+            installManPage ''${page::-5}
           done
         '';
-        outputs = ["out" "man"];
       };
 
       # Build the actual crate itself, reusing the dependency
