@@ -111,21 +111,6 @@
           done
         '';
       };
-
-      # Build the actual crate itself, reusing the dependency
-      # artifacts from above.
-      radicle = craneLib.buildPackage (commonArgs
-        // {
-          doCheck = false;
-          inherit cargoArtifacts;
-        }
-        // (buildManPages [
-          "git-remote-rad.1.adoc"
-          "rad.1.adoc"
-          "radicle-node.1.adoc"
-          "rad-patch.1.adoc"
-          "rad-id.1.adoc"
-        ]));
     in {
       # Formatter
       formatter = pkgs.alejandra;
@@ -133,7 +118,7 @@
       # Set of checks that are run: `nix flake check`
       checks = {
         # Build the crate as part of `nix flake check` for convenience
-        inherit radicle;
+        inherit (self.packages.${system}) radicle;
 
         # Run clippy (and deny all warnings) on the crate source,
         # again, reusing the dependency artifacts from above.
@@ -191,7 +176,7 @@
       };
 
       packages = {
-        default = radicle;
+        default = self.packages.${system}.radicle;
         radicle-full = pkgs.buildEnv {
           name = "radicle-full";
           paths = with self.packages.${system}; [
@@ -199,6 +184,18 @@
             radicle-httpd
           ];
         };
+        radicle = craneLib.buildPackage (commonArgs
+          // {
+            doCheck = false;
+            inherit cargoArtifacts;
+          }
+          // (buildManPages [
+            "git-remote-rad.1.adoc"
+            "rad.1.adoc"
+            "radicle-node.1.adoc"
+            "rad-patch.1.adoc"
+            "rad-id.1.adoc"
+          ]));
         radicle-remote-helper = craneLib.buildPackage (commonArgs
           // {
             inherit cargoArtifacts;
@@ -229,7 +226,7 @@
       };
 
       apps.default = flake-utils.lib.mkApp {
-        drv = radicle;
+        drv = self.packages.${system}.radicle;
       };
 
       apps.radicle-full = flake-utils.lib.mkApp {
