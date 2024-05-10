@@ -201,6 +201,7 @@ where
                 repo,
                 None::<(String, Option<u16>)>,
                 client::git::ConnectMode::Daemon,
+                false,
             ),
             mode,
         }
@@ -230,8 +231,9 @@ where
         &mut self,
         write_mode: client::WriteMode,
         on_into_read: client::MessageKind,
+        trace: bool,
     ) -> Result<client::RequestWriter<'_>, client::Error> {
-        self.inner.request(write_mode, on_into_read)
+        self.inner.request(write_mode, on_into_read, trace)
     }
 
     fn to_url(&self) -> std::borrow::Cow<'_, bstr::BStr> {
@@ -262,7 +264,7 @@ where
     // An empty request marks the (early) end of the interaction. Only relevant in stateful transports though.
     if transport.connection_persists_across_multiple_requests() {
         transport
-            .request(client::WriteMode::Binary, client::MessageKind::Flush)?
+            .request(client::WriteMode::Binary, client::MessageKind::Flush, false)?
             .into_read()?;
     }
     Ok(())

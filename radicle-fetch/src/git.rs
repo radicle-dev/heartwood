@@ -18,6 +18,6 @@ pub(crate) mod oid {
 
     /// Convert from an [`Oid`] to an [`ObjectId`].
     pub fn to_object_id(oid: Oid) -> ObjectId {
-        ObjectId::from(oid.as_bytes())
+        ObjectId::from(gix_hash::oid::from_bytes_unchecked(oid.as_ref()))
     }
 }

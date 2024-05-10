@@ -162,6 +162,7 @@ where
                 } else {
                     Some(args.into_iter())
                 },
+                false,
             )?;
             handshake::refs::from_v2_refs(&mut remote_refs)?
         }
