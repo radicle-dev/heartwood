@@ -31,14 +31,17 @@ Options
 };
 
 #[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct NodeStats {
     all: usize,
-    public: usize,
-    online: usize,
-    seeding: usize,
+    public_daily: usize,
+    online_daily: usize,
+    online_weekly: usize,
+    seeding_weekly: usize,
 }
 
 #[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct LocalStats {
     repos: usize,
     issues: usize,
@@ -48,12 +51,14 @@ struct LocalStats {
 }
 
 #[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct RepoStats {
     unique: usize,
     replicas: usize,
 }
 
 #[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct Stats {
     local: LocalStats,
     repos: RepoStats,
@@ -108,6 +113,7 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
     }
 
+    let now = LocalTime::now();
     let db = profile.database()?;
     stats.nodes.all = address::Store::nodes(&db)?;
     stats.repos.replicas = routing::Store::len(&db)?;
@@ -126,46 +132,64 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     {
-        let now = LocalTime::now();
         let since = now - LocalDuration::from_mins(60 * 24); // 1 day.
         let mut stmt = db.db.prepare(
-            "SELECT COUNT(DISTINCT node) FROM announcements WHERE timestamp >= ?1 and timestamp < ?2",
+            "SELECT COUNT(DISTINCT node) FROM announcements WHERE timestamp >= ?1 AND timestamp < ?2",
         )?;
-
         stmt.bind((1, since.as_millis() as i64))?;
         stmt.bind((2, now.as_millis() as i64))?;
 
         // SAFETY: `COUNT` always returns a row.
-        let row = stmt.into_iter().next().unwrap()?;
-        let count = row.read::<i64, _>(0) as usize;
+        let row = stmt.iter().next().unwrap()?;
+        stats.nodes.online_daily = row.read::<i64, _>(0) as usize;
 
-        stats.nodes.online = count;
+        let since = now - LocalDuration::from_mins(60 * 24 * 7); // 1 week.
+        stmt.reset()?;
+        stmt.bind((1, since.as_millis() as i64))?;
+        stmt.bind((2, now.as_millis() as i64))?;
+
+        let row = stmt.iter().next().unwrap()?;
+        stats.nodes.online_weekly = row.read::<i64, _>(0) as usize;
     }
 
     {
-        let row = db
-            .db
-            .prepare("SELECT COUNT(DISTINCT node) FROM addresses")?
+        let since = now - LocalDuration::from_mins(60 * 24); // 1 day.
+        let mut stmt = db.db.prepare(
+            "SELECT COUNT(DISTINCT ann.node) FROM announcements as ann
+             JOIN addresses AS addr
+             ON ann.node == addr.node
+             WHERE ann.timestamp >= ?1 AND ann.timestamp < ?2",
+        )?;
+        stmt.bind((1, since.as_millis() as i64))?;
+        stmt.bind((2, now.as_millis() as i64))?;
+
+        let row = stmt
             .into_iter()
             .next()
             // SAFETY: `COUNT` always returns a row.
             .unwrap()?;
         let count = row.read::<i64, _>(0) as usize;
 
-        stats.nodes.public = count;
+        stats.nodes.public_daily = count;
     }
 
     {
-        let row = db
-            .db
-            .prepare("SELECT COUNT(DISTINCT node) FROM routing")?
+        let since = now - LocalDuration::from_mins(60 * 24 * 7); // 1 week.
+        let mut stmt = db.db.prepare(
+            "SELECT COUNT(DISTINCT node) FROM routing
+             WHERE timestamp >= ?1 AND timestamp < ?2",
+        )?;
+        stmt.bind((1, since.as_millis() as i64))?;
+        stmt.bind((2, now.as_millis() as i64))?;
+
+        let row = stmt
             .into_iter()
             .next()
             // SAFETY: `COUNT` always returns a row.
             .unwrap()?;
         let count = row.read::<i64, _>(0) as usize;
 
-        stats.nodes.seeding = count;
+        stats.nodes.seeding_weekly = count;
     }
 
     let output = term::json::to_pretty(&stats, Path::new("stats.json"))?;
