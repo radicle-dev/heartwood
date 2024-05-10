@@ -2,6 +2,7 @@
 name = "radicle-signals"
 homepage = "https://radicle.xyz"
 repository = "https://app.radicle.xyz/seeds/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
+license = "MIT OR Apache-2.0"
 edition = "2021"
 version = "0.9.0"
 
