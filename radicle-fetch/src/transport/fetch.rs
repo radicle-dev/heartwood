@@ -59,8 +59,6 @@ impl PackWriter {
         P: NestedProgress,
         P::SubProgress: 'static,
     {
-        use gix_odb::FindExt as _;
-
         let options = pack::bundle::write::Options {
             // N.b. use all cores. Can make configurable if needed
             // later.
@@ -86,7 +84,7 @@ impl PackWriter {
             Some(&self.git_dir.join("objects").join("pack")),
             &mut progress,
             &self.interrupt,
-            Some(Box::new(move |oid, buf| thickener.find(&oid, buf).ok())),
+            Some(thickener),
             options,
         )?)
     }
@@ -237,7 +235,7 @@ where
     gix_protocol::fetch::Response::check_required_features(*protocol, &features)?;
     let sideband_all = features.iter().any(|(n, _)| *n == "sideband-all");
     features.push(("agent", Some(Cow::Owned(agent))));
-    let mut args = fetch::Arguments::new(*protocol, features);
+    let mut args = fetch::Arguments::new(*protocol, features, false);
 
     let mut previous_response = None::<fetch::Response>;
     let mut round = 1;
@@ -250,7 +248,7 @@ where
         if sideband_all {
             setup_remote_progress(progress, &mut reader);
         }
-        let response = fetch::Response::from_line_reader(*protocol, &mut reader, true)?;
+        let response = fetch::Response::from_line_reader(*protocol, &mut reader, true, false)?;
         previous_response = if response.has_pack() {
             progress.step();
             if !sideband_all {
@@ -299,9 +297,9 @@ where
     Ok(delegate.out)
 }
 
-fn setup_remote_progress<P>(
+fn setup_remote_progress<'a, P>(
     progress: &mut P,
-    reader: &mut Box<dyn gix_transport::client::ExtendedBufRead + Unpin + '_>,
+    reader: &mut Box<dyn gix_transport::client::ExtendedBufRead<'a> + Unpin + 'a>,
 ) where
     P: NestedProgress,
     P::SubProgress: 'static,
@@ -312,5 +310,5 @@ fn setup_remote_progress<P>(
             gix_protocol::RemoteProgress::translate_to_progress(is_err, data, &mut remote_progress);
             gix_transport::packetline::read::ProgressAction::Continue
         }
-    }) as gix_transport::client::HandleProgress));
+    }) as gix_transport::client::HandleProgress<'a>));
 }
