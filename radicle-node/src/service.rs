@@ -24,7 +24,7 @@ use nonempty::NonEmpty;
 use radicle::node;
 use radicle::node::address;
 use radicle::node::address::Store as _;
-use radicle::node::address::{AddressBook, KnownAddress};
+use radicle::node::address::{AddressBook, AddressType, KnownAddress};
 use radicle::node::config::PeerConfig;
 use radicle::node::refs::Store as _;
 use radicle::node::routing::Store as _;
@@ -2313,6 +2313,11 @@ where
                         (_, None) => true,
                     })
                     .map(|ka| (peer.nid, ka))
+            })
+            .filter(|(_, ka)| match AddressType::from(&ka.addr) {
+                // Only consider Tor addresses if Tor is configured.
+                AddressType::Onion => self.config.tor.is_some(),
+                AddressType::Dns | AddressType::Ipv4 | AddressType::Ipv6 => true,
             })
             .take(wanted)
             .collect::<Vec<_>>();
