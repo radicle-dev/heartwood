@@ -124,17 +124,12 @@
           });
 
         doc = craneLib.cargoDoc commonArgs;
-
-        # Check formatting
+        deny = craneLib.cargoDeny commonArgs;
         fmt = craneLib.cargoFmt basicArgs;
 
-        # FIXME: Broken.
-        # audit = craneLib.cargoAudit {
-        #   inherit src advisory-db;
-        # };
-
-        # FIXME: Broken as of 2024-05-09.
-        # deny = craneLib.cargoDeny basicArgs;
+        audit = craneLib.cargoAudit {
+          inherit src advisory-db;
+        };
 
         # Run tests with cargo-nextest
         nextest = craneLib.cargoNextest (commonArgs
