@@ -102,8 +102,13 @@ impl Spinner {
     }
 }
 
+pub fn spinner(message: impl ToString) -> Spinner {
+    println!(message);
+}
+
 /// Create a new spinner with the given message. Sends animation output to `stderr` and success or
 /// failure messages to `stdout`.
+#[cfg(not(windows))]
 pub fn spinner(message: impl ToString) -> Spinner {
     let (stdout, stderr) = (io::stdout(), io::stderr());
 
@@ -115,6 +120,7 @@ pub fn spinner(message: impl ToString) -> Spinner {
 }
 
 /// Create a new spinner with the given message, and send output to the given writers.
+#[cfg(not(windows))]
 pub fn spinner_to(
     message: impl ToString,
     mut completion: impl io::Write + Send + 'static,

@@ -1,13 +1,22 @@
 use std::fmt;
+use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use std::ops::DerefMut;
+
+#[cfg(unix)]
 use std::os::unix::net::UnixStream;
-use std::path::Path;
+
+#[cfg(windows)]
+use std::fs::File;
+
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use log::*;
 use thiserror::Error;
+use windows::core::PCSTR;
+use windows::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE, HANDLE, HANDLE_PTR};
 use zeroize::Zeroize as _;
 
 use crate::agent::msg;
@@ -75,17 +84,7 @@ pub trait ClientStream: Sized + Send + Sync {
     where
         P: AsRef<Path> + Send;
 
-    fn connect_env() -> Result<AgentClient<Self>, Error> {
-        let Ok(var) = std::env::var("SSH_AUTH_SOCK") else {
-            return Err(Error::EnvVar("SSH_AUTH_SOCK"));
-        };
-        match Self::connect(var) {
-            Err(Error::Io(io_err)) if io_err.kind() == std::io::ErrorKind::NotFound => {
-                Err(Error::BadAuthSock)
-            }
-            other => other,
-        }
-    }
+    fn connect_default() -> Result<AgentClient<Self>, Error>;
 }
 
 impl<S: ClientStream> AgentClient<S> {
@@ -372,21 +371,61 @@ impl<S: ClientStream> AgentClient<S> {
     }
 }
 
-#[cfg(not(unix))]
-impl ClientStream for TcpStream {
-    fn connect_uds<P>(_: P) -> Result<AgentClient<Self>, Error>
+#[cfg(windows)]
+use windows::Win32::System::Pipes::ConnectNamedPipe;
+use windows::Win32::Storage::FileSystem::{self, OPEN_EXISTING};
+use windows::Win32::Storage::FileSystem::FILE_SHARE_NONE;
+use std::ffi::OsStr;
+use std::os::windows::ffi::OsStrExt;
+use windows_named_pipe::PipeStream;
+use debug_unreachable::debug_unreachable;
+
+impl ClientStream for std::fs::File {
+    fn connect<P>(path: P) -> Result<AgentClient<Self>, Error>
     where
         P: AsRef<Path> + Send,
     {
-        Err(Error::AgentFailure)
+        let file = OpenOptions::new().write(true).read(true).open(path)?;
+        
+        Ok(AgentClient { stream: file })
+        /*
+        unsafe {
+            FileSystem::CreateFileA(
+                PCSTR(path.as_ref().as_os_str().as_encoded_bytes().as_ptr() as *const u8),
+                GENERIC_READ | GENERIC_WRITE,
+                FILE_SHARE_NONE,
+                std::ptr::null_mut(),
+                OPEN_EXISTING,
+                0,
+                HANDLE(0)
+            );
+        }
+        Ok( AgentClient { stream: PipeStream::connect(path)? })
+        */
     }
 
-    fn read_response(&mut self, _: &mut Buffer) -> Result<(), Error> {
-        Err(Error::AgentFailure)
+    fn connect_default() -> Result<AgentClient<Self>, Error> {
+        Self::connect("\\\\.\\pipe\\openssh-ssh-agent")
     }
 
-    fn connect_env() -> Result<AgentClient<Self>, Error> {
-        Err(Error::AgentFailure)
+    fn request(&mut self, msg: &[u8]) -> Result<Buffer, Error> {
+        let mut resp = Buffer::default();
+
+        // Write the message
+        self.write_all(msg)?;
+        self.flush()?;
+
+        // Read the length
+        resp.resize(4, 0);
+        self.read_exact(&mut resp)?;
+
+        // Read the rest of the buffer
+        let len = BigEndian::read_u32(&resp) as usize;
+        resp.zeroize();
+        resp.resize(len, 0);
+        self.read_exact(&mut resp)?;
+
+        Ok(resp)
     }
 }
 
@@ -399,6 +438,18 @@ impl ClientStream for UnixStream {
         let stream = UnixStream::connect(path)?;
 
         Ok(AgentClient { stream })
+    }
+
+    fn connect_default() -> Result<AgentClient<Self>, Error> {
+        let Ok(var) = std::env::var("SSH_AUTH_SOCK") else {
+            return Err(Error::EnvVar("SSH_AUTH_SOCK"));
+        };
+        match Self::connect(var) {
+            Err(Error::Io(io_err)) if io_err.kind() == std::io::ErrorKind::NotFound => {
+                Err(Error::BadAuthSock)
+            }
+            other => other,
+        }
     }
 
     fn request(&mut self, msg: &[u8]) -> Result<Buffer, Error> {

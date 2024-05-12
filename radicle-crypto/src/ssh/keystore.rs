@@ -1,4 +1,5 @@
 use std::ops::Deref;
+#[cfg(not(windows))]
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -92,15 +93,24 @@ impl Keystore {
             return Err(Error::AlreadyInitialized);
         }
 
-        fs::DirBuilder::new()
-            .recursive(true)
-            .mode(0o700)
-            .create(&self.path)?;
+        self.build_dir();
 
         secret.write_openssh_file(&path, ssh_key::LineEnding::default())?;
         public.write_openssh_file(&path.with_extension("pub"))?;
 
         Ok(keypair.pk.into())
+    }
+
+    #[cfg(not(windows))]
+    fn build_dir(&self) {
+        fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(&self.path)?;
+    }
+
+    #[cfg(windows)]
+    fn build_dir(&self) {
     }
 
     /// Load the public key from the store. Returns `None` if it wasn't found.

@@ -8,7 +8,10 @@ pub mod format;
 pub mod hstack;
 pub mod io;
 pub mod label;
+
+#[cfg(not(windows))]
 pub mod pager;
+
 pub mod spinner;
 pub mod table;
 pub mod textarea;
@@ -25,7 +28,11 @@ pub use hstack::HStack;
 pub use inquire::ui::Styled;
 pub use io::*;
 pub use label::{label, Label};
-pub use spinner::{spinner, spinner_to, Spinner};
+pub use spinner::{spinner, Spinner};
+
+#[cfg(not(windows))]
+pub use spinner::{spinner_to};
+
 pub use table::{Table, TableOptions};
 pub use textarea::{textarea, TextArea};
 pub use vstack::{VStack, VStackOptions};

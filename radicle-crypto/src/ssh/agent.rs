@@ -8,7 +8,7 @@ pub use radicle_ssh::{self as ssh, agent::client::ClientStream};
 use crate::{PublicKey, SecretKey, Signature, Signer, SignerError};
 
 #[cfg(not(unix))]
-pub use std::net::TcpStream as Stream;
+pub use std::fs::File as Stream;
 #[cfg(unix)]
 pub use std::os::unix::net::UnixStream as Stream;
 
@@ -19,7 +19,7 @@ pub struct Agent {
 impl Agent {
     /// Connect to a running SSH agent.
     pub fn connect() -> Result<Self, ssh::agent::client::Error> {
-        Stream::connect_env().map(|client| Self { client })
+        Stream::connect_default().map(|client| Self { client })
     }
 
     /// Register a key with the agent.

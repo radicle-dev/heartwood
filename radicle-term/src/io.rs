@@ -102,18 +102,36 @@ pub fn notice_args<W: io::Write>(w: &mut W, args: fmt::Arguments) {
     writeln!(w, "{} {args}", Paint::new("!").dim()).ok();
 }
 
+#[cfg(not(windows))]
 pub fn columns() -> Option<usize> {
     termion::terminal_size().map(|(cols, _)| cols as usize).ok()
 }
 
+#[cfg(windows)]
+pub fn columns() -> Option<usize> {
+    Ok(80)
+}
+
+#[cfg(not(windows))]
 pub fn rows() -> Option<usize> {
     termion::terminal_size().map(|(_, rows)| rows as usize).ok()
 }
 
+#[cfg(windows)]
+pub fn rows() -> Option<usize> {
+    Ok(24)
+}
+
+#[cfg(not(windows))]
 pub fn viewport() -> Option<Size> {
     termion::terminal_size()
         .map(|(cols, rows)| Size::new(cols as usize, rows as usize))
         .ok()
+}
+
+#[cfg(windows)]
+pub fn viewport() -> Option<Size> {
+    Ok(Size::new(80, 24))
 }
 
 pub fn headline(headline: impl fmt::Display) {

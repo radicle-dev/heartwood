@@ -19,6 +19,7 @@ pub enum Signal {
 impl TryFrom<i32> for Signal {
     type Error = i32;
 
+    #[cfg(not(windows))]
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         match value {
             libc::SIGTERM => Ok(Self::Terminate),
@@ -28,12 +29,23 @@ impl TryFrom<i32> for Signal {
             _ => Err(value),
         }
     }
+
+    #[cfg(windows)]
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            libc::SIGTERM => Ok(Self::Terminate),
+            libc::SIGINT => Ok(Self::Interrupt),
+            _ => Err(value),
+        }
+    }
 }
 
 /// Signal notifications are sent via this channel.
+#[cfg(not(windows))]
 static NOTIFY: Mutex<Option<chan::Sender<Signal>>> = Mutex::new(None);
 
 /// Install global signal handlers.
+#[cfg(not(windows))]
 pub fn install(notify: chan::Sender<Signal>) -> io::Result<()> {
     if let Ok(mut channel) = NOTIFY.try_lock() {
         if channel.is_some() {
@@ -59,6 +71,7 @@ pub fn install(notify: chan::Sender<Signal>) -> io::Result<()> {
 /// # Safety
 ///
 /// Calls `libc` functions safely.
+#[cfg(not(windows))]
 unsafe fn _install() -> io::Result<()> {
     if libc::signal(libc::SIGTERM, handler as libc::sighandler_t) == libc::SIG_ERR {
         return Err(io::Error::last_os_error());
@@ -76,6 +89,7 @@ unsafe fn _install() -> io::Result<()> {
 }
 
 /// Called by `libc` when a signal is received.
+#[cfg(not(windows))]
 extern "C" fn handler(sig: libc::c_int, _info: *mut libc::siginfo_t, _data: *mut libc::c_void) {
     let Ok(sig) = sig.try_into() else {
         return;
@@ -85,4 +99,9 @@ extern "C" fn handler(sig: libc::c_int, _info: *mut libc::siginfo_t, _data: *mut
             c.try_send(sig).ok();
         }
     }
+}
+
+#[cfg(windows)]
+pub fn install(_: chan::Sender<Signal>) -> io::Result<()> {
+    Ok(())
 }
