@@ -60,7 +60,7 @@ fn debug(profile: &Profile) -> anyhow::Result<()> {
     let env = HashMap::from_iter(env::vars().filter_map(|(k, v)| {
         if k == "RAD_PASSPHRASE" {
             Some((k, "<REDACTED>".into()))
-        } else if k.starts_with("RAD_") || k.starts_with("SSH_") || k == "PATH" {
+        } else if k.starts_with("RAD_") || k.starts_with("SSH_") || k == "PATH" || k == "SHELL" {
             Some((k, v))
         } else {
             None
