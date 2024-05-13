@@ -402,6 +402,9 @@ impl<V> Deref for Remote<V> {
 /// Read-only operations on a storage instance.
 pub trait ReadStorage {
     type Repository: ReadRepository;
+    type InventoryRef<'a>: Deref<Target = Inventory>
+    where
+        Self: 'a;
 
     /// Get user info for this storage.
     fn info(&self) -> &UserInfo;
@@ -414,6 +417,9 @@ pub trait ReadStorage {
     /// Get the inventory of repositories hosted under this storage.
     /// This function should typically only return public repositories.
     fn inventory(&self) -> Result<Inventory, Error>;
+    /// Return a reference to the inventory. Note that this function may hold a
+    /// lock to the inventory.
+    fn inventory_ref<'a, 's: 'a>(&'s self) -> Self::InventoryRef<'a>;
     /// Return all repositories (public and private).
     fn repositories(&self) -> Result<Vec<RepositoryInfo<Verified>>, Error>;
     /// Insert this repository into the inventory.
@@ -658,6 +664,7 @@ where
     S: ReadStorage + 'static,
 {
     type Repository = S::Repository;
+    type InventoryRef<'a> = S::InventoryRef<'a> where T: 'a;
 
     fn info(&self) -> &UserInfo {
         self.deref().info()
@@ -681,6 +688,13 @@ where
 
     fn inventory(&self) -> Result<Inventory, Error> {
         self.deref().inventory()
+    }
+
+    fn inventory_ref<'a, 's: 'a>(&'s self) -> Self::InventoryRef<'a>
+    where
+        T: 'a,
+    {
+        self.deref().inventory_ref()
     }
 
     fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError> {

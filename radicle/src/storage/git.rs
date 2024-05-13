@@ -5,7 +5,7 @@ pub mod transport;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::{fs, io};
 
 use crypto::{Signer, Verified};
@@ -72,6 +72,23 @@ impl<'a> TryFrom<git2::Reference<'a>> for Ref {
     }
 }
 
+/// A reference to a locked inventory.
+pub struct InventoryLock<'a> {
+    guard: MutexGuard<'a, Option<BTreeSet<RepoId>>>,
+}
+
+impl<'a> Deref for InventoryLock<'a> {
+    type Target = BTreeSet<RepoId>;
+
+    #[track_caller]
+    fn deref(&self) -> &Self::Target {
+        match *self.guard {
+            Some(ref cache) => cache,
+            None => panic!("InventoryLock::deref: inventory cache was not initialized"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Storage {
     path: PathBuf,
@@ -82,6 +99,7 @@ pub struct Storage {
 
 impl ReadStorage for Storage {
     type Repository = Repository;
+    type InventoryRef<'a> = InventoryLock<'a>;
 
     fn info(&self) -> &UserInfo {
         &self.info
@@ -101,6 +119,15 @@ impl ReadStorage for Storage {
             return Ok(true);
         }
         Ok(false)
+    }
+
+    fn inventory_ref<'a, 's: 'a>(&'s self) -> InventoryLock<'a> {
+        let guard = self
+            .inventory
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        InventoryLock { guard }
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {

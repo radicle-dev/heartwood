@@ -56,8 +56,21 @@ impl MockStorage {
     }
 }
 
+pub struct InventoryLock {
+    inner: Inventory,
+}
+
+impl std::ops::Deref for InventoryLock {
+    type Target = BTreeSet<RepoId>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
 impl ReadStorage for MockStorage {
     type Repository = MockRepository;
+    type InventoryRef<'a> = InventoryLock;
 
     fn info(&self) -> &git::UserInfo {
         &self.info
@@ -77,6 +90,12 @@ impl ReadStorage for MockStorage {
 
     fn inventory(&self) -> Result<Inventory, Error> {
         Ok(self.repos.keys().cloned().collect::<BTreeSet<_>>())
+    }
+
+    fn inventory_ref<'a, 's: 'a>(&'s self) -> Self::InventoryRef<'a> {
+        InventoryLock {
+            inner: self.inventory().unwrap(),
+        }
     }
 
     fn insert(&self, _rid: RepoId) {}

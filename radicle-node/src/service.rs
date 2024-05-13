@@ -1431,6 +1431,9 @@ where
                     }
                 }
 
+                let inventory = self.storage.inventory_ref();
+                let mut missing = Vec::new();
+
                 for id in message.inventory.as_slice() {
                     // TODO: Move this out (good luck with the borrow checker).
                     if let Some(sess) = self.sessions.get_mut(announcer) {
@@ -1448,22 +1451,18 @@ where
                         ) {
                             // Only if we do not have the repository locally do we fetch here.
                             // If we do have it, only fetch after receiving a ref announcement.
-                            match self.storage.contains(id) {
-                                Ok(true) => {
-                                    // Do nothing.
-                                }
-                                Ok(false) => {
-                                    debug!(target: "service", "Missing seeded inventory {id}; initiating fetch..");
-                                    self.fetch(*id, *announcer, FETCH_TIMEOUT, None);
-                                }
-                                Err(e) => {
-                                    error!(target: "service", "Error checking local inventory for {id}: {e}");
-                                }
+                            if !inventory.contains(id) {
+                                missing.push(*id);
                             }
                         }
                     }
                 }
+                drop(inventory);
 
+                for rid in missing {
+                    debug!(target: "service", "Missing seeded inventory {rid}; initiating fetch..");
+                    self.fetch(rid, *announcer, FETCH_TIMEOUT, None);
+                }
                 return Ok(relay);
             }
             AnnouncementMessage::Refs(message) => {

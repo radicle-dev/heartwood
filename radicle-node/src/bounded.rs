@@ -159,7 +159,7 @@ impl<T, const N: usize> BoundedVec<T, N> {
         self.v
     }
 
-    /// Calls [`Vec::Drain`].
+    /// Calls [`std::vec::Drain`].
     pub fn drain<R: RangeBounds<usize>>(&mut self, range: R) -> std::vec::Drain<T> {
         self.v.drain(range)
     }
