@@ -374,7 +374,14 @@ pub enum Validation {
 impl Repository {
     /// Open an existing repository.
     pub fn open<P: AsRef<Path>>(path: P, id: RepoId) -> Result<Self, RepositoryError> {
-        let backend = git2::Repository::open_bare(path.as_ref())?;
+        let backend = git2::Repository::open_ext(
+            path.as_ref(),
+            git2::RepositoryOpenFlags::empty()
+                | git2::RepositoryOpenFlags::BARE
+                | git2::RepositoryOpenFlags::NO_DOTGIT
+                | git2::RepositoryOpenFlags::NO_SEARCH,
+            &[] as &[&std::ffi::OsStr],
+        )?;
 
         Ok(Self { id, backend })
     }
