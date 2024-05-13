@@ -1102,6 +1102,7 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
 
     connection.set_read_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
     connection.set_write_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
+    connection.set_nodelay(true)?;
 
     Ok(session::<G>(
         remote_addr,
