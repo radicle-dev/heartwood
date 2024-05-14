@@ -109,28 +109,29 @@ impl Store for Database {
         time: Timestamp,
     ) -> Result<Vec<(RepoId, InsertResult)>, Error> {
         let mut results = Vec::new();
-
-        transaction(&self.db, |db| {
+        let mut select_stmt = self
+            .db
+            .prepare("SELECT (timestamp) FROM routing WHERE repo = ? AND node = ?")?;
+        let mut insert_stmt = self.db.prepare(
+            "INSERT INTO routing (repo, node, timestamp)
+             VALUES (?, ?, ?)
+             ON CONFLICT DO UPDATE
+             SET timestamp = ?3
+             WHERE timestamp < ?3",
+        )?;
+        transaction(&self.db, |_| {
             for id in ids.into_iter() {
-                let mut stmt =
-                    db.prepare("SELECT (timestamp) FROM routing WHERE repo = ? AND node = ?")?;
+                select_stmt.bind((1, id))?;
+                select_stmt.bind((2, &node))?;
 
-                stmt.bind((1, id))?;
-                stmt.bind((2, &node))?;
+                let existed = select_stmt.iter().next().is_some();
+                select_stmt.reset()?;
 
-                let existed = stmt.into_iter().next().is_some();
-                let mut stmt = db.prepare(
-                    "INSERT INTO routing (repo, node, timestamp)
-                     VALUES (?, ?, ?)
-                     ON CONFLICT DO UPDATE
-                     SET timestamp = ?3
-                     WHERE timestamp < ?3",
-                )?;
-
-                stmt.bind((1, id))?;
-                stmt.bind((2, &node))?;
-                stmt.bind((3, &time))?;
-                stmt.next()?;
+                insert_stmt.bind((1, id))?;
+                insert_stmt.bind((2, &node))?;
+                insert_stmt.bind((3, &time))?;
+                insert_stmt.next()?;
+                insert_stmt.reset()?;
 
                 let result = match (self.db.change_count() > 0, existed) {
                     (true, true) => InsertResult::TimeUpdated,
