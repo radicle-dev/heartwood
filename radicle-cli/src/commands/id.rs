@@ -390,6 +390,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                         anyhow::bail!("payload `{id}` not found in identity document");
                     }
                 }
+                // Verify that the project payload can still be parsed into the
+                // `Project` type.
+                if let Err(e) = proposal.project() {
+                    anyhow::bail!("failed to verify `xyz.radicle.project`, failed with {e}",);
+                }
                 proposal
             };
             if proposal == current.doc {

@@ -69,3 +69,10 @@ $ rad id update --title "Delete field" --description "Delete 'web'" --payload xy
    "threshold": 1
  }
 ```
+
+Note that we cannot delete mandatory fields:
+
+``` (fails)
+$ rad id update --title "Delete default branch" --payload xyz.radicle.project defaultBranch null
+✗ Error: failed to verify `xyz.radicle.project`, failed with json: missing field `defaultBranch`
+```
