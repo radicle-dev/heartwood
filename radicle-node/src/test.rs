@@ -1,7 +1,7 @@
 pub mod arbitrary;
-pub mod environment;
 pub mod gossip;
 pub mod handle;
+pub mod node;
 pub mod peer;
 pub mod simulator;
 

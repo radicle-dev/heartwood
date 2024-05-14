@@ -8,9 +8,8 @@ use radicle::node::address::Store as _;
 use radicle::node::config::seeds::{RADICLE_COMMUNITY_NODE, RADICLE_TEAM_NODE};
 use radicle::node::config::DefaultSeedingPolicy;
 use radicle::node::routing::Store as _;
-use radicle::node::Handle as _;
 use radicle::node::UserAgent;
-use radicle::node::{Address, Alias, DEFAULT_TIMEOUT};
+use radicle::node::{Address, Alias, Config, Handle as _, DEFAULT_TIMEOUT};
 use radicle::prelude::{NodeId, RepoId};
 use radicle::profile;
 use radicle::profile::{env, Home};
@@ -20,68 +19,17 @@ use radicle::test::fixtures;
 use radicle_cli_test::TestFormula;
 use radicle_node::service::policy::Scope;
 use radicle_node::service::Event;
-use radicle_node::test::environment::{Config, Environment, Node};
 #[allow(unused_imports)]
 use radicle_node::test::logger;
+use radicle_node::test::node::Node;
 use radicle_node::PROTOCOL_VERSION;
+
+mod environment;
+use environment::config;
+use environment::Environment;
 
 /// Seed used in tests.
 const RAD_SEED: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-
-mod config {
-    use super::*;
-    use radicle::node::config::{Config, Limits, Network, RateLimit, RateLimits};
-    use radicle::profile;
-
-    /// Configuration for a test seed node.
-    ///
-    /// It sets the `RateLimit::capacity` to `usize::MAX` ensuring
-    /// that there are no rate limits for test nodes, since they all
-    /// operate on the same IP address. This prevents any announcement
-    /// messages from being dropped.
-    pub fn seed(alias: &'static str) -> Config {
-        Config {
-            network: Network::Test,
-            relay: node::config::Relay::Always,
-            limits: Limits {
-                rate: RateLimits {
-                    inbound: RateLimit {
-                        fill_rate: 1.0,
-                        capacity: usize::MAX,
-                    },
-                    outbound: RateLimit {
-                        fill_rate: 1.0,
-                        capacity: usize::MAX,
-                    },
-                },
-                ..Limits::default()
-            },
-            external_addresses: vec![node::Address::from_str(&format!(
-                "{alias}.radicle.example:8776"
-            ))
-            .unwrap()],
-            ..node(alias)
-        }
-    }
-
-    /// Relay node config.
-    pub fn relay(alias: &'static str) -> Config {
-        Config {
-            relay: node::config::Relay::Always,
-            ..node(alias)
-        }
-    }
-
-    /// Test node config.
-    pub fn node(alias: &'static str) -> Config {
-        Config::test(Alias::new(alias))
-    }
-
-    /// Test profile config.
-    pub fn profile(alias: &'static str) -> profile::Config {
-        Environment::config(Alias::new(alias))
-    }
-}
 
 /// Run a CLI test file.
 fn test<'a>(
@@ -147,7 +95,7 @@ fn rad_auth_errors() {
 #[test]
 fn rad_issue() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let home = &profile.home;
     let working = environment.tmp().join("working");
 
@@ -161,7 +109,7 @@ fn rad_issue() {
 #[test]
 fn rad_cob_log() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let home = &profile.home;
     let working = environment.tmp().join("working");
 
@@ -175,7 +123,7 @@ fn rad_cob_log() {
 #[test]
 fn rad_cob_show() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let home = &profile.home;
     let working = environment.tmp().join("working");
 
@@ -189,7 +137,7 @@ fn rad_cob_show() {
 #[test]
 fn rad_cob_migrate() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let home = &profile.home;
     let working = environment.tmp().join("working");
 
@@ -208,7 +156,7 @@ fn rad_cob_migrate() {
 #[test]
 fn rad_init() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
 
     // Setup a test repository.
@@ -226,7 +174,7 @@ fn rad_init() {
 #[test]
 fn rad_init_existing() {
     let mut environment = Environment::new();
-    let mut profile = environment.node(config::node("alice"));
+    let mut profile = environment.node("alice");
     let working = tempfile::tempdir().unwrap();
     let rid = profile.project("heartwood", "Radicle Heartwood Protocol & Stack");
 
@@ -248,7 +196,7 @@ fn rad_init_existing() {
 #[test]
 fn rad_init_no_seed() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node("alice");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -265,7 +213,7 @@ fn rad_init_no_seed() {
 #[test]
 fn rad_init_with_existing_remote() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
 
     // Setup a test repository.
@@ -283,7 +231,7 @@ fn rad_init_with_existing_remote() {
 #[test]
 fn rad_init_no_git() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
 
     test(
@@ -298,7 +246,7 @@ fn rad_init_no_git() {
 #[test]
 fn rad_inspect() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
 
     // Setup a test repository.
@@ -327,7 +275,7 @@ fn rad_inspect() {
 fn rad_config() {
     let mut environment = Environment::new();
     let alias = Alias::new("alice");
-    let profile = environment.profile(profile::Config {
+    let profile = environment.profile_with(profile::Config {
         preferred_seeds: vec![RADICLE_COMMUNITY_NODE.clone(), RADICLE_TEAM_NODE.clone()],
         ..profile::Config::new(alias)
     });
@@ -345,7 +293,7 @@ fn rad_config() {
 #[test]
 fn rad_checkout() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let copy = tempfile::tempdir().unwrap();
 
@@ -390,8 +338,8 @@ fn rad_checkout() {
 #[test]
 fn rad_id() {
     let mut environment = Environment::new();
-    let alice = environment.node(config::node("alice"));
-    let bob = environment.node(config::node("bob"));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
@@ -438,9 +386,9 @@ fn rad_id() {
 #[test]
 fn rad_id_threshold() {
     let mut environment = Environment::new();
-    let alice = environment.node(config::node("alice"));
-    let bob = environment.node(config::node("bob"));
-    let seed = environment.node(config::node("seed"));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let seed = environment.node("seed");
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
@@ -496,8 +444,8 @@ fn rad_id_threshold() {
 #[test]
 fn rad_id_threshold_soft_fork() {
     let mut environment = Environment::new();
-    let alice = environment.node(config::node("alice"));
-    let bob = environment.node(config::node("bob"));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
@@ -546,7 +494,7 @@ fn rad_id_threshold_soft_fork() {
 #[test]
 fn rad_id_update_delete_field() {
     let mut environment = Environment::new();
-    let alice = environment.node(config::node("alice"));
+    let alice = environment.node("alice");
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
 
@@ -573,9 +521,9 @@ fn rad_id_update_delete_field() {
 #[test]
 fn rad_id_multi_delegate() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
-    let eve = environment.node(Config::test(Alias::new("eve")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let eve = environment.node("eve");
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
@@ -632,11 +580,11 @@ fn rad_id_multi_delegate() {
 #[ignore = "slow"]
 fn rad_id_collaboration() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
-    let eve = environment.node(Config::test(Alias::new("eve")));
-    let seed = environment.node(config::seed("seed"));
-    let distrustful = environment.node(config::seed("distrustful"));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let eve = environment.node("eve");
+    let seed = environment.seed("seed");
+    let distrustful = environment.seed("distrustful");
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
@@ -737,8 +685,8 @@ fn rad_id_collaboration() {
 #[test]
 fn rad_id_conflict() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
@@ -782,7 +730,7 @@ fn rad_id_conflict() {
 #[test]
 fn rad_id_unknown_field() {
     let mut environment = Environment::new();
-    let alice = environment.node(config::node("alice"));
+    let alice = environment.node("alice");
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
 
@@ -811,7 +759,7 @@ fn rad_id_unknown_field() {
 #[test]
 fn rad_id_private() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node("alice");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -835,8 +783,8 @@ fn rad_id_private() {
 #[test]
 fn rad_node_connect() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = tempfile::tempdir().unwrap();
     let alice = alice.spawn();
     let bob = bob.spawn();
@@ -860,7 +808,7 @@ fn rad_node_connect() {
 #[test]
 fn rad_node() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config {
+    let alice = environment.node_with(Config {
         external_addresses: vec![
             Address::from(net::SocketAddr::from(([41, 12, 98, 112], 8776))),
             Address::from_str("seed.cloudhead.io:8776").unwrap(),
@@ -893,7 +841,7 @@ fn rad_node() {
 #[test]
 fn rad_patch() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -908,7 +856,7 @@ fn rad_patch() {
 #[test]
 fn rad_patch_diff() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -922,7 +870,7 @@ fn rad_patch_diff() {
 #[test]
 fn rad_patch_edit() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -936,7 +884,7 @@ fn rad_patch_edit() {
 #[test]
 fn rad_patch_checkout() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -956,7 +904,7 @@ fn rad_patch_checkout() {
 #[test]
 fn rad_patch_checkout_revision() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -983,8 +931,8 @@ fn rad_patch_checkout_revision() {
 #[test]
 fn rad_patch_checkout_force() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
@@ -1032,7 +980,7 @@ fn rad_patch_checkout_force() {
 #[test]
 fn rad_patch_update() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -1055,7 +1003,7 @@ fn rad_patch_ahead_behind() {
     use std::fs;
 
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -1078,7 +1026,7 @@ fn rad_patch_ahead_behind() {
 fn rad_patch_change_base() {
     logger::init(log::Level::Debug);
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -1098,7 +1046,7 @@ fn rad_patch_change_base() {
 #[test]
 fn rad_patch_draft() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -1118,7 +1066,7 @@ fn rad_patch_draft() {
 #[test]
 fn rad_patch_via_push() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -1138,7 +1086,7 @@ fn rad_patch_via_push() {
 #[test]
 fn rad_patch_detached_head() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -1158,7 +1106,7 @@ fn rad_patch_detached_head() {
 #[test]
 fn rad_patch_merge_draft() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -1178,7 +1126,7 @@ fn rad_patch_merge_draft() {
 #[test]
 fn rad_patch_revert_merge() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -1199,7 +1147,7 @@ fn rad_patch_revert_merge() {
 #[cfg(not(target_os = "macos"))]
 fn rad_review_by_hunk() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -1219,9 +1167,9 @@ fn rad_review_by_hunk() {
 #[test]
 fn rad_patch_delete() {
     let mut environment = Environment::new();
-    let alice = environment.node(config::relay("alice"));
-    let bob = environment.node(config::relay("bob"));
-    let seed = environment.node(config::relay("seed"));
+    let alice = environment.relay("alice");
+    let bob = environment.relay("bob");
+    let seed = environment.relay("seed");
     let working = environment.tmp().join("working");
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
@@ -1277,9 +1225,9 @@ fn rad_patch_delete() {
 #[test]
 fn rad_clean() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
-    let eve = environment.node(Config::test(Alias::new("eve")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let eve = environment.node("eve");
     let working = environment.tmp().join("working");
 
     // Setup a test project.
@@ -1334,7 +1282,7 @@ fn rad_clean() {
 #[test]
 fn rad_seed_and_follow() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node("alice");
     let working = tempfile::tempdir().unwrap();
     let alice = alice.spawn();
 
@@ -1350,7 +1298,7 @@ fn rad_seed_and_follow() {
 #[test]
 fn rad_unseed() {
     let mut environment = Environment::new();
-    let mut alice = environment.node(Config::test(Alias::new("alice")));
+    let mut alice = environment.node("alice");
     let working = tempfile::tempdir().unwrap();
 
     // Setup a test project.
@@ -1363,7 +1311,7 @@ fn rad_unseed() {
 #[test]
 fn rad_block() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config {
+    let alice = environment.node_with(Config {
         seeding_policy: DefaultSeedingPolicy::permissive(),
         ..Config::test(Alias::new("alice"))
     });
@@ -1375,8 +1323,8 @@ fn rad_block() {
 #[test]
 fn rad_clone() {
     let mut environment = Environment::new();
-    let mut alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let mut alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
 
     // Setup a test project.
@@ -1395,8 +1343,8 @@ fn rad_clone() {
 #[test]
 fn rad_clone_directory() {
     let mut environment = Environment::new();
-    let mut alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let mut alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
 
     // Setup a test project.
@@ -1421,9 +1369,9 @@ fn rad_clone_directory() {
 #[test]
 fn rad_clone_all() {
     let mut environment = Environment::new();
-    let mut alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
-    let eve = environment.node(Config::test(Alias::new("eve")));
+    let mut alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let eve = environment.node("eve");
     let working = environment.tmp().join("working");
 
     // Setup a test project.
@@ -1456,9 +1404,9 @@ fn rad_clone_all() {
 #[test]
 fn rad_clone_partial_fail() {
     let mut environment = Environment::new();
-    let mut alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
-    let mut eve = environment.node(Config::test(Alias::new("eve")));
+    let mut alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let mut eve = environment.node("eve");
     let working = environment.tmp().join("working");
     let carol = NodeId::from_str("z6MksFqXN3Yhqk8pTJdUGLwBTkRfQvwZXPqR2qMEhbS9wzpT").unwrap();
 
@@ -1519,9 +1467,9 @@ fn rad_clone_partial_fail() {
 fn rad_clone_connect() {
     let mut environment = Environment::new();
     let working = environment.tmp().join("working");
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
-    let mut eve = environment.node(Config::test(Alias::new("eve")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let mut eve = environment.node("eve");
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
     let ua = UserAgent::default();
     let now = localtime::LocalTime::now().into();
@@ -1603,9 +1551,9 @@ fn rad_clone_connect() {
 #[test]
 fn rad_sync_without_node() {
     let mut environment = Environment::new();
-    let alice = environment.node(config::seed("alice"));
-    let bob = environment.node(config::seed("bob"));
-    let mut eve = environment.node(config::seed("eve"));
+    let alice = environment.seed("alice");
+    let bob = environment.seed("bob");
+    let mut eve = environment.seed("eve");
 
     let rid = RepoId::from_urn("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5").unwrap();
     eve.policies.seed(&rid, Scope::All).unwrap();
@@ -1634,7 +1582,7 @@ fn rad_sync_without_node() {
 #[test]
 fn rad_self() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config {
+    let alice = environment.node_with(Config {
         external_addresses: vec!["seed.alice.acme:8776".parse().unwrap()],
         ..Config::test(Alias::new("alice"))
     });
@@ -1646,7 +1594,7 @@ fn rad_self() {
 #[test]
 fn rad_clone_unknown() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node("alice");
     let working = environment.tmp().join("working");
 
     let alice = alice.spawn();
@@ -1663,7 +1611,7 @@ fn rad_clone_unknown() {
 #[test]
 fn rad_init_sync_not_connected() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node("alice");
     let working = tempfile::tempdir().unwrap();
     let alice = alice.spawn();
 
@@ -1682,15 +1630,15 @@ fn rad_init_sync_not_connected() {
 fn rad_init_sync_preferred() {
     let mut environment = Environment::new();
     let mut alice = environment
-        .node(Config {
+        .node_with(Config {
             seeding_policy: DefaultSeedingPolicy::permissive(),
             ..Config::test(Alias::new("alice"))
         })
         .spawn();
 
-    let bob = environment.profile(profile::Config {
+    let bob = environment.profile_with(profile::Config {
         preferred_seeds: vec![alice.address()],
-        ..config::profile("bob")
+        ..environment.config("bob")
     });
     let mut bob = Node::new(bob).spawn();
     let working = environment.tmp().join("working");
@@ -1714,15 +1662,15 @@ fn rad_init_sync_preferred() {
 fn rad_init_sync_timeout() {
     let mut environment = Environment::new();
     let mut alice = environment
-        .node(Config {
+        .node_with(Config {
             seeding_policy: DefaultSeedingPolicy::Block,
             ..Config::test(Alias::new("alice"))
         })
         .spawn();
 
-    let bob = environment.profile(profile::Config {
+    let bob = environment.profile_with(profile::Config {
         preferred_seeds: vec![alice.address()],
-        ..config::profile("bob")
+        ..environment.config("bob")
     });
     let mut bob = Node::new(bob).spawn();
     let working = environment.tmp().join("working");
@@ -1745,8 +1693,8 @@ fn rad_init_sync_timeout() {
 #[test]
 fn rad_init_sync_and_clone() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
 
     let alice = alice.spawn();
@@ -1781,8 +1729,8 @@ fn rad_init_sync_and_clone() {
 fn rad_fetch() {
     let mut environment = Environment::new();
     let working = environment.tmp().join("working");
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
 
     let mut alice = alice.spawn();
     let bob = bob.spawn();
@@ -1815,8 +1763,8 @@ fn rad_fetch() {
 fn rad_fork() {
     let mut environment = Environment::new();
     let working = environment.tmp().join("working");
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
 
     let mut alice = alice.spawn();
     let bob = bob.spawn();
@@ -1865,7 +1813,7 @@ fn rad_diff() {
 // User tries to clone; no seeds are available, but user has the repo locally.
 fn test_clone_without_seeds() {
     let mut environment = Environment::new();
-    let mut alice = environment.node(Config::test(Alias::new("alice")));
+    let mut alice = environment.node("alice");
     let working = environment.tmp().join("working");
     let rid = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
     let mut alice = alice.spawn();
@@ -1887,8 +1835,8 @@ fn test_clone_without_seeds() {
 fn test_cob_replication() {
     let mut environment = Environment::new();
     let working = tempfile::tempdir().unwrap();
-    let mut alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let mut alice = environment.node("alice");
+    let bob = environment.node("bob");
 
     let rid = alice.project("heartwood", "");
 
@@ -1956,8 +1904,8 @@ fn test_cob_replication() {
 fn test_cob_deletion() {
     let mut environment = Environment::new();
     let working = tempfile::tempdir().unwrap();
-    let mut alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let mut alice = environment.node("alice");
+    let bob = environment.node("bob");
 
     let rid = alice.project("heartwood", "");
 
@@ -2009,9 +1957,9 @@ fn test_cob_deletion() {
 fn rad_sync() {
     let mut environment = Environment::new();
     let working = environment.tmp().join("working");
-    let alice = environment.node(config::seed("alice"));
-    let bob = environment.node(config::seed("bob"));
-    let eve = environment.node(config::seed("eve"));
+    let alice = environment.seed("alice");
+    let bob = environment.seed("bob");
+    let eve = environment.seed("eve");
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
     fixtures::repository(working.join("acme"));
@@ -2055,9 +2003,9 @@ fn rad_sync() {
 //
 fn test_replication_via_seed() {
     let mut environment = Environment::new();
-    let alice = environment.node(config::relay("alice"));
-    let bob = environment.node(config::relay("bob"));
-    let seed = environment.node(Config {
+    let alice = environment.relay("alice");
+    let bob = environment.relay("bob");
+    let seed = environment.node_with(Config {
         seeding_policy: DefaultSeedingPolicy::permissive(),
         ..config::relay("seed")
     });
@@ -2144,9 +2092,9 @@ fn test_replication_via_seed() {
 #[test]
 fn rad_remote() {
     let mut environment = Environment::new();
-    let alice = environment.node(config::relay("alice"));
-    let bob = environment.node(config::relay("bob"));
-    let eve = environment.node(config::relay("eve"));
+    let alice = environment.relay("alice");
+    let bob = environment.relay("bob");
+    let eve = environment.relay("eve");
     let working = environment.tmp().join("working");
     let home = alice.home.clone();
     let rid = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
@@ -2193,7 +2141,7 @@ fn rad_remote() {
 #[test]
 fn rad_merge_via_push() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node("alice");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -2220,7 +2168,7 @@ fn rad_merge_via_push() {
 #[test]
 fn rad_merge_after_update() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node("alice");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -2247,7 +2195,7 @@ fn rad_merge_after_update() {
 #[test]
 fn rad_merge_no_ff() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node("alice");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -2272,8 +2220,8 @@ fn rad_merge_no_ff() {
 #[test]
 fn rad_patch_pull_update() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -2305,15 +2253,15 @@ fn rad_patch_open_explore() {
 
     let mut environment = Environment::new();
     let seed = environment
-        .node(Config {
+        .node_with(Config {
             seeding_policy: DefaultSeedingPolicy::permissive(),
             ..config::seed("seed")
         })
         .spawn();
 
-    let bob = environment.profile(profile::Config {
+    let bob = environment.profile_with(profile::Config {
         preferred_seeds: vec![seed.address()],
-        ..config::profile("bob")
+        ..environment.config("bob")
     });
     let mut bob = Node::new(bob).spawn();
     let working = environment.tmp().join("working");
@@ -2336,7 +2284,7 @@ fn rad_patch_open_explore() {
 #[test]
 fn rad_init_private() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node("alice");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -2353,7 +2301,7 @@ fn rad_init_private() {
 #[test]
 fn rad_init_private_no_seed() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node("alice");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -2370,8 +2318,8 @@ fn rad_init_private_no_seed() {
 #[test]
 fn rad_init_private_seed() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -2408,8 +2356,8 @@ fn rad_init_private_seed() {
 #[test]
 fn rad_init_private_clone() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -2446,8 +2394,8 @@ fn rad_init_private_clone() {
 #[test]
 fn rad_init_private_clone_seed() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -2487,7 +2435,7 @@ fn rad_init_private_clone_seed() {
 #[test]
 fn rad_publish() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node("alice");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -2512,8 +2460,8 @@ fn rad_publish() {
 #[test]
 fn framework_home() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
 
     formula(&environment.tmp(), "examples/framework/home.md")
         .unwrap()
@@ -2534,8 +2482,8 @@ fn framework_home() {
 #[test]
 fn git_push_diverge() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
@@ -2577,9 +2525,9 @@ fn git_push_converge() {
     use std::fs;
 
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
-    let eve = environment.node(Config::test(Alias::new("eve")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let eve = environment.node("eve");
     let working = environment.tmp().join("working");
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
@@ -2639,8 +2587,8 @@ fn git_push_converge() {
 #[test]
 fn git_push_amend() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
@@ -2680,8 +2628,8 @@ fn git_push_amend() {
 #[test]
 fn git_push_rollback() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
@@ -2721,8 +2669,8 @@ fn git_push_rollback() {
 #[test]
 fn rad_push_and_pull_patches() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
@@ -2762,8 +2710,8 @@ fn rad_push_and_pull_patches() {
 #[test]
 fn rad_patch_fetch_1() {
     let mut environment = Environment::new();
-    let mut alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let mut alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
     let (repo, _) = fixtures::repository(working.join("alice"));
     let rid = alice.project_from("heartwood", "Radicle Heartwood Protocol & Stack", &repo);
@@ -2793,8 +2741,8 @@ fn rad_patch_fetch_1() {
 #[test]
 fn rad_watch() {
     let mut environment = Environment::new();
-    let mut alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let mut alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
     let (repo, _) = fixtures::repository(working.join("alice"));
     let rid = alice.project_from("heartwood", "Radicle Heartwood Protocol & Stack", &repo);
@@ -2824,8 +2772,8 @@ fn rad_watch() {
 #[test]
 fn rad_inbox() {
     let mut environment = Environment::new();
-    let mut alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let mut alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
     let (repo1, _) = fixtures::repository(working.join("alice").join("heartwood"));
     let (repo2, _) = fixtures::repository(working.join("alice").join("radicle-git"));
@@ -2858,7 +2806,7 @@ fn rad_inbox() {
 #[test]
 fn rad_patch_fetch_2() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
+    let alice = environment.node("alice");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -2883,8 +2831,8 @@ fn rad_patch_fetch_2() {
 #[test]
 fn git_push_and_fetch() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -2935,8 +2883,8 @@ fn git_push_and_fetch() {
 #[test]
 fn git_tag() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -2980,8 +2928,8 @@ fn git_tag() {
 #[test]
 fn rad_workflow() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -3043,7 +2991,7 @@ fn rad_workflow() {
 #[test]
 fn rad_job() {
     let mut environment = Environment::new();
-    let profile = environment.profile(config::profile("alice"));
+    let profile = environment.profile("alice");
     let home = &profile.home;
     let working = environment.tmp().join("working");
 

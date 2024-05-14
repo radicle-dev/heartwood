@@ -1,6 +1,6 @@
 use std::io::BufRead as _;
 use std::mem::ManuallyDrop;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs, io, iter, net, process, thread, time,
@@ -9,152 +9,31 @@ use std::{
 
 use crossbeam_channel as chan;
 
-use localtime::LocalTime;
-use radicle::cob::{issue, migrate};
-use radicle::crypto::ssh::{keystore::MemorySigner, Keystore};
+use radicle::cob;
+use radicle::cob::issue;
+use radicle::crypto::ssh::keystore::MemorySigner;
 use radicle::crypto::test::signer::MockSigner;
-use radicle::crypto::{KeyPair, Seed, Signer};
+use radicle::crypto::Signer;
+use radicle::git;
 use radicle::git::refname;
 use radicle::identity::{RepoId, Visibility};
+use radicle::node;
 use radicle::node::config::ConnectAddress;
 use radicle::node::policy::store as policy;
 use radicle::node::seed::Store as _;
-use radicle::node::{Alias, Database, UserAgent, POLICIES_DB_FILE};
+use radicle::node::Config;
 use radicle::node::{ConnectOptions, Handle as _};
-use radicle::profile;
+use radicle::node::{Database, POLICIES_DB_FILE};
 use radicle::profile::{env, Home, Profile};
 use radicle::rad;
 use radicle::storage::{ReadStorage as _, RemoteRepository as _, SignRepository as _};
 use radicle::test::fixtures;
 use radicle::Storage;
-use radicle::{cli, node};
-use radicle::{cob, explorer};
-use radicle::{git, web};
 
 use crate::node::NodeId;
 use crate::service::Event;
 use crate::storage::git::transport;
 use crate::{runtime, runtime::Handle, service, Runtime};
-
-pub use service::Config;
-
-/// Test environment.
-pub struct Environment {
-    tempdir: tempfile::TempDir,
-    users: usize,
-}
-
-impl Default for Environment {
-    fn default() -> Self {
-        Self {
-            tempdir: tempfile::tempdir().unwrap(),
-            users: 0,
-        }
-    }
-}
-
-impl Environment {
-    /// Create a new test environment.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Return the temp directory path.
-    pub fn tmp(&self) -> PathBuf {
-        self.tempdir.path().join("misc")
-    }
-
-    /// Get the scale or "test size". This is used to scale tests with more data. Defaults to `1`.
-    pub fn scale(&self) -> usize {
-        env::var("RAD_TEST_SCALE")
-            .map(|s| {
-                s.parse()
-                    .expect("repository: invalid value for `RAD_TEST_SCALE`")
-            })
-            .unwrap_or(1)
-    }
-
-    /// Create a new node in this environment. This should be used when a running node
-    /// is required. Use [`Environment::profile`] otherwise.
-    pub fn node(&mut self, node: Config) -> Node<MemorySigner> {
-        let alias = node.alias.clone();
-        let profile = self.profile(profile::Config {
-            node,
-            ..Environment::config(alias)
-        });
-        Node::new(profile)
-    }
-
-    /// Create a new default configuration.
-    pub fn config(alias: Alias) -> profile::Config {
-        profile::Config {
-            node: node::Config::test(alias),
-            cli: cli::Config { hints: false },
-            public_explorer: explorer::Explorer::default(),
-            preferred_seeds: vec![],
-            web: web::Config::default(),
-        }
-    }
-
-    /// Create a new profile in this environment.
-    /// This should be used when a running node is not required.
-    pub fn profile(&mut self, config: profile::Config) -> Profile {
-        let alias = config.alias().clone();
-        let home = Home::new(
-            self.tmp()
-                .join("home")
-                .join(alias.to_string())
-                .join(".radicle"),
-        )
-        .unwrap();
-        let keystore = Keystore::new(&home.keys());
-        let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
-        let policies_db = home.node().join(POLICIES_DB_FILE);
-        let now = LocalTime::now();
-
-        config.write(&home.config()).unwrap();
-
-        let storage = Storage::open(
-            home.storage(),
-            git::UserInfo {
-                alias: alias.clone(),
-                key: keypair.pk.into(),
-            },
-        )
-        .unwrap();
-        let public_key = keypair.pk.into();
-
-        let mut db = home.cobs_db_mut().unwrap();
-        db.migrate(migrate::ignore).unwrap();
-
-        policy::Store::open(policies_db).unwrap();
-        home.database_mut()
-            .unwrap()
-            .init(
-                &public_key,
-                config.node.features(),
-                &Alias::new(alias),
-                &UserAgent::default(),
-                now.into(),
-                config.node.external_addresses.iter(),
-            )
-            .unwrap();
-
-        transport::local::register(storage.clone());
-        keystore.store(keypair.clone(), "radicle", None).unwrap();
-
-        // Ensures that each user has a unique but deterministic public key.
-        self.users += 1;
-
-        Profile {
-            home,
-            storage,
-            keystore,
-            public_key,
-            config,
-        }
-    }
-}
 
 /// A node that can be run.
 pub struct Node<G> {
