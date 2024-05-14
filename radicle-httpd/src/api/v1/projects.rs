@@ -539,7 +539,7 @@ async fn blob_handler(
     let blob = repo.blob(sha, &path)?;
     let response = api::json::blob(&blob, &path);
 
-    Ok::<_, Error>(Json(response))
+    Ok::<_, Error>(immutable_response(response))
 }
 
 /// Get project readme.
