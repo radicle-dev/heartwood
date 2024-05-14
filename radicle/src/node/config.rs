@@ -7,7 +7,7 @@ use localtime::LocalDuration;
 
 use crate::node;
 use crate::node::policy::{Policy, Scope};
-use crate::node::{Address, Alias, NodeId};
+use crate::node::{db, Address, Alias, NodeId};
 
 /// Target number of peers to maintain connections to.
 pub const TARGET_OUTBOUND_PEERS: usize = 8;
@@ -260,6 +260,14 @@ pub enum TorConfig {
     Transparent,
 }
 
+/// Database configuration.
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DbConfig {
+    #[serde(default)]
+    pub journal_mode: db::JournalMode,
+}
+
 /// Service configuration.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -279,6 +287,9 @@ pub struct Config {
     /// Specify the node's public addresses
     #[serde(default)]
     pub external_addresses: Vec<Address>,
+    /// Database config.
+    #[serde(default)]
+    pub db: DbConfig,
     /// Tor configuration.
     #[serde(default)]
     pub tor: Option<TorConfig>,
@@ -321,6 +332,7 @@ impl Config {
             listen: vec![],
             connect: HashSet::default(),
             external_addresses: vec![],
+            db: DbConfig::default(),
             network: Network::default(),
             tor: None,
             relay: Relay::default(),

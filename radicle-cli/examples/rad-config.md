@@ -26,6 +26,9 @@ $ rad config
     },
     "connect": [],
     "externalAddresses": [],
+    "db": {
+      "journalMode": "rollback"
+    },
     "tor": null,
     "network": "main",
     "log": "INFO",

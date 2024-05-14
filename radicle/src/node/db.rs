@@ -40,6 +40,19 @@ pub enum Error {
     NoRows,
 }
 
+/// Database journal mode.
+#[derive(Debug, Default, Copy, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum JournalMode {
+    /// "WAL" mode. Good for concurrent reads & writes, but keeps some extra files around.
+    #[serde(rename = "wal")]
+    WriteAheadLog,
+    /// Default "rollback" mode. Certain writes may block reads.
+    #[serde(alias = "rollback")]
+    #[default]
+    Rollback,
+}
+
 /// A file-backed database storing information about the network.
 #[derive(Clone)]
 pub struct Database {
@@ -91,6 +104,19 @@ impl Database {
         db.execute(Self::PRAGMA)?;
 
         Ok(Self { db: Arc::new(db) })
+    }
+
+    /// Set journal mode.
+    pub fn journal_mode(self, mode: JournalMode) -> Result<Self, Error> {
+        match mode {
+            JournalMode::Rollback => {
+                self.db.execute("PRAGMA journal_mode = DELETE;")?;
+            }
+            JournalMode::WriteAheadLog => {
+                self.db.execute("PRAGMA journal_mode = WAL;")?;
+            }
+        }
+        Ok(self)
     }
 
     /// Create a new in-memory database.

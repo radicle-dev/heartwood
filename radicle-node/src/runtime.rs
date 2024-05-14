@@ -156,7 +156,7 @@ impl Runtime {
         let policy = config.policy;
 
         log::info!(target: "node", "Opening node database..");
-        let db = home.database_mut()?;
+        let db = home.database_mut()?.journal_mode(config.db.journal_mode)?;
         let mut stores: service::Stores<_> = db.clone().into();
 
         log::info!(target: "node", "Opening policy database..");
