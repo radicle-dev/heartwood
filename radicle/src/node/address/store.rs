@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use std::str::FromStr;
 
 use localtime::LocalTime;
@@ -65,13 +66,17 @@ pub trait Store {
     }
     /// Check if an address is banned. Also returns `true` if the node this address belongs
     /// to is banned.
-    fn is_banned(&self, addr: &Address) -> Result<bool, Error>;
+    fn is_addr_banned(&self, addr: &Address) -> Result<bool, Error>;
+    /// Check if an IP is banned.
+    fn is_ip_banned(&self, ip: IpAddr) -> Result<bool, Error>;
     /// Get the address entries in the store.
     fn entries(&self) -> Result<Box<dyn Iterator<Item = AddressEntry>>, Error>;
     /// Mark a node as attempted at a certain time.
     fn attempted(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error>;
     /// Mark a node as successfully connected at a certain time.
     fn connected(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error>;
+    /// Record a node IP address and connection time.
+    fn record_ip(&self, nid: &NodeId, ip: IpAddr, time: Timestamp) -> Result<(), Error>;
     /// Mark a node as disconnected.
     fn disconnected(
         &mut self,
@@ -112,12 +117,12 @@ impl Store for Database {
         }
     }
 
-    fn is_banned(&self, addr: &Address) -> Result<bool, Error> {
+    fn is_addr_banned(&self, addr: &Address) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
             "SELECT a.banned, n.banned
              FROM addresses AS a
              JOIN nodes AS n ON a.node = n.id
-             WHERE value = ?1 AND type =?2",
+             WHERE value = ?1 AND type = ?2",
         )?;
         stmt.bind((1, addr))?;
         stmt.bind((2, AddressType::from(addr)))?;
@@ -131,6 +136,17 @@ impl Store for Database {
         } else {
             Ok(false)
         }
+    }
+
+    fn is_ip_banned(&self, ip: IpAddr) -> Result<bool, Error> {
+        let mut stmt = self.db.prepare(
+            "SELECT banned
+             FROM ips
+             WHERE ip = ?1 AND banned > 0",
+        )?;
+        stmt.bind((1, ip.to_string().as_str()))?;
+
+        Ok(stmt.into_iter().next().is_some())
     }
 
     fn addresses_of(&self, node: &NodeId) -> Result<Vec<KnownAddress>, Error> {
@@ -325,10 +341,26 @@ impl Store for Database {
         })
     }
 
+    fn record_ip(&self, nid: &NodeId, ip: IpAddr, time: Timestamp) -> Result<(), Error> {
+        let mut stmt = self.db.prepare(
+            "INSERT INTO ips (ip, node, last_attempt)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT DO UPDATE
+             SET last_attempt = ?3
+             WHERE last_attempt < ?3",
+        )?;
+        stmt.bind((1, ip.to_string().as_str()))?;
+        stmt.bind((2, nid))?;
+        stmt.bind((3, &time))?;
+        stmt.next()?;
+
+        Ok(())
+    }
+
     fn disconnected(
         &mut self,
         nid: &NodeId,
-        _addr: &Address,
+        addr: &Address,
         severity: Severity,
     ) -> Result<(), Error> {
         transaction(&self.db, |db| {
@@ -348,7 +380,11 @@ impl Store for Database {
                 stmt.bind((1, nid))?;
                 stmt.next()?;
 
-                let mut stmt = db.prepare("UPDATE `addresses` SET banned = 1 WHERE node = ?1")?;
+                let mut stmt = db.prepare("UPDATE `addresses` SET banned = 1 WHERE value = ?1")?;
+                stmt.bind((1, addr))?;
+                stmt.next()?;
+
+                let mut stmt = db.prepare("UPDATE `ips` SET banned = 1 WHERE node = ?1")?;
                 stmt.bind((1, nid))?;
                 stmt.next()?;
             }
@@ -438,6 +474,7 @@ mod test {
 
     use super::*;
     use crate::test::arbitrary;
+    use cyphernet::addr::NetAddr;
     use localtime::LocalTime;
 
     #[test]
@@ -725,8 +762,18 @@ mod test {
     #[test]
     fn test_disconnected_ban() {
         let alice = arbitrary::gen::<NodeId>(1);
+        let ip1: net::Ipv4Addr = [8, 8, 8, 8].into();
+        let ip2: net::Ipv4Addr = [9, 9, 9, 9].into();
         let ka1 = arbitrary::gen::<KnownAddress>(1);
+        let ka1 = KnownAddress {
+            addr: Address::from(NetAddr::new(ip1.into(), 8776)),
+            ..ka1
+        };
         let ka2 = arbitrary::gen::<KnownAddress>(1);
+        let ka2 = KnownAddress {
+            addr: Address::from(NetAddr::new(ip2.into(), 8776)),
+            ..ka2
+        };
         let mut db = Database::memory().unwrap();
         let features = node::Features::SEED;
         let timestamp = Timestamp::from(LocalTime::now());
@@ -740,6 +787,9 @@ mod test {
             [ka1.clone(), ka2.clone()],
         )
         .unwrap();
+        db.record_ip(&alice, ip1.into(), timestamp).unwrap();
+        db.record_ip(&alice, ip2.into(), timestamp).unwrap();
+
         let node = db.get(&alice).unwrap().unwrap();
         assert_eq!(node.penalty, Penalty::default());
 
@@ -758,9 +808,15 @@ mod test {
         assert!(node.banned);
 
         for addr in node.addrs {
-            assert!(addr.banned);
+            if addr.addr == ka1.addr {
+                assert!(addr.banned);
+            } else {
+                assert!(!addr.banned);
+            }
         }
-        assert!(db.is_banned(&ka1.addr).unwrap());
-        assert!(db.is_banned(&ka2.addr).unwrap()); // Banned because node is banned.
+        assert!(db.is_addr_banned(&ka1.addr).unwrap());
+        assert!(db.is_addr_banned(&ka2.addr).unwrap()); // Banned because node is banned.
+        assert!(db.is_ip_banned(ip1.into()).unwrap());
+        assert!(db.is_ip_banned(ip2.into()).unwrap());
     }
 }

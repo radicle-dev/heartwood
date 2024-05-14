@@ -514,26 +514,31 @@ where
     ) {
         match event {
             ListenerEvent::Accepted(connection) => {
-                let Ok(addr) = connection.remote_addr() else {
+                let Ok(remote) = connection.remote_addr() else {
                     log::warn!(target: "wire", "Accepted connection doesn't have remote address; dropping..");
                     drop(connection);
 
                     return;
                 };
-                let addr: NetAddr<HostName> = addr.into();
+                let InetHost::Ip(ip) = remote.host else {
+                    log::error!(target: "wire", "Unexpected host type for inbound connection {remote}; dropping..");
+                    drop(connection);
+
+                    return;
+                };
                 let fd = connection.as_raw_fd();
-                log::debug!(target: "wire", "Accepting inbound connection from {addr} (fd={fd})..");
+                log::debug!(target: "wire", "Inbound connection from {remote} (fd={fd})..");
 
                 // If the service doesn't want to accept this connection,
                 // we drop the connection here, which disconnects the socket.
-                if !self.service.accepted(addr.clone().into()) {
-                    log::debug!(target: "wire", "Rejecting inbound connection from {addr} (fd={fd})..");
+                if !self.service.accepted(ip) {
+                    log::debug!(target: "wire", "Rejecting inbound connection from {ip} (fd={fd})..");
                     drop(connection);
 
                     return;
                 }
 
-                let session = accept::<G>(addr.clone(), connection, self.signer.clone());
+                let session = accept::<G>(remote.clone().into(), connection, self.signer.clone());
                 let transport = match NetTransport::with_session(session, Link::Inbound) {
                     Ok(transport) => transport,
                     Err(err) => {
@@ -541,8 +546,15 @@ where
                         return;
                     }
                 };
+                log::debug!(target: "wire", "Accepted inbound connection from {remote} (fd={fd})..");
 
-                self.inbound.insert(fd, Inbound { id: None, addr });
+                self.inbound.insert(
+                    fd,
+                    Inbound {
+                        id: None,
+                        addr: remote.into(),
+                    },
+                );
                 self.actions
                     .push_back(reactor::Action::RegisterTransport(transport))
             }

@@ -15,13 +15,13 @@ create table if not exists "nodes" (
   --
 ) strict;
 
--- Node addresses.
+-- Node addresses. These are adresses advertized by a node.
 create table if not exists "addresses" (
   -- Node ID.
   "node"               text      not null references "nodes" ("id") on delete cascade,
   -- Address type.
   "type"               text      not null,
-  -- Address value.
+  -- Address value, including port.
   "value"              text      not null,
   -- Where we got this address from.
   "source"             text      not null,

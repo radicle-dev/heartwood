@@ -11,6 +11,7 @@ pub mod session;
 
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeSet, HashMap, VecDeque};
+use std::net::IpAddr;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::{fmt, net, time};
@@ -1161,25 +1162,25 @@ where
     }
 
     /// Inbound connection attempt.
-    pub fn accepted(&mut self, addr: Address) -> bool {
-        // Always accept trusted connections, even if we already reached
+    pub fn accepted(&mut self, ip: IpAddr) -> bool {
+        // Always accept localhost connections, even if we already reached
         // our inbound connection limit.
-        if addr.is_trusted() {
+        if ip.is_loopback() || ip.is_unspecified() {
             return true;
         }
         // Check for inbound connection limit.
         if self.sessions.inbound().count() >= self.config.limits.connection.inbound {
             return false;
         }
-        match self.db.addresses().is_banned(&addr) {
+        match self.db.addresses().is_ip_banned(ip) {
             Ok(banned) => {
                 if banned {
                     return false;
                 }
             }
-            Err(e) => error!(target: "service", "Error querying ban status for {addr}: {e}"),
+            Err(e) => error!(target: "service", "Error querying ban status for {ip}: {e}"),
         }
-        let host: HostName = addr.into();
+        let host: HostName = ip.into();
 
         if self.limiter.limit(
             host.clone(),
@@ -1211,7 +1212,7 @@ where
     }
 
     pub fn connected(&mut self, remote: NodeId, addr: Address, link: Link) {
-        info!(target: "service", "Connected to {} ({:?})", remote, link);
+        info!(target: "service", "Connected to {remote} ({addr}) ({link:?})");
         self.emitter.emit(Event::PeerConnected { nid: remote });
 
         let msgs = self.initial(link);
@@ -1230,6 +1231,17 @@ where
                     );
                 }
                 Entry::Vacant(e) => {
+                    if let HostName::Ip(ip) = addr.host {
+                        if !ip.is_loopback() && !self.config.is_proxy_ip(ip) {
+                            if let Err(e) =
+                                self.db
+                                    .addresses_mut()
+                                    .record_ip(&remote, ip, self.clock.into())
+                            {
+                                log::error!(target: "service", "Error recording IP address for {remote}: {e}");
+                            }
+                        }
+                    }
                     let peer = e.insert(Session::inbound(
                         remote,
                         addr,

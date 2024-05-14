@@ -414,15 +414,6 @@ impl Address {
         }
     }
 
-    /// Check whether this address is trusted.
-    /// Returns true if the address is 127.0.0.1 or 0.0.0.0.
-    pub fn is_trusted(&self) -> bool {
-        match self.0.host {
-            HostName::Ip(ip) => ip.is_loopback() || ip.is_unspecified(),
-            _ => false,
-        }
-    }
-
     /// Check whether this address is globally routable.
     pub fn is_routable(&self) -> bool {
         match self.0.host {
