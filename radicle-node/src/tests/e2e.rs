@@ -15,8 +15,8 @@ use crate::node::{Config, ConnectOptions};
 use crate::service;
 use crate::service::policy::Scope;
 use crate::storage::git::transport;
-use crate::test::environment::{converge, Environment, Node};
 use crate::test::logger;
+use crate::test::node::{converge, Node};
 
 mod config {
     use super::*;
@@ -28,6 +28,16 @@ mod config {
             relay: Relay::Always,
             ..Config::test(Alias::new(alias))
         }
+    }
+
+    /// Get the scale or "test size". This is used to scale tests with more data. Defaults to `1`.
+    pub fn scale() -> usize {
+        std::env::var("RAD_TEST_SCALE")
+            .map(|s| {
+                s.parse()
+                    .expect("repository: invalid value for `RAD_TEST_SCALE`")
+            })
+            .unwrap_or(1)
     }
 }
 
@@ -657,10 +667,10 @@ fn test_fetch_unseeded() {
 fn test_large_fetch() {
     logger::init(log::Level::Debug);
 
-    let env = Environment::new();
-    let scale = env.scale();
-    let mut alice = Node::init(&env.tmp(), config::relay("alice"));
-    let bob = Node::init(&env.tmp(), config::relay("bob"));
+    let tmp = tempfile::tempdir().unwrap();
+    let scale = config::scale();
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
 
     let tmp = tempfile::tempdir().unwrap();
     let (repo, _) = fixtures::repository(tmp.path());
@@ -695,8 +705,8 @@ fn test_large_fetch() {
 fn test_concurrent_fetches() {
     logger::init(log::Level::Debug);
 
-    let env = Environment::new();
-    let scale = env.scale();
+    let tmp = tempfile::tempdir().unwrap();
+    let scale = config::scale();
     let repos = scale.max(4);
     let limits = Limits {
         // Have one fetch be queued.
@@ -706,7 +716,7 @@ fn test_concurrent_fetches() {
     let mut bob_repos = HashSet::new();
     let mut alice_repos = HashSet::new();
     let mut alice = Node::init(
-        &env.tmp(),
+        tmp.path(),
         service::Config {
             limits: limits.clone(),
             relay: radicle::node::config::Relay::Always,
@@ -714,7 +724,7 @@ fn test_concurrent_fetches() {
         },
     );
     let mut bob = Node::init(
-        &env.tmp(),
+        tmp.path(),
         service::Config {
             limits,
             relay: radicle::node::config::Relay::Always,
