@@ -775,6 +775,11 @@ impl FetchResults {
         self.0.iter().any(|(n, _)| n == nid)
     }
 
+    /// Get a node's result.
+    pub fn get(&self, nid: &NodeId) -> Option<&FetchResult> {
+        self.0.iter().find(|(n, _)| n == nid).map(|(_, r)| r)
+    }
+
     /// Iterate over all fetch results.
     pub fn iter(&self) -> impl Iterator<Item = (&NodeId, &FetchResult)> {
         self.0.iter().map(|(nid, r)| (nid, r))

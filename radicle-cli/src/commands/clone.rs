@@ -41,14 +41,13 @@ Usage
     The `clone` command will use your local node's routing table to find seeds from
     which it can clone the repository.
 
-    For private repositories, use the `--private` and `--seed` options, to clone directly
+    For private repositories, use the `--seed` options, to clone directly
     from known seeds in the privacy set.
 
 Options
 
         --scope <scope>     Follow scope: `followed` or `all` (default: all)
     -s, --seed <nid>        Clone from this seed (may be specified multiple times)
-        --private           Clone a private repository
         --timeout <secs>    Timeout for fetching repository (default: 9)
         --help              Print help
 
@@ -90,9 +89,6 @@ impl Args for Options {
                     let value = parser.value()?;
 
                     scope = term::args::parse_value("scope", value)?;
-                }
-                Long("private") => {
-                    sync.force = true;
                 }
                 Long("timeout") => {
                     let value = parser.value()?;

@@ -22,42 +22,20 @@ pub struct SyncSettings {
     pub replicas: usize,
     /// Sync with the given list of seeds.
     pub seeds: BTreeSet<NodeId>,
-    /// Sync with the given seeds even if they aren't in our routing table.
-    /// Can be used to fetch private repositories, for example.
-    pub force: bool,
     /// How long to wait for syncing to complete.
     pub timeout: time::Duration,
 }
 
 impl SyncSettings {
-    /// Create a [`SyncSettings`] from a list of seeds.
-    pub fn from_seeds(seeds: impl IntoIterator<Item = NodeId>) -> Self {
-        let seeds = BTreeSet::from_iter(seeds);
-        Self {
-            replicas: seeds.len(),
-            seeds,
-            force: false,
-            timeout: DEFAULT_SYNC_TIMEOUT,
-        }
-    }
-
-    /// Create a [`SyncSettings`] from a replica count.
-    pub fn from_replicas(replicas: usize) -> Self {
-        Self {
-            replicas,
-            ..Self::default()
-        }
-    }
-
     /// Set sync timeout. Defaults to [`DEFAULT_SYNC_TIMEOUT`].
     pub fn timeout(mut self, timeout: time::Duration) -> Self {
         self.timeout = timeout;
         self
     }
 
-    /// Set the 'force' option.
-    pub fn force(mut self, force: bool) -> Self {
-        self.force = force;
+    /// Set replicas.
+    pub fn replicas(mut self, replicas: usize) -> Self {
+        self.replicas = replicas;
         self
     }
 
@@ -84,7 +62,6 @@ impl Default for SyncSettings {
         Self {
             replicas: 3,
             seeds: BTreeSet::new(),
-            force: false,
             timeout: DEFAULT_SYNC_TIMEOUT,
         }
     }

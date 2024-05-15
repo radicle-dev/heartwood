@@ -43,9 +43,6 @@ Usage
     When `--fetch` is specified, any number of seeds may be given
     using the `--seed` option, eg. `--seed <nid>@<addr>:<port>`.
 
-    To force a fetch even if there is no route to a seed (as is the case for
-    private repositories), `--force` can be used.
-
     When `--replicas` is specified, the given replication factor will try
     to be matched. For example, `--replicas 5` will sync with 5 seeds.
 
@@ -65,7 +62,6 @@ Options
     -f, --fetch               Turn on fetching (default: true)
     -a, --announce            Turn on ref announcing (default: true)
     -i, --inventory           Turn on inventory announcing (default: false)
-        --force               Force fetches from unknown seeds (default: false)
         --timeout   <secs>    How many seconds to wait while syncing
         --seed      <nid>     Sync with the given node (may be specified multiple times)
     -r, --replicas  <count>   Sync with a specific number of seeds
@@ -149,7 +145,6 @@ impl Args for Options {
         let mut fetch = false;
         let mut announce = false;
         let mut inventory = false;
-        let mut force = false;
         let mut debug = false;
         let mut replicas = None;
         let mut seeds = BTreeSet::new();
@@ -166,9 +161,6 @@ impl Args for Options {
                 }
                 Long("fetch") | Short('f') => {
                     fetch = true;
-                }
-                Long("force") => {
-                    force = true;
                 }
                 Long("replicas") | Short('r') => {
                     let val = parser.value()?;
@@ -218,10 +210,8 @@ impl Args for Options {
             }
         }
 
-        let sync = if inventory && (fetch || announce || force) {
-            anyhow::bail!(
-                "`--inventory` cannot be used with `--fetch` or `--announce` or `--force`"
-            );
+        let sync = if inventory && (fetch || announce) {
+            anyhow::bail!("`--inventory` cannot be used with `--fetch` or `--announce`");
         } else if inventory {
             SyncMode::Inventory
         } else {
@@ -230,17 +220,14 @@ impl Args for Options {
                 (true, false) => SyncDirection::Fetch,
                 (false, true) => SyncDirection::Announce,
             };
-            if direction == SyncDirection::Announce && force {
-                anyhow::bail!("`--force` cannot be used without `--fetch`");
-            }
-            let settings = if seeds.is_empty() {
-                SyncSettings::from_replicas(replicas.unwrap_or(3))
-            } else {
-                SyncSettings::from_seeds(seeds)
-            }
-            .timeout(timeout)
-            .force(force);
+            let mut settings = SyncSettings::default().timeout(timeout);
 
+            if let Some(r) = replicas {
+                settings.replicas = r;
+            }
+            if !seeds.is_empty() {
+                settings.seeds = seeds;
+            }
             SyncMode::Repo {
                 settings,
                 direction,
@@ -446,31 +433,23 @@ pub fn fetch(
     let local = node.nid()?;
     // Get seeds. This consults the local routing table only.
     let seeds = node.seeds(rid)?;
-    // Target replicas, clamped by the maximum replicas possible,
-    // unless `force` is true.
-    let replicas = if settings.force {
-        settings.replicas
-    } else {
-        settings
-            .replicas
-            .min(seeds.iter().filter(|s| s.nid != local).count())
-    };
+    let replicas = settings.replicas;
     let mut results = FetchResults::default();
     let (connected, mut disconnected) = seeds.partition();
 
     // Fetch from specified seeds.
     for nid in &settings.seeds {
-        if !seeds.is_connected(nid) && !settings.force {
-            term::warning(format!(
-                "node {} is not connected or seeding.. skipping",
-                term::format::node(nid)
-            ));
-            continue;
-        }
-        let result = fetch_from(rid, nid, settings.timeout, node)?;
-        results.push(*nid, result);
-
+        fetch_from(rid, nid, settings.timeout, &mut results, node)?;
+        // We are done when we either hit our replica count,
+        // or fetch from all the specified seeds.
         if results.success().count() >= replicas {
+            return Ok(results);
+        }
+        if settings
+            .seeds
+            .iter()
+            .all(|nid| results.get(nid).map_or(false, |r| r.is_success()))
+        {
             return Ok(results);
         }
     }
@@ -486,8 +465,7 @@ pub fn fetch(
         let Some(nid) = connected.pop_front() else {
             break;
         };
-        let result = fetch_from(rid, &nid, settings.timeout, node)?;
-        results.push(nid, result);
+        fetch_from(rid, &nid, settings.timeout, &mut results, node)?;
     }
 
     // Try to connect to disconnected seeds and fetch from them.
@@ -505,8 +483,7 @@ pub fn fetch(
             settings.timeout,
             node,
         ) {
-            let result = fetch_from(rid, &seed.nid, settings.timeout, node)?;
-            results.push(seed.nid, result);
+            fetch_from(rid, &seed.nid, settings.timeout, &mut results, node)?;
         }
     }
 
@@ -557,8 +534,9 @@ fn fetch_from(
     rid: RepoId,
     seed: &NodeId,
     timeout: time::Duration,
+    results: &mut FetchResults,
     node: &mut Node,
-) -> Result<FetchResult, node::Error> {
+) -> Result<(), node::Error> {
     let spinner = term::spinner(format!(
         "Fetching {} from {}..",
         term::format::tertiary(rid),
@@ -574,7 +552,9 @@ fn fetch_from(
             spinner.error(reason);
         }
     }
-    Ok(result)
+    results.push(*seed, result);
+
+    Ok(())
 }
 
 fn sort_seeds_by(local: NodeId, seeds: &mut [Seed], aliases: &impl AliasStore, sort_by: &SortBy) {

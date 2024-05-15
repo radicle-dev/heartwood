@@ -242,11 +242,9 @@ pub enum CommandError {
 enum TryFetchError<'a> {
     #[error("ongoing fetch for repository exists")]
     AlreadyFetching(&'a mut FetchState),
-    #[error("session does not exist; cannot initiate fetch")]
-    SessionNotFound,
-    #[error("session is not connected; cannot initiate fetch")]
+    #[error("peer is not connected; cannot initiate fetch")]
     SessionNotConnected,
-    #[error("session fetch capacity reached; cannot initiate fetch")]
+    #[error("peer fetch capacity reached; cannot initiate fetch")]
     SessionCapacityReached,
     #[error(transparent)]
     Namespaces(#[from] NamespacesError),
@@ -997,7 +995,7 @@ where
     ) -> Result<&mut FetchState, TryFetchError> {
         let from = *from;
         let Some(session) = self.sessions.get_mut(&from) else {
-            return Err(TryFetchError::SessionNotFound);
+            return Err(TryFetchError::SessionNotConnected);
         };
         let fetching = self.fetching.entry(rid);
 

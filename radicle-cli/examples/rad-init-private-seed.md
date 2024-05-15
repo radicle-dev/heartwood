@@ -20,19 +20,10 @@ $ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch
 ✗ Error: no seeds found for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu
 ```
 
-If he specifies a seed that isn't in his routing table, he gets a warning and
-an error:
+He has to specify a seed that isn't in his routing table:
 
 ``` ~bob
 $ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-! Warning: node z6MknSL…StBU8Vi is not connected or seeding.. skipping
-✗ Error: no seeds found for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu
-```
-
-For this to work, Bob has to force the sync:
-
-``` ~bob
-$ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --force
 ✓ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi..
 ✓ Fetched repository from 1 seed(s)
 ```
@@ -50,8 +41,8 @@ Note that if multiple seeds are specified, the command succeeds as long as one
 seed succeeds.
 
 ``` ~bob
-$ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --seed z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx --force
+$ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --seed z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx
 ✓ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi..
-✗ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MkwPU…Ug2mVvx.. error: session does not exist; cannot initiate fetch
+✗ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MkwPU…Ug2mVvx.. error: peer is not connected; cannot initiate fetch
 ✓ Fetched repository from 1 seed(s)
 ```
