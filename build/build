@@ -46,11 +46,10 @@ main() {
     --env GIT_COMMIT_TIME=$SOURCE_DATE_EPOCH \
     --env GIT_HEAD=$rev \
     --env RADICLE_VERSION=$version \
-    --ulimit=nofile=131072:1048576 \
     --arch amd64 --tag $image -f ./build/Dockerfile - < $gitarchive
 
   echo "Creating container (radicle-build-container).."
-  podman --cgroup-manager=cgroupfs create --replace --name radicle-build-container $image
+  podman --cgroup-manager=cgroupfs create --ulimit=host --replace --name radicle-build-container $image
 
   # Copy build artifacts to output folder.
   outdir=build/artifacts
