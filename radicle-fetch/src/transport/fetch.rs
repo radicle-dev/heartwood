@@ -17,6 +17,8 @@ use gix_transport::client;
 use gix_transport::client::{ExtendedBufRead, MessageKind};
 use gix_transport::Protocol;
 
+use crate::git::packfile;
+
 use super::{agent_name, indicate_end_of_interaction, Connection, WantsHaves};
 
 pub type Error = gix_protocol::fetch::Error;
@@ -102,6 +104,7 @@ pub struct Fetch {
 pub struct FetchOut {
     pub refs: Vec<Ref>,
     pub pack: Option<pack::bundle::write::Outcome>,
+    pub keepfile: Option<packfile::Keepfile>,
 }
 
 // FIXME: the delegate pattern will be removed in the near future and
@@ -127,6 +130,7 @@ impl<'a> Delegate for &'a mut Fetch {
             .pack_writer
             .write_pack(input, progress)
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+        self.out.keepfile = pack.keep_path.as_ref().and_then(packfile::Keepfile::new);
         self.out.pack = Some(pack);
         Ok(())
     }
@@ -204,6 +208,7 @@ where
         out: FetchOut {
             refs: Vec::new(),
             pack: None,
+            keepfile: None,
         },
     };
 
