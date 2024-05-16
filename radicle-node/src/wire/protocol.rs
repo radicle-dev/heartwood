@@ -21,7 +21,7 @@ use netservices::{NetConnection, NetReader, NetWriter};
 use reactor::{ResourceId, ResourceType, Timestamp};
 
 use radicle::collections::RandomMap;
-use radicle::node::config::TorConfig;
+use radicle::node::config::AddressConfig;
 use radicle::node::NodeId;
 use radicle::storage::WriteStorage;
 
@@ -1071,42 +1071,37 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
     signer: G,
     config: &service::Config,
 ) -> io::Result<WireSession<G>> {
-    let inet_addr: NetAddr<InetHost> = match config.tor {
-        // In Tor proxy mode, simply specify the proxy address for all connections,
-        // since we'll be routing all connections through the proxy.
-        Some(TorConfig::Proxy { address: proxy }) => proxy.into(),
-        // In transparent Tor mode, we treat `.onion` addresses as regular DNS names.
-        Some(TorConfig::Transparent) => {
-            let host = match &remote_addr.host {
-                HostName::Ip(ip) => InetHost::Ip(*ip),
-                HostName::Dns(dns) => InetHost::Dns(dns.clone()),
-                HostName::Tor(onion) => InetHost::Dns(onion.to_string()),
-                _ => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Unsupported,
-                        "unsupported remote address type",
-                    ))
+    let inet_addr: NetAddr<InetHost> = match &remote_addr.host {
+        HostName::Ip(ip) => NetAddr::new(InetHost::Ip(*ip), remote_addr.port),
+        HostName::Dns(dns) => NetAddr::new(InetHost::Dns(dns.clone()), remote_addr.port),
+        HostName::Tor(onion) => match config.onion {
+            // In Tor proxy mode, simply specify the proxy address.
+            Some(AddressConfig::Proxy { address }) => address.into(),
+            // In "forward" mode, if a global proxy is set, we use that, otherwise
+            // we treat `.onion` addresses as regular DNS names.
+            Some(AddressConfig::Forward) => {
+                if let Some(proxy) = config.proxy {
+                    proxy.into()
+                } else {
+                    NetAddr::new(InetHost::Dns(onion.to_string()), remote_addr.port)
                 }
-            };
-            NetAddr::new(host, remote_addr.port)
-        }
-        // Without any Tor configuration, refuse to connect to a `.onion` address.
-        None => {
-            let host = match &remote_addr.host {
-                HostName::Ip(ip) => InetHost::Ip(*ip),
-                HostName::Dns(dns) => InetHost::Dns(dns.clone()),
-                _ => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Unsupported,
-                        "unsupported remote address type",
-                    ))
-                }
-            };
-            NetAddr::new(host, remote_addr.port)
+            }
+            None => {
+                return Err(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "no configuration found for .onion addresses",
+                ));
+            }
+        },
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "unsupported remote address type",
+            ))
         }
     };
     // Whether to tunnel regular connections through the proxy.
-    let force_proxy = matches!(config.tor, Some(TorConfig::Proxy { .. }));
+    let force_proxy = config.proxy.is_some();
     // Nb. This timeout is currently not used by the underlying library due to the
     // `socket2` library not supporting non-blocking connect with timeout.
     let connection = net::TcpStream::connect_nonblocking(inet_addr, DEFAULT_DIAL_TIMEOUT)?;

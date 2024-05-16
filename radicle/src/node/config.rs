@@ -7,7 +7,7 @@ use localtime::LocalDuration;
 
 use crate::node;
 use crate::node::policy::{Policy, Scope};
-use crate::node::{address, db, Address, Alias, NodeId};
+use crate::node::{db, Address, Alias, NodeId};
 
 /// Target number of peers to maintain connections to.
 pub const TARGET_OUTBOUND_PEERS: usize = 8;
@@ -247,17 +247,18 @@ pub enum Relay {
     Auto,
 }
 
-/// Tor configuration.
+/// Proxy configuration.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", tag = "mode")]
-pub enum TorConfig {
-    /// Connect via SOCKS5 proxy.
+pub enum AddressConfig {
+    /// Proxy connections to this address type.
     Proxy {
-        /// Tor proxy address.
+        /// Proxy address.
         address: net::SocketAddr,
     },
-    /// Treat Tor onion addresses as DNS names.
-    Transparent,
+    /// Forward address to the next layer. Either this is the global proxy,
+    /// or the operating system, via DNS.
+    Forward,
 }
 
 /// Database configuration.
@@ -290,9 +291,12 @@ pub struct Config {
     /// Database config.
     #[serde(default)]
     pub db: DbConfig,
-    /// Tor configuration.
-    #[serde(default)]
-    pub tor: Option<TorConfig>,
+    /// Global proxy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<net::SocketAddr>,
+    /// Onion address config.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub onion: Option<AddressConfig>,
     /// Peer-to-peer network.
     #[serde(default)]
     pub network: Network,
@@ -334,7 +338,8 @@ impl Config {
             external_addresses: vec![],
             db: DbConfig::default(),
             network: Network::default(),
-            tor: None,
+            proxy: None,
+            onion: None,
             relay: Relay::default(),
             limits: Limits::default(),
             workers: DEFAULT_WORKERS,
@@ -357,15 +362,6 @@ impl Config {
 
     pub fn is_persistent(&self, id: &NodeId) -> bool {
         self.peer(id).is_some()
-    }
-
-    /// Check if the given IP address is our proxy.
-    pub fn is_proxy_ip(&self, ip: net::IpAddr) -> bool {
-        match self.tor {
-            None => false,
-            Some(TorConfig::Proxy { address }) => address.ip() == ip,
-            Some(TorConfig::Transparent) => address::is_local(&ip),
-        }
     }
 
     /// Are we a relay node? This determines what we do with gossip messages from other peers.

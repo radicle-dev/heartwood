@@ -29,7 +29,6 @@ $ rad config
     "db": {
       "journalMode": "rollback"
     },
-    "tor": null,
     "network": "main",
     "log": "INFO",
     "relay": "auto",

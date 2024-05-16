@@ -1232,7 +1232,7 @@ where
                 }
                 Entry::Vacant(e) => {
                     if let HostName::Ip(ip) = addr.host {
-                        if !ip.is_loopback() && !self.config.is_proxy_ip(ip) {
+                        if !address::is_local(&ip) {
                             if let Err(e) =
                                 self.db
                                     .addresses_mut()
@@ -2335,8 +2335,8 @@ where
                     .map(|ka| (peer.nid, ka))
             })
             .filter(|(_, ka)| match AddressType::from(&ka.addr) {
-                // Only consider Tor addresses if Tor is configured.
-                AddressType::Onion => self.config.tor.is_some(),
+                // Only consider onion addresses if configured.
+                AddressType::Onion => self.config.onion.is_some(),
                 AddressType::Dns | AddressType::Ipv4 | AddressType::Ipv6 => true,
             })
             .take(wanted)
