@@ -216,6 +216,21 @@ fn test_replication() {
         alice.storage.repository(acme).unwrap().validate(),
         Ok(validations) if validations.is_empty()
     );
+
+    // Ensure that .keep files are deleted upon replication
+    {
+        let repo = alice.storage.repository(acme).unwrap();
+        let pack_dir = repo.path().join("objects").join("pack");
+        for entry in std::fs::read_dir(pack_dir).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            assert_ne!(
+                path.extension(),
+                Some("keep".as_ref()),
+                "found .keep file after fetch: {path:?}"
+            );
+        }
+    }
 }
 
 #[test]

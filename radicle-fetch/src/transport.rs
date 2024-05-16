@@ -21,6 +21,7 @@ use radicle::storage::git::Repository;
 use thiserror::Error;
 
 use crate::git::oid;
+use crate::git::packfile::Keepfile;
 use crate::git::repository;
 
 /// Open a reader and writer stream to pass to the ls-refs and fetch
@@ -120,7 +121,7 @@ where
         wants_haves: WantsHaves,
         interrupt: Arc<AtomicBool>,
         handshake: &handshake::Outcome,
-    ) -> io::Result<()> {
+    ) -> io::Result<Option<Keepfile>> {
         log::trace!(
             target: "fetch",
             "Running fetch wants={:?}, haves={:?}",
@@ -170,7 +171,7 @@ where
             }
         }
 
-        Ok(())
+        Ok(out.keepfile)
     }
 
     /// Signal to the server side that we are done sending ls-refs and

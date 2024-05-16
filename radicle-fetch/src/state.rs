@@ -14,6 +14,7 @@ use radicle::storage::{
 };
 
 use crate::git;
+use crate::git::packfile::Keepfile;
 use crate::git::refs::{Applied, Update};
 use crate::git::repository;
 use crate::sigrefs::SignedRefsAt;
@@ -160,6 +161,10 @@ pub struct FetchState {
     sigrefs: SigrefTips,
     /// Seen reference tips, per remote.
     tips: BTreeMap<PublicKey, Vec<Update<'static>>>,
+    /// The `.keep` files created during packfile transfers. They are kept
+    /// within the state, so that when the state is dropped, it also attempts to
+    /// delete the files to release the locks on the packfiles.
+    keepfiles: Vec<Keepfile>,
 }
 
 impl FetchState {
@@ -233,9 +238,11 @@ impl FetchState {
 
         let wants_haves = step.wants_haves(&handle.repo, &refs)?;
         if !wants_haves.wants.is_empty() {
-            handle
-                .transport
-                .fetch(wants_haves, handle.interrupt.clone(), handshake)?;
+            let keepfile =
+                handle
+                    .transport
+                    .fetch(wants_haves, handle.interrupt.clone(), handshake)?;
+            self.keepfiles.extend(keepfile);
         } else {
             log::trace!(target: "fetch", "Nothing to fetch")
         };

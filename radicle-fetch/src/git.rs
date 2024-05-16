@@ -1,5 +1,6 @@
 pub(crate) mod mem;
 pub(crate) mod repository;
+pub(crate) mod packfile;
 
 pub mod refs;
 
