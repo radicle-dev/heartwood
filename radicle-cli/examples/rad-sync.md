@@ -7,14 +7,15 @@ For instance let's create an issue and sync it with the network:
 $ rad issue open --title "Test `rad sync`" --description "Check that the command works" -q --no-announce
 ```
 
-If we check the sync status, we see that our peers are out of sync.
+If we check the sync status, we see that our peers are out of sync, and our
+change has not yet been announced.
 
 ```
 $ rad sync status --sort-by alias
 ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   Node                      Address                      Status        Tip       Timestamp │
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   alice   (you)             alice.radicle.example:8776                 f209c9f   [  ...  ] │
+│ ●   alice   (you)             alice.radicle.example:8776   unannounced   a9ce0d1   [  ...  ] │
 │ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.example:8776     out-of-sync   f209c9f   [  ...  ] │
 │ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.example:8776     out-of-sync   f209c9f   [  ...  ] │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯

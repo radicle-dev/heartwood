@@ -317,7 +317,7 @@ fn sync_status(
 ) -> anyhow::Result<()> {
     let mut table = Table::<7, term::Label>::new(TableOptions::bordered());
     let mut seeds: Vec<_> = node.seeds(rid)?.into();
-    let local = node.nid()?;
+    let local_nid = node.nid()?;
     let aliases = profile.aliases();
 
     table.push([
@@ -331,20 +331,32 @@ fn sync_status(
     ]);
     table.divider();
 
-    sort_seeds_by(local, &mut seeds, &aliases, &options.sort_by);
+    sort_seeds_by(local_nid, &mut seeds, &aliases, &options.sort_by);
 
     for seed in seeds {
         let (icon, status, head, time) = match seed.sync {
             Some(SyncStatus::Synced { at }) => (
                 term::format::positive("●"),
-                term::format::positive(if seed.nid != local { "synced" } else { "" }),
+                term::format::positive(if seed.nid != local_nid { "synced" } else { "" }),
                 term::format::oid(at.oid),
                 term::format::timestamp(at.timestamp),
             ),
-            Some(SyncStatus::OutOfSync { remote, .. }) => (
-                term::format::negative("●"),
-                term::format::negative(if seed.nid != local { "out-of-sync" } else { "" }),
-                term::format::oid(remote.oid),
+            Some(SyncStatus::OutOfSync { remote, local, .. }) => (
+                if seed.nid != local_nid {
+                    term::format::negative("●")
+                } else {
+                    term::format::yellow("●")
+                },
+                if seed.nid != local_nid {
+                    term::format::negative("out-of-sync")
+                } else {
+                    term::format::yellow("unannounced")
+                },
+                term::format::oid(if seed.nid != local_nid {
+                    remote.oid
+                } else {
+                    local.oid
+                }),
                 term::format::timestamp(remote.timestamp),
             ),
             None if options.verbose => (

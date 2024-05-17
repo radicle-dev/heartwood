@@ -641,7 +641,6 @@ where
             let Some(updated_at) = repo.synced_at else {
                 continue;
             };
-
             // Skip this repo if the sync status matches what we have in storage.
             if let Some(announced) = announced.get(&rid) {
                 if updated_at.oid == announced.oid {
@@ -657,7 +656,6 @@ where
             )? {
                 debug!(target: "service", "Saved local sync status for {rid}..");
             }
-
             // If we got here, it likely means a repo was updated while the node was stopped.
             // Therefore, we pre-load a refs announcement for this repo, so that it is included in
             // the historical gossip messages when a node connects and subscribes to this repo.
@@ -1989,20 +1987,21 @@ where
 
         // Update our sync status for our own refs. This is useful for determining if refs were
         // updated while the node was stopped.
-        // TODO: Move to `announce_own_refs`.
         if let Some(refs) = refs.iter().find(|r| r.remote == ann.node) {
             info!(
                 target: "service",
                 "Announcing own refs for {rid} to peers ({}) (t={timestamp})..",
                 refs.at
             );
-
+            // Update our local node's sync status to mark the refs as announced.
             if let Err(e) = self
                 .db
                 .seeds_mut()
                 .synced(&rid, &ann.node, refs.at, timestamp)
             {
                 error!(target: "service", "Error updating sync status for local node: {e}");
+            } else {
+                debug!(target: "service", "Saved local sync status for {rid}..");
             }
         }
 
