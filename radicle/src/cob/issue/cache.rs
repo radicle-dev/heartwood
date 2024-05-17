@@ -10,6 +10,7 @@ use crate::cob::cache::{Remove, StoreReader, StoreWriter, Update};
 use crate::cob::store;
 use crate::cob::{Embed, Label, ObjectId, TypeName};
 use crate::crypto::Signer;
+use crate::identity;
 use crate::prelude::{Did, RepoId};
 use crate::sql::transaction;
 use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
@@ -39,6 +40,24 @@ pub trait Issues {
     fn is_empty(&self) -> Result<bool, Self::Error> {
         Ok(self.counts()?.total() == 0)
     }
+}
+
+pub trait IssuesExt: Issues {
+    /// Iterator of all `IssueId`s returned by [`IssuesExt::ids`].
+    type Ids<'a>: Iterator<Item = Result<IssueId, Self::Error>> + 'a
+    where
+        Self: 'a;
+
+    /// Iterator of all `Did`s returned by [`IssuesExt::assignees`].
+    type Dids<'a>: Iterator<Item = Result<Did, Self::Error>> + 'a
+    where
+        Self: 'a;
+
+    /// Query for the list of all `IssueId`s that start with `prefix`.
+    fn ids(&self, prefix: &str) -> Result<Self::Ids<'_>, Self::Error>;
+
+    /// Query for the list of all assignees' `Did`s that start with `prefix`.
+    fn assignees(&self, prefix: &str) -> Result<Self::Dids<'_>, Self::Error>;
 }
 
 /// [`Issues`] store that can also [`Update`] and [`Remove`]
@@ -367,6 +386,8 @@ pub enum Error {
     #[error(transparent)]
     Object(#[from] cob::object::ParseObjectId),
     #[error(transparent)]
+    Did(#[from] identity::did::DidError),
+    #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Sql(#[from] sql::Error),
@@ -397,6 +418,54 @@ impl<'a> Iterator for IssuesIter<'a> {
     }
 }
 
+/// Iterator that returns the IDs for issues based on an SQL query.
+///
+/// The query is expected to return rows with a column identified by
+/// the `id` name.
+pub struct IssueIds<'a> {
+    inner: sql::CursorWithOwnership<'a>,
+}
+
+impl<'a> IssueIds<'a> {
+    fn parse_row(row: sql::Row) -> Result<IssueId, Error> {
+        let id = IssueId::from_str(row.read::<&str, _>("id"))?;
+        Ok(id)
+    }
+}
+
+impl<'a> Iterator for IssueIds<'a> {
+    type Item = Result<IssueId, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row = self.inner.next()?;
+        Some(row.map_err(Error::from).and_then(IssueIds::parse_row))
+    }
+}
+
+/// Iterator that returns the DIDs of issues' assignees based on an SQL query.
+///
+/// The query is expected to return rows with a column identified by
+/// the `did` name.
+pub struct Dids<'a> {
+    inner: sql::CursorWithOwnership<'a>,
+}
+
+impl<'a> Dids<'a> {
+    fn parse_row(row: sql::Row) -> Result<Did, Error> {
+        let did = Did::from_str(row.read::<&str, _>("did"))?;
+        Ok(did)
+    }
+}
+
+impl<'a> Iterator for Dids<'a> {
+    type Item = Result<Did, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row = self.inner.next()?;
+        Some(row.map_err(Error::from).and_then(Dids::parse_row))
+    }
+}
+
 impl<R> Issues for Cache<R, StoreWriter>
 where
     R: HasRepoId,
@@ -417,6 +486,22 @@ where
     }
 }
 
+impl<R> IssuesExt for Cache<R, StoreWriter>
+where
+    R: HasRepoId,
+{
+    type Ids<'a> = IssueIds<'a> where Self: 'a;
+    type Dids<'a> = Dids<'a> where Self: 'a;
+
+    fn ids(&self, prefix: &str) -> Result<Self::Ids<'_>, Self::Error> {
+        query::ids(&self.cache.db, prefix, &self.rid())
+    }
+
+    fn assignees(&self, prefix: &str) -> Result<Self::Dids<'_>, Self::Error> {
+        query::dids(&self.cache.db, prefix, &self.rid())
+    }
+}
+
 impl<R> Issues for Cache<R, StoreReader>
 where
     R: HasRepoId,
@@ -434,6 +519,22 @@ where
 
     fn counts(&self) -> Result<IssueCounts, Self::Error> {
         query::counts(&self.cache.db, &self.rid())
+    }
+}
+
+impl<R> IssuesExt for Cache<R, StoreReader>
+where
+    R: HasRepoId,
+{
+    type Ids<'a> = IssueIds<'a> where Self: 'a;
+    type Dids<'a> = Dids<'a> where Self: 'a;
+
+    fn ids(&self, prefix: &str) -> Result<Self::Ids<'_>, Self::Error> {
+        query::ids(&self.cache.db, prefix, &self.rid())
+    }
+
+    fn assignees(&self, prefix: &str) -> Result<Self::Dids<'_>, Self::Error> {
+        query::dids(&self.cache.db, prefix, &self.rid())
     }
 }
 
@@ -510,6 +611,44 @@ mod query {
                 Ok(counts)
             })
     }
+
+    pub(super) fn ids<'a>(
+        db: &'a sql::ConnectionThreadSafe,
+        prefix: &str,
+        rid: &RepoId,
+    ) -> Result<IssueIds<'a>, Error> {
+        let mut stmt = db.prepare(
+            "SELECT id
+             FROM issues
+             WHERE repo = ?1
+             AND id LIKE ?2
+            ",
+        )?;
+        stmt.bind((1, rid))?;
+        stmt.bind((2, sql::Value::String(format!("{}%", prefix))))?;
+        Ok(IssueIds {
+            inner: stmt.into_iter(),
+        })
+    }
+
+    pub(super) fn dids<'a>(
+        db: &'a sql::ConnectionThreadSafe,
+        prefix: &str,
+        rid: &RepoId,
+    ) -> Result<Dids<'a>, Error> {
+        let mut stmt = db.prepare(
+            "SELECT issues.assignees as did
+             FROM issues, json_each(issues.assignees)
+             WHERE repo = ?1
+             AND json.value LIKE %?2
+            ",
+        )?;
+        stmt.bind((1, rid))?;
+        stmt.bind((2, sql::Value::String(format!("{}%", prefix))))?;
+        Ok(Dids {
+            inner: stmt.into_iter(),
+        })
+    }
 }
 
 #[allow(clippy::unwrap_used)]
@@ -523,10 +662,11 @@ mod tests {
     use crate::cob::cache::{Store, Update, Write};
     use crate::cob::thread::Thread;
     use crate::issue::{CloseReason, Issue, IssueCounts, IssueId, State};
+    use crate::prelude::Did;
     use crate::test::arbitrary;
     use crate::test::storage::MockRepository;
 
-    use super::{Cache, Issues};
+    use super::{Cache, Issues, IssuesExt};
 
     fn memory(store: MockRepository) -> Cache<MockRepository, Store<Write>> {
         let cache = Store::<Write>::memory().unwrap();
@@ -680,6 +820,56 @@ mod tests {
             assert_eq!(Some(issue), cache.get(id).unwrap());
             super::Remove::remove(&mut cache, id).unwrap();
             assert_eq!(None, cache.get(id).unwrap());
+        }
+    }
+
+    #[test]
+    fn test_ids() {
+        let repo = arbitrary::gen::<MockRepository>(1);
+        let mut cache = memory(repo);
+        let ids = (0..arbitrary::gen::<u8>(1))
+            .map(|_| IssueId::from(arbitrary::oid()))
+            .collect::<BTreeSet<IssueId>>();
+
+        for id in ids.iter() {
+            let issue = Issue {
+                title: id.to_string(),
+                ..Issue::new(Thread::default())
+            };
+            cache
+                .update(&cache.rid(), &IssueId::from(*id), &issue)
+                .unwrap();
+            let mut ids = cache.ids(&id.to_string()[..7]).unwrap();
+            assert_eq!(ids.next().expect("no Issue Id was returned").unwrap(), *id);
+        }
+    }
+
+    #[test]
+    fn test_assignees() {
+        let repo = arbitrary::gen::<MockRepository>(1);
+        let mut cache = memory(repo);
+        let ids = (0..arbitrary::gen::<u8>(1))
+            .map(|_| IssueId::from(arbitrary::oid()))
+            .collect::<BTreeSet<IssueId>>();
+        let dids = arbitrary::gen::<Vec<Did>>(1)
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+
+        for (id, did) in ids.iter().zip(dids.clone()) {
+            let assignees = [did].into_iter().collect();
+            let issue = Issue {
+                title: id.to_string(),
+                assignees,
+                ..Issue::new(Thread::default())
+            };
+            cache
+                .update(&cache.rid(), &IssueId::from(*id), &issue)
+                .unwrap();
+        }
+
+        for did in dids {
+            let mut dids = cache.assignees(&did.to_string()[..7]).unwrap();
+            assert_eq!(dids.next().expect("no DID was returned").unwrap(), did);
         }
     }
 }
