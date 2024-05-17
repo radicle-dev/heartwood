@@ -452,7 +452,7 @@ impl From<Address> for HostName {
 
 /// Command name.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "type")]
+#[serde(rename_all = "camelCase", tag = "command")]
 pub enum Command {
     /// Announce repository references for given repository to peers.
     #[serde(rename_all = "camelCase")]
