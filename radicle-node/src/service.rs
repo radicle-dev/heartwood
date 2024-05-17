@@ -587,11 +587,9 @@ where
         assert_ne!(time, LocalTime::default());
 
         let nid = self.node_id();
-        let inventory = self.storage.inventory()?;
 
         self.started_at = Some(time);
         self.clock = time;
-        self.inventory = gossip::inventory(self.timestamp(), inventory.clone());
 
         // Populate refs database. This is only useful as part of the upgrade process for nodes
         // that have been online since before the refs database was created.
@@ -622,28 +620,25 @@ where
             )
             .expect("Service::initialize: error adding local node to address database");
 
-        // Ensure that our inventory is recorded in our routing table, and we are seeding
-        // all of it. It can happen that inventory is not properly seeded if for eg. the
-        // user creates a new repository while the node is stopped.
-        self.db
-            .routing_mut()
-            .insert(inventory.iter(), nid, time.into())?;
-
         let announced = self
             .db
             .seeds()
             .seeded_by(&nid)?
             .collect::<Result<HashMap<_, _>, _>>()?;
-        for rid in inventory {
-            let repo = self.storage.repository(rid)?;
+        for repo in self.storage.repositories()? {
+            let rid = repo.rid;
 
             // If we're not seeding this repo, just skip it.
             if !self.policies.is_seeding(&rid)? {
                 warn!(target: "service", "Local repository {rid} is not seeded");
                 continue;
             }
+            // Add public repositories to inventory.
+            if repo.doc.visibility.is_public() {
+                self.storage.insert(rid);
+            }
             // If we have no owned refs for this repo, then there's nothing to announce.
-            let Ok(updated_at) = SyncedAt::load(&repo, nid) else {
+            let Some(updated_at) = repo.synced_at else {
                 continue;
             };
 
@@ -670,6 +665,17 @@ where
                 debug!(target: "service", "Adding refs announcement for {rid} to historical gossip messages..");
                 self.db.gossip_mut().announced(&nid, &ann)?;
             }
+        }
+
+        {
+            let inventory = self.storage.inventory()?;
+            // Ensure that our inventory is recorded in our routing table, and we are seeding
+            // all of it. It can happen that inventory is not properly seeded if for eg. the
+            // user creates a new repository while the node is stopped.
+            self.db
+                .routing_mut()
+                .insert(inventory.iter(), nid, time.into())?;
+            self.inventory = gossip::inventory(self.timestamp(), inventory);
         }
 
         // Setup subscription filter for seeded repos.

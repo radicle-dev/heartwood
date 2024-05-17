@@ -102,6 +102,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         head,
         doc,
         refs,
+        ..
     } in repos
     {
         if doc.visibility.is_public() && options.private && !options.public {

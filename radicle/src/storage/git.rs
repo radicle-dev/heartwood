@@ -13,16 +13,17 @@ use once_cell::sync::Lazy;
 use tempfile::TempDir;
 
 use crate::crypto::Unverified;
-use crate::git;
 use crate::identity::doc::DocError;
 use crate::identity::{doc::DocAt, Doc, RepoId};
 use crate::identity::{Identity, Project};
+use crate::node::SyncedAt;
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs, SignedRefsAt};
 use crate::storage::{
     Inventory, ReadRepository, ReadStorage, Remote, Remotes, RepositoryError, RepositoryInfo,
     SetHead, SignRepository, WriteRepository, WriteStorage,
 };
+use crate::{git, node};
 
 pub use crate::git::{
     ext, raw, refname, refspec, Oid, PatternStr, Qualified, RefError, RefString, UserInfo,
@@ -152,10 +153,10 @@ impl ReadStorage for Storage {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
 
-        // If the cache hasn't been populated yet, we don't do anything, since this repo
-        // will be loaded when the cache is populated.
         if let Some(ref mut repos) = *repos {
             repos.insert(rid);
+        } else {
+            *repos = Some(BTreeSet::from_iter([rid]));
         }
     }
 
@@ -211,12 +212,17 @@ impl ReadStorage for Storage {
             };
             // Nb. This will be `None` if they were not found.
             let refs = refs::SignedRefsAt::load(self.info.key, &repo)?;
+            let synced_at = refs
+                .as_ref()
+                .map(|r| node::SyncedAt::new(r.at, &repo))
+                .transpose()?;
 
             repos.push(RepositoryInfo {
                 rid,
                 head,
                 doc,
                 refs,
+                synced_at,
             });
         }
         Ok(repos)
@@ -298,11 +304,17 @@ impl Storage {
         rids.try_fold(Vec::new(), |mut infos, rid| {
             let repo = self.repository(*rid)?;
             let (_, head) = repo.head()?;
+            let refs = refs::SignedRefsAt::load(self.info.key, &repo)?;
+            let synced_at = refs
+                .as_ref()
+                .map(|r| SyncedAt::new(r.at, &repo))
+                .transpose()?;
             let info = RepositoryInfo {
                 rid: *rid,
                 head,
                 doc: repo.identity_doc()?.into(),
-                refs: refs::SignedRefsAt::load(self.info.key, &repo)?,
+                refs,
+                synced_at,
             };
             infos.push(info);
             Ok(infos)

@@ -25,7 +25,13 @@ pub fn user() -> git::UserInfo {
 /// Create a new storage with a project.
 pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: &G) -> Result<Storage, rad::InitError> {
     let path = path.as_ref();
-    let storage = Storage::open(path.join("storage"), user())?;
+    let storage = Storage::open(
+        path.join("storage"),
+        git::UserInfo {
+            alias: Alias::new("Radcliff"),
+            key: *signer.public_key(),
+        },
+    )?;
 
     transport::local::register(storage.clone());
     transport::remote::mock::register(signer.public_key(), storage.path());

@@ -21,6 +21,7 @@ use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefStr, R
 use crate::identity::{Did, PayloadError};
 use crate::identity::{Doc, DocAt, DocError};
 use crate::identity::{Identity, RepoId};
+use crate::node::SyncedAt;
 use crate::storage::git::NAMESPACES_GLOB;
 use crate::storage::refs::Refs;
 
@@ -42,6 +43,8 @@ pub struct RepositoryInfo<V> {
     /// Local signed refs, if any.
     /// Repositories with this set to `None` are ones that are seeded but not forked.
     pub refs: Option<refs::SignedRefsAt>,
+    /// Sync time of the repository.
+    pub synced_at: Option<SyncedAt>,
 }
 
 /// Describes one or more namespaces.

@@ -838,7 +838,6 @@ fn test_refs_announcement_no_subscribe() {
 
 #[test]
 fn test_refs_announcement_offline() {
-    logger::init(log::Level::Debug);
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = {
         let signer = MockSigner::default();
@@ -854,10 +853,10 @@ fn test_refs_announcement_offline() {
             },
         )
     };
-    let inv = alice.inventory();
-    let rid = inv.first().unwrap();
+    let mut inv = alice.inventory();
+    let rid = *inv.first().unwrap();
     let mut bob = Peer::new("bob", [8, 8, 8, 8]);
-    bob.seed(rid, policy::Scope::All).unwrap();
+    bob.seed(&rid, policy::Scope::All).unwrap();
 
     // Make sure alice's service wasn't initialized before.
     assert_eq!(*alice.clock(), LocalTime::default());
@@ -868,25 +867,23 @@ fn test_refs_announcement_offline() {
 
     // Alice announces the refs of all projects since she hasn't announced refs for these projects
     // yet.
-    let mut messages = alice.messages(bob.id());
-    for i in &inv {
-        let msg = messages.next();
+    for msg in alice.messages(bob.id()) {
         assert_matches!(
             msg,
-            Some(Message::Announcement(Announcement {
+            Message::Announcement(Announcement {
                 node,
                 message: AnnouncementMessage::Refs(RefsAnnouncement {
                     rid,
                     ..
                 }),
                 ..
-            }))
-            if node == alice.id && rid == *i
+            })
+            if node == alice.id && inv.remove(&rid)
         );
     }
 
     // Create an issue without telling the node.
-    let repo = alice.storage().repository(*rid).unwrap();
+    let repo = alice.storage().repository(rid).unwrap();
     let old_refs = RefsAt::new(&repo, alice.id).unwrap();
     let mut issues = radicle::issue::Cache::no_cache(&repo).unwrap();
     issues
@@ -935,7 +932,7 @@ fn test_refs_announcement_offline() {
         .collect::<Vec<_>>();
 
     assert_eq!(anns.len(), 1);
-    assert_eq!(anns.first().unwrap().rid, *rid);
+    assert_eq!(anns.first().unwrap().rid, rid);
     assert_eq!(anns.first().unwrap().refs.first().unwrap().at, new_refs.at);
 }
 

@@ -411,8 +411,8 @@ impl SignedRefsAt {
     where
         S: ReadRepository,
     {
-        let at = match repo.reference_oid(&remote, &SIGREFS_BRANCH) {
-            Ok(at) => at,
+        let at = match RefsAt::new(repo, remote) {
+            Ok(RefsAt { at, .. }) => at,
             Err(e) if git::is_not_found_err(&e) => return Ok(None),
             Err(e) => return Err(e.into()),
         };
