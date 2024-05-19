@@ -84,11 +84,19 @@ pub enum Error {
     GitVersion(#[from] git::VersionError),
 }
 
+/// Wraps a [`UnixListener`] but tracks its origin.
+pub enum ControlSocket {
+    /// The listener was created by binding to it.
+    Bound(UnixListener, PathBuf),
+    /// The listener was received via socket activation.
+    Received(UnixListener),
+}
+
 /// Holds join handles to the client threads, as well as a client handle.
 pub struct Runtime {
     pub id: NodeId,
     pub home: Home,
-    pub control: UnixListener,
+    pub control: ControlSocket,
     pub handle: Handle,
     pub storage: Storage,
     pub reactor: Reactor<wire::Control, popol::Poller>,
@@ -241,15 +249,7 @@ impl Runtime {
                 policies_db: home.node().join(node::POLICIES_DB_FILE),
             },
         )?;
-        let control = match UnixListener::bind(home.socket()) {
-            Ok(sock) => sock,
-            Err(err) if err.kind() == io::ErrorKind::AddrInUse => {
-                return Err(Error::AlreadyRunning(home.socket()));
-            }
-            Err(err) => {
-                return Err(err.into());
-            }
-        };
+        let control = Self::bind(home.socket())?;
 
         Ok(Runtime {
             id,
@@ -266,13 +266,16 @@ impl Runtime {
 
     pub fn run(self) -> Result<(), Error> {
         let home = self.home;
+        let (listener, remove) = match self.control {
+            ControlSocket::Bound(listener, path) => (listener, Some(path)),
+            ControlSocket::Received(listener) => (listener, None),
+        };
 
         log::info!(target: "node", "Running node {} in {}..", self.id, home.path().display());
-        log::info!(target: "node", "Binding control socket {}..", home.socket().display());
 
         thread::spawn(&self.id, "control", {
             let handle = self.handle.clone();
-            || control::listen(self.control, handle)
+            || control::listen(listener, handle)
         });
         let _signals = thread::spawn(&self.id, "signals", move || {
             if let Ok(Signal::Terminate | Signal::Interrupt) = self.signals.recv() {
@@ -288,10 +291,53 @@ impl Runtime {
         // node is shutting down.
 
         // Remove control socket file, but don't freak out if it's not there anymore.
-        fs::remove_file(home.socket()).ok();
+        remove.map(|path| fs::remove_file(path).ok());
 
         log::debug!(target: "node", "Node shutdown completed for {}", self.id);
 
         Ok(())
+    }
+
+    #[cfg(all(feature = "systemd", target_family = "unix"))]
+    fn receive_listener() -> Option<UnixListener> {
+        use std::os::fd::FromRawFd;
+        match radicle_systemd::listen_fd("control") {
+            Ok(Some(fd)) => {
+                // NOTE: Here, we should make a call to [`fstat(2)`](man:fstat(2))
+                // and make sure that the file descriptor we received actually
+                // is `AF_UNIX`. However, this requires fiddling with
+                // `libc` types or another dependency like `nix`, see
+                // <https://github.com/lucab/libsystemd-rs/blob/b43fa5e3b5eca3e6aa16a6c2fad87220dc0ad7a0/src/activation.rs#L192-L196>
+                // systemd also implements such a check, see
+                // <https://github.com/systemd/systemd/blob/v254/src/libsystemd/sd-daemon/sd-daemon.c#L357-L398>
+                Some(unsafe {
+                    // SAFETY: We take ownership of this FD from systemd,
+                    // which guarantees that it is open.
+                    UnixListener::from_raw_fd(fd)
+                })
+            }
+            Ok(None) => None,
+            Err(err) => {
+                log::trace!(target: "node", "Error receiving file descriptors from systemd: {err}");
+                None
+            }
+        }
+    }
+
+    fn bind(path: PathBuf) -> Result<ControlSocket, Error> {
+        #[cfg(all(feature = "systemd", target_family = "unix"))]
+        {
+            if let Some(listener) = Self::receive_listener() {
+                log::info!(target: "node", "Received control socket.");
+                return Ok(ControlSocket::Received(listener));
+            }
+        }
+
+        log::info!(target: "node", "Binding control socket {}..", &path.display());
+        match UnixListener::bind(&path) {
+            Ok(sock) => Ok(ControlSocket::Bound(sock, path)),
+            Err(err) if err.kind() == io::ErrorKind::AddrInUse => Err(Error::AlreadyRunning(path)),
+            Err(err) => Err(err.into()),
+        }
     }
 }
