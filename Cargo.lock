@@ -2227,6 +2227,7 @@ dependencies = [
  "radicle-fetch",
  "radicle-git-ext",
  "radicle-signals",
+ "radicle-systemd",
  "scrypt",
  "serde",
  "serde_json",
@@ -2291,6 +2292,10 @@ dependencies = [
  "thiserror",
  "url",
 ]
+
+[[package]]
+name = "radicle-systemd"
+version = "0.9.0"
 
 [[package]]
 name = "radicle-term"
