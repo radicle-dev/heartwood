@@ -9,6 +9,8 @@ edition = "2021"
 build = "build.rs"
 
 [features]
+default = ["systemd"]
+systemd = ["dep:libsystemd"]
 test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "qcheck", "snapbox"]
 
 [dependencies]
@@ -25,6 +27,7 @@ gix-protocol = { version = "0.41.1", features = ["blocking-client"] }
 io-reactor = { version = "0.5.1", features = ["popol"] }
 lexopt = { version = "0.3.0" }
 libc = { version = "0.2.137" }
+libsystemd = { version = "0.7.0", optional = true }
 log = { version = "0.4.17", features = ["std"] }
 localtime = { version = "1.2.0" }
 netservices = { version = "0.8.0", features = ["io-reactor", "socket2"] }
