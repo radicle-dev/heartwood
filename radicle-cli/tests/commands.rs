@@ -717,6 +717,30 @@ fn rad_id_unknown_field() {
 }
 
 #[test]
+fn rad_id_private() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init-private.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+    test(
+        "examples/rad-id-private.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_node_connect() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
