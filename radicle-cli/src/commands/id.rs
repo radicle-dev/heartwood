@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+use std::str::FromStr;
 use std::{ffi::OsString, io};
 
 use anyhow::{anyhow, Context};
@@ -32,7 +34,8 @@ Usage
     rad id update [--title <string>] [--description <string>]
                   [--delegate <did>] [--rescind <did>]
                   [--threshold <num>] [--visibility <private | public>]
-                  [--allow <did>] [--no-confirm] [--payload <id> <key> <val>...]
+                  [--allow <did>] [--disallow <did>]
+                  [--no-confirm] [--payload <id> <key> <val>...]
                   [<option>...]
     rad id edit <revision-id> [--title <string>] [--description <string>] [<option>...]
     rad id show <revision-id> [<option>...]
@@ -59,7 +62,9 @@ pub enum Operation {
         delegate: Vec<Did>,
         rescind: Vec<Did>,
         threshold: Option<usize>,
-        visibility: Option<Visibility>,
+        visibility: Option<EditVisibility>,
+        allow: BTreeSet<Did>,
+        disallow: BTreeSet<Did>,
         payload: Vec<(doc::PayloadId, String, json::Value)>,
     },
     AcceptRevision {
@@ -81,6 +86,29 @@ pub enum Operation {
     },
     #[default]
     ListRevisions,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EditVisibility {
+    #[default]
+    Public,
+    Private,
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("'{0}' is not a valid visibility type")]
+pub struct EditVisibilityParseError(String);
+
+impl FromStr for EditVisibility {
+    type Err = EditVisibilityParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "public" => Ok(EditVisibility::Public),
+            "private" => Ok(EditVisibility::Private),
+            _ => Err(EditVisibilityParseError(s.to_owned())),
+        }
+    }
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -114,7 +142,9 @@ impl Args for Options {
         let mut description: Option<String> = None;
         let mut delegate: Vec<Did> = Vec::new();
         let mut rescind: Vec<Did> = Vec::new();
-        let mut visibility: Option<Visibility> = None;
+        let mut visibility: Option<EditVisibility> = None;
+        let mut allow: BTreeSet<Did> = BTreeSet::new();
+        let mut disallow: BTreeSet<Did> = BTreeSet::new();
         let mut threshold: Option<usize> = None;
         let mut interactive = Interactive::new(io::stdout());
         let mut payload = Vec::new();
@@ -172,11 +202,12 @@ impl Args for Options {
                 Long("allow") => {
                     let value = parser.value()?;
                     let did = term::args::did(&value)?;
-                    if let Some(Visibility::Private { allow }) = &mut visibility {
-                        allow.insert(did);
-                    } else {
-                        visibility = Some(Visibility::private([did]));
-                    }
+                    allow.insert(did);
+                }
+                Long("disallow") => {
+                    let value = parser.value()?;
+                    let did = term::args::did(&value)?;
+                    disallow.insert(did);
                 }
                 Long("visibility") => {
                     let value = parser.value()?;
@@ -244,6 +275,8 @@ impl Args for Options {
                 rescind,
                 threshold,
                 visibility,
+                allow,
+                disallow,
                 payload,
             },
         };
@@ -349,12 +382,51 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             rescind,
             threshold,
             visibility,
+            allow,
+            disallow,
             payload,
         } => {
             let proposal = {
                 let mut proposal = current.doc.clone();
                 proposal.threshold = threshold.unwrap_or(proposal.threshold);
-                proposal.visibility = visibility.unwrap_or(proposal.visibility);
+
+                if !allow.is_disjoint(&disallow) {
+                    let overlap = allow
+                        .intersection(&disallow)
+                        .map(Did::to_string)
+                        .collect::<Vec<_>>();
+                    anyhow::bail!("`--allow` and `--disallow` must not overlap: {overlap:?}")
+                }
+
+                match (&mut proposal.visibility, visibility) {
+                    (Visibility::Public, None | Some(EditVisibility::Public)) if !allow.is_empty() || !disallow.is_empty() => {
+                        return Err(Error::WithHint {
+                            err:
+                            anyhow!("`--allow` and `--disallow` should only be used for private repositories"),
+                            hint: "use `--visibility private` to make the repository private, or perhaps you meant to use `--delegate`/`--rescind`",
+                        }.into())
+                    }
+                    (Visibility::Public, None | Some(EditVisibility::Public)) => { /* no-op */ },
+                    (Visibility::Private { allow: existing }, None | Some(EditVisibility::Private)) => {
+                        for did in allow {
+                            existing.insert(did);
+                        }
+                        for did in disallow {
+                            existing.remove(&did);
+                        }
+                    }
+                    (Visibility::Public, Some(EditVisibility::Private)) => {
+                        // We ignore disallow since only allowing matters and
+                        // the sets are disjoint
+                        proposal.visibility = Visibility::Private { allow };
+                    }
+                    (Visibility::Private { .. }, Some(EditVisibility::Public)) if !allow.is_empty() || !disallow.is_empty() => {
+                        anyhow::bail!("`--allow` and `--disallow` cannot be used with `--visibility public`")
+                    }
+                    (Visibility::Private { .. }, Some(EditVisibility::Public)) => {
+                        proposal.visibility = Visibility::Public;
+                    }
+                }
                 proposal.delegates = NonEmpty::from_vec(
                     proposal
                         .delegates
