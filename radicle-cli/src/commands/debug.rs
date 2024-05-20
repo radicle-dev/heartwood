@@ -68,7 +68,7 @@ fn debug(profile: &Profile) -> anyhow::Result<()> {
     }));
 
     let debug = DebugInfo {
-        rad_exe: if let Ok(filename) = std::fs::read_link("/proc/self/exe") {
+        rad_exe: if let Ok(filename) = std::env::current_exe() {
             Some(filename)
         } else {
             None
