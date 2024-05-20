@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
 %:
-	dh $@ --buildsystem cargo
+	dh $@
 
 override_dh_auto_build:
 	scripts/build-man-pages.sh . *.adoc

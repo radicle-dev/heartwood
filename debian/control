@@ -5,7 +5,6 @@ Section: vcs
 Priority: optional
 Standards-Version: 4.6.2
 Build-Depends: debhelper (>= 10~),
-  dh-cargo,
   asciidoctor
 Homepage: https://radicle.xyz/
 
