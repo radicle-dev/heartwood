@@ -5,9 +5,11 @@ use anyhow::anyhow;
 use chrono::prelude::*;
 use nonempty::NonEmpty;
 use radicle::cob;
+use radicle::cob::Op;
 use radicle::prelude::RepoId;
 use radicle::storage::ReadStorage;
 use radicle_cob::object::collaboration::list;
+use serde_json::json;
 
 use crate::git::Rev;
 use crate::terminal as term;
@@ -21,20 +23,27 @@ pub const HELP: Help = Help {
 Usage
 
     rad cob <command> [<option>...]
-    rad cob list --repo <rid> --type <typename>
-    rad cob log  --repo <rid> --type <typename> --object <oid>
+    rad cob list  --repo <rid> --type <typename>
+    rad cob log   --repo <rid> --type <typename> --object <oid>
+                  [--format pretty|json]
 
 Commands
 
     list       List all COBs of a given type (--object is not needed)
     log        Print a log of all raw operations on a COB
+    show       Print the materialized object of a COB
 
-Options
+Log options
 
-    --help     Print help
+    --format [pretty|json]  Desired output format (default: pretty)
+
+Other options
+
+    --help                  Print help
 "#,
 };
 
+#[derive(PartialEq)]
 enum OperationName {
     List,
     Log,
@@ -45,10 +54,16 @@ enum Operation {
     Log(Rev),
 }
 
+enum Format {
+    Json,
+    Pretty,
+}
+
 pub struct Options {
     rid: RepoId,
     op: Operation,
     type_name: cob::TypeName,
+    format: Format,
 }
 
 impl Args for Options {
@@ -60,6 +75,7 @@ impl Args for Options {
         let mut type_name: Option<cob::TypeName> = None;
         let mut oid: Option<Rev> = None;
         let mut rid: Option<RepoId> = None;
+        let mut format: Option<Format> = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -90,6 +106,14 @@ impl Args for Options {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
+                Long("format") if op == Some(OperationName::Log) => {
+                    let v: String = term::args::string(&parser.value()?);
+                    match v.as_ref() {
+                        "pretty" => format = Some(Format::Pretty),
+                        "json" => format = Some(Format::Json),
+                        unknown => anyhow::bail!("unknown format '{unknown}'"),
+                    }
+                }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
         }
@@ -108,6 +132,7 @@ impl Args for Options {
                     .ok_or_else(|| anyhow!("a repository id must be specified with `--repo`"))?,
                 type_name: type_name
                     .ok_or_else(|| anyhow!("an object type must be specified with `--type`"))?,
+                format: format.unwrap_or(Format::Pretty),
             },
             vec![],
         ))
@@ -128,40 +153,59 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Log(oid) => {
             let oid = oid.resolve(&repo.backend)?;
-            let ops = cob::store::ops(&oid, &options.type_name, &repo)?;
+            let mut ops = cob::store::ops(&oid, &options.type_name, &repo)?.into_iter();
 
-            for op in ops.into_iter().rev() {
-                let time = DateTime::<Utc>::from(
-                    std::time::UNIX_EPOCH + std::time::Duration::from_secs(op.timestamp.as_secs()),
-                )
-                .to_rfc2822();
-
-                term::print(term::format::yellow(format!("commit   {}", op.id)));
-                if let Some(oid) = op.identity {
-                    term::print(term::format::tertiary(format!("resource {oid}")));
-                }
-                for parent in op.parents {
-                    term::print(format!("parent   {}", parent));
-                }
-                for parent in op.related {
-                    term::print(format!("rel      {}", parent));
-                }
-                term::print(format!("author   {}", op.author));
-                term::print(format!("date     {}", time));
-                term::blank();
-
-                for action in op.actions {
-                    let obj: serde_json::Value = serde_json::from_slice(&action)?;
-                    let val = serde_json::to_string_pretty(&obj)?;
-
-                    for line in val.lines() {
-                        term::indented(term::format::dim(line));
-                    }
-                    term::blank();
-                }
+            match options.format {
+                Format::Json => ops.try_for_each(print_op_json)?,
+                Format::Pretty => ops.rev().try_for_each(print_op_pretty)?,
             }
         }
     }
 
+    Ok(())
+}
+
+fn print_op_pretty(op: Op<Vec<u8>>) -> anyhow::Result<()> {
+    let time = DateTime::<Utc>::from(
+        std::time::UNIX_EPOCH + std::time::Duration::from_secs(op.timestamp.as_secs()),
+    )
+    .to_rfc2822();
+    term::print(term::format::yellow(format!("commit   {}", op.id)));
+    if let Some(oid) = op.identity {
+        term::print(term::format::tertiary(format!("resource {oid}")));
+    }
+    for parent in op.parents {
+        term::print(format!("parent   {}", parent));
+    }
+    for parent in op.related {
+        term::print(format!("rel      {}", parent));
+    }
+    term::print(format!("author   {}", op.author));
+    term::print(format!("date     {}", time));
+    term::blank();
+    for action in op.actions {
+        let obj: serde_json::Value = serde_json::from_slice(&action)?;
+        let val = serde_json::to_string_pretty(&obj)?;
+        for line in val.lines() {
+            term::indented(term::format::dim(line));
+        }
+        term::blank();
+    }
+    Ok(())
+}
+
+fn print_op_json(op: Op<Vec<u8>>) -> anyhow::Result<()> {
+    let mut ser = json!(op);
+    ser.as_object_mut().unwrap().insert(
+        "actions".to_string(),
+        json!(op
+            .actions
+            .iter()
+            .map(|action: &Vec<u8>| -> Result<serde_json::Value, _> {
+                serde_json::from_slice(action)
+            })
+            .collect::<Result<Vec<serde_json::Value>, _>>()?),
+    );
+    term::print(ser);
     Ok(())
 }

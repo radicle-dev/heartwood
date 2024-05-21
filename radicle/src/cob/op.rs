@@ -1,5 +1,6 @@
 use nonempty::NonEmpty;
 use radicle_cob::Manifest;
+use serde::Serialize;
 use thiserror::Error;
 
 use radicle_cob::history::{Entry, EntryId};
@@ -26,7 +27,7 @@ pub enum OpEncodingError {
 ///
 /// Everything that can be done in the system is represented by an `Op`.
 /// Operations are applied to an accumulator to yield a final state.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Op<A> {
     /// Id of the entry under which this operation lives.
     pub id: EntryId,
