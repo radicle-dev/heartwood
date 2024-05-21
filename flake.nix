@@ -54,6 +54,7 @@
           ".diff" # testing
           ".md" # testing
           ".adoc" # man pages
+          "_rad" # completion
         ]
         ||
         # Default filter from crane (allow .rs files)
@@ -165,6 +166,7 @@
                   asciidoctor -d manpage -b manpage $page
                   installManPage ''${page::-5}
                 done
+                installShellCompletion --zsh --name _rad radicle-cli/completion/zsh/_rad
               '';
             });
         crates = builtins.listToAttrs (map

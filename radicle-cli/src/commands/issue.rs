@@ -13,7 +13,7 @@ use radicle::cob::thread;
 use radicle::crypto::Signer;
 use radicle::identity::did::DidError;
 use radicle::identity::RepoId;
-use radicle::issue::cache::Issues as _;
+use radicle::issue::cache::{Issues as _, IssuesExt};
 use radicle::issue::Issues;
 use radicle::prelude::Did;
 use radicle::profile;
@@ -134,7 +134,7 @@ enum IssueCommands {
         description: Option<String>,
     },
 
-    /// List and filter issues
+    /// List issues, optionally filtering them
     List(ListArgs),
 
     /// Create a new issue
@@ -175,12 +175,14 @@ enum IssueCommands {
         id: Rev,
 
         /// Add an assignee to the issue (may be specified multiple times).
+        #[clap(value_hint = ValueHint::Dynamic(get_did_hints))]
         #[arg(long, short)]
         #[arg(value_name = "did")]
         #[arg(action = clap::ArgAction::Append)]
         add: Vec<Did>,
 
         /// Delete an assignee from the issue (may be specified multiple times).
+        #[clap(value_hint = ValueHint::Dynamic(get_did_hints))]
         #[arg(long, short)]
         #[arg(value_name = "did")]
         #[arg(action = clap::ArgAction::Append)]
@@ -363,48 +365,29 @@ pub fn get_assignee_did_hints(input: &str) -> Option<Vec<String>> {
 
 pub fn get_issue_id_hints(input: &str) -> Option<Vec<String>> {
     let (_, rid) = radicle::rad::cwd().ok()?;
-    radicle::Profile::load()
-        .ok()
-        .and_then(|profile| profile.storage.repository(rid).ok())
-        .and_then(|repo| {
-            Issues::open(&repo).ok().and_then(|issues| {
-                issues
-                    .all()
-                    .map(|issues| {
-                        issues
-                            .filter_map(|issue| {
-                                if let Ok((id, _)) = issue {
-                                    let id = id.to_string();
-                                    if id.starts_with(input) {
-                                        return Some(String::from(id.split_at(8).0));
-                                    }
-                                }
-                                None
-                            })
-                            .collect::<Vec<_>>()
-                    })
-                    .ok()
-            })
-        })
+    let profile = radicle::Profile::load().ok()?;
+    let repo = profile.storage.repository(rid).ok()?;
+    let issues = profile.issues(&repo).ok()?;
+    let ids = issues.ids(input).ok()?;
+    Some(
+        ids.filter_map(|result| result.ok().map(|id| id.to_string()))
+            .collect(),
+    )
 }
 
-pub fn get_did_hints<R: ReadRepository + radicle::cob::Store>(input: &str) -> Option<Vec<String>> {
+pub fn get_did_hints(input: &str) -> Option<Vec<String>> {
     let (_, rid) = radicle::rad::cwd().ok()?;
-    radicle::Profile::load()
-        .ok()
-        .and_then(|profile| profile.storage.repository(rid).ok())
-        .and_then(|repo| {
-            repo.remote_ids()
-                .map(|issues| {
-                    issues
-                        .filter_map(|id| {
-                            let id = id.map(|id| Did::from(id).to_human()).ok()?;
-                            id.starts_with(input).then_some(id)
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .ok()
+    let profile = radicle::Profile::load().ok()?;
+    let repo = profile.storage.repository(rid).ok()?;
+    let ids = repo.remote_ids().ok()?;
+    Some(
+        ids.filter_map(|nid| {
+            let nid = nid.ok()?;
+            let did = Did::from(nid).encode();
+            did.starts_with(input).then_some(did)
         })
+        .collect(),
+    )
 }
 
 pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
