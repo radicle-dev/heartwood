@@ -1108,7 +1108,11 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
 
     connection.set_read_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
     connection.set_write_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
-    connection.set_nodelay(true)?;
+
+    // There are issues with setting TCP_NODELAY on WSL. Not a big deal.
+    if let Err(e) = connection.set_nodelay(true) {
+        log::warn!(target: "wire", "Unable to set TCP_NODELAY on fd {}: {e}", connection.as_raw_fd());
+    }
 
     Ok(session::<G>(
         remote_addr,
