@@ -156,7 +156,7 @@
               cargoExtraArgs = "-p ${name}";
               doCheck = false;
 
-              nativeBuildInputs = with pkgs; [asciidoctor installShellFiles];
+              nativeBuildInputs = with pkgs; [asciidoctor installShellFiles jq];
               postInstall = ''
                 for page in ${lib.escapeShellArgs pages}; do
                   asciidoctor -d manpage -b manpage $page

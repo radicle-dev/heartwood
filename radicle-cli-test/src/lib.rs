@@ -188,9 +188,14 @@ impl TestFormula {
     }
 
     pub fn build(&mut self, binaries: &[(&str, &str)]) -> &mut Self {
-        let manifest = env::var("CARGO_MANIFEST_DIR").expect(
-            "TestFormula::build: cannot build binaries: variable `CARGO_MANIFEST_DIR` is not set",
-        );
+        let manifest = match env::var("CARGO_MANIFEST_DIR") {
+            Ok(manifest) => manifest,
+            Err(err) => {
+                log::warn!(target: "test", "Environment variable `CARGO_MANIFEST_DIR` could not be read: {err}");
+                log::warn!(target: "test", "Assuming that the current working directory is the correct manifest directory, i.e. `CARGO_MANIFEST_DIR={}`. In case of error, explicitly set `CARGO_MANIFEST_DIR`.", self.cwd.display());
+                self.cwd.to_string_lossy().to_string()
+            }
+        };
         let profile = if cfg!(debug_assertions) {
             "debug"
         } else {

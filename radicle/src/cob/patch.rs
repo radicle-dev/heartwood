@@ -1156,13 +1156,15 @@ impl Patch {
     }
 }
 
-impl store::Cob for Patch {
-    type Action = Action;
-    type Error = Error;
-
+impl cob::store::CobWithType for Patch {
     fn type_name() -> &'static TypeName {
         &TYPENAME
     }
+}
+
+impl store::Cob for Patch {
+    type Action = Action;
+    type Error = Error;
 
     fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
         let doc = op.identity_doc(repo)?.ok_or(Error::MissingIdentity)?;
@@ -1665,7 +1667,7 @@ impl Review {
     }
 }
 
-impl<R: ReadRepository> store::Transaction<Patch, R> {
+impl<R: ReadRepository> store::Transaction<'_, Patch, R> {
     pub fn edit(&mut self, title: impl ToString, target: MergeTarget) -> Result<(), store::Error> {
         self.push(Action::Edit {
             title: title.to_string(),

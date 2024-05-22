@@ -299,6 +299,12 @@ impl<T> Default for Thread<T> {
     }
 }
 
+impl<T> cob::store::CobWithType for Thread<T> {
+    fn type_name() -> &'static radicle_cob::TypeName {
+        &TYPENAME
+    }
+}
+
 impl<T> Thread<T> {
     pub fn new(id: CommentId, comment: T) -> Self {
         Self {
@@ -402,10 +408,6 @@ impl<L> Thread<Comment<L>> {
 impl cob::store::Cob for Thread {
     type Action = Action;
     type Error = Error;
-
-    fn type_name() -> &'static radicle_cob::TypeName {
-        &TYPENAME
-    }
 
     fn from_root<R: ReadRepository>(op: Op<Action>, repo: &R) -> Result<Self, Self::Error> {
         let author = op.author;
