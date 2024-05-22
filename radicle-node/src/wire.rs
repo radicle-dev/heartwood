@@ -62,6 +62,8 @@ pub enum Error {
     InvalidOnionAddr(#[from] tor::OnionAddrDecodeError),
     #[error("invalid timestamp: {0}")]
     InvalidTimestamp(u64),
+    #[error("unknown protocol version `{0}`")]
+    UnknownProtocolVersion(u8),
     #[error("unknown address type `{0}`")]
     UnknownAddressType(u8),
     #[error("unknown message type `{0}`")]

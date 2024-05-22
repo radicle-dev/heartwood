@@ -31,6 +31,7 @@ use crate::service;
 use crate::service::io::Io;
 use crate::service::FETCH_TIMEOUT;
 use crate::service::{session, DisconnectReason, Metrics, Service};
+use crate::wire;
 use crate::wire::frame;
 use crate::wire::frame::{Frame, FrameData, StreamId};
 use crate::wire::Encode;
@@ -812,6 +813,15 @@ where
                                 // Buffer is empty, or message isn't complete.
                                 break;
                             }
+                            Err(wire::Error::UnknownProtocolVersion(v)) => {
+                                // It's ok for a peer to send frames from a newer protocol version
+                                // that we don't understand. We just ignore them.
+                                log::debug!(
+                                    target: "wire",
+                                    "Ignoring frame with newer protocol version ({v})",
+                                );
+                                continue;
+                            }
                             Err(e) => {
                                 log::error!(target: "wire", "Invalid gossip message from {nid}: {e}");
 
@@ -1199,7 +1209,7 @@ mod test {
         let pong = Message::Pong {
             zeroes: ZeroBytes::new(42),
         };
-        frame::PROTOCOL_VERSION.encode(&mut stream).unwrap();
+        frame::PROTOCOL_VERSION_STRING.encode(&mut stream).unwrap();
         frame::StreamId::gossip(Link::Outbound)
             .encode(&mut stream)
             .unwrap();

@@ -4,9 +4,11 @@ use std::{fmt, io};
 
 use crate::{wire, wire::varint, wire::varint::VarInt, wire::Message, Link};
 
+/// Protocol version.
+pub const PROTOCOL_VERSION: u8 = 1;
 /// Protocol version strings all start with the magic sequence `rad`, followed
 /// by a version number.
-pub const PROTOCOL_VERSION: Version = Version([b'r', b'a', b'd', 0x1]);
+pub const PROTOCOL_VERSION_STRING: Version = Version([b'r', b'a', b'd', PROTOCOL_VERSION]);
 
 /// Control open byte.
 const CONTROL_OPEN: u8 = 0;
@@ -19,11 +21,18 @@ const CONTROL_EOF: u8 = 2;
 #[derive(Debug, PartialEq, Eq)]
 pub struct Version([u8; 4]);
 
+impl Version {
+    /// Version number.
+    pub fn number(&self) -> u8 {
+        self.0[3]
+    }
+}
+
 impl wire::Encode for Version {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
-        writer.write_all(&PROTOCOL_VERSION.0)?;
+        writer.write_all(&PROTOCOL_VERSION_STRING.0)?;
 
-        Ok(PROTOCOL_VERSION.0.len())
+        Ok(PROTOCOL_VERSION_STRING.0.len())
     }
 }
 
@@ -32,7 +41,7 @@ impl wire::Decode for Version {
         let mut version = [0u8; 4];
         reader.read_exact(&mut version[..])?;
 
-        if version != PROTOCOL_VERSION.0 {
+        if version != PROTOCOL_VERSION_STRING.0 {
             return Err(wire::Error::InvalidProtocolVersion(version));
         }
         Ok(Self(version))
@@ -197,7 +206,7 @@ impl Frame {
     /// Create a 'git' protocol frame.
     pub fn git(stream: StreamId, data: Vec<u8>) -> Self {
         Self {
-            version: PROTOCOL_VERSION,
+            version: PROTOCOL_VERSION_STRING,
             stream,
             data: FrameData::Git(data),
         }
@@ -206,7 +215,7 @@ impl Frame {
     /// Create a 'control' protocol frame.
     pub fn control(link: Link, ctrl: Control) -> Self {
         Self {
-            version: PROTOCOL_VERSION,
+            version: PROTOCOL_VERSION_STRING,
             stream: StreamId::control(link),
             data: FrameData::Control(ctrl),
         }
@@ -215,7 +224,7 @@ impl Frame {
     /// Create a 'gossip' protocol frame.
     pub fn gossip(link: Link, msg: Message) -> Self {
         Self {
-            version: PROTOCOL_VERSION,
+            version: PROTOCOL_VERSION_STRING,
             stream: StreamId::gossip(link),
             data: FrameData::Gossip(msg),
         }
@@ -306,6 +315,9 @@ impl wire::Encode for Control {
 impl wire::Decode for Frame {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
         let version = Version::decode(reader)?;
+        if version.number() > PROTOCOL_VERSION {
+            return Err(wire::Error::UnknownProtocolVersion(version.number()));
+        }
         let stream = StreamId::decode(reader)?;
 
         match stream.kind() {
