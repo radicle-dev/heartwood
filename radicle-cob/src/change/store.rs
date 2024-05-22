@@ -1,6 +1,6 @@
 // Copyright © 2022 The Radicle Link Contributors
 
-use std::{error::Error, fmt, num::NonZeroUsize};
+use std::{error::Error, fmt, fs, io, num::NonZeroUsize, path};
 
 use nonempty::NonEmpty;
 use radicle_git_ext::Oid;
@@ -206,6 +206,14 @@ impl Embed<Vec<u8>> {
             name: self.name.clone(),
             content: T::from(self.oid()),
         }
+    }
+
+    /// Return an embed from a file.
+    pub fn file<P: AsRef<path::Path>>(name: String, path: P) -> io::Result<Embed<Vec<u8>>> {
+        Ok(Embed {
+            name: name.clone(),
+            content: fs::read(path)?,
+        })
     }
 }
 

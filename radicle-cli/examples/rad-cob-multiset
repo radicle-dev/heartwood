@@ -1,0 +1,9 @@
+#! /usr/bin/env -S jq --from-file --slurp --sort-keys
+reduce
+    .[1].actions[]
+as {"+": $p, "-": $m} (
+    .[0];
+    .[$p // $m // ("invalid" | halt_error)] |= (
+        [. + (if $p then 1 else -1 end), 0] | max
+    )
+)

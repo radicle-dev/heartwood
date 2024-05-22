@@ -30,7 +30,7 @@ pub mod test;
 pub mod version;
 pub mod web;
 
-pub use cob::{issue, patch};
+pub use cob::{helper, issue, patch};
 pub use node::Node;
 pub use profile::Profile;
 pub use storage::git::Storage;

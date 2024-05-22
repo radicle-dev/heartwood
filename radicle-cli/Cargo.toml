@@ -26,6 +26,7 @@ radicle-git-ext = { version = "0.8.0", features = ["serde"] }
 radicle-surf = { version = "0.22.0" }
 serde = { version = "1.0" }
 serde_json = { version = "1" }
+serde-jsonlines = { version = "0.5.0" }
 shlex = { version = "1.1.0" }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }

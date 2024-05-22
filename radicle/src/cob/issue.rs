@@ -142,13 +142,15 @@ pub struct Issue {
     pub(super) thread: Thread,
 }
 
-impl store::Cob for Issue {
-    type Action = Action;
-    type Error = Error;
-
+impl cob::store::CobWithType for Issue {
     fn type_name() -> &'static TypeName {
         &TYPENAME
     }
+}
+
+impl store::Cob for Issue {
+    type Action = Action;
+    type Error = Error;
 
     fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
         let doc = op.identity_doc(repo)?.ok_or(Error::MissingIdentity)?;
@@ -459,7 +461,7 @@ impl Deref for Issue {
     }
 }
 
-impl<R: ReadRepository> store::Transaction<Issue, R> {
+impl<R: ReadRepository> store::Transaction<'_, Issue, R> {
     /// Assign DIDs to the issue.
     pub fn assign(&mut self, assignees: impl IntoIterator<Item = Did>) -> Result<(), store::Error> {
         self.push(Action::Assign {
@@ -931,7 +933,7 @@ mod test {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::cob::{ActorId, Reaction};
+    use crate::cob::{ActorId, store::CobWithType, Reaction};
     use crate::git::Oid;
     use crate::issue::cache::Issues as _;
     use crate::test;

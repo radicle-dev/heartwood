@@ -31,9 +31,6 @@ pub trait Cob: Sized + PartialEq + Debug {
     /// Error returned by `apply` function.
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// The object type name.
-    fn type_name() -> &'static TypeName;
-
     /// Initialize a collarorative object from a root operation.
     fn from_root<R: ReadRepository>(op: Op<Self::Action>, repo: &R) -> Result<Self, Self::Error>;
 
@@ -50,7 +47,10 @@ pub trait Cob: Sized + PartialEq + Debug {
     fn from_history<R: ReadRepository>(
         history: &crate::cob::History,
         repo: &R,
-    ) -> Result<Self, test::HistoryError<Self>> {
+    ) -> Result<Self, test::HistoryError<Self>>
+    where
+        Self: CobWithType,
+    {
         test::from_history::<R, Self>(history, repo)
     }
 
@@ -71,6 +71,15 @@ pub trait Cob: Sized + PartialEq + Debug {
         }
         Ok(state)
     }
+}
+
+/// Use this trait to marks types that can statically, i.e. at compile-time,
+/// be associated with a unique collaborative object backing it.
+///
+/// In most cases, this trait should be used in tandem with [`Cob`].
+pub trait CobWithType {
+    /// The type name of the collaborative object which backs this type.
+    fn type_name() -> &'static TypeName;
 }
 
 /// Store error.
@@ -105,6 +114,7 @@ pub struct Store<'a, T, R> {
     identity: Option<git::Oid>,
     repo: &'a R,
     witness: PhantomData<T>,
+    type_name: &'a TypeName,
 }
 
 impl<'a, T, R> AsRef<R> for Store<'a, T, R> {
@@ -118,11 +128,12 @@ where
     R: ReadRepository + cob::Store,
 {
     /// Open a new generic store.
-    pub fn open(repo: &'a R) -> Result<Self, Error> {
+    pub fn open_for(type_name: &'a TypeName, repo: &'a R) -> Result<Self, Error> {
         Ok(Self {
             repo,
             identity: None,
             witness: PhantomData,
+            type_name,
         })
     }
 
@@ -132,7 +143,24 @@ where
             repo: self.repo,
             witness: self.witness,
             identity: Some(identity),
+            type_name: self.type_name,
         }
+    }
+}
+
+impl<'a, T, R> Store<'a, T, R>
+where
+    R: ReadRepository + cob::Store,
+    T: CobWithType,
+{
+    /// Open a new generic store.
+    pub fn open(repo: &'a R) -> Result<Self, Error> {
+        Ok(Self {
+            repo,
+            identity: None,
+            witness: PhantomData,
+            type_name: T::type_name(),
+        })
     }
 }
 
@@ -145,6 +173,7 @@ where
     /// Update an object.
     pub fn update<G: Signer>(
         &self,
+        type_name: &TypeName,
         object_id: ObjectId,
         message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
@@ -162,7 +191,7 @@ where
             signer.public_key(),
             Update {
                 object_id,
-                type_name: T::type_name().clone(),
+                type_name: type_name.clone(),
                 message: message.to_owned(),
                 embeds,
                 changes,
@@ -191,7 +220,7 @@ where
             parents,
             signer.public_key(),
             Create {
-                type_name: T::type_name().clone(),
+                type_name: self.type_name.clone(),
                 version: Version::default(),
                 message: message.to_owned(),
                 embeds,
@@ -205,13 +234,13 @@ where
 
     /// Remove an object.
     pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), Error> {
-        let name = git::refs::storage::cob(signer.public_key(), T::type_name(), id);
+        let name = git::refs::storage::cob(signer.public_key(), self.type_name, id);
         match self
             .repo
             .reference_oid(signer.public_key(), &name.strip_namespace())
         {
             Ok(_) => {
-                cob::remove(self.repo, signer.public_key(), T::type_name(), id)?;
+                cob::remove(self.repo, signer.public_key(), self.type_name, id)?;
                 self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
                 Ok(())
             }
@@ -227,7 +256,7 @@ where
 impl<'a, T, R> Store<'a, T, R>
 where
     R: ReadRepository + cob::Store,
-    T: cob::Evaluate<R> + Cob,
+    T: Cob + CobWithType + cob::Evaluate<R>,
     T::Action: Serialize,
 {
     /// Get an object.
@@ -261,25 +290,42 @@ where
 
 /// Allows operations to be batched atomically.
 #[derive(Debug)]
-pub struct Transaction<T: Cob + cob::Evaluate<R>, R> {
-    actions: Vec<T::Action>,
-    embeds: Vec<Embed>,
+pub struct Transaction<'a, T: Cob + cob::Evaluate<R>, R> {
+    pub actions: Vec<T::Action>,
+    pub embeds: Vec<Embed>,
+
     repo: PhantomData<R>,
+    type_name: &'a TypeName,
 }
 
-impl<T: Cob + cob::Evaluate<R>, R> Default for Transaction<T, R> {
+impl<T: Cob + CobWithType + cob::Evaluate<R>, R> Default for Transaction<'_, T, R> {
     fn default() -> Self {
         Self {
             actions: Vec::new(),
             embeds: Vec::new(),
             repo: PhantomData,
+            type_name: T::type_name(),
         }
     }
 }
 
-impl<T, R> Transaction<T, R>
+impl<'a, T, R> Transaction<'a, T, R>
 where
     T: Cob + cob::Evaluate<R>,
+{
+    pub fn new(type_name: &'a TypeName, actions: Vec<T::Action>, embeds: Vec<Embed>) -> Self {
+        Self {
+            actions,
+            embeds,
+            repo: PhantomData,
+            type_name,
+        }
+    }
+}
+
+impl<'a, T, R> Transaction<'a, T, R>
+where
+    T: Cob + CobWithType + cob::Evaluate<R>,
 {
     /// Create a new transaction to be used as the initial set of operations for a COB.
     pub fn initial<G, F>(
@@ -302,7 +348,12 @@ where
 
         store.create(message, actions, tx.embeds, signer)
     }
+}
 
+impl<'a, T, R> Transaction<'a, T, R>
+where
+    T: Cob + cob::Evaluate<R>,
+{
     /// Add an operation to this transaction.
     pub fn push(&mut self, action: T::Action) -> Result<(), Error> {
         self.actions.push(action);
@@ -337,7 +388,7 @@ where
             head,
             object: CollaborativeObject { object, .. },
             ..
-        } = store.update(id, msg, actions, self.embeds, signer)?;
+        } = store.update(self.type_name, id, msg, actions, self.embeds, signer)?;
 
         Ok((object, head))
     }
@@ -389,7 +440,7 @@ pub mod test {
 
     /// Turn a history into a concrete type, by traversing the history and applying each operation
     /// to the state, skipping branches that return errors.
-    pub fn from_history<R: ReadRepository, T: Cob>(
+    pub fn from_history<R: ReadRepository, T: Cob + CobWithType>(
         history: &crate::cob::History,
         repo: &R,
     ) -> Result<T, HistoryError<T>> {
