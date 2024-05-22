@@ -91,7 +91,7 @@ pub enum Error {
     /// This error indicates that the operations are not being applied
     /// in causal order, which is a requirement for this CRDT.
     ///
-    /// For example, this can occur if an operation references anothern operation
+    /// For example, this can occur if an operation references another operation
     /// that hasn't happened yet.
     #[error("causal dependency {0:?} missing")]
     Missing(EntryId),
@@ -1156,13 +1156,15 @@ impl Patch {
     }
 }
 
-impl store::Cob for Patch {
-    type Action = Action;
-    type Error = Error;
-
+impl cob::store::CobWithType for Patch {
     fn type_name() -> &'static TypeName {
         &TYPENAME
     }
+}
+
+impl store::Cob for Patch {
+    type Action = Action;
+    type Error = Error;
 
     fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
         let doc = op.identity_doc(repo)?.ok_or(Error::MissingIdentity)?;

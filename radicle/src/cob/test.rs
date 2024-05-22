@@ -22,7 +22,7 @@ use crate::profile::env;
 use crate::storage::ReadRepository;
 use crate::test::arbitrary;
 
-use super::store::Cob;
+use super::store::{Cob, CobWithType};
 use super::thread;
 
 /// Convenience type for building histories.
@@ -57,6 +57,7 @@ impl HistoryBuilder<thread::Thread> {
 
 impl<T: Cob> HistoryBuilder<T>
 where
+    T: CobWithType,
     T::Action: for<'de> Deserialize<'de> + Serialize + Eq + 'static,
 {
     pub fn new<G: Signer>(actions: &[T::Action], time: Timestamp, signer: &G) -> HistoryBuilder<T> {
@@ -133,12 +134,13 @@ impl<A> Deref for HistoryBuilder<A> {
 }
 
 /// Create a new test history.
-pub fn history<T: Cob, G: Signer>(
+pub fn history<T, G: Signer>(
     actions: &[T::Action],
     time: Timestamp,
     signer: &G,
 ) -> HistoryBuilder<T>
 where
+    T: Cob + CobWithType,
     T::Action: Serialize + Eq + 'static,
 {
     HistoryBuilder::new(actions, time, signer)
@@ -163,13 +165,14 @@ impl<G> Actor<G> {
 
 impl<G: Signer> Actor<G> {
     /// Create a new operation.
-    pub fn op_with<T: Cob>(
+    pub fn op_with<T>(
         &mut self,
         actions: impl IntoIterator<Item = T::Action>,
         identity: Option<Oid>,
         timestamp: Timestamp,
     ) -> Op<T::Action>
     where
+        T: Cob + CobWithType,
         T::Action: Clone + Serialize,
     {
         let actions = actions.into_iter().collect::<Vec<_>>();
@@ -199,8 +202,9 @@ impl<G: Signer> Actor<G> {
     }
 
     /// Create a new operation.
-    pub fn op<T: Cob>(&mut self, actions: impl IntoIterator<Item = T::Action>) -> Op<T::Action>
+    pub fn op<T>(&mut self, actions: impl IntoIterator<Item = T::Action>) -> Op<T::Action>
     where
+        T: Cob + CobWithType,
         T::Action: Clone + Serialize,
     {
         let identity = arbitrary::oid();

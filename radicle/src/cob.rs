@@ -1,6 +1,7 @@
 #![warn(clippy::unwrap_used)]
 pub mod cache;
 pub mod common;
+pub mod external;
 pub mod identity;
 pub mod issue;
 pub mod job;

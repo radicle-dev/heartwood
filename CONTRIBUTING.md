@@ -36,6 +36,9 @@ Make sure all tests are passing with:
 
     $ cargo test --workspace
 
+Some tests require `jq`. If `jq` is not detected, these tests will succeed
+without effectively testing anything.
+
 ## Checking the docs
 
 If you make documentation changes, you may want to check whether there are any

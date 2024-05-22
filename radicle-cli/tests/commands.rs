@@ -159,6 +159,92 @@ fn rad_issue() {
 }
 
 #[test]
+fn rad_cob_update() {
+    let mut environment = Environment::new();
+    let profile = environment.profile(config::profile("alice"));
+    let working = environment.tmp().join("working");
+    let home = &profile.home;
+
+    let base = Path::new(env!("CARGO_MANIFEST_DIR"));
+
+    std::fs::create_dir_all(base).unwrap();
+    std::fs::create_dir_all(working.clone()).unwrap();
+
+    // Setup a test repository.
+    fixtures::repository(&working);
+
+    test("examples/rad-init.md", &working, Some(home), []).unwrap();
+    test("examples/rad-cob-update.md", &working, Some(home), []).unwrap();
+}
+
+#[test]
+fn rad_cob_update_identity() {
+    let mut environment = Environment::new();
+    let profile = environment.profile(config::profile("alice"));
+    let working = environment.tmp().join("working");
+    let home = &profile.home;
+
+    let base = Path::new(env!("CARGO_MANIFEST_DIR"));
+
+    std::fs::create_dir_all(base).unwrap();
+    std::fs::create_dir_all(working.clone()).unwrap();
+
+    // Setup a test repository.
+    fixtures::repository(&working);
+
+    test("examples/rad-init.md", &working, Some(home), []).unwrap();
+    test(
+        "examples/rad-cob-update-identity.md",
+        &working,
+        Some(home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
+fn rad_cob_multiset() {
+    {
+        // `rad-cob-multiset` is a `jq` script, which requires `jq` to be installed.
+        // We test whether `jq` is installed, and have this test succeed if it is not.
+        // Programmatic skipping of tests is not supported as of 2024-08.
+
+        let output = std::process::Command::new("/usr/bin/env")
+            .arg("jq")
+            .arg("-V")
+            .output()
+            .unwrap();
+
+        if !output.status.success() {
+            log::warn!(target: "test", "`jq` not found. Succeeding prematurely. {:?}", output);
+            return;
+        }
+    }
+
+    let mut environment = Environment::new();
+    let profile = environment.profile(config::profile("alice"));
+    let home = &profile.home;
+    let working = environment.tmp().join("working");
+
+    let base = Path::new(env!("CARGO_MANIFEST_DIR"));
+    std::fs::create_dir_all(base).unwrap();
+    std::fs::create_dir_all(working.clone()).unwrap();
+
+    // Copy over the script that implements the multiset COB.
+    std::fs::copy(
+        base.join("examples").join("rad-cob-multiset"),
+        working.join("rad-cob-multiset"),
+    )
+    .unwrap();
+
+    // Setup a test repository.
+    fixtures::repository(&working);
+
+    test("examples/rad-init.md", &working, Some(home), []).unwrap();
+    test("examples/rad-cob-multiset.md", &working, Some(home), []).unwrap();
+}
+
+#[test]
 fn rad_cob_log() {
     let mut environment = Environment::new();
     let profile = environment.profile(config::profile("alice"));

@@ -24,6 +24,8 @@ use crate::git;
 use crate::prelude::ReadRepository;
 use crate::storage::{Oid, WriteRepository};
 
+use super::store::CobWithType;
+
 /// The name of this COB type. Note that this is a "beta" COB, which
 /// means it's not meant for others to rely on yet, and we may change
 /// it without warning.
@@ -213,10 +215,6 @@ impl Cob for Job {
     type Action = Action;
     type Error = Error;
 
-    fn type_name() -> &'static TypeName {
-        &TYPENAME
-    }
-
     fn from_root<R: ReadRepository>(op: Op, _repo: &R) -> Result<Self, Self::Error> {
         let mut actions = op.actions.into_iter();
         let Some(Action::Trigger { commit }) = actions.next() else {
@@ -242,6 +240,12 @@ impl Cob for Job {
             self.action(action)?;
         }
         Ok(())
+    }
+}
+
+impl CobWithType for Job {
+    fn type_name() -> &'static TypeName {
+        &TYPENAME
     }
 }
 
