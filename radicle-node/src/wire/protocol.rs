@@ -546,7 +546,14 @@ where
                     return;
                 }
 
-                let session = accept::<G>(remote.clone().into(), connection, self.signer.clone());
+                let session =
+                    match accept::<G>(remote.clone().into(), connection, self.signer.clone()) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            log::error!(target: "wire", "Error creating session for {ip}: {e}");
+                            return;
+                        }
+                    };
                 let transport = match NetTransport::with_session(session, Link::Inbound) {
                     Ok(transport) => transport,
                     Err(err) => {
@@ -1141,21 +1148,13 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
     // `socket2` library not supporting non-blocking connect with timeout.
     let connection = net::TcpStream::connect_nonblocking(inet_addr, DEFAULT_DIAL_TIMEOUT)?;
 
-    connection.set_read_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
-    connection.set_write_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
-
-    // There are issues with setting TCP_NODELAY on WSL. Not a big deal.
-    if let Err(e) = connection.set_nodelay(true) {
-        log::warn!(target: "wire", "Unable to set TCP_NODELAY on fd {}: {e}", connection.as_raw_fd());
-    }
-
-    Ok(session::<G>(
+    session::<G>(
         remote_addr,
         Some(remote_id),
         connection,
         force_proxy,
         signer,
-    ))
+    )
 }
 
 /// Accept a new connection.
@@ -1163,7 +1162,7 @@ pub fn accept<G: Signer + Ecdh<Pk = NodeId>>(
     remote_addr: NetAddr<HostName>,
     connection: net::TcpStream,
     signer: G,
-) -> WireSession<G> {
+) -> io::Result<WireSession<G>> {
     session::<G>(remote_addr, None, connection, false, signer)
 }
 
@@ -1174,7 +1173,14 @@ fn session<G: Signer + Ecdh<Pk = NodeId>>(
     connection: net::TcpStream,
     force_proxy: bool,
     signer: G,
-) -> WireSession<G> {
+) -> io::Result<WireSession<G>> {
+    // There are issues with setting TCP_NODELAY on WSL. Not a big deal.
+    if let Err(e) = connection.set_nodelay(true) {
+        log::warn!(target: "wire", "Unable to set TCP_NODELAY on fd {}: {e}", connection.as_raw_fd());
+    }
+    connection.set_read_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
+    connection.set_write_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
+
     let socks5 = socks5::Socks5::with(remote_addr, force_proxy);
     let proxy = Socks5Session::with(connection, socks5);
     let pair = G::generate_keypair();
@@ -1184,14 +1190,13 @@ fn session<G: Signer + Ecdh<Pk = NodeId>>(
         re: None,
         rs: remote_id,
     };
-
     let noise = NoiseState::initialize::<{ Sha256::OUTPUT_LEN }>(
         NOISE_XK,
         remote_id.is_some(),
         &[],
         keyset,
     );
-    WireSession::with(proxy, noise)
+    Ok(WireSession::with(proxy, noise))
 }
 
 #[cfg(test)]
