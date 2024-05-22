@@ -1,0 +1,32 @@
+#! /usr/bin/env -S jq --from-file --sort-keys --compact-output
+#
+# Models a multiset as a JSON object.
+#
+# Takes an operation which contains actions, each in one of two shapes:
+#
+# Add x:
+#
+#   { "+": $x }
+#
+# Remove x:
+#
+#   { "-": $x }
+#
+# (where `$x` is a string).
+#
+# These actions are reduced to a multiset represented by an
+# object. The key being the item to count (corresponding to `$x` above),
+# and the value being the count itself (corresponding to how many times
+# `$x` was added, minus how many times `$x` was removed).
+#
+# Errors if any unrecognizable action is encountered.
+#
+# For an example, see `rad-cob-multiset.md`.
+reduce
+    .op.actions[]
+as {"+": $p, "-": $m} (
+    .value;
+    .[$p // $m // ("invalid" | halt_error)] |= (
+        [. + (if $p then 1 else -1 end), 0] | max
+    )
+)

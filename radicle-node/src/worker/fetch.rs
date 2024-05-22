@@ -342,7 +342,7 @@ fn update_or_remove<R, C, T>(
 ) -> Result<(), error::Cache>
 where
     R: cob::Store + ReadRepository,
-    T: cob::Evaluate<R> + cob::store::Cob,
+    T: cob::Evaluate<R> + cob::store::Cob + cob::store::CobWithType,
     C: cob::cache::Update<T> + cob::cache::Remove<T>,
 {
     match store.get(&tid.id) {

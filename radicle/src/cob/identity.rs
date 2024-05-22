@@ -155,6 +155,12 @@ pub struct Identity {
     timeline: Vec<EntryId>,
 }
 
+impl cob::store::CobWithType for Identity {
+    fn type_name() -> &'static TypeName {
+        &TYPENAME
+    }
+}
+
 impl std::ops::Deref for Identity {
     type Target = Revision;
 
@@ -206,6 +212,8 @@ impl Identity {
         object: &ObjectId,
         repo: &R,
     ) -> Result<Identity, store::Error> {
+        use cob::store::CobWithType;
+
         cob::get::<Self, _>(repo, Self::type_name(), object)
             .map(|r| r.map(|cob| cob.object))?
             .ok_or_else(move || store::Error::NotFound(TYPENAME.clone(), *object))
@@ -292,10 +300,6 @@ impl Identity {
 impl store::Cob for Identity {
     type Action = Action;
     type Error = ApplyError;
-
-    fn type_name() -> &'static TypeName {
-        &TYPENAME
-    }
 
     fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
         let mut actions = op.actions.into_iter();
