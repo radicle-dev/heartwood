@@ -39,6 +39,7 @@ scrypt = { version = "0.11.0", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 snapbox = { version = "0.4.3", optional = true }
+socket2 = { version = "0.5.7" }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }
 

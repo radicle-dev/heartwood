@@ -1181,8 +1181,17 @@ fn session<G: Signer + Ecdh<Pk = NodeId>>(
     connection.set_read_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
     connection.set_write_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
 
+    let sock = socket2::Socket::from(connection);
+    let ka = socket2::TcpKeepalive::new()
+        .with_time(time::Duration::from_secs(30))
+        .with_interval(time::Duration::from_secs(10))
+        .with_retries(3);
+    if let Err(e) = sock.set_tcp_keepalive(&ka) {
+        log::warn!(target: "wire", "Unable to set TCP_KEEPALIVE on fd {}: {e}", sock.as_raw_fd());
+    }
+
     let socks5 = socks5::Socks5::with(remote_addr, force_proxy);
-    let proxy = Socks5Session::with(connection, socks5);
+    let proxy = Socks5Session::with(sock.into(), socks5);
     let pair = G::generate_keypair();
     let keyset = Keyset {
         e: pair.0,

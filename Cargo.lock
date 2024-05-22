@@ -2683,6 +2683,7 @@ dependencies = [
  "serde",
  "serde_json",
  "snapbox",
+ "socket2",
  "sqlite",
  "tempfile",
  "thiserror",
