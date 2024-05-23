@@ -2,8 +2,7 @@ pub mod store;
 
 use super::*;
 
-pub use store::Error;
-pub use store::Store;
+pub use store::{AnnouncementId, Error, RelayStatus, Store};
 
 pub fn node(config: &Config, timestamp: Timestamp) -> NodeAnnouncement {
     let features = config.features();

@@ -23,6 +23,9 @@ pub enum Error {
     UnitOverflow(#[from] TryFromIntError),
 }
 
+/// Unique announcement identifier.
+pub type AnnouncementId = u64;
+
 /// A database that has access to historical gossip messages.
 /// Keeps track of the latest received gossip messages for each node.
 /// Grows linearly with the number of nodes on the network.
@@ -35,7 +38,17 @@ pub trait Store {
 
     /// Process an announcement for the given node.
     /// Returns `true` if the timestamp was updated or the announcement wasn't there before.
-    fn announced(&mut self, nid: &NodeId, ann: &Announcement) -> Result<bool, Error>;
+    fn announced(
+        &mut self,
+        nid: &NodeId,
+        ann: &Announcement,
+    ) -> Result<Option<AnnouncementId>, Error>;
+
+    /// Set whether a message should be relayed or not.
+    fn set_relay(&mut self, id: AnnouncementId, relay: RelayStatus) -> Result<(), Error>;
+
+    /// Return messages that should be relayed.
+    fn relays(&mut self, now: Timestamp) -> Result<Vec<(AnnouncementId, Announcement)>, Error>;
 
     /// Get all the latest gossip messages of all nodes, filtered by inventory filter and
     /// announcement timestamps.
@@ -78,7 +91,11 @@ impl Store for Database {
         Ok(None)
     }
 
-    fn announced(&mut self, nid: &NodeId, ann: &Announcement) -> Result<bool, Error> {
+    fn announced(
+        &mut self,
+        nid: &NodeId,
+        ann: &Announcement,
+    ) -> Result<Option<AnnouncementId>, Error> {
         assert_ne!(
             ann.timestamp(),
             Timestamp::MIN,
@@ -89,7 +106,8 @@ impl Store for Database {
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT DO UPDATE
              SET message = ?4, signature = ?5, timestamp = ?6
-             WHERE timestamp < ?6",
+             WHERE timestamp < ?6
+             RETURNING rowid",
         )?;
         stmt.bind((1, nid))?;
 
@@ -112,9 +130,53 @@ impl Store for Database {
         }
         stmt.bind((5, &ann.signature))?;
         stmt.bind((6, &ann.message.timestamp()))?;
+
+        if let Some(row) = stmt.into_iter().next() {
+            let row = row?;
+            let id = row.read::<i64, _>("rowid");
+
+            Ok(Some(id as AnnouncementId))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn set_relay(&mut self, id: AnnouncementId, relay: RelayStatus) -> Result<(), Error> {
+        let mut stmt = self.db.prepare(
+            "UPDATE announcements
+             SET relay = ?1
+             WHERE rowid = ?2",
+        )?;
+        stmt.bind((1, relay))?;
+        stmt.bind((2, id as i64))?;
         stmt.next()?;
 
-        Ok(self.db.change_count() > 0)
+        Ok(())
+    }
+
+    fn relays(&mut self, now: Timestamp) -> Result<Vec<(AnnouncementId, Announcement)>, Error> {
+        let mut stmt = self.db.prepare(
+            "UPDATE announcements
+             SET relay = ?1
+             WHERE relay IS ?2
+             RETURNING rowid, node, type, message, signature, timestamp",
+        )?;
+        stmt.bind((1, RelayStatus::RelayedAt(now)))?;
+        stmt.bind((2, RelayStatus::Relay))?;
+
+        let mut rows = stmt
+            .into_iter()
+            .map(|row| {
+                let row = row?;
+                parse::announcement(row)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Nb. Manually sort by insertion order, because we can't use `ORDER BY` with `RETURNING`
+        // as of SQLite 3.45.
+        rows.sort_by_key(|(id, _)| *id);
+
+        Ok(rows)
     }
 
     fn filtered<'a>(
@@ -124,7 +186,7 @@ impl Store for Database {
         to: Timestamp,
     ) -> Result<Box<dyn Iterator<Item = Result<Announcement, Error>> + 'a>, Error> {
         let mut stmt = self.db.prepare(
-            "SELECT node, type, message, signature, timestamp
+            "SELECT rowid, node, type, message, signature, timestamp
              FROM announcements
              WHERE timestamp >= ?1 and timestamp < ?2
              ORDER BY timestamp, node, type",
@@ -138,32 +200,9 @@ impl Store for Database {
             stmt.into_iter()
                 .map(|row| {
                     let row = row?;
-                    let node = row.read::<NodeId, _>("node");
-                    let gt = row.read::<GossipType, _>("type");
-                    let message = match gt {
-                        GossipType::Refs => {
-                            let ann = row.read::<RefsAnnouncement, _>("message");
-                            AnnouncementMessage::Refs(ann)
-                        }
-                        GossipType::Inventory => {
-                            let ann = row.read::<InventoryAnnouncement, _>("message");
-                            AnnouncementMessage::Inventory(ann)
-                        }
-                        GossipType::Node => {
-                            let ann = row.read::<NodeAnnouncement, _>("message");
-                            AnnouncementMessage::Node(ann)
-                        }
-                    };
-                    let signature = row.read::<Signature, _>("signature");
-                    let timestamp = row.read::<Timestamp, _>("timestamp");
+                    let (_, ann) = parse::announcement(row)?;
 
-                    debug_assert_eq!(timestamp, message.timestamp());
-
-                    Ok(Announcement {
-                        node,
-                        message,
-                        signature,
-                    })
+                    Ok(ann)
                 })
                 .filter(|ann| match ann {
                     Ok(a) => a.matches(filter),
@@ -251,6 +290,24 @@ impl From<wire::Error> for sql::Error {
     }
 }
 
+/// Message relay status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RelayStatus {
+    Relay,
+    DontRelay,
+    RelayedAt(Timestamp),
+}
+
+impl sql::BindableWithIndex for RelayStatus {
+    fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
+        match self {
+            Self::Relay => sql::Value::Null.bind(stmt, i),
+            Self::DontRelay => sql::Value::Integer(-1).bind(stmt, i),
+            Self::RelayedAt(t) => t.bind(stmt, i),
+        }
+    }
+}
+
 /// Type of gossip message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GossipType {
@@ -297,6 +354,43 @@ impl TryFrom<&sql::Value> for GossipType {
     }
 }
 
+mod parse {
+    use super::*;
+
+    pub fn announcement(row: sql::Row) -> Result<(AnnouncementId, Announcement), Error> {
+        let id = row.read::<i64, _>("rowid") as AnnouncementId;
+        let node = row.read::<NodeId, _>("node");
+        let gt = row.read::<GossipType, _>("type");
+        let message = match gt {
+            GossipType::Refs => {
+                let ann = row.read::<RefsAnnouncement, _>("message");
+                AnnouncementMessage::Refs(ann)
+            }
+            GossipType::Inventory => {
+                let ann = row.read::<InventoryAnnouncement, _>("message");
+                AnnouncementMessage::Inventory(ann)
+            }
+            GossipType::Node => {
+                let ann = row.read::<NodeAnnouncement, _>("message");
+                AnnouncementMessage::Node(ann)
+            }
+        };
+        let signature = row.read::<Signature, _>("signature");
+        let timestamp = row.read::<Timestamp, _>("timestamp");
+
+        debug_assert_eq!(timestamp, message.timestamp());
+
+        Ok((
+            id,
+            Announcement {
+                node,
+                message,
+                signature,
+            },
+        ))
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
@@ -304,6 +398,7 @@ mod test {
     use crate::prelude::{BoundedVec, RepoId};
     use crate::test::arbitrary;
     use localtime::LocalTime;
+    use radicle::assert_matches;
     use radicle_crypto::test::signer::MockSigner;
 
     #[test]
@@ -326,10 +421,26 @@ mod test {
         .signed(&signer);
 
         // Only the first announcement of each type is recognized as new.
-        assert!(db.announced(&nid, &refs).unwrap());
-        assert!(!db.announced(&nid, &refs).unwrap());
+        let id1 = db.announced(&nid, &refs).unwrap().unwrap();
+        assert!(db.announced(&nid, &refs).unwrap().is_none());
 
-        assert!(db.announced(&nid, &inv).unwrap());
-        assert!(!db.announced(&nid, &inv).unwrap());
+        let id2 = db.announced(&nid, &inv).unwrap().unwrap();
+        assert!(db.announced(&nid, &inv).unwrap().is_none());
+
+        // Nothing was set to be relayed.
+        assert_eq!(db.relays(LocalTime::now().into()).unwrap().len(), 0);
+
+        // Set the messages to be relayed.
+        db.set_relay(id1, RelayStatus::Relay).unwrap();
+        db.set_relay(id2, RelayStatus::Relay).unwrap();
+
+        // Now they are returned.
+        assert_matches!(
+            db.relays(LocalTime::now().into()).unwrap().as_slice(),
+            &[(id1_, _), (id2_, _)]
+            if id1_ == id1 && id2_ == id2
+        );
+        // But only once.
+        assert_matches!(db.relays(LocalTime::now().into()).unwrap().as_slice(), &[]);
     }
 }

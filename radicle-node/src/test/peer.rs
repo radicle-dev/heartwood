@@ -201,11 +201,13 @@ where
     }
 
     pub fn initialize(&mut self) -> &mut Self {
-        info!(
-            target: "test",
-            "{}: Initializing: id = {}, address = {}",
-            self.name, self.id, self.ip
-        );
+        if !self.initialized {
+            info!(
+                target: "test",
+                "{}: Initializing: id = {}, address = {}",
+                self.name, self.id, self.ip
+            );
+        }
         assert_ne!(self.local_time, LocalTime::default());
 
         self.initialized = true;
@@ -271,8 +273,9 @@ where
         self.service.node_id()
     }
 
-    pub fn receive(&mut self, peer: NodeId, msg: Message) {
+    pub fn receive(&mut self, peer: NodeId, msg: Message) -> &mut Self {
         self.service.received_message(peer, msg);
+        self
     }
 
     pub fn inventory_announcement(&self) -> Message {

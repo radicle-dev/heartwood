@@ -605,38 +605,47 @@ fn test_announcement_relay() {
 
     alice.connect_to(&bob);
     alice.connect_to(&eve);
-    alice.receive(bob.id(), bob.inventory_announcement());
-
+    alice
+        .receive(bob.id(), bob.inventory_announcement())
+        .elapse(service::GOSSIP_INTERVAL);
     assert_matches!(
         alice.messages(eve.id()).next(),
         Some(Message::Announcement(_))
     );
 
-    alice.receive(bob.id(), dbg!(bob.inventory_announcement()));
+    alice.receive(bob.id(), bob.inventory_announcement());
     assert!(
         alice.messages(eve.id()).next().is_none(),
         "Another inventory with the same timestamp is ignored"
     );
 
     bob.elapse(LocalDuration::from_mins(1));
-    alice.receive(bob.id(), dbg!(bob.inventory_announcement()));
+    alice
+        .receive(bob.id(), bob.inventory_announcement())
+        .elapse(service::GOSSIP_INTERVAL);
     assert_matches!(
         alice.messages(eve.id()).next(),
         Some(Message::Announcement(_)),
         "Another inventory with a fresher timestamp is relayed"
     );
 
-    alice.receive(bob.id(), bob.node_announcement());
+    alice
+        .receive(bob.id(), bob.node_announcement())
+        .elapse(service::GOSSIP_INTERVAL);
     assert_matches!(
         alice.messages(eve.id()).next(),
         Some(Message::Announcement(_)),
         "A node announcement with the same timestamp as the inventory is relayed"
     );
 
-    alice.receive(bob.id(), bob.node_announcement());
+    alice
+        .receive(bob.id(), bob.node_announcement())
+        .elapse(service::GOSSIP_INTERVAL);
     assert!(alice.messages(eve.id()).next().is_none(), "Only once");
 
-    alice.receive(eve.id(), eve.node_announcement());
+    alice
+        .receive(eve.id(), eve.node_announcement())
+        .elapse(service::GOSSIP_INTERVAL);
     assert_matches!(
         alice.messages(bob.id()).next(),
         Some(Message::Announcement(_)),
@@ -648,7 +657,9 @@ fn test_announcement_relay() {
     );
 
     eve.elapse(LocalDuration::from_mins(1));
-    alice.receive(bob.id(), eve.node_announcement());
+    alice
+        .receive(bob.id(), eve.node_announcement())
+        .elapse(service::GOSSIP_INTERVAL);
     assert!(
         alice.messages(bob.id()).next().is_none(),
         "Bob already know about this message, since he sent it"
@@ -703,7 +714,9 @@ fn test_refs_announcement_relay() {
     alice.connect_to(&bob);
     alice.connect_to(&eve);
     alice.receive(eve.id(), Message::Subscribe(Subscribe::all()));
-    alice.receive(bob.id(), bob.refs_announcement(bob_inv[0]));
+    alice
+        .receive(bob.id(), bob.refs_announcement(bob_inv[0]))
+        .elapse(service::GOSSIP_INTERVAL);
 
     assert_matches!(
         alice.messages(eve.id()).next(),
@@ -711,20 +724,26 @@ fn test_refs_announcement_relay() {
         "A refs announcement from Bob is relayed to Eve"
     );
 
-    alice.receive(bob.id(), bob.refs_announcement(bob_inv[0]));
+    alice
+        .receive(bob.id(), bob.refs_announcement(bob_inv[0]))
+        .elapse(service::GOSSIP_INTERVAL);
     assert!(
         alice.messages(eve.id()).next().is_none(),
         "The same ref announement is not relayed"
     );
 
-    alice.receive(bob.id(), bob.refs_announcement(bob_inv[1]));
+    alice
+        .receive(bob.id(), bob.refs_announcement(bob_inv[1]))
+        .elapse(service::GOSSIP_INTERVAL);
     assert_matches!(
         alice.messages(eve.id()).next(),
         Some(Message::Announcement(_)),
         "But a different one is"
     );
 
-    alice.receive(bob.id(), bob.refs_announcement(bob_inv[2]));
+    alice
+        .receive(bob.id(), bob.refs_announcement(bob_inv[2]))
+        .elapse(service::GOSSIP_INTERVAL);
     assert_matches!(
         alice.messages(eve.id()).next(),
         Some(Message::Announcement(_)),
@@ -953,6 +972,8 @@ fn test_refs_announcement_offline() {
 
 #[test]
 fn test_inventory_relay() {
+    logger::init(log::Level::Debug);
+
     // Topology is eve <-> alice <-> bob
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
@@ -965,16 +986,19 @@ fn test_inventory_relay() {
     alice.wake(); // Run all periodic tasks now so they don't trigger later.
     alice.connect_to(&bob);
     alice.connect_from(&eve);
-    alice.receive(
-        bob.id(),
-        Message::inventory(
-            InventoryAnnouncement {
-                inventory: inv.clone(),
-                timestamp: now,
-            },
-            bob.signer(),
-        ),
-    );
+    alice
+        .receive(
+            bob.id(),
+            Message::inventory(
+                InventoryAnnouncement {
+                    inventory: inv.clone(),
+                    timestamp: now,
+                },
+                bob.signer(),
+            ),
+        )
+        .elapse(service::GOSSIP_INTERVAL);
+
     assert_matches!(
         alice.inventory_announcements(eve.id()).next(),
         Some(Message::Announcement(Announcement {
@@ -990,32 +1014,38 @@ fn test_inventory_relay() {
         "The inventory is not sent back to Bob"
     );
 
-    alice.receive(
-        bob.id(),
-        Message::inventory(
-            InventoryAnnouncement {
-                inventory: inv.clone(),
-                timestamp: now,
-            },
-            bob.signer(),
-        ),
-    );
+    alice
+        .receive(
+            bob.id(),
+            Message::inventory(
+                InventoryAnnouncement {
+                    inventory: inv.clone(),
+                    timestamp: now,
+                },
+                bob.signer(),
+            ),
+        )
+        .elapse(service::GOSSIP_INTERVAL);
+
     assert_matches!(
         alice.inventory_announcements(eve.id()).next(),
         None,
         "Sending the same inventory again doesn't trigger a relay"
     );
 
-    alice.receive(
-        bob.id(),
-        Message::inventory(
-            InventoryAnnouncement {
-                inventory: inv.clone(),
-                timestamp: now + 1,
-            },
-            bob.signer(),
-        ),
-    );
+    alice
+        .receive(
+            bob.id(),
+            Message::inventory(
+                InventoryAnnouncement {
+                    inventory: inv.clone(),
+                    timestamp: now + 1,
+                },
+                bob.signer(),
+            ),
+        )
+        .elapse(service::GOSSIP_INTERVAL);
+
     assert_matches!(
         alice.inventory_announcements(eve.id()).next(),
         Some(Message::Announcement(Announcement {
@@ -1028,16 +1058,19 @@ fn test_inventory_relay() {
     );
 
     // Inventory from Eve relayed to Bob.
-    alice.receive(
-        eve.id(),
-        Message::inventory(
-            InventoryAnnouncement {
-                inventory: inv,
-                timestamp: now,
-            },
-            eve.signer(),
-        ),
-    );
+    alice
+        .receive(
+            eve.id(),
+            Message::inventory(
+                InventoryAnnouncement {
+                    inventory: inv,
+                    timestamp: now,
+                },
+                eve.signer(),
+            ),
+        )
+        .elapse(service::GOSSIP_INTERVAL);
+
     assert_matches!(
         alice.inventory_announcements(bob.id()).next(),
         Some(Message::Announcement(Announcement {
@@ -1764,6 +1797,7 @@ fn prop_inventory_exchange_dense() {
 #[test]
 fn test_announcement_message_amplification() {
     let mut results = Vec::new();
+    let mut rng = fastrand::Rng::new();
 
     while results.len() < *TEST_CASES {
         let mut alice = Peer::new("alice", [7, 7, 7, 7]);
@@ -1780,6 +1814,23 @@ fn test_announcement_message_amplification() {
             },
         );
         let rid = gen::<RepoId>(1);
+
+        // Make sure the node gossip intervals are not accidentally synchronized.
+        alice.elapse(LocalDuration::from_millis(
+            rng.u128(0..=service::GOSSIP_INTERVAL.as_millis()),
+        ));
+        bob.elapse(LocalDuration::from_millis(
+            rng.u128(0..=service::GOSSIP_INTERVAL.as_millis()),
+        ));
+        eve.elapse(LocalDuration::from_millis(
+            rng.u128(0..=service::GOSSIP_INTERVAL.as_millis()),
+        ));
+        zod.elapse(LocalDuration::from_millis(
+            rng.u128(0..=service::GOSSIP_INTERVAL.as_millis()),
+        ));
+        tom.elapse(LocalDuration::from_millis(
+            rng.u128(0..=service::GOSSIP_INTERVAL.as_millis()),
+        ));
 
         // Fully-connected network.
         alice.command(Command::Connect(
@@ -1868,6 +1919,17 @@ fn test_announcement_message_amplification() {
             s.elapsed() < LocalDuration::from_mins(3)
         });
 
+        // Make sure they have the routing table entry.
+        for node in [&bob, &eve, &zod, &tom] {
+            assert!(node
+                .service
+                .database()
+                .routing()
+                .get(&rid)
+                .unwrap()
+                .contains(&alice.id));
+        }
+
         // Count how many copies of Alice's inventory message have been received by peers.
         let received = sim.messages().iter().filter(|m| {
             matches!(
@@ -1894,5 +1956,6 @@ fn test_announcement_message_amplification() {
     // By using delayed message propagation though, we can bring this down closer to the minimum.
     log::debug!(target: "test", "Average message amplification: {amp}");
 
-    assert!(amp < 4., "Amplification factor of {amp} is too high");
+    assert!(amp < 2., "Amplification factor of {amp} is too high");
+    assert!(amp >= 1., "Amplification can't be lower than 1");
 }

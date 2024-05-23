@@ -1067,6 +1067,7 @@ fn rad_patch_delete() {
     bob.handle.seed(acme, Scope::All).unwrap();
     seed.handle.seed(acme, Scope::All).unwrap();
     alice.connect(&bob).connect(&seed).converge([&bob, &seed]);
+    bob.routes_to(&[(acme, seed.id)]);
 
     test(
         "examples/rad-clone.md",

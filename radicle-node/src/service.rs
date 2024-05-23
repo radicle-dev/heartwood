@@ -70,6 +70,8 @@ use self::policy::NamespacesError;
 
 /// How often to run the "idle" task.
 pub const IDLE_INTERVAL: LocalDuration = LocalDuration::from_secs(30);
+/// How often to run the "gossip" task.
+pub const GOSSIP_INTERVAL: LocalDuration = LocalDuration::from_secs(6);
 /// How often to run the "announce" task.
 pub const ANNOUNCE_INTERVAL: LocalDuration = LocalDuration::from_mins(60);
 /// How often to run the "sync" task.
@@ -409,6 +411,9 @@ pub struct Service<D, S, G> {
     sessions: Sessions,
     /// Clock. Tells the time.
     clock: LocalTime,
+    /// Who relayed what announcement to us. We keep track of this to ensure that
+    /// we don't relay messages to nodes that already know about these messages.
+    relayed_by: HashMap<gossip::AnnouncementId, Vec<NodeId>>,
     /// I/O outbox.
     outbox: Outbox,
     /// Cached local node announcement.
@@ -427,6 +432,8 @@ pub struct Service<D, S, G> {
     filter: Filter,
     /// Last time the service was idle.
     last_idle: LocalTime,
+    /// Last time the gossip messages were relayed.
+    last_gossip: LocalTime,
     /// Last time the service synced.
     last_sync: LocalTime,
     /// Last time the service routing table was pruned.
@@ -504,7 +511,9 @@ where
             fetching: HashMap::new(),
             queue: VecDeque::new(),
             filter: Filter::empty(),
+            relayed_by: HashMap::default(),
             last_idle: LocalTime::default(),
+            last_gossip: LocalTime::default(),
             last_sync: LocalTime::default(),
             last_prune: LocalTime::default(),
             last_timestamp,
@@ -737,6 +746,7 @@ where
         self.maintain_connections();
         // Start periodic tasks.
         self.outbox.wakeup(IDLE_INTERVAL);
+        self.outbox.wakeup(GOSSIP_INTERVAL);
 
         Ok(())
     }
@@ -779,6 +789,15 @@ where
             self.maintain_connections();
             self.outbox.wakeup(IDLE_INTERVAL);
             self.last_idle = now;
+        }
+        if now - self.last_gossip >= GOSSIP_INTERVAL {
+            trace!(target: "service", "Running 'gossip' task...");
+
+            if let Err(e) = self.relay_announcements() {
+                error!(target: "service", "Error relaying stored announcements: {e}");
+            }
+            self.outbox.wakeup(GOSSIP_INTERVAL);
+            self.last_gossip = now;
         }
         if now - self.last_sync >= SYNC_INTERVAL {
             trace!(target: "service", "Running 'sync' task...");
@@ -1410,9 +1429,10 @@ where
     /// and `false` if it should not.
     pub fn handle_announcement(
         &mut self,
+        relayer: &NodeId,
         relayer_addr: &Address,
         announcement: &Announcement,
-    ) -> Result<bool, session::Error> {
+    ) -> Result<Option<gossip::AnnouncementId>, session::Error> {
         if !announcement.verify() {
             return Err(session::Error::Misbehavior);
         }
@@ -1424,15 +1444,10 @@ where
 
         // Ignore our own announcements, in case the relayer sent one by mistake.
         if announcer == self.nid() {
-            return Ok(false);
+            return Ok(None);
         }
         let now = self.clock;
         let timestamp = message.timestamp();
-        // To avoid spamming peers on startup with historical gossip messages,
-        // don't relay messages that are too old. We make an exception for node announcements,
-        // since they are cached, and will hence often carry old timestamps.
-        let relay =
-            message.is_node_announcement() || now - timestamp.to_local_time() <= MAX_TIME_DELTA;
 
         // Don't allow messages from too far in the future.
         if timestamp.saturating_sub(now.as_millis()) > MAX_TIME_DELTA.as_millis() as u64 {
@@ -1452,29 +1467,47 @@ where
                 Ok(node) => {
                     if node.is_none() {
                         debug!(target: "service", "Ignoring announcement from unknown node {announcer} (t={timestamp})");
-                        return Ok(false);
+                        return Ok(None);
                     }
                 }
                 Err(e) => {
                     error!(target: "service", "Error looking up node in address book: {e}");
-                    return Ok(false);
+                    return Ok(None);
                 }
             }
         }
 
         // Discard announcement messages we've already seen, otherwise update our last seen time.
-        match self.db.gossip_mut().announced(announcer, announcement) {
-            Ok(fresh) => {
-                if !fresh {
-                    debug!(target: "service", "Ignoring stale announcement from {announcer} (t={timestamp})");
-                    return Ok(false);
-                }
+        let relay = match self.db.gossip_mut().announced(announcer, announcement) {
+            Ok(Some(id)) => {
+                log::debug!(
+                    target: "service",
+                    "Stored announcement from {announcer} to be broadcast in {} (t={timestamp})",
+                    (self.last_gossip + GOSSIP_INTERVAL) - self.clock
+                );
+                // Keep track of who relayed the message for later.
+                self.relayed_by.entry(id).or_default().push(*relayer);
+
+                // Decide whether or not to relay this message, if it's fresh.
+                // To avoid spamming peers on startup with historical gossip messages,
+                // don't relay messages that are too old. We make an exception for node announcements,
+                // since they are cached, and will hence often carry old timestamps.
+                let relay = message.is_node_announcement()
+                    || now - timestamp.to_local_time() <= MAX_TIME_DELTA;
+                relay.then_some(id)
+            }
+            Ok(None) => {
+                // FIXME: Still mark as relayed by this peer.
+                // FIXME: Refs announcements should not be delayed, since they are only sent
+                // to subscribers.
+                debug!(target: "service", "Ignoring stale announcement from {announcer} (t={timestamp})");
+                return Ok(None);
             }
             Err(e) => {
                 error!(target: "service", "Error updating gossip entry from {announcer}: {e}");
-                return Ok(false);
+                return Ok(None);
             }
-        }
+        };
 
         match message {
             // Process a peer inventory update announcement by (maybe) fetching.
@@ -1492,12 +1525,12 @@ where
                     Ok(synced) => {
                         if synced.is_empty() {
                             trace!(target: "service", "No routes updated by inventory announcement from {announcer}");
-                            return Ok(false);
+                            return Ok(None);
                         }
                     }
                     Err(e) => {
                         error!(target: "service", "Error processing inventory from {announcer}: {e}");
-                        return Ok(false);
+                        return Ok(None);
                     }
                 }
 
@@ -1545,7 +1578,7 @@ where
                 // Empty announcements can be safely ignored.
                 let Some(refs) = NonEmpty::from_vec(message.refs.to_vec()) else {
                     debug!(target: "service", "Skipping fetch, no refs in announcement for {} (t={timestamp})", message.rid);
-                    return Ok(false);
+                    return Ok(None);
                 };
                 // We update inventories when receiving ref announcements, as these could come
                 // from a new repository being initialized.
@@ -1598,7 +1631,7 @@ where
                         "Ignoring refs announcement from {announcer}: repository {} isn't seeded (t={timestamp})",
                         message.rid
                     );
-                    return Ok(false);
+                    return Ok(None);
                 }
                 // Refs can be relayed by peers who don't have the data in storage,
                 // therefore we only check whether we are connected to the *announcer*,
@@ -1672,7 +1705,7 @@ where
                 }
             }
         }
-        Ok(false)
+        Ok(None)
     }
 
     pub fn handle_info(&mut self, remote: NodeId, info: &Info) -> Result<(), session::Error> {
@@ -1724,21 +1757,22 @@ where
             (session::State::Connected { .. }, Message::Announcement(ann)) => {
                 let relayer = peer.id;
                 let relayer_addr = peer.addr.clone();
-                let announcer = ann.node;
 
-                if self.handle_announcement(&relayer_addr, &ann)? && self.config.is_relay() {
-                    // Choose peers we should relay this message to.
-                    // 1. Don't relay to the peer who sent us this message.
-                    // 2. Don't relay to the peer who signed this announcement.
-                    let relay_to = self
-                        .sessions
-                        .connected()
-                        .filter(|(id, _)| *id != &relayer && *id != &announcer)
-                        .map(|(_, p)| p);
-
-                    self.outbox.relay(ann, relay_to);
-
-                    return Ok(());
+                if let Some(id) = self.handle_announcement(&relayer, &relayer_addr, &ann)? {
+                    if self.config.is_relay() {
+                        if let AnnouncementMessage::Inventory(_) = ann.message {
+                            if let Err(e) = self
+                                .database_mut()
+                                .gossip_mut()
+                                .set_relay(id, gossip::RelayStatus::Relay)
+                            {
+                                error!(target: "service", "Error setting relay flag for message: {e}");
+                                return Ok(());
+                            }
+                        } else {
+                            self.relay(id, ann);
+                        }
+                    }
                 }
             }
             (session::State::Connected { .. }, Message::Subscribe(subscribe)) => {
@@ -2188,9 +2222,45 @@ where
         self.last_timestamp
     }
 
+    fn relay(&mut self, id: gossip::AnnouncementId, msg: Announcement) {
+        let announcer = msg.node;
+        let relayed_by = self.relayed_by.get(&id);
+        // Choose peers we should relay this message to.
+        // 1. Don't relay to a peer who sent us this message.
+        // 2. Don't relay to the peer who signed this announcement.
+        let relay_to = self
+            .sessions
+            .connected()
+            .filter(|(id, _)| {
+                relayed_by
+                    .map(|relayers| !relayers.contains(id))
+                    .unwrap_or(true) // If there are no relayers we let it through.
+            })
+            .filter(|(id, _)| **id != announcer)
+            .map(|(_, p)| p);
+
+        self.outbox.relay(msg, relay_to);
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Periodic tasks
     ////////////////////////////////////////////////////////////////////////////
+
+    fn relay_announcements(&mut self) -> Result<(), Error> {
+        let now = self.clock.into();
+        let rows = self.database_mut().gossip_mut().relays(now)?;
+        let local = self.node_id();
+
+        for (id, msg) in rows {
+            let announcer = msg.node;
+            if announcer == local {
+                // Don't relay our own stored gossip messages.
+                continue;
+            }
+            self.relay(id, msg);
+        }
+        Ok(())
+    }
 
     /// Announce our inventory to all connected peers.
     fn announce_inventory(&mut self) -> Result<(), storage::Error> {
