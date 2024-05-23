@@ -1335,3 +1335,31 @@ fn test_catchup_on_refs_announcements() {
     alice.connect(&seed);
     alice.has_remote_of(&acme, &bob_id);
 }
+
+#[test]
+fn test_multiple_offline_inits() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
+
+    let acme = alice.project("acme", "");
+    let radcliffe = alice.project("radcliffe", "");
+    let cobs = alice.project("cobs", "");
+    let projects = [acme, radcliffe, cobs];
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    for rid in &projects {
+        bob.handle.seed(*rid, Scope::All).unwrap();
+    }
+
+    alice.connect(&bob).converge([&bob]);
+
+    for repo in bob.storage.repositories().unwrap() {
+        assert!(projects.contains(&repo.rid), "Bob is missing {}", repo.rid);
+    }
+}
