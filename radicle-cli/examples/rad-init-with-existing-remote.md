@@ -12,7 +12,7 @@ Then we add it as a remote.
 ```
 $ git remote add origin file://$PWD/remote
 $ git push -u origin master:master
-branch 'master' set up to track 'origin/master'.
+...
 $ git branch -vv
 * master f2de534 [origin/master] Second commit
 ```
