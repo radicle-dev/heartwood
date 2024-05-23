@@ -1,6 +1,11 @@
+#![warn(missing_docs)]
+#![warn(clippy::missing_docs_in_private_items)]
+
+//! Argument parsing for the `radicle-issue` command
+
 use std::str::FromStr;
 
-use clap::{ArgGroup, Parser, Subcommand, ValueHint};
+use clap::{Parser, Subcommand, ValueEnum, ValueHint};
 use radicle::{
     cob::{thread, Label, Reaction},
     identity::{did::DidError, Did, RepoId},
@@ -13,13 +18,17 @@ use crate::{git::Rev, terminal::patch::Message};
 /// Command line Peer argument.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Assigned {
+    /// Filter issues assigned to the local `NID`
     #[default]
     Me,
+    /// Filter issues assigned to the given `DID`
     Peer(Did),
 }
 
+/// Commands and arguments for the `radicle issue` command
 #[derive(Parser, Debug)]
 pub struct Args {
+    /// Set of subcommands for `radicle issue`.
     #[command(subcommand)]
     pub(crate) command: Option<Commands>,
 
@@ -39,6 +48,8 @@ pub struct Args {
     #[clap(global = true)]
     pub(crate) header: bool,
 
+    /// Optionally specify the repository to manage issues for
+    #[arg(value_name = "RID")]
     #[arg(long, short)]
     pub(crate) repo: Option<RepoId>,
 }
@@ -48,20 +59,24 @@ pub struct Args {
 pub(crate) enum Commands {
     /// Delete an issue
     Delete {
-        #[arg(value_name = "issue-id")]
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
+        /// The issue to delete
+        #[arg(value_name = "ISSUE_ID")]
+        #[clap(value_hint = ValueHint::Dynamic(hints::issue_ids))]
         id: Rev,
     },
 
     /// Edit an issue
     Edit {
-        #[arg(value_name = "issue-id")]
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
+        /// The issue to edit
+        #[arg(value_name = "ISSUE_ID")]
+        #[clap(value_hint = ValueHint::Dynamic(hints::issue_ids))]
         id: Rev,
 
+        /// The new title to set for the issue
         #[arg(long, short)]
         title: Option<String>,
 
+        /// The new description to set for the issue
         #[arg(long, short)]
         description: Option<String>,
     },
@@ -71,70 +86,79 @@ pub(crate) enum Commands {
 
     /// Create a new issue
     Open {
+        /// The new title of the issue
         #[arg(long, short)]
         title: Option<String>,
 
+        /// The new description of the issue
         #[arg(long, short)]
         description: Option<String>,
 
+        /// A set of labels to associate with the issue
         #[arg(long)]
         labels: Vec<Label>,
 
+        /// A set of DIDs to assign to the issue
+        #[arg(value_name = "DID")]
         #[arg(long)]
         assignees: Vec<Did>,
     },
 
     /// Add a reaction emoji to an issue or comment
     React {
-        #[arg(value_name = "issue-id")]
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
+        /// The issue to react to
+        #[arg(value_name = "ISSUE_ID")]
+        #[clap(value_hint = ValueHint::Dynamic(hints::issue_ids))]
         id: Rev,
 
+        /// The emoji reaction to react with
         #[arg(long = "emoji")]
-        #[arg(value_name = "char")]
+        #[arg(value_name = "CHAR")]
         reaction: Reaction,
 
+        /// Optionally react to a given comment in the issue
         #[arg(long = "to")]
-        #[arg(value_name = "comment")]
+        #[arg(value_name = "COMMENT_ID")]
         // TODO: Add dynamic hint for comment ids
         comment_id: Option<thread::CommentId>,
     },
 
     /// Manage assignees of an issue
     Assign {
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
-        #[arg(value_name = "issue-id")]
+        /// The issue to assign a DID to
+        #[clap(value_hint = ValueHint::Dynamic(hints::issue_ids))]
+        #[arg(value_name = "ISSUE_ID")]
         id: Rev,
 
-        /// Add an assignee to the issue (may be specified multiple times).
-        #[clap(value_hint = ValueHint::Dynamic(get_did_hints))]
+        /// Add an assignee to the issue (may be specified multiple times)
+        #[clap(value_hint = ValueHint::Dynamic(hints::dids))]
         #[arg(long, short)]
-        #[arg(value_name = "did")]
+        #[arg(value_name = "DID")]
         #[arg(action = clap::ArgAction::Append)]
         add: Vec<Did>,
 
-        /// Delete an assignee from the issue (may be specified multiple times).
-        #[clap(value_hint = ValueHint::Dynamic(get_did_hints))]
+        /// Delete an assignee from the issue (may be specified multiple times)
+        #[clap(value_hint = ValueHint::Dynamic(hints::dids))]
         #[arg(long, short)]
-        #[arg(value_name = "did")]
+        #[arg(value_name = "DID")]
         #[arg(action = clap::ArgAction::Append)]
         delete: Vec<Did>,
     },
 
     /// Update labels on an issue
     Label {
-        /// The issue to label.
-        #[arg(value_name = "issue-id")]
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
+        /// The issue to label
+        #[arg(value_name = "ISSUE_ID")]
+        #[clap(value_hint = ValueHint::Dynamic(hints::issue_ids))]
         id: Rev,
 
-        /// Add an assignee to the issue (may be specified multiple times).
+        /// Add an assignee to the issue (may be specified multiple times)
         #[arg(long, short)]
         #[arg(value_name = "label")]
         #[arg(action = clap::ArgAction::Append)]
         add: Vec<Label>,
 
-        /// Delete an assignee from the issue (may be specified multiple times).
+        /// Delete an assignee from the issue (may be specified multiple times)
         #[arg(long, short)]
         #[arg(value_name = "label")]
         #[arg(action = clap::ArgAction::Append)]
@@ -143,23 +167,27 @@ pub(crate) enum Commands {
 
     /// Add a comment to an issue.
     Comment {
-        #[arg(value_name = "issue-id")]
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
+        /// The issue to comment on
+        #[arg(value_name = "ISSUE_ID")]
+        #[clap(value_hint = ValueHint::Dynamic(hints::issue_ids))]
         id: Rev,
 
-        /// Message text.
+        /// The body of the comment
         #[arg(long, short)]
-        #[arg(value_name = "message")]
+        #[arg(value_name = "MESSAGE")]
         message: Message,
 
-        #[arg(long, name = "comment-id")]
+        /// Optionally, the comment to reply to. If not specified, the comment
+        /// will be in reply to the issue itself.
+        #[arg(long, name = "COMMENT_ID")]
         reply_to: Option<Rev>,
     },
 
     /// Show a specific issue
     Show {
-        #[arg(value_name = "issue-id")]
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
+        /// The issue to display
+        #[arg(value_name = "ISSUE_ID")]
+        #[clap(value_hint = ValueHint::Dynamic(hints::issue_ids))]
         id: Rev,
 
         /// Show the issue as Rust debug output
@@ -169,7 +197,8 @@ pub(crate) enum Commands {
 
     /// Re-cache all issues that can be found in Radicle storage
     Cache {
-        #[arg(value_name = "issue-id")]
+        /// Optionally choose an issue to re-cache
+        #[arg(value_name = "ISSUE_ID")]
         id: Option<Rev>,
     },
 
@@ -177,21 +206,28 @@ pub(crate) enum Commands {
     State(StateArgs),
 }
 
+impl Default for Commands {
+    fn default() -> Self {
+        Self::List(ListArgs::default())
+    }
+}
+
+/// Arguments for the [`Command::List`] subcommand.
 #[derive(Parser, Debug)]
 pub(crate) struct ListArgs {
-    /// List issues assigned to <did> (default: me)
-    #[clap(value_hint = ValueHint::Dynamic(get_assignee_did_hints))]
-    #[arg(long, name = "did")]
+    /// List issues assigned to <DID> (default: me)
+    #[clap(value_hint = ValueHint::Dynamic(hints::assignee_dids))]
+    #[arg(long, name = "DID")]
     #[arg(default_missing_value = "me")]
     #[arg(num_args = 0..=1)]
     #[arg(require_equals = true)]
     pub(crate) assigned: Option<Assigned>,
 
-    /// List all issues (default)
+    /// List all issues
     #[arg(long, group = "state")]
     all: bool,
 
-    /// List only open issues
+    /// List only open issues (default)
     #[arg(long, group = "state")]
     open: bool,
 
@@ -202,6 +238,18 @@ pub(crate) struct ListArgs {
     /// List only solved issues
     #[arg(long, group = "state")]
     solved: bool,
+}
+
+impl Default for ListArgs {
+    fn default() -> Self {
+        Self {
+            assigned: None,
+            all: false,
+            open: true,
+            closed: false,
+            solved: false,
+        }
+    }
 }
 
 impl From<ListArgs> for Option<State> {
@@ -222,41 +270,43 @@ impl From<ListArgs> for Option<State> {
     }
 }
 
+/// Arguments for the [`Command::State`] subcommand.
 #[derive(Parser, Debug)]
-#[clap(group(ArgGroup::new("state").required(true)))]
 pub(crate) struct StateArgs {
-    #[arg(value_name = "issue-id")]
-    #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
+    /// The issue to be transitioned
+    #[arg(value_name = "ISSUE_ID")]
+    #[clap(value_hint = ValueHint::Dynamic(hints::issue_ids))]
     pub(crate) id: Rev,
 
-    /// Set issue state to open
-    #[arg(long, short, group = "state")]
-    open: bool,
-
-    /// Set issue state to closed
-    #[arg(long, short, group = "state")]
-    closed: bool,
-
-    /// Set issue state to solved
-    #[arg(long, short, group = "state")]
-    solved: bool,
+    /// Transition the issue state
+    #[arg(long, value_name = "STATE")]
+    pub(crate) to: StateArg,
 }
 
-impl StateArgs {
-    pub fn to_state(&self) -> State {
-        if self.open {
-            State::Open
-        } else if self.closed {
-            State::Closed {
+/// Argument value for transition an issue to the given [`State`].
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub(crate) enum StateArg {
+    /// Open issues.
+    /// Maps to [`State::Open`].
+    Open,
+    /// Closed issues.
+    /// Maps to [`State::Closed`] and [`CloseReason::Other`].
+    Closed,
+    /// Solved issues.
+    /// Maps to [`State::Closed`] and [`CloseReason::Solved`].
+    Solved,
+}
+
+impl From<StateArg> for State {
+    fn from(value: StateArg) -> Self {
+        match value {
+            StateArg::Open => Self::Open,
+            StateArg::Closed => Self::Closed {
                 reason: CloseReason::Other,
-            }
-        } else if self.solved {
-            State::Closed {
+            },
+            StateArg::Solved => Self::Closed {
                 reason: CloseReason::Solved,
-            }
-        } else {
-            // FIXME:
-            unreachable!("State flag needed");
+            },
         }
     }
 }
@@ -274,56 +324,66 @@ impl FromStr for Assigned {
     }
 }
 
-pub fn get_assignee_did_hints(input: &str) -> Option<Vec<String>> {
-    let (_, rid) = radicle::rad::cwd().ok()?;
-    radicle::Profile::load()
-        .ok()
-        .and_then(|profile| profile.storage.repository(rid).ok())
-        .and_then(|repo| {
-            Issues::open(&repo).ok().and_then(|issues| {
-                issues
-                    .all()
-                    .map(|issues| {
-                        issues
-                            .flat_map(|issue| {
-                                issue.map_or(vec![], |(_, issue)| {
-                                    issue.assignees().cloned().collect::<Vec<_>>()
+/// Provide auto-completion hints for CLI usage.
+mod hints {
+    use super::*;
+
+    /// List the `DID`s associated with the current repository, and are assigned
+    /// to any issue, filtering by the `prefix`.
+    pub fn assignee_dids(prefix: &str) -> Option<Vec<String>> {
+        let (_, rid) = radicle::rad::cwd().ok()?;
+        radicle::Profile::load()
+            .ok()
+            .and_then(|profile| profile.storage.repository(rid).ok())
+            .and_then(|repo| {
+                Issues::open(&repo).ok().and_then(|issues| {
+                    issues
+                        .all()
+                        .map(|issues| {
+                            issues
+                                .flat_map(|issue| {
+                                    issue.map_or(vec![], |(_, issue)| {
+                                        issue.assignees().cloned().collect::<Vec<_>>()
+                                    })
                                 })
-                            })
-                            .filter_map(|did| {
-                                let did = did.to_human();
-                                did.starts_with(input).then_some(did)
-                            })
-                            .collect::<Vec<_>>()
-                    })
-                    .ok()
+                                .filter_map(|did| {
+                                    let did = did.to_human();
+                                    did.starts_with(prefix).then_some(did)
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .ok()
+                })
             })
-        })
-}
+    }
 
-pub fn get_issue_id_hints(input: &str) -> Option<Vec<String>> {
-    let (_, rid) = radicle::rad::cwd().ok()?;
-    let profile = radicle::Profile::load().ok()?;
-    let repo = profile.storage.repository(rid).ok()?;
-    let issues = profile.issues(&repo).ok()?;
-    let ids = issues.ids(input).ok()?;
-    Some(
-        ids.filter_map(|result| result.ok().map(|id| id.to_string()))
+    /// List the `IssueId`s associated with the current repository, filtered by the `prefix`.
+    pub fn issue_ids(prefix: &str) -> Option<Vec<String>> {
+        let (_, rid) = radicle::rad::cwd().ok()?;
+        let profile = radicle::Profile::load().ok()?;
+        let repo = profile.storage.repository(rid).ok()?;
+        let issues = profile.issues(&repo).ok()?;
+        let ids = issues.ids(prefix).ok()?;
+        Some(
+            ids.filter_map(|result| result.ok().map(|id| id.to_string()))
+                .collect(),
+        )
+    }
+
+    /// List the `DID`s associated with the current repository, filtered by the `prefix`.
+    // TODO: we could make this more like a fuzzy search
+    pub fn dids(prefix: &str) -> Option<Vec<String>> {
+        let (_, rid) = radicle::rad::cwd().ok()?;
+        let profile = radicle::Profile::load().ok()?;
+        let repo = profile.storage.repository(rid).ok()?;
+        let ids = repo.remote_ids().ok()?;
+        Some(
+            ids.filter_map(|nid| {
+                let nid = nid.ok()?;
+                let did = Did::from(nid).to_human();
+                did.starts_with(prefix).then_some(did)
+            })
             .collect(),
-    )
-}
-
-pub fn get_did_hints(input: &str) -> Option<Vec<String>> {
-    let (_, rid) = radicle::rad::cwd().ok()?;
-    let profile = radicle::Profile::load().ok()?;
-    let repo = profile.storage.repository(rid).ok()?;
-    let ids = repo.remote_ids().ok()?;
-    Some(
-        ids.filter_map(|nid| {
-            let nid = nid.ok()?;
-            let did = Did::from(nid).to_human();
-            did.starts_with(input).then_some(did)
-        })
-        .collect(),
-    )
+        )
+    }
 }

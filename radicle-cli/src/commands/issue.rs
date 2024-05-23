@@ -88,163 +88,159 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let repo = profile.storage.repository_mut(rid)?;
 
     let mut issues = profile.issues_mut(&repo)?;
+    let command = args.command.unwrap_or_default();
 
-    if let Some(command) = args.command {
-        let announce = !args.no_announce
-            && matches!(
-                &command,
-                Commands::Open { .. }
-                    | Commands::React { .. }
-                    | Commands::State { .. }
-                    | Commands::Delete { .. }
-                    | Commands::Assign { .. }
-                    | Commands::Label { .. }
-            );
+    let announce = !args.no_announce
+        && matches!(
+            &command,
+            Commands::Open { .. }
+                | Commands::React { .. }
+                | Commands::State { .. }
+                | Commands::Delete { .. }
+                | Commands::Assign { .. }
+                | Commands::Label { .. }
+        );
 
-        match command {
-            Commands::Delete { id } => {
-                let id = id.resolve(&repo.backend)?;
-                let signer = term::signer(&profile)?;
-                issues.remove(&id, &signer)?;
-            }
-            Commands::Edit {
-                id,
-                title,
-                description,
-            } => {
-                let signer = term::signer(&profile)?;
-                let issue = edit(&mut issues, &repo, id, title, description, &signer)?;
-                if !args.quiet {
-                    term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
-                }
-            }
-            Commands::List(list_args) => {
-                let assigned = list_args.assigned.clone();
-                list(issues, &assigned, &list_args.into(), &profile)?;
-            }
-            Commands::Show { id, debug } => {
-                let format = if args.header {
-                    term::issue::Format::Header
-                } else {
-                    term::issue::Format::Full
-                };
-
-                let id = id.resolve(&repo.backend)?;
-
-                let issue = issues
-                    .get(&id)?
-                    .context("No issue with the given ID exists")?;
-                if debug {
-                    println!("{:#?}", issue);
-                } else {
-                    term::issue::show(&issue, &id, format, &profile)?;
-                }
-            }
-            Commands::State(state_args) => {
-                let id = state_args.id.resolve(&repo.backend)?;
-                let signer = term::signer(&profile)?;
-                let mut issue = issues.get_mut(&id)?;
-                issue.lifecycle(state_args.to_state(), &signer)?;
-            }
-            Commands::Assign { id, add, delete } => {
-                let id = id.resolve(&repo.backend)?;
-                let Ok(mut issue) = issues.get_mut(&id) else {
-                    anyhow::bail!("Issue `{id}` not found");
-                };
-                let assignees = issue
-                    .assignees()
-                    .filter(|did| !delete.contains(did))
-                    .chain(add.iter())
-                    .cloned()
-                    .collect::<Vec<_>>();
-                let signer = term::signer(&profile)?;
-                issue.assign(assignees, &signer)?;
-            }
-            Commands::Comment {
-                id,
-                message,
-                reply_to,
-            } => {
-                let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
-                let mut issue = issues.get_mut(&issue_id)?;
-                let (body, reply_to) = prompt_comment(message, reply_to, &issue, &repo)?;
-                let signer = term::signer(&profile)?;
-                let comment_id = issue.comment(body, reply_to, vec![], &signer)?;
-
-                if args.quiet {
-                    term::print(comment_id);
-                } else {
-                    let comment = issue.thread().comment(&comment_id).unwrap();
-                    term::comment::widget(&comment_id, comment, &profile).print();
-                }
-            }
-            Commands::React {
-                id,
-                comment_id,
-                reaction,
-            } => {
-                let id = id.resolve(&repo.backend)?;
-                if let Ok(mut issue) = issues.get_mut(&id) {
-                    let comment_id = comment_id.unwrap_or_else(|| {
-                        let (comment_id, _) = term::io::comment_select(&issue).unwrap();
-                        *comment_id
-                    });
-                    let signer = term::signer(&profile)?;
-                    issue.react(comment_id, reaction, true, &signer)?;
-                }
-            }
-            Commands::Label { id, add, delete } => {
-                let id = id.resolve(&repo.backend)?;
-                let Ok(mut issue) = issues.get_mut(&id) else {
-                    anyhow::bail!("Issue `{id}` not found");
-                };
-                let labels = issue
-                    .labels()
-                    .filter(|did| !delete.contains(did))
-                    .chain(add.iter())
-                    .cloned()
-                    .collect::<Vec<_>>();
-                let signer = term::signer(&profile)?;
-                issue.label(labels, &signer)?;
-            }
-            Commands::Open {
-                ref title,
-                ref description,
-                ref labels,
-                ref assignees,
-            } => {
-                let signer = term::signer(&profile)?;
-                open(
-                    title.clone(),
-                    description.clone(),
-                    labels.to_vec(),
-                    assignees.to_vec(),
-                    args.quiet,
-                    &mut issues,
-                    &signer,
-                    &profile,
-                )?;
-            }
-            Commands::Cache { id } => {
-                let id = id.map(|id| id.resolve(&repo.backend)).transpose()?;
-                cache::run(id, &repo, &profile)?;
+    match command {
+        Commands::Delete { id } => {
+            let id = id.resolve(&repo.backend)?;
+            let signer = term::signer(&profile)?;
+            issues.remove(&id, &signer)?;
+        }
+        Commands::Edit {
+            id,
+            title,
+            description,
+        } => {
+            let signer = term::signer(&profile)?;
+            let issue = edit(&mut issues, &repo, id, title, description, &signer)?;
+            if !args.quiet {
+                term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
             }
         }
+        Commands::List(list_args) => {
+            let assigned = list_args.assigned.clone();
+            list(issues, &assigned, &list_args.into(), &profile)?;
+        }
+        Commands::Show { id, debug } => {
+            let format = if args.header {
+                term::issue::Format::Header
+            } else {
+                term::issue::Format::Full
+            };
 
-        if announce {
-            let mut node = Node::new(profile.socket());
-            node::announce(
-                &repo,
-                node::SyncSettings::default(),
-                node::SyncReporting::default(),
-                &mut node,
+            let id = id.resolve(&repo.backend)?;
+
+            let issue = issues
+                .get(&id)?
+                .context("No issue with the given ID exists")?;
+            if debug {
+                println!("{:#?}", issue);
+            } else {
+                term::issue::show(&issue, &id, format, &profile)?;
+            }
+        }
+        Commands::State(args) => {
+            let id = args.id.resolve(&repo.backend)?;
+            let signer = term::signer(&profile)?;
+            let mut issue = issues.get_mut(&id)?;
+            issue.lifecycle(args.to.into(), &signer)?;
+        }
+        Commands::Assign { id, add, delete } => {
+            let id = id.resolve(&repo.backend)?;
+            let Ok(mut issue) = issues.get_mut(&id) else {
+                anyhow::bail!("Issue `{id}` not found");
+            };
+            let assignees = issue
+                .assignees()
+                .filter(|did| !delete.contains(did))
+                .chain(add.iter())
+                .cloned()
+                .collect::<Vec<_>>();
+            let signer = term::signer(&profile)?;
+            issue.assign(assignees, &signer)?;
+        }
+        Commands::Comment {
+            id,
+            message,
+            reply_to,
+        } => {
+            let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
+            let mut issue = issues.get_mut(&issue_id)?;
+            let (body, reply_to) = prompt_comment(message, reply_to, &issue, &repo)?;
+            let signer = term::signer(&profile)?;
+            let comment_id = issue.comment(body, reply_to, vec![], &signer)?;
+
+            if args.quiet {
+                term::print(comment_id);
+            } else {
+                let comment = issue.thread().comment(&comment_id).unwrap();
+                term::comment::widget(&comment_id, comment, &profile).print();
+            }
+        }
+        Commands::React {
+            id,
+            comment_id,
+            reaction,
+        } => {
+            let id = id.resolve(&repo.backend)?;
+            if let Ok(mut issue) = issues.get_mut(&id) {
+                let comment_id = comment_id.unwrap_or_else(|| {
+                    let (comment_id, _) = term::io::comment_select(&issue).unwrap();
+                    *comment_id
+                });
+                let signer = term::signer(&profile)?;
+                issue.react(comment_id, reaction, true, &signer)?;
+            }
+        }
+        Commands::Label { id, add, delete } => {
+            let id = id.resolve(&repo.backend)?;
+            let Ok(mut issue) = issues.get_mut(&id) else {
+                anyhow::bail!("Issue `{id}` not found");
+            };
+            let labels = issue
+                .labels()
+                .filter(|did| !delete.contains(did))
+                .chain(add.iter())
+                .cloned()
+                .collect::<Vec<_>>();
+            let signer = term::signer(&profile)?;
+            issue.label(labels, &signer)?;
+        }
+        Commands::Open {
+            ref title,
+            ref description,
+            ref labels,
+            ref assignees,
+        } => {
+            let signer = term::signer(&profile)?;
+            open(
+                title.clone(),
+                description.clone(),
+                labels.to_vec(),
+                assignees.to_vec(),
+                args.quiet,
+                &mut issues,
+                &signer,
                 &profile,
             )?;
         }
-    } else {
-        // Default `issue` subcommand is `list`.
-        list(issues, &None, &None, &profile)?;
-    };
+        Commands::Cache { id } => {
+            let id = id.map(|id| id.resolve(&repo.backend)).transpose()?;
+            cache::run(id, &repo, &profile)?;
+        }
+    }
+
+    if announce {
+        let mut node = Node::new(profile.socket());
+        node::announce(
+            &repo,
+            node::SyncSettings::default(),
+            node::SyncReporting::default(),
+            &mut node,
+            &profile,
+        )?;
+    }
 
     Ok(())
 }
@@ -268,6 +264,7 @@ where
         Some(Assigned::Peer(id)) => Some((*id).into()),
         None => None,
     };
+    let state = state.unwrap_or(State::Open);
 
     let mut all = Vec::new();
     let issues = cache.list()?;
@@ -282,10 +279,8 @@ where
                 continue;
             }
         }
-        if let Some(s) = state {
-            if s != issue.state() {
-                continue;
-            }
+        if state != *issue.state() {
+            continue;
         }
         all.push((id, issue))
     }
