@@ -1,26 +1,25 @@
+#[path = "issue/args.rs"]
+mod args;
 #[path = "issue/cache.rs"]
 mod cache;
 
-use std::str::FromStr;
-
 use anyhow::Context as _;
-use clap::{ArgGroup, Parser, Subcommand, ValueHint};
 
-use radicle::cob::common::{Label, Reaction};
+use radicle::cob::common::Label;
 use radicle::cob::issue;
-use radicle::cob::issue::{CloseReason, State};
+use radicle::cob::issue::State;
 use radicle::cob::thread;
 use radicle::crypto::Signer;
-use radicle::identity::did::DidError;
-use radicle::identity::RepoId;
-use radicle::issue::cache::{Issues as _, IssuesExt};
-use radicle::issue::Issues;
+use radicle::issue::cache::Issues as _;
 use radicle::prelude::Did;
 use radicle::profile;
-use radicle::storage::{self, ReadStorage as _};
+use radicle::storage;
 use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
 use radicle::Profile;
 use radicle::{cob, Node};
+
+pub use args::Args;
+use args::{Assigned, Commands};
 
 use crate::git::Rev;
 use crate::node;
@@ -79,318 +78,7 @@ Options
 "#,
 };
 
-/// Command line Peer argument.
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub enum Assigned {
-    #[default]
-    Me,
-    Peer(Did),
-}
-
-#[derive(Parser, Debug)]
-pub struct IssueArgs {
-    #[command(subcommand)]
-    command: Option<IssueCommands>,
-
-    /// Don't print anything
-    #[arg(short, long)]
-    #[clap(global = true)]
-    quiet: bool,
-
-    /// Don't announce issue to peers
-    #[arg(long)]
-    #[arg(value_name = "no-announce")]
-    #[clap(global = true)]
-    no_announce: bool,
-
-    /// Show only the issue header, hiding the comments
-    #[arg(long)]
-    #[clap(global = true)]
-    header: bool,
-
-    #[arg(long, short)]
-    repo: Option<RepoId>,
-}
-
-#[derive(Subcommand, Debug)]
-enum IssueCommands {
-    /// Delete an issue
-    Delete {
-        #[arg(value_name = "issue-id")]
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
-        id: Rev,
-    },
-
-    /// Edit an issue
-    Edit {
-        #[arg(value_name = "issue-id")]
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
-        id: Rev,
-
-        #[arg(long, short)]
-        title: Option<String>,
-
-        #[arg(long, short)]
-        description: Option<String>,
-    },
-
-    /// List issues, optionally filtering them
-    List(ListArgs),
-
-    /// Create a new issue
-    Open {
-        #[arg(long, short)]
-        title: Option<String>,
-
-        #[arg(long, short)]
-        description: Option<String>,
-
-        #[arg(long)]
-        labels: Vec<Label>,
-
-        #[arg(long)]
-        assignees: Vec<Did>,
-    },
-
-    /// Add a reaction emoji to an issue or comment
-    React {
-        #[arg(value_name = "issue-id")]
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
-        id: Rev,
-
-        #[arg(long = "emoji")]
-        #[arg(value_name = "char")]
-        reaction: Reaction,
-
-        #[arg(long = "to")]
-        #[arg(value_name = "comment")]
-        // TODO: Add dynamic hint for comment ids
-        comment_id: Option<thread::CommentId>,
-    },
-
-    /// Manage assignees of an issue
-    Assign {
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
-        #[arg(value_name = "issue-id")]
-        id: Rev,
-
-        /// Add an assignee to the issue (may be specified multiple times).
-        #[clap(value_hint = ValueHint::Dynamic(get_did_hints))]
-        #[arg(long, short)]
-        #[arg(value_name = "did")]
-        #[arg(action = clap::ArgAction::Append)]
-        add: Vec<Did>,
-
-        /// Delete an assignee from the issue (may be specified multiple times).
-        #[clap(value_hint = ValueHint::Dynamic(get_did_hints))]
-        #[arg(long, short)]
-        #[arg(value_name = "did")]
-        #[arg(action = clap::ArgAction::Append)]
-        delete: Vec<Did>,
-    },
-
-    /// Update labels on an issue
-    Label {
-        /// The issue to label.
-        #[arg(value_name = "issue-id")]
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
-        id: Rev,
-
-        /// Add an assignee to the issue (may be specified multiple times).
-        #[arg(long, short)]
-        #[arg(value_name = "label")]
-        #[arg(action = clap::ArgAction::Append)]
-        add: Vec<Label>,
-
-        /// Delete an assignee from the issue (may be specified multiple times).
-        #[arg(long, short)]
-        #[arg(value_name = "label")]
-        #[arg(action = clap::ArgAction::Append)]
-        delete: Vec<Label>,
-    },
-
-    /// Add a comment to an issue.
-    Comment {
-        #[arg(value_name = "issue-id")]
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
-        id: Rev,
-
-        /// Message text.
-        #[arg(long, short)]
-        #[arg(value_name = "message")]
-        message: Message,
-
-        #[arg(long, name = "comment-id")]
-        reply_to: Option<Rev>,
-    },
-
-    /// Show a specific issue
-    Show {
-        #[arg(value_name = "issue-id")]
-        #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
-        id: Rev,
-
-        /// Show the issue as Rust debug output
-        #[arg(long)]
-        debug: bool,
-    },
-
-    Cache {
-        #[arg(value_name = "issue-id")]
-        id: Option<Rev>,
-    },
-
-    State(StateArgs),
-}
-
-#[derive(Parser, Debug)]
-struct ListArgs {
-    /// List issues assigned to <did> (default: me)
-    #[clap(value_hint = ValueHint::Dynamic(get_assignee_did_hints))]
-    #[arg(long, name = "did")]
-    #[arg(default_missing_value = "me")]
-    #[arg(num_args = 0..=1)]
-    #[arg(require_equals = true)]
-    assigned: Option<Assigned>,
-
-    /// List all issues (default)
-    #[arg(long, group = "state")]
-    all: bool,
-
-    /// List only open issues
-    #[arg(long, group = "state")]
-    open: bool,
-
-    /// List only closed issues
-    #[arg(long, group = "state")]
-    closed: bool,
-
-    /// List only solved issues
-    #[arg(long, group = "state")]
-    solved: bool,
-}
-
-#[derive(Parser, Debug)]
-#[clap(group(ArgGroup::new("state").required(true)))]
-struct StateArgs {
-    #[arg(value_name = "issue-id")]
-    #[clap(value_hint = ValueHint::Dynamic(get_issue_id_hints))]
-    id: Rev,
-
-    /// Set issue state to open
-    #[arg(long, short, group = "state")]
-    open: bool,
-
-    /// Set issue state to closed
-    #[arg(long, short, group = "state")]
-    closed: bool,
-
-    /// Set issue state to solved
-    #[arg(long, short, group = "state")]
-    solved: bool,
-}
-
-impl FromStr for Assigned {
-    type Err = DidError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s == "me" {
-            Ok(Assigned::Me)
-        } else {
-            let value = s.parse::<Did>()?;
-            Ok(Assigned::Peer(value))
-        }
-    }
-}
-
-fn to_state_filter(args: ListArgs) -> Option<State> {
-    if args.open {
-        Some(radicle::cob::issue::State::Open)
-    } else if args.closed {
-        Some(State::Closed {
-            reason: CloseReason::Other,
-        })
-    } else if args.solved {
-        Some(State::Closed {
-            reason: CloseReason::Solved,
-        })
-    } else {
-        None
-    }
-}
-
-fn to_state(args: StateArgs) -> State {
-    if args.open {
-        radicle::cob::issue::State::Open
-    } else if args.closed {
-        State::Closed {
-            reason: CloseReason::Other,
-        }
-    } else if args.solved {
-        State::Closed {
-            reason: CloseReason::Solved,
-        }
-    } else {
-        // FIXME:
-        unreachable!("State flag needed");
-    }
-}
-
-pub fn get_assignee_did_hints(input: &str) -> Option<Vec<String>> {
-    let (_, rid) = radicle::rad::cwd().ok()?;
-    radicle::Profile::load()
-        .ok()
-        .and_then(|profile| profile.storage.repository(rid).ok())
-        .and_then(|repo| {
-            Issues::open(&repo).ok().and_then(|issues| {
-                issues
-                    .all()
-                    .map(|issues| {
-                        issues
-                            .flat_map(|issue| {
-                                issue.map_or(vec![], |(_, issue)| {
-                                    issue.assignees().cloned().collect::<Vec<_>>()
-                                })
-                            })
-                            .filter_map(|did| {
-                                let did = did.to_human();
-                                did.starts_with(input).then_some(did)
-                            })
-                            .collect::<Vec<_>>()
-                    })
-                    .ok()
-            })
-        })
-}
-
-pub fn get_issue_id_hints(input: &str) -> Option<Vec<String>> {
-    let (_, rid) = radicle::rad::cwd().ok()?;
-    let profile = radicle::Profile::load().ok()?;
-    let repo = profile.storage.repository(rid).ok()?;
-    let issues = profile.issues(&repo).ok()?;
-    let ids = issues.ids(input).ok()?;
-    Some(
-        ids.filter_map(|result| result.ok().map(|id| id.to_string()))
-            .collect(),
-    )
-}
-
-pub fn get_did_hints(input: &str) -> Option<Vec<String>> {
-    let (_, rid) = radicle::rad::cwd().ok()?;
-    let profile = radicle::Profile::load().ok()?;
-    let repo = profile.storage.repository(rid).ok()?;
-    let ids = repo.remote_ids().ok()?;
-    Some(
-        ids.filter_map(|nid| {
-            let nid = nid.ok()?;
-            let did = Did::from(nid).encode();
-            did.starts_with(input).then_some(did)
-        })
-        .collect(),
-    )
-}
-
-pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let rid = if let Some(rid) = args.repo {
         rid
@@ -405,21 +93,21 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
         let announce = !args.no_announce
             && matches!(
                 &command,
-                IssueCommands::Open { .. }
-                    | IssueCommands::React { .. }
-                    | IssueCommands::State { .. }
-                    | IssueCommands::Delete { .. }
-                    | IssueCommands::Assign { .. }
-                    | IssueCommands::Label { .. }
+                Commands::Open { .. }
+                    | Commands::React { .. }
+                    | Commands::State { .. }
+                    | Commands::Delete { .. }
+                    | Commands::Assign { .. }
+                    | Commands::Label { .. }
             );
 
         match command {
-            IssueCommands::Delete { id } => {
+            Commands::Delete { id } => {
                 let id = id.resolve(&repo.backend)?;
                 let signer = term::signer(&profile)?;
                 issues.remove(&id, &signer)?;
             }
-            IssueCommands::Edit {
+            Commands::Edit {
                 id,
                 title,
                 description,
@@ -430,12 +118,11 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                     term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
                 }
             }
-            IssueCommands::List(list_args) => {
+            Commands::List(list_args) => {
                 let assigned = list_args.assigned.clone();
-                let state = to_state_filter(list_args);
-                list(issues, &assigned, &state, &profile)?;
+                list(issues, &assigned, &list_args.into(), &profile)?;
             }
-            IssueCommands::Show { id, debug } => {
+            Commands::Show { id, debug } => {
                 let format = if args.header {
                     term::issue::Format::Header
                 } else {
@@ -453,13 +140,13 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                     term::issue::show(&issue, &id, format, &profile)?;
                 }
             }
-            IssueCommands::State(state_args) => {
+            Commands::State(state_args) => {
                 let id = state_args.id.resolve(&repo.backend)?;
                 let signer = term::signer(&profile)?;
                 let mut issue = issues.get_mut(&id)?;
-                issue.lifecycle(to_state(state_args), &signer)?;
+                issue.lifecycle(state_args.to_state(), &signer)?;
             }
-            IssueCommands::Assign { id, add, delete } => {
+            Commands::Assign { id, add, delete } => {
                 let id = id.resolve(&repo.backend)?;
                 let Ok(mut issue) = issues.get_mut(&id) else {
                     anyhow::bail!("Issue `{id}` not found");
@@ -473,7 +160,7 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                 let signer = term::signer(&profile)?;
                 issue.assign(assignees, &signer)?;
             }
-            IssueCommands::Comment {
+            Commands::Comment {
                 id,
                 message,
                 reply_to,
@@ -491,7 +178,7 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                     term::comment::widget(&comment_id, comment, &profile).print();
                 }
             }
-            IssueCommands::React {
+            Commands::React {
                 id,
                 comment_id,
                 reaction,
@@ -506,7 +193,7 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                     issue.react(comment_id, reaction, true, &signer)?;
                 }
             }
-            IssueCommands::Label { id, add, delete } => {
+            Commands::Label { id, add, delete } => {
                 let id = id.resolve(&repo.backend)?;
                 let Ok(mut issue) = issues.get_mut(&id) else {
                     anyhow::bail!("Issue `{id}` not found");
@@ -520,7 +207,7 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                 let signer = term::signer(&profile)?;
                 issue.label(labels, &signer)?;
             }
-            IssueCommands::Open {
+            Commands::Open {
                 ref title,
                 ref description,
                 ref labels,
@@ -538,7 +225,7 @@ pub fn run(args: IssueArgs, ctx: impl term::Context) -> anyhow::Result<()> {
                     &profile,
                 )?;
             }
-            IssueCommands::Cache { id } => {
+            Commands::Cache { id } => {
                 let id = id.map(|id| id.resolve(&repo.backend)).transpose()?;
                 cache::run(id, &repo, &profile)?;
             }

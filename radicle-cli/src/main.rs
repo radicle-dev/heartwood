@@ -54,10 +54,10 @@ struct CliArgs {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Manage issues
+    /// Commands to create, view, and edit Radicle issues
     ///
     /// With issues you can organize your project and use it to discuss bugs and improvements.
-    Issue(rad_issue::IssueArgs),
+    Issue(rad_issue::Args),
 }
 
 #[derive(Debug)]
