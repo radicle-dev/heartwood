@@ -1,0 +1,29 @@
+#! /bin/sh
+set -eu
+
+jq -V > /dev/null
+socat -V > /dev/null
+
+SOCKET="${RAD_HOME:-"${HOME}/.radicle"}/node/control.sock"
+
+if [ ! -S "${SOCKET}" ]
+then
+	printf "Socket '%s' does not exist. Aborting.\n" "${SOCKET}"
+	exit 1
+elif [ -S "${SOCKET}.orig" ]
+then
+	printf "Socket '%s' exists. Aborting.\n" "${SOCKET}.orig"
+	exit 2
+fi
+
+mv -v "${SOCKET}" "${SOCKET}.orig"
+trap "mv -v \"${SOCKET}.orig\" \"${SOCKET}\"" EXIT
+printf "\n"
+
+JQ="jq --unbuffered --color-output"
+JQ_TX="JQ_COLORS='1;30:0;39:0;39:0;39:1;35:1;39:1;39:1;31' $JQ | sed 's/^/>/'"
+JQ_RX="JQ_COLORS='0;90:0;37:0;37:0;37:0;32:1;37:1;37:1;34' $JQ | sed 's/^/</'"
+
+socat \
+	"UNIX-LISTEN:${SOCKET},mode=700,reuseaddr,fork" \
+	"SYSTEM:\"tee >($JQ_TX) | socat UNIX-CONNECT:${SOCKET}.orig - | tee >($JQ_RX) >&3\",fdout=3"

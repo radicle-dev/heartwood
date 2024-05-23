@@ -1,0 +1,38 @@
+#! /bin/sh
+set -eu
+
+diff -V > /dev/null
+grep -V > /dev/null
+
+REMOTE="rad"
+PREFIX="rad://"
+ALTERNATES="$(git rev-parse --absolute-git-dir)/objects/info/alternates"
+URI=$(git remote get-url "$REMOTE")
+
+if [ "${URI:0:6}" != "$PREFIX" ]
+then
+	printf "URL for remote '%s' does not have expected prefix '$PREFIX'. Aborting.\n" "$REMOTE" "$PREFIX"
+	exit 1
+fi
+
+ID="${URI:6}"
+DIR="${RAD_HOME:-$HOME/.radicle}/storage/${ID}/objects"
+
+if [ ! -d "$DIR" ]
+then
+	printf "Directory '%s' is expected to exist, but does not. Aborting.\n" "$DIR"
+	exit 2
+fi
+
+if [ -f "$ALTERNATES" ]
+then
+	if ! diff -U3 --color=always --label expected <(echo "$DIR") --label actual "$ALTERNATES"
+	then
+		printf "\n'%s' exists and has unexpected contents. Aborting.\n" "${ALTERNATES}"
+		exit 3
+	fi
+else
+	printf "%s\n" "$DIR" > "$ALTERNATES"
+fi
+
+git count-objects -v | grep alternate
