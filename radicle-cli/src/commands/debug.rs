@@ -46,17 +46,17 @@ impl Args for Options {
 
 pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     match ctx.profile() {
-        Ok(profile) => debug(&profile),
+        Ok(profile) => debug(Some(&profile)),
         Err(e) => {
-            eprintln!("ERROR: {e}");
-            Err(e)
+            eprintln!("ERROR: Could not load Radicle profile: {e}");
+            debug(None)
         }
     }
 }
 
 // Collect information about the local Radicle installation and write
 // it out.
-fn debug(profile: &Profile) -> anyhow::Result<()> {
+fn debug(profile: Option<&Profile>) -> anyhow::Result<()> {
     let env = HashMap::from_iter(env::vars().filter_map(|(k, v)| {
         if k == "RAD_PASSPHRASE" {
             Some((k, "<REDACTED>".into()))
@@ -81,8 +81,8 @@ fn debug(profile: &Profile) -> anyhow::Result<()> {
         git_version: stdout_of("git", &["--version"]).unwrap_or("<unknown>".into()),
         ssh_version: stderr_of("ssh", &["-V"]).unwrap_or("<unknown>".into()),
         git_head: GIT_HEAD,
-        log: LogFile::new(profile.node().join("node.log")),
-        old_log: LogFile::new(profile.node().join("node.log.old")),
+        log: profile.map(|p| LogFile::new(p.node().join("node.log"))),
+        old_log: profile.map(|p| LogFile::new(p.node().join("node.log.old"))),
         operating_system: std::env::consts::OS,
         arch: std::env::consts::ARCH,
         env,
@@ -104,8 +104,8 @@ struct DebugInfo {
     git_version: String,
     ssh_version: String,
     git_head: &'static str,
-    log: LogFile,
-    old_log: LogFile,
+    log: Option<LogFile>,
+    old_log: Option<LogFile>,
     operating_system: &'static str,
     arch: &'static str,
     env: HashMap<String, String>,
