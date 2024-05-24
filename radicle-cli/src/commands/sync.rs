@@ -210,8 +210,8 @@ impl Args for Options {
             }
         }
 
-        let sync = if inventory && (fetch || announce) {
-            anyhow::bail!("`--inventory` cannot be used with `--fetch` or `--announce`");
+        let sync = if inventory && fetch {
+            anyhow::bail!("`--inventory` cannot be used with `--fetch`");
         } else if inventory {
             SyncMode::Inventory
         } else {
