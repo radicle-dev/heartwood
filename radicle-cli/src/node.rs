@@ -4,7 +4,8 @@ use std::io;
 use std::io::Write;
 use std::ops::ControlFlow;
 
-use radicle::node::{self, AnnounceResult};
+use radicle::identity::RepoId;
+use radicle::node::{self, AnnounceResult, Seeds};
 use radicle::node::{Handle as _, NodeId};
 use radicle::storage::{ReadRepository, RepositoryError};
 use radicle::{Node, Profile};
@@ -76,6 +77,10 @@ pub enum SyncError {
     Node(#[from] radicle::node::Error),
     #[error("all seeds timed out")]
     AllSeedsTimedOut,
+    #[error("replication factor of {target} not met, only {actual} replica(s) synced")]
+    MissingReplicas { actual: usize, target: usize },
+    #[error("no seeds found for {rid}")]
+    NoSeedsFound { rid: RepoId },
 }
 
 impl SyncError {
@@ -164,6 +169,57 @@ pub fn announce<R: ReadRepository>(
     }
 }
 
+enum SyncStatus {
+    Synced { replicas: usize },
+    MissingReplicas,
+    NotSynced,
+    NoSeedsFound,
+    NoSeedsToAnnounceTo,
+}
+
+fn sync_status<R: ReadRepository>(
+    repo: &R,
+    seeds: &Seeds,
+    settings: &SyncSettings,
+    profile: &Profile,
+) -> Result<SyncStatus, SyncError> {
+    let rid = repo.id();
+    let doc = repo.identity_doc()?;
+    let synced = seeds
+        .iter()
+        .filter(|s| s.is_synced())
+        .map(|s| s.nid)
+        .collect::<BTreeSet<_>>(); // Seeds in sync with us.
+    let replicas = synced.iter().filter(|nid| *nid != profile.id()).count();
+    let unsynced = seeds
+        .iter()
+        .filter(|s| !s.is_synced() && &s.nid != profile.id())
+        .map(|s| s.nid)
+        .count();
+
+    if seeds.is_empty() {
+        return Ok(SyncStatus::NoSeedsFound);
+    }
+    if unsynced == 0 {
+        return Ok(SyncStatus::NoSeedsToAnnounceTo);
+    }
+    // Maximum replication factor we can achieve.
+    let max_replicas = seeds.iter().filter(|s| &s.nid != profile.id()).count();
+    // If the seeds we specified in the sync settings are all synced.
+    let is_seeds_synced = settings.seeds.iter().all(|s| synced.contains(s));
+    // If we met our desired replica count. Note that this can never exceed the maximum count.
+    let is_replicas_synced = replicas >= settings.replicas.min(max_replicas);
+
+    // Nothing to do if we've met our sync state.
+    if is_seeds_synced && is_replicas_synced {
+        return Ok(SyncStatus::Synced { replicas });
+    }
+    if !is_replicas_synced {
+        return Ok(SyncStatus::MissingReplicas);
+    }
+    Ok(SyncStatus::NotSynced)
+}
+
 fn announce_<R: ReadRepository>(
     repo: &R,
     settings: SyncSettings,
@@ -173,37 +229,35 @@ fn announce_<R: ReadRepository>(
 ) -> Result<AnnounceResult, SyncError> {
     let rid = repo.id();
     let doc = repo.identity_doc()?;
+    let all = node.seeds(rid)?; // All seeds.
     let mut settings = settings.with_profile(profile);
-    let unsynced: Vec<_> = if doc.visibility.is_public() {
-        // All seeds.
-        let all = node.seeds(rid)?;
-        if all.is_empty() {
-            term::info!(&mut reporting.completion; "No seeds found for {rid}.");
-            return Ok(AnnounceResult::default());
-        }
-        // Seeds in sync with us.
-        let synced = all
-            .iter()
-            .filter(|s| s.is_synced())
-            .map(|s| s.nid)
-            .collect::<BTreeSet<_>>();
-        // Replicas not counting our local replica.
-        let replicas = synced.iter().filter(|nid| *nid != profile.id()).count();
-        // Maximum replication factor we can achieve.
-        let max_replicas = all.iter().filter(|s| &s.nid != profile.id()).count();
-        // If the seeds we specified in the sync settings are all synced.
-        let is_seeds_synced = settings.seeds.iter().all(|s| synced.contains(s));
-        // If we met our desired replica count. Note that this can never exceed the maximum count.
-        let is_replicas_synced = replicas >= settings.replicas.min(max_replicas);
 
-        // Nothing to do if we've met our sync state.
-        if is_seeds_synced && is_replicas_synced {
+    match sync_status(repo, &all, &settings, profile)? {
+        SyncStatus::Synced { replicas } => {
             term::success!(
                 &mut reporting.completion;
                 "Nothing to announce, already in sync with {replicas} node(s) (see `rad sync status`)"
             );
             return Ok(AnnounceResult::default());
         }
+        SyncStatus::NoSeedsFound => {
+            term::info!(&mut reporting.completion; "No seeds found for {rid}.");
+            return Ok(AnnounceResult::default());
+        }
+        SyncStatus::NoSeedsToAnnounceTo => {
+            term::info!(&mut reporting.completion; "No seeds to announce to for {rid}. (see `rad sync status`)");
+            return Ok(AnnounceResult::default());
+        }
+        SyncStatus::NotSynced => {
+            println!("not synced?!?!?");
+        }
+        SyncStatus::MissingReplicas => {
+            println!("missing some replicas, trying to sync with more..");
+        }
+    }
+
+    // Replicas not counting our local replica.
+    let unsynced: Vec<_> = if doc.visibility.is_public() {
         // Return nodes we can announce to. They don't have to be connected directly.
         all.iter()
             .filter(|s| !s.is_synced() && &s.nid != profile.id())
@@ -217,10 +271,6 @@ fn announce_<R: ReadRepository>(
             .collect()
     };
 
-    if unsynced.is_empty() {
-        term::info!(&mut reporting.completion; "No seeds to announce to for {rid}. (see `rad sync status`)");
-        return Ok(AnnounceResult::default());
-    }
     // Cap the replicas to the maximum achievable.
     // Nb. It's impossible to know if a replica follows our node. This means that if we announce
     // only our refs, and the replica doesn't follow us, it won't fetch from us.
@@ -243,6 +293,9 @@ fn announce_<R: ReadRepository>(
                     format::dim(remote),
                     format::dim(format!("{time:?}"))
                 ));
+
+                let seeds = node.seeds(rid).unwrap();
+                let status = sync_status(repo, &seeds, &settings, profile).unwrap();
 
                 // We're done syncing when both of these conditions are met:
                 //
@@ -277,13 +330,31 @@ fn announce_<R: ReadRepository>(
             }
         }
     }
+
     for seed in &result.timed_out {
         if settings.seeds.contains(seed) {
             term::notice!(&mut reporting.completion; "Seed {seed} timed out..");
         }
     }
-    if result.synced.is_empty() {
-        return Err(SyncError::AllSeedsTimedOut);
+    match sync_status(repo, &node.seeds(rid)?, &settings, profile)? {
+        SyncStatus::Synced { replicas } => {
+            term::success!(
+                &mut reporting.completion;
+                "Nothing to announce, already in sync with {replicas} node(s) (see `rad sync status`)"
+            );
+        }
+        SyncStatus::NoSeedsFound => {
+            term::info!(&mut reporting.completion; "No seeds found for {rid}.");
+        }
+        SyncStatus::NoSeedsToAnnounceTo => {
+            term::info!(&mut reporting.completion; "No seeds to announce to for {rid}. (see `rad sync status`)");
+        }
+        SyncStatus::NotSynced => {
+            println!("not synced?!?!?");
+        }
+        SyncStatus::MissingReplicas => {
+            println!("missing some replicas, trying to sync with more..");
+        }
     }
     Ok(result)
 }

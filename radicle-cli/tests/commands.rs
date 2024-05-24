@@ -1858,6 +1858,49 @@ fn rad_sync() {
 }
 
 #[test]
+fn rad_sync_errors() {
+    let mut environment = Environment::new();
+    let working = environment.tmp().join("working");
+    let alice = environment.node(config::seed("alice"));
+    let bob = environment.node(config::seed("bob"));
+    let eve = environment.node(config::seed("eve"));
+    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+
+    fixtures::repository(working.join("acme"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("acme"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+    let mut eve = eve.spawn();
+
+    bob.handle.seed(acme, Scope::All).unwrap();
+    eve.handle.seed(acme, Scope::All).unwrap();
+
+    alice.connect(&bob);
+    alice.connect(&eve);
+    bob.routes_to(&[(acme, alice.id)]);
+    alice.routes_to(&[(acme, alice.id), (acme, eve.id), (acme, bob.id)]);
+    alice.is_synced_with(&acme, &bob.id);
+    alice.is_synced_with(&acme, &eve.id);
+    eve.shutdown();
+
+    test(
+        "examples/rad-sync-errors.md",
+        working.join("acme"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 //
 //     alice -- seed -- bob
 //
