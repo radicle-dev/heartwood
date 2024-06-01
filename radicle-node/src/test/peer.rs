@@ -24,7 +24,7 @@ use crate::runtime::Emitter;
 use crate::service;
 use crate::service::io::Io;
 use crate::service::message::*;
-use crate::service::policy::{Policy, Scope};
+use crate::service::policy::{Scope, SeedingPolicy};
 use crate::service::*;
 use crate::storage::git::transport::remote;
 use crate::storage::Inventory;
@@ -101,8 +101,7 @@ pub struct Config<G: Signer + 'static> {
     pub config: service::Config,
     pub db: Stores<node::Database>,
     pub local_time: LocalTime,
-    pub policy: Policy,
-    pub scope: Scope,
+    pub policy: SeedingPolicy,
     pub signer: G,
     pub rng: fastrand::Rng,
     pub tmp: tempfile::TempDir,
@@ -121,8 +120,7 @@ impl Default for Config<MockSigner> {
             config: service::Config::test(Alias::from_str("mocky").unwrap()),
             db,
             local_time: LocalTime::now(),
-            policy: Policy::default(),
-            scope: Scope::default(),
+            policy: SeedingPolicy::default(),
             signer,
             rng,
             tmp,
@@ -162,7 +160,7 @@ where
         mut config: Config<G>,
     ) -> Self {
         let policies = policy::Store::<policy::store::Write>::memory().unwrap();
-        let mut policies = policy::Config::new(config.policy, config.scope, policies);
+        let mut policies = policy::Config::new(config.policy, policies);
         let id = *config.signer.public_key();
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, config.rng.u16(..));

@@ -3,7 +3,7 @@ use std::ffi::OsString;
 use anyhow::anyhow;
 
 use radicle::node::policy;
-use radicle::node::policy::Scope;
+use radicle::node::policy::{Policy, Scope};
 use radicle::node::Handle;
 use radicle::{prelude::*, storage, Node};
 use radicle_term::Element as _;
@@ -164,15 +164,15 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
     ]);
     t.divider();
 
-    for policy::SeedPolicy { rid, scope, policy } in store.seed_policies()? {
+    for policy::SeedPolicy { rid, policy } in store.seed_policies()? {
         let id = rid.to_string();
         let name = storage
             .repository(rid)
             .map_err(storage::RepositoryError::from)
             .and_then(|repo| repo.project().map(|proj| proj.name().to_string()))
             .unwrap_or_default();
-        let scope = scope.to_string();
-        let policy = term::format::policy(&policy);
+        let scope = policy.scope().unwrap_or_default().to_string();
+        let policy = term::format::policy(&Policy::from(policy));
 
         t.push([
             term::format::tertiary(id),

@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 use serde::Serialize;
+use serde_json as json;
 use thiserror::Error;
 
 use crate::crypto::ssh::agent::Agent;
@@ -22,13 +23,16 @@ use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
 use crate::explorer::Explorer;
 use crate::node::policy::config::store::Read;
-use crate::node::{notifications, policy, Alias, AliasStore};
-use crate::prelude::Did;
-use crate::prelude::NodeId;
+use crate::node::{
+    notifications, policy,
+    policy::{Policy, Scope, SeedingPolicy},
+    Alias, AliasStore,
+};
+use crate::prelude::{Did, NodeId};
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
-use crate::storage::{self, ReadRepository};
-use crate::{cli, cob, git, node, web};
+use crate::storage::ReadRepository;
+use crate::{cli, cob, git, node, storage, web};
 
 /// Environment variables used by radicle.
 pub mod env {
@@ -229,12 +233,28 @@ impl Config {
 
     /// Load a configuration from the given path.
     pub fn load(path: &Path) -> Result<Self, ConfigError> {
-        match fs::File::open(path) {
+        let mut cfg: Self = match fs::File::open(path) {
             Ok(cfg) => {
-                serde_json::from_reader(cfg).map_err(|e| ConfigError::Load(path.to_path_buf(), e))
+                json::from_reader(cfg).map_err(|e| ConfigError::Load(path.to_path_buf(), e))?
             }
-            Err(e) => Err(ConfigError::Io(path.to_path_buf(), e)),
+            Err(e) => return Err(ConfigError::Io(path.to_path_buf(), e)),
+        };
+
+        // Handle deprecated policy configuration.
+        // Nb. This will override "seedingPolicy" if set! This code should be removed after 1.0.
+        if let (Some(p), Some(s)) = (cfg.node.extra.get("policy"), cfg.node.extra.get("scope")) {
+            if let (Ok(policy), Ok(scope)) = (
+                json::from_value::<Policy>(p.clone()),
+                json::from_value::<Scope>(s.clone()),
+            ) {
+                log::warn!(target: "radicle", "Overwriting `seedingPolicy` configuration");
+                cfg.node.seeding_policy = match policy {
+                    Policy::Allow => SeedingPolicy::Allow { scope },
+                    Policy::Block => SeedingPolicy::Block,
+                }
+            }
         }
+        Ok(cfg)
     }
 
     /// Write configuration to disk.
@@ -243,8 +263,8 @@ impl Config {
             .create_new(true)
             .write(true)
             .open(path)?;
-        let formatter = serde_json::ser::PrettyFormatter::with_indent(b"  ");
-        let mut serializer = serde_json::Serializer::with_formatter(&file, formatter);
+        let formatter = json::ser::PrettyFormatter::with_indent(b"  ");
+        let mut serializer = json::Serializer::with_formatter(&file, formatter);
 
         self.serialize(&mut serializer)?;
         file.write_all(b"\n")?;
@@ -315,7 +335,6 @@ impl Profile {
                 key: public_key,
             },
         )?;
-
         transport::local::register(storage.clone());
 
         Ok(Profile {
@@ -382,8 +401,7 @@ impl Profile {
     pub fn policies(&self) -> Result<policy::config::Config<Read>, policy::store::Error> {
         let path = self.node().join(node::POLICIES_DB_FILE);
         let config = policy::config::Config::new(
-            self.config.node.policy,
-            self.config.node.scope,
+            self.config.node.seeding_policy,
             policy::store::Store::reader(path)?,
         );
         Ok(config)
@@ -629,9 +647,8 @@ impl Home {
 #[cfg(test)]
 #[cfg(not(target_os = "macos"))]
 mod test {
+    use super::*;
     use std::fs;
-
-    use super::Home;
 
     // Checks that if we have:
     // '/run/user/1000/.tmpqfK6ih/../.tmpqfK6ih/Radicle/Home'
@@ -655,5 +672,56 @@ mod test {
         .unwrap();
 
         assert_eq!(home.path, path);
+    }
+
+    #[test]
+    fn test_config() {
+        let cfg = json::from_value::<Config>(json::json!({
+          "publicExplorer": "https://app.radicle.xyz/nodes/$host/$rid$path",
+          "preferredSeeds": [],
+          "web": {
+            "pinned": {
+              "repositories": [
+                "rad:z3TajuiHXifEDEX4qbJxe8nXr9ufi",
+                "rad:z4V1sjrXqjvFdnCUbxPFqd5p4DtH5"
+              ]
+            }
+          },
+          "cli": { "hints": true },
+          "node": {
+            "alias": "seed.radicle.xyz",
+            "listen": [],
+            "peers": { "type": "dynamic", "target": 8 },
+            "connect": [
+              "z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo@ash.radicle.garden:8776",
+              "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776"
+            ],
+            "externalAddresses": [ "seed.radicle.xyz:8776" ],
+            "db": { "journalMode": "wal" },
+            "network": "main",
+            "log": "INFO",
+            "relay": "always",
+            "limits": {
+              "routingMaxSize": 1000,
+              "routingMaxAge": 604800,
+              "gossipMaxAge": 604800,
+              "fetchConcurrency": 1,
+              "maxOpenFiles": 4096,
+              "rate": {
+                "inbound": { "fillRate": 10.0, "capacity": 2048 },
+                "outbound": { "fillRate": 10.0, "capacity": 2048 }
+              },
+              "connection": { "inbound": 128, "outbound": 16 }
+            },
+            "workers": 32,
+            "policy": "allow",
+            "scope": "all"
+          }
+        }))
+        .unwrap();
+
+        assert!(cfg.node.extra.contains_key("db"));
+        assert!(cfg.node.extra.contains_key("policy"));
+        assert!(cfg.node.extra.contains_key("scope"));
     }
 }

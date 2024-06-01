@@ -48,10 +48,10 @@ pub enum Error {
 pub enum JournalMode {
     /// "WAL" mode. Good for concurrent reads & writes, but keeps some extra files around.
     #[serde(rename = "wal")]
+    #[default]
     WriteAheadLog,
     /// Default "rollback" mode. Certain writes may block reads.
     #[serde(alias = "rollback")]
-    #[default]
     Rollback,
 }
 

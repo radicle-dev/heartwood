@@ -21,14 +21,10 @@ $ rad config
     "alias": "alice",
     "listen": [],
     "peers": {
-      "type": "dynamic",
-      "target": 8
+      "type": "dynamic"
     },
     "connect": [],
     "externalAddresses": [],
-    "db": {
-      "journalMode": "rollback"
-    },
     "network": "main",
     "log": "INFO",
     "relay": "auto",
@@ -54,8 +50,9 @@ $ rad config
       }
     },
     "workers": 8,
-    "policy": "block",
-    "scope": "all"
+    "seedingPolicy": {
+      "default": "block"
+    }
   }
 }
 ```

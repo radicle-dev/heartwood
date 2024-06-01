@@ -119,16 +119,20 @@ impl Runtime {
         let clock = LocalTime::now();
         let timestamp = clock.into();
         let storage = Storage::open(home.storage(), git::UserInfo { alias, key: id })?;
-        let scope = config.scope;
-        let policy = config.policy;
+        let policy = config.seeding_policy;
 
+        for (key, _) in &config.extra {
+            log::warn!(target: "node", "Unused or deprecated configuration attribute {:?}", key);
+        }
         log::info!(target: "node", "Opening node database..");
-        let db = home.database_mut()?.journal_mode(config.db.journal_mode)?;
+        let db = home
+            .database_mut()?
+            .journal_mode(node::db::JournalMode::default())?;
         let mut stores: service::Stores<_> = db.clone().into();
 
         log::info!(target: "node", "Opening policy database..");
         let policies = home.policies_mut()?;
-        let policies = policy::Config::new(policy, scope, policies);
+        let policies = policy::Config::new(policy, policies);
         let notifications = home.notifications_mut()?;
         let cobs_cache = cob::cache::Store::open(home.cobs().join(cob::cache::COBS_DB_FILE))?;
 
@@ -234,7 +238,6 @@ impl Runtime {
                 storage: storage.clone(),
                 fetch,
                 policy,
-                scope,
                 policies_db: home.node().join(node::POLICIES_DB_FILE),
             },
         )?;

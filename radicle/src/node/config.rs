@@ -4,13 +4,12 @@ use std::ops::Deref;
 
 use cyphernet::addr::PeerAddr;
 use localtime::LocalDuration;
+use serde_json as json;
 
 use crate::node;
-use crate::node::policy::{Policy, Scope};
-use crate::node::{db, Address, Alias, NodeId};
+use crate::node::policy::SeedingPolicy;
+use crate::node::{Address, Alias, NodeId};
 
-/// Target number of peers to maintain connections to.
-pub const TARGET_OUTBOUND_PEERS: usize = 8;
 /// Default number of workers to spawn.
 pub const DEFAULT_WORKERS: usize = 8;
 
@@ -134,8 +133,7 @@ impl Default for Limits {
 pub struct ConnectionLimits {
     /// Max inbound connections.
     pub inbound: usize,
-    /// Max outbound connections. Note that this is higher than the *target* number
-    /// in [`TARGET_OUTBOUND_PEERS`].
+    /// Max outbound connections. Note that this can be higher than the *target* number.
     pub outbound: usize,
 }
 
@@ -223,14 +221,12 @@ pub enum PeerConfig {
     /// Static peer set. Connect to the configured peers and maintain the connections.
     Static,
     /// Dynamic peer set.
-    Dynamic { target: usize },
+    Dynamic,
 }
 
 impl Default for PeerConfig {
     fn default() -> Self {
-        Self::Dynamic {
-            target: TARGET_OUTBOUND_PEERS,
-        }
+        Self::Dynamic
     }
 }
 
@@ -261,14 +257,6 @@ pub enum AddressConfig {
     Forward,
 }
 
-/// Database configuration.
-#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DbConfig {
-    #[serde(default)]
-    pub journal_mode: db::JournalMode,
-}
-
 /// Service configuration.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -288,9 +276,6 @@ pub struct Config {
     /// Specify the node's public addresses
     #[serde(default)]
     pub external_addresses: Vec<Address>,
-    /// Database config.
-    #[serde(default)]
-    pub db: DbConfig,
     /// Global proxy.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy: Option<net::SocketAddr>,
@@ -315,10 +300,10 @@ pub struct Config {
     pub workers: usize,
     /// Default seeding policy.
     #[serde(default)]
-    pub policy: Policy,
-    /// Default seeding scope.
-    #[serde(default)]
-    pub scope: Scope,
+    pub seeding_policy: SeedingPolicy,
+    /// Extra fields that aren't supported.
+    #[serde(flatten, skip_serializing)]
+    pub extra: json::Map<String, json::Value>,
 }
 
 impl Config {
@@ -336,7 +321,6 @@ impl Config {
             listen: vec![],
             connect: HashSet::default(),
             external_addresses: vec![],
-            db: DbConfig::default(),
             network: Network::default(),
             proxy: None,
             onion: None,
@@ -344,8 +328,8 @@ impl Config {
             limits: Limits::default(),
             workers: DEFAULT_WORKERS,
             log: defaults::log(),
-            policy: Policy::default(),
-            scope: Scope::default(),
+            seeding_policy: SeedingPolicy::default(),
+            extra: json::Map::default(),
         }
     }
 

@@ -20,7 +20,7 @@ use radicle_fetch::FetchLimit;
 
 use crate::runtime::{thread, Emitter, Handle};
 use crate::service::policy;
-use crate::service::policy::Policy;
+use crate::service::policy::SeedingPolicy;
 use crate::wire::StreamId;
 
 pub use channels::{ChannelEvent, Channels};
@@ -34,9 +34,7 @@ pub struct Config {
     /// Configuration for performing fetched.
     pub fetch: FetchConfig,
     /// Default policy, if a policy for a specific node or repository was not found.
-    pub policy: Policy,
-    /// Default scope, if a scope for a specific repository was not found.
-    pub scope: policy::Scope,
+    pub policy: SeedingPolicy,
     /// Path to the policies database.
     pub policies_db: PathBuf,
 }
@@ -284,7 +282,7 @@ impl Worker {
         let policy = self.policies.seed_policy(&rid)?.policy;
         let repo = self.storage.repository(rid)?;
         let doc = repo.identity_doc()?;
-        if !doc.is_visible_to(&remote) || policy == Policy::Block {
+        if !doc.is_visible_to(&remote) || policy.is_block() {
             Err(UploadError::Unauthorized(remote, rid))
         } else {
             Ok(())
@@ -357,11 +355,8 @@ impl Pool {
     ) -> Result<Self, policy::Error> {
         let mut pool = Vec::with_capacity(config.capacity);
         for i in 0..config.capacity {
-            let policies = policy::Config::new(
-                config.policy,
-                config.scope,
-                policy::Store::reader(&config.policies_db)?,
-            );
+            let policies =
+                policy::Config::new(config.policy, policy::Store::reader(&config.policies_db)?);
             let worker = Worker {
                 nid,
                 tasks: tasks.clone(),

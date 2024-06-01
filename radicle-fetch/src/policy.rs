@@ -5,7 +5,7 @@ use radicle::node::policy::config::Config;
 use radicle::node::policy::store::Read;
 use radicle::prelude::RepoId;
 
-pub use radicle::node::policy::{Policy, Scope};
+pub use radicle::node::policy::{Policy, Scope, SeedingPolicy};
 
 #[derive(Clone, Debug)]
 pub enum Allowed {
@@ -19,23 +19,23 @@ impl Allowed {
             .seed_policy(&rid)
             .map_err(|err| error::Policy::FailedPolicy { rid, err })?;
         match entry.policy {
-            Policy::Block => {
+            SeedingPolicy::Block => {
                 log::error!(target: "fetch", "Attempted to fetch non-seeded repo {rid}");
                 Err(error::Policy::BlockedPolicy { rid })
             }
-            Policy::Allow => match entry.scope {
-                Scope::All => Ok(Self::All),
-                Scope::Followed => {
-                    let nodes = config
-                        .follow_policies()
-                        .map_err(|err| error::Policy::FailedNodes { rid, err })?;
-                    let followed: HashSet<_> = nodes
-                        .filter_map(|node| (node.policy == Policy::Allow).then_some(node.nid))
-                        .collect();
+            SeedingPolicy::Allow { scope: Scope::All } => Ok(Self::All),
+            SeedingPolicy::Allow {
+                scope: Scope::Followed,
+            } => {
+                let nodes = config
+                    .follow_policies()
+                    .map_err(|err| error::Policy::FailedNodes { rid, err })?;
+                let followed: HashSet<_> = nodes
+                    .filter_map(|node| (node.policy == Policy::Allow).then_some(node.nid))
+                    .collect();
 
-                    Ok(Allowed::Followed { remotes: followed })
-                }
-            },
+                Ok(Allowed::Followed { remotes: followed })
+            }
         }
     }
 }

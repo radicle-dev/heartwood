@@ -9,7 +9,7 @@ use thiserror::Error;
 use crate::node::{Alias, AliasStore};
 use crate::prelude::{NodeId, RepoId};
 
-use super::{FollowPolicy, Policy, Scope, SeedPolicy};
+use super::{FollowPolicy, Policy, Scope, SeedPolicy, SeedingPolicy};
 
 /// How long to wait for the database lock to be released before failing a read.
 const DB_READ_TIMEOUT: time::Duration = time::Duration::from_secs(3);
@@ -218,10 +218,8 @@ impl<T> Store<T> {
     pub fn is_seeding(&self, id: &RepoId) -> Result<bool, Error> {
         Ok(matches!(
             self.seed_policy(id)?,
-            Some(SeedPolicy {
-                policy: Policy::Allow,
-                ..
-            })
+            Some(SeedPolicy { policy, .. })
+            if policy.is_allow()
         ))
     }
 
@@ -260,11 +258,13 @@ impl<T> Store<T> {
         stmt.bind((1, id))?;
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
-            return Ok(Some(SeedPolicy {
-                rid: *id,
-                scope: row.read::<Scope, _>("scope"),
-                policy: row.read::<Policy, _>("policy"),
-            }));
+            let policy = match row.read::<Policy, _>("policy") {
+                Policy::Allow => SeedingPolicy::Allow {
+                    scope: row.read::<Scope, _>("scope"),
+                },
+                Policy::Block => SeedingPolicy::Block,
+            };
+            return Ok(Some(SeedPolicy { rid: *id, policy }));
         }
         Ok(None)
     }
@@ -307,14 +307,13 @@ impl<T> Store<T> {
 
         while let Some(Ok(row)) = stmt.next() {
             let id = row.read("id");
-            let scope = row.read("scope");
-            let policy = row.read::<Policy, _>("policy");
-
-            entries.push(SeedPolicy {
-                rid: id,
-                scope,
-                policy,
-            });
+            let policy = match row.read::<Policy, _>("policy") {
+                Policy::Allow => SeedingPolicy::Allow {
+                    scope: row.read::<Scope, _>("scope"),
+                },
+                Policy::Block => SeedingPolicy::Block,
+            };
+            entries.push(SeedPolicy { rid: id, policy });
         }
         Ok(Box::new(entries.into_iter()))
     }
@@ -415,9 +414,15 @@ mod test {
         let mut db = Store::open(":memory:").unwrap();
 
         assert!(db.seed(&id, Scope::All).unwrap());
-        assert_eq!(db.seed_policy(&id).unwrap().unwrap().scope, Scope::All);
+        assert_eq!(
+            db.seed_policy(&id).unwrap().unwrap().scope(),
+            Some(Scope::All)
+        );
         assert!(db.seed(&id, Scope::Followed).unwrap());
-        assert_eq!(db.seed_policy(&id).unwrap().unwrap().scope, Scope::Followed);
+        assert_eq!(
+            db.seed_policy(&id).unwrap().unwrap().scope(),
+            Some(Scope::Followed)
+        );
     }
 
     #[test]
@@ -426,9 +431,10 @@ mod test {
         let mut db = Store::open(":memory:").unwrap();
 
         assert!(db.seed(&id, Scope::All).unwrap());
-        assert_eq!(db.seed_policy(&id).unwrap().unwrap().policy, Policy::Allow);
+        assert!(db.seed_policy(&id).unwrap().unwrap().is_allow());
         assert!(db.set_seed_policy(&id, Policy::Block).unwrap());
-        assert_eq!(db.seed_policy(&id).unwrap().unwrap().policy, Policy::Block);
+        assert!(!db.seed_policy(&id).unwrap().unwrap().is_allow());
+        assert_eq!(db.seed_policy(&id).unwrap().unwrap().scope(), None);
     }
 
     #[test]

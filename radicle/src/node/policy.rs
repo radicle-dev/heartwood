@@ -15,8 +15,15 @@ pub use super::{Alias, NodeId};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SeedPolicy {
     pub rid: RepoId,
-    pub scope: Scope,
-    pub policy: Policy,
+    pub policy: SeedingPolicy,
+}
+
+impl std::ops::Deref for SeedPolicy {
+    type Target = SeedingPolicy;
+
+    fn deref(&self) -> &Self::Target {
+        &self.policy
+    }
 }
 
 /// Node following policy.
@@ -25,6 +32,66 @@ pub struct FollowPolicy {
     pub nid: NodeId,
     pub alias: Option<Alias>,
     pub policy: Policy,
+}
+
+/// Default seeding policy. Applies when no repository policies for the given repo are found.
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", tag = "default")]
+pub enum SeedingPolicy {
+    /// Allow seeding.
+    Allow {
+        /// Seeding scope.
+        #[serde(default)]
+        scope: Scope,
+    },
+    /// Block seeding.
+    #[default]
+    Block,
+}
+
+impl SeedingPolicy {
+    /// Seed everything from anyone.
+    pub fn permissive() -> Self {
+        Self::Allow { scope: Scope::All }
+    }
+
+    /// Is this an "allow" policy.
+    pub fn is_allow(&self) -> bool {
+        matches!(self, Self::Allow { .. })
+    }
+
+    /// Is this a "block" policy.
+    pub fn is_block(&self) -> bool {
+        !self.is_allow()
+    }
+
+    /// Scope, if any.
+    pub fn scope(&self) -> Option<Scope> {
+        match self {
+            Self::Allow { scope } => Some(*scope),
+            Self::Block => None,
+        }
+    }
+}
+
+impl From<SeedingPolicy> for Policy {
+    fn from(p: SeedingPolicy) -> Self {
+        match p {
+            SeedingPolicy::Block => Policy::Block,
+            SeedingPolicy::Allow { .. } => Policy::Allow,
+        }
+    }
+}
+
+impl std::fmt::Display for SeedingPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} ({})",
+            Policy::from(*self),
+            self.scope().unwrap_or_default()
+        )
+    }
 }
 
 /// Resource policy.

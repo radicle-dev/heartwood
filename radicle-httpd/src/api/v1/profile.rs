@@ -83,13 +83,9 @@ mod routes {
                 "node": {
                   "alias": "seed",
                   "listen": [],
-                  "peers": {
-                    "type": "dynamic",
-                    "target": 8
-                  },
+                  "peers": { "type": "dynamic" },
                   "connect": [],
                   "externalAddresses": [],
-                  "db": { "journalMode": "rollback" },
                   "network": "main",
                   "log": "INFO",
                   "relay": "auto",
@@ -115,8 +111,9 @@ mod routes {
                     }
                   },
                   "workers": 8,
-                  "policy": "block",
-                  "scope": "all"
+                  "seedingPolicy": {
+                      "default": "block",
+                  }
                 }
               },
               "home": seed.profile.path()

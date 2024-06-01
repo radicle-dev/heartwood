@@ -8,7 +8,10 @@ use serde_json::json;
 
 use radicle::identity::RepoId;
 use radicle::node::routing::Store;
-use radicle::node::{policy, AliasStore, Handle, NodeId, DEFAULT_TIMEOUT};
+use radicle::node::{
+    policy::{Policy, SeedPolicy},
+    AliasStore, Handle, NodeId, DEFAULT_TIMEOUT,
+};
 use radicle::Node;
 
 use crate::api::error::Error;
@@ -84,16 +87,11 @@ async fn node_policies_repos_handler(State(ctx): State<Context>) -> impl IntoRes
     let policies = ctx.profile.policies()?;
     let mut repos = Vec::new();
 
-    for policy::SeedPolicy {
-        rid: id,
-        scope,
-        policy,
-    } in policies.seed_policies()?
-    {
+    for SeedPolicy { rid: id, policy } in policies.seed_policies()? {
         repos.push(json!({
             "id": id,
-            "scope": scope,
-            "policy": policy,
+            "scope": policy.scope().unwrap_or_default(),
+            "policy": Policy::from(policy),
         }));
     }
 

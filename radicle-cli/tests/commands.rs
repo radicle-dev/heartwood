@@ -16,7 +16,7 @@ use radicle::storage::{ReadStorage, RefUpdate, RemoteRepository};
 use radicle::test::fixtures;
 
 use radicle_cli_test::TestFormula;
-use radicle_node::service::policy::{Policy, Scope};
+use radicle_node::service::policy::{Scope, SeedingPolicy};
 use radicle_node::service::Event;
 use radicle_node::test::environment::{Config, Environment, Node};
 #[allow(unused_imports)]
@@ -1188,7 +1188,7 @@ fn rad_unseed() {
 fn rad_block() {
     let mut environment = Environment::new();
     let alice = environment.node(Config {
-        policy: Policy::Allow,
+        seeding_policy: SeedingPolicy::permissive(),
         ..Config::test(Alias::new("alice"))
     });
     let working = tempfile::tempdir().unwrap();
@@ -1491,7 +1491,7 @@ fn rad_init_sync_preferred() {
     let mut environment = Environment::new();
     let mut alice = environment
         .node(Config {
-            policy: Policy::Allow,
+            seeding_policy: SeedingPolicy::permissive(),
             ..Config::test(Alias::new("alice"))
         })
         .spawn();
@@ -1523,7 +1523,7 @@ fn rad_init_sync_timeout() {
     let mut environment = Environment::new();
     let mut alice = environment
         .node(Config {
-            policy: Policy::Block,
+            seeding_policy: SeedingPolicy::Block,
             ..Config::test(Alias::new("alice"))
         })
         .spawn();
@@ -1866,8 +1866,7 @@ fn test_replication_via_seed() {
     let alice = environment.node(config::relay("alice"));
     let bob = environment.node(config::relay("bob"));
     let seed = environment.node(Config {
-        policy: Policy::Allow,
-        scope: Scope::All,
+        seeding_policy: SeedingPolicy::permissive(),
         ..config::relay("seed")
     });
     let working = environment.tmp().join("working");
@@ -2115,8 +2114,7 @@ fn rad_patch_open_explore() {
     let mut environment = Environment::new();
     let seed = environment
         .node(Config {
-            policy: Policy::Allow,
-            scope: Scope::All,
+            seeding_policy: SeedingPolicy::permissive(),
             ..config::seed("seed")
         })
         .spawn();

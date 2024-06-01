@@ -6,13 +6,13 @@ use log::error;
 use thiserror::Error;
 
 use crate::crypto::PublicKey;
-use crate::prelude::{NodeId, RepoId};
+use crate::prelude::RepoId;
 use crate::storage::{Namespaces, ReadRepository as _, ReadStorage, RepositoryError};
 
 pub use crate::node::policy::store;
 pub use crate::node::policy::store::Error;
 pub use crate::node::policy::store::Store;
-pub use crate::node::policy::{Alias, FollowPolicy, Policy, Scope, SeedPolicy};
+pub use crate::node::policy::{Alias, FollowPolicy, Policy, Scope, SeedPolicy, SeedingPolicy};
 
 #[derive(Debug, Error)]
 pub enum NamespacesError {
@@ -45,9 +45,7 @@ pub enum NamespacesError {
 /// Policies configuration.
 pub struct Config<T> {
     /// Default policy, if a policy for a specific node or repository was not found.
-    policy: Policy,
-    /// Default scope, if a scope for a specific repository was not found.
-    scope: Scope,
+    policy: SeedingPolicy,
     /// Underlying configuration store.
     store: Store<T>,
 }
@@ -58,7 +56,6 @@ impl<T> fmt::Debug for Config<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Config")
             .field("policy", &self.policy)
-            .field("scope", &self.scope)
             .field("store", &self.store)
             .finish()
     }
@@ -66,34 +63,13 @@ impl<T> fmt::Debug for Config<T> {
 
 impl<T> Config<T> {
     /// Create a new policy configuration.
-    pub fn new(policy: Policy, scope: Scope, store: Store<T>) -> Self {
-        Self {
-            policy,
-            scope,
-            store,
-        }
+    pub fn new(policy: SeedingPolicy, store: Store<T>) -> Self {
+        Self { policy, store }
     }
 
     /// Check if a repository is seeded.
     pub fn is_seeding(&self, rid: &RepoId) -> Result<bool, Error> {
-        self.seed_policy(rid)
-            .map(|entry| entry.policy == Policy::Allow)
-    }
-
-    /// Check if a node is followed.
-    pub fn is_following(&self, nid: &NodeId) -> Result<bool, Error> {
-        self.follow_policy(nid)
-            .map(|entry| entry.policy == Policy::Allow)
-    }
-
-    /// Get a node's following information.
-    /// Returns the default policy if the node isn't found.
-    pub fn follow_policy(&self, nid: &NodeId) -> Result<FollowPolicy, Error> {
-        Ok(self.store.follow_policy(nid)?.unwrap_or(FollowPolicy {
-            nid: *nid,
-            alias: None,
-            policy: self.policy,
-        }))
+        self.seed_policy(rid).map(|entry| entry.policy.is_allow())
     }
 
     /// Get a repository's seeding information.
@@ -101,7 +77,6 @@ impl<T> Config<T> {
     pub fn seed_policy(&self, rid: &RepoId) -> Result<SeedPolicy, Error> {
         Ok(self.store.seed_policy(rid)?.unwrap_or(SeedPolicy {
             rid: *rid,
-            scope: self.scope,
             policy: self.policy,
         }))
     }
@@ -120,37 +95,37 @@ impl<T> Config<T> {
             .seed_policy(rid)
             .map_err(|err| FailedPolicy { rid: *rid, err })?;
         match entry.policy {
-            Policy::Block => {
+            SeedingPolicy::Block => {
                 error!(target: "service", "Attempted to fetch untracked repo {rid}");
                 Err(NamespacesError::BlockedPolicy { rid: *rid })
             }
-            Policy::Allow => match entry.scope {
-                Scope::All => Ok(Namespaces::All),
-                Scope::Followed => {
-                    let nodes = self
-                        .follow_policies()
-                        .map_err(|err| FailedNodes { rid: *rid, err })?;
-                    let mut followed: HashSet<_> = nodes
-                        .filter_map(|node| (node.policy == Policy::Allow).then_some(node.nid))
-                        .collect();
+            SeedingPolicy::Allow { scope: Scope::All } => Ok(Namespaces::All),
+            SeedingPolicy::Allow {
+                scope: Scope::Followed,
+            } => {
+                let nodes = self
+                    .follow_policies()
+                    .map_err(|err| FailedNodes { rid: *rid, err })?;
+                let mut followed: HashSet<_> = nodes
+                    .filter_map(|node| (node.policy == Policy::Allow).then_some(node.nid))
+                    .collect();
 
-                    if let Ok(repo) = storage.repository(*rid) {
-                        let delegates = repo
-                            .delegates()
-                            .map_err(|err| FailedDelegates { rid: *rid, err })?
-                            .map(PublicKey::from);
-                        followed.extend(delegates);
-                    };
-                    if followed.is_empty() {
-                        // Nb. returning All here because the
-                        // fetching logic will correctly determine
-                        // followed and delegate remotes.
-                        Ok(Namespaces::All)
-                    } else {
-                        Ok(Namespaces::Followed(followed))
-                    }
+                if let Ok(repo) = storage.repository(*rid) {
+                    let delegates = repo
+                        .delegates()
+                        .map_err(|err| FailedDelegates { rid: *rid, err })?
+                        .map(PublicKey::from);
+                    followed.extend(delegates);
+                };
+                if followed.is_empty() {
+                    // Nb. returning All here because the
+                    // fetching logic will correctly determine
+                    // followed and delegate remotes.
+                    Ok(Namespaces::All)
+                } else {
+                    Ok(Namespaces::Followed(followed))
                 }
-            },
+            }
         }
     }
 }

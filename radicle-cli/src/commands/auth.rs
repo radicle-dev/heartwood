@@ -169,6 +169,12 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
         term::success!("Authenticated as {}", term::format::tertiary(profile.id()));
         return Ok(());
     }
+    for (key, _) in &profile.config.node.extra {
+        term::warning(format!(
+            "unused or deprecated configuration attribute {:?}",
+            key
+        ));
+    }
 
     // If our key is encrypted, we try to authenticate with SSH Agent and
     // register it; only if it is running.

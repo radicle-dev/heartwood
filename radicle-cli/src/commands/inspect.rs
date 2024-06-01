@@ -9,7 +9,7 @@ use chrono::prelude::*;
 
 use radicle::identity::RepoId;
 use radicle::identity::{DocAt, Identity};
-use radicle::node::policy::Policy;
+use radicle::node::policy::SeedingPolicy;
 use radicle::node::AliasStore as _;
 use radicle::storage::git::{Repository, Storage};
 use radicle::storage::refs::RefsAt;
@@ -175,15 +175,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let policies = profile.policies()?;
             let seed = policies.seed_policy(&rid)?;
             match seed.policy {
-                Policy::Allow => {
+                SeedingPolicy::Allow { scope } => {
                     println!(
                         "Repository {} is {} with scope {}",
                         term::format::tertiary(&rid),
                         term::format::positive("being seeded"),
-                        term::format::dim(format!("`{}`", seed.scope))
+                        term::format::dim(format!("`{scope}`"))
                     );
                 }
-                Policy::Block => {
+                SeedingPolicy::Block => {
                     println!(
                         "Repository {} is {}",
                         term::format::tertiary(&rid),

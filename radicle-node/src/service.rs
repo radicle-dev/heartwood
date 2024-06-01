@@ -34,6 +34,7 @@ use radicle::node::seed::Store as _;
 use radicle::node::{ConnectOptions, Penalty, Severity};
 use radicle::storage::refs::SIGREFS_BRANCH;
 use radicle::storage::RepositoryError;
+use radicle_fetch::policy::SeedingPolicy;
 
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
@@ -49,7 +50,7 @@ use crate::service::gossip::Store as _;
 use crate::service::message::{
     Announcement, AnnouncementMessage, Info, NodeAnnouncement, Ping, RefsAnnouncement, RefsStatus,
 };
-use crate::service::policy::{store::Write, Policy, Scope};
+use crate::service::policy::{store::Write, Scope};
 use crate::storage;
 use crate::storage::{refs::RefsAt, Namespaces, ReadStorage};
 use crate::worker::fetch;
@@ -102,6 +103,8 @@ pub const MAX_RECONNECTION_DELTA: LocalDuration = LocalDuration::from_mins(60);
 pub const CONNECTION_RETRY_DELTA: LocalDuration = LocalDuration::from_mins(10);
 /// How long to wait for a fetch to stall before aborting, default is 3s.
 pub const FETCH_TIMEOUT: time::Duration = time::Duration::from_secs(3);
+/// Target number of peers to maintain connections to.
+pub const TARGET_OUTBOUND_PEERS: usize = 8;
 
 /// Maximum external address limit imposed by message size limits.
 pub use message::ADDRESS_LIMIT;
@@ -560,7 +563,7 @@ where
         self.filter = Filter::new(
             self.policies
                 .seed_policies()?
-                .filter_map(|t| (t.policy == Policy::Allow).then_some(t.rid)),
+                .filter_map(|t| (t.policy.is_allow()).then_some(t.rid)),
         );
         Ok(updated)
     }
@@ -735,7 +738,7 @@ where
         self.filter = Filter::new(
             self.policies
                 .seed_policies()?
-                .filter_map(|t| (t.policy == Policy::Allow).then_some(t.rid)),
+                .filter_map(|t| (t.policy.is_allow()).then_some(t.rid)),
         );
         // Connect to configured peers.
         let addrs = self.config.connect.clone();
@@ -1216,9 +1219,12 @@ where
                     .policies
                     .seed_policy(&rid)
                     .expect("Service::dequeue_fetch: error accessing repo seeding configuration");
-
+                let SeedingPolicy::Allow { scope } = repo_entry.policy else {
+                    debug!(target: "service", "Repository {rid} is no longer seeded, skipping..");
+                    continue;
+                };
                 // Keep dequeueing if there was nothing to fetch, otherwise break.
-                if self.fetch_refs_at(rid, from, refs, repo_entry.scope, timeout, channel) {
+                if self.fetch_refs_at(rid, from, refs, scope, timeout, channel) {
                     break;
                 }
             } else {
@@ -1625,14 +1631,14 @@ where
                 let repo_entry = self.policies.seed_policy(&message.rid).expect(
                     "Service::handle_announcement: error accessing repo seeding configuration",
                 );
-                if repo_entry.policy != Policy::Allow {
+                let SeedingPolicy::Allow { scope } = repo_entry.policy else {
                     debug!(
                         target: "service",
                         "Ignoring refs announcement from {announcer}: repository {} isn't seeded (t={timestamp})",
                         message.rid
                     );
                     return Ok(None);
-                }
+                };
                 // Refs can be relayed by peers who don't have the data in storage,
                 // therefore we only check whether we are connected to the *announcer*,
                 // which is required by the protocol to only announce refs it has.
@@ -1645,14 +1651,8 @@ where
                     return Ok(relay);
                 };
                 // Finally, start the fetch.
-                self.fetch_refs_at(
-                    message.rid,
-                    remote.id,
-                    refs,
-                    repo_entry.scope,
-                    FETCH_TIMEOUT,
-                    None,
-                );
+                self.fetch_refs_at(message.rid, remote.id, refs, scope, FETCH_TIMEOUT, None);
+
                 return Ok(relay);
             }
             AnnouncementMessage::Node(
@@ -2202,7 +2202,7 @@ where
 
     /// Return a new filter object, based on our seeding policy.
     fn filter(&self) -> Filter {
-        if self.config.policy == Policy::Allow {
+        if self.config.seeding_policy.is_allow() {
             // TODO: Remove bits for blocked repos.
             Filter::default()
         } else {
@@ -2361,7 +2361,7 @@ where
         let missing = self
             .policies
             .seed_policies()?
-            .filter_map(|t| (t.policy == Policy::Allow).then_some(t.rid))
+            .filter_map(|t| (t.policy.is_allow()).then_some(t.rid))
             .filter(|rid| !inventory.contains(rid));
 
         for rid in missing {
@@ -2412,11 +2412,12 @@ where
 
     /// Try to maintain a target number of connections.
     fn maintain_connections(&mut self) {
-        let PeerConfig::Dynamic { target } = self.config.peers else {
+        let PeerConfig::Dynamic = self.config.peers else {
             return;
         };
         trace!(target: "service", "Maintaining connections..");
 
+        let target = TARGET_OUTBOUND_PEERS;
         let now = self.clock;
         let outbound = self
             .sessions
