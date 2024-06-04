@@ -122,6 +122,42 @@ date     Thu, 15 Dec 2022 17:28:04 +0000
 
 ```
 
+We can use `rad id show` to show the changes of an accepted update:
+
+```
+$ rad id show 0ca42d376bd566631083c8913cf86bec722da392
+╭────────────────────────────────────────────────────────────────────────╮
+│ Title    Add Bob                                                       │
+│ Revision 0ca42d376bd566631083c8913cf86bec722da392                      │
+│ Blob     053541ba7b90534b35dd8718e0ceaa408979b02b                      │
+│ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
+│ State    accepted                                                      │
+│ Quorum   yes                                                           │
+│                                                                        │
+│ Add Bob as a delegate                                                  │
+├────────────────────────────────────────────────────────────────────────┤
+│ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi alice (you) │
+╰────────────────────────────────────────────────────────────────────────╯
+
+@@ -1,13 +1,14 @@
+ {
+   "payload": {
+     "xyz.radicle.project": {
+       "defaultBranch": "master",
+       "description": "Radicle Heartwood Protocol & Stack",
+       "name": "heartwood"
+     }
+   },
+   "delegates": [
+-    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
++    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
++    "did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk"
+   ],
+-  "threshold": 1
++  "threshold": 2
+ }
+```
+
 Note that once a revision is accepted, it can't be edited, redacted or otherwise
 acted upon:
 

@@ -472,7 +472,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::ShowRevision { revision } => {
             let revision = get(revision, &identity, &repo)?;
-            print(revision, &current, &repo, &profile)?;
+            let previous = revision.parent.unwrap_or(revision.id);
+            let previous = identity
+                .revision(&previous)
+                .ok_or(anyhow!("revision `{previous}` not found"))?;
+
+            print(revision, previous, &repo, &profile)?;
         }
     }
     Ok(())
