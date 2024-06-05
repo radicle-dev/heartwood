@@ -1,5 +1,6 @@
 [package]
 name = "radicle-signals"
+description = "Radicle signal handling"
 homepage = "https://radicle.xyz"
 repository = "https://app.radicle.xyz/seeds/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
 license = "MIT OR Apache-2.0"

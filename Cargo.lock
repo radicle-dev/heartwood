@@ -1812,9 +1812,9 @@ checksum = "baff4b617f7df3d896f97fe922b64817f6cd9a756bb81d40f8883f2f66dcb401"
 
 [[package]]
 name = "libc"
-version = "0.2.154"
+version = "0.2.155"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae743338b92ff9146ce83992f766a31066a91a8c84a45e0e9f21e7cf6de6d346"
+checksum = "97b3888a4aecf77e811145cadf6eef5901f4782c53886191b2f693f24761847c"
 
 [[package]]
 name = "libgit2-sys"
@@ -2429,7 +2429,7 @@ dependencies = [
 
 [[package]]
 name = "radicle"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "amplify",
  "base64 0.21.7",
@@ -2448,10 +2448,44 @@ dependencies = [
  "pretty_assertions",
  "qcheck",
  "qcheck-macros",
- "radicle-cob",
- "radicle-crypto",
+ "radicle-cob 0.11.0",
+ "radicle-crypto 0.10.0",
  "radicle-git-ext",
- "radicle-ssh",
+ "radicle-ssh 0.9.0",
+ "serde",
+ "serde_json",
+ "siphasher 1.0.1",
+ "sqlite",
+ "tempfile",
+ "thiserror",
+ "unicode-normalization",
+]
+
+[[package]]
+name = "radicle"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2c96b3901ca5b7bfe06da3fb18105c32dc5f9f5c48a217cfc7104385a687195"
+dependencies = [
+ "amplify",
+ "base64 0.21.7",
+ "chrono",
+ "colored",
+ "crossbeam-channel",
+ "cyphernet",
+ "fastrand",
+ "git2",
+ "libc",
+ "localtime",
+ "log",
+ "multibase",
+ "nonempty 0.9.0",
+ "once_cell",
+ "qcheck",
+ "radicle-cob 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "radicle-crypto 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "radicle-git-ext",
+ "radicle-ssh 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "serde_json",
  "siphasher 1.0.1",
@@ -2463,7 +2497,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cli"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2473,14 +2507,57 @@ dependencies = [
  "log",
  "nonempty 0.9.0",
  "pretty_assertions",
- "radicle",
- "radicle-cli-test",
- "radicle-cob",
- "radicle-crypto",
+ "radicle 0.11.0",
+ "radicle-cli-test 0.10.0",
+ "radicle-cob 0.11.0",
+ "radicle-crypto 0.10.0",
  "radicle-git-ext",
  "radicle-node",
  "radicle-surf",
- "radicle-term",
+ "radicle-term 0.10.0",
+ "serde",
+ "serde_json",
+ "shlex",
+ "tempfile",
+ "thiserror",
+ "timeago",
+ "tree-sitter",
+ "tree-sitter-bash",
+ "tree-sitter-c",
+ "tree-sitter-css",
+ "tree-sitter-go",
+ "tree-sitter-highlight",
+ "tree-sitter-html",
+ "tree-sitter-json",
+ "tree-sitter-md",
+ "tree-sitter-python",
+ "tree-sitter-ruby",
+ "tree-sitter-rust",
+ "tree-sitter-toml",
+ "tree-sitter-typescript",
+ "zeroize",
+]
+
+[[package]]
+name = "radicle-cli"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5347c326bec844b7ced9c8f8bcfec88104ea2066c029d49d5128dd09a4148c50"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "git-ref-format",
+ "lexopt",
+ "localtime",
+ "log",
+ "nonempty 0.9.0",
+ "radicle 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "radicle-cli-test 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "radicle-cob 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "radicle-crypto 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "radicle-git-ext",
+ "radicle-surf",
+ "radicle-term 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "serde_json",
  "shlex",
@@ -2506,12 +2583,27 @@ dependencies = [
 
 [[package]]
 name = "radicle-cli-test"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "escargot",
  "log",
  "pretty_assertions",
- "radicle",
+ "radicle 0.11.0",
+ "shlex",
+ "snapbox",
+ "thiserror",
+]
+
+[[package]]
+name = "radicle-cli-test"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5bbd1dc7cb2801693d6d00f937021adb0d398e9fec6b998e4830ebba32fdfdd"
+dependencies = [
+ "escargot",
+ "log",
+ "pretty_assertions",
+ "radicle 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "shlex",
  "snapbox",
  "thiserror",
@@ -2519,7 +2611,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cob"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "fastrand",
  "git2",
@@ -2528,12 +2620,31 @@ dependencies = [
  "once_cell",
  "qcheck",
  "qcheck-macros",
- "radicle-crypto",
- "radicle-dag",
+ "radicle-crypto 0.10.0",
+ "radicle-dag 0.9.0",
  "radicle-git-ext",
  "serde",
  "serde_json",
  "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "radicle-cob"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "36d8268661b22cec768bdf687aa9d98db2dcd9c8f974e8208f8658244074b539"
+dependencies = [
+ "fastrand",
+ "git2",
+ "log",
+ "nonempty 0.9.0",
+ "once_cell",
+ "radicle-crypto 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "radicle-dag 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "radicle-git-ext",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 
@@ -2545,7 +2656,7 @@ dependencies = [
  "num-traits",
  "qcheck",
  "qcheck-macros",
- "radicle-crypto",
+ "radicle-crypto 0.10.0",
  "serde",
  "tempfile",
  "thiserror",
@@ -2553,7 +2664,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-crypto"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "amplify",
  "cyphernet",
@@ -2563,7 +2674,7 @@ dependencies = [
  "qcheck",
  "qcheck-macros",
  "radicle-git-ext",
- "radicle-ssh",
+ "radicle-ssh 0.9.0",
  "serde",
  "sqlite",
  "ssh-key",
@@ -2573,8 +2684,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "radicle-crypto"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb86116dc5d9daa0d0b8e07fb71c9887d537b3fecebffc0cde6624b07176c711"
+dependencies = [
+ "amplify",
+ "cyphernet",
+ "ec25519",
+ "fastrand",
+ "multibase",
+ "qcheck",
+ "radicle-git-ext",
+ "radicle-ssh 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde",
+ "sqlite",
+ "ssh-key",
+ "thiserror",
+ "zeroize",
+]
+
+[[package]]
 name = "radicle-dag"
 version = "0.9.0"
+dependencies = [
+ "fastrand",
+]
+
+[[package]]
+name = "radicle-dag"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2a678c3049a88ae6a34dd9f52ea9a5f9f066a0af63466b75cf8c48840303067"
 dependencies = [
  "fastrand",
 ]
@@ -2594,7 +2735,7 @@ dependencies = [
  "gix-transport 0.42.0",
  "log",
  "nonempty 0.9.0",
- "radicle",
+ "radicle 0.11.0",
  "radicle-git-ext",
  "thiserror",
 ]
@@ -2615,7 +2756,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-httpd"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2630,11 +2771,11 @@ dependencies = [
  "lru",
  "nonempty 0.9.0",
  "pretty_assertions",
- "radicle",
- "radicle-cli",
- "radicle-crypto",
+ "radicle 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "radicle-cli 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "radicle-crypto 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "radicle-surf",
- "radicle-term",
+ "radicle-term 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "serde_json",
  "tempfile",
@@ -2674,11 +2815,11 @@ dependencies = [
  "once_cell",
  "qcheck",
  "qcheck-macros",
- "radicle",
- "radicle-crypto",
+ "radicle 0.11.0",
+ "radicle-crypto 0.10.0",
  "radicle-fetch",
  "radicle-git-ext",
- "radicle-signals",
+ "radicle-signals 0.9.0",
  "scrypt",
  "serde",
  "serde_json",
@@ -2694,9 +2835,9 @@ name = "radicle-remote-helper"
 version = "0.9.0"
 dependencies = [
  "log",
- "radicle",
- "radicle-cli",
- "radicle-crypto",
+ "radicle 0.11.0",
+ "radicle-cli 0.10.0",
+ "radicle-crypto 0.10.0",
  "radicle-git-ext",
  "thiserror",
 ]
@@ -2710,8 +2851,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "radicle-signals"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0633d483e40eb96a8e57264727f1c4f0d188348eb5c155cf1369469c121c6c87"
+dependencies = [
+ "crossbeam-channel",
+ "libc",
+]
+
+[[package]]
 name = "radicle-ssh"
 version = "0.9.0"
+dependencies = [
+ "byteorder",
+ "log",
+ "thiserror",
+ "zeroize",
+]
+
+[[package]]
+name = "radicle-ssh"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbee758010fb64482be4b18591fbeb3cbc15b16450d143edf4edb5484c7366c6"
 dependencies = [
  "byteorder",
  "log",
@@ -2747,7 +2910,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-term"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "anstyle-query",
  "anyhow",
@@ -2757,9 +2920,31 @@ dependencies = [
  "libc",
  "once_cell",
  "pretty_assertions",
- "radicle-signals",
+ "radicle-signals 0.9.0",
  "shlex",
  "tempfile",
+ "termion 3.0.0",
+ "thiserror",
+ "unicode-display-width",
+ "unicode-segmentation",
+ "zeroize",
+]
+
+[[package]]
+name = "radicle-term"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a46c7b39b0fabe11cbb1f697979f1e1021122aef76b476f5d385c48a02400310"
+dependencies = [
+ "anstyle-query",
+ "anyhow",
+ "crossbeam-channel",
+ "git2",
+ "inquire",
+ "libc",
+ "once_cell",
+ "radicle-signals 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "shlex",
  "termion 3.0.0",
  "thiserror",
  "unicode-display-width",
@@ -2772,10 +2957,10 @@ name = "radicle-tools"
 version = "0.9.0"
 dependencies = [
  "anyhow",
- "radicle",
- "radicle-cli",
+ "radicle 0.11.0",
+ "radicle-cli 0.10.0",
  "radicle-git-ext",
- "radicle-term",
+ "radicle-term 0.10.0",
 ]
 
 [[package]]
