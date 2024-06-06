@@ -1,7 +1,7 @@
 pub mod git;
 pub mod refs;
 
-use std::collections::{hash_map, BTreeSet, HashSet};
+use std::collections::{hash_map, HashSet};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::{fmt, io};
@@ -29,7 +29,6 @@ use self::git::UserInfo;
 use self::refs::{RefsAt, SignedRefs};
 
 pub type BranchName = git::RefString;
-pub type Inventory = BTreeSet<RepoId>;
 
 /// Basic repository information.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -150,8 +149,6 @@ pub enum Error {
     Ext(#[from] git::ext::Error),
     #[error("invalid repository identifier {0:?}")]
     InvalidId(std::ffi::OsString),
-    #[error("inventory: {0}")]
-    Inventory(io::Error),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
 }
@@ -405,9 +402,6 @@ impl<V> Deref for Remote<V> {
 /// Read-only operations on a storage instance.
 pub trait ReadStorage {
     type Repository: ReadRepository;
-    type InventoryRef<'a>: Deref<Target = Inventory>
-    where
-        Self: 'a;
 
     /// Get user info for this storage.
     fn info(&self) -> &UserInfo;
@@ -417,16 +411,8 @@ pub trait ReadStorage {
     fn path_of(&self, rid: &RepoId) -> PathBuf;
     /// Check whether storage contains a repository.
     fn contains(&self, rid: &RepoId) -> Result<bool, RepositoryError>;
-    /// Get the inventory of repositories hosted under this storage.
-    /// This function should typically only return public repositories.
-    fn inventory(&self) -> Result<Inventory, Error>;
-    /// Return a reference to the inventory. Note that this function may hold a
-    /// lock to the inventory.
-    fn inventory_ref<'a, 's: 'a>(&'s self) -> Self::InventoryRef<'a>;
     /// Return all repositories (public and private).
     fn repositories(&self) -> Result<Vec<RepositoryInfo<Verified>>, Error>;
-    /// Insert this repository into the inventory.
-    fn insert(&self, rid: RepoId);
     /// Open or create a read-only repository.
     fn repository(&self, rid: RepoId) -> Result<Self::Repository, RepositoryError>;
     /// Get a repository's identity if it exists.
@@ -667,7 +653,6 @@ where
     S: ReadStorage + 'static,
 {
     type Repository = S::Repository;
-    type InventoryRef<'a> = S::InventoryRef<'a> where T: 'a;
 
     fn info(&self) -> &UserInfo {
         self.deref().info()
@@ -681,23 +666,8 @@ where
         self.deref().path_of(rid)
     }
 
-    fn insert(&self, rid: RepoId) {
-        self.deref().insert(rid)
-    }
-
     fn contains(&self, rid: &RepoId) -> Result<bool, RepositoryError> {
         self.deref().contains(rid)
-    }
-
-    fn inventory(&self) -> Result<Inventory, Error> {
-        self.deref().inventory()
-    }
-
-    fn inventory_ref<'a, 's: 'a>(&'s self) -> Self::InventoryRef<'a>
-    where
-        T: 'a,
-    {
-        self.deref().inventory_ref()
     }
 
     fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError> {

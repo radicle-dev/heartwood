@@ -18,7 +18,7 @@ $ rad patch show aa45913
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                 │
 │ Patch     aa45913e757cacd46972733bddee5472c78fa32a                  │
-│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Author    alice (you)                                               │
 │ Head      639f44a25145a37f747f3c84265037a9461e44c5                  │
 │ Branches  patch/aa45913                                             │
 │ Commits   ahead 3, behind 0                                         │
@@ -30,7 +30,7 @@ $ rad patch show aa45913
 │ 27857ec Add README, just for the fun                                │
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (3e674d1) now                     │
+│ ● opened by alice (you) (3e674d1) now                               │
 │ ↑ updated to 3156bed9d64d4675d6cf56612d217fc5f4e8a53a (27857ec) now │
 │ ↑ updated to 2f5324f61e05cda65b667eeea02570d077a8e724 (639f44a) now │
 ╰─────────────────────────────────────────────────────────────────────╯

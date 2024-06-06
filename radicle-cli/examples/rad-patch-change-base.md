@@ -47,7 +47,7 @@ $ rad patch show 183d343ab47d7fe18baf1b24b7209ad033d7fe5c -v
 ╭────────────────────────────────────────────────────╮
 │ Title     Add README, just for the fun             │
 │ Patch     183d343ab47d7fe18baf1b24b7209ad033d7fe5c │
-│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Author    alice (you)                              │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66 │
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 │
 │ Branches  add-readme                               │
@@ -57,7 +57,7 @@ $ rad patch show 183d343ab47d7fe18baf1b24b7209ad033d7fe5c -v
 │ 27857ec Add README, just for the fun               │
 │ 3e674d1 Define power requirements                  │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (27857ec) now    │
+│ ● opened by alice (you) (27857ec) now              │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -78,7 +78,7 @@ $ rad patch show 183d343 -v
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add README, just for the fun                              │
 │ Patch     183d343ab47d7fe18baf1b24b7209ad033d7fe5c                  │
-│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Author    alice (you)                                               │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                  │
 │ Base      3e674d1a1df90807e934f9ae5da2591dd6848a33                  │
 │ Branches  add-readme                                                │
@@ -87,7 +87,7 @@ $ rad patch show 183d343 -v
 ├─────────────────────────────────────────────────────────────────────┤
 │ 27857ec Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (27857ec) now                     │
+│ ● opened by alice (you) (27857ec) now                               │
 │ ↑ updated to ebe76f9c2148eb595d7a745f82275786bf3458c3 (27857ec) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```

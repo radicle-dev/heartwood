@@ -45,11 +45,11 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 When listing, we see that it has one addition:
 ```
 $ rad patch list
-╭─────────────────────────────────────────────────────────────────────────────────╮
-│ ●  ID       Title     Author                  Reviews  Head     +   -   Updated │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│ ●  217f050  Add Alan  z6MknSL…StBU8Vi  (you)  -        5c88a79  +1  -0  now     │
-╰─────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title     Author         Reviews  Head     +   -   Updated │
+├────────────────────────────────────────────────────────────────────────┤
+│ ●  217f050  Add Alan  alice   (you)  -        5c88a79  +1  -0  now     │
+╰────────────────────────────────────────────────────────────────────────╯
 ```
 
 When showing the patch, we see that it is `ahead 1, behind 1`, since master has
@@ -59,7 +59,7 @@ $ rad patch show -v -p 217f050
 ╭────────────────────────────────────────────────────╮
 │ Title     Add Alan                                 │
 │ Patch     217f050f8891def8fb863f7c0b4f85c89f97299d │
-│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Author    alice (you)                              │
 │ Head      5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7 │
 │ Base      f64fb2c8fe28f7c458c72ec8d700373924794943 │
 │ Branches  feature/1                                │
@@ -68,7 +68,7 @@ $ rad patch show -v -p 217f050
 ├────────────────────────────────────────────────────┤
 │ 5c88a79 Add Alan                                   │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (5c88a79) now    │
+│ ● opened by alice (you) (5c88a79) now              │
 ╰────────────────────────────────────────────────────╯
 
 commit 5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7
@@ -105,7 +105,7 @@ $ rad patch show -v e22ff008e2a0ed47262890d13263031d7555b555
 ╭────────────────────────────────────────────────────╮
 │ Title     Add Mel                                  │
 │ Patch     e22ff008e2a0ed47262890d13263031d7555b555 │
-│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Author    alice (you)                              │
 │ Head      7f63fcbcf23fc39eea784c091ad3d20d7e4bd005 │
 │ Base      f64fb2c8fe28f7c458c72ec8d700373924794943 │
 │ Branches  feature/2                                │
@@ -115,7 +115,7 @@ $ rad patch show -v e22ff008e2a0ed47262890d13263031d7555b555
 │ 7f63fcb Add Mel                                    │
 │ 5c88a79 Add Alan                                   │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (7f63fcb) now    │
+│ ● opened by alice (you) (7f63fcb) now              │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -140,7 +140,7 @@ $ rad patch show -v a467ffa260c4fbe355b6fb550ba0c4956078717e
 ╭────────────────────────────────────────────────────╮
 │ Title     Add Mel #2                               │
 │ Patch     a467ffa260c4fbe355b6fb550ba0c4956078717e │
-│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Author    alice (you)                              │
 │ Head      7f63fcbcf23fc39eea784c091ad3d20d7e4bd005 │
 │ Base      5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7 │
 │ Branches  feature/2                                │
@@ -149,6 +149,6 @@ $ rad patch show -v a467ffa260c4fbe355b6fb550ba0c4956078717e
 ├────────────────────────────────────────────────────┤
 │ 7f63fcb Add Mel                                    │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (7f63fcb) now    │
+│ ● opened by alice (you) (7f63fcb) now              │
 ╰────────────────────────────────────────────────────╯
 ```

@@ -8,7 +8,7 @@ $ rad issue open --title "flux capacitor underpowered" --description "Flux capac
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   d87dcfe8c2b3200e78b128d9b959cfdf7063fefe        │
-│ Author  z6MknSL…StBU8Vi (you)                           │
+│ Author  alice (you)                                     │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │
@@ -19,11 +19,11 @@ The issue is now listed under our project.
 
 ```
 $ rad issue list
-╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title                         Author                    Labels   Assignees   Opened │
-├───────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   d87dcfe   flux capacitor underpowered   z6MknSL…StBU8Vi   (you)                        now    │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title                         Author           Labels   Assignees   Opened │
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   d87dcfe   flux capacitor underpowered   alice    (you)                        now    │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Show the issue information issue.
@@ -33,7 +33,7 @@ $ rad issue show d87dcfe
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   d87dcfe8c2b3200e78b128d9b959cfdf7063fefe        │
-│ Author  z6MknSL…StBU8Vi (you)                           │
+│ Author  alice (you)                                     │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │
@@ -59,11 +59,11 @@ It will now show in the list of issues assigned to us, along with the new label.
 
 ```
 $ rad issue list --assigned
-╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title                         Author                    Labels             Assignees         Opened │
-├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   d87dcfe   flux capacitor underpowered   z6MknSL…StBU8Vi   (you)   good-first-issue   z6MknSL…StBU8Vi   now    │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title                         Author           Labels             Assignees   Opened │
+├────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   d87dcfe   flux capacitor underpowered   alice    (you)   good-first-issue   alice       now    │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Note: this can always be undone with the `unassign` subcommand.
@@ -91,16 +91,16 @@ $ rad issue show d87dcfe8c2b3200e78b128d9b959cfdf7063fefe
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   d87dcfe8c2b3200e78b128d9b959cfdf7063fefe        │
-│ Author  z6MknSL…StBU8Vi (you)                           │
+│ Author  alice (you)                                     │
 │ Labels  good-first-issue                                │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │
 ├─────────────────────────────────────────────────────────┤
-│ z6MknSL…StBU8Vi (you) now 2193e87                       │
+│ alice (you) now 2193e87                                 │
 │ The flux capacitor needs 1.21 Gigawatts                 │
 ├─────────────────────────────────────────────────────────┤
-│ z6MknSL…StBU8Vi (you) now 880fdcd                       │
+│ alice (you) now 880fdcd                                 │
 │ More power!                                             │
 ╰─────────────────────────────────────────────────────────╯
 ```

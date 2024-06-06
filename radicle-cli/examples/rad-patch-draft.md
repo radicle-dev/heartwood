@@ -21,7 +21,7 @@ $ rad patch show 97e18f8598237a396a1c0ac1509c89028e666c97
 ╭────────────────────────────────────────────────────╮
 │ Title     Nothing yet                              │
 │ Patch     97e18f8598237a396a1c0ac1509c89028e666c97 │
-│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Author    alice (you)                              │
 │ Head      2a465832b5a76abe25be44a3a5d224bbd7741ba7 │
 │ Branches  cloudhead/draft                          │
 │ Commits   ahead 1, behind 0                        │
@@ -29,7 +29,7 @@ $ rad patch show 97e18f8598237a396a1c0ac1509c89028e666c97
 ├────────────────────────────────────────────────────┤
 │ 2a46583 Nothing to see here..                      │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (2a46583) [ .. ] │
+│ ● opened by alice (you) (2a46583) [ .. ]           │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -44,7 +44,7 @@ $ rad patch show 97e18f8598237a396a1c0ac1509c89028e666c97
 ╭────────────────────────────────────────────────────╮
 │ Title     Nothing yet                              │
 │ Patch     97e18f8598237a396a1c0ac1509c89028e666c97 │
-│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Author    alice (you)                              │
 │ Head      2a465832b5a76abe25be44a3a5d224bbd7741ba7 │
 │ Branches  cloudhead/draft                          │
 │ Commits   ahead 1, behind 0                        │
@@ -52,7 +52,7 @@ $ rad patch show 97e18f8598237a396a1c0ac1509c89028e666c97
 ├────────────────────────────────────────────────────┤
 │ 2a46583 Nothing to see here..                      │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (2a46583) [ .. ] │
+│ ● opened by alice (you) (2a46583) [ .. ]           │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -65,7 +65,7 @@ $ rad patch show 97e18f8598237a396a1c0ac1509c89028e666c97
 ╭────────────────────────────────────────────────────╮
 │ Title     Nothing yet                              │
 │ Patch     97e18f8598237a396a1c0ac1509c89028e666c97 │
-│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Author    alice (you)                              │
 │ Head      2a465832b5a76abe25be44a3a5d224bbd7741ba7 │
 │ Branches  cloudhead/draft                          │
 │ Commits   ahead 1, behind 0                        │
@@ -73,6 +73,6 @@ $ rad patch show 97e18f8598237a396a1c0ac1509c89028e666c97
 ├────────────────────────────────────────────────────┤
 │ 2a46583 Nothing to see here..                      │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (2a46583) [ .. ] │
+│ ● opened by alice (you) (2a46583) [ .. ]           │
 ╰────────────────────────────────────────────────────╯
 ```

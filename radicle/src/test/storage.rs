@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -51,26 +51,20 @@ impl MockStorage {
             .expect("MockStorage::repo_mut: repository does not exist")
     }
 
+    pub fn map(mut self, f: impl Fn(&mut Doc<Verified>)) -> Self {
+        for repo in self.repos.values_mut() {
+            f(&mut repo.doc.doc);
+        }
+        self
+    }
+
     pub fn empty() -> Self {
         Self::new(Vec::new())
     }
 }
 
-pub struct InventoryLock {
-    inner: Inventory,
-}
-
-impl std::ops::Deref for InventoryLock {
-    type Target = BTreeSet<RepoId>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
 impl ReadStorage for MockStorage {
     type Repository = MockRepository;
-    type InventoryRef<'a> = InventoryLock;
 
     fn info(&self) -> &git::UserInfo {
         &self.info
@@ -87,18 +81,6 @@ impl ReadStorage for MockStorage {
     fn contains(&self, rid: &RepoId) -> Result<bool, RepositoryError> {
         Ok(self.repos.contains_key(rid))
     }
-
-    fn inventory(&self) -> Result<Inventory, Error> {
-        Ok(self.repos.keys().cloned().collect::<BTreeSet<_>>())
-    }
-
-    fn inventory_ref<'a, 's: 'a>(&'s self) -> Self::InventoryRef<'a> {
-        InventoryLock {
-            inner: self.inventory().unwrap(),
-        }
-    }
-
-    fn insert(&self, _rid: RepoId) {}
 
     fn repository(&self, rid: RepoId) -> Result<Self::Repository, RepositoryError> {
         self.repos

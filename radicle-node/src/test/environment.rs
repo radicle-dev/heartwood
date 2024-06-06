@@ -9,6 +9,7 @@ use std::{
 
 use crossbeam_channel as chan;
 
+use localtime::LocalTime;
 use radicle::cob::cache::COBS_DB_FILE;
 use radicle::cob::issue;
 use radicle::crypto::ssh::{keystore::MemorySigner, Keystore};
@@ -18,7 +19,6 @@ use radicle::git::refname;
 use radicle::identity::{RepoId, Visibility};
 use radicle::node::config::ConnectAddress;
 use radicle::node::policy::store as policy;
-use radicle::node::routing::Store;
 use radicle::node::seed::Store as _;
 use radicle::node::Database;
 use radicle::node::{Alias, POLICIES_DB_FILE};
@@ -113,21 +113,32 @@ impl Environment {
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
         let policies_db = home.node().join(POLICIES_DB_FILE);
         let cobs_db = home.cobs().join(COBS_DB_FILE);
+        let now = LocalTime::now();
 
         config.write(&home.config()).unwrap();
 
         let storage = Storage::open(
             home.storage(),
             git::UserInfo {
-                alias,
+                alias: alias.clone(),
                 key: keypair.pk.into(),
             },
         )
         .unwrap();
+        let public_key = keypair.pk.into();
 
         policy::Store::open(policies_db).unwrap();
-        home.database_mut().unwrap(); // Just create the database.
         cob::cache::Store::open(cobs_db).unwrap();
+        home.database_mut()
+            .unwrap()
+            .init(
+                &public_key,
+                config.node.features(),
+                Alias::new(alias),
+                now.into(),
+                config.node.external_addresses.iter(),
+            )
+            .unwrap();
 
         transport::local::register(storage.clone());
         keystore.store(keypair.clone(), "radicle", None).unwrap();
@@ -139,7 +150,7 @@ impl Environment {
             home,
             storage,
             keystore,
-            public_key: keypair.pk.into(),
+            public_key,
             config,
         }
     }
@@ -248,10 +259,15 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
 
     /// Get routing table entries.
     pub fn routing(&self) -> impl Iterator<Item = (RepoId, NodeId)> {
-        Database::reader(self.home.node().join(node::NODE_DB_FILE))
-            .unwrap()
-            .entries()
-            .unwrap()
+        use node::routing::Store as _;
+
+        self.home.routing_mut().unwrap().entries().unwrap()
+    }
+
+    pub fn inventory(&self) -> impl Iterator<Item = RepoId> + '_ {
+        self.routing()
+            .filter(|(_, n)| *n == self.id)
+            .map(|(r, _)| r)
     }
 
     /// Get sync status of a repo.
@@ -605,7 +621,7 @@ pub fn converge<'a, G: Signer + cyphernet::Ecdh + 'static>(
             all_routes.insert((rid, seed_id));
         }
         // Routes from the local inventory.
-        for rid in node.storage.inventory().unwrap() {
+        for rid in node.inventory() {
             all_routes.insert((rid, node.id));
         }
     }

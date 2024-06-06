@@ -274,21 +274,21 @@ fn test_inventory_sync() {
     let bob_storage = fixtures::storage(tmp.path().join("bob"), &bob_signer).unwrap();
     let bob = Peer::with_storage("bob", [8, 8, 8, 8], bob_storage);
     let now = LocalTime::now().into();
-    let projs = bob.storage().inventory().unwrap();
+    let repos = bob.inventory().into_iter().collect::<Vec<_>>();
 
     alice.connect_to(&bob);
     alice.receive(
         bob.id(),
         Message::inventory(
             InventoryAnnouncement {
-                inventory: projs.clone().try_into().unwrap(),
+                inventory: repos.clone().try_into().unwrap(),
                 timestamp: now,
             },
             bob.signer(),
         ),
     );
 
-    for proj in &projs {
+    for proj in &repos {
         let seeds = alice.database().routing().get(proj).unwrap();
         assert!(seeds.contains(&bob.node_id()));
     }
@@ -701,12 +701,7 @@ fn test_refs_announcement_relay() {
         )
         .initialized()
     };
-    let bob_inv = bob
-        .storage()
-        .inventory()
-        .unwrap()
-        .into_iter()
-        .collect::<Vec<_>>();
+    let bob_inv = bob.inventory().into_iter().collect::<Vec<_>>();
 
     alice.seed(&bob_inv[0], policy::Scope::All).unwrap();
     alice.seed(&bob_inv[1], policy::Scope::All).unwrap();
@@ -779,8 +774,8 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
         )
         .initialized()
     };
-    let bob_inv = bob.storage().inventory().unwrap();
-    let rid = bob_inv.first().unwrap();
+    let bob_inv = bob.inventory();
+    let rid = bob_inv.iter().next().unwrap();
 
     alice.seed(rid, policy::Scope::Followed).unwrap();
     alice.connect_to(&bob);
@@ -887,10 +882,7 @@ fn test_refs_announcement_offline() {
             },
         )
     };
-    let mut inv = alice.inventory();
-    let rid = *inv.first().unwrap();
     let mut bob = Peer::new("bob", [8, 8, 8, 8]);
-    bob.seed(&rid, policy::Scope::All).unwrap();
 
     // Make sure alice's service wasn't initialized before.
     assert_eq!(*alice.clock(), LocalTime::default());
@@ -898,6 +890,11 @@ fn test_refs_announcement_offline() {
     alice.initialize();
     alice.connect_to(&bob);
     alice.receive(bob.id, Message::Subscribe(Subscribe::all()));
+
+    let mut inv = alice.inventory();
+    let rid = *inv.iter().next().unwrap();
+
+    bob.seed(&rid, policy::Scope::All).unwrap();
 
     // Alice announces the refs of all projects since she hasn't announced refs for these projects
     // yet.
@@ -1429,7 +1426,7 @@ fn test_queued_fetch_max_capacity() {
 
 #[test]
 fn test_queued_fetch_from_ann_same_rid() {
-    let storage = arbitrary::nonempty_storage(3);
+    let storage = arbitrary::nonempty_storage(1); // We're testing both public and private repos.
     let mut repo_keys = storage.repos.keys();
     let rid = *repo_keys.next().unwrap();
     let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
@@ -1447,8 +1444,6 @@ fn test_queued_fetch_from_ann_same_rid() {
         .unwrap(),
         timestamp: bob.timestamp(),
     };
-
-    logger::init(log::Level::Trace);
 
     alice.seed(&rid, policy::Scope::All).unwrap();
     alice.connect_to(&bob);
@@ -1713,9 +1708,27 @@ fn test_init_and_seed() {
 fn prop_inventory_exchange_dense() {
     fn property(alice_inv: MockStorage, bob_inv: MockStorage, eve_inv: MockStorage) {
         let rng = fastrand::Rng::new();
-        let alice = Peer::with_storage("alice", [7, 7, 7, 7], alice_inv.clone());
-        let mut bob = Peer::with_storage("bob", [8, 8, 8, 8], bob_inv.clone());
-        let mut eve = Peer::with_storage("eve", [9, 9, 9, 9], eve_inv.clone());
+        let alice = Peer::with_storage(
+            "alice",
+            [7, 7, 7, 7],
+            alice_inv
+                .clone()
+                .map(|doc| doc.visibility = Visibility::Public),
+        );
+        let mut bob = Peer::with_storage(
+            "bob",
+            [8, 8, 8, 8],
+            bob_inv
+                .clone()
+                .map(|doc| doc.visibility = Visibility::Public),
+        );
+        let mut eve = Peer::with_storage(
+            "eve",
+            [9, 9, 9, 9],
+            eve_inv
+                .clone()
+                .map(|doc| doc.visibility = Visibility::Public),
+        );
         let mut routing = RandomMap::with_hasher(rng.clone().into());
 
         for (inv, peer) in &[
@@ -1913,7 +1926,6 @@ fn test_announcement_message_amplification() {
             .repos
             .insert(rid, gen::<MockRepository>(1));
         alice.command(Command::UpdateInventory(rid, tx));
-        alice.command(Command::AnnounceInventory);
 
         sim.run_while([&mut alice, &mut bob, &mut eve, &mut zod, &mut tom], |s| {
             s.elapsed() < LocalDuration::from_mins(3)

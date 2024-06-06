@@ -16,7 +16,7 @@ $ rad patch show b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5
 ╭────────────────────────────────────────────────────╮
 │ Title     Not a real change                        │
 │ Patch     b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5 │
-│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Author    alice (you)                              │
 │ Head      51b2f0f77b9849bfaa3e9d3ff68ee2f57771d20c │
 │ Branches  feature/1                                │
 │ Commits   ahead 1, behind 0                        │
@@ -24,7 +24,7 @@ $ rad patch show b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5
 ├────────────────────────────────────────────────────┤
 │ 51b2f0f Not a real change                          │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (51b2f0f) now    │
+│ ● opened by alice (you) (51b2f0f) now              │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -57,7 +57,7 @@ $ rad patch show b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Not a real change                                         │
 │ Patch     b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5                  │
-│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Author    alice (you)                                               │
 │ Head      4d272148458a17620541555b1f0905c01658aa9f                  │
 │ Branches  feature/1                                                 │
 │ Commits   ahead 2, behind 0                                         │
@@ -66,7 +66,7 @@ $ rad patch show b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5
 │ 4d27214 Rename readme file                                          │
 │ 51b2f0f Not a real change                                           │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (51b2f0f) now                     │
+│ ● opened by alice (you) (51b2f0f) now                               │
 │ ↑ updated to ea7def3857f62f404606d7cd6490cd0de4eaebd1 (4d27214) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```

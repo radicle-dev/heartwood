@@ -44,7 +44,7 @@ $ rad patch show 89f7afb
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add README, just for the fun                              │
 │ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
-│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Author    alice (you)                                               │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
 │ Branches  changes                                                   │
 │ Commits   ahead 2, behind 0                                         │
@@ -53,7 +53,7 @@ $ rad patch show 89f7afb
 │ 8945f61 Define the LICENSE                                          │
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (03c02af) now                     │
+│ ● opened by alice (you) (03c02af) now                               │
 │ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
@@ -67,7 +67,7 @@ $ rad patch show 89f7afb
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add Metadata                                              │
 │ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
-│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Author    alice (you)                                               │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
 │ Branches  changes                                                   │
 │ Commits   ahead 2, behind 0                                         │
@@ -78,7 +78,7 @@ $ rad patch show 89f7afb
 │ 8945f61 Define the LICENSE                                          │
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (03c02af) now                     │
+│ ● opened by alice (you) (03c02af) now                               │
 │ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
@@ -95,7 +95,7 @@ $ rad patch show 89f7afb
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add Metadata                                              │
 │ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
-│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Author    alice (you)                                               │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
 │ Branches  changes                                                   │
 │ Commits   ahead 2, behind 0                                         │
@@ -106,7 +106,7 @@ $ rad patch show 89f7afb
 │ 8945f61 Define the LICENSE                                          │
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (03c02af) now                     │
+│ ● opened by alice (you) (03c02af) now                               │
 │ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```

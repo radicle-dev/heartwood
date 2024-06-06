@@ -35,18 +35,18 @@ It will now be listed as one of the project's open patches.
 
 ```
 $ rad patch
-╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●  ID       Title                      Author                  Reviews  Head     +   -   Updated │
-├──────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  aa45913  Define power requirements  z6MknSL…StBU8Vi  (you)  -        3e674d1  +0  -0  now     │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title                      Author         Reviews  Head     +   -   Updated │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●  aa45913  Define power requirements  alice   (you)  -        3e674d1  +0  -0  now     │
+╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 ```
 $ rad patch show aa45913e757cacd46972733bddee5472c78fa32a -p
 ╭────────────────────────────────────────────────────╮
 │ Title     Define power requirements                │
 │ Patch     aa45913e757cacd46972733bddee5472c78fa32a │
-│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Author    alice (you)                              │
 │ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33 │
 │ Branches  flux-capacitor-power                     │
 │ Commits   ahead 1, behind 0                        │
@@ -56,7 +56,7 @@ $ rad patch show aa45913e757cacd46972733bddee5472c78fa32a -p
 ├────────────────────────────────────────────────────┤
 │ 3e674d1 Define power requirements                  │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (3e674d1) now    │
+│ ● opened by alice (you) (3e674d1) now              │
 ╰────────────────────────────────────────────────────╯
 
 commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
@@ -75,11 +75,11 @@ We can also list only patches that we've authored.
 
 ```
 $ rad patch list --authored
-╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●  ID       Title                      Author                  Reviews  Head     +   -   Updated │
-├──────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  aa45913  Define power requirements  z6MknSL…StBU8Vi  (you)  -        3e674d1  +0  -0  now     │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title                      Author         Reviews  Head     +   -   Updated │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●  aa45913  Define power requirements  alice   (you)  -        3e674d1  +0  -0  now     │
+╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 We can also see that it set an upstream for our patch branch:
@@ -99,7 +99,7 @@ $ rad patch show aa45913
 ╭────────────────────────────────────────────────────╮
 │ Title     Define power requirements                │
 │ Patch     aa45913e757cacd46972733bddee5472c78fa32a │
-│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Author    alice (you)                              │
 │ Labels    fun                                      │
 │ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33 │
 │ Branches  flux-capacitor-power                     │
@@ -110,7 +110,7 @@ $ rad patch show aa45913
 ├────────────────────────────────────────────────────┤
 │ 3e674d1 Define power requirements                  │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (3e674d1) now    │
+│ ● opened by alice (you) (3e674d1) now              │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -136,7 +136,7 @@ And let's leave a quick comment for our team:
 ```
 $ rad patch comment aa45913 --message 'I cannot wait to get back to the 90s!' --no-announce
 ╭───────────────────────────────────────╮
-│ z6MknSL…StBU8Vi (you) now 686ec1c     │
+│ alice (you) now 686ec1c               │
 │ I cannot wait to get back to the 90s! │
 ╰───────────────────────────────────────╯
 $ rad patch comment aa45913 --message 'My favorite decade!' --reply-to 686ec1c -q --no-announce
@@ -165,7 +165,7 @@ $ rad patch show aa45913
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                 │
 │ Patch     aa45913e757cacd46972733bddee5472c78fa32a                  │
-│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Author    alice (you)                                               │
 │ Labels    fun                                                       │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                  │
 │ Branches  flux-capacitor-power, patch/aa45913                       │
@@ -177,16 +177,16 @@ $ rad patch show aa45913
 │ 27857ec Add README, just for the fun                                │
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (3e674d1) now                     │
+│ ● opened by alice (you) (3e674d1) now                               │
 │ ↑ updated to 6e5a3b7b2ce27b32e7ccc2f0b3f4594897dde638 (27857ec) now │
-│   └─ ✓ accepted by z6MknSL…StBU8Vi (you) now                        │
+│   └─ ✓ accepted by alice (you) now                                  │
 ╰─────────────────────────────────────────────────────────────────────╯
 $ rad patch list
-╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●  ID       Title                      Author                  Reviews  Head     +   -   Updated │
-├──────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  aa45913  Define power requirements  z6MknSL…StBU8Vi  (you)  ✔        27857ec  +0  -0  now     │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title                      Author         Reviews  Head     +   -   Updated │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●  aa45913  Define power requirements  alice   (you)  ✔        27857ec  +0  -0  now     │
+╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 If you make a mistake on the patch description, you can always change it!
@@ -197,7 +197,7 @@ $ rad patch show aa45913
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                 │
 │ Patch     aa45913e757cacd46972733bddee5472c78fa32a                  │
-│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Author    alice (you)                                               │
 │ Labels    fun                                                       │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                  │
 │ Branches  flux-capacitor-power, patch/aa45913                       │
@@ -209,8 +209,8 @@ $ rad patch show aa45913
 │ 27857ec Add README, just for the fun                                │
 │ 3e674d1 Define power requirements                                   │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (3e674d1) now                     │
+│ ● opened by alice (you) (3e674d1) now                               │
 │ ↑ updated to 6e5a3b7b2ce27b32e7ccc2f0b3f4594897dde638 (27857ec) now │
-│   └─ ✓ accepted by z6MknSL…StBU8Vi (you) now                        │
+│   └─ ✓ accepted by alice (you) now                                  │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```

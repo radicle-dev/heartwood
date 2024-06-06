@@ -287,11 +287,14 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             if options.verbose {
                 term::blob(json::to_string_pretty(&proj)?);
             }
-
             // It's important to seed our own repositories to make sure that our node signals
             // interest for them. This ensures that messages relating to them are relayed to us.
             if options.seed {
                 cli::project::seed(rid, options.scope, &mut node, profile)?;
+
+                if doc.visibility.is_public() {
+                    cli::project::add_inventory(rid, &mut node, profile)?;
+                }
             }
 
             if options.set_upstream || git::branch_remote(&repo, proj.default_branch()).is_err() {
@@ -370,7 +373,6 @@ fn sync(
     let events = node.subscribe(DEFAULT_SUBSCRIBE_TIMEOUT)?;
     let sessions = node.sessions()?;
 
-    node.update_inventory(rid)?;
     spinner.message("Announcing..");
 
     if !sessions.iter().any(|s| s.is_connected()) {

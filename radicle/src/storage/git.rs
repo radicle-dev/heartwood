@@ -5,7 +5,6 @@ pub mod transport;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard};
 use std::{fs, io};
 
 use crypto::{Signer, Verified};
@@ -20,8 +19,8 @@ use crate::node::SyncedAt;
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs, SignedRefsAt};
 use crate::storage::{
-    Inventory, ReadRepository, ReadStorage, Remote, Remotes, RepositoryError, RepositoryInfo,
-    SetHead, SignRepository, WriteRepository, WriteStorage,
+    ReadRepository, ReadStorage, Remote, Remotes, RepositoryError, RepositoryInfo, SetHead,
+    SignRepository, WriteRepository, WriteStorage,
 };
 use crate::{git, node};
 
@@ -73,34 +72,14 @@ impl<'a> TryFrom<git2::Reference<'a>> for Ref {
     }
 }
 
-/// A reference to a locked inventory.
-pub struct InventoryLock<'a> {
-    guard: MutexGuard<'a, Option<BTreeSet<RepoId>>>,
-}
-
-impl<'a> Deref for InventoryLock<'a> {
-    type Target = BTreeSet<RepoId>;
-
-    #[track_caller]
-    fn deref(&self) -> &Self::Target {
-        match *self.guard {
-            Some(ref cache) => cache,
-            None => panic!("InventoryLock::deref: inventory cache was not initialized"),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Storage {
     path: PathBuf,
     info: UserInfo,
-    /// Inventory cache. Set to `None` until the cache is populated.
-    inventory: Arc<Mutex<Option<BTreeSet<RepoId>>>>,
 }
 
 impl ReadStorage for Storage {
     type Repository = Repository;
-    type InventoryRef<'a> = InventoryLock<'a>;
 
     fn info(&self) -> &UserInfo {
         &self.info
@@ -120,44 +99,6 @@ impl ReadStorage for Storage {
             return Ok(true);
         }
         Ok(false)
-    }
-
-    fn inventory_ref<'a, 's: 'a>(&'s self) -> InventoryLock<'a> {
-        let guard = self
-            .inventory
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-
-        InventoryLock { guard }
-    }
-
-    fn inventory(&self) -> Result<Inventory, Error> {
-        let mut cache = self
-            .inventory
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-
-        match *cache {
-            Some(ref cache) => Ok(cache.clone()),
-            None => {
-                let repos: BTreeSet<_> = self.public_repositories()?.collect();
-                *cache = Some(repos.clone());
-                Ok(repos)
-            }
-        }
-    }
-
-    fn insert(&self, rid: RepoId) {
-        let mut repos = self
-            .inventory
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-
-        if let Some(ref mut repos) = *repos {
-            repos.insert(rid);
-        } else {
-            *repos = Some(BTreeSet::from_iter([rid]));
-        }
     }
 
     fn repository(&self, rid: RepoId) -> Result<Self::Repository, RepositoryError> {
@@ -265,11 +206,7 @@ impl Storage {
             Err(err) => return Err(Error::Io(err)),
             Ok(()) => {}
         }
-        Ok(Self {
-            path,
-            info,
-            inventory: Default::default(),
-        })
+        Ok(Self { path, info })
     }
 
     /// Create a [`Repository`] in a temporary directory.
@@ -335,14 +272,6 @@ impl Storage {
             }
         }
         Ok(())
-    }
-
-    fn public_repositories(&self) -> Result<impl Iterator<Item = RepoId>, Error> {
-        let repos = self.repositories()?;
-        Ok(repos
-            .into_iter()
-            .filter(|r| r.doc.visibility.is_public())
-            .map(|r| r.rid))
     }
 }
 

@@ -23,7 +23,7 @@ $ rad patch show 6035d2f582afbe01ff23ea87528ae523d76875b6
 ╭────────────────────────────────────────────────────╮
 │ Title     Add things #1                            │
 │ Patch     6035d2f582afbe01ff23ea87528ae523d76875b6 │
-│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Author    alice (you)                              │
 │ Head      42d894a83c9c356552a57af09ccdbd5587a99045 │
 │ Branches  feature/1                                │
 │ Commits   ahead 1, behind 0                        │
@@ -33,7 +33,7 @@ $ rad patch show 6035d2f582afbe01ff23ea87528ae523d76875b6
 ├────────────────────────────────────────────────────┤
 │ 42d894a Add things                                 │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (42d894a) now    │
+│ ● opened by alice (you) (42d894a) now              │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -96,12 +96,12 @@ And both patches:
 
 ```
 $ rad patch
-╭────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●  ID       Title            Author                  Reviews  Head     +   -   Updated │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  6035d2f  Add things #1    z6MknSL…StBU8Vi  (you)  -        42d894a  +0  -0  now     │
-│ ●  9580891  Add more things  z6MknSL…StBU8Vi  (you)  -        8b0ea80  +0  -0  now     │
-╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title            Author         Reviews  Head     +   -   Updated │
+├───────────────────────────────────────────────────────────────────────────────┤
+│ ●  6035d2f  Add things #1    alice   (you)  -        42d894a  +0  -0  now     │
+│ ●  9580891  Add more things  alice   (you)  -        8b0ea80  +0  -0  now     │
+╰───────────────────────────────────────────────────────────────────────────────╯
 ```
 
 To update our patch, we simply push commits to the upstream branch:
@@ -136,7 +136,7 @@ $ rad patch show 9580891
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add more things                                           │
 │ Patch     95808913573cead52ad7b42c7b475260ec45c4b2                  │
-│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Author    alice (you)                                               │
 │ Head      02bef3fac41b2f98bb3c02b868a53ddfecb55b5f                  │
 │ Branches  feature/2                                                 │
 │ Commits   ahead 2, behind 0                                         │
@@ -145,7 +145,7 @@ $ rad patch show 9580891
 │ 02bef3f Improve code                                                │
 │ 8b0ea80 Add more things                                             │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (8b0ea80) now                     │
+│ ● opened by alice (you) (8b0ea80) now                               │
 │ ↑ updated to d7040c6c97629c2b94f86fb639bebbff5de39697 (02bef3f) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
@@ -212,7 +212,7 @@ $ rad patch show 9580891
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add more things                                           │
 │ Patch     95808913573cead52ad7b42c7b475260ec45c4b2                  │
-│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Author    alice (you)                                               │
 │ Head      9304dbc445925187994a7a93222a3f8bde73b785                  │
 │ Branches  feature/2                                                 │
 │ Commits   ahead 2, behind 0                                         │
@@ -221,7 +221,7 @@ $ rad patch show 9580891
 │ 9304dbc Amended commit                                              │
 │ 8b0ea80 Add more things                                             │
 ├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) (8b0ea80) now                     │
+│ ● opened by alice (you) (8b0ea80) now                               │
 │ ↑ updated to d7040c6c97629c2b94f86fb639bebbff5de39697 (02bef3f) now │
 │ ↑ updated to 670d02794aa05afd6e0851f4aa848bc87c4712c7 (9304dbc) now │
 ╰─────────────────────────────────────────────────────────────────────╯

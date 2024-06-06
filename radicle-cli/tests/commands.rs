@@ -730,6 +730,7 @@ fn rad_node() {
             Address::from(net::SocketAddr::from(([41, 12, 98, 112], 8776))),
             Address::from_str("seed.cloudhead.io:8776").unwrap(),
         ],
+        seeding_policy: SeedingPolicy::Block,
         ..Config::test(Alias::new("alice"))
     });
     let working = tempfile::tempdir().unwrap();
@@ -1286,6 +1287,8 @@ fn rad_clone_partial_fail() {
     let working = environment.tmp().join("working");
     let carol = NodeId::from_str("z6MksFqXN3Yhqk8pTJdUGLwBTkRfQvwZXPqR2qMEhbS9wzpT").unwrap();
 
+    logger::init(log::Level::Debug);
+
     // Setup a test project.
     let acme = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
 
@@ -1323,7 +1326,8 @@ fn rad_clone_partial_fail() {
     eve.connect(&alice);
     eve.connect(&bob);
     eve.routes_to(&[(acme, carol), (acme, bob.id), (acme, alice.id)]);
-    bob.handle.unseed(acme).unwrap(); // Cause the fetch with bob to fail.
+    bob.storage.repository(acme).unwrap().remove().unwrap(); // Cause the fetch from Bob to fail.
+    bob.storage.lock_repository(acme).ok(); // Prevent repo from being re-fetched.
 
     test(
         "examples/rad-clone-partial-fail.md",

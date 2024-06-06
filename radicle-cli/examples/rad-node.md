@@ -34,9 +34,9 @@ $ rad follow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias Bo
 ✓ Follow policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (Bob)
 ```
 
-Now, when we use the `rad seed` command we will see
-information for repositories that we seed -- in this case a
-repository that was already created:
+Now, when we use the `rad seed` command we will see information for
+repositories that we seed -- in this case a repository that was already
+created:
 
 ```
 $ rad seed
@@ -85,6 +85,35 @@ Running the command again gives us an error:
 ```
 $ rad node stop
 ✗ Stopping node... error: node is not running
+```
+
+Note that if we unseed a repository, it is no longer part of our inventory:
+
+```
+$ rad unseed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+✓ Seeding policy for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji removed
+$ rad node routing --nid z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+```
+
+Likewise, if we seed a repository we don't have locally, it won't show up as
+part of our inventory:
+```
+$ rad seed rad:z3trNYnLWS11cJWC6BbxDs5niGo82
+[...]
+$ rad node routing --nid z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+```
+
+But if we start seeding the repository we have locally again, it'll show
+up in our inventory:
+```
+$ rad seed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+[...]
+$ rad node routing --nid z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+╭─────────────────────────────────────────────────────╮
+│ RID                                 NID             │
+├─────────────────────────────────────────────────────┤
+│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   z6MknSL…StBU8Vi │
+╰─────────────────────────────────────────────────────╯
 ```
 
 Some commands also give us a hint if the node isn't running:

@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use std::collections::HashSet;
 use std::iter;
 use std::net;
 use std::ops::{Deref, DerefMut};
@@ -19,6 +20,7 @@ use crate::crypto::test::signer::MockSigner;
 use crate::crypto::Signer;
 use crate::identity::RepoId;
 use crate::node;
+use crate::node::routing::Store as _;
 use crate::prelude::*;
 use crate::runtime::Emitter;
 use crate::service;
@@ -27,7 +29,6 @@ use crate::service::message::*;
 use crate::service::policy::{Scope, SeedingPolicy};
 use crate::service::*;
 use crate::storage::git::transport::remote;
-use crate::storage::Inventory;
 use crate::storage::{RemoteId, WriteStorage};
 use crate::test::storage::MockStorage;
 use crate::test::{arbitrary, fixtures, simulator};
@@ -99,7 +100,6 @@ where
 
 pub struct Config<G: Signer + 'static> {
     pub config: service::Config,
-    pub db: Stores<node::Database>,
     pub local_time: LocalTime,
     pub policy: SeedingPolicy,
     pub signer: G,
@@ -112,13 +112,10 @@ impl Default for Config<MockSigner> {
         let mut rng = fastrand::Rng::new();
         let signer = MockSigner::new(&mut rng);
         let tmp = tempfile::TempDir::new().unwrap();
-        let db = Database::open(tmp.path().join(node::NODE_DB_FILE))
-            .unwrap()
-            .into();
+        let config = service::Config::test(Alias::from_str("mocky").unwrap());
 
         Config {
-            config: service::Config::test(Alias::from_str("mocky").unwrap()),
-            db,
+            config,
             local_time: LocalTime::now(),
             policy: SeedingPolicy::default(),
             signer,
@@ -164,19 +161,32 @@ where
         let id = *config.signer.public_key();
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, config.rng.u16(..));
-        let inventory = storage.inventory().unwrap();
+        let inventory = storage.repositories().unwrap();
 
         // Make sure the peer address is advertized.
         config.config.external_addresses.push(local_addr.into());
-        for rid in &inventory {
-            policies.seed(rid, Scope::Followed).unwrap();
+        for repo in &inventory {
+            policies.seed(&repo.rid, Scope::Followed).unwrap();
         }
+        // Initialize database.
+        let db = Database::open(config.tmp.path().join(node::NODE_DB_FILE))
+            .unwrap()
+            .init(
+                &id,
+                config.config.features(),
+                config.config.alias.clone(),
+                config.local_time.into(),
+                config.config.external_addresses.iter(),
+            )
+            .unwrap()
+            .into();
+
         let announcement =
             service::gossip::node(&config.config, Timestamp::from(config.local_time) + 1);
         let emitter: Emitter<Event> = Default::default();
         let service = Service::new(
             config.config,
-            config.db,
+            db,
             storage,
             policies,
             config.signer,
@@ -255,8 +265,12 @@ where
         (*self.clock()).into()
     }
 
-    pub fn inventory(&self) -> Inventory {
-        self.service.storage().inventory().unwrap()
+    pub fn inventory(&self) -> HashSet<RepoId> {
+        self.service
+            .database()
+            .routing()
+            .get_resources(self.nid())
+            .unwrap()
     }
 
     pub fn git_url(&self, repo: RepoId, namespace: Option<RemoteId>) -> remote::Url {

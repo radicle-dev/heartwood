@@ -27,7 +27,7 @@ pub fn run<S: node::routing::Store>(
 
 fn print_table(entries: impl IntoIterator<Item = (RepoId, NodeId)>) {
     let mut t = term::Table::new(term::table::TableOptions::bordered());
-    t.push([
+    t.header([
         term::format::default(String::from("RID")),
         term::format::default(String::from("NID")),
     ]);

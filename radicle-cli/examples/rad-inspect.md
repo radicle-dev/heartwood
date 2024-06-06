@@ -48,7 +48,7 @@ $ rad inspect --payload
   }
 }
 $ rad inspect --delegates
-did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 ```
 
 Finally, the `--history` flag allows you to examine the identity document's

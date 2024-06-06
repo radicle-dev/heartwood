@@ -27,18 +27,18 @@ repository private again __will not_ be replicated.
 ```
 $ rad id update --visibility private --title "Privatise" --description "Reverting the rad publish event"
 ✓ Identity revision 774cc1e72641d97d7dc9377745b7f454a9171747 created
-╭───────────────────────────────────────────────────────────────────╮
-│ Title    Privatise                                                │
-│ Revision 774cc1e72641d97d7dc9377745b7f454a9171747                 │
-│ Blob     88f759a4d46e9535766fccec0cbfe1fed6160b1a                 │
-│ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
-│ State    accepted                                                 │
-│ Quorum   yes                                                      │
-│                                                                   │
-│ Reverting the rad publish event                                   │
-├───────────────────────────────────────────────────────────────────┤
-│ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi  (you) │
-╰───────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────╮
+│ Title    Privatise                                                     │
+│ Revision 774cc1e72641d97d7dc9377745b7f454a9171747                      │
+│ Blob     88f759a4d46e9535766fccec0cbfe1fed6160b1a                      │
+│ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
+│ State    accepted                                                      │
+│ Quorum   yes                                                           │
+│                                                                        │
+│ Reverting the rad publish event                                        │
+├────────────────────────────────────────────────────────────────────────┤
+│ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi alice (you) │
+╰────────────────────────────────────────────────────────────────────────╯
 
 @@ -1,13 +1,16 @@
  {

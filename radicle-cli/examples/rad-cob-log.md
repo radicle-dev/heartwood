@@ -7,7 +7,7 @@ $ rad issue open --title "flux capacitor underpowered" --description "Flux capac
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   d87dcfe8c2b3200e78b128d9b959cfdf7063fefe        │
-│ Author  z6MknSL…StBU8Vi (you)                           │
+│ Author  alice (you)                                     │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │
@@ -18,11 +18,11 @@ The issue is now listed under our project.
 
 ```
 $ rad issue list
-╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title                         Author                    Labels   Assignees   Opened │
-├───────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   d87dcfe   flux capacitor underpowered   z6MknSL…StBU8Vi   (you)                        now    │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title                         Author           Labels   Assignees   Opened │
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   d87dcfe   flux capacitor underpowered   alice    (you)                        now    │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Let's create a patch, too.
@@ -42,11 +42,11 @@ Patch can be listed.
 
 ```
 $ rad patch
-╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●  ID       Title                      Author                  Reviews  Head     +   -   Updated │
-├──────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  aa45913  Define power requirements  z6MknSL…StBU8Vi  (you)  -        3e674d1  +0  -0  now     │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title                      Author         Reviews  Head     +   -   Updated │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●  aa45913  Define power requirements  alice   (you)  -        3e674d1  +0  -0  now     │
+╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Both issue and patch COBs can be listed.

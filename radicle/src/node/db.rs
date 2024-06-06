@@ -15,6 +15,7 @@ use std::{fmt, time};
 use sqlite as sql;
 use thiserror::Error;
 
+use crate::node::{address, Address, Alias, Features, KnownAddress, NodeId, Timestamp};
 use crate::sql::transaction;
 
 /// How long to wait for the database lock to be released before failing a read.
@@ -34,6 +35,9 @@ const MIGRATIONS: &[&str] = &[
 
 #[derive(Error, Debug)]
 pub enum Error {
+    /// Initialization error.
+    #[error("error initializing the database: {0}")]
+    Init(#[from] address::store::Error),
     /// An Internal error.
     #[error("internal error: {0}")]
     Internal(#[from] sql::Error),
@@ -118,6 +122,30 @@ impl Database {
                 self.db.execute("PRAGMA journal_mode = WAL;")?;
             }
         }
+        Ok(self)
+    }
+
+    /// Initialize by adding our local node to the database.
+    pub fn init<'a>(
+        mut self,
+        node: &NodeId,
+        features: Features,
+        alias: Alias,
+        timestamp: Timestamp,
+        addrs: impl IntoIterator<Item = &'a Address>,
+    ) -> Result<Self, Error> {
+        address::Store::insert(
+            &mut self,
+            node,
+            features,
+            alias,
+            0,
+            timestamp,
+            addrs
+                .into_iter()
+                .map(|a| KnownAddress::new(a.clone(), address::Source::Imported)),
+        )?;
+
         Ok(self)
     }
 

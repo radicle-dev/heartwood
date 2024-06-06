@@ -125,10 +125,6 @@ impl Runtime {
             log::warn!(target: "node", "Unused or deprecated configuration attribute {:?}", key);
         }
         log::info!(target: "node", "Opening node database..");
-        let db = home
-            .database_mut()?
-            .journal_mode(node::db::JournalMode::default())?;
-        let mut stores: service::Stores<_> = db.clone().into();
 
         log::info!(target: "node", "Opening policy database..");
         let policies = home.policies_mut()?;
@@ -174,6 +170,18 @@ impl Runtime {
                 .solve(Default::default())
                 .expect("Runtime::init: unable to solve proof-of-work puzzle")
         };
+
+        let db = home
+            .database_mut()?
+            .journal_mode(node::db::JournalMode::default())?
+            .init(
+                &id,
+                announcement.features,
+                announcement.alias.clone(),
+                announcement.timestamp,
+                announcement.addresses.iter(),
+            )?;
+        let mut stores: service::Stores<_> = db.clone().into();
 
         if config.connect.is_empty() && stores.addresses().is_empty()? {
             log::info!(target: "node", "Address book is empty. Adding bootstrap nodes..");

@@ -1,9 +1,10 @@
+use localtime::LocalTime;
 use radicle::prelude::*;
 
 use crate::git;
 use radicle::git::RefStr;
 use radicle::node::policy::Scope;
-use radicle::node::{Handle, NodeId};
+use radicle::node::{routing, Handle, NodeId};
 use radicle::Node;
 
 /// Setup a repository remote and tracking branch.
@@ -52,8 +53,28 @@ impl<'a> SetupRemote<'a> {
     }
 }
 
-/// Seed a repository by first trying to seed through the node, and if the node isn't running,
-/// by updating the policy database directly.
+/// Add the repo to our inventory.
+pub fn add_inventory(
+    rid: RepoId,
+    node: &mut Node,
+    profile: &Profile,
+) -> Result<bool, anyhow::Error> {
+    match node.update_inventory(rid) {
+        Ok(updated) => Ok(updated),
+        Err(e) if e.is_connection_err() => {
+            let now = LocalTime::now();
+            let mut db = profile.database_mut()?;
+            let updates = routing::Store::insert(&mut db, [&rid], *profile.id(), now.into())?;
+
+            Ok(!updates.is_empty())
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Seed a repository by first trying to seed through the node, and if the node isn't running, by
+/// updating the policy database directly. If the repo is available locally, we also add it to our
+/// inventory.
 pub fn seed(
     rid: RepoId,
     scope: Scope,
@@ -64,7 +85,15 @@ pub fn seed(
         Ok(updated) => Ok(updated),
         Err(e) if e.is_connection_err() => {
             let mut config = profile.policies_mut()?;
-            config.seed(&rid, scope).map_err(|e| e.into())
+            let result = config.seed(&rid, scope)?;
+
+            if result && profile.storage.contains(&rid)? {
+                let now = LocalTime::now();
+                let mut db = profile.database_mut()?;
+
+                routing::Store::insert(&mut db, [&rid], *profile.id(), now.into())?;
+            }
+            Ok(result)
         }
         Err(e) => Err(e.into()),
     }
@@ -77,7 +106,12 @@ pub fn unseed(rid: RepoId, node: &mut Node, profile: &Profile) -> Result<bool, a
         Ok(updated) => Ok(updated),
         Err(e) if e.is_connection_err() => {
             let mut config = profile.policies_mut()?;
-            config.unseed(&rid).map_err(|e| e.into())
+            let result = config.unseed(&rid)?;
+
+            let mut db = profile.database_mut()?;
+            radicle::node::routing::Store::remove(&mut db, &rid, profile.id())?;
+
+            Ok(result)
         }
         Err(e) => Err(e.into()),
     }

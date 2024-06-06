@@ -14,6 +14,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
+use localtime::LocalTime;
 use serde::Serialize;
 use serde_json as json;
 use thiserror::Error;
@@ -307,8 +308,16 @@ impl Profile {
         )?;
         // Create DBs.
         home.policies_mut()?;
-        home.database_mut()?;
         home.notifications_mut()?;
+        home.database_mut()?
+            .journal_mode(node::db::JournalMode::default())?
+            .init(
+                &public_key,
+                config.node.features(),
+                config.node.alias.clone(),
+                LocalTime::now().into(),
+                config.node.external_addresses.iter(),
+            )?;
 
         transport::local::register(storage.clone());
 
@@ -574,6 +583,16 @@ impl Home {
         let db = node::Database::open(path)?;
 
         Ok(db)
+    }
+
+    /// Returns the address store.
+    pub fn addresses(&self) -> Result<impl node::address::Store, node::db::Error> {
+        self.database_mut()
+    }
+
+    /// Returns the routing store.
+    pub fn routing_mut(&self) -> Result<impl node::routing::Store, node::db::Error> {
+        self.database_mut()
     }
 
     /// Return a read-only handle for the issues cache.

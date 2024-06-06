@@ -10,7 +10,7 @@ pub mod message;
 pub mod session;
 
 use std::collections::hash_map::Entry;
-use std::collections::{BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::net::IpAddr;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
@@ -391,6 +391,12 @@ where
     }
 }
 
+impl<D> AsMut<D> for Stores<D> {
+    fn as_mut(&mut self) -> &mut D {
+        &mut self.0
+    }
+}
+
 impl<D> From<D> for Stores<D> {
     fn from(db: D) -> Self {
         Self(db)
@@ -555,16 +561,23 @@ where
     /// simply not announcing it anymore, it will eventually be pruned by nodes.
     pub fn unseed(&mut self, id: &RepoId) -> Result<bool, policy::Error> {
         let updated = self.policies.unseed(id)?;
-        // Nb. This is potentially slow if we have lots of repos. We should probably
-        // only re-compute the filter when we've unseeded a certain amount of repos
-        // and the filter is really out of date.
-        //
-        // TODO: Share this code with initialization code.
-        self.filter = Filter::new(
-            self.policies
-                .seed_policies()?
-                .filter_map(|t| (t.policy.is_allow()).then_some(t.rid)),
-        );
+
+        if updated {
+            // Nb. This is potentially slow if we have lots of repos. We should probably
+            // only re-compute the filter when we've unseeded a certain amount of repos
+            // and the filter is really out of date.
+            //
+            // TODO: Share this code with initialization code.
+            self.filter = Filter::new(
+                self.policies
+                    .seed_policies()?
+                    .filter_map(|t| (t.policy.is_allow()).then_some(t.rid)),
+            );
+            // Update and announce new inventory.
+            if let Err(e) = self.remove_inventory(id) {
+                error!(target: "service", "Error updating inventory after unseed: {e}");
+            }
+        }
         Ok(updated)
     }
 
@@ -623,12 +636,18 @@ where
 
     /// Lookup a repository, both locally and in the routing table.
     pub fn lookup(&self, rid: RepoId) -> Result<Lookup, LookupError> {
-        let remote = self.db.routing().get(&rid)?.iter().cloned().collect();
+        let this = self.nid();
+        let local = self.storage.get(rid)?;
+        let remote = self
+            .db
+            .routing()
+            .get(&rid)?
+            .iter()
+            .filter(|nid| nid != &this)
+            .cloned()
+            .collect();
 
-        Ok(Lookup {
-            local: self.storage.get(rid)?,
-            remote,
-        })
+        Ok(Lookup { local, remote })
     }
 
     /// Initialize service with current time. Call this once.
@@ -662,27 +681,13 @@ where
             Err(e) => error!(target: "service", "Error checking refs database: {e}"),
         }
 
-        // Ensure that our local node is in our address database.
-        self.db
-            .addresses_mut()
-            .insert(
-                &nid,
-                self.node.features,
-                self.node.alias.clone(),
-                self.node.work(),
-                self.node.timestamp,
-                self.node
-                    .addresses
-                    .iter()
-                    .map(|a| KnownAddress::new(a.clone(), address::Source::Peer)),
-            )
-            .expect("Service::initialize: error adding local node to address database");
-
         let announced = self
             .db
             .seeds()
             .seeded_by(&nid)?
             .collect::<Result<HashMap<_, _>, _>>()?;
+        let mut inventory = BTreeSet::new();
+
         for repo in self.storage.repositories()? {
             let rid = repo.rid;
 
@@ -693,7 +698,7 @@ where
             }
             // Add public repositories to inventory.
             if repo.doc.visibility.is_public() {
-                self.storage.insert(rid);
+                inventory.insert(rid);
             }
             // If we have no owned refs for this repo, then there's nothing to announce.
             let Some(updated_at) = repo.synced_at else {
@@ -724,7 +729,6 @@ where
         }
 
         {
-            let inventory = self.storage.inventory()?;
             // Ensure that our inventory is recorded in our routing table, and we are seeding
             // all of it. It can happen that inventory is not properly seeded if for eg. the
             // user creates a new repository while the node is stopped.
@@ -805,7 +809,7 @@ where
         if now - self.last_sync >= SYNC_INTERVAL {
             trace!(target: "service", "Running 'sync' task...");
 
-            if let Err(e) = self.fetch_missing_inventory() {
+            if let Err(e) = self.fetch_missing_repositories() {
                 error!(target: "service", "Error fetching missing inventory: {e}");
             }
             self.outbox.wakeup(SYNC_INTERVAL);
@@ -814,9 +818,7 @@ where
         if now - self.last_announce >= ANNOUNCE_INTERVAL {
             trace!(target: "service", "Running 'announce' task...");
 
-            if let Err(err) = self.announce_inventory() {
-                error!(target: "service", "Error announcing inventory: {err}");
-            }
+            self.announce_inventory();
             self.outbox.wakeup(ANNOUNCE_INTERVAL);
         }
         if now - self.last_prune >= PRUNE_INTERVAL {
@@ -939,19 +941,16 @@ where
                 }
             }
             Command::AnnounceInventory => {
-                if let Err(err) = self.announce_inventory() {
-                    error!(target: "service", "Error announcing inventory: {err}");
+                self.announce_inventory();
+            }
+            Command::UpdateInventory(rid, resp) => match self.add_inventory(rid) {
+                Ok(updated) => {
+                    resp.send(updated).ok();
                 }
-            }
-            Command::UpdateInventory(rid, resp) => {
-                self.storage.insert(rid);
-
-                let synced = self
-                    .sync_inventory()
-                    .expect("Service::command: error syncing inventory");
-                resp.send(synced.added.len() + synced.removed.len() > 0)
-                    .ok();
-            }
+                Err(e) => {
+                    error!(target: "service", "Error adding {rid} to inventory: {e}");
+                }
+            },
             Command::QueryState(query, sender) => {
                 sender.send(query(self)).ok();
             }
@@ -1171,8 +1170,9 @@ where
                 if clone && doc.visibility.is_public() {
                     debug!(target: "service", "Updating and announcing inventory for cloned repository {rid}..");
 
-                    self.storage.insert(rid);
-                    self.sync_and_announce_inventory();
+                    if let Err(e) = self.add_inventory(rid) {
+                        error!(target: "service", "Error announcing inventory for {rid}: {e}");
+                    }
                 }
 
                 // It's possible for a fetch to succeed but nothing was updated.
@@ -1539,8 +1539,6 @@ where
                         return Ok(None);
                     }
                 }
-
-                let inventory = self.storage.inventory_ref();
                 let mut missing = Vec::new();
 
                 for id in message.inventory.as_slice() {
@@ -1560,14 +1558,20 @@ where
                         ) {
                             // Only if we do not have the repository locally do we fetch here.
                             // If we do have it, only fetch after receiving a ref announcement.
-                            if !inventory.contains(id) {
-                                missing.push(*id);
+                            match self.db.routing().entry(id, self.nid()) {
+                                Ok(entry) => {
+                                    if entry.is_none() {
+                                        missing.push(*id);
+                                    }
+                                }
+                                Err(e) => error!(
+                                    target: "service",
+                                    "Error checking local inventory for {id}: {e}"
+                                ),
                             }
                         }
                     }
                 }
-                drop(inventory);
-
                 for rid in missing {
                     debug!(target: "service", "Missing seeded inventory {rid}; initiating fetch..");
                     self.fetch(rid, *announcer, FETCH_TIMEOUT, None);
@@ -1931,14 +1935,59 @@ where
             > 0
     }
 
-    /// Update our routing table with our local node's inventory.
-    fn sync_inventory(&mut self) -> Result<SyncedRouting, Error> {
-        let inventory = self.storage.inventory()?;
-        let result = self.sync_routing(inventory.clone(), self.node_id(), self.clock.into())?;
-        // Update cached inventory message.
-        self.inventory = gossip::inventory(self.timestamp(), inventory);
+    /// Remove a local repository from our inventory.
+    fn remove_inventory(&mut self, rid: &RepoId) -> Result<bool, Error> {
+        let node = self.node_id();
+        let now = self.timestamp();
 
-        Ok(result)
+        // Remove inventory.
+        let removed = self.db.routing_mut().remove(rid, &node)?;
+        if removed {
+            // Update cached inventory message.
+            let inventory = self.inventory()?;
+            self.inventory = gossip::inventory(now, inventory);
+            self.announce_inventory();
+        }
+        Ok(removed)
+    }
+
+    /// Add a local repository to our inventory.
+    fn add_inventory(&mut self, rid: RepoId) -> Result<bool, Error> {
+        let node = self.node_id();
+        let now = self.timestamp();
+
+        if !self.storage.contains(&rid)? {
+            error!(target: "service", "Attempt to add non-existing inventory {rid}: repository not found in storage");
+            return Ok(false);
+        }
+        // Add to our inventory.
+        let updates = self.db.routing_mut().insert([&rid], node, now)?;
+        let updated = !updates.is_empty();
+
+        if updated {
+            let inventory = self.inventory()?;
+
+            self.inventory = gossip::inventory(now, inventory);
+            self.announce_inventory();
+        }
+        Ok(updated)
+    }
+
+    /// Get our local inventory.
+    ///
+    /// A node's inventory is the advertized list of repositories offered by a node.
+    ///
+    /// A node's inventory consists of *public* repositories that are seeded and available locally
+    /// in the node's storage. We use the routing table as the canonical state of all inventories,
+    /// including the local node's.
+    ///
+    /// When a repository is unseeded, it is also removed from the inventory. Private repositories
+    /// are *not* part of a node's inventory.
+    fn inventory(&self) -> Result<HashSet<RepoId>, Error> {
+        self.db
+            .routing()
+            .get_resources(self.nid())
+            .map_err(Error::from)
     }
 
     /// Process a peer inventory announcement by updating our routing table.
@@ -2091,22 +2140,6 @@ where
             self.db.gossip_mut(),
         );
         Ok((refs, timestamp))
-    }
-
-    fn sync_and_announce_inventory(&mut self) {
-        match self.sync_inventory() {
-            Ok(synced) => {
-                // Only announce if our inventory changed.
-                if synced.added.len() + synced.removed.len() > 0 {
-                    if let Err(e) = self.announce_inventory() {
-                        error!(target: "service", "Failed to announce inventory: {e}");
-                    }
-                }
-            }
-            Err(e) => {
-                error!(target: "service", "Failed to sync inventory: {e}");
-            }
-        }
     }
 
     fn reconnect(&mut self, nid: NodeId, addr: Address) -> bool {
@@ -2263,7 +2296,9 @@ where
     }
 
     /// Announce our inventory to all connected peers.
-    fn announce_inventory(&mut self) -> Result<(), storage::Error> {
+    fn announce_inventory(&mut self) {
+        // TODO: If we're going to announce soon, skip this.
+        // TODO: If we just announced this exact inventory, also skip.
         let msg = AnnouncementMessage::from(self.inventory.clone());
 
         self.outbox.announce(
@@ -2272,8 +2307,6 @@ where
             self.db.gossip_mut(),
         );
         self.last_announce = self.clock;
-
-        Ok(())
     }
 
     fn prune_routing_entries(&mut self, now: &LocalTime) -> Result<(), routing::Error> {
@@ -2355,16 +2388,17 @@ where
         }
     }
 
-    /// Fetch all repositories that are seeded but missing from our inventory.
-    fn fetch_missing_inventory(&mut self) -> Result<(), Error> {
-        let inventory = self.storage().inventory()?;
-        let missing = self
-            .policies
-            .seed_policies()?
-            .filter_map(|t| (t.policy.is_allow()).then_some(t.rid))
-            .filter(|rid| !inventory.contains(rid));
+    /// Fetch all repositories that are seeded but missing from storage.
+    fn fetch_missing_repositories(&mut self) -> Result<(), Error> {
+        for policy in self.policies.seed_policies()? {
+            let rid = policy.rid;
 
-        for rid in missing {
+            if !policy.is_allow() {
+                continue;
+            }
+            if self.storage.contains(&rid)? {
+                continue;
+            }
             match self.seeds(&rid) {
                 Ok(seeds) => {
                     if let Some(connected) = NonEmpty::from_vec(seeds.connected().collect()) {
