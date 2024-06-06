@@ -24,7 +24,6 @@ The repository is structured in *crates*, as follows:
 * `radicle-crdt`: Conflict-free replicated datatypes (CRDTs) used for things like discussions and patches.
 * `radicle-crypto`: A wrapper around Ed25519 cryptographic signing primitives.
 * `radicle-dag`: A simple directed acyclic graph implementation used by `radicle-cob`.
-* `radicle-httpd`: The radicle HTTP daemon that serves API clients and Git fetch requests.
 * `radicle-node`: The radicle peer-to-peer daemon that enables users to connect to the network and share code.
 * `radicle-remote-helper`: A Git remote helper for `rad://` remotes.
 * `radicle-ssh`: OpenSSH functionality, including a library used to interface with `ssh-agent`.
@@ -40,11 +39,6 @@ For example, the equivalent of `rad auth` in debug mode would be:
     $ cargo run -p radicle-cli --bin rad -- auth
 
 Arguments after the `--` are passed directly to the `rad` executable.
-
-When running the radicle node, you may specify an alternate port for the `git-daemon`
-like so:
-
-    $ cargo run -p radicle-node -- --git-daemon 127.0.0.1:9876
 
 This is useful if you are running multiple nodes on the same machine. You can also
 specify different listen addresses for the peer-to-peer protocol using `--listen`.
@@ -82,8 +76,8 @@ avoid storing development keys with `ssh-agent`.
 
 ## Logging
 
-Logging for `radicle-node` and `radicle-httpd` is turned on by default. Check
-the respective `--help` output to set the log level.
+Logging for `radicle-node` is turned on by default. Check the respective
+`--help` output to set the log level.
 
 ## Writing tests
 

@@ -51,9 +51,8 @@ Or directly from our seed node:
 
 ## Running
 
-*Systemd* unit files are provided for the node and HTTP daemon under the
-`/systemd` folder. They can be used as a starting point for further
-customization.
+*Systemd* unit files are provided for the node under the `/systemd` folder.
+They can be used as a starting point for further customization.
 
 For running in debug mode, see [HACKING.md](HACKING.md).
 

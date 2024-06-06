@@ -12,7 +12,6 @@ override_dh_auto_install:
 	cargo install --locked --path=radicle-cli --root=debian/radicle
 	cargo install --locked --path=radicle-node --root=debian/radicle
 	cargo install --locked --path=radicle-remote-helper --root=debian/radicle
-	cargo install --locked --path=radicle-httpd --root=debian/radicle
 	rm -f debian/*/.crates*.*
 
 override_dh_auto_test:

@@ -45,7 +45,6 @@ RUN cargo zigbuild --locked --release \
     --target=aarch64-unknown-linux-musl \
     --target=x86_64-unknown-linux-musl \
     -p radicle-node \
-    -p radicle-httpd \
     -p radicle-remote-helper \
     -p radicle-cli
 
@@ -57,28 +56,24 @@ COPY --from=builder \
      /src/target/x86_64-unknown-linux-musl/release/rad-web \
      /src/target/x86_64-unknown-linux-musl/release/git-remote-rad \
      /src/target/x86_64-unknown-linux-musl/release/radicle-node \
-     /src/target/x86_64-unknown-linux-musl/release/radicle-httpd \
      /builds/x86_64-unknown-linux-musl/bin/
 COPY --from=builder \
      /src/target/aarch64-unknown-linux-musl/release/rad \
      /src/target/aarch64-unknown-linux-musl/release/rad-web \
      /src/target/aarch64-unknown-linux-musl/release/git-remote-rad \
      /src/target/aarch64-unknown-linux-musl/release/radicle-node \
-     /src/target/aarch64-unknown-linux-musl/release/radicle-httpd \
      /builds/aarch64-unknown-linux-musl/bin/
 COPY --from=builder \
      /src/target/aarch64-apple-darwin/release/rad \
      /src/target/aarch64-apple-darwin/release/rad-web \
      /src/target/aarch64-apple-darwin/release/git-remote-rad \
      /src/target/aarch64-apple-darwin/release/radicle-node \
-     /src/target/aarch64-apple-darwin/release/radicle-httpd \
      /builds/aarch64-apple-darwin/bin/
 COPY --from=builder \
      /src/target/x86_64-apple-darwin/release/rad \
      /src/target/x86_64-apple-darwin/release/rad-web \
      /src/target/x86_64-apple-darwin/release/git-remote-rad \
      /src/target/x86_64-apple-darwin/release/radicle-node \
-     /src/target/x86_64-apple-darwin/release/radicle-httpd \
      /builds/x86_64-apple-darwin/bin/
 COPY --from=builder /src/*.1 /builds/x86_64-unknown-linux-musl/man/man1/
 COPY --from=builder /src/*.1 /builds/aarch64-unknown-linux-musl/man/man1/

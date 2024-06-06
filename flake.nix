@@ -171,10 +171,6 @@
           ({name, ...} @ package: lib.nameValuePair name (crate package))
           [
             {
-              name = "radicle-httpd";
-              pages = ["radicle-httpd.1.adoc"];
-            }
-            {
               name = "radicle-cli";
               pages = [
                 "rad.1.adoc"
@@ -231,11 +227,6 @@
       apps.radicle-node = flake-utils.lib.mkApp {
         name = "radicle-node";
         drv = self.packages.${system}.radicle-node;
-      };
-
-      apps.radicle-httpd = flake-utils.lib.mkApp {
-        name = "radicle-httpd";
-        drv = self.packages.${system}.radicle-httpd;
       };
 
       devShells.default = craneLib.devShell {

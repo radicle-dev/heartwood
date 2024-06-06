@@ -9,7 +9,6 @@ members = [
   "radicle-crypto",
   "radicle-dag",
   "radicle-fetch",
-  "radicle-httpd",
   "radicle-node",
   "radicle-remote-helper",
   "radicle-ssh",
