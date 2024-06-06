@@ -53,25 +53,21 @@ RUN cargo zigbuild --locked --release \
 FROM alpine:3.19 as packager
 COPY --from=builder \
      /src/target/x86_64-unknown-linux-musl/release/rad \
-     /src/target/x86_64-unknown-linux-musl/release/rad-web \
      /src/target/x86_64-unknown-linux-musl/release/git-remote-rad \
      /src/target/x86_64-unknown-linux-musl/release/radicle-node \
      /builds/x86_64-unknown-linux-musl/bin/
 COPY --from=builder \
      /src/target/aarch64-unknown-linux-musl/release/rad \
-     /src/target/aarch64-unknown-linux-musl/release/rad-web \
      /src/target/aarch64-unknown-linux-musl/release/git-remote-rad \
      /src/target/aarch64-unknown-linux-musl/release/radicle-node \
      /builds/aarch64-unknown-linux-musl/bin/
 COPY --from=builder \
      /src/target/aarch64-apple-darwin/release/rad \
-     /src/target/aarch64-apple-darwin/release/rad-web \
      /src/target/aarch64-apple-darwin/release/git-remote-rad \
      /src/target/aarch64-apple-darwin/release/radicle-node \
      /builds/aarch64-apple-darwin/bin/
 COPY --from=builder \
      /src/target/x86_64-apple-darwin/release/rad \
-     /src/target/x86_64-apple-darwin/release/rad-web \
      /src/target/x86_64-apple-darwin/release/git-remote-rad \
      /src/target/x86_64-apple-darwin/release/radicle-node \
      /builds/x86_64-apple-darwin/bin/
