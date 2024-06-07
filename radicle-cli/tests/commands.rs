@@ -2364,6 +2364,57 @@ fn git_push_diverge() {
 }
 
 #[test]
+fn git_push_converge() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let eve = environment.node(Config::test(Alias::new("eve")));
+    let working = environment.tmp().join("working");
+    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+    let mut eve = eve.spawn();
+
+    bob.connect(&alice).connect(&eve).converge([&alice]);
+    eve.connect(&alice).converge([&alice]);
+    bob.fork(acme, working.join("bob")).unwrap();
+    eve.fork(acme, working.join("eve")).unwrap();
+    alice.has_remote_of(&acme, &bob.id);
+    alice.has_remote_of(&acme, &eve.id);
+
+    formula(&environment.tmp(), "examples/git/git-push-converge.md")
+        .unwrap()
+        .home(
+            "alice",
+            working.join("alice"),
+            [("RAD_HOME", alice.home.path().display())],
+        )
+        .home(
+            "bob",
+            working.join("bob").join("heartwood"),
+            [("RAD_HOME", bob.home.path().display())],
+        )
+        .home(
+            "eve",
+            working.join("eve").join("heartwood"),
+            [("RAD_HOME", eve.home.path().display())],
+        )
+        .run()
+        .unwrap();
+}
+
+#[test]
 fn rad_push_and_pull_patches() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
