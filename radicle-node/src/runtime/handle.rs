@@ -260,9 +260,9 @@ impl radicle::node::Handle for Handle {
             .map_err(Error::from)
     }
 
-    fn update_inventory(&mut self, rid: RepoId) -> Result<bool, Error> {
+    fn add_inventory(&mut self, rid: RepoId) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::UpdateInventory(rid, sender))?;
+        self.command(service::Command::AddInventory(rid, sender))?;
         receiver.recv().map_err(Error::from)
     }
 

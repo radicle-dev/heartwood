@@ -59,12 +59,13 @@ pub fn add_inventory(
     node: &mut Node,
     profile: &Profile,
 ) -> Result<bool, anyhow::Error> {
-    match node.update_inventory(rid) {
+    match node.add_inventory(rid) {
         Ok(updated) => Ok(updated),
         Err(e) if e.is_connection_err() => {
             let now = LocalTime::now();
             let mut db = profile.database_mut()?;
-            let updates = routing::Store::insert(&mut db, [&rid], *profile.id(), now.into())?;
+            let updates =
+                routing::Store::add_inventory(&mut db, [&rid], *profile.id(), now.into())?;
 
             Ok(!updates.is_empty())
         }
@@ -91,7 +92,7 @@ pub fn seed(
                 let now = LocalTime::now();
                 let mut db = profile.database_mut()?;
 
-                routing::Store::insert(&mut db, [&rid], *profile.id(), now.into())?;
+                routing::Store::add_inventory(&mut db, [&rid], *profile.id(), now.into())?;
             }
             Ok(result)
         }
@@ -109,7 +110,7 @@ pub fn unseed(rid: RepoId, node: &mut Node, profile: &Profile) -> Result<bool, a
             let result = config.unseed(&rid)?;
 
             let mut db = profile.database_mut()?;
-            radicle::node::routing::Store::remove(&mut db, &rid, profile.id())?;
+            radicle::node::routing::Store::remove_inventory(&mut db, &rid, profile.id())?;
 
             Ok(result)
         }

@@ -104,7 +104,7 @@ impl radicle::node::Handle for Handle {
         Ok(())
     }
 
-    fn update_inventory(&mut self, _rid: RepoId) -> Result<bool, Self::Error> {
+    fn add_inventory(&mut self, _rid: RepoId) -> Result<bool, Self::Error> {
         unimplemented!()
     }
 

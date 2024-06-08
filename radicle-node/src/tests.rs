@@ -1680,7 +1680,7 @@ fn test_init_and_seed() {
     // We now expect Eve to fetch Alice's project from Alice.
     // Then we expect Bob to fetch Alice's project from Eve.
     alice.elapse(LocalDuration::from_secs(1)); // Make sure our announcement is fresh.
-    alice.command(service::Command::UpdateInventory(proj_id, send));
+    alice.command(service::Command::AddInventory(proj_id, send));
 
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 
@@ -1925,7 +1925,7 @@ fn test_announcement_message_amplification() {
             .storage_mut()
             .repos
             .insert(rid, gen::<MockRepository>(1));
-        alice.command(Command::UpdateInventory(rid, tx));
+        alice.command(Command::AddInventory(rid, tx));
 
         sim.run_while([&mut alice, &mut bob, &mut eve, &mut zod, &mut tom], |s| {
             s.elapsed() < LocalDuration::from_mins(3)

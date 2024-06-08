@@ -216,8 +216,8 @@ pub enum Command {
     AnnounceRefs(RepoId, chan::Sender<RefsAt>),
     /// Announce local repositories to peers.
     AnnounceInventory,
-    /// Update local inventory.
-    UpdateInventory(RepoId, chan::Sender<bool>),
+    /// Add repository to local inventory.
+    AddInventory(RepoId, chan::Sender<bool>),
     /// Connect to node with the given address.
     Connect(NodeId, Address, ConnectOptions),
     /// Disconnect from node.
@@ -247,7 +247,7 @@ impl fmt::Debug for Command {
         match self {
             Self::AnnounceRefs(id, _) => write!(f, "AnnounceRefs({id})"),
             Self::AnnounceInventory => write!(f, "AnnounceInventory"),
-            Self::UpdateInventory(rid, _) => write!(f, "UpdateInventory({rid})"),
+            Self::AddInventory(rid, _) => write!(f, "AddInventory({rid})"),
             Self::Connect(id, addr, opts) => write!(f, "Connect({id}, {addr}, {opts:?})"),
             Self::Disconnect(id) => write!(f, "Disconnect({id})"),
             Self::Config(_) => write!(f, "Config"),
@@ -734,7 +734,7 @@ where
             // user creates a new repository while the node is stopped.
             self.db
                 .routing_mut()
-                .insert(inventory.iter(), nid, time.into())?;
+                .add_inventory(inventory.iter(), nid, time.into())?;
             self.inventory = gossip::inventory(self.timestamp(), inventory);
         }
 
@@ -943,7 +943,7 @@ where
             Command::AnnounceInventory => {
                 self.announce_inventory();
             }
-            Command::UpdateInventory(rid, resp) => match self.add_inventory(rid) {
+            Command::AddInventory(rid, resp) => match self.add_inventory(rid) {
                 Ok(updated) => {
                     resp.send(updated).ok();
                 }
@@ -1890,7 +1890,7 @@ where
 
     /// Add a seed to our routing table.
     fn seed_discovered(&mut self, rid: RepoId, nid: NodeId, time: Timestamp) {
-        if let Ok(result) = self.db.routing_mut().insert([&rid], nid, time) {
+        if let Ok(result) = self.db.routing_mut().add_inventory([&rid], nid, time) {
             if let &[(_, InsertResult::SeedAdded)] = result.as_slice() {
                 self.emitter.emit(Event::SeedDiscovered { rid, nid });
                 info!(target: "service", "Routing table updated for {} with seed {nid}", rid);
@@ -1940,8 +1940,7 @@ where
         let node = self.node_id();
         let now = self.timestamp();
 
-        // Remove inventory.
-        let removed = self.db.routing_mut().remove(rid, &node)?;
+        let removed = self.db.routing_mut().remove_inventory(rid, &node)?;
         if removed {
             // Update cached inventory message.
             let inventory = self.inventory()?;
@@ -1960,8 +1959,8 @@ where
             error!(target: "service", "Attempt to add non-existing inventory {rid}: repository not found in storage");
             return Ok(false);
         }
-        // Add to our inventory.
-        let updates = self.db.routing_mut().insert([&rid], node, now)?;
+        // Add to our local inventory.
+        let updates = self.db.routing_mut().add_inventory([&rid], node, now)?;
         let updated = !updates.is_empty();
 
         if updated {
@@ -1986,7 +1985,7 @@ where
     fn inventory(&self) -> Result<HashSet<RepoId>, Error> {
         self.db
             .routing()
-            .get_resources(self.nid())
+            .get_inventory(self.nid())
             .map_err(Error::from)
     }
 
@@ -2002,10 +2001,10 @@ where
         let mut synced = SyncedRouting::default();
         let included = inventory.into_iter().collect::<BTreeSet<_>>();
 
-        for (rid, result) in self
-            .db
-            .routing_mut()
-            .insert(included.iter(), from, timestamp)?
+        for (rid, result) in
+            self.db
+                .routing_mut()
+                .add_inventory(included.iter(), from, timestamp)?
         {
             match result {
                 InsertResult::SeedAdded => {
@@ -2028,9 +2027,9 @@ where
                 InsertResult::NotUpdated => {}
             }
         }
-        for rid in self.db.routing().get_resources(&from)?.into_iter() {
+        for rid in self.db.routing().get_inventory(&from)?.into_iter() {
             if !included.contains(&rid) {
-                if self.db.routing_mut().remove(&rid, &from)? {
+                if self.db.routing_mut().remove_inventory(&rid, &from)? {
                     synced.removed.push(rid);
                     self.emitter.emit(Event::SeedDropped { rid, nid: from });
                 }

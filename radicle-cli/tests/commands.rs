@@ -1313,7 +1313,7 @@ fn rad_clone_partial_fail() {
         .unwrap();
     eve.db
         .routing_mut()
-        .insert([&acme], carol, localtime::LocalTime::now().into())
+        .add_inventory([&acme], carol, localtime::LocalTime::now().into())
         .unwrap();
     eve.config.peers = node::config::PeerConfig::Static;
 
@@ -1390,8 +1390,14 @@ fn rad_clone_connect() {
             )],
         )
         .unwrap();
-    eve.db.routing_mut().insert([&acme], alice.id, now).unwrap();
-    eve.db.routing_mut().insert([&acme], bob.id, now).unwrap();
+    eve.db
+        .routing_mut()
+        .add_inventory([&acme], alice.id, now)
+        .unwrap();
+    eve.db
+        .routing_mut()
+        .add_inventory([&acme], bob.id, now)
+        .unwrap();
     eve.config.peers = node::config::PeerConfig::Static;
 
     let eve = eve.spawn();

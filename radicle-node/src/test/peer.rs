@@ -269,7 +269,7 @@ where
         self.service
             .database()
             .routing()
-            .get_resources(self.nid())
+            .get_inventory(self.nid())
             .unwrap()
     }
 

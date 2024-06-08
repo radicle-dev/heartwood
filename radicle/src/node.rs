@@ -463,7 +463,7 @@ pub enum Command {
     AnnounceInventory,
 
     /// Update node's inventory.
-    UpdateInventory { rid: RepoId },
+    AddInventory { rid: RepoId },
 
     /// Get the current node condiguration.
     Config,
@@ -924,7 +924,7 @@ pub trait Handle: Clone + Sync + Send {
     /// Announce local inventory.
     fn announce_inventory(&mut self) -> Result<(), Self::Error>;
     /// Notify the service that our inventory was updated with the given repository.
-    fn update_inventory(&mut self, rid: RepoId) -> Result<bool, Self::Error>;
+    fn add_inventory(&mut self, rid: RepoId) -> Result<bool, Self::Error>;
     /// Ask the service to shutdown.
     fn shutdown(self) -> Result<(), Self::Error>;
     /// Query the peer session state.
@@ -1224,8 +1224,8 @@ impl Handle for Node {
         Ok(())
     }
 
-    fn update_inventory(&mut self, rid: RepoId) -> Result<bool, Error> {
-        let mut lines = self.call::<Success>(Command::UpdateInventory { rid }, DEFAULT_TIMEOUT)?;
+    fn add_inventory(&mut self, rid: RepoId) -> Result<bool, Error> {
+        let mut lines = self.call::<Success>(Command::AddInventory { rid }, DEFAULT_TIMEOUT)?;
         let response = lines.next().ok_or(Error::EmptyResponse)??;
 
         Ok(response.updated)

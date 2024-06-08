@@ -36,8 +36,8 @@ pub enum Error {
 pub trait Store {
     /// Get the nodes seeding the given id.
     fn get(&self, id: &RepoId) -> Result<HashSet<NodeId>, Error>;
-    /// Get the resources seeded by the given node.
-    fn get_resources(&self, node_id: &NodeId) -> Result<HashSet<RepoId>, Error>;
+    /// Get the inventory seeded by the given node.
+    fn get_inventory(&self, node_id: &NodeId) -> Result<HashSet<RepoId>, Error>;
     /// Get a specific entry.
     fn entry(&self, id: &RepoId, node: &NodeId) -> Result<Option<Timestamp>, Error>;
     /// Checks if any entries are available.
@@ -45,14 +45,14 @@ pub trait Store {
         Ok(self.len()? == 0)
     }
     /// Add a new node seeding the given id.
-    fn insert<'a>(
+    fn add_inventory<'a>(
         &mut self,
         ids: impl IntoIterator<Item = &'a RepoId>,
         node: NodeId,
         time: Timestamp,
     ) -> Result<Vec<(RepoId, InsertResult)>, Error>;
     /// Remove a node for the given id.
-    fn remove(&mut self, id: &RepoId, node: &NodeId) -> Result<bool, Error>;
+    fn remove_inventory(&mut self, id: &RepoId, node: &NodeId) -> Result<bool, Error>;
     /// Iterate over all entries in the routing table.
     fn entries(&self) -> Result<Box<dyn Iterator<Item = (RepoId, NodeId)>>, Error>;
     /// Get the total number of routing entries.
@@ -77,15 +77,15 @@ impl Store for Database {
         Ok(nodes)
     }
 
-    fn get_resources(&self, node: &NodeId) -> Result<HashSet<RepoId>, Error> {
+    fn get_inventory(&self, node: &NodeId) -> Result<HashSet<RepoId>, Error> {
         let mut stmt = self.db.prepare("SELECT repo FROM routing WHERE node = ?")?;
         stmt.bind((1, node))?;
 
-        let mut resources = HashSet::new();
+        let mut inventory = HashSet::new();
         for row in stmt.into_iter() {
-            resources.insert(row?.read::<RepoId, _>("repo"));
+            inventory.insert(row?.read::<RepoId, _>("repo"));
         }
-        Ok(resources)
+        Ok(inventory)
     }
 
     fn entry(&self, id: &RepoId, node: &NodeId) -> Result<Option<Timestamp>, Error> {
@@ -102,7 +102,7 @@ impl Store for Database {
         Ok(None)
     }
 
-    fn insert<'a>(
+    fn add_inventory<'a>(
         &mut self,
         ids: impl IntoIterator<Item = &'a RepoId>,
         node: NodeId,
@@ -160,7 +160,7 @@ impl Store for Database {
         Ok(Box::new(entries.into_iter()))
     }
 
-    fn remove(&mut self, id: &RepoId, node: &NodeId) -> Result<bool, Error> {
+    fn remove_inventory(&mut self, id: &RepoId, node: &NodeId) -> Result<bool, Error> {
         let mut stmt = self
             .db
             .prepare("DELETE FROM routing WHERE repo = ? AND node = ?")?;
@@ -242,7 +242,7 @@ mod test {
 
         for node in &nodes {
             assert_eq!(
-                db.insert(&ids, *node, Timestamp::EPOCH).unwrap(),
+                db.add_inventory(&ids, *node, Timestamp::EPOCH).unwrap(),
                 ids.iter()
                     .map(|id| (*id, InsertResult::SeedAdded))
                     .collect::<Vec<_>>()
@@ -264,11 +264,11 @@ mod test {
         let mut db = database(":memory:");
 
         for node in &nodes {
-            db.insert(&ids, *node, Timestamp::EPOCH).unwrap();
+            db.add_inventory(&ids, *node, Timestamp::EPOCH).unwrap();
         }
 
         for node in &nodes {
-            let projects = db.get_resources(node).unwrap();
+            let projects = db.get_inventory(node).unwrap();
             for id in &ids {
                 assert!(projects.contains(id));
             }
@@ -283,7 +283,7 @@ mod test {
 
         for node in &nodes {
             assert!(db
-                .insert(&ids, *node, Timestamp::EPOCH)
+                .add_inventory(&ids, *node, Timestamp::EPOCH)
                 .unwrap()
                 .iter()
                 .all(|(_, r)| *r == InsertResult::SeedAdded));
@@ -305,11 +305,11 @@ mod test {
         let mut db = database(":memory:");
 
         for node in &nodes {
-            db.insert(&ids, *node, Timestamp::EPOCH).unwrap();
+            db.add_inventory(&ids, *node, Timestamp::EPOCH).unwrap();
         }
         for id in &ids {
             for node in &nodes {
-                assert!(db.remove(id, node).unwrap());
+                assert!(db.remove_inventory(id, node).unwrap());
             }
         }
         for id in &ids {
@@ -324,15 +324,15 @@ mod test {
         let mut db = database(":memory:");
 
         assert_eq!(
-            db.insert([&id], node, Timestamp::EPOCH).unwrap(),
+            db.add_inventory([&id], node, Timestamp::EPOCH).unwrap(),
             vec![(id, InsertResult::SeedAdded)]
         );
         assert_eq!(
-            db.insert([&id], node, Timestamp::EPOCH).unwrap(),
+            db.add_inventory([&id], node, Timestamp::EPOCH).unwrap(),
             vec![(id, InsertResult::NotUpdated)]
         );
         assert_eq!(
-            db.insert([&id], node, Timestamp::EPOCH).unwrap(),
+            db.add_inventory([&id], node, Timestamp::EPOCH).unwrap(),
             vec![(id, InsertResult::NotUpdated)]
         );
     }
@@ -344,11 +344,11 @@ mod test {
         let mut db = database(":memory:");
 
         assert_eq!(
-            db.insert([&id], node, Timestamp::EPOCH).unwrap(),
+            db.add_inventory([&id], node, Timestamp::EPOCH).unwrap(),
             vec![(id, InsertResult::SeedAdded)]
         );
         assert_eq!(
-            db.insert([&id], node, Timestamp::try_from(1u64).unwrap())
+            db.add_inventory([&id], node, Timestamp::try_from(1u64).unwrap())
                 .unwrap(),
             vec![(id, InsertResult::TimeUpdated)]
         );
@@ -366,18 +366,19 @@ mod test {
         let mut db = database(":memory:");
 
         assert_eq!(
-            db.insert([&id1], node, Timestamp::EPOCH).unwrap(),
+            db.add_inventory([&id1], node, Timestamp::EPOCH).unwrap(),
             vec![(id1, InsertResult::SeedAdded)]
         );
         assert_eq!(
-            db.insert([&id1, &id2], node, Timestamp::EPOCH).unwrap(),
+            db.add_inventory([&id1, &id2], node, Timestamp::EPOCH)
+                .unwrap(),
             vec![
                 (id1, InsertResult::NotUpdated),
                 (id2, InsertResult::SeedAdded)
             ]
         );
         assert_eq!(
-            db.insert([&id1, &id2], node, Timestamp::try_from(1u64).unwrap())
+            db.add_inventory([&id1, &id2], node, Timestamp::try_from(1u64).unwrap())
                 .unwrap(),
             vec![
                 (id1, InsertResult::TimeUpdated),
@@ -393,11 +394,11 @@ mod test {
         let mut db = database(":memory:");
 
         assert_eq!(
-            db.insert([&id], node, Timestamp::EPOCH).unwrap(),
+            db.add_inventory([&id], node, Timestamp::EPOCH).unwrap(),
             vec![(id, InsertResult::SeedAdded)]
         );
-        assert!(db.remove(&id, &node).unwrap());
-        assert!(!db.remove(&id, &node).unwrap());
+        assert!(db.remove_inventory(&id, &node).unwrap());
+        assert!(!db.remove_inventory(&id, &node).unwrap());
     }
 
     #[test]
@@ -406,7 +407,8 @@ mod test {
         let ids = arbitrary::vec::<RepoId>(10);
         let node = arbitrary::gen(1);
 
-        db.insert(&ids, node, LocalTime::now().into()).unwrap();
+        db.add_inventory(&ids, node, LocalTime::now().into())
+            .unwrap();
 
         assert_eq!(10, db.len().unwrap(), "correct number of rows in table");
     }
@@ -421,7 +423,7 @@ mod test {
 
         for node in &nodes {
             let time = rng.u64(..now.as_millis());
-            db.insert(&ids, *node, Timestamp::try_from(time).unwrap())
+            db.add_inventory(&ids, *node, Timestamp::try_from(time).unwrap())
                 .unwrap();
         }
 
@@ -430,7 +432,7 @@ mod test {
 
         for node in &nodes {
             let time = rng.u64(now.as_millis()..i64::MAX as u64);
-            db.insert(&ids, *node, Timestamp::try_from(time).unwrap())
+            db.add_inventory(&ids, *node, Timestamp::try_from(time).unwrap())
                 .unwrap();
         }
 
@@ -452,7 +454,7 @@ mod test {
         let mut db = database(":memory:");
 
         for node in &nodes {
-            db.insert([&id], *node, Timestamp::EPOCH).unwrap();
+            db.add_inventory([&id], *node, Timestamp::EPOCH).unwrap();
         }
         assert_eq!(db.count(&id).unwrap(), nodes.len());
     }
