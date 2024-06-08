@@ -92,6 +92,11 @@ where
         let inner = self.inner(parent);
         let cols = inner.cols;
 
+        // Don't print empty tables.
+        if self.is_empty() {
+            return lines;
+        }
+
         if let Some(color) = border {
             lines.push(
                 Line::default()
