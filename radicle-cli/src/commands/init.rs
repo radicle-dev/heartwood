@@ -20,7 +20,6 @@ use radicle::node::{Event, Handle, NodeId, DEFAULT_SUBSCRIBE_TIMEOUT};
 use radicle::prelude::Doc;
 use radicle::{profile, Node};
 
-use crate as cli;
 use crate::commands;
 use crate::git;
 use crate::terminal as term;
@@ -290,10 +289,10 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             // It's important to seed our own repositories to make sure that our node signals
             // interest for them. This ensures that messages relating to them are relayed to us.
             if options.seed {
-                cli::project::seed(rid, options.scope, &mut node, profile)?;
+                profile.seed(rid, options.scope, &mut node)?;
 
                 if doc.visibility.is_public() {
-                    cli::project::add_inventory(rid, &mut node, profile)?;
+                    profile.add_inventory(rid, &mut node)?;
                 }
             }
 

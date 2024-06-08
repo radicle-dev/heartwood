@@ -27,12 +27,12 @@ use crate::node::policy::config::store::Read;
 use crate::node::{
     notifications, policy,
     policy::{Policy, Scope, SeedingPolicy},
-    Alias, AliasStore,
+    Alias, AliasStore, Handle as _, Node,
 };
-use crate::prelude::{Did, NodeId};
+use crate::prelude::{Did, NodeId, RepoId};
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
-use crate::storage::ReadRepository;
+use crate::storage::{ReadRepository, ReadStorage};
 use crate::{cli, cob, git, node, storage, web};
 
 /// Environment variables used by radicle.
@@ -157,6 +157,10 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error(transparent)]
     Config(#[from] ConfigError),
+    #[error(transparent)]
+    Node(#[from] node::Error),
+    #[error(transparent)]
+    Routing(#[from] node::routing::Error),
     #[error(transparent)]
     Keystore(#[from] keystore::Error),
     #[error(transparent)]
@@ -422,6 +426,63 @@ impl Profile {
         let db = self.home.database().ok();
 
         Aliases { policies, db }
+    }
+
+    /// Add the repo to our inventory.
+    /// If the node is offline, adds it directly to the database.
+    pub fn add_inventory(&self, rid: RepoId, node: &mut Node) -> Result<bool, Error> {
+        match node.add_inventory(rid) {
+            Ok(updated) => Ok(updated),
+            Err(e) if e.is_connection_err() => {
+                let now = LocalTime::now();
+                let mut db = self.database_mut()?;
+                let updates =
+                    node::routing::Store::add_inventory(&mut db, [&rid], *self.id(), now.into())?;
+
+                Ok(!updates.is_empty())
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Seed a repository by first trying to seed through the node, and if the node isn't running,
+    /// by updating the policy database directly. If the repo is available locally, we also add it
+    /// to our inventory.
+    pub fn seed(&self, rid: RepoId, scope: Scope, node: &mut Node) -> Result<bool, Error> {
+        match node.seed(rid, scope) {
+            Ok(updated) => Ok(updated),
+            Err(e) if e.is_connection_err() => {
+                let mut config = self.policies_mut()?;
+                let result = config.seed(&rid, scope)?;
+
+                if result && self.storage.contains(&rid)? {
+                    let now = LocalTime::now();
+                    let mut db = self.database_mut()?;
+
+                    node::routing::Store::add_inventory(&mut db, [&rid], *self.id(), now.into())?;
+                }
+                Ok(result)
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Unseed a repository by first trying to unseed through the node, and if the node isn't
+    /// running, by updating the policy database directly.
+    pub fn unseed(&self, rid: RepoId, node: &mut Node) -> Result<bool, Error> {
+        match node.unseed(rid) {
+            Ok(updated) => Ok(updated),
+            Err(e) if e.is_connection_err() => {
+                let mut config = self.policies_mut()?;
+                let result = config.unseed(&rid)?;
+
+                let mut db = self.database_mut()?;
+                node::routing::Store::remove_inventory(&mut db, &rid, self.id())?;
+
+                Ok(result)
+            }
+            Err(e) => Err(e.into()),
+        }
     }
 }
 

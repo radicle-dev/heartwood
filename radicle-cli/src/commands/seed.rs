@@ -10,8 +10,8 @@ use radicle_term::Element as _;
 
 use crate::commands::rad_sync as sync;
 use crate::node::SyncSettings;
+use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::{project, terminal as term};
 
 pub const HELP: Help = Help {
     name: "seed",
@@ -134,7 +134,7 @@ pub fn update(
     node: &mut Node,
     profile: &Profile,
 ) -> Result<(), anyhow::Error> {
-    let updated = project::seed(rid, scope, node, profile)?;
+    let updated = profile.seed(rid, scope, node)?;
     let outcome = if updated { "updated" } else { "exists" };
 
     term::success!(
@@ -145,17 +145,11 @@ pub fn update(
     Ok(())
 }
 
-pub fn delete(rid: RepoId, node: &mut Node, profile: &Profile) -> anyhow::Result<()> {
-    if project::unseed(rid, node, profile)? {
-        term::success!("Seeding policy for {} removed", term::format::tertiary(rid));
-    }
-    Ok(())
-}
-
 pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
     let store = profile.policies()?;
     let storage = &profile.storage;
     let mut t = term::Table::new(term::table::TableOptions::bordered());
+
     t.header([
         term::format::default(String::from("Repository")),
         term::format::default(String::from("Name")),

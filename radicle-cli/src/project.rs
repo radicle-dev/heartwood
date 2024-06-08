@@ -1,11 +1,8 @@
-use localtime::LocalTime;
 use radicle::prelude::*;
 
 use crate::git;
 use radicle::git::RefStr;
-use radicle::node::policy::Scope;
-use radicle::node::{routing, Handle, NodeId};
-use radicle::Node;
+use radicle::node::NodeId;
 
 /// Setup a repository remote and tracking branch.
 pub struct SetupRemote<'a> {
@@ -50,70 +47,5 @@ impl<'a> SetupRemote<'a> {
             return Ok((remote, Some(tracking_branch)));
         }
         Ok((remote, None))
-    }
-}
-
-/// Add the repo to our inventory.
-pub fn add_inventory(
-    rid: RepoId,
-    node: &mut Node,
-    profile: &Profile,
-) -> Result<bool, anyhow::Error> {
-    match node.add_inventory(rid) {
-        Ok(updated) => Ok(updated),
-        Err(e) if e.is_connection_err() => {
-            let now = LocalTime::now();
-            let mut db = profile.database_mut()?;
-            let updates =
-                routing::Store::add_inventory(&mut db, [&rid], *profile.id(), now.into())?;
-
-            Ok(!updates.is_empty())
-        }
-        Err(e) => Err(e.into()),
-    }
-}
-
-/// Seed a repository by first trying to seed through the node, and if the node isn't running, by
-/// updating the policy database directly. If the repo is available locally, we also add it to our
-/// inventory.
-pub fn seed(
-    rid: RepoId,
-    scope: Scope,
-    node: &mut Node,
-    profile: &Profile,
-) -> Result<bool, anyhow::Error> {
-    match node.seed(rid, scope) {
-        Ok(updated) => Ok(updated),
-        Err(e) if e.is_connection_err() => {
-            let mut config = profile.policies_mut()?;
-            let result = config.seed(&rid, scope)?;
-
-            if result && profile.storage.contains(&rid)? {
-                let now = LocalTime::now();
-                let mut db = profile.database_mut()?;
-
-                routing::Store::add_inventory(&mut db, [&rid], *profile.id(), now.into())?;
-            }
-            Ok(result)
-        }
-        Err(e) => Err(e.into()),
-    }
-}
-
-/// Unseed a repository by first trying to unseed through the node, and if the node isn't running,
-/// by updating the policy database directly.
-pub fn unseed(rid: RepoId, node: &mut Node, profile: &Profile) -> Result<bool, anyhow::Error> {
-    match node.unseed(rid) {
-        Ok(updated) => Ok(updated),
-        Err(e) if e.is_connection_err() => {
-            let mut config = profile.policies_mut()?;
-            let result = config.unseed(&rid)?;
-
-            let mut db = profile.database_mut()?;
-            radicle::node::routing::Store::remove_inventory(&mut db, &rid, profile.id())?;
-
-            Ok(result)
-        }
-        Err(e) => Err(e.into()),
     }
 }
