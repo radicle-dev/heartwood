@@ -92,6 +92,30 @@ pub enum ControlSocket {
     Received(UnixListener),
 }
 
+impl ControlSocket {
+    fn listener(&self) -> &UnixListener {
+        match self {
+            ControlSocket::Bound(listener, _) => listener,
+            ControlSocket::Received(listener) => listener,
+        }
+    }
+}
+
+impl Drop for ControlSocket {
+    fn drop(&mut self) {
+        match self {
+            ControlSocket::Bound(_, path) => {
+                if let Err(e) = fs::remove_file(&path) {
+                    log::warn!(target: "node", "Failed to remove {:?}: {e}", &path);
+                }
+            }
+            ControlSocket::Received(_) => {
+                log::trace!(target: "node", "Not removing control socket because it was received.");
+            }
+        }
+    }
+}
+
 /// Holds join handles to the client threads, as well as a client handle.
 pub struct Runtime {
     pub id: NodeId,
@@ -266,10 +290,7 @@ impl Runtime {
 
     pub fn run(self) -> Result<(), Error> {
         let home = self.home;
-        let (listener, remove) = match self.control {
-            ControlSocket::Bound(listener, path) => (listener, Some(path)),
-            ControlSocket::Received(listener) => (listener, None),
-        };
+        let listener = self.control.listener();
 
         log::info!(target: "node", "Running node {} in {}..", self.id, home.path().display());
 
@@ -289,9 +310,6 @@ impl Runtime {
 
         // Nb. We don't join the control thread here, as we have no way of notifying it that the
         // node is shutting down.
-
-        // Remove control socket file, but don't freak out if it's not there anymore.
-        remove.map(|path| fs::remove_file(path).ok());
 
         log::debug!(target: "node", "Node shutdown completed for {}", self.id);
 
