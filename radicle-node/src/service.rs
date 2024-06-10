@@ -448,7 +448,7 @@ pub struct Service<D, S, G> {
     /// Last time the service routing table was pruned.
     last_prune: LocalTime,
     /// Last time the inventory was announced.
-    last_announce: LocalTime,
+    last_inventory: LocalTime,
     /// Last timestamp used for announcements.
     last_timestamp: Timestamp,
     /// Time when the service was initialized, or `None` if it wasn't initialized.
@@ -526,7 +526,7 @@ where
             last_sync: LocalTime::default(),
             last_prune: LocalTime::default(),
             last_timestamp,
-            last_announce: LocalTime::default(),
+            last_inventory: LocalTime::default(),
             started_at: None,     // Updated on initialize.
             last_online_at: None, // Updated on initialize.
             emitter,
@@ -815,7 +815,7 @@ where
             self.outbox.wakeup(SYNC_INTERVAL);
             self.last_sync = now;
         }
-        if now - self.last_announce >= ANNOUNCE_INTERVAL {
+        if now - self.last_inventory >= ANNOUNCE_INTERVAL {
             trace!(target: "service", "Running 'announce' task...");
 
             self.announce_inventory();
@@ -1942,10 +1942,7 @@ where
 
         let removed = self.db.routing_mut().remove_inventory(rid, &node)?;
         if removed {
-            // Update cached inventory message.
-            let inventory = self.inventory()?;
-            self.inventory = gossip::inventory(now, inventory);
-            self.announce_inventory();
+            self.refresh_and_announce_inventory(now)?;
         }
         Ok(removed)
     }
@@ -1964,12 +1961,19 @@ where
         let updated = !updates.is_empty();
 
         if updated {
-            let inventory = self.inventory()?;
-
-            self.inventory = gossip::inventory(now, inventory);
-            self.announce_inventory();
+            self.refresh_and_announce_inventory(now)?;
         }
         Ok(updated)
+    }
+
+    /// Update cached inventory message, and announce new inventory to peers.
+    fn refresh_and_announce_inventory(&mut self, time: Timestamp) -> Result<(), Error> {
+        let inventory = self.inventory()?;
+
+        self.inventory = gossip::inventory(time, inventory);
+        self.announce_inventory();
+
+        Ok(())
     }
 
     /// Get our local inventory.
@@ -2294,10 +2298,14 @@ where
         Ok(())
     }
 
-    /// Announce our inventory to all connected peers.
+    /// Announce our inventory to all connected peers, unless it was already announced.
     fn announce_inventory(&mut self) {
-        // TODO: If we're going to announce soon, skip this.
-        // TODO: If we just announced this exact inventory, also skip.
+        let timestamp = self.inventory.timestamp.to_local_time();
+
+        if self.last_inventory == timestamp {
+            debug!(target: "service", "Skipping redundant inventory announcement (t={})", self.inventory.timestamp);
+            return;
+        }
         let msg = AnnouncementMessage::from(self.inventory.clone());
 
         self.outbox.announce(
@@ -2305,7 +2313,7 @@ where
             self.sessions.connected().map(|(_, p)| p),
             self.db.gossip_mut(),
         );
-        self.last_announce = self.clock;
+        self.last_inventory = timestamp;
     }
 
     fn prune_routing_entries(&mut self, now: &LocalTime) -> Result<(), routing::Error> {
