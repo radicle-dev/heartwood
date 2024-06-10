@@ -652,6 +652,11 @@ impl Home {
     }
 
     /// Returns the routing store.
+    pub fn routing(&self) -> Result<impl node::routing::Store, node::db::Error> {
+        self.database()
+    }
+
+    /// Returns the routing store, mutably.
     pub fn routing_mut(&self) -> Result<impl node::routing::Store, node::db::Error> {
         self.database_mut()
     }

@@ -5,6 +5,7 @@ use std::time;
 use anyhow::anyhow;
 
 use radicle::node::config::ConnectAddress;
+use radicle::node::routing::Store;
 use radicle::node::Handle as _;
 use radicle::node::{Address, Node, NodeId, PeerAddr};
 use radicle::prelude::RepoId;
@@ -36,6 +37,7 @@ Usage
     rad node debug [<option>...]
     rad node connect <nid>@<addr> [<option>...]
     rad node routing [--rid <rid>] [--nid <nid>] [--json] [<option>...]
+    rad node inventory [<option>...]
     rad node events [--timeout <secs>] [-n <count>] [<option>...]
     rad node config [--addresses]
     rad node db <command> [<option>..]
@@ -99,6 +101,7 @@ pub enum Operation {
         lines: usize,
     },
     Status,
+    Inventory,
     Debug,
     Sessions,
     Stop,
@@ -115,6 +118,7 @@ pub enum OperationName {
     Start,
     #[default]
     Status,
+    Inventory,
     Debug,
     Sessions,
     Stop,
@@ -151,6 +155,7 @@ impl Args for Options {
                     "logs" => op = Some(OperationName::Logs),
                     "config" => op = Some(OperationName::Config),
                     "routing" => op = Some(OperationName::Routing),
+                    "inventory" => op = Some(OperationName::Inventory),
                     "start" => op = Some(OperationName::Start),
                     "status" => op = Some(OperationName::Status),
                     "stop" => op = Some(OperationName::Stop),
@@ -225,6 +230,7 @@ impl Args for Options {
                 options,
                 path: path.unwrap_or(PathBuf::from("radicle-node")),
             },
+            OperationName::Inventory => Operation::Inventory,
             OperationName::Status => Operation::Status,
             OperationName::Debug => Operation::Debug,
             OperationName::Sessions => Operation::Sessions,
@@ -279,6 +285,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             verbose,
         } => {
             control::start(node, !foreground, verbose, options, &path, &profile)?;
+        }
+        Operation::Inventory => {
+            for rid in profile.routing()?.get_inventory(profile.id())? {
+                println!("{}", term::format::tertiary(rid));
+            }
         }
         Operation::Status => {
             control::status(&node, &profile)?;
