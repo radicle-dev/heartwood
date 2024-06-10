@@ -69,11 +69,6 @@ pub enum Error {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct Allow {
-    rollback: bool,
-}
-
-#[derive(Debug, Default, Clone)]
 pub struct Options {
     /// Don't sync after push.
     no_sync: bool,
@@ -87,8 +82,6 @@ pub struct Options {
     base: Option<Rev>,
     /// Patch message.
     message: cli::patch::Message,
-    /// Operations allowed.
-    allow: Allow,
 }
 
 /// Run the radicle remote helper using the given profile.
@@ -215,7 +208,6 @@ fn push_option(args: &[&str], opts: &mut Options) -> Result<(), Error> {
         ["sync.debug"] => opts.sync_debug = true,
         ["no-sync"] => opts.no_sync = true,
         ["patch.draft"] => opts.draft = true,
-        ["allow.rollback"] => opts.allow.rollback = true,
         _ => {
             let args = args.join(" ");
 
@@ -258,4 +250,9 @@ pub(crate) fn read_line<'a>(stdin: &io::Stdin, line: &'a mut String) -> io::Resu
 /// Write a hint to the user.
 pub(crate) fn hint(s: impl fmt::Display) {
     eprintln!("{}", cli::format::hint(format!("hint: {s}")));
+}
+
+/// Write a warning to the user.
+pub(crate) fn warn(s: impl fmt::Display) {
+    eprintln!("{}", cli::format::hint(format!("warn: {s}")));
 }

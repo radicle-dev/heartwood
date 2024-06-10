@@ -13,6 +13,8 @@ use radicle::cob::patch;
 use radicle::cob::patch::cache::Patches as _;
 use radicle::crypto::Signer;
 use radicle::explorer::ExplorerResource;
+use radicle::git::canonical;
+use radicle::git::canonical::Canonical;
 use radicle::identity::Did;
 use radicle::node;
 use radicle::node::{Handle, NodeId};
@@ -24,7 +26,7 @@ use radicle::{git, rad};
 use radicle_cli as cli;
 use radicle_cli::terminal as term;
 
-use crate::{hint, read_line, Options};
+use crate::{hint, read_line, warn, Options};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -191,7 +193,6 @@ pub fn run(
             _ => return Err(Error::InvalidCommand(line.trim().to_owned())),
         }
     }
-    let canonical = stored.head()?;
     let delegates = stored.delegates()?;
 
     // For each refspec, push a ref or delete a ref.
@@ -203,7 +204,7 @@ pub fn run(
             Command::Delete(dst) => {
                 // Delete refs.
                 let refname = nid.to_namespace().join(dst);
-                let (canonical_ref, _) = &canonical;
+                let (canonical_ref, _) = &stored.head()?;
 
                 if *dst == canonical_ref.to_ref_string() && delegates.contains(&Did::from(nid)) {
                     return Err(Error::DeleteForbidden(dst.clone()));
@@ -249,7 +250,10 @@ pub fn run(
                             opts.clone(),
                         )
                     } else {
-                        let (canonical_ref, canonical_oid) = &canonical;
+                        let identity = stored.identity()?;
+                        let project = identity.project()?;
+                        let canonical_ref = git::refs::branch(project.default_branch());
+                        let me = Did::from(nid);
 
                         // If we're trying to update the canonical head, make sure
                         // we don't diverge from the current head. This only applies
@@ -257,41 +261,51 @@ pub fn run(
                         //
                         // Note that we *do* allow rolling back to a previous commit on the
                         // canonical branch.
-                        if dst == *canonical_ref
-                            && delegates.contains(&Did::from(nid))
-                            && delegates.len() > 1
-                        {
-                            if let Err(e) = working.find_commit(**canonical_oid) {
-                                return if git::ext::is_not_found_err(&e) {
-                                    Err(Error::MissingCanonicalHead(*canonical_oid))
-                                } else {
-                                    Err(e.into())
-                                };
-                            }
+                        if dst == canonical_ref && delegates.contains(&me) && delegates.len() > 1 {
                             let head = working.find_reference(src.as_str())?;
                             let head = head.peel_to_commit()?.id();
-                            // Rollback is allowed and head is an ancestor of the canonical head.
-                            let rollback = opts.allow.rollback
-                                && working.graph_descendant_of(**canonical_oid, head)?;
-
-                            if head != **canonical_oid
-                                // Canonical head is *not* an ancestor of head.
-                                && !working.graph_descendant_of(head, **canonical_oid)?
-                                // Not a rollback.
-                                && !rollback
-                            {
-                                if hints {
-                                    hint(
-                                        "you are attempting to push a commit that would cause \
-                                        your upstream to diverge from the canonical head",
-                                    );
-                                    hint(
-                                        "to integrate the remote changes, run `git pull --rebase` \
-                                        and try again",
-                                    );
-                                }
-                                return Err(Error::HeadsDiverge(head.into(), *canonical_oid));
+                            let mut canonical =
+                                Canonical::default_branch(stored, &project, &identity.delegates)?;
+                            let converges = canonical::converges(
+                                canonical
+                                    .tips()
+                                    .filter_map(|(did, tip)| (*did != me).then_some(tip)),
+                                head.into(),
+                                &working,
+                            )?;
+                            if converges {
+                                canonical.modify_vote(me, head.into());
                             }
+
+                            match canonical.quorum(identity.threshold, &working) {
+                                Ok(canonical_oid) => {
+                                    // Canonical head is an ancestor of head.
+                                    let is_ff = head == *canonical_oid
+                                        || working.graph_descendant_of(head, *canonical_oid)?;
+
+                                    if !is_ff && !converges {
+                                        if hints {
+                                            hint(
+                                                "you are attempting to push a commit that would cause \
+                                                 your upstream to diverge from the canonical head",
+                                            );
+                                            hint(
+                                                "to integrate the remote changes, run `git pull --rebase` \
+                                                 and try again",
+                                            );
+                                        }
+                                        return Err(Error::HeadsDiverge(
+                                            head.into(),
+                                            canonical_oid,
+                                        ));
+                                    }
+                                }
+                                Err(canonical::QuorumError::NoQuorum) => {
+                                    warn(format!("no quorum was found for `{canonical_ref}`"));
+                                    warn("it is recommended to find a commit to agree upon");
+                                }
+                                Err(e) => return Err(e.into()),
+                            };
                         }
                         push(
                             src,
@@ -322,15 +336,17 @@ pub fn run(
     // Sign refs and sync if at least one ref pushed successfully.
     if !ok.is_empty() {
         let _ = stored.sign_refs(&signer)?;
-        let head = stored.set_head()?;
 
-        if head.is_updated() {
-            eprintln!(
-                "{} Canonical head updated to {}",
-                term::format::positive("✓"),
-                term::format::secondary(head.new),
-            );
-        }
+        // N.b. if an error occurs then there may be no quorum
+        if let Ok(head) = stored.set_head() {
+            if head.is_updated() {
+                eprintln!(
+                    "{} Canonical head updated to {}",
+                    term::format::positive("✓"),
+                    term::format::secondary(head.new),
+                );
+            }
+        };
 
         if !opts.no_sync {
             if profile.policies()?.is_seeding(&stored.id)? {

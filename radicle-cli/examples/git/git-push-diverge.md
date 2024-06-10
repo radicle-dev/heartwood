@@ -66,19 +66,14 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
    f2de534..f6cff86  master -> master
 ```
 
-One thing of note is that we can't push an older commit either, by default:
+One thing of note is that we can revert to an older commit as long as we are
+still ahead of the other delegates.
 
 ``` ~alice
 $ git reset --hard HEAD^ -q
 ```
-``` ~alice (fail)
-$ git push -f
-```
-
-We have to use the `allow.rollback` option:
-
 ``` ~alice RAD_SOCKET=/dev/null (stderr)
-$ git push -f -o allow.rollback
+$ git push -f
 ✓ Canonical head updated to 319a7dc3b195368ded4b099f8c90bbb80addccd3
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + f6cff86...319a7dc master -> master (forced update)
