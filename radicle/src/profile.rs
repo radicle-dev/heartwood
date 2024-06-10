@@ -32,7 +32,7 @@ use crate::node::{
 use crate::prelude::{Did, NodeId, RepoId};
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
-use crate::storage::{ReadRepository, ReadStorage};
+use crate::storage::ReadRepository;
 use crate::{cli, cob, git, node, storage, web};
 
 /// Environment variables used by radicle.
@@ -453,15 +453,9 @@ impl Profile {
             Ok(updated) => Ok(updated),
             Err(e) if e.is_connection_err() => {
                 let mut config = self.policies_mut()?;
-                let result = config.seed(&rid, scope)?;
+                let updated = config.seed(&rid, scope)?;
 
-                if result && self.storage.contains(&rid)? {
-                    let now = LocalTime::now();
-                    let mut db = self.database_mut()?;
-
-                    node::routing::Store::add_inventory(&mut db, [&rid], *self.id(), now.into())?;
-                }
-                Ok(result)
+                Ok(updated)
             }
             Err(e) => Err(e.into()),
         }

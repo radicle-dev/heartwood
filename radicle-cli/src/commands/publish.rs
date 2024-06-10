@@ -114,18 +114,19 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         anyhow::bail!("fatal: repository storage is corrupt");
     }
+    let mut node = radicle::Node::new(profile.socket());
+    let spinner = term::spinner("Updating inventory..");
+
+    // The repository is now part of our inventory.
+    profile.add_inventory(rid, &mut node)?;
+    spinner.finish();
 
     term::success!(
         "Repository is now {}",
         term::format::visibility(&doc.visibility)
     );
 
-    let mut node = radicle::Node::new(profile.socket());
-    if node.is_running() {
-        let spinner = term::spinner("Announcing to network..");
-        node.announce_inventory()?;
-        spinner.finish();
-    } else {
+    if !node.is_running() {
         term::warning(format!(
             "Your node is not running. Start your node with {} to announce your repository \
             to the network",

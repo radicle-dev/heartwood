@@ -35,3 +35,11 @@ $ rad ls --all
 │ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   local        f2de534   Radicle Heartwood Protocol & Stack │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
+
+Hence, we also see that it isn't in our inventory and isn't seeded:
+
+```
+$ rad node inventory
+$ rad seed
+No seeding policies to show.
+```

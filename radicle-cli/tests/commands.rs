@@ -202,6 +202,23 @@ fn rad_init() {
 }
 
 #[test]
+fn rad_init_no_seed() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init-no-seed.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_init_with_existing_remote() {
     let mut environment = Environment::new();
     let profile = environment.profile(config::profile("alice"));
@@ -2161,6 +2178,23 @@ fn rad_init_private() {
 
     test(
         "examples/rad-init-private.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
+fn rad_init_private_no_seed() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init-private-no-seed.md",
         working.join("alice"),
         Some(&alice.home),
         [],

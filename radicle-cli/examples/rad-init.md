@@ -29,7 +29,7 @@ $ rad init
 ✗ Error: repository is already initialized with remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ```
 
-Projects can be listed with the `ls` command:
+Repositories can be listed with the `ls` command:
 
 ```
 $ rad ls
@@ -38,4 +38,11 @@ $ rad ls
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   public       f2de534   Radicle Heartwood Protocol & Stack │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+Public repositories are added to our inventory:
+
+```
+$ rad node inventory
+rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ```

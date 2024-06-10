@@ -137,6 +137,13 @@ pub fn update(
     let updated = profile.seed(rid, scope, node)?;
     let outcome = if updated { "updated" } else { "exists" };
 
+    if let Ok(repo) = profile.storage.repository(rid) {
+        if repo.identity_doc()?.visibility.is_public() {
+            profile.add_inventory(rid, node)?;
+            term::success!("Inventory updated with {}", term::format::tertiary(rid));
+        }
+    }
+
     term::success!(
         "Seeding policy {outcome} for {} with scope '{scope}'",
         term::format::tertiary(rid),

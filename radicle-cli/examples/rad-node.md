@@ -92,7 +92,7 @@ Note that if we unseed a repository, it is no longer part of our inventory:
 ```
 $ rad unseed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ✓ Seeding policy for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji removed
-$ rad node routing --nid z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad node inventory
 ```
 
 Likewise, if we seed a repository we don't have locally, it won't show up as
@@ -100,20 +100,17 @@ part of our inventory:
 ```
 $ rad seed rad:z3trNYnLWS11cJWC6BbxDs5niGo82
 [...]
-$ rad node routing --nid z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad node inventory
 ```
 
 But if we start seeding the repository we have locally again, it'll show
 up in our inventory:
 ```
 $ rad seed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-[...]
-$ rad node routing --nid z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-╭─────────────────────────────────────────────────────╮
-│ RID                                 NID             │
-├─────────────────────────────────────────────────────┤
-│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   z6MknSL…StBU8Vi │
-╰─────────────────────────────────────────────────────╯
+✓ Inventory updated with rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
+$ rad node inventory
+rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ```
 
 Some commands also give us a hint if the node isn't running:

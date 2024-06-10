@@ -3,11 +3,19 @@ Let's say we have a private repo. To make it public, we use the `publish` comman
 ```
 $ rad inspect --visibility
 private
+$ rad node inventory
 $ rad publish
+✓ Updating inventory..
 ✓ Repository is now public
 ! Warning: Your node is not running. Start your node with `rad node start` to announce your repository to the network
 $ rad inspect --visibility
 public
+```
+
+The repository is now in our inventory:
+```
+$ rad node inventory
+rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu
 ```
 
 If we try to publish again, we get an error:
