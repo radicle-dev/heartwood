@@ -1,5 +1,7 @@
 Let's say we initialize a private repository and specify that we don't want it
-to be seeded.
+to be seeded. This means that the repo will be available locally, to us,
+and even if other peers know about it, they won't be able to fetch it
+from us.
 ```
 $ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --private --no-seed
 
@@ -22,7 +24,8 @@ $ rad seed
 No seeding policies to show.
 ```
 
-We can decide to seed it later:
+We can decide to seed it later, so that others can fetch it from us, given
+that they are part of the allow list:
 ```
 $ rad seed rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu
 ✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'all'
