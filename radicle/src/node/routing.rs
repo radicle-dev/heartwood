@@ -51,8 +51,14 @@ pub trait Store {
         node: NodeId,
         time: Timestamp,
     ) -> Result<Vec<(RepoId, InsertResult)>, Error>;
-    /// Remove a node for the given id.
+    /// Remove an inventory from the given node.
     fn remove_inventory(&mut self, id: &RepoId, node: &NodeId) -> Result<bool, Error>;
+    /// Remove multiple inventories from the given node.
+    fn remove_inventories<'a>(
+        &mut self,
+        ids: impl IntoIterator<Item = &'a RepoId>,
+        node: &NodeId,
+    ) -> Result<(), Error>;
     /// Iterate over all entries in the routing table.
     fn entries(&self) -> Result<Box<dyn Iterator<Item = (RepoId, NodeId)>>, Error>;
     /// Get the total number of routing entries.
@@ -170,6 +176,27 @@ impl Store for Database {
         stmt.next()?;
 
         Ok(self.db.change_count() > 0)
+    }
+
+    fn remove_inventories<'a>(
+        &mut self,
+        rids: impl IntoIterator<Item = &'a RepoId>,
+        nid: &NodeId,
+    ) -> Result<(), Error> {
+        let mut stmt = self
+            .db
+            .prepare("DELETE FROM routing WHERE repo = ? AND node = ?")?;
+
+        transaction(&self.db, |_| {
+            for rid in rids.into_iter() {
+                stmt.bind((1, rid))?;
+                stmt.bind((2, nid))?;
+
+                stmt.iter().next();
+                stmt.reset()?;
+            }
+            Ok::<_, Error>(())
+        })
     }
 
     fn len(&self) -> Result<usize, Error> {
@@ -399,6 +426,22 @@ mod test {
         );
         assert!(db.remove_inventory(&id, &node).unwrap());
         assert!(!db.remove_inventory(&id, &node).unwrap());
+    }
+
+    #[test]
+    fn test_remove_many() {
+        let id1 = arbitrary::gen::<RepoId>(1);
+        let id2 = arbitrary::gen::<RepoId>(1);
+        let id3 = arbitrary::gen::<RepoId>(1);
+        let node = arbitrary::gen::<NodeId>(1);
+        let mut db = database(":memory:");
+
+        db.add_inventory([&id1, &id2, &id3], node, Timestamp::EPOCH)
+            .unwrap();
+        assert_eq!(db.len().unwrap(), 3);
+
+        db.remove_inventories([&id1, &id3], &node).unwrap();
+        assert_eq!(db.len().unwrap(), 1);
     }
 
     #[test]

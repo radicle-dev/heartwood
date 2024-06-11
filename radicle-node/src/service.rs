@@ -687,6 +687,7 @@ where
             .seeded_by(&nid)?
             .collect::<Result<HashMap<_, _>, _>>()?;
         let mut inventory = BTreeSet::new();
+        let mut private = BTreeSet::new();
 
         for repo in self.storage.repositories()? {
             let rid = repo.rid;
@@ -699,6 +700,8 @@ where
             // Add public repositories to inventory.
             if repo.doc.visibility.is_public() {
                 inventory.insert(rid);
+            } else {
+                private.insert(rid);
             }
             // If we have no owned refs for this repo, then there's nothing to announce.
             let Some(updated_at) = repo.synced_at else {
@@ -728,15 +731,19 @@ where
             }
         }
 
-        {
-            // Ensure that our inventory is recorded in our routing table, and we are seeding
-            // all of it. It can happen that inventory is not properly seeded if for eg. the
-            // user creates a new repository while the node is stopped.
-            self.db
-                .routing_mut()
-                .add_inventory(inventory.iter(), nid, time.into())?;
-            self.inventory = gossip::inventory(self.timestamp(), inventory);
-        }
+        // Ensure that our inventory is recorded in our routing table, and we are seeding
+        // all of it. It can happen that inventory is not properly seeded if for eg. the
+        // user creates a new repository while the node is stopped.
+        self.db
+            .routing_mut()
+            .add_inventory(inventory.iter(), nid, time.into())?;
+        self.inventory = gossip::inventory(self.timestamp(), inventory);
+
+        // Ensure that private repositories are not in our inventory. It's possible that
+        // a repository was public and then it was made private.
+        self.db
+            .routing_mut()
+            .remove_inventories(private.iter(), &nid)?;
 
         // Setup subscription filter for seeded repos.
         self.filter = Filter::new(
