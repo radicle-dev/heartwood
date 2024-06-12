@@ -59,7 +59,6 @@ radicle-node = { version = "0.19", path = "crates/radicle-node" }
 radicle-oid = { version = "0.1.0", path = "crates/radicle-oid", default-features = false }
 radicle-protocol = { version = "0.7", path = "crates/radicle-protocol" }
 radicle-signals = { version = "0.11", path = "crates/radicle-signals" }
-radicle-ssh = { version = "0.10", path = "crates/radicle-ssh", default-features = false }
 radicle-systemd = { version = "0.12", path = "crates/radicle-systemd" }
 radicle-term = { version = "0.17", path = "crates/radicle-term" }
 radicle-windows = { version = "0.1", path = "crates/radicle-windows" }

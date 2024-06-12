@@ -1,4 +1,6 @@
-use crate::{KeyPair, PublicKey, SecretKey, Seed, Signature, ssh::ExtendedSignature};
+#[cfg(feature = "ssh")]
+use crate::ssh::ExtendedSignature;
+use crate::{KeyPair, PublicKey, SecretKey, Seed, Signature};
 
 #[derive(Debug, Clone)]
 pub struct MockSigner {
@@ -6,6 +8,7 @@ pub struct MockSigner {
     sk: SecretKey,
 }
 
+#[cfg(feature = "ssh")]
 impl signature::Signer<ExtendedSignature> for MockSigner {
     fn try_sign(&self, msg: &[u8]) -> Result<ExtendedSignature, signature::Error> {
         use signature::Keypair as _;

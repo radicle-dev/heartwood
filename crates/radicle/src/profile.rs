@@ -199,7 +199,7 @@ pub enum SignerError {
     MemorySigner(#[from] keystore::MemorySignerError),
 
     #[error(transparent)]
-    Agent(#[from] crate::crypto::ssh::agent::Error),
+    Agent(#[from] crate::crypto::ssh::agent::AgentError),
 
     #[error("radicle key `{0}` is not registered; run `rad auth` to register it with ssh-agent")]
     KeyNotRegistered(PublicKey),
@@ -209,7 +209,7 @@ pub enum SignerError {
 
     #[error("error connecting to ssh-agent: {source}")]
     AgentConnection {
-        source: crate::crypto::ssh::agent::Error,
+        source: crate::crypto::ssh::agent::ConnectError,
     },
 }
 

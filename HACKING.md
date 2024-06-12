@@ -26,7 +26,6 @@ The repository is structured in *crates*, as follows:
 * `radicle-dag`: A simple directed acyclic graph implementation used by `radicle-cob`.
 * `radicle-node`: The radicle peer-to-peer daemon that enables users to connect to the network and share code.
 * `radicle-remote-helper`: A Git remote helper for `rad://` remotes.
-* `radicle-ssh`: OpenSSH functionality, including a library used to interface with `ssh-agent`.
 * `radicle-term`: A generic terminal library used by the Radicle CLI.
 * `radicle-tools`: Tools used to aid in the development of Radicle.
 

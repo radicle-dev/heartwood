@@ -14,7 +14,7 @@ rust-version.workspace = true
 
 [features]
 test = ["fastrand", "qcheck"]
-ssh = ["radicle-ssh", "ssh-key"]
+ssh = ["ssh-agent-lib", "ssh-key"]
 
 [dependencies]
 amplify = { workspace = true }
@@ -24,14 +24,17 @@ fastrand = { workspace = true, optional = true }
 multibase = { workspace = true }
 qcheck = { workspace = true, optional = true }
 git-ref-format-core = { workspace = true, optional = true }
-radicle-ssh = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true, features = ["derive", "std"] }
 serde = { workspace = true, features = ["derive", "std"] }
 signature = { workspace = true, features = ["std"] }
 sqlite = { workspace = true, features = ["bundled"], optional = true }
+ssh-agent-lib = { version = "0.5.2", optional = true, default-features = false, features = ["log"] }
 ssh-key = { version = "0.6.3", default-features = false, features = ["std", "encryption", "getrandom"], optional = true }
 thiserror = { workspace = true, default-features = true }
 zeroize = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+winpipe = { workspace = true }
 
 [dev-dependencies]
 fastrand = { workspace = true }
