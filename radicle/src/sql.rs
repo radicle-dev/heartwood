@@ -39,7 +39,7 @@ impl TryFrom<&Value> for RepoId {
             }),
             _ => Err(sql::Error {
                 code: None,
-                message: Some("sql: invalid type for id".to_owned()),
+                message: Some(format!("sql: invalid type `{:?}` for id", value.kind())),
             }),
         }
     }
@@ -65,7 +65,10 @@ impl TryFrom<&Value> for node::Features {
             Value::Integer(bits) => Ok(node::Features::from(*bits as u64)),
             _ => Err(sql::Error {
                 code: None,
-                message: Some("sql: invalid type for node features".to_owned()),
+                message: Some(format!(
+                    "sql: invalid type `{:?}` for node features",
+                    value.kind()
+                )),
             }),
         }
     }
@@ -82,7 +85,10 @@ impl TryFrom<&sql::Value> for Address {
             }),
             _ => Err(sql::Error {
                 code: None,
-                message: Some("sql: invalid type for address".to_owned()),
+                message: Some(format!(
+                    "sql: invalid type `{:?}` for address",
+                    value.kind()
+                )),
             }),
         }
     }
@@ -105,7 +111,10 @@ impl TryFrom<&Value> for UserAgent {
             }),
             _ => Err(sql::Error {
                 code: None,
-                message: Some("sql: invalid type for user-agent".to_owned()),
+                message: Some(format!(
+                    "sql: invalid type `{:?}` for user-agent",
+                    value.kind()
+                )),
             }),
         }
     }
