@@ -347,6 +347,10 @@ impl radicle::node::Handle for Handle {
                         "bucket": bucket
                     })
                 }).collect::<Vec<_>>(),
+                "events": json!({
+                    "subscribers": state.emitter().subscriptions(),
+                    "pending": state.emitter().pending(),
+                }),
                 "metrics": state.metrics(),
             });
             sender.send(debug).ok();

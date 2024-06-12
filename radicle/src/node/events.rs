@@ -14,6 +14,9 @@ use crate::node;
 use crate::prelude::*;
 use crate::storage::{refs, RefUpdate};
 
+/// Maximum unconsumed events allowed per subscription.
+pub const MAX_PENDING_EVENTS: usize = 8192;
+
 /// A service event.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -149,6 +152,7 @@ impl<T> Default for Emitter<T> {
 
 impl<T: Clone> Emitter<T> {
     /// Emit event to subscribers and drop those who can't receive it.
+    /// Nb. subscribers are also dropped if their channel is full.
     pub fn emit(&self, event: T) {
         self.subscribers
             .lock()
@@ -158,10 +162,25 @@ impl<T: Clone> Emitter<T> {
 
     /// Subscribe to events stream.
     pub fn subscribe(&self) -> chan::Receiver<T> {
-        let (sender, receiver) = chan::unbounded();
+        let (sender, receiver) = chan::bounded(MAX_PENDING_EVENTS);
         let mut subs = self.subscribers.lock().unwrap();
         subs.push(sender);
 
         receiver
+    }
+
+    /// Number of subscribers.
+    pub fn subscriptions(&self) -> usize {
+        self.subscribers.lock().unwrap().len()
+    }
+
+    /// Number of messages that have not yet been received.
+    pub fn pending(&self) -> usize {
+        self.subscribers
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|ch| ch.len())
+            .sum()
     }
 }

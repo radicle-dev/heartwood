@@ -117,7 +117,12 @@ pub use message::REF_REMOTE_LIMIT;
 #[derive(Clone, Debug, Default, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Metrics {
-    peers: HashMap<NodeId, PeerMetrics>,
+    /// Metrics for each peer.
+    pub peers: HashMap<NodeId, PeerMetrics>,
+    /// Tasks queued in worker queue.
+    pub worker_queue_size: usize,
+    /// Current open channel count.
+    pub open_channels: usize,
 }
 
 impl Metrics {
@@ -2559,8 +2564,10 @@ pub trait ServiceState {
     fn queue(&self) -> &VecDeque<QueuedFetch>;
     /// Get outbox.
     fn outbox(&self) -> &Outbox;
-    /// Get rate limitter.
+    /// Get rate limiter.
     fn limiter(&self) -> &RateLimiter;
+    /// Get event emitter.
+    fn emitter(&self) -> &Emitter<Event>;
     /// Get a repository from storage.
     fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError>;
     /// Get the clock.
@@ -2601,6 +2608,10 @@ where
 
     fn limiter(&self) -> &RateLimiter {
         &self.limiter
+    }
+
+    fn emitter(&self) -> &Emitter<Event> {
+        &self.emitter
     }
 
     fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError> {

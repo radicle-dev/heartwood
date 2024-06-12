@@ -300,6 +300,10 @@ impl Peers {
             }
         })
     }
+
+    fn iter(&self) -> impl Iterator<Item = &Peer> {
+        self.0.values()
+    }
 }
 
 /// Wire protocol implementation for a set of peers.
@@ -504,6 +508,18 @@ where
     type Command = Control;
 
     fn tick(&mut self, time: Timestamp) {
+        self.metrics.open_channels = self
+            .peers
+            .iter()
+            .filter_map(|p| {
+                if let Peer::Connected { streams, .. } = p {
+                    Some(streams.streams.len())
+                } else {
+                    None
+                }
+            })
+            .sum();
+        self.metrics.worker_queue_size = self.worker.len();
         self.service.tick(
             LocalTime::from_millis(time.as_millis() as u128),
             &self.metrics,
@@ -761,8 +777,11 @@ where
                                     stream,
                                     channels,
                                 };
-                                if self.worker.send(task).is_err() {
-                                    log::error!(target: "wire", "Worker pool is disconnected; cannot send task");
+                                if let Err(e) = self.worker.try_send(task) {
+                                    log::error!(
+                                        target: "wire",
+                                        "Worker pool failed to accept incoming fetch request: {e}"
+                                    );
                                 }
                             }
                             Ok(Some(Frame {
@@ -1088,8 +1107,11 @@ where
                             "Worker pool is busy: {} tasks pending, fetch requests may be delayed", self.worker.len()
                         );
                     }
-                    if self.worker.send(task).is_err() {
-                        log::error!(target: "wire", "Worker pool is disconnected; cannot send fetch request");
+                    if let Err(e) = self.worker.try_send(task) {
+                        log::error!(
+                            target: "wire",
+                            "Worker pool failed to accept outgoing fetch request: {e}"
+                        );
                     }
                     let metrics = self.metrics.peer(remote);
                     metrics.streams_opened += 1;

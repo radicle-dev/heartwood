@@ -9,6 +9,9 @@ use radicle::node::NodeId;
 use crate::runtime::Handle;
 use crate::wire::StreamId;
 
+/// Maximum size of channel used to communicate with a worker.
+pub const MAX_WORKER_CHANNEL_SIZE: usize = 4096;
+
 /// A reader and writer pair that can be used in the fetch protocol.
 ///
 /// It implements [`radicle::fetch::transport::ConnectionStream`] to
@@ -96,8 +99,8 @@ impl<T: AsRef<[u8]>> Channels<T> {
     }
 
     pub fn pair(timeout: time::Duration) -> io::Result<(Channels<T>, Channels<T>)> {
-        let (l_send, r_recv) = chan::unbounded::<ChannelEvent<T>>();
-        let (r_send, l_recv) = chan::unbounded::<ChannelEvent<T>>();
+        let (l_send, r_recv) = chan::bounded::<ChannelEvent<T>>(MAX_WORKER_CHANNEL_SIZE);
+        let (r_send, l_recv) = chan::bounded::<ChannelEvent<T>>(MAX_WORKER_CHANNEL_SIZE);
 
         let l = Channels::new(l_send, l_recv, timeout);
         let r = Channels::new(r_send, r_recv, timeout);

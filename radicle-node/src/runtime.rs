@@ -36,6 +36,9 @@ pub use handle::Error as HandleError;
 pub use handle::Handle;
 pub use node::events::Emitter;
 
+/// Maximum pending worker tasks allowed.
+pub const MAX_PENDING_TASKS: usize = 1024;
+
 /// A client error.
 #[derive(Error, Debug)]
 pub enum Error {
@@ -214,7 +217,7 @@ impl Runtime {
         );
         service.initialize(clock)?;
 
-        let (worker_send, worker_recv) = chan::unbounded::<worker::Task>();
+        let (worker_send, worker_recv) = chan::bounded::<worker::Task>(MAX_PENDING_TASKS);
         let mut wire = Wire::new(service, worker_send, signer.clone());
         let mut local_addrs = Vec::new();
 
