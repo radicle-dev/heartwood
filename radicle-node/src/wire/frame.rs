@@ -191,16 +191,16 @@ impl TryFrom<u8> for StreamKind {
 /// |                     Data                                   ...| Data (variable size)
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 #[derive(Debug, PartialEq, Eq)]
-pub struct Frame {
+pub struct Frame<M = Message> {
     /// The protocol version.
     pub version: Version,
     /// The stream identifier.
     pub stream: StreamId,
     /// The frame payload.
-    pub data: FrameData,
+    pub data: FrameData<M>,
 }
 
-impl Frame {
+impl<M> Frame<M> {
     /// Create a 'git' protocol frame.
     pub fn git(stream: StreamId, data: Vec<u8>) -> Self {
         Self {
@@ -220,14 +220,16 @@ impl Frame {
     }
 
     /// Create a 'gossip' protocol frame.
-    pub fn gossip(link: Link, msg: Message) -> Self {
+    pub fn gossip(link: Link, msg: M) -> Self {
         Self {
             version: PROTOCOL_VERSION_STRING,
             stream: StreamId::gossip(link),
             data: FrameData::Gossip(msg),
         }
     }
+}
 
+impl<M: wire::Encode> Frame<M> {
     /// Serialize frame to bytes.
     pub fn to_bytes(&self) -> Vec<u8> {
         wire::serialize(self)
@@ -236,11 +238,11 @@ impl Frame {
 
 /// Frame payload.
 #[derive(Debug, PartialEq, Eq)]
-pub enum FrameData {
+pub enum FrameData<M> {
     /// Control frame payload.
     Control(Control),
     /// Gossip frame payload.
-    Gossip(Message),
+    Gossip(M),
     /// Git frame payload. May contain packet-lines as well as packfile data.
     Git(Vec<u8>),
 }
@@ -310,7 +312,7 @@ impl wire::Encode for Control {
     }
 }
 
-impl wire::Decode for Frame {
+impl<M: wire::Decode> wire::Decode for Frame<M> {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
         let version = Version::decode(reader)?;
         if version.number() != PROTOCOL_VERSION {
@@ -331,7 +333,7 @@ impl wire::Decode for Frame {
             Ok(StreamKind::Gossip) => {
                 let data = varint::payload::decode(reader)?;
                 let mut cursor = io::Cursor::new(data);
-                let msg = Message::decode(&mut cursor)?;
+                let msg = M::decode(&mut cursor)?;
                 let frame = Frame {
                     version,
                     stream,
@@ -352,7 +354,7 @@ impl wire::Decode for Frame {
     }
 }
 
-impl wire::Encode for Frame {
+impl<M: wire::Encode> wire::Encode for Frame<M> {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
         let mut n = 0;
 

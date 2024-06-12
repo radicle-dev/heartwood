@@ -418,7 +418,7 @@ where
                     target: "wire", "Stream {} of {} closing with {} byte(s) sent and {} byte(s) received",
                     task.stream, task.remote, s.sent_bytes, s.received_bytes
                 );
-                let frame = Frame::control(
+                let frame = Frame::<service::Message>::control(
                     *link,
                     frame::Control::Close {
                         stream: task.stream,
@@ -470,7 +470,7 @@ where
                 ChannelEvent::Data(data) => {
                     metrics.sent_git_bytes += data.len();
                     metrics.sent_bytes += data.len();
-                    Frame::git(stream, data)
+                    Frame::<service::Message>::git(stream, data)
                 }
                 ChannelEvent::Close => Frame::control(*link, frame::Control::Close { stream }),
                 ChannelEvent::Eof => Frame::control(*link, frame::Control::Eof { stream }),
@@ -1109,7 +1109,8 @@ where
 
                     self.actions.push_back(Action::Send(
                         fd,
-                        Frame::control(link, frame::Control::Open { stream }).to_bytes(),
+                        Frame::<service::Message>::control(link, frame::Control::Open { stream })
+                            .to_bytes(),
                     ));
                 }
             }
@@ -1228,7 +1229,7 @@ mod test {
     use crate::wire::varint;
 
     #[test]
-    fn test_message_with_extension() {
+    fn test_pong_message_with_extension() {
         use crate::deserializer;
 
         let mut stream = Vec::new();
@@ -1258,5 +1259,105 @@ mod test {
         );
         assert!(de.deserialize_next().unwrap().is_none());
         assert!(de.is_empty());
+    }
+
+    #[test]
+    fn test_inventory_ann_with_extension() {
+        use crate::deserializer;
+
+        #[derive(Debug)]
+        struct MessageWithExt {
+            msg: Message,
+            ext: String,
+        }
+
+        impl wire::Encode for MessageWithExt {
+            fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+                let mut n = self.msg.encode(writer)?;
+                n += self.ext.encode(writer)?;
+
+                Ok(n)
+            }
+        }
+
+        impl wire::Decode for MessageWithExt {
+            fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
+                let msg = Message::decode(reader)?;
+                let ext = String::decode(reader).unwrap_or_default();
+
+                Ok(MessageWithExt { msg, ext })
+            }
+        }
+
+        let rid = radicle::test::arbitrary::gen(1);
+        let pk = radicle::test::arbitrary::gen(1);
+        let sig: [u8; 64] = radicle::test::arbitrary::gen(1);
+
+        // Message with extension.
+        let mut stream = Vec::new();
+        let ann = Message::announcement(
+            pk,
+            service::gossip::inventory(radicle::node::Timestamp::MAX, [rid]),
+            radicle::crypto::Signature::from(sig),
+        );
+        let pong = Message::Pong {
+            zeroes: ZeroBytes::new(42),
+        };
+        // Framed message with extension.
+        frame::Frame::gossip(
+            Link::Outbound,
+            MessageWithExt {
+                msg: ann.clone(),
+                ext: String::from("extra"),
+            },
+        )
+        .encode(&mut stream)
+        .unwrap();
+        // Pong message that comes after, without extension.
+        frame::Frame::gossip(Link::Outbound, pong.clone())
+            .encode(&mut stream)
+            .unwrap();
+
+        // First test deserializing using the message with extension type.
+        {
+            let mut de = deserializer::Deserializer::<1024, Frame<MessageWithExt>>::new(1024);
+            de.input(&stream).unwrap();
+
+            radicle::assert_matches!(
+                de.deserialize_next().unwrap().unwrap().data,
+                FrameData::Gossip(MessageWithExt {
+                    msg,
+                    ext,
+                }) if msg == ann && ext == String::from("extra")
+            );
+            radicle::assert_matches!(
+                de.deserialize_next().unwrap().unwrap().data,
+                FrameData::Gossip(MessageWithExt {
+                    msg,
+                    ext,
+                }) if msg == pong && ext.is_empty()
+            );
+            assert!(de.deserialize_next().unwrap().is_none());
+            assert!(de.is_empty());
+        }
+
+        // Then test deserializing using the current message type without the extension.
+        {
+            let mut de = deserializer::Deserializer::<1024, Frame<Message>>::new(1024);
+            de.input(&stream).unwrap();
+
+            radicle::assert_matches!(
+                de.deserialize_next().unwrap().unwrap().data,
+                FrameData::Gossip(msg)
+                if msg == ann
+            );
+            radicle::assert_matches!(
+                de.deserialize_next().unwrap().unwrap().data,
+                FrameData::Gossip(msg)
+                if msg == pong
+            );
+            assert!(de.deserialize_next().unwrap().is_none());
+            assert!(de.is_empty());
+        }
     }
 }
