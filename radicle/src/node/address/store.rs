@@ -56,7 +56,7 @@ pub trait Store {
         node: &NodeId,
         version: u8,
         features: node::Features,
-        alias: Alias,
+        alias: &Alias,
         pow: u32,
         agent: &UserAgent,
         timestamp: Timestamp,
@@ -223,7 +223,7 @@ impl Store for Database {
         node: &NodeId,
         version: u8,
         features: node::Features,
-        alias: Alias,
+        alias: &Alias,
         pow: u32,
         agent: &UserAgent,
         timestamp: Timestamp,
@@ -241,7 +241,7 @@ impl Store for Database {
             stmt.bind((1, node))?;
             stmt.bind((2, version as i64))?;
             stmt.bind((3, features))?;
-            stmt.bind((4, sql::Value::String(alias.into())))?;
+            stmt.bind((4, alias.as_str()))?;
             stmt.bind((5, pow as i64))?;
             stmt.bind((6, agent.as_str()))?;
             stmt.bind((7, &timestamp))?;
@@ -537,7 +537,7 @@ mod test {
                 &alice,
                 1,
                 features,
-                Alias::new("alice"),
+                &Alias::new("alice"),
                 16,
                 &ua,
                 timestamp,
@@ -552,7 +552,7 @@ mod test {
                 &alice,
                 1,
                 features,
-                Alias::new("bob"),
+                &Alias::new("bob"),
                 16,
                 &ua,
                 timestamp + 1,
@@ -584,7 +584,7 @@ mod test {
                 &alice,
                 version,
                 features,
-                Alias::new("alice"),
+                &Alias::new("alice"),
                 16,
                 &ua,
                 timestamp,
@@ -620,21 +620,12 @@ mod test {
             banned: false,
         };
         let inserted = cache
-            .insert(
-                &alice,
-                1,
-                features,
-                alias.clone(),
-                0,
-                &ua,
-                timestamp,
-                [ka.clone()],
-            )
+            .insert(&alice, 1, features, &alias, 0, &ua, timestamp, [ka.clone()])
             .unwrap();
         assert!(inserted);
 
         let inserted = cache
-            .insert(&alice, 1, features, alias, 0, &ua, timestamp, [ka])
+            .insert(&alice, 1, features, &alias, 0, &ua, timestamp, [ka])
             .unwrap();
         assert!(!inserted);
 
@@ -664,7 +655,7 @@ mod test {
                 &alice,
                 1,
                 features,
-                alias1,
+                &alias1,
                 0,
                 &ua1,
                 timestamp,
@@ -674,21 +665,12 @@ mod test {
         assert!(updated);
 
         let updated = cache
-            .insert(&alice, 1, features, alias2.clone(), 0, &ua1, timestamp, [])
+            .insert(&alice, 1, features, &alias2, 0, &ua1, timestamp, [])
             .unwrap();
         assert!(!updated, "Can't update using the same timestamp");
 
         let updated = cache
-            .insert(
-                &alice,
-                1,
-                features,
-                alias2.clone(),
-                0,
-                &ua1,
-                timestamp - 1,
-                [],
-            )
+            .insert(&alice, 1, features, &alias2, 0, &ua1, timestamp - 1, [])
             .unwrap();
         assert!(!updated, "Can't update using a smaller timestamp");
 
@@ -698,16 +680,7 @@ mod test {
         assert_eq!(node.pow, 0);
 
         let updated = cache
-            .insert(
-                &alice,
-                1,
-                features,
-                alias2.clone(),
-                0,
-                &ua2,
-                timestamp + 1,
-                [],
-            )
+            .insert(&alice, 1, features, &alias2, 0, &ua2, timestamp + 1, [])
             .unwrap();
         assert!(updated, "Can update with a larger timestamp");
 
@@ -716,7 +689,7 @@ mod test {
                 &alice,
                 1,
                 node::Features::NONE,
-                alias2,
+                &alias2,
                 1,
                 &ua2,
                 timestamp + 2,
@@ -762,7 +735,7 @@ mod test {
                     &alice,
                     1,
                     features,
-                    alice_alias.clone(),
+                    &alice_alias,
                     0,
                     &ua,
                     timestamp,
@@ -770,16 +743,7 @@ mod test {
                 )
                 .unwrap();
             cache
-                .insert(
-                    &bob,
-                    1,
-                    features,
-                    bob_alias.clone(),
-                    0,
-                    &ua,
-                    timestamp,
-                    [ka],
-                )
+                .insert(&bob, 1, features, &bob_alias, 0, &ua, timestamp, [ka])
                 .unwrap();
         }
         assert_eq!(cache.len().unwrap(), 6);
@@ -822,7 +786,7 @@ mod test {
                 address: ka.clone(),
             });
             cache
-                .insert(&id, 3, features, alias.clone(), 0, &ua, timestamp, [ka])
+                .insert(&id, 3, features, &alias, 0, &ua, timestamp, [ka])
                 .unwrap();
         }
 
@@ -849,7 +813,7 @@ mod test {
                 &alice,
                 1,
                 features,
-                Alias::new("alice"),
+                &Alias::new("alice"),
                 16,
                 &ua,
                 timestamp,
@@ -900,7 +864,7 @@ mod test {
             &alice,
             1,
             features,
-            Alias::new("alice"),
+            &Alias::new("alice"),
             16,
             &ua,
             timestamp,

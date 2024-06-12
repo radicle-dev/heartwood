@@ -181,7 +181,7 @@ impl Runtime {
             .init(
                 &id,
                 announcement.features,
-                announcement.alias.clone(),
+                &announcement.alias,
                 &announcement.agent,
                 announcement.timestamp,
                 announcement.addresses.iter(),
@@ -198,7 +198,7 @@ impl Runtime {
                     &id,
                     version,
                     radicle::node::Features::SEED,
-                    alias,
+                    &alias,
                     0,
                     &UserAgent::default(),
                     clock.into(),

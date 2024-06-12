@@ -305,6 +305,11 @@ impl Alias {
             Err(e) => panic!("Alias::new: {e}"),
         }
     }
+
+    /// Return a reference to the alias string.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
 }
 
 impl From<Alias> for String {

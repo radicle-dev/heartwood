@@ -1695,7 +1695,7 @@ where
                     announcer,
                     ann.version,
                     ann.features,
-                    ann.alias.clone(),
+                    &ann.alias,
                     ann.work(),
                     &ann.agent,
                     timestamp,

@@ -174,7 +174,7 @@ where
             .init(
                 &id,
                 config.config.features(),
-                config.config.alias.clone(),
+                &config.config.alias,
                 &UserAgent::default(),
                 config.local_time.into(),
                 config.config.external_addresses.iter(),
@@ -254,7 +254,7 @@ where
                     &peer.node_id(),
                     PROTOCOL_VERSION,
                     radicle::node::Features::default(),
-                    Alias::from_str(peer.name).unwrap(),
+                    &Alias::from_str(peer.name).unwrap(),
                     0,
                     &UserAgent::default(),
                     timestamp,

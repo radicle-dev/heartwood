@@ -133,7 +133,7 @@ impl Database {
         mut self,
         node: &NodeId,
         features: Features,
-        alias: Alias,
+        alias: &Alias,
         agent: &UserAgent,
         timestamp: Timestamp,
         addrs: impl IntoIterator<Item = &'a Address>,

@@ -318,7 +318,7 @@ impl Profile {
             .init(
                 &public_key,
                 config.node.features(),
-                config.node.alias.clone(),
+                &config.node.alias,
                 &UserAgent::default(),
                 LocalTime::now().into(),
                 config.node.external_addresses.iter(),

@@ -133,7 +133,7 @@ impl Environment {
             .init(
                 &public_key,
                 config.node.features(),
-                Alias::new(alias),
+                &Alias::new(alias),
                 &UserAgent::default(),
                 now.into(),
                 config.node.external_addresses.iter(),
