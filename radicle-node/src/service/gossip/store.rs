@@ -363,15 +363,15 @@ mod parse {
         let gt = row.read::<GossipType, _>("type");
         let message = match gt {
             GossipType::Refs => {
-                let ann = row.read::<RefsAnnouncement, _>("message");
+                let ann = row.try_read::<RefsAnnouncement, _>("message")?;
                 AnnouncementMessage::Refs(ann)
             }
             GossipType::Inventory => {
-                let ann = row.read::<InventoryAnnouncement, _>("message");
+                let ann = row.try_read::<InventoryAnnouncement, _>("message")?;
                 AnnouncementMessage::Inventory(ann)
             }
             GossipType::Node => {
-                let ann = row.read::<NodeAnnouncement, _>("message");
+                let ann = row.try_read::<NodeAnnouncement, _>("message")?;
                 AnnouncementMessage::Node(ann)
             }
         };
