@@ -996,11 +996,18 @@ pub fn quorum(
     for (i, head) in heads.iter().enumerate() {
         let head = Oid::from(*head);
 
-        for other in heads.iter().skip(i) {
+        // Add a direct vote for this head.
+        *candidates.entry(head).or_default() += 1;
+
+        // Compare this head to all other heads ahead of it in the list.
+        for other in heads.iter().skip(i + 1) {
+            // N.b. if heads are equal then skip it, otherwise it will end up as
+            // a double vote.
+            if *head == *other {
+                continue;
+            }
             let base = repo.merge_base(*head, *other)?;
 
-            // Nb. This also handles `head` == `other`, which happens once for every head,
-            // as well as when there is more than one head with the same OID.
             if base == *other || base == *head {
                 *candidates.entry(Oid::from(base)).or_default() += 1;
             }
@@ -1157,6 +1164,7 @@ mod tests {
         let c0: git::Oid = c0.into();
         let c1 = fixtures::commit("C1", &[*c0], &repo);
         let c2 = fixtures::commit("C2", &[*c1], &repo);
+        let c3 = fixtures::commit("C3", &[*c1], &repo);
         let b2 = fixtures::commit("B2", &[*c1], &repo);
         let a1 = fixtures::commit("A1", &[*c0], &repo);
         let m1 = fixtures::commit("M1", &[*c2, *b2], &repo);
@@ -1165,6 +1173,7 @@ mod tests {
         eprintln!("C0: {c0}");
         eprintln!("C1: {c1}");
         eprintln!("C2: {c2}");
+        eprintln!("C3: {c3}");
         eprintln!("B2: {b2}");
         eprintln!("A1: {a1}");
         eprintln!("M1: {m1}");
@@ -1213,6 +1222,16 @@ mod tests {
         assert_eq!(quorum(&[*b2, *c2, *c2], 2, &repo).unwrap(), c2);
         assert_matches!(
             quorum(&[*b2, *b2, *c2, *c2], 2, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+
+        // B2 C2 C3
+        //  \ | /
+        //    C1
+        //    |
+        //    C0
+        assert_matches!(
+            quorum(&[*b2, *c2, *c2], 3, &repo),
             Err(QuorumError::NoQuorum)
         );
 
