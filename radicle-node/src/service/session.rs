@@ -230,8 +230,8 @@ impl Session {
     pub fn to_connected(&mut self, since: LocalTime) {
         self.last_active = since;
 
-        let State::Attempted = &self.state else {
-            panic!("Session::to_connected: can only transition to 'connected' state from 'attempted' state");
+        if let State::Connected { .. } = &self.state {
+            panic!("Session::to_connected: session is already in 'connected' state");
         };
         self.state = State::Connected {
             since,
