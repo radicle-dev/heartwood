@@ -32,7 +32,7 @@ Usage
     rad inbox [<option>...]
     rad inbox list [<option>...]
     rad inbox show <id> [<option>...]
-    rad inbox clear [<option>...]
+    rad inbox clear [--by-state <state>] [<option>...]
 
     By default, this command lists all items in your inbox.
     If your working directory is a Radicle repository, it only shows item
@@ -43,6 +43,9 @@ Usage
     notification. This will mark the notification as read.
 
     The `rad inbox clear` command will delete all notifications in the inbox.
+    You can also clear all items that are in a certain state, depending on the
+    kind of item you are clearing, using `--by-state`. For example, to clear all
+    patches that have been merged, you can use `--by-state merged`.
 
 Options
 
@@ -55,8 +58,15 @@ Options
 "#,
 };
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 enum Operation {
+    List,
+    Show,
+    Clear { state: Option<String> },
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+enum OperationName {
     #[default]
     List,
     Show,
@@ -90,12 +100,13 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut op: Option<Operation> = None;
+        let mut op: Option<OperationName> = None;
         let mut mode = None;
         let mut ids = Vec::new();
         let mut reverse = None;
         let mut field = None;
         let mut show_unknown = false;
+        let mut state: Option<String> = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -124,6 +135,10 @@ impl Args for Options {
                         }
                     }
                 }
+                Long("by-state") if matches!(op, Some(OperationName::Clear)) => {
+                    let val = parser.value()?;
+                    state = Some(term::args::string(&val));
+                }
                 Long("repo") if mode.is_none() => {
                     let val = parser.value()?;
                     let repo = args::rid(&val)?;
@@ -131,9 +146,9 @@ impl Args for Options {
                     mode = Some(Mode::ByRepo(repo));
                 }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "list" => op = Some(Operation::List),
-                    "show" => op = Some(Operation::Show),
-                    "clear" => op = Some(Operation::Clear),
+                    "list" => op = Some(OperationName::List),
+                    "show" => op = Some(OperationName::Show),
+                    "clear" => op = Some(OperationName::Clear),
                     cmd => return Err(anyhow!("unknown command `{cmd}`, see `rad inbox --help`")),
                 },
                 Value(val) if op.is_some() && mode.is_none() => {
@@ -148,7 +163,11 @@ impl Args for Options {
         } else {
             Mode::ById(ids)
         };
-        let op = op.unwrap_or_default();
+        let op = match op.unwrap_or_default() {
+            OperationName::List => Operation::List,
+            OperationName::Show => Operation::Show,
+            OperationName::Clear => Operation::Clear { state },
+        };
 
         let sort_by = if let Some(field) = field {
             SortBy {
@@ -194,7 +213,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             storage,
             &profile,
         ),
-        Operation::Clear => clear(mode, &mut notifs),
+        Operation::Clear { state } => clear(mode, state, &mut notifs, storage, &profile),
         Operation::Show => show(mode, &mut notifs, storage, &profile),
     }
 }
@@ -344,6 +363,73 @@ where
     }
 }
 
+fn notifications_ids<T, R>(
+    filter_state: &str,
+    notifs: &notifications::Store<T>,
+    storage: &R,
+    profile: &Profile,
+) -> anyhow::Result<Vec<u32>>
+where
+    R: ReadStorage,
+    R::Repository: cob::Store,
+{
+    let mut repos = storage.repositories()?;
+    repos.sort_by_key(|r| r.rid);
+
+    let mut ids = Vec::new();
+    for repo in repos {
+        ids.extend(notification_ids_by_repo(
+            repo.rid,
+            filter_state,
+            notifs,
+            storage,
+            profile,
+        )?)
+    }
+    Ok(ids)
+}
+
+fn notification_ids_by_repo<R, T>(
+    rid: RepoId,
+    filter_state: &str,
+    notifs: &notifications::Store<T>,
+    storage: &R,
+    profile: &Profile,
+) -> anyhow::Result<Vec<u32>>
+where
+    R: ReadStorage,
+    R::Repository: cob::Store,
+{
+    let repo = storage.repository(rid)?;
+    let (_, head) = repo.head()?;
+    let issues = profile.issues(&repo)?;
+    let patches = profile.patches(&repo)?;
+
+    let matches_state = |id: NotificationId, row: NotificationRow| -> Option<NotificationId> {
+        (row.state.inner() == filter_state).then_some(id)
+    };
+    let filter_row =
+        |n: Result<Notification, notifications::Error>| -> anyhow::Result<Option<NotificationId>> {
+            let n = n?;
+            match &n.kind {
+                NotificationKind::Branch { name } => Ok(matches_state(
+                    n.id,
+                    NotificationRow::branch(name, head, &n, &repo)?,
+                )),
+                NotificationKind::Cob { typed_id } => Ok(NotificationRow::cob(
+                    typed_id, &n, &issues, &patches, &repo,
+                )?
+                .and_then(|row| matches_state(n.id, row))),
+                NotificationKind::Unknown { .. } => Ok(None),
+            }
+        };
+    let notifications = notifs
+        .by_repo(&rid, "repo")?
+        .filter_map(|n| filter_row(n).transpose())
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(notifications)
+}
+
 struct NotificationRow {
     category: term::Paint<String>,
     summary: term::Paint<String>,
@@ -487,14 +573,42 @@ impl NotificationRow {
     }
 }
 
-fn clear(mode: Mode, notifs: &mut notifications::StoreWriter) -> anyhow::Result<()> {
+fn clear<R>(
+    mode: Mode,
+    state: Option<String>,
+    notifs: &mut notifications::StoreWriter,
+    storage: &R,
+    profile: &Profile,
+) -> anyhow::Result<()>
+where
+    R: ReadStorage,
+    <R as ReadStorage>::Repository: cob::Store,
+{
     let cleared = match mode {
-        Mode::All => notifs.clear_all()?,
+        Mode::All => match state {
+            Some(filter) => {
+                let ids = notifications_ids(&filter, notifs, storage, profile)?;
+                notifs.clear(&ids)?
+            }
+            None => notifs.clear_all()?,
+        },
         Mode::ById(ids) => notifs.clear(&ids)?,
-        Mode::ByRepo(rid) => notifs.clear_by_repo(&rid)?,
+        Mode::ByRepo(rid) => match state {
+            Some(filter) => {
+                let ids = notification_ids_by_repo(rid, &filter, notifs, storage, profile)?;
+                notifs.clear(&ids)?
+            }
+            None => notifs.clear_by_repo(&rid)?,
+        },
         Mode::Contextual => {
             if let Ok((_, rid)) = radicle::rad::cwd() {
-                notifs.clear_by_repo(&rid)?
+                match state {
+                    Some(filter) => {
+                        let ids = notification_ids_by_repo(rid, &filter, notifs, storage, profile)?;
+                        notifs.clear(&ids)?
+                    }
+                    None => notifs.clear_by_repo(&rid)?,
+                }
             } else {
                 return Err(Error::WithHint {
                     err: anyhow!("not a radicle repository"),

@@ -138,3 +138,12 @@ $ rad inbox show 1
   "threshold": 1
 }
 ```
+
+We can also clear any items by the given state of the notification. The state
+values are dependent on each category of notification items. In this case, we
+will clear by the `accepted` state to remove the identity update.
+
+``` ~bob
+$ rad inbox clear --all --by-state accepted
+✓ Cleared 1 item(s) from your inbox
+```
