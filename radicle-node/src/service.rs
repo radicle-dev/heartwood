@@ -452,7 +452,9 @@ pub struct Service<D, S, G> {
     last_sync: LocalTime,
     /// Last time the service routing table was pruned.
     last_prune: LocalTime,
-    /// Last time the inventory was announced.
+    /// Last time the announcement task was run.
+    last_announce: LocalTime,
+    /// Timestamp of last local inventory announced.
     last_inventory: LocalTime,
     /// Last timestamp used for announcements.
     last_timestamp: Timestamp,
@@ -531,6 +533,7 @@ where
             last_sync: LocalTime::default(),
             last_prune: LocalTime::default(),
             last_timestamp,
+            last_announce: LocalTime::default(),
             last_inventory: LocalTime::default(),
             started_at: None,     // Updated on initialize.
             last_online_at: None, // Updated on initialize.
@@ -827,11 +830,12 @@ where
             self.outbox.wakeup(SYNC_INTERVAL);
             self.last_sync = now;
         }
-        if now - self.last_inventory >= ANNOUNCE_INTERVAL {
+        if now - self.last_announce >= ANNOUNCE_INTERVAL {
             trace!(target: "service", "Running 'announce' task...");
 
             self.announce_inventory();
             self.outbox.wakeup(ANNOUNCE_INTERVAL);
+            self.last_announce = now;
         }
         if now - self.last_prune >= PRUNE_INTERVAL {
             trace!(target: "service", "Running 'prune' task...");
