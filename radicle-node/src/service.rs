@@ -1281,6 +1281,7 @@ where
         match self.db.addresses().is_ip_banned(ip) {
             Ok(banned) => {
                 if banned {
+                    debug!(target: "service", "Rejecting inbound connection from banned ip {ip}");
                     return false;
                 }
             }
