@@ -272,10 +272,10 @@ pub fn sessions(node: &Node) -> Result<Option<term::Table<4, term::Label>>, node
                 term::Label::from(term::format::positive("connected")),
                 term::format::dim(now - since).into(),
             ),
-            node::State::Disconnected { retry_at, .. } => (
+            node::State::Disconnected { since, .. } => (
                 sess.addr.to_string().into(),
                 term::Label::from(term::format::negative("disconnected")),
-                term::format::dim(retry_at - now).into(),
+                term::format::dim(now - since).into(),
             ),
         };
         table.push([nid, addr, state, time]);
