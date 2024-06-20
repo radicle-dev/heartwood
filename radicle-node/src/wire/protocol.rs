@@ -1328,7 +1328,7 @@ mod test {
                 FrameData::Gossip(MessageWithExt {
                     msg,
                     ext,
-                }) if msg == ann && ext == String::from("extra")
+                }) if msg == ann && ext == *"extra"
             );
             radicle::assert_matches!(
                 de.deserialize_next().unwrap().unwrap().data,

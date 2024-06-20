@@ -1159,7 +1159,7 @@ mod tests {
         //    C1
         //    |
         //    C0
-        assert_matches!(quorum(&[*b2, *c2, *c2], 2, &repo), Ok(c2));
+        assert_eq!(quorum(&[*b2, *c2, *c2], 2, &repo).unwrap(), c2);
         assert_matches!(
             quorum(&[*b2, *c2, *c2], 3, &repo),
             Err(QuorumError::NoQuorum)
