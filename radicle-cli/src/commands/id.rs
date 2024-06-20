@@ -686,8 +686,8 @@ like a commit message. Markdown is supported in the title
 and description.
 -->"#;
 
-    let result = if let (Some(t), Some(d)) = (title.as_ref(), description.as_ref()) {
-        Some((t.to_owned(), d.to_owned()))
+    let result = if let (Some(t), d) = (title.as_ref(), description.as_deref()) {
+        Some((t.to_owned(), d.unwrap_or_default().to_owned()))
     } else {
         let result = Message::edit_title_description(title, description, HELP)?;
         if let Some((title, description)) = result {

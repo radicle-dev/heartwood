@@ -5,7 +5,7 @@ options. Both options can be specified multiple times in the same command line c
 Here we will add Bob and Eve's DIDs to the `allow`list:
 
 ```
-$ rad id update --title "Allow Bob & Eve" --description "" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --allow did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z -q
+$ rad id update --title "Allow Bob & Eve" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --allow did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z -q
 ...
 $ rad inspect --identity
 {
@@ -33,7 +33,7 @@ $ rad inspect --identity
 To remove a peer's DID, we can use the `--disallow` option. Let's remove both of them again:
 
 ```
-$ rad id update --title "Remove allow list" --description "" --disallow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --disallow did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
+$ rad id update --title "Remove allow list" --disallow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --disallow did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
 ...
 $ rad inspect --identity
 {
@@ -58,7 +58,7 @@ Note that using both `--disallow` and `--allow` with the same DID will result in
 an error:
 
 ``` (fails)
-$ rad id update --title "Remove allow list" --description "" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --disallow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+$ rad id update --title "Remove allow list" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --disallow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 ✗ Error: `--allow` and `--disallow` must not overlap: ["did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk"]
 ```
 
@@ -66,11 +66,11 @@ Allowing or disallowing the same peer twice will result in an error the second
 call, since there is no update specified:
 
 ```
-$ rad id update --title "Allow Bob" --description "" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
+$ rad id update --title "Allow Bob" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
 ...
 ```
 ``` (fails)
-$ rad id update --title "Allow Bob" --description "" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
+$ rad id update --title "Allow Bob" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
 ✗ Error: no update specified
 ✗ Hint: an update to the identity must be specified, run `rad id update -h` to see the available options
 ```
@@ -86,7 +86,7 @@ $ rad id update --visibility public --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJR
 Let's change the repository to `public`:
 
 ```
-$ rad id update --title "IPO" --description "" --visibility public -q
+$ rad id update --title "IPO" --visibility public -q
 ...
 ```
 
