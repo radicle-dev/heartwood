@@ -7,7 +7,7 @@ pub const VERSION: Version = Version {
     name: "git-remote-rad",
     commit: env!("GIT_HEAD"),
     version: env!("RADICLE_VERSION"),
-    timestamp: env!("GIT_COMMIT_TIME"),
+    timestamp: env!("SOURCE_DATE_EPOCH"),
 };
 
 fn main() {

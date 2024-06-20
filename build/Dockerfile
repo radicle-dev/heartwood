@@ -8,6 +8,7 @@ ARG TZ
 ARG LC_ALL
 ARG SOURCE_DATE_EPOCH
 ARG RADICLE_VERSION
+ARG GIT_HEAD
 
 # Copy cargo configuration we're going to use to specify compiler options.
 RUN mkdir -p .cargo && cp build/config.toml .cargo/config.toml

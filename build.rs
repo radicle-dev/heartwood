@@ -27,8 +27,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "pre-release".to_owned()
     };
 
-    // Set a build-time `GIT_COMMIT_TIME` env var which includes the commit time.
-    let commit_time = env::var("GIT_COMMIT_TIME").unwrap_or_else(|_| {
+    // Set a build-time `SOURCE_DATE_EPOCH` env var which includes the commit time.
+    let commit_time = env::var("SOURCE_DATE_EPOCH").unwrap_or_else(|_| {
         Command::new("git")
             .arg("log")
             .arg("-1")
@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     println!("cargo::rustc-env=RADICLE_VERSION={version}");
-    println!("cargo::rustc-env=GIT_COMMIT_TIME={commit_time}");
+    println!("cargo::rustc-env=SOURCE_DATE_EPOCH={commit_time}");
     println!("cargo::rustc-env=GIT_HEAD={hash}");
 
     Ok(())

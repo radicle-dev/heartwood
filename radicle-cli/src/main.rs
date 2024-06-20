@@ -13,7 +13,7 @@ pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const RADICLE_VERSION: &str = env!("RADICLE_VERSION");
 pub const DESCRIPTION: &str = "Radicle command line interface";
 pub const GIT_HEAD: &str = env!("GIT_HEAD");
-pub const TIMESTAMP: &str = env!("GIT_COMMIT_TIME");
+pub const TIMESTAMP: &str = env!("SOURCE_DATE_EPOCH");
 pub const VERSION: Version = Version {
     name: NAME,
     version: RADICLE_VERSION,

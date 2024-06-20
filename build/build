@@ -44,6 +44,7 @@ main() {
     --build-arg TZ \
     --build-arg LC_ALL \
     --build-arg RADICLE_VERSION=$version \
+    --build-arg GIT_HEAD=$rev \
     --arch amd64 --tag $image -f ./build/Dockerfile - < $gitarchive
 
   echo "Creating container (radicle-build-container).."
