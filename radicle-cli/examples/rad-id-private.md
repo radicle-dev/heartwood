@@ -62,17 +62,16 @@ $ rad id update --title "Remove allow list" --description "" --allow did:key:z6M
 ✗ Error: `--allow` and `--disallow` must not overlap: ["did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk"]
 ```
 
-Allowing or disallowing the same peer twice will result in an error the second
-call, since there is no update specified:
+Allowing or disallowing the same peer twice will result in a message saying that
+the document is already up to date:
 
 ```
 $ rad id update --title "Allow Bob" --description "" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
 ...
 ```
-``` (fails)
+```
 $ rad id update --title "Allow Bob" --description "" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
-✗ Error: no update specified
-✗ Hint: an update to the identity must be specified, run `rad id update -h` to see the available options
+Nothing to do. The document is up to date. See `rad inspect --identity`
 ```
 
 If we attempt to change the list while also changing the repository to `public`,

@@ -174,10 +174,9 @@ $ rad id accept 0ca42d376bd566631083c8913cf86bec722da392
 ✗ Error: [..]
 ```
 
-If no updates are specified then the update will fail:
+If no updates are specified then we are told that our command had no effect:
 
-``` (fail)
+```
 $ rad id update --title "Update canonical branch" --description "Update the canonical branch to `main`"
-✗ Error: no update specified
-✗ Hint: an update to the identity must be specified, run `rad id update -h` to see the available options
+Nothing to do. The document is up to date. See `rad inspect --identity`
 ```
