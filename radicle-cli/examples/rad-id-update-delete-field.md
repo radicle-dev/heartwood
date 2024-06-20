@@ -74,5 +74,5 @@ Note that we cannot delete mandatory fields:
 
 ``` (fails)
 $ rad id update --title "Delete default branch" --payload xyz.radicle.project defaultBranch null
-✗ Error: failed to verify `xyz.radicle.project`, failed with json: missing field `defaultBranch`
+✗ Error: failed to verify `xyz.radicle.project`, json: missing field `defaultBranch`
 ```

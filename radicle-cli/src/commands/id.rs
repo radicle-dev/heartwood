@@ -465,15 +465,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 // Verify that the project payload can still be parsed into the
                 // `Project` type.
                 if let Err(e) = proposal.project() {
-                    anyhow::bail!("failed to verify `xyz.radicle.project`, failed with {e}",);
+                    anyhow::bail!("failed to verify `xyz.radicle.project`, {e}");
                 }
                 proposal
             };
             if proposal == current.doc {
-                return Err(Error::WithHint {
-                    err: anyhow!("no update specified"),
-                    hint: "an update to the identity must be specified, run `rad id update -h` to see the available options"
-                }.into());
+                term::print(term::format::italic(
+                    "Nothing to do. The document is up to date. See `rad inspect --identity`.",
+                ));
+                return Ok(());
             }
             let revision = update(title, description, proposal, &mut identity, &signer)?;
 
