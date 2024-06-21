@@ -470,9 +470,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 proposal
             };
             if proposal == current.doc {
-                term::print(term::format::italic(
-                    "Nothing to do. The document is up to date. See `rad inspect --identity`.",
-                ));
+                if !options.quiet {
+                    term::print(term::format::italic(
+                        "Nothing to do. The document is up to date. See `rad inspect --identity`.",
+                    ));
+                }
                 return Ok(());
             }
             let revision = update(title, description, proposal, &mut identity, &signer)?;
