@@ -1126,21 +1126,29 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
     signer: G,
     config: &service::Config,
 ) -> io::Result<WireSession<G>> {
-    let inet_addr: NetAddr<InetHost> = match &remote_addr.host {
-        HostName::Ip(ip) => NetAddr::new(InetHost::Ip(*ip), remote_addr.port),
-        HostName::Dns(dns) => NetAddr::new(InetHost::Dns(dns.clone()), remote_addr.port),
-        HostName::Tor(onion) => match config.onion {
-            // In Tor proxy mode, simply specify the proxy address.
+    // Determine what address to establish a TCP connection with, given the remote peer
+    // address and our node configuration.
+    let inet_addr: NetAddr<InetHost> = match (&remote_addr.host, config.proxy) {
+        // For IP and DNS addresses, use the global proxy if set, otherwise use the address as-is.
+        (HostName::Ip(_), Some(proxy)) => proxy.into(),
+        (HostName::Ip(ip), None) => NetAddr::new(InetHost::Ip(*ip), remote_addr.port),
+        (HostName::Dns(_), Some(proxy)) => proxy.into(),
+        (HostName::Dns(dns), None) => NetAddr::new(InetHost::Dns(dns.clone()), remote_addr.port),
+        // For onion addresses, handle with care.
+        (HostName::Tor(onion), proxy) => match config.onion {
+            // In onion proxy mode, simply use the configured proxy address.
+            // This takes precedence over any global proxy.
             Some(AddressConfig::Proxy { address }) => address.into(),
             // In "forward" mode, if a global proxy is set, we use that, otherwise
             // we treat `.onion` addresses as regular DNS names.
             Some(AddressConfig::Forward) => {
-                if let Some(proxy) = config.proxy {
+                if let Some(proxy) = proxy {
                     proxy.into()
                 } else {
                     NetAddr::new(InetHost::Dns(onion.to_string()), remote_addr.port)
                 }
             }
+            // If onion address support isn't configured, refuse to connect.
             None => {
                 return Err(io::Error::new(
                     io::ErrorKind::Unsupported,
@@ -1152,14 +1160,14 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
                 "unsupported remote address type",
-            ))
+            ));
         }
     };
-    // Whether to tunnel regular connections through the proxy.
-    let force_proxy = config.proxy.is_some();
     // Nb. This timeout is currently not used by the underlying library due to the
     // `socket2` library not supporting non-blocking connect with timeout.
     let connection = net::TcpStream::connect_nonblocking(inet_addr, DEFAULT_DIAL_TIMEOUT)?;
+    // Whether to tunnel regular connections through the proxy.
+    let force_proxy = config.proxy.is_some();
 
     session::<G>(
         remote_addr,

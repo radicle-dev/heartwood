@@ -19,7 +19,7 @@ byteorder = { version = "1" }
 chrono = { version = "0.4.0", default-features = false, features = ["clock"] }
 colored = { version = "2.1.0" }
 crossbeam-channel = { version = "0.5.6" }
-cyphernet = { version = "0.5.0", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
+cyphernet = { version = "0.5.2", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
 fastrand = { version = "2.0.0" }
 gix-protocol = { version = "0.41.1", features = ["blocking-client"] }
 io-reactor = { version = "0.5.1", features = ["popol"] }
