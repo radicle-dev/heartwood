@@ -1340,6 +1340,7 @@ where
                         target: "service",
                         "Connecting peer {remote} already has a session open ({peer})"
                     );
+                    peer.link = link;
                     peer.to_connected(self.clock);
                     self.outbox.write_all(peer, msgs);
                 }
