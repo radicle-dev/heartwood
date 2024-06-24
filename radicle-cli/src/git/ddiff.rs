@@ -266,7 +266,7 @@ impl unified_diff::Decode for DiffModification {
                 line: chars.as_str().to_string().into(),
                 line_no: 0,
             },
-            ('+', '-') => DiffModification::DeletionDeletion {
+            ('+', '-') => DiffModification::DeletionAddition {
                 line: chars.as_str().to_string().into(),
                 line_no: 0,
             },
