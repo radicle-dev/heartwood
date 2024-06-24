@@ -10,6 +10,15 @@ use crate::prelude::RepoId;
 pub struct Config {
     /// Pinned content.
     pub pinned: Pinned,
+    /// URL pointing to an image shown on the node page header in radicle-explorer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<String>,
+    /// Node title.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Node description.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 /// Pinned content. This can be used to pin certain content when
