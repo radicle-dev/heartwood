@@ -16,7 +16,7 @@ pub use radicle_git_ext::Oid;
 
 use crate::cob;
 use crate::collections::RandomMap;
-use crate::git::ext as git_ext;
+use crate::git::{canonical, ext as git_ext};
 use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefStr, RefString};
 use crate::identity::{Did, PayloadError};
 use crate::identity::{Doc, DocAt, DocError};
@@ -116,7 +116,7 @@ pub enum RepositoryError {
     #[error(transparent)]
     GitExt(#[from] git_ext::Error),
     #[error(transparent)]
-    Quorum(#[from] git::QuorumError),
+    Quorum(#[from] canonical::QuorumError),
     #[error(transparent)]
     Refs(#[from] refs::Error),
 }

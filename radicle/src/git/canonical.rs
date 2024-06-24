@@ -28,7 +28,7 @@ pub struct Canonical {
 #[derive(Debug, Error)]
 pub enum QuorumError {
     /// Could not determine a quorum [`Oid`].
-    #[error("no quorum was  found")]
+    #[error("no quorum was found")]
     NoQuorum,
     /// An error occurred from [`git2`].
     #[error(transparent)]
@@ -69,7 +69,12 @@ impl Canonical {
                 Ok(tip) => {
                     tips.insert(*delegate, tip);
                 }
-                Err(e) if super::ext::is_not_found_err(&e) => {}
+                Err(e) if super::ext::is_not_found_err(&e) => {
+                    log::warn!(
+                        target: "radicle",
+                        "Missing `refs/namespaces/{delegate}/{name}` while calculating the canonical reference"
+                    );
+                }
                 Err(e) => return Err(e),
             }
         }
@@ -183,5 +188,272 @@ impl Canonical {
             }
         }
         Ok((*longest).into())
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use crypto::test::signer::MockSigner;
+    use radicle_crypto::Signer;
+
+    use super::*;
+    use crate::assert_matches;
+    use crate::git;
+    use crate::test::fixtures;
+
+    /// Test helper to construct a Canonical and get the quorum
+    fn quorum(
+        heads: &[git::raw::Oid],
+        threshold: usize,
+        repo: &git::raw::Repository,
+    ) -> Result<Oid, QuorumError> {
+        let tips = heads
+            .iter()
+            .enumerate()
+            .map(|(i, head)| {
+                let signer = MockSigner::from_seed([(i + 1) as u8; 32]);
+                let did = Did::from(signer.public_key());
+                (did, (*head).into())
+            })
+            .collect();
+        Canonical { tips }.quorum(threshold, repo)
+    }
+
+    #[test]
+    fn test_quorum_properties() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (repo, c0) = fixtures::repository(tmp.path());
+        let c0: git::Oid = c0.into();
+        let a1 = fixtures::commit("A1", &[*c0], &repo);
+        let a2 = fixtures::commit("A2", &[*a1], &repo);
+        let d1 = fixtures::commit("D1", &[*c0], &repo);
+        let c1 = fixtures::commit("C1", &[*c0], &repo);
+        let c2 = fixtures::commit("C2", &[*c1], &repo);
+        let b2 = fixtures::commit("B2", &[*c1], &repo);
+        let a1 = fixtures::commit("A1", &[*c0], &repo);
+        let m1 = fixtures::commit("M1", &[*c2, *b2], &repo);
+        let m2 = fixtures::commit("M2", &[*a1, *b2], &repo);
+        let mut rng = fastrand::Rng::new();
+        let choices = [*c0, *c1, *c2, *b2, *a1, *a2, *d1, *m1, *m2];
+
+        for _ in 0..100 {
+            let count = rng.usize(1..=choices.len());
+            let threshold = rng.usize(1..=count);
+            let mut heads = Vec::new();
+
+            for _ in 0..count {
+                let ix = rng.usize(0..choices.len());
+                heads.push(choices[ix]);
+            }
+            rng.shuffle(&mut heads);
+
+            if let Ok(canonical) = quorum(&heads, threshold, &repo) {
+                assert!(heads.contains(&canonical));
+            }
+        }
+    }
+
+    #[test]
+    fn test_quorum() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (repo, c0) = fixtures::repository(tmp.path());
+        let c0: git::Oid = c0.into();
+        let c1 = fixtures::commit("C1", &[*c0], &repo);
+        let c2 = fixtures::commit("C2", &[*c1], &repo);
+        let c3 = fixtures::commit("C3", &[*c1], &repo);
+        let b2 = fixtures::commit("B2", &[*c1], &repo);
+        let a1 = fixtures::commit("A1", &[*c0], &repo);
+        let m1 = fixtures::commit("M1", &[*c2, *b2], &repo);
+        let m2 = fixtures::commit("M2", &[*a1, *b2], &repo);
+
+        eprintln!("C0: {c0}");
+        eprintln!("C1: {c1}");
+        eprintln!("C2: {c2}");
+        eprintln!("C3: {c3}");
+        eprintln!("B2: {b2}");
+        eprintln!("A1: {a1}");
+        eprintln!("M1: {m1}");
+        eprintln!("M2: {m2}");
+
+        assert_eq!(quorum(&[*c0], 1, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*c1], 1, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c2], 1, &repo).unwrap(), c2);
+        assert_eq!(quorum(&[*c0], 0, &repo).unwrap(), c0);
+        assert_matches!(quorum(&[], 0, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*c0], 2, &repo), Err(QuorumError::NoQuorum));
+
+        //  C1
+        //  |
+        // C0
+        assert_eq!(quorum(&[*c1], 1, &repo).unwrap(), c1);
+
+        //   C2
+        //   |
+        //  C1
+        //  |
+        // C0
+        assert_eq!(quorum(&[*c1, *c2], 1, &repo).unwrap(), c2);
+        assert_eq!(quorum(&[*c1, *c2], 2, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c0, *c1, *c2], 3, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*c1, *c1, *c2], 2, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c1, *c1, *c2], 1, &repo).unwrap(), c2);
+        assert_eq!(quorum(&[*c2, *c2, *c1], 1, &repo).unwrap(), c2);
+
+        // B2 C2
+        //   \|
+        //   C1
+        //   |
+        //  C0
+        assert_matches!(
+            quorum(&[*c1, *c2, *b2], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(quorum(&[*c2, *b2], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*b2, *c2], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*c2, *b2], 2, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*b2, *c2], 2, &repo), Err(QuorumError::NoQuorum));
+        assert_eq!(quorum(&[*c1, *c2, *b2], 2, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c1, *c2, *b2], 3, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*b2, *b2, *c2], 2, &repo).unwrap(), b2);
+        assert_eq!(quorum(&[*b2, *c2, *c2], 2, &repo).unwrap(), c2);
+        assert_matches!(
+            quorum(&[*b2, *b2, *c2, *c2], 2, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+
+        // B2 C2 C3
+        //  \ | /
+        //    C1
+        //    |
+        //    C0
+        assert_eq!(quorum(&[*b2, *c2, *c2], 2, &repo).unwrap(), c2);
+        assert_matches!(
+            quorum(&[*b2, *c2, *c2], 3, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*b2, *c2, *b2, *c2], 3, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*c3, *b2, *c2, *b2, *c2, *c3], 3, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+
+        //  B2 C2
+        //    \|
+        // A1 C1
+        //   \|
+        //   C0
+        assert_matches!(
+            quorum(&[*c2, *b2, *a1], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*c2, *b2, *a1], 2, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*c2, *b2, *a1], 3, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*c1, *c2, *b2, *a1], 4, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 2, &repo).unwrap(), c1,);
+        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 3, &repo).unwrap(), c1,);
+        assert_eq!(quorum(&[*c0, *c2, *b2, *a1], 3, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 4, &repo).unwrap(), c0,);
+        assert_matches!(
+            quorum(&[*a1, *a1, *c2, *c2, *c1], 2, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*a1, *a1, *c2, *c2, *c1], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*a1, *a1, *c2], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*b2, *b2, *c2, *c2], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*b2, *b2, *c2, *c2, *a1], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+
+        //    M2  M1
+        //    /\  /\
+        //    \ B2 C2
+        //     \  \|
+        //     A1 C1
+        //       \|
+        //       C0
+        assert_eq!(quorum(&[*m1], 1, &repo).unwrap(), m1);
+        assert_matches!(quorum(&[*m1, *m2], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m2, *m1], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m1, *m2], 2, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(
+            quorum(&[*m1, *m2, *c2], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(quorum(&[*m1, *a1], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m1, *a1], 2, &repo), Err(QuorumError::NoQuorum));
+        assert_eq!(quorum(&[*m1, *m2, *b2, *c1], 4, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*m1, *m1, *b2], 2, &repo).unwrap(), m1);
+        assert_eq!(quorum(&[*m1, *m1, *c2], 2, &repo).unwrap(), m1);
+        assert_eq!(quorum(&[*m2, *m2, *b2], 2, &repo).unwrap(), m2);
+        assert_eq!(quorum(&[*m2, *m2, *a1], 2, &repo).unwrap(), m2);
+        assert_eq!(quorum(&[*m1, *m1, *b2, *b2], 2, &repo).unwrap(), m1);
+        assert_eq!(quorum(&[*m1, *m1, *c2, *c2], 2, &repo).unwrap(), m1);
+        assert_eq!(quorum(&[*m1, *b2, *c1, *c0], 3, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*m1, *b2, *c1, *c0], 4, &repo).unwrap(), c0);
+    }
+
+    #[test]
+    fn test_quorum_merges() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (repo, c0) = fixtures::repository(tmp.path());
+        let c0: git::Oid = c0.into();
+        let c1 = fixtures::commit("C1", &[*c0], &repo);
+        let c2 = fixtures::commit("C2", &[*c0], &repo);
+        let c3 = fixtures::commit("C3", &[*c0], &repo);
+
+        let m1 = fixtures::commit("M1", &[*c1, *c2], &repo);
+        let m2 = fixtures::commit("M2", &[*c2, *c3], &repo);
+
+        eprintln!("C0: {c0}");
+        eprintln!("C1: {c1}");
+        eprintln!("C2: {c2}");
+        eprintln!("C3: {c3}");
+        eprintln!("M1: {m1}");
+        eprintln!("M2: {m2}");
+
+        //    M2  M1
+        //    /\  /\
+        //   C1 C2 C3
+        //     \| /
+        //      C0
+        assert_matches!(quorum(&[*m1, *m2], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m1, *m2], 2, &repo), Err(QuorumError::NoQuorum));
+
+        let m3 = fixtures::commit("M3", &[*c2, *c1], &repo);
+
+        //   M3/M2 M1
+        //    /\  /\
+        //   C1 C2 C3
+        //     \| /
+        //      C0
+        assert_matches!(quorum(&[*m1, *m3], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m1, *m3], 2, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m3, *m1], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m3, *m1], 2, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m3, *m2], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m3, *m2], 2, &repo), Err(QuorumError::NoQuorum));
     }
 }

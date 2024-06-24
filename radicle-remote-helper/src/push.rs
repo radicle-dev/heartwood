@@ -105,7 +105,7 @@ pub enum Error {
     Repository(#[from] radicle::storage::RepositoryError),
     /// Quorum error.
     #[error(transparent)]
-    Quorum(#[from] radicle::storage::git::QuorumError),
+    Quorum(#[from] radicle::git::canonical::QuorumError),
 }
 
 /// Push command.
