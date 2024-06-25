@@ -231,7 +231,7 @@ impl Session {
         self.last_active = since;
 
         if let State::Connected { .. } = &self.state {
-            panic!("Session::to_connected: session is already in 'connected' state");
+            log::error!(target: "service", "Session {} is already in 'connected' state, resetting..", self.id);
         };
         self.state = State::Connected {
             since,

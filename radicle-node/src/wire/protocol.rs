@@ -491,7 +491,7 @@ where
                 &DisconnectReason::connection(),
             );
         } else {
-            log::warn!(target: "wire", "Tried to cleanup unknown peer with id={id} (fd={fd})");
+            log::debug!(target: "wire", "Tried to cleanup unknown peer with id={id} (fd={fd})");
         }
     }
 }

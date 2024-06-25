@@ -1335,6 +1335,12 @@ where
                     // In this scenario, it's possible that our peer is persistent, and
                     // disconnected. We get an inbound connection before we attempt a re-connection,
                     // and therefore we treat it as a regular inbound connection.
+                    //
+                    // It's also possible that a disconnection hasn't gone through yet and our
+                    // peer is still in connected state here, while a new inbound connection from
+                    // that same peer is made. This results in a new connection from a peer that is
+                    // already connected from the perspective of the service. This appears to be
+                    // a bug in the underlying networking library.
                     let peer = e.get_mut();
                     debug!(
                         target: "service",
