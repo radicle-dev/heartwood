@@ -1,4 +1,6 @@
+use std::collections::BTreeSet;
 use std::ffi::OsString;
+use std::time;
 
 use anyhow::anyhow;
 
@@ -20,7 +22,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad seed [<rid>] [--[no-]fetch] [--scope <scope>] [<option>...]
+    rad seed [<rid>] [--[no-]fetch] [--from <nid>] [--scope <scope>] [<option>...]
 
     The `seed` command, when no Repository ID (<rid>) is provided, will list the
     repositories being seeded.
@@ -36,6 +38,8 @@ Usage
 Options
 
     --[no-]fetch           Fetch repository after updating seeding policy
+    --from <nid>           Fetch from the given node (may be specified multiple times)
+    --timeout <secs>       Fetch timeout in seconds (default: 9)
     --scope <scope>        Peer follow scope for this repository
     --verbose, -v          Verbose output
     --help                 Print help
@@ -47,6 +51,8 @@ pub enum Operation {
     Seed {
         rid: RepoId,
         fetch: bool,
+        seeds: BTreeSet<NodeId>,
+        timeout: time::Duration,
         scope: Scope,
     },
     List,
@@ -66,6 +72,8 @@ impl Args for Options {
         let mut rid: Option<RepoId> = None;
         let mut scope: Option<Scope> = None;
         let mut fetch: Option<bool> = None;
+        let mut timeout = time::Duration::from_secs(9);
+        let mut seeds: BTreeSet<NodeId> = BTreeSet::new();
         let mut verbose = false;
 
         while let Some(arg) = parser.next()? {
@@ -83,6 +91,18 @@ impl Args for Options {
                 Long("no-fetch") => {
                     fetch = Some(false);
                 }
+                Long("from") => {
+                    let val = parser.value()?;
+                    let nid = term::args::nid(&val)?;
+
+                    seeds.insert(nid);
+                }
+                Long("timeout") | Short('t') => {
+                    let value = parser.value()?;
+                    let secs = term::args::parse_value("timeout", value)?;
+
+                    timeout = time::Duration::from_secs(secs);
+                }
                 Long("verbose") | Short('v') => verbose = true,
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
@@ -98,6 +118,8 @@ impl Args for Options {
                 rid,
                 fetch: fetch.unwrap_or(true),
                 scope: scope.unwrap_or(Scope::All),
+                timeout,
+                seeds,
             },
             None => Operation::List,
         };
@@ -111,13 +133,22 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut node = radicle::Node::new(profile.socket());
 
     match options.op {
-        Operation::Seed { rid, fetch, scope } => {
+        Operation::Seed {
+            rid,
+            fetch,
+            scope,
+            timeout,
+            seeds,
+        } => {
             update(rid, scope, &mut node, &profile)?;
 
             if fetch && node.is_running() {
                 sync::fetch(
                     rid,
-                    SyncSettings::default().with_profile(&profile),
+                    SyncSettings::default()
+                        .seeds(seeds)
+                        .timeout(timeout)
+                        .with_profile(&profile),
                     &mut node,
                 )?;
             }

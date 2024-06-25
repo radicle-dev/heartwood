@@ -39,6 +39,12 @@ impl SyncSettings {
         self
     }
 
+    /// Set seeds.
+    pub fn seeds(mut self, seeds: impl IntoIterator<Item = NodeId>) -> Self {
+        self.seeds = seeds.into_iter().collect();
+        self
+    }
+
     /// Use profile to populate sync settings, by adding preferred seeds if no seeds are specified,
     /// and removing the local node from the set.
     pub fn with_profile(mut self, profile: &Profile) -> Self {
