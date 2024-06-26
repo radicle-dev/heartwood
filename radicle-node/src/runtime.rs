@@ -123,7 +123,7 @@ impl Runtime {
         let clock = LocalTime::now();
         let timestamp = clock.into();
         let storage = Storage::open(home.storage(), git::UserInfo { alias, key: id })?;
-        let policy = config.seeding_policy;
+        let policy = config.seeding_policy.into();
 
         for (key, _) in &config.extra {
             log::warn!(target: "node", "Unused or deprecated configuration attribute {:?}", key);

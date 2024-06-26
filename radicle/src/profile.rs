@@ -23,10 +23,11 @@ use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
 use crate::explorer::Explorer;
+use crate::node::config::DefaultSeedingPolicy;
 use crate::node::policy::config::store::Read;
 use crate::node::{
     notifications, policy,
-    policy::{Policy, Scope, SeedingPolicy},
+    policy::{Policy, Scope},
     Alias, AliasStore, Handle as _, Node, UserAgent,
 };
 use crate::prelude::{Did, NodeId, RepoId};
@@ -254,8 +255,8 @@ impl Config {
             ) {
                 log::warn!(target: "radicle", "Overwriting `seedingPolicy` configuration");
                 cfg.node.seeding_policy = match policy {
-                    Policy::Allow => SeedingPolicy::Allow { scope },
-                    Policy::Block => SeedingPolicy::Block,
+                    Policy::Allow => DefaultSeedingPolicy::Allow { scope },
+                    Policy::Block => DefaultSeedingPolicy::Block,
                 }
             }
         }
@@ -415,7 +416,7 @@ impl Profile {
     pub fn policies(&self) -> Result<policy::config::Config<Read>, policy::store::Error> {
         let path = self.node().join(node::POLICIES_DB_FILE);
         let config = policy::config::Config::new(
-            self.config.node.seeding_policy,
+            self.config.node.seeding_policy.into(),
             policy::store::Store::reader(path)?,
         );
         Ok(config)

@@ -7,7 +7,7 @@ use localtime::LocalDuration;
 use serde_json as json;
 
 use crate::node;
-use crate::node::policy::SeedingPolicy;
+use crate::node::policy::{Scope, SeedingPolicy};
 use crate::node::{Address, Alias, NodeId};
 
 /// Peer-to-peer protocol version.
@@ -260,6 +260,42 @@ pub enum AddressConfig {
     Forward,
 }
 
+/// Default seeding policy. Applies when no repository policies for the given repo are found.
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", tag = "default")]
+pub enum DefaultSeedingPolicy {
+    /// Allow seeding.
+    Allow {
+        /// Seeding scope.
+        #[serde(default)]
+        scope: Scope,
+    },
+    /// Block seeding.
+    #[default]
+    Block,
+}
+
+impl DefaultSeedingPolicy {
+    /// Is this an "allow" policy.
+    pub fn is_allow(&self) -> bool {
+        matches!(self, Self::Allow { .. })
+    }
+
+    /// Seed everything from anyone.
+    pub fn permissive() -> Self {
+        Self::Allow { scope: Scope::All }
+    }
+}
+
+impl From<DefaultSeedingPolicy> for SeedingPolicy {
+    fn from(policy: DefaultSeedingPolicy) -> Self {
+        match policy {
+            DefaultSeedingPolicy::Block => Self::Block,
+            DefaultSeedingPolicy::Allow { scope } => Self::Allow { scope },
+        }
+    }
+}
+
 /// Service configuration.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -303,7 +339,7 @@ pub struct Config {
     pub workers: usize,
     /// Default seeding policy.
     #[serde(default)]
-    pub seeding_policy: SeedingPolicy,
+    pub seeding_policy: DefaultSeedingPolicy,
     /// Extra fields that aren't supported.
     #[serde(flatten, skip_serializing)]
     pub extra: json::Map<String, json::Value>,
@@ -331,7 +367,7 @@ impl Config {
             limits: Limits::default(),
             workers: DEFAULT_WORKERS,
             log: defaults::log(),
-            seeding_policy: SeedingPolicy::default(),
+            seeding_policy: DefaultSeedingPolicy::default(),
             extra: json::Map::default(),
         }
     }

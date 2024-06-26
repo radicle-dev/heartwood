@@ -34,9 +34,9 @@ pub struct FollowPolicy {
     pub policy: Policy,
 }
 
-/// Default seeding policy. Applies when no repository policies for the given repo are found.
+/// Seeding policy of a node or repo.
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase", tag = "default")]
+#[serde(rename_all = "camelCase", tag = "policy")]
 pub enum SeedingPolicy {
     /// Allow seeding.
     Allow {
@@ -50,11 +50,6 @@ pub enum SeedingPolicy {
 }
 
 impl SeedingPolicy {
-    /// Seed everything from anyone.
-    pub fn permissive() -> Self {
-        Self::Allow { scope: Scope::All }
-    }
-
     /// Is this an "allow" policy.
     pub fn is_allow(&self) -> bool {
         matches!(self, Self::Allow { .. })
