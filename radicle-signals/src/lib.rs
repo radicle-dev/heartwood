@@ -33,6 +33,9 @@ impl TryFrom<i32> for Signal {
 /// Signal notifications are sent via this channel.
 static NOTIFY: Mutex<Option<chan::Sender<Signal>>> = Mutex::new(None);
 
+/// A slice of signals to handle.
+const SIGNALS: &[i32] = &[libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGWINCH];
+
 /// Install global signal handlers.
 pub fn install(notify: chan::Sender<Signal>) -> io::Result<()> {
     if let Ok(mut channel) = NOTIFY.try_lock() {
@@ -54,23 +57,51 @@ pub fn install(notify: chan::Sender<Signal>) -> io::Result<()> {
     Ok(())
 }
 
+/// Uninstall global signal handlers.
+pub fn uninstall() -> io::Result<()> {
+    if let Ok(mut channel) = NOTIFY.try_lock() {
+        if channel.is_none() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "signal handler is already uninstalled",
+            ));
+        }
+        *channel = None;
+
+        unsafe { _uninstall() }?;
+    } else {
+        return Err(io::Error::new(
+            io::ErrorKind::WouldBlock,
+            "unable to uninstall signal handler",
+        ));
+    }
+    Ok(())
+}
+
 /// Install global signal handlers.
 ///
 /// # Safety
 ///
 /// Calls `libc` functions safely.
 unsafe fn _install() -> io::Result<()> {
-    if libc::signal(libc::SIGTERM, handler as libc::sighandler_t) == libc::SIG_ERR {
-        return Err(io::Error::last_os_error());
+    for signal in SIGNALS {
+        if libc::signal(*signal, handler as libc::sighandler_t) == libc::SIG_ERR {
+            return Err(io::Error::last_os_error());
+        }
     }
-    if libc::signal(libc::SIGINT, handler as libc::sighandler_t) == libc::SIG_ERR {
-        return Err(io::Error::last_os_error());
-    }
-    if libc::signal(libc::SIGHUP, handler as libc::sighandler_t) == libc::SIG_ERR {
-        return Err(io::Error::last_os_error());
-    }
-    if libc::signal(libc::SIGWINCH, handler as libc::sighandler_t) == libc::SIG_ERR {
-        return Err(io::Error::last_os_error());
+    Ok(())
+}
+
+/// Uninstall global signal handlers.
+///
+/// # Safety
+///
+/// Calls `libc` functions safely.
+unsafe fn _uninstall() -> io::Result<()> {
+    for signal in SIGNALS {
+        if libc::signal(*signal, libc::SIG_DFL) == libc::SIG_ERR {
+            return Err(io::Error::last_os_error());
+        }
     }
     Ok(())
 }

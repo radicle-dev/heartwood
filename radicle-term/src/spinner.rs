@@ -3,6 +3,11 @@ use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 use std::{fmt, io, thread, time};
 
+use crossbeam_channel as chan;
+
+use radicle_signals as signals;
+use signals::Signal;
+
 use crate::io::{ERROR_PREFIX, WARNING_PREFIX};
 use crate::Paint;
 
@@ -103,10 +108,10 @@ impl Spinner {
 }
 
 /// Create a new spinner with the given message. Sends animation output to `stderr` and success or
-/// failure messages to `stdout`.
+/// failure messages to `stdout`. This function handles signals, with there being only one
+/// element handling signals at a time, and is a wrapper to [`spinner_to()`].
 pub fn spinner(message: impl ToString) -> Spinner {
     let (stdout, stderr) = (io::stdout(), io::stderr());
-
     if stderr.is_terminal() {
         spinner_to(message, stdout, stderr)
     } else {
@@ -115,6 +120,12 @@ pub fn spinner(message: impl ToString) -> Spinner {
 }
 
 /// Create a new spinner with the given message, and send output to the given writers.
+///
+/// # Signal Handling
+///
+/// This will install handlers for the spinner until cancelled or dropped, with there
+/// being only one element handling signals at a time. If the spinner cannot install
+/// handlers, then it will not attempt to install handlers again, and continue running.
 pub fn spinner_to(
     message: impl ToString,
     mut completion: impl io::Write + Send + 'static,
@@ -122,6 +133,8 @@ pub fn spinner_to(
 ) -> Spinner {
     let message = message.to_string();
     let progress = Arc::new(Mutex::new(Progress::new(Paint::new(message))));
+    let (sig_tx, sig_rx) = chan::unbounded();
+    let sig_result = signals::install(sig_tx);
     let handle = thread::Builder::new()
         .name(String::from("spinner"))
         .spawn({
@@ -134,6 +147,25 @@ pub fn spinner_to(
                     let Ok(mut progress) = progress.lock() else {
                         break;
                     };
+                    // If were unable to install handles, skip signal processing entirely.
+                    if sig_result.is_ok() {
+                        match sig_rx.try_recv() {
+                            Ok(sig) if sig == Signal::Interrupt || sig == Signal::Terminate => {
+                                write!(animation, "\r{}", termion::clear::UntilNewline).ok();
+                                writeln!(
+                                    completion,
+                                    "{ERROR_PREFIX} {} {}",
+                                    &progress.message,
+                                    Paint::red("<canceled>")
+                                )
+                                .ok();
+                                drop(animation);
+                                std::process::exit(-1);
+                            }
+                            Ok(_) => {}
+                            Err(_) => {}
+                        }
+                    }
                     match &mut *progress {
                         Progress {
                             state: State::Running { cursor },
@@ -191,6 +223,9 @@ pub fn spinner_to(
                     }
                     drop(progress);
                     thread::sleep(DEFAULT_TICK);
+                }
+                if sig_result.is_ok() {
+                    let _ = signals::uninstall();
                 }
             }
         })

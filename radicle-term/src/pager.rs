@@ -24,6 +24,12 @@ pub enum Error {
 /// A pager for the given element. Re-renders the element when the terminal is resized so that
 /// it doesn't wrap. If the output device is not a TTY, just prints the element via
 /// [`Element::print`].
+///
+/// # Signal Handling
+///
+/// This will install handlers for the pager until finished by the user, with there
+/// being only one element handling signals at a time. If the pager cannot install
+/// handlers, then it will return with an error.
 pub fn page<E: Element + Send + 'static>(element: E) -> Result<(), Error> {
     let (events_tx, events_rx) = chan::unbounded();
     let (signals_tx, signals_rx) = chan::unbounded();
@@ -35,9 +41,13 @@ pub fn page<E: Element + Send + 'static>(element: E) -> Result<(), Error> {
             events_tx.send(e).ok();
         }
     });
-    thread::spawn(move || main(element, signals_rx, events_rx))
+    let result = thread::spawn(move || main(element, signals_rx, events_rx))
         .join()
-        .unwrap()
+        .unwrap();
+
+    signals::uninstall()?;
+
+    result
 }
 
 fn main<E: Element>(
