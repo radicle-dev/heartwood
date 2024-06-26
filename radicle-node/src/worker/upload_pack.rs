@@ -201,7 +201,6 @@ where
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let n = self.send.write(buf)?;
-        self.send.flush()?;
         self.emit(buf);
         Ok(n)
     }
