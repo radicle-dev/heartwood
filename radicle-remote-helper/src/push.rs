@@ -169,7 +169,7 @@ pub fn run(
     let nid = url.namespace.ok_or(Error::NoKey).and_then(|ns| {
         (profile.public_key == ns)
             .then_some(ns)
-            .ok_or(Error::KeyMismatch(profile.public_key.into()))
+            .ok_or(Error::KeyMismatch(ns.into()))
     })?;
     let signer = profile.signer()?;
     let mut line = String::new();
