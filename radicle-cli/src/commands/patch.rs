@@ -22,6 +22,8 @@ mod list;
 mod ready;
 #[path = "patch/redact.rs"]
 mod redact;
+#[path = "patch/resolve.rs"]
+mod resolve;
 #[path = "patch/review.rs"]
 mod review;
 #[path = "patch/show.rs"]
@@ -61,6 +63,7 @@ Usage
     rad patch update <patch-id> [<option>...]
     rad patch checkout <patch-id> [<option>...]
     rad patch review <patch-id> [--accept | --reject] [-m [<string>]] [-d | --delete] [<option>...]
+    rad patch resolve <patch-id> [--review <review-id>] [--comment <comment-id>] [--unresolve] [<option>...]
     rad patch delete <patch-id> [<option>...]
     rad patch redact <revision-id> [<option>...]
     rad patch assign <revision-id> [--add <did>] [--delete <did>] [<option>...]
@@ -100,6 +103,12 @@ Review options
     -U, --unified <n>          Generate diffs with <n> lines of context instead of the usual three
     -d, --delete               Delete a review draft
     -m, --message [<string>]   Provide a comment with the review (default: prompt)
+
+Resolve options
+
+    --review <id>              The review id which the comment is under
+    --comment <id>             The comment to (un)resolve
+    --undo                     Unresolve the comment
 
 Assign options
 
@@ -169,6 +178,7 @@ pub enum OperationName {
     Comment,
     Ready,
     Review,
+    Resolve,
     Label,
     #[default]
     List,
@@ -232,6 +242,12 @@ pub enum Operation {
         revision_id: Option<Rev>,
         opts: review::Options,
     },
+    Resolve {
+        patch_id: Rev,
+        review_id: Rev,
+        comment_id: Rev,
+        undo: bool,
+    },
     Assign {
         patch_id: Rev,
         opts: AssignOptions,
@@ -268,6 +284,7 @@ impl Operation {
             | Operation::Delete { .. }
             | Operation::Comment { .. }
             | Operation::Review { .. }
+            | Operation::Resolve { .. }
             | Operation::Assign { .. }
             | Operation::Label { .. }
             | Operation::Edit { .. }
@@ -306,6 +323,8 @@ impl Args for Options {
         let mut announce = true;
         let mut patch_id = None;
         let mut revision_id = None;
+        let mut review_id = None;
+        let mut comment_id = None;
         let mut message = Message::default();
         let mut filter = Some(patch::Status::Open);
         let mut diff = false;
@@ -442,6 +461,23 @@ impl Args for Options {
                     }
                 }
 
+                // Resolve options
+                Long("undo") if op == Some(OperationName::Resolve) => {
+                    undo = true;
+                }
+                Long("review") if op == Some(OperationName::Resolve) => {
+                    let val = parser.value()?;
+                    let rev = term::args::rev(&val)?;
+
+                    review_id = Some(rev);
+                }
+                Long("comment") if op == Some(OperationName::Resolve) => {
+                    let val = parser.value()?;
+                    let rev = term::args::rev(&val)?;
+
+                    comment_id = Some(rev);
+                }
+
                 // Checkout options
                 Long("revision") if op == Some(OperationName::Checkout) => {
                     let val = parser.value()?;
@@ -545,6 +581,7 @@ impl Args for Options {
                     "label" => op = Some(OperationName::Label),
                     "comment" => op = Some(OperationName::Comment),
                     "review" => op = Some(OperationName::Review),
+                    "resolve" => op = Some(OperationName::Resolve),
                     "set" => op = Some(OperationName::Set),
                     "cache" => op = Some(OperationName::Cache),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
@@ -565,6 +602,7 @@ impl Args for Options {
                             Some(OperationName::Checkout),
                             Some(OperationName::Comment),
                             Some(OperationName::Review),
+                            Some(OperationName::Resolve),
                             Some(OperationName::Edit),
                             Some(OperationName::Set),
                             Some(OperationName::Assign),
@@ -622,6 +660,13 @@ impl Args for Options {
                     message,
                     op: review_op,
                 },
+            },
+            OperationName::Resolve => Operation::Resolve {
+                patch_id: patch_id
+                    .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
+                review_id: review_id.ok_or_else(|| anyhow!("a review must be provided"))?,
+                comment_id: comment_id.ok_or_else(|| anyhow!("a comment must be provided"))?,
+                undo,
             },
             OperationName::Ready => Operation::Ready {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
@@ -803,6 +848,25 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .transpose()?
                 .map(patch::RevisionId::from);
             review::run(patch_id, revision_id, opts, &profile, &repository)?;
+        }
+        Operation::Resolve {
+            ref patch_id,
+            ref review_id,
+            ref comment_id,
+            undo,
+        } => {
+            let patch = patch_id.resolve(&repository.backend)?;
+            let review = patch::ReviewId::from(
+                review_id.resolve::<radicle::cob::EntryId>(&repository.backend)?,
+            );
+            let comment = comment_id.resolve(&repository.backend)?;
+            if undo {
+                resolve::unresolve(patch, review, comment, &repository, &profile)?;
+                term::success!("Unresolved comment {comment_id}");
+            } else {
+                resolve::resolve(patch, review, comment, &repository, &profile)?;
+                term::success!("Resolved comment {comment_id}");
+            }
         }
         Operation::Edit {
             patch_id,
