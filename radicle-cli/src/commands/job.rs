@@ -7,13 +7,11 @@ use radicle::cob::job::{JobStore, Reason, State};
 use radicle::crypto::Signer;
 use radicle::node::Handle;
 use radicle::storage::{WriteRepository, WriteStorage};
-use radicle::Profile;
 use radicle::{cob, Node};
 
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::job::Format;
 use crate::terminal::Element;
 
 pub const HELP: Help = Help {
@@ -25,11 +23,11 @@ Usage
 
     rad job [<option>...]
     rad job trigger <commit-id>
-    rad job start <cob-id> <run-id> [ <URL> ]
+    rad job start <job-id> <run-id> [ <URL> ]
     rad job list
-    rad job show <cob-id>
-    rad job finish <cob-id> [--success | --failed ]
-    rad job delete <cob-id>
+    rad job show <job-id>
+    rad job finish <job-id> [--success | --failed ]
+    rad job delete <job-id>
 
 Options
 
@@ -56,21 +54,20 @@ pub enum Operation {
         commit: Rev,
     },
     Start {
-        cob_id: Rev,
+        job_id: Rev,
         run_id: String,
         info_url: Option<String>,
     },
     List,
     Show {
-        cob_id: Rev,
-        format: Format,
+        job_id: Rev,
     },
     Finish {
-        cob_id: Rev,
+        job_id: Rev,
         reason: Reason,
     },
     Delete {
-        cob_id: Rev,
+        job_id: Rev,
     },
 }
 
@@ -88,7 +85,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut commit: Option<Rev> = None;
-        let mut cob_id: Option<Rev> = None;
+        let mut job_id: Option<Rev> = None;
         let mut run_id: Option<String> = None;
         let mut info_url: Option<String> = None;
         let mut announce = true;
@@ -129,7 +126,7 @@ impl Args for Options {
                     commit = Some(val);
                 }
                 Value(val)
-                    if cob_id.is_none()
+                    if job_id.is_none()
                         && op.is_some()
                         && matches!(
                             op.as_ref().unwrap(),
@@ -141,10 +138,10 @@ impl Args for Options {
                 {
                     let val = term::args::oid(&val)?;
                     let val = Rev::from(val.to_string());
-                    cob_id = Some(val);
+                    job_id = Some(val);
                 }
                 Value(val)
-                    if cob_id.is_some()
+                    if job_id.is_some()
                         && run_id.is_none()
                         && op.is_some()
                         && matches!(op.as_ref().unwrap(), OperationName::Start) =>
@@ -152,7 +149,7 @@ impl Args for Options {
                     run_id = Some(val.to_str().unwrap().to_string());
                 }
                 Value(val)
-                    if cob_id.is_some()
+                    if job_id.is_some()
                         && run_id.is_some()
                         && op.is_some()
                         && matches!(op.as_ref().unwrap(), OperationName::Start) =>
@@ -170,17 +167,16 @@ impl Args for Options {
                 commit: commit.ok_or_else(|| anyhow!("a commit id remove must be provided"))?,
             },
             OperationName::Start => Operation::Start {
-                cob_id: cob_id.ok_or_else(|| anyhow!("a job id must be provided"))?,
+                job_id: job_id.ok_or_else(|| anyhow!("a job id must be provided"))?,
                 run_id: run_id.ok_or_else(|| anyhow!("a run id must be provided"))?,
                 info_url,
             },
             OperationName::List => Operation::List,
             OperationName::Show => Operation::Show {
-                cob_id: cob_id.ok_or_else(|| anyhow!("a job id must be provided"))?,
-                format: Format::default(),
+                job_id: job_id.ok_or_else(|| anyhow!("a job id must be provided"))?,
             },
             OperationName::Finish => Operation::Finish {
-                cob_id: cob_id.ok_or_else(|| anyhow!("a job id must be provided"))?,
+                job_id: job_id.ok_or_else(|| anyhow!("a job id must be provided"))?,
                 reason: if !succeeded && !failed {
                     return Err(anyhow!("must give one of --success or --failure"))?;
                 } else if succeeded && failed {
@@ -192,7 +188,7 @@ impl Args for Options {
                 },
             },
             OperationName::Delete => Operation::Delete {
-                cob_id: cob_id.ok_or_else(|| anyhow!("a job id to remove must be provided"))?,
+                job_id: job_id.ok_or_else(|| anyhow!("a job id to remove must be provided"))?,
             },
         };
 
@@ -224,36 +220,29 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut node = Node::new(profile.socket());
     let mut ci_store = JobStore::open(&repo)?;
 
-    match &options.op {
+    match options.op {
         Operation::Trigger { commit } => {
-            trigger(commit, &options, &mut ci_store, &repo, &signer, &profile)?;
+            trigger(&commit, &mut ci_store, &repo, &signer, options.quiet)?;
         }
         Operation::Start {
-            cob_id,
+            job_id,
             run_id,
             info_url,
         } => {
-            start(
-                cob_id,
-                run_id,
-                info_url.clone(),
-                &mut ci_store,
-                &repo,
-                &signer,
-            )?;
+            start(&job_id, &run_id, info_url, &mut ci_store, &repo, &signer)?;
         }
         Operation::List => {
             list(&ci_store)?;
         }
-        Operation::Show { cob_id, format } => {
-            show(cob_id, *format, &ci_store, &repo, &profile)?;
+        Operation::Show { job_id } => {
+            show(&job_id, &ci_store, &repo)?;
         }
-        Operation::Finish { cob_id, reason } => {
-            finish(cob_id, *reason, &mut ci_store, &repo, &signer)?;
+        Operation::Finish { job_id, reason } => {
+            finish(&job_id, reason, &mut ci_store, &repo, &signer)?;
         }
-        Operation::Delete { cob_id } => {
-            let cob_id = cob_id.resolve(&repo.backend)?;
-            ci_store.remove(&cob_id, &signer)?;
+        Operation::Delete { job_id } => {
+            let job_id = job_id.resolve(&repo.backend)?;
+            ci_store.remove(&job_id, &signer)?;
         }
     }
 
@@ -270,31 +259,29 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
 fn trigger<R: WriteRepository + cob::Store, G: Signer>(
     commit: &Rev,
-    options: &Options,
     store: &mut JobStore<R>,
     repo: &radicle::storage::git::Repository,
     signer: &G,
-    profile: &Profile,
+    quiet: bool,
 ) -> anyhow::Result<()> {
     let commit = commit.resolve(&repo.backend)?;
     let job = store.create(commit, signer)?;
-    if !options.quiet {
-        term::job::show(&job, job.id(), Format::Full, profile)?;
+    if !quiet {
+        term::job::show(&job, job.id())?;
     }
     Ok(())
 }
 
 fn start<R: WriteRepository + cob::Store, G: Signer>(
-    cob_id: &Rev,
+    job_id: &Rev,
     run_id: &str,
     info_url: Option<String>,
     store: &mut JobStore<R>,
     repo: &radicle::storage::git::Repository,
     signer: &G,
 ) -> anyhow::Result<()> {
-    let cob_id = cob_id.resolve(&repo.backend)?;
+    let cob_id = job_id.resolve(&repo.backend)?;
     let mut job = store.get_mut(&cob_id)?;
-    let info_url = info_url.clone();
     job.start(run_id.to_string(), info_url, signer)?;
     Ok(())
 }
@@ -306,19 +293,11 @@ fn list<R: WriteRepository + cob::Store>(store: &JobStore<R>) -> anyhow::Result<
     }
 
     let mut all = Vec::new();
-    let state: Option<State> = None;
     for result in store.all()? {
         let Ok((id, ci)) = result else {
             // Skip COBs that failed to load.
             continue;
         };
-
-        if let Some(s) = state {
-            if s != ci.state() {
-                continue;
-            }
-        }
-
         all.push((id, ci))
     }
 
@@ -351,16 +330,14 @@ fn list<R: WriteRepository + cob::Store>(store: &JobStore<R>) -> anyhow::Result<
 
 fn show<R: WriteRepository + cob::Store>(
     cob_id: &Rev,
-    format: Format,
     store: &JobStore<R>,
     repo: &radicle::storage::git::Repository,
-    profile: &Profile,
 ) -> anyhow::Result<()> {
     let cob_id = cob_id.resolve(&repo.backend)?;
     let job = store
         .get(&cob_id)?
         .context("No job with the given ID exists")?;
-    term::job::show(&job, &cob_id, format, profile)?;
+    term::job::show(&job, &cob_id)?;
     Ok(())
 }
 
