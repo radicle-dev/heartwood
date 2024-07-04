@@ -38,6 +38,7 @@ use anyhow::anyhow;
 
 use radicle::cob::patch::PatchId;
 use radicle::cob::{patch, Label};
+use radicle::git::RefString;
 use radicle::patch::cache::Patches as _;
 use radicle::storage::git::transport;
 use radicle::{prelude::*, Node};
@@ -155,7 +156,12 @@ Checkout options
 
         --revision <id>        Checkout the given revision of the patch
         --name <string>        Provide a name for the branch to checkout
+        --remote <string>      Provide the git remote to use as the upstream
     -f, --force                Checkout the head of the revision, even if the branch already exists
+
+Set options
+
+        --remote <string>      Provide the git remote to use as the upstream
 
 Other options
 
@@ -269,6 +275,7 @@ pub enum Operation {
     },
     Set {
         patch_id: Rev,
+        remote: Option<RefString>,
     },
     Cache {
         patch_id: Option<Rev>,
@@ -332,6 +339,7 @@ impl Args for Options {
         let mut undo = false;
         let mut reply_to: Option<Rev> = None;
         let mut checkout_opts = checkout::Options::default();
+        let mut remote: Option<RefString> = None;
         let mut assign_opts = AssignOptions::default();
         let mut label_opts = LabelOptions::default();
         let mut review_op = review::Operation::default();
@@ -495,6 +503,11 @@ impl Args for Options {
                     checkout_opts.name = Some(term::args::refstring("name", val)?);
                 }
 
+                Long("remote") if op == Some(OperationName::Checkout) => {
+                    let val = parser.value()?;
+                    checkout_opts.remote = Some(term::args::refstring("remote", val)?);
+                }
+
                 // Assign options.
                 Short('a') | Long("add") if matches!(op, Some(OperationName::Assign)) => {
                     assign_opts.add.insert(term::args::did(&parser.value()?)?);
@@ -521,6 +534,12 @@ impl Args for Options {
                     let label = Label::new(name)?;
 
                     label_opts.delete.insert(label);
+                }
+
+                // Set options.
+                Long("remote") if op == Some(OperationName::Set) => {
+                    let val = parser.value()?;
+                    remote = Some(term::args::refstring("remote", val)?);
                 }
 
                 // List options.
@@ -690,6 +709,7 @@ impl Args for Options {
             },
             OperationName::Set => Operation::Set {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                remote,
             },
             OperationName::Cache => Operation::Cache { patch_id },
         };
@@ -897,7 +917,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let patch_id = patch_id.resolve(&repository.backend)?;
             label::run(&patch_id, add, delete, &profile, &repository)?;
         }
-        Operation::Set { patch_id } => {
+        Operation::Set { patch_id, remote } => {
             let patches = profile.patches(&repository)?;
             let patch_id = patch_id.resolve(&repository.backend)?;
             let patch = patches
@@ -906,7 +926,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let workdir = workdir.ok_or(anyhow!(
                 "this command must be run from a repository checkout"
             ))?;
-            radicle::rad::setup_patch_upstream(&patch_id, *patch.head(), &workdir, true)?;
+            radicle::rad::setup_patch_upstream(
+                &patch_id,
+                *patch.head(),
+                &workdir,
+                remote.as_ref().unwrap_or(&radicle::rad::REMOTE_NAME),
+                true,
+            )?;
         }
         Operation::Cache { patch_id } => {
             let patch_id = patch_id

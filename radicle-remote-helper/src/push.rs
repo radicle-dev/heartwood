@@ -156,6 +156,7 @@ impl FromStr for Command {
 pub fn run(
     mut specs: Vec<String>,
     working: &Path,
+    remote: git::RefString,
     url: Url,
     stored: &storage::git::Repository,
     profile: &Profile,
@@ -222,6 +223,7 @@ pub fn run(
                 if dst == &*rad::PATCHES_REFNAME {
                     patch_open(
                         src,
+                        &remote,
                         &nid,
                         &working,
                         stored,
@@ -376,6 +378,7 @@ pub fn run(
 /// Open a new patch.
 fn patch_open<G: Signer>(
     src: &git::RefStr,
+    upstream: &git::RefString,
     nid: &NodeId,
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
@@ -463,7 +466,7 @@ fn patch_open<G: Signer>(
 
             // Setup current branch so that pushing updates the patch.
             if let Some(branch) =
-                rad::setup_patch_upstream(&patch, commit.id().into(), working, false)?
+                rad::setup_patch_upstream(&patch, commit.id().into(), working, upstream, false)?
             {
                 if let Some(name) = branch.name()? {
                     if profile.hints() {

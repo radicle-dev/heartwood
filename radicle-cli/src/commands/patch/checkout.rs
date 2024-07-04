@@ -14,6 +14,7 @@ use crate::terminal as term;
 #[derive(Debug, Default)]
 pub struct Options {
     pub name: Option<RefString>,
+    pub remote: Option<RefString>,
     pub force: bool,
 }
 
@@ -97,7 +98,13 @@ pub fn run(
     ));
     spinner.finish();
 
-    if let Some(branch) = rad::setup_patch_upstream(patch_id, revision.head(), working, false)? {
+    if let Some(branch) = rad::setup_patch_upstream(
+        patch_id,
+        revision.head(),
+        working,
+        opts.remote.as_ref().unwrap_or(&radicle::rad::REMOTE_NAME),
+        false,
+    )? {
         let tracking = branch
             .name()?
             .ok_or_else(|| anyhow!("failed to create tracking branch: invalid name"))?;
