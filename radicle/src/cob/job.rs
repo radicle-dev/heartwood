@@ -3,21 +3,16 @@ use std::{ops::Deref, str::FromStr};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
-use radicle_cob::history::EntryId;
-use radicle_crypto::ssh::ExtendedSignature;
-
-use crate::{
-    cob::{
-        self,
-        change::store::Entry,
-        store::{self, Cob, CobAction, Store, Transaction},
-        ObjectId, TypeName,
-    },
-    crypto::Signer,
-    git,
-    prelude::ReadRepository,
-    storage::{Oid, WriteRepository},
-};
+use crate::cob;
+use crate::cob::change::store::Entry;
+use crate::cob::store;
+use crate::cob::store::{Cob, CobAction, Store, Transaction};
+use crate::cob::{EntryId, ObjectId, TypeName};
+use crate::crypto::ssh::ExtendedSignature;
+use crate::crypto::Signer;
+use crate::git;
+use crate::prelude::ReadRepository;
+use crate::storage::{Oid, WriteRepository};
 
 /// The name of this COB type.
 pub static TYPENAME: Lazy<TypeName> =
@@ -60,10 +55,8 @@ pub enum State {
     /// COB has been created, job has not yet started running.
     #[default]
     Fresh,
-
     /// Job has started running.
     Running,
-
     /// Job has finished.
     Finished(Reason),
 }
@@ -120,6 +113,7 @@ pub struct Job {
 }
 
 impl Job {
+    /// Create a new `Job` in the `Fresh` state, using the provided `commit`.
     fn new(commit: git::Oid) -> Self {
         Self {
             commit,
@@ -128,18 +122,23 @@ impl Job {
             info_url: None,
         }
     }
+
+    /// Get the commit that this `Job` was created with.
     pub fn commit(&self) -> git::Oid {
         self.commit
     }
 
+    /// Get the run identifier, if any, that was associated with this `Job`.
     pub fn run_id(&self) -> Option<&str> {
         self.run_id.as_deref()
     }
 
+    /// Get the info URL, if any, that was associated with this `Job`.
     pub fn info_url(&self) -> Option<&str> {
         self.info_url.as_deref()
     }
 
+    /// Get the `State`of this `Job`.
     pub fn state(&self) -> State {
         self.state
     }
@@ -233,14 +232,20 @@ impl<R: ReadRepository> cob::Evaluate<R> for Job {
 }
 
 impl<R: ReadRepository> Transaction<Job, R> {
-    pub fn fresh(&mut self, commit: git::Oid) -> Result<(), store::Error> {
+    /// Push an [`Action::Trigger`] which will create a new `Job` with the
+    /// provided `commit` in the [`State::Fresh`] state.
+    pub fn trigger(&mut self, commit: git::Oid) -> Result<(), store::Error> {
         self.push(Action::Trigger { commit })
     }
 
+    /// Push an [`Action::Start`] which will start the `Job` with the provided
+    /// metadata and move the `Job` into the [`State::Running`] state.
     pub fn start(&mut self, run_id: String, info_url: Option<String>) -> Result<(), store::Error> {
         self.push(Action::Start { run_id, info_url })
     }
 
+    /// Push an [`Action::Finish`] which will finish the `Job` with the provided
+    /// reason, moving the `Job` into the [`State::Finish`] state.
     pub fn finish(&mut self, reason: Reason) -> Result<(), store::Error> {
         self.push(Action::Finish { reason })
     }
@@ -284,6 +289,8 @@ where
         &self.id
     }
 
+    /// Transition the `Job` into a running state, storing the provided
+    /// metadata.
     pub fn start<G: Signer>(
         &mut self,
         run_id: String,
@@ -296,6 +303,7 @@ where
         })
     }
 
+    /// Transition the `Job` into a finished state, with the provided `reason`.
     pub fn finish<G: Signer>(&mut self, reason: Reason, signer: &G) -> Result<EntryId, Error> {
         self.transaction("Finish", signer, |tx| tx.finish(reason))
     }
@@ -349,11 +357,17 @@ where
         Ok(Self { raw })
     }
 
-    pub fn get(&self, id: &ObjectId) -> Result<Option<Job>, store::Error> {
+    /// Get the `Job`, if any, identified by `id`.
+    pub fn get(&self, id: &JobId) -> Result<Option<Job>, store::Error> {
         self.raw.get(id)
     }
 
-    pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<JobMut<'a, 'g, R>, store::Error> {
+    /// Get the `Job`, identified by `id`, which can be mutated.
+    ///
+    /// # Errors
+    ///
+    /// This will fail if the `Job` could not be found.
+    pub fn get_mut<'g>(&'g mut self, id: &JobId) -> Result<JobMut<'a, 'g, R>, store::Error> {
         let job = self
             .raw
             .get(id)?
@@ -365,13 +379,14 @@ where
         })
     }
 
+    /// Create a fresh `Job` with the provided `commit_id`.
     pub fn create<'g, G: Signer>(
         &'g mut self,
         commit_id: git::Oid,
         signer: &G,
     ) -> Result<JobMut<'a, 'g, R>, Error> {
         let (id, job) = Transaction::initial("Create job", &mut self.raw, signer, |tx| {
-            tx.fresh(commit_id)?;
+            tx.trigger(commit_id)?;
             Ok(())
         })?;
 
@@ -382,7 +397,8 @@ where
         })
     }
 
-    pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), store::Error> {
+    /// Delete the `Job` identified by `id`.
+    pub fn remove<G: Signer>(&self, id: &JobId, signer: &G) -> Result<(), store::Error> {
         self.raw.remove(id, signer)
     }
 }
