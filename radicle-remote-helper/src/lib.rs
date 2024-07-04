@@ -90,18 +90,18 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
     // module is aware of that.
     cli::Paint::set_terminal(io::stderr());
 
-    let url: Url = {
+    let (remote, url): (Option<git::RefString>, Url) = {
         let args = env::args().skip(1).take(2).collect::<Vec<_>>();
 
         match args.as_slice() {
-            [url] => url.parse(),
-            [_, url] => url.parse(),
+            [url] => (None, url.parse()?),
+            [remote, url] => (git::RefString::try_from(remote.as_str()).ok(), url.parse()?),
 
             _ => {
                 return Err(Error::InvalidArguments(args));
             }
         }
-    }?;
+    };
 
     let stored = profile.storage.repository_mut(url.repo)?;
     if stored.is_empty()? {
@@ -174,6 +174,8 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                 return push::run(
                     vec![refspec.to_string()],
                     &working,
+                    // N.b. assume the default remote if there was no remote
+                    remote.unwrap_or((*radicle::rad::REMOTE_NAME).clone()),
                     url,
                     &stored,
                     &profile,
