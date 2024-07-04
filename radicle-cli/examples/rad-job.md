@@ -1,4 +1,5 @@
-With the `rad job` command lets you manage job COBs.
+The `rad job` command lets you manage job COBs. Let's first checkout the
+`heartwood` repository:
 
 ```
 $ rad checkout rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
@@ -6,21 +7,17 @@ $ rad checkout rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 $ cd heartwood
 ```
 
-Initially we have not jobs to list.
+Using the `rad job` (or `rad job list`) command we can see that there are
+currently no jobs listed:
 
 ```
 $ rad job
 Nothing to show.
 ```
 
-Same with the full command.
-
-```
-$ rad job list
-Nothing to show.
-```
-
-Create a job COB to represent a CI run.
+Let's create a job to represent a new CI run. We check what the current `HEAD`
+of the repository is, and use the `rad job trigger` to start a fresh job for
+that commit:
 
 ```
 $ git rev-parse HEAD
@@ -33,7 +30,7 @@ $ rad job trigger f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 ╰──────────────────────────────────────────────────╯
 ```
 
-We can now list the job.
+Let's check the list again, and we should we see our fresh job there:
 
 ```
 $ rad job
@@ -44,16 +41,16 @@ $ rad job
 ╰────────────────────────────────────────────────────────────────╯
 ```
 
-Mark the job as started. `xyzzy` is the identifier assigned by the
-automation that runs the job, such as a remote CI system.
+From there we can start a new job, assigning an arbitrary identifier `xyzzy`,
+which would usually from the CI system that is running the job:
+
+<!-- FIXME: the start command should probably output something useful -->
 
 ```
 $ rad job start fbbda2447c30ebbab9b746498cd41a383ff05225 xyzzy
 ```
 
-FIXME: the above should probably output something useful
-
-It's now marked as running.
+Checking the job again, we can now see that the job is `running`:
 
 ```
 $ rad job
@@ -71,7 +68,8 @@ $ rad job show fbbda2447c30ebbab9b746498cd41a383ff05225
 ╰──────────────────────────────────────────────────╯
 ```
 
-Mark job as finished successfully
+When a job has finished, we can mark it as done -- either with a `--success` or
+`--failed` flag -- using the `rad job finish` command:
 
 ```
 $ rad job finish --success fbbda2447c30ebbab9b746498cd41a383ff05225
