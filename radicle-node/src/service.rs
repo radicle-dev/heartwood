@@ -2536,6 +2536,7 @@ where
             return;
         }
 
+        // Peers available to connect to.
         let available = self
             .available_peers()
             .into_iter()
@@ -2559,18 +2560,18 @@ where
                 // Only consider onion addresses if configured.
                 AddressType::Onion => self.config.onion.is_some(),
                 AddressType::Dns | AddressType::Ipv4 | AddressType::Ipv6 => true,
-            })
-            .take(wanted)
-            .collect::<Vec<_>>();
+            });
 
-        if available.len() < target {
-            log::warn!(
+        // Peers we are going to attempt connections to.
+        let connect = available.take(wanted).collect::<Vec<_>>();
+        if connect.len() < wanted {
+            log::debug!(
                 target: "service",
-                "Not enough available peers to connect to (available={}, target={target})",
-                available.len()
+                "Not enough available peers to connect to (available={}, wanted={wanted})",
+                connect.len()
             );
         }
-        for (id, ka) in available {
+        for (id, ka) in connect {
             self.connect(id, ka.addr.clone());
         }
     }
