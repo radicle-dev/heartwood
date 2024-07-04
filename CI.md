@@ -70,11 +70,11 @@ concrete goals:
 
 * When a project delegate merges my patch, both they and I are
   automatically told if the merge fails due to a merge conflict, or
-  if, after the marge the project no longer builds or its test suite
+  if, after the merge the project no longer builds or its test suite
   fails.
 
   - This is "build and test the master branch after the merge". This
-    is useful, because sometimes a merged changed breaks the build or
+    is useful, because sometimes a merged change breaks the build or
     the test suite, even when there are no merge conflicts.
 
 It is not yet clear how notifications will work.
