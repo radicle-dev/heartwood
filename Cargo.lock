@@ -432,9 +432,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.5.12"
+version = "0.5.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab3db02a9c5b5121e1e42fbdb1aeb65f5e02624cc58c43f2884c6ccac0b82f95"
+checksum = "33480d6946193aa8033910124896ca395333cae7e2d1113d1fef6c3272217df2"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -1445,9 +1445,9 @@ dependencies = [
 
 [[package]]
 name = "io-reactor"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c71ec6bafb8035aa398cb4fe00d881f646938ec87a8ed879a6f283b720cfe76c"
+checksum = "77d78c3e630f04a61ec86ba171c0bbd161434a7f2e8e4a67728320d4ce7c6c79"
 dependencies = [
  "amplify",
  "crossbeam-channel",
