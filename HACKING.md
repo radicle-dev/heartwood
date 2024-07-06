@@ -60,13 +60,13 @@ and repositories. Typically you'll want to set this to a temporary folder, eg.
 `/tmp/radicle`, that can be safely deleted. If set, all radicle data will be
 stored within this folder.
 
-**`RAD_SEED`**
+**`RAD_KEYGEN_SEED`**
 
 Set this to a 32-byte hexadecimal string to generate deterministic Node IDs
 when creating new profiles. For example, integration tests use the following
 setting:
 
-    RAD_SEED=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    RAD_KEYGEN_SEED=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 **`RAD_PASSPHRASE`**
 
