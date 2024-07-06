@@ -103,6 +103,9 @@ pub enum Error {
     /// Identity document is missing.
     #[error("missing identity document")]
     MissingIdentity,
+    /// Review is empty.
+    #[error("empty review; verdict or summary not provided")]
+    EmptyReview,
     /// Error loading the document payload.
     #[error("payload failed to load: {0}")]
     Payload(#[from] PayloadError),
@@ -132,7 +135,7 @@ pub enum Error {
         #[source]
         err: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
-    #[error("failed to remove patch {id} from cache : {err}")]
+    #[error("failed to remove patch {id} from cache: {err}")]
     CacheRemove {
         id: PatchId,
         #[source]
@@ -879,6 +882,9 @@ impl Patch {
                 let Some(rev) = self.revisions.get_mut(&revision) else {
                     return Err(Error::Missing(revision.into_inner()));
                 };
+                if summary.is_none() && verdict.is_none() {
+                    return Err(Error::EmptyReview);
+                }
                 if let Some(rev) = rev {
                     // Nb. Applying two reviews by the same author is not allowed and
                     // results in the review being redacted.
@@ -2928,7 +2934,7 @@ mod test {
 
         // It's fine to redact a review from a redacted revision.
         let review = patch
-            .review(updated, None, None, vec![], &alice.signer)
+            .review(updated, Some(Verdict::Accept), None, vec![], &alice.signer)
             .unwrap();
         patch.redact(updated, &alice.signer).unwrap();
         patch.redact_review(review, &alice.signer).unwrap();
@@ -3160,7 +3166,7 @@ mod test {
             new: Some(CodeRange::Lines { range: 5..8 }),
         };
         let review = patch
-            .review(rid, None, None, vec![], &alice.signer)
+            .review(rid, Some(Verdict::Accept), None, vec![], &alice.signer)
             .unwrap();
         patch
             .review_comment(

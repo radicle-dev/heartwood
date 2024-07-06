@@ -36,7 +36,7 @@ pub struct Remove {
 
 #[derive(Debug, Error)]
 pub enum Retrieve {
-    #[error("object failed to evaluate: {0}")]
+    #[error(transparent)]
     Evaluate(Box<dyn std::error::Error + Send + Sync + 'static>),
     #[error(transparent)]
     Git(#[from] git2::Error),
@@ -57,7 +57,7 @@ impl Retrieve {
 
 #[derive(Debug, Error)]
 pub enum Update {
-    #[error("object failed to evaluate: {0}")]
+    #[error(transparent)]
     Evaluate(Box<dyn std::error::Error + Send + Sync + 'static>),
     #[error("no object found")]
     NoSuchObject,
