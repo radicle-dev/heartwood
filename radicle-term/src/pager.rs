@@ -78,7 +78,7 @@ fn main<E: Element>(
             recv(events_rx) -> event => {
                 let event = event??;
                 let page = height as usize - 1; // Don't count the status bar.
-                let end = lines.len() - page;
+                let end = if page > lines.len() { 0 } else { lines.len() - page };
                 let prev = line;
 
                 match event {
