@@ -132,13 +132,13 @@ impl HunkHeader {
     pub fn old_line_range(&self) -> std::ops::Range<u32> {
         let start: u32 = self.old_line_no;
         let end: u32 = self.old_line_no + self.old_size;
-        start..end
+        start..end + 1
     }
 
     pub fn new_line_range(&self) -> std::ops::Range<u32> {
         let start: u32 = self.new_line_no;
         let end: u32 = self.new_line_no + self.new_size;
-        start..end
+        start..end + 1
     }
 }
 
