@@ -27,6 +27,7 @@ Usage
 
 Options
 
+    --unified, -U   Context lines to show (default: 5)
     --staged        View staged changes
     --color         Force color output
     --help          Print help
