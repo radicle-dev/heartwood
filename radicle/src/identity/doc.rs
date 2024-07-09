@@ -476,6 +476,12 @@ impl AsRef<NonEmpty<Did>> for Delegates {
     }
 }
 
+impl From<Did> for Delegates {
+    fn from(did: Did) -> Self {
+        Self(NonEmpty::new(did))
+    }
+}
+
 impl TryFrom<Vec<Did>> for Delegates {
     type Error = DelegatesError;
 
