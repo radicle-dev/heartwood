@@ -34,6 +34,7 @@ sqlite = { version = "0.32.0", features = ["bundled"] }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }
 unicode-normalization = { version = "0.1" }
+fast-glob = { version = "0.3.2" }
 
 [dependencies.chrono]
 version = "0.4.0"
