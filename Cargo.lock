@@ -667,6 +667,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fast-glob"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "239ce881ea1fc42c19951979aa7fc75d740f6cd553101922b4d1f48d68429234"
+
+[[package]]
 name = "faster-hex"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1877,6 +1883,7 @@ dependencies = [
  "colored",
  "crossbeam-channel",
  "cyphernet",
+ "fast-glob",
  "fastrand",
  "git2",
  "libc",
