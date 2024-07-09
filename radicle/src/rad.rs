@@ -222,6 +222,8 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     let repo = git2::Repository::init_opts(path.as_ref(), &opts)?;
     let url = git::Url::from(proj);
 
+    // Configure repository for radicle.
+    git::configure_repository(&repo)?;
     // Configure and fetch all refs from remote.
     git::configure_remote(
         &repo,
