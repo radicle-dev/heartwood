@@ -22,6 +22,7 @@ chrono = { workspace = true, features = ["clock"], optional = true }
 colored = { workspace = true, optional = true }
 crossbeam-channel = { workspace = true }
 cyphernet = { workspace = true, features = ["tor", "dns", "p2p-ed25519"] }
+fast-glob = { version = "0.3.2" }
 fastrand = { workspace = true }
 git2 = { workspace = true, features = ["vendored-libgit2"] }
 libc = { workspace = true }
