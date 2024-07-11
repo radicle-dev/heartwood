@@ -335,6 +335,10 @@ impl<'a> ReviewBuilder<'a> {
                     let oid =
                         review.amend(Some(&self.refname), None, None, None, None, Some(&brain))?;
                     review = repo.find_commit(oid)?;
+
+                    if self.hunk.is_some() {
+                        term::success!("Updated review tree to {brain_oid}");
+                    }
                 }
                 Some(ReviewAction::Ignore) => {
                     // Do nothing. Hunk will be reviewable again next time.

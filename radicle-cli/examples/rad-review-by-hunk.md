@@ -125,6 +125,7 @@ index 7937fb3..0000000
 +++ /dev/null
 @@ -1 +0,0 @@
 -*.draft
+✓ Updated review tree to a5fccf0e977225ff13c3f74c43faf4cb679bf835
 ```
 ```
 $ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
@@ -136,6 +137,7 @@ index 0000000..2b5bd86
 +++ b/DISCLAIMER.txt
 @@ -0,0 +1 @@
 +All food is served as-is, with no warranty!
+✓ Updated review tree to 2cdb82ea726e64d3b52847c7699d0d4759198f5c
 ```
 ```
 $ rad patch review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
@@ -151,6 +153,7 @@ index 867958c..3af9741 100644
  Salmon Tartare
  Mac & Cheese
 [..]
+✓ Updated review tree to d4aecbb859a802a3215def0b538358bf63593953
 ```
 ```
 $ rad patch review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
@@ -166,6 +169,7 @@ index 4e2e828..3af9741 100644
 -French Fries
 +French Fries!
 +Garlic Green Beans
+✓ Updated review tree to 59cee720b0642b1491b241400912b35926a76c3f
 ```
 
 ```
@@ -175,6 +179,7 @@ diff --git a/INSTRUCTIONS.txt b/notes/INSTRUCTIONS.txt
 similarity index 100%
 rename from INSTRUCTIONS.txt
 rename to notes/INSTRUCTIONS.txt
+✓ Updated review tree to 3effc8f6462fa2573697072245e57708c4dcbe62
 ```
 
 ```
