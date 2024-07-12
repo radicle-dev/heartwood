@@ -752,8 +752,9 @@ impl ReadRepository for Repository {
         let project = doc.project()?;
         let branch_ref = git::refs::branch(project.default_branch());
         let raw = self.raw();
-        let oid = Canonical::default_branch(self, &project, doc.delegates().into())?
-            .quorum(doc.threshold(), raw)?;
+        let oid =
+            Canonical::default_branch(self, &project, doc.delegates().into(), doc.threshold())?
+                .quorum(raw)?;
         Ok((branch_ref, oid))
     }
 

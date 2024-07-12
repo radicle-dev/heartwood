@@ -280,6 +280,7 @@ pub fn run(
                                 stored,
                                 &project,
                                 identity.delegates().as_ref(),
+                                identity.threshold(),
                             )?;
                             let converges = canonical::converges(
                                 canonical
@@ -292,7 +293,7 @@ pub fn run(
                                 canonical.modify_vote(me, head.into());
                             }
 
-                            match canonical.quorum(identity.threshold(), &working) {
+                            match canonical.quorum(&working) {
                                 Ok(canonical_oid) => {
                                     // Canonical head is an ancestor of head.
                                     let is_ff = head == *canonical_oid
