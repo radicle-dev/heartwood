@@ -21,8 +21,10 @@ use super::{lit, Oid, Qualified};
 ///
 /// `Canonical` can then be used for performing calculations about the
 /// canonicity of the reference, most importantly the [`Canonical::quorum`].
+#[derive(Debug)]
 pub struct Canonical {
     tips: BTreeMap<Did, Oid>,
+    threshold: usize,
 }
 
 /// Error that can occur when calculation the [`Canonical::quorum`].
@@ -90,6 +92,7 @@ impl Canonical {
         repo: &S,
         project: &Project,
         delegates: &NonEmpty<Did>,
+        threshold: usize,
     ) -> Result<Self, raw::Error>
     where
         S: ReadRepository,
@@ -98,6 +101,7 @@ impl Canonical {
             repo,
             delegates,
             &lit::refs_heads(project.default_branch()).into(),
+            threshold,
         )
     }
 
@@ -107,6 +111,7 @@ impl Canonical {
         repo: &S,
         delegates: &NonEmpty<Did>,
         name: &Qualified,
+        threshold: usize,
     ) -> Result<Self, raw::Error>
     where
         S: ReadRepository,
@@ -127,7 +132,7 @@ impl Canonical {
                 Err(e) => return Err(e),
             }
         }
-        Ok(Canonical { tips })
+        Ok(Canonical { tips, threshold })
     }
 
     /// Return the set of [`Did`]s and their [`Oid`] tip.
@@ -171,7 +176,7 @@ impl Canonical {
     ///
     /// Also returns an error if `heads` is empty or `threshold` cannot be
     /// satisified with the number of heads given.
-    pub fn quorum(&self, threshold: usize, repo: &raw::Repository) -> Result<Oid, QuorumError> {
+    pub fn quorum(&self, repo: &raw::Repository) -> Result<Oid, QuorumError> {
         let mut candidates = BTreeMap::<_, usize>::new();
 
         // Build a list of candidate commits and count how many "votes" each of them has.
@@ -196,11 +201,14 @@ impl Canonical {
             }
         }
         // Keep commits which pass the threshold.
-        candidates.retain(|_, votes| *votes >= threshold);
+        candidates.retain(|_, votes| *votes >= self.threshold);
 
-        let (mut longest, _) = candidates
-            .pop_first()
-            .ok_or(QuorumError::NoCandidates(NoCandidates { threshold }))?;
+        let (mut longest, _) =
+            candidates
+                .pop_first()
+                .ok_or(QuorumError::NoCandidates(NoCandidates {
+                    threshold: self.threshold,
+                }))?;
 
         // Now that all scores are calculated, figure out what is the longest branch
         // that passes the threshold. In case of divergence, return an error.
@@ -235,7 +243,7 @@ impl Canonical {
                 //            |
                 //
                 return Err(QuorumError::Diverging(Diverging {
-                    threshold,
+                    threshold: self.threshold,
                     base: base.into(),
                     longest,
                     head: *head,
@@ -272,7 +280,7 @@ mod tests {
                 (did, (*head).into())
             })
             .collect();
-        Canonical { tips }.quorum(threshold, repo)
+        Canonical { tips, threshold }.quorum(repo)
     }
 
     #[test]
