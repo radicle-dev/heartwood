@@ -52,6 +52,14 @@ pub fn badge_primary<D: std::fmt::Display>(input: D) -> Paint<String> {
     }
 }
 
+pub fn badge_yellow<D: std::fmt::Display>(input: D) -> Paint<String> {
+    if Paint::is_enabled() {
+        Paint::yellow(format!(" {input} ")).invert()
+    } else {
+        Paint::new(format!("❲{input}❳"))
+    }
+}
+
 pub fn badge_positive<D: std::fmt::Display>(input: D) -> Paint<String> {
     if Paint::is_enabled() {
         Paint::green(format!(" {input} ")).invert()

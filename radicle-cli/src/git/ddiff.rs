@@ -245,6 +245,7 @@ impl From<&FileDDiff> for unified_diff::FileHeader {
             path: value.path.clone(),
             old: value.old.clone(),
             new: value.new.clone(),
+            binary: false,
         }
     }
 }

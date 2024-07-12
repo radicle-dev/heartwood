@@ -66,6 +66,11 @@ impl<'a> VStack<'a> {
         self
     }
 
+    /// Check if this stack is empty.
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
     /// Add multiple elements to the stack.
     pub fn children<I>(self, children: I) -> Self
     where
@@ -77,6 +82,14 @@ impl<'a> VStack<'a> {
             vstack = vstack.child(child);
         }
         vstack
+    }
+
+    /// Merge with another `VStack`.
+    pub fn merge(mut self, other: Self) -> Self {
+        for row in other.rows {
+            self.rows.push(row);
+        }
+        self
     }
 
     /// Set or unset the outer border.

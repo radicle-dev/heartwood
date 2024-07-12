@@ -50,6 +50,7 @@ pub enum FileHeader {
     Added {
         path: PathBuf,
         new: DiffFile,
+        binary: bool,
     },
     Copied {
         old_path: PathBuf,
@@ -58,11 +59,13 @@ pub enum FileHeader {
     Deleted {
         path: PathBuf,
         old: DiffFile,
+        binary: bool,
     },
     Modified {
         path: PathBuf,
         old: DiffFile,
         new: DiffFile,
+        binary: bool,
     },
     Moved {
         old_path: PathBuf,
@@ -78,15 +81,21 @@ impl std::convert::From<&FileDiff> for FileHeader {
                 path: v.path.clone(),
                 old: v.old.clone(),
                 new: v.new.clone(),
+                binary: matches!(v.diff, DiffContent::Binary),
             },
             FileDiff::Added(v) => FileHeader::Added {
                 path: v.path.clone(),
                 new: v.new.clone(),
+                binary: matches!(v.diff, DiffContent::Binary),
             },
-            FileDiff::Copied(_) => todo!(),
+            FileDiff::Copied(c) => FileHeader::Copied {
+                old_path: c.old_path.clone(),
+                new_path: c.new_path.clone(),
+            },
             FileDiff::Deleted(v) => FileHeader::Deleted {
                 path: v.path.clone(),
                 old: v.old.clone(),
+                binary: matches!(v.diff, DiffContent::Binary),
             },
             FileDiff::Moved(v) => FileHeader::Moved {
                 old_path: v.old_path.clone(),
@@ -288,7 +297,7 @@ impl Encode for FileDiff {
 impl Encode for FileHeader {
     fn encode(&self, w: &mut Writer) -> Result<(), Error> {
         match self {
-            FileHeader::Modified { path, old, new } => {
+            FileHeader::Modified { path, old, new, .. } => {
                 w.meta(format!(
                     "diff --git a/{} b/{}",
                     path.display(),
@@ -315,7 +324,7 @@ impl Encode for FileHeader {
                 w.meta(format!("--- a/{}", path.display()))?;
                 w.meta(format!("+++ b/{}", path.display()))?;
             }
-            FileHeader::Added { path, new } => {
+            FileHeader::Added { path, new, .. } => {
                 w.meta(format!(
                     "diff --git a/{} b/{}",
                     path.display(),
@@ -333,7 +342,7 @@ impl Encode for FileHeader {
                 w.meta(format!("+++ b/{}", path.display()))?;
             }
             FileHeader::Copied { .. } => todo!(),
-            FileHeader::Deleted { path, old } => {
+            FileHeader::Deleted { path, old, .. } => {
                 w.meta(format!(
                     "diff --git a/{} b/{}",
                     path.display(),

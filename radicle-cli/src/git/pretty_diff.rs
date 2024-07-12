@@ -1,11 +1,14 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use radicle::git;
+use radicle_git_ext::Oid;
 use radicle_surf::diff;
+use radicle_surf::diff::{Added, Copied, Deleted, FileStats, Hunks, Modified, Moved};
 use radicle_surf::diff::{Diff, DiffContent, FileDiff, Hunk, Modification};
 use radicle_term as term;
 use term::cell::Cell;
+use term::VStack;
 
 use crate::git::unified_diff::FileHeader;
 use crate::terminal::highlight::{Highlighter, Theme};
@@ -62,10 +65,59 @@ impl Repo for git::raw::Repository {
 }
 
 /// Blobs passed down to the hunk renderer.
-#[derive(Debug, Default)]
-pub struct Blobs {
-    old: Option<Vec<term::Line>>,
-    new: Option<Vec<term::Line>>,
+#[derive(Debug)]
+pub struct Blobs<T> {
+    pub old: Option<T>,
+    pub new: Option<T>,
+}
+
+impl<T> Blobs<T> {
+    pub fn new(old: Option<T>, new: Option<T>) -> Self {
+        Self { old, new }
+    }
+}
+
+impl Blobs<(PathBuf, Blob)> {
+    pub fn highlight(&self, hi: &mut Highlighter) -> Blobs<Vec<term::Line>> {
+        let mut blobs = Blobs::default();
+        if let Some((path, Blob::Plain(content))) = &self.old {
+            blobs.old = hi.highlight(path, content).ok();
+        }
+        if let Some((path, Blob::Plain(content))) = &self.new {
+            blobs.new = hi.highlight(path, content).ok();
+        }
+        blobs
+    }
+
+    pub fn from_paths<R: Repo>(
+        old: Option<(&Path, Oid)>,
+        new: Option<(&Path, Oid)>,
+        repo: &R,
+    ) -> Blobs<(PathBuf, Blob)> {
+        Blobs::new(
+            old.and_then(|(path, oid)| {
+                repo.blob(oid)
+                    .ok()
+                    .or_else(|| repo.file(path))
+                    .map(|blob| (path.to_path_buf(), blob))
+            }),
+            new.and_then(|(path, oid)| {
+                repo.blob(oid)
+                    .ok()
+                    .or_else(|| repo.file(path))
+                    .map(|blob| (path.to_path_buf(), blob))
+            }),
+        )
+    }
+}
+
+impl<T> Default for Blobs<T> {
+    fn default() -> Self {
+        Self {
+            old: None,
+            new: None,
+        }
+    }
 }
 
 /// Types that can be rendered as pretty diffs.
@@ -96,39 +148,108 @@ impl ToPretty for Diff {
     ) -> Self::Output {
         term::VStack::default()
             .padding(0)
-            .children(self.files().map(|f| f.pretty(hi, context, repo).boxed()))
+            .children(self.files().flat_map(|f| {
+                [
+                    f.pretty(hi, context, repo).boxed(),
+                    term::Line::blank().boxed(), // Blank line between files.
+                ]
+            }))
     }
 }
 
 impl ToPretty for FileHeader {
     type Output = term::Line;
-    type Context = ();
+    type Context = Option<FileStats>;
 
     fn pretty<R: Repo>(
         &self,
         _hi: &mut Highlighter,
-        _context: &Self::Context,
+        stats: &Self::Context,
         _repo: &R,
     ) -> Self::Output {
-        match self {
-            FileHeader::Added { path, .. } => term::Line::new(path.display().to_string()),
+        let theme = Theme::default();
+        let (mut header, badge, binary) = match self {
+            FileHeader::Added { path, binary, .. } => (
+                term::Line::new(path.display().to_string()),
+                Some(term::format::badge_positive("created")),
+                *binary,
+            ),
             FileHeader::Moved {
                 old_path, new_path, ..
-            } => term::Line::spaced([
-                term::label(old_path.display().to_string()),
-                term::label("->".to_string()),
-                term::label(new_path.display().to_string()),
-            ]),
-            FileHeader::Deleted { path, .. } => term::Line::new(path.display().to_string()),
-            FileHeader::Modified { path, .. } => term::Line::new(path.display().to_string()),
+            } => (
+                term::Line::spaced([
+                    term::label(old_path.display().to_string()),
+                    term::label("->".to_string()),
+                    term::label(new_path.display().to_string()),
+                ]),
+                Some(term::format::badge_secondary("moved")),
+                false,
+            ),
+            FileHeader::Deleted { path, binary, .. } => (
+                term::Line::new(path.display().to_string()),
+                Some(term::format::badge_negative("deleted")),
+                *binary,
+            ),
+            FileHeader::Modified {
+                path,
+                old,
+                new,
+                binary,
+                ..
+            } => {
+                if old.mode != new.mode {
+                    (
+                        term::Line::spaced([
+                            term::label(path.display().to_string()),
+                            term::label(format!("{:o}", u32::from(old.mode.clone())))
+                                .fg(term::Color::Blue),
+                            term::label("->".to_string()),
+                            term::label(format!("{:o}", u32::from(new.mode.clone())))
+                                .fg(term::Color::Blue),
+                        ]),
+                        Some(term::format::badge_secondary("mode changed")),
+                        *binary,
+                    )
+                } else {
+                    (term::Line::new(path.display().to_string()), None, *binary)
+                }
+            }
             FileHeader::Copied {
                 old_path, new_path, ..
-            } => term::Line::spaced([
-                term::label(old_path.display().to_string()),
-                term::label("->".to_string()),
-                term::label(new_path.display().to_string()),
-            ]),
+            } => (
+                term::Line::spaced([
+                    term::label(old_path.display().to_string()),
+                    term::label("->".to_string()),
+                    term::label(new_path.display().to_string()),
+                ]),
+                Some(term::format::badge_secondary("copied")),
+                false,
+            ),
+        };
+
+        if binary {
+            header.push(term::Label::space());
+            header.push(term::label(term::format::badge_yellow("binary")));
         }
+
+        let (additions, deletions) = if let Some(stats) = stats {
+            (stats.additions, stats.deletions)
+        } else {
+            (0, 0)
+        };
+        if deletions > 0 {
+            header.push(term::Label::space());
+            header.push(term::label(format!("-{deletions}")).fg(theme.color("negative.light")));
+        }
+        if additions > 0 {
+            header.push(term::Label::space());
+            header.push(term::label(format!("+{additions}")).fg(theme.color("positive.light")));
+        }
+        if let Some(badge) = badge {
+            header.push(term::Label::space());
+            header.push(badge);
+        }
+        header
     }
 }
 
@@ -142,128 +263,141 @@ impl ToPretty for FileDiff {
         _context: &Self::Context,
         repo: &R,
     ) -> Self::Output {
-        let content = match self {
-            FileDiff::Added(f) => f.diff.pretty(hi, self, repo),
-            FileDiff::Moved(f) => f.diff.pretty(hi, self, repo),
-            FileDiff::Deleted(f) => f.diff.pretty(hi, self, repo),
-            FileDiff::Modified(f) => f.diff.pretty(hi, self, repo),
-            FileDiff::Copied(f) => f.diff.pretty(hi, self, repo),
-        };
-        term::VStack::default()
-            .padding(0)
-            .child(content)
-            .child(term::Line::blank())
+        let header = FileHeader::from(self);
+
+        match self {
+            FileDiff::Added(f) => f.pretty(hi, &header, repo),
+            FileDiff::Deleted(f) => f.pretty(hi, &header, repo),
+            FileDiff::Modified(f) => f.pretty(hi, &header, repo),
+            FileDiff::Moved(f) => f.pretty(hi, &header, repo),
+            FileDiff::Copied(f) => f.pretty(hi, &header, repo),
+        }
     }
 }
 
 impl ToPretty for DiffContent {
     type Output = term::VStack<'static>;
-    type Context = FileDiff;
+    type Context = Blobs<(PathBuf, Blob)>;
 
     fn pretty<R: Repo>(
         &self,
         hi: &mut Highlighter,
-        context: &Self::Context,
+        blobs: &Self::Context,
         repo: &R,
     ) -> Self::Output {
-        let header = FileHeader::from(context);
-        let theme = Theme::default();
+        let mut vstack = term::VStack::default().padding(0);
 
-        let (old, new, badge) = match context {
-            FileDiff::Added(f) => (
-                None,
-                Some((f.new.oid, f.path.clone())),
-                Some(term::format::badge_positive("created")),
-            ),
-            FileDiff::Moved(f) => (
-                Some((f.old.oid, f.old_path.clone())),
-                Some((f.new.oid, f.new_path.clone())),
-                Some(term::format::badge_secondary("moved")),
-            ),
-            FileDiff::Deleted(f) => (
-                Some((f.old.oid, f.path.clone())),
-                None,
-                Some(term::format::badge_negative("deleted")),
-            ),
-            FileDiff::Modified(f) => (
-                Some((f.old.oid, f.path.clone())),
-                Some((f.new.oid, f.path.clone())),
-                None,
-            ),
-            FileDiff::Copied(f) => (
-                Some((f.old.oid, f.old_path.clone())),
-                Some((f.old.oid, f.new_path.clone())),
-                Some(term::format::badge_secondary("copied")),
-            ),
-        };
-        let mut header = header.pretty(hi, &(), repo);
+        match self {
+            DiffContent::Plain {
+                hunks: Hunks(hunks),
+                ..
+            } => {
+                let blobs = blobs.highlight(hi);
 
-        let (additions, deletions) = if let Some(stats) = self.stats() {
-            (stats.additions, stats.deletions)
-        } else {
-            (0, 0)
-        };
-
-        if deletions > 0 {
-            header.push(term::Label::space());
-            header.push(term::label(format!("-{deletions}")).fg(theme.color("negative.light")));
-        }
-        if additions > 0 {
-            header.push(term::Label::space());
-            header.push(term::label(format!("+{additions}")).fg(theme.color("positive.light")));
-        }
-        if let Some(badge) = badge {
-            header.push(term::Label::space());
-            header.push(badge);
-        }
-
-        let old = old.and_then(|(oid, path)| repo.blob(oid).ok().or_else(|| repo.file(&path)));
-        let new = new.and_then(|(oid, path)| repo.blob(oid).ok().or_else(|| repo.file(&path)));
-        let mut blobs = Blobs::default();
-
-        if let Some(Blob::Plain(content)) = old {
-            blobs.old = hi.highlight(context.path(), &content).ok();
-        }
-        if let Some(Blob::Plain(content)) = new {
-            blobs.new = hi.highlight(context.path(), &content).ok();
-        }
-        let mut vstack = term::VStack::default()
-            .border(Some(term::colors::FAINT))
-            .padding(1)
-            .child(term::Line::default().extend(header));
-
-        match context {
-            FileDiff::Moved(_) | FileDiff::Copied(_) => {}
-            FileDiff::Added(_) if blobs.new.is_none() => {
-                vstack = vstack.divider();
-                vstack.push(term::Line::new(term::format::italic("Empty file")));
-            }
-            FileDiff::Deleted(_) if blobs.old.is_none() => {
-                vstack = vstack.divider();
-                vstack.push(term::Line::new(term::format::italic("Empty file")));
-            }
-            FileDiff::Added(_) | FileDiff::Deleted(_) | FileDiff::Modified(_) => {
-                vstack = vstack.divider();
-
-                match self {
-                    DiffContent::Plain { hunks, .. } => {
-                        for (i, h) in hunks.iter().enumerate() {
-                            vstack.push(h.pretty(hi, &blobs, repo));
-                            if i != hunks.0.len() - 1 {
-                                vstack = vstack.divider();
-                            }
-                        }
-                    }
-                    DiffContent::Empty => {
-                        vstack.push(term::Line::new(term::format::italic("Empty file")));
-                    }
-                    DiffContent::Binary => {
-                        vstack.push(term::Line::new(term::format::italic("Binary file")));
+                for (i, h) in hunks.iter().enumerate() {
+                    vstack.push(h.pretty(hi, &blobs, repo));
+                    if i != hunks.len() - 1 {
+                        vstack = vstack.divider();
                     }
                 }
             }
+            DiffContent::Empty => {}
+            DiffContent::Binary => {}
         }
         vstack
+    }
+}
+
+impl ToPretty for Moved {
+    type Output = term::VStack<'static>;
+    type Context = FileHeader;
+
+    fn pretty<R: Repo>(
+        &self,
+        hi: &mut Highlighter,
+        header: &Self::Context,
+        repo: &R,
+    ) -> Self::Output {
+        let header = header.pretty(hi, &self.diff.stats().copied(), repo);
+
+        term::VStack::default()
+            .border(Some(term::colors::FAINT))
+            .padding(1)
+            .child(term::Line::default().extend(header))
+    }
+}
+
+impl ToPretty for Added {
+    type Output = term::VStack<'static>;
+    type Context = FileHeader;
+
+    fn pretty<R: Repo>(
+        &self,
+        hi: &mut Highlighter,
+        header: &Self::Context,
+        repo: &R,
+    ) -> Self::Output {
+        let old = None;
+        let new = Some((self.path.as_path(), self.new.oid));
+
+        pretty_modification(header, &self.diff, old, new, repo, hi)
+    }
+}
+
+impl ToPretty for Deleted {
+    type Output = term::VStack<'static>;
+    type Context = FileHeader;
+
+    fn pretty<R: Repo>(
+        &self,
+        hi: &mut Highlighter,
+        header: &Self::Context,
+        repo: &R,
+    ) -> Self::Output {
+        let old = Some((self.path.as_path(), self.old.oid));
+        let new = None;
+
+        pretty_modification(header, &self.diff, old, new, repo, hi)
+    }
+}
+
+impl ToPretty for Modified {
+    type Output = term::VStack<'static>;
+    type Context = FileHeader;
+
+    fn pretty<R: Repo>(
+        &self,
+        hi: &mut Highlighter,
+        header: &Self::Context,
+        repo: &R,
+    ) -> Self::Output {
+        let old = Some((self.path.as_path(), self.old.oid));
+        let new = Some((self.path.as_path(), self.new.oid));
+
+        pretty_modification(header, &self.diff, old, new, repo, hi)
+    }
+}
+
+impl ToPretty for Copied {
+    type Output = term::VStack<'static>;
+    type Context = FileHeader;
+
+    fn pretty<R: Repo>(
+        &self,
+        hi: &mut Highlighter,
+        _context: &Self::Context,
+        repo: &R,
+    ) -> Self::Output {
+        let header = FileHeader::Copied {
+            old_path: self.old_path.clone(),
+            new_path: self.old_path.clone(),
+        }
+        .pretty(hi, &self.diff.stats().copied(), repo);
+
+        term::VStack::default()
+            .border(Some(term::colors::FAINT))
+            .padding(1)
+            .child(header)
     }
 }
 
@@ -291,9 +425,14 @@ impl ToPretty for HunkHeader {
 
 impl ToPretty for Hunk<Modification> {
     type Output = term::VStack<'static>;
-    type Context = Blobs;
+    type Context = Blobs<Vec<term::Line>>;
 
-    fn pretty<R: Repo>(&self, hi: &mut Highlighter, blobs: &Blobs, repo: &R) -> Self::Output {
+    fn pretty<R: Repo>(
+        &self,
+        hi: &mut Highlighter,
+        blobs: &Self::Context,
+        repo: &R,
+    ) -> Self::Output {
         let mut vstack = term::VStack::default().padding(0);
         let mut table = term::Table::<5, term::Filled<term::Line>>::new(term::TableOptions {
             overflow: false,
@@ -379,9 +518,14 @@ impl ToPretty for Hunk<Modification> {
 
 impl ToPretty for Modification {
     type Output = term::Line;
-    type Context = Blobs;
+    type Context = Blobs<Vec<term::Line>>;
 
-    fn pretty<R: Repo>(&self, _hi: &mut Highlighter, blobs: &Blobs, _repo: &R) -> Self::Output {
+    fn pretty<R: Repo>(
+        &self,
+        _hi: &mut Highlighter,
+        blobs: &Blobs<Vec<term::Line>>,
+        _repo: &R,
+    ) -> Self::Output {
         match self {
             Modification::Deletion(diff::Deletion { line, line_no }) => {
                 if let Some(lines) = &blobs.old.as_ref() {
@@ -408,6 +552,30 @@ impl ToPretty for Modification {
                 }
             }
         }
+    }
+}
+
+/// Render a file added, deleted or modified.
+fn pretty_modification<R: Repo>(
+    header: &FileHeader,
+    diff: &DiffContent,
+    old: Option<(&Path, Oid)>,
+    new: Option<(&Path, Oid)>,
+    repo: &R,
+    hi: &mut Highlighter,
+) -> VStack<'static> {
+    let blobs = Blobs::from_paths(old, new, repo);
+    let header = header.pretty(hi, &diff.stats().copied(), repo);
+    let vstack = term::VStack::default()
+        .border(Some(term::colors::FAINT))
+        .padding(1)
+        .child(header);
+
+    let body = diff.pretty(hi, &blobs, repo);
+    if body.is_empty() {
+        vstack
+    } else {
+        vstack.divider().merge(body)
     }
 }
 
