@@ -71,46 +71,47 @@ match `git diff master -W100% -U5 --patience`:
 
 ```
 $ rad patch review --patch -U5 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
-diff --git a/.gitignore b/.gitignore
-deleted file mode 100644
-index 7937fb3..0000000
---- a/.gitignore
-+++ /dev/null
-@@ -1 +0,0 @@
--*.draft
-diff --git a/DISCLAIMER.txt b/DISCLAIMER.txt
-new file mode 100644
-index 0000000..2b5bd86
---- /dev/null
-+++ b/DISCLAIMER.txt
-@@ -0,0 +1 @@
-+All food is served as-is, with no warranty!
-diff --git a/MENU.txt b/MENU.txt
-index 867958c..3af9741 100644
---- a/MENU.txt
-+++ b/MENU.txt
-@@ -1,7 +1,8 @@
- Classics
- --------
-+Baked Brie
- Salmon Tartare
- Mac & Cheese
-[..]
- Comfort Food
- ------------
-@@ -9,6 +10,7 @@ Reuben Sandwich
- Club Sandwich
- Fried Shrimp Basket
-[..]
- Sides
- -----
--French Fries
-+French Fries!
-+Garlic Green Beans
-diff --git a/INSTRUCTIONS.txt b/notes/INSTRUCTIONS.txt
-similarity index 100%
-rename from INSTRUCTIONS.txt
-rename to notes/INSTRUCTIONS.txt
+╭──────────────────────╮
+│ .gitignore ❲deleted❳ │
+├──────────────────────┤
+│ @@ -1,1 +0,0 @@      │
+│ 1          - *.draft │
+╰──────────────────────╯
+╭──────────────────────────────────────────────────────────╮
+│ DISCLAIMER.txt ❲created❳                                 │
+├──────────────────────────────────────────────────────────┤
+│ @@ -0,0 +1,1 @@                                          │
+│      1     + All food is served as-is, with no warranty! │
+╰──────────────────────────────────────────────────────────╯
+╭─────────────────────────────╮
+│ MENU.txt                    │
+├─────────────────────────────┤
+│ @@ -1,7 +1,8 @@             │
+│ 1    1       Classics       │
+│ 2    2       --------       │
+│      3     + Baked Brie     │
+│ 3    4       Salmon Tartare │
+│ 4    5       Mac & Cheese   │
+│ 5    6                      │
+│ 6    7       Comfort Food   │
+│ 7    8       ------------   │
+╰─────────────────────────────╯
+╭──────────────────────────────────╮
+│ MENU.txt                         │
+├──────────────────────────────────┤
+│ @@ -9,6 +10,7 @@ Reuben Sandwich │
+│ 9    10      Club Sandwich       │
+│ 10   11      Fried Shrimp Basket │
+│ 11   12                          │
+│ 12   13      Sides               │
+│ 13   14      -----               │
+│ 14         - French Fries        │
+│      15    + French Fries!       │
+│      16    + Garlic Green Beans  │
+╰──────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ INSTRUCTIONS.txt -> notes/INSTRUCTIONS.txt ❲moved❳ │
+╰────────────────────────────────────────────────────╯
 ```
 
 Now let's accept these hunks one by one..
@@ -118,67 +119,64 @@ Now let's accept these hunks one by one..
 ```
 $ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
 ✓ Loaded existing review ([..]) for patch 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
-diff --git a/.gitignore b/.gitignore
-deleted file mode 100644
-index 7937fb3..0000000
---- a/.gitignore
-+++ /dev/null
-@@ -1 +0,0 @@
--*.draft
+╭──────────────────────╮
+│ .gitignore ❲deleted❳ │
+├──────────────────────┤
+│ @@ -1,1 +0,0 @@      │
+│ 1          - *.draft │
+╰──────────────────────╯
 ✓ Updated review tree to a5fccf0e977225ff13c3f74c43faf4cb679bf835
 ```
 ```
 $ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
 ✓ Loaded existing review ([..]) for patch 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
-diff --git a/DISCLAIMER.txt b/DISCLAIMER.txt
-new file mode 100644
-index 0000000..2b5bd86
---- /dev/null
-+++ b/DISCLAIMER.txt
-@@ -0,0 +1 @@
-+All food is served as-is, with no warranty!
+╭──────────────────────────────────────────────────────────╮
+│ DISCLAIMER.txt ❲created❳                                 │
+├──────────────────────────────────────────────────────────┤
+│ @@ -0,0 +1,1 @@                                          │
+│      1     + All food is served as-is, with no warranty! │
+╰──────────────────────────────────────────────────────────╯
 ✓ Updated review tree to 2cdb82ea726e64d3b52847c7699d0d4759198f5c
 ```
 ```
 $ rad patch review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
 ✓ Loaded existing review ([..]) for patch 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
-diff --git a/MENU.txt b/MENU.txt
-index 867958c..3af9741 100644
---- a/MENU.txt
-+++ b/MENU.txt
-@@ -1,5 +1,6 @@
- Classics
- --------
-+Baked Brie
- Salmon Tartare
- Mac & Cheese
-[..]
+╭─────────────────────────────╮
+│ MENU.txt                    │
+├─────────────────────────────┤
+│ @@ -1,5 +1,6 @@             │
+│ 1    1       Classics       │
+│ 2    2       --------       │
+│      3     + Baked Brie     │
+│ 3    4       Salmon Tartare │
+│ 4    5       Mac & Cheese   │
+│ 5    6                      │
+╰─────────────────────────────╯
 ✓ Updated review tree to d4aecbb859a802a3215def0b538358bf63593953
 ```
 ```
 $ rad patch review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
 ✓ Loaded existing review ([..]) for patch 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
-diff --git a/MENU.txt b/MENU.txt
-index 4e2e828..3af9741 100644
---- a/MENU.txt
-+++ b/MENU.txt
-@@ -12,4 +12,5 @@ Fried Shrimp Basket
-[..]
- Sides
- -----
--French Fries
-+French Fries!
-+Garlic Green Beans
+╭───────────────────────────────────────╮
+│ MENU.txt                              │
+├───────────────────────────────────────┤
+│ @@ -12,4 +12,5 @@ Fried Shrimp Basket │
+│ 12   12                               │
+│ 13   13      Sides                    │
+│ 14   14      -----                    │
+│ 15         - French Fries             │
+│      15    + French Fries!            │
+│      16    + Garlic Green Beans       │
+╰───────────────────────────────────────╯
 ✓ Updated review tree to 59cee720b0642b1491b241400912b35926a76c3f
 ```
 
 ```
 $ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
 ✓ Loaded existing review ([..]) for patch 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
-diff --git a/INSTRUCTIONS.txt b/notes/INSTRUCTIONS.txt
-similarity index 100%
-rename from INSTRUCTIONS.txt
-rename to notes/INSTRUCTIONS.txt
+╭────────────────────────────────────────────────────╮
+│ INSTRUCTIONS.txt -> notes/INSTRUCTIONS.txt ❲moved❳ │
+╰────────────────────────────────────────────────────╯
 ✓ Updated review tree to 3effc8f6462fa2573697072245e57708c4dcbe62
 ```
 

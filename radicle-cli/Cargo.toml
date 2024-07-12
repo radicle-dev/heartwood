@@ -71,3 +71,6 @@ path = "../radicle-term"
 pretty_assertions = { version = "1.3.0" }
 radicle = { version = "0.11.0", path = "../radicle", features = ["test"] }
 radicle-node = { path = "../radicle-node", features = ["test"] }
+
+[lints]
+workspace = true

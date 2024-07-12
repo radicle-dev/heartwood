@@ -13,9 +13,8 @@
 //!
 use std::collections::VecDeque;
 use std::fmt::Write as _;
-use std::io::IsTerminal as _;
-use std::ops::{Not, Range};
-use std::path::PathBuf;
+use std::ops::{Deref, Not, Range};
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{fmt, io};
 
@@ -26,10 +25,14 @@ use radicle::prelude::*;
 use radicle::storage::git::Repository;
 use radicle_git_ext::Oid;
 use radicle_surf::diff::*;
+use radicle_term::{Element, VStack};
 
-use crate::git::unified_diff;
+use crate::git::pretty_diff::ToPretty;
+use crate::git::pretty_diff::{Blob, Blobs, Repo};
+use crate::git::unified_diff::{self, FileHeader};
 use crate::git::unified_diff::{Encode, HunkHeader};
 use crate::terminal as term;
+use crate::terminal::highlight::Highlighter;
 
 /// Help message shown to user.
 const HELP: &str = "\
@@ -41,6 +44,24 @@ k - leave this hunk undecided, see previous hunk
 s - split the current hunk into smaller hunks
 q - quit; do not accept this hunk nor any of the remaining ones
 ? - print help";
+
+/// A terminal or file where the review UI output can be written to.
+trait PromptWriter: io::Write {
+    /// Is the writer a terminal?
+    fn is_terminal(&self) -> bool;
+}
+
+impl PromptWriter for Box<dyn PromptWriter> {
+    fn is_terminal(&self) -> bool {
+        self.deref().is_terminal()
+    }
+}
+
+impl<T: io::Write + io::IsTerminal> PromptWriter for T {
+    fn is_terminal(&self) -> bool {
+        <Self as io::IsTerminal>::is_terminal(self)
+    }
+}
 
 /// The actions that a user can carry out on a review item.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -113,58 +134,345 @@ impl FromStr for ReviewAction {
 }
 
 /// A single review item. Can be a hunk or eg. a file move.
-pub struct ReviewItem<'a> {
-    file: &'a FileDiff,
-    hunk: Option<&'a Hunk<Modification>>,
+/// Files are usually split into multiple review items.
+#[derive(Debug)]
+pub enum ReviewItem {
+    FileAdded {
+        path: PathBuf,
+        header: FileHeader,
+        new: DiffFile,
+        hunk: Option<Hunk<Modification>>,
+    },
+    FileDeleted {
+        path: PathBuf,
+        header: FileHeader,
+        old: DiffFile,
+        hunk: Option<Hunk<Modification>>,
+    },
+    FileModified {
+        path: PathBuf,
+        header: FileHeader,
+        old: DiffFile,
+        new: DiffFile,
+        hunk: Option<Hunk<Modification>>,
+    },
+    FileMoved {
+        moved: Moved,
+    },
+    FileCopied {
+        copied: Copied,
+    },
+    FileEofChanged {
+        path: PathBuf,
+        header: FileHeader,
+        old: DiffFile,
+        new: DiffFile,
+        eof: EofNewLine,
+    },
+    FileModeChanged {
+        path: PathBuf,
+        header: FileHeader,
+        old: DiffFile,
+        new: DiffFile,
+    },
+}
+
+impl ReviewItem {
+    fn hunk(&self) -> Option<&Hunk<Modification>> {
+        match self {
+            Self::FileAdded { hunk, .. } => hunk.as_ref(),
+            Self::FileDeleted { hunk, .. } => hunk.as_ref(),
+            Self::FileModified { hunk, .. } => hunk.as_ref(),
+            _ => None,
+        }
+    }
+
+    fn hunk_header(&self) -> Option<HunkHeader> {
+        self.hunk().and_then(|h| HunkHeader::try_from(h).ok())
+    }
+
+    fn paths(&self) -> (Option<(&Path, Oid)>, Option<(&Path, Oid)>) {
+        match self {
+            Self::FileAdded { path, new, .. } => (None, Some((&path, new.oid))),
+            Self::FileDeleted { path, old, .. } => (Some((&path, old.oid)), None),
+            Self::FileMoved { moved } => (
+                Some((&moved.old_path, moved.old.oid)),
+                Some((&moved.new_path, moved.new.oid)),
+            ),
+            Self::FileCopied { copied } => (
+                Some((&copied.old_path, copied.old.oid)),
+                Some((&copied.new_path, copied.new.oid)),
+            ),
+            Self::FileModified { path, old, new, .. } => {
+                (Some((path, old.oid)), Some((path, new.oid)))
+            }
+            Self::FileEofChanged { path, old, new, .. } => {
+                (Some((path, old.oid)), Some((path, new.oid)))
+            }
+            Self::FileModeChanged { path, old, new, .. } => {
+                (Some((path, old.oid)), Some((path, new.oid)))
+            }
+        }
+    }
+
+    fn file_header(&self) -> FileHeader {
+        match self {
+            Self::FileAdded { header, .. } => header.clone(),
+            Self::FileDeleted { header, .. } => header.clone(),
+            Self::FileMoved { moved } => FileHeader::Moved {
+                old_path: moved.old_path.clone(),
+                new_path: moved.new_path.clone(),
+            },
+            Self::FileCopied { copied } => FileHeader::Copied {
+                old_path: copied.old_path.clone(),
+                new_path: copied.new_path.clone(),
+            },
+            Self::FileModified { header, .. } => header.clone(),
+            Self::FileEofChanged { header, .. } => header.clone(),
+            Self::FileModeChanged { header, .. } => header.clone(),
+        }
+    }
+
+    fn blobs<R: Repo>(&self, repo: &R) -> Blobs<(PathBuf, Blob)> {
+        let (old, new) = self.paths();
+        Blobs::from_paths(old, new, repo)
+    }
+
+    fn pretty<R: Repo>(&self, repo: &R) -> Box<dyn Element> {
+        let mut hi = Highlighter::default();
+        let blobs = self.blobs(repo);
+        let highlighted = blobs.highlight(&mut hi);
+        let header = self.file_header();
+
+        match self {
+            Self::FileMoved { moved } => moved.pretty(&mut hi, &header, repo),
+            Self::FileCopied { copied } => copied.pretty(&mut hi, &header, repo),
+            Self::FileModified { hunk, .. }
+            | Self::FileAdded { hunk, .. }
+            | Self::FileDeleted { hunk, .. } => {
+                let header = header.pretty(&mut hi, &None, repo);
+                let vstack = term::VStack::default()
+                    .border(Some(term::colors::FAINT))
+                    .padding(1)
+                    .child(header);
+
+                if let Some(hunk) = hunk {
+                    let hunk = hunk.pretty(&mut hi, &highlighted, repo);
+                    if !hunk.is_empty() {
+                        return vstack.divider().merge(hunk).boxed();
+                    }
+                }
+                vstack
+            }
+            Self::FileEofChanged { eof, .. } => match eof {
+                EofNewLine::NewMissing => {
+                    VStack::default().child(term::Label::new("`\\n` missing at end-of-file"))
+                }
+                EofNewLine::OldMissing => {
+                    VStack::default().child(term::Label::new("`\\n` added at end-of-file"))
+                }
+                _ => VStack::default(),
+            },
+            Self::FileModeChanged { .. } => VStack::default(),
+        }
+        .boxed()
+    }
 }
 
 /// Queue of items (usually hunks) left to review.
 #[derive(Default)]
-pub struct ReviewQueue<'a> {
-    queue: VecDeque<(usize, ReviewItem<'a>)>,
+pub struct ReviewQueue {
+    /// Hunks left to review.
+    queue: VecDeque<(usize, ReviewItem)>,
 }
 
-impl<'a> ReviewQueue<'a> {
-    /// Push an item to the queue.
-    fn push(&mut self, file: &'a FileDiff, hunks: Option<&'a Hunks<Modification>>) {
-        let mut queue_item = |hunk| {
-            self.queue
-                .push_back((self.queue.len(), ReviewItem { file, hunk }))
-        };
+impl ReviewQueue {
+    /// Add a file to the queue.
+    /// Mostly splits files into individual review items (eg. hunks) to review.
+    fn add_file(&mut self, file: FileDiff) {
+        let header = FileHeader::from(&file);
 
-        if let Some(hunks) = hunks {
-            for hunk in hunks.iter() {
-                queue_item(Some(hunk));
+        match file {
+            FileDiff::Moved(moved) => {
+                self.add_item(ReviewItem::FileMoved { moved });
             }
-        } else {
-            queue_item(None);
+            FileDiff::Copied(copied) => {
+                self.add_item(ReviewItem::FileCopied { copied });
+            }
+            FileDiff::Added(a) => {
+                self.add_item(ReviewItem::FileAdded {
+                    path: a.path,
+                    header: header.clone(),
+                    new: a.new,
+                    hunk: if let DiffContent::Plain {
+                        hunks: Hunks(mut hs),
+                        ..
+                    } = a.diff
+                    {
+                        hs.pop()
+                    } else {
+                        None
+                    },
+                });
+            }
+            FileDiff::Deleted(d) => {
+                self.add_item(ReviewItem::FileDeleted {
+                    path: d.path,
+                    header: header.clone(),
+                    old: d.old,
+                    hunk: if let DiffContent::Plain {
+                        hunks: Hunks(mut hs),
+                        ..
+                    } = d.diff
+                    {
+                        hs.pop()
+                    } else {
+                        None
+                    },
+                });
+            }
+            FileDiff::Modified(m) => {
+                if m.old.mode != m.new.mode {
+                    self.add_item(ReviewItem::FileModeChanged {
+                        path: m.path.clone(),
+                        header: header.clone(),
+                        old: m.old.clone(),
+                        new: m.new.clone(),
+                    });
+                }
+                match m.diff {
+                    DiffContent::Empty => {
+                        // Likely a file mode change, which is handled above.
+                    }
+                    DiffContent::Binary => {
+                        self.add_item(ReviewItem::FileModified {
+                            path: m.path.clone(),
+                            header: header.clone(),
+                            old: m.old.clone(),
+                            new: m.new.clone(),
+                            hunk: None,
+                        });
+                    }
+                    DiffContent::Plain {
+                        hunks: Hunks(hunks),
+                        eof,
+                        ..
+                    } => {
+                        for hunk in hunks {
+                            self.add_item(ReviewItem::FileModified {
+                                path: m.path.clone(),
+                                header: header.clone(),
+                                old: m.old.clone(),
+                                new: m.new.clone(),
+                                hunk: Some(hunk),
+                            });
+                        }
+                        if let EofNewLine::OldMissing | EofNewLine::NewMissing = eof {
+                            self.add_item(ReviewItem::FileEofChanged {
+                                path: m.path.clone(),
+                                header: header.clone(),
+                                old: m.old.clone(),
+                                new: m.new.clone(),
+                                eof,
+                            })
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    fn add_item(&mut self, item: ReviewItem) {
+        self.queue.push_back((self.queue.len(), item));
     }
 }
 
-impl<'a> std::ops::Deref for ReviewQueue<'a> {
-    type Target = VecDeque<(usize, ReviewItem<'a>)>;
+impl std::ops::Deref for ReviewQueue {
+    type Target = VecDeque<(usize, ReviewItem)>;
 
     fn deref(&self) -> &Self::Target {
         &self.queue
     }
 }
 
-impl<'a> std::ops::DerefMut for ReviewQueue<'a> {
+impl std::ops::DerefMut for ReviewQueue {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.queue
     }
 }
 
-impl<'a> Iterator for ReviewQueue<'a> {
-    type Item = (usize, ReviewItem<'a>);
+impl Iterator for ReviewQueue {
+    type Item = (usize, ReviewItem);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.queue.pop_front()
     }
 }
 
-/// Builds a patch review interactively.
+/// Builds a review for a single file.
+pub struct FileReviewBuilder {
+    header: FileHeader,
+    delta: i32,
+}
+
+impl FileReviewBuilder {
+    fn new(item: &ReviewItem) -> Self {
+        Self {
+            header: item.file_header(),
+            delta: 0,
+        }
+    }
+
+    fn set_item(&mut self, item: &ReviewItem) -> &mut Self {
+        let header = item.file_header();
+        if self.header != header {
+            self.header = header;
+            self.delta = 0;
+        }
+        self
+    }
+
+    fn ignore_item(&mut self, item: &ReviewItem) {
+        if let Some(h) = item.hunk_header() {
+            self.delta += h.new_size as i32 - h.old_size as i32;
+        }
+    }
+
+    fn apply_item<'a>(
+        &mut self,
+        item: ReviewItem,
+        brain: &mut git::raw::Tree<'a>,
+        repo: &'a git::raw::Repository,
+    ) -> Result<(), Error> {
+        let mut buf = Vec::new();
+        let mut writer = unified_diff::Writer::new(&mut buf);
+        writer.encode(&self.header)?;
+
+        if let (Some(h), Some(mut header)) = (item.hunk(), item.hunk_header()) {
+            header.old_line_no -= self.delta as u32;
+            header.new_line_no -= self.delta as u32;
+
+            let h = Hunk {
+                header: header.to_unified_string()?.as_bytes().to_owned().into(),
+                lines: h.lines.clone(),
+                old: h.old.clone(),
+                new: h.new.clone(),
+            };
+            writer.encode(&h)?;
+        }
+        drop(writer);
+
+        let diff = git::raw::Diff::from_buffer(&buf)?;
+        let mut index = repo.apply_to_tree(brain, &diff, None)?;
+        let brain_oid = index.write_tree_to(repo)?;
+
+        *brain = repo.find_tree(brain_oid)?;
+
+        Ok(())
+    }
+}
+
+/// Builds a patch review interactively, across multiple files.
 pub struct ReviewBuilder<'a> {
     /// Patch being reviewed.
     patch_id: PatchId,
@@ -215,8 +523,13 @@ impl<'a> ReviewBuilder<'a> {
             commit.tree()?
         };
 
+        let stdout = io::stdout().lock();
         let mut stdin = io::stdin().lock();
-        let mut stderr = io::stderr().lock();
+        let mut writer: Box<dyn PromptWriter> = if self.hunk.is_some() || !stdout.is_terminal() {
+            Box::new(stdout)
+        } else {
+            Box::new(io::stderr().lock())
+        };
         let mut review = if let Ok(c) = self.current() {
             term::success!(
                 "Loaded existing review {} for patch {}",
@@ -237,51 +550,22 @@ impl<'a> ReviewBuilder<'a> {
             repo.find_commit(oid)?
         };
         let mut brain = review.tree()?;
-        let mut writer = unified_diff::Writer::new(io::stdout()).styled(true);
-        let mut queue = ReviewQueue::default(); // Queue of hunks to review.
-        let mut current = None; // File of the current hunk.
+        let mut queue = ReviewQueue::default();
+        let diff = self.diff(&brain, &tree, repo, opts)?;
 
-        let mut find_opts = git::raw::DiffFindOptions::new();
-        find_opts.exact_match_only(true);
-        find_opts.all(true);
-        find_opts.copies(false); // We don't support finding copies at the moment.
-
-        let mut diff = repo.diff_tree_to_tree(Some(&brain), Some(&tree), Some(opts))?;
-        diff.find_similar(Some(&mut find_opts))?;
-
-        if diff.deltas().next().is_none() {
+        // Build the review queue.
+        for file in diff.into_files() {
+            queue.add_file(file);
+        }
+        if queue.is_empty() {
             term::success!("All hunks have been reviewed");
             return Ok(());
         }
-        let diff = Diff::try_from(diff)?;
 
-        for file in diff.files() {
-            match file {
-                FileDiff::Modified(f) => match &f.diff {
-                    DiffContent::Plain { hunks, .. } => queue.push(file, Some(hunks)),
-                    DiffContent::Binary => queue.push(file, None),
-                    DiffContent::Empty => {}
-                },
-                FileDiff::Added(f) => match &f.diff {
-                    DiffContent::Plain { hunks, .. } => queue.push(file, Some(hunks)),
-                    DiffContent::Binary => queue.push(file, None),
-                    DiffContent::Empty => {}
-                },
-                FileDiff::Deleted(f) => match &f.diff {
-                    DiffContent::Plain { hunks, .. } => queue.push(file, Some(hunks)),
-                    DiffContent::Binary => queue.push(file, None),
-                    DiffContent::Empty => {}
-                },
-                FileDiff::Moved(_) => queue.push(file, None),
-                FileDiff::Copied(_) => {
-                    // Copies are not supported and should never be generated due to the diff
-                    // options we pass.
-                    panic!("ReviewBuilder::by_hunk: copy diffs are not supported");
-                }
-            }
-        }
+        // File review for the current file. Starts out as `None` and is set on the first hunk.
+        // Keeps track of deltas for hunk offsets.
+        let mut file: Option<FileReviewBuilder> = None;
         let total = queue.len();
-        let mut delta: i32 = 0;
 
         while let Some((ix, item)) = queue.next() {
             if let Some(hunk) = self.hunk {
@@ -290,66 +574,42 @@ impl<'a> ReviewBuilder<'a> {
                 }
             }
             let progress = term::format::secondary(format!("({}/{total})", ix + 1));
-            let ReviewItem { file, hunk } = item;
+            let file = match file.as_mut() {
+                Some(fr) => fr.set_item(&item),
+                None => file.insert(FileReviewBuilder::new(&item)),
+            };
+            term::element::write_to(
+                &item.pretty(repo),
+                &mut writer,
+                term::Constraint::from_env().unwrap_or_default(),
+            )?;
 
-            if current.map_or(true, |c| c != file) {
-                writer.encode(&unified_diff::FileHeader::from(file))?;
-                current = Some(file);
-                delta = 0;
-            }
-
-            let header = hunk
-                .map(|h| {
-                    let header = unified_diff::HunkHeader::try_from(h)?;
-                    writer.encode(h)?;
-                    Ok::<_, anyhow::Error>(header)
-                })
-                .transpose()?;
-
-            match self.prompt(&mut stdin, &mut stderr, progress) {
+            // Prompts the user for action on the above hunk.
+            match self.prompt(&mut stdin, &mut writer, progress) {
+                // When a hunk is accepted, we convert it to unified diff format,
+                // and apply it to the `brain`.
                 Some(ReviewAction::Accept) => {
-                    let mut buf = Vec::new();
-                    {
-                        let mut writer = unified_diff::Writer::new(&mut buf);
-                        writer.encode(&unified_diff::FileHeader::from(file))?;
-
-                        if let (Some(h), Some(mut header)) = (hunk, header) {
-                            header.old_line_no -= delta as u32;
-                            header.new_line_no -= delta as u32;
-
-                            let h = Hunk {
-                                header: header.to_unified_string()?.as_bytes().to_owned().into(),
-                                lines: h.lines.clone(),
-                                old: h.old.clone(),
-                                new: h.new.clone(),
-                            };
-                            writer.encode(&h)?;
-                        }
-                    }
-                    let diff = git::raw::Diff::from_buffer(&buf)?;
-
-                    let mut index = repo.apply_to_tree(&brain, &diff, None)?;
-                    let brain_oid = index.write_tree_to(repo)?;
-                    brain = repo.find_tree(brain_oid)?;
-
-                    let oid =
+                    // Update brain with accepted hunk.
+                    file.apply_item(item, &mut brain, repo)?;
+                    // Update review with new brain.
+                    let review_oid =
                         review.amend(Some(&self.refname), None, None, None, None, Some(&brain))?;
-                    review = repo.find_commit(oid)?;
+                    review = repo.find_commit(review_oid)?;
 
                     if self.hunk.is_some() {
-                        term::success!("Updated review tree to {brain_oid}");
+                        term::success!("Updated review tree to {}", brain.id());
                     }
                 }
                 Some(ReviewAction::Ignore) => {
                     // Do nothing. Hunk will be reviewable again next time.
-                    if let Some(h) = header {
-                        delta += h.new_size as i32 - h.old_size as i32;
-                    }
+                    file.ignore_item(&item);
                 }
                 Some(ReviewAction::Comment) => {
-                    if let Some(hunk) = hunk {
-                        let mut builder =
-                            CommentBuilder::new(revision.head(), item.file.path().to_path_buf());
+                    let (old, new) = item.paths();
+                    let path = old.or(new);
+
+                    if let (Some(hunk), Some((path, _))) = (item.hunk(), path) {
+                        let mut builder = CommentBuilder::new(revision.head(), path.to_path_buf());
                         builder.edit(hunk)?;
 
                         let _comments = builder.comments();
@@ -406,10 +666,30 @@ impl<'a> ReviewBuilder<'a> {
         Ok(())
     }
 
+    fn diff(
+        &self,
+        brain: &git::raw::Tree<'_>,
+        tree: &git::raw::Tree<'_>,
+        repo: &'a git::raw::Repository,
+        opts: &mut git::raw::DiffOptions,
+    ) -> Result<Diff, Error> {
+        let mut find_opts = git::raw::DiffFindOptions::new();
+        find_opts.exact_match_only(true);
+        find_opts.all(true);
+        find_opts.copies(false); // We don't support finding copies at the moment.
+
+        let mut diff = repo.diff_tree_to_tree(Some(brain), Some(tree), Some(opts))?;
+        diff.find_similar(Some(&mut find_opts))?;
+
+        let diff = Diff::try_from(diff)?;
+
+        Ok(diff)
+    }
+
     fn prompt(
         &self,
         mut input: impl io::BufRead,
-        mut output: &mut io::StderrLock,
+        mut output: &mut impl PromptWriter,
         progress: impl fmt::Display,
     ) -> Option<ReviewAction> {
         if let Some(v) = self.verdict {
@@ -446,9 +726,13 @@ enum Error {
     #[error(transparent)]
     Diff(#[from] unified_diff::Error),
     #[error(transparent)]
+    Surf(#[from] radicle_surf::diff::git::error::Diff),
+    #[error(transparent)]
     Io(#[from] io::Error),
     #[error(transparent)]
     Format(#[from] std::fmt::Error),
+    #[error(transparent)]
+    Git(#[from] git::raw::Error),
 }
 
 #[derive(Debug)]

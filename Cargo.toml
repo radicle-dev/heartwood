@@ -33,3 +33,7 @@ resolver = "2"
 inherits = "release"
 debug = true
 incremental = false
+
+[workspace.lints]
+clippy.type_complexity = "allow"
+clippy.enum_variant_names = "allow"
