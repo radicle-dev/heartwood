@@ -68,3 +68,62 @@ z6MksmpU5b1dS7oaqF2bHXhQi1DWy2hB7Mh9CuN7y1DN6QSz@seed.radicle.xyz:8776
 $ rad config get node.limits.routingMaxSize
 1000
 ```
+
+You can set scalar values by path.
+
+```
+$ rad config set node.alias bob
+bob
+```
+
+You can add a value to a collection by path.
+
+```
+$ rad config add web.pinned.repositories rad:z3TajuiHXifEDEX4qbJxe8nXr9ufi
+rad:z3TajuiHXifEDEX4qbJxe8nXr9ufi
+```
+
+You can remove a value from a collection by path.
+
+```
+$ rad config remove web.pinned.repositories rad:z3TajuiHXifEDEX4qbJxe8nXr9ufi
+$ rad config get web.pinned.repositories
+```
+
+Values that are not strictly required for a working configuration, such as optional values or additional user-defined values, can be deleted.
+
+```
+$ rad config set web.name alice
+alice
+$ rad config delete web.name
+```
+
+Values along the path will be created if necessary.
+
+```
+$ rad config set value.a.future.update.might.add.value 5
+5
+$ rad config add value.a.future.update.might.add.collection 1
+1
+```
+
+Values that are required for a valid config can't be deleted.
+
+```fail
+$ rad config delete node.alias
+✗ Error: configuration JSON error: missing field `alias`
+```
+
+Values for changes are being validated.
+
+```fail
+$ rad config set web.pinned.repositories 5
+✗ Error: configuration JSON error: invalid type: integer `5`, expected a sequence
+```
+
+The type of the operation is validated.
+
+```fail
+$ rad config add node.alias eve
+✗ Error: configuration error: node.alias is not a collection, can't add to it
+```

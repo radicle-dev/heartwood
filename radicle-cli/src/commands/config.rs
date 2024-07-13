@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use radicle::node::Alias;
-use radicle::profile::Config;
+use radicle::profile::{Config, ConfigError, ConfigPath, TempConfig};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -24,6 +24,10 @@ Usage
     rad config init --alias <alias> [<option>...]
     rad config edit [<option>...]
     rad config get <key> [<option>...]
+    rad config set <key> <value> [<option>...]
+    rad config add <key> <value> [<option>...]
+    rad config remove <key> <value> [<option>...]
+    rad config delete <key> [<option>...]
 
     If no argument is specified, prints the current radicle configuration as JSON.
     To initialize a new configuration file, use `rad config init`.
@@ -40,6 +44,10 @@ enum Operation {
     #[default]
     Show,
     Get(String),
+    Set(String, String),
+    Add(String, String),
+    Remove(String, String),
+    Delete(String),
     Init,
     Edit,
 }
@@ -75,10 +83,38 @@ impl Args for Options {
                     "edit" => op = Some(Operation::Edit),
                     "init" => op = Some(Operation::Init),
                     "get" => {
-                        let value = parser.value()?;
-                        let key = value.to_string_lossy();
-
+                        let key = parser.value()?;
+                        let key = key.to_string_lossy();
                         op = Some(Operation::Get(key.to_string()));
+                    }
+                    "set" => {
+                        let key = parser.value()?;
+                        let key = key.to_string_lossy();
+                        let value = parser.value()?;
+                        let value = value.to_string_lossy();
+
+                        op = Some(Operation::Set(key.to_string(), value.to_string()));
+                    }
+                    "add" => {
+                        let key = parser.value()?;
+                        let key = key.to_string_lossy();
+                        let value = parser.value()?;
+                        let value = value.to_string_lossy();
+
+                        op = Some(Operation::Add(key.to_string(), value.to_string()));
+                    }
+                    "remove" => {
+                        let key = parser.value()?;
+                        let key = key.to_string_lossy();
+                        let value = parser.value()?;
+                        let value = value.to_string_lossy();
+
+                        op = Some(Operation::Remove(key.to_string(), value.to_string()));
+                    }
+                    "delete" => {
+                        let key = parser.value()?;
+                        let key = key.to_string_lossy();
+                        op = Some(Operation::Delete(key.to_string()));
                     }
                     unknown => anyhow::bail!("unknown operation '{unknown}'"),
                 },
@@ -106,11 +142,36 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             term::json::to_pretty(&profile.config, path.as_path())?.print();
         }
         Operation::Get(key) => {
-            let profile = ctx.profile()?;
-            let data = serde_json::to_value(profile.config)?;
-            if let Some(value) = get_value(&data, &key) {
-                print_value(value)?;
-            }
+            let mut temp_config = TempConfig::from_file(&path)?;
+            let key: ConfigPath = key.into();
+            let value = temp_config
+                .get_mut(&key)
+                .ok_or_else(|| ConfigError::Custom(format!("{key} does not exist")))?;
+            print_value(value)?;
+        }
+        Operation::Set(key, value) => {
+            let mut temp_config = TempConfig::from_file(&path)?;
+            let value = temp_config.set(&key.into(), value.into())?;
+            temp_config.write(&path)?;
+            print_value(&value)?;
+        }
+        Operation::Add(key, value) => {
+            let mut temp_config = TempConfig::from_file(&path)?;
+            let value = temp_config.add(&key.into(), value.into())?;
+            temp_config.write(&path)?;
+            print_value(&value)?;
+        }
+        Operation::Remove(key, value) => {
+            let mut temp_config = TempConfig::from_file(&path)?;
+            let value = temp_config.remove(&key.into(), value.into())?;
+            temp_config.write(&path)?;
+            print_value(&value)?;
+        }
+        Operation::Delete(key) => {
+            let mut temp_config = TempConfig::from_file(&path)?;
+            let value = temp_config.delete(&key.into())?;
+            temp_config.write(&path)?;
+            print_value(&value)?;
         }
         Operation::Init => {
             if path.try_exists()? {
@@ -142,17 +203,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-/// Get JSON value under a path.
-fn get_value<'a>(data: &'a serde_json::Value, path: &'a str) -> Option<&'a serde_json::Value> {
-    path.split('.').try_fold(data, |acc, key| {
-        if let serde_json::Value::Object(obj) = acc {
-            obj.get(key)
-        } else {
-            None
-        }
-    })
 }
 
 /// Print a JSON Value.
