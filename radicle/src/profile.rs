@@ -10,31 +10,28 @@
 //!     node/
 //!       control.sock                           # Node control socket
 //!
-use std::io::Write;
+
+pub mod config;
+pub use config::{Config, ConfigError, ConfigPath, RawConfig};
+
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 use localtime::LocalTime;
-use serde::Serialize;
-use serde_json as json;
 use thiserror::Error;
 
 use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
-use crate::explorer::Explorer;
-use crate::node::config::DefaultSeedingPolicy;
 use crate::node::policy::config::store::Read;
 use crate::node::{
-    notifications, policy,
-    policy::{Policy, Scope},
-    Alias, AliasStore, Handle as _, Node, UserAgent,
+    notifications, policy, policy::Scope, Alias, AliasStore, Handle as _, Node, UserAgent,
 };
 use crate::prelude::{Did, NodeId, RepoId};
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
 use crate::storage::ReadRepository;
-use crate::{cli, cob, git, node, storage, web};
+use crate::{cob, git, node, storage};
 
 /// Environment variables used by radicle.
 pub mod env {
@@ -190,105 +187,6 @@ pub enum Error {
     CobsCache(#[from] cob::cache::Error),
     #[error(transparent)]
     Storage(#[from] storage::Error),
-}
-
-#[derive(Debug, Error)]
-pub enum ConfigError {
-    #[error("failed to load configuration from {0}: {1}")]
-    Io(PathBuf, io::Error),
-    #[error("failed to load configuration from {0}: {1}")]
-    Load(PathBuf, serde_json::Error),
-}
-
-/// Local radicle configuration.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Config {
-    /// Public explorer. This is used for generating links.
-    #[serde(default)]
-    pub public_explorer: Explorer,
-    /// Preferred seeds. These seeds will be used for explorer links
-    /// and in other situations when a seed needs to be chosen.
-    #[serde(default)]
-    pub preferred_seeds: Vec<node::config::ConnectAddress>,
-    /// Web configuration.
-    #[serde(default)]
-    pub web: web::Config,
-    /// CLI configuration.
-    #[serde(default)]
-    pub cli: cli::Config,
-    /// Node configuration.
-    pub node: node::Config,
-}
-
-impl Config {
-    /// Create a new, default configuration.
-    pub fn new(alias: Alias) -> Self {
-        let node = node::Config::new(alias);
-
-        Self {
-            public_explorer: Explorer::default(),
-            preferred_seeds: node.network.public_seeds(),
-            web: web::Config::default(),
-            cli: cli::Config::default(),
-            node,
-        }
-    }
-
-    /// Initialize a new configuration. Fails if the path already exists.
-    pub fn init(alias: Alias, path: &Path) -> io::Result<Self> {
-        let cfg = Config::new(alias);
-        cfg.write(path)?;
-
-        Ok(cfg)
-    }
-
-    /// Load a configuration from the given path.
-    pub fn load(path: &Path) -> Result<Self, ConfigError> {
-        let mut cfg: Self = match fs::File::open(path) {
-            Ok(cfg) => {
-                json::from_reader(cfg).map_err(|e| ConfigError::Load(path.to_path_buf(), e))?
-            }
-            Err(e) => return Err(ConfigError::Io(path.to_path_buf(), e)),
-        };
-
-        // Handle deprecated policy configuration.
-        // Nb. This will override "seedingPolicy" if set! This code should be removed after 1.0.
-        if let (Some(p), Some(s)) = (cfg.node.extra.get("policy"), cfg.node.extra.get("scope")) {
-            if let (Ok(policy), Ok(scope)) = (
-                json::from_value::<Policy>(p.clone()),
-                json::from_value::<Scope>(s.clone()),
-            ) {
-                log::warn!(target: "radicle", "Overwriting `seedingPolicy` configuration");
-                cfg.node.seeding_policy = match policy {
-                    Policy::Allow => DefaultSeedingPolicy::Allow { scope },
-                    Policy::Block => DefaultSeedingPolicy::Block,
-                }
-            }
-        }
-        Ok(cfg)
-    }
-
-    /// Write configuration to disk.
-    pub fn write(&self, path: &Path) -> Result<(), io::Error> {
-        let mut file = fs::OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(path)?;
-        let formatter = json::ser::PrettyFormatter::with_indent(b"  ");
-        let mut serializer = json::Serializer::with_formatter(&file, formatter);
-
-        self.serialize(&mut serializer)?;
-        file.write_all(b"\n")?;
-        file.sync_all()?;
-
-        Ok(())
-    }
-
-    /// Get the user alias.
-    pub fn alias(&self) -> &Alias {
-        &self.node.alias
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -735,8 +633,11 @@ impl Home {
 #[cfg(not(target_os = "macos"))]
 #[allow(clippy::unwrap_used)]
 mod test {
-    use super::*;
     use std::fs;
+
+    use serde_json as json;
+
+    use super::*;
 
     // Checks that if we have:
     // '/run/user/1000/.tmpqfK6ih/../.tmpqfK6ih/Radicle/Home'
