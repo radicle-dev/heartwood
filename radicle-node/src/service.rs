@@ -1017,12 +1017,9 @@ where
                         timeout,
                         channel,
                     };
+                    debug!(target: "service", "Queueing fetch for {rid} with {from} (already fetching)..");
 
-                    if self.queue_fetch(fetch) {
-                        debug!(target: "service", "Queueing fetch for {rid} with {from} (already fetching)..");
-                    } else {
-                        debug!(target: "service", "Fetch for {rid} with {from} is already queued..");
-                    }
+                    self.queue_fetch(fetch);
                 }
             }
             Err(TryFetchError::SessionCapacityReached) => {
@@ -1047,12 +1044,15 @@ where
         false
     }
 
-    fn queue_fetch(&mut self, fetch: QueuedFetch) -> bool {
+    fn queue_fetch(&mut self, fetch: QueuedFetch) {
         let Some(s) = self.sessions.get_mut(&fetch.from) else {
             log::error!(target: "service", "Cannot queue fetch for unknown session {}", fetch.from);
-            return false;
+            return;
         };
-        s.queue_fetch(fetch)
+        if let Err(e) = s.queue_fetch(fetch) {
+            let fetch = e.inner();
+            log::debug!(target: "service", "Unable to queue fetch for {} with {}: {e}", &fetch.rid, &fetch.from);
+        }
     }
 
     // TODO: Buffer/throttle fetches.

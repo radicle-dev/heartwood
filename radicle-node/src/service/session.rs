@@ -15,6 +15,8 @@ pub use crate::node::{PingState, State};
 
 /// Time after which a connection is considered stable.
 pub const CONNECTION_STABLE_THRESHOLD: LocalDuration = LocalDuration::from_mins(1);
+/// Maximum items in the fetch queue.
+pub const MAX_FETCH_QUEUE_SIZE: usize = 128;
 
 #[derive(thiserror::Error, Debug, Clone, Copy)]
 pub enum Error {
@@ -42,6 +44,27 @@ impl Error {
             Self::ProtocolMismatch => Severity::High,
             Self::Misbehavior => Severity::High,
             Self::Timeout => Severity::Low,
+        }
+    }
+}
+
+/// Error when trying to queue a fetch.
+#[derive(thiserror::Error, Debug, Clone)]
+pub enum QueueError {
+    /// The item already exists in the queue.
+    #[error("item is already queued")]
+    Duplicate(QueuedFetch),
+    /// The queue is at capacity.
+    #[error("queue capacity reached")]
+    CapacityReached(QueuedFetch),
+}
+
+impl QueueError {
+    /// Get the inner [`QueuedFetch`].
+    pub fn inner(&self) -> &QueuedFetch {
+        match self {
+            Self::Duplicate(f) => f,
+            Self::CapacityReached(f) => f,
         }
     }
 }
@@ -131,7 +154,7 @@ impl Session {
             subscribe: None,
             persistent,
             last_active: LocalTime::default(),
-            queue: VecDeque::new(),
+            queue: VecDeque::with_capacity(MAX_FETCH_QUEUE_SIZE),
             attempts: 1,
             rng,
             limits,
@@ -205,15 +228,17 @@ impl Session {
 
     /// Queue a fetch. Returns `true` if it was added to the queue, and `false` if
     /// it already was present in the queue.
-    pub fn queue_fetch(&mut self, fetch: QueuedFetch) -> bool {
+    pub fn queue_fetch(&mut self, fetch: QueuedFetch) -> Result<(), QueueError> {
         assert_eq!(fetch.from, self.id);
 
-        if self.queue.contains(&fetch) {
-            false
-        } else {
-            self.queue.push_back(fetch);
-            true
+        if self.queue.len() >= MAX_FETCH_QUEUE_SIZE {
+            return Err(QueueError::CapacityReached(fetch));
+        } else if self.queue.contains(&fetch) {
+            return Err(QueueError::Duplicate(fetch));
         }
+        self.queue.push_back(fetch);
+
+        Ok(())
     }
 
     pub fn dequeue_fetch(&mut self) -> Option<QueuedFetch> {
