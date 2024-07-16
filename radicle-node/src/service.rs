@@ -1602,6 +1602,12 @@ where
                         }
                     }
                 }
+                // Since we have limited fetch capacity, it may be that we can't fetch an entire
+                // inventory from a peer. Therefore we randomize the order of the RIDs to fetch
+                // different RIDs from different peers in case multiple peers announce the same
+                // RIDs.
+                self.rng.shuffle(&mut missing);
+
                 for rid in missing {
                     debug!(target: "service", "Missing seeded inventory {rid}; initiating fetch..");
                     self.fetch(rid, *announcer, FETCH_TIMEOUT, None);
