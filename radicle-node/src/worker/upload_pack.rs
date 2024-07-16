@@ -3,7 +3,8 @@ use std::io::Write;
 use std::process::{Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
-use gix_protocol::transport::bstr::ByteSlice;
+use radicle_fetch::{ByteSlice as _, RemoteProgress};
+
 use radicle::identity::RepoId;
 use radicle::node::events;
 use radicle::node::events::Emitter;
@@ -180,9 +181,9 @@ impl<W> Reporter<W> {
 
     fn as_upload_pack_progress(buf: &[u8]) -> Option<events::upload_pack::Progress> {
         use events::upload_pack::Progress::*;
-        let gix_protocol::RemoteProgress {
+        let RemoteProgress {
             action, step, max, ..
-        } = gix_protocol::RemoteProgress::from_bytes(buf)?;
+        } = RemoteProgress::from_bytes(buf)?;
         if action.contains_str("Counting objects") {
             step.and_then(|processed| max.map(|total| Counting { processed, total }))
         } else if action.contains_str("Compressing objects") {

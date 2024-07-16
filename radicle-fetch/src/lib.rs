@@ -14,6 +14,7 @@ use std::time::Instant;
 
 use gix_protocol::handshake;
 
+pub use gix_protocol::{transport::bstr::ByteSlice, RemoteProgress};
 pub use handle::Handle;
 pub use policy::{Allowed, BlockList, Scope};
 pub use state::{FetchLimit, FetchResult};
