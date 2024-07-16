@@ -1570,10 +1570,12 @@ where
                     }
                 }
                 let mut missing = Vec::new();
+                let nid = *self.nid();
 
-                for id in message.inventory.as_slice() {
-                    // TODO: Move this out (good luck with the borrow checker).
-                    if let Some(sess) = self.sessions.get_mut(announcer) {
+                // Here we handle the special case where the inventory we received is that of
+                // a connected peer, as opposed to being relayed to us.
+                if let Some(sess) = self.sessions.get_mut(announcer) {
+                    for id in message.inventory.as_slice() {
                         // If we are connected to the announcer of this inventory, update the peer's
                         // subscription filter to include all inventory items. This way, we'll
                         // relay messages relating to the peer's inventory.
@@ -1588,7 +1590,7 @@ where
                         ) {
                             // Only if we do not have the repository locally do we fetch here.
                             // If we do have it, only fetch after receiving a ref announcement.
-                            match self.db.routing().entry(id, self.nid()) {
+                            match self.db.routing().entry(id, &nid) {
                                 Ok(entry) => {
                                     if entry.is_none() {
                                         missing.push(*id);
