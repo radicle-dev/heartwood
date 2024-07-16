@@ -1,11 +1,14 @@
 use std::collections::{HashSet, VecDeque};
-use std::fmt;
+use std::{fmt, time};
+
+use crossbeam_channel as chan;
 
 use crate::node::config::Limits;
-use crate::node::Severity;
+use crate::node::{FetchResult, Severity};
 use crate::service::message;
 use crate::service::message::Message;
 use crate::service::{Address, LocalDuration, LocalTime, NodeId, Outbox, RepoId, Rng};
+use crate::storage::refs::RefsAt;
 use crate::{Link, Timestamp};
 
 pub use crate::node::{PingState, State};
@@ -43,6 +46,31 @@ impl Error {
     }
 }
 
+/// Fetch waiting to be processed, in the fetch queue.
+#[derive(Debug, Clone)]
+pub struct QueuedFetch {
+    /// Repo being fetched.
+    pub rid: RepoId,
+    /// Peer being fetched from.
+    pub from: NodeId,
+    /// Refs being fetched.
+    pub refs_at: Vec<RefsAt>,
+    /// The timeout given for the fetch request.
+    pub timeout: time::Duration,
+    /// Result channel.
+    pub channel: Option<chan::Sender<FetchResult>>,
+}
+
+impl PartialEq for QueuedFetch {
+    fn eq(&self, other: &Self) -> bool {
+        self.rid == other.rid
+            && self.from == other.from
+            && self.refs_at == other.refs_at
+            && self.channel.is_none()
+            && other.channel.is_none()
+    }
+}
+
 /// A peer session. Each connected peer will have one session.
 #[derive(Debug, Clone)]
 pub struct Session {
@@ -61,6 +89,8 @@ pub struct Session {
     pub subscribe: Option<message::Subscribe>,
     /// Last time a message was received from the peer.
     pub last_active: LocalTime,
+    /// Fetch queue.
+    pub queue: VecDeque<QueuedFetch>,
 
     /// Connection attempts. For persistent peers, Tracks
     /// how many times we've attempted to connect. We reset this to zero
@@ -101,6 +131,7 @@ impl Session {
             subscribe: None,
             persistent,
             last_active: LocalTime::default(),
+            queue: VecDeque::new(),
             attempts: 1,
             rng,
             limits,
@@ -129,6 +160,7 @@ impl Session {
             subscribe: None,
             persistent,
             last_active: time,
+            queue: VecDeque::new(),
             attempts: 0,
             rng,
             limits,
@@ -169,6 +201,23 @@ impl Session {
             return fetching.contains(rid);
         }
         false
+    }
+
+    /// Queue a fetch. Returns `true` if it was added to the queue, and `false` if
+    /// it already was present in the queue.
+    pub fn queue_fetch(&mut self, fetch: QueuedFetch) -> bool {
+        assert_eq!(fetch.from, self.id);
+
+        if self.queue.contains(&fetch) {
+            false
+        } else {
+            self.queue.push_back(fetch);
+            true
+        }
+    }
+
+    pub fn dequeue_fetch(&mut self) -> Option<QueuedFetch> {
+        self.queue.pop_front()
     }
 
     pub fn attempts(&self) -> usize {

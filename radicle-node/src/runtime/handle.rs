@@ -334,11 +334,16 @@ impl radicle::node::Handle for Handle {
                         "subscribers": state.subscribers.len(),
                     })
                 }).collect::<Vec<_>>(),
-                "queue": state.queue().iter().map(|fetch| {
+                "queue": state.sessions().values().map(|sess| {
                     json!({
-                        "rid": fetch.rid,
-                        "from": fetch.from,
-                        "refsAt": fetch.refs_at,
+                        "nid": sess.id,
+                        "queue": sess.queue.iter().map(|fetch| {
+                            json!({
+                                "rid": fetch.rid,
+                                "from": fetch.from,
+                                "refsAt": fetch.refs_at,
+                            })
+                        }).collect::<Vec<_>>()
                     })
                 }).collect::<Vec<_>>(),
                 "rateLimiter": state.limiter().buckets.iter().map(|(host, bucket)| {

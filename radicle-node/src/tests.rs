@@ -1526,8 +1526,16 @@ fn test_queued_fetch_from_command_same_rid() {
     let (send3, _recv3) = chan::bounded::<node::FetchResult>(1);
     alice.command(Command::Fetch(rid1, carol.id, DEFAULT_TIMEOUT, send3));
 
+    // Peers Alice will fetch from.
+    let mut peers = [bob.id, eve.id, carol.id]
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+
     // The first fetch is initiated.
-    assert_matches!(alice.fetches().next(), Some((rid, nid)) if rid == rid1 && nid == bob.id);
+    let (rid, nid) = alice.fetches().next().unwrap();
+    assert_eq!(rid, rid1);
+    assert!(peers.remove(&nid));
+
     // We shouldn't send out the 2nd, 3rd fetch while we're doing the 1st fetch.
     assert_matches!(alice.outbox().next(), None);
 
@@ -1535,16 +1543,21 @@ fn test_queued_fetch_from_command_same_rid() {
     alice.elapse(KEEP_ALIVE_DELTA);
 
     // Finish the 1st fetch.
-    alice.fetched(rid1, bob.id, Ok(arbitrary::gen::<fetch::FetchResult>(1)));
+    alice.fetched(rid1, nid, Ok(arbitrary::gen::<fetch::FetchResult>(1)));
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
-    assert_matches!(alice.fetches().next(), Some((rid, nid)) if rid == rid1 && nid == eve.id);
+    let (rid, nid) = alice.fetches().next().unwrap();
+    assert_eq!(rid, rid1);
+    assert!(peers.remove(&nid));
+
     // ... but not the third.
     assert_matches!(alice.fetches().next(), None);
 
     // Finish the 2nd fetch.
-    alice.fetched(rid1, eve.id, Ok(arbitrary::gen::<fetch::FetchResult>(1)));
+    alice.fetched(rid1, nid, Ok(arbitrary::gen::<fetch::FetchResult>(1)));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
-    assert_matches!(alice.fetches().next(), Some((rid, nid)) if rid == rid1 && nid == carol.id);
+    assert_matches!(alice.fetches().next(), Some((rid, nid)) if rid == rid1 && peers.remove(&nid));
+    // All fetches were initiated.
+    assert!(peers.is_empty());
 }
 
 #[test]

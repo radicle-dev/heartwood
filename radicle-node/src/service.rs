@@ -10,7 +10,7 @@ pub mod message;
 pub mod session;
 
 use std::collections::hash_map::Entry;
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::net::IpAddr;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
@@ -60,7 +60,7 @@ use crate::{crypto, PROTOCOL_VERSION};
 pub use crate::node::events::{Event, Events};
 pub use crate::node::{config::Network, Config, NodeId};
 pub use crate::service::message::{Message, ZeroBytes};
-pub use crate::service::session::Session;
+pub use crate::service::session::{QueuedFetch, Session};
 
 pub use radicle::node::policy::config as policy;
 
@@ -312,31 +312,6 @@ impl FetchState {
     }
 }
 
-/// Fetch waiting to be processed, in the fetch queue.
-#[derive(Debug)]
-pub struct QueuedFetch {
-    /// Repo being fetched.
-    pub rid: RepoId,
-    /// Peer being fetched from.
-    pub from: NodeId,
-    /// Refs being fetched.
-    pub refs_at: Vec<RefsAt>,
-    /// The timeout given for the fetch request.
-    timeout: time::Duration,
-    /// Result channel.
-    channel: Option<chan::Sender<FetchResult>>,
-}
-
-impl PartialEq for QueuedFetch {
-    fn eq(&self, other: &Self) -> bool {
-        self.rid == other.rid
-            && self.from == other.from
-            && self.refs_at == other.refs_at
-            && self.channel.is_none()
-            && other.channel.is_none()
-    }
-}
-
 /// Holds all node stores.
 #[derive(Debug)]
 pub struct Stores<D>(D);
@@ -438,8 +413,6 @@ pub struct Service<D, S, G> {
     rng: Rng,
     /// Ongoing fetches.
     fetching: HashMap<RepoId, FetchState>,
-    /// Fetch queue.
-    queue: VecDeque<QueuedFetch>,
     /// Request/connection rate limiter.
     limiter: RateLimiter,
     /// Current seeded repositories bloom filter.
@@ -525,7 +498,6 @@ where
             limiter,
             sessions,
             fetching: HashMap::new(),
-            queue: VecDeque::new(),
             filter: Filter::empty(),
             relayed_by: HashMap::default(),
             last_idle: LocalTime::default(),
@@ -809,7 +781,7 @@ where
             self.disconnect_unresponsive_peers(&now);
             self.idle_connections();
             self.maintain_connections();
-            self.dequeue_fetch();
+            self.dequeue_fetches();
             self.outbox.wakeup(IDLE_INTERVAL);
             self.last_idle = now;
         }
@@ -1045,17 +1017,17 @@ where
                         timeout,
                         channel,
                     };
-                    if self.queue.contains(&fetch) {
-                        debug!(target: "service", "Fetch for {rid} with {from} is already queued..");
-                    } else {
+
+                    if self.queue_fetch(fetch) {
                         debug!(target: "service", "Queueing fetch for {rid} with {from} (already fetching)..");
-                        self.queue.push_back(fetch);
+                    } else {
+                        debug!(target: "service", "Fetch for {rid} with {from} is already queued..");
                     }
                 }
             }
             Err(TryFetchError::SessionCapacityReached) => {
                 debug!(target: "service", "Fetch capacity reached for {from}, queueing {rid}..");
-                self.queue.push_back(QueuedFetch {
+                self.queue_fetch(QueuedFetch {
                     rid,
                     refs_at,
                     from,
@@ -1075,6 +1047,14 @@ where
         false
     }
 
+    fn queue_fetch(&mut self, fetch: QueuedFetch) -> bool {
+        let Some(s) = self.sessions.get_mut(&fetch.from) else {
+            log::error!(target: "service", "Cannot queue fetch for unknown session {}", fetch.from);
+            return false;
+        };
+        s.queue_fetch(fetch)
+    }
+
     // TODO: Buffer/throttle fetches.
     fn try_fetch(
         &mut self,
@@ -1091,10 +1071,13 @@ where
 
         trace!(target: "service", "Trying to fetch {refs_at:?} for {rid}..");
 
-        if let Entry::Occupied(fetching) = fetching {
-            // We're already fetching this repo from some peer.
-            return Err(TryFetchError::AlreadyFetching(fetching.into_mut()));
-        }
+        let fetching = match fetching {
+            Entry::Vacant(fetching) => fetching,
+            Entry::Occupied(fetching) => {
+                // We're already fetching this repo from some peer.
+                return Err(TryFetchError::AlreadyFetching(fetching.into_mut()));
+            }
+        };
         // Sanity check: We shouldn't be fetching from this session, since we return above if we're
         // fetching from any session.
         debug_assert!(!session.is_fetching(&rid));
@@ -1109,7 +1092,7 @@ where
             return Err(TryFetchError::SessionCapacityReached);
         }
 
-        let fetching = fetching.or_insert(FetchState {
+        let fetching = fetching.insert(FetchState {
             from,
             refs_at: refs_at.clone(),
             subscribers: vec![],
@@ -1214,55 +1197,56 @@ where
                 }
             }
         }
-        // We can now try to dequeue another fetch.
-        self.dequeue_fetch();
+        // We can now try to dequeue more fetches.
+        self.dequeue_fetches();
     }
 
+    /// Attempt to dequeue fetches from all peers.
+    /// At most one fetch is dequeued per peer. If the fetch cannot be processed,
+    /// it is put back on the queue for that peer.
+    ///
     /// Fetches are queued for two reasons:
     /// 1. The RID was already being fetched.
     /// 2. The session was already at fetch capacity.
-    pub fn dequeue_fetch(&mut self) {
-        let mut tries = self.queue.len();
+    pub fn dequeue_fetches(&mut self) {
+        let sessions = self
+            .sessions
+            .shuffled()
+            .map(|(k, _)| *k)
+            .collect::<Vec<_>>();
 
-        while let Some(QueuedFetch {
-            rid,
-            from,
-            refs_at,
-            timeout,
-            channel,
-        }) = self.queue.pop_front()
-        {
-            debug!(target: "service", "Dequeued fetch for {rid} from session {from}..");
-
-            if let Some(refs) = NonEmpty::from_vec(refs_at) {
-                let repo_entry = self
-                    .policies
-                    .seed_policy(&rid)
-                    .expect("Service::dequeue_fetch: error accessing repo seeding configuration");
-                let SeedingPolicy::Allow { scope } = repo_entry.policy else {
-                    debug!(target: "service", "Repository {rid} is no longer seeded, skipping..");
-                    continue;
-                };
-                // Keep dequeueing if there was nothing to fetch, otherwise break.
-                if self.fetch_refs_at(rid, from, refs, scope, timeout, channel) {
-                    break;
-                }
-            } else {
-                // If no refs are specified, always do a full fetch.
-                if self.fetch(rid, from, timeout, channel) {
-                    break;
-                }
+        // Try to dequeue once per session.
+        for nid in sessions {
+            // SAFETY: All the keys we are iterating on exist.
+            #[allow(clippy::unwrap_used)]
+            let sess = self.sessions.get_mut(&nid).unwrap();
+            if !sess.is_connected() || sess.is_at_capacity() {
+                continue;
             }
-            // Nb. Just a precaution, `tries` should always be >= 1 here.
-            tries = tries.saturating_sub(1);
-            // To avoid looping forever, only try to dequeue a fixed number of fetches at a time.
-            if tries == 0 {
-                debug!(
-                    target: "service",
-                    "Giving up on dequeuing, {} item(s) still left in the queue..",
-                    self.queue.len()
-                );
-                break;
+
+            if let Some(QueuedFetch {
+                rid,
+                from,
+                refs_at,
+                timeout,
+                channel,
+            }) = sess.dequeue_fetch()
+            {
+                debug!(target: "service", "Dequeued fetch for {rid} from session {from}..");
+
+                if let Some(refs) = NonEmpty::from_vec(refs_at) {
+                    let repo_entry = self.policies.seed_policy(&rid).expect(
+                        "Service::dequeue_fetch: error accessing repo seeding configuration",
+                    );
+                    let SeedingPolicy::Allow { scope } = repo_entry.policy else {
+                        debug!(target: "service", "Repository {rid} is no longer seeded, skipping..");
+                        continue;
+                    };
+                    self.fetch_refs_at(rid, from, refs, scope, timeout, channel);
+                } else {
+                    // If no refs are specified, always do a full fetch.
+                    self.fetch(rid, from, timeout, channel);
+                }
             }
         }
     }
@@ -1460,7 +1444,7 @@ where
                 self.maintain_connections();
             }
         }
-        self.dequeue_fetch();
+        self.dequeue_fetches();
     }
 
     pub fn received_message(&mut self, remote: NodeId, message: Message) {
@@ -2612,8 +2596,6 @@ pub trait ServiceState {
     fn sessions(&self) -> &Sessions;
     /// Get fetch state.
     fn fetching(&self) -> &HashMap<RepoId, FetchState>;
-    /// Get fetch queue.
-    fn queue(&self) -> &VecDeque<QueuedFetch>;
     /// Get outbox.
     fn outbox(&self) -> &Outbox;
     /// Get rate limiter.
@@ -2648,10 +2630,6 @@ where
 
     fn fetching(&self) -> &HashMap<RepoId, FetchState> {
         &self.fetching
-    }
-
-    fn queue(&self) -> &VecDeque<QueuedFetch> {
-        &self.queue
     }
 
     fn outbox(&self) -> &Outbox {
