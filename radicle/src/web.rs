@@ -10,12 +10,12 @@ use crate::prelude::RepoId;
 pub struct Config {
     /// Pinned content.
     pub pinned: Pinned,
-    /// URL pointing to an image for the node.
+    /// URL pointing to an image used in the header of the node page in radicle-explorer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub image_url: Option<String>,
-    /// Node name.
+    pub banner_url: Option<String>,
+    /// URL pointing to an image used as the node avatar in radicle-explorer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
+    pub avatar_url: Option<String>,
     /// Node description.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
