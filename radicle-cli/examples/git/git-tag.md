@@ -11,11 +11,25 @@ $ git tag v1.0 -a -m "Release v1.0"
 ```
 
 ``` ~alice (stderr)
-$ git push rad v1.0 --tags
+$ git push rad v1.0
 ✓ Synced with 1 node(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new tag]         v1.0 -> v1.0
 ```
+
+Since the `rad` remote is setup to push `tags` using the refspec:
+
+~~~
+fetch = +refs/tags/*:refs/remotes/<name>/tags/*
+~~~
+
+there's no need to use the `--tags` flag. In fact, we avoid fetching tags into
+the global `tags` namespace to keep tags for each remote separate. This is
+achieved by also adding the following option to the remote configuration:
+
+~~~
+tagOpt = --no-tags
+~~~
 
 Bob fetches the tag from Alice, by adding her as a remote:
 
@@ -28,13 +42,13 @@ $ rad remote add z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --name alice
 ✓ Remote-tracking branch alice/master created for z6MknSL…StBU8Vi
 ```
 
-Bob is able to fetch Alice's tag into his working copy by using the
-`--tags` flag:
+Bob is able to fetch Alice's tag into his working copy, and they're fetched
+under the `alice` remote:
 
 ``` ~bob (stderr)
-$ git fetch alice --tags
+$ git fetch alice
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- * [new tag]         v1.0       -> v1.0
+ * [new tag]         v1.0       -> alice/tags/v1.0
 ```
 
 Alice forcefully creates a new version of the tag (let's say she made
@@ -64,7 +78,7 @@ $ rad sync -f
 ```
 
 ``` ~bob (stderr)
-$ git fetch alice --tags -f
+$ git fetch alice -f
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- t [tag update]      v1.0       -> v1.0
+   62d19fd..9dbdebc  v1.0       -> alice/tags/v1.0
 ```
