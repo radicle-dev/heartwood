@@ -289,10 +289,21 @@ impl Runtime {
             let handle = self.handle.clone();
             || control::listen(self.control, handle)
         });
-        let _signals = thread::spawn(&self.id, "signals", move || {
-            if let Ok(Signal::Terminate | Signal::Interrupt) = self.signals.recv() {
-                log::info!(target: "node", "Termination signal received; shutting down..");
-                self.handle.shutdown().ok();
+        let _signals = thread::spawn(&self.id, "signals", move || loop {
+            match self.signals.recv() {
+                Ok(Signal::Terminate | Signal::Interrupt) => {
+                    log::info!(target: "node", "Termination signal received; shutting down..");
+                    self.handle.shutdown().ok();
+                    break;
+                }
+                Ok(Signal::Hangup) => {
+                    log::debug!(target: "node", "Hangup signal (SIGHUP) received; ignoring..");
+                }
+                Ok(Signal::WindowChanged) => {}
+                Err(e) => {
+                    log::warn!(target: "node", "Signal notifications channel error: {e}");
+                    break;
+                }
             }
         });
 
