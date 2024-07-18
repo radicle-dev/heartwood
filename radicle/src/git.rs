@@ -11,6 +11,7 @@ use once_cell::sync::Lazy;
 use crate::collections::RandomMap;
 use crate::crypto::PublicKey;
 use crate::node::Alias;
+use crate::rad;
 use crate::storage;
 use crate::storage::refs::Refs;
 use crate::storage::RemoteId;
@@ -532,7 +533,9 @@ pub fn configure_repository(repo: &git2::Repository) -> Result<(), git2::Error> 
 /// [remote.<name>]
 ///   url = <fetch>
 ///   pushurl = <push>
-///   fetch +refs/heads/*:refs/remotes/<name>/*
+///   fetch = +refs/heads/*:refs/remotes/<name>/*
+///   fetch = +refs/tags/*:refs/remotes/<name>/tags/*
+///   tagOpt = --no-tags
 /// ```
 pub fn configure_remote<'r>(
     repo: &'r git2::Repository,
@@ -542,6 +545,20 @@ pub fn configure_remote<'r>(
 ) -> Result<git2::Remote<'r>, git2::Error> {
     let fetchspec = format!("+refs/heads/*:refs/remotes/{name}/*");
     let remote = repo.remote_with_fetch(name, fetch.to_string().as_str(), &fetchspec)?;
+
+    // We want to be able fetch tags from a peer's namespace and this is
+    // necessary to do so, since Git assumes that tags should always be fetched
+    // from the top-level `refs/tags` namespace
+    let tags = format!("+refs/tags/*:refs/remotes/{name}/tags/*");
+    repo.remote_add_fetch(name, &tags)?;
+
+    // Because of the above, if we don't set `--no-tags` then the tags will be
+    // fetched into `refs/tags` as well. We don't want to do this *unless* it's
+    // the `rad` remote, which will have the canonical tags
+    if name != (*rad::REMOTE_NAME).as_str() {
+        let mut config = repo.config()?;
+        config.set_str(&format!("remote.{name}.tagOpt"), "--no-tags")?;
+    }
 
     if push != fetch {
         repo.remote_set_pushurl(name, Some(push.to_string().as_str()))?;
