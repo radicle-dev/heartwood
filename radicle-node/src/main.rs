@@ -130,10 +130,10 @@ fn execute() -> anyhow::Result<()> {
 
 fn main() {
     if let Err(err) = execute() {
-        if let Some(src) = err.source() {
-            log::error!(target: "node", "Fatal: {err}: {src}");
+        if log::log_enabled!(target: "node", log::Level::Error) {
+            log::error!(target: "node", "Fatal: {err:#}");
         } else {
-            log::error!(target: "node", "Fatal: {err}");
+            eprintln!("Error: {err:#}");
         }
         process::exit(1);
     }
