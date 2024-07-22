@@ -3,8 +3,11 @@
 # * warn - A warning will be produced, but the check will not fail
 # * allow - No warning or error will be produced
 
-targets = []
 
+# The graph table configures how the dependency graph is constructed and thus
+# which crates the checks are performed against
+[graph]
+targets = []
 # If true, metadata will be collected with `--all-features`. Note that this can't
 # be toggled off if true, if you want to conditionally enable `--all-features` it
 # is recommended to pass `--all-features` on the cmd line instead
@@ -12,43 +15,42 @@ all-features = false
 # If true, metadata will be collected with `--no-default-features`. The same
 # caveat with `all-features` applies
 no-default-features = false
+
+# The output table provides options for how/if diagnostics are outputted
+[output]
+# When outputting inclusion graphs in diagnostics that include features, this
+# option can be used to specify the depth at which feature edges will be added.
+# This option is included since the graphs can be quite large and the addition
+# of features from the crate(s) to all of the graph roots can be far too verbose.
+# This option can be overridden via `--feature-depth` on the cmd line
 feature-depth = 1
 
 # This section is considered when running `cargo deny check advisories`
 [advisories]
+# Opt into new defaults since cargo deny 0.14.12 (2024-02-23)
+version = 2
 # The path where the advisory database is cloned/fetched into
 db-path = "~/.cargo/advisory-db"
 # The url(s) of the advisory databases to use
 db-urls = ["https://github.com/rustsec/advisory-db"]
-# The lint level for security vulnerabilities
-vulnerability = "deny"
-# The lint level for unmaintained crates
-unmaintained = "warn"
 # The lint level for crates that have been yanked from their source registry.
 yanked = "warn"
-# The lint level for crates with security notices.
-notice = "warn"
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
 ignore = []
 
 # This section is considered when running `cargo deny check licenses`
 [licenses]
-# The lint level for crates which do not have a detectable license
-unlicensed = "deny"
+# Opt into new defaults since cargo deny 0.14.12 (2024-02-23)
+version = 2
 # List of explicitly allowed licenses
 allow = [
     "MIT",
     "Apache-2.0",
     "Unicode-DFS-2016",
-    "BSD-3-Clause"
+    "BSD-3-Clause",
+    "MPL-2.0"
 ]
-# List of explicitly disallowed licenses
-deny = []
-# Lint level for licenses considered copyleft
-copyleft = "warn"
-allow-osi-fsf-free = "neither"
-default = "deny"
 # The confidence threshold for detecting a license from license text.
 confidence-threshold = 0.8
 # Allow 1 or more licenses on a per-crate basis, so that particular licenses
