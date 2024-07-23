@@ -1045,6 +1045,26 @@ fn rad_patch_via_push() {
 }
 
 #[test]
+fn rad_patch_detached_head() {
+    let mut environment = Environment::new();
+    let profile = environment.profile(config::profile("alice"));
+    let working = tempfile::tempdir().unwrap();
+    let home = &profile.home;
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+
+    test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
+    test(
+        "examples/rad-patch-detached-head.md",
+        working.path(),
+        Some(home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_patch_merge_draft() {
     let mut environment = Environment::new();
     let profile = environment.profile(config::profile("alice"));
