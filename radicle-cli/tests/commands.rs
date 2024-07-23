@@ -453,6 +453,56 @@ fn rad_id_threshold() {
 }
 
 #[test]
+fn rad_id_threshold_soft_fork() {
+    let mut environment = Environment::new();
+    let alice = environment.node(config::node("alice"));
+    let bob = environment.node(config::node("bob"));
+    let working = tempfile::tempdir().unwrap();
+    let working = working.path();
+    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+
+    // Setup a test repository.
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    let events = bob.handle.events();
+    bob.handle.seed(acme, Scope::All).unwrap();
+    alice.connect(&bob).converge([&bob]);
+
+    events
+        .wait(
+            |e| matches!(e, Event::RefsFetched { .. }).then_some(()),
+            time::Duration::from_secs(6),
+        )
+        .unwrap();
+
+    formula(&environment.tmp(), "examples/rad-id-threshold-soft-fork.md")
+        .unwrap()
+        .home(
+            "alice",
+            working.join("alice"),
+            [("RAD_HOME", alice.home.path().display())],
+        )
+        .home(
+            "bob",
+            working.join("bob"),
+            [("RAD_HOME", bob.home.path().display())],
+        )
+        .run()
+        .unwrap();
+}
+
+#[test]
 fn rad_id_update_delete_field() {
     let mut environment = Environment::new();
     let alice = environment.node(config::node("alice"));
