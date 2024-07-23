@@ -8,9 +8,9 @@ can be updated.
 ``` ~alice (fail)
 $ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --threshold 2
 ✗ Error: failed to verify delegates for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✗ Error: a threshold of 2 delegates cannot be met, found 1 delegate(s) and the following delegates are missing [did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk]
+✗ Error: the threshold of 2 delegates cannot be met due to the following errors
+✗ Error: the delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk is missing
 ✗ Hint: run `rad follow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk` to follow this missing peer
-✗ Hint: run `rad sync -f` to attempt to fetch the newly followed peers
 ✗ Error: fatal: refusing to update identity document
 ```
 

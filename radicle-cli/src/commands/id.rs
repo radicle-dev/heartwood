@@ -441,6 +441,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
                 if let Some(errs) = verify_delegates(&proposal, &repo)? {
                     term::error(format!("failed to verify delegates for {rid}"));
+                    term::error(format!(
+                        "the threshold of {} delegates cannot be met due to the following errors",
+                        proposal.threshold
+                    ));
                     for e in errs {
                         e.print();
                     }
@@ -761,15 +765,14 @@ fn print_diff(
     Ok(())
 }
 
+#[derive(Clone)]
 enum VerificationError {
     MissingDefaultBranch {
         branch: radicle::git::RefString,
         did: Did,
     },
-    InsufficientDelegates {
-        threshold: usize,
-        met: usize,
-        missing: Vec<Did>,
+    MissingDelegate {
+        did: Did,
     },
 }
 
@@ -781,21 +784,11 @@ impl VerificationError {
                 term::format::secondary(branch),
                 term::format::did(did)
             )),
-            VerificationError::InsufficientDelegates {
-                threshold,
-                met,
-                missing,
-            } => {
-                term::error(format!(
-                    "a threshold of {threshold} delegates cannot be met, found {met} delegate(s) and the following delegates are missing [{}]",
-                    missing.iter().map(|did| did.to_string()).collect::<Vec<_>>().join(","),
+            VerificationError::MissingDelegate { did } => {
+                term::error(format!("the delegate {did} is missing"));
+                term::hint(format!(
+                    "run `rad follow {did}` to follow this missing peer"
                 ));
-                for did in missing {
-                    term::hint(format!(
-                        "run `rad follow {did}` to follow this missing peer"
-                    ));
-                }
-                term::hint("run `rad sync -f` to attempt to fetch the newly followed peers")
             }
         }
     }
@@ -811,33 +804,23 @@ where
     let dids = &proposal.delegates;
     let threshold = proposal.threshold;
     let (canonical, _) = repo.canonical_head()?;
-    let mut errors = Vec::with_capacity(dids.len());
-    let mut local_delegates = 0;
     let mut missing = Vec::with_capacity(dids.len());
+
     for did in dids {
         match refs::SignedRefsAt::load((*did).into(), repo)? {
             None => {
-                missing.push(*did);
+                missing.push(VerificationError::MissingDelegate { did: *did });
             }
             Some(refs::SignedRefsAt { sigrefs, .. }) => {
                 if sigrefs.get(&canonical).is_none() {
-                    errors.push(VerificationError::MissingDefaultBranch {
+                    missing.push(VerificationError::MissingDefaultBranch {
                         branch: canonical.to_ref_string(),
                         did: *did,
-                    })
-                } else {
-                    local_delegates += 1;
+                    });
                 }
             }
         }
     }
 
-    if local_delegates < threshold {
-        errors.push(VerificationError::InsufficientDelegates {
-            threshold,
-            met: local_delegates,
-            missing,
-        });
-    }
-    Ok((!errors.is_empty()).then_some(errors))
+    Ok((dids.len() - missing.len() < threshold).then_some(missing))
 }
