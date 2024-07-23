@@ -125,7 +125,7 @@ $ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1
 │ @@ -1,1 +0,0 @@      │
 │ 1          - *.draft │
 ╰──────────────────────╯
-✓ Updated review tree to a5fccf0e977225ff13c3f74c43faf4cb679bf835
+✓ Updated brain to a5fccf0e977225ff13c3f74c43faf4cb679bf835
 ```
 ```
 $ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
@@ -136,7 +136,7 @@ $ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1
 │ @@ -0,0 +1,1 @@                                          │
 │      1     + All food is served as-is, with no warranty! │
 ╰──────────────────────────────────────────────────────────╯
-✓ Updated review tree to 2cdb82ea726e64d3b52847c7699d0d4759198f5c
+✓ Updated brain to 2cdb82ea726e64d3b52847c7699d0d4759198f5c
 ```
 ```
 $ rad patch review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
@@ -152,7 +152,7 @@ $ rad patch review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a4
 │ 4    5       Mac & Cheese   │
 │ 5    6                      │
 ╰─────────────────────────────╯
-✓ Updated review tree to d4aecbb859a802a3215def0b538358bf63593953
+✓ Updated brain to d4aecbb859a802a3215def0b538358bf63593953
 ```
 ```
 $ rad patch review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
@@ -168,7 +168,7 @@ $ rad patch review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a4
 │      15    + French Fries!            │
 │      16    + Garlic Green Beans       │
 ╰───────────────────────────────────────╯
-✓ Updated review tree to 59cee720b0642b1491b241400912b35926a76c3f
+✓ Updated brain to 59cee720b0642b1491b241400912b35926a76c3f
 ```
 
 ```
@@ -177,7 +177,7 @@ $ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1
 ╭────────────────────────────────────────────────────╮
 │ INSTRUCTIONS.txt -> notes/INSTRUCTIONS.txt ❲moved❳ │
 ╰────────────────────────────────────────────────────╯
-✓ Updated review tree to 3effc8f6462fa2573697072245e57708c4dcbe62
+✓ Updated brain to 3effc8f6462fa2573697072245e57708c4dcbe62
 ```
 
 ```

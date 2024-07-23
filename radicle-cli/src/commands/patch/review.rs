@@ -89,7 +89,7 @@ pub fn run(
                 .minimal(true)
                 .context_lines(unified as u32);
 
-            builder::ReviewBuilder::new(patch_id, *profile.id(), repository)
+            builder::ReviewBuilder::new(patch_id, signer, repository)
                 .hunk(hunk)
                 .verdict(verdict)
                 .run(revision, &mut opts)?;

@@ -2187,12 +2187,12 @@ where
         &mut self,
         revision: RevisionId,
         verdict: Option<Verdict>,
-        comment: Option<String>,
+        summary: Option<String>,
         labels: Vec<Label>,
         signer: &G,
     ) -> Result<ReviewId, Error> {
         self.transaction("Review", signer, |tx| {
-            tx.review(revision, verdict, comment, labels)
+            tx.review(revision, verdict, summary, labels)
         })
         .map(ReviewId)
     }

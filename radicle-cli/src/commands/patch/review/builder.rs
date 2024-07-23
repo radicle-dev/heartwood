@@ -18,11 +18,12 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{fmt, io};
 
+use radicle::cob;
 use radicle::cob::patch::{PatchId, Revision, Verdict};
 use radicle::cob::{CodeLocation, CodeRange};
 use radicle::git;
 use radicle::prelude::*;
-use radicle::storage::git::Repository;
+use radicle::storage::git::{cob::DraftStore, Repository};
 use radicle_git_ext::Oid;
 use radicle_surf::diff::*;
 use radicle_term::{Element, VStack};
@@ -387,6 +388,16 @@ impl ReviewQueue {
     }
 }
 
+impl From<Diff> for ReviewQueue {
+    fn from(diff: Diff) -> Self {
+        let mut queue = Self::default();
+        for file in diff.into_files() {
+            queue.add_file(file);
+        }
+        queue
+    }
+}
+
 impl std::ops::Deref for ReviewQueue {
     type Target = VecDeque<(usize, ReviewItem)>;
 
@@ -410,6 +421,7 @@ impl Iterator for ReviewQueue {
 }
 
 /// Builds a review for a single file.
+/// Adjusts line deltas when a hunk is ignored.
 pub struct FileReviewBuilder {
     header: FileHeader,
     delta: i32,
@@ -438,12 +450,7 @@ impl FileReviewBuilder {
         }
     }
 
-    fn apply_item<'a>(
-        &mut self,
-        item: ReviewItem,
-        brain: &mut git::raw::Tree<'a>,
-        repo: &'a git::raw::Repository,
-    ) -> Result<(), Error> {
+    fn item_diff(&mut self, item: ReviewItem) -> Result<git::raw::Diff, Error> {
         let mut buf = Vec::new();
         let mut writer = unified_diff::Writer::new(&mut buf);
         writer.encode(&self.header)?;
@@ -462,22 +469,111 @@ impl FileReviewBuilder {
         }
         drop(writer);
 
-        let diff = git::raw::Diff::from_buffer(&buf)?;
-        let mut index = repo.apply_to_tree(brain, &diff, None)?;
-        let brain_oid = index.write_tree_to(repo)?;
+        git::raw::Diff::from_buffer(&buf).map_err(Error::from)
+    }
+}
 
-        *brain = repo.find_tree(brain_oid)?;
+/// Represents the reviewer's brain, ie. what they have seen or not seen in terms
+/// of changes introduced by a patch.
+pub struct Brain<'a> {
+    /// Where the review draft is being stored.
+    refname: git::Namespaced<'a>,
+    /// The commit pointed to by the ref.
+    head: git::raw::Commit<'a>,
+    /// The tree of accepted changes pointed to by the head commit.
+    accepted: git::raw::Tree<'a>,
+}
+
+impl<'a> Brain<'a> {
+    /// Create a new brain in the repository.
+    fn new(
+        patch: PatchId,
+        remote: &NodeId,
+        base: git::raw::Commit,
+        repo: &'a git::raw::Repository,
+    ) -> Result<Self, git::raw::Error> {
+        let refname = Self::refname(&patch, remote);
+        let author = repo.signature()?;
+        let oid = repo.commit(
+            Some(refname.as_str()),
+            &author,
+            &author,
+            &format!("Review for {patch}"),
+            &base.tree()?,
+            // TODO: Verify this is necessary, shouldn't matter.
+            &[&base],
+        )?;
+        let head = repo.find_commit(oid)?;
+        let tree = head.tree()?;
+
+        Ok(Self {
+            refname,
+            head,
+            accepted: tree,
+        })
+    }
+
+    /// Return the content identifier of this brain. This represents the state of the
+    /// accepted hunks, ie. the git tree.
+    fn cid(&self) -> Oid {
+        self.accepted.id().into()
+    }
+
+    /// Load an existing brain from the repository.
+    fn load(
+        patch: PatchId,
+        remote: &NodeId,
+        repo: &'a git::raw::Repository,
+    ) -> Result<Self, git::raw::Error> {
+        // TODO: Validate this leads to correct UX for potentially abandoned drafts on
+        // past revisions.
+        let refname = Self::refname(&patch, remote);
+        let head = repo.find_reference(&refname)?.peel_to_commit()?;
+        let tree = head.tree()?;
+
+        Ok(Self {
+            refname,
+            head,
+            accepted: tree,
+        })
+    }
+
+    /// Accept changes to the brain.
+    fn accept(
+        &mut self,
+        diff: git::raw::Diff,
+        repo: &'a git::raw::Repository,
+    ) -> Result<(), git::raw::Error> {
+        let mut index = repo.apply_to_tree(&self.accepted, &diff, None)?;
+        let accepted = index.write_tree_to(repo)?;
+        self.accepted = repo.find_tree(accepted)?;
+
+        // Update review with new brain.
+        let head = self.head.amend(
+            Some(&self.refname),
+            None,
+            None,
+            None,
+            None,
+            Some(&self.accepted),
+        )?;
+        self.head = repo.find_commit(head)?;
 
         Ok(())
+    }
+
+    /// Get the brain's refname given the patch and remote.
+    fn refname(patch: &PatchId, remote: &NodeId) -> git::Namespaced<'a> {
+        git::refs::storage::draft::review(remote, patch)
     }
 }
 
 /// Builds a patch review interactively, across multiple files.
-pub struct ReviewBuilder<'a> {
+pub struct ReviewBuilder<'a, G> {
     /// Patch being reviewed.
     patch_id: PatchId,
-    /// Where the review draft is being stored.
-    refname: git::Namespaced<'a>,
+    /// Signer.
+    signer: G,
     /// Stored copy of repository.
     repo: &'a Repository,
     /// Single hunk review.
@@ -486,14 +582,12 @@ pub struct ReviewBuilder<'a> {
     verdict: Option<Verdict>,
 }
 
-impl<'a> ReviewBuilder<'a> {
+impl<'a, G: Signer> ReviewBuilder<'a, G> {
     /// Create a new review builder.
-    pub fn new(patch_id: PatchId, nid: NodeId, repo: &'a Repository) -> Self {
+    pub fn new(patch_id: PatchId, signer: G, repo: &'a Repository) -> Self {
         Self {
             patch_id,
-            // TODO: Validate this leads to correct UX for potentially abandoned drafts on
-            // past revisions.
-            refname: git::refs::storage::draft::review(&nid, &patch_id),
+            signer,
             repo,
             hunk: None,
             verdict: None,
@@ -515,8 +609,8 @@ impl<'a> ReviewBuilder<'a> {
     /// Run the review builder for the given revision.
     pub fn run(self, revision: &Revision, opts: &mut git::raw::DiffOptions) -> anyhow::Result<()> {
         let repo = self.repo.raw();
+        let signer = &self.signer;
         let base = repo.find_commit((*revision.base()).into())?;
-        let author = repo.signature()?;
         let patch_id = self.patch_id;
         let tree = {
             let commit = repo.find_commit(revision.head().into())?;
@@ -530,37 +624,45 @@ impl<'a> ReviewBuilder<'a> {
         } else {
             Box::new(io::stderr().lock())
         };
-        let mut review = if let Ok(c) = self.current() {
+        let mut brain = if let Ok(b) = Brain::load(self.patch_id, signer.public_key(), repo) {
             term::success!(
                 "Loaded existing review {} for patch {}",
-                term::format::secondary(term::format::parens(term::format::oid(c.id()))),
+                term::format::secondary(term::format::parens(term::format::oid(b.head.id()))),
                 term::format::tertiary(&patch_id)
             );
-            c
+            b
         } else {
-            let oid = repo.commit(
-                Some(self.refname.as_str()),
-                &author,
-                &author,
-                &format!("Review {patch_id}"),
-                &base.tree()?,
-                // TODO: Verify this is necessary, shouldn't matter.
-                &[&base],
-            )?;
-            repo.find_commit(oid)?
+            Brain::new(self.patch_id, signer.public_key(), base, repo)?
         };
-        let mut brain = review.tree()?;
-        let mut queue = ReviewQueue::default();
-        let diff = self.diff(&brain, &tree, repo, opts)?;
+        let diff = self.diff(&brain.accepted, &tree, repo, opts)?;
+        let drafts = DraftStore::new(*signer.public_key(), self.repo).with(
+            signer.public_key(),
+            &cob::patch::TYPENAME,
+            &patch_id,
+        )?;
+        let mut patches = cob::patch::Cache::no_cache(&drafts)?;
+        let mut patch = patches.get_mut(&patch_id)?;
+        let mut queue = ReviewQueue::from(diff);
 
-        // Build the review queue.
-        for file in diff.into_files() {
-            queue.add_file(file);
-        }
         if queue.is_empty() {
             term::success!("All hunks have been reviewed");
             return Ok(());
         }
+
+        let review = if let Some(r) = revision.review_by(signer.public_key()) {
+            r.id()
+        } else {
+            patch.review(
+                revision.id(),
+                // This is amended before the review is finalized, if all hunks are
+                // accepted. We can't set this to `None`, as that will be invalid without
+                // a review summary.
+                Some(Verdict::Reject),
+                None,
+                vec![],
+                signer,
+            )?
+        };
 
         // File review for the current file. Starts out as `None` and is set on the first hunk.
         // Keeps track of deltas for hunk offsets.
@@ -589,15 +691,12 @@ impl<'a> ReviewBuilder<'a> {
                 // When a hunk is accepted, we convert it to unified diff format,
                 // and apply it to the `brain`.
                 Some(ReviewAction::Accept) => {
-                    // Update brain with accepted hunk.
-                    file.apply_item(item, &mut brain, repo)?;
-                    // Update review with new brain.
-                    let review_oid =
-                        review.amend(Some(&self.refname), None, None, None, None, Some(&brain))?;
-                    review = repo.find_commit(review_oid)?;
+                    // Compute hunk diff and update brain by applying it.
+                    let diff = file.item_diff(item)?;
+                    brain.accept(diff, repo)?;
 
                     if self.hunk.is_some() {
-                        term::success!("Updated review tree to {}", brain.id());
+                        term::success!("Updated brain to {}", brain.cid());
                     }
                 }
                 Some(ReviewAction::Ignore) => {
@@ -609,12 +708,21 @@ impl<'a> ReviewBuilder<'a> {
                     let path = old.or(new);
 
                     if let (Some(hunk), Some((path, _))) = (item.hunk(), path) {
-                        let mut builder = CommentBuilder::new(revision.head(), path.to_path_buf());
-                        builder.edit(hunk)?;
+                        let builder = CommentBuilder::new(revision.head(), path.to_path_buf());
+                        let comments = builder.edit(hunk)?;
 
-                        let _comments = builder.comments();
-
-                        queue.push_front((ix, item));
+                        patch.transaction("Review comments", signer, |tx| {
+                            for comment in comments {
+                                tx.review_comment(
+                                    review,
+                                    comment.body,
+                                    Some(comment.location),
+                                    None,   // Not a reply.
+                                    vec![], // No embeds.
+                                )?;
+                            }
+                            Ok(())
+                        })?;
                     } else {
                         eprintln!(
                             "{}",
@@ -706,13 +814,6 @@ impl<'a> ReviewBuilder<'a> {
             Some(ReviewAction::Ignore)
         }
     }
-
-    fn current(&self) -> Result<git::raw::Commit, git::raw::Error> {
-        self.repo
-            .raw()
-            .find_reference(&self.refname)?
-            .peel_to_commit()
-    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -751,7 +852,7 @@ impl CommentBuilder {
         }
     }
 
-    fn edit(&mut self, hunk: &Hunk<Modification>) -> Result<&mut Self, Error> {
+    fn edit(mut self, hunk: &Hunk<Modification>) -> Result<Vec<ReviewComment>, Error> {
         let mut input = String::new();
         for line in hunk.to_unified_string()?.lines() {
             writeln!(&mut input, "> {line}")?;
@@ -762,7 +863,7 @@ impl CommentBuilder {
             let header = HunkHeader::try_from(hunk)?;
             self.add_hunk(header, &output);
         }
-        Ok(self)
+        Ok(self.comments())
     }
 
     fn add_hunk(&mut self, hunk: HunkHeader, input: &str) -> &mut Self {

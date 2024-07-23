@@ -182,6 +182,31 @@ pub struct DraftStore<'a, R> {
     repo: &'a R,
 }
 
+impl<'a, R: storage::WriteRepository> DraftStore<'a, R> {
+    /// Create this draft store with an existing COB from storage, so that changes applied
+    /// to this COB can evaluate properly. This creates a symbolic reference to the COB
+    /// pointing to the public COB reference.
+    pub fn with(
+        self,
+        remote: &RemoteId,
+        typename: &cob::TypeName,
+        id: &ObjectId,
+    ) -> Result<Self, git::Error> {
+        let target = git::refs::storage::cob(remote, typename, id);
+        let name = git::refs::storage::draft::cob(remote, typename, id);
+        let repo = self.repo.raw();
+
+        repo.reference_symbolic(
+            name.as_str(),
+            target.as_str(),
+            true, // The reference may already exist, overwrite it if so.
+            format!("Link to COB {id} of type {typename}").as_str(),
+        )?;
+
+        Ok(self)
+    }
+}
+
 impl<'a, R> DraftStore<'a, R> {
     pub fn new(remote: RemoteId, repo: &'a R) -> Self {
         Self { remote, repo }
