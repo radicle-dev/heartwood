@@ -353,6 +353,11 @@ pub fn setup_patch_upstream<'a>(
         return Ok(None);
     };
 
+    // Can't set an upstream for something that's not a branch
+    if !r.is_branch() {
+        return Ok(None);
+    }
+
     let branch = git::raw::Branch::wrap(r);
 
     // Only set the upstream if it's missing or `force` is `true`
