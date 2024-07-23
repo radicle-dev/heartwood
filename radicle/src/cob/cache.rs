@@ -47,7 +47,7 @@ pub struct Read;
 #[derive(Clone)]
 pub struct Write;
 
-/// A file-backed database storing information about the network.
+/// A file-backed database storing materialized COBs.
 #[derive(Clone)]
 pub struct Store<T> {
     pub(super) db: Arc<sql::ConnectionThreadSafe>,

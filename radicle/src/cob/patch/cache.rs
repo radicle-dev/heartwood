@@ -712,7 +712,9 @@ mod tests {
         let oid = arbitrary::oid();
         let timestamp = env::local_time();
         let resolves = BTreeSet::new();
+        let id = RevisionId::from(arbitrary::oid());
         let mut revision = Revision::new(
+            id,
             Author { id: author },
             description,
             base,
@@ -730,7 +732,6 @@ mod tests {
         );
         let thread = Thread::new(arbitrary::oid(), comment);
         revision.discussion = thread;
-        let id = RevisionId::from(arbitrary::oid());
         (id, revision)
     }
 

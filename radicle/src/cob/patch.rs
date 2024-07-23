@@ -1,5 +1,6 @@
 pub mod cache;
 
+use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::ops::Deref;
@@ -106,6 +107,9 @@ pub enum Error {
     /// Review is empty.
     #[error("empty review; verdict or summary not provided")]
     EmptyReview,
+    /// Duplicate review.
+    #[error("review {0} of {1} already exists by author {2}")]
+    DuplicateReview(ReviewId, RevisionId, NodeId),
     /// Error loading the document payload.
     #[error("payload failed to load: {0}")]
     Payload(#[from] PayloadError),
@@ -521,7 +525,7 @@ impl Patch {
             t.and_then(|(rev_id, pk)| {
                 if rev == rev_id {
                     self.revision(&rev_id)
-                        .and_then(|r| r.review(&pk))
+                        .and_then(|r| r.review_by(&pk))
                         .map(|r| (review_id, r))
                 } else {
                     None
@@ -825,10 +829,12 @@ impl Patch {
                 resolves,
             } => {
                 debug_assert!(!self.revisions.contains_key(&entry));
+                let id = RevisionId(entry);
 
                 self.revisions.insert(
-                    RevisionId(entry),
+                    id,
                     Some(Revision::new(
+                        id,
                         author.into(),
                         description,
                         base,
@@ -886,21 +892,25 @@ impl Patch {
                     return Err(Error::EmptyReview);
                 }
                 if let Some(rev) = rev {
-                    // Nb. Applying two reviews by the same author is not allowed and
-                    // results in the review being redacted.
-                    rev.reviews.insert(
-                        author,
-                        Some(Review::new(
-                            Author::new(author),
-                            verdict,
-                            summary.to_owned(),
-                            labels,
-                            timestamp,
-                        )),
-                    );
+                    let id = ReviewId(entry);
+                    // Nb. Applying two reviews by the same author is not allowed.
+                    match rev.reviews.entry(author) {
+                        Entry::Occupied(_) => {
+                            return Err(Error::DuplicateReview(id, revision, author));
+                        }
+                        Entry::Vacant(e) => {
+                            e.insert(Some(Review::new(
+                                id,
+                                Author::new(author),
+                                verdict,
+                                summary.to_owned(),
+                                labels,
+                                timestamp,
+                            )));
+                        }
+                    }
                     // Update reviews index.
-                    self.reviews
-                        .insert(ReviewId(entry), Some((revision, author)));
+                    self.reviews.insert(id, Some((revision, author)));
                 }
             }
             Action::ReviewCommentReact {
@@ -1150,6 +1160,7 @@ impl store::Cob for Patch {
             return Err(Error::Init("the second action must be of type `edit`"));
         };
         let revision = Revision::new(
+            RevisionId(op.id),
             op.author.into(),
             description,
             base,
@@ -1332,6 +1343,8 @@ mod lookup {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Revision {
+    /// Revision identifier.
+    pub(super) id: RevisionId,
     /// Author of the revision.
     pub(super) author: Author,
     /// Revision description.
@@ -1358,6 +1371,7 @@ pub struct Revision {
 
 impl Revision {
     pub fn new(
+        id: RevisionId,
         author: Author,
         description: String,
         base: git::Oid,
@@ -1368,6 +1382,7 @@ impl Revision {
         let description = Edit::new(*author.public_key(), description, timestamp, Vec::default());
 
         Self {
+            id,
             author,
             description: NonEmpty::new(description),
             base,
@@ -1378,6 +1393,10 @@ impl Revision {
             resolves,
             reactions: Default::default(),
         }
+    }
+
+    pub fn id(&self) -> RevisionId {
+        self.id
     }
 
     pub fn description(&self) -> &str {
@@ -1439,7 +1458,7 @@ impl Revision {
     }
 
     /// Get a review by author.
-    pub fn review(&self, author: &ActorId) -> Option<&Review> {
+    pub fn review_by(&self, author: &ActorId) -> Option<&Review> {
         self.reviews.get(author).and_then(|o| o.as_ref())
     }
 }
@@ -1559,6 +1578,8 @@ impl fmt::Display for Verdict {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Review {
+    /// Review identifier.
+    pub(super) id: ReviewId,
     /// Review author.
     pub(super) author: Author,
     /// Review verdict.
@@ -1580,6 +1601,7 @@ pub struct Review {
 
 impl Review {
     pub fn new(
+        id: ReviewId,
         author: Author,
         verdict: Option<Verdict>,
         summary: Option<String>,
@@ -1587,6 +1609,7 @@ impl Review {
         timestamp: Timestamp,
     ) -> Self {
         Self {
+            id,
             author,
             verdict,
             summary,
@@ -1594,6 +1617,11 @@ impl Review {
             labels,
             timestamp,
         }
+    }
+
+    /// Review identifier.
+    pub fn id(&self) -> ReviewId {
+        self.id
     }
 
     /// Review author.
@@ -2891,7 +2919,7 @@ mod test {
         let (_, revision) = patch.latest();
         assert_eq!(revision.reviews.len(), 1);
 
-        let review = revision.review(alice.signer.public_key()).unwrap();
+        let review = revision.review_by(alice.signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Accept));
         assert_eq!(review.summary(), Some("LGTM"));
 
@@ -3135,7 +3163,7 @@ mod test {
             .unwrap(); // Overwrite the comment.
                        //
         let (_, revision) = patch.latest();
-        let review = revision.review(alice.signer.public_key()).unwrap();
+        let review = revision.review_by(alice.signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Reject));
         assert_eq!(review.summary(), Some("Whoops!"));
     }
@@ -3180,7 +3208,7 @@ mod test {
             .unwrap();
 
         let (_, revision) = patch.latest();
-        let review = revision.review(alice.signer.public_key()).unwrap();
+        let review = revision.review_by(alice.signer.public_key()).unwrap();
         let (_, comment) = review.comments().next().unwrap();
 
         assert_eq!(comment.body(), "I like these lines of code");
@@ -3216,7 +3244,7 @@ mod test {
         let id = patch.id;
         let patch = patches.get_mut(&id).unwrap();
         let (_, revision) = patch.latest();
-        let review = revision.review(alice.signer.public_key()).unwrap();
+        let review = revision.review_by(alice.signer.public_key()).unwrap();
 
         assert_eq!(review.summary(), None);
     }

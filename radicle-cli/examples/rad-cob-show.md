@@ -113,6 +113,7 @@ $ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch
   "merges": {},
   "revisions": {
     "d1f7f869fde9fac19c1779c4c2e77e8361333f91": {
+      "id": "d1f7f869fde9fac19c1779c4c2e77e8361333f91",
       "author": {
         "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
       },
