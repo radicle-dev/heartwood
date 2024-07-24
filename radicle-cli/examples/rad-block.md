@@ -41,3 +41,15 @@ $ rad seed
 │ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji          block    all   │
 ╰───────────────────────────────────────────────────────────╯
 ```
+
+If we want to reverse the blocking of the RID we can use `rad unblock`:
+
+```
+$ rad unblock rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+✓ The 'block' policy for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji is removed
+```
+
+```
+$ rad seed
+No seeding policies to show.
+```

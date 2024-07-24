@@ -291,6 +291,13 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "unblock" => {
+            term::run_command_args::<rad_unblock::Options, _>(
+                rad_unblock::HELP,
+                rad_unblock::run,
+                args.to_vec(),
+            );
+        }
         "unfollow" => {
             term::run_command_args::<rad_unfollow::Options, _>(
                 rad_unfollow::HELP,

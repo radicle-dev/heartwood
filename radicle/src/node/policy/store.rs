@@ -198,6 +198,30 @@ impl Store<Write> {
 
         Ok(self.db.change_count() > 0)
     }
+
+    /// Unblock a repository.
+    pub fn unblock_rid(&mut self, id: &RepoId) -> Result<bool, Error> {
+        let mut stmt = self
+            .db
+            .prepare("DELETE FROM `seeding` WHERE id = ? AND policy = 'block'")?;
+
+        stmt.bind((1, id))?;
+        stmt.next()?;
+
+        Ok(self.db.change_count() > 0)
+    }
+
+    /// Unblock a remote.
+    pub fn unblock_nid(&mut self, id: &NodeId) -> Result<bool, Error> {
+        let mut stmt = self
+            .db
+            .prepare("DELETE FROM `following` WHERE id = ? AND policy = 'block'")?;
+
+        stmt.bind((1, id))?;
+        stmt.next()?;
+
+        Ok(self.db.change_count() > 0)
+    }
 }
 
 /// `Read` methods for `Config`. This implies that a

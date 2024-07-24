@@ -33,6 +33,7 @@ const COMMANDS: &[Help] = &[
     rad_self::HELP,
     rad_seed::HELP,
     rad_follow::HELP,
+    rad_unblock::HELP,
     rad_unfollow::HELP,
     rad_unseed::HELP,
     rad_remote::HELP,
