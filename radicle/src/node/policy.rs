@@ -139,11 +139,15 @@ impl TryFrom<&sqlite::Value> for Policy {
     type Error = sqlite::Error;
 
     fn try_from(value: &sqlite::Value) -> Result<Self, Self::Error> {
-        let message = Some("sql: invalid policy".to_owned());
+        let message = Some("sql: invalid policy value".to_owned());
 
         match value {
             sqlite::Value::String(s) if s == "allow" => Ok(Policy::Allow),
             sqlite::Value::String(s) if s == "block" => Ok(Policy::Block),
+            sqlite::Value::String(s) => Err(sqlite::Error {
+                code: None,
+                message: Some(format!("sql: invalid policy '{s}'")),
+            }),
             _ => Err(sqlite::Error {
                 code: None,
                 message,
