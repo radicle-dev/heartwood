@@ -2377,9 +2377,11 @@ where
         }
 
         let delta = count - self.config.limits.routing_max_size;
+        let nid = self.node_id();
         self.db.routing_mut().prune(
             (*now - self.config.limits.routing_max_age).into(),
             Some(delta),
+            &nid,
         )?;
         Ok(())
     }

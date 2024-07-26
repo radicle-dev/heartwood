@@ -64,7 +64,12 @@ pub trait Store {
     /// Get the total number of routing entries.
     fn len(&self) -> Result<usize, Error>;
     /// Prune entries older than the given timestamp.
-    fn prune(&mut self, oldest: Timestamp, limit: Option<usize>) -> Result<usize, Error>;
+    fn prune(
+        &mut self,
+        oldest: Timestamp,
+        limit: Option<usize>,
+        ignore: &NodeId,
+    ) -> Result<usize, Error>;
     /// Count the number of routes for a specific repo RID.
     fn count(&self, id: &RepoId) -> Result<usize, Error>;
 }
@@ -210,18 +215,25 @@ impl Store for Database {
         Ok(count)
     }
 
-    fn prune(&mut self, oldest: Timestamp, limit: Option<usize>) -> Result<usize, Error> {
+    fn prune(
+        &mut self,
+        oldest: Timestamp,
+        limit: Option<usize>,
+        ignore: &NodeId,
+    ) -> Result<usize, Error> {
         let limit: i64 = limit
             .unwrap_or(i64::MAX as usize)
             .try_into()
             .map_err(|_| Error::UnitOverflow)?;
 
         let mut stmt = self.db.prepare(
-            "DELETE FROM routing WHERE rowid IN
-            (SELECT rowid FROM routing WHERE timestamp < ? LIMIT ?)",
+            "DELETE FROM routing
+             WHERE node <> ?1 AND rowid IN
+             (SELECT rowid FROM routing WHERE timestamp < ?2 ORDER BY timestamp LIMIT ?3)",
         )?;
-        stmt.bind((1, &oldest))?;
-        stmt.bind((2, limit))?;
+        stmt.bind((1, ignore))?;
+        stmt.bind((2, &oldest))?;
+        stmt.bind((3, limit))?;
         stmt.next()?;
 
         Ok(self.db.change_count())
@@ -479,7 +491,7 @@ mod test {
                 .unwrap();
         }
 
-        let pruned = db.prune(now.into(), None).unwrap();
+        let pruned = db.prune(now.into(), None, &arbitrary::gen(1)).unwrap();
         assert_eq!(pruned, ids.len() * nodes.len());
 
         for id in &ids {
