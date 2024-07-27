@@ -294,7 +294,6 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let signer = term::signer(&profile)?;
     let storage = &profile.storage;
     let rid = if let Some(rid) = options.rid {
         rid
@@ -312,6 +311,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::AcceptRevision { revision } => {
             let revision = get(revision, &identity, &repo)?.clone();
             let id = revision.id;
+            let signer = term::signer(&profile)?;
 
             if !revision.is_active() {
                 anyhow::bail!("cannot vote on revision that is {}", revision.state);
@@ -339,6 +339,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::RejectRevision { revision } => {
             let revision = get(revision, &identity, &repo)?.clone();
+            let signer = term::signer(&profile)?;
 
             if !revision.is_active() {
                 anyhow::bail!("cannot vote on revision that is {}", revision.state);
@@ -362,6 +363,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             description,
         } => {
             let revision = get(revision, &identity, &repo)?.clone();
+            let signer = term::signer(&profile)?;
 
             if !revision.is_active() {
                 anyhow::bail!("revision can no longer be edited");
@@ -481,6 +483,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
                 return Ok(());
             }
+            let signer = term::signer(&profile)?;
             let revision = update(title, description, proposal, &mut identity, &signer)?;
 
             if revision.is_accepted() && revision.parent == Some(current.id) {
@@ -533,6 +536,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::RedactRevision { revision } => {
             let revision = get(revision, &identity, &repo)?.clone();
+            let signer = term::signer(&profile)?;
 
             if revision.is_accepted() {
                 anyhow::bail!("cannot redact accepted revision");
