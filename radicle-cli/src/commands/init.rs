@@ -18,6 +18,7 @@ use radicle::node::events::UploadPack;
 use radicle::node::policy::Scope;
 use radicle::node::{Event, Handle, NodeId, DEFAULT_SUBSCRIBE_TIMEOUT};
 use radicle::prelude::Doc;
+use radicle::storage::ReadStorage as _;
 use radicle::{profile, Node};
 
 use crate::commands;
@@ -43,6 +44,7 @@ Options
         --scope <scope>            Repository follow scope: `followed` or `all` (default: all)
         --private                  Set repository visibility to *private*
         --public                   Set repository visibility to *public*
+        --existing <rid>           Setup repository as an existing Radicle repository
     -u, --set-upstream             Setup the upstream of the default branch
         --setup-signing            Setup the radicle key as a signing key for this repository
         --no-confirm               Don't ask for confirmation during setup
@@ -60,6 +62,7 @@ pub struct Options {
     pub branch: Option<String>,
     pub interactive: Interactive,
     pub visibility: Option<Visibility>,
+    pub existing: Option<RepoId>,
     pub setup_signing: bool,
     pub scope: Scope,
     pub set_upstream: bool,
@@ -81,6 +84,7 @@ impl Args for Options {
         let mut set_upstream = false;
         let mut setup_signing = false;
         let mut scope = Scope::All;
+        let mut existing = None;
         let mut seed = true;
         let mut verbose = false;
         let mut visibility = None;
@@ -150,6 +154,12 @@ impl Args for Options {
                 Long("public") => {
                     visibility = Some(Visibility::Public);
                 }
+                Long("existing") if existing.is_none() => {
+                    let val = parser.value()?;
+                    let rid = term::args::rid(&val)?;
+
+                    existing = Some(rid);
+                }
                 Long("verbose") | Short('v') => {
                     verbose = true;
                 }
@@ -170,6 +180,7 @@ impl Args for Options {
                 description,
                 branch,
                 scope,
+                existing,
                 interactive,
                 set_upstream,
                 setup_signing,
@@ -184,29 +195,38 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-
-    init(options, &profile)
-}
-
-pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> {
-    let cwd = std::env::current_dir()?;
-    let path = options.path.unwrap_or_else(|| cwd.clone());
-    let path = path.as_path().canonicalize()?;
-    let interactive = options.interactive;
-    let repo = match git::Repository::open(&path) {
+    let cwd = env::current_dir()?;
+    let path = options.path.as_deref().unwrap_or(cwd.as_path());
+    let repo = match git::Repository::open(path) {
         Ok(r) => r,
         Err(e) if radicle::git::ext::is_not_found_err(&e) => {
             anyhow::bail!("a Git repository was not found at the given path")
         }
         Err(e) => return Err(e.into()),
     };
-
     if let Ok((remote, _)) = git::rad_remote(&repo) {
         if let Some(remote) = remote.url() {
             bail!("repository is already initialized with remote {remote}");
         }
     }
 
+    if let Some(rid) = options.existing {
+        init_existing(repo, rid, options, &profile)
+    } else {
+        init(repo, options, &profile)
+    }
+}
+
+pub fn init(
+    repo: git::Repository,
+    options: Options,
+    profile: &profile::Profile,
+) -> anyhow::Result<()> {
+    let path = repo
+        .workdir()
+        .unwrap_or_else(|| repo.path())
+        .canonicalize()?;
+    let interactive = options.interactive;
     let head: String = repo
         .head()
         .ok()
@@ -319,7 +339,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                 term::format::dim("(RID)"),
                 term::format::highlight(rid.urn())
             );
-            let directory = if path == cwd {
+            let directory = if path == env::current_dir()? {
                 "this directory".to_owned()
             } else {
                 term::format::tertiary(path.display()).to_string()
@@ -346,6 +366,48 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             anyhow::bail!(err);
         }
     }
+
+    Ok(())
+}
+
+pub fn init_existing(
+    working: git::Repository,
+    rid: RepoId,
+    options: Options,
+    profile: &profile::Profile,
+) -> anyhow::Result<()> {
+    let stored = profile.storage.repository(rid)?;
+    let project = stored.project()?;
+    let url = radicle::git::Url::from(rid);
+
+    radicle::git::configure_repository(&working)?;
+    radicle::git::configure_remote(
+        &working,
+        &radicle::rad::REMOTE_NAME,
+        &url,
+        &url.clone().with_namespace(profile.public_key),
+    )?;
+
+    if options.set_upstream {
+        // Setup eg. `master` -> `rad/master`
+        radicle::git::set_upstream(
+            &working,
+            &*radicle::rad::REMOTE_NAME,
+            project.default_branch(),
+            radicle::git::refs::workdir::branch(project.default_branch()),
+        )?;
+    }
+
+    term::success!(
+        "Initialized existing repository {} in {}..",
+        term::format::tertiary(rid),
+        term::format::dim(
+            working
+                .workdir()
+                .unwrap_or_else(|| working.path())
+                .display()
+        ),
+    );
 
     Ok(())
 }

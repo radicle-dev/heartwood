@@ -205,6 +205,28 @@ fn rad_init() {
 }
 
 #[test]
+fn rad_init_existing() {
+    let mut environment = Environment::new();
+    let mut profile = environment.node(config::node("alice"));
+    let working = tempfile::tempdir().unwrap();
+    let rid = profile.project("heartwood", "Radicle Heartwood Protocol & Stack");
+
+    test(
+        "examples/rad-init-existing.md",
+        working.path(),
+        Some(&profile.home),
+        [(
+            "URL",
+            git::url::File::new(profile.storage.path())
+                .rid(rid)
+                .to_string()
+                .as_str(),
+        )],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_init_no_seed() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));

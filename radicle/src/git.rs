@@ -697,6 +697,8 @@ pub mod process {
 pub mod url {
     use std::path::PathBuf;
 
+    use crate::prelude::RepoId;
+
     /// A Git URL using the `file://` scheme.
     pub struct File {
         pub path: PathBuf,
@@ -706,6 +708,12 @@ pub mod url {
         /// Create a new file URL pointing to the given path.
         pub fn new(path: impl Into<PathBuf>) -> Self {
             Self { path: path.into() }
+        }
+
+        /// Return a URL with the given RID set.
+        pub fn rid(mut self, rid: RepoId) -> Self {
+            self.path.push(rid.canonical());
+            self
         }
     }
 
