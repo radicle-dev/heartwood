@@ -107,6 +107,14 @@ $ rad config add value.a.future.update.might.add.collection 1
 1
 ```
 
+```
+$ rad config add node.array a
+a
+$ rad config add node.array b
+a
+b
+```
+
 Values that are required for a valid config can't be deleted.
 
 ```fail
@@ -125,5 +133,6 @@ The type of the operation is validated.
 
 ```fail
 $ rad config add node.alias eve
-✗ Error: configuration error: node.alias is not a collection, can't add to it
+✗ Error: the element at the path 'node.alias' is not a JSON array
 ```
+
