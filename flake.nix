@@ -80,16 +80,13 @@
         // {
           inherit cargoArtifacts;
 
-          nativeBuildInputs = with pkgs;
-            [
-              git
-              # Add additional build inputs here
-            ]
-            ++ lib.optionals pkgs.stdenv.isDarwin (with pkgs; [
-              # Additional darwin specific inputs can be set here
-              libiconv
-              darwin.apple_sdk.frameworks.Security
-            ]);
+          nativeBuildInputs = with pkgs; [
+            git
+            # Add additional build inputs here
+          ];
+          buildInputs = lib.optionals pkgs.stdenv.buildPlatform.isDarwin (with pkgs; [
+            darwin.apple_sdk.frameworks.Security
+          ]);
 
           env =
             {
