@@ -132,7 +132,7 @@ impl<G: Signer> Peer<Storage, G> {
         let (repo, _) = fixtures::repository(self.tempdir.path().join(name));
         let (rid, _, _) = rad::init(
             &repo,
-            name,
+            name.try_into().unwrap(),
             description,
             radicle::git::refname!("master"),
             Visibility::default(),

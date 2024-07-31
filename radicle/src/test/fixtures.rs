@@ -44,7 +44,7 @@ pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: &G) -> Result<Storage
         let (repo, _) = repository(path.join("workdir").join(name));
         rad::init(
             &repo,
-            name,
+            name.try_into().unwrap(),
             desc,
             git::refname!("master"),
             Visibility::default(),
@@ -67,7 +67,7 @@ pub fn project<P: AsRef<Path>, G: Signer>(
     let (working, head) = repository(path);
     let (id, _, refs) = rad::init(
         &working,
-        "acme",
+        "acme".try_into().unwrap(),
         "Acme's repository",
         git::refname!("master"),
         Visibility::default(),

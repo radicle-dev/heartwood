@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, str::FromStr};
 
 use serde::{
     de::{self, MapAccess, Visitor},
@@ -24,12 +24,72 @@ pub enum ProjectError {
     DefaultBranch(&'static str),
 }
 
+/// A valid project name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct ProjectName(String);
+
+impl From<ProjectName> for String {
+    fn from(value: ProjectName) -> Self {
+        value.0
+    }
+}
+
+impl ProjectName {
+    /// List of allowed special characters.
+    pub const ALLOWED_CHARS: &'static [char] = &['-', '_', '.'];
+
+    /// Return a string reference to the name.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<&str> for ProjectName {
+    type Error = ProjectError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        ProjectName::from_str(s)
+    }
+}
+
+impl TryFrom<String> for ProjectName {
+    type Error = ProjectError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        if s.is_empty() {
+            return Err(ProjectError::Name("name cannot be empty"));
+        } else if s.len() > doc::MAX_STRING_LENGTH {
+            return Err(ProjectError::Name("name cannot exceed 255 bytes"));
+        }
+        // Nb. We avoid characters that need to be quoted by shells, such as `$`,
+        // `!` etc., since repository names are used for naming folders during clone.
+        if !s
+            .chars()
+            .all(|c| c.is_alphanumeric() || Self::ALLOWED_CHARS.contains(&c))
+        {
+            return Err(ProjectError::Name(
+                "invalid repository name, only alphanumeric characters, '-', '_' and '.' are allowed",
+            ));
+        }
+        Ok(Self(s))
+    }
+}
+
+impl FromStr for ProjectName {
+    type Err = ProjectError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_from(s.to_owned())
+    }
+}
+
 /// A "project" payload in an identity document.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Project {
     /// Project name.
-    name: String,
+    name: ProjectName,
     /// Project description.
     description: String,
     /// Project default branch.
@@ -48,8 +108,7 @@ impl<'de> Deserialize<'de> for Project {
             Description,
             DefaultBranch,
             /// A catch-all variant to allow for unknown fields
-            #[allow(dead_code)]
-            Unknown(String),
+            Unknown(#[allow(dead_code)] String),
         }
 
         struct ProjectVisitor;
@@ -123,17 +182,11 @@ impl Project {
     ///   * `description`'s length must not exceed 255.
     ///   * `default_branch`'s length must not be empty and must not exceed 255.
     pub fn new(
-        name: String,
+        name: ProjectName,
         description: String,
         default_branch: BranchName,
     ) -> Result<Self, Vec<ProjectError>> {
         let mut errs = Vec::new();
-
-        if name.is_empty() {
-            errs.push(ProjectError::Name("name cannot be empty"));
-        } else if name.len() > doc::MAX_STRING_LENGTH {
-            errs.push(ProjectError::Name("name cannot exceed 255 bytes"));
-        }
 
         if description.len() > doc::MAX_STRING_LENGTH {
             errs.push(ProjectError::Description(
@@ -171,7 +224,7 @@ impl Project {
     /// original validation rules (see [`Project::new`]).
     pub fn update(
         self,
-        name: impl Into<Option<String>>,
+        name: impl Into<Option<ProjectName>>,
         description: impl Into<Option<String>>,
         default_branch: impl Into<Option<BranchName>>,
     ) -> Result<Self, Vec<ProjectError>> {
@@ -183,7 +236,7 @@ impl Project {
 
     #[inline]
     pub fn name(&self) -> &str {
-        &self.name
+        self.name.as_str()
     }
 
     #[inline]
@@ -203,5 +256,28 @@ impl From<Project> for Payload {
             .expect("Payload::from: could not convert project into value");
 
         Self::from(value)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::assert_matches;
+
+    #[test]
+    fn test_project_name() {
+        assert_matches!(serde_json::from_str::<ProjectName>("\"\""), Err(_));
+        assert_matches!(
+            serde_json::from_str::<ProjectName>("\"invalid name\""),
+            Err(_)
+        );
+        assert_matches!(
+            serde_json::from_str::<ProjectName>("\"invalid%name\""),
+            Err(_)
+        );
+        assert_eq!(
+            serde_json::from_str::<ProjectName>("\"valid-name\"").unwrap(),
+            ProjectName("valid-name".to_owned())
+        );
     }
 }

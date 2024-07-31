@@ -548,7 +548,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
         let branch = refname!("master");
         let id = rad::init(
             repo,
-            name,
+            name.try_into().unwrap(),
             description,
             branch.clone(),
             Visibility::default(),

@@ -462,7 +462,7 @@ mod test {
         let (repo, _) = fixtures::repository(tempdir.path().join("working"));
         let (id, _, _) = rad::init(
             &repo,
-            "heartwood",
+            "heartwood".try_into().unwrap(),
             "Radicle Heartwood Protocol & Stack",
             git::refname!("master"),
             Visibility::default(),
@@ -509,7 +509,7 @@ mod test {
         let delegate = MockSigner::from_seed([0xff; 32]);
         let (rid, doc, _) = rad::init(
             &working,
-            "heartwood",
+            "heartwood".try_into().unwrap(),
             "Radicle Heartwood Protocol & Stack",
             git::refname!("master"),
             Visibility::default(),

@@ -10,7 +10,7 @@ fn main() -> anyhow::Result<()> {
     let signer = profile.signer()?;
     let (id, _, _) = radicle::rad::init(
         &repo,
-        &name,
+        name.try_into()?,
         "",
         git::refname!("master"),
         Visibility::default(),

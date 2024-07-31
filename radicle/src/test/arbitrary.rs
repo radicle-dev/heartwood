@@ -13,6 +13,7 @@ use qcheck::Arbitrary;
 
 use crate::collections::RandomMap;
 use crate::identity::doc::Visibility;
+use crate::identity::project::ProjectName;
 use crate::identity::{
     doc::{Doc, DocAt, RepoId},
     project::Project,
@@ -108,9 +109,10 @@ impl Arbitrary for Project {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let mut rng = fastrand::Rng::with_seed(u64::arbitrary(g));
         let length = rng.usize(1..16);
-        let name = iter::repeat_with(|| rng.alphanumeric())
+        let name: String = iter::repeat_with(|| rng.alphanumeric())
             .take(length)
             .collect();
+        let name = ProjectName::from_str(&name).unwrap();
         let description = iter::repeat_with(|| rng.alphanumeric())
             .take(length * 2)
             .collect();

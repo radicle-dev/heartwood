@@ -1648,7 +1648,7 @@ fn test_init_and_seed() {
     // Alice creates a new project.
     let (proj_id, _, _) = rad::init(
         &repo,
-        "alice",
+        "alice".try_into().unwrap(),
         "alice's repo",
         git::refname!("master"),
         Visibility::default(),

@@ -13,6 +13,7 @@ use serde_json as json;
 use radicle::crypto::{ssh, Verified};
 use radicle::explorer::ExplorerUrl;
 use radicle::git::RefString;
+use radicle::identity::project::ProjectName;
 use radicle::identity::{RepoId, Visibility};
 use radicle::node::events::UploadPack;
 use radicle::node::policy::Scope;
@@ -57,7 +58,7 @@ Options
 #[derive(Default)]
 pub struct Options {
     pub path: Option<PathBuf>,
-    pub name: Option<String>,
+    pub name: Option<ProjectName>,
     pub description: Option<String>,
     pub branch: Option<String>,
     pub interactive: Interactive,
@@ -94,19 +95,8 @@ impl Args for Options {
                 Long("name") if name.is_none() => {
                     let value = parser.value()?;
                     let value = term::args::string(&value);
-                    let allowed = ['-', '_', '.'];
+                    let value = ProjectName::try_from(value)?;
 
-                    // Nb. We avoid characters that need to be quoted by shells, such as `$`,
-                    // `!` etc., since repository names are used for naming folders during clone.
-                    if !value
-                        .chars()
-                        .all(|c| c.is_alphanumeric() || allowed.contains(&c))
-                    {
-                        anyhow::bail!(
-                            "invalid repository name specified with `--name`, \
-                            only alphanumeric characters, '-', '_' and '.' are allowed"
-                        );
-                    }
                     name = Some(value);
                 }
                 Long("description") if description.is_none() => {
@@ -243,7 +233,7 @@ pub fn init(
         term::format::dim(path.display())
     ));
 
-    let name = match options.name {
+    let name: ProjectName = match options.name {
         Some(name) => name,
         None => {
             let default = path.file_name().map(|f| f.to_string_lossy().to_string());
@@ -252,6 +242,7 @@ pub fn init(
                 default,
                 Some("The name of your repository, eg. 'acme'"),
             )?
+            .try_into()?
         }
     };
     let description = match options.description {
@@ -287,7 +278,7 @@ pub fn init(
 
     match radicle::rad::init(
         &repo,
-        &name,
+        name,
         &description,
         branch.clone(),
         visibility,

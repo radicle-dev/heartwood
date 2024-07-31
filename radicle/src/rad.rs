@@ -11,7 +11,7 @@ use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::doc;
 use crate::identity::doc::{DocError, RepoId, Visibility};
-use crate::identity::project::Project;
+use crate::identity::project::{Project, ProjectName};
 use crate::storage::git::transport;
 use crate::storage::git::Repository;
 use crate::storage::refs::SignedRefs;
@@ -46,7 +46,7 @@ pub enum InitError {
 /// Initialize a new radicle project from a git repository.
 pub fn init<G: Signer, S: WriteStorage>(
     repo: &git2::Repository,
-    name: &str,
+    name: ProjectName,
     description: &str,
     default_branch: BranchName,
     visibility: Visibility,
@@ -416,7 +416,7 @@ mod tests {
         let (repo, _) = fixtures::repository(tempdir.path().join("working"));
         let (proj, _, refs) = init(
             &repo,
-            "acme",
+            "acme".try_into().unwrap(),
             "Acme's repo",
             git::refname!("master"),
             Visibility::default(),
@@ -471,7 +471,7 @@ mod tests {
         let (original, _) = fixtures::repository(tempdir.path().join("original"));
         let (id, _, alice_refs) = init(
             &original,
-            "acme",
+            "acme".try_into().unwrap(),
             "Acme's repo",
             git::refname!("master"),
             Visibility::default(),
@@ -507,7 +507,7 @@ mod tests {
         let (original, _) = fixtures::repository(tempdir.path().join("original"));
         let (id, _, _) = init(
             &original,
-            "acme",
+            "acme".try_into().unwrap(),
             "Acme's repo",
             git::refname!("master"),
             Visibility::default(),
