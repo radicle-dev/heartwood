@@ -267,9 +267,14 @@ impl TryInto<Config> for TempConfig {
     }
 }
 
-// TODO: this being pub means one can construct an invalid `ConfigValue::Float`
+/// A struct that ensures all values are safe for JSON serialization, including handling special
+/// floating point values like `NaN` and `Infinity`. Use the `From<&str>` implementation to create an instance.
+pub struct ConfigValue(RawConfigValue);
+
+/// This enum represents raw configuration values and should not be used directly.
+/// Use the `ConfigValue` type, which validates values using its `From<&str>` implementation.
 #[derive(Debug, Clone)]
-pub enum ConfigValue {
+enum RawConfigValue {
     Integer(i64),
     Float(f64),
     Bool(bool),
@@ -280,17 +285,18 @@ impl From<&str> for ConfigValue {
     /// Guess the type of a Value.
     fn from(value: &str) -> Self {
         if let Ok(b) = value.parse::<bool>() {
-            ConfigValue::Bool(b)
+            ConfigValue(RawConfigValue::Bool(b))
         } else if let Ok(n) = value.parse::<i64>() {
-            ConfigValue::Integer(n)
+            ConfigValue(RawConfigValue::Integer(n))
         } else if let Ok(n) = value.parse::<f64>() {
+            // NaN and Infinite can't be properly serialized to JSON
             if n.is_finite() {
-                ConfigValue::Float(n)
+                ConfigValue(RawConfigValue::Float(n))
             } else {
-                ConfigValue::String(n.to_string())
+                ConfigValue(RawConfigValue::String(value.to_string()))
             }
         } else {
-            ConfigValue::String(value.to_string())
+            ConfigValue(RawConfigValue::String(value.to_string()))
         }
     }
 }
@@ -304,13 +310,13 @@ impl From<String> for ConfigValue {
 impl From<ConfigValue> for json::Value {
     fn from(value: ConfigValue) -> Self {
         match value {
-            ConfigValue::Bool(v) => json::Value::Bool(v),
-            ConfigValue::Integer(v) => json::Value::Number(v.into()),
-            ConfigValue::Float(v) => {
+            ConfigValue(RawConfigValue::Bool(v)) => json::Value::Bool(v),
+            ConfigValue(RawConfigValue::Integer(v)) => json::Value::Number(v.into()),
+            ConfigValue(RawConfigValue::Float(v)) => {
                 // Safety: ConfigValue ensures the Float won't be Infinite or NaN
                 json::Value::Number(json::Number::from_f64(v).unwrap())
             }
-            ConfigValue::String(v) => json::Value::String(v),
+            ConfigValue(RawConfigValue::String(v)) => json::Value::String(v),
         }
     }
 }
