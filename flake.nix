@@ -45,7 +45,7 @@
         overlays = [(import rust-overlay)];
       };
 
-      rustToolChain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain;
+      rustToolChain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
       craneLib = (crane.mkLib pkgs).overrideToolchain rustToolChain;
 
       srcFilters = path: type:
@@ -238,6 +238,8 @@
           rust-analyzer
           sqlite
         ];
+
+        env.RUST_SRC_PATH = "${rustToolChain}/lib/rustlib/src/rust/library";
       };
     });
 }
