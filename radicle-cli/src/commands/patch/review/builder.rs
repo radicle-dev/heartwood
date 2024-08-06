@@ -194,8 +194,8 @@ impl ReviewItem {
 
     fn paths(&self) -> (Option<(&Path, Oid)>, Option<(&Path, Oid)>) {
         match self {
-            Self::FileAdded { path, new, .. } => (None, Some((&path, new.oid))),
-            Self::FileDeleted { path, old, .. } => (Some((&path, old.oid)), None),
+            Self::FileAdded { path, new, .. } => (None, Some((path, new.oid))),
+            Self::FileDeleted { path, old, .. } => (Some((path, old.oid)), None),
             Self::FileMoved { moved } => (
                 Some((&moved.old_path, moved.old.oid)),
                 Some((&moved.new_path, moved.new.oid)),
@@ -797,7 +797,7 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
     fn prompt(
         &self,
         mut input: impl io::BufRead,
-        mut output: &mut impl PromptWriter,
+        output: &mut impl PromptWriter,
         progress: impl fmt::Display,
     ) -> Option<ReviewAction> {
         if let Some(v) = self.verdict {
@@ -808,7 +808,7 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
         } else if output.is_terminal() {
             let prompt = term::format::secondary("Accept this hunk? [y,n,c,j,k,q,?]").bold();
 
-            ReviewAction::prompt(&mut input, &mut output, format!("{progress} {prompt}"))
+            ReviewAction::prompt(&mut input, output, format!("{progress} {prompt}"))
                 .unwrap_or(Some(ReviewAction::Help))
         } else {
             Some(ReviewAction::Ignore)

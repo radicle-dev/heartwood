@@ -155,6 +155,7 @@ pub(crate) trait ProtocolStage {
 #[derive(Debug)]
 pub struct CanonicalId {
     pub remote: PublicKey,
+    #[allow(dead_code)]
     pub limit: u64,
 }
 
@@ -231,6 +232,7 @@ pub struct SpecialRefs {
     /// The set of nodes that should be blocked from fetching.
     pub blocked: BlockList,
     /// The node that is being fetched from.
+    #[allow(dead_code)]
     pub remote: PublicKey,
     /// The set of nodes to be fetched.
     pub followed: policy::Allowed,
@@ -240,6 +242,7 @@ pub struct SpecialRefs {
     /// The threshold of delegates that needs to be fetched.
     pub threshold: usize,
     /// The data limit for this stage of fetching.
+    #[allow(dead_code)]
     pub limit: u64,
 }
 
@@ -311,6 +314,7 @@ pub struct SigrefsAt {
     /// The set of nodes that should be blocked from fetching.
     pub blocked: BlockList,
     /// The node that is being fetched from.
+    #[allow(dead_code)]
     pub remote: PublicKey,
     /// The set of remotes and the newly announced `Oid` for their
     /// `rad/sigrefs`.
@@ -319,6 +323,7 @@ pub struct SigrefsAt {
     /// removed in the case of a `pull`.
     pub delegates: BTreeSet<PublicKey>,
     /// The data limit for this stage of fetching.
+    #[allow(dead_code)]
     pub limit: u64,
 }
 
@@ -400,11 +405,13 @@ impl ProtocolStage for SigrefsAt {
 #[derive(Debug)]
 pub struct DataRefs {
     /// The node that is being fetched from.
+    #[allow(dead_code)]
     pub remote: PublicKey,
     /// The set of signed references from each remote that was
     /// fetched.
     pub remotes: sigrefs::RemoteRefs,
     /// The data limit for this stage of fetching.
+    #[allow(dead_code)]
     pub limit: u64,
 }
 

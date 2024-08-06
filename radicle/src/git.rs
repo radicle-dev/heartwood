@@ -717,9 +717,9 @@ pub mod url {
         }
     }
 
-    impl ToString for File {
-        fn to_string(&self) -> String {
-            format!("file://{}", self.path.display())
+    impl std::fmt::Display for File {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "file://{}", self.path.display())
         }
     }
 }

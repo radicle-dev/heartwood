@@ -94,11 +94,11 @@ impl TryFrom<&str> for Lamport {
 
 impl Bounded for Lamport {
     fn min_value() -> Self {
-        Self::from(u64::min_value())
+        Self::from(u64::MIN)
     }
 
     fn max_value() -> Self {
-        Self::from(u64::max_value())
+        Self::from(u64::MAX)
     }
 }
 
@@ -147,13 +147,13 @@ impl std::ops::Add<u64> for Physical {
 impl Bounded for Physical {
     fn min_value() -> Self {
         Self {
-            seconds: u64::min_value(),
+            seconds: u64::MIN,
         }
     }
 
     fn max_value() -> Self {
         Self {
-            seconds: u64::max_value(),
+            seconds: u64::MAX,
         }
     }
 }

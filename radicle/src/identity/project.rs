@@ -260,6 +260,7 @@ impl From<Project> for Payload {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use super::*;
     use crate::assert_matches;

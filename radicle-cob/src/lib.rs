@@ -9,11 +9,10 @@
 //!
 //! The basic types that are found in `radicle-cob` are:
 //!   * [`CollaborativeObject`] -- the computed object itself.
-//!   * [`ObjectId`] -- the content-address for a single collaborative
-//!   object.
+//!   * [`ObjectId`] -- the content-address for a single collaborative object.
 //!   * [`TypeName`] -- the name for a collection of collaborative objects.
 //!   * [`History`] -- the traversable history of the changes made to
-//!   a single collaborative object.
+//!     a single collaborative object.
 //!
 //! ## CRU Interface (No Delete)
 //!
@@ -32,7 +31,7 @@
 //! storage capabilities:
 //!   * [`object::Storage`]
 //!   * [`change::Storage`] -- **Note**: there is already an
-//!   implementation for this for [`git2::Repository`] for convenience.
+//!     implementation for this for [`git2::Repository`] for convenience.
 //!
 //! ## Resource
 //!

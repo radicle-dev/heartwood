@@ -364,7 +364,7 @@ fn write_manifest(
     // Insert each COB entry.
     for (ix, op) in contents.iter().enumerate() {
         let oid = repo.blob(op.as_ref())?;
-        root.insert(&ix.to_string(), oid, git2::FileMode::Blob.into())?;
+        root.insert(ix.to_string(), oid, git2::FileMode::Blob.into())?;
     }
 
     // Insert each embed in a tree at `/embeds`.

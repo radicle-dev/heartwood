@@ -113,7 +113,7 @@ impl Runtime {
     /// Initialize the runtime.
     ///
     /// This function spawns threads.
-    pub fn init<G: Signer + Ecdh + 'static>(
+    pub fn init<G>(
         home: Home,
         config: service::Config,
         listen: Vec<net::SocketAddr>,
@@ -121,7 +121,7 @@ impl Runtime {
         signer: G,
     ) -> Result<Runtime, Error>
     where
-        G: Ecdh<Pk = NodeId> + Clone,
+        G: Signer + Ecdh<Pk = NodeId> + Clone + 'static,
     {
         let id = *signer.public_key();
         let alias = config.alias.clone();

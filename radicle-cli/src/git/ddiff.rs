@@ -371,7 +371,7 @@ impl unified_diff::Encode for FileDDiff {
 }
 
 /// A diff of a diff.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct DDiff {
     files: Vec<FileDDiff>,
 }

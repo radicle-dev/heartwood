@@ -280,7 +280,9 @@ pub(super) mod pktline {
     #[derive(Debug)]
     pub struct GitRequest {
         pub repo: RepoId,
+        #[allow(dead_code)]
         pub path: String,
+        #[allow(dead_code)]
         pub host: Option<(String, Option<u16>)>,
         pub extra: Vec<(String, Option<String>)>,
     }

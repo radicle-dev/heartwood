@@ -17,6 +17,7 @@ use super::{agent_name, indicate_end_of_interaction, Connection};
 /// See [`run`].
 pub struct Config {
     /// The repository name, i.e. `/<rid>`.
+    #[allow(dead_code)]
     pub repo: BString,
     /// Extra parameters to pass to the ls-refs process.
     pub extra_params: Vec<(String, Option<String>)>,

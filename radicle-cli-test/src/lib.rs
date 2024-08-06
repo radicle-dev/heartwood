@@ -211,7 +211,7 @@ impl TestFormula {
                 let results = escargot::CargoBuild::new()
                     .package(package)
                     .bin(binary)
-                    .manifest_path(&manifest.join("Cargo.toml"))
+                    .manifest_path(manifest.join("Cargo.toml"))
                     .target_dir(&target_dir)
                     .exec()
                     .unwrap();

@@ -22,16 +22,6 @@ pub const REF_REMOTE_LIMIT: usize = 1024;
 pub const INVENTORY_LIMIT: usize = 2973;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-// TODO: We should check the length and charset when deserializing.
-pub struct Hostname(String);
-
-impl fmt::Display for Hostname {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Subscribe {
     /// Subscribe to events matching this filter.
     pub filter: Filter,

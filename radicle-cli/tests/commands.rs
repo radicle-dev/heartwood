@@ -856,7 +856,7 @@ fn rad_node() {
 
     test(
         "examples/rad-init-sync-not-connected.md",
-        &working.path().join("alice"),
+        working.path().join("alice"),
         Some(&alice.home),
         [],
     )
@@ -1632,7 +1632,7 @@ fn rad_init_sync_not_connected() {
 
     test(
         "examples/rad-init-sync-not-connected.md",
-        &working.path().join("alice"),
+        working.path().join("alice"),
         Some(&alice.home),
         [],
     )
@@ -1664,7 +1664,7 @@ fn rad_init_sync_preferred() {
     // Bob initializes a repo after her node has started, and after bob has connected to it.
     test(
         "examples/rad-init-sync-preferred.md",
-        &working.join("bob"),
+        working.join("bob"),
         Some(&bob.home),
         [],
     )
@@ -1696,7 +1696,7 @@ fn rad_init_sync_timeout() {
     // Bob initializes a repo after her node has started, and after bob has connected to it.
     test(
         "examples/rad-init-sync-timeout.md",
-        &working.join("bob"),
+        working.join("bob"),
         Some(&bob.home),
         [],
     )
@@ -1720,7 +1720,7 @@ fn rad_init_sync_and_clone() {
     // Alice initializes a repo after her node has started, and after bob has connected to it.
     test(
         "examples/rad-init-sync.md",
-        &working.join("alice"),
+        working.join("alice"),
         Some(&alice.home),
         [],
     )
@@ -1754,7 +1754,7 @@ fn rad_fetch() {
     // Alice initializes a repo after her node has started, and after bob has connected to it.
     test(
         "examples/rad-init-sync.md",
-        &working.join("alice"),
+        working.join("alice"),
         Some(&alice.home),
         [],
     )
@@ -1788,7 +1788,7 @@ fn rad_fork() {
     // Alice initializes a repo after her node has started, and after bob has connected to it.
     test(
         "examples/rad-init-sync.md",
-        &working.join("alice"),
+        working.join("alice"),
         Some(&alice.home),
         [],
     )
@@ -2865,28 +2865,28 @@ fn git_push_and_fetch() {
 
     test(
         "examples/rad-clone.md",
-        &working.join("bob"),
+        working.join("bob"),
         Some(&bob.home),
         [],
     )
     .unwrap();
     test(
         "examples/git/git-push.md",
-        &working.join("alice"),
+        working.join("alice"),
         Some(&alice.home),
         [],
     )
     .unwrap();
     test(
         "examples/git/git-fetch.md",
-        &working.join("bob"),
+        working.join("bob"),
         Some(&bob.home),
         [],
     )
     .unwrap();
     test(
         "examples/git/git-push-delete.md",
-        &working.join("alice"),
+        working.join("alice"),
         Some(&alice.home),
         [],
     )
@@ -2917,7 +2917,7 @@ fn git_tag() {
 
     test(
         "examples/rad-clone.md",
-        &working.join("bob"),
+        working.join("bob"),
         Some(&bob.home),
         [],
     )
@@ -2949,7 +2949,7 @@ fn rad_workflow() {
 
     test(
         "examples/workflow/1-new-project.md",
-        &working.join("alice"),
+        working.join("alice"),
         Some(&alice.home),
         [],
     )
@@ -2962,7 +2962,7 @@ fn rad_workflow() {
 
     test(
         "examples/workflow/2-cloning.md",
-        &working.join("bob"),
+        working.join("bob"),
         Some(&bob.home),
         [],
     )
@@ -2970,7 +2970,7 @@ fn rad_workflow() {
 
     test(
         "examples/workflow/3-issues.md",
-        &working.join("bob").join("heartwood"),
+        working.join("bob").join("heartwood"),
         Some(&bob.home),
         [],
     )
@@ -2978,7 +2978,7 @@ fn rad_workflow() {
 
     test(
         "examples/workflow/4-patching-contributor.md",
-        &working.join("bob").join("heartwood"),
+        working.join("bob").join("heartwood"),
         Some(&bob.home),
         [],
     )
@@ -2986,7 +2986,7 @@ fn rad_workflow() {
 
     test(
         "examples/workflow/5-patching-maintainer.md",
-        &working.join("alice"),
+        working.join("alice"),
         Some(&alice.home),
         [],
     )
@@ -2994,7 +2994,7 @@ fn rad_workflow() {
 
     test(
         "examples/workflow/6-pulling-contributor.md",
-        &working.join("bob").join("heartwood"),
+        working.join("bob").join("heartwood"),
         Some(&bob.home),
         [],
     )

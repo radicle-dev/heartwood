@@ -461,7 +461,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                 }
                 // If the other end has disconnected the sender with some latency, there may not be
                 // a connection remaining to use.
-                if self.connections.get(&(node, receiver)).is_none() {
+                if !self.connections.contains(&(node, receiver)) {
                     return;
                 }
                 let sender = node;
