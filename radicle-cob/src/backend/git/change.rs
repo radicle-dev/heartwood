@@ -197,7 +197,7 @@ impl change::Storage for git2::Repository {
             return Err(error::Load::TooManyResources(id));
         };
 
-        let tree = self.find_tree(commit.tree())?;
+        let tree = self.find_tree(*commit.tree())?;
         let manifest = load_manifest(self, &tree)?;
         let contents = load_contents(self, &tree)?;
 
