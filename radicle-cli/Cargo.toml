@@ -22,8 +22,8 @@ log = { version = "0.4", features = ["std"] }
 nonempty = { version = "0.9.0" }
 # N.b. this is required to use macros, even though it's re-exported
 # through radicle
-radicle-surf = { version = "0.21.0" }
 radicle-git-ext = { version = "0.8.0", features = ["serde"] }
+radicle-surf = { version = "0.22.0" }
 serde = { version = "1.0" }
 serde_json = { version = "1" }
 shlex = { version = "1.1.0" }
