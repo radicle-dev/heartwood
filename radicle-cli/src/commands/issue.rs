@@ -496,7 +496,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Show { id, format, debug } => {
             let id = id.resolve(&repo.backend)?;
             let issue = issues
-                .get(&id)?
+                .get(&id)
+                .map_err(|e| Error::WithHint {
+                    err: e.into(),
+                    hint: "reset the cache with `rad issue cache` and try again",
+                })?
                 .context("No issue with the given ID exists")?;
             if debug {
                 println!("{:#?}", issue);

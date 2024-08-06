@@ -33,7 +33,11 @@ pub fn run(
     workdir: Option<&git::raw::Repository>,
 ) -> anyhow::Result<()> {
     let patches = profile.patches(stored)?;
-    let Some(patch) = patches.get(patch_id)? else {
+    let Some(patch) = patches.get(patch_id).map_err(|e| Error::WithHint {
+        err: e.into(),
+        hint: "reset the cache with `rad patch cache` and try again",
+    })?
+    else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };
 
