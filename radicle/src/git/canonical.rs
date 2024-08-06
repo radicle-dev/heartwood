@@ -72,7 +72,8 @@ impl Canonical {
                 Err(e) if super::ext::is_not_found_err(&e) => {
                     log::warn!(
                         target: "radicle",
-                        "Missing `refs/namespaces/{delegate}/{name}` while calculating the canonical reference"
+                        "Missing `refs/namespaces/{}/{name}` while calculating the canonical reference",
+                        delegate.as_key()
                     );
                 }
                 Err(e) => return Err(e),
