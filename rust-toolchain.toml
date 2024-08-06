@@ -1,0 +1,4 @@
+[toolchain]
+channel = "1.80"
+profile = "default"
+components = [ "rust-src" ]
