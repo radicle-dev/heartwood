@@ -146,14 +146,10 @@ impl std::ops::Add<u64> for Physical {
 
 impl Bounded for Physical {
     fn min_value() -> Self {
-        Self {
-            seconds: u64::MIN,
-        }
+        Self { seconds: u64::MIN }
     }
 
     fn max_value() -> Self {
-        Self {
-            seconds: u64::MAX,
-        }
+        Self { seconds: u64::MAX }
     }
 }
