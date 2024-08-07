@@ -122,7 +122,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         if !seeded && options.seeded {
             continue;
         }
-        let proj = doc.project()?;
+        let proj = match doc.project() {
+            Ok(p) => p,
+            Err(e) => {
+                log::error!(target: "cli", "Error loading project payload for {rid}: {e}");
+                continue;
+            }
+        };
         let head = term::format::oid(head).into();
 
         rows.push([
