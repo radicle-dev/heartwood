@@ -104,8 +104,8 @@ fn test_generator() {
     let c = values.iter().filter(|c| **c == 'c').count();
     let d = values.iter().filter(|c| **c == 'd').count();
 
-    assert_eq!(a, 77);
-    assert_eq!(b, 120);
-    assert_eq!(c, 285);
-    assert_eq!(d, 518);
+    assert_eq!(a, 63);
+    assert_eq!(b, 151);
+    assert_eq!(c, 255);
+    assert_eq!(d, 531);
 }
