@@ -57,8 +57,8 @@ $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --des
 
 ``` ~alice
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
 ✓ Fetched repository from 2 seed(s)
 $ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
