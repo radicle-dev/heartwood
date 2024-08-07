@@ -22,6 +22,7 @@ rad-patch - Manage radicle patches.
 *rad patch* _delete_ <patch-id> [<option>...] +
 *rad patch* _redact_ <revision-id> [<option>...] +
 *rad patch* _ready_ <patch-id> [--undo] [<option>...] +
+*rad patch* _review_ <patch-id> [<option>...] +
 *rad patch* _edit_ <patch-id> [<option>...] +
 *rad patch* _set_ <patch-id> [<option>...] +
 *rad patch* _comment_ <revision-id> [<option>...] +
@@ -94,6 +95,20 @@ Mark a patch as ready to review. This changes the state of a patch from *draft*
 to *open*.
 
 *--undo*::                 Change a patch back to *draft*
+
+=== review
+
+Review a patch. Indicate acceptance or rejection of a patch revision along
+with a comment.
+
+*--revision*, *-r <revision-id>*::   The revision to diff (default: latest)
+*--patch*, *--p*::                   Review by patch hunks
+*--hunk <index>*::                   Only review a specific hunk
+*--accept*::                         Accept a patch or set of hunks
+*--reject*::                         Reject a patch or set of hunks
+*--unified*, *-U <n>*::              Generate diffs with *<n>* lines of context instead of the usual three
+*--delete*, *-d*::                   Delete a review draft
+*--message*, *-m [<string>]*::       Provide a comment with the review (default: prompt)
 
 === archive
 
