@@ -12,7 +12,6 @@ use crate::cob::{Label, ObjectId, TypeName};
 use crate::crypto::Signer;
 use crate::git;
 use crate::prelude::RepoId;
-use crate::sql::transaction;
 use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
 
 use super::{
@@ -362,21 +361,19 @@ impl Update<Patch> for StoreWriter {
         id: &ObjectId,
         object: &Patch,
     ) -> Result<Self::Out, Self::UpdateError> {
-        transaction::<_, UpdateError>(&self.db, move |db| {
-            let mut stmt = db.prepare(
-                "INSERT INTO patches (id, repo, patch)
-                  VALUES (?1, ?2, ?3)
-                  ON CONFLICT DO UPDATE
-                  SET patch =  (?3)",
-            )?;
+        let mut stmt = self.db.prepare(
+            "INSERT INTO patches (id, repo, patch)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT DO UPDATE
+             SET patch =  (?3)",
+        )?;
 
-            stmt.bind((1, sql::Value::String(id.to_string())))?;
-            stmt.bind((2, rid))?;
-            stmt.bind((3, sql::Value::String(serde_json::to_string(&object)?)))?;
-            stmt.next()?;
+        stmt.bind((1, sql::Value::String(id.to_string())))?;
+        stmt.bind((2, rid))?;
+        stmt.bind((3, sql::Value::String(serde_json::to_string(&object)?)))?;
+        stmt.next()?;
 
-            Ok(db.change_count() > 0)
-        })
+        Ok(self.db.change_count() > 0)
     }
 }
 
@@ -385,17 +382,15 @@ impl Remove<Patch> for StoreWriter {
     type RemoveError = sql::Error;
 
     fn remove(&mut self, id: &ObjectId) -> Result<Self::Out, Self::RemoveError> {
-        transaction::<_, sql::Error>(&self.db, move |db| {
-            let mut stmt = db.prepare(
-                "DELETE FROM patches
-                  WHERE id = ?1",
-            )?;
+        let mut stmt = self.db.prepare(
+            "DELETE FROM patches
+             WHERE id = ?1",
+        )?;
 
-            stmt.bind((1, sql::Value::String(id.to_string())))?;
-            stmt.next()?;
+        stmt.bind((1, sql::Value::String(id.to_string())))?;
+        stmt.next()?;
 
-            Ok(db.change_count() > 0)
-        })
+        Ok(self.db.change_count() > 0)
     }
 
     fn remove_all(&mut self, rid: &RepoId) -> Result<Self::Out, Self::RemoveError> {
