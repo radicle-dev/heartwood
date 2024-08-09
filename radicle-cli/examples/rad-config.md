@@ -90,7 +90,8 @@ $ rad config remove web.pinned.repositories rad:z3TajuiHXifEDEX4qbJxe8nXr9ufi
 $ rad config get web.pinned.repositories
 ```
 
-Values that are not strictly required for a working configuration, such as optional values or additional user-defined values, can be deleted.
+Values that are not strictly required for a working configuration, such as
+optional values or additional user-defined values, can be deleted.
 
 ```
 $ rad config set web.name alice

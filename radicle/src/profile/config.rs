@@ -137,21 +137,15 @@ impl TempConfig {
     pub fn get_mut(&mut self, config_path: &ConfigPath) -> Option<&mut json::Value> {
         config_path
             .iter()
-            .try_fold(&mut self.0, |current, part| current.get_mut(part))
+            .try_fold(&mut self.0, |current, key| current.get_mut(key))
     }
 
     /// Delete the value at the the specified path.
-    pub fn delete(&mut self, config_path: &ConfigPath) -> Result<json::Value, ModifyError> {
-        let last = config_path.last().ok_or(ModifyError::EmptyPath)?;
-        let parent = match config_path.parent() {
-            Some(parent_path) => {
-                self.get_mut(&parent_path)
-                    .ok_or_else(|| ModifyError::NotFound {
-                        path: config_path.clone(),
-                    })?
-            }
-            None => &mut self.0,
-        };
+    pub fn delete(&mut self, config_path: &ConfigPath) -> Result<(), ModifyError> {
+        let (last, parent) = config_path.split_last().ok_or(ModifyError::EmptyPath)?;
+        let parent = self.get_mut(&parent).ok_or_else(|| ModifyError::NotFound {
+            path: config_path.clone(),
+        })?;
 
         parent
             .as_object_mut()
@@ -160,7 +154,7 @@ impl TempConfig {
             })?
             .remove(last);
 
-        Ok(json::Value::Null)
+        Ok(())
     }
 
     pub fn add(
@@ -209,11 +203,12 @@ impl TempConfig {
         config_path: &ConfigPath,
         value: ConfigValue,
     ) -> Result<json::Value, ModifyError> {
-        if let Some(element) = self.get_mut(config_path) {
-            *element = value.into();
-            Ok(element.clone())
-        } else {
-            self.upsert(config_path, value)
+        match self.get_mut(config_path) {
+            Some(element) => {
+                *element = value.into();
+                Ok(element.clone())
+            }
+            None => self.upsert(config_path, value),
         }
     }
 
@@ -221,7 +216,6 @@ impl TempConfig {
     /// valid.
     pub fn write(&self, path: &Path) -> Result<(), ConfigError> {
         let _valid_config: Config = self.clone().try_into()?;
-
         let mut file = fs::OpenOptions::new()
             .create(true)
             .write(true)
@@ -229,11 +223,9 @@ impl TempConfig {
             .open(path)?;
         let formatter = json::ser::PrettyFormatter::with_indent(b"  ");
         let mut serializer = json::Serializer::with_formatter(&file, formatter);
-
         self.0.serialize(&mut serializer)?;
         file.write_all(b"\n")?;
         file.sync_all()?;
-
         Ok(())
     }
 
@@ -244,11 +236,10 @@ impl TempConfig {
         value: impl Into<json::Value>,
     ) -> Result<json::Value, ModifyError> {
         let mut current = &mut self.0;
-
         for key in config_path.iter() {
             current = match current {
                 json::Value::Object(ref mut map) => {
-                    map.entry(key.clone()).or_insert_with(|| json::json!({}))
+                    map.entry(key).or_insert_with(|| json::json!({}))
                 }
                 _ => return Err(ModifyError::Upsert { key: key.clone() }),
             }
@@ -267,12 +258,17 @@ impl TryInto<Config> for TempConfig {
     }
 }
 
-/// A struct that ensures all values are safe for JSON serialization, including handling special
-/// floating point values like `NaN` and `Infinity`. Use the `From<&str>` implementation to create an instance.
+/// A struct that ensures all values are safe for JSON serialization, including
+/// handling special floating point values like `NaN` and `Infinity`.
+///
+/// Use the `From<&str>` implementation to create an instance.
 pub struct ConfigValue(RawConfigValue);
 
-/// This enum represents raw configuration values and should not be used directly.
-/// Use the `ConfigValue` type, which validates values using its `From<&str>` implementation.
+/// This enum represents raw configuration values and should not be used
+/// directly.
+///
+/// Use the `ConfigValue` type, which validates values using its `From<&str>`
+/// implementation.
 #[derive(Debug, Clone)]
 enum RawConfigValue {
     Integer(i64),
@@ -325,12 +321,10 @@ impl From<ConfigValue> for json::Value {
 pub struct ConfigPath(Vec<String>);
 
 impl ConfigPath {
-    fn parent(&self) -> Option<Self> {
-        self.0.split_last().map(|(_, tail)| Self(tail.to_vec()))
-    }
-
-    fn last(&self) -> Option<&String> {
-        self.0.last()
+    fn split_last(&self) -> Option<(&String, Self)> {
+        self.0
+            .split_last()
+            .map(|(last, prefix)| (last, Self(prefix.to_vec())))
     }
 
     fn iter(&self) -> impl Iterator<Item = &String> {
@@ -346,6 +340,9 @@ impl fmt::Display for ConfigPath {
 
 impl From<String> for ConfigPath {
     fn from(value: String) -> Self {
+        // FIXME: very likely a rare case, but since any string is a valid JSON
+        // key, someone may want a key of the form `my.path` which would split
+        // by the below code. This is a low priority fix.
         let parts: Vec<String> = value.split('.').map(|s| s.to_string()).collect();
         ConfigPath(parts)
     }

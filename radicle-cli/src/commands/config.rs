@@ -83,37 +83,26 @@ impl Args for Options {
                     "edit" => op = Some(Operation::Edit),
                     "init" => op = Some(Operation::Init),
                     "get" => {
-                        let key = parser.value()?;
-                        let key = key.to_string_lossy();
-                        op = Some(Operation::Get(key.to_string()));
+                        let key = term::args::string(&parser.value()?);
+                        op = Some(Operation::Get(key));
                     }
                     "set" => {
-                        let key = parser.value()?;
-                        let key = key.to_string_lossy();
-                        let value = parser.value()?;
-                        let value = value.to_string_lossy();
-
-                        op = Some(Operation::Set(key.to_string(), value.to_string()));
+                        let key = term::args::string(&parser.value()?);
+                        let value = term::args::string(&parser.value()?);
+                        op = Some(Operation::Set(key, value));
                     }
                     "add" => {
-                        let key = parser.value()?;
-                        let key = key.to_string_lossy();
-                        let value = parser.value()?;
-                        let value = value.to_string_lossy();
-
-                        op = Some(Operation::Add(key.to_string(), value.to_string()));
+                        let key = term::args::string(&parser.value()?);
+                        let value = term::args::string(&parser.value()?);
+                        op = Some(Operation::Add(key, value));
                     }
                     "remove" => {
-                        let key = parser.value()?;
-                        let key = key.to_string_lossy();
-                        let value = parser.value()?;
-                        let value = value.to_string_lossy();
-
-                        op = Some(Operation::Remove(key.to_string(), value.to_string()));
+                        let key = term::args::string(&parser.value()?);
+                        let value = term::args::string(&parser.value()?);
+                        op = Some(Operation::Remove(key, value));
                     }
                     "delete" => {
-                        let key = parser.value()?;
-                        let key = key.to_string_lossy();
+                        let key = term::args::string(&parser.value()?);
                         op = Some(Operation::Delete(key.to_string()));
                     }
                     unknown => anyhow::bail!("unknown operation '{unknown}'"),
@@ -169,9 +158,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Delete(key) => {
             let mut temp_config = TempConfig::from_file(&path)?;
-            let value = temp_config.delete(&key.into())?;
+            temp_config.delete(&key.into())?;
             temp_config.write(&path)?;
-            print_value(&value)?;
         }
         Operation::Init => {
             if path.try_exists()? {
@@ -208,7 +196,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 /// Print a JSON Value.
 fn print_value(value: &serde_json::Value) -> anyhow::Result<()> {
     match value {
-        serde_json::Value::Null => {}
+        serde_json::Value::Null => term::print("null"),
         serde_json::Value::Bool(b) => term::print(b),
         serde_json::Value::Array(a) => a.iter().try_for_each(print_value)?,
         serde_json::Value::Number(n) => term::print(n),
