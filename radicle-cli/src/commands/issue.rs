@@ -632,9 +632,13 @@ where
     let mut all = Vec::new();
     let issues = cache.list()?;
     for result in issues {
-        let Ok((id, issue)) = result else {
-            // Skip issues that failed to load.
-            continue;
+        let (id, issue) = match result {
+            Ok((id, issue)) => (id, issue),
+            Err(e) => {
+                // Skip issues that failed to load.
+                log::error!(target: "cli", "Issue load error: {e}");
+                continue;
+            }
         };
 
         if let Some(a) = assignee {

@@ -29,9 +29,13 @@ pub fn run(
         None => patches.list()?,
     };
     for patch in iter {
-        let Ok((id, patch)) = patch else {
-            // Skip patches that failed to load.
-            continue;
+        let (id, patch) = match patch {
+            Ok((id, patch)) => (id, patch),
+            Err(e) => {
+                // Skip patches that failed to load.
+                log::error!(target: "cli", "Patch load error: {e}");
+                continue;
+            }
         };
         if !authors.is_empty() {
             if !authors.contains(patch.author().id()) {

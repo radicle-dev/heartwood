@@ -29,6 +29,12 @@ pub struct TypedId {
     pub type_name: TypeName,
 }
 
+impl std::fmt::Display for TypedId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.type_name, self.id)
+    }
+}
+
 /// Errors that occur when parsing a Git refname into a [`TypedId`].
 #[derive(Debug, thiserror::Error)]
 pub enum ParseIdentifierError {

@@ -306,9 +306,13 @@ where
         } = match &n.kind {
             NotificationKind::Branch { name } => NotificationRow::branch(name, head, &n, &repo)?,
             NotificationKind::Cob { typed_id } => {
-                match NotificationRow::cob(typed_id, &n, &issues, &patches, &repo)? {
-                    Some(row) => row,
-                    None => continue,
+                match NotificationRow::cob(typed_id, &n, &issues, &patches, &repo) {
+                    Ok(Some(row)) => row,
+                    Ok(None) => continue,
+                    Err(e) => {
+                        log::error!(target: "cli", "Error loading notification for {typed_id}: {e}");
+                        continue;
+                    }
                 }
             }
             NotificationKind::Unknown { refname } => {
