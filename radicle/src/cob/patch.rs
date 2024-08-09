@@ -145,6 +145,11 @@ pub enum Error {
         #[source]
         err: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
+    #[error("failed to remove patches from cache: {err}")]
+    CacheRemoveAll {
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
 }
 
 /// Patch operation.

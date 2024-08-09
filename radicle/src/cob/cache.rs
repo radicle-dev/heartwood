@@ -203,6 +203,8 @@ pub trait Remove<T> {
     ///
     /// This assumes that the `id` is unique across repositories.
     fn remove(&mut self, id: &ObjectId) -> Result<Self::Out, Self::RemoveError>;
+    /// Delete all entries from a repo.
+    fn remove_all(&mut self, rid: &RepoId) -> Result<Self::Out, Self::RemoveError>;
 }
 
 /// An in-memory cache for storing COB objects.
@@ -268,6 +270,10 @@ impl<T> Remove<T> for NoCache {
     type RemoveError = Infallible;
 
     fn remove(&mut self, _id: &ObjectId) -> Result<Self::Out, Self::RemoveError> {
+        Ok(())
+    }
+
+    fn remove_all(&mut self, _rid: &RepoId) -> Result<Self::Out, Self::RemoveError> {
         Ok(())
     }
 }

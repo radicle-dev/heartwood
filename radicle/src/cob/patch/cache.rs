@@ -218,8 +218,13 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
     ) -> Result<(), super::Error>
     where
         R: ReadRepository + cob::Store,
-        C: Update<Patch>,
+        C: Update<Patch> + Remove<Patch>,
     {
+        // Start by clearing the cache. This will get rid of patches that are cached but
+        // no longer exist in storage.
+        self.remove_all(&self.rid())
+            .map_err(|e| super::Error::CacheRemoveAll { err: e.into() })?;
+
         let patches = self.store.all()?;
         let mut progress = cache::WriteAllProgress::new(patches.len());
         for patch in self.store.all()? {
@@ -333,6 +338,10 @@ where
     fn remove(&mut self, id: &ObjectId) -> Result<Self::Out, Self::RemoveError> {
         self.cache.remove(id)
     }
+
+    fn remove_all(&mut self, rid: &RepoId) -> Result<Self::Out, Self::RemoveError> {
+        self.cache.remove_all(rid)
+    }
 }
 
 #[derive(Debug, Error)]
@@ -388,6 +397,18 @@ impl Remove<Patch> for StoreWriter {
             Ok(db.change_count() > 0)
         })
     }
+
+    fn remove_all(&mut self, rid: &RepoId) -> Result<Self::Out, Self::RemoveError> {
+        let mut stmt = self.db.prepare(
+            "DELETE FROM patches
+             WHERE repo = ?1",
+        )?;
+
+        stmt.bind((1, rid))?;
+        stmt.next()?;
+
+        Ok(self.db.change_count() > 0)
+    }
 }
 
 #[derive(Debug, Error)]
@@ -395,7 +416,9 @@ pub enum Error {
     #[error("object `{1}` of type `{0}` was not found")]
     NotFound(TypeName, ObjectId),
     #[error(transparent)]
-    Object(#[from] cob::object::ParseObjectId),
+    ObjectId(#[from] cob::object::ParseObjectId),
+    #[error("object {0} failed to parse: {1}")]
+    Object(ObjectId, serde_json::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
@@ -413,7 +436,8 @@ pub struct PatchesIter<'a> {
 impl<'a> PatchesIter<'a> {
     fn parse_row(row: sql::Row) -> Result<(PatchId, Patch), Error> {
         let id = PatchId::from_str(row.read::<&str, _>("id"))?;
-        let patch = serde_json::from_str::<Patch>(row.read::<&str, _>("patch"))?;
+        let patch = serde_json::from_str::<Patch>(row.read::<&str, _>("patch"))
+            .map_err(|e| Error::Object(id, e))?;
         Ok((id, patch))
     }
 }
@@ -558,21 +582,21 @@ mod query {
         rid: &RepoId,
         id: &PatchId,
     ) -> Result<Option<Patch>, Error> {
-        let id = sql::Value::String(id.to_string());
+        let key = sql::Value::String(id.to_string());
         let mut stmt = db.prepare(
             "SELECT patch
              FROM patches
              WHERE id = ?1 AND repo = ?2",
         )?;
 
-        stmt.bind((1, id))?;
+        stmt.bind((1, key))?;
         stmt.bind((2, rid))?;
 
         match stmt.into_iter().next().transpose()? {
             None => Ok(None),
             Some(row) => {
                 let patch = row.read::<&str, _>("patch");
-                let patch = serde_json::from_str(patch)?;
+                let patch = serde_json::from_str(patch).map_err(|e| Error::Object(*id, e))?;
                 Ok(Some(patch))
             }
         }
@@ -598,7 +622,8 @@ mod query {
             None => Ok(None),
             Some(row) => {
                 let id = PatchId::from_str(row.read::<&str, _>("id"))?;
-                let patch = serde_json::from_str::<Patch>(row.read::<&str, _>("patch"))?;
+                let patch = serde_json::from_str::<Patch>(row.read::<&str, _>("patch"))
+                    .map_err(|e| Error::Object(id, e))?;
                 let revision = serde_json::from_str::<Revision>(row.read::<&str, _>("revision"))?;
                 Ok(Some(ByRevision {
                     id,

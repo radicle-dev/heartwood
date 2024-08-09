@@ -72,6 +72,11 @@ pub enum Error {
         #[source]
         err: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
+    #[error("failed to remove issues from cache: {err}")]
+    CacheRemoveAll {
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
 }
 
 /// Reason why an issue was closed.

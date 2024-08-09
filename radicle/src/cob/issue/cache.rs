@@ -151,8 +151,13 @@ impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
     ) -> Result<(), super::Error>
     where
         R: ReadRepository + cob::Store,
-        C: Update<Issue>,
+        C: Update<Issue> + Remove<Issue>,
     {
+        // Start by clearing the cache. This will get rid of issues that are cached but
+        // no longer exist in storage.
+        self.remove_all(&self.rid())
+            .map_err(|e| super::Error::CacheRemoveAll { err: e.into() })?;
+
         let issues = self.store.all()?;
         let mut progress = cache::WriteAllProgress::new(issues.len());
         for issue in self.store.all()? {
@@ -266,6 +271,10 @@ where
     fn remove(&mut self, id: &ObjectId) -> Result<Self::Out, Self::RemoveError> {
         self.cache.remove(id)
     }
+
+    fn remove_all(&mut self, rid: &RepoId) -> Result<Self::Out, Self::RemoveError> {
+        self.cache.remove_all(rid)
+    }
 }
 
 #[derive(Debug, Error)]
@@ -320,6 +329,18 @@ impl Remove<Issue> for StoreWriter {
 
             Ok(db.change_count() > 0)
         })
+    }
+
+    fn remove_all(&mut self, rid: &RepoId) -> Result<Self::Out, Self::RemoveError> {
+        let mut stmt = self.db.prepare(
+            "DELETE FROM issues
+             WHERE repo = ?1",
+        )?;
+
+        stmt.bind((1, rid))?;
+        stmt.next()?;
+
+        Ok(self.db.change_count() > 0)
     }
 }
 
