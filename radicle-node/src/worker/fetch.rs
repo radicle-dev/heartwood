@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 use localtime::LocalTime;
 
+use radicle::cob::TypedId;
 use radicle::crypto::PublicKey;
 use radicle::identity::DocAt;
 use radicle::prelude::RepoId;
@@ -281,8 +282,9 @@ where
     C: cob::cache::Update<cob::issue::Issue> + cob::cache::Update<cob::patch::Patch>,
     C: cob::cache::Remove<cob::issue::Issue> + cob::cache::Remove<cob::patch::Patch>,
 {
-    let issues = cob::issue::Issues::open(storage)?;
-    let patches = cob::patch::Patches::open(storage)?;
+    let mut issues = cob::store::Store::<cob::issue::Issue, _>::open(storage)?;
+    let mut patches = cob::store::Store::<cob::patch::Patch, _>::open(storage)?;
+
     for update in refs {
         match update {
             RefUpdate::Updated { name, .. }
@@ -293,47 +295,12 @@ where
                         continue;
                     };
                     if identifier.is_issue() {
-                        if let Some(issue) = issues.get(&identifier.id)? {
-                            cache
-                                .update(rid, &identifier.id, &issue)
-                                .map(|_| ())
-                                .map_err(|e| error::Cache::Update {
-                                    id: identifier.id,
-                                    type_name: identifier.type_name,
-                                    err: e.into(),
-                                })?;
-                        } else {
-                            // N.b. the issue has been removed entirely from the
-                            // repository so we also remove it from the cache
-                            cob::cache::Remove::<cob::issue::Issue>::remove(cache, &identifier.id)
-                                .map(|_| ())
-                                .map_err(|e| error::Cache::Remove {
-                                    id: identifier.id,
-                                    type_name: identifier.type_name,
-                                    err: Box::new(e),
-                                })?;
-                        }
+                        update_or_remove(&mut issues, cache, rid, identifier)?;
                     } else if identifier.is_patch() {
-                        if let Some(patch) = patches.get(&identifier.id)? {
-                            cache
-                                .update(rid, &identifier.id, &patch)
-                                .map(|_| ())
-                                .map_err(|e| error::Cache::Update {
-                                    id: identifier.id,
-                                    type_name: identifier.type_name,
-                                    err: e.into(),
-                                })?;
-                        } else {
-                            // N.b. the patch has been removed entirely from the
-                            // repository so we also remove it from the cache
-                            cob::cache::Remove::<cob::patch::Patch>::remove(cache, &identifier.id)
-                                .map(|_| ())
-                                .map_err(|e| error::Cache::Remove {
-                                    id: identifier.id,
-                                    type_name: identifier.type_name,
-                                    err: Box::new(e),
-                                })?;
-                        }
+                        update_or_remove(&mut patches, cache, rid, identifier)?;
+                    } else {
+                        // Unknown COB, don't cache.
+                        continue;
                     }
                 }
                 None => continue,
@@ -341,6 +308,50 @@ where
             RefUpdate::Skipped { .. } => { /* Do nothing */ }
         }
     }
+
+    Ok(())
+}
+
+/// Update or remove a cache entry.
+fn update_or_remove<R, C, T>(
+    store: &mut cob::store::Store<T, R>,
+    cache: &mut C,
+    rid: &RepoId,
+    tid: TypedId,
+) -> Result<(), error::Cache>
+where
+    R: cob::Store + ReadRepository,
+    T: cob::Evaluate<R> + cob::store::Cob,
+    C: cob::cache::Update<T> + cob::cache::Remove<T>,
+{
+    match store.get(&tid.id) {
+        Ok(Some(obj)) => {
+            // Object loaded correctly, update cache.
+            return cache.update(rid, &tid.id, &obj).map(|_| ()).map_err(|e| {
+                error::Cache::Update {
+                    id: tid.id,
+                    type_name: tid.type_name,
+                    err: e.into(),
+                }
+            });
+        }
+        Ok(None) => {
+            // Object was not found. Fall-through.
+        }
+        Err(e) => {
+            // Object was found, but failed to load. Fall-through.
+            log::error!(target: "fetch", "Error loading COB {tid} from storage: {e}");
+        }
+    }
+    // The object has either been removed entirely from the repository,
+    // or it failed to load. So we also remove it from the cache.
+    cob::cache::Remove::<T>::remove(cache, &tid.id)
+        .map(|_| ())
+        .map_err(|e| error::Cache::Remove {
+            id: tid.id,
+            type_name: tid.type_name,
+            err: Box::new(e),
+        })?;
 
     Ok(())
 }
