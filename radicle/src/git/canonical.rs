@@ -99,8 +99,8 @@ impl Canonical {
     {
         Self::reference(
             repo,
-            delegates,
             &lit::refs_heads(project.default_branch()).into(),
+            delegates,
             threshold,
         )
     }
@@ -109,8 +109,8 @@ impl Canonical {
     /// the reference `name`.
     pub fn reference<S>(
         repo: &S,
+        refname: &Qualified,
         delegates: &NonEmpty<Did>,
-        name: &Qualified,
         threshold: usize,
     ) -> Result<Self, raw::Error>
     where
@@ -118,15 +118,14 @@ impl Canonical {
     {
         let mut tips = BTreeMap::new();
         for delegate in delegates.iter() {
-            match repo.reference_oid(delegate, name) {
+            match repo.reference_oid(delegate, refname) {
                 Ok(tip) => {
                     tips.insert(*delegate, tip);
                 }
                 Err(e) if super::ext::is_not_found_err(&e) => {
                     log::warn!(
                         target: "radicle",
-                        "Missing `refs/namespaces/{}/{name}` while calculating the canonical reference",
-                        delegate.as_key()
+                        "Missing `refs/namespaces/{delegate}/{refname}` while calculating the canonical reference",
                     );
                 }
                 Err(e) => return Err(e),
@@ -138,6 +137,14 @@ impl Canonical {
     /// Return the set of [`Did`]s and their [`Oid`] tip.
     pub fn tips(&self) -> impl Iterator<Item = (&Did, &Oid)> {
         self.tips.iter()
+    }
+
+    /// Returns `true` is there were no tips found for any of the delegates for
+    /// the given reference.
+    ///
+    /// N.b. this may be the case when a new reference is being created.
+    pub fn is_empty(&self) -> bool {
+        self.tips.is_empty()
     }
 }
 
@@ -176,7 +183,7 @@ impl Canonical {
     ///
     /// Also returns an error if `heads` is empty or `threshold` cannot be
     /// satisified with the number of heads given.
-    pub fn quorum(&self, repo: &raw::Repository) -> Result<Oid, QuorumError> {
+    pub fn quorum(self, repo: &raw::Repository) -> Result<Oid, QuorumError> {
         let mut candidates = BTreeMap::<_, usize>::new();
 
         // Build a list of candidate commits and count how many "votes" each of them has.
