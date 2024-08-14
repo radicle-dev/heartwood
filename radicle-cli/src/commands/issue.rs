@@ -447,6 +447,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 | Operation::Delete { .. }
                 | Operation::Assign { .. }
                 | Operation::Label { .. }
+                | Operation::Edit { .. }
+                | Operation::Comment { .. }
         );
 
     let mut issues = profile.issues_mut(&repo)?;
