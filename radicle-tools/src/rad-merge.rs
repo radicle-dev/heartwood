@@ -1,17 +1,28 @@
 use std::collections::HashSet;
 use std::env;
 
-use anyhow::anyhow;
-use radicle::cob::patch::PatchId;
+use anyhow::{anyhow, bail};
+use radicle::cob::patch::{PatchId, RevisionId};
 use radicle::git::Oid;
 use radicle::storage::ReadStorage;
 use radicle_cli::terminal as term;
 
 fn main() -> anyhow::Result<()> {
-    let pid: PatchId = env::args()
-        .nth(1)
-        .ok_or_else(|| anyhow!("usage: rad-merge <patch-id>"))?
-        .parse()?;
+    let args = env::args().skip(1).collect::<Vec<_>>();
+    let (pid, rev) = match args.as_slice() {
+        [pid, rev] => {
+            let pid: PatchId = pid.parse()?;
+            let rev: Oid = rev.parse()?;
+
+            (pid, Some(RevisionId::from(rev)))
+        }
+        [pid] => {
+            let pid: PatchId = pid.parse()?;
+
+            (pid, None)
+        }
+        _ => bail!("usage: rad-merge <patch-id> [<revision-id>]"),
+    };
     let profile = radicle::Profile::load()?;
     let (working, rid) = radicle::rad::cwd()?;
     let stored = profile.storage.repository(rid)?;
@@ -21,7 +32,14 @@ fn main() -> anyhow::Result<()> {
     if patch.is_merged() {
         anyhow::bail!("fatal: patch {pid} is already merged");
     }
-    let (revision, r) = patch.latest();
+    let (revision, r) = if let Some(id) = rev {
+        let r = patch
+            .revision(&id)
+            .ok_or_else(|| anyhow!("revision {id} not found"))?;
+        (id, r)
+    } else {
+        patch.latest()
+    };
     let head = r.head();
 
     let mut revwalk = stored.backend.revwalk()?;
