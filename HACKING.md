@@ -48,6 +48,22 @@ You may want to set the appropriate environment variables before running these c
 to prevent them from interfering with an existing installation of radicle. See the
 following section on environment variables.
 
+## Running in isolation
+
+When testing things, if you want to run one or more nodes in isolation from the
+public Radicle network of nodes:
+
+* In the node `config.json` file:
+  - set `preferredSeeds` to `[]`
+  - set `node.connect` to `[]`
+  - set `node.network` to `test`
+  - set `node.peers.type` to `static`
+
+This allows you to make any changes to the repositories on your nodes without
+having them replicated to outside your nodes. This would be good to do for any
+experiments you make that might be burdensome for other nodes, such as creating
+very large repositories.
+
 ## Environment variables
 
 When developing radicle, some environment variables may be used to make the
