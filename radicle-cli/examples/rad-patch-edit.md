@@ -16,8 +16,8 @@ $ git commit --message "Add README, just for the fun"
 
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun" HEAD:refs/patches
-✓ Patch 89f7afb1511b976482b21f6b2f39aef7f4fb88a2 opened
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+✓ Patch f699e2299e9ee734758626924df7e15fd9a68553 opened
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
 
@@ -32,22 +32,22 @@ $ git commit -v -m "Define the LICENSE"
 
 ``` (stderr)
 $ git push -f -o patch.message="Add License"
-✓ Patch 89f7afb updated to revision 5d78dd5376453e25df5988ec86951c99cb73742c
-To compare against your previous revision 89f7afb, run:
+✓ Patch f699e22 updated to revision 13b5240e3f7ecb60fea4f66eb1a09fa3ffc1de7f
+To compare against your previous revision f699e22, run:
 
    git range-diff f2de534[..] 03c02af[..] 8945f61[..]
 
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   03c02af..8945f61  changes -> patches/89f7afb1511b976482b21f6b2f39aef7f4fb88a2
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+   03c02af..8945f61  changes -> patches/f699e2299e9ee734758626924df7e15fd9a68553
 ```
 
 Let's look at the patch, to see what it looks like before editing it:
 
 ```
-$ rad patch show 89f7afb
+$ rad patch show f699e22
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add README, just for the fun                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
+│ Patch     f699e2299e9ee734758626924df7e15fd9a68553                  │
 │ Author    alice (you)                                               │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
 │ Branches  changes                                                   │
@@ -58,7 +58,7 @@ $ rad patch show 89f7afb
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
+│ ↑ updated to 13b5240e3f7ecb60fea4f66eb1a09fa3ffc1de7f (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -66,11 +66,11 @@ We can change the title and description of the patch itself by using a
 multi-line message (using two `--message` options here):
 
 ```
-$ rad patch edit 89f7afb --message "Add Metadata" --message "Add README & LICENSE" --no-announce
-$ rad patch show 89f7afb
+$ rad patch edit f699e22 --message "Add Metadata" --message "Add README & LICENSE" --no-announce
+$ rad patch show f699e22
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add Metadata                                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
+│ Patch     f699e2299e9ee734758626924df7e15fd9a68553                  │
 │ Author    alice (you)                                               │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
 │ Branches  changes                                                   │
@@ -83,7 +83,7 @@ $ rad patch show 89f7afb
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
+│ ↑ updated to 13b5240e3f7ecb60fea4f66eb1a09fa3ffc1de7f (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -94,11 +94,11 @@ If we want to change a specific revision's description, we can use the
 `--revision` option:
 
 ```
-$ rad patch edit 89f7afb --revision 5d78dd5 --message "Changes: Adds LICENSE file" --no-announce
-$ rad patch show 89f7afb
+$ rad patch edit f699e22 --revision 13b5240 --message "Changes: Adds LICENSE file" --no-announce
+$ rad patch show f699e22
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add Metadata                                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
+│ Patch     f699e2299e9ee734758626924df7e15fd9a68553                  │
 │ Author    alice (you)                                               │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
 │ Branches  changes                                                   │
@@ -111,7 +111,7 @@ $ rad patch show 89f7afb
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
+│ ↑ updated to 13b5240e3f7ecb60fea4f66eb1a09fa3ffc1de7f (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 

@@ -2,7 +2,7 @@ The `rad job` command lets you manage job COBs. Let's first checkout the
 `heartwood` repository:
 
 ```
-$ rad checkout rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad checkout rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
 ✓ Repository checkout successful under ./heartwood
 $ cd heartwood
 ```

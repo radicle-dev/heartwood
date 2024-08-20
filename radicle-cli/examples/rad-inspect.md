@@ -3,14 +3,14 @@ command from inside a working copy:
 
 ```
 $ rad inspect
-rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
 ```
 
 As a shorthand, you can also simply use `rad .`:
 
 ```
 $ rad .
-rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
 ```
 
 It's also possible to display all of the repository's git references:
@@ -21,7 +21,7 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 └── refs
     ├── cobs
     │   └── xyz.radicle.id
-    │       └── 0656c217f917c3e06234771e9ecae53aba5e173e
+    │       └── eeb8b44890570ccf85db7f3cb2a475100a27408a
     ├── heads
     │   └── master
     └── rad
@@ -34,7 +34,7 @@ And sigrefs:
 
 ```
 $ rad inspect --sigrefs
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 99c549702e2bcfe02b0e68d4a2224fb7a1524529
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 7c1445cd018b1b0f51e0d815c3c03b289140eafa
 ```
 
 Or display the repository identity's payload and delegates:
@@ -57,13 +57,14 @@ history:
 
 ```
 $ rad inspect --history
-commit 0656c217f917c3e06234771e9ecae53aba5e173e
-blob   d96f425412c9f8ad5d9a9a05c9831d0728e2338d
+commit eeb8b44890570ccf85db7f3cb2a475100a27408a
+blob   b38d81ee99d880461a3b7b3502e5d1556e440ef3
 date   Thu, 15 Dec 2022 17:28:04 +0000
 
     Initialize identity
 
  {
+   "version": 2,
    "payload": {
      "xyz.radicle.project": {
        "defaultBranch": "master",
@@ -74,7 +75,14 @@ date   Thu, 15 Dec 2022 17:28:04 +0000
    "delegates": [
      "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
    ],
-   "threshold": 1
+   "canonicalRefs": {
+     "rules": {
+       "refs/heads/master": {
+         "allow": "delegates",
+         "threshold": 1
+       }
+     }
+   }
  }
 
 ```

@@ -10,30 +10,30 @@ $ git commit -m "Introduce license"
 
 ``` ~alice (stderr)
 $ git push rad -o patch.draft -o patch.message="Define LICENSE for project" HEAD:refs/patches
-✓ Patch 6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b drafted
+✓ Patch e5dc5fd15fbe952da6a0f43934eae57d47b93e36 drafted
 ✓ Synced with 2 node(s)
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
 
 ``` ~bob
 $ cd heartwood
 $ rad sync -f
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
-$ rad patch comment 6c61ef1 -m "I think we should use MIT"
+$ rad patch comment e5dc5fd -m "I think we should use MIT"
 ╭───────────────────────────╮
-│ bob (you) now 833db19     │
+│ bob (you) now 2ec2cc1     │
 │ I think we should use MIT │
 ╰───────────────────────────╯
 ✓ Synced with 2 node(s)
 ```
 
 ``` ~alice
-$ rad patch show 6c61ef1 -v
+$ rad patch show e5dc5fd -v
 ╭────────────────────────────────────────────────────╮
 │ Title     Define LICENSE for project               │
-│ Patch     6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b │
+│ Patch     e5dc5fd15fbe952da6a0f43934eae57d47b93e36 │
 │ Author    alice (you)                              │
 │ Head      717c900ec17735639587325e0fd9fe09991c9edd │
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 │
@@ -45,12 +45,12 @@ $ rad patch show 6c61ef1 -v
 ├────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (717c900) now              │
 ├────────────────────────────────────────────────────┤
-│ bob z6Mkt67…v4N1tRk now 833db19                    │
+│ bob z6Mkt67…v4N1tRk now 2ec2cc1                    │
 │ I think we should use MIT                          │
 ╰────────────────────────────────────────────────────╯
-$ rad patch comment 6c61ef1 --reply-to 833db19 -m "Thanks, I'll add it!"
+$ rad patch comment e5dc5fd --reply-to 2ec2cc1 -m "Thanks, I'll add it!"
 ╭─────────────────────────╮
-│ alice (you) now 1803a38 │
+│ alice (you) now 737dcab │
 │ Thanks, I'll add it!    │
 ╰─────────────────────────╯
 ✓ Synced with 2 node(s)
@@ -68,24 +68,24 @@ $ git commit -am "Add MIT License"
 
 ``` ~alice (stderr)
 $ git push -f
-✓ Patch 6c61ef1 updated to revision 93915b9afa94a9dc4f52f12cdf077d4613ea3eb3
-To compare against your previous revision 6c61ef1, run:
+✓ Patch e5dc5fd updated to revision 1a1082a96f552767d352d69b8e6524aeb82f67a4
+To compare against your previous revision e5dc5fd, run:
 
    git range-diff f2de534[..] 717c900[..] 1cc8cd9[..]
 
 ✓ Synced with 2 node(s)
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   717c900..1cc8cd9  prepare-license -> patches/6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+   717c900..1cc8cd9  prepare-license -> patches/e5dc5fd15fbe952da6a0f43934eae57d47b93e36
 ```
 
 ``` ~bob
-$ rad patch review 6c61ef1 --accept -m "LGTM!"
-✓ Patch 6c61ef1 accepted
+$ rad patch review e5dc5fd --accept -m "LGTM!"
+✓ Patch e5dc5fd accepted
 ✓ Synced with 2 node(s)
-$ rad patch show 6c61ef1 -v
+$ rad patch show e5dc5fd -v
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title    Define LICENSE for project                                 │
-│ Patch    6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b                   │
+│ Patch    e5dc5fd15fbe952da6a0f43934eae57d47b93e36                   │
 │ Author   alice z6MknSL…StBU8Vi                                      │
 │ Head     1cc8cd9de8ccc44b4fe3876f2dbd2cd1cf9ddc0e                   │
 │ Base     f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                   │
@@ -96,21 +96,21 @@ $ rad patch show 6c61ef1 -v
 │ 717c900 Introduce license                                           │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by alice z6MknSL…StBU8Vi (717c900) now                     │
-│ ↑ updated to 93915b9afa94a9dc4f52f12cdf077d4613ea3eb3 (1cc8cd9) now │
+│ ↑ updated to 1a1082a96f552767d352d69b8e6524aeb82f67a4 (1cc8cd9) now │
 │   └─ ✓ accepted by bob (you) now                                    │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 
 ``` ~bob
-$ rad patch delete 6c61ef1
+$ rad patch delete e5dc5fd
 ✓ Synced with 2 node(s)
 ```
 
 ``` ~alice
-$ rad patch show 6c61ef1 -v
+$ rad patch show e5dc5fd -v
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Define LICENSE for project                                │
-│ Patch     6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b                  │
+│ Patch     e5dc5fd15fbe952da6a0f43934eae57d47b93e36                  │
 │ Author    alice (you)                                               │
 │ Head      1cc8cd9de8ccc44b4fe3876f2dbd2cd1cf9ddc0e                  │
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                  │
@@ -122,7 +122,7 @@ $ rad patch show 6c61ef1 -v
 │ 717c900 Introduce license                                           │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (717c900) now                               │
-│ ↑ updated to 93915b9afa94a9dc4f52f12cdf077d4613ea3eb3 (1cc8cd9) now │
+│ ↑ updated to 1a1082a96f552767d352d69b8e6524aeb82f67a4 (1cc8cd9) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -130,11 +130,11 @@ If Alice also decides to delete the patch, then any seeds that have synced with
 Alice should no longer have the patch:
 
 ``` ~alice
-$ rad patch delete 6c61ef1
+$ rad patch delete e5dc5fd
 ✓ Synced with 2 node(s)
 ```
 
 ``` ~seed (fails)
-$ rad patch show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji 6c61ef1 -v
-✗ Error: Patch `6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b` not found
+$ rad patch show --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 e5dc5fd -v
+✗ Error: Patch `e5dc5fd15fbe952da6a0f43934eae57d47b93e36` not found
 ```

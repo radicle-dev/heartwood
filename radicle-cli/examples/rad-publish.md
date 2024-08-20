@@ -15,7 +15,7 @@ public
 The repository is now in our inventory:
 ```
 $ rad node inventory
-rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu
+rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT
 ```
 
 If we try to publish again, we get an error:
@@ -34,11 +34,11 @@ repository private again __will not_ be replicated.
 
 ```
 $ rad id update --visibility private --title "Privatise" --description "Reverting the rad publish event"
-✓ Identity revision 774cc1e72641d97d7dc9377745b7f454a9171747 created
+✓ Identity revision 26ed629bb7c835bd94537e8226ca359c53b32cd3 created
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Privatise                                                     │
-│ Revision 774cc1e72641d97d7dc9377745b7f454a9171747                      │
-│ Blob     88f759a4d46e9535766fccec0cbfe1fed6160b1a                      │
+│ Revision 26ed629bb7c835bd94537e8226ca359c53b32cd3                      │
+│ Blob     792ab13be76827e022b71941582a1b6217e6368a                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    accepted                                                      │
 │ Quorum   yes                                                           │
@@ -48,8 +48,9 @@ $ rad id update --visibility private --title "Privatise" --description "Revertin
 │ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi alice (you) │
 ╰────────────────────────────────────────────────────────────────────────╯
 
-@@ -1,13 +1,16 @@
+@@ -1,21 +1,24 @@
  {
+   "version": 2,
    "payload": {
      "xyz.radicle.project": {
        "defaultBranch": "master",
@@ -60,10 +61,16 @@ $ rad id update --visibility private --title "Privatise" --description "Revertin
    "delegates": [
      "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
    ],
--  "threshold": 1
-+  "threshold": 1,
+   "canonicalRefs": {
+     "rules": {
+       "refs/heads/master": {
+         "allow": "delegates",
+         "threshold": 1
+       }
+     }
++  },
 +  "visibility": {
 +    "type": "private"
-+  }
+   }
  }
 ```

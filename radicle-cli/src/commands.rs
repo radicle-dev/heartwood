@@ -12,6 +12,8 @@ pub mod rad_clone;
 pub mod rad_cob;
 #[path = "commands/config.rs"]
 pub mod rad_config;
+#[path = "commands/cref.rs"]
+pub mod rad_cref;
 #[path = "commands/debug.rs"]
 pub mod rad_debug;
 #[path = "commands/diff.rs"]

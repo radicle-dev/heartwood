@@ -7,7 +7,7 @@ Let's say the new car you are designing with your peers has a problem with its f
 $ rad issue open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply" --no-announce
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
-│ Issue   9037b7a42323d4b79e6a48b7d05d3bbaae11d69b        │
+│ Issue   3b2f7e674bc39d5ff93abf2c68d8233fa4aa8806        │
 │ Author  bob (you)                                       │
 │ Status  open                                            │
 │                                                         │
@@ -22,7 +22,7 @@ $ rad issue list
 ╭──────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title                         Author           Labels   Assignees   Opened │
 ├──────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   9037b7a   flux capacitor underpowered   bob      (you)                        now    │
+│ ●   3b2f7e6   flux capacitor underpowered   bob      (you)                        now    │
 ╰──────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -31,6 +31,6 @@ found an important detail about the car's power requirements. It will help
 whoever works on a fix.
 
 ```
-$ rad issue comment 9037b7a42323d4b79e6a48b7d05d3bbaae11d69b --message 'The flux capacitor needs 1.21 Gigawatts' -q --no-announce
-400cb155f512b4880858bb05f935104c34167b28
+$ rad issue comment 3b2f7e674bc39d5ff93abf2c68d8233fa4aa8806 --message 'The flux capacitor needs 1.21 Gigawatts' -q --no-announce
+3a4261f49c44a5832c7f18179d00cffa0deb17f9
 ```

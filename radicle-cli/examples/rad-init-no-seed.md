@@ -6,7 +6,7 @@ Initializing public radicle 👾 repository in [..]
 
 ✓ Repository heartwood created.
 
-Your Repository ID (RID) is rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK.
+Your Repository ID (RID) is rad:z3Lr338KCqbiwiLSh9DQZxTiLQUHg.
 You can show it any time by running `rad .` from this directory.
 
 Your repository will be announced to the network when you start your node.
@@ -19,11 +19,11 @@ $ rad node inventory
 
 If we then seed it, it becomes advertized in our inventory:
 ```
-$ rad seed rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK
-✓ Inventory updated with rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK
-✓ Seeding policy updated for rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK with scope 'all'
+$ rad seed rad:z3Lr338KCqbiwiLSh9DQZxTiLQUHg
+✓ Inventory updated with rad:z3Lr338KCqbiwiLSh9DQZxTiLQUHg
+✓ Seeding policy updated for rad:z3Lr338KCqbiwiLSh9DQZxTiLQUHg with scope 'all'
 ```
 ```
 $ rad node inventory
-rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK
+rad:z3Lr338KCqbiwiLSh9DQZxTiLQUHg
 ```

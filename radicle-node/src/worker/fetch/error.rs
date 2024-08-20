@@ -65,3 +65,11 @@ pub enum Handle {
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
 }
+
+#[derive(Debug, Error)]
+pub enum Canonical {
+    #[error(transparent)]
+    Identity(#[from] radicle::storage::RepositoryError),
+    #[error(transparent)]
+    Rules(#[from] git::canonical::rules::ValidationError),
+}

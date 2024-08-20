@@ -9,6 +9,7 @@ $ rad id update --title "Allow Bob & Eve" --allow did:key:z6Mkt67GdsW7715MEfRuP4
 ...
 $ rad inspect --identity
 {
+  "version": 2,
   "payload": {
     "xyz.radicle.project": {
       "defaultBranch": "master",
@@ -19,7 +20,14 @@ $ rad inspect --identity
   "delegates": [
     "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
   ],
-  "threshold": 1,
+  "canonicalRefs": {
+    "rules": {
+      "refs/heads/master": {
+        "allow": "delegates",
+        "threshold": 1
+      }
+    }
+  },
   "visibility": {
     "type": "private",
     "allow": [
@@ -37,6 +45,7 @@ $ rad id update --title "Remove allow list" --disallow did:key:z6Mkt67GdsW7715ME
 ...
 $ rad inspect --identity
 {
+  "version": 2,
   "payload": {
     "xyz.radicle.project": {
       "defaultBranch": "master",
@@ -47,7 +56,14 @@ $ rad inspect --identity
   "delegates": [
     "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
   ],
-  "threshold": 1,
+  "canonicalRefs": {
+    "rules": {
+      "refs/heads/master": {
+        "allow": "delegates",
+        "threshold": 1
+      }
+    }
+  },
   "visibility": {
     "type": "private"
   }

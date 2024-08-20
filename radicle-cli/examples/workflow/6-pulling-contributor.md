@@ -10,7 +10,7 @@ f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 Then, we call `rad sync --fetch` to fetch from the maintainer:
 ```
 $ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
 ```
 
@@ -21,9 +21,9 @@ Your branch is up to date with 'rad/master'.
 ```
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git pull --all --ff
-From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+From rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
    f2de534..f567f69  master     -> rad/master
-From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+From rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..f567f69  master     -> alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
 ```
 

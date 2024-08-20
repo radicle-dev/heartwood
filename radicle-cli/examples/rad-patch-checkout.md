@@ -22,17 +22,17 @@ Once the code is ready, we open (or create) a patch with our changes for the pro
 
 ``` (stderr)
 $ git push rad -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
-✓ Patch aa45913e757cacd46972733bddee5472c78fa32a opened
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+✓ Patch c90967c43719b916e0b5a8b5dafe353608f8a08a opened
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
 
 Now, let's checkout the patch that we just created:
 
 ```
-$ rad patch checkout aa45913e757cacd46972733bddee5472c78fa32a
-✓ Switched to branch patch/aa45913 at revision aa45913
-✓ Branch patch/aa45913 setup to track rad/patches/aa45913e757cacd46972733bddee5472c78fa32a
+$ rad patch checkout c90967c43719b916e0b5a8b5dafe353608f8a08a
+✓ Switched to branch patch/c90967c at revision c90967c
+✓ Branch patch/c90967c setup to track rad/patches/c90967c43719b916e0b5a8b5dafe353608f8a08a
 ```
 
 Note that `rad patch checkout` can be used to switch to the patch branch
@@ -40,8 +40,8 @@ as long as we haven't made changes to it.
 
 ```
 $ git checkout master -q
-$ rad patch checkout aa45913
-✓ Switched to branch patch/aa45913 at revision aa45913
+$ rad patch checkout c90967c
+✓ Switched to branch patch/c90967c at revision c90967c
 ```
 
 Now, let's add a README too!
@@ -50,7 +50,7 @@ Now, let's add a README too!
 $ touch README.md
 $ git add README.md
 $ git commit --message "Add README, just for the fun"
-[patch/aa45913 27857ec] Add README, just for the fun
+[patch/c90967c 27857ec] Add README, just for the fun
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
 ```
@@ -59,11 +59,11 @@ We can now finish off the update:
 
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun"
-✓ Patch aa45913 updated to revision 3156bed9d64d4675d6cf56612d217fc5f4e8a53a
-To compare against your previous revision aa45913, run:
+✓ Patch c90967c updated to revision 594bb93b4ba836777c111053af7b61ff772afbc5
+To compare against your previous revision c90967c, run:
 
    git range-diff f2de534[..] 3e674d1[..] 27857ec[..]
 
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   3e674d1..27857ec  patch/aa45913 -> patches/aa45913e757cacd46972733bddee5472c78fa32a
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+   3e674d1..27857ec  patch/c90967c -> patches/c90967c43719b916e0b5a8b5dafe353608f8a08a
 ```

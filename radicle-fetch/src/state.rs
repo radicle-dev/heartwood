@@ -32,8 +32,8 @@ pub const DEFAULT_FETCH_DATA_REFS_LIMIT: u64 = 1024 * 1024 * 1024 * 5;
 pub mod error {
     use std::io;
 
-    use radicle::git::Oid;
     use radicle::prelude::PublicKey;
+    use radicle::{git::Oid, identity::doc};
     use thiserror::Error;
 
     use crate::{git, git::repository, handle, sigrefs, stage};
@@ -66,6 +66,8 @@ pub mod error {
         Io(#[from] io::Error),
         #[error("canonical 'refs/rad/id' is missing")]
         MissingRadId,
+        #[error(transparent)]
+        Payload(#[from] doc::PayloadError),
         #[error(transparent)]
         RefdbUpdate(#[from] repository::error::Update),
         #[error(transparent)]
@@ -401,12 +403,18 @@ impl FetchState {
 
         log::trace!(target: "fetch", "Identity delegates {delegates:?}");
 
+        // The threshold is only relevant to the default branch, if there is
+        // none we set the threshold to 0 so that validation succeeds.
+        let threshold: usize = anchor
+            .default_branch_rule()?
+            .map(|rule| (*rule.threshold()).into())
+            .unwrap_or(0);
         // The local peer does not need to count towards the threshold
         // since they must be valid already.
         let threshold = if is_delegate {
-            anchor.threshold() - 1
+            threshold.saturating_sub(1)
         } else {
-            anchor.threshold()
+            threshold
         };
         let signed_refs = self.run_special_refs(
             handle,

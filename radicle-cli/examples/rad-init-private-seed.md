@@ -9,22 +9,22 @@ $ rad id update --title "Allow Bob" --description "" --allow did:key:z6Mkt67GdsW
 First, Bob seeds the repo.
 
 ``` ~bob
-$ rad seed rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --no-fetch
+$ rad seed rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT --no-fetch
 [..]
 ```
 
 If Bob just tries to fetch it without specifying seeds, he gets an error:
 
 ``` ~bob
-$ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch
-✗ Error: no seeds found for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu
+$ rad sync rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT --fetch
+✗ Error: no seeds found for rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT
 ```
 
 He has to specify a seed that isn't in his routing table:
 
 ``` ~bob
-$ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-✓ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi@[..]..
+$ rad sync rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT --fetch --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+✓ Fetching rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
 ```
 
@@ -33,7 +33,7 @@ $ rad ls --private --all
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ heartwood   rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu   private      f2de534   radicle heartwood protocol & stack │
+│ heartwood   rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT   private      f2de534   radicle heartwood protocol & stack │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -41,8 +41,8 @@ Note that if multiple seeds are specified, the command succeeds as long as one
 seed succeeds.
 
 ``` ~bob
-$ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --seed z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx
-✓ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi@[..]..
+$ rad sync rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT --fetch --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --seed z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx
+✓ Fetching rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT from z6MknSL…StBU8Vi@[..]..
 ! Warning: no addresses found for z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx, skipping..
 ✓ Fetched repository from 1 seed(s)
 ```

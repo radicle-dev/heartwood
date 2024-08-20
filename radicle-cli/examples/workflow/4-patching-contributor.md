@@ -26,8 +26,8 @@ Once the code is ready, we open a patch with our changes.
 
 ``` (stderr)
 $ git push rad -o no-sync -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
-✓ Patch e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46 opened
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+✓ Patch 3aa3bbfbc4162e34ab6787b3508e7ec84166d182 opened
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new reference]   HEAD -> refs/patches
 ```
 
@@ -38,12 +38,12 @@ $ rad patch
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                      Author         Reviews  Head     +   -   Updated │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  e4934b6  Define power requirements  bob     (you)  -        3e674d1  +0  -0  now     │
+│ ●  3aa3bbf  Define power requirements  bob     (you)  -        3e674d1  +0  -0  now     │
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
-$ rad patch show e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46
+$ rad patch show 3aa3bbfbc4162e34ab6787b3508e7ec84166d182
 ╭────────────────────────────────────────────────────╮
 │ Title     Define power requirements                │
-│ Patch     e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46 │
+│ Patch     3aa3bbfbc4162e34ab6787b3508e7ec84166d182 │
 │ Author    bob (you)                                │
 │ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33 │
 │ Branches  flux-capacitor-power                     │
@@ -61,8 +61,8 @@ $ rad patch show e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46
 We can also confirm that the patch branch is in storage:
 
 ```
-$ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk refs/heads/patches/*
-3e674d1a1df90807e934f9ae5da2591dd6848a33	refs/heads/patches/e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46
+$ git ls-remote rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk refs/heads/patches/*
+3e674d1a1df90807e934f9ae5da2591dd6848a33	refs/heads/patches/3aa3bbfbc4162e34ab6787b3508e7ec84166d182
 ```
 
 Wait, let's add a README too! Just for fun.
@@ -77,19 +77,19 @@ $ git commit --message "Add README, just for the fun"
 ```
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push -o patch.message="Add README, just for the fun"
-✓ Patch e4934b6 updated to revision 773b9aab58b11e9fa83d0ed0baca2bea6ff889c9
-To compare against your previous revision e4934b6, run:
+✓ Patch 3aa3bbf updated to revision 8ea87be8cb7d590f381338348532200b230368af
+To compare against your previous revision 3aa3bbf, run:
 
    git range-diff f2de534[..] 3e674d1[..] 27857ec[..]
 
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-   3e674d1..27857ec  flux-capacitor-power -> patches/e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+   3e674d1..27857ec  flux-capacitor-power -> patches/3aa3bbfbc4162e34ab6787b3508e7ec84166d182
 ```
 
 And let's leave a quick comment for our team:
 
 ```
-$ rad patch comment e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46 --message 'I cannot wait to get back to the 90s!' -q
-8c66f87afadc7c7c857f8bb92973c25f64e75776
+$ rad patch comment 3aa3bbfbc4162e34ab6787b3508e7ec84166d182 --message 'I cannot wait to get back to the 90s!' -q
+528abde17e16bef2aa12157c745a9a74e4005051
 ✓ Synced with 1 node(s)
 ```

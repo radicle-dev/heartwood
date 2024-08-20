@@ -4,21 +4,20 @@ use std::{ffi::OsString, io};
 
 use anyhow::{anyhow, Context};
 
-use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
-use radicle::identity::{doc, Doc, Identity, PayloadError, RawDoc, Visibility};
-use radicle::prelude::{Did, RepoId, Signer};
-use radicle::storage::refs;
+use radicle::cob::identity;
+use radicle::cob::identity::Revision;
+use radicle::identity::{doc, Doc, Identity, RawDoc, Visibility};
+use radicle::prelude::{Did, RepoId};
+use radicle::storage::{refs, HasRepoId};
 use radicle::storage::{ReadRepository, ReadStorage as _, WriteRepository};
-use radicle::{cob, Profile};
-use radicle_surf::diff::Diff;
+use radicle::Profile;
 use radicle_term::Element;
 use serde_json as json;
 
-use crate::git::unified_diff::Encode as _;
 use crate::git::Rev;
+use crate::id;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::patch::Message;
 use crate::terminal::Interactive;
 
 pub const HELP: Help = Help {
@@ -31,12 +30,13 @@ Usage
     rad id list [<option>...]
     rad id update [--title <string>] [--description <string>]
                   [--delegate <did>] [--rescind <did>]
-                  [--threshold <num>] [--visibility <private | public>]
+                  [--visibility <private | public>]
                   [--allow <did>] [--disallow <did>]
                   [--no-confirm] [--payload <id> <key> <val>...] [--edit] [<option>...]
     rad id edit <revision-id> [--title <string>] [--description <string>] [<option>...]
     rad id show <revision-id> [<option>...]
     rad id <accept | reject | redact> <revision-id> [<option>...]
+    rad id migrate [--no-confirm] [--title <string>] [--description <string>]
 
     The *rad id* command is used to manage and propose changes to the
     identity of a Radicle repository.
@@ -53,12 +53,15 @@ Options
 
 #[derive(Clone, Debug, Default)]
 pub enum Operation {
+    Migrate {
+        title: Option<String>,
+        description: Option<String>,
+    },
     Update {
         title: Option<String>,
         description: Option<String>,
         delegate: Vec<Did>,
         rescind: Vec<Did>,
-        threshold: Option<usize>,
         visibility: Option<EditVisibility>,
         allow: BTreeSet<Did>,
         disallow: BTreeSet<Did>,
@@ -115,6 +118,7 @@ pub enum OperationName {
     Reject,
     Edit,
     Update,
+    Migrate,
     Show,
     Redact,
     #[default]
@@ -143,7 +147,6 @@ impl Args for Options {
         let mut visibility: Option<EditVisibility> = None;
         let mut allow: BTreeSet<Did> = BTreeSet::new();
         let mut disallow: BTreeSet<Did> = BTreeSet::new();
-        let mut threshold: Option<usize> = None;
         let mut interactive = Interactive::new(io::stdout());
         let mut payload = Vec::new();
         let mut edit = false;
@@ -176,6 +179,7 @@ impl Args for Options {
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "e" | "edit" => op = Some(OperationName::Edit),
                     "u" | "update" => op = Some(OperationName::Update),
+                    "m" | "migrate" => op = Some(OperationName::Migrate),
                     "l" | "list" => op = Some(OperationName::List),
                     "s" | "show" => op = Some(OperationName::Show),
                     "a" | "accept" => op = Some(OperationName::Accept),
@@ -213,9 +217,6 @@ impl Args for Options {
                     let value = term::args::parse_value("visibility", value)?;
 
                     visibility = Some(value);
-                }
-                Long("threshold") => {
-                    threshold = Some(parser.value()?.to_string_lossy().parse()?);
                 }
                 Long("payload") => {
                     let mut values = parser.values()?;
@@ -275,13 +276,13 @@ impl Args for Options {
                 description,
                 delegate,
                 rescind,
-                threshold,
                 visibility,
                 allow,
                 disallow,
                 payload,
                 edit,
             },
+            OperationName::Migrate => Operation::Migrate { title, description },
         };
         Ok((
             Options {
@@ -371,7 +372,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             if !revision.is_active() {
                 anyhow::bail!("revision can no longer be edited");
             }
-            let Some((title, description)) = edit_title_description(title, description)? else {
+            let Some((title, description)) = id::edit_title_description(title, description)? else {
                 anyhow::bail!("revision title or description missing");
             };
             identity.edit(revision.id, title, description, &signer)?;
@@ -385,7 +386,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             description,
             delegate: delegates,
             rescind,
-            threshold,
             visibility,
             allow,
             disallow,
@@ -394,7 +394,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         } => {
             let proposal = {
                 let mut proposal = current.doc.clone().edit();
-                proposal.threshold = threshold.unwrap_or(proposal.threshold);
 
                 if !allow.is_disjoint(&disallow) {
                     let overlap = allow
@@ -438,17 +437,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     .chain(delegates)
                     .filter(|d| !rescind.contains(d))
                     .collect::<Vec<_>>();
-                if let Some(errs) = verify_delegates(&proposal, &repo)? {
-                    term::error(format!("failed to verify delegates for {rid}"));
-                    term::error(format!(
-                        "the threshold of {} delegates cannot be met..",
-                        proposal.threshold
-                    ));
-                    for e in errs {
-                        e.print();
-                    }
-                    anyhow::bail!("fatal: refusing to update identity document");
-                }
+
+                verify_project_delegates(&proposal, &current, &repo)?;
 
                 for (id, key, val) in payload {
                     if let Some(ref mut payload) = proposal.payload.get_mut(&id) {
@@ -487,34 +477,27 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 proposal
             };
 
-            // Verify that the project payload can still be parsed into the `Project` type.
-            if let Err(PayloadError::Json(e)) = proposal.project() {
-                anyhow::bail!("failed to verify `xyz.radicle.project`, {e}");
-            }
-            let proposal = proposal.verified()?;
-            if proposal == current.doc {
-                if !options.quiet {
-                    term::print(term::format::italic(
-                        "Nothing to do. The document is up to date. See `rad inspect --identity`.",
-                    ));
+            let revision =
+                id::propose_changes(&profile, &repo, proposal, &mut identity, title, description)?;
+            match revision {
+                Some(revision) => {
+                    if options.quiet {
+                        term::print(revision.id);
+                    } else {
+                        term::success!(
+                            "Identity revision {} created",
+                            term::format::tertiary(revision.id)
+                        );
+                        id::print(&revision, &identity, &repo, &profile)?;
+                    }
                 }
-                return Ok(());
-            }
-            let signer = term::signer(&profile)?;
-            let revision = update(title, description, proposal, &mut identity, &signer)?;
-
-            if revision.is_accepted() && revision.parent == Some(current.id) {
-                // Update the canonical head to point to the latest accepted revision.
-                repo.set_identity_head_to(revision.id)?;
-            }
-            if options.quiet {
-                term::print(revision.id);
-            } else {
-                term::success!(
-                    "Identity revision {} created",
-                    term::format::tertiary(revision.id)
-                );
-                print(&revision, &current, &repo, &profile)?;
+                None => {
+                    if !options.quiet {
+                        term::print(term::format::italic(
+                            "Nothing to do. The document is up to date. See `rad inspect --identity`.",
+                        ));
+                    }
+                }
             }
         }
         Operation::ListRevisions => {
@@ -576,7 +559,42 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .revision(&previous)
                 .ok_or(anyhow!("revision `{previous}` not found"))?;
 
-            print(revision, previous, &repo, &profile)?;
+            id::print(revision, previous, &repo, &profile)?;
+        }
+        Operation::Migrate { title, description } => {
+            let proposal = repo.identity_doc()?.doc;
+            if options.interactive.confirm(format!(
+                "Perform migration?\n{}",
+                term::format::tertiary(serde_json::to_string_pretty(&proposal)?)
+            )) {
+                let revision = id::propose_changes(
+                    &profile,
+                    &repo,
+                    proposal.edit(),
+                    &mut identity,
+                    title,
+                    description,
+                )?;
+                match revision {
+                    Some(revision) => {
+                        if options.quiet {
+                            term::print(revision.id);
+                        } else {
+                            term::success!(
+                                "Identity revision {} created",
+                                term::format::tertiary(revision.id)
+                            );
+                            id::print(&revision, &identity, &repo, &profile)?;
+                        }
+                    }
+                    None => {
+                        if !options.quiet {
+                            let msg = "Nothing to do. The document is up to date. See `rad inspect --identity`.";
+                            term::print(term::format::italic(msg));
+                        }
+                    }
+                }
+            }
         }
     }
     Ok(())
@@ -682,107 +700,7 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
     Ok(())
 }
 
-fn print(
-    revision: &identity::Revision,
-    previous: &identity::Revision,
-    repo: &radicle::storage::git::Repository,
-    profile: &Profile,
-) -> anyhow::Result<()> {
-    print_meta(revision, previous, profile)?;
-    println!();
-    print_diff(revision.parent.as_ref(), &revision.id, repo)?;
-
-    Ok(())
-}
-
-fn edit_title_description(
-    title: Option<String>,
-    description: Option<String>,
-) -> anyhow::Result<Option<(String, String)>> {
-    const HELP: &str = r#"<!--
-Please enter a patch message for your changes. An empty
-message aborts the patch proposal.
-
-The first line is the patch title. The patch description
-follows, and must be separated with a blank line, just
-like a commit message. Markdown is supported in the title
-and description.
--->"#;
-
-    let result = if let (Some(t), d) = (title.as_ref(), description.as_deref()) {
-        Some((t.to_owned(), d.unwrap_or_default().to_owned()))
-    } else {
-        let result = Message::edit_title_description(title, description, HELP)?;
-        if let Some((title, description)) = result {
-            Some((title, description))
-        } else {
-            None
-        }
-    };
-    Ok(result)
-}
-
-fn update<R: WriteRepository + cob::Store, G: Signer>(
-    title: Option<String>,
-    description: Option<String>,
-    doc: Doc,
-    current: &mut IdentityMut<R>,
-    signer: &G,
-) -> anyhow::Result<Revision> {
-    if let Some((title, description)) = edit_title_description(title, description)? {
-        let id = current.update(title, description, &doc, signer)?;
-        let revision = current
-            .revision(&id)
-            .ok_or(anyhow!("update failed: revision {id} is missing"))?;
-
-        Ok(revision.clone())
-    } else {
-        Err(anyhow!("you must provide a revision title and description"))
-    }
-}
-
-fn print_diff(
-    previous: Option<&RevisionId>,
-    current: &RevisionId,
-    repo: &radicle::storage::git::Repository,
-) -> anyhow::Result<()> {
-    let previous = if let Some(previous) = previous {
-        let previous = Doc::load_at(*previous, repo)?;
-        let previous = serde_json::to_string_pretty(&previous.doc)?;
-
-        Some(previous)
-    } else {
-        None
-    };
-    let current = Doc::load_at(*current, repo)?;
-    let current = serde_json::to_string_pretty(&current.doc)?;
-
-    let tmp = tempfile::tempdir()?;
-    let repo = radicle::git::raw::Repository::init_bare(tmp.path())?;
-
-    let previous = if let Some(previous) = previous {
-        let tree = radicle::git::write_tree(&doc::PATH, previous.as_bytes(), &repo)?;
-        Some(tree)
-    } else {
-        None
-    };
-    let current = radicle::git::write_tree(&doc::PATH, current.as_bytes(), &repo)?;
-    let mut opts = radicle::git::raw::DiffOptions::new();
-    opts.context_lines(u32::MAX);
-
-    let diff = repo.diff_tree_to_tree(previous.as_ref(), Some(&current), Some(&mut opts))?;
-    let diff = Diff::try_from(diff)?;
-
-    if let Some(modified) = diff.modified().next() {
-        let diff = modified.diff.to_unified_string()?;
-        print!("{diff}");
-    } else {
-        term::print(term::format::italic("No changes."));
-    }
-    Ok(())
-}
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum VerificationError {
     MissingDefaultBranch {
         branch: radicle::git::RefString,
@@ -811,19 +729,47 @@ impl VerificationError {
     }
 }
 
-fn verify_delegates<S>(
-    proposal: &RawDoc,
-    repo: &S,
-) -> anyhow::Result<Option<Vec<VerificationError>>>
+// N.b. if we are modifying a project repository, we want to ensure that we have
+// rule for the default branch and we can verify the number of delegates for it
+fn verify_project_delegates<S>(proposal: &RawDoc, current: &Doc, repo: &S) -> anyhow::Result<()>
 where
     S: ReadRepository,
 {
-    let dids = &proposal.delegates;
-    let threshold = proposal.threshold;
-    let (canonical, _) = repo.canonical_head()?;
-    let mut missing = Vec::with_capacity(dids.len());
+    let rule = current.default_branch_rule()?;
+    let threshold = rule.map(|rule| *rule.threshold()).ok_or(anyhow::anyhow!(
+        "failed to find canonical ref rule for default branch"
+    ))?;
 
-    for did in dids {
+    if let Some(errs) = verify_delegates(&proposal.delegates, threshold.into(), repo)? {
+        term::error(format!("failed to verify delegates for {}", repo.rid()));
+        term::error(format!(
+            "the threshold of {} delegates cannot be met..",
+            threshold
+        ));
+        for e in errs {
+            e.print();
+        }
+        anyhow::bail!("fatal: refusing to update identity document");
+    }
+    Ok(())
+}
+
+fn verify_delegates<'a, I, S>(
+    delegates: I,
+    threshold: usize,
+    repo: &S,
+) -> anyhow::Result<Option<Vec<VerificationError>>>
+where
+    I: IntoIterator<Item = &'a Did>,
+    I::IntoIter: ExactSizeIterator,
+    S: ReadRepository,
+{
+    let delegates = delegates.into_iter();
+    let n = delegates.len();
+    let (canonical, _) = repo.canonical_head()?;
+    let mut missing = Vec::with_capacity(n);
+
+    for did in delegates {
         match refs::SignedRefsAt::load((*did).into(), repo)? {
             None => {
                 missing.push(VerificationError::MissingDelegate { did: *did });
@@ -839,5 +785,5 @@ where
         }
     }
 
-    Ok((dids.len() - missing.len() < threshold).then_some(missing))
+    Ok((n - missing.len() < threshold).then_some(missing))
 }
