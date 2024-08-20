@@ -15,9 +15,9 @@ $ rad sync status --sort-by alias
 ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   Node                      Address                      Status        Tip       Timestamp │
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   alice   (you)             alice.radicle.example:8776   unannounced   056b1db   [  ...  ] │
-│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.example:8776     out-of-sync   99c5497   [  ...  ] │
-│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.example:8776     out-of-sync   99c5497   [  ...  ] │
+│ ●   alice   (you)             alice.radicle.example:8776   unannounced   0d6b305   [  ...  ] │
+│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.example:8776     out-of-sync   7c1445c   [  ...  ] │
+│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.example:8776     out-of-sync   7c1445c   [  ...  ] │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -37,9 +37,9 @@ $ rad sync status --sort-by alias
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   Node                      Address                      Status   Tip       Timestamp │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   alice   (you)             alice.radicle.example:8776            056b1db   [  ...  ] │
-│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.example:8776     synced   056b1db   [  ...  ] │
-│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.example:8776     synced   056b1db   [  ...  ] │
+│ ●   alice   (you)             alice.radicle.example:8776            0d6b305   [  ...  ] │
+│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.example:8776     synced   0d6b305   [  ...  ] │
+│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.example:8776     synced   0d6b305   [  ...  ] │
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -55,8 +55,8 @@ We can also use the `--fetch` option to only fetch objects:
 
 ```
 $ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z@[..]..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkux1…nVhib7Z@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkt67…v4N1tRk@[..]..
 ✓ Fetched repository from 2 seed(s)
 ```
 
@@ -64,8 +64,8 @@ Specifying both `--fetch` and `--announce` is equivalent to specifying none:
 
 ```
 $ rad sync --fetch --announce
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z@[..]..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkux1…nVhib7Z@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkt67…v4N1tRk@[..]..
 ✓ Fetched repository from 2 seed(s)
 ✓ Nothing to announce, already in sync with 2 node(s) (see `rad sync status`)
 ```
@@ -74,7 +74,7 @@ It's also possible to use the `--seed` flag to only sync with a specific node:
 
 ```
 $ rad sync --fetch --seed z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkt67…v4N1tRk@[..]..
 ✓ Fetched repository from 1 seed(s)
 ```
 
@@ -87,7 +87,7 @@ $ rad issue open --title "Test `rad sync --replicas`" --description "Check that 
 
 ```
 $ rad sync --replicas 1
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkux1…nVhib7Z@[..]..
 ✓ Fetched repository from 1 seed(s)
 ✓ Synced with 1 node(s)
 ```

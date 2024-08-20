@@ -1,8 +1,13 @@
 mod id;
+mod v1;
+mod version;
+
+use version::VersionTwo;
+use version::KNOWN_VERSIONS;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
-use std::num::{NonZeroU32, NonZeroUsize};
+use std::num::NonZeroUsize;
 use std::ops::{Deref, Not};
 use std::path::Path;
 use std::str::FromStr;
@@ -19,6 +24,9 @@ use crate::cob::identity;
 use crate::crypto;
 use crate::crypto::Signature;
 use crate::git;
+use crate::git::canonical::rules;
+use crate::git::canonical::rules::{MatchedRule, RawRules, Rule};
+use crate::git::canonical::Rules;
 use crate::identity::{project::Project, Did};
 use crate::storage;
 use crate::storage::{ReadRepository, RepositoryError};
@@ -32,12 +40,13 @@ pub static PATH: Lazy<&Path> = Lazy::new(|| Path::new("radicle.json"));
 pub const MAX_STRING_LENGTH: usize = 255;
 /// Maximum number of a delegates in the identity document.
 pub const MAX_DELEGATES: usize = 255;
-/// The current, most recent version of the identity document.
-// SAFETY: identity version should never be 0, so we can use `unsafe` here
-pub const IDENTITY_VERSION: Version = Version(unsafe { NonZeroU32::new_unchecked(1) });
 
 #[derive(Error, Debug)]
 pub enum DocError {
+    #[error(transparent)]
+    Pattern(#[from] rules::PatternError),
+    #[error(transparent)]
+    CanonicalRefs(#[from] rules::ValidationError),
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
@@ -50,6 +59,8 @@ pub enum DocError {
     Git(#[from] git2::Error),
     #[error("missing identity document")]
     Missing,
+    #[error("migration: {0}")]
+    MigrationError(#[from] MigrationError),
 }
 
 #[derive(Debug, Error)]
@@ -70,120 +81,6 @@ impl DocError {
             _ => false,
         }
     }
-}
-
-/// The version number of the identity document.
-///
-/// It is used to ensure compatibility when parsing identity documents.
-///
-/// If an invalid version is found – either the `0` version, or an unrecognized
-/// future version – the parsing of a version will fail.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-pub struct Version(NonZeroU32);
-
-impl Version {
-    /// Construct a [`Version`].
-    ///
-    /// # Errors
-    ///
-    ///   - `n` is 0
-    ///   - `n` is greater than the latest version, specified by
-    ///     [`IDENTITY_VERSION`].
-    pub fn new(n: u32) -> Result<Version, VersionError> {
-        match NonZeroU32::new(n) {
-            None => Err(VersionError::ZeroVersion),
-            Some(n) if n > IDENTITY_VERSION.into() => Err(VersionError::UnkownVersion(n)),
-            Some(n) => Ok(Version(n)),
-        }
-    }
-
-    /// Return the underlying [`NonZeroU32`] number of the `Version`.
-    pub fn number(&self) -> NonZeroU32 {
-        self.0
-    }
-
-    /// Check if the provided version is part of the set of accepted versions.
-    pub fn is_valid_version(v: &u32) -> bool {
-        0 < *v && *v <= IDENTITY_VERSION.into()
-    }
-
-    /// Helper for skipping the serialization of the version if `version <= 1`.
-    ///
-    /// Note that we shouldn't allow `version: 0`, but there is no harm in
-    /// skipping it anyway.
-    fn skip_serializing(&self) -> bool {
-        u32::from(*self) <= 1
-    }
-}
-
-impl From<Version> for NonZeroU32 {
-    fn from(Version(n): Version) -> Self {
-        n
-    }
-}
-
-impl From<Version> for u32 {
-    fn from(Version(n): Version) -> Self {
-        n.into()
-    }
-}
-
-#[derive(Debug, Error)]
-#[non_exhaustive]
-pub enum VersionError {
-    #[error("the version 0 is not supported")]
-    ZeroVersion,
-    #[error("unknown identity document version {0}, only version {IDENTITY_VERSION} is supported")]
-    UnkownVersion(NonZeroU32),
-}
-
-impl VersionError {
-    /// Provide a verbose error.
-    ///
-    /// This will give a user more information on how to upgrade to a newer
-    /// version of an identity document, if there is one.
-    pub fn verbose(&self) -> String {
-        const UNKOWN_VERSION_ERROR: &str = r#"
-Perhaps a new version of the identity document is released which is not supported by the current client.
-See https://radicle.xyz for the latest versions of Radicle.
-The CLI command `rad id migrate` will help to migrate to an up-to-date versions."#;
-
-        match self {
-            err @ Self::ZeroVersion => err.to_string(),
-            err @ Self::UnkownVersion(_) => format!("{err}{UNKOWN_VERSION_ERROR}"),
-        }
-    }
-}
-
-impl TryFrom<u32> for Version {
-    type Error = VersionError;
-
-    fn try_from(n: u32) -> Result<Self, Self::Error> {
-        Version::new(n)
-    }
-}
-
-impl fmt::Display for Version {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl<'de> Deserialize<'de> for Version {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        u32::deserialize(deserializer)
-            .and_then(|v| Version::new(v).map_err(|e| de::Error::custom(e.to_string())))
-    }
-}
-
-/// Used for [`Deserialize`] of a [`Version`] in [`RawDoc`], so that
-/// deserializing a missing version results in `Version(1)`.
-fn missing_version() -> Version {
-    // N.B. the default version is `1` which is non-zero so unsafe is fine here
-    unsafe { Version(NonZeroU32::new_unchecked(1)) }
 }
 
 /// Identifies an identity document payload type.
@@ -222,6 +119,15 @@ pub enum PayloadError {
     Json(#[from] serde_json::Error),
     #[error("payload '{0}' not found in identity document")]
     NotFound(PayloadId),
+}
+
+impl PayloadError {
+    pub fn is_not_found(&self) -> bool {
+        match self {
+            PayloadError::Json(_) => false,
+            PayloadError::NotFound(_) => true,
+        }
+    }
 }
 
 /// A `Payload` is a free-form JSON value that can be associated with an
@@ -346,20 +252,113 @@ impl Visibility {
 /// serializing an unverified document, while also making sure that any document
 /// that is deserialized is verified.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RawDoc {
-    /// Version of the identity document.
-    #[serde(default = "missing_version")]
-    version: Version,
+    version: VersionTwo,
     /// The payload section.
     pub payload: BTreeMap<PayloadId, Payload>,
     /// The delegates section.
     pub delegates: Vec<Did>,
-    /// The signature threshold.
-    pub threshold: usize,
+    /// The canonical reference rules.
+    #[serde(default)]
+    pub canonical_refs: RawCanonicalRefs,
     /// Repository visibility.
     #[serde(default)]
     pub visibility: Visibility,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VersionedRawDoc {
+    V2(RawDoc),
+    V1(v1::RawDoc),
+}
+
+impl<'de> Deserialize<'de> for VersionedRawDoc {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        use serde::de::Error;
+
+        // We could use the `serde-value` crate and its type
+        // [`serde_value::Value`] to achieve the same, without
+        // depending on a particular format, such as JSON.
+        // However, we do depend on `serde_json` already,
+        // and it is the actual format we use, so this is fine.
+        use serde_json::{from_value, Value};
+
+        fn default_version() -> u64 {
+            (*KNOWN_VERSIONS.start()).into()
+        }
+
+        /// The derived implementation of [`Deserialize`]
+        /// for this helper struct allows us to peek for a version
+        /// field in the contents we are deserializing via [`Helper::version`],
+        /// and at the same time collects all other fields in [`Helper::value`].
+        #[derive(Debug, Deserialize)]
+        struct Helper {
+            /// This is of type [`u64`] and not [`std::num::NonZeroU64`] or
+            /// [`version::Version`] so that we can handle zero with an explicit
+            /// error below.
+            #[serde(default = "default_version")]
+            version: u64,
+            #[serde(flatten)]
+            value: Value,
+        }
+
+        let Helper { version, mut value } = Helper::deserialize(deserializer)?;
+
+        if let Value::Object(ref mut map) = value {
+            const VERSION: &str = "version";
+            debug_assert!(!map.contains_key(&VERSION.to_string()));
+            // Since [`Helper`] has its own field [`Helper::version`],
+            // we have to copy it to [`Helper::value`].
+            map.insert(VERSION.to_string(), version.into());
+        }
+
+        match version {
+            1 => Ok(Self::V1(from_value(value).map_err(Error::custom)?)),
+            2 => Ok(Self::V2(from_value(value).map_err(Error::custom)?)),
+            v => Err(Error::custom(format!(
+                "invalid value for field version: {v}, expected a positive non-zero integer value in interval [{},{}]",
+                KNOWN_VERSIONS.start(),
+                KNOWN_VERSIONS.end(),
+            ))),
+        }
+    }
+}
+
+impl TryFrom<VersionedRawDoc> for Doc {
+    type Error = DocError;
+
+    fn try_from(value: VersionedRawDoc) -> Result<Doc, Self::Error> {
+        match value {
+            VersionedRawDoc::V1(raw) => {
+                let doc = raw.verified()?;
+                Ok(Doc::migrate_from(doc)?)
+            }
+            VersionedRawDoc::V2(raw) => raw.verified(),
+        }
+    }
+}
+
+/// Configuration for canonical references and their rules.
+///
+/// `RawCanonicalRefs` is used in [`RawDoc`], and is verified into
+/// [`CanonicalRefs`].
+///
+/// Note that it must implement `Default` for `Deserialize` for compatibility –
+/// any fields being added must be able to implement default too.
+#[derive(Default, Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawCanonicalRefs {
+    pub rules: RawRules,
+}
+
+impl RawCanonicalRefs {
+    pub fn new(rules: RawRules) -> Self {
+        Self { rules }
+    }
 }
 
 impl TryFrom<RawDoc> for Doc {
@@ -377,24 +376,19 @@ impl RawDoc {
     pub fn new(
         project: Project,
         delegates: Vec<Did>,
-        threshold: usize,
+        _threshold: usize,
+        rules: RawRules,
         visibility: Visibility,
     ) -> Self {
         let project =
             serde_json::to_value(project).expect("Doc::initial: payload must be serializable");
-
         Self {
-            version: IDENTITY_VERSION,
+            version: VersionTwo,
             payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
             delegates,
-            threshold,
+            canonical_refs: RawCanonicalRefs::new(rules),
             visibility,
         }
-    }
-
-    /// Get the version of the document.
-    pub fn version(&self) -> &Version {
-        &self.version
     }
 
     /// Get the project payload, if it exists and is valid, out of this document.
@@ -442,22 +436,29 @@ impl RawDoc {
     ///  - [`RawDoc::delegates`]: any duplicates are removed, and for the
     ///    remaining set ensure that it is non-empty and does not exceed a
     ///    length of [`MAX_DELEGATES`].
-    ///  - [`RawDoc::threshold`]: ensure that it is in the range `[1, delegates.len()]`.
     pub fn verified(self) -> Result<Doc, DocError> {
         let RawDoc {
             version,
             payload,
             delegates,
-            threshold,
+            canonical_refs,
             visibility,
+            ..
         } = self;
+
         let delegates = Delegates::new(delegates)?;
-        let threshold = Threshold::new(threshold, &delegates)?;
+        let rules = Rules::from_raw(canonical_refs.rules, &mut |ds| match ds {
+            rules::Allowed::Delegates => Ok(delegates.clone()),
+            rules::Allowed::Set(delegates) => {
+                Delegates::new(delegates).map_err(rules::ValidationError::from)
+            }
+        })?;
+
         Ok(Doc {
             version,
             payload,
             delegates,
-            threshold,
+            canonical_refs: CanonicalRefs { rules },
             visibility,
         })
     }
@@ -533,6 +534,11 @@ impl Delegates {
     /// Check if the set contains the given `did`.
     pub fn contains(&self, did: &Did) -> bool {
         self.0.contains(did)
+    }
+
+    /// Check if the `did` is the only delegate of the repository.
+    pub fn is_only(&self, did: &Did) -> bool {
+        self.0.tail.is_empty() && &self.0.head == did
     }
 
     /// Get the number of delegates in the set.
@@ -612,6 +618,17 @@ impl Threshold {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum MigrationError {
+    #[error("failed to migrate from v1: {0}")]
+    V1(#[from] v1::MigrationError),
+    #[error("failed to parse previous version {version}: {err}")]
+    Unknown {
+        version: u32,
+        err: serde_json::Error,
+    },
+}
+
 /// `Doc` is a valid identity document.
 ///
 /// To ensure that only valid documents are used, this type is restricted to be
@@ -622,21 +639,52 @@ impl Threshold {
 ///   1. [`Doc::initial`]: a safe way to construct the initial document for an identity.
 ///   2. [`RawDoc::verified`]: validates a [`RawDoc`]'s fields and converts it
 ///      into a `Doc`
-///   3. [`Deserialize`]: will deserialize a `Doc` by first deserializing a
-///      [`RawDoc`] and use [`RawDoc::verified`] to construct the `Doc`.
-///   4. [`Doc::from_blob`]: construct a `Doc` from a Git blob by deserializing
+///   3. [`Doc::from_blob`]: construct a `Doc` from a Git blob by deserializing
 ///      its contents.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[serde(try_from = "RawDoc")]
 pub struct Doc {
-    #[serde(skip_serializing_if = "Version::skip_serializing")]
-    version: Version,
+    version: VersionTwo,
     payload: BTreeMap<PayloadId, Payload>,
     delegates: Delegates,
-    threshold: Threshold,
+    #[serde(skip_serializing_if = "CanonicalRefs::is_empty")]
+    canonical_refs: CanonicalRefs,
     #[serde(default, skip_serializing_if = "Visibility::is_public")]
     visibility: Visibility,
+}
+
+/// Configuration for canonical references and their [`Rules`].
+///
+/// `CanonicalRefs` is used in [`Doc`], and the [`Rules`] are accessed via
+/// [`Doc::rules`].
+// Note that it must implement [`CanonicalRefs::is_empty`] for skipping
+// serialization, for compatibility – any fields being added must be accounted
+// for in this method.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanonicalRefs {
+    rules: Rules,
+}
+
+impl CanonicalRefs {
+    pub fn new(rules: Rules) -> Self {
+        CanonicalRefs { rules }
+    }
+
+    /// Check if the data structure empty. Used in the [`Serialize`]
+    /// implementation.
+    fn is_empty(&self) -> bool {
+        // N.b. account for any new fields when adding them.
+        self.rules.is_empty()
+    }
+}
+
+impl From<CanonicalRefs> for RawCanonicalRefs {
+    fn from(crefs: CanonicalRefs) -> Self {
+        Self {
+            rules: crefs.rules.into(),
+        }
+    }
 }
 
 impl Doc {
@@ -645,22 +693,30 @@ impl Doc {
     /// It will begin with the provided `project` in the [`Doc::payload`], the
     /// `delegate` as the sole delegate, a threshold of 1, and the given
     /// `visibility`.
-    pub fn initial(project: Project, delegate: Did, visibility: Visibility) -> Self {
+    pub fn initial(
+        project: Project,
+        delegate: Did,
+        visibility: Visibility,
+    ) -> Result<Self, rules::PatternError> {
+        let rules = [Rule::default_branch(delegate, project.default_branch())?]
+            .into_iter()
+            .collect();
         let project =
             serde_json::to_value(project).expect("Doc::initial: payload must be serializable");
 
-        Self {
-            version: IDENTITY_VERSION,
+        Ok(Self {
+            version: VersionTwo,
             payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
             delegates: Delegates(NonEmpty::new(delegate)),
-            threshold: Threshold(NonZeroUsize::MIN),
+            canonical_refs: CanonicalRefs::new(rules),
             visibility,
-        }
+        })
     }
 
     /// Construct a [`Doc`] contained in the provided Git blob.
     pub fn from_blob(blob: &git2::Blob) -> Result<Self, DocError> {
-        RawDoc::from_json(blob.content())?.verified()
+        let raw = serde_json::from_slice::<VersionedRawDoc>(blob.content())?;
+        Self::try_from(raw)
     }
 
     /// Convert the [`Doc`] into a [`RawDoc`] for changing the field values and
@@ -670,14 +726,14 @@ impl Doc {
             version,
             payload,
             delegates,
-            threshold,
+            canonical_refs,
             visibility,
         } = self;
         RawDoc {
             version,
             payload,
             delegates: delegates.into(),
-            threshold: threshold.into(),
+            canonical_refs: canonical_refs.into(),
             visibility,
         }
     }
@@ -691,11 +747,6 @@ impl Doc {
         let mut raw = self.edit();
         f(&mut raw);
         raw.verified()
-    }
-
-    /// Get the version of the document.
-    pub fn version(&self) -> &Version {
-        &self.version
     }
 
     /// Return the associated payloads for this [`Doc`].
@@ -729,16 +780,6 @@ impl Doc {
         self.visibility.is_private()
     }
 
-    /// Return the associated threshold of this document.
-    pub fn threshold(&self) -> usize {
-        self.threshold.into()
-    }
-
-    /// Return the associated threshold of this document in its non-zero format.
-    pub fn threshold_nonzero(&self) -> &NonZeroUsize {
-        &self.threshold.0
-    }
-
     /// Return the associated delegates of this document.
     pub fn delegates(&self) -> &Delegates {
         &self.delegates
@@ -747,6 +788,27 @@ impl Doc {
     /// Check if the `did` is part of the [`Doc::delegates`] set.
     pub fn is_delegate(&self, did: &Did) -> bool {
         self.delegates.contains(did)
+    }
+
+    /// Return the canonical reference rules of this document.
+    pub fn rules(&self) -> &Rules {
+        &self.canonical_refs.rules
+    }
+
+    /// Return the canonical reference rule for the identity's default branch,
+    /// if the repository has a [`Doc::project`] associated with it.
+    pub fn default_branch_rule(&self) -> Result<Option<MatchedRule>, PayloadError> {
+        match self.project() {
+            Ok(project) => Ok(self.rule_of(git::refs::branch(project.default_branch()).clone())),
+            Err(e) if e.is_not_found() => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Get the matching rule, if present, from the identity's canonical
+    /// reference rules.
+    pub fn rule_of<'a>(&self, refname: git::Qualified<'a>) -> Option<MatchedRule<'a>> {
+        self.rules().matches(refname)
     }
 
     /// Check whether this document and the associated repository is visible to
@@ -839,6 +901,16 @@ impl Doc {
         })
     }
 
+    /// Load the identity document as raw JSON from the provided `commit`.
+    pub fn load_json<R: ReadRepository>(
+        commit: Oid,
+        repo: &R,
+    ) -> Result<serde_json::Value, DocError> {
+        let blob = Self::blob_at(commit, repo)?;
+        let value = serde_json::from_slice::<serde_json::Value>(blob.content())?;
+        Ok(value)
+    }
+
     /// Initialize an [`identity::Identity`] with this [`Doc`] as the associated
     /// document.
     pub fn init<G: crypto::Signer>(
@@ -862,6 +934,10 @@ impl Doc {
         )?;
 
         Ok(*cob.id)
+    }
+
+    pub fn migrate_from(doc: v1::Doc) -> Result<Self, MigrationError> {
+        doc.migrate().map_err(MigrationError::from)
     }
 }
 
@@ -888,7 +964,13 @@ mod test {
     fn test_duplicate_dids() {
         let delegate = MockSigner::from_seed([0xff; 32]);
         let did = Did::from(delegate.public_key());
-        let mut doc = RawDoc::new(gen::<Project>(1), vec![did], 1, Visibility::Public);
+        let mut doc = RawDoc::new(
+            gen::<Project>(1),
+            vec![did],
+            1,
+            RawRules::default(),
+            Visibility::Public,
+        );
         doc.delegate(did);
         let doc = doc.verified().unwrap();
         assert!(doc.delegates().len() == 1, "Duplicate DID was not removed");
@@ -905,44 +987,74 @@ mod test {
             gen::<Project>(1),
             delegates[0..MAX_DELEGATES].into(),
             1,
+            RawRules::default(),
             Visibility::Public,
         );
         assert_matches!(doc.verified(), Ok(_));
 
         // A document that exceeds max delegates should fail
-        let doc = RawDoc::new(gen::<Project>(1), delegates, 1, Visibility::Public);
+        let doc = RawDoc::new(
+            gen::<Project>(1),
+            delegates,
+            1,
+            RawRules::default(),
+            Visibility::Public,
+        );
         assert_matches!(doc.verified(), Err(DocError::Delegates(DelegatesError(_))));
     }
 
     #[test]
-    fn test_is_valid_version() {
-        // 0 is not a valid version
-        assert!(!Version::is_valid_version(&0));
+    fn test_version_out_of_range() {
+        let zero = json!({
+            "version": 0,
+            "payload": {
+                "xyz.radicle.project": {
+                    "defaultBranch": "main",
+                    "description": "Example project",
+                    "name": "example"
+                }
+            },
+            "delegates": [
+                "did:key:z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT",
+            ],
+        });
+        assert_matches!(serde_json::from_value::<VersionedRawDoc>(zero), Err(_));
 
-        // Ensures that the latest version is always valid
-        let current = IDENTITY_VERSION.number();
-        assert!(Version::is_valid_version(&current.into()));
+        let next = json!({
+            "version": Into::<u64>::into(*KNOWN_VERSIONS.end()).saturating_add(1),
+            "payload": {
+                "xyz.radicle.project": {
+                    "defaultBranch": "main",
+                    "description": "Example project",
+                    "name": "example"
+                }
+            },
+            "delegates": [
+                "did:key:z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT",
+            ],
+        });
+        assert_matches!(serde_json::from_value::<VersionedRawDoc>(next), Err(_));
 
-        // Ensures that the next version is not valid because we have not
-        // defined it yet
-        let next = current.checked_add(1).unwrap();
-        assert!(!Version::is_valid_version(&next.into()));
+        let max = json!({
+            "version": u64::MAX,
+            "payload": {
+                "xyz.radicle.project": {
+                    "defaultBranch": "main",
+                    "description": "Example project",
+                    "name": "example"
+                }
+            },
+            "delegates": [
+                "did:key:z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT",
+            ],
+        });
+        assert_matches!(serde_json::from_value::<VersionedRawDoc>(max), Err(_));
     }
 
     #[test]
-    fn test_future_version_error() {
-        let v = Version(NonZeroU32::MAX).to_string();
-        assert_eq!(
-            serde_json::from_str::<Version>(&v)
-                .expect_err("should fail to deserialize")
-                .to_string(),
-            VersionError::UnkownVersion(NonZeroU32::MAX).to_string(),
-        )
-    }
-
-    #[test]
-    fn test_parse_version() {
-        // Original document before introducing the version field
+    fn test_migrate_v1() {
+        // Harcoded version 1 of the identity document. We expect that parsing
+        // this into the latest document should pass.
         let v1 = json!(
             {
                 "payload": {
@@ -961,9 +1073,6 @@ mod test {
             }
         );
 
-        // Deserializing the `RawDoc` should not fail and should include the
-        // `IDENTITY_VERSION`.
-        let doc = serde_json::from_str::<RawDoc>(&v1.to_string()).unwrap();
         let payload = [(
             PayloadId::project(),
             Payload {
@@ -987,31 +1096,51 @@ mod test {
                 .parse::<Did>()
                 .unwrap(),
         ];
-        // And this is the expected outcome of the deserialization
+
+        let doc = serde_json::from_str::<v1::RawDoc>(&v1.to_string()).unwrap();
+
         assert_eq!(
             doc,
-            RawDoc {
-                version: IDENTITY_VERSION,
+            v1::RawDoc {
+                version: version::VersionOne,
                 payload: payload.clone(),
                 delegates: delegates.clone(),
-                threshold: 1,
                 visibility: Visibility::Public,
+                threshold: 1,
             }
         );
 
-        // Deserializing into `Doc` should also succeed.
-        let verified = serde_json::from_str::<Doc>(&v1.to_string()).unwrap();
-        let delegates = Delegates(NonEmpty::from_vec(delegates).unwrap());
+        // Verifying into `Doc` should also succeed.
+        let verified = doc.verified().unwrap();
+
+        let delegates = NonEmpty::from_vec(delegates).unwrap();
+        // Note that v1 -> v2 upgrade introduces adding a rule for the default
+        // branch when it comes to project repositories.
+        let rules = Rules::from_raw(
+            [(
+                rules::Pattern::try_from(git::refspec::qualified_pattern!("refs/heads/master"))
+                    .unwrap(),
+                Rule::new(rules::Allowed::Delegates, 1),
+            )],
+            &mut |ds| match ds {
+                rules::Allowed::Delegates => Ok(Delegates(delegates.clone())),
+                rules::Allowed::Set(_) => Ok(Delegates(delegates.clone())),
+            },
+        )
+        .unwrap();
+
+        // Test that we can migrate from the raw JSON value into a verified
+        // latest version of the document
         assert_eq!(
-            verified,
+            Doc::migrate_from(verified).unwrap(),
             Doc {
-                version: IDENTITY_VERSION,
-                threshold: Threshold::new(1, &delegates).unwrap(),
-                payload: payload.clone(),
-                delegates,
+                version: VersionTwo,
+                payload,
+                delegates: Delegates(delegates),
+                canonical_refs: CanonicalRefs::new(rules),
                 visibility: Visibility::Public,
             }
-        );
+        )
     }
 
     #[test]
@@ -1040,9 +1169,9 @@ mod test {
         );
         assert_eq!(
             (*id).to_string(),
-            "d96f425412c9f8ad5d9a9a05c9831d0728e2338d"
+            "b38d81ee99d880461a3b7b3502e5d1556e440ef3"
         );
-        assert_eq!(id.urn(), String::from("rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji"));
+        assert_eq!(id.urn(), String::from("rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2"));
     }
 
     #[test]

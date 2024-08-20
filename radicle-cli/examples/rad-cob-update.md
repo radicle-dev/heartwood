@@ -12,8 +12,8 @@ $ git commit --message "Add README, just for the fun"
 
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun" HEAD:refs/patches
-✓ Patch 89f7afb1511b976482b21f6b2f39aef7f4fb88a2 opened
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+✓ Patch f699e2299e9ee734758626924df7e15fd9a68553 opened
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
 
@@ -28,22 +28,22 @@ $ git commit -v -m "Define the LICENSE"
 
 ``` (stderr)
 $ git push -f -o patch.message="Add License"
-✓ Patch 89f7afb updated to revision 5d78dd5376453e25df5988ec86951c99cb73742c
-To compare against your previous revision 89f7afb, run:
+✓ Patch f699e22 updated to revision 13b5240e3f7ecb60fea4f66eb1a09fa3ffc1de7f
+To compare against your previous revision f699e22, run:
 
    git range-diff f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 03c02af4b12a593d17a06d38fae50a57fc3c339a 8945f6189adf027892c85ac57f7e9341049c2537
 
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   03c02af..8945f61  changes -> patches/89f7afb1511b976482b21f6b2f39aef7f4fb88a2
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+   03c02af..8945f61  changes -> patches/f699e2299e9ee734758626924df7e15fd9a68553
 ```
 
 Let's look at the patch, to see what it looks like before editing it:
 
 ```
-$ rad patch show 89f7afb
+$ rad patch show f699e22
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add README, just for the fun                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
+│ Patch     f699e2299e9ee734758626924df7e15fd9a68553                  │
 │ Author    alice (you)                                               │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
 │ Branches  changes                                                   │
@@ -54,7 +54,7 @@ $ rad patch show 89f7afb
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
+│ ↑ updated to 13b5240e3f7ecb60fea4f66eb1a09fa3ffc1de7f (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -62,11 +62,11 @@ We can change the title and description of the patch itself by using a
 multi-line message (using two `--message` options here):
 
 ```
-$ rad patch edit 89f7afb --message "Add Metadata" --message "Add README & LICENSE" --no-announce
-$ rad patch show 89f7afb
+$ rad patch edit f699e22 --message "Add Metadata" --message "Add README & LICENSE" --no-announce
+$ rad patch show f699e22
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add Metadata                                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
+│ Patch     f699e2299e9ee734758626924df7e15fd9a68553                  │
 │ Author    alice (you)                                               │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
 │ Branches  changes                                                   │
@@ -79,14 +79,14 @@ $ rad patch show 89f7afb
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
+│ ↑ updated to 13b5240e3f7ecb60fea4f66eb1a09fa3ffc1de7f (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 
 We prepare the file `revision-edit.json` which contains one action (thus one line) to be applied.
 
 ``` ./revision-edit.jsonl
-{"type": "revision.edit", "description": "Add README and LICENSE", "revision": "89f7afb1511b976482b21f6b2f39aef7f4fb88a2"}
+{"type": "revision.edit", "description": "Add README and LICENSE", "revision": "f699e2299e9ee734758626924df7e15fd9a68553"}
 ```
 
 We now use `rad cob update` to edit the patch another time, rewriting the description.
@@ -95,12 +95,12 @@ specifying the revision for which the description should be changed, and `descri
 specifying the new description.
 
 ```
-$ rad cob update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object 89f7afb1511b976482b21f6b2f39aef7f4fb88a2 --message "Edit patch" revision-edit.jsonl
-79b816e92735c49b33d93a31890fdf040b36234c
-$ rad patch show --verbose 89f7afb
+$ rad cob update --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --type xyz.radicle.patch --object f699e2299e9ee734758626924df7e15fd9a68553 --message "Edit patch" revision-edit.jsonl
+8f2a1a4c55f976288574e463dff1e85981e7a427
+$ rad patch show --verbose f699e22
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add Metadata                                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
+│ Patch     f699e2299e9ee734758626924df7e15fd9a68553                  │
 │ Author    alice (you)                                               │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                  │
@@ -114,7 +114,7 @@ $ rad patch show --verbose 89f7afb
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
+│ ↑ updated to 13b5240e3f7ecb60fea4f66eb1a09fa3ffc1de7f (8945f61) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -137,7 +137,7 @@ We prepare the file `revision-create.jsonl` which contains one action.
 Attempting to create the new revision right away would fail:
 
 ``` (fail)
-$ rad cob update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object 89f7afb1511b976482b21f6b2f39aef7f4fb88a2 --message "Create new revision" revision.jsonl
+$ rad cob update --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --type xyz.radicle.patch --object f699e2299e9ee734758626924df7e15fd9a68553 --message "Create new revision" revision.jsonl
 ✗ Error: store: update error: failed to read 'f1339dd109e538c6b3a7fed3e72403e1b4db08c9' from git odb
 ```
 
@@ -153,12 +153,12 @@ $ git push rad :tmp/heads/f1339dd109e538c6b3a7fed3e72403e1b4db08c9
 Now we can invoke `rad cob update`:
 
 ```
-$ rad cob update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object 89f7afb1511b976482b21f6b2f39aef7f4fb88a2 --message "Create new revision" revision.jsonl
-2da9c025a1d14d93c4f2cec60a7878afbc5e2a3c
-$ rad patch show 89f7afb
+$ rad cob update --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --type xyz.radicle.patch --object f699e2299e9ee734758626924df7e15fd9a68553 --message "Create new revision" revision.jsonl
+c60de85722655bfd01867c180307a9064c7acabd
+$ rad patch show f699e22
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title     Add Metadata                                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
+│ Patch     f699e2299e9ee734758626924df7e15fd9a68553                  │
 │ Author    alice (you)                                               │
 │ Head      f1339dd109e538c6b3a7fed3e72403e1b4db08c9                  │
 │ Branches  changes                                                   │
@@ -172,7 +172,7 @@ $ rad patch show 89f7afb
 │ 03c02af Add README, just for the fun                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
-│ ↑ updated to 2da9c025a1d14d93c4f2cec60a7878afbc5e2a3c (f1339dd) now │
+│ ↑ updated to 13b5240e3f7ecb60fea4f66eb1a09fa3ffc1de7f (8945f61) now │
+│ ↑ updated to c60de85722655bfd01867c180307a9064c7acabd (f1339dd) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```

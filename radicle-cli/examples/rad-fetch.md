@@ -5,12 +5,12 @@ necessary.
 
 Instead, we want to fetch the project from the network into our local
 storage. In this scenario, we know that the project is
-`rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji`. In order to fetch it, we first
+`rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2`. In order to fetch it, we first
 have to update our seeding policy for the project.
 
 ```
-$ rad seed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-fetch
-✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
+$ rad seed rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --no-fetch
+✓ Seeding policy updated for rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 with scope 'all'
 ```
 
 Now that the project is seeding we can fetch it and we will have it in
@@ -18,8 +18,8 @@ our local storage. Note that the `seed` command can also be told to fetch
 by passing the `--fetch` option.
 
 ```
-$ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
+$ rad sync --fetch rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
 ```
 

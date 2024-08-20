@@ -5,15 +5,15 @@ $ rad ls
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   public       f2de534   Radicle Heartwood Protocol & Stack │
+│ heartwood   rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2   public       f2de534   Radicle Heartwood Protocol & Stack │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 We could stop seeding it if we didn't want other nodes to fetch it from us:
 
 ```
-$ rad unseed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Seeding policy for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji removed
+$ rad unseed rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
+✓ Seeding policy for rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 removed
 ```
 
 Now, if we run `rad ls`, we see it's gone:
@@ -32,7 +32,7 @@ $ rad ls --all
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   local        f2de534   Radicle Heartwood Protocol & Stack │
+│ heartwood   rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2   local        f2de534   Radicle Heartwood Protocol & Stack │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 

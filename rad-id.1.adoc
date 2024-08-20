@@ -18,7 +18,8 @@ rad-id - Manage changes to a Radicle repository's identity.
 *rad id* _edit_ <revision-id> [--title <string>] [--description <string>] [<option>...] +
 *rad id* _show_ <revision-id> [<option>...] +
 *rad id* _accept_ | _reject_ <revision-id> [<option>...] +
-*rad id* _redact_ <revision-id> [<option>...]
+*rad id* _redact_ <revision-id> [<option>...] +
+*rad id* _migrate_ [--from <version>] [<option>...]
 
 == Description
 
@@ -88,6 +89,27 @@ automatically accepted and included into the identity document.
 
 *--edit*::
   Opens your $EDITOR to edit the JSON contents directly.
+
+=== migrate
+
+Propose a migration revision to the identity document. The migration will
+automatically convert the current identity document into the latest version,
+if possible.
+
+If a title and description are not provided on the command line, you will be
+prompted to enter one via your text editor.
+
+Note that if you are the repository's only delegate, the migration changes will
+be automatically accepted and included into the identity document.
+
+*--title* _<string>_::
+  Set the title for the new revision.
+
+*--description* _<string>_::
+  Set the description for the new revision.
+
+*--no-confirm*::
+  Don't ask for confirmation before creating the revision.
 
 === edit
 

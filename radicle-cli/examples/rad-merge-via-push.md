@@ -1,3 +1,4 @@
+1
 Let's start by creating two patches.
 
 ```
@@ -7,8 +8,8 @@ $ git commit --allow-empty -m "First change"
 ```
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad HEAD:refs/patches
-✓ Patch 696ec5508494692899337afe6713fe1796d0315c opened
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+✓ Patch 09a3de4ac2c4d012c4a9c84c0cb306a066a0b084 opened
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
 ```
@@ -18,8 +19,8 @@ $ git commit --allow-empty -m "Second change"
 ```
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad HEAD:refs/patches
-✓ Patch 356f73863a8920455ff6e77cd9c805d68910551b opened
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+✓ Patch 0e8cc60585b6bb6a1236dc9958bf09883ecba9f3 opened
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
 
@@ -28,8 +29,8 @@ This creates some remote tracking branches for us:
 ```
 $ git branch -r
   rad/master
-  rad/patches/356f73863a8920455ff6e77cd9c805d68910551b
-  rad/patches/696ec5508494692899337afe6713fe1796d0315c
+  rad/patches/09a3de4ac2c4d012c4a9c84c0cb306a066a0b084
+  rad/patches/0e8cc60585b6bb6a1236dc9958bf09883ecba9f3
 ```
 
 And some remote refs:
@@ -40,15 +41,15 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 └── refs
     ├── cobs
     │   ├── xyz.radicle.id
-    │   │   └── 0656c217f917c3e06234771e9ecae53aba5e173e
+    │   │   └── eeb8b44890570ccf85db7f3cb2a475100a27408a
     │   └── xyz.radicle.patch
-    │       ├── 356f73863a8920455ff6e77cd9c805d68910551b
-    │       └── 696ec5508494692899337afe6713fe1796d0315c
+    │       ├── 09a3de4ac2c4d012c4a9c84c0cb306a066a0b084
+    │       └── 0e8cc60585b6bb6a1236dc9958bf09883ecba9f3
     ├── heads
     │   ├── master
     │   └── patches
-    │       ├── 356f73863a8920455ff6e77cd9c805d68910551b
-    │       └── 696ec5508494692899337afe6713fe1796d0315c
+    │       ├── 09a3de4ac2c4d012c4a9c84c0cb306a066a0b084
+    │       └── 0e8cc60585b6bb6a1236dc9958bf09883ecba9f3
     └── rad
         ├── id
         ├── root
@@ -68,10 +69,10 @@ When we push to `rad/master`, we automatically merge the patches:
 
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad master
-✓ Patch 356f73863a8920455ff6e77cd9c805d68910551b merged
-✓ Patch 696ec5508494692899337afe6713fe1796d0315c merged
-✓ Canonical head updated to d6399c71702b40bae00825b3c444478d06b4e91c
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+✓ Patch 09a3de4ac2c4d012c4a9c84c0cb306a066a0b084 merged
+✓ Patch 0e8cc60585b6bb6a1236dc9958bf09883ecba9f3 merged
+✓ Canonical head for refs/heads/master updated to d6399c71702b40bae00825b3c444478d06b4e91c
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..d6399c7  master -> master
 ```
 ```
@@ -79,28 +80,13 @@ $ rad patch --merged
 ╭─────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title          Author         Reviews  Head     +   -   Updated │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ ✔  [ ... ]  Second change  alice   (you)  -        daf349f  +0  -0  now     │
 │ ✔  [ ... ]  First change   alice   (you)  -        20aa5dd  +0  -0  now     │
+│ ✔  [ ... ]  Second change  alice   (you)  -        daf349f  +0  -0  now     │
 ╰─────────────────────────────────────────────────────────────────────────────╯
-$ rad patch show 696ec5508494692899337afe6713fe1796d0315c
-╭────────────────────────────────────────────────────────────────╮
-│ Title     First change                                         │
-│ Patch     696ec5508494692899337afe6713fe1796d0315c             │
-│ Author    alice (you)                                          │
-│ Head      20aa5dde6210796c3a2f04079b42316a31d02689             │
-│ Branches  feature/1                                            │
-│ Commits   ahead 0, behind 2                                    │
-│ Status    merged                                               │
-├────────────────────────────────────────────────────────────────┤
-│ 20aa5dd First change                                           │
-├────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (20aa5dd) now                          │
-│   └─ ✓ merged by alice (you) at revision 696ec55 (20aa5dd) now │
-╰────────────────────────────────────────────────────────────────╯
-$ rad patch show 356f73863a8920455ff6e77cd9c805d68910551b
+$ rad patch show 0e8cc60585b6bb6a1236dc9958bf09883ecba9f3
 ╭────────────────────────────────────────────────────────────────╮
 │ Title     Second change                                        │
-│ Patch     356f73863a8920455ff6e77cd9c805d68910551b             │
+│ Patch     0e8cc60585b6bb6a1236dc9958bf09883ecba9f3             │
 │ Author    alice (you)                                          │
 │ Head      daf349ff76bedf48c5f292290b682ee7be0683cf             │
 │ Branches  feature/2                                            │
@@ -110,7 +96,7 @@ $ rad patch show 356f73863a8920455ff6e77cd9c805d68910551b
 │ daf349f Second change                                          │
 ├────────────────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (daf349f) now                          │
-│   └─ ✓ merged by alice (you) at revision 356f738 (daf349f) now │
+│   └─ ✓ merged by alice (you) at revision 0e8cc60 (daf349f) now │
 ╰────────────────────────────────────────────────────────────────╯
 ```
 
@@ -129,10 +115,10 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 └── refs
     ├── cobs
     │   ├── xyz.radicle.id
-    │   │   └── 0656c217f917c3e06234771e9ecae53aba5e173e
+    │   │   └── eeb8b44890570ccf85db7f3cb2a475100a27408a
     │   └── xyz.radicle.patch
-    │       ├── 356f73863a8920455ff6e77cd9c805d68910551b
-    │       └── 696ec5508494692899337afe6713fe1796d0315c
+    │       ├── 09a3de4ac2c4d012c4a9c84c0cb306a066a0b084
+    │       └── 0e8cc60585b6bb6a1236dc9958bf09883ecba9f3
     ├── heads
     │   └── master
     └── rad
@@ -147,9 +133,9 @@ the first patch, even though they were pushed together.
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git reset --hard HEAD^
 $ git push -f rad
-! Patch 356f73863a8920455ff6e77cd9c805d68910551b reverted at revision 356f738
-✓ Canonical head updated to 20aa5dde6210796c3a2f04079b42316a31d02689
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+! Patch 0e8cc60585b6bb6a1236dc9958bf09883ecba9f3 reverted at revision 0e8cc60
+✓ Canonical head for refs/heads/master updated to 20aa5dde6210796c3a2f04079b42316a31d02689
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + d6399c7...20aa5dd master -> master (forced update)
 ```
 ```
@@ -157,7 +143,7 @@ $ rad patch --all
 ╭─────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title          Author         Reviews  Head     +   -   Updated │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ ●  356f738  Second change  alice   (you)  -        daf349f  +0  -0  now     │
-│ ✔  696ec55  First change   alice   (you)  -        20aa5dd  +0  -0  now     │
+│ ✔  09a3de4  First change   alice   (you)  -        20aa5dd  +0  -0  now     │
+│ ●  0e8cc60  Second change  alice   (you)  -        daf349f  +0  -0  now     │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 ```

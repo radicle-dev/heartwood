@@ -41,28 +41,28 @@ It reads the current state of the grocery list and operations containing actions
 We do not invoke the program directly, but instead use `rad cob create`:
 
 ```
-$ rad cob create --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type com.example.multiset --message "Create grocery shopping multiset" groceries.jsonl
+$ rad cob create --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --type com.example.multiset --message "Create grocery shopping multiset" groceries.jsonl
 9bba8e6f83ef56b11151ef6ad02cc4595f982aab
 ```
 
 We can verify that the COB evaluated as expected:
 
 ```
-$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type com.example.multiset --object 9bba8e6f83ef56b11151ef6ad02cc4595f982aab
+$ rad cob show --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --type com.example.multiset --object 9bba8e6f83ef56b11151ef6ad02cc4595f982aab
 {"jelly":0,"peanut butter":1,"salad":2}
 ```
 
 To apply actions to COBs that already exist, we can use `rad cob update`:
 
 ```
-$ rad cob update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type com.example.multiset --object 9bba8e6f83ef56b11151ef6ad02cc4595f982aab --message "Modify grocery shopping multiset" groceries.jsonl
+$ rad cob update --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --type com.example.multiset --object 9bba8e6f83ef56b11151ef6ad02cc4595f982aab --message "Modify grocery shopping multiset" groceries.jsonl
 d36aac77be13c1ca80edbfe7b7bf9b42c723f019
 ```
 
 Again, we verify the result with `rad cob show`:
 
 ```
-$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type com.example.multiset --object 9bba8e6f83ef56b11151ef6ad02cc4595f982aab
+$ rad cob show --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --type com.example.multiset --object 9bba8e6f83ef56b11151ef6ad02cc4595f982aab
 {"jelly":0,"peanut butter":2,"salad":4}
 ```
 

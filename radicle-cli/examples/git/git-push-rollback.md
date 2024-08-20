@@ -4,16 +4,20 @@ First we add a second delegate, Bob, to our repo. We also change the threshold
 to 2:
 
 ``` ~alice
-$ rad id update --title "Add Bob" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --threshold 2 -q
-069e7d58faa9a7473d27f5510d676af33282796f
+$ rad id update --title "Add Bob" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 -q
+f48a2c516aceccde576d9ba8845b21eca1f7902c
+$ rad cref edit refs/heads/master --threshold 2 --title "Set default branch threshold to 2"
+✓ Rule for refs/heads/master has been modified
+✓ Identity revision 33a0e4502bd6325b69d65a831e14bd12dddd9358 created
 ```
 
 Bob then syncs these changes and adds a new commit:
 
 ``` ~bob
 $ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
+$ rad id accept 33a0e4502bd6325b69d65a831e14bd12dddd9358 -q
 $ git commit -m "Third commit" --allow-empty -q
 $ git push rad
 $ git branch -arv
@@ -34,9 +38,9 @@ Fast-forward
 
 ``` ~alice (stderr)
 $ git push rad
-✓ Canonical head updated to 319a7dc3b195368ded4b099f8c90bbb80addccd3
+✓ Canonical head for refs/heads/master updated to 319a7dc3b195368ded4b099f8c90bbb80addccd3
 ✓ Synced with 1 node(s)
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..319a7dc  master -> master
 ```
 
@@ -53,8 +57,8 @@ push and the new canonical head becomes the previous commit again:
 
 ``` ~alice (stderr)
 $ git push rad -f
-✓ Canonical head updated to f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+✓ Canonical head for refs/heads/master updated to f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 ✓ Synced with 1 node(s)
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + 319a7dc...f2de534 master -> master (forced update)
 ```

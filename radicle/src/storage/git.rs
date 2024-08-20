@@ -11,7 +11,6 @@ use crypto::{Signer, Verified};
 use once_cell::sync::Lazy;
 use tempfile::TempDir;
 
-use crate::git::canonical::Canonical;
 use crate::identity::doc::DocError;
 use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
@@ -744,13 +743,11 @@ impl ReadRepository for Repository {
 
     fn canonical_head(&self) -> Result<(Qualified, Oid), RepositoryError> {
         let doc = self.identity_doc()?;
-        let project = doc.project()?;
-        let branch_ref = git::refs::branch(project.default_branch());
-        let raw = self.raw();
-        let oid =
-            Canonical::default_branch(self, &project, doc.delegates().as_ref(), doc.threshold())?
-                .quorum(raw)?;
-        Ok((branch_ref, oid))
+        let rule = doc
+            .default_branch_rule()?
+            .ok_or(RepositoryError::MissingBranchRule)?;
+        let oid = rule.canonical(self)?.quorum(self.raw())?;
+        Ok((rule.refname().clone().to_owned(), oid))
     }
 
     fn identity_head(&self) -> Result<Oid, RepositoryError> {

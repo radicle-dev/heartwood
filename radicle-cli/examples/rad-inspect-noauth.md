@@ -8,5 +8,5 @@ $ rad self
 
 ```
 $ rad inspect
-rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
 ```

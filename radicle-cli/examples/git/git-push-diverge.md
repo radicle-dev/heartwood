@@ -5,15 +5,15 @@ canonical head.
 First we add a second delegate, Bob, to our repo:
 
 ``` ~alice
-$ rad id update --title "Add Bob" --description "" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji -q
-c036c0d89ce26aef3ad7da402157dba16b5163b4
+$ rad id update --title "Add Bob" --description "" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 -q
+f48a2c516aceccde576d9ba8845b21eca1f7902c
 ```
 
 Then, as Bob, we commit some code on top of the canonical head:
 
 ``` ~bob
 $ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
 $ rad inspect --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
@@ -43,10 +43,10 @@ integrate Bob's changes before pushing ours:
 
 ``` ~alice (stderr) (fail) RAD_HINT=1
 $ git push rad
-hint: you are attempting to push a commit that would cause your upstream to diverge from the canonical head
+hint: you are attempting to push a commit that would cause your upstream to diverge from the canonical reference refs/heads/master
 hint: to integrate the remote changes, run `git pull --rebase` and try again
 error: refusing to update branch to commit that is not a descendant of canonical head
-error: failed to push some refs to 'rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi'
+error: failed to push some refs to 'rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi'
 ```
 
 We do that, and notice that we're now able to push our code:
@@ -61,8 +61,8 @@ f2de534 Second commit
 ```
 ``` ~alice RAD_SOCKET=/dev/null (stderr)
 $ git push rad
-✓ Canonical head updated to f6cff86594495e9beccfeda7c20173e55c1dd9fc
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+✓ Canonical head for refs/heads/master updated to f6cff86594495e9beccfeda7c20173e55c1dd9fc
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..f6cff86  master -> master
 ```
 
@@ -74,7 +74,7 @@ $ git reset --hard HEAD^ -q
 ```
 ``` ~alice RAD_SOCKET=/dev/null (stderr)
 $ git push -f
-✓ Canonical head updated to 319a7dc3b195368ded4b099f8c90bbb80addccd3
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+✓ Canonical head for refs/heads/master updated to 319a7dc3b195368ded4b099f8c90bbb80addccd3
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + f6cff86...319a7dc master -> master (forced update)
 ```

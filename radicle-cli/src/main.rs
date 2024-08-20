@@ -140,6 +140,13 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "cref" => {
+            term::run_command_args::<rad_cref::Options, _>(
+                rad_cref::HELP,
+                rad_cref::run,
+                args.to_vec(),
+            );
+        }
         "checkout" => {
             term::run_command_args::<rad_checkout::Options, _>(
                 rad_checkout::HELP,

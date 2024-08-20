@@ -1,33 +1,33 @@
 ``` ~alice
-$ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --description "" --threshold 2 --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm -q
-069e7d58faa9a7473d27f5510d676af33282796f
+$ rad id update --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --title "Add Bob" --description "" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm -q
+f48a2c516aceccde576d9ba8845b21eca1f7902c
 ```
 
 ``` ~bob
-$ rad watch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --node z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z -r 'refs/rad/sigrefs' -t c9a828fc2fb01f893d6e6e9e17b9092dea2b3aba -i 500 --timeout 5000
-$ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
+$ rad watch --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --node z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z -r 'refs/rad/sigrefs' -t 6001fa5f08133dcf91029b4fc0b78a59bfd7883a -i 500 --timeout 5000
+$ rad sync --fetch rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
-$ rad id --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad id --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
 ╭────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title              Author                     Status     Created │
 ├────────────────────────────────────────────────────────────────────────────────┤
-│ ●   069e7d5   Add Bob            alice    z6MknSL…StBU8Vi   accepted   now     │
-│ ●   0656c21   Initial revision   alice    z6MknSL…StBU8Vi   accepted   now     │
+│ ●   f48a2c5   Add Bob            alice    z6MknSL…StBU8Vi   accepted   now     │
+│ ●   eeb8b44   Initial revision   alice    z6MknSL…StBU8Vi   accepted   now     │
 ╰────────────────────────────────────────────────────────────────────────────────╯
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
+$ rad inspect rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi [..]
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [..]
 z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z [..]
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
+$ rad inspect rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
-$ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --description "" --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --no-confirm
-✓ Identity revision 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3 created
+$ rad id update --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --title "Add Eve" --description "" --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --no-confirm
+✓ Identity revision 4e7e2aca58c18add67cf117ad414e61645cc39c0 created
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add Eve                                                       │
-│ Revision 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3                      │
-│ Blob     74581605d1f75396c331487a10ca61c4815ed685                      │
+│ Revision 4e7e2aca58c18add67cf117ad414e61645cc39c0                      │
+│ Blob     bad2d965c9022797a711cb2031c041ab2e2d729f                      │
 │ Author   did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk      │
 │ State    active                                                        │
 │ Quorum   no                                                            │
@@ -36,8 +36,9 @@ $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --des
 │ ? did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi alice       │
 ╰────────────────────────────────────────────────────────────────────────╯
 
-@@ -1,14 +1,15 @@
+@@ -1,22 +1,23 @@
  {
+   "version": 2,
    "payload": {
      "xyz.radicle.project": {
        "defaultBranch": "master",
@@ -51,24 +52,31 @@ $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --des
 +    "did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk",
 +    "did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z"
    ],
-   "threshold": 2
+   "canonicalRefs": {
+     "rules": {
+       "refs/heads/master": {
+         "allow": "delegates",
+         "threshold": 1
+       }
+     }
+   }
  }
 ```
 
 ``` ~alice
-$ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z@[..]..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk@[..]..
+$ rad sync --fetch rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkux1…nVhib7Z@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkt67…v4N1tRk@[..]..
 ✓ Fetched repository from 2 seed(s)
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
+$ rad inspect rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
-$ rad id accept 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3 --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-confirm
-✓ Revision 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3 accepted
+$ rad id accept 4e7e2aca58c18add67cf117ad414e61645cc39c0 --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --no-confirm
+✓ Revision 4e7e2aca58c18add67cf117ad414e61645cc39c0 accepted
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add Eve                                                       │
-│ Revision 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3                      │
-│ Blob     74581605d1f75396c331487a10ca61c4815ed685                      │
+│ Revision 4e7e2aca58c18add67cf117ad414e61645cc39c0                      │
+│ Blob     bad2d965c9022797a711cb2031c041ab2e2d729f                      │
 │ Author   did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk      │
 │ State    accepted                                                      │
 │ Quorum   yes                                                           │
@@ -76,15 +84,15 @@ $ rad id accept 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3 --repo rad:z42hL2jL4XNk
 │ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi alice (you) │
 │ ✓ did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk bob         │
 ╰────────────────────────────────────────────────────────────────────────╯
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
+$ rad inspect rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
 did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z (eve)
 ```
 
 ``` ~alice
-$ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Make private" --description "" --visibility private --no-confirm -q
-e6bf10593b78384eb2b281cbb18a605668a6d1f7
+$ rad id update --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --title "Make private" --description "" --visibility private --no-confirm -q
+61a7e9b58b27baf26b6f2e198aea3978e5d4444f
 ```
 
 We can list all revisions:
@@ -94,34 +102,34 @@ $ rad id list
 ╭────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title              Author                     Status     Created │
 ├────────────────────────────────────────────────────────────────────────────────┤
-│ ●   e6bf105   Make private       alice    (you)             active     now     │
-│ ●   3cd3c7f   Add Eve            bob      z6Mkt67…v4N1tRk   accepted   now     │
-│ ●   069e7d5   Add Bob            alice    (you)             accepted   now     │
-│ ●   0656c21   Initial revision   alice    (you)             accepted   now     │
+│ ●   61a7e9b   Make private       alice    (you)             active     now     │
+│ ●   4e7e2ac   Add Eve            bob      z6Mkt67…v4N1tRk   accepted   now     │
+│ ●   f48a2c5   Add Bob            alice    (you)             accepted   now     │
+│ ●   eeb8b44   Initial revision   alice    (you)             accepted   now     │
 ╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Despite being a delegate, Bob can't edit or redact Alice's revision:
 
 ``` ~bob (fail)
-$ rad id redact e6bf10593b78384eb2b281cbb18a605668a6d1f7
+$ rad id redact 61a7e9b58b27baf26b6f2e198aea3978e5d4444f
 [..]
 ```
 ``` ~bob (fail)
-$ rad id edit --title "Boo!" --description "Boo!" e6bf10593b78384eb2b281cbb18a605668a6d1f7
+$ rad id edit --title "Boo!" --description "Boo!" 61a7e9b58b27baf26b6f2e198aea3978e5d4444f
 [..]
 ```
 
 Alice can edit:
 
 ``` ~alice
-$ rad id edit --title "Make private" --description "Privacy is cool." e6bf10593b78384eb2b281cbb18a605668a6d1f7
-✓ Revision e6bf10593b78384eb2b281cbb18a605668a6d1f7 edited
-$ rad id show e6bf10593b78384eb2b281cbb18a605668a6d1f7
+$ rad id edit --title "Make private" --description "Privacy is cool." 61a7e9b58b27baf26b6f2e198aea3978e5d4444f
+✓ Revision 61a7e9b58b27baf26b6f2e198aea3978e5d4444f edited
+$ rad id show 61a7e9b58b27baf26b6f2e198aea3978e5d4444f
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Make private                                                  │
-│ Revision e6bf10593b78384eb2b281cbb18a605668a6d1f7                      │
-│ Blob     c533865b2846ca6c5b4436ec6872257293380c3b                      │
+│ Revision 61a7e9b58b27baf26b6f2e198aea3978e5d4444f                      │
+│ Blob     94448eb3f8b81fba6d25c287c626625fd3f53d8f                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    active                                                        │
 │ Quorum   no                                                            │
@@ -133,8 +141,9 @@ $ rad id show e6bf10593b78384eb2b281cbb18a605668a6d1f7
 │ ? did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z eve         │
 ╰────────────────────────────────────────────────────────────────────────╯
 
-@@ -1,15 +1,18 @@
+@@ -1,23 +1,26 @@
  {
+   "version": 2,
    "payload": {
      "xyz.radicle.project": {
        "defaultBranch": "master",
@@ -147,33 +156,39 @@ $ rad id show e6bf10593b78384eb2b281cbb18a605668a6d1f7
      "did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk",
      "did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z"
    ],
--  "threshold": 2
-+  "threshold": 2,
+   "canonicalRefs": {
+     "rules": {
+       "refs/heads/master": {
+         "allow": "delegates",
+         "threshold": 1
+       }
+     }
++  },
 +  "visibility": {
 +    "type": "private"
-+  }
+   }
  }
 ```
 
 And she can redact her revision:
 
 ``` ~alice
-$ rad id redact e6bf10593b78384eb2b281cbb18a605668a6d1f7
-✓ Revision e6bf10593b78384eb2b281cbb18a605668a6d1f7 redacted
+$ rad id redact 61a7e9b58b27baf26b6f2e198aea3978e5d4444f
+✓ Revision 61a7e9b58b27baf26b6f2e198aea3978e5d4444f redacted
 ```
 ``` ~alice (fail)
-$ rad id show e6bf10593b78384eb2b281cbb18a605668a6d1f7
-✗ Error: revision `e6bf10593b78384eb2b281cbb18a605668a6d1f7` not found
+$ rad id show 61a7e9b58b27baf26b6f2e198aea3978e5d4444f
+✗ Error: revision `61a7e9b58b27baf26b6f2e198aea3978e5d4444f` not found
 ```
 
 Finally, Alice can also propose to remove Bob:
 ``` ~alice
-$ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Remove Bob" --description "" --rescind did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm
-✓ Identity revision 8ba242a80bc1181f41f9ea7a19286038c7948994 created
+$ rad id update --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --title "Remove Bob" --description "" --rescind did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm
+✓ Identity revision d8a5c75f44ee99bd66b9f7555066715c552b6fd8 created
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Remove Bob                                                    │
-│ Revision 8ba242a80bc1181f41f9ea7a19286038c7948994                      │
-│ Blob     254d62de237117e7d7b9ceff85c47f5e3b610c1e                      │
+│ Revision d8a5c75f44ee99bd66b9f7555066715c552b6fd8                      │
+│ Blob     14913e80b9585dfa545da9feb8ca68a42b5d085e                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    active                                                        │
 │ Quorum   no                                                            │
@@ -183,8 +198,9 @@ $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Remove Bob" --
 │ ? did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z eve         │
 ╰────────────────────────────────────────────────────────────────────────╯
 
-@@ -1,15 +1,14 @@
+@@ -1,23 +1,22 @@
  {
+   "version": 2,
    "payload": {
      "xyz.radicle.project": {
        "defaultBranch": "master",
@@ -197,6 +213,13 @@ $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Remove Bob" --
 -    "did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk",
      "did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z"
    ],
-   "threshold": 2
+   "canonicalRefs": {
+     "rules": {
+       "refs/heads/master": {
+         "allow": "delegates",
+         "threshold": 1
+       }
+     }
+   }
  }
 ```

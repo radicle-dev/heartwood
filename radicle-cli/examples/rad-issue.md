@@ -7,7 +7,7 @@ Let's say the new car you are designing with your peers has a problem with its f
 $ rad issue open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply" --no-announce
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
-│ Issue   d87dcfe8c2b3200e78b128d9b959cfdf7063fefe        │
+│ Issue   0d18c610be2fbb4f47d45434c581f3bf0b0ff071        │
 │ Author  alice (you)                                     │
 │ Status  open                                            │
 │                                                         │
@@ -22,17 +22,17 @@ $ rad issue list
 ╭──────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title                         Author           Labels   Assignees   Opened │
 ├──────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   d87dcfe   flux capacitor underpowered   alice    (you)                        now    │
+│ ●   0d18c61   flux capacitor underpowered   alice    (you)                        now    │
 ╰──────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Show the issue information issue.
 
 ```
-$ rad issue show d87dcfe
+$ rad issue show 0d18c61
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
-│ Issue   d87dcfe8c2b3200e78b128d9b959cfdf7063fefe        │
+│ Issue   0d18c610be2fbb4f47d45434c581f3bf0b0ff071        │
 │ Author  alice (you)                                     │
 │ Status  open                                            │
 │                                                         │
@@ -51,8 +51,8 @@ Let's assign ourselves to this one, this is to ensure work is not
 duplicated. While we're at it, let's add a label.
 
 ```
-$ rad issue assign d87dcfe --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --no-announce
-$ rad issue label d87dcfe --add good-first-issue --no-announce
+$ rad issue assign 0d18c61 --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --no-announce
+$ rad issue label 0d18c61 --add good-first-issue --no-announce
 ```
 
 It will now show in the list of issues assigned to us, along with the new label.
@@ -62,14 +62,14 @@ $ rad issue list --assigned
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title                         Author           Labels             Assignees   Opened │
 ├────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   d87dcfe   flux capacitor underpowered   alice    (you)   good-first-issue   alice       now    │
+│ ●   0d18c61   flux capacitor underpowered   alice    (you)   good-first-issue   alice       now    │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Note: this can always be undone with the `unassign` subcommand.
 
 ```
-$ rad issue assign d87dcfe --delete did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --no-announce
+$ rad issue assign 0d18c61 --delete did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --no-announce
 ```
 
 Great, now we have communicated to the world about our car's defect.
@@ -78,29 +78,29 @@ But wait! We've found an important detail about the car's power requirements.
 It will help whoever works on a fix.
 
 ```
-$ rad issue comment d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --message 'The flux capacitor needs 1.21 Gigawatts' -q --no-announce
-2193e871916d18ddd0416b5198cb08c5dc7416b7
-$ rad issue comment d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --reply-to 2193e871916d18ddd0416b5198cb08c5dc7416b7 --message 'More power!' -q --no-announce
-880fdcd94b36e412fc906b510f41008700d65424
+$ rad issue comment 0d18c610be2fbb4f47d45434c581f3bf0b0ff071 --message 'The flux capacitor needs 1.21 Gigawatts' -q --no-announce
+30d72f0b1e6a96e39c4c408369ea44186430d21b
+$ rad issue comment 0d18c610be2fbb4f47d45434c581f3bf0b0ff071 --reply-to 30d72f0b1e6a96e39c4c408369ea44186430d21b --message 'More power!' -q --no-announce
+4ff4fdc106a4fb3a2a035155e1fb3e8b3c1e0df4
 ```
 
 We can see our comments by showing the issue:
 
 ```
-$ rad issue show d87dcfe8c2b3200e78b128d9b959cfdf7063fefe
+$ rad issue show 0d18c610be2fbb4f47d45434c581f3bf0b0ff071
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
-│ Issue   d87dcfe8c2b3200e78b128d9b959cfdf7063fefe        │
+│ Issue   0d18c610be2fbb4f47d45434c581f3bf0b0ff071        │
 │ Author  alice (you)                                     │
 │ Labels  good-first-issue                                │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │
 ├─────────────────────────────────────────────────────────┤
-│ alice (you) now 2193e87                                 │
+│ alice (you) now 30d72f0                                 │
 │ The flux capacitor needs 1.21 Gigawatts                 │
 ├─────────────────────────────────────────────────────────┤
-│ alice (you) now 880fdcd                                 │
+│ alice (you) now 4ff4fdc                                 │
 │ More power!                                             │
 ╰─────────────────────────────────────────────────────────╯
 ```
@@ -108,9 +108,9 @@ $ rad issue show d87dcfe8c2b3200e78b128d9b959cfdf7063fefe
 We can also edit a comment:
 
 ```
-$ rad issue comment d87dcfe --edit 880fdcd -m "Even more power!"
+$ rad issue comment 0d18c61 --edit 4ff4fdc -m "Even more power!"
 ╭─────────────────────────╮
-│ alice (you) now 880fdcd │
+│ alice (you) now 4ff4fdc │
 │ Even more power!        │
 ╰─────────────────────────╯
 ```

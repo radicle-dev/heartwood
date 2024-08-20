@@ -30,10 +30,10 @@ Now, we can create a commit on top of this and create a patch, as usual:
 ``` (stderr) RAD_HINT=1
 $ git commit -a -m "Add things" -q --allow-empty
 $ git push -o patch.message="Add things #1" -o patch.message="See commits for details." rad HEAD:refs/patches
-✓ Patch 6035d2f582afbe01ff23ea87528ae523d76875b6 opened
+✓ Patch a183e324b82e94c548eb43b7acb7c7d92ebe7761 opened
 hint: offline push, your node is not running
 hint: to sync with the network, run `rad node start`
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
 

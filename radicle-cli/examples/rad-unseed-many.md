@@ -8,15 +8,15 @@ $ rad ls
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   public       f2de534   Radicle Heartwood Protocol & Stack │
-│ nixpkgs     rad:zyFFr2iwoTEfNF4jGNZHuoy7odMh    public       f2de534   Home for Nix Packages              │
+│ heartwood   rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2   public       f2de534   Radicle Heartwood Protocol & Stack │
+│ nixpkgs     rad:z3rK5Ldp958XdzwL88vYRvhdQj5WR   public       f2de534   Home for Nix Packages              │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 We could stop seeding them if we didn't want other nodes to fetch them from us:
 
 ```
-$ rad unseed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji rad:zyFFr2iwoTEfNF4jGNZHuoy7odMh
-✓ Seeding policy for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji removed
-✓ Seeding policy for rad:zyFFr2iwoTEfNF4jGNZHuoy7odMh removed
+$ rad unseed rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 rad:z3rK5Ldp958XdzwL88vYRvhdQj5WR
+✓ Seeding policy for rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 removed
+✓ Seeding policy for rad:z3rK5Ldp958XdzwL88vYRvhdQj5WR removed
 ```

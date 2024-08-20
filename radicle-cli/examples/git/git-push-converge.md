@@ -5,8 +5,11 @@ First we add our new delegates, Bob & Eve, to our repo, while also setting the
 `threshold` to `3`:
 
 ``` ~alice
-$ rad id update --title "Add Bob & Eve" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --threshold 3 --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji -q
-3143236b2e40338f5574ec04e935a5ab80a6868a
+$ rad id update --title "Add Bob & Eve" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 -q
+7dab9524869f5f25abc3d9f2e7a7f975872a24c5
+$ rad cref edit refs/heads/master --threshold 3 --title "Set threshold for refs/heads/master to 3"
+✓ Rule for refs/heads/master has been modified
+✓ Identity revision 3b03a364f20c36c8e5d35599fc53e44fb1950cbf created
 ```
 
 Bob and Eve will fetch the changes to ensure they hear about their delegate
@@ -14,15 +17,16 @@ responsibilities:
 
 ``` ~bob
 $ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z@[..]..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkux1…nVhib7Z@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 2 seed(s)
+$ rad id accept 3b03a364f20c36c8e5d35599fc53e44fb1950cbf -q
 ```
 
 ``` ~eve
 $ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk@[..]..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkt67…v4N1tRk@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 2 seed(s)
 ```
 
@@ -58,14 +62,14 @@ found` error is showing up:
 ``` ~alice
 $ rad remote add did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob
 ✓ Follow policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z@[..]..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkux1…nVhib7Z@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkt67…v4N1tRk@[..]..
 ✓ Remote bob added
 ✓ Remote-tracking branch bob/master created for z6Mkt67…v4N1tRk
 $ rad remote add did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --name eve
 ✓ Follow policy updated for z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z (eve)
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z@[..]..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkux1…nVhib7Z@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkt67…v4N1tRk@[..]..
 ✓ Remote eve added
 ✓ Remote-tracking branch eve/master created for z6Mkux1…nVhib7Z
 ```
@@ -93,15 +97,15 @@ warn: could not determine canonical tip for `refs/heads/master`
 warn: no commit found with at least 3 vote(s) (threshold not met)
 warn: it is recommended to find a commit to agree upon
 ✓ Synced with 2 node(s)
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    d09e634..0f9bd80  master -> master
 ```
 
 ``` ~bob
 $ rad remote add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --name alice
 ✓ Follow policy updated for z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z@[..]..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkux1…nVhib7Z@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6MknSL…StBU8Vi@[..]..
 ✓ Remote alice added
 ✓ Remote-tracking branch alice/master created for z6MknSL…StBU8Vi
 $ git reset --hard alice/master
@@ -115,9 +119,9 @@ become the canonical `master`.
 
 ``` ~bob (stderr)
 $ git push rad
-✓ Canonical head updated to 3a75f66dd0020c9a0355cc6ec21f15de989e2001
+✓ Canonical head for refs/heads/master updated to 3a75f66dd0020c9a0355cc6ec21f15de989e2001
 ✓ Synced with 2 node(s)
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
    2a37862..0f9bd80  master -> master
 ```
 
@@ -126,8 +130,8 @@ Once Eve also resets to the merge commits, the canonical `master` is set to this
 ``` ~eve
 $ rad remote add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --name alice
 ✓ Follow policy updated for z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk@[..]..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6Mkt67…v4N1tRk@[..]..
+✓ Fetching rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 from z6MknSL…StBU8Vi@[..]..
 ✓ Remote alice added
 ✓ Remote-tracking branch alice/master created for z6MknSL…StBU8Vi
 $ git reset --hard alice/master
@@ -136,8 +140,8 @@ HEAD is now at 0f9bd80 Merge remote-tracking branch 'eve/master'
 
 ``` ~eve (stderr)
 $ git push rad
-✓ Canonical head updated to 0f9bd8035c04b3f73f5408e73e8454879b20800b
+✓ Canonical head for refs/heads/master updated to 0f9bd8035c04b3f73f5408e73e8454879b20800b
 ✓ Synced with 2 node(s)
-To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
+To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
    3a75f66..0f9bd80  master -> master
 ```

@@ -14,24 +14,24 @@ $ rad .
 
 Let's pick an existing repository:
 ```
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad inspect rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
+rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
 ```
 
 And initialize this working copy as that existing repository:
 ```
-$ rad init --existing rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Initialized existing repository rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji in [..]/heartwood/..
+$ rad init --existing rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
+✓ Initialized existing repository rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 in [..]/heartwood/..
 ```
 
 We can confirm that the working copy is initialized:
 ```
 $ rad .
-rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
 $ git remote show rad
 * remote rad
-  Fetch URL: rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-  Push  URL: rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+  Fetch URL: rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
+  Push  URL: rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
   HEAD branch: (unknown)
   Remote branch:
     master new (next fetch will store in remotes/rad)

@@ -1,14 +1,14 @@
-Given a private repo `rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu` belonging to Alice,
+Given a private repo `rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT` belonging to Alice,
 Bob tries to fetch it, and even though he's connected to Alice, it fails.
 
 ``` ~bob
 $ rad ls
 ```
 ``` ~bob (fail)
-$ rad clone rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --timeout 1
-✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'all'
-✗ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi@[..].. error: failed to perform fetch handshake
-✗ Error: repository rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu not found
+$ rad clone rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --timeout 1
+✓ Seeding policy updated for rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT with scope 'all'
+✗ Fetching rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT from z6MknSL…StBU8Vi@[..].. error: failed to perform fetch handshake
+✗ Error: repository rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT not found
 ```
 
 She allows Bob to view the repository. And when she syncs, one node (Bob) gets
@@ -25,14 +25,14 @@ Bob can now fetch the private repo without specifying a seed, because he knows
 that Alice has the repo after she announced her refs:
 
 ``` ~bob
-$ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch
-✓ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi@[..]..
+$ rad sync rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT --fetch
+✓ Fetching rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
 $ rad ls --private --all
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ heartwood   rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu   private      f2de534   radicle heartwood protocol & stack │
+│ heartwood   rad:z2gud85wgGxzN7MNvi8wDEBFqLqmT   private      f2de534   radicle heartwood protocol & stack │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 

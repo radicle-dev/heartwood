@@ -5,9 +5,10 @@ use std::time;
 
 use anyhow::anyhow;
 
-use radicle::cob::{self, issue, patch};
+use radicle::cob;
+use radicle::cob::{issue, patch};
 use radicle::crypto;
-use radicle::git::{Oid, RefString};
+use radicle::git::{refspec::QualifiedPattern, Oid, PatternString, RefString};
 use radicle::node::{Address, Alias};
 use radicle::prelude::{Did, NodeId, RepoId};
 
@@ -105,6 +106,19 @@ pub fn refstring(flag: &str, value: OsString) -> anyhow::Result<RefString> {
             flag
         )
     })
+}
+
+pub fn qualified_pattern_string(value: OsString) -> anyhow::Result<QualifiedPattern<'static>> {
+    let value = value
+        .into_string()
+        .map_err(|_| anyhow!("the <refspec> value is not valid UTF-8"))?;
+    PatternString::try_from(value.clone())
+        .map_err(|_| anyhow!("'{value}' is not a valid refspec string",))
+        .and_then(|s| {
+            let q = QualifiedPattern::from_patternstr(&s)
+                .ok_or(anyhow!("'{value}' is a not a qualified refspec string"))?;
+            Ok(q.to_owned())
+        })
 }
 
 pub fn did(val: &OsString) -> anyhow::Result<Did> {

@@ -1068,11 +1068,6 @@ mod test {
             .unwrap_err();
         assert_eq!(identity.current, r0);
 
-        // Change threshold to `2`, even though there's only one delegate. This should
-        // fail as it makes the master branch immutable.
-        doc.threshold = 2;
-        assert!(doc.clone().verified().is_err());
-
         // Let's add another delegate.
         doc.delegate(bob.public_key().into());
         // The update should go through now.
@@ -1274,13 +1269,16 @@ mod test {
             .unwrap();
 
         bob.repo.fetch(alice);
-        let a3 = alice_identity.redact(a2, &alice.signer).unwrap();
+        let a3 = cob::git::stable::with_advanced_timestamp(|| {
+            alice_identity.redact(a2, &alice.signer).unwrap()
+        });
         assert!(alice_identity.revision(&a1).is_some());
         assert_eq!(alice_identity.timeline, vec![a0, a1, a2, a3]);
 
         let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
-        let b1 = bob_identity.accept(&a2, &bob.signer).unwrap();
-
+        let b1 = cob::git::stable::with_advanced_timestamp(|| {
+            bob_identity.accept(&a2, &bob.signer).unwrap()
+        });
         assert_eq!(bob_identity.timeline, vec![a0, a1, a2, b1]);
         assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Accepted);
         bob.repo.fetch(alice);
@@ -1442,7 +1440,7 @@ mod test {
 
         eve.repo.fetch(bob);
         eve_identity.reload().unwrap();
-        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, b1, e1, e2]);
+        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, e1, e2, b1]);
 
         // Her revision is there, although stale, since another revision was accepted since.
         // However, it wasn't pruned, even though rejecting an accepted revision is an error.
@@ -1568,7 +1566,6 @@ mod test {
 
         // Add Bob as a delegate, and sign it.
         doc.delegate(bob.public_key().into());
-        doc.threshold = 2;
         identity
             .update("Add bob", "", &doc.clone().verified().unwrap(), &alice)
             .unwrap();

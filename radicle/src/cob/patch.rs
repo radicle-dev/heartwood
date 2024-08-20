@@ -1078,8 +1078,14 @@ impl Patch {
                         acc
                     },
                 );
-                // Discard revisions that weren't merged by a threshold of delegates.
-                merges.retain(|_, count| *count >= identity.threshold());
+
+                {
+                    if let Some(rule) = identity.default_branch_rule()? {
+                        let threshold = (*rule.rule().threshold()).into();
+                        // Discard revisions that weren't merged by a threshold of delegates.
+                        merges.retain(|_, count| *count >= threshold);
+                    }
+                }
 
                 match merges.into_keys().collect::<Vec<_>>().as_slice() {
                     [] => {
@@ -2814,6 +2820,7 @@ mod test {
     use crate::cob::common::CodeRange;
     use crate::cob::test::Actor;
     use crate::crypto::test::signer::MockSigner;
+    use crate::git::canonical::rules::RawRules;
     use crate::identity;
     use crate::patch::cache::Patches as _;
     use crate::profile::env;
@@ -3076,6 +3083,7 @@ mod test {
             gen::<Project>(1),
             vec![alice.did()],
             1,
+            RawRules::default(),
             identity::Visibility::Public,
         )
         .verified()
