@@ -1,9 +1,18 @@
 #!/bin/sh
 set -e
 
-echo "# 👾 Radicle $(git describe)"
+tag=$(git describe)
+version=$(echo $tag | sed 's/^v//')
+
+echo "# 👾 Radicle $version"
 echo
-echo "Radicle $(git describe) ($(git rev-parse --short HEAD)) is released."
+echo "Radicle $version ($(git rev-parse --short HEAD)) is released."
+echo
+echo "## Installation"
+echo
+echo '```'
+echo "curl -sSf https://radicle.xyz/install | sh -s -- --no-modify-path --version=$version"
+echo '```'
 echo
 echo "## Notes"
 echo
