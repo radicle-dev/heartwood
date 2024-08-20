@@ -16,5 +16,5 @@ $ git push rad master
 ```
 
 ``` ~bob
-$ rad watch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --node z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --ref 'refs/heads/master' --target e09c4dc1b54443ceea715ea648afecdcfd1dd7d0 --interval 500
+$ rad watch --repo rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --node z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --ref 'refs/heads/master' --target e09c4dc1b54443ceea715ea648afecdcfd1dd7d0 --interval 500
 ```

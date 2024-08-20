@@ -9,7 +9,7 @@ Initializing public radicle 👾 repository in [..]
 
 ✓ Repository heartwood created.
 
-Your Repository ID (RID) is rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji.
+Your Repository ID (RID) is rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2.
 You can show it any time by running `rad .` from this directory.
 
 ✓ Repository successfully announced to the network.

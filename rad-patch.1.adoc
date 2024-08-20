@@ -278,7 +278,7 @@ example, if some patch *26e3e56* is ready to merge, the steps would be:
     $ git merge patch/26e3e56
     $ git push rad
     ✓ Patch 26e3e563ddc7df8dd0c9f81274c0b3cb1b764568 merged
-    To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+    To rad://z3oVNYXUagaa4L4HqKzTDppHBA1Jo/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
        f2de534..d6399c7  master -> master
 
 In the above, we created a checkout for the patch, and merged that branch into

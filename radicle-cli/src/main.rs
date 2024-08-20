@@ -140,6 +140,13 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "canonical-ref" => {
+            term::run_command_args::<rad_canonical_ref::Options, _>(
+                rad_canonical_ref::HELP,
+                rad_canonical_ref::run,
+                args.to_vec(),
+            );
+        }
         "checkout" => {
             term::run_command_args::<rad_checkout::Options, _>(
                 rad_checkout::HELP,

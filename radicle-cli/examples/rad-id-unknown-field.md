@@ -3,11 +3,11 @@ added. Here we will add an emoji alias for the heartwood project:
 
 ```
 $ rad id update --title "Add emoji alias" --description "Adding alias field" --payload xyz.radicle.project alias '"❤️🪵"'
-✓ Identity revision 05100d3f0a73b9373681677158615a53ba51940e created
+✓ Identity revision d322c2b471685aa25d8874273b6ba2d70d5702de created
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add emoji alias                                               │
-│ Revision 05100d3f0a73b9373681677158615a53ba51940e                      │
-│ Blob     a0f421c928dcfc6eca129fc2ea1f50877de7dc20                      │
+│ Revision d322c2b471685aa25d8874273b6ba2d70d5702de                      │
+│ Blob     92e06a7ec3b877ad66c77815ffd5270896d1d898                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    accepted                                                      │
 │ Quorum   yes                                                           │
@@ -17,8 +17,9 @@ $ rad id update --title "Add emoji alias" --description "Adding alias field" --p
 │ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi alice (you) │
 ╰────────────────────────────────────────────────────────────────────────╯
 
-@@ -1,13 +1,14 @@
+@@ -1,21 +1,22 @@
  {
+   "version": 2,
    "payload": {
      "xyz.radicle.project": {
 +      "alias": "❤️🪵",
@@ -30,7 +31,14 @@ $ rad id update --title "Add emoji alias" --description "Adding alias field" --p
    "delegates": [
      "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
    ],
-   "threshold": 1
+   "canonicalRefs": {
+     "rules": {
+       "refs/heads/master": {
+         "allow": "delegates",
+         "threshold": 1
+       }
+     }
+   }
  }
 ```
 
@@ -42,6 +50,6 @@ $ rad ls
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   public       f2de534   Radicle Heartwood Protocol & Stack │
+│ heartwood   rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2   public       f2de534   Radicle Heartwood Protocol & Stack │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

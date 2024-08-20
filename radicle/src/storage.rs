@@ -119,6 +119,8 @@ pub enum RepositoryError {
     Quorum(#[from] canonical::QuorumError),
     #[error(transparent)]
     Refs(#[from] refs::Error),
+    #[error("missing canonical reference rule for default branch")]
+    MissingBranchRule,
 }
 
 impl RepositoryError {

@@ -9,6 +9,7 @@ use thiserror::Error;
 use crate::cob::ObjectId;
 use crate::crypto::{Signer, Verified};
 use crate::git;
+use crate::git::canonical::rules;
 use crate::identity::doc;
 use crate::identity::doc::{DocError, RepoId, Visibility};
 use crate::identity::project::{Project, ProjectName};
@@ -31,6 +32,8 @@ pub static PATCHES_REFNAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("r
 pub enum InitError {
     #[error("doc: {0}")]
     Doc(#[from] DocError),
+    #[error("rule pattern: {0}")]
+    Pattern(#[from] rules::PatternError),
     #[error("repository: {0}")]
     Repository(#[from] RepositoryError),
     #[error("project payload: {0}")]
@@ -68,7 +71,7 @@ pub fn init<G: Signer, S: WriteStorage>(
                 .join(", "),
         )
     })?;
-    let doc = identity::Doc::initial(proj, delegate, visibility);
+    let doc = identity::Doc::initial(proj, delegate, visibility)?;
     let (project, identity) = Repository::init(&doc, &storage, signer)?;
     let url = git::Url::from(project.id);
 

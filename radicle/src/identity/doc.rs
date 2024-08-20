@@ -1,4 +1,5 @@
 mod id;
+mod v1;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -19,6 +20,9 @@ use crate::cob::identity;
 use crate::crypto;
 use crate::crypto::Signature;
 use crate::git;
+use crate::git::canonical::rules;
+use crate::git::canonical::rules::{MatchedRule, RawRules, Rule};
+use crate::git::canonical::Rules;
 use crate::identity::{project::Project, Did};
 use crate::storage;
 use crate::storage::{ReadRepository, RepositoryError};
@@ -34,10 +38,14 @@ pub const MAX_STRING_LENGTH: usize = 255;
 pub const MAX_DELEGATES: usize = 255;
 /// The current, most recent version of the identity document.
 // SAFETY: identity version should never be 0, so we can use `unsafe` here
-pub const IDENTITY_VERSION: Version = Version(unsafe { NonZeroU32::new_unchecked(1) });
+pub const IDENTITY_VERSION: Version = Version(unsafe { NonZeroU32::new_unchecked(2) });
 
 #[derive(Error, Debug)]
 pub enum DocError {
+    #[error(transparent)]
+    Pattern(#[from] rules::PatternError),
+    #[error(transparent)]
+    CanonicalRefs(#[from] rules::ValidationError),
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
@@ -224,6 +232,15 @@ pub enum PayloadError {
     NotFound(PayloadId),
 }
 
+impl PayloadError {
+    pub fn is_not_found(&self) -> bool {
+        match self {
+            PayloadError::Json(_) => false,
+            PayloadError::NotFound(_) => true,
+        }
+    }
+}
+
 /// A `Payload` is a free-form JSON value that can be associated with an
 /// identity's [`Doc`].
 /// The payload is identified in the [`Doc`] by its corresponding [`PayloadId`].
@@ -356,10 +373,32 @@ pub struct RawDoc {
     /// The delegates section.
     pub delegates: Vec<Did>,
     /// The signature threshold.
-    pub threshold: usize,
+    pub threshold: Option<usize>,
+    /// The canonical reference rules.
+    #[serde(default)]
+    pub canonical_refs: RawCanonicalRefs,
     /// Repository visibility.
     #[serde(default)]
     pub visibility: Visibility,
+}
+
+/// Configuration for canonical references and their rules.
+///
+/// `RawCanonicalRefs` is used in [`RawDoc`], and is verified into
+/// [`CanonicalRefs`].
+///
+/// Note that it must implement `Default` for `Deserialize` for compatibility –
+/// any fields being added must be able to implement default too.
+#[derive(Default, Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawCanonicalRefs {
+    pub rules: RawRules,
+}
+
+impl RawCanonicalRefs {
+    pub fn new(rules: RawRules) -> Self {
+        Self { rules }
+    }
 }
 
 impl TryFrom<RawDoc> for Doc {
@@ -377,17 +416,18 @@ impl RawDoc {
     pub fn new(
         project: Project,
         delegates: Vec<Did>,
-        threshold: usize,
+        _threshold: usize,
+        rules: RawRules,
         visibility: Visibility,
     ) -> Self {
         let project =
             serde_json::to_value(project).expect("Doc::initial: payload must be serializable");
-
         Self {
             version: IDENTITY_VERSION,
             payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
             delegates,
-            threshold,
+            threshold: None,
+            canonical_refs: RawCanonicalRefs::new(rules),
             visibility,
         }
     }
@@ -443,21 +483,45 @@ impl RawDoc {
     ///    remaining set ensure that it is non-empty and does not exceed a
     ///    length of [`MAX_DELEGATES`].
     ///  - [`RawDoc::threshold`]: ensure that it is in the range `[1, delegates.len()]`.
-    pub fn verified(self) -> Result<Doc, DocError> {
+    pub fn verified(mut self) -> Result<Doc, DocError> {
+        // If there's no rule for the default branch and the document has a
+        // `threshold` value, then we create a canonical reference rule for the
+        // verified document.
+        {
+            if let Ok(project) = self.project() {
+                let default = git::refs::branch(project.default_branch());
+                if let Some(threshold) = self.threshold {
+                    if !self.canonical_refs.rules.exact_match(&default) {
+                        let pattern = rules::Pattern::try_from(default)?;
+                        self.canonical_refs
+                            .rules
+                            .insert(pattern, Rule::new(rules::Allowed::Delegates, threshold));
+                    }
+                }
+            }
+        }
         let RawDoc {
             version,
             payload,
             delegates,
-            threshold,
+            canonical_refs,
             visibility,
+            ..
         } = self;
+
         let delegates = Delegates::new(delegates)?;
-        let threshold = Threshold::new(threshold, &delegates)?;
+        let rules = Rules::from_raw(canonical_refs.rules, &mut |ds| match ds {
+            rules::Allowed::Delegates => Ok(delegates.clone()),
+            rules::Allowed::Set(delegates) => {
+                Delegates::new(delegates).map_err(rules::ValidationError::from)
+            }
+        })?;
+
         Ok(Doc {
             version,
             payload,
             delegates,
-            threshold,
+            canonical_refs: CanonicalRefs { rules },
             visibility,
         })
     }
@@ -533,6 +597,11 @@ impl Delegates {
     /// Check if the set contains the given `did`.
     pub fn contains(&self, did: &Did) -> bool {
         self.0.contains(did)
+    }
+
+    /// Check if the `did` is the only delegate of the repository.
+    pub fn is_only(&self, did: &Did) -> bool {
+        self.0.tail.is_empty() && &self.0.head == did
     }
 
     /// Get the number of delegates in the set.
@@ -612,6 +681,17 @@ impl Threshold {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum MigrationError {
+    #[error("failed to migrate from v1: {0}")]
+    V1(#[from] v1::MigrationError),
+    #[error("failed to parse previous version {version}: {err}")]
+    Unknown {
+        version: u32,
+        err: serde_json::Error,
+    },
+}
+
 /// `Doc` is a valid identity document.
 ///
 /// To ensure that only valid documents are used, this type is restricted to be
@@ -634,9 +714,44 @@ pub struct Doc {
     version: Version,
     payload: BTreeMap<PayloadId, Payload>,
     delegates: Delegates,
-    threshold: Threshold,
+    #[serde(skip_serializing_if = "CanonicalRefs::is_empty")]
+    canonical_refs: CanonicalRefs,
     #[serde(default, skip_serializing_if = "Visibility::is_public")]
     visibility: Visibility,
+}
+
+/// Configuration for canonical references and their [`Rules`].
+///
+/// `CanonicalRefs` is used in [`Doc`], and the [`Rules`] are accessed via
+/// [`Doc::rules`].
+// Note that it must implement [`CanonicalRefs::is_empty`] for skipping
+// serialization, for compatibility – any fields being added must be accounted
+// for in this method.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanonicalRefs {
+    rules: Rules,
+}
+
+impl CanonicalRefs {
+    pub fn new(rules: Rules) -> Self {
+        CanonicalRefs { rules }
+    }
+
+    /// Check if the data structure empty. Used in the [`Serialize`]
+    /// implementation.
+    fn is_empty(&self) -> bool {
+        // N.b. account for any new fields when adding them.
+        self.rules.is_empty()
+    }
+}
+
+impl From<CanonicalRefs> for RawCanonicalRefs {
+    fn from(crefs: CanonicalRefs) -> Self {
+        Self {
+            rules: crefs.rules.into(),
+        }
+    }
 }
 
 impl Doc {
@@ -645,17 +760,24 @@ impl Doc {
     /// It will begin with the provided `project` in the [`Doc::payload`], the
     /// `delegate` as the sole delegate, a threshold of 1, and the given
     /// `visibility`.
-    pub fn initial(project: Project, delegate: Did, visibility: Visibility) -> Self {
+    pub fn initial(
+        project: Project,
+        delegate: Did,
+        visibility: Visibility,
+    ) -> Result<Self, rules::PatternError> {
+        let rules = [Rule::default_branch(delegate, project.default_branch())?]
+            .into_iter()
+            .collect();
         let project =
             serde_json::to_value(project).expect("Doc::initial: payload must be serializable");
 
-        Self {
+        Ok(Self {
             version: IDENTITY_VERSION,
             payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
             delegates: Delegates(NonEmpty::new(delegate)),
-            threshold: Threshold(NonZeroUsize::MIN),
+            canonical_refs: CanonicalRefs::new(rules),
             visibility,
-        }
+        })
     }
 
     /// Construct a [`Doc`] contained in the provided Git blob.
@@ -670,14 +792,15 @@ impl Doc {
             version,
             payload,
             delegates,
-            threshold,
+            canonical_refs,
             visibility,
         } = self;
         RawDoc {
             version,
             payload,
             delegates: delegates.into(),
-            threshold: threshold.into(),
+            threshold: None,
+            canonical_refs: canonical_refs.into(),
             visibility,
         }
     }
@@ -729,16 +852,6 @@ impl Doc {
         self.visibility.is_private()
     }
 
-    /// Return the associated threshold of this document.
-    pub fn threshold(&self) -> usize {
-        self.threshold.into()
-    }
-
-    /// Return the associated threshold of this document in its non-zero format.
-    pub fn threshold_nonzero(&self) -> &NonZeroUsize {
-        &self.threshold.0
-    }
-
     /// Return the associated delegates of this document.
     pub fn delegates(&self) -> &Delegates {
         &self.delegates
@@ -747,6 +860,27 @@ impl Doc {
     /// Check if the `did` is part of the [`Doc::delegates`] set.
     pub fn is_delegate(&self, did: &Did) -> bool {
         self.delegates.contains(did)
+    }
+
+    /// Return the canonical reference rules of this document.
+    pub fn rules(&self) -> &Rules {
+        &self.canonical_refs.rules
+    }
+
+    /// Return the canonical reference rule for the identity's default branch,
+    /// if the repository has a [`Doc::project`] associated with it.
+    pub fn default_branch_rule(&self) -> Result<Option<MatchedRule>, PayloadError> {
+        match self.project() {
+            Ok(project) => Ok(self.rule_of(git::refs::branch(project.default_branch()).clone())),
+            Err(e) if e.is_not_found() => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Get the matching rule, if present, from the identity's canonical
+    /// reference rules.
+    pub fn rule_of<'a>(&self, refname: git::Qualified<'a>) -> Option<MatchedRule<'a>> {
+        self.rules().matches(refname)
     }
 
     /// Check whether this document and the associated repository is visible to
@@ -839,6 +973,16 @@ impl Doc {
         })
     }
 
+    /// Load the identity document as raw JSON from the provided `commit`.
+    pub fn load_json<R: ReadRepository>(
+        commit: Oid,
+        repo: &R,
+    ) -> Result<serde_json::Value, DocError> {
+        let blob = Self::blob_at(commit, repo)?;
+        let value = serde_json::from_slice::<serde_json::Value>(blob.content())?;
+        Ok(value)
+    }
+
     /// Initialize an [`identity::Identity`] with this [`Doc`] as the associated
     /// document.
     pub fn init<G: crypto::Signer>(
@@ -862,6 +1006,18 @@ impl Doc {
         )?;
 
         Ok(*cob.id)
+    }
+
+    /// Attempt to deserialize the `raw` JSON into known document versions and
+    /// then migrate them to the latest [`Doc`] version.
+    pub fn migrate_from(raw: serde_json::Value) -> Result<Self, MigrationError> {
+        match serde_json::from_value::<v1::Doc>(raw) {
+            Ok(doc) => doc.migrate().map_err(MigrationError::from),
+            Err(err) => Err(MigrationError::Unknown {
+                version: v1::IDENTITY_VERSION.into(),
+                err,
+            }),
+        }
     }
 }
 
@@ -888,7 +1044,13 @@ mod test {
     fn test_duplicate_dids() {
         let delegate = MockSigner::from_seed([0xff; 32]);
         let did = Did::from(delegate.public_key());
-        let mut doc = RawDoc::new(gen::<Project>(1), vec![did], 1, Visibility::Public);
+        let mut doc = RawDoc::new(
+            gen::<Project>(1),
+            vec![did],
+            1,
+            RawRules::default(),
+            Visibility::Public,
+        );
         doc.delegate(did);
         let doc = doc.verified().unwrap();
         assert!(doc.delegates().len() == 1, "Duplicate DID was not removed");
@@ -905,12 +1067,19 @@ mod test {
             gen::<Project>(1),
             delegates[0..MAX_DELEGATES].into(),
             1,
+            RawRules::default(),
             Visibility::Public,
         );
         assert_matches!(doc.verified(), Ok(_));
 
         // A document that exceeds max delegates should fail
-        let doc = RawDoc::new(gen::<Project>(1), delegates, 1, Visibility::Public);
+        let doc = RawDoc::new(
+            gen::<Project>(1),
+            delegates,
+            1,
+            RawRules::default(),
+            Visibility::Public,
+        );
         assert_matches!(doc.verified(), Err(DocError::Delegates(DelegatesError(_))));
     }
 
@@ -941,8 +1110,9 @@ mod test {
     }
 
     #[test]
-    fn test_parse_version() {
-        // Original document before introducing the version field
+    fn test_migrate_v1() {
+        // Harcoded version 1 of the identity document. We expect that parsing
+        // this into the latest document should pass.
         let v1 = json!(
             {
                 "payload": {
@@ -987,31 +1157,60 @@ mod test {
                 .parse::<Did>()
                 .unwrap(),
         ];
+        let canonical_refs = RawCanonicalRefs::new(RawRules::default());
         // And this is the expected outcome of the deserialization
         assert_eq!(
             doc,
             RawDoc {
-                version: IDENTITY_VERSION,
+                version: v1::IDENTITY_VERSION,
                 payload: payload.clone(),
                 delegates: delegates.clone(),
-                threshold: 1,
+                threshold: Some(1),
+                canonical_refs,
                 visibility: Visibility::Public,
             }
         );
 
         // Deserializing into `Doc` should also succeed.
         let verified = serde_json::from_str::<Doc>(&v1.to_string()).unwrap();
-        let delegates = Delegates(NonEmpty::from_vec(delegates).unwrap());
+        let delegates = NonEmpty::from_vec(delegates).unwrap();
+        // Note that v1 -> v2 upgrade introduces adding a rule for the default
+        // branch when it comes to project repositories.
+        let rules = Rules::from_raw(
+            [(
+                rules::Pattern::try_from(git::refspec::qualified_pattern!("refs/heads/master"))
+                    .unwrap(),
+                Rule::new(rules::Allowed::Delegates, 1),
+            )],
+            &mut |ds| match ds {
+                rules::Allowed::Delegates => Ok(Delegates(delegates.clone())),
+                rules::Allowed::Set(_) => Ok(Delegates(delegates.clone())),
+            },
+        )
+        .unwrap();
         assert_eq!(
             verified,
             Doc {
-                version: IDENTITY_VERSION,
-                threshold: Threshold::new(1, &delegates).unwrap(),
+                version: v1::IDENTITY_VERSION,
                 payload: payload.clone(),
-                delegates,
+                delegates: Delegates(delegates.clone()),
+                canonical_refs: CanonicalRefs::new(rules.clone()),
                 visibility: Visibility::Public,
             }
         );
+
+        // Test that we can migrate from the raw JSON value into a verified
+        // latest version of the document
+        assert_eq!(
+            Doc::migrate_from(v1).unwrap(),
+            Doc {
+                version: IDENTITY_VERSION,
+                payload,
+                delegates: Delegates(delegates),
+                canonical_refs: CanonicalRefs::new(rules),
+                visibility: Visibility::Public,
+            }
+        )
     }
 
     #[test]
@@ -1040,9 +1239,9 @@ mod test {
         );
         assert_eq!(
             (*id).to_string(),
-            "d96f425412c9f8ad5d9a9a05c9831d0728e2338d"
+            "b38d81ee99d880461a3b7b3502e5d1556e440ef3"
         );
-        assert_eq!(id.urn(), String::from("rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji"));
+        assert_eq!(id.urn(), String::from("rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2"));
     }
 
     #[test]

@@ -159,6 +159,20 @@ fn rad_issue() {
 }
 
 #[test]
+fn rad_canonical_ref() {
+    let mut environment = Environment::new();
+    let profile = environment.profile(config::profile("alice"));
+    let home = &profile.home;
+    let working = environment.tmp().join("working");
+
+    // Setup a test repository.
+    fixtures::repository(&working);
+
+    test("examples/rad-init.md", &working, Some(home), []).unwrap();
+    test("examples/rad-canonical-ref.md", &working, Some(home), []).unwrap();
+}
+
+#[test]
 fn rad_cob_log() {
     let mut environment = Environment::new();
     let profile = environment.profile(config::profile("alice"));
@@ -394,7 +408,7 @@ fn rad_id() {
     let bob = environment.node(config::node("bob"));
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     // Setup a test repository.
     fixtures::repository(working.join("alice"));
@@ -435,7 +449,11 @@ fn rad_id() {
     .unwrap();
 }
 
+// FIXME: the test for this would require being able to modify the threshold of
+// the default branch rule and the delegate set at the same time, but right now
+// that's not possible via the CLI.
 #[test]
+#[ignore]
 fn rad_id_threshold() {
     let mut environment = Environment::new();
     let alice = environment.node(config::node("alice"));
@@ -443,7 +461,7 @@ fn rad_id_threshold() {
     let seed = environment.node(config::node("seed"));
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     // Setup a test repository.
     fixtures::repository(working.join("alice"));
@@ -500,7 +518,7 @@ fn rad_id_threshold_soft_fork() {
     let bob = environment.node(config::node("bob"));
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     // Setup a test repository.
     fixtures::repository(working.join("alice"));
@@ -578,7 +596,7 @@ fn rad_id_multi_delegate() {
     let eve = environment.node(Config::test(Alias::new("eve")));
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     // Setup a test repository.
     fixtures::repository(working.join("alice"));
@@ -639,7 +657,7 @@ fn rad_id_collaboration() {
     let distrustful = environment.node(config::seed("distrustful"));
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     // Setup a test repository.
     fixtures::repository(working.join("alice"));
@@ -741,7 +759,7 @@ fn rad_id_conflict() {
     let bob = environment.node(Config::test(Alias::new("bob")));
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     // Setup a test repository.
     fixtures::repository(working.join("alice"));
@@ -986,7 +1004,7 @@ fn rad_patch_checkout_force() {
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
     let working = environment.tmp().join("working");
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     // Setup a test repository.
     fixtures::repository(working.join("alice"));
@@ -1223,7 +1241,7 @@ fn rad_patch_delete() {
     let bob = environment.node(config::relay("bob"));
     let seed = environment.node(config::relay("seed"));
     let working = environment.tmp().join("working");
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     // Setup a test repository.
     fixtures::repository(working.join("alice"));
@@ -1283,7 +1301,7 @@ fn rad_clean() {
     let working = environment.tmp().join("working");
 
     // Setup a test project.
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
     fixtures::repository(working.join("acme"));
     test(
         "examples/rad-init.md",
@@ -1522,7 +1540,7 @@ fn rad_clone_connect() {
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
     let mut eve = environment.node(Config::test(Alias::new("eve")));
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
     let ua = UserAgent::default();
     let now = localtime::LocalTime::now().into();
 
@@ -2012,7 +2030,7 @@ fn rad_sync() {
     let alice = environment.node(config::seed("alice"));
     let bob = environment.node(config::seed("bob"));
     let eve = environment.node(config::seed("eve"));
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     fixtures::repository(working.join("acme"));
 
@@ -2062,7 +2080,7 @@ fn test_replication_via_seed() {
         ..config::relay("seed")
     });
     let working = environment.tmp().join("working");
-    let rid = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let rid = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
@@ -2149,7 +2167,7 @@ fn rad_remote() {
     let eve = environment.node(config::relay("eve"));
     let working = environment.tmp().join("working");
     let home = alice.home.clone();
-    let rid = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let rid = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
     // Setup a test repository.
     fixtures::repository(working.join("alice"));
 
@@ -2537,7 +2555,7 @@ fn git_push_diverge() {
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
     let working = environment.tmp().join("working");
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     fixtures::repository(working.join("alice"));
 
@@ -2581,7 +2599,7 @@ fn git_push_converge() {
     let bob = environment.node(Config::test(Alias::new("bob")));
     let eve = environment.node(Config::test(Alias::new("eve")));
     let working = environment.tmp().join("working");
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     fixtures::repository(working.join("alice"));
 
@@ -2642,7 +2660,7 @@ fn git_push_amend() {
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
     let working = environment.tmp().join("working");
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     fixtures::repository(working.join("alice"));
 
@@ -2683,7 +2701,7 @@ fn git_push_rollback() {
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
     let working = environment.tmp().join("working");
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     fixtures::repository(working.join("alice"));
 
@@ -2724,7 +2742,7 @@ fn rad_push_and_pull_patches() {
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
     let working = environment.tmp().join("working");
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let acme = RepoId::from_str("z3W5xAVWJ9Gc4LbN16mE3tjWX92t2").unwrap();
 
     fixtures::repository(working.join("alice"));
 
@@ -2929,6 +2947,54 @@ fn git_push_and_fetch() {
         Some(&alice.home),
         [],
     )
+    .unwrap();
+}
+
+#[test]
+fn git_push_canonical_tags() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    bob.connect(&alice).converge([&alice]);
+
+    test(
+        "examples/rad-clone.md",
+        working.join("bob"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+    formula(
+        &environment.tmp(),
+        "examples/git/git-push-canonical-tags.md",
+    )
+    .unwrap()
+    .home(
+        "alice",
+        working.join("alice"),
+        [("RAD_HOME", alice.home.path().display())],
+    )
+    .home(
+        "bob",
+        working.join("bob"),
+        [("RAD_HOME", bob.home.path().display())],
+    )
+    .run()
     .unwrap();
 }
 

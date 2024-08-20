@@ -11,6 +11,7 @@ use cyphernet::EcPk;
 use qcheck::Arbitrary;
 
 use crate::collections::RandomMap;
+use crate::git::canonical::rules::RawRules;
 use crate::identity::doc::Visibility;
 use crate::identity::project::ProjectName;
 use crate::identity::{
@@ -144,7 +145,7 @@ impl Arbitrary for RawDoc {
         let delegate = Did::arbitrary(g);
         let visibility = Visibility::arbitrary(g);
 
-        Self::new(proj, vec![delegate], 1, visibility)
+        Self::new(proj, vec![delegate], 1, RawRules::default(), visibility)
     }
 }
 
@@ -157,8 +158,13 @@ impl Arbitrary for Doc {
             .collect::<Vec<_>>();
         let threshold = delegates.len() / 2 + 1;
         let visibility = Visibility::arbitrary(g);
-        let doc = RawDoc::new(project, delegates, threshold, visibility);
-
+        let doc = RawDoc::new(
+            project,
+            delegates,
+            threshold,
+            RawRules::default(),
+            visibility,
+        );
         doc.verified().unwrap()
     }
 }

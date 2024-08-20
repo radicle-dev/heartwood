@@ -2,6 +2,8 @@
 pub mod rad_auth;
 #[path = "commands/block.rs"]
 pub mod rad_block;
+#[path = "commands/canonical_ref.rs"]
+pub mod rad_canonical_ref;
 #[path = "commands/checkout.rs"]
 pub mod rad_checkout;
 #[path = "commands/clean.rs"]

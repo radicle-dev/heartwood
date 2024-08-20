@@ -125,6 +125,7 @@ $ rad inbox --all
 ╰──────────────────────────────────────────────────────────────────────╯
 $ rad inbox show 1
 {
+  "version": 2,
   "payload": {
     "xyz.radicle.project": {
       "defaultBranch": "master",
@@ -135,6 +136,13 @@ $ rad inbox show 1
   "delegates": [
     "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
   ],
-  "threshold": 1
+  "canonicalRefs": {
+    "rules": {
+      "refs/heads/master": {
+        "allow": "delegates",
+        "threshold": 1
+      }
+    }
+  }
 }
 ```
