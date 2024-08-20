@@ -2,11 +2,11 @@ Let's add a payload field and then delete it.
 
 ```
 $ rad id update --title "Add field" --description "Add a new 'web' field" --payload xyz.radicle.project web '"https://acme.example"'
-✓ Identity revision a8a9fee6c4f83578ab132d375f1da0c81282bef3 created
+✓ Identity revision 4914cd968cd47b7f310946ba6c8e14269ca5a627 created
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add field                                                     │
-│ Revision a8a9fee6c4f83578ab132d375f1da0c81282bef3                      │
-│ Blob     fbe268d13e60f1f3a1972e0ccd592f3cdecf08b5                      │
+│ Revision 4914cd968cd47b7f310946ba6c8e14269ca5a627                      │
+│ Blob     74b79e158b1fd4ee3998dd541126d9e14a9ae976                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    accepted                                                      │
 │ Quorum   yes                                                           │
@@ -16,8 +16,9 @@ $ rad id update --title "Add field" --description "Add a new 'web' field" --payl
 │ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi alice (you) │
 ╰────────────────────────────────────────────────────────────────────────╯
 
-@@ -1,13 +1,14 @@
+@@ -1,21 +1,22 @@
  {
+   "version": 2,
    "payload": {
      "xyz.radicle.project": {
        "defaultBranch": "master",
@@ -30,7 +31,14 @@ $ rad id update --title "Add field" --description "Add a new 'web' field" --payl
    "delegates": [
      "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
    ],
-   "threshold": 1
+   "canonicalRefs": {
+     "rules": {
+       "refs/heads/master": {
+         "allow": "delegates",
+         "threshold": 1
+       }
+     }
+   }
  }
 ```
 
@@ -38,11 +46,11 @@ Now let's delete it by setting it to `null`.
 
 ```
 $ rad id update --title "Delete field" --description "Delete 'web'" --payload xyz.radicle.project web null
-✓ Identity revision d373c35876833105f8aafed8b610660b5737cd67 created
+✓ Identity revision 899c3a31664f6433bd92ccfd7fe02a3382de9e47 created
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Delete field                                                  │
-│ Revision d373c35876833105f8aafed8b610660b5737cd67                      │
-│ Blob     d96f425412c9f8ad5d9a9a05c9831d0728e2338d                      │
+│ Revision 899c3a31664f6433bd92ccfd7fe02a3382de9e47                      │
+│ Blob     b38d81ee99d880461a3b7b3502e5d1556e440ef3                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    accepted                                                      │
 │ Quorum   yes                                                           │
@@ -52,8 +60,9 @@ $ rad id update --title "Delete field" --description "Delete 'web'" --payload xy
 │ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi alice (you) │
 ╰────────────────────────────────────────────────────────────────────────╯
 
-@@ -1,14 +1,13 @@
+@@ -1,22 +1,21 @@
  {
+   "version": 2,
    "payload": {
      "xyz.radicle.project": {
        "defaultBranch": "master",
@@ -66,7 +75,14 @@ $ rad id update --title "Delete field" --description "Delete 'web'" --payload xy
    "delegates": [
      "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
    ],
-   "threshold": 1
+   "canonicalRefs": {
+     "rules": {
+       "refs/heads/master": {
+         "allow": "delegates",
+         "threshold": 1
+       }
+     }
+   }
  }
 ```
 

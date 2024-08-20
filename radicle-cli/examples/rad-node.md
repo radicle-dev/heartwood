@@ -43,7 +43,7 @@ $ rad seed
 ╭───────────────────────────────────────────────────────────────────╮
 │ Repository                          Name        Policy   Scope    │
 ├───────────────────────────────────────────────────────────────────┤
-│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   heartwood   allow    followed │
+│ rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2   heartwood   allow    followed │
 ╰───────────────────────────────────────────────────────────────────╯
 ```
 
@@ -68,7 +68,7 @@ $ rad node routing
 ╭─────────────────────────────────────────────────────╮
 │ RID                                 NID             │
 ├─────────────────────────────────────────────────────┤
-│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   z6MknSL…StBU8Vi │
+│ rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2   z6MknSL…StBU8Vi │
 ╰─────────────────────────────────────────────────────╯
 ```
 
@@ -90,8 +90,8 @@ $ rad node stop
 Note that if we unseed a repository, it is no longer part of our inventory:
 
 ```
-$ rad unseed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Seeding policy for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji removed
+$ rad unseed rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
+✓ Seeding policy for rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 removed
 $ rad node inventory
 ```
 
@@ -106,11 +106,11 @@ $ rad node inventory
 But if we start seeding the repository we have locally again, it'll show
 up in our inventory:
 ```
-$ rad seed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Inventory updated with rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
+$ rad seed rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
+✓ Inventory updated with rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
+✓ Seeding policy updated for rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 with scope 'all'
 $ rad node inventory
-rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
 ```
 
 Some commands also give us a hint if the node isn't running:

@@ -16,10 +16,10 @@ $ cat .git/config
 [push]
 	default = upstream
 [remote "rad"]
-	url = rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+	url = rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2
 	fetch = +refs/heads/*:refs/remotes/rad/*
 	fetch = +refs/tags/*:refs/remotes/rad/tags/*
-	pushurl = rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+	pushurl = rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 [branch "master"]
 	remote = rad
 	merge = refs/heads/master

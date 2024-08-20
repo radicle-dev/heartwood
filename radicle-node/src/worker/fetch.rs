@@ -9,12 +9,14 @@ use radicle::cob::TypedId;
 use radicle::crypto::PublicKey;
 use radicle::identity::DocAt;
 use radicle::prelude::RepoId;
+use radicle::storage::git::Repository;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{
     ReadRepository, ReadStorage as _, RefUpdate, RemoteRepository, RepositoryError,
     WriteRepository as _,
 };
 use radicle::{cob, git, node, Storage};
+use radicle_fetch::git::refs::Applied;
 use radicle_fetch::{Allowed, BlockList, FetchLimit};
 
 use super::channels::ChannelsFlush;
@@ -151,6 +153,10 @@ impl Handle {
                         log::warn!(target: "worker", "Fetch could not set HEAD: {e}")
                     }
                     Err(e) => return Err(e.into()),
+                }
+
+                if let Err(e) = set_canonical_refs(&repo, &applied) {
+                    log::warn!(target: "worker", "Failed to set canonical references: {e}");
                 }
 
                 // Notifications are only posted for pulls, not clones.
@@ -374,5 +380,49 @@ where
             err: Box::new(e),
         })?;
 
+    Ok(())
+}
+
+fn set_canonical_refs(repo: &Repository, applied: &Applied) -> Result<(), error::Canonical> {
+    let identity = repo.identity()?;
+    let rules = identity.rules();
+    if rules.is_empty() {
+        return Ok(());
+    }
+    let matches = applied.updated.iter().filter_map(|r| match r {
+        RefUpdate::Updated { name, .. } | RefUpdate::Created { name, .. } => {
+            let name = name.clone().into_qualified()?;
+            let name = name.to_namespaced()?.strip_namespace();
+            rules.matches(name)
+        }
+        RefUpdate::Deleted { .. } | RefUpdate::Skipped { .. } => None,
+    });
+    for matched in matches {
+        let Ok(canonical) = matched.canonical(repo) else {
+            log::warn!(target: "worker", "Failed to get canonical tips for {}", matched.refname());
+            continue;
+        };
+        let Ok(oid) = canonical.quorum(&repo.backend) else {
+            log::warn!(
+                target: "worker",
+                "Failed to calculate canonical tip for {}",
+                matched.refname()
+            );
+            continue;
+        };
+        if let Err(e) = repo.backend.reference(
+            matched.refname().as_str(),
+            *oid,
+            true,
+            "set-canonical-reference from fetch (radicle)",
+        ) {
+            log::warn!(
+                target: "worker",
+                "Failed to set canonical tip for {}->{}: {e}",
+                matched.refname(),
+                oid
+            );
+        }
+    }
     Ok(())
 }

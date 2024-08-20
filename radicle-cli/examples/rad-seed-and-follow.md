@@ -21,8 +21,8 @@ $ rad follow
 Now let's seed one of Eve's repositories:
 
 ```
-$ rad seed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope followed --no-fetch
-✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'followed'
+$ rad seed rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 --scope followed --no-fetch
+✓ Seeding policy updated for rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2 with scope 'followed'
 ```
 
 We can list the repositories we are seeding by omitting the RID:
@@ -32,6 +32,6 @@ $ rad seed
 ╭──────────────────────────────────────────────────────────────╮
 │ Repository                          Name   Policy   Scope    │
 ├──────────────────────────────────────────────────────────────┤
-│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji          allow    followed │
+│ rad:z3W5xAVWJ9Gc4LbN16mE3tjWX92t2          allow    followed │
 ╰──────────────────────────────────────────────────────────────╯
 ```
