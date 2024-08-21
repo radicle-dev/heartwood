@@ -1,6 +1,5 @@
 pub mod cache;
 
-use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::ops::Deref;
@@ -185,14 +184,6 @@ pub enum Action {
         verdict: Option<Verdict>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         labels: Vec<Label>,
-    },
-    #[serde(rename = "review.edit")]
-    ReviewEdit {
-        review: ReviewId,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        verdict: Option<Verdict>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        summary: Option<String>,
     },
     #[serde(rename = "review.redact")]
     ReviewRedact { review: ReviewId },
@@ -658,15 +649,6 @@ impl Patch {
             },
             // Anyone can submit a review.
             Action::Review { .. } => Authorization::Allow,
-            // The review author can edit a review.
-            Action::ReviewEdit { review, .. } => {
-                if let Some((_, review)) = lookup::review(self, review)? {
-                    Authorization::from(actor == review.author.public_key())
-                } else {
-                    // Redacted.
-                    Authorization::Unknown
-                }
-            }
             Action::ReviewRedact { review, .. } => {
                 if let Some((_, review)) = lookup::review(self, review)? {
                     Authorization::from(actor == review.author.public_key())
@@ -804,29 +786,6 @@ impl Patch {
                     return Err(Error::Missing(revision.into_inner()));
                 }
             }
-            Action::ReviewEdit {
-                review,
-                summary,
-                verdict,
-            } => {
-                let Some(Some((revision, author))) = self.reviews.get(&review) else {
-                    return Err(Error::Missing(review.into_inner()));
-                };
-                let Some(rev) = self.revisions.get_mut(revision) else {
-                    return Err(Error::Missing(revision.into_inner()));
-                };
-                // If the revision was redacted concurrently, there's nothing to do.
-                // Likewise, if the review was redacted concurrently, there's nothing to do.
-                if let Some(rev) = rev {
-                    let Some(review) = rev.reviews.get_mut(author) else {
-                        return Err(Error::Missing(review.into_inner()));
-                    };
-                    if let Some(review) = review {
-                        review.summary = summary;
-                        review.verdict = verdict;
-                    }
-                }
-            }
             Action::Revision {
                 description,
                 base,
@@ -891,30 +850,25 @@ impl Patch {
                 labels,
             } => {
                 let Some(rev) = self.revisions.get_mut(&revision) else {
-                    return Err(Error::Missing(revision.into_inner()));
+                    // If the revision was redacted concurrently, there's nothing to do.
+                    return Ok(());
                 };
                 if summary.is_none() && verdict.is_none() {
                     return Err(Error::EmptyReview);
                 }
                 if let Some(rev) = rev {
                     let id = ReviewId(entry);
-                    // Nb. Applying two reviews by the same author is not allowed.
-                    match rev.reviews.entry(author) {
-                        Entry::Occupied(_) => {
-                            return Err(Error::DuplicateReview(id, revision, author));
-                        }
-                        Entry::Vacant(e) => {
-                            e.insert(Some(Review::new(
-                                id,
-                                Author::new(author),
-                                verdict,
-                                summary.to_owned(),
-                                labels,
-                                timestamp,
-                            )));
-                        }
-                    }
-                    // Update reviews index.
+                    let review = Review::new(
+                        id,
+                        Author::new(author),
+                        verdict,
+                        summary.to_owned(),
+                        labels,
+                        timestamp,
+                    );
+                    rev.reviews.entry(author).or_default().push(review);
+                    // Update reviews index. The latest review is what matters, the older
+                    // ones are kept for history.
                     self.reviews.insert(id, Some((revision, author)));
                 }
             }
@@ -1005,12 +959,13 @@ impl Patch {
                 let Some(revision) = redactable else {
                     return Ok(());
                 };
-                // The review must have existed as well.
-                let Some(review) = revision.reviews.get_mut(reviewer) else {
-                    return Err(Error::Missing(review.into_inner()));
+                // The reviews may have been removed concurrently.
+                let Some(reviews) = revision.reviews.get_mut(reviewer) else {
+                    return Ok(());
                 };
-                // Set both the review and the locator in the review index to redacted.
-                *review = None;
+                // Remove matching reviews for this author (there should only be one).
+                reviews.retain(|r| r.id != review);
+                // Set the review locator in the review index to redacted.
                 *locator = None;
             }
             Action::Merge { revision, commit } => {
@@ -1293,10 +1248,13 @@ mod lookup {
             Some(Some((revision, author))) => {
                 match patch.revisions.get(revision) {
                     Some(Some(r)) => {
-                        let Some(review) = r.reviews.get(author) else {
+                        let Some(reviews) = r.reviews.get(author) else {
                             return Err(Error::Missing(review.into_inner()));
                         };
-                        Ok(review.as_ref().map(|review| (r, review)))
+                        Ok(reviews
+                            .iter()
+                            .find(|r| &r.id == review)
+                            .map(|review| (r, review)))
                     }
                     Some(None) => {
                         // If the revision was redacted concurrently, there's nothing to do.
@@ -1322,10 +1280,10 @@ mod lookup {
             Some(Some((revision, author))) => {
                 match patch.revisions.get_mut(revision) {
                     Some(Some(r)) => {
-                        let Some(review) = r.reviews.get_mut(author) else {
+                        let Some(reviews) = r.reviews.get_mut(author) else {
                             return Err(Error::Missing(review.into_inner()));
                         };
-                        Ok(review.as_mut())
+                        Ok(reviews.iter_mut().find(|r| &r.id == review))
                     }
                     Some(None) => {
                         // If the revision was redacted concurrently, there's nothing to do.
@@ -1360,8 +1318,8 @@ pub struct Revision {
     pub(super) oid: git::Oid,
     /// Discussion around this revision.
     pub(super) discussion: Thread<Comment<CodeLocation>>,
-    /// Reviews of this revision's changes (one per actor).
-    pub(super) reviews: BTreeMap<ActorId, Option<Review>>,
+    /// Reviews of this revision's changes (all review edits are kept).
+    pub(super) reviews: BTreeMap<ActorId, Vec<Review>>,
     /// When this revision was created.
     pub(super) timestamp: Timestamp,
     /// Review comments resolved by this revision.
@@ -1459,12 +1417,20 @@ impl Revision {
     pub fn reviews(&self) -> impl DoubleEndedIterator<Item = (&PublicKey, &Review)> {
         self.reviews
             .iter()
-            .filter_map(|(author, review)| review.as_ref().map(|r| (author, r)))
+            .filter_map(|(author, review)| review.last().map(|r| (author, r)))
     }
 
     /// Get a review by author.
     pub fn review_by(&self, author: &ActorId) -> Option<&Review> {
-        self.reviews.get(author).and_then(|o| o.as_ref())
+        self.reviews.get(author).and_then(|o| o.last())
+    }
+
+    /// Get the chronological review history of an author.
+    pub fn review_history_by(&self, author: &ActorId) -> &[Review] {
+        self.reviews
+            .get(author)
+            .map(|r| r.as_slice())
+            .unwrap_or(&[])
     }
 }
 
@@ -1679,19 +1645,6 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         })
     }
 
-    pub fn edit_review(
-        &mut self,
-        review: ReviewId,
-        summary: Option<String>,
-        verdict: Option<Verdict>,
-    ) -> Result<(), store::Error> {
-        self.push(Action::ReviewEdit {
-            review,
-            summary,
-            verdict,
-        })
-    }
-
     /// Redact the revision.
     pub fn redact(&mut self, revision: RevisionId) -> Result<(), store::Error> {
         self.push(Action::RevisionRedact { revision })
@@ -1877,6 +1830,7 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
     }
 
     /// Review a patch revision.
+    /// Overwrites an existing review for that revision, if any.
     pub fn review(
         &mut self,
         revision: RevisionId,
@@ -2016,19 +1970,6 @@ where
     ) -> Result<EntryId, Error> {
         self.transaction("Edit revision", signer, |tx| {
             tx.edit_revision(revision, description, embeds.into_iter().collect())
-        })
-    }
-
-    /// Edit review.
-    pub fn edit_review<G: Signer>(
-        &mut self,
-        review: ReviewId,
-        summary: Option<String>,
-        verdict: Option<Verdict>,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
-        self.transaction("Edit review", signer, |tx| {
-            tx.edit_review(review, summary, verdict)
         })
     }
 
@@ -3149,7 +3090,7 @@ mod test {
             .unwrap();
 
         let (rid, _) = patch.latest();
-        let review = patch
+        patch
             .review(
                 rid,
                 Some(Verdict::Accept),
@@ -3159,14 +3100,15 @@ mod test {
             )
             .unwrap();
         patch
-            .edit_review(
-                review,
-                Some("Whoops!".to_owned()),
+            .review(
+                rid,
                 Some(Verdict::Reject),
+                Some("Whoops!".to_owned()),
+                vec![],
                 &alice.signer,
             )
             .unwrap(); // Overwrite the comment.
-                       //
+
         let (_, revision) = patch.latest();
         let review = revision.review_by(alice.signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Reject));
@@ -3239,11 +3181,17 @@ mod test {
             .unwrap();
 
         let (rid, _) = patch.latest();
-        let review = patch
-            .review(rid, None, Some("Nah".to_owned()), vec![], &alice.signer)
+        patch
+            .review(
+                rid,
+                Some(Verdict::Accept),
+                Some("Nah".to_owned()),
+                vec![],
+                &alice.signer,
+            )
             .unwrap();
         patch
-            .edit_review(review, None, None, &alice.signer)
+            .review(rid, Some(Verdict::Accept), None, vec![], &alice.signer)
             .unwrap();
 
         let id = patch.id;
@@ -3251,6 +3199,7 @@ mod test {
         let (_, revision) = patch.latest();
         let review = revision.review_by(alice.signer.public_key()).unwrap();
 
+        assert_eq!(review.verdict(), Some(Verdict::Accept));
         assert_eq!(review.summary(), None);
     }
 
