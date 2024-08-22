@@ -1157,6 +1157,26 @@ fn rad_patch_merge_draft() {
 }
 
 #[test]
+fn rad_patch_revert_merge() {
+    let mut environment = Environment::new();
+    let profile = environment.profile(config::profile("alice"));
+    let working = tempfile::tempdir().unwrap();
+    let home = &profile.home;
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+
+    test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
+    test(
+        "examples/rad-patch-revert-merge.md",
+        working.path(),
+        Some(home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 #[cfg(not(target_os = "macos"))]
 fn rad_review_by_hunk() {
     let mut environment = Environment::new();

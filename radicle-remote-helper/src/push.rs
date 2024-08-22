@@ -566,7 +566,10 @@ fn push<G: Signer>(
     nid: &NodeId,
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
-    patches: patch::Cache<patch::Patches<'_, storage::git::Repository>, cob::cache::StoreWriter>,
+    mut patches: patch::Cache<
+        patch::Patches<'_, storage::git::Repository>,
+        cob::cache::StoreWriter,
+    >,
     signer: &G,
 ) -> Result<Option<ExplorerResource>, Error> {
     let head = match working.find_reference(src.as_str()) {
@@ -592,16 +595,85 @@ fn push<G: Signer>(
         let master = &*git::Qualified::from(git::lit::refs_heads(proj.default_branch()));
 
         // If we're pushing to the project's default branch, we want to see if any patches got
-        // merged, and if so, update the patch COB.
+        // merged or reverted, and if so, update the patch COB.
         if &*dst.strip_namespace() == master {
             let old = old.peel_to_commit()?.id();
-            // Only delegates should publish the merge result to the COB.
+            // Only delegates affect the merge state of the COB.
             if stored.delegates()?.contains(&nid.into()) {
-                patch_merge_all(old.into(), head.into(), working, patches, signer)?;
+                patch_revert_all(
+                    old.into(),
+                    head.into(),
+                    &stored.backend,
+                    &mut patches,
+                    signer,
+                )?;
+                patch_merge_all(old.into(), head.into(), working, &mut patches, signer)?;
             }
         }
     }
     Ok(Some(ExplorerResource::Tree { oid: head.into() }))
+}
+
+/// Revert all patches that are no longer included in the base branch.
+fn patch_revert_all<G: Signer>(
+    old: git::Oid,
+    new: git::Oid,
+    stored: &git::raw::Repository,
+    patches: &mut patch::Cache<
+        patch::Patches<'_, storage::git::Repository>,
+        cob::cache::StoreWriter,
+    >,
+    _signer: &G,
+) -> Result<(), Error> {
+    // Find all commits reachable from the old OID but not from the new OID.
+    let mut revwalk = stored.revwalk()?;
+    revwalk.push(*old)?;
+    revwalk.hide(*new)?;
+
+    // List of commits that have been dropped.
+    let dropped = revwalk
+        .map(|r| r.map(git::Oid::from))
+        .collect::<Result<Vec<git::Oid>, _>>()?;
+    if dropped.is_empty() {
+        return Ok(());
+    }
+
+    // Get the list of merged patches.
+    let merged = patches
+        .merged()?
+        // Skip patches that failed to load.
+        .filter_map(|patch| patch.ok())
+        .collect::<Vec<_>>();
+
+    for (id, patch) in merged {
+        let revisions = patch
+            .revisions()
+            .map(|(id, r)| (id, r.head()))
+            .collect::<Vec<_>>();
+
+        for commit in &dropped {
+            if let Some((revision_id, _)) = revisions.iter().find(|(_, head)| commit == head) {
+                // Simply refreshing the cache entry will pick up on the fact that this patch
+                // is no longer merged in the canonical branch.
+                match patches.write(&id) {
+                    Ok(()) => {
+                        eprintln!(
+                            "{} Patch {} reverted at revision {}",
+                            term::format::yellow("!"),
+                            term::format::tertiary(&id),
+                            term::format::dim(term::format::oid(*revision_id)),
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!("{} Error reverting patch {id}: {e}", term::ERROR_PREFIX);
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Merge all patches that have been included in the base branch.
@@ -609,7 +681,7 @@ fn patch_merge_all<G: Signer>(
     old: git::Oid,
     new: git::Oid,
     working: &git::raw::Repository,
-    mut patches: patch::Cache<
+    patches: &mut patch::Cache<
         patch::Patches<'_, storage::git::Repository>,
         cob::cache::StoreWriter,
     >,
@@ -622,14 +694,17 @@ fn patch_merge_all<G: Signer>(
     let commits = revwalk
         .map(|r| r.map(git::Oid::from))
         .collect::<Result<Vec<git::Oid>, _>>()?;
+    if commits.is_empty() {
+        return Ok(());
+    }
 
-    let all = patches
+    let open = patches
         .opened()?
         .chain(patches.drafted()?)
         // Skip patches that failed to load.
         .filter_map(|patch| patch.ok())
         .collect::<Vec<_>>();
-    for (id, patch) in all {
+    for (id, patch) in open {
         // Later revisions are more likely to be merged, so we build the list backwards.
         let revisions = patch
             .revisions()
@@ -642,7 +717,7 @@ fn patch_merge_all<G: Signer>(
         // revision that is closest to the tip of the commit chain we're pushing.
         for commit in &commits {
             if let Some((revision_id, _)) = revisions.iter().find(|(_, head)| commit == head) {
-                let patch = patch::PatchMut::new(id, patch, &mut patches);
+                let patch = patch::PatchMut::new(id, patch, patches);
                 patch_merge(patch, *revision_id, new, working, signer)?;
 
                 break;
