@@ -60,7 +60,7 @@ version = "0.12.0"
 path = "../radicle-cob"
 
 [dependencies.radicle-crypto]
-version = "0.10.0"
+version = "0"
 path = "../radicle-crypto"
 
 [dependencies.radicle-term]
