@@ -1,11 +1,19 @@
 #!/bin/sh
+set -e
 
 DIRECTORY="$(rad path)/storage"
 
+if [ ! -d "$DIRECTORY" ]; then
+  echo "Error: Directory $DIRECTORY does not exist or is not accessible."
+  exit 1
+fi
+
 for repo in "$DIRECTORY"/*; do
-  repo="rad:$(basename $repo)"
-  echo "Processing $repo.."
-  rad issue cache --repo "$repo"
-  rad patch cache --repo "$repo"
-  echo
+  if [ -d "$repo" ]; then
+    rid=$(basename "$repo")
+    echo "Processing rad:$rid.."
+    rad issue cache --repo "rad:$rid"
+    rad patch cache --repo "rad:$rid"
+    echo
+  fi
 done
