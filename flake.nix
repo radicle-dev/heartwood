@@ -237,6 +237,10 @@
           ripgrep
           rust-analyzer
           sqlite
+
+          # For KERI.
+          openssl
+          pkg-config
         ];
 
         env.RUST_SRC_PATH = "${rustToolChain}/lib/rustlib/src/rust/library";
