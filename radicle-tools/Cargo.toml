@@ -9,7 +9,7 @@ edition = "2021"
 anyhow = { version = "1" }
 # N.b. this is required to use macros, even though it's re-exported
 # through radicle
-radicle-git-ext = { version = "0.8.0", features = ["serde"] }
+radicle-git-ext = { version = "0.8", features = ["serde"] }
 
 [dependencies.radicle]
 version = "0"
