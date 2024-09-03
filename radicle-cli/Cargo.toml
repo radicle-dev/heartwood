@@ -3,7 +3,7 @@ name = "radicle-cli"
 description = "Radicle CLI"
 homepage = "https://radicle.xyz"
 license = "MIT OR Apache-2.0"
-version = "0.10.0"
+version = "0.11.0"
 authors = ["cloudhead <cloudhead@radicle.xyz>"]
 edition = "2021"
 build = "build.rs"
@@ -52,11 +52,11 @@ path = "../radicle"
 features = ["logger"]
 
 [dependencies.radicle-cli-test]
-version = "0.10.0"
+version = "0"
 path = "../radicle-cli-test"
 
 [dependencies.radicle-cob]
-version = "0.12.0"
+version = "0"
 path = "../radicle-cob"
 
 [dependencies.radicle-crypto]
