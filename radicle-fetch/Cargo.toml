@@ -3,7 +3,7 @@ name = "radicle-fetch"
 description = "Radicle fetch protocol"
 homepage = "https://radicle.xyz"
 license = "MIT OR Apache-2.0"
-version = "0.9.0"
+version = "0.10.0"
 authors = ["Fintan Halpenny <fintan.halpenny@gmail.com>"]
 edition = "2021"
 
