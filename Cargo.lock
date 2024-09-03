@@ -1903,7 +1903,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cli"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2021,7 +2021,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-fetch"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "bstr",
  "either",
@@ -2055,7 +2055,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-node"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -2094,7 +2094,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-remote-helper"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "log",
  "radicle",
@@ -2106,7 +2106,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-signals"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "crossbeam-channel",
  "libc",
@@ -2153,7 +2153,7 @@ version = "0.9.0"
 
 [[package]]
 name = "radicle-term"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "anstyle-query",
  "anyhow",
