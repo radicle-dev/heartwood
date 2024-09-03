@@ -791,9 +791,9 @@ dependencies = [
 
 [[package]]
 name = "git-ref-format"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "137adab7111fcb575db6f07dae3a7d37f3c2630878954c9931f7135dfa33eeef"
+checksum = "7428e0d6e549a9a613d6f019b839a0f5142c331295b79e119ca8f4faac145da1"
 dependencies = [
  "git-ref-format-core",
  "git-ref-format-macro",
@@ -801,9 +801,9 @@ dependencies = [
 
 [[package]]
 name = "git-ref-format-core"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebb6549ddc63ba5722acb98c823b0eccb7f8b979407bd2a8fd616f581ae50982"
+checksum = "bbaeb9672a55e9e32cb6d3ef781e7526b25ab97d499fae71615649340b143424"
 dependencies = [
  "bstr",
  "serde",
@@ -812,14 +812,14 @@ dependencies = [
 
 [[package]]
 name = "git-ref-format-macro"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18ffd0101a3bd9a3aba39602b8b20751ddb7ee11596debb58be3074209dad2ae"
+checksum = "3b6ca5353accc201f6324dff744ba4660099546d4daf187ba868f07562e36ca4"
 dependencies = [
  "git-ref-format-core",
  "proc-macro-error",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.89",
 ]
 
 [[package]]
@@ -2351,9 +2351,9 @@ dependencies = [
 
 [[package]]
 name = "radicle-git-ext"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16d2e8a6292811e44388e6068fcaf1040401e1f6a7a58cf48cc121cf7453c19d"
+checksum = "4b78c26e67d1712ad5a0c602ae3b236609461372ac04e200bda359fe4a1c6650"
 dependencies = [
  "git-ref-format",
  "git2",
