@@ -280,9 +280,14 @@ impl Worker {
 
     fn is_authorized(&self, remote: NodeId, rid: RepoId) -> Result<(), UploadError> {
         let policy = self.policies.seed_policy(&rid)?.policy;
+        // Check policy first, since if we're blocking then we likely don't have
+        // the repository.
+        if policy.is_block() {
+            return Err(UploadError::Unauthorized(remote, rid));
+        }
         let repo = self.storage.repository(rid)?;
         let doc = repo.identity_doc()?;
-        if !doc.is_visible_to(&remote) || policy.is_block() {
+        if !doc.is_visible_to(&remote) {
             Err(UploadError::Unauthorized(remote, rid))
         } else {
             Ok(())
