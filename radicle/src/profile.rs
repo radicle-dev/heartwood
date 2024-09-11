@@ -104,6 +104,12 @@ pub mod env {
         let Ok(passphrase) = var(RAD_PASSPHRASE) else {
             return None;
         };
+        if passphrase.is_empty() {
+            // `ssh-keygen` treats the empty string as no passphrase,
+            // so we do the same.
+            log::trace!(target: "radicle", "Treating empty passphrase as no passphrase.");
+            return None;
+        }
         Some(super::Passphrase::from(passphrase))
     }
 
