@@ -521,7 +521,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let mut revisions =
                 term::Table::<7, term::Label>::new(term::table::TableOptions::bordered());
 
-            revisions.push([
+            revisions.header([
                 term::format::dim(String::from("●")).into(),
                 term::format::bold(String::from("ID")).into(),
                 term::format::bold(String::from("Title")).into(),

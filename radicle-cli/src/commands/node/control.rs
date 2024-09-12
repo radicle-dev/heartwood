@@ -254,7 +254,7 @@ pub fn sessions(node: &Node) -> Result<Option<term::Table<4, term::Label>>, node
     let mut table = term::Table::new(term::table::TableOptions::bordered());
     let now = LocalTime::now();
 
-    table.push([
+    table.header([
         term::format::bold("Peer").into(),
         term::format::bold("Address").into(),
         term::format::bold("State").into(),

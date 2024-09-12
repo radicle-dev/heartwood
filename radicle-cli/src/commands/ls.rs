@@ -148,7 +148,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     if rows.is_empty() {
         term::print(term::format::italic("Nothing to show."));
     } else {
-        table.push([
+        table.header([
             "Name".into(),
             "RID".into(),
             "Visibility".into(),
