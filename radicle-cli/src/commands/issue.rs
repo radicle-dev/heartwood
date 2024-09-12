@@ -664,7 +664,7 @@ where
     });
 
     let mut table = term::Table::new(term::table::TableOptions::bordered());
-    table.push([
+    table.header([
         term::format::dim(String::from("●")).into(),
         term::format::bold(String::from("ID")).into(),
         term::format::bold(String::from("Title")).into(),

@@ -141,7 +141,7 @@ pub fn following(profile: &Profile, alias: Option<Alias>) -> anyhow::Result<()> 
     let store = profile.policies()?;
     let aliases = profile.aliases();
     let mut t = term::Table::new(term::table::TableOptions::bordered());
-    t.push([
+    t.header([
         term::format::default(String::from("DID")),
         term::format::default(String::from("Alias")),
         term::format::default(String::from("Policy")),

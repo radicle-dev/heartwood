@@ -56,7 +56,7 @@ pub fn run(
         ..TableOptions::default()
     });
 
-    table.push([
+    table.header([
         term::format::dim(String::from("●")).into(),
         term::format::bold(String::from("ID")).into(),
         term::format::bold(String::from("Title")).into(),

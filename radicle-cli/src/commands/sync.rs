@@ -320,7 +320,7 @@ fn sync_status(
     let local_nid = node.nid()?;
     let aliases = profile.aliases();
 
-    table.push([
+    table.header([
         term::format::dim(String::from("●")).into(),
         term::format::bold(String::from("Node")).into(),
         term::Label::blank(),
