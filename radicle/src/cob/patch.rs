@@ -1900,7 +1900,7 @@ pub struct PatchMut<'a, 'g, R, C> {
 impl<'a, 'g, R, C> PatchMut<'a, 'g, R, C>
 where
     C: cob::cache::Update<Patch>,
-    R: ReadRepository + SignRepository + cob::Store,
+    R: WriteRepository + cob::Store,
 {
     pub fn new(id: ObjectId, patch: Patch, cache: &'g mut Cache<Patches<'a, R>, C>) -> Self {
         Self {
@@ -2413,7 +2413,7 @@ where
 
 impl<'a, R> Patches<'a, R>
 where
-    R: ReadRepository + SignRepository + cob::Store,
+    R: WriteRepository + cob::Store,
 {
     /// Open a new patch.
     pub fn create<'g, C, G>(

@@ -90,9 +90,9 @@ pub fn gen<T: Arbitrary>(size: usize) -> T {
     T::arbitrary(&mut gen)
 }
 
-impl Arbitrary for storage::Remotes<crypto::Verified> {
+impl Arbitrary for storage::Remotes<crypto::Unverified> {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let remotes: RandomMap<storage::RemoteId, storage::Remote<crypto::Verified>> =
+        let remotes: RandomMap<storage::RemoteId, storage::Remote<crypto::Unverified>> =
             Arbitrary::arbitrary(g);
 
         storage::Remotes::new(remotes)
@@ -181,10 +181,10 @@ impl Arbitrary for SignedRefs<Unverified> {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let bytes: [u8; 64] = Arbitrary::arbitrary(g);
         let signature = crypto::Signature::from(bytes);
-        let id = PublicKey::arbitrary(g);
+        let author = PublicKey::arbitrary(g);
         let refs = Refs::arbitrary(g);
 
-        Self::new(refs, id, signature)
+        Self::new(refs, author, signature)
     }
 }
 
@@ -243,13 +243,13 @@ impl Arbitrary for MockRepository {
     }
 }
 
-impl Arbitrary for storage::Remote<crypto::Verified> {
+impl Arbitrary for storage::Remote<crypto::Unverified> {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let refs = Refs::arbitrary(g);
         let signer = MockSigner::arbitrary(g);
         let signed = refs.signed(&signer).unwrap();
 
-        storage::Remote::<crypto::Verified>::new(signed)
+        storage::Remote::<crypto::Unverified>::new(signed)
     }
 }
 

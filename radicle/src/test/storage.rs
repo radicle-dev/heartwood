@@ -333,10 +333,18 @@ impl WriteRepository for MockRepository {
         todo!()
     }
 
-    fn set_remote_identity_head_to(
+    fn set_remote_identity_symref_to(
         &self,
         _remote: &RemoteId,
         _identity: &crate::identity::Identity,
+    ) -> Result<(), RepositoryError> {
+        todo!()
+    }
+
+    fn set_remote_identity_head_to(
+        &self,
+        remote: &RemoteId,
+        identity: Oid,
     ) -> Result<(), RepositoryError> {
         todo!()
     }

@@ -139,6 +139,8 @@ pub mod setup {
             let repo = self.storage.repository(id).unwrap();
             let checkout = Some(NodeRepoCheckout { checkout });
 
+            // FIXME: Need rad/id?
+
             NodeRepo { repo, checkout }
         }
     }

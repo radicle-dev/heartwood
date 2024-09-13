@@ -149,21 +149,28 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
 
     let me = signer.public_key();
     let doc = storage.get(proj)?.ok_or(ForkError::NotFound(proj))?;
+    eprintln!("XXXXXXXXXXXXXxXXX");
     let project = doc.project()?;
+    eprintln!("XXXXXXXXXXXXXxXXX");
     let repository = storage.repository_mut(proj)?;
+    eprintln!("XXXXXXXXXXXXXxXXX");
 
     let raw = repository.raw();
     let remote_head = raw.refname_to_id(&git::refs::storage::branch_of(
         remote,
         project.default_branch(),
     ))?;
+    eprintln!("XXXXXXXXXXXXXxXXX");
     raw.reference(
         &git::refs::storage::branch_of(me, project.default_branch()),
         remote_head,
         false,
         &format!("creating default branch for {me}"),
     )?;
+    eprintln!("SIGN");
+    repository.set_remote_identity_head_to(me, repository.identity_head()?)?;
     repository.sign_refs(signer)?;
+    eprintln!("SIGNDONE");
 
     Ok(())
 }
@@ -184,6 +191,7 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
         true,
         &format!("creating default branch for {me}"),
     )?;
+    repository.set_remote_identity_head_to(me, repository.identity_head()?)?;
     repository.sign_refs(signer)?;
 
     Ok(())

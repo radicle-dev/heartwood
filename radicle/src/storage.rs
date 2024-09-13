@@ -355,8 +355,8 @@ impl Remote<Unverified> {
 }
 
 impl Remote<Unverified> {
-    pub fn verified(self) -> Result<Remote<Verified>, crypto::Error> {
-        let refs = self.refs.verified()?;
+    pub fn verified<R: ReadRepository>(self, repo: &R) -> Result<Remote<Verified>, Error> {
+        let refs = self.refs.verified(repo)?;
 
         Ok(Remote { refs })
     }
@@ -655,10 +655,15 @@ pub trait WriteRepository: ReadRepository + SignRepository {
     ) -> Result<(), RepositoryError>;
     /// Set the 'rad/id' symbolic ref under a remote to the given identity.
     /// Like [`Self::set_identity_head`], but for a remote.
-    fn set_remote_identity_head_to(
+    fn set_remote_identity_symref_to(
         &self,
         remote: &RemoteId,
         identity: &Identity,
+    ) -> Result<(), RepositoryError>;
+    fn set_remote_identity_head_to(
+        &self,
+        remote: &RemoteId,
+        head: Oid,
     ) -> Result<(), RepositoryError>;
     /// Set the user info of the Git repository.
     fn set_user(&self, info: &UserInfo) -> Result<(), Error>;

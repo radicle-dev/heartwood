@@ -170,7 +170,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
     pub fn remove<G>(&mut self, id: &PatchId, signer: &G) -> Result<(), super::Error>
     where
         G: Signer,
-        R: ReadRepository + SignRepository + cob::Store,
+        R: WriteRepository + cob::Store,
         C: Remove<Patch>,
     {
         self.store.remove(id, signer)?;

@@ -36,6 +36,7 @@ z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
     │   └── xyz.radicle.issue
     │       └── f12d512c51d30429f7916db038ae0360e2e938c2
     └── rad
+        ├── id
         └── sigrefs
 ```
 

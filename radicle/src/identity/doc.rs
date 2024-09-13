@@ -360,7 +360,7 @@ impl Doc<Verified> {
         signer: &G,
     ) -> Result<git::Oid, RepositoryError> {
         let cob = identity::Identity::initialize(self, repo, signer)?;
-        repo.set_remote_identity_head_to(signer.public_key(), &cob)?;
+        repo.set_remote_identity_symref_to(signer.public_key(), &cob)?;
 
         Ok(*cob.id)
     }

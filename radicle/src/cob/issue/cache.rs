@@ -11,7 +11,7 @@ use crate::cob::store;
 use crate::cob::{Embed, Label, ObjectId, TypeName};
 use crate::crypto::Signer;
 use crate::prelude::{Did, RepoId};
-use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
+use crate::storage::{HasRepoId, ReadRepository, RepositoryError, WriteRepository};
 
 use super::{Issue, IssueCounts, IssueId, IssueMut, State};
 
@@ -103,10 +103,10 @@ impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
     pub fn remove<G>(&mut self, id: &IssueId, signer: &G) -> Result<(), super::Error>
     where
         G: Signer,
-        R: ReadRepository + SignRepository + cob::Store,
+        R: WriteRepository + cob::Store,
         C: Remove<Issue>,
     {
-        self.store.remove(id, signer)?;
+        self.store.remove::<C, _>(id, signer)?;
         self.cache
             .remove(id)
             .map_err(|e| super::Error::CacheRemove {

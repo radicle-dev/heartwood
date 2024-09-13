@@ -14,9 +14,10 @@ use thiserror::Error;
 use crate::git;
 use crate::git::ext as git_ext;
 use crate::git::Oid;
+use crate::prelude::Doc;
 use crate::profile::env;
 use crate::storage;
-use crate::storage::{ReadRepository, RemoteId, WriteRepository};
+use crate::storage::{ReadRepository, RemoteId, RepoId, WriteRepository};
 
 pub use crate::git::refs::storage::*;
 
@@ -44,6 +45,12 @@ pub enum Error {
     Canonical(#[from] canonical::Error),
     #[error("invalid reference")]
     InvalidRef,
+    #[error("missing identity reference")]
+    MissingIdentityRef,
+    #[error("missing identity object: {0}")]
+    MissingIdentity(String),
+    #[error("mismatched identity: expected {expected}, got {actual}")]
+    MismatchedIdentity { expected: RepoId, actual: RepoId },
     #[error("invalid reference: {0}")]
     Ref(#[from] git::RefError),
     #[error(transparent)]
@@ -72,27 +79,17 @@ pub struct Refs(BTreeMap<git::RefString, Oid>);
 
 impl Refs {
     /// Verify the given signature on these refs, and return [`SignedRefs`] on success.
-    pub fn verified(
+    pub fn verified<R: ReadRepository>(
         self,
         signer: PublicKey,
         signature: Signature,
+        repo: &R,
     ) -> Result<SignedRefs<Verified>, Error> {
-        let refs = self;
-        let msg = refs.canonical();
-
-        match signer.verify(msg, &signature) {
-            Ok(()) => Ok(SignedRefs {
-                refs,
-                signature,
-                id: signer,
-                _verified: PhantomData,
-            }),
-            Err(e) => Err(e.into()),
-        }
+        SignedRefs::new(self, signer, signature).verified(repo)
     }
 
     /// Sign these refs with the given signer and return [`SignedRefs`].
-    pub fn signed<G>(self, signer: &G) -> Result<SignedRefs<Verified>, Error>
+    pub fn signed<G>(self, signer: &G) -> Result<SignedRefs<Unverified>, Error>
     where
         G: Signer,
     {
@@ -100,12 +97,7 @@ impl Refs {
         let msg = refs.canonical();
         let signature = signer.try_sign(&msg)?;
 
-        Ok(SignedRefs {
-            refs,
-            signature,
-            id: *signer.public_key(),
-            _verified: PhantomData,
-        })
+        Ok(SignedRefs::new(refs, *signer.public_key(), signature))
     }
 
     /// Get a particular ref.
@@ -216,17 +208,17 @@ pub struct SignedRefs<V> {
 }
 
 impl SignedRefs<Unverified> {
-    pub fn new(refs: Refs, id: PublicKey, signature: Signature) -> Self {
+    pub fn new(refs: Refs, author: PublicKey, signature: Signature) -> Self {
         Self {
             refs,
             signature,
-            id,
+            id: author,
             _verified: PhantomData,
         }
     }
 
-    pub fn verified(self) -> Result<SignedRefs<Verified>, crypto::Error> {
-        match self.verify(&self.id) {
+    pub fn verified<R: ReadRepository>(self, repo: &R) -> Result<SignedRefs<Verified>, Error> {
+        match self.verify(repo) {
             Ok(()) => Ok(SignedRefs {
                 refs: self.refs,
                 signature: self.signature,
@@ -237,13 +229,44 @@ impl SignedRefs<Unverified> {
         }
     }
 
-    pub fn verify(&self, signer: &PublicKey) -> Result<(), crypto::Error> {
+    pub fn verify<R: ReadRepository>(&self, repo: &R) -> Result<(), Error> {
         let canonical = self.refs.canonical();
 
-        match signer.verify(canonical, &self.signature) {
-            Ok(()) => Ok(()),
-            Err(e) => Err(e),
+        // Verify signature.
+        if let Err(e) = self.id.verify(canonical, &self.signature) {
+            return Err(e.into());
         }
+        // Make sure the identity branch was signed.
+        let Some(id_head) = self.refs.get(&IDENTITY_BRANCH) else {
+            return Err(Error::MissingIdentityRef);
+        };
+
+        // Get the identity at the given oid.
+        let root = repo
+            .revwalk(id_head)?
+            .last()
+            .ok_or(storage::RepositoryError::GitExt(git_ext::Error::NotFound(
+                git_ext::NotFound::NoSuchObject(id_head.into()),
+            )))
+            .unwrap()
+            .unwrap();
+        let doc = Doc::load_at(root.into(), repo).unwrap();
+        let root = RepoId::from(doc.blob);
+
+        // let identity = match repo.identity_at(id_head) {
+        //     Ok(id) => id,
+        //     Err(e) => {
+        //         return Err(Error::MissingIdentity(e.to_string()));
+        //     }
+        // };
+        // Make sure the signed identity points to the local repo identity.
+        if root != repo.id() {
+            return Err(Error::MismatchedIdentity {
+                expected: repo.id(),
+                actual: root,
+            });
+        }
+        Ok(())
     }
 }
 
@@ -264,20 +287,9 @@ impl SignedRefs<Verified> {
         let refs = repo.blob_at(oid, Path::new(REFS_BLOB_PATH))?;
         let signature = repo.blob_at(oid, Path::new(SIGNATURE_BLOB_PATH))?;
         let signature: crypto::Signature = signature.content().try_into()?;
+        let refs = Refs::from_canonical(refs.content())?;
 
-        match remote.verify(refs.content(), &signature) {
-            Ok(()) => {
-                let refs = Refs::from_canonical(refs.content())?;
-
-                Ok(Self {
-                    refs,
-                    signature,
-                    id: remote,
-                    _verified: PhantomData,
-                })
-            }
-            Err(e) => Err(e.into()),
-        }
+        SignedRefs::new(refs, remote, signature).verified(repo)
     }
 
     /// Save the signed refs to disk.

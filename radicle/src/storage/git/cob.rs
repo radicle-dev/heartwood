@@ -15,7 +15,7 @@ use crate::storage;
 use crate::storage::Error;
 use crate::storage::{
     git::{Remote, Remotes, Validations},
-    ReadRepository, Verified,
+    ReadRepository, Verified, WriteRepository,
 };
 use crate::{
     git, identity,
@@ -384,6 +384,48 @@ impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
 
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, git::ext::Error> {
         self.repo.merge_base(left, right)
+    }
+}
+
+impl<'a, R: WriteRepository> WriteRepository for DraftStore<'a, R> {
+    fn set_head(&self) -> Result<storage::SetHead, RepositoryError> {
+        self.repo.set_head()
+    }
+
+    fn set_identity_head_to(&self, commit: Oid) -> Result<(), RepositoryError> {
+        self.repo.set_identity_head_to(commit)
+    }
+
+    fn set_remote_identity_to(
+        &self,
+        remote: &RemoteId,
+        identity: &storage::Identity,
+    ) -> Result<(), RepositoryError> {
+        self.repo.set_remote_identity_to(remote, identity)
+    }
+
+    fn set_remote_identity_symref_to(
+        &self,
+        remote: &RemoteId,
+        identity: &storage::Identity,
+    ) -> Result<(), RepositoryError> {
+        self.repo.set_remote_identity_to(remote, identity)
+    }
+
+    fn set_remote_identity_head_to(
+        &self,
+        remote: &RemoteId,
+        head: Oid,
+    ) -> Result<(), RepositoryError> {
+        self.repo.set_remote_identity_head_to(remote, head)
+    }
+
+    fn set_user(&self, info: &UserInfo) -> Result<(), Error> {
+        self.repo.set_user(info)
+    }
+
+    fn raw(&self) -> &git2::Repository {
+        self.repo.raw()
     }
 }
 

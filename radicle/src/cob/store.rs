@@ -13,7 +13,7 @@ use crate::cob::{Create, Embed, EntryId, ObjectId, TypeName, Update, Updated, Ve
 use crate::git;
 use crate::prelude::*;
 use crate::storage::git as storage;
-use crate::storage::SignRepository;
+use crate::storage::{RepositoryError, SignRepository, WriteRepository};
 use crate::{cob, identity};
 
 pub trait CobAction: Debug {
@@ -138,7 +138,7 @@ where
 
 impl<'a, T, R> Store<'a, T, R>
 where
-    R: ReadRepository + SignRepository + cob::Store,
+    R: ReadRepository + SignRepository + WriteRepository + cob::Store,
     T: Cob + cob::Evaluate<R>,
     T::Action: Serialize,
 {
@@ -168,6 +168,14 @@ where
                 changes,
             },
         )?;
+        let id = self
+            .identity
+            .map(Ok)
+            .unwrap_or_else(|| self.repo.identity_head())
+            .unwrap();
+        self.repo
+            .set_remote_identity_head_to(signer.public_key(), id)
+            .unwrap();
         self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
 
         Ok(updated)
@@ -198,6 +206,21 @@ where
                 contents,
             },
         )?;
+        // FIXME.
+        if T::type_name() == &*crate::cob::identity::TYPENAME {
+            self.repo
+                .set_remote_identity_head_to(signer.public_key(), *cob.id)
+                .unwrap();
+        } else {
+            let id = self
+                .identity
+                .map(Ok)
+                .unwrap_or_else(|| self.repo.identity_head())
+                .unwrap();
+            self.repo
+                .set_remote_identity_head_to(signer.public_key(), id)
+                .unwrap();
+        }
         self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
 
         Ok((*cob.id(), cob.object))
@@ -212,6 +235,14 @@ where
         {
             Ok(_) => {
                 cob::remove(self.repo, signer.public_key(), T::type_name(), id)?;
+                let id = self
+                    .identity
+                    .map(Ok)
+                    .unwrap_or_else(|| self.repo.identity_head())
+                    .unwrap();
+                self.repo
+                    .set_remote_identity_head_to(signer.public_key(), id)
+                    .unwrap();
                 self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
                 Ok(())
             }
@@ -291,7 +322,7 @@ where
     where
         G: Signer,
         F: FnOnce(&mut Self) -> Result<(), Error>,
-        R: ReadRepository + SignRepository + cob::Store,
+        R: WriteRepository + cob::Store,
         T::Action: Serialize + Clone,
     {
         let mut tx = Transaction::default();
@@ -328,7 +359,7 @@ where
         signer: &G,
     ) -> Result<(T, EntryId), Error>
     where
-        R: ReadRepository + SignRepository + cob::Store,
+        R: WriteRepository + cob::Store,
         T::Action: Serialize + Clone,
     {
         let actions = NonEmpty::from_vec(self.actions)

@@ -18,8 +18,8 @@ Let's also inspect what remotes are in the repository:
 
 ``` ~alice
 $ rad inspect --sigrefs
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi f209c9f68aa689af24220a20462e13ee9dfb2a95
-z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 161b775a3509c8098de67f57f750972bba015b31
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi ed00a30ab9b550beb1abe89c268b5b645c1cd102
+z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk b8b4a52540371dcbab7fcce5cdac4242427fd6c3
 ```
 
 Now let's clean the `heartwood` project:
@@ -34,7 +34,7 @@ Inspecting the remotes again, we see that Bob is now gone:
 
 ``` ~alice
 $ rad inspect --sigrefs
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi f209c9f68aa689af24220a20462e13ee9dfb2a95
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi ed00a30ab9b550beb1abe89c268b5b645c1cd102
 ```
 
 Note that Bob will be fetched again if we do not untrack his

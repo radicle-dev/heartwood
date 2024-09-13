@@ -148,7 +148,7 @@ Similarly, she still does not have Bob's `rad/sigrefs`:
 
 ``` ~alice
 $ rad inspect --sigrefs
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 7ffed605e4871bb0640ee1538181640e239b182c
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 3c02dd82c9791b46487671bdab09b07c3531ecfe
 ```
 
 And she can still list the project, without any worries:
@@ -195,6 +195,6 @@ $ rad sync -f
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
 ✓ Fetched repository from 2 seed(s)
 $ rad inspect --sigrefs
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 7ffed605e4871bb0640ee1538181640e239b182c
-z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk cc068d93ee77dc134518d7d0fbe55b39804baf53
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 3c02dd82c9791b46487671bdab09b07c3531ecfe
+z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 56042b053ec31bd08cf0323d37704ac154773106
 ```

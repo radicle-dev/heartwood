@@ -805,13 +805,15 @@ fn test_refs_announcement_followed() {
     let mut bob = Peer::with_storage("bob", [8, 8, 8, 8], storage_bob);
 
     let node_id = alice.id;
-    alice.storage_mut().repo_mut(&rid).remotes.insert(
+    let repo = alice.storage_mut().repo_mut(&rid);
+
+    repo.remotes.insert(
         node_id,
-        bob.signed_refs_at(arbitrary::gen::<Refs>(8), arbitrary::oid()),
+        bob.signed_refs_at(arbitrary::gen::<Refs>(8), arbitrary::oid(), repo),
     );
 
     // Generate some refs for Bob under their own node_id.
-    let sigrefs = bob.signed_refs_at(arbitrary::gen::<Refs>(8), arbitrary::oid());
+    let sigrefs = bob.signed_refs_at(arbitrary::gen::<Refs>(8), arbitrary::oid(), repo);
     let node_id = bob.id;
     bob.init();
     bob.storage_mut()
@@ -1472,9 +1474,10 @@ fn test_queued_fetch_from_ann_same_rid() {
 
     // Finish the 1st fetch.
     // Ensure the ref is in the storage and cache.
-    alice.storage_mut().repo_mut(&rid).remotes.insert(
+    let repo = alice.storage_mut().repo_mut(&rid);
+    repo.remotes.insert(
         carol.id(),
-        carol.signed_refs_at(arbitrary::gen::<Refs>(1), oid),
+        carol.signed_refs_at(arbitrary::gen::<Refs>(1), oid, repo),
     );
     alice
         .database_mut()

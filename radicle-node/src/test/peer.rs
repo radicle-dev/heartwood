@@ -353,9 +353,14 @@ where
         ann.into().signed(self.signer()).into()
     }
 
-    pub fn signed_refs_at(&self, refs: Refs, at: radicle::git::Oid) -> SignedRefsAt {
+    pub fn signed_refs_at<R: ReadRepository>(
+        &self,
+        refs: Refs,
+        at: radicle::git::Oid,
+        repo: &R,
+    ) -> SignedRefsAt {
         SignedRefsAt {
-            sigrefs: refs.signed(self.signer()).unwrap(),
+            sigrefs: refs.signed(self.signer()).unwrap().verified(repo).unwrap(),
             at,
         }
     }
