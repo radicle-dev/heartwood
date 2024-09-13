@@ -853,6 +853,51 @@ impl WriteRepository for Repository {
         Ok(())
     }
 
+    fn set_remote_identity_to(
+        &self,
+        remote: &RemoteId,
+        identity: &Identity,
+    ) -> Result<(), RepositoryError> {
+        let id_ref = &git::refs::storage::cob(
+            remote,
+            &crate::cob::identity::TYPENAME,
+            &identity.root.into(),
+        );
+        // Set `.../refs/cobs/xyz.radicle.id/<id>`
+        self.backend.reference(
+            id_ref,
+            *identity.current,
+            true,
+            "Set identity COB reference",
+        )?;
+        // Set symbolic `rad/id` reference to the above ref.
+        self.set_remote_identity_head_to(remote, identity)
+    }
+
+    /// Set `.../refs/rad/id` -> `.../refs/cobs/xyz.radicle.id/<id>`
+    fn set_remote_identity_head_to(
+        &self,
+        remote: &RemoteId,
+        identity: &Identity,
+    ) -> Result<(), RepositoryError> {
+        // `.../refs/cobs/xyz.radicle.id/<id>`
+        let cob_ref = git::refs::storage::cob(
+            remote,
+            &crate::cob::identity::TYPENAME,
+            &identity.root.into(),
+        );
+        let id_sym_ref = git::refs::storage::id(remote);
+
+        self.backend.reference_symbolic(
+            id_sym_ref.as_str(),
+            cob_ref.as_str(),
+            true,
+            "Create `rad/id` reference to point to new identity COB",
+        )?;
+
+        Ok(())
+    }
+
     fn set_user(&self, info: &UserInfo) -> Result<(), Error> {
         let mut config = self.backend.config()?;
         config.set_str("user.name", &info.name())?;
@@ -880,6 +925,7 @@ impl SignRepository for Repository {
         Ok(signed)
     }
 }
+
 pub mod trailers {
     use std::str::FromStr;
 

@@ -635,6 +635,31 @@ pub trait WriteRepository: ReadRepository + SignRepository {
     }
     /// Set the repository 'rad/id' to the given commit.
     fn set_identity_head_to(&self, commit: Oid) -> Result<(), RepositoryError>;
+    /// Set the identity under a remote to the canonical identity.
+    /// Sets both the COB reference and the `rad/id` symbolic ref.
+    fn set_remote_identity(&self, remote: &RemoteId) -> Result<Oid, RepositoryError>
+    where
+        Self: cob::Store,
+    {
+        let identity = Identity::load(self)?;
+        self.set_remote_identity_to(remote, &identity)?;
+
+        Ok(identity.current)
+    }
+    /// Set the identity under a remote to the given identity.
+    /// Sets both the COB reference and the `rad/id` symbolic ref.
+    fn set_remote_identity_to(
+        &self,
+        remote: &RemoteId,
+        identity: &Identity,
+    ) -> Result<(), RepositoryError>;
+    /// Set the 'rad/id' symbolic ref under a remote to the given identity.
+    /// Like [`Self::set_identity_head`], but for a remote.
+    fn set_remote_identity_head_to(
+        &self,
+        remote: &RemoteId,
+        identity: &Identity,
+    ) -> Result<(), RepositoryError>;
     /// Set the user info of the Git repository.
     fn set_user(&self, info: &UserInfo) -> Result<(), Error>;
     /// Get the underlying git repository.

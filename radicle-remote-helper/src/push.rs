@@ -337,6 +337,7 @@ pub fn run(
 
     // Sign refs and sync if at least one ref pushed successfully.
     if !ok.is_empty() {
+        let _ = stored.set_remote_identity(signer.public_key())?;
         let _ = stored.sign_refs(&signer)?;
 
         // N.b. if an error occurs then there may be no quorum

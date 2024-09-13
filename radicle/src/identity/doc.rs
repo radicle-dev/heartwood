@@ -21,7 +21,7 @@ use crate::crypto::{Signature, Unverified, Verified};
 use crate::git;
 use crate::identity::{project::Project, Did};
 use crate::storage;
-use crate::storage::{ReadRepository, RepositoryError};
+use crate::storage::{ReadRepository, RepositoryError, WriteRepository};
 
 pub use crypto::PublicKey;
 pub use id::*;
@@ -360,19 +360,7 @@ impl Doc<Verified> {
         signer: &G,
     ) -> Result<git::Oid, RepositoryError> {
         let cob = identity::Identity::initialize(self, repo, signer)?;
-        let id_ref = git::refs::storage::id(signer.public_key());
-        let cob_ref = git::refs::storage::cob(
-            signer.public_key(),
-            &crate::cob::identity::TYPENAME,
-            &cob.id,
-        );
-        // Set `.../refs/rad/id` -> `.../refs/cobs/xyz.radicle.id/<id>`
-        repo.backend.reference_symbolic(
-            id_ref.as_str(),
-            cob_ref.as_str(),
-            false,
-            "Create `rad/id` reference to point to new identity COB",
-        )?;
+        repo.set_remote_identity_head_to(signer.public_key(), &cob)?;
 
         Ok(*cob.id)
     }

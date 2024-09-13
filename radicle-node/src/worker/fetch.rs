@@ -143,7 +143,7 @@ impl Handle {
                     // contributed to in some way, otherwise our inbox will
                     // be flooded by all the repos we are seeding.
                     if repo.remote(&storage.info().key).is_ok() {
-                        notify(&rid, &applied, &mut store)?;
+                        notify(&rid, &applied, &mut store, &repo)?;
                     }
                 }
 
@@ -191,16 +191,22 @@ fn mv(tmp: tempfile::TempDir, storage: &Storage, rid: &RepoId) -> Result<(), err
 }
 
 // Post notifications for the given refs.
-fn notify(
+fn notify<R: ReadRepository + cob::Store>(
     rid: &RepoId,
     refs: &radicle_fetch::git::refs::Applied<'static>,
     store: &mut node::notifications::StoreWriter,
+    repo: &R,
 ) -> Result<(), error::Fetch> {
     let now = LocalTime::now();
 
     for update in refs.updated.iter() {
         if let Some(r) = update.name().to_namespaced() {
+            let Ok(remote) = PublicKey::from_namespaced(&r) else {
+                // Only valid namespaces are allowed.
+                continue;
+            };
             let r = r.strip_namespace();
+
             if r == *git::refs::storage::SIGREFS_BRANCH {
                 // Don't notify about signed refs.
                 continue;
@@ -215,6 +221,19 @@ fn notify(
                     // Don't notify about patch branches, since we already get
                     // notifications about patch updates.
                     continue;
+                }
+            }
+            if let Some(oid) = update.new() {
+                if let Ok(Some(_)) = TypedId::from_qualified(&r) {
+                    if let Ok(entry) = repo.load(oid) {
+                        if entry.author() != &remote {
+                            // Don't notify about new COB refs if the author of the change isn't the
+                            // one who set the ref (ie. the remote). For example, if a remote sets
+                            // an identity ref to an existing identity revision, we shouldn't notify
+                            // about that.
+                            continue;
+                        }
+                    }
                 }
             }
         }
