@@ -1,7 +1,12 @@
 use std::io;
-use std::sync::Mutex;
 
 use crossbeam_channel as chan;
+use signals_receipts::channel_notify_facility::{
+    self, FinishError, InstallError, SendError, SignalsChannel as _, UninstallError,
+};
+use signals_receipts::SignalNumber;
+
+use crate::channel_notify_facility_premade::SignalsChannel;
 
 /// Operating system signal.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -16,10 +21,10 @@ pub enum Signal {
     WindowChanged,
 }
 
-impl TryFrom<i32> for Signal {
-    type Error = i32;
+impl TryFrom<SignalNumber> for Signal {
+    type Error = SignalNumber;
 
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
+    fn try_from(value: SignalNumber) -> Result<Self, Self::Error> {
         match value {
             libc::SIGTERM => Ok(Self::Terminate),
             libc::SIGINT => Ok(Self::Interrupt),
@@ -30,90 +35,97 @@ impl TryFrom<i32> for Signal {
     }
 }
 
-/// Signal notifications are sent via this channel.
-static NOTIFY: Mutex<Option<chan::Sender<Signal>>> = Mutex::new(None);
+// The signals of interest to handle.
+signals_receipts::channel_notify_facility! {
+    SIGINT
+    SIGTERM
+    SIGHUP
+    SIGWINCH
+}
 
-/// A slice of signals to handle.
-const SIGNALS: &[i32] = &[libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGWINCH];
-
-/// Install global signal handlers.
+/// Install global signal handlers, with notifications sent to the given
+/// `notify` channel.
 pub fn install(notify: chan::Sender<Signal>) -> io::Result<()> {
-    if let Ok(mut channel) = NOTIFY.try_lock() {
-        if channel.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                "signal handler is already installed",
-            ));
-        }
-        *channel = Some(notify);
+    /// The sender type must implement the facility's trait.
+    #[derive(Debug)]
+    struct ChanSender(chan::Sender<Signal>);
 
-        unsafe { _install() }?;
-    } else {
-        return Err(io::Error::new(
-            io::ErrorKind::WouldBlock,
-            "unable to install signal handler",
-        ));
+    /// This also does our desired conversion from signal numbers to our
+    /// `Signal` representation.
+    impl channel_notify_facility::Sender for ChanSender {
+        fn send(&self, sig_num: SignalNumber) -> Result<(), SendError> {
+            if let Ok(sig) = sig_num.try_into() {
+                self.0.send(sig).or(Err(SendError::Disconnected))
+            } else {
+                debug_assert!(false, "only called for recognized signal numbers");
+                // Unrecognized signal numbers would be ignored, but
+                // this never occurs.
+                Err(SendError::Ignored)
+            }
+        }
     }
-    Ok(())
+
+    SignalsChannel::install_with_outside_channel(ChanSender(notify)).map_err(|e| match e {
+        InstallError::AlreadyInstalled { unused_notify: _ } => io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "signal handling is already installed",
+        ),
+        _ => io::Error::other(e), // The error type is non-exhaustive.
+    })
 }
 
 /// Uninstall global signal handlers.
+///
+/// The caller must ensure that all `Receiver`s for the other end of the
+/// channel are dropped to disconnect the channel, to ensure that the
+/// internal "signals-receipt" thread wakes to clean-up (in case it's
+/// blocked on sending on the channel).  Such dropping usually occurs
+/// naturally when uninstalling, since the other end is no longer needed
+/// then, and may be done after calling this.  Not doing so might
+/// deadlock the "signals-receipt" thread.
 pub fn uninstall() -> io::Result<()> {
-    if let Ok(mut channel) = NOTIFY.try_lock() {
-        if channel.is_none() {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "signal handler is already uninstalled",
-            ));
+    SignalsChannel::uninstall_with_outside_channel().map_err(|e| match e {
+        UninstallError::AlreadyUninstalled => io::Error::new(
+            io::ErrorKind::NotFound,
+            "signal handling is already uninstalled",
+        ),
+        #[allow(clippy::unreachable)]
+        UninstallError::WrongMethod => {
+            // SAFETY: Impossible, because `SignalsChannel` is private
+            // and so `SignalsChannel::install()` is never done.
+            unreachable!()
         }
-        *channel = None;
-
-        unsafe { _uninstall() }?;
-    } else {
-        return Err(io::Error::new(
-            io::ErrorKind::WouldBlock,
-            "unable to uninstall signal handler",
-        ));
-    }
-    Ok(())
+        _ => io::Error::other(e), // The error type is non-exhaustive.
+    })
 }
 
-/// Install global signal handlers.
+/// Do [`uninstall()`], terminate the internal "signals-receipt"
+/// thread, and wait for that thread to finish.
 ///
-/// # Safety
+/// This is provided in case it's ever needed to completely clean-up the
+/// facility to be like it hadn't been installed before.  It's
+/// unnecessary to use this, just to uninstall the handling.  Usually,
+/// only using `uninstall` is desirable so that the "signals-receipt"
+/// thread is kept alive for faster reuse when re-installing the
+/// handling.
 ///
-/// Calls `libc` functions safely.
-unsafe fn _install() -> io::Result<()> {
-    for signal in SIGNALS {
-        if libc::signal(*signal, handler as libc::sighandler_t) == libc::SIG_ERR {
-            return Err(io::Error::last_os_error());
+/// The caller must ensure that all `Receiver`s for the other end of the
+/// channel have **already** been dropped to disconnect the channel,
+/// before calling this, to ensure that the "signals-receipt" thread
+/// wakes (in case it's blocked on sending on the channel) to see that
+/// it must finish.  If this is not done, this might deadlock.
+pub fn finish() -> io::Result<()> {
+    SignalsChannel::finish_with_outside_channel().map_err(|e| match e {
+        FinishError::AlreadyFinished => io::Error::new(
+            io::ErrorKind::NotFound,
+            "signal-handling facility is already finished",
+        ),
+        #[allow(clippy::unreachable)]
+        FinishError::WrongMethod => {
+            // SAFETY: Impossible, because `SignalsChannel` is private
+            // and so `SignalsChannel::install()` is never done.
+            unreachable!()
         }
-    }
-    Ok(())
-}
-
-/// Uninstall global signal handlers.
-///
-/// # Safety
-///
-/// Calls `libc` functions safely.
-unsafe fn _uninstall() -> io::Result<()> {
-    for signal in SIGNALS {
-        if libc::signal(*signal, libc::SIG_DFL) == libc::SIG_ERR {
-            return Err(io::Error::last_os_error());
-        }
-    }
-    Ok(())
-}
-
-/// Called by `libc` when a signal is received.
-extern "C" fn handler(sig: libc::c_int, _info: *mut libc::siginfo_t, _data: *mut libc::c_void) {
-    let Ok(sig) = sig.try_into() else {
-        return;
-    };
-    if let Ok(guard) = NOTIFY.try_lock() {
-        if let Some(c) = &*guard {
-            c.try_send(sig).ok();
-        }
-    }
+        _ => io::Error::other(e), // The error type is non-exhaustive.
+    })
 }
