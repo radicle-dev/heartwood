@@ -18,6 +18,8 @@ mod edit;
 mod label;
 #[path = "patch/list.rs"]
 mod list;
+#[path = "patch/react.rs"]
+mod react;
 #[path = "patch/ready.rs"]
 mod ready;
 #[path = "patch/redact.rs"]
@@ -33,11 +35,12 @@ mod update;
 
 use std::collections::BTreeSet;
 use std::ffi::OsString;
+use std::str::FromStr as _;
 
 use anyhow::anyhow;
 
 use radicle::cob::patch::PatchId;
-use radicle::cob::{patch, Label};
+use radicle::cob::{patch, Label, Reaction};
 use radicle::git::RefString;
 use radicle::patch::cache::Patches as _;
 use radicle::storage::git::transport;
@@ -67,6 +70,7 @@ Usage
     rad patch resolve <patch-id> [--review <review-id>] [--comment <comment-id>] [--unresolve] [<option>...]
     rad patch delete <patch-id> [<option>...]
     rad patch redact <revision-id> [<option>...]
+    rad patch react <patch-id | revision-id> [--react <emoji>] [<option>...]
     rad patch assign <revision-id> [--add <did>] [--delete <did>] [<option>...]
     rad patch label <revision-id> [--add <label>] [--delete <label>] [<option>...]
     rad patch ready <patch-id> [--undo] [<option>...]
@@ -89,6 +93,10 @@ Comment options
 
     -m, --message <string>     Provide a comment message via the command-line
         --reply-to <comment>   The comment to reply to
+        --edit <comment>       The comment to edit (use --message to edit with the provided message)
+        --react <comment>      The comment to react to
+        --emoji <char>         The emoji to react with when --react is used
+        --redact <comment>     The comment to redact
 
 Edit options
 
@@ -163,6 +171,10 @@ Set options
 
         --remote <string>      Provide the git remote to use as the upstream
 
+React options
+
+        --emoji <char>         The emoji to react to the patch or revision with
+
 Other options
 
         --repo <rid>           Operate on the given repository (default: cwd)
@@ -182,6 +194,7 @@ pub enum OperationName {
     Delete,
     Checkout,
     Comment,
+    React,
     Ready,
     Review,
     Resolve,
@@ -192,6 +205,13 @@ pub enum OperationName {
     Redact,
     Set,
     Cache,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum CommentOperation {
+    Edit,
+    React,
+    Redact,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -243,6 +263,26 @@ pub enum Operation {
         message: Message,
         reply_to: Option<Rev>,
     },
+    CommentEdit {
+        revision_id: Rev,
+        comment_id: Rev,
+        message: Message,
+    },
+    CommentRedact {
+        revision_id: Rev,
+        comment_id: Rev,
+    },
+    CommentReact {
+        revision_id: Rev,
+        comment_id: Rev,
+        reaction: Reaction,
+        undo: bool,
+    },
+    React {
+        revision_id: Rev,
+        reaction: Reaction,
+        undo: bool,
+    },
     Review {
         patch_id: Rev,
         revision_id: Option<Rev>,
@@ -291,12 +331,16 @@ impl Operation {
             | Operation::Ready { .. }
             | Operation::Delete { .. }
             | Operation::Comment { .. }
+            | Operation::CommentEdit { .. }
+            | Operation::CommentRedact { .. }
+            | Operation::CommentReact { .. }
             | Operation::Review { .. }
             | Operation::Resolve { .. }
             | Operation::Assign { .. }
             | Operation::Label { .. }
             | Operation::Edit { .. }
             | Operation::Redact { .. }
+            | Operation::React { .. }
             | Operation::Set { .. } => true,
             Operation::Show { .. }
             | Operation::Diff { .. }
@@ -338,7 +382,9 @@ impl Args for Options {
         let mut diff = false;
         let mut debug = false;
         let mut undo = false;
+        let mut reaction: Option<Reaction> = None;
         let mut reply_to: Option<Rev> = None;
+        let mut comment_op: Option<(CommentOperation, Rev)> = None;
         let mut checkout_opts = checkout::Options::default();
         let mut remote: Option<RefString> = None;
         let mut assign_opts = AssignOptions::default();
@@ -394,12 +440,59 @@ impl Args for Options {
                     base_id = Some(rev);
                 }
 
+                // React options.
+                Long("emoji") if op == Some(OperationName::React) => {
+                    if let Some(emoji) = parser.value()?.to_str() {
+                        reaction =
+                            Some(Reaction::from_str(emoji).map_err(|_| anyhow!("invalid emoji"))?);
+                    }
+                }
+                Long("undo") if op == Some(OperationName::React) => {
+                    undo = true;
+                }
+
                 // Comment options.
                 Long("reply-to") if op == Some(OperationName::Comment) => {
                     let val = parser.value()?;
                     let rev = term::args::rev(&val)?;
 
                     reply_to = Some(rev);
+                }
+
+                Long("edit") if op == Some(OperationName::Comment) => {
+                    let val = parser.value()?;
+                    let rev = term::args::rev(&val)?;
+
+                    comment_op = Some((CommentOperation::Edit, rev));
+                }
+
+                Long("react") if op == Some(OperationName::Comment) => {
+                    let val = parser.value()?;
+                    let rev = term::args::rev(&val)?;
+
+                    comment_op = Some((CommentOperation::React, rev));
+                }
+                Long("emoji")
+                    if op == Some(OperationName::Comment)
+                        && matches!(comment_op, Some((CommentOperation::React, _))) =>
+                {
+                    if let Some(emoji) = parser.value()?.to_str() {
+                        reaction =
+                            Some(Reaction::from_str(emoji).map_err(|_| anyhow!("invalid emoji"))?);
+                    }
+                }
+                Long("undo")
+                    if op == Some(OperationName::Comment)
+                        && matches!(comment_op, Some((CommentOperation::React, _))) =>
+                {
+                    undo = true;
+                }
+
+                Long("redact") if op == Some(OperationName::Comment) => {
+                    let val = parser.value()?;
+                    let rev = term::args::rev(&val)?;
+
+                    comment_op = Some((CommentOperation::Redact, rev));
                 }
 
                 // Edit options.
@@ -672,11 +765,38 @@ impl Args for Options {
                 revision_id,
                 opts: checkout_opts,
             },
-            OperationName::Comment => Operation::Comment {
+            OperationName::Comment => match comment_op {
+                Some((CommentOperation::Edit, comment)) => Operation::CommentEdit {
+                    revision_id: patch_id
+                        .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
+                    comment_id: comment,
+                    message,
+                },
+                Some((CommentOperation::React, comment)) => Operation::CommentReact {
+                    revision_id: patch_id
+                        .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
+                    comment_id: comment,
+                    reaction: reaction
+                        .ok_or_else(|| anyhow!("a reaction emoji must be provided"))?,
+                    undo,
+                },
+                Some((CommentOperation::Redact, comment)) => Operation::CommentRedact {
+                    revision_id: patch_id
+                        .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
+                    comment_id: comment,
+                },
+                None => Operation::Comment {
+                    revision_id: patch_id
+                        .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
+                    message,
+                    reply_to,
+                },
+            },
+            OperationName::React => Operation::React {
                 revision_id: patch_id
                     .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
-                message,
-                reply_to,
+                reaction: reaction.ok_or_else(|| anyhow!("a reaction emoji must be provided"))?,
+                undo,
             },
             OperationName::Review => Operation::Review {
                 patch_id: patch_id
@@ -962,6 +1082,52 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 )
             };
             cache::run(mode, &profile)?;
+        }
+        Operation::CommentEdit {
+            revision_id,
+            comment_id,
+            message,
+        } => {
+            let comment = comment_id.resolve(&repository.backend)?;
+            comment::edit::run(
+                revision_id,
+                comment,
+                message,
+                options.quiet,
+                &repository,
+                &profile,
+            )?;
+        }
+        Operation::CommentRedact {
+            revision_id,
+            comment_id,
+        } => {
+            let comment = comment_id.resolve(&repository.backend)?;
+            comment::redact::run(revision_id, comment, &repository, &profile)?;
+        }
+        Operation::CommentReact {
+            revision_id,
+            comment_id,
+            reaction,
+            undo,
+        } => {
+            let comment = comment_id.resolve(&repository.backend)?;
+            if undo {
+                comment::react::run(revision_id, comment, reaction, false, &repository, &profile)?;
+            } else {
+                comment::react::run(revision_id, comment, reaction, true, &repository, &profile)?;
+            }
+        }
+        Operation::React {
+            revision_id,
+            reaction,
+            undo,
+        } => {
+            if undo {
+                react::run(&revision_id, reaction, false, &repository, &profile)?;
+            } else {
+                react::run(&revision_id, reaction, true, &repository, &profile)?;
+            }
         }
     }
 

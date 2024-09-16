@@ -1,3 +1,10 @@
+#[path = "comment/edit.rs"]
+pub mod edit;
+#[path = "comment/react.rs"]
+pub mod react;
+#[path = "comment/redact.rs"]
+pub mod redact;
+
 use super::*;
 
 use radicle::cob;
