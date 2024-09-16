@@ -1462,6 +1462,11 @@ impl Revision {
         &self.discussion
     }
 
+    /// Review comments resolved by this revision.
+    pub fn resolves(&self) -> &BTreeSet<(EntryId, CommentId)> {
+        &self.resolves
+    }
+
     /// Iterate over all top-level replies.
     pub fn replies(&self) -> impl Iterator<Item = (&CommentId, &thread::Comment<CodeLocation>)> {
         self.discussion.comments()
@@ -1652,6 +1657,11 @@ impl Review {
     /// Review inline code comments.
     pub fn comments(&self) -> impl DoubleEndedIterator<Item = (&EntryId, &Comment<CodeLocation>)> {
         self.comments.comments()
+    }
+
+    /// Review labels.
+    pub fn labels(&self) -> impl Iterator<Item = &Label> {
+        self.labels.iter()
     }
 
     /// Review general comment.
