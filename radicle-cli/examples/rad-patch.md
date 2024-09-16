@@ -143,6 +143,23 @@ $ rad patch comment aa45913 --message 'My favorite decade!' --reply-to 686ec1c -
 f4336e42daf76342f787d574b5ee779d89d05c7a
 ```
 
+If we realize we made a mistake in the comment, we can go back and edit it:
+
+```
+$ rad patch comment aa45913 --edit 686ec1c --message 'I cannot wait to get back to the 80s!' --no-announce
+╭───────────────────────────────────────╮
+│ alice (you) now 686ec1c               │
+│ I cannot wait to get back to the 80s! │
+╰───────────────────────────────────────╯
+```
+
+And if we really made a mistake, then we can redact the comment entirely:
+
+```
+$ rad patch comment aa45913 --redact f4336e4 --no-announce
+✓ Redacted comment f4336e42daf76342f787d574b5ee779d89d05c7a
+```
+
 Now, let's checkout the patch that we just created:
 
 ```
