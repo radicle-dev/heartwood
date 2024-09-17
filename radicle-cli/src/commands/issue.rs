@@ -44,7 +44,7 @@ Usage
     rad issue react <issue-id> [--emoji <char>] [--to <comment>] [<option>...]
     rad issue assign <issue-id> [--add <did>] [--delete <did>] [<option>...]
     rad issue label <issue-id> [--add <label>] [--delete <label>] [<option>...]
-    rad issue comment <issue-id> [--message <message>] [--reply-to <comment-id>] [<option>...]
+    rad issue comment <issue-id> [--message <message>] [--reply-to <comment-id>] [--edit <comment-id>] [<option>...]
     rad issue show <issue-id> [<option>...]
     rad issue state <issue-id> [--closed | --open | --solved] [<option>...]
     rad issue cache [<issue-id>] [<option>...]
@@ -119,6 +119,11 @@ pub enum Operation {
         format: Format,
         debug: bool,
     },
+    CommentEdit {
+        id: Rev,
+        comment_id: Rev,
+        message: Message,
+    },
     Comment {
         id: Rev,
         message: Message,
@@ -191,6 +196,7 @@ impl Args for Options {
         let mut format = Format::default();
         let mut message = Message::default();
         let mut reply_to = None;
+        let mut edit_comment = None;
         let mut announce = true;
         let mut quiet = false;
         let mut debug = false;
@@ -298,6 +304,12 @@ impl Args for Options {
 
                     reply_to = Some(rev);
                 }
+                Long("edit") if op == Some(OperationName::Comment) => {
+                    let val = parser.value()?;
+                    let rev = term::args::rev(&val)?;
+
+                    edit_comment = Some(rev);
+                }
 
                 // Assign options
                 Short('a') | Long("add") if op == Some(OperationName::Assign) => {
@@ -384,10 +396,23 @@ impl Args for Options {
                 labels,
                 assignees,
             },
-            OperationName::Comment => Operation::Comment {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                message,
-                reply_to,
+            OperationName::Comment => match (reply_to, edit_comment) {
+                (None, None) => Operation::Comment {
+                    id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
+                    message,
+                    reply_to: None,
+                },
+                (None, Some(comment_id)) => Operation::CommentEdit {
+                    id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
+                    comment_id,
+                    message,
+                },
+                (reply_to @ Some(_), None) => Operation::Comment {
+                    id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
+                    message,
+                    reply_to,
+                },
+                (Some(_), Some(_)) => anyhow::bail!("you cannot use --reply-to with --edit"),
             },
             OperationName::Show => Operation::Show {
                 id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
@@ -487,6 +512,25 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let mut issue = issues.get_mut(&issue_id)?;
             let (body, reply_to) = prompt_comment(message, reply_to, &issue, &repo)?;
             let comment_id = issue.comment(body, reply_to, vec![], &signer)?;
+
+            if options.quiet {
+                term::print(comment_id);
+            } else {
+                let comment = issue.thread().comment(&comment_id).unwrap();
+                term::comment::widget(&comment_id, comment, &profile).print();
+            }
+        }
+        Operation::CommentEdit {
+            id,
+            comment_id,
+            message,
+        } => {
+            let signer = term::signer(&profile)?;
+            let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
+            let comment_id = comment_id.resolve(&repo.backend)?;
+            let mut issue = issues.get_mut(&issue_id)?;
+            let (body, _) = prompt_comment(message, None, &issue, &repo)?;
+            issue.edit_comment(comment_id, body, vec![], &signer)?;
 
             if options.quiet {
                 term::print(comment_id);
@@ -772,7 +816,7 @@ where
     let id = id.resolve(&repo.backend)?;
     let mut issue = issues.get_mut(&id)?;
     let (root, _) = issue.root();
-    let root = *root;
+    let comment_id = *root;
 
     if title.is_some() || description.is_some() {
         // Editing by command line arguments.
@@ -781,7 +825,7 @@ where
                 tx.edit(t)?;
             }
             if let Some(d) = description {
-                tx.edit_comment(root, d, vec![])?;
+                tx.edit_comment(comment_id, d, vec![])?;
             }
             Ok(())
         })?;
@@ -799,7 +843,7 @@ where
 
     issue.transaction("Edit", signer, |tx| {
         tx.edit(title)?;
-        tx.edit_comment(root, description, vec![])?;
+        tx.edit_comment(comment_id, description, vec![])?;
 
         Ok(())
     })?;
