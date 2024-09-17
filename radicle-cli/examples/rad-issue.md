@@ -104,3 +104,13 @@ $ rad issue show d87dcfe8c2b3200e78b128d9b959cfdf7063fefe
 │ More power!                                             │
 ╰─────────────────────────────────────────────────────────╯
 ```
+
+We can also edit a comment:
+
+```
+$ rad issue comment d87dcfe --edit 880fdcd -m "Even more power!"
+╭─────────────────────────╮
+│ alice (you) now 880fdcd │
+│ Even more power!        │
+╰─────────────────────────╯
+```
