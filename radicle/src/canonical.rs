@@ -1,3 +1,4 @@
+
 //! A [Canonical JSON] formatter that escapes control characters. This
 //! differs to the olpc-cjson standard.
 //!

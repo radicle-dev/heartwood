@@ -8,6 +8,8 @@ pub extern crate radicle_crypto as crypto;
 extern crate amplify;
 extern crate radicle_git_ext as git_ext;
 
+mod delegate;
+
 mod canonical;
 
 pub mod cli;
