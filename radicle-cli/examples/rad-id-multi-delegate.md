@@ -83,6 +83,10 @@ did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z (eve)
 ```
 
 ``` ~alice
+$ rad id accept 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3 --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-confirm
+```
+
+``` ~alice
 $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Make private" --description "" --visibility private --no-confirm -q
 e6bf10593b78384eb2b281cbb18a605668a6d1f7
 ```
