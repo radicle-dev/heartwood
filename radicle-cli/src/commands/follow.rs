@@ -45,9 +45,16 @@ pub enum OperationName {
 }
 
 #[derive(Debug)]
+pub enum OutputFormat {
+    Text,
+    Json,
+}
+
+#[derive(Debug)]
 pub struct Options {
     pub op: Operation,
     pub verbose: bool,
+    pub output_format: OutputFormat,
 }
 
 impl Args for Options {
@@ -58,6 +65,7 @@ impl Args for Options {
         let mut verbose = false;
         let mut nid: Option<NodeId> = None;
         let mut alias: Option<Alias> = None;
+        let mut output_format = OutputFormat::Text;
 
         while let Some(arg) = parser.next()? {
             match &arg {
@@ -76,6 +84,7 @@ impl Args for Options {
 
                     alias = Some(name.to_owned());
                 }
+                Long("json") => output_format = OutputFormat::Json,
                 Long("verbose") | Short('v') => verbose = true,
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
@@ -90,7 +99,7 @@ impl Args for Options {
             Some(nid) => Operation::Follow { nid, alias },
             None => Operation::List { alias },
         };
-        Ok((Options { op, verbose }, vec![]))
+        Ok((Options { op, verbose, output_format }, vec![]))
     }
 }
 
@@ -100,7 +109,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     match options.op {
         Operation::Follow { nid, alias } => follow(nid, alias, &mut node, &profile)?,
-        Operation::List { alias } => following(&profile, alias)?,
+        Operation::List { alias } => following(&profile, alias, options.output_format)?,
     }
 
     Ok(())
@@ -137,7 +146,7 @@ pub fn follow(
     Ok(())
 }
 
-pub fn following(profile: &Profile, alias: Option<Alias>) -> anyhow::Result<()> {
+pub fn following(profile: &Profile, alias: Option<Alias>, output_format: OutputFormat) -> anyhow::Result<()> {
     let store = profile.policies()?;
     let aliases = profile.aliases();
     let mut t = term::Table::new(term::table::TableOptions::bordered());
@@ -158,7 +167,14 @@ pub fn following(profile: &Profile, alias: Option<Alias>) -> anyhow::Result<()> 
                 .filter(|p| p.alias.as_ref().is_some_and(|alias_| *alias_ == alias)),
         ),
     };
-    t.print();
+
+    match output_format {
+        OutputFormat::Text => t.print(),
+        OutputFormat::Json => {
+            Paint::disable();
+            serde_json::to_writer_pretty(std::io::stdout(), &t.to_json())?
+        }
+    }
 
     Ok(())
 }

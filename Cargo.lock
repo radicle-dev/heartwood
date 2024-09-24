@@ -2164,6 +2164,8 @@ dependencies = [
  "once_cell",
  "pretty_assertions",
  "radicle-signals",
+ "serde",
+ "serde_json",
  "shlex",
  "tempfile",
  "termion 3.0.0",

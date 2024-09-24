@@ -223,6 +223,31 @@ impl<const W: usize, T: Cell> Table<W, T> {
         }
         Size::new(cols, rows).constrain(c)
     }
+
+    pub fn to_json(&self) -> serde_json::Value {
+        assert!(self.rows.len() > 1);
+
+        let header = {
+            match &self.rows[0] {
+                Row::Header(header) => header,
+                _ => panic!("Cannot convert table to JSON. Expecting header in first row, but encountered row of different variant."),
+            }
+        };
+
+        serde_json::Value::Array(self.rows[1..].iter().enumerate().filter_map(|(index, row)| {
+            match row {
+                Row::Data(cells) => {
+                    let mut obj = serde_json::Map::new();
+                    header.iter().zip(cells.iter()).for_each(|(key, value)| {
+                        obj.insert(key.to_string(), serde_json::Value::String(value.to_string()));
+                    });
+                    Some(serde_json::Value::Object(obj))
+                },
+                Row::Divider => None,
+                Row::Header(_) => panic!("Cannot convert table to JSON. Encountered unexpected header in row {}.", index + 1),
+            }
+        }).collect())
+    }
 }
 
 #[cfg(test)]
