@@ -2,6 +2,7 @@ use core::fmt;
 use std::collections::{BTreeMap, HashMap};
 use std::hash::Hash;
 
+use cyphernet::ed25519;
 use radicle::crypto::PublicKey;
 
 use nonempty::NonEmpty;
@@ -29,7 +30,52 @@ pub struct Author {
 pub trait Verifier {
     type Error;
 
-    fn verify(&self, did: Did, signature: crypto::Signature) -> Result<bool, Self::Error>;
+    /// FIXME: Do we need this function?
+    fn did(&self) -> &Did;
+
+    fn verify(&self, msg: &[u8], signature: &crypto::Signature) -> Result<bool, Self::Error>;
+}
+
+struct DidKeyVerifier {
+    did: Did,
+    public_key: ed25519::PublicKey,
+}
+
+impl DidKeyVerifier {
+    pub fn new(did: Did) -> Self {
+        if did.method != "key" {
+            panic!("Invalid DID method: {}", self.did.method);
+        }
+        Self { did, public_key: todo!("deserialize did") }
+    }
+}
+
+impl Verifier for DidKeyVerifier {
+    type Error;
+
+    fn did(&self) -> &Did {
+        &self.did
+    }
+
+    fn verify(&self, msg: &[u8], signature: &crypto::Signature) -> Result<bool, Self::Error> {
+        self.public_key.verify(msg, signature)
+    }
+}
+
+struct DidKeriVerifier {
+    did: Did,
+}
+
+impl Verifier for DidKeriVerifier {
+    type Error;
+
+    fn did(&self) -> &Did {
+        todo!()
+    }
+
+    fn verify(&self, msg: &[u8], signature: &crypto::Signature) -> Result<bool, Self::Error> {
+        todo!("do a complicated verification procedure as specced by KERI")
+    }
 }
 
 pub struct GetAuthor {
