@@ -4,7 +4,7 @@ $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --des
 ```
 
 ``` ~bob
-$ rad watch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --node z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z -r 'refs/rad/sigrefs' -t 95cd447c57de8d232c6154f5dba0451aa593520e -i 500 --timeout 5000
+$ rad watch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --node z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z -r 'refs/rad/sigrefs' -t c9a828fc2fb01f893d6e6e9e17b9092dea2b3aba -i 500 --timeout 5000
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
 ✓ Fetched repository from 1 seed(s)

@@ -45,6 +45,7 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
     │       └── 696ec5508494692899337afe6713fe1796d0315c
     └── rad
         ├── id
+        ├── root
         └── sigrefs
 ```
 
@@ -115,5 +116,6 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
     │   └── master
     └── rad
         ├── id
+        ├── root
         └── sigrefs
 ```

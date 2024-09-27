@@ -24,7 +24,7 @@ use crate::{
 
 use super::{RemoteId, Repository};
 
-pub use crate::cob::{store, ObjectId};
+pub use crate::cob::{store, ObjectId, Store};
 
 #[derive(Error, Debug)]
 pub enum ObjectsError {
@@ -226,7 +226,7 @@ impl<'a, R: storage::ReadRepository> SignRepository for DraftStore<'a, R> {
     fn sign_refs<G: crypto::Signer>(
         &self,
         signer: &G,
-    ) -> Result<storage::refs::SignedRefs<Verified>, Error> {
+    ) -> Result<storage::refs::SignedRefs<Verified>, RepositoryError> {
         // Since this is a draft store, we do not actually want to sign the refs.
         // Instead, we just return the existing signed refs.
         let remote = self.repo.remote(signer.public_key())?;

@@ -341,7 +341,7 @@ impl<'a, R: WriteRepository> Merged<'a, R> {
         self,
         working: &git::raw::Repository,
         signer: &G,
-    ) -> Result<(), storage::Error> {
+    ) -> Result<(), storage::RepositoryError> {
         let nid = signer.public_key();
         let stored_ref = git::refs::patch(&self.patch).with_namespace(nid.into());
         let working_ref = git::refs::workdir::patch_upstream(&self.patch);

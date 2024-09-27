@@ -355,8 +355,8 @@ impl Remote<Unverified> {
 }
 
 impl Remote<Unverified> {
-    pub fn verified(self) -> Result<Remote<Verified>, crypto::Error> {
-        let refs = self.refs.verified()?;
+    pub fn verified<R: ReadRepository>(self, repo: &R) -> Result<Remote<Verified>, Error> {
+        let refs = self.refs.verified(repo)?;
 
         Ok(Remote { refs })
     }
@@ -628,11 +628,24 @@ pub trait WriteRepository: ReadRepository + SignRepository {
     fn set_head(&self) -> Result<SetHead, RepositoryError>;
     /// Set the repository 'rad/id' to the canonical commit, agreed by quorum.
     fn set_identity_head(&self) -> Result<Oid, RepositoryError> {
-        let head = self.canonical_identity_head()?;
+        let head = self.canonical_identity_head().unwrap();
         self.set_identity_head_to(head)?;
 
         Ok(head)
     }
+    /// Set the identity root reference to the canonical identity root commit.
+    fn set_remote_identity_root(&self, remote: &RemoteId) -> Result<Oid, RepositoryError> {
+        let root = self.identity_root()?;
+        self.set_remote_identity_root_to(remote, root)?;
+
+        Ok(root)
+    }
+    /// Set the identity root reference to the given commit.
+    fn set_remote_identity_root_to(
+        &self,
+        remote: &RemoteId,
+        root: Oid,
+    ) -> Result<(), RepositoryError>;
     /// Set the repository 'rad/id' to the given commit.
     fn set_identity_head_to(&self, commit: Oid) -> Result<(), RepositoryError>;
     /// Set the user info of the Git repository.
@@ -644,7 +657,7 @@ pub trait WriteRepository: ReadRepository + SignRepository {
 /// Allows signing refs.
 pub trait SignRepository {
     /// Sign the repository's refs under the `refs/rad/sigrefs` branch.
-    fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, Error>;
+    fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, RepositoryError>;
 }
 
 impl<T, S> ReadStorage for T

@@ -16,7 +16,7 @@ use crate::git::ext as git_ext;
 use crate::git::Oid;
 use crate::profile::env;
 use crate::storage;
-use crate::storage::{ReadRepository, RemoteId, WriteRepository};
+use crate::storage::{ReadRepository, RemoteId, RepoId, WriteRepository};
 
 pub use crate::git::refs::storage::*;
 
@@ -44,6 +44,12 @@ pub enum Error {
     Canonical(#[from] canonical::Error),
     #[error("invalid reference")]
     InvalidRef,
+    #[error("missing identity root reference '{0}'")]
+    MissingIdentityRoot(git::RefString),
+    #[error("missing identity object '{0}'")]
+    MissingIdentity(Oid),
+    #[error("mismatched identity: local {local}, remote {remote}")]
+    MismatchedIdentity { local: RepoId, remote: RepoId },
     #[error("invalid reference: {0}")]
     Ref(#[from] git::RefError),
     #[error(transparent)]
@@ -72,27 +78,17 @@ pub struct Refs(BTreeMap<git::RefString, Oid>);
 
 impl Refs {
     /// Verify the given signature on these refs, and return [`SignedRefs`] on success.
-    pub fn verified(
+    pub fn verified<R: ReadRepository>(
         self,
         signer: PublicKey,
         signature: Signature,
+        repo: &R,
     ) -> Result<SignedRefs<Verified>, Error> {
-        let refs = self;
-        let msg = refs.canonical();
-
-        match signer.verify(msg, &signature) {
-            Ok(()) => Ok(SignedRefs {
-                refs,
-                signature,
-                id: signer,
-                _verified: PhantomData,
-            }),
-            Err(e) => Err(e.into()),
-        }
+        SignedRefs::new(self, signer, signature).verified(repo)
     }
 
     /// Sign these refs with the given signer and return [`SignedRefs`].
-    pub fn signed<G>(self, signer: &G) -> Result<SignedRefs<Verified>, Error>
+    pub fn signed<G>(self, signer: &G) -> Result<SignedRefs<Unverified>, Error>
     where
         G: Signer,
     {
@@ -100,12 +96,7 @@ impl Refs {
         let msg = refs.canonical();
         let signature = signer.try_sign(&msg)?;
 
-        Ok(SignedRefs {
-            refs,
-            signature,
-            id: *signer.public_key(),
-            _verified: PhantomData,
-        })
+        Ok(SignedRefs::new(refs, *signer.public_key(), signature))
     }
 
     /// Get a particular ref.
@@ -216,17 +207,17 @@ pub struct SignedRefs<V> {
 }
 
 impl SignedRefs<Unverified> {
-    pub fn new(refs: Refs, id: PublicKey, signature: Signature) -> Self {
+    pub fn new(refs: Refs, author: PublicKey, signature: Signature) -> Self {
         Self {
             refs,
             signature,
-            id,
+            id: author,
             _verified: PhantomData,
         }
     }
 
-    pub fn verified(self) -> Result<SignedRefs<Verified>, crypto::Error> {
-        match self.verify(&self.id) {
+    pub fn verified<R: ReadRepository>(self, repo: &R) -> Result<SignedRefs<Verified>, Error> {
+        match self.verify(repo) {
             Ok(()) => Ok(SignedRefs {
                 refs: self.refs,
                 signature: self.signature,
@@ -237,13 +228,36 @@ impl SignedRefs<Unverified> {
         }
     }
 
-    pub fn verify(&self, signer: &PublicKey) -> Result<(), crypto::Error> {
+    pub fn verify<R: ReadRepository>(&self, repo: &R) -> Result<(), Error> {
         let canonical = self.refs.canonical();
+        let local = repo.id();
 
-        match signer.verify(canonical, &self.signature) {
-            Ok(()) => Ok(()),
-            Err(e) => Err(e),
+        // Verify signature.
+        if let Err(e) = self.id.verify(canonical, &self.signature) {
+            return Err(e.into());
         }
+        // If the identity root was signed, verify it points to the right place.
+        if let Some(id_root) = self.refs.get(&IDENTITY_ROOT) {
+            // Get the identity at the given oid.
+            let Ok(doc) = repo.identity_doc_at(id_root) else {
+                return Err(Error::MissingIdentity(id_root));
+            };
+            let remote = RepoId::from(doc.blob);
+
+            // Make sure the signed identity points to the local repo identity.
+            if remote != local {
+                return Err(Error::MismatchedIdentity { local, remote });
+            }
+        } else {
+            // TODO(cloudhead): Make this into a hard error (`Error::MissingIdentityRoot`) for
+            // repos that have migrated to the new identity document schema.
+            log::debug!(
+                target: "storage",
+                "Signed ref verification for {} in {local}: {} is not provided",
+                self.id, *IDENTITY_ROOT
+            );
+        }
+        Ok(())
     }
 }
 
@@ -264,20 +278,9 @@ impl SignedRefs<Verified> {
         let refs = repo.blob_at(oid, Path::new(REFS_BLOB_PATH))?;
         let signature = repo.blob_at(oid, Path::new(SIGNATURE_BLOB_PATH))?;
         let signature: crypto::Signature = signature.content().try_into()?;
+        let refs = Refs::from_canonical(refs.content())?;
 
-        match remote.verify(refs.content(), &signature) {
-            Ok(()) => {
-                let refs = Refs::from_canonical(refs.content())?;
-
-                Ok(Self {
-                    refs,
-                    signature,
-                    id: remote,
-                    _verified: PhantomData,
-                })
-            }
-            Err(e) => Err(e.into()),
-        }
+        SignedRefs::new(refs, remote, signature).verified(repo)
     }
 
     /// Save the signed refs to disk.
@@ -290,7 +293,7 @@ impl SignedRefs<Verified> {
         // N.b. if the signatures match then there are no updates
         let parent = match SignedRefsAt::load(*remote, repo)? {
             Some(SignedRefsAt { sigrefs, at }) if sigrefs.signature == self.signature => {
-                return Ok(Updated::Unchanged { oid: at })
+                return Ok(Updated::Unchanged { oid: at });
             }
             Some(SignedRefsAt { at, .. }) => Some(raw.find_commit(*at)?),
             None => None,
@@ -460,12 +463,13 @@ pub mod canonical {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::assert_matches;
-    use crate::{cob::identity::Identity, rad, test::fixtures, Storage};
     use crypto::test::signer::MockSigner;
     use qcheck_macros::quickcheck;
     use storage::{git::transport, RemoteRepository, SignRepository, WriteStorage};
+
+    use super::*;
+    use crate::assert_matches;
+    use crate::{cob::identity::Identity, rad, test::fixtures, Storage};
 
     #[quickcheck]
     fn prop_canonical_roundtrip(refs: Refs) {
@@ -476,7 +480,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     // Test that a user's signed refs are tied to a specific RID, and they can't simply be
     // used in a different repository.
     //
@@ -634,6 +637,13 @@ mod tests {
 
         // Due to the verification, we get a validation error when trying to load Bob's remote.
         // The graft is not allowed.
-        london.remote(bob.public_key()).unwrap_err();
+        assert_matches!(
+            london.remote(bob.public_key()),
+            Err(Error::MismatchedIdentity {
+                local,
+                remote,
+            })
+            if local == london_rid && remote == paris_rid
+        );
     }
 }

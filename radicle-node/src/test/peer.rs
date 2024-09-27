@@ -13,7 +13,7 @@ use radicle::node::Database;
 use radicle::node::UserAgent;
 use radicle::node::{address, Alias, ConnectOptions};
 use radicle::rad;
-use radicle::storage::refs::{RefsAt, SignedRefsAt};
+use radicle::storage::refs::{RefsAt, SignedRefsAt, IDENTITY_ROOT};
 use radicle::storage::{ReadRepository, RemoteRepository};
 use radicle::Storage;
 
@@ -353,9 +353,15 @@ where
         ann.into().signed(self.signer()).into()
     }
 
-    pub fn signed_refs_at(&self, refs: Refs, at: radicle::git::Oid) -> SignedRefsAt {
+    pub fn signed_refs_at<R: ReadRepository>(
+        &self,
+        mut refs: Refs,
+        at: radicle::git::Oid,
+        repo: &R,
+    ) -> SignedRefsAt {
+        refs.insert(IDENTITY_ROOT.to_ref_string(), repo.identity_root().unwrap());
         SignedRefsAt {
-            sigrefs: refs.signed(self.signer()).unwrap(),
+            sigrefs: refs.signed(self.signer()).unwrap().verified(repo).unwrap(),
             at,
         }
     }

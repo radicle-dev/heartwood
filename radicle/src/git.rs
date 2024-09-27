@@ -184,12 +184,20 @@ pub mod refs {
 
         use super::*;
 
-        /// Where the project's identity document is stored.
+        /// Where the repo's identity document is stored.
         ///
         /// `refs/rad/id`
         ///
         pub static IDENTITY_BRANCH: Lazy<Qualified> = Lazy::new(|| {
             Qualified::from_components(name::component!("rad"), name::component!("id"), None)
+        });
+
+        /// Where the repo's identity root document is stored.
+        ///
+        /// `refs/rad/root`
+        ///
+        pub static IDENTITY_ROOT: Lazy<Qualified> = Lazy::new(|| {
+            Qualified::from_components(name::component!("rad"), name::component!("root"), None)
         });
 
         /// Where the project's signed references are stored.
@@ -248,6 +256,14 @@ pub mod refs {
         ///
         pub fn id(remote: &RemoteId) -> Namespaced {
             IDENTITY_BRANCH.with_namespace(remote.into())
+        }
+
+        /// Get the root of the branch where the project's identity document is stored.
+        ///
+        /// `refs/namespaces/<remote>/refs/rad/root`
+        ///
+        pub fn id_root(remote: &RemoteId) -> Namespaced {
+            IDENTITY_ROOT.with_namespace(remote.into())
         }
 
         /// Get the branch where the `remote`'s signed references are

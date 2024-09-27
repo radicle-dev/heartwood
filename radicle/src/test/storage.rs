@@ -300,19 +300,19 @@ impl ReadRepository for MockRepository {
     }
 
     fn identity_head_of(&self, _remote: &RemoteId) -> Result<Oid, git::ext::Error> {
-        todo!()
+        Ok(self.doc.commit)
     }
 
     fn identity_root(&self) -> Result<Oid, RepositoryError> {
-        todo!()
+        Ok(self.doc.commit)
     }
 
     fn identity_root_of(&self, _remote: &RemoteId) -> Result<Oid, RepositoryError> {
-        todo!()
+        Ok(self.doc.commit)
     }
 
     fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {
-        Ok(Oid::from_str("cccccccccccccccccccccccccccccccccccccccc").unwrap())
+        Ok(self.doc.commit)
     }
 
     fn merge_base(&self, _left: &Oid, _right: &Oid) -> Result<Oid, git::ext::Error> {
@@ -333,6 +333,14 @@ impl WriteRepository for MockRepository {
         todo!()
     }
 
+    fn set_remote_identity_root_to(
+        &self,
+        _remote: &RemoteId,
+        _root: Oid,
+    ) -> Result<(), RepositoryError> {
+        todo!()
+    }
+
     fn set_user(&self, _info: &git::UserInfo) -> Result<(), Error> {
         todo!()
     }
@@ -342,7 +350,7 @@ impl SignRepository for MockRepository {
     fn sign_refs<G: Signer>(
         &self,
         _signer: &G,
-    ) -> Result<crate::storage::refs::SignedRefs<Verified>, Error> {
+    ) -> Result<crate::storage::refs::SignedRefs<Verified>, RepositoryError> {
         todo!()
     }
 }

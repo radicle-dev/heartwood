@@ -26,6 +26,7 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
     │   └── master
     └── rad
         ├── id
+        ├── root
         └── sigrefs
 ```
 
@@ -33,7 +34,7 @@ And sigrefs:
 
 ```
 $ rad inspect --sigrefs
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi f209c9f68aa689af24220a20462e13ee9dfb2a95
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 99c549702e2bcfe02b0e68d4a2224fb7a1524529
 ```
 
 Or display the repository identity's payload and delegates:

@@ -14,6 +14,7 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
     │   └── master
     └── rad
         ├── id
+        ├── root
         └── sigrefs
 ```
 
@@ -39,12 +40,14 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
     │   └── master
     └── rad
         ├── id
+        ├── root
         └── sigrefs
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 └── refs
     ├── heads
     │   └── master
     └── rad
+        ├── root
         └── sigrefs
 ```
 

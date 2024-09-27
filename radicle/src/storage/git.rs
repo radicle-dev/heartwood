@@ -20,15 +20,15 @@ use crate::node::SyncedAt;
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs, SignedRefsAt};
 use crate::storage::{
-    ReadRepository, ReadStorage, Remote, Remotes, RepositoryError, RepositoryInfo, SetHead,
-    SignRepository, WriteRepository, WriteStorage,
+    ReadRepository, ReadStorage, Remote, Remotes, RepositoryInfo, SetHead, SignRepository,
+    WriteRepository, WriteStorage,
 };
 use crate::{git, node};
 
 pub use crate::git::{
     ext, raw, refname, refspec, Oid, PatternStr, Qualified, RefError, RefString, UserInfo,
 };
-pub use crate::storage::Error;
+pub use crate::storage::{Error, RepositoryError};
 
 use super::refs::RefsAt;
 use super::{RemoteId, RemoteRepository, ValidateRepository};
@@ -773,9 +773,8 @@ impl ReadRepository for Repository {
 
     fn identity_root(&self) -> Result<Oid, RepositoryError> {
         let oid = self.backend.refname_to_id(CANONICAL_IDENTITY.as_str())?;
-        let walk = self.revwalk(oid.into())?.collect::<Vec<_>>();
-        let root = walk
-            .into_iter()
+        let root = self
+            .revwalk(oid.into())?
             .last()
             .ok_or(RepositoryError::Doc(DocError::Missing))??;
 
@@ -783,14 +782,8 @@ impl ReadRepository for Repository {
     }
 
     fn identity_root_of(&self, remote: &RemoteId) -> Result<Oid, RepositoryError> {
-        let oid = self.identity_head_of(remote)?;
-        let walk = self.revwalk(oid)?.collect::<Vec<_>>();
-        let root = walk
-            .into_iter()
-            .last()
-            .ok_or(RepositoryError::Doc(DocError::Missing))??;
-
-        Ok(root.into())
+        self.reference_oid(remote, &git::refs::storage::IDENTITY_ROOT)
+            .map_err(RepositoryError::from)
     }
 
     fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {
@@ -857,6 +850,19 @@ impl WriteRepository for Repository {
         Ok(())
     }
 
+    fn set_remote_identity_root_to(
+        &self,
+        remote: &RemoteId,
+        root: Oid,
+    ) -> Result<(), RepositoryError> {
+        let refname = git::refs::storage::id_root(remote);
+
+        self.raw()
+            .reference(refname.as_str(), *root, true, "set-id-root (radicle)")?;
+
+        Ok(())
+    }
+
     fn set_user(&self, info: &UserInfo) -> Result<(), Error> {
         let mut config = self.backend.config()?;
         config.set_str("user.name", &info.name())?;
@@ -870,20 +876,24 @@ impl WriteRepository for Repository {
 }
 
 impl SignRepository for Repository {
-    fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, Error> {
+    fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, RepositoryError> {
         let remote = signer.public_key();
+        // Ensure the root reference is set, which is checked during sigref verification.
+        if self.identity_root_of(remote).is_err() {
+            self.set_remote_identity_root(remote)?;
+        }
         let mut refs = self.references_of(remote)?;
         // Don't sign the `rad/sigrefs` ref itself, and don't sign invalid OIDs.
         refs.retain(|name, oid| {
             name.as_refstr() != refs::SIGREFS_BRANCH.as_ref() && !oid.is_zero()
         });
-        let signed = refs.signed(signer)?;
-
+        let signed = refs.signed(signer)?.verified(self)?;
         signed.save(self)?;
 
         Ok(signed)
     }
 }
+
 pub mod trailers {
     use std::str::FromStr;
 
@@ -946,7 +956,6 @@ mod tests {
     use crate::git;
     use crate::storage::refs::SIGREFS_BRANCH;
     use crate::storage::{ReadRepository, ReadStorage};
-    use crate::test::arbitrary;
     use crate::test::fixtures;
 
     #[test]
@@ -999,7 +1008,13 @@ mod tests {
 
         assert_eq!(
             refs,
-            vec![&cob, "refs/heads/master", "refs/rad/id", "refs/rad/sigrefs"]
+            vec![
+                &cob,
+                "refs/heads/master",
+                "refs/rad/id",
+                "refs/rad/root",
+                "refs/rad/sigrefs"
+            ]
         );
     }
 
@@ -1009,28 +1024,26 @@ mod tests {
         let mut rng = fastrand::Rng::new();
         let signer = MockSigner::new(&mut rng);
         let storage = Storage::open(tmp.path(), fixtures::user()).unwrap();
-        let proj_id = arbitrary::gen::<RepoId>(1);
         let alice = *signer.public_key();
-        let project = storage.create(proj_id).unwrap();
-        let backend = &project.backend;
+        let (rid, _, working, _) =
+            fixtures::project(tmp.path().join("project"), &storage, &signer).unwrap();
+        let stored = storage.repository(rid).unwrap();
         let sig = git2::Signature::now(&alice.to_string(), "anonymous@radicle.xyz").unwrap();
-        let head = git::initial_commit(backend, &sig).unwrap();
-        let tree =
-            git::write_tree(Path::new("README"), "Hello World!\n".as_bytes(), backend).unwrap();
+        let head = working.head().unwrap().peel_to_commit().unwrap();
 
         git::commit(
-            backend,
+            &working,
             &head,
             &git::RefString::try_from(format!("refs/remotes/{alice}/heads/master")).unwrap(),
             "Second commit",
             &sig,
-            &tree,
+            &head.tree().unwrap(),
         )
         .unwrap();
 
-        let signed = project.sign_refs(&signer).unwrap();
-        let remote = project.remote(&alice).unwrap();
-        let mut unsigned = project.references_of(&alice).unwrap();
+        let signed = stored.sign_refs(&signer).unwrap();
+        let remote = stored.remote(&alice).unwrap();
+        let mut unsigned = stored.references_of(&alice).unwrap();
 
         // The signed refs doesn't contain the signature ref itself.
         let sigref = (*SIGREFS_BRANCH).to_ref_string();

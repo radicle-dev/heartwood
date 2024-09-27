@@ -15,9 +15,9 @@ $ rad sync status --sort-by alias
 ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   Node                      Address                      Status        Tip       Timestamp │
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   alice   (you)             alice.radicle.example:8776   unannounced   a9ce0d1   [  ...  ] │
-│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.example:8776     out-of-sync   f209c9f   [  ...  ] │
-│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.example:8776     out-of-sync   f209c9f   [  ...  ] │
+│ ●   alice   (you)             alice.radicle.example:8776   unannounced   056b1db   [  ...  ] │
+│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.example:8776     out-of-sync   99c5497   [  ...  ] │
+│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.example:8776     out-of-sync   99c5497   [  ...  ] │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -37,9 +37,9 @@ $ rad sync status --sort-by alias
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   Node                      Address                      Status   Tip       Timestamp │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   alice   (you)             alice.radicle.example:8776            a9ce0d1   [  ...  ] │
-│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.example:8776     synced   a9ce0d1   [  ...  ] │
-│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.example:8776     synced   a9ce0d1   [  ...  ] │
+│ ●   alice   (you)             alice.radicle.example:8776            056b1db   [  ...  ] │
+│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.example:8776     synced   056b1db   [  ...  ] │
+│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.example:8776     synced   056b1db   [  ...  ] │
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 

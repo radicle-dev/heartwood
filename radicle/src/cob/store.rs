@@ -91,7 +91,7 @@ pub enum Error {
     #[error("object `{1}` of type `{0}` was not found")]
     NotFound(TypeName, ObjectId),
     #[error("signed refs: {0}")]
-    SignRefs(#[from] storage::Error),
+    SignRefs(Box<storage::RepositoryError>),
     #[error("invalid or unknown embed URI: {0}")]
     EmbedUri(Uri),
     #[error(transparent)]
@@ -181,7 +181,9 @@ where
                 changes,
             },
         )?;
-        self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
+        self.repo
+            .sign_refs(signer)
+            .map_err(|e| Error::SignRefs(Box::new(e)))?;
 
         Ok(updated)
     }
@@ -220,8 +222,14 @@ where
                 contents,
             },
         )?;
-        self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
-
+        // Nb. We can't sign our refs before the identity refs exist, which are created after
+        // the identity COB is created. Therefore we manually sign refs when creating identity
+        // COBs.
+        if T::type_name() != &*crate::cob::identity::TYPENAME {
+            self.repo
+                .sign_refs(signer)
+                .map_err(|e| Error::SignRefs(Box::new(e)))?;
+        }
         Ok((*cob.id(), cob.object))
     }
 
@@ -234,7 +242,9 @@ where
         {
             Ok(_) => {
                 cob::remove(self.repo, signer.public_key(), T::type_name(), id)?;
-                self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
+                self.repo
+                    .sign_refs(signer)
+                    .map_err(|e| Error::SignRefs(Box::new(e)))?;
                 Ok(())
             }
             Err(err) if err.code() == git::raw::ErrorCode::NotFound => Ok(()),

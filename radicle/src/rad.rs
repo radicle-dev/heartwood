@@ -1,4 +1,5 @@
 #![allow(clippy::let_unit_value)]
+#![warn(clippy::unwrap_used)]
 use std::io;
 use std::path::Path;
 use std::str::FromStr;
@@ -54,8 +55,7 @@ pub fn init<G: Signer, S: WriteStorage>(
     storage: S,
 ) -> Result<(RepoId, identity::Doc<Verified>, SignedRefs<Verified>), InitError> {
     // TODO: Better error when project id already exists in storage, but remote doesn't.
-    let pk = signer.public_key();
-    let delegate = identity::Did::from(*pk);
+    let delegate: identity::Did = signer.public_key().into();
     let proj = Project::new(
         name.to_owned(),
         description.to_owned(),
@@ -70,10 +70,10 @@ pub fn init<G: Signer, S: WriteStorage>(
         )
     })?;
     let doc = identity::Doc::initial(proj, delegate, visibility).verified()?;
-    let (project, _) = Repository::init(&doc, &storage, signer)?;
+    let (project, identity) = Repository::init(&doc, &storage, signer)?;
     let url = git::Url::from(project.id);
 
-    match init_configure(repo, &project, pk, &default_branch, &url, signer) {
+    match init_configure(repo, &project, &default_branch, &url, identity, signer) {
         Ok(signed) => Ok((project.id, doc, signed)),
         Err(err) => {
             if let Err(e) = project.remove() {
@@ -91,15 +91,17 @@ pub fn init<G: Signer, S: WriteStorage>(
 
 fn init_configure<G>(
     repo: &git2::Repository,
-    project: &Repository,
-    pk: &crypto::PublicKey,
+    stored: &Repository,
     default_branch: &BranchName,
     url: &git::Url,
+    identity: git::Oid,
     signer: &G,
 ) -> Result<SignedRefs<Verified>, InitError>
 where
     G: crypto::Signer,
 {
+    let pk = signer.public_key();
+
     git::configure_repository(repo)?;
     git::configure_remote(repo, &REMOTE_NAME, url, &url.clone().with_namespace(*pk))?;
     git::push(
@@ -110,10 +112,11 @@ where
             &git::fmt::lit::refs_heads(default_branch).into(),
         )],
     )?;
+    stored.set_remote_identity_root_to(pk, identity)?;
+    stored.set_identity_head_to(identity)?;
+    stored.set_head()?;
 
-    let signed = project.sign_refs(signer)?;
-    let _head = project.set_identity_head()?;
-    let _head = project.set_head()?;
+    let signed = stored.sign_refs(signer)?;
 
     Ok(signed)
 }

@@ -210,6 +210,11 @@ fn notify(
                 // be a separate notification on the identity COB itself.
                 continue;
             }
+            if r == *git::refs::storage::IDENTITY_ROOT {
+                // Don't notify about the peers's identity root pointer. This is only used
+                // for sigref verification.
+                continue;
+            }
             if let Some(rest) = r.strip_prefix(git::refname!("refs/heads/patches")) {
                 if radicle::cob::ObjectId::from_str(rest.as_str()).is_ok() {
                     // Don't notify about patch branches, since we already get
