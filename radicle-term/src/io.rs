@@ -12,7 +12,7 @@ use zeroize::Zeroizing;
 
 use crate::command;
 use crate::format;
-use crate::{display, style, Context, Paint, Size, Display};
+use crate::{display, style, Context, Display, Paint, Size};
 
 pub use inquire;
 pub use inquire::Select;
@@ -200,11 +200,19 @@ pub fn warning(warning: impl fmt::Display) {
 }
 
 pub fn error(error: impl fmt::Display) {
-    println!("{} {} {error}", display(&ERROR_PREFIX), display(&Paint::red("Error:")));
+    println!(
+        "{} {} {error}",
+        display(&ERROR_PREFIX),
+        display(&Paint::red("Error:"))
+    );
 }
 
 pub fn hint(hint: impl fmt::Display) {
-    println!("{} {}",display(&ERROR_HINT_PREFIX), display(&format::hint(hint)));
+    println!(
+        "{} {}",
+        display(&ERROR_HINT_PREFIX),
+        display(&format::hint(hint))
+    );
 }
 
 pub fn ask<D: fmt::Display>(prompt: D, default: bool) -> bool {

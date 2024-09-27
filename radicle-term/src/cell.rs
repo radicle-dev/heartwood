@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::{Color, Filled, Line, Paint, Display};
+use super::{Color, Display, Filled, Line, Paint};
 
 use unicode_display_width as unicode;
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -30,8 +30,7 @@ pub trait Cell<'a>: Display<'a> {
     fn pad(&self, width: usize) -> Self::Padded;
 }
 
-impl<'a, T: Cell<'a>> Cell<'a> for Paint<T>
-{
+impl<'a, T: Cell<'a>> Cell<'a> for Paint<T> {
     type Truncated = Paint<T::Truncated>;
     type Padded = Paint<T::Padded>;
 

@@ -5,8 +5,8 @@ use std::{fmt, sync};
 
 use once_cell::sync::Lazy;
 
-use super::display::{Context, Display};
 use super::color::Color;
+use super::display::{Context, Display};
 use super::style::{Property, Style};
 
 /// What file is used for text output.
@@ -265,7 +265,11 @@ impl<'a, T: Display<'a>> Display<'a> for Paint<T> {
             self.style.fmt_prefix(&mut prefix)?;
             self.style.fmt_prefix(f)?;
 
-            let item = self.item.display(&ctx.clone()).to_string().replace("\x1B[0m", &prefix);
+            let item = self
+                .item
+                .display(&ctx.clone())
+                .to_string()
+                .replace("\x1B[0m", &prefix);
             fmt::Display::fmt(&item, f)?;
             self.style.fmt_suffix(f)
         } else if ctx.ansi {
@@ -337,7 +341,11 @@ pub struct Filled<T> {
 
 impl<'a, T: fmt::Display> Display<'_> for Filled<T> {
     fn fmt_with(&self, f: &mut fmt::Formatter<'_>, ctx: &Context) -> fmt::Result {
-        write!(f, "{}", Paint::wrapping(&self.item).bg(self.color).display(ctx))
+        write!(
+            f,
+            "{}",
+            Paint::wrapping(&self.item).bg(self.color).display(ctx)
+        )
     }
 }
 

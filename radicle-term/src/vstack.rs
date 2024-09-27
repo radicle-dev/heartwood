@@ -1,5 +1,5 @@
 use crate::colors;
-use crate::{Context, Color, Constraint, Element, Label, Line, Paint, Size};
+use crate::{Color, Constraint, Context, Element, Label, Line, Paint, Size};
 
 /// Options for [`VStack`].
 #[derive(Debug)]

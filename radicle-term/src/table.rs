@@ -20,7 +20,7 @@ use std::fmt;
 
 use crate::cell::Cell;
 use crate::{self as term, Style};
-use crate::{Context, Color, Constraint, Line, Paint, Size};
+use crate::{Color, Constraint, Context, Line, Paint, Size};
 
 pub use crate::Element;
 
@@ -31,7 +31,7 @@ pub enum TableDirection {
     #[default]
     TopToBottom,
     /// Headers are shown in the first column, consecutive columns contain elements.
-    /// For n headers and m elements, the table will have O(m) columns and O(n) rows. 
+    /// For n headers and m elements, the table will have O(m) columns and O(n) rows.
     LeftToRight,
 }
 
@@ -92,7 +92,12 @@ impl<const W: usize, T, H> Default for Table<W, T, H> {
     }
 }
 
-impl<'a, const W: usize, T: Cell<'a> + fmt::Debug + Send + Sync, H: Cell<'a> + fmt::Debug + Send + Sync> Element for Table<W, T, H>
+impl<
+        'a,
+        const W: usize,
+        T: Cell<'a> + fmt::Debug + Send + Sync,
+        H: Cell<'a> + fmt::Debug + Send + Sync,
+    > Element for Table<W, T, H>
 where
     T::Padded: Into<Line>,
     H::Padded: Into<Line>,
@@ -288,22 +293,28 @@ impl<const W: usize, T: ToString, H: ToString> Table<W, Paint<T>, Paint<H>> {
                 _ => {
                     // TODO: Return array of arrays?
                     panic!("Cannot convert table to JSON. Expecting header.")
-                },
+                }
             }
         };
 
-        serde_json::Value::Array(self.rows[1..].iter().filter_map(|row| {
-            match row {
-                Row::Data(cells) => {
-                    let mut obj = serde_json::Map::new();
-                    header.iter().zip(cells.iter()).for_each(|(key, value)| {
-                        obj.insert(key.item.to_string(), serde_json::Value::String(value.item.to_string()));
-                    });
-                    Some(serde_json::Value::Object(obj))
-                },
-                Row::Divider => None,
-            }
-        }).collect())
+        serde_json::Value::Array(
+            self.rows[1..]
+                .iter()
+                .filter_map(|row| match row {
+                    Row::Data(cells) => {
+                        let mut obj = serde_json::Map::new();
+                        header.iter().zip(cells.iter()).for_each(|(key, value)| {
+                            obj.insert(
+                                key.item.to_string(),
+                                serde_json::Value::String(value.item.to_string()),
+                            );
+                        });
+                        Some(serde_json::Value::Object(obj))
+                    }
+                    Row::Divider => None,
+                })
+                .collect(),
+        )
     }
 }
 
@@ -528,7 +539,7 @@ mod test {
             ].join("")
         );
     }
-    
+
     #[test]
     fn test_table_json() {
         let mut t = Table::new(TableOptions {
@@ -565,17 +576,22 @@ mod test {
             },
         ];
 
-        t.header([term::format::tertiary("Country"), term::format::tertiary("Population"), term::format::tertiary("Code")]);
+        t.header([
+            term::format::tertiary("Country"),
+            term::format::tertiary("Population"),
+            term::format::tertiary("Code"),
+        ]);
         t.divider();
         for entry in entries.iter() {
-            t.push([term::format::default(entry.country), term::format::default(entry.population), term::format::default(entry.code)]);
+            t.push([
+                term::format::default(entry.country),
+                term::format::default(entry.population),
+                term::format::default(entry.code),
+            ]);
         }
 
         //Paint::disable();
 
-        assert_eq!(
-            t.to_json(),
-            serde_json::json!(entries)
-        );
+        assert_eq!(t.to_json(), serde_json::json!(entries));
     }
 }

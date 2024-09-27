@@ -11,15 +11,15 @@ pub mod label;
 pub mod pager;
 pub mod spinner;
 pub mod table;
+pub mod terminal;
 pub mod textarea;
 pub mod vstack;
-pub mod terminal;
 
 use std::fmt;
 use std::io::IsTerminal;
 
 pub use ansi::Color;
-pub use ansi::{Context, Display, Filled, Paint, Style, display, paint};
+pub use ansi::{display, display_with, paint, Context, Display, Filled, Paint, Style};
 pub use editor::Editor;
 pub use element::{Constraint, Element, Line, Size};
 pub use hstack::HStack;

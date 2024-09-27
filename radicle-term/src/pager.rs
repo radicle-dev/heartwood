@@ -160,18 +160,25 @@ fn render<W: Write>(
     };
     // Render content.
     for (ix, line) in lines[start_line..end_line].iter().enumerate() {
-        write!(out, "{}{}", termion::cursor::Goto(1, ix as u16 + 1), display(line))?;
+        write!(
+            out,
+            "{}{}",
+            termion::cursor::Goto(1, ix as u16 + 1),
+            display(line)
+        )?;
     }
     // Render progress meter.
     write!(
         out,
         "{}{}",
         termion::cursor::Goto(width - 3, height),
-        display(&Paint::new(format!(
-            "{:.0}%",
-            end_line as f64 / lines.len() as f64 * 100.
-        ))
-        .dim())
+        display(
+            &Paint::new(format!(
+                "{:.0}%",
+                end_line as f64 / lines.len() as f64 * 100.
+            ))
+            .dim()
+        )
     )?;
     // Render cursor input area.
     write!(

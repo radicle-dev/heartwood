@@ -191,7 +191,13 @@ pub fn spinner_to(
                             message,
                         } => {
                             write!(animation, "\r{}", termion::clear::UntilNewline).ok();
-                            writeln!(completion, "{} {}", display(&Paint::green("✓")), display(message)).ok();
+                            writeln!(
+                                completion,
+                                "{} {}",
+                                display(&Paint::green("✓")),
+                                display(message)
+                            )
+                            .ok();
                             break;
                         }
                         Progress {
@@ -214,7 +220,13 @@ pub fn spinner_to(
                             message,
                         } => {
                             write!(animation, "\r{}", termion::clear::UntilNewline).ok();
-                            writeln!(completion, "{} {}", display(&WARNING_PREFIX), display(message)).ok();
+                            writeln!(
+                                completion,
+                                "{} {}",
+                                display(&WARNING_PREFIX),
+                                display(message)
+                            )
+                            .ok();
                             break;
                         }
                         Progress {
@@ -222,7 +234,13 @@ pub fn spinner_to(
                             message,
                         } => {
                             write!(animation, "\r{}", termion::clear::UntilNewline).ok();
-                            writeln!(completion, "{} {}", display(&ERROR_PREFIX), display(message)).ok();
+                            writeln!(
+                                completion,
+                                "{} {}",
+                                display(&ERROR_PREFIX),
+                                display(message)
+                            )
+                            .ok();
                             break;
                         }
                     }
