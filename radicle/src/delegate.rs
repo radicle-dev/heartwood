@@ -36,6 +36,17 @@ pub trait Verifier {
     fn verify(&self, msg: &[u8], signature: &crypto::Signature) -> Result<bool, Self::Error>;
 }
 
+pub trait Handshaker {
+    type Error;
+
+    fn did(&self) -> &Did;
+
+    // TODO: What does a handshake look like?
+    // Note to self: DID documents have an optional key agreement verification
+    // property https://www.w3.org/TR/did-core/#dfn-keyagreement
+    fn perform_key_agreement(&self) -> Result<(), Self::Error>;
+}
+
 struct DidKeyVerifier {
     did: Did,
     public_key: ed25519::PublicKey,
@@ -46,7 +57,10 @@ impl DidKeyVerifier {
         if did.method != "key" {
             panic!("Invalid DID method: {}", self.did.method);
         }
-        Self { did, public_key: todo!("deserialize did") }
+        Self {
+            did,
+            public_key: todo!("deserialize did"),
+        }
     }
 }
 
