@@ -13,6 +13,7 @@ pub mod spinner;
 pub mod table;
 pub mod textarea;
 pub mod vstack;
+pub mod terminal;
 
 use std::fmt;
 use std::io::IsTerminal;

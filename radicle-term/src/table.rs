@@ -285,7 +285,10 @@ impl<const W: usize, T: ToString, H: ToString> Table<W, Paint<T>, Paint<H>> {
         let header = {
             match &self.header {
                 Some(header) => header,
-                _ => panic!("Cannot convert table to JSON. Expecting header."),
+                _ => {
+                    // TODO: Return array of arrays?
+                    panic!("Cannot convert table to JSON. Expecting header.")
+                },
             }
         };
 
