@@ -7,6 +7,7 @@ use std::time;
 use anyhow::anyhow;
 use radicle::issue::cache::Issues as _;
 use radicle::patch::cache::Patches as _;
+use radicle_term::Element;
 use thiserror::Error;
 
 use radicle::git::raw;
@@ -26,8 +27,8 @@ use crate::commands::rad_sync as sync;
 use crate::node::SyncSettings;
 use crate::project;
 use crate::terminal as term;
+use crate::terminal::display;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::Element as _;
 
 pub const HELP: Help = Help {
     name: "clone",
@@ -176,10 +177,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     term::success!(
         "Repository successfully cloned under {}",
-        term::format::dim(Path::new(".").join(path).display())
+        display(&term::format::dim(Path::new(".").join(path).display()))
     );
 
-    let mut info: term::Table<1, term::Line> = term::Table::new(term::TableOptions::bordered());
+    let mut info: term::Table<1, term::Line, &str> = term::Table::new(term::TableOptions::bordered());
     info.push([term::format::bold(proj.name()).into()]);
     info.push([term::format::italic(proj.description()).into()]);
 
@@ -200,7 +201,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         .map_or(proj.name().to_string(), |loc| loc.display().to_string());
     term::info!(
         "Run {} to go to the repository directory.",
-        term::format::command(format!("cd ./{location}")),
+        display(&term::format::command(format!("cd ./{location}"))),
     );
 
     Ok(())
@@ -251,7 +252,7 @@ pub fn clone<G: Signer>(
     if node.seed(id, scope)? {
         term::success!(
             "Seeding policy updated for {} with scope '{scope}'",
-            term::format::tertiary(id)
+            display(&term::format::tertiary(id))
         );
     }
 
@@ -288,7 +289,7 @@ pub fn clone<G: Signer>(
     // Checkout.
     let spinner = term::spinner(format!(
         "Creating checkout in ./{}..",
-        term::format::tertiary(path.display())
+        display(&term::format::tertiary(path.display()))
     ));
     let working = rad::checkout(id, &me, path, &storage)?;
 

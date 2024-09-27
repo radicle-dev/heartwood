@@ -96,7 +96,7 @@ where
                     process::exit(status.code().unwrap_or(0));
                 }
                 Some(Error::Usage) => {
-                    term::usage(help.name, help.usage);
+                    term::usage(help.name, help.usage, /* FIXME: */ false);
                     process::exit(1);
                 }
                 Some(Error::WithHint { hint, .. }) => Some(hint),

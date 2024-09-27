@@ -18,7 +18,7 @@ use std::fmt;
 use std::io::IsTerminal;
 
 pub use ansi::Color;
-pub use ansi::{paint, Filled, Paint, Style};
+pub use ansi::{Context, Display, Filled, Paint, Style, display, paint};
 pub use editor::Editor;
 pub use element::{Constraint, Element, Line, Size};
 pub use hstack::HStack;

@@ -9,7 +9,7 @@ use radicle_signals as signals;
 use signals::Signal;
 
 use crate::io::{ERROR_PREFIX, WARNING_PREFIX};
-use crate::Paint;
+use crate::{display, Display, Paint};
 
 /// How much time to wait between spinner animation updates.
 pub const DEFAULT_TICK: time::Duration = time::Duration::from_millis(99);
@@ -83,8 +83,8 @@ impl Spinner {
             progress.state = State::Error;
             progress.message = Paint::new(format!(
                 "{} {} {}",
-                progress.message,
-                Paint::red("error:"),
+                display(&progress.message),
+                display(&Paint::red("error:")),
                 msg
             ));
         }
@@ -154,9 +154,10 @@ pub fn spinner_to(
                                 write!(animation, "\r{}", termion::clear::UntilNewline).ok();
                                 writeln!(
                                     completion,
-                                    "{ERROR_PREFIX} {} {}",
-                                    &progress.message,
-                                    Paint::red("<canceled>")
+                                    "{} {} {}",
+                                    display(&ERROR_PREFIX),
+                                    display(&progress.message),
+                                    display(&Paint::red("<canceled>"))
                                 )
                                 .ok();
                                 drop(animation);
@@ -175,7 +176,9 @@ pub fn spinner_to(
 
                             write!(
                                 animation,
-                                "\r{}{spinner} {message}",
+                                "\r{}{} {}",
+                                display(&spinner),
+                                display(message),
                                 termion::clear::UntilNewline,
                             )
                             .ok();
@@ -188,7 +191,7 @@ pub fn spinner_to(
                             message,
                         } => {
                             write!(animation, "\r{}", termion::clear::UntilNewline).ok();
-                            writeln!(completion, "{} {message}", Paint::green("✓")).ok();
+                            writeln!(completion, "{} {}", display(&Paint::green("✓")), display(message)).ok();
                             break;
                         }
                         Progress {
@@ -198,8 +201,10 @@ pub fn spinner_to(
                             write!(animation, "\r{}", termion::clear::UntilNewline).ok();
                             writeln!(
                                 completion,
-                                "{ERROR_PREFIX} {message} {}",
-                                Paint::red("<canceled>")
+                                "{} {} {}",
+                                display(&ERROR_PREFIX),
+                                display(message),
+                                display(&Paint::red("<canceled>"))
                             )
                             .ok();
                             break;
@@ -209,7 +214,7 @@ pub fn spinner_to(
                             message,
                         } => {
                             write!(animation, "\r{}", termion::clear::UntilNewline).ok();
-                            writeln!(completion, "{WARNING_PREFIX} {message}").ok();
+                            writeln!(completion, "{} {}", display(&WARNING_PREFIX), display(message)).ok();
                             break;
                         }
                         Progress {
@@ -217,7 +222,7 @@ pub fn spinner_to(
                             message,
                         } => {
                             write!(animation, "\r{}", termion::clear::UntilNewline).ok();
-                            writeln!(completion, "{ERROR_PREFIX} {message}").ok();
+                            writeln!(completion, "{} {}", display(&ERROR_PREFIX), display(message)).ok();
                             break;
                         }
                     }

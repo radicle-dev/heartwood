@@ -12,6 +12,7 @@ use radicle::storage::git::transport;
 
 use crate::project;
 use crate::terminal as term;
+use crate::terminal::display;
 use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
@@ -110,7 +111,7 @@ fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     };
     spinner.message(format!(
         "Repository checkout successful under ./{}",
-        term::format::highlight(path.file_name().unwrap_or_default().to_string_lossy())
+        display(&term::format::highlight(path.file_name().unwrap_or_default().to_string_lossy()))
     ));
     spinner.finish();
 
@@ -172,13 +173,13 @@ pub fn setup_remote(
     };
     let (remote, branch) = setup.run(&remote_name, *remote_id)?;
 
-    term::success!("Remote {} added", term::format::tertiary(remote.name));
+    term::success!("Remote {} added", display(&term::format::tertiary(remote.name)));
 
     if let Some(branch) = branch {
         term::success!(
             "Remote-tracking branch {} created for {}",
-            term::format::tertiary(branch),
-            term::format::tertiary(term::format::node(remote_id))
+            display(&term::format::tertiary(branch)),
+            display(&term::format::node(remote_id))
         );
     }
     Ok(remote_name)

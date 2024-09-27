@@ -2,7 +2,7 @@ use std::io::{IsTerminal, Write};
 use std::{io, thread};
 
 use crate::element::Size;
-use crate::{Constraint, Element, Line, Paint};
+use crate::{display, Constraint, Display, Element, Line, Paint};
 
 use crossbeam_channel as chan;
 use radicle_signals as signals;
@@ -160,25 +160,25 @@ fn render<W: Write>(
     };
     // Render content.
     for (ix, line) in lines[start_line..end_line].iter().enumerate() {
-        write!(out, "{}{}", termion::cursor::Goto(1, ix as u16 + 1), line)?;
+        write!(out, "{}{}", termion::cursor::Goto(1, ix as u16 + 1), display(line))?;
     }
     // Render progress meter.
     write!(
         out,
         "{}{}",
         termion::cursor::Goto(width - 3, height),
-        Paint::new(format!(
+        display(&Paint::new(format!(
             "{:.0}%",
             end_line as f64 / lines.len() as f64 * 100.
         ))
-        .dim()
+        .dim())
     )?;
     // Render cursor input area.
     write!(
         out,
         "{}{}",
         termion::cursor::Goto(1, height),
-        Paint::new(":").dim()
+        display(&Paint::new(":").dim())
     )?;
     out.flush()?;
 

@@ -25,6 +25,7 @@ use radicle::{profile, Node};
 use crate::commands;
 use crate::git;
 use crate::terminal as term;
+use crate::terminal::display;
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::Interactive;
 
@@ -225,12 +226,12 @@ pub fn init(
 
     term::headline(format!(
         "Initializing{}radicle 👾 repository in {}..",
-        if let Some(visibility) = &options.visibility {
+        display(&(if let Some(visibility) = &options.visibility {
             term::format::spaced(term::format::visibility(visibility))
         } else {
             term::format::default(" ").into()
-        },
-        term::format::dim(path.display())
+        })),
+        display(&term::format::dim(path.display()))
     ));
 
     let name: ProjectName = match options.name {
@@ -290,7 +291,7 @@ pub fn init(
 
             spinner.message(format!(
                 "Repository {} created.",
-                term::format::highlight(proj.name())
+                display(&term::format::highlight(proj.name()))
             ));
             spinner.finish();
 
@@ -327,17 +328,17 @@ pub fn init(
             term::blank();
             term::info!(
                 "Your Repository ID {} is {}.",
-                term::format::dim("(RID)"),
-                term::format::highlight(rid.urn())
+                display(&term::format::dim("(RID)")),
+                display(&term::format::highlight(rid.urn()))
             );
             let directory = if path == env::current_dir()? {
                 "this directory".to_owned()
             } else {
-                term::format::tertiary(path.display()).to_string()
+                display(&term::format::tertiary(path.display())).to_string()
             };
             term::info!(
                 "You can show it any time by running {} from {directory}.",
-                term::format::command("rad .")
+                display(&term::format::command("rad ."))
             );
             term::blank();
 
@@ -350,7 +351,7 @@ pub fn init(
                 term::warning("Try again with `rad sync --announce`, or check your logs with `rad node logs`.");
                 term::blank();
             }
-            term::info!("To push changes, run {}.", term::format::command(push_cmd));
+            term::info!("To push changes, run {}.", display(&term::format::command(push_cmd)));
         }
         Err(err) => {
             spinner.failed();
@@ -359,8 +360,8 @@ pub fn init(
     }
 
     Ok(())
-}
 
+}
 pub fn init_existing(
     working: git::Repository,
     rid: RepoId,
@@ -391,13 +392,13 @@ pub fn init_existing(
 
     term::success!(
         "Initialized existing repository {} in {}..",
-        term::format::tertiary(rid),
-        term::format::dim(
+        display(&term::format::tertiary(rid)),
+        display(&term::format::dim(
             working
                 .workdir()
                 .unwrap_or_else(|| working.path())
                 .display()
-        ),
+        )),
     );
 
     Ok(())
@@ -545,7 +546,7 @@ pub fn announce(
                 );
                 term::info!("View it in your browser at:");
                 term::blank();
-                term::indented(term::format::tertiary(url));
+                term::indented_display(&term::format::tertiary(url));
                 term::blank();
             }
             Ok(SyncResult::Synced { result: None, .. }) => {
@@ -587,7 +588,7 @@ pub fn announce(
                 );
                 term::info!(
                     "You can start your node with {}.",
-                    term::format::command("rad node start")
+                    display(&term::format::command("rad node start"))
                 );
             }
             Err(e) => {
@@ -597,7 +598,7 @@ pub fn announce(
     } else {
         term::info!(
             "You have created a {} repository.",
-            term::format::visibility(&doc.visibility)
+            display(&term::format::visibility(&doc.visibility))
         );
         term::info!(
             "This repository will only be visible to you, \
@@ -606,7 +607,7 @@ pub fn announce(
         term::blank();
         term::info!(
             "To make it public, run {}.",
-            term::format::command("rad publish")
+            display(&term::format::command("rad publish"))
         );
     }
 
@@ -626,13 +627,13 @@ pub fn setup_signing(
     let yes = if !git::is_signing_configured(repo)? {
         term::headline(format!(
             "Configuring radicle signing key {}...",
-            term::format::tertiary(key)
+            display(&term::format::tertiary(key))
         ));
         true
     } else if interactive.yes() {
         term::confirm(format!(
             "Configure radicle signing key {} in local checkout?",
-            term::format::tertiary(key),
+            display(&term::format::tertiary(key)),
         ))
     } else {
         true
@@ -643,19 +644,19 @@ pub fn setup_signing(
             Ok(file) => {
                 git::ignore(repo, file.as_path())?;
 
-                term::success!("Created {} file", term::format::tertiary(file.display()));
+                term::success!("Created {} file", display(&term::format::tertiary(file.display())));
             }
             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
                 let ssh_key = ssh::fmt::key(node_id);
                 let gitsigners = term::format::tertiary(".gitsigners");
-                term::success!("Found existing {} file", gitsigners);
+                term::success!("Found existing {} file", display(&gitsigners));
 
                 let ssh_keys =
                     git::read_gitsigners(repo).context("error reading .gitsigners file")?;
 
                 if ssh_keys.contains(&ssh_key) {
-                    term::success!("Signing key is already in {gitsigners} file");
-                } else if term::confirm(format!("Add signing key to {gitsigners}?")) {
+                    term::success!("Signing key is already in {} file", display(&gitsigners));
+                } else if term::confirm(format!("Add signing key to {}?", display(&gitsigners))) {
                     git::add_gitsigners(repo, [node_id])?;
                 }
             }
@@ -667,7 +668,7 @@ pub fn setup_signing(
 
         term::success!(
             "Signing configured in {}",
-            term::format::tertiary(".git/config")
+            display(&term::format::tertiary(".git/config"))
         );
     }
     Ok(())

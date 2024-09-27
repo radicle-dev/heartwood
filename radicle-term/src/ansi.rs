@@ -4,6 +4,7 @@
 //! Copyright (c) 2017 Sergio Benitez
 //!
 mod color;
+mod display;
 mod paint;
 mod style;
 #[cfg(test)]
@@ -15,3 +16,4 @@ pub use paint::paint;
 pub use paint::Filled;
 pub use paint::Paint;
 pub use style::Style;
+pub use display::{Context, Display, display};

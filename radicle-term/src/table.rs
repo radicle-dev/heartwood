@@ -4,7 +4,7 @@
 //! ```
 //! use radicle_term::table::*;
 //!
-//! let mut t = Table::new(TableOptions::default());
+//! let mut t: Table<2, &str, &str> = Table::new(TableOptions::default());
 //! t.push(["pest", "biological control"]);
 //! t.push(["aphid", "lacewing"]);
 //! t.push(["spider mite", "ladybug"]);
@@ -20,9 +20,20 @@ use std::fmt;
 
 use crate::cell::Cell;
 use crate::{self as term, Style};
-use crate::{Color, Constraint, Line, Paint, Size};
+use crate::{Context, Color, Constraint, Line, Paint, Size};
 
 pub use crate::Element;
+
+#[derive(Debug, Default)]
+pub enum TableDirection {
+    /// Headers are shown in the first row, consecutive rows contain elements.
+    /// For n headers and m elements, the table will have O(n) columns and O(m) rows.
+    #[default]
+    TopToBottom,
+    /// Headers are shown in the first column, consecutive columns contain elements.
+    /// For n headers and m elements, the table will have O(m) columns and O(n) rows. 
+    LeftToRight,
+}
 
 #[derive(Debug)]
 pub struct TableOptions {
@@ -32,6 +43,7 @@ pub struct TableOptions {
     pub spacing: usize,
     /// Table border.
     pub border: Option<Color>,
+    pub direction: TableDirection,
 }
 
 impl Default for TableOptions {
@@ -40,6 +52,7 @@ impl Default for TableOptions {
             overflow: false,
             spacing: 1,
             border: None,
+            direction: Default::default(),
         }
     }
 }
@@ -56,21 +69,22 @@ impl TableOptions {
 
 #[derive(Debug)]
 enum Row<const W: usize, T> {
-    Header([T; W]),
     Data([T; W]),
     Divider,
 }
 
 #[derive(Debug)]
-pub struct Table<const W: usize, T> {
+pub struct Table<const W: usize, T, H> {
+    header: Option<[H; W]>,
     rows: Vec<Row<W, T>>,
     widths: [usize; W],
     opts: TableOptions,
 }
 
-impl<const W: usize, T> Default for Table<W, T> {
+impl<const W: usize, T, H> Default for Table<W, T, H> {
     fn default() -> Self {
         Self {
+            header: None,
             rows: Vec::new(),
             widths: [0; W],
             opts: TableOptions::default(),
@@ -78,9 +92,10 @@ impl<const W: usize, T> Default for Table<W, T> {
     }
 }
 
-impl<const W: usize, T: Cell + fmt::Debug + Send + Sync> Element for Table<W, T>
+impl<'a, const W: usize, T: Cell<'a> + fmt::Debug + Send + Sync, H: Cell<'a> + fmt::Debug + Send + Sync> Element for Table<W, T, H>
 where
     T::Padded: Into<Line>,
+    H::Padded: Into<Line>,
 {
     fn size(&self, parent: Constraint) -> Size {
         Table::size(self, parent)
@@ -106,11 +121,50 @@ where
             );
         }
 
+        if let Some(cells) = &self.header {
+            let mut line = Line::default();
+
+            if let Some(color) = border {
+                line.push(Paint::new("│ ").fg(color));
+            }
+            for (i, cell) in cells.iter().enumerate() {
+                let pad = if i == cells.len() - 1 {
+                    0
+                } else {
+                    self.widths[i] + self.opts.spacing
+                };
+                line = line.extend(
+                    cell.pad(pad)
+                        .into()
+                        .style(Style::default().bg(cell.background())),
+                );
+            }
+            Line::pad(&mut line, cols);
+            Line::truncate(&mut line, cols, "…");
+
+            if let Some(color) = border {
+                line.push(Paint::new(" │").fg(color));
+            }
+            lines.push(line);
+
+            // Divider
+            if let Some(color) = border {
+                lines.push(
+                    Line::default()
+                        .item(Paint::new("├").fg(color))
+                        .item(Paint::new("─".repeat(cols)).fg(color))
+                        .item(Paint::new("┤").fg(color)),
+                );
+            } else {
+                lines.push(Line::default());
+            }
+        }
+
         for row in &self.rows {
             let mut line = Line::default();
 
             match row {
-                Row::Header(cells) | Row::Data(cells) => {
+                Row::Data(cells) => {
                     if let Some(color) = border {
                         line.push(Paint::new("│ ").fg(color));
                     }
@@ -160,9 +214,10 @@ where
     }
 }
 
-impl<const W: usize, T: Cell> Table<W, T> {
+impl<'a, const W: usize, T: Cell<'a>, H: Cell<'a>> Table<W, T, H> {
     pub fn new(opts: TableOptions) -> Self {
         Self {
+            header: None,
             rows: Vec::new(),
             widths: [0; W],
             opts,
@@ -184,11 +239,11 @@ impl<const W: usize, T: Cell> Table<W, T> {
         self.rows.push(Row::Data(row));
     }
 
-    pub fn header(&mut self, row: [T; W]) {
+    pub fn header(&mut self, row: [H; W]) {
         for (i, cell) in row.iter().enumerate() {
             self.widths[i] = self.widths[i].max(cell.width());
         }
-        self.rows.push(Row::Header(row));
+        self.header = Some(row);
     }
 
     pub fn extend(&mut self, rows: impl IntoIterator<Item = [T; W]>) {
@@ -223,28 +278,27 @@ impl<const W: usize, T: Cell> Table<W, T> {
         }
         Size::new(cols, rows).constrain(c)
     }
+}
 
+impl<const W: usize, T: ToString, H: ToString> Table<W, Paint<T>, Paint<H>> {
     pub fn to_json(&self) -> serde_json::Value {
-        assert!(self.rows.len() > 1);
-
         let header = {
-            match &self.rows[0] {
-                Row::Header(header) => header,
-                _ => panic!("Cannot convert table to JSON. Expecting header in first row, but encountered row of different variant."),
+            match &self.header {
+                Some(header) => header,
+                _ => panic!("Cannot convert table to JSON. Expecting header."),
             }
         };
 
-        serde_json::Value::Array(self.rows[1..].iter().enumerate().filter_map(|(index, row)| {
+        serde_json::Value::Array(self.rows[1..].iter().filter_map(|row| {
             match row {
                 Row::Data(cells) => {
                     let mut obj = serde_json::Map::new();
                     header.iter().zip(cells.iter()).for_each(|(key, value)| {
-                        obj.insert(key.to_string(), serde_json::Value::String(value.to_string()));
+                        obj.insert(key.item.to_string(), serde_json::Value::String(value.item.to_string()));
                     });
                     Some(serde_json::Value::Object(obj))
                 },
                 Row::Divider => None,
-                Row::Header(_) => panic!("Cannot convert table to JSON. Encountered unexpected header in row {}.", index + 1),
             }
         }).collect())
     }
@@ -272,14 +326,14 @@ mod test {
 
     #[test]
     fn test_table() {
-        let mut t = Table::new(TableOptions::default());
+        let mut t: Table<2, &str, Paint<String>> = Table::new(TableOptions::default());
 
         t.push(["pineapple", "rosemary"]);
         t.push(["apples", "pears"]);
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(Constraint::UNBOUNDED),
+            t.display_xx(Constraint::UNBOUNDED, &Context { ansi: false }),
             [
                 "pineapple rosemary\n",
                 "apples    pears   \n"
@@ -289,7 +343,7 @@ mod test {
 
     #[test]
     fn test_table_border() {
-        let mut t = Table::new(TableOptions {
+        let mut t: Table<3, &str, Paint<String>> = Table::new(TableOptions {
             border: Some(Color::Unset),
             spacing: 3,
             ..TableOptions::default()
@@ -310,7 +364,7 @@ mod test {
         assert_eq!(outer.rows, 7);
 
         assert_eq!(
-            t.display(Constraint::UNBOUNDED),
+            t.display_xx(Constraint::UNBOUNDED, &Context { ansi: false }),
             r#"
 ╭─────────────────────────────────╮
 │ Country       Population   Code │
@@ -326,7 +380,7 @@ mod test {
 
     #[test]
     fn test_table_border_truncated() {
-        let mut t = Table::new(TableOptions {
+        let mut t: Table<2, &str, Paint<String>> = Table::new(TableOptions {
             border: Some(Color::Unset),
             spacing: 3,
             ..TableOptions::default()
@@ -351,7 +405,7 @@ mod test {
         assert_eq!(inner.rows, 5);
 
         assert_eq!(
-            t.display(constrain),
+            t.display_xx(constrain, &Context { ansi: false }),
             r#"
 ╭─────────────────╮
 │ Code   Name     │
@@ -367,7 +421,7 @@ mod test {
 
     #[test]
     fn test_table_border_maximized() {
-        let mut t = Table::new(TableOptions {
+        let mut t: Table<2, &str, Paint<String>> = Table::new(TableOptions {
             border: Some(Color::Unset),
             spacing: 3,
             ..TableOptions::default()
@@ -395,7 +449,7 @@ mod test {
         assert_eq!(inner.rows, 5);
 
         assert_eq!(
-            t.display(constrain),
+            t.display_xx(constrain, &Context { ansi: false }),
             r#"
 ╭────────────────────────╮
 │ Code   Name            │
@@ -411,7 +465,7 @@ mod test {
 
     #[test]
     fn test_table_truncate() {
-        let mut t = Table::default();
+        let mut t: Table<2, &str, Paint<String>> = Table::default();
         let constrain = Constraint::new(
             Size::MIN,
             Size {
@@ -425,7 +479,7 @@ mod test {
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(constrain),
+            t.display_xx(constrain, &Context { ansi: false }),
             [
                 "pineapple rosem…\n",
                 "apples    pears \n"
@@ -435,14 +489,14 @@ mod test {
 
     #[test]
     fn test_table_unicode() {
-        let mut t = Table::new(TableOptions::default());
+        let mut t: Table<3, &str, Paint<String>> = Table::new(TableOptions::default());
 
         t.push(["🍍pineapple", "__rosemary", "__sage"]);
         t.push(["__pears", "🍎apples", "🍌bananas"]);
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(Constraint::UNBOUNDED),
+            t.display_xx(Constraint::UNBOUNDED, &Context { ansi: false }),
             [
                 "🍍pineapple __rosemary __sage   \n",
                 "__pears     🍎apples   🍌bananas\n"
@@ -452,7 +506,7 @@ mod test {
 
     #[test]
     fn test_table_unicode_truncate() {
-        let mut t = Table::new(TableOptions {
+        let mut t: Table<2, &str, Paint<String>> = Table::new(TableOptions {
             ..TableOptions::default()
         });
         let constrain = Constraint::max(Size {
@@ -464,11 +518,61 @@ mod test {
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(constrain),
+            t.display_xx(constrain, &Context { ansi: false }),
             [
                 "🍍pineapple __r…\n",
                 "__pears     🍎a…\n"
             ].join("")
+        );
+    }
+    
+    #[test]
+    fn test_table_json() {
+        let mut t = Table::new(TableOptions {
+            border: Some(Color::Unset),
+            spacing: 3,
+            ..TableOptions::default()
+        });
+
+        #[derive(serde::Serialize)]
+        struct Entry {
+            #[serde(rename = "Country")]
+            country: &'static str,
+            #[serde(rename = "Population")]
+            population: &'static str,
+            #[serde(rename = "Code")]
+            code: &'static str,
+        }
+
+        let entries = vec![
+            Entry {
+                country: "France",
+                population: "60M",
+                code: "FR",
+            },
+            Entry {
+                country: "Switzerland",
+                population: "7M",
+                code: "CH",
+            },
+            Entry {
+                country: "Germany",
+                population: "80M",
+                code: "DE",
+            },
+        ];
+
+        t.header([term::format::tertiary("Country"), term::format::tertiary("Population"), term::format::tertiary("Code")]);
+        t.divider();
+        for entry in entries.iter() {
+            t.push([term::format::default(entry.country), term::format::default(entry.population), term::format::default(entry.code)]);
+        }
+
+        //Paint::disable();
+
+        assert_eq!(
+            t.to_json(),
+            serde_json::json!(entries)
         );
     }
 }

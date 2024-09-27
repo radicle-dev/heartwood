@@ -12,7 +12,7 @@ use zeroize::Zeroizing;
 
 use crate::command;
 use crate::format;
-use crate::{style, Paint, Size};
+use crate::{display, style, Context, Paint, Size, Display};
 
 pub use inquire;
 pub use inquire::Select;
@@ -87,19 +87,19 @@ pub use success;
 pub use tip;
 
 pub fn success_args<W: io::Write>(w: &mut W, args: fmt::Arguments) {
-    writeln!(w, "{} {args}", Paint::green("✓")).ok();
+    writeln!(w, "{} {args}", display(&Paint::green("✓"))).ok();
 }
 
 pub fn tip_args(args: fmt::Arguments) {
     println!(
         "{} {}",
-        format::yellow("*"),
-        style(format!("{args}")).italic()
+        display(&format::yellow("*")),
+        display(&style(format!("{args}")).italic())
     );
 }
 
 pub fn notice_args<W: io::Write>(w: &mut W, args: fmt::Arguments) {
-    writeln!(w, "{} {args}", Paint::new("!").dim()).ok();
+    writeln!(w, "{} {args}", display(&Paint::new("!").dim())).ok();
 }
 
 pub fn columns() -> Option<usize> {
@@ -118,18 +118,18 @@ pub fn viewport() -> Option<Size> {
 
 pub fn headline(headline: impl fmt::Display) {
     println!();
-    println!("{}", style(headline).bold());
+    println!("{}", display(&style(headline).bold()));
     println!();
 }
 
 pub fn header(header: &str) {
     println!();
-    println!("{}", style(format::yellow(header)).bold().underline());
+    println!("{}", display(&format::yellow(header).bold().underline()));
     println!();
 }
 
 pub fn blob(text: impl fmt::Display) {
-    println!("{}", style(text.to_string().trim()).dim());
+    println!("{}", display(&style(text.to_string().trim()).dim()));
 }
 
 pub fn blank() {
@@ -138,6 +138,10 @@ pub fn blank() {
 
 pub fn print(msg: impl fmt::Display) {
     println!("{msg}");
+}
+
+pub fn print_display<'a>(msg: &'a impl Display<'a>) {
+    println!("{}", display(msg));
 }
 
 pub fn prefixed(prefix: &str, text: &str) -> String {
@@ -160,12 +164,12 @@ pub fn manual(name: &str) -> io::Result<process::ExitStatus> {
     child.wait()
 }
 
-pub fn usage(name: &str, usage: &str) {
+pub fn usage(name: &str, usage: &str, context: &Context) {
     println!(
         "{} {}\n{}",
-        ERROR_PREFIX,
-        Paint::red(format!("Error: rad-{name}: invalid usage")),
-        Paint::red(prefixed(TAB, usage)).dim()
+        ERROR_PREFIX.display(context),
+        Paint::red(format!("Error: rad-{name}: invalid usage")).display(context),
+        Paint::red(prefixed(TAB, usage)).dim().display(context)
     );
 }
 
@@ -177,24 +181,30 @@ pub fn indented(msg: impl fmt::Display) {
     println!("{TAB}{msg}");
 }
 
+pub fn indented_display<'a>(msg: &'a impl Display<'a>) {
+    println!("{TAB}{}", display(msg));
+}
+
+/*
 pub fn subcommand(msg: impl fmt::Display) {
     println!("{}", style(format!("Running `{msg}`...")).dim());
 }
+*/
 
 pub fn warning(warning: impl fmt::Display) {
     println!(
         "{} {} {warning}",
-        WARNING_PREFIX,
-        Paint::yellow("Warning:").bold(),
+        display(&WARNING_PREFIX),
+        display(&Paint::yellow("Warning:").bold()),
     );
 }
 
 pub fn error(error: impl fmt::Display) {
-    println!("{ERROR_PREFIX} {} {error}", Paint::red("Error:"));
+    println!("{} {} {error}", display(&ERROR_PREFIX), display(&Paint::red("Error:")));
 }
 
 pub fn hint(hint: impl fmt::Display) {
-    println!("{ERROR_HINT_PREFIX} {}", format::hint(hint));
+    println!("{} {}",display(&ERROR_HINT_PREFIX), display(&format::hint(hint)));
 }
 
 pub fn ask<D: fmt::Display>(prompt: D, default: bool) -> bool {

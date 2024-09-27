@@ -4,7 +4,7 @@ use std::ops::Deref;
 use std::{io, vec};
 
 use crate::cell::Cell;
-use crate::{viewport, Color, Filled, Label, Style};
+use crate::{display, viewport, Color, Context, Display, Filled, Label, Style};
 
 /// Rendering constraint.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -85,7 +85,7 @@ pub trait Element: fmt::Debug + Send + Sync {
     /// Print this element to stdout.
     fn print(&self) {
         for line in self.render(Constraint::from_env().unwrap_or_default()) {
-            println!("{}", line.to_string().trim_end());
+            println!("{}", display(&line).to_string().trim_end());
         }
     }
 
@@ -99,10 +99,10 @@ pub trait Element: fmt::Debug + Send + Sync {
 
     #[must_use]
     /// Return a string representation of this element.
-    fn display(&self, constraints: Constraint) -> String {
+    fn display_xx(&self, constraints: Constraint, context: &Context) -> String {
         let mut out = String::new();
         for line in self.render(constraints) {
-            out.extend(line.into_iter().map(|l| l.to_string()));
+            out.extend(line.into_iter().map(|l| l.display(context).to_string()));
             out.push('\n');
         }
         out
@@ -144,7 +144,7 @@ pub fn write_to(
     constraints: Constraint,
 ) -> io::Result<()> {
     for line in elem.render(constraints) {
-        writeln!(writer, "{}", line.to_string().trim_end())?;
+        writeln!(writer, "{}", display(&line).to_string().trim_end())?;
     }
     Ok(())
 }
@@ -315,10 +315,10 @@ impl Element for Vec<Line> {
     }
 }
 
-impl fmt::Display for Line {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl crate::Display<'_> for Line {
+    fn fmt_with(&self, f: &mut fmt::Formatter<'_>, context: &crate::Context) -> fmt::Result {
         for item in &self.items {
-            write!(f, "{item}")?;
+            item.fmt_with(f, context)?;
         }
         Ok(())
     }
@@ -369,29 +369,29 @@ mod test {
 
         let mut actual = line.clone();
         actual = actual.truncate(9, "…");
-        assert_eq!(actual.to_string(), "bananape…");
+        assert_eq!(display(&actual).to_string(), "bananape…");
 
         let mut actual = line.clone();
         actual = actual.truncate(7, "…");
-        assert_eq!(actual.to_string(), "banana…");
+        assert_eq!(display(&actual).to_string(), "banana…");
 
         let mut actual = line.clone();
         actual = actual.truncate(1, "…");
-        assert_eq!(actual.to_string(), "…");
+        assert_eq!(display(&actual).to_string(), "…");
 
         let mut actual = line;
         actual = actual.truncate(0, "…");
-        assert_eq!(actual.to_string(), "");
+        assert_eq!(display(&actual).to_string(), "");
     }
 
     #[test]
     fn test_width() {
         // Nb. This might not display correctly in some editors or terminals.
         let line = Line::new("Radicle Heartwood Protocol & Stack ❤️🪵");
-        assert_eq!(line.width(), 39, "{line}");
+        assert_eq!(line.width(), 39, "{}", display(&line));
         let line = Line::new("❤\u{fe0f}");
-        assert_eq!(line.width(), 2, "{line}");
+        assert_eq!(line.width(), 2, "{}", display(&line));
         let line = Line::new("❤️");
-        assert_eq!(line.width(), 2, "{line}");
+        assert_eq!(line.width(), 2, "{}", display(&line));
     }
 }
