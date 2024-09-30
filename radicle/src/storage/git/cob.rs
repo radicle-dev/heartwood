@@ -32,6 +32,8 @@ pub enum ObjectsError {
     Convert(#[from] cob::object::storage::convert::Error),
     #[error(transparent)]
     Git(#[from] git2::Error),
+    #[error(transparent)]
+    GitExt(#[from] git_ext::Error),
 }
 
 #[derive(Error, Debug)]
@@ -178,38 +180,13 @@ impl cob::object::Storage for Repository {
 // which allows for some of the features needed for code review. For
 // example, users can draft comments and later decide to publish them.
 pub struct DraftStore<'a, R> {
-    remote: RemoteId,
     repo: &'a R,
-}
-
-impl<'a, R: storage::WriteRepository> DraftStore<'a, R> {
-    /// Create this draft store with an existing COB from storage, so that changes applied
-    /// to this COB can evaluate properly. This creates a symbolic reference to the COB
-    /// pointing to the public COB reference.
-    pub fn with(
-        self,
-        remote: &RemoteId,
-        typename: &cob::TypeName,
-        id: &ObjectId,
-    ) -> Result<Self, git::Error> {
-        let target = git::refs::storage::cob(remote, typename, id);
-        let name = git::refs::storage::draft::cob(remote, typename, id);
-        let repo = self.repo.raw();
-
-        repo.reference_symbolic(
-            name.as_str(),
-            target.as_str(),
-            true, // The reference may already exist, overwrite it if so.
-            format!("Link to COB {id} of type {typename}").as_str(),
-        )?;
-
-        Ok(self)
-    }
+    remote: RemoteId,
 }
 
 impl<'a, R> DraftStore<'a, R> {
-    pub fn new(remote: RemoteId, repo: &'a R) -> Self {
-        Self { remote, repo }
+    pub fn new(repo: &'a R, remote: RemoteId) -> Self {
+        Self { repo, remote }
     }
 }
 
@@ -398,33 +375,41 @@ impl<'a, R: storage::WriteRepository> cob::object::Storage for DraftStore<'a, R>
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<cob::object::Objects, Self::ObjectsError> {
-        // Nb. There can only be one draft per COB, per remote.
-        let Ok(r) = self.repo.raw().find_reference(
-            git::refs::storage::draft::cob(&self.remote, typename, object_id).as_str(),
-        ) else {
-            return Ok(Objects::default());
-        };
-        let r = cob::object::Reference::try_from(r).map_err(Self::ObjectsError::from)?;
+        let mut objs = Objects::default();
 
-        Ok(Objects::new(r))
+        // First get the signed COB tips of all remotes for this object.
+        let signed = self
+            .repo
+            .references_glob(&git::refs::storage::cobs(typename, object_id))?;
+
+        for (r, id) in signed {
+            let r = cob::object::Reference {
+                name: r.to_ref_string(),
+                target: cob::object::Commit { id },
+            };
+            objs.push(r);
+        }
+
+        // Then get the draft COB tip that belongs to us only, if any.
+        let draft_ref = &git::refs::storage::draft::cob(&self.remote, typename, object_id);
+        if let Ok(draft_oid) = self
+            .repo
+            .reference_oid(&self.remote, &draft_ref.strip_namespace())
+        {
+            objs.push(cob::object::Reference {
+                name: draft_ref.to_ref_string(),
+                target: cob::object::Commit { id: draft_oid },
+            })
+        }
+
+        Ok(objs)
     }
 
     fn types(
         &self,
-        typename: &cob::TypeName,
+        _typename: &cob::TypeName,
     ) -> Result<BTreeMap<cob::ObjectId, cob::object::Objects>, Self::TypesError> {
-        let glob = git::refs::storage::draft::cobs(&self.remote, typename);
-        let references = self.repo.references_glob(&glob)?;
-        let mut objs = BTreeMap::new();
-
-        for (name, id) in references {
-            let r = cob::object::Reference {
-                name: name.into_refstring(),
-                target: cob::object::Commit { id },
-            };
-            objs.insert(id.into(), Objects::new(r));
-        }
-        Ok(objs)
+        unimplemented!()
     }
 
     fn update(

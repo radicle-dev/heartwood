@@ -3208,7 +3208,12 @@ mod test {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
-        let mut patches = Cache::no_cache(&*alice.repo).unwrap();
+        let mut patches = {
+            let path = alice.tmp.path().join("cobs.db");
+            let db = cob::cache::Store::open(path).unwrap();
+            let store = cob::patch::Patches::open(&*alice.repo).unwrap();
+            cob::patch::Cache::open(store, db)
+        };
         let mut patch = patches
             .create(
                 "My first patch",

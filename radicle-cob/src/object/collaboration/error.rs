@@ -10,7 +10,7 @@ pub enum Create {
     Evaluate(Box<dyn std::error::Error + Send + Sync + 'static>),
     #[error(transparent)]
     CreateChange(#[from] git::change::error::Create),
-    #[error("failed to updated references for during object creation")]
+    #[error("failed to updated references for during object creation: {err}")]
     Refs {
         #[source]
         err: Box<dyn std::error::Error + Send + Sync + 'static>,
@@ -40,7 +40,7 @@ pub enum Retrieve {
     Evaluate(Box<dyn std::error::Error + Send + Sync + 'static>),
     #[error(transparent)]
     Git(#[from] git2::Error),
-    #[error("failed to get references during object retrieval")]
+    #[error("failed to get references during object retrieval: {err}")]
     Refs {
         #[source]
         err: Box<dyn std::error::Error + Send + Sync + 'static>,
@@ -63,7 +63,7 @@ pub enum Update {
     NoSuchObject,
     #[error(transparent)]
     CreateChange(#[from] git::change::error::Create),
-    #[error("failed to get references during object update")]
+    #[error("failed to get references during object update: {err}")]
     Refs {
         #[source]
         err: Box<dyn std::error::Error + Send + Sync + 'static>,

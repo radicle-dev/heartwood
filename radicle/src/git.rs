@@ -324,18 +324,15 @@ pub mod refs {
                 .with_namespace(remote.into())
             }
 
-            /// Draft collaborative objects of a type.
+            /// All draft collaborative object, identified by `typename` and `object_id`, for all remotes.
             ///
-            /// `refs/namespaces/<remote>/refs/drafts/cobs/<typename>/*`
+            /// `refs/namespaces/*/refs/drafts/cobs/<typename>/<object_id>`
             ///
-            pub fn cobs(remote: &RemoteId, typename: &cob::TypeName) -> PatternString {
-                Qualified::from_components(
-                    component!("drafts"),
-                    component!("cobs"),
-                    Some(Component::from(typename)),
-                )
-                .with_namespace(remote.into())
-                .to_pattern(refspec::pattern!("*"))
+            pub fn cobs(typename: &cob::TypeName, object_id: &cob::ObjectId) -> PatternString {
+                refspec::pattern!("refs/namespaces/*")
+                    .join(refname!("refs/drafts/cobs"))
+                    .join(Component::from(typename))
+                    .join(Component::from(object_id))
             }
         }
 
