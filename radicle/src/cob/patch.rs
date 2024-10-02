@@ -23,7 +23,7 @@ use crate::cob::thread::{Comment, CommentId, Edit, Reactions};
 use crate::cob::{op, store, ActorId, Embed, EntryId, ObjectId, TypeName, Uri};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
-use crate::identity::doc::DocError;
+use crate::identity::doc::{DocAt, DocError};
 use crate::identity::PayloadError;
 use crate::prelude::*;
 use crate::storage;
@@ -737,6 +737,32 @@ impl Patch {
 }
 
 impl Patch {
+    /// Apply an action after checking if it's authorized.
+    fn op_action<R: ReadRepository>(
+        &mut self,
+        action: Action,
+        id: EntryId,
+        author: ActorId,
+        timestamp: Timestamp,
+        concurrent: &[&cob::Entry],
+        doc: &DocAt,
+        repo: &R,
+    ) -> Result<(), Error> {
+        match self.authorization(&action, &author, doc)? {
+            Authorization::Allow => {
+                self.action(action, id, author, timestamp, concurrent, doc, repo)
+            }
+            Authorization::Deny => Err(Error::NotAuthorized(author, action)),
+            Authorization::Unknown => {
+                // In this case, since there is not enough information to determine
+                // whether the action is authorized or not, we simply ignore it.
+                // It's likely that the target object was redacted, and we can't
+                // verify whether the action would have been allowed or not.
+                Ok(())
+            }
+        }
+    }
+
     /// Apply a single action to the patch.
     fn action<R: ReadRepository>(
         &mut self,
@@ -1195,28 +1221,19 @@ impl store::Cob for Patch {
         let concurrent = concurrent.into_iter().collect::<Vec<_>>();
 
         for action in op.actions {
-            match self.authorization(&action, &op.author, &doc)? {
-                Authorization::Allow => {
-                    self.action(
-                        action,
-                        op.id,
-                        op.author,
-                        op.timestamp,
-                        &concurrent,
-                        &doc,
-                        repo,
-                    )?;
-                }
-                Authorization::Deny => {
-                    return Err(Error::NotAuthorized(op.author, action));
-                }
-                Authorization::Unknown => {
-                    // In this case, since there is not enough information to determine
-                    // whether the action is authorized or not, we simply ignore it.
-                    // It's likely that the target object was redacted, and we can't
-                    // verify whether the action would have been allowed or not.
-                    continue;
-                }
+            log::trace!(target: "patch", "Applying {} {action:?}", op.id);
+
+            if let Err(e) = self.op_action(
+                action,
+                op.id,
+                op.author,
+                op.timestamp,
+                &concurrent,
+                &doc,
+                repo,
+            ) {
+                log::error!(target: "patch", "Error applying {}: {e}", op.id);
+                return Err(e);
             }
         }
         Ok(())

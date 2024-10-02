@@ -191,25 +191,21 @@ impl store::Cob for Issue {
     ) -> Result<(), Error> {
         let doc = op.identity_doc(repo)?.ok_or(Error::MissingIdentity)?;
         let concurrent = concurrent.into_iter().collect::<Vec<_>>();
+
         for action in op.actions {
-            match self.authorization(&action, &op.author, &doc)? {
-                Authorization::Allow => {
-                    self.action(
-                        action,
-                        op.id,
-                        op.author,
-                        op.timestamp,
-                        &concurrent,
-                        &doc,
-                        repo,
-                    )?;
-                }
-                Authorization::Deny => {
-                    return Err(Error::NotAuthorized(op.author, action));
-                }
-                Authorization::Unknown => {
-                    continue;
-                }
+            log::trace!(target: "issue", "Applying {} {action:?}", op.id);
+
+            if let Err(e) = self.op_action(
+                action,
+                op.id,
+                op.author,
+                op.timestamp,
+                &concurrent,
+                &doc,
+                repo,
+            ) {
+                log::error!(target: "issue", "Error applying {}: {e}", op.id);
+                return Err(e);
             }
         }
         Ok(())
@@ -380,6 +376,25 @@ impl Issue {
 }
 
 impl Issue {
+    fn op_action<R: ReadRepository>(
+        &mut self,
+        action: Action,
+        id: EntryId,
+        author: ActorId,
+        timestamp: Timestamp,
+        concurrent: &[&cob::Entry],
+        doc: &Doc,
+        repo: &R,
+    ) -> Result<(), Error> {
+        match self.authorization(&action, &author, doc)? {
+            Authorization::Allow => {
+                self.action(action, id, author, timestamp, concurrent, doc, repo)
+            }
+            Authorization::Deny => Err(Error::NotAuthorized(author, action)),
+            Authorization::Unknown => Ok(()),
+        }
+    }
+
     /// Apply a single action to the issue.
     fn action<R: ReadRepository>(
         &mut self,
