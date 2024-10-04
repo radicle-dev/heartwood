@@ -170,13 +170,19 @@ pub struct TestFormula {
 impl TestFormula {
     pub fn new(cwd: PathBuf) -> Self {
         Self {
-            cwd,
+            cwd: cwd.clone(),
             env: HashMap::new(),
             homes: HashMap::new(),
             tests: Vec::new(),
             subs: Substitutions::new(),
             bins: env::var("PATH")
-                .map(|p| p.split(':').map(PathBuf::from).collect())
+                .map(|env_path| {
+                    let mut bins: Vec<PathBuf> = env_path.split(':').map(PathBuf::from).collect();
+                    // Add current working directory to `$PATH`,
+                    // this makes it more convenient to execute scripts during testing.
+                    bins.push(cwd);
+                    bins
+                })
                 .unwrap_or_default(),
         }
     }
@@ -534,7 +540,9 @@ $ rad sync
         .as_bytes()
         .to_owned();
 
-        let mut actual = TestFormula::new(PathBuf::new());
+        let cwd = PathBuf::from("radicle-cli-test");
+
+        let mut actual = TestFormula::new(cwd.clone());
         let path = Path::new("test.md").to_path_buf();
         actual
             .read(path.as_path(), io::BufReader::new(io::Cursor::new(input)))
@@ -542,14 +550,18 @@ $ rad sync
 
         let expected = TestFormula {
             homes: HashMap::new(),
-            cwd: PathBuf::new(),
+            cwd: cwd.clone(),
             env: HashMap::new(),
             subs: Substitutions::new(),
-            bins: env::var("PATH")
-                .unwrap()
-                .split(':')
-                .map(PathBuf::from)
-                .collect(),
+            bins: {
+                let mut bins: Vec<_> = env::var("PATH")
+                    .unwrap_or_default()
+                    .split(':')
+                    .map(PathBuf::from)
+                    .collect();
+                bins.push(cwd);
+                bins
+            },
             tests: vec![
                 Test {
                     context: vec![String::from("Let's try to track @dave and @sean:")],
