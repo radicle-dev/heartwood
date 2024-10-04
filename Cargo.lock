@@ -363,9 +363,9 @@ checksum = "8b75356056920673b02621b35afd0f7dda9306d03c79a30f5c56c44cf256e3de"
 
 [[package]]
 name = "async-trait"
-version = "0.1.81"
+version = "0.1.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e0c28dcc82d7c8ead5cb13beb15405b57b8546e93215673ff8ca0349a028107"
+checksum = "721cae7de5c34fbb2acd27e21e6d2cf7b886dce0c27388d46c4e6c47ea4318dd"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2055,9 +2055,9 @@ dependencies = [
 
 [[package]]
 name = "httparse"
-version = "1.9.4"
+version = "1.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fcc0b4a115bf80b728eb8ea024ad5bd707b615bfed49e0665b6e0f86fd082d9"
+checksum = "7d71d3574edd2771538b901e6549113b4006ece66150fb69c0fb6d9a2adae946"
 
 [[package]]
 name = "httpdate"
@@ -2217,9 +2217,9 @@ dependencies = [
 
 [[package]]
 name = "ipnet"
-version = "2.9.0"
+version = "2.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
+checksum = "ddc24109865250148c2e0f3d25d4f0f479571723792d3802153c60922a4fb708"
 
 [[package]]
 name = "itertools"
@@ -2277,9 +2277,9 @@ dependencies = [
 
 [[package]]
 name = "keri-controller"
-version = "0.12.7"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b27e1e25b993e109781287b6d422fec95a878857ee47fefb376d0d27c83a7ce"
+checksum = "baac1a4869ad8b42ae65b6de7658aae6d61b1395f9d6e8a958904c320f403f8a"
 dependencies = [
  "async-std",
  "cesrox",
@@ -2294,9 +2294,9 @@ dependencies = [
 
 [[package]]
 name = "keri-core"
-version = "0.12.7"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e843e8cf838b581d0195b13c662f4517c24a9588883c1874543e502085200a65"
+checksum = "38718ba89552cd0c35531c16136b091ca29be61a0e6c4f88609db5bcafe26ad3"
 dependencies = [
  "arrayref",
  "async-trait",
@@ -3855,9 +3855,9 @@ dependencies = [
 
 [[package]]
 name = "security-framework-sys"
-version = "2.11.1"
+version = "2.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75da29fe9b9b08fe9d6b22b5b4bcbc75d8db3aa31e639aa56bb62e9d46bfceaf"
+checksum = "ea4a292869320c0272d7bc55a5a6aafaff59b4f63404a003887b679a2e05b4b6"
 dependencies = [
  "core-foundation-sys",
  "libc",
@@ -4339,9 +4339,9 @@ dependencies = [
 
 [[package]]
 name = "teliox"
-version = "0.12.7"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8eb2c2b4c90ae17b7a2ba9c759cfad402b285cb11ab975f44ca717cc8ca467b8"
+checksum = "02fa330a5a7813d5a83e239042234d540d85bcf3dd0c5721ed6bdfc4ccef7b62"
 dependencies = [
  "arrayref",
  "async-trait",
@@ -4512,9 +4512,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.11"
+version = "0.7.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf6b47b3771c49ac75ad09a6162f53ad4b8088b76ac60e8ec1455b31a189fe1"
+checksum = "61e7c3654c13bcd040d4a03abee2c75b1d14a37b423cf5a813ceae1cc903ec6a"
 dependencies = [
  "bytes",
  "futures-core",
