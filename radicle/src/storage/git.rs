@@ -885,8 +885,10 @@ pub mod trailers {
 
     use thiserror::Error;
 
+    use self::node::NodeId;
+
     use super::*;
-    use crypto::{PublicKey, PublicKeyError};
+    use crypto::PublicKeyError;
     use crypto::{Signature, SignatureError};
 
     pub const SIGNATURE_TRAILER: &str = "Rad-Signature";
@@ -901,7 +903,7 @@ pub mod trailers {
         Signature(#[from] SignatureError),
     }
 
-    pub fn parse_signatures(msg: &str) -> Result<HashMap<PublicKey, Signature>, Error> {
+    pub fn parse_signatures(msg: &str) -> Result<HashMap<NodeId, Signature>, Error> {
         let trailers =
             git2::message_trailers_strs(msg).map_err(|_| Error::SignatureTrailerFormat)?;
         let mut signatures = HashMap::with_capacity(trailers.len());
@@ -909,7 +911,7 @@ pub mod trailers {
         for (key, val) in trailers.iter() {
             if key == SIGNATURE_TRAILER {
                 if let Some((pk, sig)) = val.split_once(' ') {
-                    let pk = PublicKey::from_str(pk)?;
+                    let pk = NodeId::from_str(pk)?;
                     let sig = Signature::from_str(sig)?;
 
                     signatures.insert(pk, sig);

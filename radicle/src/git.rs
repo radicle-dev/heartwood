@@ -11,6 +11,7 @@ use once_cell::sync::Lazy;
 use crate::collections::RandomMap;
 use crate::crypto::PublicKey;
 use crate::node::Alias;
+use crate::node::NodeId;
 use crate::storage;
 use crate::storage::refs::Refs;
 use crate::storage::RemoteId;
@@ -181,6 +182,8 @@ pub mod refs {
             refspec::{self, PatternString},
         };
 
+        use crate::node::NodeId;
+
         use super::*;
 
         /// Where the project's identity document is stored.
@@ -218,7 +221,7 @@ pub mod refs {
         }
 
         impl Special {
-            pub fn namespaced<'a>(&self, remote: &PublicKey) -> Namespaced<'a> {
+            pub fn namespaced<'a>(&self, remote: &NodeId) -> Namespaced<'a> {
                 Qualified::from(*self).with_namespace(Component::from(remote))
             }
 
@@ -415,7 +418,7 @@ pub fn remote_refs(url: &Url) -> Result<RandomMap<RemoteId, Refs>, ListRefsError
             continue;
         }
         // Nb. skip refs that don't have a public key namespace.
-        if let (Some(id), refname) = parse_ref::<PublicKey>(r.name())? {
+        if let (Some(id), refname) = parse_ref::<NodeId>(r.name())? {
             let entry = remotes.entry(id).or_insert_with(Refs::default);
             entry.insert(refname.into(), r.oid().into());
         }
@@ -739,6 +742,8 @@ pub mod env {
 pub struct UserInfo {
     /// Alias of the local peer.
     pub alias: Alias,
+    // TODO: this should be DID, but this is used for signing
+    // commits(ssh-agent??), so might need both
     /// [`PublicKey`] of the local peer.
     pub key: PublicKey,
 }

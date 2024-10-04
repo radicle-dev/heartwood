@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::{Deref, Not as _};
 
+use radicle::node::NodeId;
 pub use radicle::storage::refs::SignedRefsAt;
 pub use radicle::storage::{git::Validation, Validations};
 use radicle::{crypto::PublicKey, storage::ValidateRepository};
@@ -15,7 +16,7 @@ pub mod error {
     #[non_exhaustive]
     pub enum RemoteRefs {
         #[error("required sigrefs of {0} not found")]
-        NotFound(PublicKey),
+        NotFound(NodeId),
         #[error(transparent)]
         Load(#[from] Load),
     }
@@ -31,19 +32,21 @@ pub mod error {
 /// associate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum DelegateStatus<T = ()> {
-    Delegate { remote: PublicKey, data: T },
-    NonDelegate { remote: PublicKey, data: T },
+    Delegate { remote: NodeId, data: T },
+    NonDelegate { remote: NodeId, data: T },
 }
 
 impl DelegateStatus {
+    // TODO(finto): the delegates here should be Did and we should be checking
+    // if the NodeId is one of the delegates
     /// Construct a `DelegateStatus` without any data.
-    pub fn empty(remote: PublicKey, delegates: &BTreeSet<PublicKey>) -> Self {
+    pub fn empty(remote: NodeId, delegates: &BTreeSet<PublicKey>) -> Self {
         Self::new((), remote, delegates)
     }
 }
 
 impl<T> DelegateStatus<T> {
-    pub fn new(data: T, remote: PublicKey, delegates: &BTreeSet<PublicKey>) -> Self {
+    pub fn new(data: T, remote: NodeId, delegates: &BTreeSet<PublicKey>) -> Self {
         if delegates.contains(&remote) {
             Self::Delegate { remote, data }
         } else {
@@ -61,7 +64,7 @@ impl<T> DelegateStatus<T> {
         self.traverse(|_| cached.load(&remote))
     }
 
-    fn remote(&self) -> &PublicKey {
+    fn remote(&self) -> &NodeId {
         match self {
             Self::Delegate { remote, .. } => remote,
             Self::NonDelegate { remote, .. } => remote,
@@ -95,7 +98,7 @@ pub(crate) fn validate(
 ///
 /// Construct using [`RemoteRefs::load`].
 #[derive(Debug, Default)]
-pub struct RemoteRefs(BTreeMap<PublicKey, SignedRefsAt>);
+pub struct RemoteRefs(BTreeMap<NodeId, SignedRefsAt>);
 
 impl RemoteRefs {
     /// Load the sigrefs for each remote in `remotes`.
@@ -104,7 +107,7 @@ impl RemoteRefs {
     /// status, then that remote is filtered out.
     pub(crate) fn load<'a, S>(
         cached: &Cached<S>,
-        remotes: impl Iterator<Item = &'a PublicKey>,
+        remotes: impl Iterator<Item = &'a NodeId>,
     ) -> Result<Self, error::RemoteRefs> {
         remotes
             .filter_map(|id| match cached.load(id) {
@@ -121,7 +124,7 @@ impl RemoteRefs {
 }
 
 impl Deref for RemoteRefs {
-    type Target = BTreeMap<PublicKey, SignedRefsAt>;
+    type Target = BTreeMap<NodeId, SignedRefsAt>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -129,8 +132,8 @@ impl Deref for RemoteRefs {
 }
 
 impl<'a> IntoIterator for &'a RemoteRefs {
-    type Item = <&'a BTreeMap<PublicKey, SignedRefsAt> as IntoIterator>::Item;
-    type IntoIter = <&'a BTreeMap<PublicKey, SignedRefsAt> as IntoIterator>::IntoIter;
+    type Item = <&'a BTreeMap<NodeId, SignedRefsAt> as IntoIterator>::Item;
+    type IntoIter = <&'a BTreeMap<NodeId, SignedRefsAt> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()

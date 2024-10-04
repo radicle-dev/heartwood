@@ -5,6 +5,7 @@ use bstr::BString;
 use radicle::crypto::{PublicKey, Verified};
 use radicle::git::Oid;
 use radicle::identity::DocError;
+use radicle::node::NodeId;
 use radicle::prelude::Doc;
 use radicle::storage::git::Repository;
 use radicle::storage::ReadRepository;
@@ -14,7 +15,7 @@ use crate::transport::{ConnectionStream, Transport};
 
 /// The handle used for pulling or cloning changes from a remote peer.
 pub struct Handle<S> {
-    pub(crate) local: PublicKey,
+    pub(crate) local: NodeId,
     pub(crate) repo: Repository,
     pub(crate) allowed: Allowed,
     pub(crate) transport: Transport<S>,
@@ -54,7 +55,7 @@ impl<S> Handle<S> {
         })
     }
 
-    pub fn is_blocked(&self, key: &PublicKey) -> bool {
+    pub fn is_blocked(&self, key: &NodeId) -> bool {
         self.blocked.is_blocked(key)
     }
 
@@ -66,7 +67,7 @@ impl<S> Handle<S> {
         &mut self.repo
     }
 
-    pub fn local(&self) -> &PublicKey {
+    pub fn local(&self) -> &NodeId {
         &self.local
     }
 

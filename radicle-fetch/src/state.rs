@@ -6,6 +6,7 @@ use radicle::crypto::PublicKey;
 use radicle::git::{Oid, Qualified};
 use radicle::identity::{Did, Doc, DocError};
 
+use radicle::node::NodeId;
 use radicle::prelude::Verified;
 use radicle::storage;
 use radicle::storage::refs::{RefsAt, SignedRefs};
@@ -32,8 +33,8 @@ pub const DEFAULT_FETCH_DATA_REFS_LIMIT: u64 = 1024 * 1024 * 1024 * 5;
 pub mod error {
     use std::io;
 
-    use radicle::git::Oid;
     use radicle::prelude::PublicKey;
+    use radicle::{git::Oid, node::NodeId};
     use thiserror::Error;
 
     use crate::{git, git::repository, handle, sigrefs, stage};
@@ -58,7 +59,7 @@ pub mod error {
         Canonical(#[from] Canonical),
         #[error("delegate '{remote}' has diverged 'rad/sigrefs': {current} -> {received}")]
         Diverged {
-            remote: PublicKey,
+            remote: NodeId,
             current: Oid,
             received: Oid,
         },
@@ -93,8 +94,8 @@ pub mod error {
     }
 }
 
-type IdentityTips = BTreeMap<PublicKey, Oid>;
-type SigrefTips = BTreeMap<PublicKey, Oid>;
+type IdentityTips = BTreeMap<NodeId, Oid>;
+type SigrefTips = BTreeMap<NodeId, Oid>;
 
 #[derive(Clone, Copy, Debug)]
 pub struct FetchLimit {
@@ -117,13 +118,15 @@ pub enum FetchResult {
         /// The set of applied changes to the reference store.
         applied: Applied<'static>,
         /// The set of namespaces that were fetched.
-        remotes: BTreeSet<PublicKey>,
+        remotes: BTreeSet<NodeId>,
         /// Any validation errors that were found while fetching.
         validations: sigrefs::Validations,
     },
     Failed {
         /// The threshold that needed to be met.
         threshold: usize,
+        // TODO(finto): these are failing namespaces, but in multi-device, they
+        // may want to be Did, or a mapping from Did->[NodeId]
         /// The offending delegates.
         delegates: BTreeSet<PublicKey>,
         /// Validation errors that were found while fetching.
@@ -160,7 +163,7 @@ pub struct FetchState {
     /// Seen remote `rad/sigrefs` tips.
     sigrefs: SigrefTips,
     /// Seen reference tips, per remote.
-    tips: BTreeMap<PublicKey, Vec<Update<'static>>>,
+    tips: BTreeMap<NodeId, Vec<Update<'static>>>,
     /// The `.keep` files created during packfile transfers. They are kept
     /// within the state, so that when the state is dropped, it also attempts to
     /// delete the files to release the locks on the packfiles.
@@ -170,7 +173,7 @@ pub struct FetchState {
 impl FetchState {
     /// Remove all tips associated with this `remote` in the
     /// `FetchState`.
-    pub fn prune(&mut self, remote: &PublicKey) {
+    pub fn prune(&mut self, remote: &NodeId) {
         self.ids.remove(remote);
         self.sigrefs.remove(remote);
         self.tips.remove(remote);
@@ -184,7 +187,7 @@ impl FetchState {
     /// keeping track of the updates in [`FetchState::tips`].
     pub fn update_all<'a, I>(&mut self, other: I) -> Applied<'a>
     where
-        I: IntoIterator<Item = (PublicKey, Vec<Update<'a>>)>,
+        I: IntoIterator<Item = (NodeId, Vec<Update<'a>>)>,
     {
         let mut ap = Applied::default();
         for (remote, ups) in other {
@@ -219,7 +222,7 @@ impl FetchState {
         handle: &mut Handle<S>,
         handshake: &handshake::Outcome,
         step: &F,
-    ) -> Result<BTreeSet<PublicKey>, error::Step>
+    ) -> Result<BTreeSet<NodeId>, error::Step>
     where
         S: transport::ConnectionStream,
         F: ProtocolStage,
@@ -291,10 +294,11 @@ impl FetchState {
         &mut self,
         handle: &mut Handle<S>,
         handshake: &handshake::Outcome,
+        // TODO(finto): should this be Did?
         delegates: BTreeSet<PublicKey>,
         threshold: usize,
         limit: &FetchLimit,
-        remote: PublicKey,
+        remote: NodeId,
         refs_at: Option<Vec<RefsAt>>,
     ) -> Result<sigrefs::RemoteRefs, error::Protocol>
     where
@@ -360,7 +364,7 @@ impl FetchState {
         handle: &mut Handle<S>,
         handshake: &handshake::Outcome,
         limit: FetchLimit,
-        remote: PublicKey,
+        remote: NodeId,
         refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Protocol>
     where
@@ -396,7 +400,8 @@ impl FetchState {
             .delegates
             .iter()
             .filter(|id| !handle.is_blocked(id))
-            .map(|did| PublicKey::from(*did))
+            // TODO(finto): we will want to resolve the Did to its NodeIds
+            .map(|did| NodeId::from(*did))
             .collect::<BTreeSet<_>>();
 
         log::trace!(target: "fetch", "Identity delegates {delegates:?}");
@@ -650,7 +655,7 @@ impl<'a, S> Cached<'a, S> {
             .transpose()
     }
 
-    pub fn load(&self, remote: &PublicKey) -> Result<Option<SignedRefsAt>, sigrefs::error::Load> {
+    pub fn load(&self, remote: &NodeId) -> Result<Option<SignedRefsAt>, sigrefs::error::Load> {
         match self.state.sigrefs.get(remote) {
             None => SignedRefsAt::load(*remote, &self.handle.repo),
             Some(tip) => SignedRefsAt::load_at(*tip, *remote, &self.handle.repo).map(Some),

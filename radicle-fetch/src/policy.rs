@@ -1,16 +1,16 @@
 use std::collections::HashSet;
 
-use radicle::crypto::PublicKey;
 use radicle::node::policy::config::Config;
 use radicle::node::policy::store::Read;
 use radicle::prelude::RepoId;
+use radicle::{crypto::PublicKey, node::NodeId};
 
 pub use radicle::node::policy::{Policy, Scope, SeedingPolicy};
 
 #[derive(Clone, Debug)]
 pub enum Allowed {
     All,
-    Followed { remotes: HashSet<PublicKey> },
+    Followed { remotes: HashSet<NodeId> },
 }
 
 impl Allowed {
@@ -42,22 +42,22 @@ impl Allowed {
 
 /// A set of [`PublicKey`]s to ignore when fetching from a remote.
 #[derive(Clone, Debug)]
-pub struct BlockList(HashSet<PublicKey>);
+pub struct BlockList(HashSet<NodeId>);
 
 impl FromIterator<PublicKey> for BlockList {
-    fn from_iter<T: IntoIterator<Item = PublicKey>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = NodeId>>(iter: T) -> Self {
         Self(iter.into_iter().collect())
     }
 }
 
-impl Extend<PublicKey> for BlockList {
-    fn extend<T: IntoIterator<Item = PublicKey>>(&mut self, iter: T) {
+impl Extend<NodeId> for BlockList {
+    fn extend<T: IntoIterator<Item = NodeId>>(&mut self, iter: T) {
         self.0.extend(iter)
     }
 }
 
 impl BlockList {
-    pub fn is_blocked(&self, key: &PublicKey) -> bool {
+    pub fn is_blocked(&self, key: &NodeId) -> bool {
         self.0.contains(key)
     }
 

@@ -18,8 +18,10 @@ use crate::canonical::formatter::CanonicalFormatter;
 use crate::cob::identity;
 use crate::crypto;
 use crate::crypto::{Signature, Unverified, Verified};
+use crate::delegate::Delegation;
 use crate::git;
 use crate::identity::{project::Project, Did};
+use crate::node::NodeId;
 use crate::storage;
 use crate::storage::{ReadRepository, RepositoryError};
 
@@ -229,7 +231,7 @@ pub struct Doc<V> {
 
 impl<V> Doc<V> {
     /// Check whether this document and the associated repository is visible to the given peer.
-    pub fn is_visible_to(&self, peer: &PublicKey) -> bool {
+    pub fn is_visible_to(&self, peer: &NodeId) -> bool {
         match &self.visibility {
             Visibility::Public => true,
             Visibility::Private { allow } => {
@@ -239,17 +241,26 @@ impl<V> Doc<V> {
     }
 
     /// Validate signature using this document's delegates, against a given document blob.
-    pub fn verify_signature(
+    pub fn verify_signature<D>(
         &self,
-        key: &PublicKey,
+        delegate: &D,
         signature: &Signature,
         blob: Oid,
-    ) -> Result<(), PublicKey> {
-        if !self.is_delegate(key) {
-            return Err(*key);
+    ) -> Result<(), crypto::PublicKey>
+    where
+        D: Delegation<Signature>,
+    {
+        // TODO: So we need to ensure that we have a delegate here, which is a
+        // different kind of thing
+        // if !self.is_delegate(verifier) {
+        //     return Err(verifier.clone());
+        // }
+        let did = delegate.did();
+        if !self.delegates.contains(&did) {
+            return Err(*did);
         }
-        if key.verify(blob.as_bytes(), signature).is_err() {
-            return Err(*key);
+        if delegate.verify(blob.as_bytes(), signature).is_err() {
+            return Err(*did);
         }
         Ok(())
     }
@@ -267,6 +278,8 @@ impl<V> Doc<V> {
         repo.blob_at(commit, path.as_path()).map_err(DocError::from)
     }
 
+    // TODO(finto): this should definitely be Did, perhaps some abstraction to
+    // try use NodeId if required by protocol.
     pub fn is_delegate(&self, key: &crypto::PublicKey) -> bool {
         self.delegates.contains(&key.into())
     }
@@ -284,6 +297,7 @@ impl Doc<Verified> {
         Ok((oid.into(), buf))
     }
 
+    // TODO(finto): this should be Did
     /// Attempt to add a new delegate to the document. Returns `true` if it wasn't there before.
     pub fn delegate(&mut self, key: &crypto::PublicKey) -> bool {
         let delegate = Did::from(key);
@@ -294,6 +308,7 @@ impl Doc<Verified> {
         false
     }
 
+    // TODO(finto): this should be Did
     pub fn rescind(&mut self, key: &crypto::PublicKey) -> Result<Option<Did>, DocError> {
         let delegate = Did::from(key);
         let (matches, delegates) = self.delegates.iter().partition(|d| **d == delegate);

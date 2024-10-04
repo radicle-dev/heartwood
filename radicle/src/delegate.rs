@@ -3,30 +3,39 @@ use std::collections::{BTreeMap, HashMap};
 use std::hash::Hash;
 
 use cyphernet::ed25519;
-use radicle::crypto::PublicKey;
 
 use nonempty::NonEmpty;
 use serde_json as json;
 use thiserror::Error;
 
+use crate::crypto::PublicKey;
 use crate::node::{Alias, NodeId};
 
-pub struct Assignee {
+pub trait KeyMaterial {
+    fn public_key(&self) -> crypto::PublicKey;
+}
+
+pub trait Delegation<S>: crypto::Verifier<S> {
+    fn did(&self) -> crate::prelude::Did;
+}
+
+pub struct Assignee<D> {
     /// The alias this assignee is using.
     alias: Option<Alias>,
     /// The DID method that the assignee is associated with.
-    did: Did,
+    did: D,
 }
 
-pub struct Author {
+pub struct Author<D> {
     /// The alias this author is using.
     alias: Option<Alias>,
     /// The DID method that the author is associated with.
-    did: Did,
+    did: D,
     /// The key the author signed with.
     key: PublicKey,
 }
 
+/*
 pub trait Verifier {
     type Error;
 
@@ -276,3 +285,4 @@ impl<D: Ord, T> Votes<D, T> {
         })
     }
 }
+*/

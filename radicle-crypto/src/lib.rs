@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub use ed25519::{edwards25519, Error, KeyPair, Seed};
+pub use signature;
+pub use signature::Verifier;
 
 #[cfg(feature = "ssh")]
 pub mod ssh;
@@ -195,6 +197,14 @@ impl cyphernet::EcPk for PublicKey {
         ed25519::PublicKey::from_slice(slice)
             .map_err(|_| cyphernet::EcPkInvalid::default())
             .map(Self)
+    }
+}
+
+impl signature::Verifier<Signature> for PublicKey {
+    fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
+        self.0
+            .verify(msg, signature)
+            .map_err(signature::Error::from_source)
     }
 }
 

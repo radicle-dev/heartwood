@@ -11,6 +11,7 @@ use storage::SignRepository;
 use storage::ValidateRepository;
 
 use crate::git::*;
+use crate::node::NodeId;
 use crate::storage;
 use crate::storage::Error;
 use crate::storage::{
@@ -140,7 +141,7 @@ impl cob::object::Storage for Repository {
 
     fn update(
         &self,
-        identifier: &PublicKey,
+        identifier: &NodeId,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
         entry: &cob::EntryId,
@@ -160,7 +161,7 @@ impl cob::object::Storage for Repository {
 
     fn remove(
         &self,
-        identifier: &PublicKey,
+        identifier: &NodeId,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<(), Self::RemoveError> {
@@ -429,7 +430,7 @@ impl<'a, R: storage::WriteRepository> cob::object::Storage for DraftStore<'a, R>
 
     fn update(
         &self,
-        identifier: &PublicKey,
+        identifier: &NodeId,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
         entry: &cob::history::EntryId,
@@ -449,7 +450,7 @@ impl<'a, R: storage::WriteRepository> cob::object::Storage for DraftStore<'a, R>
 
     fn remove(
         &self,
-        identifier: &PublicKey,
+        identifier: &NodeId,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<(), Self::RemoveError> {

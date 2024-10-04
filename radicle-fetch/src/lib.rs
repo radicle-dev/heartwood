@@ -17,6 +17,7 @@ use gix_protocol::handshake;
 pub use gix_protocol::{transport::bstr::ByteSlice, RemoteProgress};
 pub use handle::Handle;
 pub use policy::{Allowed, BlockList, Scope};
+use radicle::node::NodeId;
 pub use state::{FetchLimit, FetchResult};
 pub use transport::Transport;
 
@@ -54,7 +55,7 @@ pub enum Error {
 pub fn pull<S>(
     handle: &mut Handle<S>,
     limit: FetchLimit,
-    remote: PublicKey,
+    remote: NodeId,
     refs_at: Option<Vec<RefsAt>>,
 ) -> Result<FetchResult, Error>
 where
@@ -90,7 +91,7 @@ where
 pub fn clone<S>(
     handle: &mut Handle<S>,
     limit: FetchLimit,
-    remote: PublicKey,
+    remote: NodeId,
 ) -> Result<FetchResult, Error>
 where
     S: transport::ConnectionStream,

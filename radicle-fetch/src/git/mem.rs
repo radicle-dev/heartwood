@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use radicle::git::{Component, Oid, Qualified, RefString};
-use radicle::prelude::PublicKey;
+use radicle::node::NodeId;
 
 use super::refs::{Applied, RefUpdate, Update};
 
@@ -23,7 +23,7 @@ impl Refdb {
 
     pub fn references_of<'a>(
         &'a self,
-        remote: &'a PublicKey,
+        remote: &'a NodeId,
     ) -> impl Iterator<Item = (RefString, Oid)> + 'a {
         self.0.iter().filter_map(move |(refname, oid)| {
             let ns = refname.to_namespaced()?;

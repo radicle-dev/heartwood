@@ -1308,6 +1308,9 @@ mod lookup {
 pub struct Revision {
     /// Revision identifier.
     pub(super) id: RevisionId,
+    // TODO(finto): there may be Revisions that are made on different nodes but
+    // by the same DID, and so Author patches should be searched via Did and not
+    // PublicKey
     /// Author of the revision.
     pub(super) author: Author,
     /// Revision description.

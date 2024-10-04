@@ -296,7 +296,8 @@ pub struct Profile {
     pub home: Home,
     pub storage: Storage,
     pub keystore: Keystore,
-    pub public_key: PublicKey,
+    // TODO(finto): needs both the NodeId and the Did
+    pub public_key: NodeId,
     pub config: Config,
 }
 

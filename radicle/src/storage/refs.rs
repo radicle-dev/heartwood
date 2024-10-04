@@ -11,9 +11,11 @@ use crypto::{PublicKey, Signature, Signer, SignerError, Unverified, Verified};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::delegate::KeyMaterial;
 use crate::git;
 use crate::git::ext as git_ext;
 use crate::git::Oid;
+use crate::node::NodeId;
 use crate::profile::env;
 use crate::storage;
 use crate::storage::{ReadRepository, RemoteId, WriteRepository};
@@ -38,6 +40,8 @@ pub enum Updated {
 pub enum Error {
     #[error("invalid signature: {0}")]
     InvalidSignature(#[from] crypto::Error),
+    #[error("failed to verify signature: {0}")]
+    Verification(#[from] crypto::signature::Error),
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
     #[error("canonical refs: {0}")]
@@ -72,19 +76,22 @@ pub struct Refs(BTreeMap<git::RefString, Oid>);
 
 impl Refs {
     /// Verify the given signature on these refs, and return [`SignedRefs`] on success.
-    pub fn verified(
+    pub fn verified<V>(
         self,
-        signer: PublicKey,
+        verifier: &V,
         signature: Signature,
-    ) -> Result<SignedRefs<Verified>, Error> {
+    ) -> Result<SignedRefs<Verified>, Error>
+    where
+        V: crypto::Verifier<Signature> + KeyMaterial,
+    {
         let refs = self;
         let msg = refs.canonical();
 
-        match signer.verify(msg, &signature) {
+        match verifier.verify(&msg, &signature) {
             Ok(()) => Ok(SignedRefs {
                 refs,
                 signature,
-                id: signer,
+                id: verifier.public_key(),
                 _verified: PhantomData,
             }),
             Err(e) => Err(e.into()),
@@ -209,14 +216,14 @@ pub struct SignedRefs<V> {
     #[serde(skip)]
     pub signature: Signature,
     /// This is the remote under which these refs exist, and the public key of the signer.
-    pub id: PublicKey,
+    pub id: NodeId,
 
     #[serde(skip)]
     _verified: PhantomData<V>,
 }
 
 impl SignedRefs<Unverified> {
-    pub fn new(refs: Refs, id: PublicKey, signature: Signature) -> Self {
+    pub fn new(refs: Refs, id: NodeId, signature: Signature) -> Self {
         Self {
             refs,
             signature,
@@ -226,22 +233,14 @@ impl SignedRefs<Unverified> {
     }
 
     pub fn verified(self) -> Result<SignedRefs<Verified>, crypto::Error> {
-        match self.verify(&self.id) {
+        let canonical = self.refs.canonical();
+        match self.id.verify(canonical, &self.signature) {
             Ok(()) => Ok(SignedRefs {
                 refs: self.refs,
                 signature: self.signature,
                 id: self.id,
                 _verified: PhantomData,
             }),
-            Err(e) => Err(e),
-        }
-    }
-
-    pub fn verify(&self, signer: &PublicKey) -> Result<(), crypto::Error> {
-        let canonical = self.refs.canonical();
-
-        match signer.verify(canonical, &self.signature) {
-            Ok(()) => Ok(()),
             Err(e) => Err(e),
         }
     }
@@ -257,6 +256,9 @@ impl SignedRefs<Verified> {
         SignedRefs::load_at(oid, remote, repo)
     }
 
+    // TODO(finto): I think we do not want a Verifier here because we're loading
+    // a specific remote's namespace here. However, if the design was passing a
+    // DID that could know which remote to select, then that would be different.
     pub fn load_at<S>(oid: Oid, remote: RemoteId, repo: &S) -> Result<Self, Error>
     where
         S: storage::ReadRepository,

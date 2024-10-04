@@ -6,6 +6,7 @@ use log::error;
 use thiserror::Error;
 
 use crate::crypto::PublicKey;
+use crate::node::NodeId;
 use crate::prelude::RepoId;
 use crate::storage::{Namespaces, ReadRepository as _, ReadStorage, RepositoryError};
 
@@ -111,10 +112,12 @@ impl<T> Config<T> {
                     .collect();
 
                 if let Ok(repo) = storage.repository(*rid) {
+                    // TODO(finto): need to have something that resolves the
+                    // node id associated with each delegate
                     let delegates = repo
                         .delegates()
                         .map_err(|err| FailedDelegates { rid: *rid, err })?
-                        .map(PublicKey::from);
+                        .map(NodeId::from);
                     followed.extend(delegates);
                 };
                 if followed.is_empty() {

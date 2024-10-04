@@ -1100,7 +1100,7 @@ impl Node {
         rid: RepoId,
         seeds: impl IntoIterator<Item = NodeId>,
         timeout: time::Duration,
-        mut callback: impl FnMut(AnnounceEvent, &HashMap<PublicKey, time::Duration>) -> ControlFlow<()>,
+        mut callback: impl FnMut(AnnounceEvent, &HashMap<NodeId, time::Duration>) -> ControlFlow<()>,
     ) -> Result<AnnounceResult, Error> {
         let events = self.subscribe(timeout)?;
         let refs = self.announce_refs(rid)?;

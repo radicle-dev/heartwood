@@ -106,6 +106,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     Ok(())
 }
 
+// TODO(finto): should follow be at the NodeId level, or maybe there's an extra
+// level where we want to follow a Did for all their NodeId's.
 pub fn follow(
     nid: NodeId,
     alias: Option<Alias>,

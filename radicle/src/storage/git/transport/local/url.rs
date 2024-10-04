@@ -7,10 +7,14 @@ use thiserror::Error;
 use crate::{
     crypto,
     identity::{IdError, RepoId},
+    node::NodeId,
 };
 
+// TODO(finto): we will introduce other namespaces which will map to a user
+// (rather than a node). In this scenario, I believe it should be a node since
+// it's the rad URL for a working copy.
 /// Repository namespace.
-type Namespace = crypto::PublicKey;
+type Namespace = NodeId;
 
 #[derive(Debug, Error)]
 pub enum UrlError {

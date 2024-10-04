@@ -678,6 +678,8 @@ pub struct Revision {
     /// Parent revision.
     pub parent: Option<RevisionId>,
 
+    // TODO(finto): One identity is one vote, whereas one identity might have
+    // multiple keys, therefore this should be BTreeMap<Did, Verdict>``
     /// Signatures and rejections given by the delegates.
     verdicts: BTreeMap<PublicKey, Verdict>,
 }

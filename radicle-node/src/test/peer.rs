@@ -276,14 +276,6 @@ where
             .unwrap()
     }
 
-    pub fn git_url(&self, repo: RepoId, namespace: Option<RemoteId>) -> remote::Url {
-        remote::Url {
-            node: self.node_id(),
-            repo,
-            namespace,
-        }
-    }
-
     pub fn node_id(&self) -> NodeId {
         self.service.node_id()
     }

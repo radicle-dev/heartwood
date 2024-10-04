@@ -21,7 +21,7 @@ use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefStr, R
 use crate::identity::{Did, PayloadError};
 use crate::identity::{Doc, DocAt, DocError};
 use crate::identity::{Identity, RepoId};
-use crate::node::SyncedAt;
+use crate::node::{NodeId, SyncedAt};
 use crate::storage::git::NAMESPACES_GLOB;
 use crate::storage::refs::Refs;
 
@@ -53,7 +53,7 @@ pub enum Namespaces {
     #[default]
     All,
     /// The followed set of namespaces.
-    Followed(HashSet<PublicKey>),
+    Followed(HashSet<NodeId>),
 }
 
 impl Namespaces {
@@ -79,8 +79,8 @@ impl Namespaces {
     }
 }
 
-impl FromIterator<PublicKey> for Namespaces {
-    fn from_iter<T: IntoIterator<Item = PublicKey>>(iter: T) -> Self {
+impl FromIterator<NodeId> for Namespaces {
+    fn from_iter<T: IntoIterator<Item = NodeId>>(iter: T) -> Self {
         Self::Followed(iter.into_iter().collect())
     }
 }

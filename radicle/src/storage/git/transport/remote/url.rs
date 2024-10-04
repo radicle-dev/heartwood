@@ -9,6 +9,7 @@ use crate::{
     identity::{IdError, RepoId},
 };
 
+// TODO(finto): these are both NodeId
 type NodeId = crypto::PublicKey;
 type Namespace = crypto::PublicKey;
 

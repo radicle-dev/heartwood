@@ -2,6 +2,7 @@ use bstr::{BString, ByteSlice};
 use either::Either;
 use radicle::crypto::PublicKey;
 use radicle::git::{self, Component, Namespaced, Oid, Qualified};
+use radicle::node::NodeId;
 use thiserror::Error;
 
 pub use radicle::git::refs::storage::Special;
@@ -65,7 +66,7 @@ pub(crate) enum ReceivedRefname<'a> {
     ///   * `refs/namespaces/<remote>/refs/cobs/issue.rad.xyz`
     Namespaced {
         /// The namespace of the remote.
-        remote: PublicKey,
+        remote: NodeId,
         /// The reference is expected to either be a [`Special`] reference
         /// or a generic reference name.
         suffix: Either<Special, Qualified<'a>>,
@@ -75,7 +76,7 @@ pub(crate) enum ReceivedRefname<'a> {
 }
 
 impl<'a> ReceivedRefname<'a> {
-    pub fn remote(remote: PublicKey, suffix: Qualified<'a>) -> Self {
+    pub fn remote(remote: NodeId, suffix: Qualified<'a>) -> Self {
         Self::Namespaced {
             remote,
             suffix: Either::Right(suffix),
@@ -113,7 +114,7 @@ impl TryFrom<BString> for ReceivedRefname<'_> {
     type Error = Error;
 
     fn try_from(value: BString) -> Result<Self, Self::Error> {
-        match git::parse_ref::<PublicKey>(value.to_str()?)? {
+        match git::parse_ref::<NodeId>(value.to_str()?)? {
             (None, name) => (name == *REFS_RAD_ID)
                 .then_some(ReceivedRefname::RadId)
                 .ok_or_else(|| Error::NotCanonicalRadID(name.to_owned())),
@@ -145,9 +146,9 @@ impl ReceivedRef {
         self.name.to_qualified()
     }
 
-    pub fn as_special_ref_update<F>(&self, is_delegate: F) -> Option<(PublicKey, Update<'static>)>
+    pub fn as_special_ref_update<F>(&self, is_delegate: F) -> Option<(NodeId, Update<'static>)>
     where
-        F: Fn(&PublicKey) -> bool,
+        F: Fn(&NodeId) -> bool,
     {
         match &self.name {
             ReceivedRefname::RadId => None,
@@ -159,13 +160,13 @@ impl ReceivedRef {
 }
 
 pub(crate) fn special_update<F>(
-    remote: &PublicKey,
+    remote: &NodeId,
     suffix: &Either<Special, Qualified>,
     tip: Oid,
     is_delegate: F,
 ) -> Option<Update<'static>>
 where
-    F: Fn(&PublicKey) -> bool,
+    F: Fn(&NodeId) -> bool,
 {
     suffix.as_ref().left().map(|special| Update::Direct {
         name: special.namespaced(remote).to_owned(),

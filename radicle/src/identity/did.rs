@@ -42,6 +42,18 @@ impl Did {
     }
 }
 
+impl crypto::Verifier<crypto::Signature> for Did {
+    fn verify(
+        &self,
+        msg: &[u8],
+        signature: &crypto::Signature,
+    ) -> Result<(), crypto::signature::Error> {
+        self.0
+            .verify(msg, signature)
+            .map_err(crypto::signature::Error::from_source)
+    }
+}
+
 impl From<&crypto::PublicKey> for Did {
     fn from(key: &crypto::PublicKey) -> Self {
         Self(*key)

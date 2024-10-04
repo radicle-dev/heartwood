@@ -11,6 +11,8 @@ use crate::identity::DocAt;
 use crate::storage::ReadRepository;
 use crate::{git, identity};
 
+// TODO(finto): Should this actually be Author and be a combination of the key
+// and the identity?
 /// The author of an [`Op`].
 pub type ActorId = PublicKey;
 

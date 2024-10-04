@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 
 use either::Either;
 use radicle::git::{Namespaced, Oid, Qualified};
+use radicle::node::NodeId;
 use radicle::prelude::PublicKey;
 
 pub use radicle::storage::RefUpdate;
@@ -45,11 +46,11 @@ impl<'a> Applied<'a> {
 /// affecting.
 #[derive(Clone, Default, Debug)]
 pub struct Updates<'a> {
-    pub tips: BTreeMap<PublicKey, Vec<Update<'a>>>,
+    pub tips: BTreeMap<NodeId, Vec<Update<'a>>>,
 }
 
 impl<'a> Updates<'a> {
-    pub fn build(updates: impl IntoIterator<Item = (PublicKey, Update<'a>)>) -> Self {
+    pub fn build(updates: impl IntoIterator<Item = (NodeId, Update<'a>)>) -> Self {
         let tips = updates.into_iter().fold(
             BTreeMap::<_, Vec<Update<'a>>>::new(),
             |mut tips, (remote, up)| {
@@ -62,14 +63,14 @@ impl<'a> Updates<'a> {
         Self { tips }
     }
 
-    pub fn add(&mut self, remote: PublicKey, up: Update<'a>) {
+    pub fn add(&mut self, remote: NodeId, up: Update<'a>) {
         self.tips
             .entry(remote)
             .and_modify(|ups| ups.push(up.clone()))
             .or_insert(vec![up]);
     }
 
-    pub fn append(&mut self, remote: PublicKey, mut new: Vec<Update<'a>>) {
+    pub fn append(&mut self, remote: NodeId, mut new: Vec<Update<'a>>) {
         self.tips
             .entry(remote)
             .and_modify(|ups| ups.append(&mut new))

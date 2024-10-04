@@ -35,6 +35,7 @@ use gix_protocol::handshake::Ref;
 use nonempty::NonEmpty;
 use radicle::crypto::PublicKey;
 use radicle::git::{refname, Component, Namespaced, Qualified};
+use radicle::node::NodeId;
 use radicle::storage::git::Repository;
 use radicle::storage::refs::{RefsAt, Special};
 use radicle::storage::ReadRepository;
@@ -208,7 +209,7 @@ impl ProtocolStage for CanonicalId {
                 err: Box::new(err),
             })?;
         if verified.delegates.contains(&self.remote.into()) {
-            let is_delegate = |remote: &PublicKey| verified.is_delegate(remote);
+            let is_delegate = |remote: &NodeId| verified.is_delegate(remote);
             Ok(Updates::build(
                 refs.iter()
                     .filter_map(|r| r.as_special_ref_update(is_delegate)),
@@ -233,9 +234,10 @@ pub struct SpecialRefs {
     pub blocked: BlockList,
     /// The node that is being fetched from.
     #[allow(dead_code)]
-    pub remote: PublicKey,
+    pub remote: NodeId,
     /// The set of nodes to be fetched.
     pub followed: policy::Allowed,
+    // TODO(finto): this should be Did and not PublicKey
     /// The set of delegates to be fetched, with the local node
     /// removed in the case of a `pull`.
     pub delegates: BTreeSet<PublicKey>,
@@ -315,10 +317,11 @@ pub struct SigrefsAt {
     pub blocked: BlockList,
     /// The node that is being fetched from.
     #[allow(dead_code)]
-    pub remote: PublicKey,
+    pub remote: NodeId,
     /// The set of remotes and the newly announced `Oid` for their
     /// `rad/sigrefs`.
     pub refs_at: Vec<RefsAt>,
+    // TODO(finto): this should be Did
     /// The set of delegates to be fetched, with the local node
     /// removed in the case of a `pull`.
     pub delegates: BTreeSet<PublicKey>,
@@ -406,7 +409,7 @@ impl ProtocolStage for SigrefsAt {
 pub struct DataRefs {
     /// The node that is being fetched from.
     #[allow(dead_code)]
-    pub remote: PublicKey,
+    pub remote: NodeId,
     /// The set of signed references from each remote that was
     /// fetched.
     pub remotes: sigrefs::RemoteRefs,
@@ -511,6 +514,7 @@ impl ProtocolStage for DataRefs {
 // N.b. the `delegates` are the delegates of the repository, with the
 // potential removal of the local peer in the case of a `pull`.
 fn special_refs_updates<'a>(
+    // TODO(finto): this should be Did
     delegates: &BTreeSet<PublicKey>,
     blocked: &BlockList,
     refs: &'a [ReceivedRef],

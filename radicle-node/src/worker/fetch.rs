@@ -23,7 +23,7 @@ pub struct FetchResult {
     /// The set of updated references.
     pub updated: Vec<RefUpdate>,
     /// The set of remote namespaces that were updated.
-    pub namespaces: HashSet<PublicKey>,
+    pub namespaces: HashSet<NodeId>,
     /// The fetch was a full clone.
     pub clone: bool,
     /// Identity doc of fetched repo.
@@ -55,7 +55,7 @@ pub enum Handle {
 impl Handle {
     pub fn new(
         rid: RepoId,
-        local: PublicKey,
+        local: NodeId,
         storage: &Storage,
         follow: Allowed,
         blocked: BlockList,
@@ -84,7 +84,7 @@ impl Handle {
         cache: &mut cob::cache::StoreWriter,
         refsdb: &mut D,
         limit: FetchLimit,
-        remote: PublicKey,
+        remote: NodeId,
         refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Fetch> {
         let (result, clone, notifs) = match self {
