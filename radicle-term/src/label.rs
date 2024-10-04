@@ -78,13 +78,13 @@ impl Element for Label {
     }
 }
 
-impl crate::Display<'_> for Label {
+impl crate::Display for Label {
     fn fmt_with(&self, f: &mut fmt::Formatter<'_>, context: &crate::Context) -> fmt::Result {
         self.0.fmt_with(f, context)
     }
 }
 
-impl Cell<'_> for Label {
+impl Cell for Label {
     type Padded = Self;
     type Truncated = Self;
 

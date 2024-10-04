@@ -7,6 +7,7 @@ use once_cell::sync::Lazy;
 
 use super::color::Color;
 use super::display::{Context, Display};
+use super::display_with;
 use super::style::{Property, Style};
 
 /// What file is used for text output.
@@ -235,7 +236,7 @@ impl<T> Paint<T> {
 }
 
 /*
-impl<T: fmt::Display> Display<'_> for Paint<T> {
+impl<T: fmt::Display> Display for Paint<T> {
     fn fmt_with(&self, f: &mut fmt::Formatter<'_>, ctx: &Context) -> fmt::Result {
         if ctx.ansi && self.style.wrap {
             let mut prefix = String::new();
@@ -257,27 +258,26 @@ impl<T: fmt::Display> Display<'_> for Paint<T> {
 }
 */
 
-impl<'a, T: Display<'a>> Display<'a> for Paint<T> {
-    fn fmt_with(&'a self, f: &mut fmt::Formatter<'_>, ctx: &'a Context) -> fmt::Result {
+impl<T: Display> Display for Paint<T> {
+    fn fmt_with(&self, f: &mut fmt::Formatter<'_>, ctx: &Context) -> fmt::Result {
         if ctx.ansi && self.style.wrap {
             let mut prefix = String::new();
             prefix.push_str("\x1B[0m");
             self.style.fmt_prefix(&mut prefix)?;
             self.style.fmt_prefix(f)?;
 
-            let item = self
-                .item
-                .display(&ctx.clone())
+            let item = display_with(&self
+                .item, ctx)
                 .to_string()
                 .replace("\x1B[0m", &prefix);
             fmt::Display::fmt(&item, f)?;
             self.style.fmt_suffix(f)
         } else if ctx.ansi {
             self.style.fmt_prefix(f)?;
-            fmt::Display::fmt(&self.item.display(ctx), f)?;
+            self.item.fmt_with(f, ctx)?;
             self.style.fmt_suffix(f)
         } else {
-            fmt::Display::fmt(&self.item.display(ctx), f)
+            self.item.fmt_with(f, ctx)
         }
     }
 }
@@ -339,13 +339,9 @@ pub struct Filled<T> {
     pub color: Color,
 }
 
-impl<'a, T: fmt::Display> Display<'_> for Filled<T> {
+impl<T: fmt::Display> Display for Filled<T> {
     fn fmt_with(&self, f: &mut fmt::Formatter<'_>, ctx: &Context) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            Paint::wrapping(&self.item).bg(self.color).display(ctx)
-        )
+        Paint::wrapping(&self.item).bg(self.color).fmt_with(f, ctx)
     }
 }
 

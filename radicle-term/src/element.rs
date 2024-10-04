@@ -4,7 +4,7 @@ use std::ops::Deref;
 use std::{io, vec};
 
 use crate::cell::Cell;
-use crate::{display, viewport, Color, Context, Display, Filled, Label, Style};
+use crate::{display, display_with, viewport, Color, Context, Display, Filled, Label, Style};
 
 /// Rendering constraint.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -102,7 +102,7 @@ pub trait Element: fmt::Debug + Send + Sync {
     fn display_xx(&self, constraints: Constraint, context: &Context) -> String {
         let mut out = String::new();
         for line in self.render(constraints) {
-            out.extend(line.into_iter().map(|l| l.display(context).to_string()));
+            out.extend(line.into_iter().map(|l| display_with(&l, context).to_string()));
             out.push('\n');
         }
         out
@@ -315,7 +315,7 @@ impl Element for Vec<Line> {
     }
 }
 
-impl crate::Display<'_> for Line {
+impl crate::Display for Line {
     fn fmt_with(&self, f: &mut fmt::Formatter<'_>, context: &crate::Context) -> fmt::Result {
         for item in &self.items {
             item.fmt_with(f, context)?;

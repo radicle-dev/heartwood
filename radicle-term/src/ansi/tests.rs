@@ -1,5 +1,6 @@
 use std::sync::Mutex;
 
+use super::display_with;
 use super::Color::*;
 use super::Paint;
 use crate::display;
@@ -139,196 +140,170 @@ fn colors_enabled() {
     );
 }
 
+fn to_non_ansi_string(display: &impl Display) -> String {
+    display_with(display, &Context {
+        ansi: false,
+    }).to_string()
+}
+
 #[test]
 fn colors_disabled() {
     let _guard = SERIAL.lock();
 
-    let ctx = Context { ansi: false };
-
     assert_eq!(
-        Paint::new("text/plain").display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::new("text/plain")),
         "text/plain".to_string()
     );
-    assert_eq!(Paint::red("hi").display(&ctx).to_string(), "hi".to_string());
+    assert_eq!(to_non_ansi_string(&Paint::red("hi")), "hi".to_string());
     assert_eq!(
-        Paint::black("hi").display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::black("hi")),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::yellow("hi").bold().display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::yellow("hi").bold()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::new("hi").fg(Yellow).bold().display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::new("hi").fg(Yellow).bold()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::blue("hi").underline().display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::blue("hi").underline()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::green("hi")
+        to_non_ansi_string(&Paint::green("hi")
             .bold()
+            .underline()),
+        "hi".to_string()
+    );
+    assert_eq!(
+        to_non_ansi_string(&Paint::green("hi")
             .underline()
-            .display(&ctx)
-            .to_string(),
+            .bold()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::green("hi")
-            .underline()
-            .bold()
-            .display(&ctx)
-            .to_string(),
+        to_non_ansi_string(&Paint::magenta("hi").bg(White)),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::magenta("hi").bg(White).display(&ctx).to_string(),
-        "hi".to_string()
-    );
-    assert_eq!(
-        Paint::red("hi")
+        to_non_ansi_string(&Paint::red("hi")
             .bg(Blue)
-            .fg(Yellow)
-            .display(&ctx)
-            .to_string(),
+            .fg(Yellow)),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::cyan("hi")
+        to_non_ansi_string(&Paint::cyan("hi")
             .bg(Blue)
-            .fg(Yellow)
-            .display(&ctx)
-            .to_string(),
+            .fg(Yellow)),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::cyan("hi").bold().bg(White).display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::cyan("hi").bold().bg(White)),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::cyan("hi")
+        to_non_ansi_string(&Paint::cyan("hi")
             .underline()
-            .bg(White)
-            .display(&ctx)
-            .to_string(),
+            .bg(White)),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::cyan("hi")
+        to_non_ansi_string(&Paint::cyan("hi")
             .bold()
             .underline()
-            .bg(White)
-            .display(&ctx)
-            .to_string(),
+            .bg(White)),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::cyan("hi")
+        to_non_ansi_string(&Paint::cyan("hi")
             .underline()
             .bold()
-            .bg(White)
-            .display(&ctx)
-            .to_string(),
+            .bg(White)),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::fixed(100, "hi").display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::fixed(100, "hi")),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::fixed(100, "hi")
-            .bg(Magenta)
-            .display(&ctx)
-            .to_string(),
+        to_non_ansi_string(&Paint::fixed(100, "hi")
+            .bg(Magenta)),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::fixed(100, "hi")
-            .bg(Fixed(200))
-            .display(&ctx)
-            .to_string(),
+        to_non_ansi_string(&Paint::fixed(100, "hi")
+            .bg(Fixed(200))),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::rgb(70, 130, 180, "hi").display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::rgb(70, 130, 180, "hi")),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::rgb(70, 130, 180, "hi")
-            .bg(Blue)
-            .display(&ctx)
-            .to_string(),
+        to_non_ansi_string(&Paint::rgb(70, 130, 180, "hi")
+            .bg(Blue)),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::blue("hi")
+        to_non_ansi_string(&Paint::blue("hi")
+            .bg(RGB(70, 130, 180))),
+        "hi".to_string()
+    );
+    assert_eq!(
+        to_non_ansi_string(&Paint::blue("hi")
             .bg(RGB(70, 130, 180))
-            .display(&ctx)
-            .to_string(),
+            .wrap()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::blue("hi")
-            .bg(RGB(70, 130, 180))
-            .wrap()
-            .display(&ctx)
-            .to_string(),
+        to_non_ansi_string(&Paint::rgb(70, 130, 180, "hi")
+            .bg(RGB(5, 10, 15))),
+            "hi".to_string()
+    );
+    assert_eq!(
+        to_non_ansi_string(&Paint::new("hi").bold()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::rgb(70, 130, 180, "hi")
-            .bg(RGB(5, 10, 15))
-            .display(&ctx)
-            .to_string(),
+        to_non_ansi_string(&Paint::new("hi").underline()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::new("hi").bold().display(&ctx).to_string(),
-        "hi".to_string()
-    );
-    assert_eq!(
-        Paint::new("hi").underline().display(&ctx).to_string(),
-        "hi".to_string()
-    );
-    assert_eq!(
-        Paint::new("hi")
+        to_non_ansi_string(&Paint::new("hi")
             .bold()
-            .underline()
-            .display(&ctx)
-            .to_string(),
+            .underline()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::new("hi").dim().display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::new("hi").dim()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::new("hi").italic().display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::new("hi").italic()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::new("hi").blink().display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::new("hi").blink()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::new("hi").invert().display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::new("hi").invert()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::new("hi").hidden().display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::new("hi").hidden()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::new("hi").strikethrough().display(&ctx).to_string(),
+        to_non_ansi_string(&Paint::new("hi").strikethrough()),
         "hi".to_string()
     );
     assert_eq!(
-        Paint::new("hi")
+        to_non_ansi_string(&Paint::new("hi")
             .strikethrough()
-            .wrap()
-            .display(&ctx)
-            .to_string(),
+            .wrap()),
         "hi".to_string()
     );
 }

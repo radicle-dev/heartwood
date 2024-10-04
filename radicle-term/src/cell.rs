@@ -6,12 +6,12 @@ use unicode_display_width as unicode;
 use unicode_segmentation::UnicodeSegmentation as _;
 
 /// Text that can be displayed on the terminal, measured, truncated and padded.
-pub trait Cell<'a>: Display<'a> {
+pub trait Cell: Display {
     /// Type after truncation.
-    type Truncated: Cell<'a>;
+    type Truncated: Cell;
 
     /// Type after padding.
-    type Padded: Cell<'a>;
+    type Padded: Cell;
 
     /// Cell display width in number of terminal columns.
     fn width(&self) -> usize;
@@ -30,7 +30,7 @@ pub trait Cell<'a>: Display<'a> {
     fn pad(&self, width: usize) -> Self::Padded;
 }
 
-impl<'a, T: Cell<'a>> Cell<'a> for Paint<T> {
+impl<T: Cell> Cell for Paint<T> {
     type Truncated = Paint<T::Truncated>;
     type Padded = Paint<T::Padded>;
 
@@ -54,7 +54,7 @@ impl<'a, T: Cell<'a>> Cell<'a> for Paint<T> {
 }
 
 /*
-impl Cell<'_> for Paint<String> {
+impl Cell for Paint<String> {
     type Truncated = Self;
     type Padded = Self;
 
@@ -84,7 +84,7 @@ impl Cell<'_> for Paint<String> {
 }
 */
 
-impl Cell<'_> for Line {
+impl Cell for Line {
     type Truncated = Line;
     type Padded = Line;
 
@@ -106,7 +106,7 @@ impl Cell<'_> for Line {
 }
 
 /*
-impl Cell<'_> for Paint<&str> {
+impl Cell for Paint<&str> {
     type Truncated = Paint<String>;
     type Padded = Paint<String>;
 
@@ -164,7 +164,7 @@ impl Cell<'_> for Paint<&str> {
 }
 */
 
-impl Cell<'_> for String {
+impl Cell for String {
     type Truncated = Self;
     type Padded = Self;
 
@@ -181,7 +181,7 @@ impl Cell<'_> for String {
     }
 }
 
-impl Cell<'_> for &str {
+impl Cell for &str {
     type Truncated = String;
     type Padded = String;
 
@@ -233,7 +233,7 @@ impl Cell<'_> for &str {
 }
 
 /*
-impl Cell<'_> for str {
+impl Cell for str {
     type Truncated = String;
     type Padded = String;
 
@@ -284,7 +284,7 @@ impl Cell<'_> for str {
     }
 }
 
-impl<'a, T: Cell<'a> + ?Sized + fmt::Display> Cell<'a> for &T {
+impl<T: Cell + ?Sized + fmt::Display> Cell for &T {
     type Truncated = T::Truncated;
     type Padded = T::Padded;
 
@@ -302,7 +302,7 @@ impl<'a, T: Cell<'a> + ?Sized + fmt::Display> Cell<'a> for &T {
 }
 */
 
-impl<'a, T: Cell<'a> + fmt::Display> Cell<'a> for Filled<T> {
+impl<T: Cell + fmt::Display> Cell for Filled<T> {
     type Truncated = T::Truncated;
     type Padded = T::Padded;
 

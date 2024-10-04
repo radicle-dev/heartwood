@@ -10,7 +10,7 @@ use inquire::{ui::Color, ui::RenderConfig, Confirm, CustomType, Password};
 use once_cell::sync::Lazy;
 use zeroize::Zeroizing;
 
-use crate::command;
+use crate::{command, display_with};
 use crate::format;
 use crate::{display, style, Context, Display, Paint, Size};
 
@@ -140,7 +140,7 @@ pub fn print(msg: impl fmt::Display) {
     println!("{msg}");
 }
 
-pub fn print_display<'a>(msg: &'a impl Display<'a>) {
+pub fn print_display(msg: &impl Display) {
     println!("{}", display(msg));
 }
 
@@ -167,9 +167,9 @@ pub fn manual(name: &str) -> io::Result<process::ExitStatus> {
 pub fn usage(name: &str, usage: &str, context: &Context) {
     println!(
         "{} {}\n{}",
-        ERROR_PREFIX.display(context),
-        Paint::red(format!("Error: rad-{name}: invalid usage")).display(context),
-        Paint::red(prefixed(TAB, usage)).dim().display(context)
+        display_with(&ERROR_PREFIX, context),
+        display_with(&Paint::red(format!("Error: rad-{name}: invalid usage")), context),
+        display_with(&Paint::red(prefixed(TAB, usage)).dim(), context)
     );
 }
 
@@ -181,7 +181,7 @@ pub fn indented(msg: impl fmt::Display) {
     println!("{TAB}{msg}");
 }
 
-pub fn indented_display<'a>(msg: &'a impl Display<'a>) {
+pub fn indented_display(msg: &impl Display) {
     println!("{TAB}{}", display(msg));
 }
 

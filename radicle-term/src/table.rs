@@ -95,8 +95,8 @@ impl<const W: usize, T, H> Default for Table<W, T, H> {
 impl<
         'a,
         const W: usize,
-        T: Cell<'a> + fmt::Debug + Send + Sync,
-        H: Cell<'a> + fmt::Debug + Send + Sync,
+        T: Cell + fmt::Debug + Send + Sync,
+        H: Cell + fmt::Debug + Send + Sync,
     > Element for Table<W, T, H>
 where
     T::Padded: Into<Line>,
@@ -219,7 +219,7 @@ where
     }
 }
 
-impl<'a, const W: usize, T: Cell<'a>, H: Cell<'a>> Table<W, T, H> {
+impl<'a, const W: usize, T: Cell, H: Cell> Table<W, T, H> {
     pub fn new(opts: TableOptions) -> Self {
         Self {
             header: None,

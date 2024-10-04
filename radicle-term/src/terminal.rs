@@ -21,13 +21,19 @@ trait Terminal {
 
     fn headline(&self, headline: impl fmt::Display);
 
-    fn header(&self, header: &str);
+    fn header(&self, header: &str) {
+        self.blank();
+        self.println(&format::yellow(header).bold().underline());
+        self.blank();
+    }
 
     fn blob(&self, text: impl fmt::Display);
 
-    fn blank(&self);
+    fn blank(&self) {
+        self.println(&"")
+    }
 
-    fn print<'a>(&self, msg: &'a impl Display<Self::Context>);
+    fn println<'a>(&self, msg: &'a impl Display<Self::Context>);
 
     fn prefixed(&self, prefix: &str, text: &str) -> String;
 
@@ -35,7 +41,7 @@ trait Terminal {
 
     fn usage(&self, name: &str, usage: &str, context: &Self::Context);
 
-    fn println(&self, prefix: impl fmt::Display, msg: impl fmt::Display);
+    fn println_prefixed(&self, prefix: impl fmt::Display, msg: impl fmt::Display);
 
     fn indented(&self, msg: impl fmt::Display);
 

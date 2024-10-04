@@ -3,8 +3,6 @@ use std::fmt;
 use super::Paint;
 
 pub trait Display<C = Context>
-where
-    Self: Sized,
 {
     fn fmt_with<'a>(&'a self, f: &mut fmt::Formatter<'_>, ctx: &'a C) -> fmt::Result;
 }
