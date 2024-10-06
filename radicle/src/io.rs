@@ -1,12 +1,9 @@
 use std::fmt;
 use std::io;
 
-use libc::{getrlimit, rlimit, setrlimit, RLIMIT_NOFILE};
+use libc::{getrlimit, rlim_t, rlimit, setrlimit, RLIMIT_NOFILE};
 
-#[cfg(not(target_os = "freebsd"))]
-type Int = u64;
-#[cfg(target_os = "freebsd")]
-type Int = i64;
+type Int = rlim_t;
 
 /// Sets the open file limit to the given value, or the maximum allowed value.
 pub fn set_file_limit<N>(n: N) -> io::Result<Int>
