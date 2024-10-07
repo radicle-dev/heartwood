@@ -18,57 +18,109 @@ use crate::storage::{refs, RefUpdate};
 pub const MAX_PENDING_EVENTS: usize = 8192;
 
 /// A service event.
+///
+/// The node emits events of this type to its control socket for other
+/// programs to consume.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum Event {
+    /// The node has received changes to Git references in a
+    /// repository stored on the node, from another node.
     RefsFetched {
+        /// The node identifier of the other node.
         remote: NodeId,
+        /// The identifier of the repository in question.
         rid: RepoId,
+        /// The list of Git references that were updated.
         updated: Vec<RefUpdate>,
     },
+    /// The node has sent its list of Git references to another node
+    /// and the other has fetched the updated references.
     RefsSynced {
+        /// The node identifier of the other node.
         remote: NodeId,
+        /// The identifier of the repository in question.
         rid: RepoId,
+        /// The `rad/sigrefs` reference that was fetched.
         at: Oid,
     },
+    /// The node has discovered a repository on new node on the
+    /// Radicle network.
     SeedDiscovered {
+        /// The identifier of the repository in question.
         rid: RepoId,
+        /// The node identifier of the other node.
         nid: NodeId,
     },
+    /// The node has dropped a repository on a node from its list of
+    /// known repositories and nodes.
     SeedDropped {
+        /// The identifier of the repository in question.
         rid: RepoId,
+        /// The node identifier of the other node.
         nid: NodeId,
     },
+    /// The node has connected directly to another node.
     PeerConnected {
+        /// The node identifier of the other node.
         nid: NodeId,
     },
+    /// The node has terminated its direct connection to another node.
     PeerDisconnected {
+        /// The node identifier of the other node.
         nid: NodeId,
+        /// The reason why the connection was terminated.
         reason: String,
     },
+    /// The local node has received changes to Git references from its
+    /// local user. In other words, the local user has pushed to the
+    /// node, updated COBs, or otherwise updated refs in their local node.
     LocalRefsAnnounced {
+        /// The identifier of the repository in question.
         rid: RepoId,
+        /// List of changed Git references for the repository.
         refs: refs::RefsAt,
+        /// When were the new references received? In other words,
+        /// when did the user run `git push`?
         timestamp: Timestamp,
     },
+    /// The node has received a message with a list of repositories on
+    /// another node on the network.
     InventoryAnnounced {
+        /// The node identifier of the other node.
         nid: NodeId,
+        /// List of repositories sent.
         inventory: Vec<RepoId>,
+        /// When was the list sent?
         timestamp: Timestamp,
     },
+    /// The node has received a message about new signed Git
+    /// references ("sigrefs") for a repository on another node on the
+    /// network.
     RefsAnnounced {
+        /// The node identifier of the other node.
         nid: NodeId,
+        /// The identifier of the repository in question.
         rid: RepoId,
+        /// List of Git references for the repository.
         refs: Vec<refs::RefsAt>,
+        /// When was the list sent?
         timestamp: Timestamp,
     },
+    /// The node received a message about a new node on the network.
     NodeAnnounced {
+        /// The node identifier of the other node.
         nid: NodeId,
+        /// Alias for the other node.
         alias: Alias,
+        /// When was the announcement sent?
         timestamp: Timestamp,
+        /// What features did the node advertise to the other node.
         features: node::Features,
+        /// What of its addresses did the node tell the other node about?
         addresses: Vec<node::Address>,
     },
+    /// The node has uploaded a Git pack file to another node.
     UploadPack(upload_pack::UploadPack),
 }
 
