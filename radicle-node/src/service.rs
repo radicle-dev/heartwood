@@ -2312,9 +2312,14 @@ where
         self.last_timestamp
     }
 
-    fn relay(&mut self, id: gossip::AnnouncementId, msg: Announcement) {
-        let announcer = msg.node;
+    fn relay(&mut self, id: gossip::AnnouncementId, ann: Announcement) {
+        let announcer = ann.node;
         let relayed_by = self.relayed_by.get(&id);
+        let rid = if let AnnouncementMessage::Refs(RefsAnnouncement { rid, .. }) = ann.message {
+            Some(rid)
+        } else {
+            None
+        };
         // Choose peers we should relay this message to.
         // 1. Don't relay to a peer who sent us this message.
         // 2. Don't relay to the peer who signed this announcement.
@@ -2327,9 +2332,25 @@ where
                     .unwrap_or(true) // If there are no relayers we let it through.
             })
             .filter(|(id, _)| **id != announcer)
+            .filter(|(id, _)| {
+                if let Some(rid) = rid {
+                    // Only relay this message if the peer is allowed to know about the
+                    // repository. If we don't have the repository, return `false` because
+                    // we can't determine if it's private or public.
+                    self.storage
+                        .get(rid)
+                        .ok()
+                        .flatten()
+                        .map(|doc| doc.is_visible_to(id))
+                        .unwrap_or(false)
+                } else {
+                    // Announcement doesn't concern a specific repository, let it through.
+                    true
+                }
+            })
             .map(|(_, p)| p);
 
-        self.outbox.relay(msg, relay_to);
+        self.outbox.relay(ann, relay_to);
     }
 
     ////////////////////////////////////////////////////////////////////////////

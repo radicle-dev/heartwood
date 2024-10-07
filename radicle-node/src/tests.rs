@@ -671,13 +671,9 @@ fn test_announcement_relay() {
 }
 
 #[test]
-fn test_refs_announcement_relay() {
+fn test_refs_announcement_relay_public() {
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Peer::with_storage(
-        "alice",
-        [7, 7, 7, 7],
-        Storage::open(tmp.path().join("alice"), fixtures::user()).unwrap(),
-    );
+    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], MockStorage::empty());
     let eve = Peer::with_storage(
         "eve",
         [8, 8, 8, 8],
@@ -713,6 +709,12 @@ fn test_refs_announcement_relay() {
         .receive(bob.id(), bob.refs_announcement(bob_inv[0]))
         .elapse(service::GOSSIP_INTERVAL);
 
+    // Pretend Alice cloned Bob's repos.
+    let repos = gen::<[MockRepository; 3]>(1);
+    for (i, mut repo) in repos.into_iter().enumerate() {
+        repo.doc.doc.visibility = Visibility::Public; // Public repos are always gossiped.
+        alice.storage_mut().repos.insert(bob_inv[i], repo);
+    }
     assert_matches!(
         alice.messages(eve.id()).next(),
         Some(Message::Announcement(_)),
@@ -743,6 +745,76 @@ fn test_refs_announcement_relay() {
         alice.messages(eve.id()).next(),
         Some(Message::Announcement(_)),
         "And a third one is as well"
+    );
+}
+
+#[test]
+fn test_refs_announcement_relay_private() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], MockStorage::empty());
+    let eve = Peer::with_storage(
+        "eve",
+        [8, 8, 8, 8],
+        Storage::open(tmp.path().join("eve"), fixtures::user()).unwrap(),
+    );
+
+    let bob = {
+        let mut rng = fastrand::Rng::new();
+        let signer = MockSigner::new(&mut rng);
+        let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
+
+        Peer::config(
+            "bob",
+            [9, 9, 9, 9],
+            storage,
+            peer::Config {
+                signer,
+                rng,
+                ..peer::Config::default()
+            },
+        )
+        .initialized()
+    };
+    let bob_inv = bob.inventory().into_iter().collect::<Vec<_>>();
+
+    alice.seed(&bob_inv[0], policy::Scope::All).unwrap();
+    alice.seed(&bob_inv[1], policy::Scope::All).unwrap();
+    alice.connect_to(&bob);
+    alice.connect_to(&eve);
+    alice.receive(eve.id(), Message::Subscribe(Subscribe::all()));
+
+    // The first repo is not visible to Eve.
+    let mut repo1 = gen::<MockRepository>(1);
+    repo1.doc.doc.visibility = Visibility::Private { allow: [].into() };
+    alice.storage_mut().repos.insert(bob_inv[0], repo1);
+
+    // The second repo is visible to Eve.
+    let mut repo2 = gen::<MockRepository>(1);
+    repo2.doc.doc.visibility = Visibility::Private {
+        allow: [eve.id.into()].into(),
+    };
+    alice.storage_mut().repos.insert(bob_inv[1], repo2);
+    alice.elapse(service::GOSSIP_INTERVAL);
+    alice.messages(eve.id()).for_each(drop);
+    alice
+        .receive(bob.id(), bob.refs_announcement(bob_inv[0]))
+        .elapse(service::GOSSIP_INTERVAL);
+    assert_matches!(
+        alice.messages(eve.id()).next(),
+        None,
+        "The first ref announcement is not relayed to Eve"
+    );
+
+    alice
+        .receive(bob.id(), bob.refs_announcement(bob_inv[1]))
+        .elapse(service::GOSSIP_INTERVAL);
+    assert_matches!(
+        alice.messages(eve.id()).next(),
+        Some(Message::Announcement(Announcement {
+            message: AnnouncementMessage::Refs(_),
+            ..
+        })),
+        "The second ref announcement is relayed to Eve"
     );
 }
 
