@@ -369,9 +369,9 @@ impl<V> Deref for SignedRefs<V> {
 /// The content-addressable information required to load a remote's
 /// `rad/sigrefs`.
 ///
-/// This can be used to [`RefsAt::load`] a [`SignedRefsAt`].
+/// Use [`RefsAt::load`] to produce a [`SignedRefsAt`].
 ///
-/// It can also be used for communicating announcements of updates
+/// `RefsAt` can also be used for communicating announcements of updates
 /// references to other nodes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
