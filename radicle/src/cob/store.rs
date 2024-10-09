@@ -9,7 +9,7 @@ use radicle_cob::CollaborativeObject;
 use serde::{Deserialize, Serialize};
 
 use crate::cob::op::Op;
-use crate::cob::{Create, Embed, EntryId, ObjectId, TypeName, Update, Updated, Version};
+use crate::cob::{Create, Embed, EntryId, ObjectId, TypeName, Update, Updated, Uri, Version};
 use crate::git;
 use crate::prelude::*;
 use crate::storage::git as storage;
@@ -92,6 +92,10 @@ pub enum Error {
     NotFound(TypeName, ObjectId),
     #[error("signed refs: {0}")]
     SignRefs(#[from] storage::Error),
+    #[error("invalid or unknown embed URI: {0}")]
+    EmbedUri(Uri),
+    #[error(transparent)]
+    Git(git::raw::Error),
     #[error("failed to find reference '{name}': {err}")]
     RefLookup {
         name: git::RefString,
@@ -148,12 +152,21 @@ where
         object_id: ObjectId,
         message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
-        embeds: Vec<Embed>,
+        embeds: Vec<Embed<Uri>>,
         signer: &G,
     ) -> Result<Updated<T>, Error> {
         let actions = actions.into();
         let related = actions.iter().flat_map(T::Action::parents).collect();
         let changes = actions.try_map(encoding::encode)?;
+        let embeds = embeds
+            .into_iter()
+            .map(|e| {
+                Ok::<_, Error>(Embed {
+                    content: git::Oid::try_from(&e.content).map_err(Error::EmbedUri)?,
+                    name: e.name.clone(),
+                })
+            })
+            .collect::<Result<_, _>>()?;
         let updated = cob::update(
             self.repo,
             signer,
@@ -178,12 +191,21 @@ where
         &self,
         message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
-        embeds: Vec<Embed>,
+        embeds: Vec<Embed<Uri>>,
         signer: &G,
     ) -> Result<(ObjectId, T), Error> {
         let actions = actions.into();
         let parents = actions.iter().flat_map(T::Action::parents).collect();
         let contents = actions.try_map(encoding::encode)?;
+        let embeds = embeds
+            .into_iter()
+            .map(|e| {
+                Ok::<_, Error>(Embed {
+                    content: git::Oid::try_from(&e.content).map_err(Error::EmbedUri)?,
+                    name: e.name.clone(),
+                })
+            })
+            .collect::<Result<_, _>>()?;
         let cob = cob::create::<T, _, G>(
             self.repo,
             signer,
@@ -263,7 +285,7 @@ where
 #[derive(Debug)]
 pub struct Transaction<T: Cob + cob::Evaluate<R>, R> {
     actions: Vec<T::Action>,
-    embeds: Vec<Embed>,
+    embeds: Vec<Embed<Uri>>,
     repo: PhantomData<R>,
 }
 
@@ -290,12 +312,12 @@ where
     ) -> Result<(ObjectId, T), Error>
     where
         G: Signer,
-        F: FnOnce(&mut Self) -> Result<(), Error>,
+        F: FnOnce(&mut Self, &R) -> Result<(), Error>,
         R: ReadRepository + SignRepository + cob::Store,
         T::Action: Serialize + Clone,
     {
         let mut tx = Transaction::default();
-        operations(&mut tx)?;
+        operations(&mut tx, store.as_ref())?;
 
         let actions = NonEmpty::from_vec(tx.actions)
             .expect("Transaction::initial: transaction must contain at least one action");
@@ -311,7 +333,7 @@ where
     }
 
     /// Embed media into the transaction.
-    pub fn embed(&mut self, embeds: impl IntoIterator<Item = Embed>) -> Result<(), Error> {
+    pub fn embed(&mut self, embeds: impl IntoIterator<Item = Embed<Uri>>) -> Result<(), Error> {
         self.embeds.extend(embeds);
 
         Ok(())

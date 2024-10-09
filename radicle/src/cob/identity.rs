@@ -3,7 +3,7 @@ use std::{fmt, ops::Deref, str::FromStr};
 
 use crypto::{PublicKey, Signature};
 use once_cell::sync::Lazy;
-use radicle_cob::{ObjectId, TypeName};
+use radicle_cob::{Embed, ObjectId, TypeName};
 use radicle_crypto::{Signer, Verified};
 use radicle_git_ext as git_ext;
 use radicle_git_ext::Oid;
@@ -15,7 +15,7 @@ use crate::{
     cob::{
         op, store,
         store::{Cob, CobAction, Transaction},
-        ActorId, Timestamp,
+        ActorId, Timestamp, Uri,
     },
     identity::{
         doc::{Doc, DocError, RepoId},
@@ -187,10 +187,12 @@ impl Identity {
         signer: &G,
     ) -> Result<IdentityMut<'a, R>, cob::store::Error> {
         let mut store = cob::store::Store::open(store)?;
-        let (id, identity) =
-            Transaction::<Identity, _>::initial("Initialize identity", &mut store, signer, |tx| {
-                tx.revision("Initial revision", "", doc, None, signer)
-            })?;
+        let (id, identity) = Transaction::<Identity, _>::initial(
+            "Initialize identity",
+            &mut store,
+            signer,
+            |tx, repo| tx.revision("Initial revision", "", doc, None, repo, signer),
+        )?;
 
         Ok(IdentityMut {
             id,
@@ -825,22 +827,26 @@ impl<R: ReadRepository> store::Transaction<Identity, R> {
     pub fn redact(&mut self, revision: RevisionId) -> Result<(), store::Error> {
         self.push(Action::RevisionRedact { revision })
     }
+}
 
+impl<R: WriteRepository> store::Transaction<Identity, R> {
     pub fn revision<G: Signer>(
         &mut self,
         title: impl ToString,
         description: impl ToString,
         doc: &Doc<Verified>,
         parent: Option<RevisionId>,
+        repo: &R,
         signer: &G,
     ) -> Result<(), store::Error> {
-        let (blob, content, signature) = doc.sign(signer).map_err(store::Error::Identity)?;
+        let (blob, bytes, signature) = doc.sign(signer).map_err(store::Error::Identity)?;
+        // Store document blob in repository.
+        let embed =
+            Embed::<Uri>::store("radicle.json", &bytes, repo.raw()).map_err(store::Error::Git)?;
+        debug_assert_eq!(embed.content, Uri::from(blob)); // Make sure we pre-computed the correct OID for the blob.
 
         // Identity document.
-        self.embed([cob::Embed {
-            name: String::from("radicle.json"),
-            content,
-        }])?;
+        self.embed([embed])?;
 
         // Revision metadata.
         self.push(Action::Revision {
@@ -891,10 +897,10 @@ where
     ) -> Result<EntryId, Error>
     where
         G: Signer,
-        F: FnOnce(&mut Transaction<Identity, R>) -> Result<(), store::Error>,
+        F: FnOnce(&mut Transaction<Identity, R>, &R) -> Result<(), store::Error>,
     {
         let mut tx = Transaction::default();
-        operations(&mut tx)?;
+        operations(&mut tx, self.store.as_ref())?;
 
         let (doc, commit) = tx.commit(message, self.id, &mut self.store, signer)?;
         self.identity = doc;
@@ -912,8 +918,8 @@ where
         signer: &G,
     ) -> Result<RevisionId, Error> {
         let parent = self.current;
-        let id = self.transaction("Propose revision", signer, |tx| {
-            tx.revision(title, description, doc, Some(parent), signer)
+        let id = self.transaction("Propose revision", signer, |tx, repo| {
+            tx.revision(title, description, doc, Some(parent), repo, signer)
         })?;
 
         Ok(id)
@@ -929,7 +935,7 @@ where
         let revision = self.revision(revision).ok_or(Error::NotFound(id))?;
         let signature = revision.sign(signer)?;
 
-        self.transaction("Accept revision", signer, |tx| tx.accept(id, signature))
+        self.transaction("Accept revision", signer, |tx, _| tx.accept(id, signature))
     }
 
     /// Reject an active revision.
@@ -938,7 +944,7 @@ where
         revision: RevisionId,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Reject revision", signer, |tx| tx.reject(revision))
+        self.transaction("Reject revision", signer, |tx, _| tx.reject(revision))
     }
 
     /// Redact a revision.
@@ -947,7 +953,7 @@ where
         revision: RevisionId,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Redact revision", signer, |tx| tx.redact(revision))
+        self.transaction("Redact revision", signer, |tx, _| tx.redact(revision))
     }
 
     /// Edit an active revision's title or description.
@@ -958,7 +964,7 @@ where
         description: String,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Edit revision", signer, |tx| {
+        self.transaction("Edit revision", signer, |tx, _| {
             tx.edit(revision, title, description)
         })
     }

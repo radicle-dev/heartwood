@@ -8,10 +8,8 @@ use base64::prelude::{Engine, BASE64_STANDARD};
 use localtime::LocalTime;
 use serde::{Deserialize, Serialize};
 
-use crate::cob::Embed;
 use crate::git::Oid;
 use crate::prelude::{Did, PublicKey};
-use crate::storage::ReadRepository;
 
 /// Timestamp used for COB operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -346,24 +344,6 @@ impl TryFrom<&Uri> for DataUri {
         }
         Err(value.clone())
     }
-}
-
-/// Resolve an embed with a URI to one with actual data.
-pub fn resolve_embed(repo: &impl ReadRepository, embed: Embed<Uri>) -> Option<Embed<Vec<u8>>> {
-    DataUri::try_from(&embed.content)
-        .ok()
-        .map(|content| Embed {
-            name: embed.name.clone(),
-            content: content.into(),
-        })
-        .or_else(|| {
-            Oid::try_from(&embed.content).ok().and_then(|oid| {
-                repo.blob(oid).ok().map(|blob| Embed {
-                    name: embed.name,
-                    content: blob.content().to_vec(),
-                })
-            })
-        })
 }
 
 /// The result of an authorization check on an COB action.

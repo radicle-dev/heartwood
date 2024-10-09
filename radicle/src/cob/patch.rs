@@ -475,7 +475,7 @@ impl Patch {
     }
 
     /// Patch embeds.
-    pub fn embeds(&self) -> &Vec<Embed<Uri>> {
+    pub fn embeds(&self) -> &[Embed<Uri>] {
         let (_, r) = self.root();
         r.embeds()
     }
@@ -1410,7 +1410,7 @@ impl Revision {
         self.description.iter()
     }
 
-    pub fn embeds(&self) -> &Vec<Embed<Uri>> {
+    pub fn embeds(&self) -> &[Embed<Uri>] {
         &self.description.last().embeds
     }
 
@@ -1663,15 +1663,13 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         &mut self,
         revision: RevisionId,
         description: impl ToString,
-        embeds: Vec<Embed>,
+        embeds: Vec<Embed<Uri>>,
     ) -> Result<(), store::Error> {
-        let hashed = embeds.iter().map(|e| e.hashed()).collect();
-
-        self.embed(embeds)?;
+        self.embed(embeds.clone())?;
         self.push(Action::RevisionEdit {
             revision,
             description: description.to_string(),
-            embeds: hashed,
+            embeds,
         })
     }
 
@@ -1718,17 +1716,15 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         body: S,
         reply_to: Option<CommentId>,
         location: Option<CodeLocation>,
-        embeds: Vec<Embed>,
+        embeds: Vec<Embed<Uri>>,
     ) -> Result<(), store::Error> {
-        let hashed = embeds.iter().map(|e| e.hashed()).collect();
-
-        self.embed(embeds)?;
+        self.embed(embeds.clone())?;
         self.push(Action::RevisionComment {
             revision,
             body: body.to_string(),
             reply_to,
             location,
-            embeds: hashed,
+            embeds,
         })
     }
 
@@ -1738,16 +1734,14 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         revision: RevisionId,
         comment: CommentId,
         body: S,
-        embeds: Vec<Embed>,
+        embeds: Vec<Embed<Uri>>,
     ) -> Result<(), store::Error> {
-        let hashed = embeds.iter().map(|e| e.hashed()).collect();
-
-        self.embed(embeds)?;
+        self.embed(embeds.clone())?;
         self.push(Action::RevisionCommentEdit {
             revision,
             comment,
             body: body.to_string(),
-            embeds: hashed,
+            embeds,
         })
     }
 
@@ -1783,17 +1777,15 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         body: S,
         location: Option<CodeLocation>,
         reply_to: Option<CommentId>,
-        embeds: Vec<Embed>,
+        embeds: Vec<Embed<Uri>>,
     ) -> Result<(), store::Error> {
-        let hashed = embeds.iter().map(|e| e.hashed()).collect();
-        self.embed(embeds)?;
-
+        self.embed(embeds.clone())?;
         self.push(Action::ReviewComment {
             review,
             body: body.to_string(),
             location,
             reply_to,
-            embeds: hashed,
+            embeds,
         })
     }
 
@@ -1821,16 +1813,14 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         review: ReviewId,
         comment: EntryId,
         body: S,
-        embeds: Vec<Embed>,
+        embeds: Vec<Embed<Uri>>,
     ) -> Result<(), store::Error> {
-        let hashed = embeds.iter().map(|e| e.hashed()).collect();
-
-        self.embed(embeds)?;
+        self.embed(embeds.clone())?;
         self.push(Action::ReviewCommentEdit {
             review,
             comment,
             body: body.to_string(),
-            embeds: hashed,
+            embeds,
         })
     }
 
@@ -2011,7 +2001,7 @@ where
         &mut self,
         revision: RevisionId,
         description: String,
-        embeds: impl IntoIterator<Item = Embed>,
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Edit revision", signer, |tx| {
@@ -2045,7 +2035,7 @@ where
         body: S,
         reply_to: Option<CommentId>,
         location: Option<CodeLocation>,
-        embeds: impl IntoIterator<Item = Embed>,
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Comment", signer, |tx| {
@@ -2079,7 +2069,7 @@ where
         revision: RevisionId,
         comment: CommentId,
         body: S,
-        embeds: impl IntoIterator<Item = Embed>,
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Edit comment", signer, |tx| {
@@ -2120,7 +2110,7 @@ where
         body: S,
         location: Option<CodeLocation>,
         reply_to: Option<CommentId>,
-        embeds: impl IntoIterator<Item = Embed>,
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Review comment", signer, |tx| {
@@ -2140,7 +2130,7 @@ where
         review: ReviewId,
         comment: EntryId,
         body: S,
-        embeds: impl IntoIterator<Item = Embed>,
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Edit review comment", signer, |tx| {
@@ -2567,7 +2557,7 @@ where
     where
         C: cob::cache::Update<Patch>,
     {
-        let (id, patch) = Transaction::initial("Create patch", &mut self.raw, signer, |tx| {
+        let (id, patch) = Transaction::initial("Create patch", &mut self.raw, signer, |tx, _| {
             tx.revision(description, base, oid)?;
             tx.edit(title, target)?;
 

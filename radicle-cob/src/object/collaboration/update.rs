@@ -34,7 +34,7 @@ pub struct Update {
     /// The message to add when updating this object.
     pub message: String,
     /// Embedded files.
-    pub embeds: Vec<Embed>,
+    pub embeds: Vec<Embed<Oid>>,
 }
 
 /// Update an existing [`CollaborativeObject`].

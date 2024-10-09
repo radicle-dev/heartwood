@@ -1,6 +1,6 @@
 use super::*;
 
-use radicle::cob::{self, patch, resolve_embed};
+use radicle::cob::{self, patch};
 use radicle::crypto;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
@@ -19,12 +19,11 @@ pub fn run(
     let Ok(patch) = patches.get_mut(patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };
-
     let (title, description) = term::patch::get_edit_message(message, &patch)?;
 
     match revision_id {
-        Some(id) => edit_revision(patch, id, title, description, repository, &signer),
-        None => edit_root(patch, title, description, repository, &signer),
+        Some(id) => edit_revision(patch, id, title, description, &signer),
+        None => edit_root(patch, title, description, &signer),
     }
 }
 
@@ -32,7 +31,6 @@ fn edit_root<G>(
     mut patch: patch::PatchMut<'_, '_, Repository, cob::cache::StoreWriter>,
     title: String,
     description: String,
-    repository: &Repository,
     signer: &G,
 ) -> anyhow::Result<()>
 where
@@ -56,11 +54,7 @@ where
 
     let (root, _) = patch.root();
     let target = patch.target();
-    let embeds = patch
-        .embeds()
-        .iter()
-        .filter_map(|embed| resolve_embed(repository, embed.clone()))
-        .collect::<Vec<_>>();
+    let embeds = patch.embeds().to_owned();
 
     patch.transaction("Edit root", signer, |tx| {
         if let Some(t) = title {
@@ -80,17 +74,12 @@ fn edit_revision<G>(
     revision: patch::RevisionId,
     mut title: String,
     description: String,
-    repository: &Repository,
     signer: &G,
 ) -> anyhow::Result<()>
 where
     G: crypto::Signer,
 {
-    let embeds = patch
-        .embeds()
-        .iter()
-        .filter_map(|embed| resolve_embed(repository, embed.clone()))
-        .collect::<Vec<_>>();
+    let embeds = patch.embeds().to_owned();
     let description = if description.is_empty() {
         title
     } else {

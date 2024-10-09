@@ -472,15 +472,13 @@ impl<R: ReadRepository> store::Transaction<Issue, R> {
         &mut self,
         id: CommentId,
         body: impl ToString,
-        embeds: Vec<Embed>,
+        embeds: Vec<Embed<Uri>>,
     ) -> Result<(), store::Error> {
-        let hashed = embeds.iter().map(|e| e.hashed()).collect();
-
-        self.embed(embeds)?;
+        self.embed(embeds.clone())?;
         self.push(Action::CommentEdit {
             id,
             body: body.to_string(),
-            embeds: hashed,
+            embeds,
         })
     }
 
@@ -506,15 +504,13 @@ impl<R: ReadRepository> store::Transaction<Issue, R> {
         &mut self,
         body: S,
         reply_to: CommentId,
-        embeds: Vec<Embed>,
+        embeds: Vec<Embed<Uri>>,
     ) -> Result<(), store::Error> {
-        let hashed = embeds.iter().map(|e| e.hashed()).collect();
-
-        self.embed(embeds)?;
+        self.embed(embeds.clone())?;
         self.push(Action::Comment {
             body: body.to_string(),
             reply_to: Some(reply_to),
-            embeds: hashed,
+            embeds,
         })
     }
 
@@ -545,16 +541,15 @@ impl<R: ReadRepository> store::Transaction<Issue, R> {
     fn thread<S: ToString>(
         &mut self,
         body: S,
-        embeds: impl IntoIterator<Item = Embed>,
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
     ) -> Result<(), store::Error> {
         let embeds = embeds.into_iter().collect::<Vec<_>>();
-        let hashed = embeds.iter().map(|e| e.hashed()).collect();
 
-        self.embed(embeds)?;
+        self.embed(embeds.clone())?;
         self.push(Action::Comment {
             body: body.to_string(),
             reply_to: None,
-            embeds: hashed,
+            embeds,
         })
     }
 }
@@ -613,7 +608,7 @@ where
     pub fn edit_description<G: Signer>(
         &mut self,
         description: impl ToString,
-        embeds: impl IntoIterator<Item = Embed>,
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         let (id, _) = self.root();
@@ -633,7 +628,7 @@ where
         &mut self,
         body: S,
         reply_to: CommentId,
-        embeds: impl IntoIterator<Item = Embed>,
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Comment", signer, |tx| {
@@ -646,7 +641,7 @@ where
         &mut self,
         id: CommentId,
         body: S,
-        embeds: impl IntoIterator<Item = Embed>,
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Edit comment", signer, |tx| {
@@ -777,7 +772,7 @@ where
         description: impl ToString,
         labels: &[Label],
         assignees: &[Did],
-        embeds: impl IntoIterator<Item = Embed>,
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
         cache: &'g mut C,
         signer: &G,
     ) -> Result<IssueMut<'a, 'g, R, C>, Error>
@@ -785,7 +780,7 @@ where
         G: Signer,
         C: cob::cache::Update<Issue>,
     {
-        let (id, issue) = Transaction::initial("Create issue", &mut self.raw, signer, |tx| {
+        let (id, issue) = Transaction::initial("Create issue", &mut self.raw, signer, |tx, _| {
             tx.thread(description, embeds)?;
             tx.edit(title)?;
 
@@ -1511,17 +1506,22 @@ mod test {
     fn test_embeds() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo).unwrap();
+
+        let content1 = repo.backend.blob(b"<html>Hello World!</html>").unwrap();
+        let content2 = repo.backend.blob(b"<html>Hello Radicle!</html>").unwrap();
+        let content3 = repo.backend.blob(b"body { color: red }").unwrap();
+
         let embed1 = Embed {
             name: String::from("example.html"),
-            content: b"<html>Hello World!</html>".to_vec(),
+            content: Uri::from(Oid::from(content1)),
         };
         let embed2 = Embed {
             name: String::from("style.css"),
-            content: b"body { color: red }".to_vec(),
+            content: Uri::from(Oid::from(content2)),
         };
         let embed3 = Embed {
             name: String::from("bin"),
-            content: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            content: Uri::from(Oid::from(content3)),
         };
         let mut issue = issues
             .create(
@@ -1552,34 +1552,35 @@ mod test {
         let e2 = &c0.embeds()[1];
         let e3 = &c1.embeds()[0];
 
-        let b1 = repo.blob(Oid::try_from(&e1.content).unwrap()).unwrap();
-        let b2 = repo.blob(Oid::try_from(&e2.content).unwrap()).unwrap();
-        let b3 = repo.blob(Oid::try_from(&e3.content).unwrap()).unwrap();
+        let b1 = Oid::try_from(&e1.content).unwrap();
+        let b2 = Oid::try_from(&e2.content).unwrap();
+        let b3 = Oid::try_from(&e3.content).unwrap();
 
-        assert_eq!(b1.content(), &embed1.content);
-        assert_eq!(b2.content(), &embed2.content);
-        assert_eq!(b3.content(), &embed3.content);
-
-        assert_eq!(b1.is_binary(), false);
-        assert_eq!(b2.is_binary(), false);
-        assert_eq!(b3.is_binary(), true);
+        assert_eq!(b1, Oid::try_from(&embed1.content).unwrap());
+        assert_eq!(b2, Oid::try_from(&embed2.content).unwrap());
+        assert_eq!(b3, Oid::try_from(&embed3.content).unwrap());
     }
 
     #[test]
     fn test_embeds_edit() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo).unwrap();
+
+        let content1 = repo.backend.blob(b"<html>Hello World!</html>").unwrap();
+        let content1_edited = repo.backend.blob(b"<html>Hello Radicle!</html>").unwrap();
+        let content2 = repo.backend.blob(b"body { color: red }").unwrap();
+
         let embed1 = Embed {
             name: String::from("example.html"),
-            content: b"<html>Hello World!</html>".to_vec(),
+            content: Uri::from(Oid::from(content1)),
         };
         let embed1_edited = Embed {
-            name: String::from("example.html"),
-            content: b"<html>Hello Radicle!</html>".to_vec(),
+            name: String::from("style.css"),
+            content: Uri::from(Oid::from(content1_edited)),
         };
         let embed2 = Embed {
-            name: String::from("style.css"),
-            content: b"body { color: red }".to_vec(),
+            name: String::from("bin"),
+            content: Uri::from(Oid::from(content2)),
         };
         let mut issue = issues
             .create(
@@ -1603,10 +1604,10 @@ mod test {
         assert_eq!(c0.embeds().len(), 1);
 
         let e1 = &c0.embeds()[0];
-        let b1 = repo.blob(Oid::try_from(&e1.content).unwrap()).unwrap();
+        let b1 = Oid::try_from(&e1.content).unwrap();
 
-        assert_eq!(e1.content, Uri::from(embed1_edited.oid()));
-        assert_eq!(b1.content(), &embed1_edited.content);
+        assert_eq!(e1.content, embed1_edited.content);
+        assert_eq!(b1, Oid::try_from(&embed1_edited.content).unwrap());
     }
 
     #[test]

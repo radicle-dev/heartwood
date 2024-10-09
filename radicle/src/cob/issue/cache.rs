@@ -8,7 +8,7 @@ use crate::cob;
 use crate::cob::cache;
 use crate::cob::cache::{Remove, StoreReader, StoreWriter, Update};
 use crate::cob::store;
-use crate::cob::{Embed, Label, ObjectId, TypeName};
+use crate::cob::{Embed, Label, ObjectId, TypeName, Uri};
 use crate::crypto::Signer;
 use crate::prelude::{Did, RepoId};
 use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
@@ -79,7 +79,7 @@ impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
         description: impl ToString,
         labels: &[Label],
         assignees: &[Did],
-        embeds: impl IntoIterator<Item = Embed>,
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &G,
     ) -> Result<IssueMut<'a, 'g, R, C>, super::Error>
     where

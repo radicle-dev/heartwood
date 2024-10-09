@@ -341,7 +341,7 @@ fn write_commit(
 fn write_manifest(
     repo: &git2::Repository,
     manifest: &store::Manifest,
-    embeds: Vec<Embed>,
+    embeds: Vec<Embed<Oid>>,
     contents: &NonEmpty<Vec<u8>>,
 ) -> Result<git2::Oid, git2::Error> {
     let mut root = repo.treebuilder(None)?;
@@ -372,10 +372,10 @@ fn write_manifest(
         let mut embeds_tree = repo.treebuilder(None)?;
 
         for embed in embeds {
-            let oid = repo.blob(&embed.content)?;
+            let oid = embed.content;
             let path = PathBuf::from(embed.name);
 
-            embeds_tree.insert(path, oid, git2::FileMode::Blob.into())?;
+            embeds_tree.insert(path, *oid, git2::FileMode::Blob.into())?;
         }
         let oid = embeds_tree.write()?;
 

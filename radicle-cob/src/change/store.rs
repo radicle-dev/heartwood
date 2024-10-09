@@ -45,7 +45,7 @@ pub struct Template<Id> {
     pub type_name: TypeName,
     pub tips: Vec<Id>,
     pub message: String,
-    pub embeds: Vec<Embed>,
+    pub embeds: Vec<Embed<Oid>>,
     pub contents: NonEmpty<Vec<u8>>,
 }
 
@@ -189,6 +189,22 @@ pub struct Embed<T = Vec<u8>> {
     pub name: String,
     /// File content or content hash.
     pub content: T,
+}
+
+impl<T: From<Oid>> Embed<T> {
+    /// Create a new embed.
+    pub fn store(
+        name: impl ToString,
+        content: &[u8],
+        repo: &git2::Repository,
+    ) -> Result<Self, git2::Error> {
+        let oid = repo.blob(content)?;
+
+        Ok(Self {
+            name: name.to_string(),
+            content: T::from(oid.into()),
+        })
+    }
 }
 
 impl Embed<Vec<u8>> {

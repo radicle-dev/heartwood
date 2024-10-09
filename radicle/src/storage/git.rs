@@ -439,9 +439,13 @@ impl Repository {
         storage: &S,
         signer: &G,
     ) -> Result<(Self, git::Oid), RepositoryError> {
-        let (doc_oid, _) = doc.encode()?;
+        let (doc_oid, doc_bytes) = doc.encode()?;
         let id = RepoId::from(doc_oid);
         let repo = Self::create(paths::repository(storage, &id), id, storage.info())?;
+        let oid = repo.backend.blob(&doc_bytes)?; // Store document blob in repository.
+
+        debug_assert_eq!(oid, *doc_oid);
+
         let commit = doc.init(&repo, signer)?;
 
         Ok((repo, commit))

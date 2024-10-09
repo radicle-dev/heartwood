@@ -18,7 +18,7 @@ pub struct Create {
     /// The message to add when creating this object.
     pub message: String,
     /// Embedded content.
-    pub embeds: Vec<Embed>,
+    pub embeds: Vec<Embed<Oid>>,
     /// COB version.
     pub version: Version,
 }
