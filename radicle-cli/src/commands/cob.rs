@@ -17,6 +17,7 @@ use serde_json::json;
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::display;
 
 pub const HELP: Help = Help {
     name: "cob",
@@ -211,9 +212,12 @@ fn print_op_pretty(op: Op<Vec<u8>>) -> anyhow::Result<()> {
         std::time::UNIX_EPOCH + std::time::Duration::from_secs(op.timestamp.as_secs()),
     )
     .to_rfc2822();
-    term::print(term::format::yellow(format!("commit   {}", op.id)));
+    term::print(display(&term::format::yellow(format!(
+        "commit   {}",
+        op.id
+    ))));
     if let Some(oid) = op.identity {
-        term::print(term::format::tertiary(format!("resource {oid}")));
+        term::print_display(&term::format::tertiary(format!("resource {oid}")));
     }
     for parent in op.parents {
         term::print(format!("parent   {}", parent));
@@ -228,7 +232,7 @@ fn print_op_pretty(op: Op<Vec<u8>>) -> anyhow::Result<()> {
         let obj: serde_json::Value = serde_json::from_slice(&action)?;
         let val = serde_json::to_string_pretty(&obj)?;
         for line in val.lines() {
-            term::indented(term::format::dim(line));
+            term::indented_display(&term::format::dim(line));
         }
         term::blank();
     }

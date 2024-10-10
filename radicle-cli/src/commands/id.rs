@@ -20,6 +20,7 @@ use crate::git::unified_diff::Encode as _;
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::display;
 use crate::terminal::patch::Message;
 use crate::terminal::Interactive;
 
@@ -317,10 +318,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 anyhow::bail!("cannot vote on revision that is {}", revision.state);
             }
 
-            if options
-                .interactive
-                .confirm(format!("Accept revision {}?", term::format::tertiary(id)))
-            {
+            if options.interactive.confirm(format!(
+                "Accept revision {}?",
+                display(&term::format::tertiary(id))
+            )) {
                 identity.accept(&revision.id, &signer)?;
 
                 if let Some(revision) = identity.revision(&id) {
@@ -347,7 +348,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
             if options.interactive.confirm(format!(
                 "Reject revision {}?",
-                term::format::tertiary(revision.id)
+                display(&term::format::tertiary(revision.id))
             )) {
                 identity.reject(revision.id, &signer)?;
 
@@ -477,7 +478,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             };
             if proposal == current.doc {
                 if !options.quiet {
-                    term::print(term::format::italic(
+                    term::print_display(&term::format::italic(
                         "Nothing to do. The document is up to date. See `rad inspect --identity`.",
                     ));
                 }
@@ -495,14 +496,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             } else {
                 term::success!(
                     "Identity revision {} created",
-                    term::format::tertiary(revision.id)
+                    display(&term::format::tertiary(revision.id))
                 );
                 print(&revision, &current, &repo, &profile)?;
             }
         }
         Operation::ListRevisions => {
-            let mut revisions =
-                term::Table::<7, term::Label>::new(term::table::TableOptions::bordered());
+            let mut revisions = term::Table::<7, term::Label, term::Label>::new(
+                term::table::TableOptions::bordered(),
+            );
 
             revisions.header([
                 term::format::dim(String::from("●")).into(),
@@ -543,7 +545,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
             if options.interactive.confirm(format!(
                 "Redact revision {}?",
-                term::format::tertiary(revision.id)
+                display(&term::format::tertiary(revision.id))
             )) {
                 identity.redact(revision.id, &signer)?;
 
@@ -583,7 +585,7 @@ fn print_meta(
     previous: &Doc<Verified>,
     profile: &Profile,
 ) -> anyhow::Result<()> {
-    let mut attrs = term::Table::<2, term::Label>::new(Default::default());
+    let mut attrs = term::Table::<2, term::Label, term::Label>::new(Default::default());
 
     attrs.push([
         term::format::bold("Title").into(),
@@ -634,7 +636,7 @@ fn print_meta(
         .iter()
         .filter(|id| !accepted.contains(id) && !rejected.contains(id))
         .collect::<Vec<_>>();
-    let mut signatures = term::Table::<4, _>::default();
+    let mut signatures = term::Table::<4, _, &str>::default();
 
     for id in accepted {
         let author = term::format::Author::new(&id, profile);
@@ -764,7 +766,7 @@ fn print_diff(
         let diff = modified.diff.to_unified_string()?;
         print!("{diff}");
     } else {
-        term::print(term::format::italic("No changes."));
+        term::print_display(&term::format::italic("No changes."));
     }
     Ok(())
 }
@@ -785,8 +787,8 @@ impl VerificationError {
         match self {
             VerificationError::MissingDefaultBranch { branch, did } => term::error(format!(
                 "missing {} for {} in local storage",
-                term::format::secondary(branch),
-                term::format::did(did)
+                display(&term::format::secondary(branch)),
+                display(&term::format::did(did))
             )),
             VerificationError::MissingDelegate { did } => {
                 term::error(format!("the delegate {did} is missing"));

@@ -8,6 +8,7 @@ use radicle_term::{Element as _, Paint, Table};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::display;
 
 pub const HELP: Help = Help {
     name: "follow",
@@ -99,7 +100,14 @@ impl Args for Options {
             Some(nid) => Operation::Follow { nid, alias },
             None => Operation::List { alias },
         };
-        Ok((Options { op, verbose, output_format }, vec![]))
+        Ok((
+            Options {
+                op,
+                verbose,
+                output_format,
+            },
+            vec![],
+        ))
     }
 }
 
@@ -134,22 +142,27 @@ pub fn follow(
     if let Some(alias) = alias {
         term::success!(
             "Follow policy {outcome} for {} ({alias})",
-            term::format::tertiary(nid),
+            display(&term::format::tertiary(nid)),
         );
     } else {
         term::success!(
             "Follow policy {outcome} for {}",
-            term::format::tertiary(nid),
+            display(&term::format::tertiary(nid)),
         );
     }
 
     Ok(())
 }
 
-pub fn following(profile: &Profile, alias: Option<Alias>, output_format: OutputFormat) -> anyhow::Result<()> {
+pub fn following(
+    profile: &Profile,
+    alias: Option<Alias>,
+    output_format: OutputFormat,
+) -> anyhow::Result<()> {
     let store = profile.policies()?;
     let aliases = profile.aliases();
-    let mut t = term::Table::new(term::table::TableOptions::bordered());
+    let mut t: Table<3, Paint<String>, Paint<String>> =
+        term::Table::new(term::table::TableOptions::bordered());
     t.header([
         term::format::default(String::from("DID")),
         term::format::default(String::from("Alias")),
@@ -180,7 +193,7 @@ pub fn following(profile: &Profile, alias: Option<Alias>, output_format: OutputF
 }
 
 fn push_policies(
-    t: &mut Table<3, Paint<String>>,
+    t: &mut Table<3, Paint<String>, Paint<String>>,
     aliases: &impl AliasStore,
     policies: impl Iterator<Item = policy::FollowPolicy>,
 ) {

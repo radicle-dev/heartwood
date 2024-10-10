@@ -18,7 +18,7 @@ crossbeam-channel = { version = "0.5.6" }
 inquire = { version = "0.7.4", default-features = false, features = ["termion", "editor"] }
 libc = { version = "0.2" }
 once_cell = { version = "1.13" }
-serde = { version = "1" }
+serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 shlex = { version = "1.1" }
 termion = { version = "3" }

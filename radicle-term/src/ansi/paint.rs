@@ -6,6 +6,8 @@ use std::{fmt, sync};
 use once_cell::sync::Lazy;
 
 use super::color::Color;
+use super::display::{Context, Display};
+use super::display_with;
 use super::style::{Property, Style};
 
 /// What file is used for text output.
@@ -233,9 +235,10 @@ impl<T> Paint<T> {
     }
 }
 
-impl<T: fmt::Display> fmt::Display for Paint<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if Paint::is_enabled() && self.style.wrap {
+/*
+impl<T: fmt::Display> Display for Paint<T> {
+    fn fmt_with(&self, f: &mut fmt::Formatter<'_>, ctx: &Context) -> fmt::Result {
+        if ctx.ansi && self.style.wrap {
             let mut prefix = String::new();
             prefix.push_str("\x1B[0m");
             self.style.fmt_prefix(&mut prefix)?;
@@ -244,12 +247,36 @@ impl<T: fmt::Display> fmt::Display for Paint<T> {
             let item = format!("{}", self.item).replace("\x1B[0m", &prefix);
             fmt::Display::fmt(&item, f)?;
             self.style.fmt_suffix(f)
-        } else if Paint::is_enabled() {
+        } else if ctx.ansi {
             self.style.fmt_prefix(f)?;
             fmt::Display::fmt(&self.item, f)?;
             self.style.fmt_suffix(f)
         } else {
             fmt::Display::fmt(&self.item, f)
+        }
+    }
+}
+*/
+
+impl<T: Display> Display for Paint<T> {
+    fn fmt_with(&self, f: &mut fmt::Formatter<'_>, ctx: &Context) -> fmt::Result {
+        if ctx.ansi && self.style.wrap {
+            let mut prefix = String::new();
+            prefix.push_str("\x1B[0m");
+            self.style.fmt_prefix(&mut prefix)?;
+            self.style.fmt_prefix(f)?;
+
+            let item = display_with(&self.item, ctx)
+                .to_string()
+                .replace("\x1B[0m", &prefix);
+            fmt::Display::fmt(&item, f)?;
+            self.style.fmt_suffix(f)
+        } else if ctx.ansi {
+            self.style.fmt_prefix(f)?;
+            self.item.fmt_with(f, ctx)?;
+            self.style.fmt_suffix(f)
+        } else {
+            self.item.fmt_with(f, ctx)
         }
     }
 }
@@ -311,9 +338,9 @@ pub struct Filled<T> {
     pub color: Color,
 }
 
-impl<T: fmt::Display> fmt::Display for Filled<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", Paint::wrapping(&self.item).bg(self.color))
+impl<T: fmt::Display> Display for Filled<T> {
+    fn fmt_with(&self, f: &mut fmt::Formatter<'_>, ctx: &Context) -> fmt::Result {
+        Paint::wrapping(&self.item).bg(self.color).fmt_with(f, ctx)
     }
 }
 

@@ -78,9 +78,9 @@ impl Element for Label {
     }
 }
 
-impl fmt::Display for Label {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+impl crate::Display for Label {
+    fn fmt_with(&self, f: &mut fmt::Formatter<'_>, context: &crate::Context) -> fmt::Result {
+        self.0.fmt_with(f, context)
     }
 }
 

@@ -235,7 +235,7 @@ mod test {
         assert_eq!(inner.rows, 3);
 
         assert_eq!(
-            v.display(constraint),
+            v.display_xx(constraint, &Context { ansi: false }),
             r#"
 ╭─────────╮
 │ banana  │
@@ -268,7 +268,7 @@ mod test {
         assert_eq!(inner.rows, 3);
 
         assert_eq!(
-            v.display(constraint),
+            v.display_xx(constraint, &Context { ansi: false }),
             r#"
 ╭────────────╮
 │ banana     │
