@@ -8,6 +8,7 @@ use radicle_term::{Element as _, Paint, Table};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::display;
 
 pub const HELP: Help = Help {
     name: "follow",
@@ -125,12 +126,12 @@ pub fn follow(
     if let Some(alias) = alias {
         term::success!(
             "Follow policy {outcome} for {} ({alias})",
-            term::format::tertiary(nid),
+            display(&term::format::tertiary(nid)),
         );
     } else {
         term::success!(
             "Follow policy {outcome} for {}",
-            term::format::tertiary(nid),
+            display(&term::format::tertiary(nid)),
         );
     }
 

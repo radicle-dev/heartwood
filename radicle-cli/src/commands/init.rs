@@ -25,7 +25,7 @@ use crate::commands;
 use crate::git;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::Interactive;
+use crate::terminal::{Interactive, Terminal};
 
 pub const HELP: Help = Help {
     name: "init",
@@ -182,7 +182,7 @@ impl Args for Options {
     }
 }
 
-pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(term: &Terminal, options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let cwd = env::current_dir()?;
     let path = options.path.as_deref().unwrap_or(cwd.as_path());
@@ -200,13 +200,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     if let Some(rid) = options.existing {
-        init_existing(repo, rid, options, &profile)
+        init_existing(term, repo, rid, options, &profile)
     } else {
-        init(repo, options, &profile)
+        init(term, repo, options, &profile)
     }
 }
 
 pub fn init(
+    term: &Terminal,
     repo: git::Repository,
     options: Options,
     profile: &profile::Profile,
@@ -222,21 +223,23 @@ pub fn init(
         .and_then(|head| head.shorthand().map(|h| h.to_owned()))
         .ok_or_else(|| anyhow!("repository head must point to a commit"))?;
 
-    term::headline(format!(
+    term.headline(format!(
         "Initializing{}radicle 👾 repository in {}..",
-        if let Some(visibility) = &options.visibility {
-            term::format::spaced(term::format::visibility(visibility))
-        } else {
-            term::format::default(" ").into()
-        },
-        term::format::dim(path.display())
+        term.display(
+            &(if let Some(visibility) = &options.visibility {
+                term::format::spaced(term::format::visibility(visibility))
+            } else {
+                term::format::default(" ").into()
+            })
+        ),
+        term.display(&term::format::dim(path.display()))
     ));
 
     let name: ProjectName = match options.name {
         Some(name) => name,
         None => {
             let default = path.file_name().map(|f| f.to_string_lossy().to_string());
-            term::input(
+            term.input(
                 "Name",
                 default,
                 Some("The name of your repository, eg. 'acme'"),
@@ -246,11 +249,11 @@ pub fn init(
     };
     let description = match options.description {
         Some(desc) => desc,
-        None => term::input("Description", None, Some("You may leave this blank"))?,
+        None => term.input("Description", None, Some("You may leave this blank"))?,
     };
     let branch = match options.branch {
         Some(branch) => branch,
-        None if interactive.yes() => term::input(
+        None if interactive.yes() => term.input(
             "Default branch",
             Some(head),
             Some("Please specify an existing branch"),
@@ -262,7 +265,7 @@ pub fn init(
     let visibility = if let Some(v) = options.visibility {
         v
     } else {
-        let selected = term::select(
+        let selected = term.select(
             "Visibility",
             &["public", "private"],
             "Public repositories are accessible by anyone on the network after initialization",
@@ -289,12 +292,12 @@ pub fn init(
 
             spinner.message(format!(
                 "Repository {} created.",
-                term::format::highlight(proj.name())
+                term.display(&term::format::highlight(proj.name()))
             ));
             spinner.finish();
 
             if options.verbose {
-                term::blob(json::to_string_pretty(&proj)?);
+                term.blob(json::to_string_pretty(&proj)?);
             }
             // It's important to seed our own repositories to make sure that our node signals
             // interest for them. This ensures that messages relating to them are relayed to us.
@@ -320,36 +323,40 @@ pub fn init(
 
             if options.setup_signing {
                 // Setup radicle signing key.
-                self::setup_signing(profile.id(), &repo, interactive)?;
+                self::setup_signing(term, profile.id(), &repo, interactive)?;
             }
 
-            term::blank();
-            term::info!(
+            term.blank();
+            term.info(format!(
                 "Your Repository ID {} is {}.",
-                term::format::dim("(RID)"),
-                term::format::highlight(rid.urn())
-            );
+                term.display(&term::format::dim("(RID)")),
+                term.display(&term::format::highlight(rid.urn()))
+            ));
             let directory = if path == env::current_dir()? {
                 "this directory".to_owned()
             } else {
-                term::format::tertiary(path.display()).to_string()
+                term.display(&term::format::tertiary(path.display()))
+                    .to_string()
             };
-            term::info!(
+            term.info(format!(
                 "You can show it any time by running {} from {directory}.",
-                term::format::command("rad .")
-            );
-            term::blank();
+                term.display(&term::format::command("rad ."))
+            ));
+            term.blank();
 
             // Announce inventory to network.
-            if let Err(e) = announce(rid, doc, &mut node, &profile.config) {
-                term::blank();
-                term::warning(format!(
+            if let Err(e) = announce(term, rid, doc, &mut node, &profile.config) {
+                term.blank();
+                term.warning(format!(
                     "There was an error announcing your repository to the network: {e}"
                 ));
-                term::warning("Try again with `rad sync --announce`, or check your logs with `rad node logs`.");
-                term::blank();
+                term.warning("Try again with `rad sync --announce`, or check your logs with `rad node logs`.");
+                term.blank();
             }
-            term::info!("To push changes, run {}.", term::format::command(push_cmd));
+            term.info(format!(
+                "To push changes, run {}.",
+                term.display(&term::format::command(push_cmd))
+            ));
         }
         Err(err) => {
             spinner.failed();
@@ -359,8 +366,8 @@ pub fn init(
 
     Ok(())
 }
-
 pub fn init_existing(
+    term: &Terminal,
     working: git::Repository,
     rid: RepoId,
     options: Options,
@@ -388,16 +395,16 @@ pub fn init_existing(
         )?;
     }
 
-    term::success!(
+    term.success(format!(
         "Initialized existing repository {} in {}..",
-        term::format::tertiary(rid),
-        term::format::dim(
+        term.display(&term::format::tertiary(rid)),
+        term.display(&term::format::dim(
             working
                 .workdir()
                 .unwrap_or_else(|| working.path())
                 .display()
-        ),
-    );
+        ))
+    ));
 
     Ok(())
 }
@@ -411,6 +418,7 @@ enum SyncResult<T> {
 }
 
 fn sync(
+    term: &Terminal,
     rid: RepoId,
     node: &mut Node,
     config: &profile::Config,
@@ -456,7 +464,7 @@ fn sync(
             Ok(Event::RefsSynced {
                 remote, rid: rid_, ..
             }) if rid == rid_ => {
-                term::success!("Repository successfully synced to {remote}");
+                term.success("Repository successfully synced to {remote}");
                 replicas.insert(remote);
                 // If we manage to replicate to one of our preferred seeds, we can stop waiting.
                 if config.preferred_seeds.iter().any(|s| s.id == remote) {
@@ -488,7 +496,7 @@ fn sync(
                 remote,
                 err,
             })) if rid == rid_ => {
-                term::warning(format!("Upload error for {rid} to {remote}: {err}"));
+                term.warning(format!("Upload error for {rid} to {remote}: {err}"));
             }
             Ok(_) => {
                 // Some other irrelevant event received.
@@ -527,86 +535,87 @@ fn sync(
 }
 
 pub fn announce(
+    term: &Terminal,
     rid: RepoId,
     doc: Doc,
     node: &mut Node,
     config: &profile::Config,
 ) -> anyhow::Result<()> {
     if doc.is_public() {
-        match sync(rid, node, config) {
+        match sync(term, rid, node, config) {
             Ok(SyncResult::Synced {
                 result: Some(url), ..
             }) => {
-                term::blank();
-                term::info!(
+                term.blank();
+                term.info(
                     "Your repository has been synced to the network and is \
                     now discoverable by peers.",
                 );
-                term::info!("View it in your browser at:");
-                term::blank();
-                term::indented(term::format::tertiary(url));
-                term::blank();
+                term.info("View it in your browser at:");
+                term.blank();
+                term.indented(term::format::tertiary(url));
+                term.blank();
             }
             Ok(SyncResult::Synced { result: None, .. }) => {
-                term::blank();
-                term::info!(
+                term.blank();
+                term.info(
                     "Your repository has been synced to the network and is \
                     now discoverable by peers.",
                 );
                 if !config.preferred_seeds.is_empty() {
-                    term::info!(
+                    term.info(
                         "Unfortunately, you were unable to replicate your repository to \
-                        your preferred seeds."
+                        your preferred seeds.",
                     );
                 }
             }
             Ok(SyncResult::NotSynced) => {
-                term::blank();
-                term::info!(
+                term.blank();
+                term.info(
                     "Your repository has been announced to the network and is \
                     now discoverable by peers.",
                 );
-                term::info!(
+                term.info(
                     "You can check for any nodes that have replicated your repository by running \
-                    `rad sync status`."
+                    `rad sync status`.",
                 );
-                term::blank();
+                term.blank();
             }
             Ok(SyncResult::NoPeersConnected) => {
-                term::blank();
-                term::info!(
+                term.blank();
+                term.info(
                     "You are not connected to any peers. Your repository will be announced as soon as \
                     your node establishes a connection with the network.");
-                term::info!("Check for peer connections with `rad node status`.");
-                term::blank();
+                term.info("Check for peer connections with `rad node status`.");
+                term.blank();
             }
             Ok(SyncResult::NodeStopped) => {
-                term::info!(
-                    "Your repository will be announced to the network when you start your node."
+                term.info(
+                    "Your repository will be announced to the network when you start your node.",
                 );
-                term::info!(
+                term.info(format!(
                     "You can start your node with {}.",
-                    term::format::command("rad node start")
-                );
+                    term.display(&term::format::command("rad node start"))
+                ));
             }
             Err(e) => {
                 return Err(e.into());
             }
         }
     } else {
-        term::info!(
+        term.info(format!(
             "You have created a {} repository.",
-            term::format::visibility(doc.visibility())
-        );
-        term::info!(
+            term.display(&term::format::visibility(doc.visibility()))
+        ));
+        term.info(
             "This repository will only be visible to you, \
             and to peers you explicitly allow.",
         );
-        term::blank();
-        term::info!(
+        term.blank();
+        term.info(format!(
             "To make it public, run {}.",
-            term::format::command("rad publish")
-        );
+            term.display(&term::format::command("rad publish"))
+        ));
     }
 
     Ok(())
@@ -614,6 +623,7 @@ pub fn announce(
 
 /// Setup radicle key as commit signing key in repository.
 pub fn setup_signing(
+    term: &Terminal,
     node_id: &NodeId,
     repo: &git::Repository,
     interactive: Interactive,
@@ -623,15 +633,15 @@ pub fn setup_signing(
         .ok_or(anyhow!("cannot setup signing in bare repository"))?;
     let key = ssh::fmt::fingerprint(node_id);
     let yes = if !git::is_signing_configured(repo)? {
-        term::headline(format!(
+        term.headline(format!(
             "Configuring radicle signing key {}...",
-            term::format::tertiary(key)
+            term.display(&term::format::tertiary(key))
         ));
         true
     } else if interactive.yes() {
-        term::confirm(format!(
+        term.confirm(format!(
             "Configure radicle signing key {} in local checkout?",
-            term::format::tertiary(key),
+            term.display(&term::format::tertiary(key)),
         ))
     } else {
         true
@@ -642,19 +652,26 @@ pub fn setup_signing(
             Ok(file) => {
                 git::ignore(repo, file.as_path())?;
 
-                term::success!("Created {} file", term::format::tertiary(file.display()));
+                term.success(format!(
+                    "Created {} file",
+                    term.display(&term::format::tertiary(file.display()))
+                ));
             }
             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
                 let ssh_key = ssh::fmt::key(node_id);
                 let gitsigners = term::format::tertiary(".gitsigners");
-                term::success!("Found existing {} file", gitsigners);
+                term.success(format!("Found existing {} file", term.display(&gitsigners)));
 
                 let ssh_keys =
                     git::read_gitsigners(repo).context("error reading .gitsigners file")?;
 
                 if ssh_keys.contains(&ssh_key) {
-                    term::success!("Signing key is already in {gitsigners} file");
-                } else if term::confirm(format!("Add signing key to {gitsigners}?")) {
+                    term.success(format!(
+                        "Signing key is already in {} file",
+                        term.display(&gitsigners)
+                    ));
+                } else if term.confirm(format!("Add signing key to {}?", term.display(&gitsigners)))
+                {
                     git::add_gitsigners(repo, [node_id])?;
                 }
             }
@@ -664,10 +681,10 @@ pub fn setup_signing(
         }
         git::configure_signing(repo, node_id)?;
 
-        term::success!(
+        term.success(format!(
             "Signing configured in {}",
-            term::format::tertiary(".git/config")
-        );
+            term.display(&term::format::tertiary(".git/config"))
+        ));
     }
     Ok(())
 }

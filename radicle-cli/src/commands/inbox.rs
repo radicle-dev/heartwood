@@ -225,7 +225,7 @@ fn list(
     };
 
     if repos.is_empty() {
-        term::print(term::format::italic("Your inbox is empty."));
+        term::print_display(&term::format::italic("Your inbox is empty."));
     } else {
         for repo in repos {
             repo.print();
@@ -263,10 +263,11 @@ fn list_repo<'a, R: ReadStorage>(
 where
     <R as ReadStorage>::Repository: cob::Store,
 {
-    let mut table = term::Table::new(term::TableOptions {
-        spacing: 3,
-        ..term::TableOptions::default()
-    });
+    let mut table: radicle_term::Table<8, radicle_term::Label, &str> =
+        term::Table::new(term::TableOptions {
+            spacing: 3,
+            ..term::TableOptions::default()
+        });
     let repo = storage.repository(rid)?;
     let (_, head) = repo.head()?;
     let doc = repo.identity_doc()?;
@@ -296,7 +297,7 @@ where
             })
             .unwrap_or_default();
         let notification_id = term::format::dim(format!("{:-03}", n.id)).into();
-        let timestamp = term::format::italic(term::format::timestamp(n.timestamp)).into();
+        let timestamp = term::format::timestamp(n.timestamp).italic().into();
 
         let NotificationRow {
             category,
@@ -352,7 +353,7 @@ struct NotificationRow {
     category: term::Paint<String>,
     summary: term::Paint<String>,
     state: term::Paint<String>,
-    name: term::Paint<term::Paint<String>>,
+    name: term::Paint<String>,
 }
 
 impl NotificationRow {
@@ -366,7 +367,7 @@ impl NotificationRow {
             category: term::format::dim(category),
             summary: term::Paint::new(summary),
             state,
-            name: term::format::tertiary(name),
+            name,
         }
     }
 
@@ -511,7 +512,7 @@ fn clear(mode: Mode, notifs: &mut notifications::StoreWriter) -> anyhow::Result<
     if cleared > 0 {
         term::success!("Cleared {cleared} item(s) from your inbox");
     } else {
-        term::print(term::format::italic("Your inbox is empty."));
+        term::print_display(&term::format::italic("Your inbox is empty."));
     }
     Ok(())
 }

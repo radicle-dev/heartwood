@@ -13,6 +13,7 @@ use radicle::{profile, Profile};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::display;
 
 pub const HELP: Help = Help {
     name: "auth",
@@ -135,8 +136,8 @@ pub fn init(options: Options) -> anyhow::Result<()> {
 
     term::success!(
         "Your Radicle DID is {}. This identifies your device. Run {} to show it at all times.",
-        term::format::highlight(profile.did()),
-        term::format::command("rad self")
+        display(&term::format::highlight(profile.did())),
+        display(&term::format::command("rad self"))
     );
     term::success!("You're all set.");
     term::blank();
@@ -147,16 +148,18 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     }
     term::info!(
         "To create a Radicle repository, run {} from a Git repository with at least one commit.",
-        term::format::command("rad init")
+        display(&term::format::command("rad init"))
     );
     term::info!(
         "To clone a repository, run {}. For example, {} clones the Radicle 'heartwood' repository.",
-        term::format::command("rad clone <rid>"),
-        term::format::command("rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5")
+        display(&term::format::command("rad clone <rid>")),
+        display(&term::format::command(
+            "rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
+        ))
     );
     term::info!(
         "To get a list of all commands, run {}.",
-        term::format::command("rad"),
+        display(&term::format::command("rad")),
     );
 
     Ok(())
@@ -166,7 +169,10 @@ pub fn init(options: Options) -> anyhow::Result<()> {
 /// use.
 pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
     if !profile.keystore.is_encrypted()? {
-        term::success!("Authenticated as {}", term::format::tertiary(profile.id()));
+        term::success!(
+            "Authenticated as {}",
+            display(&term::format::tertiary(profile.id()))
+        );
         return Ok(());
     }
     for (key, _) in &profile.config.node.extra {
@@ -193,7 +199,10 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
             };
             register(&mut agent, profile, passphrase)?;
 
-            term::success!("Radicle key added to {}", term::format::dim("ssh-agent"));
+            term::success!(
+                "Radicle key added to {}",
+                display(&term::format::dim("ssh-agent"))
+            );
 
             return Ok(());
         }
@@ -208,12 +217,12 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    term::print(term::format::dim(
+    term::print(display(&term::format::dim(
         "Nothing to do, ssh-agent is not running.",
-    ));
-    term::print(term::format::dim(
+    )));
+    term::print(display(&term::format::dim(
         "You will be prompted for a passphrase when necessary.",
-    ));
+    )));
 
     Ok(())
 }

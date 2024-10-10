@@ -12,7 +12,7 @@ use zeroize::Zeroizing;
 
 use crate::command;
 use crate::format;
-use crate::{style, Paint, Size};
+use crate::{display, style, Display, Paint, Size};
 
 pub use inquire;
 pub use inquire::Select;
@@ -41,6 +41,7 @@ pub static CONFIG: Lazy<RenderConfig> = Lazy::new(|| RenderConfig {
     ..RenderConfig::default_colored()
 });
 
+#[deprecated]
 #[macro_export]
 macro_rules! info {
     ($writer:expr; $($arg:tt)*) => ({
@@ -51,6 +52,7 @@ macro_rules! info {
     })
 }
 
+#[deprecated]
 #[macro_export]
 macro_rules! success {
     // Pattern when a writer is provided.
@@ -63,6 +65,7 @@ macro_rules! success {
     });
 }
 
+#[deprecated]
 #[macro_export]
 macro_rules! tip {
     ($($arg:tt)*) => ({
@@ -70,6 +73,7 @@ macro_rules! tip {
     })
 }
 
+#[deprecated]
 #[macro_export]
 macro_rules! notice {
     // Pattern when a writer is provided.
@@ -86,60 +90,77 @@ pub use notice;
 pub use success;
 pub use tip;
 
+#[deprecated]
 pub fn success_args<W: io::Write>(w: &mut W, args: fmt::Arguments) {
-    writeln!(w, "{} {args}", Paint::green("✓")).ok();
+    writeln!(w, "{} {args}", display(&Paint::green("✓"))).ok();
 }
 
+#[deprecated]
 pub fn tip_args(args: fmt::Arguments) {
     println!(
         "{} {}",
-        format::yellow("*"),
-        style(format!("{args}")).italic()
+        display(&format::yellow("*")),
+        display(&style(format!("{args}")).italic())
     );
 }
 
+#[deprecated]
 pub fn notice_args<W: io::Write>(w: &mut W, args: fmt::Arguments) {
-    writeln!(w, "{} {args}", Paint::new("!").dim()).ok();
+    writeln!(w, "{} {args}", display(&Paint::new("!").dim())).ok();
 }
 
+#[deprecated]
 pub fn columns() -> Option<usize> {
     termion::terminal_size().map(|(cols, _)| cols as usize).ok()
 }
 
+#[deprecated]
 pub fn rows() -> Option<usize> {
     termion::terminal_size().map(|(_, rows)| rows as usize).ok()
 }
 
+#[deprecated]
 pub fn viewport() -> Option<Size> {
     termion::terminal_size()
         .map(|(cols, rows)| Size::new(cols as usize, rows as usize))
         .ok()
 }
 
+#[deprecated]
 pub fn headline(headline: impl fmt::Display) {
     println!();
-    println!("{}", style(headline).bold());
+    println!("{}", display(&style(headline).bold()));
     println!();
 }
 
+#[deprecated]
 pub fn header(header: &str) {
     println!();
-    println!("{}", style(format::yellow(header)).bold().underline());
+    println!("{}", display(&format::yellow(header).bold().underline()));
     println!();
 }
 
+#[deprecated]
 pub fn blob(text: impl fmt::Display) {
-    println!("{}", style(text.to_string().trim()).dim());
+    println!("{}", display(&style(text.to_string().trim()).dim()));
 }
 
+#[deprecated]
 pub fn blank() {
     println!()
 }
 
+#[deprecated]
 pub fn print(msg: impl fmt::Display) {
     println!("{msg}");
 }
 
+#[deprecated]
+pub fn print_display(msg: &impl Display) {
+    println!("{}", display(msg));
+}
+
+#[deprecated]
 pub fn prefixed(prefix: &str, text: &str) -> String {
     text.split('\n').fold(String::new(), |mut s, line| {
         writeln!(&mut s, "{prefix}{line}").ok();
@@ -147,10 +168,12 @@ pub fn prefixed(prefix: &str, text: &str) -> String {
     })
 }
 
+#[deprecated]
 pub fn help(name: &str, version: &str, description: &str, usage: &str) {
     println!("rad-{name} {version}\n{description}\n{usage}");
 }
 
+#[deprecated]
 pub fn manual(name: &str) -> io::Result<process::ExitStatus> {
     let mut child = process::Command::new("man")
         .arg(name)
@@ -160,43 +183,64 @@ pub fn manual(name: &str) -> io::Result<process::ExitStatus> {
     child.wait()
 }
 
+#[deprecated]
 pub fn usage(name: &str, usage: &str) {
     println!(
         "{} {}\n{}",
-        ERROR_PREFIX,
-        Paint::red(format!("Error: rad-{name}: invalid usage")),
-        Paint::red(prefixed(TAB, usage)).dim()
+        display(&ERROR_PREFIX),
+        display(&Paint::red(format!("Error: rad-{name}: invalid usage"))),
+        display(&Paint::red(prefixed(TAB, usage)).dim())
     );
 }
 
+#[deprecated]
 pub fn println(prefix: impl fmt::Display, msg: impl fmt::Display) {
     println!("{prefix} {msg}");
 }
 
+#[deprecated]
 pub fn indented(msg: impl fmt::Display) {
     println!("{TAB}{msg}");
 }
 
-pub fn subcommand(msg: impl fmt::Display) {
-    println!("{}", style(format!("Running `{msg}`...")).dim());
+#[deprecated]
+pub fn indented_display(msg: &impl Display) {
+    println!("{TAB}{}", display(msg));
 }
 
+#[deprecated]
+pub fn subcommand(msg: impl fmt::Display) {
+    println!("{}", display(&style(format!("Running `{msg}`...")).dim()));
+}
+
+#[deprecated]
 pub fn warning(warning: impl fmt::Display) {
     println!(
         "{} {} {warning}",
-        WARNING_PREFIX,
-        Paint::yellow("Warning:").bold(),
+        display(&WARNING_PREFIX),
+        display(&Paint::yellow("Warning:").bold()),
     );
 }
 
+#[deprecated]
 pub fn error(error: impl fmt::Display) {
-    println!("{ERROR_PREFIX} {} {error}", Paint::red("Error:"));
+    println!(
+        "{} {} {error}",
+        display(&ERROR_PREFIX),
+        display(&Paint::red("Error:"))
+    );
 }
 
+#[deprecated]
 pub fn hint(hint: impl fmt::Display) {
-    println!("{ERROR_HINT_PREFIX} {}", format::hint(hint));
+    println!(
+        "{} {}",
+        display(&ERROR_HINT_PREFIX),
+        display(&format::hint(hint))
+    );
 }
 
+#[deprecated]
 pub fn ask<D: fmt::Display>(prompt: D, default: bool) -> bool {
     let prompt = prompt.to_string();
 
@@ -207,14 +251,17 @@ pub fn ask<D: fmt::Display>(prompt: D, default: bool) -> bool {
         .unwrap_or_default()
 }
 
+#[deprecated]
 pub fn confirm<D: fmt::Display>(prompt: D) -> bool {
     ask(prompt, true)
 }
 
+#[deprecated]
 pub fn abort<D: fmt::Display>(prompt: D) -> bool {
     ask(prompt, false)
 }
 
+#[deprecated]
 pub fn input<S, E>(message: &str, default: Option<S>, help: Option<&str>) -> anyhow::Result<S>
 where
     S: fmt::Display + std::str::FromStr<Err = E> + Clone,
@@ -230,6 +277,7 @@ where
     Ok(value)
 }
 
+#[deprecated]
 pub fn passphrase<V: validator::StringValidator + 'static>(
     validate: V,
 ) -> Result<Passphrase, inquire::InquireError> {
@@ -243,6 +291,7 @@ pub fn passphrase<V: validator::StringValidator + 'static>(
     ))
 }
 
+#[deprecated]
 pub fn passphrase_confirm<K: AsRef<OsStr>>(
     prompt: &str,
     var: K,
@@ -262,6 +311,7 @@ pub fn passphrase_confirm<K: AsRef<OsStr>>(
     }
 }
 
+#[deprecated]
 pub fn passphrase_stdin() -> Result<Passphrase, anyhow::Error> {
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
@@ -269,6 +319,7 @@ pub fn passphrase_stdin() -> Result<Passphrase, anyhow::Error> {
     Ok(Passphrase::from(input.trim_end().to_owned()))
 }
 
+#[deprecated]
 pub fn select<'a, T>(prompt: &str, options: &'a [T], help: &str) -> Result<&'a T, InquireError>
 where
     T: fmt::Display + Eq + PartialEq,
@@ -281,6 +332,7 @@ where
     selection.with_starting_cursor(0).prompt()
 }
 
+#[deprecated]
 pub fn markdown(content: &str) {
     if !content.is_empty() && command::bat(["-p", "-l", "md"], content).is_err() {
         blob(content);
