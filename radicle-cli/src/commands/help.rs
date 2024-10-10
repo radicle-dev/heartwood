@@ -2,6 +2,7 @@ use std::ffi::OsString;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::display;
 
 use super::*;
 
@@ -63,8 +64,8 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         term::blank();
         match e.downcast_ref() {
             Some(term::args::Error::WithHint { err, hint }) => {
-                term::print(term::format::yellow(err));
-                term::print(term::format::yellow(hint));
+                term::print_display(&term::format::yellow(err));
+                term::print_display(&term::format::yellow(hint));
             }
             Some(e) => {
                 term::error(e);
@@ -82,8 +83,8 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     for help in COMMANDS {
         term::info!(
             "\t{} {}",
-            term::format::bold(format!("{:-12}", help.name)),
-            term::format::dim(help.description)
+            display(&term::format::bold(format!("{:-12}", help.name))),
+            display(&term::format::dim(help.description))
         );
     }
     term::blank();

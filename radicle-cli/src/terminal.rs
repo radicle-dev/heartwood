@@ -42,29 +42,34 @@ impl Context for Profile {
 /// A command that can be run.
 pub trait Command<A: Args, C: Context> {
     /// Run the command, given arguments and a context.
-    fn run(self, args: A, context: C) -> anyhow::Result<()>;
+    fn run(self, term: &terminal::Terminal, args: A, context: C) -> anyhow::Result<()>;
 }
 
 impl<F, A: Args, C: Context> Command<A, C> for F
 where
-    F: FnOnce(A, C) -> anyhow::Result<()>,
+    F: FnOnce(&terminal::Terminal, A, C) -> anyhow::Result<()>,
 {
-    fn run(self, args: A, context: C) -> anyhow::Result<()> {
-        self(args, context)
+    fn run(self, terminal: &terminal::Terminal, args: A, context: C) -> anyhow::Result<()> {
+        self(terminal, args, context)
     }
 }
 
-pub fn run_command<A, C>(help: Help, cmd: C) -> !
+pub fn run_command<A, C>(term: &terminal::Terminal, help: Help, cmd: C) -> !
 where
     A: Args,
     C: Command<A, DefaultContext>,
 {
     let args = std::env::args_os().skip(1).collect();
 
-    run_command_args(help, cmd, args)
+    run_command_args(term, help, cmd, args)
 }
 
-pub fn run_command_args<A, C>(help: Help, cmd: C, args: Vec<OsString>) -> !
+pub fn run_command_args<A, C>(
+    term: &terminal::Terminal,
+    help: Help,
+    cmd: C,
+    args: Vec<OsString>,
+) -> !
 where
     A: Args,
     C: Command<A, DefaultContext>,
@@ -113,7 +118,7 @@ where
         }
     };
 
-    match cmd.run(options, DefaultContext) {
+    match cmd.run(term, options, DefaultContext) {
         Ok(()) => process::exit(0),
         Err(err) => {
             terminal::fail(help.name, &err);

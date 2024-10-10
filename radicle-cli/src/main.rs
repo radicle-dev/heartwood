@@ -95,6 +95,7 @@ fn print_help() -> anyhow::Result<()> {
 }
 
 fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
+    let term: term::Terminal = Default::default();
     match command {
         Command::Version { json } => {
             let mut stdout = io::stdout();
@@ -114,7 +115,7 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
             let exe = args.first();
 
             if let Some(Some(exe)) = exe.map(|s| s.to_str()) {
-                run_other(exe, &args[1..])?;
+                run_other(&term, exe, &args[1..])?;
             } else {
                 print_help()?;
             }
@@ -124,10 +125,15 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
     Ok(())
 }
 
-fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
+fn run_other(
+    term: &term::Terminal,
+    exe: &str,
+    args: &[OsString],
+) -> Result<(), Option<anyhow::Error>> {
     match exe {
         "auth" => {
             term::run_command_args::<rad_auth::Options, _>(
+                term,
                 rad_auth::HELP,
                 rad_auth::run,
                 args.to_vec(),
@@ -135,6 +141,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "block" => {
             term::run_command_args::<rad_block::Options, _>(
+                term,
                 rad_block::HELP,
                 rad_block::run,
                 args.to_vec(),
@@ -142,6 +149,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "checkout" => {
             term::run_command_args::<rad_checkout::Options, _>(
+                term,
                 rad_checkout::HELP,
                 rad_checkout::run,
                 args.to_vec(),
@@ -149,6 +157,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "clone" => {
             term::run_command_args::<rad_clone::Options, _>(
+                term,
                 rad_clone::HELP,
                 rad_clone::run,
                 args.to_vec(),
@@ -156,6 +165,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "cob" => {
             term::run_command_args::<rad_cob::Options, _>(
+                term,
                 rad_cob::HELP,
                 rad_cob::run,
                 args.to_vec(),
@@ -163,6 +173,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "config" => {
             term::run_command_args::<rad_config::Options, _>(
+                term,
                 rad_config::HELP,
                 rad_config::run,
                 args.to_vec(),
@@ -170,6 +181,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "diff" => {
             term::run_command_args::<rad_diff::Options, _>(
+                term,
                 rad_diff::HELP,
                 rad_diff::run,
                 args.to_vec(),
@@ -177,6 +189,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "debug" => {
             term::run_command_args::<rad_debug::Options, _>(
+                term,
                 rad_debug::HELP,
                 rad_debug::run,
                 args.to_vec(),
@@ -184,6 +197,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "follow" => {
             term::run_command_args::<rad_follow::Options, _>(
+                term,
                 rad_follow::HELP,
                 rad_follow::run,
                 args.to_vec(),
@@ -191,6 +205,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "fork" => {
             term::run_command_args::<rad_fork::Options, _>(
+                term,
                 rad_fork::HELP,
                 rad_fork::run,
                 args.to_vec(),
@@ -198,21 +213,29 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "help" => {
             term::run_command_args::<rad_help::Options, _>(
+                term,
                 rad_help::HELP,
                 rad_help::run,
                 args.to_vec(),
             );
         }
         "id" => {
-            term::run_command_args::<rad_id::Options, _>(rad_id::HELP, rad_id::run, args.to_vec());
+            term::run_command_args::<rad_id::Options, _>(
+                term,
+                rad_id::HELP,
+                rad_id::run,
+                args.to_vec(),
+            );
         }
         "inbox" => term::run_command_args::<rad_inbox::Options, _>(
+            term,
             rad_inbox::HELP,
             rad_inbox::run,
             args.to_vec(),
         ),
         "init" => {
             term::run_command_args::<rad_init::Options, _>(
+                term,
                 rad_init::HELP,
                 rad_init::run,
                 args.to_vec(),
@@ -220,6 +243,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "inspect" => {
             term::run_command_args::<rad_inspect::Options, _>(
+                term,
                 rad_inspect::HELP,
                 rad_inspect::run,
                 args.to_vec(),
@@ -227,6 +251,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "issue" => {
             term::run_command_args::<rad_issue::Options, _>(
+                term,
                 rad_issue::HELP,
                 rad_issue::run,
                 args.to_vec(),
@@ -240,10 +265,16 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             );
         }
         "ls" => {
-            term::run_command_args::<rad_ls::Options, _>(rad_ls::HELP, rad_ls::run, args.to_vec());
+            term::run_command_args::<rad_ls::Options, _>(
+                term,
+                rad_ls::HELP,
+                rad_ls::run,
+                args.to_vec(),
+            );
         }
         "node" => {
             term::run_command_args::<rad_node::Options, _>(
+                term,
                 rad_node::HELP,
                 rad_node::run,
                 args.to_vec(),
@@ -251,6 +282,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "patch" => {
             term::run_command_args::<rad_patch::Options, _>(
+                term,
                 rad_patch::HELP,
                 rad_patch::run,
                 args.to_vec(),
@@ -258,6 +290,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "path" => {
             term::run_command_args::<rad_path::Options, _>(
+                term,
                 rad_path::HELP,
                 rad_path::run,
                 args.to_vec(),
@@ -265,6 +298,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "publish" => {
             term::run_command_args::<rad_publish::Options, _>(
+                term,
                 rad_publish::HELP,
                 rad_publish::run,
                 args.to_vec(),
@@ -272,6 +306,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "clean" => {
             term::run_command_args::<rad_clean::Options, _>(
+                term,
                 rad_clean::HELP,
                 rad_clean::run,
                 args.to_vec(),
@@ -279,6 +314,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "self" => {
             term::run_command_args::<rad_self::Options, _>(
+                term,
                 rad_self::HELP,
                 rad_self::run,
                 args.to_vec(),
@@ -286,6 +322,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "sync" => {
             term::run_command_args::<rad_sync::Options, _>(
+                term,
                 rad_sync::HELP,
                 rad_sync::run,
                 args.to_vec(),
@@ -293,6 +330,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "seed" => {
             term::run_command_args::<rad_seed::Options, _>(
+                term,
                 rad_seed::HELP,
                 rad_seed::run,
                 args.to_vec(),
@@ -300,6 +338,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "unblock" => {
             term::run_command_args::<rad_unblock::Options, _>(
+                term,
                 rad_unblock::HELP,
                 rad_unblock::run,
                 args.to_vec(),
@@ -307,6 +346,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "unfollow" => {
             term::run_command_args::<rad_unfollow::Options, _>(
+                term,
                 rad_unfollow::HELP,
                 rad_unfollow::run,
                 args.to_vec(),
@@ -314,22 +354,26 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
         "unseed" => {
             term::run_command_args::<rad_unseed::Options, _>(
+                term,
                 rad_unseed::HELP,
                 rad_unseed::run,
                 args.to_vec(),
             );
         }
         "remote" => term::run_command_args::<rad_remote::Options, _>(
+            term,
             rad_remote::HELP,
             rad_remote::run,
             args.to_vec(),
         ),
         "stats" => term::run_command_args::<rad_stats::Options, _>(
+            term,
             rad_stats::HELP,
             rad_stats::run,
             args.to_vec(),
         ),
         "watch" => term::run_command_args::<rad_watch::Options, _>(
+            term,
             rad_watch::HELP,
             rad_watch::run,
             args.to_vec(),
