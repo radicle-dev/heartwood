@@ -15,8 +15,22 @@ pub trait KeyMaterial {
     fn public_key(&self) -> crypto::PublicKey;
 }
 
-pub trait Delegation<S>: crypto::Verifier<S> {
+#[derive(Debug, Error)]
+pub enum DelegateError {
+    #[error("failed to check if {node} is delegate")]
+    Unknown {
+        node: NodeId,
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+}
+
+pub trait Delegate {
+    /// Return the `Did` of this delegate.
     fn did(&self) -> crate::prelude::Did;
+
+    /// Check if the given `node` is a delegate of the resource.
+    fn is_delegate(&self, node: NodeId) -> Result<bool, DelegateError>;
 }
 
 pub struct Assignee<D> {
