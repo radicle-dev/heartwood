@@ -22,6 +22,7 @@ use localtime::{LocalDuration, LocalTime};
 use log::*;
 use nonempty::NonEmpty;
 
+use radicle::identity::Doc;
 use radicle::node;
 use radicle::node::address;
 use radicle::node::address::Store as _;
@@ -36,8 +37,8 @@ use radicle::storage::refs::SIGREFS_BRANCH;
 use radicle::storage::RepositoryError;
 use radicle_fetch::policy::SeedingPolicy;
 
-use crate::crypto::{Signer, Verified};
-use crate::identity::{Doc, RepoId};
+use crate::crypto::Signer;
+use crate::identity::RepoId;
 use crate::node::routing;
 use crate::node::routing::InsertResult;
 use crate::node::{
@@ -678,7 +679,7 @@ where
                 continue;
             }
             // Add public repositories to inventory.
-            if repo.doc.visibility.is_public() {
+            if repo.doc.is_public() {
                 inventory.insert(rid);
             } else {
                 private.insert(rid);
@@ -1168,7 +1169,7 @@ where
 
                 // Announce our new inventory if this fetch was a full clone.
                 // Only update and announce inventory for public repositories.
-                if clone && doc.visibility.is_public() {
+                if clone && doc.is_public() {
                     debug!(target: "service", "Updating and announcing inventory for cloned repository {rid}..");
 
                     if let Err(e) = self.add_inventory(rid) {
@@ -2128,7 +2129,7 @@ where
     }
 
     /// Announce our own refs for the given repo.
-    fn announce_own_refs(&mut self, rid: RepoId, doc: Doc<Verified>) -> Result<Vec<RefsAt>, Error> {
+    fn announce_own_refs(&mut self, rid: RepoId, doc: Doc) -> Result<Vec<RefsAt>, Error> {
         let (refs, timestamp) = self.announce_refs(rid, doc, [self.node_id()])?;
 
         // Update refs database with our signed refs branches.
@@ -2161,7 +2162,7 @@ where
     fn announce_refs(
         &mut self,
         rid: RepoId,
-        doc: Doc<Verified>,
+        doc: Doc,
         remotes: impl IntoIterator<Item = NodeId>,
     ) -> Result<(Vec<RefsAt>, Timestamp), Error> {
         let (ann, refs) = self.refs_announcement_for(rid, remotes)?;
@@ -2192,7 +2193,7 @@ where
             ann,
             peers.filter(|p| {
                 // Only announce to peers who are allowed to view this repo.
-                doc.is_visible_to(&p.id)
+                doc.is_visible_to(&p.id.into())
             }),
             self.db.gossip_mut(),
         );
@@ -2341,7 +2342,7 @@ where
                         .get(rid)
                         .ok()
                         .flatten()
-                        .map(|doc| doc.is_visible_to(id))
+                        .map(|doc| doc.is_visible_to(&(*id).into()))
                         .unwrap_or(false)
                 } else {
                     // Announcement doesn't concern a specific repository, let it through.
@@ -2634,7 +2635,7 @@ pub trait ServiceState {
     /// Get event emitter.
     fn emitter(&self) -> &Emitter<Event>;
     /// Get a repository from storage.
-    fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError>;
+    fn get(&self, rid: RepoId) -> Result<Option<Doc>, RepositoryError>;
     /// Get the clock.
     fn clock(&self) -> &LocalTime;
     /// Get the clock mutably.
@@ -2675,7 +2676,7 @@ where
         &self.emitter
     }
 
-    fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError> {
+    fn get(&self, rid: RepoId) -> Result<Option<Doc>, RepositoryError> {
         self.storage.get(rid)
     }
 
@@ -2751,7 +2752,7 @@ impl fmt::Display for DisconnectReason {
 #[derive(Debug)]
 pub struct Lookup {
     /// Whether the project was found locally or not.
-    pub local: Option<Doc<Verified>>,
+    pub local: Option<Doc>,
     /// A list of remote peers on which the project is known to exist.
     pub remote: Vec<NodeId>,
 }

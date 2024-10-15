@@ -10,15 +10,14 @@ use std::str::FromStr;
 use anyhow::{anyhow, bail, Context as _};
 use serde_json as json;
 
-use radicle::crypto::{ssh, Verified};
+use radicle::crypto::ssh;
 use radicle::explorer::ExplorerUrl;
 use radicle::git::RefString;
 use radicle::identity::project::ProjectName;
-use radicle::identity::{RepoId, Visibility};
+use radicle::identity::{RepoId, Doc, Visibility};
 use radicle::node::events::UploadPack;
 use radicle::node::policy::Scope;
 use radicle::node::{Event, Handle, NodeId, DEFAULT_SUBSCRIBE_TIMEOUT};
-use radicle::prelude::Doc;
 use radicle::storage::ReadStorage as _;
 use radicle::{profile, Node};
 
@@ -302,7 +301,7 @@ pub fn init(
             if options.seed {
                 profile.seed(rid, options.scope, &mut node)?;
 
-                if doc.visibility.is_public() {
+                if doc.is_public() {
                     profile.add_inventory(rid, &mut node)?;
                 }
             }
@@ -529,11 +528,11 @@ fn sync(
 
 pub fn announce(
     rid: RepoId,
-    doc: Doc<Verified>,
+    doc: Doc,
     node: &mut Node,
     config: &profile::Config,
 ) -> anyhow::Result<()> {
-    if doc.visibility.is_public() {
+    if doc.is_public() {
         match sync(rid, node, config) {
             Ok(SyncResult::Synced {
                 result: Some(url), ..
@@ -597,7 +596,7 @@ pub fn announce(
     } else {
         term::info!(
             "You have created a {} repository.",
-            term::format::visibility(&doc.visibility)
+            term::format::visibility(doc.visibility())
         );
         term::info!(
             "This repository will only be visible to you, \

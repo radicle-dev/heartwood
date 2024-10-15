@@ -11,10 +11,9 @@ use crypto::{Signer, Verified};
 use once_cell::sync::Lazy;
 use tempfile::TempDir;
 
-use crate::crypto::Unverified;
 use crate::git::canonical::Canonical;
 use crate::identity::doc::DocError;
-use crate::identity::{doc::DocAt, Doc, RepoId};
+use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
 use crate::node::SyncedAt;
 use crate::storage::refs;
@@ -106,7 +105,7 @@ impl ReadStorage for Storage {
         Repository::open(paths::repository(self, &rid), rid)
     }
 
-    fn repositories(&self) -> Result<Vec<RepositoryInfo<Verified>>, Error> {
+    fn repositories(&self) -> Result<Vec<RepositoryInfo>, Error> {
         let mut repos = Vec::new();
 
         for result in fs::read_dir(&self.path)? {
@@ -238,7 +237,7 @@ impl Storage {
     pub fn repositories_by_id<'a>(
         &self,
         mut rids: impl Iterator<Item = &'a RepoId>,
-    ) -> Result<Vec<RepositoryInfo<Verified>>, RepositoryError> {
+    ) -> Result<Vec<RepositoryInfo>, RepositoryError> {
         rids.try_fold(Vec::new(), |mut infos, rid| {
             let repo = self.repository(*rid)?;
             let (_, head) = repo.head()?;
@@ -391,7 +390,7 @@ impl Repository {
         let delegates = self
             .delegates()?
             .into_iter()
-            .map(RemoteId::from)
+            .map(|did| *did)
             .collect::<BTreeSet<_>>();
         let mut deleted = Vec::new();
         for id in self.remote_ids()? {
@@ -435,7 +434,7 @@ impl Repository {
 
     /// Create the repository's identity branch.
     pub fn init<G: Signer, S: WriteStorage>(
-        doc: &Doc<Verified>,
+        doc: &Doc,
         storage: &S,
         signer: &G,
     ) -> Result<(Self, git::Oid), RepositoryError> {
@@ -491,7 +490,7 @@ impl Repository {
         Ok(proj)
     }
 
-    pub fn identity_doc_of(&self, remote: &RemoteId) -> Result<Doc<Verified>, DocError> {
+    pub fn identity_doc_of(&self, remote: &RemoteId) -> Result<Doc, DocError> {
         let oid = self.identity_head_of(remote)?;
         Doc::load_at(oid, self).map(|d| d.into())
     }
@@ -730,7 +729,7 @@ impl ReadRepository for Repository {
     }
 
     fn identity_doc_at(&self, head: Oid) -> Result<DocAt, DocError> {
-        Doc::<Verified>::load_at(head, self)
+        Doc::load_at(head, self)
     }
 
     fn head(&self) -> Result<(Qualified, Oid), RepositoryError> {
@@ -748,8 +747,8 @@ impl ReadRepository for Repository {
         let project = doc.project()?;
         let branch_ref = git::refs::branch(project.default_branch());
         let raw = self.raw();
-        let oid = Canonical::default_branch(self, &project, &doc.delegates)?
-            .quorum(doc.threshold, raw)?;
+        let oid = Canonical::default_branch(self, &project, doc.delegates().into())?
+            .quorum(doc.threshold(), raw)?;
         Ok((branch_ref, oid))
     }
 
@@ -794,7 +793,7 @@ impl ReadRepository for Repository {
             let Ok(root) = self.identity_root_of(&remote) else {
                 continue;
             };
-            let blob = Doc::<Unverified>::blob_at(root, self)?;
+            let blob = Doc::blob_at(root, self)?;
 
             // We've got an identity that goes back to the correct root.
             if blob.id() == **self.id {

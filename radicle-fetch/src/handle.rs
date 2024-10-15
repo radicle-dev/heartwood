@@ -2,10 +2,9 @@ use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
 
 use bstr::BString;
-use radicle::crypto::{PublicKey, Verified};
+use radicle::crypto::PublicKey;
 use radicle::git::Oid;
-use radicle::identity::DocError;
-use radicle::prelude::Doc;
+use radicle::identity::{DocError, Doc};
 use radicle::storage::git::Repository;
 use radicle::storage::ReadRepository;
 
@@ -74,7 +73,7 @@ impl<S> Handle<S> {
         self.interrupt.store(true, atomic::Ordering::Relaxed);
     }
 
-    pub fn verified(&self, head: Oid) -> Result<Doc<Verified>, DocError> {
+    pub fn verified(&self, head: Oid) -> Result<Doc, DocError> {
         Ok(self.repo.identity_doc_at(head)?.doc)
     }
 

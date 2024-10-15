@@ -153,7 +153,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         &profile.storage,
     )?;
     let delegates = doc
-        .delegates
+        .delegates()
         .iter()
         .map(|d| **d)
         .filter(|id| id != profile.id())
@@ -240,7 +240,7 @@ pub fn clone<G: Signer>(
     (
         raw::Repository,
         storage::git::Repository,
-        Doc<Verified>,
+        Doc,
         Project,
     ),
     CloneError,

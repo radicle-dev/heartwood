@@ -152,7 +152,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Target::Payload => {
             let (_, doc) = repo(rid, storage)?;
-            json::to_pretty(&doc.payload, Path::new("radicle.json"))?.print();
+            json::to_pretty(&doc.payload(), Path::new("radicle.json"))?.print();
         }
         Target::Identity => {
             let (_, doc) = repo(rid, storage)?;
@@ -195,7 +195,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Target::Delegates => {
             let (_, doc) = repo(rid, storage)?;
             let aliases = profile.aliases();
-            for did in &doc.delegates {
+            for did in doc.delegates().iter() {
                 if let Some(alias) = aliases.alias(did) {
                     println!(
                         "{} {}",
@@ -209,7 +209,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Target::Visibility => {
             let (_, doc) = repo(rid, storage)?;
-            println!("{}", term::format::visibility(&doc.visibility));
+            println!("{}", term::format::visibility(doc.visibility()));
         }
         Target::History => {
             let (repo, _) = repo(rid, storage)?;

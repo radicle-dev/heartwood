@@ -32,13 +32,13 @@ pub type BranchName = git::RefString;
 
 /// Basic repository information.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RepositoryInfo<V> {
+pub struct RepositoryInfo {
     /// Repository identifier.
     pub rid: RepoId,
     /// Head of default branch.
     pub head: Oid,
     /// Identity document.
-    pub doc: Doc<V>,
+    pub doc: Doc,
     /// Local signed refs, if any.
     /// Repositories with this set to `None` are ones that are seeded but not forked.
     pub refs: Option<refs::SignedRefsAt>,
@@ -412,11 +412,11 @@ pub trait ReadStorage {
     /// Check whether storage contains a repository.
     fn contains(&self, rid: &RepoId) -> Result<bool, RepositoryError>;
     /// Return all repositories (public and private).
-    fn repositories(&self) -> Result<Vec<RepositoryInfo<Verified>>, Error>;
+    fn repositories(&self) -> Result<Vec<RepositoryInfo>, Error>;
     /// Open or create a read-only repository.
     fn repository(&self, rid: RepoId) -> Result<Self::Repository, RepositoryError>;
     /// Get a repository's identity if it exists.
-    fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError> {
+    fn get(&self, rid: RepoId) -> Result<Option<Doc>, RepositoryError> {
         match self.repository(rid) {
             Ok(repo) => Ok(Some(repo.identity_doc()?.into())),
             Err(e) if e.is_not_found() => Ok(None),
@@ -569,9 +569,9 @@ pub trait ReadRepository: Sized + ValidateRepository {
 
     /// Get repository delegates.
     fn delegates(&self) -> Result<NonEmpty<Did>, RepositoryError> {
-        let doc: Doc<_> = self.identity_doc()?.into();
+        let doc = self.identity_doc()?;
 
-        Ok(doc.delegates)
+        Ok(doc.delegates().clone().into())
     }
 
     /// Get the repository's identity document.
@@ -683,7 +683,7 @@ where
         self.deref().contains(rid)
     }
 
-    fn get(&self, rid: RepoId) -> Result<Option<Doc<Verified>>, RepositoryError> {
+    fn get(&self, rid: RepoId) -> Result<Option<Doc>, RepositoryError> {
         self.deref().get(rid)
     }
 
@@ -691,7 +691,7 @@ where
         self.deref().repository(rid)
     }
 
-    fn repositories(&self) -> Result<Vec<RepositoryInfo<Verified>>, Error> {
+    fn repositories(&self) -> Result<Vec<RepositoryInfo>, Error> {
         self.deref().repositories()
     }
 }

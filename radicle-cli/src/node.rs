@@ -180,7 +180,7 @@ fn announce_<R: ReadRepository>(
     let rid = repo.id();
     let doc = repo.identity_doc()?;
     let mut settings = settings.with_profile(profile);
-    let unsynced: Vec<_> = if doc.visibility.is_public() {
+    let unsynced: Vec<_> = if doc.is_public() {
         // All seeds.
         let all = node.seeds(rid)?;
         if all.is_empty() {
@@ -218,7 +218,7 @@ fn announce_<R: ReadRepository>(
     } else {
         node.sessions()?
             .into_iter()
-            .filter(|s| s.state.is_connected() && doc.is_visible_to(&s.nid))
+            .filter(|s| s.state.is_connected() && doc.is_visible_to(&s.nid.into()))
             .map(|s| s.nid)
             .collect()
     };

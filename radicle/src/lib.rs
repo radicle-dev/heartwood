@@ -40,7 +40,7 @@ pub mod prelude {
     use super::*;
 
     pub use crypto::{PublicKey, Signer, Verified};
-    pub use identity::{project::Project, Did, Doc, RepoId};
+    pub use identity::{project::Project, Did, Doc, RawDoc, RepoId};
     pub use node::{Alias, NodeId, Timestamp};
     pub use profile::Profile;
     pub use storage::{

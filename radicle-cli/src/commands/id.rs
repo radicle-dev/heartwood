@@ -4,14 +4,12 @@ use std::{ffi::OsString, io};
 
 use anyhow::{anyhow, Context};
 
-use nonempty::NonEmpty;
 use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
-use radicle::identity::{doc, Identity, Visibility};
-use radicle::prelude::{Did, Doc, RepoId, Signer};
+use radicle::identity::{doc, Doc, Identity, RawDoc, Visibility};
+use radicle::prelude::{Did, RepoId, Signer};
 use radicle::storage::refs;
 use radicle::storage::{ReadRepository, ReadStorage as _, WriteRepository};
 use radicle::{cob, Profile};
-use radicle_crypto::Verified;
 use radicle_surf::diff::Diff;
 use radicle_term::Element;
 use serde_json as json;
@@ -389,7 +387,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             payload,
         } => {
             let proposal = {
-                let mut proposal = current.doc.clone();
+                let mut proposal = current.doc.clone().edit();
                 proposal.threshold = threshold.unwrap_or(proposal.threshold);
 
                 if !allow.is_disjoint(&disallow) {
@@ -429,18 +427,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                         proposal.visibility = Visibility::Public;
                     }
                 }
-                proposal.delegates = NonEmpty::from_vec(
-                    proposal
-                        .delegates
-                        .into_iter()
-                        .chain(delegates)
-                        .filter(|d| !rescind.contains(d))
-                        .collect::<Vec<_>>(),
-                )
-                .ok_or(anyhow!(
-                    "at lease one delegate must be present for the identity to be valid"
-                ))?;
-
+                proposal.delegates = proposal
+                    .delegates
+                    .into_iter()
+                    .chain(delegates)
+                    .filter(|d| !rescind.contains(d))
+                    .collect::<Vec<_>>();
                 if let Some(errs) = verify_delegates(&proposal, &repo)? {
                     term::error(format!("failed to verify delegates for {rid}"));
                     term::error(format!(
@@ -475,6 +467,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
                 proposal
             };
+            let proposal = proposal.verified()?;
             if proposal == current.doc {
                 if !options.quiet {
                     term::print(term::format::italic(
@@ -578,11 +571,7 @@ fn get<'a>(
     Ok(revision)
 }
 
-fn print_meta(
-    revision: &Revision,
-    previous: &Doc<Verified>,
-    profile: &Profile,
-) -> anyhow::Result<()> {
+fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow::Result<()> {
     let mut attrs = term::Table::<2, term::Label>::new(Default::default());
 
     attrs.push([
@@ -630,7 +619,7 @@ fn print_meta(
     let accepted = revision.accepted().collect::<Vec<_>>();
     let rejected = revision.rejected().collect::<Vec<_>>();
     let unknown = previous
-        .delegates
+        .delegates()
         .iter()
         .filter(|id| !accepted.contains(id) && !rejected.contains(id))
         .collect::<Vec<_>>();
@@ -712,7 +701,7 @@ and description.
 fn update<R: WriteRepository + cob::Store, G: Signer>(
     title: Option<String>,
     description: Option<String>,
-    doc: Doc<Verified>,
+    doc: Doc,
     current: &mut IdentityMut<R>,
     signer: &G,
 ) -> anyhow::Result<Revision> {
@@ -734,14 +723,14 @@ fn print_diff(
     repo: &radicle::storage::git::Repository,
 ) -> anyhow::Result<()> {
     let previous = if let Some(previous) = previous {
-        let previous = Doc::<Verified>::load_at(*previous, repo)?;
+        let previous = Doc::load_at(*previous, repo)?;
         let previous = serde_json::to_string_pretty(&previous.doc)?;
 
         Some(previous)
     } else {
         None
     };
-    let current = Doc::<Verified>::load_at(*current, repo)?;
+    let current = Doc::load_at(*current, repo)?;
     let current = serde_json::to_string_pretty(&current.doc)?;
 
     let tmp = tempfile::tempdir()?;
@@ -798,8 +787,8 @@ impl VerificationError {
     }
 }
 
-fn verify_delegates<S, V>(
-    proposal: &Doc<V>,
+fn verify_delegates<S>(
+    proposal: &RawDoc,
     repo: &S,
 ) -> anyhow::Result<Option<Vec<VerificationError>>>
 where

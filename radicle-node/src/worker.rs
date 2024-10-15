@@ -287,7 +287,8 @@ impl Worker {
         }
         let repo = self.storage.repository(rid)?;
         let doc = repo.identity_doc()?;
-        if !doc.is_visible_to(&remote) {
+
+        if !doc.is_visible_to(&remote.into()) {
             Err(UploadError::Unauthorized(remote, rid))
         } else {
             Ok(())

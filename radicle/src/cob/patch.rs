@@ -630,9 +630,9 @@ impl Patch {
         &self,
         action: &Action,
         actor: &ActorId,
-        doc: &Doc<Verified>,
+        doc: &Doc,
     ) -> Result<Authorization, Error> {
-        if doc.is_delegate(actor) {
+        if doc.is_delegate(&actor.into()) {
             // A delegate is authorized to do all actions.
             return Ok(Authorization::Allow);
         }
@@ -745,7 +745,7 @@ impl Patch {
         author: ActorId,
         timestamp: Timestamp,
         _concurrent: &[&cob::Entry],
-        identity: &Doc<Verified>,
+        identity: &Doc,
         repo: &R,
     ) -> Result<(), Error> {
         match action {
@@ -1046,7 +1046,7 @@ impl Patch {
                     },
                 );
                 // Discard revisions that weren't merged by a threshold of delegates.
-                merges.retain(|_, count| *count >= identity.threshold);
+                merges.retain(|_, count| *count >= identity.threshold());
 
                 match merges.into_keys().collect::<Vec<_>>().as_slice() {
                     [] => {
@@ -2970,9 +2970,9 @@ mod test {
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let mut alice = Actor::new(MockSigner::default());
         let rid = gen::<RepoId>(1);
-        let doc = Doc::new(
+        let doc = RawDoc::new(
             gen::<Project>(1),
-            nonempty::NonEmpty::new(alice.did()),
+            vec![alice.did()],
             1,
             identity::Visibility::Public,
         )

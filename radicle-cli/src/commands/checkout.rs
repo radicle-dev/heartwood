@@ -84,11 +84,10 @@ fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     let id = options.id;
     let storage = &profile.storage;
     let remote = options.remote.unwrap_or(profile.did());
-    let doc: Doc<_> = storage
+    let doc = storage
         .repository(id)?
         .identity_doc()
-        .context("repository could not be found in local storage")?
-        .into();
+        .context("repository could not be found in local storage")?;
     let payload = doc.project()?;
     let path = PathBuf::from(payload.name());
 
@@ -115,7 +114,8 @@ fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     spinner.finish();
 
     let remotes = doc
-        .delegates
+        .delegates()
+        .clone()
         .into_iter()
         .map(|did| *did)
         .filter(|id| id != profile.id())

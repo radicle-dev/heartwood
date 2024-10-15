@@ -266,8 +266,12 @@ pub fn run(
                         if dst == canonical_ref && delegates.contains(&me) && delegates.len() > 1 {
                             let head = working.find_reference(src.as_str())?;
                             let head = head.peel_to_commit()?.id();
-                            let mut canonical =
-                                Canonical::default_branch(stored, &project, &identity.delegates)?;
+
+                            let mut canonical = Canonical::default_branch(
+                                stored,
+                                &project,
+                                identity.delegates().as_ref(),
+                            )?;
                             let converges = canonical::converges(
                                 canonical
                                     .tips()
@@ -279,7 +283,7 @@ pub fn run(
                                 canonical.modify_vote(me, head.into());
                             }
 
-                            match canonical.quorum(identity.threshold, &working) {
+                            match canonical.quorum(identity.threshold(), &working) {
                                 Ok(canonical_oid) => {
                                     // Canonical head is an ancestor of head.
                                     let is_ff = head == *canonical_oid

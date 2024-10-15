@@ -169,7 +169,7 @@ pub fn update(
     let outcome = if updated { "updated" } else { "exists" };
 
     if let Ok(repo) = profile.storage.repository(rid) {
-        if repo.identity_doc()?.visibility.is_public() {
+        if repo.identity_doc()?.is_public() {
             profile.add_inventory(rid, node)?;
             term::success!("Inventory updated with {}", term::format::tertiary(rid));
         }

@@ -4,7 +4,7 @@ use std::time::Instant;
 use gix_protocol::handshake;
 use radicle::crypto::PublicKey;
 use radicle::git::{Oid, Qualified};
-use radicle::identity::{Did, Doc, DocError};
+use radicle::identity::{Did, DocError, Doc};
 
 use radicle::prelude::Verified;
 use radicle::storage;
@@ -389,11 +389,11 @@ impl FetchState {
             .canonical()?
             .ok_or(error::Protocol::MissingRadId)?;
 
-        let is_delegate = anchor.delegates.contains(&Did::from(handle.local()));
+        let is_delegate = anchor.is_delegate(&Did::from(handle.local()));
         // TODO: not sure we should allow to block *any* peer from the
         // delegate set. We could end up ignoring delegates.
         let delegates = anchor
-            .delegates
+            .delegates()
             .iter()
             .filter(|id| !handle.is_blocked(id))
             .map(|did| PublicKey::from(*did))
@@ -404,9 +404,9 @@ impl FetchState {
         // The local peer does not need to count towards the threshold
         // since they must be valid already.
         let threshold = if is_delegate {
-            anchor.threshold - 1
+            anchor.threshold() - 1
         } else {
-            anchor.threshold
+            anchor.threshold()
         };
         let signed_refs = self.run_special_refs(
             handle,
@@ -637,11 +637,11 @@ impl<'a, S> Cached<'a, S> {
         self.state.canonical_rad_id().copied()
     }
 
-    pub fn verified(&self, head: Oid) -> Result<Doc<Verified>, DocError> {
+    pub fn verified(&self, head: Oid) -> Result<Doc, DocError> {
         self.handle.verified(head)
     }
 
-    pub fn canonical(&self) -> Result<Option<Doc<Verified>>, error::Canonical> {
+    pub fn canonical(&self) -> Result<Option<Doc>, error::Canonical> {
         let tip = self.refname_to_id(refs::REFS_RAD_ID.clone())?;
         let cached_tip = self.canonical_rad_id();
 
@@ -736,7 +736,7 @@ impl<'a, S> ValidateRepository for Cached<'a, S> {
 /// N.b. if the repository does not have the project payload or a
 /// deserialization error occurs, then this will return `None`.
 fn validate_project_default_branch(
-    anchor: &Doc<Verified>,
+    anchor: &Doc,
     sigrefs: &SignedRefs<Verified>,
 ) -> Option<Validation> {
     let proj = anchor.project().ok()?;

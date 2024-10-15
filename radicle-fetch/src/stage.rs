@@ -207,8 +207,8 @@ impl ProtocolStage for CanonicalId {
                 remote: self.remote,
                 err: Box::new(err),
             })?;
-        if verified.delegates.contains(&self.remote.into()) {
-            let is_delegate = |remote: &PublicKey| verified.is_delegate(remote);
+        if verified.is_delegate(&self.remote.into()) {
+            let is_delegate = |remote: &PublicKey| verified.is_delegate(&remote.into());
             Ok(Updates::build(
                 refs.iter()
                     .filter_map(|r| r.as_special_ref_update(is_delegate)),

@@ -7,7 +7,7 @@ use std::str::FromStr;
 use git_ext::ref_format as fmt;
 
 use crate::crypto::{Signer, Verified};
-use crate::identity::doc::{Doc, DocAt, DocError, RepoId};
+use crate::identity::doc::{Doc, DocAt, DocError, RawDoc, RepoId};
 use crate::node::NodeId;
 
 pub use crate::storage::*;
@@ -51,9 +51,9 @@ impl MockStorage {
             .expect("MockStorage::repo_mut: repository does not exist")
     }
 
-    pub fn map(mut self, f: impl Fn(&mut Doc<Verified>)) -> Self {
+    pub fn map(mut self, f: impl Fn(&mut RawDoc)) -> Self {
         for repo in self.repos.values_mut() {
-            f(&mut repo.doc.doc);
+            repo.doc.doc = repo.doc.doc.clone().with_edits(|doc| f(doc)).unwrap();
         }
         self
     }
@@ -91,7 +91,7 @@ impl ReadStorage for MockStorage {
             .cloned()
     }
 
-    fn repositories(&self) -> Result<Vec<RepositoryInfo<Verified>>, Error> {
+    fn repositories(&self) -> Result<Vec<RepositoryInfo>, Error> {
         Ok(self
             .repos
             .iter()
@@ -135,7 +135,7 @@ pub struct MockRepository {
 }
 
 impl MockRepository {
-    pub fn new(id: RepoId, doc: Doc<Verified>) -> Self {
+    pub fn new(id: RepoId, doc: Doc) -> Self {
         let (blob, _) = doc.encode().unwrap();
 
         Self {

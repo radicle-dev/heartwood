@@ -105,10 +105,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         ..
     } in repos
     {
-        if doc.visibility.is_public() && options.private && !options.public {
+        if doc.is_public() && options.private && !options.public {
             continue;
         }
-        if !doc.visibility.is_public() && !options.private && options.public {
+        if !doc.is_public() && !options.private && options.public {
             continue;
         }
         if refs.is_none() && !options.all && !options.seeded {
@@ -135,7 +135,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             term::format::bold(proj.name().to_owned()),
             term::format::tertiary(rid.urn()),
             if seeded {
-                term::format::visibility(&doc.visibility).into()
+                term::format::visibility(doc.visibility()).into()
             } else {
                 term::format::dim("local").into()
             },

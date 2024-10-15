@@ -5,17 +5,16 @@ use std::str::FromStr;
 use std::{iter, net};
 
 use crypto::test::signer::MockSigner;
-use crypto::{PublicKey, Unverified, Verified};
+use crypto::{PublicKey, Unverified};
 use cyphernet::addr::tor::OnionAddrV3;
 use cyphernet::EcPk;
-use nonempty::NonEmpty;
 use qcheck::Arbitrary;
 
 use crate::collections::RandomMap;
 use crate::identity::doc::Visibility;
 use crate::identity::project::ProjectName;
 use crate::identity::{
-    doc::{Doc, DocAt, RepoId},
+    doc::{Doc, DocAt, RawDoc, RepoId},
     project::Project,
     Did,
 };
@@ -139,28 +138,26 @@ impl Arbitrary for Visibility {
     }
 }
 
-impl Arbitrary for Doc<Unverified> {
+impl Arbitrary for RawDoc {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let proj = Project::arbitrary(g);
         let delegate = Did::arbitrary(g);
         let visibility = Visibility::arbitrary(g);
 
-        Self::initial(proj, delegate, visibility)
+        Self::new(proj, vec![delegate], 1, visibility)
     }
 }
 
-impl Arbitrary for Doc<Verified> {
+impl Arbitrary for Doc {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let mut rng = fastrand::Rng::with_seed(u64::arbitrary(g));
         let project = Project::arbitrary(g);
-        let delegates: NonEmpty<_> = iter::repeat_with(|| Did::arbitrary(g))
+        let delegates = iter::repeat_with(|| Did::arbitrary(g))
             .take(rng.usize(1..6))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
+            .collect::<Vec<_>>();
         let threshold = delegates.len() / 2 + 1;
         let visibility = Visibility::arbitrary(g);
-        let doc: Doc<Unverified> = Doc::new(project, delegates, threshold, visibility);
+        let doc = RawDoc::new(project, delegates, threshold, visibility);
 
         doc.verified().unwrap()
     }
@@ -168,7 +165,7 @@ impl Arbitrary for Doc<Verified> {
 
 impl Arbitrary for DocAt {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let doc = Doc::<Verified>::arbitrary(g);
+        let doc = Doc::arbitrary(g);
 
         DocAt {
             commit: self::oid(),
@@ -238,7 +235,7 @@ impl Arbitrary for MockStorage {
 impl Arbitrary for MockRepository {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let rid = RepoId::arbitrary(g);
-        let doc = Doc::<Verified>::arbitrary(g);
+        let doc = Doc::arbitrary(g);
 
         Self::new(rid, doc)
     }

@@ -77,19 +77,19 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     let repo = profile.storage.repository_mut(rid)?;
     let mut identity = Identity::load_mut(&repo)?;
-    let mut doc = identity.doc().clone();
+    let doc = identity.doc();
 
-    if doc.visibility.is_public() {
+    if doc.is_public() {
         return Err(Error::WithHint {
             err: anyhow!("repository is already public"),
             hint: "to announce the repository to the network, run `rad sync --inventory`",
         }
         .into());
     }
-    if !doc.is_delegate(profile.id()) {
+    if !doc.is_delegate(&profile.id().into()) {
         return Err(anyhow!("only the repository delegate can publish it"));
     }
-    if doc.delegates.len() > 1 {
+    if doc.delegates().len() > 1 {
         return Err(Error::WithHint {
             err: anyhow!(
                 "only repositories with a single delegate can be published with this command"
@@ -101,7 +101,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let signer = profile.signer()?;
 
     // Update identity document.
-    doc.visibility = Visibility::Public;
+    let doc = doc.clone().with_edits(|doc| {
+        doc.visibility = Visibility::Public;
+    })?;
 
     identity.update("Publish repository", "", &doc, &signer)?;
     repo.sign_refs(&signer)?;
@@ -123,7 +125,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     term::success!(
         "Repository is now {}",
-        term::format::visibility(&doc.visibility)
+        term::format::visibility(doc.visibility())
     );
 
     if !node.is_running() {

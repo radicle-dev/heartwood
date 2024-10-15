@@ -52,7 +52,7 @@ pub fn init<G: Signer, S: WriteStorage>(
     visibility: Visibility,
     signer: &G,
     storage: S,
-) -> Result<(RepoId, identity::Doc<Verified>, SignedRefs<Verified>), InitError> {
+) -> Result<(RepoId, identity::Doc, SignedRefs<Verified>), InitError> {
     // TODO: Better error when project id already exists in storage, but remote doesn't.
     let delegate: identity::Did = signer.public_key().into();
     let proj = Project::new(
@@ -68,7 +68,7 @@ pub fn init<G: Signer, S: WriteStorage>(
                 .join(", "),
         )
     })?;
-    let doc = identity::Doc::initial(proj, delegate, visibility).verified()?;
+    let doc = identity::Doc::initial(proj, delegate, visibility);
     let (project, identity) = Repository::init(&doc, &storage, signer)?;
     let url = git::Url::from(project.id);
 
@@ -452,7 +452,7 @@ mod tests {
         assert_eq!(project.name(), "acme");
         assert_eq!(project.description(), "Acme's repo");
         assert_eq!(project.default_branch(), &git::refname!("master"));
-        assert_eq!(doc.delegates.first(), &Did::from(public_key));
+        assert_eq!(doc.delegates().first(), &Did::from(public_key));
     }
 
     #[test]

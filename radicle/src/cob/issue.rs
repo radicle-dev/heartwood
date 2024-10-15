@@ -16,8 +16,8 @@ use crate::cob::thread;
 use crate::cob::thread::{Comment, CommentId, Thread};
 use crate::cob::{op, store, ActorId, Embed, EntryId, ObjectId, TypeName};
 use crate::crypto::Signer;
-use crate::identity::doc::{Doc, DocError};
-use crate::prelude::{Did, ReadRepository, RepoId, Verified};
+use crate::identity::doc::DocError;
+use crate::prelude::{Did, Doc, ReadRepository, RepoId};
 use crate::storage::{HasRepoId, RepositoryError, WriteRepository};
 
 pub use cache::Cache;
@@ -325,9 +325,9 @@ impl Issue {
         &self,
         action: &Action,
         actor: &ActorId,
-        doc: &Doc<Verified>,
+        doc: &Doc,
     ) -> Result<Authorization, Error> {
-        if doc.is_delegate(actor) {
+        if doc.is_delegate(&actor.into()) {
             // A delegate is authorized to do all actions.
             return Ok(Authorization::Allow);
         }
@@ -388,7 +388,7 @@ impl Issue {
         author: ActorId,
         timestamp: Timestamp,
         _concurrent: &[&cob::Entry],
-        _doc: &Doc<Verified>,
+        _doc: &Doc,
         _repo: &R,
     ) -> Result<(), Error> {
         match action {

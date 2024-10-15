@@ -712,7 +712,13 @@ fn test_refs_announcement_relay_public() {
     // Pretend Alice cloned Bob's repos.
     let repos = gen::<[MockRepository; 3]>(1);
     for (i, mut repo) in repos.into_iter().enumerate() {
-        repo.doc.doc.visibility = Visibility::Public; // Public repos are always gossiped.
+        repo.doc.doc = repo
+            .doc
+            .doc
+            .with_edits(|doc| {
+                doc.visibility = Visibility::Public; // Public repos are always gossiped.
+            })
+            .unwrap();
         alice.storage_mut().repos.insert(bob_inv[i], repo);
     }
     assert_matches!(
@@ -784,14 +790,32 @@ fn test_refs_announcement_relay_private() {
     alice.receive(eve.id(), Message::Subscribe(Subscribe::all()));
 
     // The first repo is not visible to Eve.
-    let mut repo1 = gen::<MockRepository>(1);
-    repo1.doc.doc.visibility = Visibility::Private { allow: [].into() };
+    let repo1 = {
+        let mut repo = gen::<MockRepository>(1);
+        repo.doc.doc = repo
+            .doc
+            .doc
+            .with_edits(|doc| {
+                doc.visibility = Visibility::Private { allow: [].into() };
+            })
+            .unwrap();
+        repo
+    };
     alice.storage_mut().repos.insert(bob_inv[0], repo1);
 
     // The second repo is visible to Eve.
-    let mut repo2 = gen::<MockRepository>(1);
-    repo2.doc.doc.visibility = Visibility::Private {
-        allow: [eve.id.into()].into(),
+    let repo2 = {
+        let mut repo = gen::<MockRepository>(1);
+        repo.doc.doc = repo
+            .doc
+            .doc
+            .with_edits(|doc| {
+                doc.visibility = Visibility::Private {
+                    allow: [eve.id.into()].into(),
+                };
+            })
+            .unwrap();
+        repo
     };
     alice.storage_mut().repos.insert(bob_inv[1], repo2);
     alice.elapse(service::GOSSIP_INTERVAL);

@@ -498,7 +498,7 @@ mod tests {
 
         // Alice creates "paris" repo.
         let (paris_repo, paris_head) = fixtures::repository(tmp.path().join("paris"));
-        let (paris_rid, mut paris_doc, _) = rad::init(
+        let (paris_rid, paris_doc, _) = rad::init(
             &paris_repo,
             "paris".try_into().unwrap(),
             "Paris repository",
@@ -511,7 +511,7 @@ mod tests {
 
         // Alice creates "london" repo.
         let (london_repo, _london_head) = fixtures::repository(tmp.path().join("london"));
-        let (london_rid, mut london_doc, _) = rad::init(
+        let (london_rid, london_doc, _) = rad::init(
             &london_repo,
             "london".try_into().unwrap(),
             "London repository",
@@ -532,8 +532,16 @@ mod tests {
 
         // Bob is added to both repos as a delegate, by Alice.
         {
-            paris_doc.delegates.push(bob.public_key().into());
-            london_doc.delegates.push(bob.public_key().into());
+            let paris_doc = paris_doc
+                .with_edits(|doc| {
+                    doc.delegates.push(bob.public_key().into());
+                })
+                .unwrap();
+            let london_doc = london_doc
+                .with_edits(|doc| {
+                    doc.delegates.push(bob.public_key().into());
+                })
+                .unwrap();
 
             let mut paris_ident = Identity::load_mut(&paris).unwrap();
             let mut london_ident = Identity::load_mut(&london).unwrap();
