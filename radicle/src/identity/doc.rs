@@ -2,7 +2,7 @@ mod id;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU32, NonZeroUsize};
 use std::ops::{Deref, Not};
 use std::path::Path;
 use std::str::FromStr;
@@ -11,7 +11,7 @@ use nonempty::NonEmpty;
 use once_cell::sync::Lazy;
 use radicle_cob::type_name::{TypeName, TypeNameParse};
 use radicle_git_ext::Oid;
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::canonical::formatter::CanonicalFormatter;
@@ -32,6 +32,9 @@ pub static PATH: Lazy<&Path> = Lazy::new(|| Path::new("radicle.json"));
 pub const MAX_STRING_LENGTH: usize = 255;
 /// Maximum number of a delegates in the identity document.
 pub const MAX_DELEGATES: usize = 255;
+/// The current, most recent version of the identity document.
+// SAFETY: identity version should never be 0, so we can use `unsafe` here
+pub const IDENTITY_VERSION: Version = Version(unsafe { NonZeroU32::new_unchecked(1) });
 
 #[derive(Error, Debug)]
 pub enum DocError {
@@ -67,6 +70,120 @@ impl DocError {
             _ => false,
         }
     }
+}
+
+/// The version number of the identity document.
+///
+/// It is used to ensure compatibility when parsing identity documents.
+///
+/// If an invalid version is found – either the `0` version, or an unrecognized
+/// future version – the parsing of a version will fail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct Version(NonZeroU32);
+
+impl Version {
+    /// Construct a [`Version`].
+    ///
+    /// # Errors
+    ///
+    ///   - `n` is 0
+    ///   - `n` is greater than the latest version, specified by
+    ///     [`IDENTITY_VERSION`].
+    pub fn new(n: u32) -> Result<Version, VersionError> {
+        match NonZeroU32::new(n) {
+            None => Err(VersionError::ZeroVersion),
+            Some(n) if n > IDENTITY_VERSION.into() => Err(VersionError::UnkownVersion(n)),
+            Some(n) => Ok(Version(n)),
+        }
+    }
+
+    /// Return the underlying [`NonZeroU32`] number of the `Version`.
+    pub fn number(&self) -> NonZeroU32 {
+        self.0
+    }
+
+    /// Check if the provided version is part of the set of accepted versions.
+    pub fn is_valid_version(v: &u32) -> bool {
+        0 < *v && *v <= IDENTITY_VERSION.into()
+    }
+
+    /// Helper for skipping the serialization of the version if `version <= 1`.
+    ///
+    /// Note that we shouldn't allow `version: 0`, but there is no harm in
+    /// skipping it anyway.
+    fn skip_serializing(&self) -> bool {
+        u32::from(*self) <= 1
+    }
+}
+
+impl From<Version> for NonZeroU32 {
+    fn from(Version(n): Version) -> Self {
+        n
+    }
+}
+
+impl From<Version> for u32 {
+    fn from(Version(n): Version) -> Self {
+        n.into()
+    }
+}
+
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub enum VersionError {
+    #[error("the version 0 is not supported")]
+    ZeroVersion,
+    #[error("unknown identity document version {0}, only version {IDENTITY_VERSION} is supported")]
+    UnkownVersion(NonZeroU32),
+}
+
+impl VersionError {
+    /// Provide a verbose error.
+    ///
+    /// This will give a user more information on how to upgrade to a newer
+    /// version of an identity document, if there is one.
+    pub fn verbose(&self) -> String {
+        const UNKOWN_VERSION_ERROR: &str = r#"
+Perhaps a new version of the identity document is released which is not supported by the current client.
+See https://radicle.xyz for the latest versions of Radicle.
+The CLI command `rad id migrate` will help to migrate to an up-to-date versions."#;
+
+        match self {
+            err @ Self::ZeroVersion => err.to_string(),
+            err @ Self::UnkownVersion(_) => format!("{err}{UNKOWN_VERSION_ERROR}"),
+        }
+    }
+}
+
+impl TryFrom<u32> for Version {
+    type Error = VersionError;
+
+    fn try_from(n: u32) -> Result<Self, Self::Error> {
+        Version::new(n)
+    }
+}
+
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Version {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        u32::deserialize(deserializer)
+            .and_then(|v| Version::new(v).map_err(|e| de::Error::custom(e.to_string())))
+    }
+}
+
+/// Used for [`Deserialize`] of a [`Version`] in [`RawDoc`], so that
+/// deserializing a missing version results in `Version(1)`.
+fn missing_version() -> Version {
+    // N.B. the default version is `1` which is non-zero so unsafe is fine here
+    unsafe { Version(NonZeroU32::new_unchecked(1)) }
 }
 
 /// Identifies an identity document payload type.
@@ -231,6 +348,9 @@ impl Visibility {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawDoc {
+    /// Version of the identity document.
+    #[serde(default = "missing_version")]
+    version: Version,
     /// The payload section.
     pub payload: BTreeMap<PayloadId, Payload>,
     /// The delegates section.
@@ -264,11 +384,17 @@ impl RawDoc {
             serde_json::to_value(project).expect("Doc::initial: payload must be serializable");
 
         Self {
+            version: IDENTITY_VERSION,
             payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
             delegates,
             threshold,
             visibility,
         }
+    }
+
+    /// Get the version of the document.
+    pub fn version(&self) -> &Version {
+        &self.version
     }
 
     /// Get the project payload, if it exists and is valid, out of this document.
@@ -319,6 +445,7 @@ impl RawDoc {
     ///  - [`RawDoc::threshold`]: ensure that it is in the range `[1, delegates.len()]`.
     pub fn verified(self) -> Result<Doc, DocError> {
         let RawDoc {
+            version,
             payload,
             delegates,
             threshold,
@@ -327,6 +454,7 @@ impl RawDoc {
         let delegates = Delegates::new(delegates)?;
         let threshold = Threshold::new(threshold, &delegates)?;
         Ok(Doc {
+            version,
             payload,
             delegates,
             threshold,
@@ -496,6 +624,8 @@ impl Threshold {
 #[serde(rename_all = "camelCase")]
 #[serde(try_from = "RawDoc")]
 pub struct Doc {
+    #[serde(skip_serializing_if = "Version::skip_serializing")]
+    version: Version,
     payload: BTreeMap<PayloadId, Payload>,
     delegates: Delegates,
     threshold: Threshold,
@@ -514,6 +644,7 @@ impl Doc {
             serde_json::to_value(project).expect("Doc::initial: payload must be serializable");
 
         Self {
+            version: IDENTITY_VERSION,
             payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
             delegates: Delegates(NonEmpty::new(delegate)),
             threshold: Threshold(NonZeroUsize::MIN),
@@ -530,12 +661,14 @@ impl Doc {
     /// re-verifying.
     pub fn edit(self) -> RawDoc {
         let Doc {
+            version,
             payload,
             delegates,
             threshold,
             visibility,
         } = self;
         RawDoc {
+            version,
             payload,
             delegates: delegates.into(),
             threshold: threshold.into(),
@@ -552,6 +685,11 @@ impl Doc {
         let mut raw = self.edit();
         f(&mut raw);
         raw.verified()
+    }
+
+    /// Get the version of the document.
+    pub fn version(&self) -> &Version {
+        &self.version
     }
 
     /// Return the associated payloads for this [`Doc`].
@@ -726,6 +864,7 @@ impl Doc {
 mod test {
     use radicle_crypto::test::signer::MockSigner;
     use radicle_crypto::Signer as _;
+    use serde_json::json;
 
     use crate::assert_matches;
     use crate::rad;
@@ -767,6 +906,106 @@ mod test {
         // A document that exceeds max delegates should fail
         let doc = RawDoc::new(gen::<Project>(1), delegates, 1, Visibility::Public);
         assert_matches!(doc.verified(), Err(DocError::Delegates(DelegatesError(_))));
+    }
+
+    #[test]
+    fn test_is_valid_version() {
+        // 0 is not a valid version
+        assert!(!Version::is_valid_version(&0));
+
+        // Ensures that the latest version is always valid
+        let current = IDENTITY_VERSION.number();
+        assert!(Version::is_valid_version(&current.into()));
+
+        // Ensures that the next version is not valid because we have not
+        // defined it yet
+        let next = current.checked_add(1).unwrap();
+        assert!(!Version::is_valid_version(&next.into()));
+    }
+
+    #[test]
+    fn test_future_version_error() {
+        let v = Version(NonZeroU32::MAX).to_string();
+        assert_eq!(
+            serde_json::from_str::<Version>(&v)
+                .expect_err("should fail to deserialize")
+                .to_string(),
+            VersionError::UnkownVersion(NonZeroU32::MAX).to_string(),
+        )
+    }
+
+    #[test]
+    fn test_parse_version() {
+        // Original document before introducing the version field
+        let v1 = json!(
+            {
+                "payload": {
+                    "xyz.radicle.project": {
+                        "defaultBranch": "master",
+                        "description": "Radicle Heartwood Protocol & Stack",
+                        "name": "heartwood"
+                    }
+                },
+                "delegates": [
+                    "did:key:z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT",
+                    "did:key:z6MktaNvN1KVFMkSRAiN4qK5yvX1zuEEaseeX5sffhzPZRZW",
+                    "did:key:z6MkireRatUThvd3qzfKht1S44wpm4FEWSSa4PRMTSQZ3voM"
+                ],
+                "threshold": 1
+            }
+        );
+
+        // Deserializing the `RawDoc` should not fail and should include the
+        // `IDENTITY_VERSION`.
+        let doc = serde_json::from_str::<RawDoc>(&v1.to_string()).unwrap();
+        let payload = [(
+            PayloadId::project(),
+            Payload {
+                value: json!({
+                    "name": "heartwood",
+                    "description": "Radicle Heartwood Protocol & Stack",
+                    "defaultBranch": "master",
+                }),
+            },
+        )]
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+        let delegates = vec![
+            "did:key:z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT"
+                .parse::<Did>()
+                .unwrap(),
+            "did:key:z6MktaNvN1KVFMkSRAiN4qK5yvX1zuEEaseeX5sffhzPZRZW"
+                .parse::<Did>()
+                .unwrap(),
+            "did:key:z6MkireRatUThvd3qzfKht1S44wpm4FEWSSa4PRMTSQZ3voM"
+                .parse::<Did>()
+                .unwrap(),
+        ];
+        // And this is the expected outcome of the deserialization
+        assert_eq!(
+            doc,
+            RawDoc {
+                version: IDENTITY_VERSION,
+                payload: payload.clone(),
+                delegates: delegates.clone(),
+                threshold: 1,
+                visibility: Visibility::Public,
+            }
+        );
+
+        // Deserializing into `Doc` should also succeed.
+        let verified = serde_json::from_str::<Doc>(&v1.to_string()).unwrap();
+        let delegates = Delegates(NonEmpty::from_vec(delegates).unwrap());
+        assert_eq!(
+            verified,
+            Doc {
+                version: IDENTITY_VERSION,
+                threshold: Threshold::new(1, &delegates).unwrap(),
+                payload: payload.clone(),
+                delegates,
+                visibility: Visibility::Public,
+            }
+        );
     }
 
     #[test]
