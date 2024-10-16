@@ -493,6 +493,21 @@ pub fn commit<'a>(
     Ok(commit)
 }
 
+/// Create an empty commit on top of the parent.
+pub fn empty_commit<'a>(
+    repo: &'a git2::Repository,
+    parent: &'a git2::Commit,
+    target: &RefStr,
+    message: &str,
+    sig: &git2::Signature,
+) -> Result<git2::Commit<'a>, git2::Error> {
+    let tree = parent.tree()?;
+    let oid = repo.commit(Some(target.as_str()), sig, sig, message, &tree, &[parent])?;
+    let commit = repo.find_commit(oid)?;
+
+    Ok(commit)
+}
+
 /// Get the repository head.
 pub fn head(repo: &git2::Repository) -> Result<git2::Commit, git2::Error> {
     let head = repo.head()?.peel_to_commit()?;

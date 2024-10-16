@@ -461,7 +461,11 @@ pub mod canonical {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::assert_matches;
+    use crate::{cob::identity::Identity, rad, test::fixtures, Storage};
+    use crypto::test::signer::MockSigner;
     use qcheck_macros::quickcheck;
+    use storage::{git::transport, RemoteRepository, SignRepository, WriteStorage};
 
     #[quickcheck]
     fn prop_canonical_roundtrip(refs: Refs) {
@@ -469,5 +473,167 @@ mod tests {
         let decoded = Refs::from_canonical(&encoded).unwrap();
 
         assert_eq!(refs, decoded);
+    }
+
+    #[test]
+    #[should_panic]
+    // Test that a user's signed refs are tied to a specific RID, and they can't simply be
+    // used in a different repository.
+    //
+    // We create two repos, `paris` and `london`, and we copy over Bob's signed refs from `paris`
+    // to `london`. We expect that this does not cause the canonical head of the `london` repo
+    // to change, despite Bob being a delegate of both repos, because the refs were signed for the
+    // `paris` repo. We also don't expected the signed refs to validate without error.
+    fn test_rid_verification() {
+        let tmp = tempfile::tempdir().unwrap();
+        let alice = MockSigner::default();
+        let bob = MockSigner::default();
+        let storage = &Storage::open(tmp.path().join("storage"), fixtures::user()).unwrap();
+
+        transport::local::register(storage.clone());
+
+        // Alice creates "paris" repo.
+        let (paris_repo, paris_head) = fixtures::repository(tmp.path().join("paris"));
+        let (paris_rid, mut paris_doc, _) = rad::init(
+            &paris_repo,
+            "paris".try_into().unwrap(),
+            "Paris repository",
+            git::refname!("master"),
+            Default::default(),
+            &alice,
+            storage,
+        )
+        .unwrap();
+
+        // Alice creates "london" repo.
+        let (london_repo, _london_head) = fixtures::repository(tmp.path().join("london"));
+        let (london_rid, mut london_doc, _) = rad::init(
+            &london_repo,
+            "london".try_into().unwrap(),
+            "London repository",
+            git::refname!("master"),
+            Default::default(),
+            &alice,
+            storage,
+        )
+        .unwrap();
+
+        assert_ne!(london_rid, paris_rid);
+
+        log::debug!(target: "test", "London RID: {london_rid}");
+        log::debug!(target: "test", "Paris RID: {paris_rid}");
+
+        let paris = storage.repository_mut(paris_rid).unwrap();
+        let london = storage.repository_mut(london_rid).unwrap();
+
+        // Bob is added to both repos as a delegate, by Alice.
+        {
+            paris_doc.delegates.push(bob.public_key().into());
+            london_doc.delegates.push(bob.public_key().into());
+
+            let mut paris_ident = Identity::load_mut(&paris).unwrap();
+            let mut london_ident = Identity::load_mut(&london).unwrap();
+
+            paris_ident
+                .update("Add Bob", "", &paris_doc, &alice)
+                .unwrap();
+            london_ident
+                .update("Add Bob", "", &london_doc, &alice)
+                .unwrap();
+        }
+
+        // Now Bob checks out a copy of the `paris` repository and pushes a commit to the
+        // default branch (master). We store the OID of that commti in `bob_head`, as this
+        // is the commit we will try to get the `london` repo to point to.
+        let (bob_paris_sigrefs, bob_head) = {
+            let bob_working = rad::checkout(
+                paris.id,
+                bob.public_key(),
+                tmp.path().join("working"),
+                &storage,
+            )
+            .unwrap();
+
+            let paris_head = bob_working.find_commit(paris_head).unwrap();
+            let bob_sig = git2::Signature::now("bob", "bob@example.com").unwrap();
+            let bob_head = git::empty_commit(
+                &bob_working,
+                &paris_head,
+                git::refname!("refs/heads/master").as_refstr(),
+                "Bob's commit",
+                &bob_sig,
+            )
+            .unwrap();
+
+            let mut bob_master_ref = bob_working.find_reference("refs/heads/master").unwrap();
+            bob_master_ref.set_target(bob_head.id(), "").unwrap();
+            bob_working
+                .find_remote("rad")
+                .unwrap()
+                .push(&["refs/heads/master"], None)
+                .unwrap();
+            let sigrefs = paris.sign_refs(&bob).unwrap();
+
+            assert_eq!(
+                sigrefs
+                    .get(&git_ext::ref_format::qualified!("refs/heads/master"))
+                    .unwrap(),
+                bob_head.id().into()
+            );
+            (sigrefs, bob_head.id())
+        };
+
+        {
+            // Sanity check: make sure the default branches don't already match between Alice and Bob.
+            let alice_paris_sigrefs = SignedRefsAt::load(*alice.public_key(), &paris)
+                .unwrap()
+                .unwrap();
+            assert_ne!(
+                alice_paris_sigrefs
+                    .get(&git_ext::ref_format::qualified!("refs/heads/master"))
+                    .unwrap(),
+                bob_paris_sigrefs
+                    .get(&git_ext::ref_format::qualified!("refs/heads/master"))
+                    .unwrap()
+            );
+        }
+
+        {
+            // For the graft to work, we also have to copy over the objects that Bob created in
+            // `paris`, so that the grafted signed refs point to valid objects.
+            let paris_odb = paris.raw().odb().unwrap();
+            let london_odb = london.raw().odb().unwrap();
+
+            paris_odb
+                .foreach(|oid| {
+                    let obj = paris_odb.read(*oid).unwrap();
+                    london_odb.write(obj.kind(), obj.data()).unwrap();
+
+                    true
+                })
+                .unwrap();
+        }
+        // Now we're going to "graft" Bob's signed refs from `paris` to `london`.
+        // We save Bob's `paris` signed refs in the `london` repo, performing the graft, and update
+        // Bob's `master` branch reference to point to his commit, created in the `paris` repo. This
+        // only modifies his own namespace. Note that anyone (eg. Eve) could create a reference
+        // under her copy of Bob's namespace, and this would only be rejected during signed ref
+        // validation.
+        let result = bob_paris_sigrefs.save(&london).unwrap();
+        assert_matches!(result, Updated::Updated { .. });
+
+        london
+            .raw()
+            .reference(
+                git::refs::storage::branch_of(bob.public_key(), &git::refname!("master")).as_str(),
+                bob_head,
+                false,
+                "",
+            )
+            .unwrap();
+
+        // Due to the verification, we get a validation error when trying to load Bob's remote.
+        // The graft is not allowed.
+        london.remote(bob.public_key()).unwrap_err();
     }
 }
