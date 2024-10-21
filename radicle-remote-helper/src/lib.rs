@@ -108,10 +108,8 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
         return Err(Error::RepositoryNotFound(stored.path().to_path_buf()));
     }
 
-    // `GIT_DIR` is expected to be set by Git tooling, and points to the working copy.
-    let working = env::var("GIT_DIR")
-        .map(PathBuf::from)
-        .map_err(|_| Error::NoGitDir)?;
+    // `GIT_DIR` is set by Git tooling, if we're in a working copy.
+    let working = env::var("GIT_DIR").map(PathBuf::from);
     // Whether we should output debug logs.
     let debug = radicle::profile::env::debug();
 
@@ -162,7 +160,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
 
                 // N.b. `working` is the `.git` folder and `fetch::run`
                 // requires the working directory.
-                let working = working.canonicalize()?;
+                let working = working.map_err(|_| Error::NoGitDir)?.canonicalize()?;
                 let working = working.parent().ok_or_else(|| Error::NoWorkingCopy {
                     path: working.clone(),
                 })?;
@@ -171,6 +169,9 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                     .map_err(Error::from);
             }
             ["push", refspec] => {
+                // We have to be in a working copy to push.
+                let working = working.map_err(|_| Error::NoGitDir)?;
+
                 return push::run(
                     vec![refspec.to_string()],
                     &working,
