@@ -489,6 +489,7 @@ impl sql::BindableWithIndex for AddressType {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use std::net;
 

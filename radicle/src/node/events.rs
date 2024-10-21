@@ -154,6 +154,8 @@ impl<T: Clone> Emitter<T> {
     /// Emit event to subscribers and drop those who can't receive it.
     /// Nb. subscribers are also dropped if their channel is full.
     pub fn emit(&self, event: T) {
+        // SAFETY: We deliberately propagate panics from other threads holding the lock.
+        #[allow(clippy::unwrap_used)]
         self.subscribers
             .lock()
             .unwrap()
@@ -163,6 +165,8 @@ impl<T: Clone> Emitter<T> {
     /// Subscribe to events stream.
     pub fn subscribe(&self) -> chan::Receiver<T> {
         let (sender, receiver) = chan::bounded(MAX_PENDING_EVENTS);
+        // SAFETY: We deliberately propagate panics from other threads holding the lock.
+        #[allow(clippy::unwrap_used)]
         let mut subs = self.subscribers.lock().unwrap();
         subs.push(sender);
 
@@ -171,11 +175,15 @@ impl<T: Clone> Emitter<T> {
 
     /// Number of subscribers.
     pub fn subscriptions(&self) -> usize {
+        // SAFETY: We deliberately propagate panics from other threads holding the lock.
+        #[allow(clippy::unwrap_used)]
         self.subscribers.lock().unwrap().len()
     }
 
     /// Number of messages that have not yet been received.
     pub fn pending(&self) -> usize {
+        // SAFETY: We deliberately propagate panics from other threads holding the lock.
+        #[allow(clippy::unwrap_used)]
         self.subscribers
             .lock()
             .unwrap()

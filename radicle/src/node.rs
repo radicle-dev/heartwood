@@ -1356,6 +1356,7 @@ impl AliasStore for HashMap<NodeId, Alias> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use super::*;
     use crate::assert_matches;

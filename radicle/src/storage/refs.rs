@@ -462,6 +462,7 @@ pub mod canonical {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use crypto::test::signer::MockSigner;
     use qcheck_macros::quickcheck;

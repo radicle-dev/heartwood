@@ -733,6 +733,7 @@ impl Home {
 
 #[cfg(test)]
 #[cfg(not(target_os = "macos"))]
+#[allow(clippy::unwrap_used)]
 mod test {
     use super::*;
     use std::fs;

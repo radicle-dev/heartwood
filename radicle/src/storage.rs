@@ -628,7 +628,7 @@ pub trait WriteRepository: ReadRepository + SignRepository {
     fn set_head(&self) -> Result<SetHead, RepositoryError>;
     /// Set the repository 'rad/id' to the canonical commit, agreed by quorum.
     fn set_identity_head(&self) -> Result<Oid, RepositoryError> {
-        let head = self.canonical_identity_head().unwrap();
+        let head = self.canonical_identity_head()?;
         self.set_identity_head_to(head)?;
 
         Ok(head)

@@ -173,6 +173,7 @@ impl Store for Database {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use super::*;
     use crate::git::qualified;

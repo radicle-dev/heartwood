@@ -393,6 +393,7 @@ mod parse {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use radicle_git_ext::ref_format::{qualified, refname};
 

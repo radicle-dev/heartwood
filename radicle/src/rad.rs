@@ -1,5 +1,4 @@
 #![allow(clippy::let_unit_value)]
-#![warn(clippy::unwrap_used)]
 use std::io;
 use std::path::Path;
 use std::str::FromStr;
@@ -388,6 +387,7 @@ pub fn setup_patch_upstream<'a>(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use std::collections::HashMap;
 

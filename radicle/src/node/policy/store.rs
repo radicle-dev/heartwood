@@ -354,6 +354,7 @@ impl<T> AliasStore for Store<T> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use crate::assert_matches;
 

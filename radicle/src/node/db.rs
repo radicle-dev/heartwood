@@ -214,6 +214,7 @@ pub fn migrate(db: &sql::Connection) -> Result<usize, Error> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use super::*;
 
