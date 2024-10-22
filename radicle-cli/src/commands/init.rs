@@ -375,7 +375,7 @@ pub fn init_existing(
         &working,
         &radicle::rad::REMOTE_NAME,
         &url,
-        &url.clone().with_namespace(profile.public_key),
+        Some(&url.clone().with_namespace(profile.public_key)),
     )?;
 
     if options.set_upstream {

@@ -572,7 +572,7 @@ pub fn configure_remote<'r>(
     repo: &'r git2::Repository,
     name: &str,
     fetch: &Url,
-    push: &Url,
+    push: Option<&Url>,
 ) -> Result<git2::Remote<'r>, git2::Error> {
     let fetchspec = format!("+refs/heads/*:refs/remotes/{name}/*");
     let remote = repo.remote_with_fetch(name, fetch.to_string().as_str(), &fetchspec)?;
@@ -591,9 +591,21 @@ pub fn configure_remote<'r>(
         config.set_str(&format!("remote.{name}.tagOpt"), "--no-tags")?;
     }
 
-    if push != fetch {
-        repo.remote_set_pushurl(name, Some(push.to_string().as_str()))?;
+    match push {
+        Some(push) if push == fetch => {
+            // If the push URL is the same as the fetch URL, we do nothing
+            // because the push URL defaults to the fetch URL.
+            // See also the documentation for Git's `remote.<name>.pushurl`.
+        }
+        Some(push) => {
+            repo.remote_set_pushurl(name, Some(push.to_string().as_str()))?;
+        }
+        None => {
+            // libgit2 does not allow setting the push URL to an empty string.
+            repo.remote_set_pushurl(name, Some("invalid"))?;
+        }
     }
+
     Ok(remote)
 }
 

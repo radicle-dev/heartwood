@@ -102,7 +102,12 @@ where
     let pk = signer.public_key();
 
     git::configure_repository(repo)?;
-    git::configure_remote(repo, &REMOTE_NAME, url, &url.clone().with_namespace(*pk))?;
+    git::configure_remote(
+        repo,
+        &REMOTE_NAME,
+        url,
+        Some(&url.clone().with_namespace(*pk)),
+    )?;
     git::push(
         repo,
         &REMOTE_NAME,
@@ -231,7 +236,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
         &repo,
         &REMOTE_NAME,
         &url,
-        &url.clone().with_namespace(*remote),
+        Some(&url.clone().with_namespace(*remote)),
     )?;
     git::fetch(&repo, &REMOTE_NAME).map_err(CheckoutError::Fetch)?;
 

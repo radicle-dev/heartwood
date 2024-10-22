@@ -22,6 +22,7 @@ impl<'a> SetupRemote<'a> {
         &self,
         name: impl AsRef<RefStr>,
         node: NodeId,
+        push: bool,
     ) -> anyhow::Result<(git::Remote, Option<BranchName>)> {
         let remote_url = radicle::git::Url::from(self.rid).with_namespace(node);
         let remote_name = name.as_ref();
@@ -30,8 +31,12 @@ impl<'a> SetupRemote<'a> {
             anyhow::bail!("remote `{remote_name}` already exists");
         }
 
-        let remote =
-            radicle::git::configure_remote(self.repo, remote_name, &remote_url, &remote_url)?;
+        let remote = radicle::git::configure_remote(
+            self.repo,
+            remote_name,
+            &remote_url,
+            push.then(|| &remote_url),
+        )?;
         let mut remote = git::Remote::try_from(remote)?;
 
         // Fetch the refs into the working copy.

@@ -28,6 +28,7 @@ Usage
 Options
 
     --remote <did>  Remote peer to checkout
+    --[no-]push     Whether to set up the remote for pushing
     --no-confirm    Don't ask for confirmation during checkout
     --help          Print help
 "#,
@@ -145,7 +146,8 @@ pub fn setup_remotes(
     let aliases = profile.aliases();
 
     for remote_id in remotes {
-        if let Err(e) = setup_remote(&setup, remote_id, None, &aliases) {
+        let push = profile.did() == remote_id.into();
+        if let Err(e) = setup_remote(&setup, remote_id, None, &aliases, push) {
             term::warning(format!("Failed to setup remote for {remote_id}: {e}").as_str());
         }
     }
@@ -158,6 +160,7 @@ pub fn setup_remote(
     remote_id: &NodeId,
     remote_name: Option<git::RefString>,
     aliases: &impl AliasStore,
+    push: bool,
 ) -> anyhow::Result<git::RefString> {
     let remote_name = if let Some(name) = remote_name {
         name
@@ -170,7 +173,7 @@ pub fn setup_remote(
         git::RefString::try_from(name.as_str())
             .map_err(|_| anyhow!("invalid remote name: '{name}'"))?
     };
-    let (remote, branch) = setup.run(&remote_name, *remote_id)?;
+    let (remote, branch) = setup.run(&remote_name, *remote_id, push)?;
 
     term::success!("Remote {} added", term::format::tertiary(remote.name));
 

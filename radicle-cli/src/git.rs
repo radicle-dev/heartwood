@@ -243,8 +243,16 @@ pub fn rad_remotes(repo: &git2::Repository) -> anyhow::Result<Vec<Remote>> {
         .remotes()?
         .iter()
         .filter_map(|name| {
-            let remote = repo.find_remote(name?).ok()?;
-            Remote::try_from(remote).ok()
+            let name = name?;
+            let remote = repo.find_remote(name).ok()?;
+            let remote = Remote::try_from(remote);
+            match remote {
+                Err(err) => {
+                    log::warn!(target: "cli", "Remote '{}': {}", name, err);
+                    None
+                }
+                Ok(remote) => Some(remote),
+            }
         })
         .collect();
     Ok(remotes)

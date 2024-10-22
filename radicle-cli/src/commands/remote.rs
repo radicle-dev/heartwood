@@ -40,6 +40,7 @@ Add options
 
     --name        Override the name of the remote that by default is set to the node alias
     --[no-]fetch  Fetch the remote from local storage (default: fetch)
+    --[no-]push   Set up the remote for pushing (default: <nid> is self)
     --[no-]sync   Sync the remote refs from the network (default: sync)
 
 Options
@@ -63,6 +64,7 @@ pub enum Operation {
         name: Option<RefString>,
         fetch: bool,
         sync: bool,
+        push: Option<bool>,
     },
     Rm {
         name: RefString,
@@ -96,6 +98,7 @@ impl Args for Options {
         let mut list_op: ListOption = ListOption::default();
         let mut fetch = true;
         let mut sync = true;
+        let mut push = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -139,6 +142,12 @@ impl Args for Options {
                 Long("no-fetch") if op == Some(OperationName::Add) => {
                     fetch = false;
                 }
+                Long("push") if op == Some(OperationName::Add) => {
+                    push = Some(true);
+                }
+                Long("no-push") if op == Some(OperationName::Add) => {
+                    push = Some(false);
+                }
                 Value(val) if op == Some(OperationName::Add) && id.is_none() => {
                     let nid = args::pubkey(&val)?;
                     id = Some(nid);
@@ -164,6 +173,7 @@ impl Args for Options {
                 name,
                 fetch,
                 sync,
+                push,
             },
             OperationName::List => Operation::List { option: list_op },
             OperationName::Rm => Operation::Rm {
@@ -186,6 +196,7 @@ pub fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
             name,
             fetch,
             sync,
+            push,
         } => {
             let proj = profile.storage.repository(rid)?.project()?;
             let branch = proj.default_branch();
@@ -199,6 +210,7 @@ pub fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                 &working,
                 fetch,
                 sync,
+                push.unwrap_or_else(|| *id == profile.public_key),
             )?
         }
         Operation::Rm { ref name } => self::rm::run(name, &working)?,

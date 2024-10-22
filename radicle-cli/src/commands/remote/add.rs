@@ -21,6 +21,7 @@ pub fn run(
     repo: &git::raw::Repository,
     fetch: bool,
     sync: bool,
+    push: bool,
 ) -> anyhow::Result<()> {
     if sync {
         let mut node = radicle::Node::new(profile.socket());
@@ -43,7 +44,7 @@ pub fn run(
         fetch,
         repo,
     };
-    checkout::setup_remote(&setup, nid, name, &aliases)?;
+    checkout::setup_remote(&setup, nid, name, &aliases, push)?;
 
     Ok(())
 }
