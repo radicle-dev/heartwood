@@ -93,29 +93,30 @@ impl Args for Options {
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+    let term = ctx.terminal();
     let profile = ctx.profile()?;
 
     match options.show {
         Show::Alias => {
-            term::print(profile.config.alias());
+            term.println(profile.config.alias());
         }
         Show::NodeId => {
-            term::print(profile.id());
+            term.println(profile.id());
         }
         Show::Did => {
-            term::print(profile.did());
+            term.println(profile.did());
         }
         Show::Home => {
-            term::print(profile.home().path().display());
+            term.println(profile.home().path().display());
         }
         Show::Config => {
-            term::print(profile.home.config().display());
+            term.println(profile.home.config().display());
         }
         Show::SshKey => {
-            term::print(ssh::fmt::key(profile.id()));
+            term.println(ssh::fmt::key(profile.id()));
         }
         Show::SshFingerprint => {
-            term::print(ssh::fmt::fingerprint(profile.id()));
+            term.println(ssh::fmt::fingerprint(profile.id()));
         }
         Show::All => all(&profile)?,
     }

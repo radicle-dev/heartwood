@@ -10,8 +10,9 @@ use radicle::node;
 use radicle::node::{Address, ConnectResult, Handle as _, NodeId};
 use radicle::Node;
 use radicle::{profile, Profile};
+use radicle_term::Terminal;
 
-use crate::terminal as term;
+use crate::terminal::{self as term, Context as _};
 use crate::terminal::Element as _;
 
 /// How long to wait for the node to start before returning an error.
@@ -29,8 +30,9 @@ pub fn start(
     cmd: &Path,
     profile: &Profile,
 ) -> anyhow::Result<()> {
+    let term = profile.terminal();
     if node.is_running() {
-        term::success!("Node is already running.");
+        term.success("Node is already running.");
         return Ok(());
     }
     let envs = if profile.keystore.is_encrypted()? {
@@ -70,17 +72,18 @@ pub fn start(
             logs(0, Some(time::Duration::from_secs(1)), profile)?;
         } else {
             let started = time::Instant::now();
-            let mut spinner = term::spinner(format!("Node starting.. {pid}"));
+            let mut spinner = term::spinner(&term, format!("Node starting.. {pid}"));
 
             loop {
                 if node.is_running() {
                     spinner.message(format!("Node started {pid}"));
                     spinner.finish();
 
-                    term::print(term::format::dim(
+                    term.println(term::format::dim(
                         "To stay in sync with the network, leave the node running in the background.",
                     ));
-                    term::info!(
+                    term::println!(
+                        term,
                         "{} {}{}",
                         term::format::dim("To learn more, run"),
                         term::format::command("rad node --help"),
@@ -128,6 +131,7 @@ pub fn debug(node: &mut Node) -> anyhow::Result<()> {
 }
 
 pub fn logs(lines: usize, follow: Option<time::Duration>, profile: &Profile) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let logs_path = profile.home.node().join("node.log");
     let mut file = File::open(logs_path.clone())
         .map(BufReader::new)
@@ -159,7 +163,7 @@ pub fn logs(lines: usize, follow: Option<time::Duration>, profile: &Profile) -> 
     }
     tail.reverse();
 
-    print!("{}", term::format::dim(String::from_utf8_lossy(&tail)));
+    term.println(term::format::dim(String::from_utf8_lossy(&tail)));
 
     if let Some(timeout) = follow {
         file.seek(SeekFrom::End(0))?;
@@ -173,7 +177,7 @@ pub fn logs(lines: usize, follow: Option<time::Duration>, profile: &Profile) -> 
             if len == 0 {
                 thread::sleep(time::Duration::from_millis(250));
             } else {
-                print!("{}", term::format::dim(line));
+                term.println(term::format::dim(line));
             }
         }
     }
@@ -185,8 +189,9 @@ pub fn connect(
     nid: NodeId,
     addr: Address,
     timeout: time::Duration,
+    term: &Terminal,
 ) -> anyhow::Result<()> {
-    let spinner = term::spinner(format!(
+    let spinner = term::spinner(term, format!(
         "Connecting to {}@{addr}...",
         term::format::node(&nid)
     ));
@@ -206,6 +211,7 @@ pub fn connect(
 }
 
 pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
+    let term = profile.terminal();
     if node.is_running() {
         let listen = node
             .listen_addrs()?
@@ -214,17 +220,19 @@ pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
             .collect::<Vec<_>>();
 
         if listen.is_empty() {
-            term::success!("Node is {}.", term::format::positive("running"));
+            term::success!(term, "Node is {}.", term::format::positive("running"));
         } else {
             term::success!(
+                term,
                 "Node is {} and listening on {}.",
                 term::format::positive("running"),
                 listen.join(", ")
             );
         }
     } else {
-        term::info!("Node is {}.", term::format::negative("stopped"));
-        term::info!(
+        term::println!(term, "Node is {}.", term::format::negative("stopped"));
+        term::println!(
+            term,
             "To start it, run {}.",
             term::format::command("rad node start")
         );
@@ -233,12 +241,12 @@ pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
 
     let sessions = sessions(node)?;
     if let Some(table) = sessions {
-        term::blank();
+        term.blank();
         table.print();
     }
 
     if profile.home.node().join("node.log").exists() {
-        term::blank();
+        term.blank();
         // If we're running the node via `systemd` for example, there won't be a log file
         // and this will fail.
         logs(10, None, profile)?;

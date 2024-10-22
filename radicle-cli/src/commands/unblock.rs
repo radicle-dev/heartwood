@@ -90,9 +90,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     };
 
     if updated {
-        term::success!("The 'block' policy for {} is removed", options.target);
+        term::success!(term, "The 'block' policy for {} is removed", options.target);
     } else {
-        term::info!("No 'block' policy exists for {}", options.target)
+        term::println!(term, "No 'block' policy exists for {}", options.target)
     }
     Ok(())
 }

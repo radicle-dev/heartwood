@@ -9,7 +9,7 @@ use radicle_signals as signals;
 use signals::Signal;
 
 use crate::io::{ERROR_PREFIX, WARNING_PREFIX};
-use crate::{display, Paint};
+use crate::{display, Paint, Terminal};
 
 /// How much time to wait between spinner animation updates.
 pub const DEFAULT_TICK: time::Duration = time::Duration::from_millis(99);
@@ -44,12 +44,13 @@ enum State {
 }
 
 /// A progress spinner.
-pub struct Spinner {
+pub struct Spinner<'a> {
     progress: Arc<Mutex<Progress>>,
     handle: ManuallyDrop<thread::JoinHandle<()>>,
+    term: &'a Terminal<'a>,
 }
 
-impl Drop for Spinner {
+impl Drop for Spinner<'_> {
     fn drop(&mut self) {
         if let Ok(mut progress) = self.progress.lock() {
             if let State::Running { .. } = progress.state {
@@ -62,7 +63,7 @@ impl Drop for Spinner {
     }
 }
 
-impl Spinner {
+impl Spinner<'_> {
     /// Mark the spinner as successfully completed.
     pub fn finish(self) {
         if let Ok(mut progress) = self.progress.lock() {
@@ -110,12 +111,12 @@ impl Spinner {
 /// Create a new spinner with the given message. Sends animation output to `stderr` and success or
 /// failure messages to `stdout`. This function handles signals, with there being only one
 /// element handling signals at a time, and is a wrapper to [`spinner_to()`].
-pub fn spinner(message: impl ToString) -> Spinner {
+pub fn spinner<'a>(term: &'a Terminal<'a>, message: impl ToString) -> Spinner<'a> {
     let (stdout, stderr) = (io::stdout(), io::stderr());
     if stderr.is_terminal() {
-        spinner_to(message, stdout, stderr)
+        spinner_to(term, message, stdout, stderr)
     } else {
-        spinner_to(message, stdout, io::sink())
+        spinner_to(term, message, stdout, io::sink())
     }
 }
 
@@ -126,11 +127,12 @@ pub fn spinner(message: impl ToString) -> Spinner {
 /// This will install handlers for the spinner until cancelled or dropped, with there
 /// being only one element handling signals at a time. If the spinner cannot install
 /// handlers, then it will not attempt to install handlers again, and continue running.
-pub fn spinner_to(
+pub fn spinner_to<'a>(
+    term: &'a Terminal<'a>,
     message: impl ToString,
     mut completion: impl io::Write + Send + 'static,
     animation: impl io::Write + Send + 'static,
-) -> Spinner {
+) -> Spinner<'a> {
     let message = message.to_string();
     let progress = Arc::new(Mutex::new(Progress::new(Paint::new(message))));
     let (sig_tx, sig_rx) = chan::unbounded();
@@ -258,5 +260,6 @@ pub fn spinner_to(
     Spinner {
         progress,
         handle: ManuallyDrop::new(handle),
+        term,
     }
 }

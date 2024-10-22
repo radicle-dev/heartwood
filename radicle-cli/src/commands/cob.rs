@@ -16,10 +16,11 @@ use radicle::storage::git;
 use radicle::storage::ReadStorage;
 use radicle::Profile;
 use radicle_cob::object::collaboration::list;
+use radicle_term::Terminal;
 use serde_json::json;
 
 use crate::git::Rev;
-use crate::terminal as term;
+use crate::terminal::{self as term, Context};
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::display;
 
@@ -210,7 +211,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             for op in ops.into_iter().rev() {
                 match options.format {
                     Format::Json => print_op_json(op)?,
-                    Format::Pretty => print_op_pretty(op)?,
+                    Format::Pretty => print_op_pretty(op, profile.terminal())?,
                 }
             }
         }
@@ -289,34 +290,34 @@ fn show(
     Ok(())
 }
 
-fn print_op_pretty(op: Op<Vec<u8>>) -> anyhow::Result<()> {
+fn print_op_pretty(op: Op<Vec<u8>>, term: Terminal) -> anyhow::Result<()> {
     let time = DateTime::<Utc>::from(
         std::time::UNIX_EPOCH + std::time::Duration::from_secs(op.timestamp.as_secs()),
     )
     .to_rfc2822();
-    term::print(display(&term::format::yellow(format!(
+    term.println(term::format::yellow(format!(
         "commit   {}",
         op.id
-    ))));
+    )));
     if let Some(oid) = op.identity {
         term::print_display(&term::format::tertiary(format!("resource {oid}")));
     }
     for parent in op.parents {
-        term::print(format!("parent   {}", parent));
+        term::println!(term, "parent   {parent}");
     }
     for parent in op.related {
-        term::print(format!("rel      {}", parent));
+        term::println!(term, "rel      {parent}");
     }
-    term::print(format!("author   {}", op.author));
-    term::print(format!("date     {}", time));
-    term::blank();
+    term.println(format!("author   {}", op.author));
+    term::println!(time, "date     {time}");
+    term.blank();
     for action in op.actions {
         let obj: serde_json::Value = serde_json::from_slice(&action)?;
         let val = serde_json::to_string_pretty(&obj)?;
         for line in val.lines() {
             term::indented_display(&term::format::dim(line));
         }
-        term::blank();
+        term.blank();
     }
     Ok(())
 }
@@ -333,6 +334,6 @@ fn print_op_json(op: Op<Vec<u8>>) -> anyhow::Result<()> {
             })
             .collect::<Result<Vec<serde_json::Value>, _>>()?),
     );
-    term::print(ser);
+    term::println!(term, "{ser}");
     Ok(())
 }

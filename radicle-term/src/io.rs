@@ -41,73 +41,73 @@ pub static CONFIG: Lazy<RenderConfig> = Lazy::new(|| RenderConfig {
     ..RenderConfig::default_colored()
 });
 
-#[deprecated]
 #[macro_export]
 macro_rules! info {
+    ($term:expr, $pattern:literal $(,$arg:expr)* $(,)?) => ({
+        term.info(std::fmt::format(std::format_args!($pattern $(, term.display(&$arg))*)));
+    });
     ($writer:expr; $($arg:tt)*) => ({
         writeln!($writer, $($arg)*).ok();
     });
-    ($($arg:tt)*) => ({
-        println!("{}", format_args!($($arg)*));
-    })
 }
 
-#[deprecated]
 #[macro_export]
 macro_rules! success {
-    // Pattern when a writer is provided.
-    ($writer:expr; $($arg:tt)*) => ({
-        $crate::io::success_args($writer, format_args!($($arg)*));
-    });
-    // Pattern without writer.
-    ($($arg:tt)*) => ({
-        $crate::io::success_args(&mut std::io::stdout(), format_args!($($arg)*));
+    ($term:expr, $pattern:literal $(,$arg:expr)* $(,)?) => ({
+        term.success(std::fmt::format(std::format_args!($pattern $(, term.display(&$arg))*)));
     });
 }
 
-#[deprecated]
 #[macro_export]
 macro_rules! tip {
-    ($($arg:tt)*) => ({
-        $crate::io::tip_args(format_args!($($arg)*));
-    })
+    ($term:expr, $pattern:literal $(,$arg:expr)* $(,)?) => ({
+        term.tip(std::fmt::format(std::format_args!($pattern $(, term.display(&$arg))*)));
+    });
 }
 
-#[deprecated]
 #[macro_export]
 macro_rules! notice {
-    // Pattern when a writer is provided.
-    ($writer:expr; $($arg:tt)*) => ({
-        $crate::io::notice_args($writer, format_args!($($arg)*));
+    ($term:expr, $pattern:literal $(,$arg:expr)* $(,)?) => ({
+        term.notice(std::fmt::format(std::format_args!($pattern $(, term.display(&$arg))*)));
     });
-    ($($arg:tt)*) => ({
-        $crate::io::notice_args(&mut std::io::stdout(), format_args!($($arg)*));
-    })
 }
 
+#[macro_export]
+macro_rules! error {
+    ($term:expr, $pattern:literal $(,$arg:expr)* $(,)?) => ({
+        term.error(std::fmt::format(std::format_args!($pattern $(, term.display(&$arg))*)));
+    });
+}
+
+#[macro_export]
+macro_rules! warning {
+    ($term:expr, $pattern:literal $(,$arg:expr)* $(,)?) => ({
+        term.warning(std::fmt::format(std::format_args!($pattern $(, term.display(&$arg))*)));
+    });
+}
+
+#[macro_export]
+macro_rules! hint {
+    ($term:expr, $pattern:literal $(,$arg:expr)* $(,)?) => ({
+        term.hint(std::fmt::format(std::format_args!($pattern $(, term.display(&$arg))*)));
+    });
+}
+
+#[macro_export]
+macro_rules! println {
+    ($term:expr, $pattern:literal $(,$arg:expr)* $(,)?) => ({
+        term.println(std::fmt::format(std::format_args!($pattern $(, term.display(&$arg))*)));
+    });
+}
+
+pub use error;
+pub use hint;
 pub use info;
+pub use println;
 pub use notice;
 pub use success;
 pub use tip;
-
-#[deprecated]
-pub fn success_args<W: io::Write>(w: &mut W, args: fmt::Arguments) {
-    writeln!(w, "{} {args}", display(&Paint::green("✓"))).ok();
-}
-
-#[deprecated]
-pub fn tip_args(args: fmt::Arguments) {
-    println!(
-        "{} {}",
-        display(&format::yellow("*")),
-        display(&style(format!("{args}")).italic())
-    );
-}
-
-#[deprecated]
-pub fn notice_args<W: io::Write>(w: &mut W, args: fmt::Arguments) {
-    writeln!(w, "{} {args}", display(&Paint::new("!").dim())).ok();
-}
+pub use warning;
 
 #[deprecated]
 pub fn columns() -> Option<usize> {
@@ -128,36 +128,36 @@ pub fn viewport() -> Option<Size> {
 
 #[deprecated]
 pub fn headline(headline: impl fmt::Display) {
-    println!();
-    println!("{}", display(&style(headline).bold()));
-    println!();
+    std::println!();
+    std::println!("{}", display(&style(headline).bold()));
+    std::println!();
 }
 
 #[deprecated]
 pub fn header(header: &str) {
-    println!();
-    println!("{}", display(&format::yellow(header).bold().underline()));
-    println!();
+    std::println!();
+    std::println!("{}", display(&format::yellow(header).bold().underline()));
+    std::println!();
 }
 
 #[deprecated]
 pub fn blob(text: impl fmt::Display) {
-    println!("{}", display(&style(text.to_string().trim()).dim()));
+    std::println!("{}", display(&style(text.to_string().trim()).dim()));
 }
 
 #[deprecated]
 pub fn blank() {
-    println!()
+    std::println!()
 }
 
 #[deprecated]
 pub fn print(msg: impl fmt::Display) {
-    println!("{msg}");
+    std::println!("{msg}");
 }
 
 #[deprecated]
 pub fn print_display(msg: &impl Display) {
-    println!("{}", display(msg));
+    std::println!("{}", display(msg));
 }
 
 #[deprecated]
@@ -170,7 +170,7 @@ pub fn prefixed(prefix: &str, text: &str) -> String {
 
 #[deprecated]
 pub fn help(name: &str, version: &str, description: &str, usage: &str) {
-    println!("rad-{name} {version}\n{description}\n{usage}");
+    std::println!("rad-{name} {version}\n{description}\n{usage}");
 }
 
 #[deprecated]
@@ -185,7 +185,7 @@ pub fn manual(name: &str) -> io::Result<process::ExitStatus> {
 
 #[deprecated]
 pub fn usage(name: &str, usage: &str) {
-    println!(
+    std::println!(
         "{} {}\n{}",
         display(&ERROR_PREFIX),
         display(&Paint::red(format!("Error: rad-{name}: invalid usage"))),
@@ -194,50 +194,18 @@ pub fn usage(name: &str, usage: &str) {
 }
 
 #[deprecated]
-pub fn println(prefix: impl fmt::Display, msg: impl fmt::Display) {
-    println!("{prefix} {msg}");
-}
-
-#[deprecated]
 pub fn indented(msg: impl fmt::Display) {
-    println!("{TAB}{msg}");
+    std::println!("{TAB}{msg}");
 }
 
 #[deprecated]
 pub fn indented_display(msg: &impl Display) {
-    println!("{TAB}{}", display(msg));
+    std::println!("{TAB}{}", display(msg));
 }
 
 #[deprecated]
 pub fn subcommand(msg: impl fmt::Display) {
-    println!("{}", display(&style(format!("Running `{msg}`...")).dim()));
-}
-
-#[deprecated]
-pub fn warning(warning: impl fmt::Display) {
-    println!(
-        "{} {} {warning}",
-        display(&WARNING_PREFIX),
-        display(&Paint::yellow("Warning:").bold()),
-    );
-}
-
-#[deprecated]
-pub fn error(error: impl fmt::Display) {
-    println!(
-        "{} {} {error}",
-        display(&ERROR_PREFIX),
-        display(&Paint::red("Error:"))
-    );
-}
-
-#[deprecated]
-pub fn hint(hint: impl fmt::Display) {
-    println!(
-        "{} {}",
-        display(&ERROR_HINT_PREFIX),
-        display(&format::hint(hint))
-    );
+    std::println!("{}", display(&style(format!("Running `{msg}`...")).dim()));
 }
 
 #[deprecated]
@@ -336,5 +304,16 @@ where
 pub fn markdown(content: &str) {
     if !content.is_empty() && command::bat(["-p", "-l", "md"], content).is_err() {
         blob(content);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{display, style, Display, Paint, Size};
+
+    #[test]
+    fn foo() {
+        let term: crate::Terminal = Default::default();
+        super::info!(term, "{} {}", "abc", &Paint::red("def"));
     }
 }

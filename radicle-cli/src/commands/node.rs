@@ -10,7 +10,7 @@ use radicle::node::Handle as _;
 use radicle::node::{Address, Node, NodeId, PeerAddr};
 use radicle::prelude::RepoId;
 
-use crate::terminal as term;
+use crate::terminal::{self as term, Context};
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::Element as _;
 
@@ -242,17 +242,18 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
+    let term = profile.terminal();
     let mut node = Node::new(profile.socket());
 
     match options.op {
         Operation::Connect { addr, timeout } => {
-            control::connect(&mut node, addr.id, addr.addr, timeout)?
+            control::connect(&mut node, addr.id, addr.addr, timeout, &term)?
         }
         Operation::Config { addresses } => {
             if addresses {
                 let cfg = node.config()?;
                 for addr in cfg.external_addresses {
-                    term::print(ConnectAddress::from((*profile.id(), addr)).to_string());
+                    term::println!(term, "{}", ConnectAddress::from((*profile.id(), addr)).to_string());
                 }
             } else {
                 control::config(&node)?;
@@ -288,7 +289,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Inventory => {
             for rid in profile.routing()?.get_inventory(profile.id())? {
-                println!("{}", term::format::tertiary(rid));
+                term.println(term::format::tertiary(rid));
             }
         }
         Operation::Status => {

@@ -146,7 +146,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     rows.sort();
 
     if rows.is_empty() {
-        term::print(term::format::italic("Nothing to show."));
+        term::println!(term, "{}", term::format::italic("Nothing to show."));
     } else {
         table.header([
             "Name".into(),

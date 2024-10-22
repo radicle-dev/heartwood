@@ -23,9 +23,11 @@ use radicle::{profile, Node};
 
 use crate::commands;
 use crate::git;
-use crate::terminal as term;
+use crate::terminal::{self as term, Context};
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::{Interactive, Terminal};
+
+use term::info as info;
 
 pub const HELP: Help = Help {
     name: "init",
@@ -182,8 +184,9 @@ impl Args for Options {
     }
 }
 
-pub fn run(term: &Terminal, options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
+    let term = profile.terminal();
     let cwd = env::current_dir()?;
     let path = options.path.as_deref().unwrap_or(cwd.as_path());
     let repo = match git::Repository::open(path) {
@@ -200,18 +203,18 @@ pub fn run(term: &Terminal, options: Options, ctx: impl term::Context) -> anyhow
     }
 
     if let Some(rid) = options.existing {
-        init_existing(term, repo, rid, options, &profile)
+        init_existing(repo, rid, options, &profile)
     } else {
-        init(term, repo, options, &profile)
+        init(repo, options, &profile)
     }
 }
 
 pub fn init(
-    term: &Terminal,
     repo: git::Repository,
     options: Options,
     profile: &profile::Profile,
 ) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let path = repo
         .workdir()
         .unwrap_or_else(|| repo.path())
@@ -275,7 +278,7 @@ pub fn init(
 
     let signer = term::signer(profile)?;
     let mut node = radicle::Node::new(profile.socket());
-    let mut spinner = term::spinner("Initializing...");
+    let mut spinner = term::spinner(&term, "Initializing...");
     let mut push_cmd = String::from("git push");
 
     match radicle::rad::init(
@@ -323,7 +326,7 @@ pub fn init(
 
             if options.setup_signing {
                 // Setup radicle signing key.
-                self::setup_signing(term, profile.id(), &repo, interactive)?;
+                self::setup_signing(&term, profile.id(), &repo, interactive)?;
             }
 
             term.blank();
@@ -345,7 +348,7 @@ pub fn init(
             term.blank();
 
             // Announce inventory to network.
-            if let Err(e) = announce(term, rid, doc, &mut node, &profile.config) {
+            if let Err(e) = announce(&term, rid, doc, &mut node, &profile.config) {
                 term.blank();
                 term.warning(format!(
                     "There was an error announcing your repository to the network: {e}"
@@ -367,12 +370,12 @@ pub fn init(
     Ok(())
 }
 pub fn init_existing(
-    term: &Terminal,
     working: git::Repository,
     rid: RepoId,
     options: Options,
     profile: &profile::Profile,
 ) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let stored = profile.storage.repository(rid)?;
     let project = stored.project()?;
     let url = radicle::git::Url::from(rid);
@@ -426,7 +429,7 @@ fn sync(
     if !node.is_running() {
         return Ok(SyncResult::NodeStopped);
     }
-    let mut spinner = term::spinner("Updating inventory..");
+    let mut spinner = term::spinner(term, "Updating inventory..");
     // N.b. indefinitely subscribe to events and set a lower timeout on events
     // below.
     let events = node.subscribe(DEFAULT_SUBSCRIBE_TIMEOUT)?;
@@ -446,6 +449,7 @@ fn sync(
                 seed.id,
                 seed.addr.clone(),
                 radicle::node::DEFAULT_TIMEOUT,
+                term,
             )
             .ok();
         }
@@ -593,10 +597,10 @@ pub fn announce(
                 term.info(
                     "Your repository will be announced to the network when you start your node.",
                 );
-                term.info(format!(
+                info!(term,
                     "You can start your node with {}.",
-                    term.display(&term::format::command("rad node start"))
-                ));
+                    &term::format::command("rad node start")
+                );
             }
             Err(e) => {
                 return Err(e.into());

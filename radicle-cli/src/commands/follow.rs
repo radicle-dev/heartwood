@@ -125,13 +125,15 @@ pub fn follow(
 
     if let Some(alias) = alias {
         term::success!(
+            term,
             "Follow policy {outcome} for {} ({alias})",
-            display(&term::format::tertiary(nid)),
+            &term::format::tertiary(nid)
         );
     } else {
         term::success!(
+            term,
             "Follow policy {outcome} for {}",
-            display(&term::format::tertiary(nid)),
+            &term::format::tertiary(nid)
         );
     }
 

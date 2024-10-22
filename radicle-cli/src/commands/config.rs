@@ -132,6 +132,7 @@ impl Args for Options {
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+    let term = ctx.terminal();
     let home = ctx.home()?;
     let path = home.config();
 
@@ -183,15 +184,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 &path,
             )?;
             term::success!(
+                term,
                 "Initialized new Radicle configuration at {}",
-                path.display()
+                &path.display()
             );
         }
         Operation::Edit => match term::editor::Editor::new(&path)?.extension("json").edit()? {
             Some(_) => {
-                term::success!("Successfully made changes to the configuration at {path:?}")
+                term::success!(term, "Successfully made changes to the configuration at {path:?}")
             }
-            None => term::info!("No changes were made to the configuration at {path:?}"),
+            None => term::info!(term, "No changes were made to the configuration at {path:?}"),
         },
     }
 
@@ -202,10 +204,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 fn print_value(value: &serde_json::Value) -> anyhow::Result<()> {
     match value {
         serde_json::Value::Null => {}
-        serde_json::Value::Bool(b) => term::print(b),
+        serde_json::Value::Bool(b) => term::println!(term, "{b}"),
         serde_json::Value::Array(a) => a.iter().try_for_each(print_value)?,
-        serde_json::Value::Number(n) => term::print(n),
-        serde_json::Value::String(s) => term::print(s),
+        serde_json::Value::Number(n) => term::println!(term, "{n}"),
+        serde_json::Value::String(s) => term::println!(term, "{s}"),
         serde_json::Value::Object(o) => {
             term::json::to_pretty(&o, Path::new("config.json"))?.print()
         }

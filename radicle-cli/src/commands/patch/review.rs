@@ -8,7 +8,7 @@ use radicle::git;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
 
-use crate::terminal as term;
+use crate::terminal::{self as term, Context as _};
 use crate::terminal::patch::Message;
 
 /// Review help message.
@@ -56,6 +56,7 @@ pub fn run(
     profile: &Profile,
     repository: &Repository,
 ) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let signer = term::signer(profile)?;
     let _project = repository.identity_doc().context(format!(
         "couldn't load repository {} from local state",
@@ -92,7 +93,7 @@ pub fn run(
             builder::ReviewBuilder::new(patch_id, signer, repository)
                 .hunk(hunk)
                 .verdict(verdict)
-                .run(revision, &mut opts)?;
+                .run(revision, &mut opts, profile.terminal())?;
         }
         Operation::Review { verdict, .. } => {
             let message = options.message.get(REVIEW_HELP_MSG)?;
@@ -107,6 +108,7 @@ pub fn run(
             match verdict {
                 Some(Verdict::Accept) => {
                     term::success!(
+                        term,
                         "Patch {} {}",
                         patch_id_pretty,
                         term::format::highlight("accepted")
@@ -114,13 +116,14 @@ pub fn run(
                 }
                 Some(Verdict::Reject) => {
                     term::success!(
+                        term,
                         "Patch {} {}",
                         patch_id_pretty,
                         term::format::negative("rejected")
                     );
                 }
                 None => {
-                    term::success!("Patch {} reviewed", patch_id_pretty);
+                    term::success!(term, "Patch {} reviewed", patch_id_pretty);
                 }
             }
         }

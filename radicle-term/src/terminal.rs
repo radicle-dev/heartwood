@@ -33,38 +33,50 @@ impl Terminal<'_> {
         DisplayWrapper::new(display, &self.ctx)
     }
 
-    pub fn info(&self, msg: impl fmt::Display) {
-        // TODO
+    pub fn println(&self, msg: impl Display) {
+        println!(
+            "{}",
+            self.display(&msg)
+        )
+    }
+
+    pub fn eprintln(&self, msg: impl Display) {
+        eprintln!(
+            "{}",
+            self.display(&msg)
+        )
+    }
+
+    pub fn info(&self, msg: impl Display) {
         println!(
             "{} {}",
-            display_with(&Paint::cyan("ℹ"), &self.ctx),
-            display_with(&msg, &self.ctx)
+            self.display(&Paint::cyan("ℹ")),
+            self.display(&msg)
         )
     }
 
     pub fn success(&self, msg: impl Display) {
         println!(
             "{} {}",
-            display_with(&Paint::green("✓"), &self.ctx),
-            display_with(&msg, &self.ctx)
+            self.display(&Paint::green("✓")),
+            self.display(&msg)
         )
     }
 
-    pub fn tip_args(&self, args: fmt::Arguments) {
+    pub fn tip(&self, msg: impl Display) {
         println!(
             "{} {}",
-            display_with(&format::yellow("*"), &self.ctx),
-            display_with(&style(format!("{args}")).italic(), &self.ctx)
-        );
+            self.display(&format::yellow("*")),
+            self.display(&style(self.display(&msg).to_string()).italic())
+        )
     }
 
-    fn notice_args<W: io::Write>(&self, w: &mut W, args: fmt::Arguments) {
-        writeln!(
-            w,
-            "{} {args}",
-            display_with(&Paint::new("!").dim(), &self.ctx)
+    pub fn notice(&self, msg: impl Display) {
+        println!(
+            "{} {}",
+            self.display(&Paint::new("!").dim()),
+            self.display(&msg)
         )
-        .ok();
     }
 
     pub fn columns(&self) -> Option<usize> {
@@ -81,7 +93,7 @@ impl Terminal<'_> {
             .ok()
     }
 
-    pub fn headline(&self, headline: impl fmt::Display) {
+    pub fn headline(&self, headline: impl Display) {
         println!();
         println!("{}", display_with(&style(headline).bold(), &self.ctx));
         println!();
@@ -96,19 +108,15 @@ impl Terminal<'_> {
         println!();
     }
 
-    pub fn blob(&self, text: impl fmt::Display) {
+    pub fn blob(&self, text: impl Display) {
         println!(
             "{}",
-            display_with(&style(text.to_string().trim()).dim(), &self.ctx)
+            self.display(&style(self.display(&text).to_string().trim()).dim())
         );
     }
 
     pub fn blank(&self) {
         println!()
-    }
-
-    pub fn print(&self, msg: &impl Display<Context>) {
-        println!("{}", display_with(msg, &self.ctx))
     }
 
     pub fn prefixed(&self, prefix: &str, text: &str) -> String {
@@ -136,35 +144,33 @@ impl Terminal<'_> {
         );
     }
 
-    pub fn println(&self, prefix: impl fmt::Display, msg: impl fmt::Display) {
-        println!("{prefix} {msg}");
-    }
-
     pub fn indented(&self, msg: impl Display) {
         println!("{TAB}{}", self.display(&msg));
     }
 
-    pub fn warning(&self, warning: impl fmt::Display) {
+    pub fn warning(&self, warning: impl Display) {
         println!(
-            "{} {} {warning}",
-            display_with(&WARNING_PREFIX, &self.ctx),
-            display_with(&Paint::yellow("Warning:").bold(), &self.ctx),
+            "{} {} {}",
+            self.display(&WARNING_PREFIX),
+            self.display(&Paint::yellow("Warning:").bold()),
+            self.display(&warning)
         );
     }
 
-    pub fn error(&self, error: impl fmt::Display) {
+    pub fn error(&self, error: impl Display) {
         println!(
-            "{} {} {error}",
-            display_with(&ERROR_PREFIX, &self.ctx),
-            display_with(&Paint::red("Error:"), &self.ctx)
+            "{} {} {}",
+            self.display(&ERROR_PREFIX),
+            self.display(&Paint::red("Error:")),
+            self.display(&error)
         );
     }
 
-    pub fn hint(&self, hint: impl fmt::Display) {
+    pub fn hint(&self, hint: impl Display) {
         println!(
             "{} {}",
-            display_with(&ERROR_HINT_PREFIX, &self.ctx),
-            display_with(&format::hint(hint), &self.ctx)
+            self.display(&ERROR_HINT_PREFIX),
+            self.display(&format::hint(self.display(&hint)))
         );
     }
 
@@ -240,7 +246,7 @@ impl Terminal<'_> {
         }
     }
 
-    pub fn passphrase_stdin() -> Result<Passphrase, anyhow::Error> {
+    pub fn passphrase_stdin(&self) -> Result<Passphrase, anyhow::Error> {
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
 

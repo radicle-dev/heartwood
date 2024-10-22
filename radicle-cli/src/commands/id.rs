@@ -297,6 +297,7 @@ impl Args for Options {
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+    let term = ctx.terminal();
     let profile = ctx.profile()?;
     let storage = &profile.storage;
     let rid = if let Some(rid) = options.rid {
@@ -335,7 +336,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     // TODO: Different output if canonical changed?
 
                     if !options.quiet {
-                        term::success!("Revision {id} accepted");
+                        term::success!(term, "Revision {id} accepted");
                         print_meta(revision, &current, &profile)?;
                     }
                 }
@@ -356,7 +357,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 identity.reject(revision.id, &signer)?;
 
                 if !options.quiet {
-                    term::success!("Revision {} rejected", revision.id);
+                    term::success!(term, "Revision {} rejected", revision.id);
                     print_meta(&revision, &current, &profile)?;
                 }
             }
@@ -378,7 +379,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             identity.edit(revision.id, title, description, &signer)?;
 
             if !options.quiet {
-                term::success!("Revision {} edited", revision.id);
+                term::success!(term, "Revision {} edited", &revision.id);
             }
         }
         Operation::Update {
@@ -440,11 +441,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     .filter(|d| !rescind.contains(d))
                     .collect::<Vec<_>>();
                 if let Some(errs) = verify_delegates(&proposal, &repo)? {
-                    term::error(format!("failed to verify delegates for {rid}"));
-                    term::error(format!(
+                    term::error!(term, "failed to verify delegates for {rid}");
+                    term::error!(term,
                         "the threshold of {} delegates cannot be met..",
                         proposal.threshold
-                    ));
+                    );
                     for e in errs {
                         e.print();
                     }
@@ -478,7 +479,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 {
                     Some(proposal) => serde_json::from_str::<RawDoc>(&proposal)?,
                     None => {
-                        term::print(term::format::italic(
+                        term.println(term::format::italic(
                             "Nothing to do. The document is up to date. See `rad inspect --identity`.",
                         ));
                         return Ok(());
@@ -495,7 +496,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let proposal = proposal.verified()?;
             if proposal == current.doc {
                 if !options.quiet {
-                    term::print_display(&term::format::italic(
+                    term.println(term::format::italic(
                         "Nothing to do. The document is up to date. See `rad inspect --identity`.",
                     ));
                 }
@@ -509,17 +510,18 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 repo.set_identity_head_to(revision.id)?;
             }
             if options.quiet {
-                term::print(revision.id);
+                term.println(revision.id);
             } else {
                 term::success!(
+                    term,
                     "Identity revision {} created",
-                    display(&term::format::tertiary(revision.id))
+                    &term::format::tertiary(revision.id)
                 );
                 print(&revision, &current, &repo, &profile)?;
             }
         }
         Operation::ListRevisions => {
-            let mut revisions = term::Table::<7, term::Label, term::Label>::new(
+            let mut revisions = term::Table::<7, term::Label>::new(
                 term::table::TableOptions::bordered(),
             );
 
@@ -562,12 +564,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
             if options.interactive.confirm(format!(
                 "Redact revision {}?",
-                display(&term::format::tertiary(revision.id))
+                term.display(&term::format::tertiary(revision.id))
             )) {
                 identity.redact(revision.id, &signer)?;
 
                 if !options.quiet {
-                    term::success!("Revision {} redacted", revision.id);
+                    term::success!(term, "Revision {} redacted", revision.id);
                 }
             }
         }
@@ -598,7 +600,7 @@ fn get<'a>(
 }
 
 fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow::Result<()> {
-    let mut attrs = term::Table::<2, term::Label, term::Label>::new(Default::default());
+    let mut attrs = term::Table::<2, term::Label>::new(Default::default());
 
     attrs.push([
         term::format::bold("Title").into(),
@@ -649,7 +651,7 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
         .iter()
         .filter(|id| !accepted.contains(id) && !rejected.contains(id))
         .collect::<Vec<_>>();
-    let mut signatures = term::Table::<4, _, &str>::default();
+    let mut signatures = term::Table::<4, _>::default();
 
     for id in accepted {
         let author = term::format::Author::new(&id, profile);
@@ -798,16 +800,17 @@ enum VerificationError {
 impl VerificationError {
     fn print(&self) {
         match self {
-            VerificationError::MissingDefaultBranch { branch, did } => term::error(format!(
+            VerificationError::MissingDefaultBranch { branch, did } => term::error!(
+                term,
                 "missing {} for {} in local storage",
-                display(&term::format::secondary(branch)),
-                display(&term::format::did(did))
-            )),
+                &term::format::secondary(branch),
+                &term::format::did(did)
+            ),
             VerificationError::MissingDelegate { did } => {
-                term::error(format!("the delegate {did} is missing"));
-                term::hint(format!(
+                term::error!(term, "the delegate {did} is missing");
+                term::hint!(term,
                     "run `rad follow {did}` to follow this missing peer"
-                ));
+                );
             }
         }
     }

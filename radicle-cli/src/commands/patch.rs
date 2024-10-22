@@ -892,10 +892,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let comment = comment_id.resolve(&repository.backend)?;
             if undo {
                 resolve::unresolve(patch, review, comment, &repository, &profile)?;
-                term::success!("Unresolved comment {comment_id}");
+                term::success!(term, "Unresolved comment {comment_id}");
             } else {
                 resolve::resolve(patch, review, comment, &repository, &profile)?;
-                term::success!("Resolved comment {comment_id}");
+                term::success!(term, "Resolved comment {comment_id}");
             }
         }
         Operation::Edit {

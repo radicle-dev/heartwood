@@ -42,7 +42,7 @@ pub fn run(
         .ok_or(anyhow!("error retrieving comment `{comment_id}`"))?;
 
     if quiet {
-        term::print(comment_id);
+        term::println!(term, "{comment_id}");
     } else {
         term::comment::widget(&comment_id, comment, profile).print();
     }

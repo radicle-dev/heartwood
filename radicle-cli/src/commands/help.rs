@@ -58,38 +58,41 @@ impl Args for Options {
 }
 
 pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
-    term::print("Usage: rad <command> [--help]");
+    let term = ctx.terminal();
+
+    term.println("Usage: rad <command> [--help]");
 
     if let Err(e) = ctx.profile() {
-        term::blank();
+        term.blank();
         match e.downcast_ref() {
             Some(term::args::Error::WithHint { err, hint }) => {
-                term::print_display(&term::format::yellow(err));
-                term::print_display(&term::format::yellow(hint));
+                term.println(term::format::yellow(err));
+                term.println(term::format::yellow(hint));
             }
             Some(e) => {
-                term::error(e);
+                term::error!(term, "{e}");
             }
             None => {
-                term::error(e);
+                term::error!(term, "{e}");
             }
         }
-        term::blank();
+        term.blank();
     }
 
-    term::print("Common `rad` commands used in various situations:");
-    term::blank();
+    term.println("Common `rad` commands used in various situations:");
+    term.blank();
 
     for help in COMMANDS {
-        term::info!(
+        term::println!(
+            term,
             "\t{} {}",
-            display(&term::format::bold(format!("{:-12}", help.name))),
-            display(&term::format::dim(help.description))
+            &term::format::bold(format!("{:-12}", help.name)),
+            &term::format::dim(help.description)
         );
     }
-    term::blank();
-    term::print("See `rad <command> --help` to learn about a specific command.");
-    term::blank();
+    term.blank();
+    term.println("See `rad <command> --help` to learn about a specific command.");
+    term.blank();
 
     Ok(())
 }

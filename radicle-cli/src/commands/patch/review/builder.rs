@@ -26,7 +26,7 @@ use radicle::prelude::*;
 use radicle::storage::git::{cob::DraftStore, Repository};
 use radicle_git_ext::Oid;
 use radicle_surf::diff::*;
-use radicle_term::{Element, VStack};
+use radicle_term::{Element, Terminal, VStack};
 
 use crate::git::pretty_diff::ToPretty;
 use crate::git::pretty_diff::{Blob, Blobs, Repo};
@@ -607,7 +607,7 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
     }
 
     /// Run the review builder for the given revision.
-    pub fn run(self, revision: &Revision, opts: &mut git::raw::DiffOptions) -> anyhow::Result<()> {
+    pub fn run(self, revision: &Revision, opts: &mut git::raw::DiffOptions, term: Terminal) -> anyhow::Result<()> {
         let repo = self.repo.raw();
         let signer = &self.signer;
         let base = repo.find_commit((*revision.base()).into())?;
@@ -626,6 +626,7 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
         };
         let mut brain = if let Ok(b) = Brain::load(self.patch_id, signer.public_key(), repo) {
             term::success!(
+                term,
                 "Loaded existing review {} for patch {}",
                 term::format::secondary(term::format::parens(term::format::oid(b.head.id()))),
                 term::format::tertiary(&patch_id)
@@ -692,7 +693,7 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
                     brain.accept(diff, repo)?;
 
                     if self.hunk.is_some() {
-                        term::success!("Updated brain to {}", brain.cid());
+                        term::success!(term, "Updated brain to {}", brain.cid());
                     }
                 }
                 Some(ReviewAction::Ignore) => {
@@ -720,8 +721,7 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
                             Ok(())
                         })?;
                     } else {
-                        eprintln!(
-                            "{}",
+                        term.eprintln(
                             term::format::tertiary(
                                 "Commenting on binary blobs is not yet implemented"
                             )
@@ -731,8 +731,7 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
                     }
                 }
                 Some(ReviewAction::Split) => {
-                    eprintln!(
-                        "{}",
+                    term.eprintln(
                         term::format::tertiary("Splitting is not yet implemented").bold()
                     );
                     queue.push_front((ix, item));
@@ -751,12 +750,11 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
                     break;
                 }
                 Some(ReviewAction::Help) => {
-                    eprintln!("{}", term::format::tertiary(HELP).bold());
+                    term.eprintln(term::format::tertiary(HELP).bold());
                     queue.push_front((ix, item));
                 }
                 None => {
-                    eprintln!(
-                        "{}",
+                    term.eprintln(
                         term::format::secondary(format!(
                             "{} hunk(s) remaining to review",
                             queue.len() + 1

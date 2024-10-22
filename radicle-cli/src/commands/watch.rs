@@ -151,7 +151,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             thread::sleep(options.interval);
             let oid = reference(&repo, &nid, &qualified)?;
             if oid != initial {
-                term::info!("{}", oid.unwrap_or(git::raw::Oid::zero().into()));
+                term::println!(term, "{}", oid.unwrap_or(git::raw::Oid::zero().into()));
                 break;
             }
             if now.elapsed()? >= options.timeout {

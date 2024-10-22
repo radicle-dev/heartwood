@@ -12,8 +12,10 @@ use radicle::profile::env;
 use radicle::{profile, Profile};
 
 use crate::terminal as term;
+use crate::terminal::Context;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::display;
+
+use crate::terminal::{info, notice, tip, warning, error, success};
 
 pub const HELP: Help = Help {
     name: "auth",
@@ -80,15 +82,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 pub fn init(options: Options) -> anyhow::Result<()> {
-    term::headline("Initializing your radicle 👾 identity");
+    let term = term::Terminal::default();
+
+    term.headline("Initializing your radicle 👾 identity");
 
     if let Ok(version) = radicle::git::version() {
         if version < radicle::git::VERSION_REQUIRED {
-            term::warning(format!(
+            warning!(term,
                 "Your Git version is unsupported, please upgrade to {} or later",
-                radicle::git::VERSION_REQUIRED,
-            ));
-            term::blank();
+                &radicle::git::VERSION_REQUIRED
+            );
+            term.blank();
         }
     } else {
         anyhow::bail!("a Git installation is required for Radicle to run");
@@ -98,7 +102,7 @@ pub fn init(options: Options) -> anyhow::Result<()> {
         alias
     } else {
         let user = env::var("USER").ok().and_then(|u| Alias::from_str(&u).ok());
-        term::input(
+        term.input(
             "Enter your alias:",
             user,
             Some("This is your node alias. You can always change it later"),
@@ -106,12 +110,12 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     };
     let home = profile::home()?;
     let passphrase = if options.stdin {
-        term::passphrase_stdin()
+        term.passphrase_stdin()
     } else {
-        term::passphrase_confirm("Enter a passphrase:", env::RAD_PASSPHRASE)
+        term.passphrase_confirm("Enter a passphrase:", env::RAD_PASSPHRASE)
     }?;
     let passphrase = passphrase.trim().is_empty().not().then_some(passphrase);
-    let spinner = term::spinner("Creating your Ed25519 keypair...");
+    let spinner = term::spinner(&term, "Creating your Ed25519 keypair...");
     let profile = Profile::init(home, alias, passphrase.clone(), env::seed())?;
     let mut agent = true;
     spinner.finish();
@@ -119,7 +123,7 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     if let Some(passphrase) = passphrase {
         match ssh::agent::Agent::connect() {
             Ok(mut agent) => {
-                let mut spinner = term::spinner("Adding your radicle key to ssh-agent...");
+                let mut spinner = term::spinner(&term, "Adding your radicle key to ssh-agent...");
                 if register(&mut agent, &profile, passphrase).is_ok() {
                     spinner.finish();
                 } else {
@@ -134,32 +138,32 @@ pub fn init(options: Options) -> anyhow::Result<()> {
         }
     }
 
-    term::success!(
+    success!(term,
         "Your Radicle DID is {}. This identifies your device. Run {} to show it at all times.",
-        display(&term::format::highlight(profile.did())),
-        display(&term::format::command("rad self"))
+        &term::format::highlight(profile.did()),
+        &term::format::command("rad self")
     );
-    term::success!("You're all set.");
-    term::blank();
+    term.success("You're all set.");
+    term.blank();
 
     if profile.config.cli.hints && !agent {
-        term::hint("install ssh-agent to have it fill in your passphrase for you when signing.");
-        term::blank();
+        term.hint("install ssh-agent to have it fill in your passphrase for you when signing.");
+        term.blank();
     }
-    term::info!(
+    info!(term,
         "To create a Radicle repository, run {} from a Git repository with at least one commit.",
-        display(&term::format::command("rad init"))
+        &term::format::command("rad init")
     );
-    term::info!(
+    info!(term,
         "To clone a repository, run {}. For example, {} clones the Radicle 'heartwood' repository.",
-        display(&term::format::command("rad clone <rid>")),
-        display(&term::format::command(
+        &term::format::command("rad clone <rid>"),
+        &term::format::command(
             "rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
-        ))
+        )
     );
-    term::info!(
+    info!(term,
         "To get a list of all commands, run {}.",
-        display(&term::format::command("rad")),
+        &term::format::command("rad")
     );
 
     Ok(())
@@ -168,18 +172,19 @@ pub fn init(options: Options) -> anyhow::Result<()> {
 /// Try loading the identity's key into SSH Agent, falling back to verifying `RAD_PASSPHRASE` for
 /// use.
 pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
+    let term = profile.terminal();
     if !profile.keystore.is_encrypted()? {
-        term::success!(
+        success!(term,
             "Authenticated as {}",
-            display(&term::format::tertiary(profile.id()))
+            &term::format::tertiary(profile.id())
         );
         return Ok(());
     }
     for (key, _) in &profile.config.node.extra {
-        term::warning(format!(
+        warning!(term,
             "unused or deprecated configuration attribute {:?}",
             key
-        ));
+        );
     }
 
     // If our key is encrypted, we try to authenticate with SSH Agent and
@@ -187,22 +192,22 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
     match ssh::agent::Agent::connect() {
         Ok(mut agent) => {
             if agent.request_identities()?.contains(&profile.public_key) {
-                term::success!("Radicle key already in ssh-agent");
+                term.success("Radicle key already in ssh-agent");
                 return Ok(());
             }
             let passphrase = if let Some(phrase) = profile::env::passphrase() {
                 phrase
             } else if options.stdin {
-                term::passphrase_stdin()?
+                term.passphrase_stdin()?
             } else {
                 term::io::passphrase(term::io::PassphraseValidator::new(profile.keystore.clone()))?
             };
             register(&mut agent, profile, passphrase)?;
 
-            term::success!(
+            term.success(format!(
                 "Radicle key added to {}",
-                display(&term::format::dim("ssh-agent"))
-            );
+                term.display(&term::format::dim("ssh-agent"))
+            ));
 
             return Ok(());
         }
@@ -217,12 +222,12 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    term::print(display(&term::format::dim(
+    term.println(term::format::dim(
         "Nothing to do, ssh-agent is not running.",
-    )));
-    term::print(display(&term::format::dim(
+    ));
+    term.println(term::format::dim(
         "You will be prompted for a passphrase when necessary.",
-    )));
+    ));
 
     Ok(())
 }

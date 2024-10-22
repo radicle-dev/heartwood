@@ -48,9 +48,9 @@ pub fn run(
     term::patch::show(&patch, patch_id, verbose, stored, workdir, profile)?;
 
     if diff {
-        term::blank();
+        term.blank();
         show_patch_diff(&patch, stored)?;
-        term::blank();
+        term.blank();
     }
     Ok(())
 }

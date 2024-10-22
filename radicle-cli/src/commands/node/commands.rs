@@ -39,9 +39,9 @@ pub fn db(profile: &Profile, args: Vec<OsString>) -> anyhow::Result<()> {
 
             let changed = db.change_count();
             if changed > 0 {
-                term::success!("{changed} row(s) affected.");
+                term::success!(term, "{changed} row(s) affected.");
             } else {
-                term::print(term::format::italic("No rows affected."));
+                term::println!(term, "{}", term::format::italic("No rows affected."));
             }
         }
     }

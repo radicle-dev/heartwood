@@ -497,7 +497,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let comment_id = issue.comment(body, reply_to, vec![], &signer)?;
 
             if options.quiet {
-                term::print(comment_id);
+                term::println!(term, "{comment_id}");
             } else {
                 let comment = issue.thread().comment(&comment_id).unwrap();
                 term::comment::widget(&comment_id, comment, &profile).print();
@@ -639,7 +639,7 @@ where
     C: issue::cache::Issues,
 {
     if cache.is_empty()? {
-        term::print(term::format::italic("Nothing to show."));
+        term::println!(term, "{}", term::format::italic("Nothing to show."));
         return Ok(());
     }
 

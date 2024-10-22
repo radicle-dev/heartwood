@@ -4,7 +4,7 @@ use anyhow::anyhow;
 
 use radicle::{prelude::*, Node};
 
-use crate::terminal as term;
+use crate::terminal::{self as term, Context as _};
 use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
@@ -72,8 +72,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 pub fn delete(rid: RepoId, node: &mut Node, profile: &Profile) -> anyhow::Result<()> {
+    let term = profile.terminal();
     if profile.unseed(rid, node)? {
-        term::success!("Seeding policy for {} removed", term::format::tertiary(rid));
+        term::success!(term, "Seeding policy for {} removed", term::format::tertiary(rid));
     }
     Ok(())
 }

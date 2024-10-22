@@ -46,7 +46,7 @@ pub fn run(
     }
 
     if all.is_empty() {
-        term::print(term::format::italic("Nothing to show."));
+        term::println!(term, "{}", term::format::italic("Nothing to show."));
         return Ok(());
     }
 
@@ -90,7 +90,7 @@ pub fn run(
 
     if !errors.is_empty() {
         for (title, id, error) in errors {
-            term::error(format!("patch {title:?} ({id}) failed to load: {error}",));
+            term::error!(term, "patch {title:?} ({id}) failed to load: {error}");
         }
     }
 
