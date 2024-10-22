@@ -67,7 +67,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     };
 
     rad::fork(rid, &signer, &storage)?;
-    term::success!("Forked repository {rid} for {}", profile.id());
+    term::success!(term, "Forked repository {rid} for {}", profile.id());
 
     Ok(())
 }

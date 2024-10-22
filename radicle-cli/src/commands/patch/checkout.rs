@@ -9,7 +9,7 @@ use radicle::patch::PatchId;
 use radicle::storage::git::Repository;
 use radicle::{git, rad, Profile};
 
-use crate::terminal as term;
+use crate::terminal::{self as term, Context as _};
 
 #[derive(Debug, Default)]
 pub struct Options {
@@ -38,6 +38,7 @@ pub fn run(
     profile: &Profile,
     opts: Options,
 ) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let patches = term::cob::patches(profile, stored)?;
     let patch = patches
         .get(patch_id)?
@@ -109,6 +110,7 @@ pub fn run(
             .name()?
             .ok_or_else(|| anyhow!("failed to create tracking branch: invalid name"))?;
         term::success!(
+            term,
             "Branch {} setup to track {}",
             term::format::highlight(patch_branch),
             term::format::tertiary(tracking)

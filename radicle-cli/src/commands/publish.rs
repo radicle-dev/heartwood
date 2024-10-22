@@ -112,7 +112,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     if !validations.is_empty() {
         for err in validations {
-            term::error(format!("validation error: {err}"));
+            term::error!(format!("validation error: {err}"));
         }
         anyhow::bail!("fatal: repository storage is corrupt");
     }
@@ -129,11 +129,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     );
 
     if !node.is_running() {
-        term::warning(format!(
+        term::warning!(term,
             "Your node is not running. Start your node with {} to announce your repository \
             to the network",
-            term::format::command("rad node start")
-        ));
+            &term::format::command("rad node start")
+        );
     }
 
     Ok(())

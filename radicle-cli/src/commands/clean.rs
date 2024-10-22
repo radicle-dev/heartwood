@@ -71,6 +71,7 @@ impl Args for Options {
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+    let term = ctx.terminal();
     let profile = ctx.profile()?;
     let storage = &profile.storage;
     let rid = options.rid;
@@ -83,9 +84,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     if !options.confirm || term::confirm(format!("Clean {rid}?")) {
         let cleaned = storage.clean(rid)?;
         for remote in cleaned {
-            term::info!("Removed {remote}");
+            term::println!(term, "Removed {remote}");
         }
-        term::success!("Successfully cleaned {rid}");
+        term::success!(term, "Successfully cleaned {rid}");
     }
 
     Ok(())

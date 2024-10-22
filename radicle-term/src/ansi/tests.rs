@@ -4,6 +4,7 @@ use super::display_with;
 use super::Color::*;
 use super::Paint;
 use crate::display;
+use crate::Constraint;
 use crate::Context;
 use crate::Display;
 
@@ -141,7 +142,7 @@ fn colors_enabled() {
 }
 
 fn to_non_ansi_string(display: &impl Display) -> String {
-    display_with(display, &Context { ansi: false }).to_string()
+    display_with(display, &Context { ansi: false, constraint: Constraint::UNBOUNDED }).to_string()
 }
 
 #[test]

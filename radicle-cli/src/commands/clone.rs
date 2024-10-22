@@ -7,7 +7,7 @@ use std::time;
 use anyhow::anyhow;
 use radicle::issue::cache::Issues as _;
 use radicle::patch::cache::Patches as _;
-use radicle_term::Element;
+use radicle_term::{Element, Terminal};
 use thiserror::Error;
 
 use radicle::git::raw;
@@ -133,6 +133,7 @@ impl Args for Options {
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+    let term = ctx.terminal();
     let profile = ctx.profile()?;
     let signer = term::signer(&profile)?;
     let mut node = radicle::Node::new(profile.socket());
@@ -151,6 +152,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         &mut node,
         &signer,
         &profile,
+        &term,
     )?;
     let delegates = doc
         .delegates()
@@ -175,11 +177,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     )?;
 
     term::success!(
+        term,
         "Repository successfully cloned under {}",
-        display(&term::format::dim(Path::new(".").join(path).display()))
+        &term::format::dim(Path::new(".").join(path).display())
     );
 
-    let mut info: term::Table<1, term::Line, &str> =
+    let mut info: term::Table<1, term::Line> =
         term::Table::new(term::TableOptions::bordered());
     info.push([term::format::bold(proj.name()).into()]);
     info.push([term::format::italic(proj.description()).into()]);
@@ -199,9 +202,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let location = options
         .directory
         .map_or(proj.name().to_string(), |loc| loc.display().to_string());
-    term::info!(
+    term::println!(
+        term,
         "Run {} to go to the repository directory.",
-        display(&term::format::command(format!("cd ./{location}"))),
+        &term::format::command(format!("cd ./{location}"))
     );
 
     Ok(())
@@ -239,14 +243,16 @@ pub fn clone<G: Signer>(
     node: &mut Node,
     signer: &G,
     profile: &Profile,
+    term: &Terminal,
 ) -> Result<(raw::Repository, storage::git::Repository, Doc, Project), CloneError> {
     let me = *signer.public_key();
 
     // Seed repository.
     if node.seed(id, scope)? {
         term::success!(
+            term,
             "Seeding policy updated for {} with scope '{scope}'",
-            display(&term::format::tertiary(id))
+            &term::format::tertiary(id)
         );
     }
 
@@ -274,14 +280,14 @@ pub fn clone<G: Signer>(
 
     if results.success().next().is_none() {
         if results.failed().next().is_some() {
-            term::warning("Fetching failed, local copy is potentially stale");
+            term::warning!(term, "Fetching failed, local copy is potentially stale");
         } else {
-            term::warning("No seeds found, local copy is potentially stale");
+            term::warning!(term, "No seeds found, local copy is potentially stale");
         }
     }
 
     // Checkout.
-    let spinner = term::spinner(format!(
+    let spinner = term::spinner(&term, format!(
         "Creating checkout in ./{}..",
         display(&term::format::tertiary(path.display()))
     ));

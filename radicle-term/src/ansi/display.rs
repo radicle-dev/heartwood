@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::Constraint;
+
 pub trait Display<C = Context> {
     fn fmt_with<'a>(&'a self, f: &mut fmt::Formatter<'_>, ctx: &'a C) -> fmt::Result;
 }
@@ -27,14 +29,17 @@ impl<T: fmt::Display, C> Display<C> for T {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Context {
     pub ansi: bool,
+    pub constraint: Constraint,
 }
 
 impl Default for Context {
     fn default() -> Self {
         Context {
             ansi: super::Paint::is_enabled(),
+            constraint: Constraint::default(),
         }
     }
 }
@@ -50,7 +55,7 @@ pub fn display_with<'a, T: Display<C>, C>(display: &'a T, ctx: &'a C) -> impl fm
 #[deprecated]
 pub fn display<'a, T: Display<Context> + Sized + 'a>(display: &'a T) -> impl fmt::Display + 'a {
     DisplayWrapper {
-        ctx: &Context { ansi: true },
+        ctx: &Context { ansi: true, constraint: Constraint::UNBOUNDED, },
         parent: display,
     }
 }

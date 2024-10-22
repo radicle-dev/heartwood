@@ -44,7 +44,7 @@ pub fn run(
     let signer = term::signer(profile)?;
     let revision = patch.update(message, base_oid, *head_oid, &signer)?;
 
-    term::print(revision);
+    term::println!(term, "{}", revision);
 
     Ok(())
 }

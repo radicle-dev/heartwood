@@ -227,7 +227,7 @@ impl<const W: usize, T: Cell> Table<W, T> {
 
 #[cfg(test)]
 mod test {
-    use crate::Element;
+    use crate::{Context, Element};
 
     use super::*;
     use pretty_assertions::assert_eq;
@@ -254,7 +254,7 @@ mod test {
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(Constraint::UNBOUNDED),
+            t.display(&Context::default()),
             [
                 "pineapple rosemary\n",
                 "apples    pears   \n"
@@ -285,7 +285,7 @@ mod test {
         assert_eq!(outer.rows, 7);
 
         assert_eq!(
-            t.display(Constraint::UNBOUNDED),
+            t.display(&Context::default()),
             r#"
 ╭─────────────────────────────────╮
 │ Country       Population   Code │
@@ -313,20 +313,20 @@ mod test {
         t.push(["CH", "Switzerland"]);
         t.push(["DE", "Germany"]);
 
-        let constrain = Constraint::max(Size {
+        let constraint = Constraint::max(Size {
             cols: 19,
             rows: usize::MAX,
         });
-        let outer = t.outer(constrain);
+        let outer = t.outer(constraint);
         assert_eq!(outer.cols, 19);
         assert_eq!(outer.rows, 7);
 
-        let inner = t.inner(constrain);
+        let inner = t.inner(constraint);
         assert_eq!(inner.cols, 17);
         assert_eq!(inner.rows, 5);
 
         assert_eq!(
-            t.display(constrain),
+            t.display(&Context { ansi: false, constraint }),
             r#"
 ╭─────────────────╮
 │ Code   Name     │
@@ -354,23 +354,23 @@ mod test {
         t.push(["CH", "Switzerland"]);
         t.push(["DE", "Germany"]);
 
-        let constrain = Constraint::new(
+        let constraint = Constraint::new(
             Size { cols: 26, rows: 0 },
             Size {
                 cols: 26,
                 rows: usize::MAX,
             },
         );
-        let outer = t.outer(constrain);
+        let outer = t.outer(constraint);
         assert_eq!(outer.cols, 26);
         assert_eq!(outer.rows, 7);
 
-        let inner = t.inner(constrain);
+        let inner = t.inner(constraint);
         assert_eq!(inner.cols, 24);
         assert_eq!(inner.rows, 5);
 
         assert_eq!(
-            t.display(constrain),
+            t.display(&Context { ansi: false, constraint }),
             r#"
 ╭────────────────────────╮
 │ Code   Name            │
@@ -387,7 +387,7 @@ mod test {
     #[test]
     fn test_table_truncate() {
         let mut t = Table::default();
-        let constrain = Constraint::new(
+        let constraint = Constraint::new(
             Size::MIN,
             Size {
                 cols: 16,
@@ -400,7 +400,7 @@ mod test {
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(constrain),
+            t.display(&Context { ansi: true, constraint }),
             [
                 "pineapple rosem…\n",
                 "apples    pears \n"
@@ -417,7 +417,7 @@ mod test {
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(Constraint::UNBOUNDED),
+            t.display(&Context::default()),
             [
                 "🍍pineapple __rosemary __sage   \n",
                 "__pears     🍎apples   🍌bananas\n"
@@ -430,7 +430,7 @@ mod test {
         let mut t = Table::new(TableOptions {
             ..TableOptions::default()
         });
-        let constrain = Constraint::max(Size {
+        let constraint = Constraint::max(Size {
             cols: 16,
             rows: usize::MAX,
         });
@@ -439,7 +439,7 @@ mod test {
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(constrain),
+            t.display(&Context { ansi: true, constraint }),
             [
                 "🍍pineapple __r…\n",
                 "__pears     🍎a…\n"

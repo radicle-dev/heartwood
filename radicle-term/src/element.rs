@@ -99,9 +99,9 @@ pub trait Element: fmt::Debug + Send + Sync {
 
     #[must_use]
     /// Return a string representation of this element.
-    fn display_xx(&self, constraints: Constraint, context: &Context) -> String {
+    fn display(&self, context: &Context) -> String {
         let mut out = String::new();
-        for line in self.render(constraints) {
+        for line in self.render(context.constraint) {
             out.extend(
                 line.into_iter()
                     .map(|l| display_with(&l, context).to_string()),

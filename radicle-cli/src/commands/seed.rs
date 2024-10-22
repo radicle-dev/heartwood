@@ -172,11 +172,12 @@ pub fn update(
     if let Ok(repo) = profile.storage.repository(rid) {
         if repo.identity_doc()?.is_public() {
             profile.add_inventory(rid, node)?;
-            term::success!("Inventory updated with {}", term::format::tertiary(rid));
+            term::success!(term, "Inventory updated with {}", term::format::tertiary(rid));
         }
     }
 
     term::success!(
+        term,
         "Seeding policy {outcome} for {} with scope '{scope}'",
         term::format::tertiary(rid),
     );
@@ -216,7 +217,7 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
     }
 
     if t.is_empty() {
-        term::print(term::format::dim("No seeding policies to show."));
+        term.println(term::format::dim("No seeding policies to show."));
     } else {
         t.print();
     }

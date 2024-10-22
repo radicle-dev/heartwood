@@ -45,10 +45,11 @@ impl Args for Options {
 }
 
 pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+    let term = ctx.terminal();
     match ctx.profile() {
         Ok(profile) => debug(Some(&profile)),
         Err(e) => {
-            eprintln!("ERROR: Could not load Radicle profile: {e}");
+            term.eprintln(format!("ERROR: Could not load Radicle profile: {e}"));
             debug(None)
         }
     }

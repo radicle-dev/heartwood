@@ -11,9 +11,10 @@ use radicle::prelude::*;
 use radicle::storage::git::transport;
 
 use crate::project;
+use crate::terminal::Context as _;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::display;
+use crate::terminal::{success, error};
 
 pub const HELP: Help = Help {
     name: "checkout",
@@ -82,6 +83,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
+    let term = profile.terminal();
     let id = options.id;
     let storage = &profile.storage;
     let remote = options.remote.unwrap_or(profile.did());
@@ -98,19 +100,19 @@ fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
         anyhow::bail!("the local path {:?} already exists", path.as_path());
     }
 
-    let mut spinner = term::spinner("Performing checkout...");
+    let mut spinner = term::spinner(&term, "Performing checkout...");
     let repo = match radicle::rad::checkout(options.id, &remote, path.clone(), &storage) {
         Ok(repo) => repo,
         Err(err) => {
             spinner.failed();
-            term::blank();
+            term.blank();
 
             return Err(err.into());
         }
     };
     spinner.message(format!(
         "Repository checkout successful under ./{}",
-        display(&term::format::highlight(
+        term.display(&term::format::highlight(
             path.file_name().unwrap_or_default().to_string_lossy()
         ))
     ));
@@ -149,7 +151,8 @@ pub fn setup_remotes(
 
     for remote_id in remotes {
         if let Err(e) = setup_remote(&setup, remote_id, None, &aliases) {
-            term::warning(format!("Failed to setup remote for {remote_id}: {e}").as_str());
+            // TODO: Test.
+            term::warning!(profile.terminal(), "Failed to setup remote for {remote_id}: {e}");
         }
     }
     Ok(())
@@ -175,16 +178,16 @@ pub fn setup_remote(
     };
     let (remote, branch) = setup.run(&remote_name, *remote_id)?;
 
-    term::success!(
+    success!(term,
         "Remote {} added",
-        display(&term::format::tertiary(remote.name))
+        &term::format::tertiary(remote.name)
     );
 
     if let Some(branch) = branch {
-        term::success!(
+        success!(term,
             "Remote-tracking branch {} created for {}",
-            display(&term::format::tertiary(branch)),
-            display(&term::format::node(remote_id))
+            &term::format::tertiary(branch),
+            &term::format::node(remote_id)
         );
     }
     Ok(remote_name)

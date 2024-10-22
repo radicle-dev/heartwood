@@ -16,6 +16,7 @@ use radicle::prelude::{Profile, RepoId};
 use radicle::storage::{BranchName, ReadRepository, ReadStorage};
 use radicle::{cob, git, Storage};
 
+use radicle_term::Terminal;
 use term::Element as _;
 
 use crate::terminal as term;
@@ -194,7 +195,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             storage,
             &profile,
         ),
-        Operation::Clear => clear(mode, &mut notifs),
+        Operation::Clear => clear(mode, &mut notifs, &ctx.terminal()),
         Operation::Show => show(mode, &mut notifs, storage, &profile),
     }
 }
@@ -263,7 +264,7 @@ fn list_repo<'a, R: ReadStorage>(
 where
     <R as ReadStorage>::Repository: cob::Store,
 {
-    let mut table: radicle_term::Table<8, radicle_term::Label, &str> =
+    let mut table: radicle_term::Table<8, radicle_term::Label> =
         term::Table::new(term::TableOptions {
             spacing: 3,
             ..term::TableOptions::default()
@@ -492,7 +493,7 @@ impl NotificationRow {
     }
 }
 
-fn clear(mode: Mode, notifs: &mut notifications::StoreWriter) -> anyhow::Result<()> {
+fn clear(mode: Mode, notifs: &mut notifications::StoreWriter, term: &Terminal) -> anyhow::Result<()> {
     let cleared = match mode {
         Mode::All => notifs.clear_all()?,
         Mode::ById(ids) => notifs.clear(&ids)?,
@@ -510,9 +511,9 @@ fn clear(mode: Mode, notifs: &mut notifications::StoreWriter) -> anyhow::Result<
         }
     };
     if cleared > 0 {
-        term::success!("Cleared {cleared} item(s) from your inbox");
+        term::success!(term, "Cleared {cleared} item(s) from your inbox");
     } else {
-        term::print_display(&term::format::italic("Your inbox is empty."));
+        term.println(term::format::italic("Your inbox is empty."));
     }
     Ok(())
 }

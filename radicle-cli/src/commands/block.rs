@@ -90,7 +90,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Target::Repo(rid) => policies.set_seed_policy(&rid, Policy::Block)?,
     };
     if updated {
-        term::success!("Policy for {} set to 'block'", options.target);
+        term::success!(ctx.terminal(), "Policy for {} set to 'block'", options.target);
     }
     Ok(())
 }

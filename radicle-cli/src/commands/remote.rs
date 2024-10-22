@@ -211,7 +211,7 @@ pub fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
 
                 list::print_tracked(tracked.iter());
                 if include_blank_line {
-                    term::blank();
+                    term.blank();
                 }
                 list::print_untracked(untracked.iter());
             }

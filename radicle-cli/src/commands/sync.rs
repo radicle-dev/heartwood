@@ -292,11 +292,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 let failed = results.failed().count();
 
                 if results.is_empty() {
-                    term::error(format!("no seeds found for {rid}"));
+                    term::error!(term, "no seeds found for {rid}");
                 } else if success == 0 {
-                    term::error(format!("repository fetch from {failed} seed(s) failed"));
+                    term::error!(term, "repository fetch from {failed} seed(s) failed");
                 } else {
-                    term::success!("Fetched repository from {success} seed(s)");
+                    term::success!(term, "Fetched repository from {success} seed(s)");
                 }
             }
             if [SyncDirection::Announce, SyncDirection::Both].contains(&direction) {
@@ -405,7 +405,7 @@ fn announce_refs(
     };
     if let Err(e) = repo.remote(&profile.public_key) {
         if e.is_not_found() {
-            term::print(term::format::italic(
+            term::println!(term, "{}", term::format::italic(
                 "Nothing to announce, you don't have a fork of this repository.",
             ));
             return Ok(());

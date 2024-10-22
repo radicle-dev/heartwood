@@ -8,6 +8,7 @@ use radicle::crypto::Signer;
 use radicle::node::Handle;
 use radicle::storage::{WriteRepository, WriteStorage};
 use radicle::{cob, Node};
+use radicle_term::Terminal;
 
 use crate::git::Rev;
 use crate::terminal as term;
@@ -232,7 +233,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             start(&job_id, &run_id, info_url, &mut ci_store, &repo, &signer)?;
         }
         Operation::List => {
-            list(&ci_store)?;
+            list(&ci_store, &ctx.terminal())?;
         }
         Operation::Show { job_id } => {
             show(&job_id, &ci_store, &repo)?;
@@ -289,9 +290,9 @@ fn start<R: WriteRepository + cob::Store, G: Signer>(
 }
 
 // TODO: This should use the COB cache for performance.
-fn list<R: WriteRepository + cob::Store>(store: &JobStore<R>) -> anyhow::Result<()> {
+fn list<R: WriteRepository + cob::Store>(store: &JobStore<R>, term: &Terminal) -> anyhow::Result<()> {
     if store.is_empty()? {
-        term::print(term::format::italic("Nothing to show."));
+        term.println(term::format::italic("Nothing to show."));
         return Ok(());
     }
 
@@ -323,7 +324,7 @@ fn list<R: WriteRepository + cob::Store>(store: &JobStore<R>) -> anyhow::Result<
     }
 
     if table.is_empty() {
-        term::print(term::format::dim("No jobs to show."));
+        term.println(term::format::dim("No jobs to show."));
     } else {
         table.print();
     }

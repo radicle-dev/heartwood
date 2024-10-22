@@ -132,6 +132,7 @@ impl Args for Options {
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+    let term = ctx.terminal();
     let rid = match options.rid {
         Some(rid) => rid,
         None => radicle::rad::cwd()
@@ -139,12 +140,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             .context("Current directory is not a Radicle repository")?,
     };
 
-    let display_ctx: &term::ansi::Context = &Default::default();
-
     if options.target == Target::RepoId {
-        term::info!(
+        term::println!(
+            term,
             "{}",
-            term::format::highlight(rid.urn()).display(display_ctx)
+            term::format::highlight(rid.urn())
         );
         return Ok(());
     }
@@ -170,10 +170,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 let remote = remote?;
                 let refs = RefsAt::new(&repo, remote)?;
 
-                println!(
+                term::println!(
+                    term,
                     "{:<48} {}",
-                    term::format::tertiary(remote.to_human()).display(display_ctx),
-                    term::format::secondary(refs.at).display(display_ctx)
+                    term::format::tertiary(remote.to_human()),
+                    term::format::secondary(refs.at)
                 );
             }
         }
@@ -182,18 +183,20 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let seed = policies.seed_policy(&rid)?;
             match seed.policy {
                 SeedingPolicy::Allow { scope } => {
-                    println!(
+                    term::println!(
+                        term,
                         "Repository {} is {} with scope {}",
-                        term::format::tertiary(&rid).display(display_ctx),
-                        term::format::positive("being seeded").display(display_ctx),
-                        term::format::dim(format!("`{scope}`")).display(display_ctx)
+                        term::format::tertiary(&rid),
+                        term::format::positive("being seeded"),
+                        term::format::dim(format!("`{scope}`"))
                     );
                 }
                 SeedingPolicy::Block => {
-                    println!(
+                    term::println!(
+                        term, 
                         "Repository {} is {}",
-                        term::format::tertiary(&rid).display(display_ctx),
-                        term::format::negative("not being seeded").display(display_ctx),
+                        term::format::tertiary(&rid),
+                        term::format::negative("not being seeded")
                     );
                 }
             }
@@ -203,21 +206,23 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let aliases = profile.aliases();
             for did in doc.delegates().iter() {
                 if let Some(alias) = aliases.alias(did) {
-                    println!(
+                    term::println!(
+                        term,
                         "{} {}",
-                        term::format::tertiary(&did).display(display_ctx),
-                        term::format::parens(term::format::dim(alias)).display(display_ctx)
+                        term::format::tertiary(&did),
+                        term::format::parens(term::format::dim(alias))
                     );
                 } else {
-                    println!("{}", term::format::tertiary(&did).display(display_ctx));
+                    term::println!(term, "{}", term::format::tertiary(&did));
                 }
             }
         }
         Target::Visibility => {
             let (_, doc) = repo(rid, storage)?;
-            println!(
+            term::println!(
+                term,
                 "{}",
-                term::format::visibility(doc.visibility()).display(display_ctx)
+                term::format::visibility(doc.visibility())
             );
         }
         Target::History => {
@@ -251,10 +256,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .with_timezone(&timezone)
                 .to_rfc2822();
 
-                println!(
+                term::println!(
+                    term,
                     "{} {}",
-                    term::format::yellow("commit").display(display_ctx),
-                    term::format::yellow(oid).display(display_ctx),
+                    term::format::yellow("commit"),
+                    term::format::yellow(oid),
                 );
                 if let Ok(parent) = tip.parent_id(0) {
                     println!("parent {parent}");
@@ -268,13 +274,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                         if line.is_empty() {
                             println!();
                         } else {
-                            term::indented(term::format::dim(line).display(display_ctx));
+                            term.indented(term::format::dim(line));
                         }
                     }
-                    term::blank();
+                    term.blank();
                 }
                 for line in json::to_pretty(&doc, Path::new("radicle.json"))? {
-                    println!(" {}", line.display(display_ctx));
+                    term::println!(term, " {}", line);
                 }
 
                 println!();

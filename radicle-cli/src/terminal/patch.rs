@@ -6,6 +6,7 @@ use std::fmt::Write;
 use std::io;
 use std::io::IsTerminal as _;
 
+use radicle_term::Terminal;
 use thiserror::Error;
 
 use radicle::cob;
@@ -327,10 +328,12 @@ pub fn print_commits_ahead_behind(
     repo: &git::raw::Repository,
     left: git::raw::Oid,
     right: git::raw::Oid,
+    term: Terminal,
 ) -> anyhow::Result<()> {
     let (ahead, behind) = repo.graph_ahead_behind(left, right)?;
 
-    term::info!(
+    term::println!(
+        term,
         "{} commit(s) ahead, {} commit(s) behind",
         term::format::positive(ahead),
         if behind > 0 {

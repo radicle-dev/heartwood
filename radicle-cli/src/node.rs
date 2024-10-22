@@ -184,7 +184,8 @@ fn announce_<R: ReadRepository>(
         // All seeds.
         let all = node.seeds(rid)?;
         if all.is_empty() {
-            term::info!(&mut reporting.completion; "No seeds found for {rid}.");
+            info!(std::io::stdout(), "test");
+            term::println!(&mut reporting.completion; "No seeds found for {rid}.");
             return Ok(AnnounceResult::default());
         }
         // Seeds in sync with us.
@@ -224,7 +225,7 @@ fn announce_<R: ReadRepository>(
     };
 
     if unsynced.is_empty() {
-        term::info!(&mut reporting.completion; "No seeds to announce to for {rid}. (see `rad sync status`)");
+        term::println!(&mut reporting.completion; "No seeds to announce to for {rid}. (see `rad sync status`)");
         return Ok(AnnounceResult::default());
     }
     // Cap the replicas to the maximum achievable.

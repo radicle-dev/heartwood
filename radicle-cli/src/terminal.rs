@@ -27,6 +27,10 @@ pub trait Context {
     fn profile(&self) -> Result<Profile, anyhow::Error>;
     /// Return the Radicle home.
     fn home(&self) -> Result<Home, std::io::Error>;
+
+    fn terminal(&self) -> Terminal {
+        Terminal::default()
+    }
 }
 
 impl Context for Profile {
@@ -42,30 +46,29 @@ impl Context for Profile {
 /// A command that can be run.
 pub trait Command<A: Args, C: Context> {
     /// Run the command, given arguments and a context.
-    fn run(self, term: &terminal::Terminal, args: A, context: C) -> anyhow::Result<()>;
+    fn run(self, args: A, context: C) -> anyhow::Result<()>;
 }
 
 impl<F, A: Args, C: Context> Command<A, C> for F
 where
-    F: FnOnce(&terminal::Terminal, A, C) -> anyhow::Result<()>,
+    F: FnOnce(A, C) -> anyhow::Result<()>,
 {
-    fn run(self, terminal: &terminal::Terminal, args: A, context: C) -> anyhow::Result<()> {
-        self(terminal, args, context)
+    fn run(self, args: A, context: C) -> anyhow::Result<()> {
+        self(args, context)
     }
 }
 
-pub fn run_command<A, C>(term: &terminal::Terminal, help: Help, cmd: C) -> !
+pub fn run_command<A, C>(help: Help, cmd: C) -> !
 where
     A: Args,
     C: Command<A, DefaultContext>,
 {
     let args = std::env::args_os().skip(1).collect();
 
-    run_command_args(term, help, cmd, args)
+    run_command_args(help, cmd, args)
 }
 
 pub fn run_command_args<A, C>(
-    term: &terminal::Terminal,
     help: Help,
     cmd: C,
     args: Vec<OsString>,
@@ -79,7 +82,7 @@ where
     let options = match A::from_args(args) {
         Ok((opts, unparsed)) => {
             if let Err(err) = args::finish(unparsed) {
-                term::error(err);
+                term::error!(term, "{err}");
                 process::exit(1);
             }
             opts
@@ -118,7 +121,7 @@ where
         }
     };
 
-    match cmd.run(term, options, DefaultContext) {
+    match cmd.run(options, DefaultContext) {
         Ok(()) => process::exit(0),
         Err(err) => {
             terminal::fail(help.name, &err);
