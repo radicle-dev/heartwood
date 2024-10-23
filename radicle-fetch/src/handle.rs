@@ -4,7 +4,7 @@ use std::sync::Arc;
 use bstr::BString;
 use radicle::crypto::PublicKey;
 use radicle::git::Oid;
-use radicle::identity::{DocError, Doc};
+use radicle::identity::{Doc, DocError};
 use radicle::storage::git::Repository;
 use radicle::storage::ReadRepository;
 

@@ -4,7 +4,7 @@ use std::time::Instant;
 use gix_protocol::handshake;
 use radicle::crypto::PublicKey;
 use radicle::git::{Oid, Qualified};
-use radicle::identity::{Did, DocError, Doc};
+use radicle::identity::{Did, Doc, DocError};
 
 use radicle::prelude::Verified;
 use radicle::storage;

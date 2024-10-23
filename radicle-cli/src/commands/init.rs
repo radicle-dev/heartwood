@@ -14,7 +14,7 @@ use radicle::crypto::ssh;
 use radicle::explorer::ExplorerUrl;
 use radicle::git::RefString;
 use radicle::identity::project::ProjectName;
-use radicle::identity::{RepoId, Doc, Visibility};
+use radicle::identity::{Doc, RepoId, Visibility};
 use radicle::node::events::UploadPack;
 use radicle::node::policy::Scope;
 use radicle::node::{Event, Handle, NodeId, DEFAULT_SUBSCRIBE_TIMEOUT};

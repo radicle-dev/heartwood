@@ -236,15 +236,7 @@ pub fn clone<G: Signer>(
     node: &mut Node,
     signer: &G,
     storage: &Storage,
-) -> Result<
-    (
-        raw::Repository,
-        storage::git::Repository,
-        Doc,
-        Project,
-    ),
-    CloneError,
-> {
+) -> Result<(raw::Repository, storage::git::Repository, Doc, Project), CloneError> {
     let me = *signer.public_key();
 
     // Seed repository.
