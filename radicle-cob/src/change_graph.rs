@@ -1,7 +1,7 @@
 // Copyright © 2021 The Radicle Link Contributors
 
-use std::collections::BTreeSet;
 use std::ops::ControlFlow;
+use std::{cmp::Ordering, collections::BTreeSet};
 
 use git_ext::Oid;
 use radicle_dag::Dag;
@@ -113,20 +113,24 @@ impl ChangeGraph {
         let manifest = root.manifest.clone();
         let root = root.id;
 
-        self.graph.prune(&children, |_, entry, siblings| {
-            // Check the entry signatures are valid.
-            if !entry.valid_signatures() {
-                return ControlFlow::Break(());
-            }
-            // Apply the entry to the state, and if there's an error, prune that branch.
-            if object
-                .apply(entry, siblings.map(|(k, n)| (k, &n.value)), store)
-                .is_err()
-            {
-                return ControlFlow::Break(());
-            }
-            ControlFlow::Continue(())
-        });
+        self.graph.prune_by(
+            &children,
+            |_, entry, siblings| {
+                // Check the entry signatures are valid.
+                if !entry.valid_signatures() {
+                    return ControlFlow::Break(());
+                }
+                // Apply the entry to the state, and if there's an error, prune that branch.
+                if object
+                    .apply(entry, siblings.map(|(k, n)| (k, &n.value)), store)
+                    .is_err()
+                {
+                    return ControlFlow::Break(());
+                }
+                ControlFlow::Continue(())
+            },
+            Self::chronological,
+        );
 
         Ok(CollaborativeObject {
             manifest,
@@ -143,6 +147,10 @@ impl ChangeGraph {
 
     pub(crate) fn number_of_nodes(&self) -> usize {
         self.graph.len()
+    }
+
+    fn chronological(x: (&Oid, &Entry), y: (&Oid, &Entry)) -> Ordering {
+        x.1.timestamp.cmp(&y.1.timestamp).then(x.0.cmp(y.0))
     }
 }
 

@@ -201,7 +201,7 @@ impl<K: Ord + Copy, V> Dag<K, V> {
     /// To continue traversing a branch, return [`ControlFlow::Continue`] from the
     /// filter function. To stop traversal of a branch and prune it,
     /// return [`ControlFlow::Break`].
-    pub fn prune<F>(&mut self, roots: &[K], mut filter: F)
+    pub fn prune<F>(&mut self, roots: &[K], filter: F)
     where
         F: for<'r> FnMut(
             &'r K,
@@ -209,11 +209,30 @@ impl<K: Ord + Copy, V> Dag<K, V> {
             Box<dyn Iterator<Item = (&'r K, &'r Node<K, V>)> + 'r>,
         ) -> ControlFlow<()>,
     {
+        self.prune_by(roots, filter, |(k1, _), (k2, _)| k1.cmp(k2))
+    }
+
+    /// Fold over the graph in the order provided by `order`, pruning branches
+    /// along the way.
+    /// This is a depth-first traversal.
+    ///
+    /// To continue traversing a branch, return [`ControlFlow::Continue`] from the
+    /// filter function. To stop traversal of a branch and prune it,
+    /// return [`ControlFlow::Break`].
+    pub fn prune_by<F, P>(&mut self, roots: &[K], mut filter: F, ordering: P)
+    where
+        F: for<'r> FnMut(
+            &'r K,
+            &'r Node<K, V>,
+            Box<dyn Iterator<Item = (&'r K, &'r Node<K, V>)> + 'r>,
+        ) -> ControlFlow<()>,
+        P: Fn((&K, &V), (&K, &V)) -> Ordering,
+    {
         let mut visited = BTreeSet::new();
         let mut result = VecDeque::new();
 
         for root in roots {
-            self.visit(root, &mut visited, &mut result);
+            self.visit_by(root, &mut visited, &mut result, &ordering);
         }
 
         for next in result {
@@ -363,6 +382,32 @@ impl<K: Ord + Copy, V> Dag<K, V> {
             if let Some(node) = self.graph.get(key) {
                 for dependent in node.dependents.iter().rev() {
                     self.visit(dependent, visited, order);
+                }
+            }
+            // Add the node to the topological order.
+            order.push_front(*key);
+        }
+    }
+
+    /// Add nodes recursively to the provided ordering, starting from the given node.
+    fn visit_by(
+        &self,
+        key: &K,
+        visited: &mut BTreeSet<K>,
+        order: &mut VecDeque<K>,
+        ordering: &impl Fn((&K, &V), (&K, &V)) -> Ordering,
+    ) {
+        if visited.insert(*key) {
+            // Recursively visit all of the node's dependents.
+            if let Some(node) = self.graph.get(key) {
+                let mut dependents: Vec<&Node<K, V>> = node
+                    .dependents
+                    .iter()
+                    .filter_map(|k| self.get(k))
+                    .collect::<Vec<_>>();
+                dependents.sort_by(|x, y| ordering((&x.key, &x.value), (&y.key, &y.value)));
+                for dependent in dependents.iter().rev() {
+                    self.visit_by(&dependent.key, visited, order, ordering);
                 }
             }
             // Add the node to the topological order.
@@ -914,5 +959,65 @@ mod tests {
             ControlFlow::Continue(())
         });
         assert_eq!(order, dag.sorted());
+    }
+
+    #[test]
+    fn test_prune_by_sorting() {
+        let mut dag = Dag::new();
+
+        dag.node("R", 0);
+        dag.node("A1", 1);
+        dag.node("A2", 2);
+        dag.node("A3", 3);
+        dag.node("B1", 1);
+        dag.node("B2", 2);
+        dag.node("B3", 3);
+        dag.node("C1", 1);
+
+        dag.dependency("A1", "R");
+        dag.dependency("A2", "R");
+        dag.dependency("A3", "R");
+
+        dag.dependency("B1", "A1");
+        dag.dependency("B2", "A1");
+        dag.dependency("B3", "A2");
+        dag.dependency("B3", "A3");
+
+        dag.dependency("C1", "B1");
+        dag.dependency("C1", "B2");
+        dag.dependency("C1", "B3");
+
+        let mut order = Vec::new();
+        dag.prune_by(
+            &["R"],
+            |key, _, _| {
+                order.push(*key);
+                ControlFlow::Continue(())
+            },
+            |(a, _), (b, _)| a.cmp(b),
+        );
+        assert_eq!(order, vec!["R", "A1", "B1", "B2", "A2", "A3", "B3", "C1"]);
+
+        let mut order = Vec::new();
+        dag.prune_by(
+            &["R"],
+            |key, _, _| {
+                order.push(*key);
+                ControlFlow::Continue(())
+            },
+            |(a, _), (b, _)| a.cmp(b).reverse(),
+        );
+        assert_eq!(order, vec!["R", "A3", "A2", "B3", "A1", "B2", "B1", "C1"]);
+
+        let mut order = Vec::new();
+        dag.prune_by(
+            &["R"],
+            |key, _, _| {
+                order.push(*key);
+                ControlFlow::Continue(())
+            },
+            |(_, a), (_, b)| a.cmp(b).reverse(),
+        );
+        assert_eq!(order, vec!["R", "A3", "A2", "B3", "A1", "B2", "B1", "C1"]);
     }
 }
