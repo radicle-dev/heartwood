@@ -515,6 +515,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let id = id.resolve(&repo.backend)?;
             let mut issue = issues.get_mut(&id)?;
             issue.lifecycle(state, &signer)?;
+            if !options.quiet {
+                let success =
+                    |status| term::success!("Issue {} is now {status}", term::format::cob(&id));
+                match state {
+                    State::Closed { reason } => match reason {
+                        CloseReason::Other => success("closed"),
+                        CloseReason::Solved => success("solved"),
+                    },
+                    State::Open => success("open"),
+                };
+            }
         }
         Operation::React {
             id,

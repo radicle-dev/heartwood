@@ -123,3 +123,12 @@ To publish our new state to the network, we simply push:
 ```
 $ git push
 ```
+
+Finally, we will close the issue that was opened for this
+patch, marking it as solved:
+
+```
+$ rad issue state 9037b7a --solved
+✓ Issue 9037b7a is now solved
+✓ Synced with 1 node(s)
+```
