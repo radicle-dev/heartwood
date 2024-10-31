@@ -781,8 +781,18 @@ impl ReadRepository for Repository {
     }
 
     fn identity_root_of(&self, remote: &RemoteId) -> Result<Oid, RepositoryError> {
-        self.reference_oid(remote, &git::refs::storage::IDENTITY_ROOT)
-            .map_err(RepositoryError::from)
+        // Remotes that run newer clients will have this reference set. For older clients,
+        // compute the root OID based on the identity head.
+        if let Ok(root) = self.reference_oid(remote, &git::refs::storage::IDENTITY_ROOT) {
+            return Ok(root);
+        }
+        let oid = self.identity_head_of(remote)?;
+        let root = self
+            .revwalk(oid)?
+            .last()
+            .ok_or(RepositoryError::Doc(DocError::Missing))??;
+
+        Ok(root.into())
     }
 
     fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {
