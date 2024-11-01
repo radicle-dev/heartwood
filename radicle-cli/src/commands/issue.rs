@@ -47,7 +47,7 @@ Usage
     rad issue comment <issue-id> [--message <message>] [--reply-to <comment-id>] [<option>...]
     rad issue show <issue-id> [<option>...]
     rad issue state <issue-id> [--closed | --open | --solved] [<option>...]
-    rad issue cache [<issue-id>] [<option>...]
+    rad issue cache [<issue-id>] [--storage] [<option>...]
 
 Assign options
 
@@ -150,6 +150,7 @@ pub enum Operation {
     },
     Cache {
         id: Option<Rev>,
+        storage: bool,
     },
 }
 
@@ -197,6 +198,7 @@ impl Args for Options {
         let mut assign_opts = AssignOptions::default();
         let mut label_opts = LabelOptions::default();
         let mut repo = None;
+        let mut cache_storage = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -333,6 +335,11 @@ impl Args for Options {
                     label_opts.delete.insert(label);
                 }
 
+                // Cache options.
+                Long("storage") if matches!(op, Some(OperationName::Cache)) => {
+                    cache_storage = true;
+                }
+
                 // Options.
                 Long("no-announce") => {
                     announce = false;
@@ -415,7 +422,10 @@ impl Args for Options {
                 opts: label_opts,
             },
             OperationName::List => Operation::List { assigned, state },
-            OperationName::Cache => Operation::Cache { id },
+            OperationName::Cache => Operation::Cache {
+                id,
+                storage: cache_storage,
+            },
         };
 
         Ok((
@@ -591,9 +601,19 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let id = id.resolve(&repo.backend)?;
             issues.remove(&id, &signer)?;
         }
-        Operation::Cache { id } => {
-            let id = id.map(|id| id.resolve(&repo.backend)).transpose()?;
-            cache::run(id, &repo, &profile)?;
+        Operation::Cache { id, storage } => {
+            let mode = if storage {
+                cache::CacheMode::Storage
+            } else {
+                let issue_id = id.map(|id| id.resolve(&repo.backend)).transpose()?;
+                issue_id.map_or(cache::CacheMode::Repository { repository: &repo }, |id| {
+                    cache::CacheMode::Issue {
+                        id,
+                        repository: &repo,
+                    }
+                })
+            };
+            cache::run(mode, &profile)?;
         }
     }
 
