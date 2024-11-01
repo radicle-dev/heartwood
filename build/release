@@ -1,0 +1,39 @@
+#!/bin/sh
+set -e
+
+if [ $# -ne 1 ]; then
+  echo "Usage: $0 <version-number>"
+  exit 1
+fi
+
+SSH_LOGIN=${SSH_LOGIN:-release}
+SSH_ADDRESS=${SSH_ADDRESS:-$SSH_LOGIN@files.radicle.xyz}
+SSH_KEY="$(rad path)/keys/radicle"
+
+main() {
+  version="$1"
+
+  if [ -z "$version" ]; then
+    echo "fatal: empty version number" >&2 ; exit 1
+  fi
+
+  printf "Releasing Radicle %s? [y/N] " "$version"
+  read confirmation
+
+  case "$confirmation" in
+    [Yy]*)
+      if git describe --exact-match --match='v*' 2>/dev/null; then
+        echo "Creating 'latest' symlink.."
+        ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf /mnt/radicle/files/releases/$version /mnt/radicle/files/releases/latest
+      else
+        echo "Release tag must start with 'v'; operation aborted."
+        exit 1
+      fi ;;
+    *)
+      echo "Operation aborted."
+      exit 1 ;;
+  esac
+  echo "Done."
+}
+
+main "$@"

@@ -31,13 +31,7 @@ main() {
     ssh -i $SSH_KEY $SSH_ADDRESS ln -snf $archive.sha256 $symlink.sha256
   done
 
-  if git describe --exact-match --match='v*' 2>/dev/null; then
-    echo "Creating 'latest' symlink.."
-    ssh -i $SSH_KEY $SSH_ADDRESS ln -snf /mnt/radicle/files/releases/$version /mnt/radicle/files/releases/latest
-  else
-    echo "Skipping 'latest' symlink creation for development build."
-  fi
-
+  # TODO(cloudhead): Don't pass `--tags` when we have canonical refs.
   echo "Pushing tags.."
   git push rad --tags
 
