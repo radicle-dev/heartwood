@@ -73,7 +73,7 @@ Usage
     rad patch edit <patch-id> [<option>...]
     rad patch set <patch-id> [<option>...]
     rad patch comment <patch-id | revision-id> [<option>...]
-    rad patch cache [<patch-id>] [<option>...]
+    rad patch cache [<patch-id>] [--all-repos] [<option>...]
 
 Show options
 
@@ -279,6 +279,7 @@ pub enum Operation {
     },
     Cache {
         patch_id: Option<Rev>,
+        all_repos: bool,
     },
 }
 
@@ -345,6 +346,7 @@ impl Args for Options {
         let mut review_op = review::Operation::default();
         let mut base_id = None;
         let mut repo = None;
+        let mut all_repos = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -565,6 +567,11 @@ impl Args for Options {
                     authors.push(term::args::did(&parser.value()?)?);
                 }
 
+                // Cache options.
+                Long("all-repos") if op == Some(OperationName::Cache) => {
+                    all_repos = true;
+                }
+
                 // Common.
                 Long("verbose") | Short('v') => {
                     verbose = true;
@@ -711,7 +718,10 @@ impl Args for Options {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
                 remote,
             },
-            OperationName::Cache => Operation::Cache { patch_id },
+            OperationName::Cache => Operation::Cache {
+                patch_id,
+                all_repos,
+            },
         };
 
         Ok((
@@ -934,11 +944,27 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 true,
             )?;
         }
-        Operation::Cache { patch_id } => {
-            let patch_id = patch_id
-                .map(|id| id.resolve(&repository.backend))
-                .transpose()?;
-            cache::run(patch_id, &repository, &profile)?;
+        Operation::Cache {
+            patch_id,
+            all_repos,
+        } => {
+            let mode = if all_repos {
+                cache::CacheMode::Storage
+            } else {
+                let patch_id = patch_id
+                    .map(|id| id.resolve(&repository.backend))
+                    .transpose()?;
+                patch_id.map_or(
+                    cache::CacheMode::Repository {
+                        repository: &repository,
+                    },
+                    |id| cache::CacheMode::Patch {
+                        id,
+                        repository: &repository,
+                    },
+                )
+            };
+            cache::run(mode, &profile)?;
         }
     }
 
