@@ -197,6 +197,18 @@ This means your branch is now associated with the newly opened patch, and any
 push from this branch will result in the patch being updated. See the next
 section on updating a patch for more information.
 
+****
+*Note on draft patches*
+
+To create a draft patch, we can use the option *-o patch.draft*.
+
+If we want to turn an open patch to a draft after the fact we can use the
+*ready* subcommand
+
+    $ rad patch ready  --undo
+
+****
+
 === Options
 
 When opening a patch, various options can be specified using git push options.
