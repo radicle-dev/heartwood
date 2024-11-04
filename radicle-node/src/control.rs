@@ -131,6 +131,11 @@ where
 
             CommandResult::Okay(sessions).to_writer(writer)?;
         }
+        Command::Session { nid } => {
+            let session = handle.session(nid)?;
+
+            CommandResult::Okay(session).to_writer(writer)?;
+        }
         Command::Seed { rid, scope } => match handle.seed(rid, scope) {
             Ok(result) => {
                 CommandResult::updated(result).to_writer(writer)?;

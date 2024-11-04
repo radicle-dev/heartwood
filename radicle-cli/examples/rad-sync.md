@@ -111,10 +111,10 @@ $ rad sync rad:z39mP9rQAaGmERfUMPULfPUi473tY
 ✗ Error: nothing to announce, repository rad:z39mP9rQAaGmERfUMPULfPUi473tY is not available locally
 ```
 
-Or when trying to fetch from a seed you aren't connected to, using `--seed`:
+Or when trying to fetch from an unknown seed, using `--seed`:
 ```
 $ rad sync --fetch rad:z39mP9rQAaGmERfUMPULfPUi473tY --seed z6MkjM3HpqNVV4ZsL5s3RAd8ThVG3VG98YsDCjHBNnGMq5o7
-✗ Fetching rad:z39mP9rQAaGmERfUMPULfPUi473tY from z6MkjM3…nGMq5o7.. error: peer is not connected; cannot initiate fetch
+! Warning: no addresses found for z6MkjM3HpqNVV4ZsL5s3RAd8ThVG3VG98YsDCjHBNnGMq5o7, skipping..
 ✗ Error: repository fetch from 1 seed(s) failed
 ```
 

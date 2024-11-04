@@ -144,6 +144,21 @@ impl fmt::Display for Session {
     }
 }
 
+impl From<&Session> for radicle::node::Session {
+    fn from(s: &Session) -> Self {
+        Self {
+            nid: s.id,
+            link: if s.link.is_inbound() {
+                radicle::node::Link::Inbound
+            } else {
+                radicle::node::Link::Outbound
+            },
+            addr: s.addr.clone(),
+            state: s.state.clone(),
+        }
+    }
+}
+
 impl Session {
     pub fn outbound(id: NodeId, addr: Address, persistent: bool, rng: Rng, limits: Limits) -> Self {
         Self {

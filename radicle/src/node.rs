@@ -567,6 +567,9 @@ pub enum Command {
     /// Get the current peer sessions.
     Sessions,
 
+    /// Get a specific peer session.
+    Session { nid: NodeId },
+
     /// Fetch the given repository from the network.
     #[serde(rename_all = "camelCase")]
     Fetch {
@@ -1007,6 +1010,8 @@ pub trait Handle: Clone + Sync + Send {
     fn shutdown(self) -> Result<(), Self::Error>;
     /// Query the peer session state.
     fn sessions(&self) -> Result<Self::Sessions, Self::Error>;
+    /// Query the state of a peer session. Returns [`None`] if no session was found.
+    fn session(&self, node: NodeId) -> Result<Option<Session>, Self::Error>;
     /// Subscribe to node events.
     fn subscribe(&self, timeout: time::Duration) -> Result<Self::Events, Self::Error>;
     /// Return debug information as a JSON value.
@@ -1320,6 +1325,15 @@ impl Handle for Node {
             .ok_or(Error::EmptyResponse)??;
 
         Ok(sessions)
+    }
+
+    fn session(&self, nid: NodeId) -> Result<Option<Session>, Error> {
+        let session = self
+            .call::<Option<Session>>(Command::Session { nid }, DEFAULT_TIMEOUT)?
+            .next()
+            .ok_or(Error::EmptyResponse)??;
+
+        Ok(session)
     }
 
     fn debug(&self) -> Result<json::Value, Self::Error> {

@@ -18,7 +18,6 @@ use radicle::node::{Handle as _, Node};
 use radicle::prelude::*;
 use radicle::rad;
 use radicle::storage;
-use radicle::storage::git::Storage;
 use radicle::storage::RepositoryError;
 
 use crate::commands::rad_checkout as checkout;
@@ -150,7 +149,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         options.sync.with_profile(&profile),
         &mut node,
         &signer,
-        &profile.storage,
+        &profile,
     )?;
     let delegates = doc
         .delegates()
@@ -226,6 +225,8 @@ pub enum CloneError {
     NotFound(RepoId),
     #[error("no seeds found for {0}")]
     NoSeeds(RepoId),
+    #[error("fetch: {0}")]
+    Fetch(#[from] sync::FetchError),
 }
 
 pub fn clone<G: Signer>(
@@ -235,7 +236,7 @@ pub fn clone<G: Signer>(
     settings: SyncSettings,
     node: &mut Node,
     signer: &G,
-    storage: &Storage,
+    profile: &Profile,
 ) -> Result<(raw::Repository, storage::git::Repository, Doc, Project), CloneError> {
     let me = *signer.public_key();
 
@@ -247,8 +248,8 @@ pub fn clone<G: Signer>(
         );
     }
 
-    let results = sync::fetch(id, settings, node)?;
-    let Ok(repository) = storage.repository(id) else {
+    let results = sync::fetch(id, settings, node, profile)?;
+    let Ok(repository) = profile.storage.repository(id) else {
         // If we don't have the repository locally, even after attempting to fetch,
         // there's nothing we can do.
         if results.is_empty() {
@@ -282,7 +283,7 @@ pub fn clone<G: Signer>(
         "Creating checkout in ./{}..",
         term::format::tertiary(path.display())
     ));
-    let working = rad::checkout(id, &me, path, &storage)?;
+    let working = rad::checkout(id, &me, path, &profile.storage)?;
 
     spinner.finish();
 

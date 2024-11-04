@@ -8,6 +8,7 @@ use std::time;
 use anyhow::{anyhow, Context as _};
 
 use radicle::node;
+use radicle::node::address::Store;
 use radicle::node::AliasStore;
 use radicle::node::Seed;
 use radicle::node::{FetchResult, FetchResults, Handle as _, Node, SyncStatus};
@@ -286,7 +287,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 if !profile.policies()?.is_seeding(&rid)? {
                     anyhow::bail!("repository {rid} is not seeded");
                 }
-                let results = fetch(rid, settings.clone(), &mut node)?;
+                let results = fetch(rid, settings.clone(), &mut node, &profile)?;
                 let success = results.success().count();
                 let failed = results.failed().count();
 
@@ -437,21 +438,50 @@ pub fn announce_inventory(mut node: Node) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum FetchError {
+    #[error(transparent)]
+    Node(#[from] node::Error),
+    #[error(transparent)]
+    Db(#[from] node::db::Error),
+    #[error(transparent)]
+    Address(#[from] node::address::Error),
+}
+
 pub fn fetch(
     rid: RepoId,
     settings: SyncSettings,
     node: &mut Node,
-) -> Result<FetchResults, node::Error> {
+    profile: &Profile,
+) -> Result<FetchResults, FetchError> {
     let local = node.nid()?;
-    // Get seeds. This consults the local routing table only.
-    let seeds = node.seeds(rid)?;
     let replicas = settings.replicas;
     let mut results = FetchResults::default();
-    let (connected, mut disconnected) = seeds.partition();
+    let db = profile.database()?;
 
-    // Fetch from specified seeds.
+    // Fetch from specified seeds, connecting to them if necessary.
     for nid in &settings.seeds {
-        fetch_from(rid, nid, settings.timeout, &mut results, node)?;
+        if node.session(*nid)?.is_some_and(|s| s.is_connected()) {
+            fetch_from(rid, nid, settings.timeout, &mut results, node)?;
+        } else {
+            let addrs = db.addresses_of(nid)?;
+            if addrs.is_empty() {
+                results.push(
+                    *nid,
+                    FetchResult::Failed {
+                        reason: format!("no addresses found in routing table for {nid}"),
+                    },
+                );
+                term::warning(format!("no addresses found for {nid}, skipping.."));
+            } else if connect(
+                *nid,
+                addrs.into_iter().map(|ka| ka.addr),
+                settings.timeout,
+                node,
+            ) {
+                fetch_from(rid, nid, settings.timeout, &mut results, node)?;
+            }
+        }
         // We are done when we either hit our replica count,
         // or fetch from all the specified seeds.
         if results.success().count() >= replicas {
@@ -465,6 +495,11 @@ pub fn fetch(
             return Ok(results);
         }
     }
+
+    // If we're here, we haven't met our sync targets, so consult the routing table
+    // for more seeds to fetch from.
+    let seeds = node.seeds(rid)?;
+    let (connected, mut disconnected) = seeds.partition();
 
     // Fetch from connected seeds.
     let mut connected = connected

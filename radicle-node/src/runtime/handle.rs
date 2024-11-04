@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::{fmt, io, time};
 
 use crossbeam_channel as chan;
-use radicle::node::{ConnectOptions, ConnectResult, Link, Seeds};
+use radicle::node::{ConnectOptions, ConnectResult, Seeds};
 use radicle::storage::refs::RefsAt;
 use reactor::poller::popol::PopolWaker;
 use serde_json::json;
@@ -276,18 +276,26 @@ impl radicle::node::Handle for Handle {
             let sessions = state
                 .sessions()
                 .iter()
-                .map(|(nid, s)| radicle::node::Session {
-                    nid: *nid,
-                    link: if s.link.is_inbound() {
-                        Link::Inbound
-                    } else {
-                        Link::Outbound
-                    },
-                    addr: s.addr.clone(),
-                    state: s.state.clone(),
-                })
+                .map(|(_, s)| radicle::node::Session::from(s))
                 .collect();
             sender.send(sessions).ok();
+
+            Ok(())
+        });
+        let (err_sender, err_receiver) = chan::bounded(1);
+        self.command(service::Command::QueryState(query, err_sender))?;
+        err_receiver.recv()??;
+
+        let sessions = receiver.recv()?;
+
+        Ok(sessions)
+    }
+
+    fn session(&self, nid: NodeId) -> Result<Option<radicle::node::Session>, Self::Error> {
+        let (sender, receiver) = chan::bounded(1);
+        let query: Arc<QueryState> = Arc::new(move |state| {
+            let session = state.sessions().get(&nid).map(radicle::node::Session::from);
+            sender.send(session).ok();
 
             Ok(())
         });

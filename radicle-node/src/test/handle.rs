@@ -112,6 +112,10 @@ impl radicle::node::Handle for Handle {
         unimplemented!();
     }
 
+    fn session(&self, _node: NodeId) -> Result<Option<radicle::node::Session>, Self::Error> {
+        unimplemented!()
+    }
+
     fn shutdown(self) -> Result<(), Self::Error> {
         Ok(())
     }

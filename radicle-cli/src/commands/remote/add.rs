@@ -33,6 +33,7 @@ pub fn run(
                 rid,
                 SyncSettings::default().with_profile(profile),
                 &mut node,
+                profile,
             )?;
         }
     }

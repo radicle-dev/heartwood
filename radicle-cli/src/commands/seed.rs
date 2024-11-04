@@ -150,6 +150,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                         .timeout(timeout)
                         .with_profile(&profile),
                     &mut node,
+                    &profile,
                 )?;
             }
         }
