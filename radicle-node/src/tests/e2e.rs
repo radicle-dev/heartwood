@@ -1210,6 +1210,125 @@ fn missing_default_branch() {
 }
 
 #[test]
+fn missing_delegate_default_branch() {
+    use radicle::git::raw;
+    use radicle::identity::Identity;
+    use radicle::storage::git::Repository;
+
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
+    let seed = Node::init(tmp.path(), config::relay("seed"));
+
+    let rid = alice.project("acme", "");
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+    let mut seed = seed.spawn();
+
+    alice.handle.seed(rid, Scope::All).unwrap();
+    bob.handle.seed(rid, Scope::All).unwrap();
+    seed.handle.seed(rid, Scope::All).unwrap();
+    alice.connect(&seed);
+    converge([&seed]);
+    bob.connect(&seed);
+
+    bob.handle.fetch(rid, seed.id, DEFAULT_TIMEOUT).unwrap();
+    assert!(bob.storage.contains(&rid).unwrap());
+
+    // Helper to assert that Bob's default branch is not in storage
+    let assert_bobs_default_is_missing = |repo: &Repository| {
+        let doc = repo.identity_doc().unwrap();
+        let project = doc.project().unwrap();
+        let default_branch = repo.reference(
+            bob.signer.public_key(),
+            &radicle::git::refs::branch(project.default_branch()),
+        );
+        assert!(matches!(
+            default_branch,
+            Err(radicle::git::Error::Git(e)) if e.code() == raw::ErrorCode::NotFound
+        ));
+    };
+
+    // Add Bob as a delegate to the identity document
+    {
+        let repo = alice.storage.repository(rid).unwrap();
+        let mut identity = Identity::load_mut(&repo).unwrap();
+        let doc = repo
+            .identity_doc()
+            .unwrap()
+            .doc
+            .with_edits(|doc| {
+                doc.delegate(bob.signer.public_key().into());
+            })
+            .unwrap();
+        let rev = identity.update("Add Bob", "", &doc, &alice.signer).unwrap();
+        repo.set_identity_head_to(rev).unwrap();
+
+        let new = repo.identity_doc().unwrap().doc;
+        assert!(
+            new.is_delegate(&bob.signer.public_key().into()),
+            "Bob must be a delegate after the update"
+        );
+    }
+
+    // We ensure that Bob does not have the default branch
+    let repo = bob.storage.repository(rid).unwrap();
+    assert_bobs_default_is_missing(&repo);
+
+    // Create an issue to ensure there are new refs to fetch
+    let issue = bob.issue(
+        rid,
+        "Delegate Issue",
+        "Further investigation into delegates",
+    );
+    let assert_bobs_issue_exists = |repo: &Repository| {
+        let issue_ref = radicle::git::refs::storage::cob(
+            bob.signer.public_key(),
+            &radicle::cob::issue::TYPENAME,
+            &issue,
+        );
+        assert!(matches!(
+            repo.backend.find_reference(issue_ref.as_str()),
+            Ok(_)
+        ));
+    };
+
+    // The seed fetches from Bob and checks that:
+    // a) Bob's default branch is still missing
+    // b) Bob's issue is there
+    assert_matches!(
+        seed.handle.fetch(rid, bob.id, DEFAULT_TIMEOUT).unwrap(),
+        FetchResult::Success { .. }
+    );
+    {
+        let repo = seed.storage.repository(rid).unwrap();
+        assert_bobs_default_is_missing(&repo);
+        assert_bobs_issue_exists(&repo);
+    }
+
+    // Do the same for Alice
+    assert_matches!(
+        alice.handle.fetch(rid, seed.id, DEFAULT_TIMEOUT).unwrap(),
+        FetchResult::Success { .. }
+    );
+    {
+        let repo = alice.storage.repository(rid).unwrap();
+        assert_bobs_default_is_missing(&repo);
+        assert_bobs_issue_exists(&repo);
+    }
+
+    // Check that Bob can still fetch from the seed
+    assert_matches!(
+        bob.handle.fetch(rid, seed.id, DEFAULT_TIMEOUT).unwrap(),
+        FetchResult::Success { .. }
+    );
+}
+
+#[test]
 fn test_background_foreground_fetch() {
     logger::init(log::Level::Debug);
 

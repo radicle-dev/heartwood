@@ -8,7 +8,7 @@ use radicle::identity::{Did, Doc, DocError};
 
 use radicle::prelude::Verified;
 use radicle::storage;
-use radicle::storage::refs::{RefsAt, SignedRefs};
+use radicle::storage::refs::RefsAt;
 use radicle::storage::{
     git::Validation, Remote, RemoteId, RemoteRepository, Remotes, ValidateRepository, Validations,
 };
@@ -547,15 +547,8 @@ impl FetchState {
                     }
 
                     let cache = self.as_cached(handle);
-                    let mut fails = Validations::default();
-                    // N.b. we only validate the existence of the
-                    // default branch for delegates, since it safe for
-                    // non-delegates to not have this branch.
-                    let branch_validation =
-                        validate_project_default_branch(&anchor, &sigrefs.sigrefs);
-                    fails.extend(branch_validation.into_iter());
-                    let validations = sigrefs::validate(&cache, sigrefs)?;
-                    fails.extend(validations.into_iter().flatten());
+                    let mut fails =
+                        sigrefs::validate(&cache, sigrefs)?.unwrap_or(Validations::default());
                     if !fails.is_empty() {
                         log::warn!(target: "fetch", "Pruning delegate {remote} tips, due to validation failures");
                         self.prune(&remote);
@@ -728,21 +721,4 @@ impl<'a, S> ValidateRepository for Cached<'a, S> {
 
         Ok(validations)
     }
-}
-
-/// If the repository has a project payload, in `anchor`, then
-/// validate that the `sigrefs` contains the listed default branch.
-///
-/// N.b. if the repository does not have the project payload or a
-/// deserialization error occurs, then this will return `None`.
-fn validate_project_default_branch(
-    anchor: &Doc,
-    sigrefs: &SignedRefs<Verified>,
-) -> Option<Validation> {
-    let proj = anchor.project().ok()?;
-    let branch = radicle::git::refs::branch(proj.default_branch()).to_ref_string();
-    (!sigrefs.contains_key(&branch)).then_some(Validation::MissingRef {
-        remote: sigrefs.id,
-        refname: branch,
-    })
 }
