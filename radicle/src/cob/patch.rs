@@ -864,9 +864,6 @@ impl Patch {
                     // If the revision was redacted concurrently, there's nothing to do.
                     return Ok(());
                 };
-                if summary.is_none() && verdict.is_none() {
-                    return Err(Error::EmptyReview);
-                }
                 if let Some(rev) = rev {
                     // Insert a review if there isn't already one. Otherwise we just ignore
                     // this operation
@@ -2173,6 +2170,9 @@ where
         labels: Vec<Label>,
         signer: &G,
     ) -> Result<ReviewId, Error> {
+        if verdict.is_none() && summary.is_none() {
+            return Err(Error::EmptyReview);
+        }
         self.transaction("Review", signer, |tx| {
             tx.review(revision, verdict, summary, labels)
         })
