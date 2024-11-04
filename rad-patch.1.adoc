@@ -197,6 +197,10 @@ This means your branch is now associated with the newly opened patch, and any
 push from this branch will result in the patch being updated. See the next
 section on updating a patch for more information.
 
+Note that it's also possible to create a *draft* patch, by using the *-o
+patch.draft* push option when opening a patch. See the *ready* patch
+sub-command for more options.
+
 === Options
 
 When opening a patch, various options can be specified using git push options.
