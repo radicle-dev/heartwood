@@ -103,6 +103,11 @@ You can also display the latest logs at any time using:
 
 After your node starts, it will attempt to connect to peers on the network.
 
+Note that if you set up your node to be started using **systemd**(1),
+the logs will go to the system journal. These can be viewed with **journalctl**(1):
+
+    $ journalctl -u radicle-node -S today
+
 To connect to a specific peer, the *connect* sub-command can be used:
 For example, to connect to the *radicle.garden* community node, you can run:
 
