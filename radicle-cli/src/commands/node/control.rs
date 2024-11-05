@@ -3,7 +3,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::{fs, io, path::Path, process, thread, time};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use localtime::LocalTime;
 
 use radicle::node;
@@ -128,9 +128,17 @@ pub fn debug(node: &mut Node) -> anyhow::Result<()> {
 }
 
 pub fn logs(lines: usize, follow: Option<time::Duration>, profile: &Profile) -> anyhow::Result<()> {
-    let logs = profile.home.node().join("node.log");
+    let logs_path = profile.home.node().join("node.log");
+    let mut file = File::open(logs_path.clone())
+        .map(BufReader::new)
+        .with_context(|| {
+            format!(
+                "Failed to read log file at '{}'. Did you start the node with `rad node start`? \
+                If the node was started through a process manager, check its logs instead.",
+                logs_path.display()
+            )
+        })?;
 
-    let mut file = BufReader::new(File::open(logs)?);
     file.seek(SeekFrom::End(0))?;
 
     let mut tail = Vec::new();
