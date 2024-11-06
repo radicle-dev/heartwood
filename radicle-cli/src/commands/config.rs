@@ -1,7 +1,6 @@
 #![allow(clippy::or_fun_call)]
 use std::ffi::OsString;
 use std::path::Path;
-use std::process;
 use std::str::FromStr;
 
 use anyhow::anyhow;
@@ -188,18 +187,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 path.display()
             );
         }
-        Operation::Edit => {
-            let Some(cmd) = term::editor::default_editor() else {
-                anyhow::bail!("no editor configured; please set the `EDITOR` environment variable");
-            };
-            process::Command::new(cmd)
-                .stdout(process::Stdio::inherit())
-                .stderr(process::Stdio::inherit())
-                .stdin(process::Stdio::inherit())
-                .arg(&path)
-                .spawn()?
-                .wait()?;
-        }
+        Operation::Edit => match term::editor::Editor::new(&path)?.extension("json").edit()? {
+            Some(_) => {
+                term::success!("Successfully made changes to the configuration at {path:?}")
+            }
+            None => term::info!("No changes were made to the configuration at {path:?}"),
+        },
     }
 
     Ok(())

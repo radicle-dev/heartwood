@@ -853,7 +853,10 @@ impl CommentBuilder {
         for line in hunk.to_unified_string()?.lines() {
             writeln!(&mut input, "> {line}")?;
         }
-        let output = term::Editor::new().extension("diff").edit(input)?;
+        let output = term::Editor::comment()
+            .extension("diff")
+            .initial(input)?
+            .edit()?;
 
         if let Some(output) = output {
             let header = HunkHeader::try_from(hunk)?;
