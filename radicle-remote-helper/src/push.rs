@@ -306,8 +306,18 @@ pub fn run(
                                         ));
                                     }
                                 }
-                                Err(canonical::QuorumError::NoQuorum) => {
-                                    warn(format!("no quorum was found for `{canonical_ref}`"));
+                                Err(canonical::QuorumError::Diverging(e)) => {
+                                    warn(format!(
+                                        "could not determine canonical tip for `{canonical_ref}`"
+                                    ));
+                                    warn(e.to_string());
+                                    warn("it is recommended to find a commit to agree upon");
+                                }
+                                Err(canonical::QuorumError::NoCandidates(e)) => {
+                                    warn(format!(
+                                        "could not determine canonical tip for `{canonical_ref}`"
+                                    ));
+                                    warn(e.to_string());
                                     warn("it is recommended to find a commit to agree upon");
                                 }
                                 Err(e) => return Err(e.into()),

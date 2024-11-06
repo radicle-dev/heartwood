@@ -89,7 +89,8 @@ commit:
 
 ``` ~alice (stderr)
 $ git push rad -f
-warn: no quorum was found for `refs/heads/master`
+warn: could not determine canonical tip for `refs/heads/master`
+warn: no commit found with at least 3 vote(s) (threshold not met)
 warn: it is recommended to find a commit to agree upon
 ✓ Synced with 2 node(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
