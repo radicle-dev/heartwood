@@ -7,7 +7,6 @@ use localtime::LocalTime;
 
 use radicle::cob::TypedId;
 use radicle::crypto::PublicKey;
-use radicle::git::canonical::QuorumError;
 use radicle::identity::DocAt;
 use radicle::prelude::RepoId;
 use radicle::storage::refs::RefsAt;
@@ -89,6 +88,8 @@ impl Handle {
         remote: PublicKey,
         refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Fetch> {
+        use git::canonical::QuorumError::{Diverging, NoCandidates};
+
         let (result, clone, notifs) = match self {
             Self::Clone { mut handle, tmp } => {
                 log::debug!(target: "worker", "{} cloning from {remote}", handle.local());
@@ -143,8 +144,11 @@ impl Handle {
                             log::trace!(target: "worker", "Set HEAD to {}", head.new);
                         }
                     }
-                    Err(RepositoryError::Quorum(QuorumError::NoQuorum)) => {
-                        log::warn!(target: "worker", "Fetch could not set HEAD: no quorum found")
+                    Err(RepositoryError::Quorum(Diverging(e))) => {
+                        log::warn!(target: "worker", "Fetch could not set HEAD: {e}")
+                    }
+                    Err(RepositoryError::Quorum(NoCandidates(e))) => {
+                        log::warn!(target: "worker", "Fetch could not set HEAD: {e}")
                     }
                     Err(e) => return Err(e.into()),
                 }
