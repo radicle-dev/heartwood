@@ -51,7 +51,10 @@ impl Message {
         let comment = match self {
             Message::Edit => {
                 if io::stderr().is_terminal() {
-                    term::Editor::new().extension("markdown").edit(help)?
+                    term::Editor::comment()
+                        .extension("markdown")
+                        .initial(help)?
+                        .edit()?
                 } else {
                     Some(help.to_owned())
                 }

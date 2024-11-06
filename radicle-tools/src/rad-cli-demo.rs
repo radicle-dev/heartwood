@@ -35,9 +35,10 @@ fn main() -> anyhow::Result<()> {
             radicle_term::pager::page(table)?;
         }
         "editor" => {
-            let output = terminal::editor::Editor::new()
+            let output = terminal::editor::Editor::comment()
                 .extension("rs")
-                .edit("// Enter code here.");
+                .initial("// Enter code here.")?
+                .edit();
 
             match output {
                 Ok(Some(s)) => {

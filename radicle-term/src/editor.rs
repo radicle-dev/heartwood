@@ -13,26 +13,52 @@ pub const PATHS: &[&str] = &["/usr/local/bin", "/usr/bin", "/bin"];
 /// Allows for text input in the configured editor.
 pub struct Editor {
     path: PathBuf,
-}
-
-impl Drop for Editor {
-    fn drop(&mut self) {
-        fs::remove_file(&self.path).ok();
-    }
+    truncate: bool,
+    cleanup: bool,
 }
 
 impl Default for Editor {
     fn default() -> Self {
-        Self::new()
+        Self::comment()
+    }
+}
+
+impl Drop for Editor {
+    fn drop(&mut self) {
+        if self.cleanup {
+            fs::remove_file(&self.path).ok();
+        }
     }
 }
 
 impl Editor {
     /// Create a new editor.
-    pub fn new() -> Self {
+    pub fn new(path: impl AsRef<Path>) -> io::Result<Self> {
+        let path = path.as_ref();
+        if path.try_exists()? {
+            let meta = fs::metadata(path)?;
+            if !meta.is_file() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "must be used to edit a file",
+                ));
+            }
+        }
+        Ok(Self {
+            path: path.to_path_buf(),
+            truncate: false,
+            cleanup: false,
+        })
+    }
+
+    pub fn comment() -> Self {
         let path = env::temp_dir().join(COMMENT_FILE);
 
-        Self { path }
+        Self {
+            path,
+            truncate: true,
+            cleanup: true,
+        }
     }
 
     /// Set the file extension.
@@ -43,26 +69,43 @@ impl Editor {
         self
     }
 
-    /// Open the editor and return the edited text.
-    ///
-    /// If the text hasn't changed from the initial contents of the editor,
-    /// return `None`.
-    pub fn edit(&mut self, initial: impl AsRef<[u8]>) -> io::Result<Option<String>> {
-        let initial = initial.as_ref();
+    /// Truncate the file to length 0 when opening
+    pub fn truncate(mut self, truncate: bool) -> Self {
+        self.truncate = truncate;
+        self
+    }
+
+    /// Clean up the file after the [`Editor`] is dropped.
+    pub fn cleanup(mut self, cleanup: bool) -> Self {
+        self.cleanup = cleanup;
+        self
+    }
+
+    /// Initialize the file with the provided `content`, as long as the file
+    /// does not already contain anything.
+    pub fn initial(self, content: impl AsRef<[u8]>) -> io::Result<Self> {
+        let content = content.as_ref();
         let mut file = fs::OpenOptions::new()
             .write(true)
             .create(true)
-            .truncate(true)
+            .truncate(self.truncate)
             .open(&self.path)?;
 
         if file.metadata()?.len() == 0 {
-            file.write_all(initial)?;
-            if !initial.ends_with(&[b'\n']) {
+            file.write_all(content)?;
+            if !content.ends_with(&[b'\n']) {
                 file.write_all(b"\n")?;
             }
             file.flush()?;
         }
+        Ok(self)
+    }
 
+    /// Open the editor and return the edited text.
+    ///
+    /// If the text hasn't changed from the initial contents of the editor,
+    /// return `None`.
+    pub fn edit(&mut self) -> io::Result<Option<String>> {
         let Some(cmd) = self::default_editor() else {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
@@ -126,7 +169,7 @@ impl Editor {
 }
 
 /// Get the default editor command.
-pub fn default_editor() -> Option<OsString> {
+fn default_editor() -> Option<OsString> {
     // First check the standard environment variables.
     if let Ok(visual) = env::var("VISUAL") {
         if !visual.is_empty() {
