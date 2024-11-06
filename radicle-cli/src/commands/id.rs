@@ -5,7 +5,7 @@ use std::{ffi::OsString, io};
 use anyhow::{anyhow, Context};
 
 use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
-use radicle::identity::{doc, Doc, Identity, RawDoc, Visibility};
+use radicle::identity::{doc, Doc, Identity, PayloadError, RawDoc, Visibility};
 use radicle::prelude::{Did, RepoId, Signer};
 use radicle::storage::refs;
 use radicle::storage::{ReadRepository, ReadStorage as _, WriteRepository};
@@ -34,6 +34,7 @@ Usage
                   [--threshold <num>] [--visibility <private | public>]
                   [--allow <did>] [--disallow <did>]
                   [--no-confirm] [--payload <id> <key> <val>...]
+                  [--edit]
                   [<option>...]
     rad id edit <revision-id> [--title <string>] [--description <string>] [<option>...]
     rad id show <revision-id> [<option>...]
@@ -64,6 +65,7 @@ pub enum Operation {
         allow: BTreeSet<Did>,
         disallow: BTreeSet<Did>,
         payload: Vec<(doc::PayloadId, String, json::Value)>,
+        edit: bool,
     },
     AcceptRevision {
         revision: Rev,
@@ -146,6 +148,7 @@ impl Args for Options {
         let mut threshold: Option<usize> = None;
         let mut interactive = Interactive::new(io::stdout());
         let mut payload = Vec::new();
+        let mut edit = false;
         let mut quiet = false;
 
         while let Some(arg) = parser.next()? {
@@ -237,6 +240,9 @@ impl Args for Options {
 
                     payload.push((id, key, val));
                 }
+                Long("edit") => {
+                    edit = true;
+                }
                 Value(val) => {
                     let val = term::args::rev(&val)?;
                     revision = Some(val);
@@ -276,6 +282,7 @@ impl Args for Options {
                 allow,
                 disallow,
                 payload,
+                edit,
             },
         };
         Ok((
@@ -385,6 +392,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             allow,
             disallow,
             payload,
+            edit,
         } => {
             let proposal = {
                 let mut proposal = current.doc.clone().edit();
@@ -462,6 +470,27 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
                 proposal
             };
+
+            // If `--edit` is specified, the document can also be edited via a
+            // text edit
+            let proposal = if edit {
+                match term::editor::Editor::comment()
+                    .extension("json")
+                    .initial(serde_json::to_string_pretty(&current.doc)?)?
+                    .edit()?
+                {
+                    Some(proposal) => serde_json::from_str::<RawDoc>(&proposal)?,
+                    None => {
+                        term::print(term::format::italic(
+                            "Nothing to do. The document is up to date. See `rad inspect --identity`.",
+                        ));
+                        return Ok(());
+                    }
+                }
+            } else {
+                proposal
+            };
+
             // Verify that the project payload can still be parsed into the
             // `Project` type.
             if let Err(PayloadError::Json(e)) = proposal.project() {
