@@ -73,7 +73,7 @@ Usage
     rad patch edit <patch-id> [<option>...]
     rad patch set <patch-id> [<option>...]
     rad patch comment <patch-id | revision-id> [<option>...]
-    rad patch cache [<patch-id>] [--all-repos] [<option>...]
+    rad patch cache [<patch-id>] [--storage] [<option>...]
 
 Show options
 
@@ -279,7 +279,7 @@ pub enum Operation {
     },
     Cache {
         patch_id: Option<Rev>,
-        all_repos: bool,
+        storage: bool,
     },
 }
 
@@ -346,7 +346,7 @@ impl Args for Options {
         let mut review_op = review::Operation::default();
         let mut base_id = None;
         let mut repo = None;
-        let mut all_repos = false;
+        let mut cache_storage = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -568,8 +568,8 @@ impl Args for Options {
                 }
 
                 // Cache options.
-                Long("all-repos") if op == Some(OperationName::Cache) => {
-                    all_repos = true;
+                Long("storage") if op == Some(OperationName::Cache) => {
+                    cache_storage = true;
                 }
 
                 // Common.
@@ -720,7 +720,7 @@ impl Args for Options {
             },
             OperationName::Cache => Operation::Cache {
                 patch_id,
-                all_repos,
+                storage: cache_storage,
             },
         };
 
@@ -944,11 +944,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 true,
             )?;
         }
-        Operation::Cache {
-            patch_id,
-            all_repos,
-        } => {
-            let mode = if all_repos {
+        Operation::Cache { patch_id, storage } => {
+            let mode = if storage {
                 cache::CacheMode::Storage
             } else {
                 let patch_id = patch_id
