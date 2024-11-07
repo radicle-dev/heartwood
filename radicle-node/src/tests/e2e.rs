@@ -1202,11 +1202,14 @@ fn missing_default_branch() {
         repo.sign_refs(&alice.signer).unwrap();
     }
 
-    // Then fetching from her will fail
+    // Fetching from her will still succeed.
     assert_matches!(
         bob.handle.fetch(rid, alice.id, DEFAULT_TIMEOUT).unwrap(),
-        FetchResult::Failed { .. }
+        FetchResult::Success { .. }
     );
+    let repo = bob.storage.repository(rid).unwrap();
+    // The canonical head cannot be computed, though.
+    assert!(repo.canonical_head().is_err());
 }
 
 #[test]
