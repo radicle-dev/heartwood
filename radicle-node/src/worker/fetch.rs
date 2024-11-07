@@ -7,11 +7,13 @@ use localtime::LocalTime;
 
 use radicle::cob::TypedId;
 use radicle::crypto::PublicKey;
+use radicle::git::canonical::QuorumError;
 use radicle::identity::DocAt;
 use radicle::prelude::RepoId;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{
-    ReadRepository, ReadStorage as _, RefUpdate, RemoteRepository, WriteRepository as _,
+    ReadRepository, ReadStorage as _, RefUpdate, RemoteRepository, RepositoryError,
+    WriteRepository as _,
 };
 use radicle::{cob, git, node, Storage};
 use radicle_fetch::{Allowed, BlockList, FetchLimit};
@@ -135,7 +137,17 @@ impl Handle {
                 // points to a repository that is temporary and gets moved by [`mv`].
                 let repo = storage.repository(rid)?;
                 repo.set_identity_head()?;
-                repo.set_head()?;
+                match repo.set_head() {
+                    Ok(head) => {
+                        if head.is_updated() {
+                            log::trace!(target: "worker", "Set HEAD to {}", head.new);
+                        }
+                    }
+                    Err(RepositoryError::Quorum(QuorumError::NoQuorum)) => {
+                        log::warn!(target: "worker", "Fetch could not set HEAD: no quorum found")
+                    }
+                    Err(e) => return Err(e.into()),
+                }
 
                 // Notifications are only posted for pulls, not clones.
                 if let Some(mut store) = notifs {
