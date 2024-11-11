@@ -78,7 +78,7 @@ impl Serialize for ObjectId {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_bytes(self.0.as_bytes())
+        git_ext::Oid::serialize(&self.0, serializer)
     }
 }
 
@@ -87,9 +87,38 @@ impl<'de> Deserialize<'de> for ObjectId {
     where
         D: serde::Deserializer<'de>,
     {
-        let raw = <&[u8]>::deserialize(deserializer)?;
-        let oid = Oid::try_from(raw).map_err(serde::de::Error::custom)?;
-        Ok(ObjectId(oid))
+        /// We use an internal enum here for backwards-compatibility. Initially,
+        /// `ObjectId` was serialized into its byte representation, which would
+        /// be represented as an array in JSON. To support this we use the enum
+        /// for deserializing into either a `Vec` or `str`.
+        ///
+        /// Note that `Serialize` now serializes into `str` via the `git_ext::Oid`.
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Internal<'a> {
+            Buffer(Vec<u8>),
+            Str(&'a str),
+        }
+
+        impl<'a> TryFrom<Internal<'a>> for ObjectId {
+            type Error = ParseObjectId;
+
+            fn try_from(value: Internal) -> Result<Self, Self::Error> {
+                match value {
+                    Internal::Buffer(bs) => git2::Oid::from_bytes(&bs)
+                        .map_err(ParseObjectId::from)
+                        .map(ObjectId::from),
+                    Internal::Str(s) => ObjectId::from_str(s).map(ObjectId::from),
+                }
+            }
+        }
+
+        let internal = Internal::deserialize(deserializer).map_err(|e| {
+            serde::de::Error::custom(format!("expected sequence of bytes or a string: {e}"))
+        })?;
+        ObjectId::try_from(internal).map_err(|e| {
+            serde::de::Error::custom(format!("failed to deserialize object identifier: {e}"))
+        })
     }
 }
 
@@ -106,5 +135,50 @@ impl From<ObjectId> for RefString {
     fn from(id: ObjectId) -> Self {
         RefString::try_from(id.0.to_string())
             .expect("collaborative object id's are valid ref strings")
+    }
+}
+
+#[allow(clippy::unwrap_used)]
+#[cfg(test)]
+mod tests {
+    use qcheck::quickcheck;
+    use serde_json as json;
+
+    use super::*;
+
+    #[quickcheck]
+    fn test_str_repr(bytes: [u8; 20]) -> bool {
+        let oid = git2::Oid::from_bytes(&bytes).unwrap();
+        let object = ObjectId::from(oid);
+
+        oid.to_string() == object.to_string()
+    }
+
+    #[quickcheck]
+    fn test_ser_commutes(bytes: [u8; 20]) -> bool {
+        let oid = git_ext::Oid::from(git2::Oid::from_bytes(&bytes).unwrap());
+        let object = ObjectId::from(oid);
+        json::to_string(&oid).unwrap() == json::to_string(&object).unwrap()
+    }
+
+    #[quickcheck]
+    fn test_de_commutes(bytes: [u8; 20]) -> bool {
+        let oid = git_ext::Oid::from(git2::Oid::from_bytes(&bytes).unwrap());
+        let object = ObjectId::from(oid);
+        json::from_str::<ObjectId>(&json::to_string(&oid).unwrap()).unwrap()
+            == json::from_str(&json::to_string(&object).unwrap()).unwrap()
+    }
+
+    #[quickcheck]
+    fn test_refstring(bytes: [u8; 20]) -> bool {
+        let oid = git_ext::Oid::from(git2::Oid::from_bytes(&bytes).unwrap());
+        let object = ObjectId::from(oid);
+        Component::from(&object).to_string() == object.to_string()
+            && RefString::from(object).to_string() == object.to_string()
+    }
+
+    #[quickcheck]
+    fn test_ensure_backwards_compatible_bytes_parser(bytes: [u8; 20]) -> bool {
+        json::from_str::<ObjectId>(&json::to_string(&bytes).unwrap()).is_ok()
     }
 }
