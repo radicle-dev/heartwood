@@ -1229,6 +1229,8 @@ fn missing_delegate_default_branch() {
     let mut bob = bob.spawn();
     let mut seed = seed.spawn();
 
+    let bob_events = bob.handle.events();
+
     alice.handle.seed(rid, Scope::All).unwrap();
     bob.handle.seed(rid, Scope::All).unwrap();
     seed.handle.seed(rid, Scope::All).unwrap();
@@ -1237,6 +1239,15 @@ fn missing_delegate_default_branch() {
     bob.connect(&seed);
 
     bob.handle.fetch(rid, seed.id, DEFAULT_TIMEOUT).unwrap();
+    bob_events
+        .wait(
+            |e| {
+                matches!(e, service::Event::RefsFetched { updated, .. } if !updated.is_empty())
+                    .then_some(())
+            },
+            DEFAULT_TIMEOUT,
+        )
+        .unwrap();
     assert!(bob.storage.contains(&rid).unwrap());
 
     // Helper to assert that Bob's default branch is not in storage
@@ -1291,7 +1302,7 @@ fn missing_delegate_default_branch() {
             &radicle::cob::issue::TYPENAME,
             &issue,
         );
-        assert!(repo.backend.find_reference(issue_ref.as_str()).is_ok());
+        assert!(repo.backend.find_reference(issue_ref.as_str()).is_ok(),);
     };
 
     // The seed fetches from Bob and checks that:
