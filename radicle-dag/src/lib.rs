@@ -1020,4 +1020,24 @@ mod tests {
         );
         assert_eq!(order, vec!["R", "A3", "A2", "B3", "A1", "B2", "B1", "C1"]);
     }
+
+    #[test]
+    fn test_contains() {
+        let mut dag = Dag::<u8, ()>::new();
+
+        assert!(!dag.contains(&0));
+
+        dag.node(0, ());
+        dag.node(1, ());
+        dag.dependency(0, 1);
+        dag.node(2, ());
+        dag.dependency(2, 1);
+        dag.dependency(2, 0);
+        dag.node(3, ());
+
+        for i in 0..4 {
+            assert!(dag.contains(&i));
+        }
+        assert!(!dag.contains(&4));
+    }
 }
