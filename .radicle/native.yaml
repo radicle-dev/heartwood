@@ -5,5 +5,5 @@ shell: |
   cargo fmt --check
   cargo clippy --all-targets --workspace -- --deny warnings
   cargo build --all-targets --workspace
-  cargo doc --workspace
+  cargo doc --workspace --no-deps
   cargo test --workspace --no-fail-fast
