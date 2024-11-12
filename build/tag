@@ -1,4 +1,4 @@
-#!/bin/sh
+#! /bin/sh
 set -e
 
 if [ $# -ne 1 ]; then
@@ -8,31 +8,43 @@ fi
 
 version="$1"
 tag="v$version"
-commit="$(git rev-parse HEAD)"
-signing_key=$(git config user.signingKey)
 
-git show "$commit"
+git_config_key="user.signingKey"
 
-if [ "$signing_key" != "$(rad self --ssh-key)" ]; then
-  echo "The Git signing key does not match the output of 'rad self --ssh-key'."
+git_rev="$(git rev-parse HEAD)"
+git_key="$(git config $git_config_key)"
+
+if [ "${key:0:5}" != "key::" ]; then
+  printf "The Git signing key set as \`%s\` does not start with \`key::\`.\n" "$git_config_key"
+  printf "This is not supported. Refer to <https://git-scm.com/docs/git-config#Documentation/git-config.txt-usersigningKey>.\n"
+  exit 1
+fi
+
+rad_did="$(rad self --did)"
+rad_key="$(rad self --ssh-key)"
+
+git show "$git_rev"
+
+if [ "$git_key" != "key::$rad_key" ]; then
+  printf "The Git signing key set as \`%s\` does not match the output of \`rad self --ssh-key\`. Aborting.\n" "$git_config_key"
   exit 1
 fi
 
 printf "\n"
-printf "Tag the above commit with \033[35m%s\033[0m, using \033[35m$(rad self --did)\033[0m? [y/N] " "$tag"
+printf "Tag the above commit with \033[35m%s\033[0m, using \033[35m%s\033[0m? [y/N] " "$tag" "$rad_did"
 read -r confirmation
-rad auth
 
 case "$confirmation" in
   [Yy]*)
-    if git tag --annotate --sign "$tag" -m "Release $version" "$commit"; then
-      echo "Tag $tag created and signed over $commit."
+    rad auth
+    if git tag --annotate --sign --message="Release $version" "$tag" "$git_rev"; then
+      printf "Tag %s created and signed over %s.\n" "$tag" "$git_rev"
     else
-      echo "Failed to create tag."
+      echo "Failed to create tag. Aborting."
       exit 1
     fi ;;
   *)
-    echo "Operation aborted."
+    echo "Aborting."
     exit 1 ;;
 esac
 
