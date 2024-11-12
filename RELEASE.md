@@ -36,8 +36,8 @@ build/tag 1.1.0-pre
 Note that `git config user.signingKey` must match the key you are using as your
 Radicle signing key.
 
-The script will ask you to confirm the creation of the tag, respond with `y** if
-it all looks good.
+The script will ask you to confirm the creation of the tag, respond with `y`
+if it all looks good.
 
 ### Run Build
 The next thing we do is to build the binaries based on the latest tag. We
@@ -53,7 +53,7 @@ take a few minutes, so grab a coffee ☕.
 
 ---
 
-**Note**: the script currently outputs warnings about the `strip** command for
+**Note**: the script currently outputs warnings about the `strip` command for
 MacOS builds. These are ok, and can be ignored.
 
 ---
