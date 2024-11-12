@@ -1016,7 +1016,10 @@ mod test {
     use radicle_crypto::test::signer::MockSigner;
     use radicle_crypto::Signer as _;
 
+    use crate::cob;
     use crate::crypto::PublicKey;
+    use crate::identity::did::Did;
+    use crate::identity::doc::PayloadId;
     use crate::identity::Visibility;
     use crate::rad;
     use crate::storage::git::Storage;
@@ -1025,8 +1028,6 @@ mod test {
     use crate::test::setup::{Network, NodeWithRepo};
 
     use super::*;
-    use crate::identity::did::Did;
-    use crate::identity::doc::PayloadId;
 
     #[quickcheck]
     fn prop_json_eq_str(pk: PublicKey, proj: RepoId, did: Did) {
@@ -1319,20 +1320,24 @@ mod test {
         eve.repo.fetch(bob);
 
         let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
-        let b1 = bob_identity.accept(&a2, &bob.signer).unwrap();
+        let b1 = cob::git::stable::with_advanced_timestamp(|| {
+            bob_identity.accept(&a2, &bob.signer).unwrap()
+        });
         assert_eq!(bob_identity.current, a2);
 
         let mut eve_identity = Identity::load_mut(&*eve.repo).unwrap();
         let mut eve_doc = eve_identity.doc().clone().edit();
         eve_doc.visibility = Visibility::private([eve.signer.public_key().into()]);
-        let e1 = eve_identity
-            .update(
-                "Change visibility",
-                "",
-                &eve_doc.verified().unwrap(),
-                &eve.signer,
-            )
-            .unwrap();
+        let e1 = cob::git::stable::with_advanced_timestamp(|| {
+            eve_identity
+                .update(
+                    "Change visibility",
+                    "",
+                    &eve_doc.verified().unwrap(),
+                    &eve.signer,
+                )
+                .unwrap()
+        });
         // Eve's revision is active.
         assert!(eve_identity.revision(&e1).unwrap().is_active());
 
@@ -1506,7 +1511,9 @@ mod test {
         assert_eq!(eve_identity.revision(&e1).unwrap().state, State::Active);
 
         alice_identity.reload().unwrap();
-        let a2 = alice_identity.accept(&b1, &alice.signer).unwrap();
+        let a2 = cob::git::stable::with_advanced_timestamp(|| {
+            alice_identity.accept(&b1, &alice.signer).unwrap()
+        });
 
         eve.repo.fetch(alice);
         eve_identity.reload().unwrap();

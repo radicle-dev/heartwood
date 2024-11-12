@@ -301,13 +301,16 @@ fn write_commit(
 
     #[cfg(feature = "stable-commit-ids")]
     // Ensures the commit id doesn't change on every run.
-    let (author, timestamp) = (
-        Author {
-            time: git_ext::author::Time::new(1514817556, 0),
-            ..author
-        },
-        1514817556,
-    );
+    let (author, timestamp) = {
+        let stable = crate::git::stable::read_timestamp();
+        (
+            Author {
+                time: git_ext::author::Time::new(stable, 0),
+                ..author
+            },
+            stable,
+        )
+    };
     let (author, timestamp) = if let Ok(s) = std::env::var(crate::git::GIT_COMMITTER_DATE) {
         let Ok(timestamp) = s.trim().parse::<i64>() else {
             panic!(

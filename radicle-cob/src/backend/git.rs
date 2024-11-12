@@ -2,6 +2,9 @@
 
 pub mod change;
 
+#[cfg(feature = "stable-commit-ids")]
+pub mod stable;
+
 /// Environment variable to set to overwrite the commit date for both the author and the committer.
 ///
 /// The format must be a unix timestamp.
