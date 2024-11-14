@@ -3,6 +3,7 @@ use std::path::Path;
 
 use localtime::LocalDuration;
 use localtime::LocalTime;
+use radicle::cob::migrate;
 use radicle::git;
 use radicle::issue::cache::Issues as _;
 use radicle::node::address;
@@ -95,8 +96,8 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     for repo in storage.repositories()? {
         let repo = storage.repository(repo.rid)?;
-        let issues = profile.issues(&repo)?.counts()?;
-        let patches = profile.patches(&repo)?.counts()?;
+        let issues = profile.issues(&repo, migrate::ignore)?.counts()?;
+        let patches = profile.patches(&repo, migrate::ignore)?.counts()?;
 
         stats.local.issues += issues.total();
         stats.local.patches += patches.total();

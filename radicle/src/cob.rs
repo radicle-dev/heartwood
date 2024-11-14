@@ -12,6 +12,7 @@ pub mod thread;
 #[cfg(test)]
 pub mod test;
 
+pub use cache::{migrate, MigrateCallback};
 pub use common::*;
 pub use op::{ActorId, Op};
 pub use radicle_cob::{

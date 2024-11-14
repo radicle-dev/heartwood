@@ -8,9 +8,8 @@ use std::str::FromStr;
 use anyhow::{anyhow, Context as _};
 
 use radicle::cob::common::{Label, Reaction};
-use radicle::cob::issue;
 use radicle::cob::issue::{CloseReason, State};
-use radicle::cob::thread;
+use radicle::cob::{issue, migrate, thread};
 use radicle::crypto::Signer;
 use radicle::issue::cache::Issues as _;
 use radicle::prelude::{Did, RepoId};
@@ -461,7 +460,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 | Operation::Comment { .. }
         );
 
-    let mut issues = profile.issues_mut(&repo)?;
+    let mut issues = profile.issues_mut(&repo, migrate::ignore)?;
 
     match options.op {
         Operation::Edit {

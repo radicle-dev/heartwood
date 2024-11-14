@@ -143,10 +143,7 @@ impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
     /// or break from the process.
     pub fn write_all(
         &mut self,
-        on_issue: impl Fn(
-            &Result<(IssueId, Issue), store::Error>,
-            &cache::WriteAllProgress,
-        ) -> ControlFlow<()>,
+        on_issue: impl Fn(&Result<(IssueId, Issue), store::Error>, &cache::Progress) -> ControlFlow<()>,
     ) -> Result<(), super::Error>
     where
         R: ReadRepository + cob::Store,
@@ -158,7 +155,7 @@ impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
             .map_err(|e| super::Error::CacheRemoveAll { err: e.into() })?;
 
         let issues = self.store.all()?;
-        let mut progress = cache::WriteAllProgress::new(issues.len());
+        let mut progress = cache::Progress::new(issues.len());
         for issue in self.store.all()? {
             progress.inc();
             match on_issue(&issue, &progress) {

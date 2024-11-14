@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use super::*;
 
+use radicle::cob::migrate;
 use radicle::prelude::Did;
 use radicle::storage::git::Repository;
 
@@ -15,7 +16,7 @@ pub fn run(
     repository: &Repository,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
-    let mut patches = profile.patches_mut(repository)?;
+    let mut patches = profile.patches_mut(repository, migrate::ignore)?;
     let Ok(mut patch) = patches.get_mut(patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };

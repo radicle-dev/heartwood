@@ -9,6 +9,7 @@ use radicle::issue::cache::Issues as _;
 use radicle::patch::cache::Patches as _;
 use thiserror::Error;
 
+use radicle::cob::migrate;
 use radicle::git::raw;
 use radicle::identity::doc;
 use radicle::identity::doc::{DocError, RepoId};
@@ -182,8 +183,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     info.push([term::format::bold(proj.name()).into()]);
     info.push([term::format::italic(proj.description()).into()]);
 
-    let issues = profile.issues(&repo)?.counts()?;
-    let patches = profile.patches(&repo)?.counts()?;
+    let issues = profile.issues(&repo, migrate::ignore)?.counts()?;
+    let patches = profile.patches(&repo, migrate::ignore)?.counts()?;
 
     info.push([term::Line::spaced([
         term::format::tertiary(issues.open).into(),

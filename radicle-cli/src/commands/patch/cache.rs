@@ -1,5 +1,6 @@
 use std::ops::ControlFlow;
 
+use radicle::cob::migrate;
 use radicle::patch::PatchId;
 use radicle::storage::git::Repository;
 use radicle::storage::ReadStorage as _;
@@ -37,7 +38,7 @@ pub fn run(mode: CacheMode, profile: &Profile) -> anyhow::Result<()> {
 }
 
 fn cache(id: Option<PatchId>, repository: &Repository, profile: &Profile) -> anyhow::Result<()> {
-    let mut patches = profile.patches_mut(repository)?;
+    let mut patches = profile.patches_mut(repository, migrate::ignore)?;
 
     match id {
         Some(id) => {
@@ -48,7 +49,7 @@ fn cache(id: Option<PatchId>, repository: &Repository, profile: &Profile) -> any
             match result {
                 Ok((id, _)) => term::success!(
                     "Successfully cached patch {id} ({}/{})",
-                    progress.seen(),
+                    progress.current(),
                     progress.total()
                 ),
                 Err(e) => term::warning(format!("Failed to retrieve patch: {e}")),

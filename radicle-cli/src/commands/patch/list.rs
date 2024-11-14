@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use radicle::cob::patch;
 use radicle::cob::patch::{Patch, PatchId};
+use radicle::cob::{migrate, patch};
 use radicle::patch::cache::Patches as _;
 use radicle::prelude::*;
 use radicle::profile::Profile;
@@ -21,7 +21,7 @@ pub fn run(
     repository: &Repository,
     profile: &Profile,
 ) -> anyhow::Result<()> {
-    let patches = profile.patches(repository)?;
+    let patches = profile.patches(repository, migrate::ignore)?;
 
     let mut all = Vec::new();
     let iter = match filter {

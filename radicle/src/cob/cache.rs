@@ -23,7 +23,58 @@ const DB_WRITE_TIMEOUT: time::Duration = time::Duration::from_secs(6);
 
 /// Database migrations.
 /// The first migration is the creation of the initial tables.
-const MIGRATIONS: &[&str] = &[include_str!("cache/migrations/1.sql")];
+const MIGRATIONS: &[Migration] = &[Migration::Sql(include_str!("cache/migrations/1.sql"))];
+
+/// Function signature for native migrations.
+type MigrateFn = fn(&sql::Connection, Progress, &dyn MigrateCallback) -> Result<usize, Error>;
+
+/// A database migration.
+enum Migration {
+    /// Migration written in SQL.
+    Sql(&'static str),
+    /// Migration function written in Rust.
+    #[allow(dead_code)]
+    Native(MigrateFn),
+}
+
+/// Something that can process migration progress.
+pub trait MigrateCallback {
+    /// A migration has progressed.
+    /// The first [`Progress`] parameter refers to the progress within the list of migrations.
+    /// The second [`Progress`] parameter refers to the progress within the current migration.
+    fn progress(&mut self, migration: Progress, item: Progress) -> Result<bool, Error>;
+}
+
+impl<F> MigrateCallback for F
+where
+    F: Fn(Progress, Progress) -> Result<bool, Error>,
+{
+    fn progress(&mut self, migration: Progress, item: Progress) -> Result<bool, Error> {
+        (self)(migration, item)
+    }
+}
+
+/// Migration functions that implement [`MigrateCallback`].
+pub mod migrate {
+    use super::*;
+
+    /// Log progress via installed logger at "info" level.
+    pub fn log(migration: Progress, item: Progress) -> Result<bool, Error> {
+        log::info!(
+            target: "db",
+            "Migration {}/{} in progress.. ({}%)",
+            migration.current() + 1,
+            migration.total(),
+            item.percentage()
+        );
+        Ok(true)
+    }
+
+    /// Ignore progress, just migrate.
+    pub fn ignore(_migration: Progress, _item: Progress) -> Result<bool, Error> {
+        Ok(true)
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -97,7 +148,7 @@ impl Store<Write> {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let mut db = sql::Connection::open_thread_safe(path)?;
         db.set_busy_timeout(DB_WRITE_TIMEOUT.as_millis() as usize)?;
-        migrate(&db)?;
+        migrate(&db, migrate::ignore)?;
 
         Ok(Self {
             db: Arc::new(db),
@@ -108,7 +159,7 @@ impl Store<Write> {
     /// Create a new in-memory database.
     pub fn memory() -> Result<Self, Error> {
         let db = Arc::new(sql::Connection::open_thread_safe(":memory:")?);
-        migrate(&db)?;
+        migrate(&db, migrate::ignore)?;
 
         Ok(Self {
             db,
@@ -164,17 +215,34 @@ fn bump(db: &sql::Connection) -> Result<usize, Error> {
 }
 
 /// Migrate the database to the latest schema.
-fn migrate(db: &sql::Connection) -> Result<usize, Error> {
+fn migrate<M>(db: &sql::Connection, mut callback: M) -> Result<usize, Error>
+where
+    M: MigrateCallback,
+{
     let mut version = version(db)?;
-    for (i, migration) in MIGRATIONS.iter().enumerate() {
-        if i >= version {
-            transaction(db, |db| {
-                db.execute(migration)?;
-                version = bump(db)?;
+    let total = MIGRATIONS.len();
 
-                Ok::<_, Error>(())
-            })?;
+    for (i, migration) in MIGRATIONS.iter().enumerate() {
+        if i < version {
+            continue;
         }
+        transaction(db, |db| {
+            match migration {
+                Migration::Sql(query) => {
+                    db.execute(query)?;
+                    callback.progress(
+                        Progress { total, current: i },
+                        Progress::done(db.change_count()),
+                    )?;
+                }
+                Migration::Native(migrate) => {
+                    migrate(db, Progress { total, current: i }, &callback)?;
+                }
+            }
+            version = bump(db)?;
+
+            Ok::<_, Error>(())
+        })?;
     }
     Ok(version)
 }
@@ -283,20 +351,28 @@ impl<T> Remove<T> for NoCache {
 ///
 /// See [`crate::cob::issue::Cache::write_all`] and
 /// [`crate::cob::patch::Cache::write_all`].
-pub struct WriteAllProgress {
+pub struct Progress {
+    current: usize,
     total: usize,
-    seen: usize,
 }
 
-impl WriteAllProgress {
+impl Progress {
     /// Create a new progress tracker with the given `total` amount.
     pub fn new(total: usize) -> Self {
-        Self { total, seen: 0 }
+        Self { current: 0, total }
     }
 
-    /// Increment the [`WriteAllProgress::seen`] progress.
+    /// Create a new progress tracker that is "done".
+    pub fn done(total: usize) -> Self {
+        Self {
+            current: total,
+            total,
+        }
+    }
+
+    /// Increment the [`Progress::current`] progress.
     pub fn inc(&mut self) {
-        self.seen += 1;
+        self.current += 1;
     }
 
     /// Return the `total` amount.
@@ -304,9 +380,9 @@ impl WriteAllProgress {
         self.total
     }
 
-    /// Return the `seen` amount.
-    pub fn seen(&self) -> usize {
-        self.seen
+    /// Return the `current` amount.
+    pub fn current(&self) -> usize {
+        self.current
     }
 
     /// Return the percentage of the progress made.
@@ -315,6 +391,6 @@ impl WriteAllProgress {
     ///
     /// If the `total` provided is `0`.
     pub fn percentage(&self) -> f32 {
-        (self.seen as f32 / self.total as f32) * 100.0
+        (self.current as f32 / self.total as f32) * 100.0
     }
 }

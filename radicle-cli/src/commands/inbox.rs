@@ -6,6 +6,7 @@ use anyhow::anyhow;
 
 use git_ref_format::Qualified;
 use localtime::LocalTime;
+use radicle::cob::migrate;
 use radicle::cob::TypedId;
 use radicle::identity::Identity;
 use radicle::issue::cache::Issues as _;
@@ -271,8 +272,8 @@ where
     let (_, head) = repo.head()?;
     let doc = repo.identity_doc()?;
     let proj = doc.project()?;
-    let issues = profile.issues(&repo)?;
-    let patches = profile.patches(&repo)?;
+    let issues = profile.issues(&repo, migrate::ignore)?;
+    let patches = profile.patches(&repo, migrate::ignore)?;
 
     let mut notifs = notifs.by_repo(&rid, sort_by.field)?.collect::<Vec<_>>();
     if !sort_by.reverse {
@@ -535,7 +536,7 @@ fn show(
 
     match n.kind {
         NotificationKind::Cob { typed_id } if typed_id.is_issue() => {
-            let issues = profile.issues(&repo)?;
+            let issues = profile.issues(&repo, migrate::ignore)?;
             let issue = issues.get(&typed_id.id)?.unwrap();
 
             term::issue::show(
@@ -546,7 +547,7 @@ fn show(
             )?;
         }
         NotificationKind::Cob { typed_id } if typed_id.is_patch() => {
-            let patches = profile.patches(&repo)?;
+            let patches = profile.patches(&repo, migrate::ignore)?;
             let patch = patches.get(&typed_id.id)?.unwrap();
 
             term::patch::show(&patch, &typed_id.id, false, &repo, None, profile)?;

@@ -3,6 +3,7 @@ use radicle::profile;
 use thiserror::Error;
 
 use radicle::cob;
+use radicle::cob::migrate;
 use radicle::git;
 use radicle::storage::git::transport::local::Url;
 use radicle::storage::ReadRepository;
@@ -87,7 +88,7 @@ fn patch_refs<R: ReadRepository + cob::Store + 'static>(
     profile: &Profile,
     stored: &R,
 ) -> Result<(), Error> {
-    let patches = profile.patches(stored)?;
+    let patches = profile.patches(stored, migrate::ignore)?;
     for patch in patches.list()? {
         let Ok((id, patch)) = patch else {
             // Ignore patches that fail to decode.

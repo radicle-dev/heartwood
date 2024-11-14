@@ -1,8 +1,8 @@
 use super::*;
 
 use radicle::cob;
-use radicle::cob::patch;
 use radicle::cob::thread::CommentId;
+use radicle::cob::{migrate, patch};
 use radicle::patch::ByRevision;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
@@ -20,7 +20,7 @@ pub fn run(
     profile: &Profile,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
-    let mut patches = profile.patches_mut(repo)?;
+    let mut patches = profile.patches_mut(repo, migrate::ignore)?;
 
     let revision_id = revision_id.resolve::<cob::EntryId>(&repo.backend)?;
     let ByRevision {

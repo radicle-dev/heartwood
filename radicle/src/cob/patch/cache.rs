@@ -210,10 +210,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
     /// or break from the process.
     pub fn write_all(
         &mut self,
-        callback: impl Fn(
-            &Result<(PatchId, Patch), store::Error>,
-            &cache::WriteAllProgress,
-        ) -> ControlFlow<()>,
+        callback: impl Fn(&Result<(PatchId, Patch), store::Error>, &cache::Progress) -> ControlFlow<()>,
     ) -> Result<(), super::Error>
     where
         R: ReadRepository + cob::Store,
@@ -225,7 +222,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
             .map_err(|e| super::Error::CacheRemoveAll { err: e.into() })?;
 
         let patches = self.store.all()?;
-        let mut progress = cache::WriteAllProgress::new(patches.len());
+        let mut progress = cache::Progress::new(patches.len());
         for patch in self.store.all()? {
             progress.inc();
             match callback(&patch, &progress) {

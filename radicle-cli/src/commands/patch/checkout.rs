@@ -1,6 +1,7 @@
 use anyhow::anyhow;
 
 use git_ref_format::Qualified;
+use radicle::cob::migrate;
 use radicle::cob::patch;
 use radicle::cob::patch::RevisionId;
 use radicle::git::RefString;
@@ -38,7 +39,7 @@ pub fn run(
     profile: &Profile,
     opts: Options,
 ) -> anyhow::Result<()> {
-    let patches = profile.patches(stored)?;
+    let patches = profile.patches(stored, migrate::ignore)?;
     let patch = patches
         .get(patch_id)?
         .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;

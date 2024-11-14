@@ -5,6 +5,7 @@ use anyhow::anyhow;
 use chrono::prelude::*;
 use nonempty::NonEmpty;
 use radicle::cob;
+use radicle::cob::migrate;
 use radicle::cob::Op;
 use radicle::identity::Identity;
 use radicle::issue::cache::Issues;
@@ -180,13 +181,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let oid = &oid.resolve(&repo.backend)?;
 
             if options.type_name == cob::patch::TYPENAME.clone() {
-                let patches = profile.patches(&repo)?;
+                let patches = profile.patches(&repo, migrate::ignore)?;
                 let Some(patch) = patches.get(oid)? else {
                     anyhow::bail!(cob::store::Error::NotFound(options.type_name, *oid))
                 };
                 serde_json::to_writer_pretty(std::io::stdout(), &patch)?
             } else if options.type_name == cob::issue::TYPENAME.clone() {
-                let issues = profile.issues(&repo)?;
+                let issues = profile.issues(&repo, migrate::ignore)?;
                 let Some(issue) = issues.get(oid)? else {
                     anyhow::bail!(cob::store::Error::NotFound(options.type_name, *oid))
                 };

@@ -562,58 +562,70 @@ impl Home {
     }
 
     /// Return a read-only handle for the issues cache.
-    pub fn issues<'a, R>(
+    pub fn issues<'a, R, M>(
         &self,
         repository: &'a R,
+        _migrate: M,
     ) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreReader>, Error>
     where
+        M: cob::MigrateCallback,
         R: ReadRepository + cob::Store,
     {
         let path = self.cobs().join(cob::cache::COBS_DB_FILE);
         let db = cob::cache::Store::reader(path)?;
         let store = cob::issue::Issues::open(repository)?;
+
         Ok(cob::issue::Cache::reader(store, db))
     }
 
     /// Return a read-write handle for the issues cache.
-    pub fn issues_mut<'a, R>(
+    pub fn issues_mut<'a, R, M>(
         &self,
         repository: &'a R,
+        _migrate: M,
     ) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreWriter>, Error>
     where
+        M: cob::MigrateCallback,
         R: ReadRepository + cob::Store,
     {
         let path = self.cobs().join(cob::cache::COBS_DB_FILE);
         let db = cob::cache::Store::open(path)?;
         let store = cob::issue::Issues::open(repository)?;
+
         Ok(cob::issue::Cache::open(store, db))
     }
 
     /// Return a read-only handle for the patches cache.
-    pub fn patches<'a, R>(
+    pub fn patches<'a, R, M>(
         &self,
         repository: &'a R,
+        _migrate: M,
     ) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreReader>, Error>
     where
+        M: cob::MigrateCallback,
         R: ReadRepository + cob::Store,
     {
         let path = self.cobs().join(cob::cache::COBS_DB_FILE);
         let db = cob::cache::Store::reader(path)?;
         let store = cob::patch::Patches::open(repository)?;
+
         Ok(cob::patch::Cache::reader(store, db))
     }
 
     /// Return a read-write handle for the patches cache.
-    pub fn patches_mut<'a, R>(
+    pub fn patches_mut<'a, R, M>(
         &self,
         repository: &'a R,
+        _migrate: M,
     ) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreWriter>, Error>
     where
+        M: cob::MigrateCallback,
         R: ReadRepository + cob::Store,
     {
         let path = self.cobs().join(cob::cache::COBS_DB_FILE);
         let db = cob::cache::Store::open(path)?;
         let store = cob::patch::Patches::open(repository)?;
+
         Ok(cob::patch::Cache::open(store, db))
     }
 }

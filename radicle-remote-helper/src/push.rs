@@ -9,8 +9,8 @@ use thiserror::Error;
 
 use radicle::cob;
 use radicle::cob::object::ParseObjectId;
-use radicle::cob::patch;
 use radicle::cob::patch::cache::Patches as _;
+use radicle::cob::{migrate, patch};
 use radicle::crypto::Signer;
 use radicle::explorer::ExplorerResource;
 use radicle::git::canonical;
@@ -227,7 +227,7 @@ pub fn run(
                         &nid,
                         &working,
                         stored,
-                        profile.patches_mut(stored)?,
+                        profile.patches_mut(stored, migrate::ignore)?,
                         &signer,
                         profile,
                         opts.clone(),
@@ -247,7 +247,7 @@ pub fn run(
                             &nid,
                             &working,
                             stored,
-                            profile.patches_mut(stored)?,
+                            profile.patches_mut(stored, migrate::ignore)?,
                             &signer,
                             opts.clone(),
                         )
@@ -320,7 +320,7 @@ pub fn run(
                             &nid,
                             &working,
                             stored,
-                            profile.patches_mut(stored)?,
+                            profile.patches_mut(stored, migrate::ignore)?,
                             &signer,
                         )
                     }
