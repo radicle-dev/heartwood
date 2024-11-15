@@ -323,7 +323,26 @@ impl<T> Store<T> {
         Ok(count)
     }
 
-    /// Get the notification for the given repo.
+    /// Get the total notification count by repos.
+    pub fn counts_by_repo(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<(RepoId, usize), Error>> + '_, Error> {
+        let stmt = self.db.prepare(
+            "SELECT repo, COUNT(*) as count
+             FROM `repository-notifications`
+             GROUP BY repo",
+        )?;
+
+        Ok(stmt.into_iter().map(|row| {
+            let row = row?;
+            let count = row.try_read::<i64, _>("count")? as usize;
+            let repo = row.try_read::<RepoId, _>("repo")?;
+
+            Ok((repo, count))
+        }))
+    }
+
+    /// Get the notification count for the given repo.
     pub fn count_by_repo(&self, repo: &RepoId) -> Result<usize, Error> {
         let mut stmt = self
             .db
@@ -421,6 +440,41 @@ mod test {
         db.clear_by_repo(&repo).unwrap();
         assert_eq!(db.count().unwrap(), 0);
         assert_eq!(db.count_by_repo(&repo).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_count_by_repos() {
+        let mut db = Store::open(":memory:").unwrap();
+        let repo1 = arbitrary::gen::<RepoId>(1);
+        let repo2 = arbitrary::gen::<RepoId>(1);
+        let oid = arbitrary::oid();
+        let time = LocalTime::from_millis(32188142);
+
+        let update1 = RefUpdate::Created {
+            name: refname!("refs/heads/feature/1"),
+            oid,
+        };
+        let update2 = RefUpdate::Created {
+            name: refname!("refs/heads/feature/2"),
+            oid,
+        };
+        let update3 = RefUpdate::Created {
+            name: refname!("refs/heads/feature/3"),
+            oid,
+        };
+        assert!(db.insert(&repo1, &update1, time).unwrap());
+        assert!(db.insert(&repo1, &update2, time).unwrap());
+        assert!(db.insert(&repo2, &update3, time).unwrap());
+
+        let mut counts = db
+            .counts_by_repo()
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        counts.sort();
+
+        assert_eq!(counts.first().unwrap(), &(repo1, 2));
+        assert_eq!(counts.last().unwrap(), &(repo2, 1));
     }
 
     #[test]
