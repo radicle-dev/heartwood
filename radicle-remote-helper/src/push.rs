@@ -733,9 +733,9 @@ fn patch_merge_all<G: Signer>(
         // It's possible for more than one revision to be merged by this push, so we pick the
         // revision that is closest to the tip of the commit chain we're pushing.
         for commit in &commits {
-            if let Some((revision_id, _)) = revisions.iter().find(|(_, head)| commit == head) {
+            if let Some((revision_id, head)) = revisions.iter().find(|(_, head)| commit == head) {
                 let patch = patch::PatchMut::new(id, patch, patches);
-                patch_merge(patch, *revision_id, new, working, signer)?;
+                patch_merge(patch, *revision_id, *head, working, signer)?;
 
                 break;
             }

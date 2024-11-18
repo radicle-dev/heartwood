@@ -1,16 +1,22 @@
 Let's start by creating two patches.
 
-``` (stderr) RAD_SOCKET=/dev/null
+```
 $ git checkout -b feature/1 -q
-$ git commit --allow-empty -q -m "First change"
+$ git commit --allow-empty -m "First change"
+[feature/1 20aa5dd] First change
+```
+``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad HEAD:refs/patches
 ✓ Patch 696ec5508494692899337afe6713fe1796d0315c opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
-``` (stderr) RAD_SOCKET=/dev/null
+```
 $ git checkout -b feature/2 -q master
-$ git commit --allow-empty -q -m "Second change"
+$ git commit --allow-empty -m "Second change"
+[feature/2 daf349f] Second change
+```
+``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad HEAD:refs/patches
 ✓ Patch 356f73863a8920455ff6e77cd9c805d68910551b opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
@@ -76,6 +82,21 @@ $ rad patch --merged
 │ ✔  [ ... ]  Second change  alice   (you)  -        daf349f  +0  -0  now     │
 │ ✔  [ ... ]  First change   alice   (you)  -        20aa5dd  +0  -0  now     │
 ╰─────────────────────────────────────────────────────────────────────────────╯
+$ rad patch show 696ec5508494692899337afe6713fe1796d0315c
+╭────────────────────────────────────────────────────────────────╮
+│ Title     First change                                         │
+│ Patch     696ec5508494692899337afe6713fe1796d0315c             │
+│ Author    alice (you)                                          │
+│ Head      20aa5dde6210796c3a2f04079b42316a31d02689             │
+│ Branches  feature/1                                            │
+│ Commits   ahead 0, behind 2                                    │
+│ Status    merged                                               │
+├────────────────────────────────────────────────────────────────┤
+│ 20aa5dd First change                                           │
+├────────────────────────────────────────────────────────────────┤
+│ ● opened by alice (you) (20aa5dd) now                          │
+│   └─ ✓ merged by alice (you) at revision 696ec55 (20aa5dd) now │
+╰────────────────────────────────────────────────────────────────╯
 $ rad patch show 356f73863a8920455ff6e77cd9c805d68910551b
 ╭────────────────────────────────────────────────────────────────╮
 │ Title     Second change                                        │
@@ -89,7 +110,7 @@ $ rad patch show 356f73863a8920455ff6e77cd9c805d68910551b
 │ daf349f Second change                                          │
 ├────────────────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (daf349f) now                          │
-│   └─ ✓ merged by alice (you) at revision 356f738 (d6399c7) now │
+│   └─ ✓ merged by alice (you) at revision 356f738 (daf349f) now │
 ╰────────────────────────────────────────────────────────────────╯
 ```
 
@@ -118,4 +139,25 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
         ├── id
         ├── root
         └── sigrefs
+```
+
+Finally, let's check that we can revert the second patch without affecting
+the first patch, even though they were pushed together.
+
+``` (stderr) RAD_SOCKET=/dev/null
+$ git reset --hard HEAD^
+$ git push -f rad
+! Patch 356f73863a8920455ff6e77cd9c805d68910551b reverted at revision 356f738
+✓ Canonical head updated to 20aa5dde6210796c3a2f04079b42316a31d02689
+To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+ + d6399c7...20aa5dd master -> master (forced update)
+```
+```
+$ rad patch --all
+╭─────────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title          Author         Reviews  Head     +   -   Updated │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ●  356f738  Second change  alice   (you)  -        daf349f  +0  -0  now     │
+│ ✔  696ec55  First change   alice   (you)  -        20aa5dd  +0  -0  now     │
+╰─────────────────────────────────────────────────────────────────────────────╯
 ```
