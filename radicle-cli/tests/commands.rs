@@ -187,6 +187,25 @@ fn rad_cob_show() {
 }
 
 #[test]
+fn rad_cob_migrate() {
+    let mut environment = Environment::new();
+    let profile = environment.profile(config::profile("alice"));
+    let home = &profile.home;
+    let working = environment.tmp().join("working");
+
+    home.cobs_db_mut()
+        .unwrap()
+        .raw_query(|conn| conn.execute("PRAGMA user_version = 0"))
+        .unwrap();
+
+    // Setup a test repository.
+    fixtures::repository(&working);
+
+    test("examples/rad-init.md", &working, Some(home), []).unwrap();
+    test("examples/rad-cob-migrate.md", &working, Some(home), []).unwrap();
+}
+
+#[test]
 fn rad_init() {
     let mut environment = Environment::new();
     let profile = environment.profile(config::profile("alice"));

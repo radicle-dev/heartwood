@@ -9,7 +9,7 @@ use anyhow::{anyhow, Context as _};
 
 use radicle::cob::common::{Label, Reaction};
 use radicle::cob::issue::{CloseReason, State};
-use radicle::cob::{issue, migrate, thread};
+use radicle::cob::{issue, thread};
 use radicle::crypto::Signer;
 use radicle::issue::cache::Issues as _;
 use radicle::prelude::{Did, RepoId};
@@ -459,8 +459,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 | Operation::Edit { .. }
                 | Operation::Comment { .. }
         );
-
-    let mut issues = profile.issues_mut(&repo, migrate::ignore)?;
+    let mut issues = term::cob::issues_mut(&profile, &repo)?;
 
     match options.op {
         Operation::Edit {

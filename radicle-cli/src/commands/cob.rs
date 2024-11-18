@@ -5,7 +5,6 @@ use anyhow::anyhow;
 use chrono::prelude::*;
 use nonempty::NonEmpty;
 use radicle::cob;
-use radicle::cob::migrate;
 use radicle::cob::Op;
 use radicle::identity::Identity;
 use radicle::issue::cache::Issues;
@@ -27,14 +26,16 @@ pub const HELP: Help = Help {
 Usage
 
     rad cob <command> [<option>...]
-    rad cob list  --repo <rid> --type <typename>
-    rad cob log   --repo <rid> --type <typename> --object <oid> [<option>...]
-    rad cob show  --repo <rid> --type <typename> --object <oid> [<option>...]
+    rad cob list --repo <rid> --type <typename>
+    rad cob log --repo <rid> --type <typename> --object <oid> [<option>...]
+    rad cob show --repo <rid> --type <typename> --object <oid> [<option>...]
+    rad cob migrate [<option>...]
 
 Commands
 
     list                       List all COBs of a given type (--object is not needed)
     log                        Print a log of all raw operations on a COB
+    migrate                    Migrate the COB database to the latest version
 
 Log options
 
@@ -54,13 +55,26 @@ Other options
 enum OperationName {
     List,
     Log,
+    Migrate,
     Show,
 }
 
 enum Operation {
-    List,
-    Log(Rev),
-    Show(Rev),
+    List {
+        repo: RepoId,
+        type_name: cob::TypeName,
+    },
+    Log {
+        repo: RepoId,
+        rev: Rev,
+        type_name: cob::TypeName,
+    },
+    Migrate,
+    Show {
+        repo: RepoId,
+        rev: Rev,
+        type_name: cob::TypeName,
+    },
 }
 
 enum Format {
@@ -69,9 +83,7 @@ enum Format {
 }
 
 pub struct Options {
-    rid: RepoId,
     op: Operation,
-    type_name: cob::TypeName,
     format: Format,
 }
 
@@ -91,6 +103,7 @@ impl Args for Options {
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "list" => op = Some(OperationName::List),
                     "log" => op = Some(OperationName::Log),
+                    "migrate" => op = Some(OperationName::Migrate),
                     "show" => op = Some(OperationName::Show),
                     unknown => anyhow::bail!("unknown operation '{unknown}'"),
                 },
@@ -129,24 +142,35 @@ impl Args for Options {
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
         }
+        let repo = rid.ok_or_else(|| anyhow!("a repository id must be specified with `--repo`"));
+        let type_name =
+            type_name.ok_or_else(|| anyhow!("an object type must be specified with `--type`"));
 
         Ok((
             Options {
                 op: {
                     match op.ok_or_else(|| anyhow!("a command must be specified"))? {
-                        OperationName::List => Operation::List,
-                        OperationName::Log => Operation::Log(oid.ok_or_else(|| {
-                            anyhow!("an object id must be specified with `--object`")
-                        })?),
-                        OperationName::Show => Operation::Show(oid.ok_or_else(|| {
-                            anyhow!("an object id must be specified with `--object`")
-                        })?),
+                        OperationName::List => Operation::List {
+                            repo: repo?,
+                            type_name: type_name?,
+                        },
+                        OperationName::Log => Operation::Log {
+                            repo: repo?,
+                            rev: oid.ok_or_else(|| {
+                                anyhow!("an object id must be specified with `--object`")
+                            })?,
+                            type_name: type_name?,
+                        },
+                        OperationName::Migrate => Operation::Migrate,
+                        OperationName::Show => Operation::Show {
+                            repo: repo?,
+                            rev: oid.ok_or_else(|| {
+                                anyhow!("an object id must be specified with `--object`")
+                            })?,
+                            type_name: type_name?,
+                        },
                     }
                 },
-                rid: rid
-                    .ok_or_else(|| anyhow!("a repository id must be specified with `--repo`"))?,
-                type_name: type_name
-                    .ok_or_else(|| anyhow!("an object type must be specified with `--type`"))?,
                 format: format.unwrap_or(Format::Pretty),
             },
             vec![],
@@ -157,18 +181,23 @@ impl Args for Options {
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
-    let repo = storage.repository(options.rid)?;
 
     match options.op {
-        Operation::List => {
-            let cobs = list::<NonEmpty<cob::Entry>, _>(&repo, &options.type_name)?;
+        Operation::List { repo, type_name } => {
+            let repo = storage.repository(repo)?;
+            let cobs = list::<NonEmpty<cob::Entry>, _>(&repo, &type_name)?;
             for cob in cobs {
                 println!("{}", cob.id);
             }
         }
-        Operation::Log(oid) => {
+        Operation::Log {
+            repo,
+            rev: oid,
+            type_name,
+        } => {
+            let repo = storage.repository(repo)?;
             let oid = oid.resolve(&repo.backend)?;
-            let ops = cob::store::ops(&oid, &options.type_name, &repo)?;
+            let ops = cob::store::ops(&oid, &type_name, &repo)?;
 
             for op in ops.into_iter().rev() {
                 match options.format {
@@ -177,28 +206,44 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
             }
         }
-        Operation::Show(oid) => {
+        Operation::Migrate => {
+            let mut db = profile.cobs_db_mut()?;
+            if db.check_version().is_ok() {
+                term::success!("Collaborative objects database is already up to date");
+            } else {
+                let version = db.migrate(term::cob::migrate::spinner())?;
+                term::success!(
+                    "Migrated collaborative objects database successfully (version={version})"
+                );
+            }
+        }
+        Operation::Show {
+            repo,
+            rev: oid,
+            type_name,
+        } => {
+            let repo = storage.repository(repo)?;
             let oid = &oid.resolve(&repo.backend)?;
 
-            if options.type_name == cob::patch::TYPENAME.clone() {
-                let patches = profile.patches(&repo, migrate::ignore)?;
+            if type_name == cob::patch::TYPENAME.clone() {
+                let patches = term::cob::patches(&profile, &repo)?;
                 let Some(patch) = patches.get(oid)? else {
-                    anyhow::bail!(cob::store::Error::NotFound(options.type_name, *oid))
+                    anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
                 };
                 serde_json::to_writer_pretty(std::io::stdout(), &patch)?
-            } else if options.type_name == cob::issue::TYPENAME.clone() {
-                let issues = profile.issues(&repo, migrate::ignore)?;
+            } else if type_name == cob::issue::TYPENAME.clone() {
+                let issues = term::cob::issues(&profile, &repo)?;
                 let Some(issue) = issues.get(oid)? else {
-                    anyhow::bail!(cob::store::Error::NotFound(options.type_name, *oid))
+                    anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
                 };
                 serde_json::to_writer_pretty(std::io::stdout(), &issue)?
-            } else if options.type_name == cob::identity::TYPENAME.clone() {
-                let Some(cob) = cob::get::<Identity, _>(&repo, &options.type_name, oid)? else {
-                    anyhow::bail!(cob::store::Error::NotFound(options.type_name, *oid))
+            } else if type_name == cob::identity::TYPENAME.clone() {
+                let Some(cob) = cob::get::<Identity, _>(&repo, &type_name, oid)? else {
+                    anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
                 };
                 serde_json::to_writer_pretty(std::io::stdout(), &cob.object)?
             } else {
-                anyhow::bail!("the type name '{}' is unknown", options.type_name);
+                anyhow::bail!("the type name '{type_name}' is unknown");
             }
             println!();
         }

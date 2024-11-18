@@ -1,4 +1,4 @@
-use radicle::cob::{migrate, patch};
+use radicle::cob::patch;
 use radicle::git;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
@@ -19,7 +19,7 @@ pub fn run(
     let head_branch = try_branch(workdir.head()?)?;
 
     let (_, target_oid) = get_merge_target(repository, &head_branch)?;
-    let mut patches = profile.patches_mut(repository, migrate::ignore)?;
+    let mut patches = term::cob::patches_mut(profile, repository)?;
     let Ok(mut patch) = patches.get_mut(&patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };

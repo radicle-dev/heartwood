@@ -11,12 +11,13 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::{env, fmt, io};
 
-use radicle_cli::git::Rev;
 use thiserror::Error;
 
-use radicle::git;
 use radicle::storage::git::transport::local::{Url, UrlError};
 use radicle::storage::{ReadRepository, WriteStorage};
+use radicle::{cob, profile};
+use radicle::{git, storage, Profile};
+use radicle_cli::git::Rev;
 use radicle_cli::terminal as cli;
 
 #[derive(Debug, Error)]
@@ -258,4 +259,37 @@ pub(crate) fn hint(s: impl fmt::Display) {
 /// Write a warning to the user.
 pub(crate) fn warn(s: impl fmt::Display) {
     eprintln!("{}", cli::format::hint(format!("warn: {s}")));
+}
+
+/// Get the patch store.
+pub(crate) fn patches<'a, R: ReadRepository + cob::Store>(
+    profile: &Profile,
+    repo: &'a R,
+) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreReader>, list::Error> {
+    match profile.patches(repo) {
+        Ok(patches) => Ok(patches),
+        Err(err @ profile::Error::CobsCache(cob::cache::Error::OutOfDate)) => {
+            hint(cli::cob::MIGRATION_HINT);
+            Err(err.into())
+        }
+        Err(err) => Err(err.into()),
+    }
+}
+
+/// Get the mutable patch store.
+pub(crate) fn patches_mut<'a>(
+    profile: &Profile,
+    repo: &'a storage::git::Repository,
+) -> Result<
+    cob::patch::Cache<cob::patch::Patches<'a, storage::git::Repository>, cob::cache::StoreWriter>,
+    push::Error,
+> {
+    match profile.patches_mut(repo) {
+        Ok(patches) => Ok(patches),
+        Err(err @ profile::Error::CobsCache(cob::cache::Error::OutOfDate)) => {
+            hint(cli::cob::MIGRATION_HINT);
+            Err(err.into())
+        }
+        Err(err) => Err(err.into()),
+    }
 }

@@ -362,7 +362,7 @@ impl Update<Patch> for StoreWriter {
             "INSERT INTO patches (id, repo, patch)
              VALUES (?1, ?2, ?3)
              ON CONFLICT DO UPDATE
-             SET patch =  (?3)",
+             SET patch = (?3)",
         )?;
 
         stmt.bind((1, sql::Value::String(id.to_string())))?;
@@ -705,6 +705,7 @@ mod tests {
     use radicle_cob::ObjectId;
 
     use crate::cob::cache::{Store, Update, Write};
+    use crate::cob::migrate;
     use crate::cob::thread::{Comment, Thread};
     use crate::cob::Author;
     use crate::patch::{
@@ -718,7 +719,10 @@ mod tests {
     use super::{Cache, Patches};
 
     fn memory(store: MockRepository) -> Cache<MockRepository, Store<Write>> {
-        let cache = Store::<Write>::memory().unwrap();
+        let cache = Store::<Write>::memory()
+            .unwrap()
+            .with_migrations(migrate::ignore)
+            .unwrap();
         Cache { store, cache }
     }
 

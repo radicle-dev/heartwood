@@ -8,6 +8,7 @@ use std::{fs, io, net};
 use crossbeam_channel as chan;
 use cyphernet::Ecdh;
 use netservices::resource::NetAccept;
+use radicle::cob::migrate;
 use radicle_fetch::FetchLimit;
 use radicle_signals::Signal;
 use reactor::poller::popol;
@@ -141,7 +142,17 @@ impl Runtime {
         let policies = home.policies_mut()?;
         let policies = policy::Config::new(policy, policies);
         let notifications = home.notifications_mut()?;
-        let cobs_cache = cob::cache::Store::open(home.cobs().join(cob::cache::COBS_DB_FILE))?;
+        let mut cobs_cache = cob::cache::Store::open(home.cobs().join(cob::cache::COBS_DB_FILE))?;
+
+        match cobs_cache.check_version() {
+            Ok(()) => {}
+            Err(cob::cache::Error::OutOfDate) => {
+                log::info!(target: "node", "Migrating COBs cache..");
+                let version = cobs_cache.migrate(migrate::log)?;
+                log::info!(target: "node", "Migration of COBs cache complete (version={version})..");
+            }
+            Err(e) => return Err(e.into()),
+        }
 
         log::info!(target: "node", "Default seeding policy set to '{}'", &policy);
         log::info!(target: "node", "Initializing service ({:?})..", network);

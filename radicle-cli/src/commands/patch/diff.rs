@@ -1,6 +1,6 @@
 use std::process;
 
-use radicle::cob::{migrate, patch};
+use radicle::cob::patch;
 use radicle::storage::git::Repository;
 
 use super::*;
@@ -11,7 +11,7 @@ pub fn run(
     stored: &Repository,
     profile: &Profile,
 ) -> anyhow::Result<()> {
-    let patches = profile.patches(stored, migrate::ignore)?;
+    let patches = term::cob::patches(profile, stored)?;
     let Some(patch) = patches.get(patch_id)? else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };

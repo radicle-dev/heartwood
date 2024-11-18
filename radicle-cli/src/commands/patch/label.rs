@@ -1,7 +1,6 @@
-use super::*;
-
-use radicle::cob::migrate;
 use radicle::storage::git::Repository;
+
+use super::*;
 
 use crate::terminal as term;
 
@@ -13,7 +12,7 @@ pub fn run(
     repository: &Repository,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
-    let mut patches = profile.patches_mut(repository, migrate::ignore)?;
+    let mut patches = term::cob::patches_mut(profile, repository)?;
     let Ok(mut patch) = patches.get_mut(patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };

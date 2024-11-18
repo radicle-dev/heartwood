@@ -9,8 +9,8 @@ use thiserror::Error;
 
 use radicle::cob;
 use radicle::cob::object::ParseObjectId;
+use radicle::cob::patch;
 use radicle::cob::patch::cache::Patches as _;
-use radicle::cob::{migrate, patch};
 use radicle::crypto::Signer;
 use radicle::explorer::ExplorerResource;
 use radicle::git::canonical;
@@ -219,6 +219,7 @@ pub fn run(
             }
             Command::Push(git::Refspec { src, dst, force }) => {
                 let working = git::raw::Repository::open(working)?;
+                let patches = crate::patches_mut(profile, stored)?;
 
                 if dst == &*rad::PATCHES_REFNAME {
                     patch_open(
@@ -227,7 +228,7 @@ pub fn run(
                         &nid,
                         &working,
                         stored,
-                        profile.patches_mut(stored, migrate::ignore)?,
+                        patches,
                         &signer,
                         profile,
                         opts.clone(),
@@ -247,7 +248,7 @@ pub fn run(
                             &nid,
                             &working,
                             stored,
-                            profile.patches_mut(stored, migrate::ignore)?,
+                            patches,
                             &signer,
                             opts.clone(),
                         )
@@ -323,16 +324,7 @@ pub fn run(
                                 Err(e) => return Err(e.into()),
                             };
                         }
-                        push(
-                            src,
-                            &dst,
-                            *force,
-                            &nid,
-                            &working,
-                            stored,
-                            profile.patches_mut(stored, migrate::ignore)?,
-                            &signer,
-                        )
+                        push(src, &dst, *force, &nid, &working, stored, patches, &signer)
                     }
                 }
             }

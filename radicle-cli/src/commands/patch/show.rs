@@ -1,6 +1,6 @@
 use std::process;
 
-use radicle::cob::{migrate, patch};
+use radicle::cob::patch;
 use radicle::git;
 use radicle::storage::git::Repository;
 
@@ -32,7 +32,7 @@ pub fn run(
     stored: &Repository,
     workdir: Option<&git::raw::Repository>,
 ) -> anyhow::Result<()> {
-    let patches = profile.patches(stored, migrate::ignore)?;
+    let patches = term::cob::patches(profile, stored)?;
     let Some(patch) = patches.get(patch_id).map_err(|e| Error::WithHint {
         err: e.into(),
         hint: "reset the cache with `rad patch cache` and try again",

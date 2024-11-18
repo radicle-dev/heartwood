@@ -2739,6 +2739,8 @@ mod test {
     use crate::test::arbitrary::gen;
     use crate::test::storage::MockRepository;
 
+    use cob::migrate;
+
     #[test]
     fn test_json_serialization() {
         let edit = Action::Label {
@@ -3352,8 +3354,10 @@ mod test {
         let branch = checkout.branch_with([("README", b"Hello World!")]);
         let mut patches = {
             let path = alice.tmp.path().join("cobs.db");
-            let db = cob::cache::Store::open(path).unwrap();
+            let mut db = cob::cache::Store::open(path).unwrap();
             let store = cob::patch::Patches::open(&*alice.repo).unwrap();
+
+            db.migrate(migrate::ignore).unwrap();
             cob::patch::Cache::open(store, db)
         };
         let mut patch = patches

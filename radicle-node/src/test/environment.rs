@@ -10,8 +10,7 @@ use std::{
 use crossbeam_channel as chan;
 
 use localtime::LocalTime;
-use radicle::cob::cache::COBS_DB_FILE;
-use radicle::cob::issue;
+use radicle::cob::{issue, migrate};
 use radicle::crypto::ssh::{keystore::MemorySigner, Keystore};
 use radicle::crypto::test::signer::MockSigner;
 use radicle::crypto::{KeyPair, Seed, Signer};
@@ -111,7 +110,6 @@ impl Environment {
         let keystore = Keystore::new(&home.keys());
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
         let policies_db = home.node().join(POLICIES_DB_FILE);
-        let cobs_db = home.cobs().join(COBS_DB_FILE);
         let now = LocalTime::now();
 
         config.write(&home.config()).unwrap();
@@ -126,8 +124,10 @@ impl Environment {
         .unwrap();
         let public_key = keypair.pk.into();
 
+        let mut db = home.cobs_db_mut().unwrap();
+        db.migrate(migrate::ignore).unwrap();
+
         policy::Store::open(policies_db).unwrap();
-        cob::cache::Store::open(cobs_db).unwrap();
         home.database_mut()
             .unwrap()
             .init(

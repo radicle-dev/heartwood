@@ -534,6 +534,7 @@ mod tests {
     use radicle_cob::ObjectId;
 
     use crate::cob::cache::{Store, Update, Write};
+    use crate::cob::migrate;
     use crate::cob::thread::Thread;
     use crate::issue::{CloseReason, Issue, IssueCounts, IssueId, State};
     use crate::test::arbitrary;
@@ -542,7 +543,10 @@ mod tests {
     use super::{Cache, Issues};
 
     fn memory(store: MockRepository) -> Cache<MockRepository, Store<Write>> {
-        let cache = Store::<Write>::memory().unwrap();
+        let cache = Store::<Write>::memory()
+            .unwrap()
+            .with_migrations(migrate::ignore)
+            .unwrap();
         Cache { store, cache }
     }
 

@@ -1,8 +1,7 @@
-use super::*;
-
-use radicle::cob::migrate;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
+
+use super::*;
 
 pub fn run(
     patch_id: &PatchId,
@@ -11,7 +10,7 @@ pub fn run(
     repository: &Repository,
 ) -> anyhow::Result<bool> {
     let signer = term::signer(profile)?;
-    let mut patches = profile.patches_mut(repository, migrate::ignore)?;
+    let mut patches = term::cob::patches_mut(profile, repository)?;
     let Ok(mut patch) = patches.get_mut(patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };

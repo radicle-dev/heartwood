@@ -1,0 +1,165 @@
+{
+  "title": "Remove loading indicator from Share button",
+  "author": {
+    "id": "did:key:z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5"
+  },
+  "state": {
+    "status": "merged",
+    "revision": "7bdb1c8a273ace2a0be4b93e9b1b525dc1696e68",
+    "commit": "f6a77bec9401c35b1baa19d356405a9d77ed8e0d"
+  },
+  "target": "delegates",
+  "labels": [],
+  "merges": {},
+  "revisions": {
+    "016a91d2029ee71b9aee8d927664caf1b7885346": {
+      "id": "016a91d2029ee71b9aee8d927664caf1b7885346",
+      "author": { "id": "did:key:z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5" },
+      "description": [
+        {
+          "author": "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5",
+          "timestamp": 1710884599000,
+          "body": "",
+          "embeds": []
+        }
+      ],
+      "base": "daba9fca8281405134d64036bde300f2181f73fe",
+      "oid": "c24c942261647993fcb0d34224f5c98b0f30266f",
+      "discussion": {
+        "comments": {},
+        "timeline": []
+      },
+      "reviews": {},
+      "timestamp": 1710884599000,
+      "resolves": [],
+      "reactions": []
+    },
+    "4a98168bfe6e16934b922e7d5df3cf68c7e7d085": {
+      "id": "4a98168bfe6e16934b922e7d5df3cf68c7e7d085",
+      "author": { "id": "did:key:z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5" },
+      "description": [
+        {
+          "author": "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5",
+          "timestamp": 1710939751000,
+          "body": "Instead of disabeling the Share button, adds a min-width param",
+          "embeds": []
+        }
+      ],
+      "base": "9c65ee97e8f97a2ae130c36b6bbc1071cc31fd93",
+      "oid": "5dd21bdb51a6a37dc5957d81f63058344ec6b8e5",
+      "discussion": {
+        "comments": {},
+        "timeline": []
+      },
+      "reviews": {
+        "z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx": {
+          "id": "89d45fb371eb2622ba88188d474347cc526d80bb",
+          "author": { "id": "did:key:z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx" },
+          "verdict": "accept",
+          "summary": null,
+          "comments": {
+            "comments": {},
+            "timeline": []
+          },
+          "labels": [],
+          "timestamp": 1710947885000
+        }
+      },
+      "timestamp": 1710939751000,
+      "resolves": [],
+      "reactions": []
+    },
+    "6a71b034d661994d188abac920b41e7f9c57d85d": {
+      "id": "6a71b034d661994d188abac920b41e7f9c57d85d",
+      "author": { "id": "did:key:z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx" },
+      "description": [
+        {
+          "author": "z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx",
+          "timestamp": 1710940872000,
+          "body": "Rebase.",
+          "embeds": []
+        }
+      ],
+      "base": "cddf8b40fc352eb84885e5adeed65b3abb0639fc",
+      "oid": "239bc7e5c786ac65d8456164a97bab2419da441a",
+      "discussion": {
+        "comments": {},
+        "timeline": []
+      },
+      "reviews": {},
+      "timestamp": 1710940872000,
+      "resolves": [],
+      "reactions": []
+    },
+    "7bdb1c8a273ace2a0be4b93e9b1b525dc1696e68": {
+      "id": "7bdb1c8a273ace2a0be4b93e9b1b525dc1696e68",
+      "author": { "id": "did:key:z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx" },
+      "description": [
+        {
+          "author": "z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx",
+          "timestamp": 1710947911000,
+          "body": "Rebase.",
+          "embeds": []
+        }
+      ],
+      "base": "fe7cd1b4e52d15c27f89e23d98e8ccad9c3a8bff",
+      "oid": "f6a77bec9401c35b1baa19d356405a9d77ed8e0d",
+      "discussion": {
+        "comments": {},
+        "timeline": []
+      },
+      "reviews": {},
+      "timestamp": 1710947911000,
+      "resolves": [],
+      "reactions": []
+    },
+    "eee18b0bb43e8673c3b32f3e151556906b1214f6": {
+      "id": "eee18b0bb43e8673c3b32f3e151556906b1214f6",
+      "author": {
+        "id": "did:key:z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx"
+      },
+      "description": [
+        {
+          "author": "z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx",
+          "timestamp": 1710941119000,
+          "body": "Rebase.",
+          "embeds": []
+        }
+      ],
+      "base": "cddf8b40fc352eb84885e5adeed65b3abb0639fc",
+      "oid": "a9bdc6b43df080adb8086427b363590aea17bf82",
+      "discussion": {
+        "comments": {},
+        "timeline": []
+      },
+      "reviews": {},
+      "timestamp": 1710941119000,
+      "resolves": [],
+      "reactions": []
+    }
+  },
+  "assignees": [],
+  "timeline": [
+    "016a91d2029ee71b9aee8d927664caf1b7885346",
+    "4a98168bfe6e16934b922e7d5df3cf68c7e7d085",
+    "6a71b034d661994d188abac920b41e7f9c57d85d",
+    "eee18b0bb43e8673c3b32f3e151556906b1214f6",
+    "0076749b04e878ca4387bb60cd80a281af2285bb",
+    "e5b200b71a7f413db5697d0e1f9ce267a2095a45",
+    "27c4e9b9e3837adf417eb816bcea8521b563a030",
+    "89d45fb371eb2622ba88188d474347cc526d80bb",
+    "7bdb1c8a273ace2a0be4b93e9b1b525dc1696e68",
+    "c7d8213bab37f40c8cb6668a98ce7292f6d05bf3",
+    "081559bfae2f729486f50d93600d1dac0f996d81"
+  ],
+  "reviews": {
+    "0076749b04e878ca4387bb60cd80a281af2285bb": [
+      "4a98168bfe6e16934b922e7d5df3cf68c7e7d085",
+      "z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx"
+    ],
+    "89d45fb371eb2622ba88188d474347cc526d80bb": [
+      "4a98168bfe6e16934b922e7d5df3cf68c7e7d085",
+      "z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx"
+    ]
+  }
+}

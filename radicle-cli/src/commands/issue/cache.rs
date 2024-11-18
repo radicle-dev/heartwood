@@ -1,6 +1,5 @@
 use std::ops::ControlFlow;
 
-use radicle::cob::migrate;
 use radicle::issue::IssueId;
 use radicle::storage::git::Repository;
 use radicle::storage::ReadStorage as _;
@@ -38,9 +37,8 @@ pub fn run(mode: CacheMode, profile: &Profile) -> anyhow::Result<()> {
 }
 
 fn cache(id: Option<IssueId>, repository: &Repository, profile: &Profile) -> anyhow::Result<()> {
-    let mut issues = profile.issues_mut(repository, migrate::ignore)?;
+    let mut issues = term::cob::issues_mut(profile, repository)?;
 
-    // FIXME: Should this change?
     match id {
         Some(id) => {
             issues.write(&id)?;

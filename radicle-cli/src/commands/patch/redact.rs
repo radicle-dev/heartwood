@@ -1,4 +1,4 @@
-use radicle::cob::{migrate, patch};
+use radicle::cob::patch;
 use radicle::git::Oid;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
@@ -13,7 +13,7 @@ pub fn run(
     repository: &Repository,
 ) -> anyhow::Result<()> {
     let signer = &term::signer(profile)?;
-    let mut patches = profile.patches_mut(repository, migrate::ignore)?;
+    let mut patches = term::cob::patches_mut(profile, repository)?;
 
     let revision_id = revision_id.resolve::<Oid>(&repository.backend)?;
     let patch::ByRevision {

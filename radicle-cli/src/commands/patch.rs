@@ -37,7 +37,7 @@ use std::ffi::OsString;
 use anyhow::anyhow;
 
 use radicle::cob::patch::PatchId;
-use radicle::cob::{migrate, patch, Label};
+use radicle::cob::{patch, Label};
 use radicle::git::RefString;
 use radicle::patch::cache::Patches as _;
 use radicle::storage::git::transport;
@@ -928,7 +928,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             label::run(&patch_id, add, delete, &profile, &repository)?;
         }
         Operation::Set { patch_id, remote } => {
-            let patches = profile.patches(&repository, migrate::ignore)?;
+            let patches = term::cob::patches(&profile, &repository)?;
             let patch_id = patch_id.resolve(&repository.backend)?;
             let patch = patches
                 .get(&patch_id)?

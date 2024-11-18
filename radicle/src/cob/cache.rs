@@ -1,3 +1,5 @@
+mod migrations;
+
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::fmt;
@@ -23,34 +25,51 @@ const DB_WRITE_TIMEOUT: time::Duration = time::Duration::from_secs(6);
 
 /// Database migrations.
 /// The first migration is the creation of the initial tables.
-const MIGRATIONS: &[Migration] = &[Migration::Sql(include_str!("cache/migrations/1.sql"))];
+const MIGRATIONS: &[Migration] = &[
+    Migration::Sql(include_str!("cache/migrations/1.sql")),
+    Migration::Native(migrations::_2::run),
+];
 
 /// Function signature for native migrations.
-type MigrateFn = fn(&sql::Connection, Progress, &dyn MigrateCallback) -> Result<usize, Error>;
+type MigrateFn = fn(&sql::Connection, &Progress, &mut dyn MigrateCallback) -> Result<usize, Error>;
 
 /// A database migration.
 enum Migration {
     /// Migration written in SQL.
     Sql(&'static str),
     /// Migration function written in Rust.
-    #[allow(dead_code)]
     Native(MigrateFn),
+}
+
+/// Progress of a database migration.
+#[derive(Debug)]
+pub struct MigrateProgress<'a> {
+    /// Progress in the list of migrations.
+    pub migration: &'a Progress,
+    /// Progress within each individual migration.
+    pub rows: &'a Progress,
+}
+
+impl<'a> MigrateProgress<'a> {
+    /// If we're done with the migration.
+    pub fn is_done(&self) -> bool {
+        self.migration.current() == self.migration.total()
+            && self.rows.current() == self.rows.total()
+    }
 }
 
 /// Something that can process migration progress.
 pub trait MigrateCallback {
     /// A migration has progressed.
-    /// The first [`Progress`] parameter refers to the progress within the list of migrations.
-    /// The second [`Progress`] parameter refers to the progress within the current migration.
-    fn progress(&mut self, migration: Progress, item: Progress) -> Result<bool, Error>;
+    fn progress(&mut self, progress: MigrateProgress<'_>);
 }
 
 impl<F> MigrateCallback for F
 where
-    F: Fn(Progress, Progress) -> Result<bool, Error>,
+    F: Fn(MigrateProgress),
 {
-    fn progress(&mut self, migration: Progress, item: Progress) -> Result<bool, Error> {
-        (self)(migration, item)
+    fn progress(&mut self, progress: MigrateProgress) {
+        (self)(progress)
     }
 }
 
@@ -59,21 +78,18 @@ pub mod migrate {
     use super::*;
 
     /// Log progress via installed logger at "info" level.
-    pub fn log(migration: Progress, item: Progress) -> Result<bool, Error> {
-        log::info!(
+    pub fn log(progress: MigrateProgress<'_>) {
+        log::trace!(
             target: "db",
             "Migration {}/{} in progress.. ({}%)",
-            migration.current() + 1,
-            migration.total(),
-            item.percentage()
+            progress.migration.current(),
+            progress.migration.total(),
+            progress.rows.percentage()
         );
-        Ok(true)
     }
 
     /// Ignore progress, just migrate.
-    pub fn ignore(_migration: Progress, _item: Progress) -> Result<bool, Error> {
-        Ok(true)
-    }
+    pub fn ignore(_progress: MigrateProgress<'_>) {}
 }
 
 #[derive(Error, Debug)]
@@ -81,9 +97,18 @@ pub enum Error {
     /// An Internal error.
     #[error("internal error: {0}")]
     Internal(#[from] sql::Error),
+    /// Malformed JSON schema, eg. missing fields or wrong field types.
+    #[error("malformed JSON schema")]
+    MalformedJsonSchema,
+    /// Malformed JSON data, ie. not valid JSON.
+    #[error("malformed JSON data: {0}")]
+    MalformedJson(serde_json::Error),
     /// No rows returned in query result.
     #[error("no rows returned")]
     NoRows,
+    /// Schema is out of date, migrations need to be run.
+    #[error("collaborative objects database is out of date")]
+    OutOfDate,
 }
 
 /// Read and write to the store.
@@ -148,7 +173,6 @@ impl Store<Write> {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let mut db = sql::Connection::open_thread_safe(path)?;
         db.set_busy_timeout(DB_WRITE_TIMEOUT.as_millis() as usize)?;
-        migrate(&db, migrate::ignore)?;
 
         Ok(Self {
             db: Arc::new(db),
@@ -159,12 +183,16 @@ impl Store<Write> {
     /// Create a new in-memory database.
     pub fn memory() -> Result<Self, Error> {
         let db = Arc::new(sql::Connection::open_thread_safe(":memory:")?);
-        migrate(&db, migrate::ignore)?;
 
         Ok(Self {
             db,
             marker: PhantomData,
         })
+    }
+
+    /// Builder method that migrates the database.
+    pub fn with_migrations<M: MigrateCallback>(mut self, callback: M) -> Result<Self, Error> {
+        self.migrate(callback).map(|_| self)
     }
 
     /// Turn this handle into a read-only handle.
@@ -183,12 +211,61 @@ impl Store<Write> {
     {
         transaction(&self.db, query)
     }
+
+    /// Migrate this database to the latest version.
+    /// Returns the verison migrated to.
+    pub fn migrate<M: MigrateCallback>(&mut self, callback: M) -> Result<usize, Error> {
+        self.migrate_to(MIGRATIONS.len(), callback)
+    }
+
+    /// Migrate this database to the given target version.
+    /// Returns the verison migrated to.
+    pub fn migrate_to<M: MigrateCallback>(
+        &mut self,
+        target: usize,
+        mut callback: M,
+    ) -> Result<usize, Error> {
+        let db = &self.db;
+        let mut version = version(db)?;
+        let total = MIGRATIONS.len();
+
+        for (i, migration) in MIGRATIONS.iter().enumerate().take(target).skip(version) {
+            let current = i + 1;
+
+            transaction(db, |db| {
+                match migration {
+                    Migration::Sql(query) => {
+                        db.execute(query)?;
+                        callback.progress(MigrateProgress {
+                            migration: &Progress { total, current },
+                            rows: &Progress::done(1),
+                        });
+                    }
+                    Migration::Native(migrate) => {
+                        migrate(db, &Progress { total, current }, &mut callback)?;
+                    }
+                }
+                version = bump(db)?;
+
+                Ok::<_, Error>(())
+            })?;
+        }
+        Ok(version)
+    }
 }
 
 impl<T> Store<T> {
     /// Get the database version. This is updated on schema changes.
     pub fn version(&self) -> Result<usize, Error> {
         version(&self.db)
+    }
+
+    /// Check if the database version is out of date, ie. we need to migrate.
+    pub fn check_version(&self) -> Result<(), Error> {
+        if version(&self.db)? < MIGRATIONS.len() {
+            return Err(Error::OutOfDate);
+        }
+        Ok(())
     }
 }
 
@@ -212,39 +289,6 @@ fn bump(db: &sql::Connection) -> Result<usize, Error> {
     db.execute(format!("PRAGMA user_version = {new}"))?;
 
     Ok(new as usize)
-}
-
-/// Migrate the database to the latest schema.
-fn migrate<M>(db: &sql::Connection, mut callback: M) -> Result<usize, Error>
-where
-    M: MigrateCallback,
-{
-    let mut version = version(db)?;
-    let total = MIGRATIONS.len();
-
-    for (i, migration) in MIGRATIONS.iter().enumerate() {
-        if i < version {
-            continue;
-        }
-        transaction(db, |db| {
-            match migration {
-                Migration::Sql(query) => {
-                    db.execute(query)?;
-                    callback.progress(
-                        Progress { total, current: i },
-                        Progress::done(db.change_count()),
-                    )?;
-                }
-                Migration::Native(migrate) => {
-                    migrate(db, Progress { total, current: i }, &callback)?;
-                }
-            }
-            version = bump(db)?;
-
-            Ok::<_, Error>(())
-        })?;
-    }
-    Ok(version)
 }
 
 /// Update a COB object in the cache.
@@ -351,6 +395,7 @@ impl<T> Remove<T> for NoCache {
 ///
 /// See [`crate::cob::issue::Cache::write_all`] and
 /// [`crate::cob::patch::Cache::write_all`].
+#[derive(Debug)]
 pub struct Progress {
     current: usize,
     total: usize,
@@ -386,11 +431,45 @@ impl Progress {
     }
 
     /// Return the percentage of the progress made.
-    ///
-    /// # Panics
-    ///
-    /// If the `total` provided is `0`.
     pub fn percentage(&self) -> f32 {
-        (self.current as f32 / self.total as f32) * 100.0
+        if self.total == 0 {
+            100.
+        } else {
+            (self.current as f32 / self.total as f32) * 100.0
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use crate::assert_matches;
+
+    #[test]
+    fn test_check_version() {
+        let mut db = StoreWriter::memory().unwrap();
+        assert_matches!(db.check_version(), Err(Error::OutOfDate));
+
+        db.migrate(migrate::ignore).unwrap();
+        assert_matches!(db.check_version(), Ok(()));
+    }
+
+    #[test]
+    fn test_migrate_to() {
+        let mut db = StoreWriter::memory().unwrap();
+        assert_eq!(db.version().unwrap(), 0);
+
+        assert_eq!(db.migrate_to(1, migrate::ignore).unwrap(), 1); // 0 -> 1
+        assert_eq!(db.version().unwrap(), 1);
+
+        assert_eq!(db.migrate_to(2, migrate::ignore).unwrap(), 2); // 1 -> 2
+        assert_eq!(db.version().unwrap(), 2);
+
+        assert_eq!(db.migrate_to(1, migrate::ignore).unwrap(), 2); // No-op.
+        assert_eq!(db.version().unwrap(), 2);
+
+        assert_eq!(db.migrate_to(99, migrate::ignore).unwrap(), 2); // No-op.
+        assert_eq!(db.version().unwrap(), 2);
     }
 }

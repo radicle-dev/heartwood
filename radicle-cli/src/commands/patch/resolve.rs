@@ -1,5 +1,4 @@
 use anyhow::anyhow;
-use radicle::cob::migrate;
 use radicle::cob::thread::CommentId;
 use radicle::patch::{self, PatchId};
 use radicle::patch::{cache::Patches as _, ReviewId};
@@ -16,7 +15,7 @@ pub fn resolve(
     profile: &Profile,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
-    let mut patches = profile.patches_mut(repo, migrate::ignore)?;
+    let mut patches = term::cob::patches_mut(profile, repo)?;
     let patch = patches
         .get(&patch_id)?
         .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;
@@ -33,7 +32,7 @@ pub fn unresolve(
     profile: &Profile,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
-    let mut patches = profile.patches_mut(repo, migrate::ignore)?;
+    let mut patches = term::cob::patches_mut(profile, repo)?;
     let patch = patches
         .get(&patch_id)?
         .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;

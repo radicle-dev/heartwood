@@ -20,6 +20,7 @@ use std::{fs, io};
 use localtime::LocalTime;
 use thiserror::Error;
 
+use crate::cob::migrate;
 use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
@@ -228,6 +229,10 @@ impl Profile {
                 LocalTime::now().into(),
                 config.node.external_addresses.iter(),
             )?;
+
+        // Migrate COBs cache.
+        let mut cobs = home.cobs_db_mut()?;
+        cobs.migrate(migrate::ignore)?;
 
         transport::local::register(storage.clone());
 
@@ -561,70 +566,82 @@ impl Home {
         self.database_mut()
     }
 
-    /// Return a read-only handle for the issues cache.
-    pub fn issues<'a, R, M>(
-        &self,
-        repository: &'a R,
-        _migrate: M,
-    ) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreReader>, Error>
-    where
-        M: cob::MigrateCallback,
-        R: ReadRepository + cob::Store,
-    {
+    /// Get read access to the COBs cache.
+    pub fn cobs_db(&self) -> Result<cob::cache::StoreReader, Error> {
         let path = self.cobs().join(cob::cache::COBS_DB_FILE);
         let db = cob::cache::Store::reader(path)?;
+
+        Ok(db)
+    }
+
+    /// Get write access to the COBs cache.
+    pub fn cobs_db_mut(&self) -> Result<cob::cache::StoreWriter, Error> {
+        let path = self.cobs().join(cob::cache::COBS_DB_FILE);
+        let db = cob::cache::Store::open(path)?;
+
+        Ok(db)
+    }
+
+    /// Return a read-only handle for the issues cache.
+    pub fn issues<'a, R>(
+        &self,
+        repository: &'a R,
+    ) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreReader>, Error>
+    where
+        R: ReadRepository + cob::Store,
+    {
+        let db = self.cobs_db()?;
         let store = cob::issue::Issues::open(repository)?;
+
+        db.check_version()?;
 
         Ok(cob::issue::Cache::reader(store, db))
     }
 
     /// Return a read-write handle for the issues cache.
-    pub fn issues_mut<'a, R, M>(
+    pub fn issues_mut<'a, R>(
         &self,
         repository: &'a R,
-        _migrate: M,
     ) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreWriter>, Error>
     where
-        M: cob::MigrateCallback,
         R: ReadRepository + cob::Store,
     {
-        let path = self.cobs().join(cob::cache::COBS_DB_FILE);
-        let db = cob::cache::Store::open(path)?;
+        let db = self.cobs_db_mut()?;
         let store = cob::issue::Issues::open(repository)?;
+
+        db.check_version()?;
 
         Ok(cob::issue::Cache::open(store, db))
     }
 
     /// Return a read-only handle for the patches cache.
-    pub fn patches<'a, R, M>(
+    pub fn patches<'a, R>(
         &self,
         repository: &'a R,
-        _migrate: M,
     ) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreReader>, Error>
     where
-        M: cob::MigrateCallback,
         R: ReadRepository + cob::Store,
     {
-        let path = self.cobs().join(cob::cache::COBS_DB_FILE);
-        let db = cob::cache::Store::reader(path)?;
+        let db = self.cobs_db()?;
         let store = cob::patch::Patches::open(repository)?;
+
+        db.check_version()?;
 
         Ok(cob::patch::Cache::reader(store, db))
     }
 
     /// Return a read-write handle for the patches cache.
-    pub fn patches_mut<'a, R, M>(
+    pub fn patches_mut<'a, R>(
         &self,
         repository: &'a R,
-        _migrate: M,
     ) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreWriter>, Error>
     where
-        M: cob::MigrateCallback,
         R: ReadRepository + cob::Store,
     {
-        let path = self.cobs().join(cob::cache::COBS_DB_FILE);
-        let db = cob::cache::Store::open(path)?;
+        let db = self.cobs_db_mut()?;
         let store = cob::patch::Patches::open(repository)?;
+
+        db.check_version()?;
 
         Ok(cob::patch::Cache::open(store, db))
     }
