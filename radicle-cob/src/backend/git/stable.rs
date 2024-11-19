@@ -53,7 +53,7 @@ pub fn read_timestamp() -> i64 {
 ///
 /// # Usage
 ///
-/// ```no_run
+/// ```rust, ignore
 /// let oid1 = with_advanced_timestamp(|| cob.update("New revision OID"));
 /// let oid2 = with_advanced_timestamp(|| cob.update("Another revision OID"));
 /// ```
