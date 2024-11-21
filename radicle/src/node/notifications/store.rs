@@ -443,7 +443,7 @@ mod test {
     }
 
     #[test]
-    fn test_count_by_repos() {
+    fn test_counts_by_repo() {
         let mut db = Store::open(":memory:").unwrap();
         let repo1 = arbitrary::gen::<RepoId>(1);
         let repo2 = arbitrary::gen::<RepoId>(1);
@@ -466,15 +466,14 @@ mod test {
         assert!(db.insert(&repo1, &update2, time).unwrap());
         assert!(db.insert(&repo2, &update3, time).unwrap());
 
-        let mut counts = db
+        let counts = db
             .counts_by_repo()
             .unwrap()
-            .collect::<Result<Vec<_>, _>>()
+            .collect::<Result<std::collections::HashMap<_, _>, _>>()
             .unwrap();
-        counts.sort();
 
-        assert_eq!(counts.first().unwrap(), &(repo1, 2));
-        assert_eq!(counts.last().unwrap(), &(repo2, 1));
+        assert_eq!(counts.get(&repo1).unwrap(), &2);
+        assert_eq!(counts.get(&repo2).unwrap(), &1);
     }
 
     #[test]
