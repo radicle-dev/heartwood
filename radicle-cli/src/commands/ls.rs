@@ -17,7 +17,7 @@ Usage
     rad ls [<option>...]
 
     By default, this command shows you all repositories that you have forked or initialized.
-    If you wish to see all seeded repositories, use the `--all` option.
+    If you wish to see all seeded repositories, use the `--seeded` option.
 
 Options
 
