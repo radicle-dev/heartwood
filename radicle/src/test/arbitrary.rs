@@ -84,6 +84,25 @@ pub fn nonempty_storage(size: usize) -> MockStorage {
     storage
 }
 
+/// Generate a `String` of length `size`, only containing alphanumeric
+/// characters, i.e. [A-Za-z0-9]
+pub fn alphanumeric(size: usize) -> String {
+    let mut s = String::with_capacity(size);
+    for _ in 0..size {
+        let choice = gen::<u8>(size).clamp(0, 3);
+        let c = match choice {
+            // Generate A-Z
+            0 => gen::<u8>(size).clamp(0x41, 0x5A),
+            // Generate a-z
+            1 => gen::<u8>(size).clamp(0x61, 0x7A),
+            // Generate 0-9
+            _ => gen::<u8>(size).clamp(0x30, 0x39),
+        };
+        s.push(char::from(c));
+    }
+    s
+}
+
 pub fn gen<T: Arbitrary>(size: usize) -> T {
     let mut gen = qcheck::Gen::new(size);
 
