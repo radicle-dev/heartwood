@@ -40,6 +40,15 @@ pub type Op = cob::Op<Action>;
 /// Identifier for a patch.
 pub type PatchId = ObjectId;
 
+pub type PatchStream<'a> = cob::stream::Stream<'a, Action>;
+
+impl<'a> PatchStream<'a> {
+    pub fn init(patch: PatchId, store: &'a storage::git::Repository) -> Self {
+        let history = cob::stream::CobRange::new(&TYPENAME, &patch);
+        Self::new(&store.backend, history, TYPENAME.clone())
+    }
+}
+
 /// Unique identifier for a patch revision.
 #[derive(
     Wrapper,

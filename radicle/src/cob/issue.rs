@@ -8,7 +8,6 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::cob;
 use crate::cob::common::{Author, Authorization, Label, Reaction, Timestamp, Uri};
 use crate::cob::store::Transaction;
 use crate::cob::store::{Cob, CobAction};
@@ -19,6 +18,7 @@ use crate::crypto::Signer;
 use crate::identity::doc::DocError;
 use crate::prelude::{Did, Doc, ReadRepository, RepoId};
 use crate::storage::{HasRepoId, RepositoryError, WriteRepository};
+use crate::{cob, storage};
 
 pub use cache::Cache;
 
@@ -31,6 +31,15 @@ pub static TYPENAME: Lazy<TypeName> =
 
 /// Identifier for an issue.
 pub type IssueId = ObjectId;
+
+pub type IssueStream<'a> = cob::stream::Stream<'a, Action>;
+
+impl<'a> IssueStream<'a> {
+    pub fn init(issue: IssueId, store: &'a storage::git::Repository) -> Self {
+        let history = cob::stream::CobRange::new(&TYPENAME, &issue);
+        Self::new(&store.backend, history, TYPENAME.clone())
+    }
+}
 
 /// Error updating or creating issues.
 #[derive(Error, Debug)]
