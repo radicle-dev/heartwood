@@ -7,12 +7,14 @@ use anyhow::anyhow;
 use chrono::prelude::*;
 use nonempty::NonEmpty;
 use radicle::cob;
+use radicle::cob::stream::CobStream as _;
 use radicle::cob::Op;
+use radicle::git;
 use radicle::identity::Identity;
-use radicle::issue::cache::Issues;
-use radicle::patch::cache::Patches;
+use radicle::issue::cache::Issues as _;
+use radicle::patch::cache::Patches as _;
 use radicle::prelude::RepoId;
-use radicle::storage::git;
+use radicle::storage;
 use radicle::storage::ReadStorage;
 use radicle::Profile;
 use radicle_cob::object::collaboration::list;
@@ -32,6 +34,7 @@ Usage
     rad cob <command> [<option>...]
     rad cob list --repo <rid> --type <typename>
     rad cob log --repo <rid> --type <typename> --object <oid> [<option>...]
+    rad cob ops  --repo <rid> --type <typename> --object <oid> [<option>...]
     rad cob show --repo <rid> --type <typename> --object <oid> [<option>...]
     rad cob migrate [<option>...]
 
@@ -39,6 +42,7 @@ Commands
 
     list                       List all COBs of a given type (--object is not needed)
     log                        Print a log of all raw operations on a COB
+    ops                        Print all the operations for a a COB
     migrate                    Migrate the COB database to the latest version
 
 Log options
@@ -48,6 +52,11 @@ Log options
 Show options
 
     --format json              Desired output format (default: json)
+
+Ops options
+
+    --from <oid>               Where to start the action iteration
+    --until <oid>              Where to end the action iteration
 
 Other options
 
@@ -61,6 +70,7 @@ enum OperationName {
     Log,
     Migrate,
     Show,
+    Operations,
 }
 
 enum Operation {
@@ -77,6 +87,13 @@ enum Operation {
     Show {
         repo: RepoId,
         revs: Vec<Rev>,
+        type_name: cob::TypeName,
+    },
+    Operations {
+        repo: RepoId,
+        rev: Rev,
+        from: Option<Rev>,
+        until: Option<Rev>,
         type_name: cob::TypeName,
     },
 }
@@ -101,6 +118,8 @@ impl Args for Options {
         let mut revs: Vec<Rev> = vec![];
         let mut rid: Option<RepoId> = None;
         let mut format: Option<Format> = None;
+        let mut from: Option<Rev> = None;
+        let mut until: Option<Rev> = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -109,6 +128,7 @@ impl Args for Options {
                     "log" => op = Some(OperationName::Log),
                     "migrate" => op = Some(OperationName::Migrate),
                     "show" => op = Some(OperationName::Show),
+                    "actions" => op = Some(OperationName::Operations),
                     unknown => anyhow::bail!("unknown operation '{unknown}'"),
                 },
                 Long("type") | Short('t') => {
@@ -129,6 +149,14 @@ impl Args for Options {
                     let v = term::args::rid(&v)?;
 
                     rid = Some(v);
+                }
+                Long("from") if matches!(op, Some(OperationName::Operations)) => {
+                    let v = parser.value()?;
+                    from = Some(term::args::rev(&v)?);
+                }
+                Long("until") if matches!(op, Some(OperationName::Operations)) => {
+                    let v = parser.value()?;
+                    until = Some(term::args::rev(&v)?);
                 }
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
@@ -176,6 +204,15 @@ impl Args for Options {
                                 type_name: type_name?,
                             }
                         }
+                        OperationName::Operations => Operation::Operations {
+                            repo: repo?,
+                            rev: revs.pop().ok_or_else(|| {
+                                anyhow!("an object id must be specified with `--object`")
+                            })?,
+                            from,
+                            until,
+                            type_name: type_name?,
+                        },
                     }
                 },
                 format: format.unwrap_or(Format::Pretty),
@@ -240,6 +277,29 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 return Err(e);
             }
         }
+        Operation::Operations {
+            repo,
+            rev: id,
+            from,
+            until,
+            type_name,
+        } => {
+            let repo = storage.repository(repo)?;
+            let id = id.resolve(&repo.backend)?;
+            let from = from.map(|from| from.resolve(&repo.backend)).transpose()?;
+            let until = until
+                .map(|until| until.resolve(&repo.backend))
+                .transpose()?;
+            if type_name == cob::patch::TYPENAME.clone() {
+                operations::<cob::patch::Action>(type_name, id, from, until, &repo)?;
+            } else if type_name == cob::issue::TYPENAME.clone() {
+                operations::<cob::issue::Action>(type_name, id, from, until, &repo)?;
+            } else if type_name == cob::identity::TYPENAME.clone() {
+                operations::<cob::identity::Action>(type_name, id, from, until, &repo)?;
+            } else {
+                operations::<serde_json::Value>(type_name, id, from, until, &repo)?;
+            }
+        }
     }
 
     Ok(())
@@ -247,7 +307,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
 fn show(
     revs: Vec<Rev>,
-    repo: &git::Repository,
+    repo: &storage::git::Repository,
     type_name: cob::TypeName,
     profile: &Profile,
 ) -> Result<(), anyhow::Error> {
@@ -330,5 +390,33 @@ fn print_op_json(op: Op<Vec<u8>>) -> anyhow::Result<()> {
             .collect::<Result<Vec<serde_json::Value>, _>>()?),
     );
     term::print(ser);
+    Ok(())
+}
+
+fn operations<A>(
+    typename: cob::TypeName,
+    oid: cob::ObjectId,
+    from: Option<git::Oid>,
+    until: Option<git::Oid>,
+    repo: &storage::git::Repository,
+) -> anyhow::Result<()>
+where
+    A: serde::Serialize,
+    A: for<'de> serde::Deserialize<'de>,
+{
+    let history = cob::stream::CobRange::new(&typename, &oid);
+    let stream = cob::stream::Stream::<A>::new(&repo.backend, history, typename);
+    let iter = match (from, until) {
+        (None, None) => stream.all()?,
+        (None, Some(until)) => stream.until(until)?,
+        (Some(from), None) => stream.since(from)?,
+        (Some(from), Some(until)) => stream.range(from, until)?,
+    };
+
+    for action in iter {
+        let action = action?;
+        println!("{}", serde_json::to_string_pretty(&action)?);
+    }
+
     Ok(())
 }

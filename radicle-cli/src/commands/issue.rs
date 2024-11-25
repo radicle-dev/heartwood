@@ -591,10 +591,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let id = id.resolve(&repo.backend)?;
             if let Ok(mut issue) = issues.get_mut(&id) {
                 let signer = term::signer(&profile)?;
-                let comment_id = comment_id.unwrap_or_else(|| {
-                    let (comment_id, _) = term::io::comment_select(&issue).unwrap();
-                    *comment_id
-                });
+                let comment_id = comment_id.map(Ok::<_, anyhow::Error>).unwrap_or_else(|| {
+                    let (comment_id, _) = term::io::comment_select(&issue).ok_or_else(|| {
+                        anyhow!(
+                            "failed to select issue comment for {}",
+                            term::format::oid(*id)
+                        )
+                    })?;
+                    Ok(*comment_id)
+                })?;
                 issue.react(comment_id, reaction, true, &signer)?;
             }
         }
