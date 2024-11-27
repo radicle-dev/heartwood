@@ -13,7 +13,7 @@ $ rad issue list
 ```
 $ rad cob migrate
 ✓ Migration [..]/[..] in progress.. (100%)
-✓ Migrated collaborative objects database successfully (version = [..])
+✓ Migrated collaborative objects database successfully (version=[..])
 ```
 
 ```
