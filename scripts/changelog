@@ -1,8 +1,41 @@
 #!/bin/sh
 set -e
 
+# Version from which to generate the changelog.
+from=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --from-version)
+      if [ -z "$2" ]; then
+        echo "error: '--from-version' requires a version number" >&2
+        exit 1
+      fi
+      shift
+      from=$(echo "$1" | sed 's/^v//')
+      break
+      ;;
+    *)
+      echo "error: unknown argument '$1'" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Current/latest tag.
 tag=$(git describe)
 version=$(echo $tag | sed 's/^v//')
+
+if [ -z "$from" ]; then
+  previous="$(git describe --abbrev=0 HEAD^)"
+else
+  previous="v$from"
+fi
+
+if ! git rev-parse --verify "$previous^{tag}" >/dev/null 2>&1; then
+  echo "error: '$from' is not a valid version, tag '$previous' not found" >&2
+  exit 1
+fi
 
 echo "# 👾 Radicle $version"
 echo
@@ -21,7 +54,7 @@ echo
 echo "## Changelog"
 echo
 
-git log --pretty=format:'* `%h` **%s** *<%ae>*' $(git describe --abbrev=0 HEAD^)..HEAD
+git log --pretty=format:'* `%h` **%s** *<%ae>*' $previous..HEAD
 
 echo
 echo "## Checksums"
