@@ -72,7 +72,7 @@ enum Operation {
     Migrate,
     Show {
         repo: RepoId,
-        rev: Rev,
+        revs: Vec<Rev>,
         type_name: cob::TypeName,
     },
 }
@@ -94,7 +94,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut type_name: Option<cob::TypeName> = None;
-        let mut oid: Option<Rev> = None;
+        let mut revs: Vec<Rev> = vec![];
         let mut rid: Option<RepoId> = None;
         let mut format: Option<Format> = None;
 
@@ -118,7 +118,7 @@ impl Args for Options {
                     let v = parser.value()?;
                     let v = term::args::string(&v);
 
-                    oid = Some(Rev::from(v));
+                    revs.push(Rev::from(v));
                 }
                 Long("repo") => {
                     let v = parser.value()?;
@@ -156,19 +156,22 @@ impl Args for Options {
                         },
                         OperationName::Log => Operation::Log {
                             repo: repo?,
-                            rev: oid.ok_or_else(|| {
+                            rev: revs.pop().ok_or_else(|| {
                                 anyhow!("an object id must be specified with `--object`")
                             })?,
                             type_name: type_name?,
                         },
                         OperationName::Migrate => Operation::Migrate,
-                        OperationName::Show => Operation::Show {
-                            repo: repo?,
-                            rev: oid.ok_or_else(|| {
-                                anyhow!("an object id must be specified with `--object`")
-                            })?,
-                            type_name: type_name?,
-                        },
+                        OperationName::Show => {
+                            if revs.is_empty() {
+                                anyhow::bail!("an object id must be specified with `--object`")
+                            }
+                            Operation::Show {
+                                repo: repo?,
+                                revs,
+                                type_name: type_name?,
+                            }
+                        }
                     }
                 },
                 format: format.unwrap_or(Format::Pretty),
@@ -219,33 +222,43 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Show {
             repo,
-            rev: oid,
+            revs,
             type_name,
         } => {
             let repo = storage.repository(repo)?;
-            let oid = &oid.resolve(&repo.backend)?;
 
             if type_name == cob::patch::TYPENAME.clone() {
                 let patches = term::cob::patches(&profile, &repo)?;
-                let Some(patch) = patches.get(oid)? else {
-                    anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
-                };
-                serde_json::to_writer_pretty(std::io::stdout(), &patch)?
+                for oid in revs {
+                    let oid = &oid.resolve(&repo.backend)?;
+                    let Some(patch) = patches.get(oid)? else {
+                        anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
+                    };
+                    serde_json::to_writer_pretty(std::io::stdout(), &patch)?;
+                    println!()
+                }
             } else if type_name == cob::issue::TYPENAME.clone() {
                 let issues = term::cob::issues(&profile, &repo)?;
-                let Some(issue) = issues.get(oid)? else {
-                    anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
-                };
-                serde_json::to_writer_pretty(std::io::stdout(), &issue)?
+                for oid in revs {
+                    let oid = &oid.resolve(&repo.backend)?;
+                    let Some(issue) = issues.get(oid)? else {
+                        anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
+                    };
+                    serde_json::to_writer_pretty(std::io::stdout(), &issue)?;
+                    println!()
+                }
             } else if type_name == cob::identity::TYPENAME.clone() {
-                let Some(cob) = cob::get::<Identity, _>(&repo, &type_name, oid)? else {
-                    anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
-                };
-                serde_json::to_writer_pretty(std::io::stdout(), &cob.object)?
+                for oid in revs {
+                    let oid = &oid.resolve(&repo.backend)?;
+                    let Some(cob) = cob::get::<Identity, _>(&repo, &type_name, oid)? else {
+                        anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
+                    };
+                    serde_json::to_writer_pretty(std::io::stdout(), &cob.object)?;
+                    println!()
+                }
             } else {
                 anyhow::bail!("the type name '{type_name}' is unknown");
             }
-            println!();
         }
     }
 
