@@ -14,12 +14,14 @@ use radicle_git_ext::Oid;
 use serde::{de, Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::agent::Agent;
 use crate::canonical::formatter::CanonicalFormatter;
 use crate::cob::identity;
 use crate::crypto;
 use crate::crypto::Signature;
 use crate::git;
 use crate::identity::{project::Project, Did};
+use crate::node::NodeId;
 use crate::storage;
 use crate::storage::{ReadRepository, RepositoryError};
 
@@ -803,19 +805,17 @@ impl Doc {
 
     /// [`Doc::encode`] and sign the [`Doc`], returning the set of bytes, its
     /// corresponding Git [`Oid`] and the [`Signature`] over the [`Oid`].
-    pub fn sign<G: crypto::Signer>(
-        &self,
-        signer: &G,
-    ) -> Result<(git::Oid, Vec<u8>, Signature), DocError> {
+    pub fn sign<A: Agent>(&self, signer: &A) -> Result<(git::Oid, Vec<u8>, Signature), DocError> {
         let (oid, bytes) = self.encode()?;
+        // TODO(finto): this should be try_sign
         let sig = signer.sign(oid.as_bytes());
 
         Ok((oid, bytes, sig))
     }
 
     /// Similar to [`Doc::sign`], but only returning the [`Signature`].
-    pub fn signature_of<G: crypto::Signer>(&self, signer: &G) -> Result<Signature, DocError> {
-        let (_, _, sig) = self.sign(signer)?;
+    pub fn signature_of<A: Agent>(&self, agent: &A) -> Result<Signature, DocError> {
+        let (_, _, sig) = self.sign(agent)?;
 
         Ok(sig)
     }
@@ -835,18 +835,15 @@ impl Doc {
 
     /// Initialize an [`identity::Identity`] with this [`Doc`] as the associated
     /// document.
-    pub fn init<G: crypto::Signer>(
+    pub fn init<A: Agent>(
         &self,
         repo: &storage::git::Repository,
-        signer: &G,
+        node: &NodeId,
+        agent: &A,
     ) -> Result<git::Oid, RepositoryError> {
-        let cob = identity::Identity::initialize(self, repo, signer)?;
-        let id_ref = git::refs::storage::id(signer.public_key());
-        let cob_ref = git::refs::storage::cob(
-            signer.public_key(),
-            &crate::cob::identity::TYPENAME,
-            &cob.id,
-        );
+        let cob = identity::Identity::initialize(self, repo, agent)?;
+        let id_ref = git::refs::storage::id(node);
+        let cob_ref = git::refs::storage::cob(node, &crate::cob::identity::TYPENAME, &cob.id);
         // Set `.../refs/rad/id` -> `.../refs/cobs/xyz.radicle.id/<id>`
         repo.backend.reference_symbolic(
             id_ref.as_str(),

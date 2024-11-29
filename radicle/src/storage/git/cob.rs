@@ -11,6 +11,7 @@ use storage::SignRepository;
 use storage::ValidateRepository;
 
 use crate::git::*;
+use crate::node::NodeSigner;
 use crate::storage;
 use crate::storage::Error;
 use crate::storage::{
@@ -223,7 +224,7 @@ impl<'a, R: storage::WriteRepository> change::Storage for DraftStore<'a, R> {
 }
 
 impl<'a, R: storage::ReadRepository> SignRepository for DraftStore<'a, R> {
-    fn sign_refs<G: crypto::Signer>(
+    fn sign_refs<G: NodeSigner>(
         &self,
         signer: &G,
     ) -> Result<storage::refs::SignedRefs<Verified>, RepositoryError> {

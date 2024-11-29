@@ -93,3 +93,17 @@ impl Signer for AgentSigner {
         Ok(Signature::from(sig))
     }
 }
+
+impl signature::Signer<Signature> for AgentSigner {
+    fn try_sign(&self, msg: &[u8]) -> Result<Signature, signature::Error> {
+        let sig = self
+            .agent
+            .lock()
+            // We'll take our chances here; the worse that can happen is the agent returns an error.
+            .unwrap_or_else(|e| e.into_inner())
+            .sign(&self.public, msg)
+            .map_err(signature::Error::from_source)?;
+
+        Ok(Signature::from(sig))
+    }
+}

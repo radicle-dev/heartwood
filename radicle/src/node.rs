@@ -1466,3 +1466,20 @@ mod test {
         );
     }
 }
+
+pub trait NodeSigner: crypto::signature::Signer<crypto::Signature> {
+    fn public_key(&self) -> &crypto::PublicKey;
+}
+
+impl NodeSigner for crypto::ssh::keystore::MemorySigner {
+    fn public_key(&self) -> &crypto::PublicKey {
+        crypto::ssh::keystore::MemorySigner::public_key(self)
+    }
+}
+
+#[cfg(any(test, feature = "test"))]
+impl NodeSigner for crypto::test::signer::MockSigner {
+    fn public_key(&self) -> &crypto::PublicKey {
+        crypto::test::signer::MockSigner::public_key(self)
+    }
+}

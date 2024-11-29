@@ -11,11 +11,12 @@ use crypto::{Signer, Verified};
 use once_cell::sync::Lazy;
 use tempfile::TempDir;
 
+use crate::agent::Agent;
 use crate::git::canonical::Canonical;
 use crate::identity::doc::DocError;
 use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
-use crate::node::SyncedAt;
+use crate::node::{NodeId, NodeSigner, SyncedAt};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs, SignedRefsAt};
 use crate::storage::{
@@ -433,10 +434,11 @@ impl Repository {
     }
 
     /// Create the repository's identity branch.
-    pub fn init<G: Signer, S: WriteStorage>(
+    pub fn init<A: Agent, S: WriteStorage>(
         doc: &Doc,
         storage: &S,
-        signer: &G,
+        node: &NodeId,
+        agent: &A,
     ) -> Result<(Self, git::Oid), RepositoryError> {
         let (doc_oid, doc_bytes) = doc.encode()?;
         let id = RepoId::from(doc_oid);
@@ -445,7 +447,7 @@ impl Repository {
 
         debug_assert_eq!(oid, *doc_oid);
 
-        let commit = doc.init(&repo, signer)?;
+        let commit = doc.init(&repo, node, agent)?;
 
         Ok((repo, commit))
     }
@@ -885,7 +887,10 @@ impl WriteRepository for Repository {
 }
 
 impl SignRepository for Repository {
-    fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, RepositoryError> {
+    fn sign_refs<G: NodeSigner>(
+        &self,
+        signer: &G,
+    ) -> Result<SignedRefs<Verified>, RepositoryError> {
         let remote = signer.public_key();
         // Ensure the root reference is set, which is checked during sigref verification.
         if self.identity_root_of(remote).is_err() {

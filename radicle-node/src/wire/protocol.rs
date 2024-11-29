@@ -27,7 +27,6 @@ use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
 use crate::prelude::Deserializer;
-use crate::service;
 use crate::service::io::Io;
 use crate::service::FETCH_TIMEOUT;
 use crate::service::{session, DisconnectReason, Metrics, Service};
@@ -37,6 +36,7 @@ use crate::wire::Encode;
 use crate::worker;
 use crate::worker::{ChannelEvent, FetchRequest, FetchResult, Task, TaskResult};
 use crate::Link;
+use crate::{service, NodeSigner};
 
 /// NoiseXK handshake pattern.
 pub const NOISE_XK: HandshakePattern = HandshakePattern {
@@ -306,7 +306,7 @@ impl Peers {
 }
 
 /// Wire protocol implementation for a set of peers.
-pub struct Wire<D, S, G: Signer + Ecdh> {
+pub struct Wire<D, S, G: NodeSigner + Ecdh> {
     /// Backing service instance.
     service: Service<D, S, G>,
     /// Worker pool interface.
@@ -331,7 +331,7 @@ impl<D, S, G> Wire<D, S, G>
 where
     D: service::Store,
     S: WriteStorage + 'static,
-    G: Signer + Ecdh<Pk = NodeId>,
+    G: NodeSigner + Ecdh<Pk = NodeId>,
 {
     pub fn new(service: Service<D, S, G>, worker: chan::Sender<Task>, signer: G) -> Self {
         assert!(service.started().is_some(), "Service must be initialized");
@@ -500,7 +500,7 @@ impl<D, S, G> reactor::Handler for Wire<D, S, G>
 where
     D: service::Store + Send,
     S: WriteStorage + Send + 'static,
-    G: Signer + Ecdh<Pk = NodeId> + Clone + Send,
+    G: NodeSigner + Ecdh<Pk = NodeId> + Clone + Send,
 {
     type Listener = NetAccept<WireSession<G>>;
     type Transport = NetTransport<WireSession<G>>;
@@ -959,7 +959,7 @@ impl<D, S, G> Iterator for Wire<D, S, G>
 where
     D: service::Store,
     S: WriteStorage + 'static,
-    G: Signer + Ecdh<Pk = NodeId>,
+    G: NodeSigner + Ecdh<Pk = NodeId>,
 {
     type Item = Action<G>;
 
@@ -1120,7 +1120,7 @@ where
 }
 
 /// Establish a new outgoing connection.
-pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
+pub fn dial<G: NodeSigner + Ecdh<Pk = NodeId>>(
     remote_addr: NetAddr<HostName>,
     remote_id: <G as EcSk>::Pk,
     signer: G,
@@ -1179,7 +1179,7 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
 }
 
 /// Accept a new connection.
-pub fn accept<G: Signer + Ecdh<Pk = NodeId>>(
+pub fn accept<G: NodeSigner + Ecdh<Pk = NodeId>>(
     remote_addr: NetAddr<HostName>,
     connection: net::TcpStream,
     signer: G,
@@ -1188,7 +1188,7 @@ pub fn accept<G: Signer + Ecdh<Pk = NodeId>>(
 }
 
 /// Create a new [`WireSession`].
-fn session<G: Signer + Ecdh<Pk = NodeId>>(
+fn session<G: NodeSigner + Ecdh<Pk = NodeId>>(
     remote_addr: NetAddr<HostName>,
     remote_id: Option<NodeId>,
     connection: net::TcpStream,

@@ -4,7 +4,6 @@ use nonempty::NonEmpty;
 use radicle::git;
 use radicle::storage::refs::RefsAt;
 
-use crate::crypto;
 use crate::identity::RepoId;
 use crate::node;
 use crate::node::{Address, Alias, UserAgent};
@@ -13,6 +12,7 @@ use crate::service::filter::Filter;
 use crate::service::{Link, NodeId, Timestamp};
 use crate::storage;
 use crate::wire;
+use crate::{crypto, NodeSigner};
 
 /// Maximum number of addresses which can be announced to other nodes.
 pub const ADDRESS_LIMIT: usize = 16;
@@ -260,7 +260,7 @@ pub enum AnnouncementMessage {
 
 impl AnnouncementMessage {
     /// Sign this announcement message.
-    pub fn signed<G: crypto::Signer>(self, signer: &G) -> Announcement {
+    pub fn signed<G: crate::NodeSigner>(self, signer: &G) -> Announcement {
         let msg = wire::serialize(&self);
         let signature = signer.sign(&msg);
 
@@ -442,11 +442,11 @@ impl Message {
         .into()
     }
 
-    pub fn node<G: crypto::Signer>(message: NodeAnnouncement, signer: &G) -> Self {
+    pub fn node<G: NodeSigner>(message: NodeAnnouncement, signer: &G) -> Self {
         AnnouncementMessage::from(message).signed(signer).into()
     }
 
-    pub fn inventory<G: crypto::Signer>(message: InventoryAnnouncement, signer: &G) -> Self {
+    pub fn inventory<G: NodeSigner>(message: InventoryAnnouncement, signer: &G) -> Self {
         AnnouncementMessage::from(message).signed(signer).into()
     }
 

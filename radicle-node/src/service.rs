@@ -44,7 +44,6 @@ use crate::node::routing::InsertResult;
 use crate::node::{
     Address, Alias, Features, FetchResult, HostName, Seed, Seeds, SyncStatus, SyncedAt,
 };
-use crate::prelude::*;
 use crate::runtime::Emitter;
 use crate::service::gossip::Store as _;
 use crate::service::message::{
@@ -57,6 +56,7 @@ use crate::worker::fetch;
 use crate::worker::FetchError;
 use crate::Link;
 use crate::{crypto, PROTOCOL_VERSION};
+use crate::{prelude::*, NodeSigner};
 
 pub use crate::node::events::{Event, Events};
 pub use crate::node::{config::Network, Config, NodeId};
@@ -446,7 +446,7 @@ pub struct Service<D, S, G> {
 
 impl<D, S, G> Service<D, S, G>
 where
-    G: crypto::Signer,
+    G: NodeSigner,
 {
     /// Get the local node id.
     pub fn node_id(&self) -> NodeId {
@@ -467,7 +467,7 @@ impl<D, S, G> Service<D, S, G>
 where
     D: Store,
     S: ReadStorage + 'static,
-    G: Signer,
+    G: NodeSigner,
 {
     pub fn new(
         config: Config,
@@ -2649,7 +2649,7 @@ pub trait ServiceState {
 impl<D, S, G> ServiceState for Service<D, S, G>
 where
     D: routing::Store,
-    G: Signer,
+    G: NodeSigner,
     S: ReadStorage,
 {
     fn nid(&self) -> &NodeId {

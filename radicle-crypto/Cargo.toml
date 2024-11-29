@@ -22,6 +22,7 @@ fastrand = { version = "2.0.0", default-features = false, optional = true }
 multibase = { version = "0.9.1" }
 ec25519 = { version = "0.1.0", features = [] }
 serde = { version = "1", features = ["derive"] }
+signature = { version = "2.2", features = ["std"] }
 sqlite = { version = "0.32.0", optional = true, features = ["bundled"] }
 thiserror = { version = "1" }
 zeroize = { version = "1.5.7" }

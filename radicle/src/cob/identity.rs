@@ -10,6 +10,7 @@ use radicle_git_ext::Oid;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::agent::Agent;
 use crate::identity::doc::Doc;
 use crate::{
     cob,
@@ -182,17 +183,17 @@ impl Identity {
         }
     }
 
-    pub fn initialize<'a, R: WriteRepository + cob::Store, G: Signer>(
+    pub fn initialize<'a, R: WriteRepository + cob::Store, A: Agent>(
         doc: &Doc,
         store: &'a R,
-        signer: &G,
+        agent: &A,
     ) -> Result<IdentityMut<'a, R>, cob::store::Error> {
         let mut store = cob::store::Store::open(store)?;
         let (id, identity) = Transaction::<Identity, _>::initial(
             "Initialize identity",
             &mut store,
-            signer,
-            |tx, repo| tx.revision("Initial revision", "", doc, None, repo, signer),
+            agent,
+            |tx, repo| tx.revision("Initial revision", "", doc, None, repo, agent),
         )?;
 
         Ok(IdentityMut {
@@ -831,16 +832,16 @@ impl<R: ReadRepository> store::Transaction<Identity, R> {
 }
 
 impl<R: WriteRepository> store::Transaction<Identity, R> {
-    pub fn revision<G: Signer>(
+    pub fn revision<A: Agent>(
         &mut self,
         title: impl ToString,
         description: impl ToString,
         doc: &Doc,
         parent: Option<RevisionId>,
         repo: &R,
-        signer: &G,
+        agent: &A,
     ) -> Result<(), store::Error> {
-        let (blob, bytes, signature) = doc.sign(signer).map_err(store::Error::Identity)?;
+        let (blob, bytes, signature) = doc.sign(agent).map_err(store::Error::Identity)?;
         // Store document blob in repository.
         let embed =
             Embed::<Uri>::store("radicle.json", &bytes, repo.raw()).map_err(store::Error::Git)?;

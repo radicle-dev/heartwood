@@ -14,6 +14,7 @@ use thiserror::Error;
 use crate::git;
 use crate::git::ext as git_ext;
 use crate::git::Oid;
+use crate::node::NodeSigner;
 use crate::profile::env;
 use crate::storage;
 use crate::storage::{ReadRepository, RemoteId, RepoId, WriteRepository};
@@ -39,7 +40,7 @@ pub enum Error {
     #[error("invalid signature: {0}")]
     InvalidSignature(#[from] crypto::Error),
     #[error("signer error: {0}")]
-    Signer(#[from] SignerError),
+    Signer(#[from] crypto::signature::Error),
     #[error("canonical refs: {0}")]
     Canonical(#[from] canonical::Error),
     #[error("invalid reference")]
@@ -90,7 +91,7 @@ impl Refs {
     /// Sign these refs with the given signer and return [`SignedRefs`].
     pub fn signed<G>(self, signer: &G) -> Result<SignedRefs<Unverified>, Error>
     where
-        G: Signer,
+        G: NodeSigner,
     {
         let refs = self;
         let msg = refs.canonical();

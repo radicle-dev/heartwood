@@ -34,6 +34,7 @@ use radicle::{git, web};
 use crate::node::NodeId;
 use crate::service::Event;
 use crate::storage::git::transport;
+use crate::NodeSigner;
 use crate::{runtime, runtime::Handle, service, Runtime};
 
 pub use service::Config;
@@ -189,7 +190,7 @@ impl Node<MemorySigner> {
 }
 
 /// Handle to a running node.
-pub struct NodeHandle<G: Signer + cyphernet::Ecdh + 'static> {
+pub struct NodeHandle<G: NodeSigner + cyphernet::Ecdh + 'static> {
     pub id: NodeId,
     pub storage: Storage,
     pub signer: G,
@@ -199,7 +200,7 @@ pub struct NodeHandle<G: Signer + cyphernet::Ecdh + 'static> {
     pub handle: ManuallyDrop<Handle>,
 }
 
-impl<G: Signer + cyphernet::Ecdh + 'static> Drop for NodeHandle<G> {
+impl<G: NodeSigner + cyphernet::Ecdh + 'static> Drop for NodeHandle<G> {
     fn drop(&mut self) {
         log::debug!(target: "test", "Node {} shutting down..", self.id);
 
@@ -213,7 +214,7 @@ impl<G: Signer + cyphernet::Ecdh + 'static> Drop for NodeHandle<G> {
     }
 }
 
-impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
+impl<G: NodeSigner + cyphernet::Ecdh> NodeHandle<G> {
     /// Connect this node to another node, and wait for the connection to be established both ways.
     pub fn connect(&mut self, remote: &NodeHandle<G>) -> &mut Self {
         let local_events = self.handle.events();
@@ -507,7 +508,7 @@ impl Node<MockSigner> {
     }
 }
 
-impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
+impl<G: cyphernet::Ecdh<Pk = NodeId> + NodeSigner + Clone> Node<G> {
     /// Spawn a node in its own thread.
     pub fn spawn(self) -> NodeHandle<G> {
         let listen = vec![([0, 0, 0, 0], 0).into()];
@@ -606,7 +607,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
 
 /// Checks whether the nodes have converged in their routing tables.
 #[track_caller]
-pub fn converge<'a, G: Signer + cyphernet::Ecdh + 'static>(
+pub fn converge<'a, G: NodeSigner + cyphernet::Ecdh + 'static>(
     nodes: impl IntoIterator<Item = &'a NodeHandle<G>>,
 ) -> BTreeSet<(RepoId, NodeId)> {
     let nodes = nodes.into_iter().collect::<Vec<_>>();

@@ -200,6 +200,12 @@ impl Signer for MemorySigner {
     }
 }
 
+impl signature::Signer<Signature> for MemorySigner {
+    fn try_sign(&self, msg: &[u8]) -> Result<Signature, signature::Error> {
+        Ok(Signer::sign(self, msg))
+    }
+}
+
 #[cfg(feature = "cyphernet")]
 impl EcSk for MemorySigner {
     type Pk = PublicKey;
@@ -249,6 +255,10 @@ impl MemorySigner {
             .ok_or_else(|| MemorySignerError::NotFound(keystore.path().to_path_buf()))?;
 
         Ok(Self { public, secret })
+    }
+
+    pub fn public_key(&self) -> &PublicKey {
+        &self.public
     }
 
     /// Box this signer into a trait object.

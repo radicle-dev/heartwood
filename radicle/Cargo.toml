@@ -27,6 +27,7 @@ nonempty = { version = "0.9.0", features = ["serialize"] }
 once_cell = { version = "1.13" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+signature = { version = "2.2" }
 siphasher = { version = "1.0.0" }
 radicle-git-ext = { version = "0.8.0", features = ["serde"] }
 sqlite = { version = "0.32.0", features = ["bundled"] }

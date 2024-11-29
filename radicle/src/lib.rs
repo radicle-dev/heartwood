@@ -31,6 +31,9 @@ pub mod test;
 pub mod version;
 pub mod web;
 
+pub mod agent;
+pub mod did;
+
 pub use cob::{issue, patch};
 pub use node::Node;
 pub use profile::Profile;

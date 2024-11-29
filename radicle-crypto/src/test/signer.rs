@@ -2,8 +2,8 @@ use crate::{KeyPair, PublicKey, SecretKey, Seed, Signature, Signer, SignerError}
 
 #[derive(Debug, Clone)]
 pub struct MockSigner {
-    pk: PublicKey,
-    sk: SecretKey,
+    pub(crate) pk: PublicKey,
+    pub(crate) sk: SecretKey,
 }
 
 impl MockSigner {
@@ -69,6 +69,12 @@ impl Signer for MockSigner {
 
     fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError> {
         Ok(self.sign(msg))
+    }
+}
+
+impl signature::Signer<Signature> for MockSigner {
+    fn try_sign(&self, msg: &[u8]) -> Result<Signature, signature::Error> {
+        Ok(self.sk.sign(msg, None).into())
     }
 }
 

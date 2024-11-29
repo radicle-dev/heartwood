@@ -6,12 +6,14 @@ use std::str::FromStr;
 use once_cell::sync::Lazy;
 use thiserror::Error;
 
+use crate::agent::Agent;
 use crate::cob::ObjectId;
 use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::doc;
 use crate::identity::doc::{DocError, RepoId, Visibility};
 use crate::identity::project::{Project, ProjectName};
+use crate::node::NodeSigner;
 use crate::storage::git::transport;
 use crate::storage::git::Repository;
 use crate::storage::refs::SignedRefs;
@@ -44,13 +46,14 @@ pub enum InitError {
 }
 
 /// Initialize a new radicle project from a git repository.
-pub fn init<G: Signer, S: WriteStorage>(
+pub fn init<A: Agent, G: NodeSigner, S: WriteStorage>(
     repo: &git2::Repository,
     name: ProjectName,
     description: &str,
     default_branch: BranchName,
     visibility: Visibility,
     signer: &G,
+    agent: &A,
     storage: S,
 ) -> Result<(RepoId, identity::Doc, SignedRefs<Verified>), InitError> {
     // TODO: Better error when project id already exists in storage, but remote doesn't.
@@ -69,7 +72,7 @@ pub fn init<G: Signer, S: WriteStorage>(
         )
     })?;
     let doc = identity::Doc::initial(proj, delegate, visibility);
-    let (project, identity) = Repository::init(&doc, &storage, signer)?;
+    let (project, identity) = Repository::init(&doc, &storage, signer.public_key(), agent)?;
     let url = git::Url::from(project.id);
 
     match init_configure(repo, &project, &default_branch, &url, identity, signer) {
@@ -97,7 +100,7 @@ fn init_configure<G>(
     signer: &G,
 ) -> Result<SignedRefs<Verified>, InitError>
 where
-    G: crypto::Signer,
+    G: NodeSigner,
 {
     let pk = signer.public_key();
 
@@ -135,7 +138,7 @@ pub enum ForkError {
 }
 
 /// Create a local tree for an existing project, from an existing remote.
-pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
+pub fn fork_remote<G: NodeSigner, S: storage::WriteStorage>(
     proj: RepoId,
     remote: &RemoteId,
     signer: &G,
@@ -170,7 +173,7 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
     Ok(())
 }
 
-pub fn fork<G: Signer, S: storage::WriteStorage>(
+pub fn fork<G: NodeSigner, S: storage::WriteStorage>(
     rid: RepoId,
     signer: &G,
     storage: &S,

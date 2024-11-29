@@ -23,7 +23,7 @@ use crate::storage::{ReadRepository, WriteStorage};
 use crate::test::arbitrary;
 use crate::test::peer::Service;
 use crate::worker::{fetch, FetchError};
-use crate::Link;
+use crate::{Link, NodeSigner};
 
 /// Minimum latency between peers.
 pub const MIN_LATENCY: LocalDuration = LocalDuration::from_millis(1);
@@ -202,7 +202,7 @@ pub struct Simulation<S, G> {
     signer: PhantomData<G>,
 }
 
-impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
+impl<S: WriteStorage + 'static, G: NodeSigner> Simulation<S, G> {
     /// Create a new simulation.
     pub fn new(time: LocalTime, rng: fastrand::Rng, opts: Options) -> Self {
         Self {

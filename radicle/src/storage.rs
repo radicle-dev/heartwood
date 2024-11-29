@@ -21,7 +21,7 @@ use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefStr, R
 use crate::identity::{Did, PayloadError};
 use crate::identity::{Doc, DocAt, DocError};
 use crate::identity::{Identity, RepoId};
-use crate::node::SyncedAt;
+use crate::node::{NodeSigner, SyncedAt};
 use crate::storage::git::NAMESPACES_GLOB;
 use crate::storage::refs::Refs;
 
@@ -657,7 +657,8 @@ pub trait WriteRepository: ReadRepository + SignRepository {
 /// Allows signing refs.
 pub trait SignRepository {
     /// Sign the repository's refs under the `refs/rad/sigrefs` branch.
-    fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, RepositoryError>;
+    fn sign_refs<G: NodeSigner>(&self, signer: &G)
+        -> Result<SignedRefs<Verified>, RepositoryError>;
 }
 
 impl<T, S> ReadStorage for T

@@ -34,6 +34,7 @@ use crate::storage::{RemoteId, WriteStorage};
 use crate::test::storage::MockStorage;
 use crate::test::{arbitrary, fixtures, simulator};
 use crate::wire::MessageType;
+use crate::NodeSigner;
 use crate::{Link, LocalDuration, LocalTime, PROTOCOL_VERSION};
 
 /// Service instantiation used for testing.
@@ -56,7 +57,7 @@ pub struct Peer<S, G> {
 impl<S, G> simulator::Peer<S, G> for Peer<S, G>
 where
     S: WriteStorage + 'static,
-    G: Signer + 'static,
+    G: NodeSigner + 'static,
 {
     fn init(&mut self) {}
 
@@ -98,7 +99,7 @@ where
     }
 }
 
-pub struct Config<G: Signer + 'static> {
+pub struct Config<G: NodeSigner + 'static> {
     pub config: service::Config,
     pub local_time: LocalTime,
     pub policy: SeedingPolicy,
@@ -125,7 +126,7 @@ impl Default for Config<MockSigner> {
     }
 }
 
-impl<G: Signer> Peer<Storage, G> {
+impl<G: NodeSigner> Peer<Storage, G> {
     pub fn project(&mut self, name: &str, description: &str) -> RepoId {
         radicle::storage::git::transport::local::register(self.storage().clone());
 
@@ -148,7 +149,7 @@ impl<G: Signer> Peer<Storage, G> {
 impl<S, G> Peer<S, G>
 where
     S: WriteStorage + 'static,
-    G: Signer + 'static,
+    G: NodeSigner + 'static,
 {
     pub fn config(
         name: &'static str,
@@ -387,7 +388,7 @@ where
         .expect("`inventory-announcement` must be sent");
     }
 
-    pub fn connect_to<T: WriteStorage + 'static, H: Signer + 'static>(
+    pub fn connect_to<T: WriteStorage + 'static, H: NodeSigner + 'static>(
         &mut self,
         peer: &Peer<T, H>,
     ) {

@@ -8,6 +8,8 @@ use thiserror::Error;
 
 pub use ed25519::{edwards25519, Error, KeyPair, Seed};
 
+pub extern crate signature;
+
 #[cfg(feature = "ssh")]
 pub mod ssh;
 #[cfg(any(test, feature = "test"))]
@@ -39,6 +41,7 @@ impl SignerError {
     }
 }
 
+#[deprecated]
 pub trait Signer: Send + Sync {
     /// Return this signer's public/verification key.
     fn public_key(&self) -> &PublicKey;
@@ -155,6 +158,14 @@ impl TryFrom<String> for Signature {
 #[derive(Hash, Serialize, Deserialize, PartialEq, Eq, Copy, Clone)]
 #[serde(into = "String", try_from = "String")]
 pub struct PublicKey(pub ed25519::PublicKey);
+
+impl signature::Verifier<Signature> for PublicKey {
+    fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
+        self.0
+            .verify(msg, signature)
+            .map_err(signature::Error::from_source)
+    }
+}
 
 #[cfg(feature = "cyphernet")]
 impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for PublicKey {

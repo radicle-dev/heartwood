@@ -125,7 +125,7 @@ where
 mod test {
     use super::*;
 
-    use ::localtime::LocalTime;
+    use localtime::LocalTime;
 
     #[test]
     fn test_localtime() {

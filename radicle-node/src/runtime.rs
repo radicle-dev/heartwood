@@ -24,7 +24,6 @@ use radicle::node::UserAgent;
 use radicle::profile::Home;
 use radicle::{cob, git, storage, Storage};
 
-use crate::control;
 use crate::crypto::Signer;
 use crate::node::{routing, NodeId};
 use crate::service::message::NodeAnnouncement;
@@ -32,6 +31,7 @@ use crate::service::{gossip, policy, Event, INITIAL_SUBSCRIBE_BACKLOG_DELTA};
 use crate::wire;
 use crate::wire::{Decode, Wire};
 use crate::worker;
+use crate::{control, NodeSigner};
 use crate::{service, LocalTime};
 
 pub use handle::Error as HandleError;
@@ -122,7 +122,7 @@ impl Runtime {
         signer: G,
     ) -> Result<Runtime, Error>
     where
-        G: Signer + Ecdh<Pk = NodeId> + Clone + 'static,
+        G: NodeSigner + Ecdh<Pk = NodeId> + Clone + 'static,
     {
         let id = *signer.public_key();
         let alias = config.alias.clone();

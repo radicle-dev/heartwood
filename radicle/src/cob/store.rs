@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::cob::op::Op;
 use crate::cob::{Create, Embed, EntryId, ObjectId, TypeName, Update, Updated, Uri, Version};
 use crate::git;
+use crate::node::NodeSigner;
 use crate::prelude::*;
 use crate::storage::git as storage;
 use crate::storage::SignRepository;
@@ -189,7 +190,7 @@ where
     }
 
     /// Create an object.
-    pub fn create<G: Signer>(
+    pub fn create<G: NodeSigner>(
         &self,
         message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
@@ -234,7 +235,7 @@ where
     }
 
     /// Remove an object.
-    pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), Error> {
+    pub fn remove<G: NodeSigner>(&self, id: &ObjectId, signer: &G) -> Result<(), Error> {
         let name = git::refs::storage::cob(signer.public_key(), T::type_name(), id);
         match self
             .repo
