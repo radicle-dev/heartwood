@@ -30,20 +30,20 @@ shlex = { version = "1.1.0" }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }
 timeago = { version = "0.4.2", default-features = false }
-tree-sitter = { version = "0.20.0" }
-tree-sitter-highlight = { version = "0.20" }
-tree-sitter-json = { version = "0.20.1" }
-tree-sitter-rust = { version = "0.20" }
-tree-sitter-typescript = { version = "0.20.3" }
-tree-sitter-html = { version = "0.20" }
-tree-sitter-css = { version = "0.20" }
-tree-sitter-toml = { version = "0.20" }
-tree-sitter-c = { version = "0.20" }
-tree-sitter-python = { version = "0.20" }
-tree-sitter-ruby = { version = "0.20" }
-tree-sitter-bash = { version = "0.20" }
-tree-sitter-go = { version = "0.20.0" }
-tree-sitter-md = { version = "0.1.5" }
+tree-sitter = { version = "0.24.4" }
+tree-sitter-highlight = { version = "0.24.4" }
+tree-sitter-json = { version = "0.24.8" }
+tree-sitter-rust = { version = "0.23.2" }
+tree-sitter-typescript = { version = "0.23.2" }
+tree-sitter-html = { version = "0.23.2" }
+tree-sitter-css = { version = "0.23.1" }
+tree-sitter-toml-ng = { version = "0.6.0" }
+tree-sitter-c = { version = "0.23.2" }
+tree-sitter-python = { version = "0.23.4" }
+tree-sitter-ruby = { version = "0.23.1" }
+tree-sitter-bash = { version = "0.23.3" }
+tree-sitter-go = { version = "0.23.4" }
+tree-sitter-md = { version = "0.3.2" }
 zeroize = { version = "1.1" }
 
 [dependencies.radicle]
