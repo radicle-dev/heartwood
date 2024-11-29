@@ -12,6 +12,8 @@ use thiserror::Error;
 
 use crate::agent::Agent;
 use crate::identity::doc::Doc;
+use crate::node::Login;
+use crate::node::NodeSigner;
 use crate::{
     cob,
     cob::{
@@ -183,17 +185,17 @@ impl Identity {
         }
     }
 
-    pub fn initialize<'a, R: WriteRepository + cob::Store, A: Agent>(
+    pub fn initialize<'a, R: WriteRepository + cob::Store, L: Login>(
         doc: &Doc,
         store: &'a R,
-        agent: &A,
+        login: &L,
     ) -> Result<IdentityMut<'a, R>, cob::store::Error> {
         let mut store = cob::store::Store::open(store)?;
         let (id, identity) = Transaction::<Identity, _>::initial(
             "Initialize identity",
             &mut store,
-            agent,
-            |tx, repo| tx.revision("Initial revision", "", doc, None, repo, agent),
+            login,
+            |tx, repo| tx.revision("Initial revision", "", doc, None, login, repo),
         )?;
 
         Ok(IdentityMut {
@@ -725,8 +727,8 @@ impl Revision {
         })
     }
 
-    pub fn sign<G: Signer>(&self, signer: &G) -> Result<Signature, DocError> {
-        self.doc.signature_of(signer)
+    pub fn sign<A: radicle_agent::Agent>(&self, agent: &A) -> Result<Signature, DocError> {
+        self.doc.signature_of(agent)
     }
 }
 
@@ -832,16 +834,16 @@ impl<R: ReadRepository> store::Transaction<Identity, R> {
 }
 
 impl<R: WriteRepository> store::Transaction<Identity, R> {
-    pub fn revision<A: Agent>(
+    pub fn revision<L: Login>(
         &mut self,
         title: impl ToString,
         description: impl ToString,
         doc: &Doc,
         parent: Option<RevisionId>,
+        login: &L,
         repo: &R,
-        agent: &A,
     ) -> Result<(), store::Error> {
-        let (blob, bytes, signature) = doc.sign(agent).map_err(store::Error::Identity)?;
+        let (blob, bytes, signature) = doc.sign(login.agent()).map_err(store::Error::Identity)?;
         // Store document blob in repository.
         let embed =
             Embed::<Uri>::store("radicle.json", &bytes, repo.raw()).map_err(store::Error::Git)?;
@@ -891,20 +893,20 @@ where
         Ok(())
     }
 
-    pub fn transaction<G, F>(
+    pub fn transaction<L, F>(
         &mut self,
         message: &str,
-        signer: &G,
+        login: &L,
         operations: F,
     ) -> Result<EntryId, Error>
     where
-        G: Signer,
+        L: Login,
         F: FnOnce(&mut Transaction<Identity, R>, &R) -> Result<(), store::Error>,
     {
         let mut tx = Transaction::default();
         operations(&mut tx, self.store.as_ref())?;
 
-        let (doc, commit) = tx.commit(message, self.id, &mut self.store, signer)?;
+        let (doc, commit) = tx.commit(message, self.id, &mut self.store, login)?;
         self.identity = doc;
 
         Ok(commit)
@@ -912,61 +914,61 @@ where
 
     /// Update the identity by proposing a new revision.
     /// If the signer is the only delegate, the revision is accepted automatically.
-    pub fn update<G: Signer>(
+    pub fn update<L: Login>(
         &mut self,
         title: impl ToString,
         description: impl ToString,
         doc: &Doc,
-        signer: &G,
+        login: &L,
     ) -> Result<RevisionId, Error> {
         let parent = self.current;
-        let id = self.transaction("Propose revision", signer, |tx, repo| {
-            tx.revision(title, description, doc, Some(parent), repo, signer)
+        let id = self.transaction("Propose revision", login, |tx, repo| {
+            tx.revision(title, description, doc, Some(parent), login, repo)
         })?;
 
         Ok(id)
     }
 
     /// Accept an active revision.
-    pub fn accept<G: Signer>(
+    pub fn accept<L: Login>(
         &mut self,
         revision: &RevisionId,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
         let id = *revision;
         let revision = self.revision(revision).ok_or(Error::NotFound(id))?;
-        let signature = revision.sign(signer)?;
+        let signature = revision.sign(login.agent())?;
 
-        self.transaction("Accept revision", signer, |tx, _| tx.accept(id, signature))
+        self.transaction("Accept revision", login, |tx, _| tx.accept(id, signature))
     }
 
     /// Reject an active revision.
-    pub fn reject<G: Signer>(
+    pub fn reject<L: Login>(
         &mut self,
         revision: RevisionId,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Reject revision", signer, |tx, _| tx.reject(revision))
+        self.transaction("Reject revision", login, |tx, _| tx.reject(revision))
     }
 
     /// Redact a revision.
-    pub fn redact<G: Signer>(
+    pub fn redact<L: Login>(
         &mut self,
         revision: RevisionId,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Redact revision", signer, |tx, _| tx.redact(revision))
+        self.transaction("Redact revision", login, |tx, _| tx.redact(revision))
     }
 
     /// Edit an active revision's title or description.
-    pub fn edit<G: Signer>(
+    pub fn edit<L: Login>(
         &mut self,
         revision: RevisionId,
         title: String,
         description: String,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Edit revision", signer, |tx, _| {
+        self.transaction("Edit revision", login, |tx, _| {
             tx.edit(revision, title, description)
         })
     }

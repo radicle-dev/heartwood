@@ -43,7 +43,7 @@ pub struct Update {
 /// [`crate::Entry`]s at content-addressable locations. Please see
 /// [`Store`] for further information.
 ///
-/// The `signer` is expected to be a cryptographic signing key. This
+/// The `agent` is expected to have a cryptographic signing key. This
 /// ensures that the objects origin is cryptographically verifiable.
 ///
 /// The `resource` is the resource this change lives under, eg. a project.
@@ -56,18 +56,18 @@ pub struct Update {
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]
 /// udpate. See [`Update`] for further information.
-pub fn update<T, S, G>(
+pub fn update<T, S, A>(
     storage: &S,
-    signer: &G,
+    agent: &A,
     resource: Option<Oid>,
     related: Vec<Oid>,
-    identifier: &PublicKey,
+    node_id: &PublicKey, // TODO(lorenz): This should be a `&NodeId`.
     args: Update,
 ) -> Result<Updated<T>, error::Update>
 where
     T: Evaluate<S>,
     S: Store,
-    G: crypto::Signer,
+    A: radicle_agent::Agent,
 {
     let Update {
         type_name: ref typename,
@@ -90,7 +90,7 @@ where
     let entry = storage.store(
         resource,
         related,
-        signer,
+        agent,
         change::Template {
             tips: object.history.tips().into_iter().collect(),
             embeds,
@@ -114,7 +114,7 @@ where
 
     // Here we actually update the references to point to the new update.
     storage
-        .update(identifier, typename, &object_id, &head)
+        .update(node_id, typename, &object_id, &head)
         .map_err(|err| error::Update::Refs { err: Box::new(err) })?;
 
     Ok(Updated {

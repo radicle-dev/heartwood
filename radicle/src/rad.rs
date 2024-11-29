@@ -13,6 +13,7 @@ use crate::git;
 use crate::identity::doc;
 use crate::identity::doc::{DocError, RepoId, Visibility};
 use crate::identity::project::{Project, ProjectName};
+use crate::node::Login;
 use crate::node::NodeSigner;
 use crate::storage::git::transport;
 use crate::storage::git::Repository;
@@ -46,18 +47,17 @@ pub enum InitError {
 }
 
 /// Initialize a new radicle project from a git repository.
-pub fn init<A: Agent, G: NodeSigner, S: WriteStorage>(
+pub fn init<L: Login, S: WriteStorage>(
     repo: &git2::Repository,
     name: ProjectName,
     description: &str,
     default_branch: BranchName,
     visibility: Visibility,
-    signer: &G,
-    agent: &A,
+    login: &L,
     storage: S,
 ) -> Result<(RepoId, identity::Doc, SignedRefs<Verified>), InitError> {
     // TODO: Better error when project id already exists in storage, but remote doesn't.
-    let delegate: identity::Did = signer.public_key().into();
+    let delegate: identity::Did = login.agent().public_key().into();
     let proj = Project::new(
         name.to_owned(),
         description.to_owned(),
@@ -72,10 +72,10 @@ pub fn init<A: Agent, G: NodeSigner, S: WriteStorage>(
         )
     })?;
     let doc = identity::Doc::initial(proj, delegate, visibility);
-    let (project, identity) = Repository::init(&doc, &storage, signer.public_key(), agent)?;
+    let (project, identity) = Repository::init(&doc, &storage, login)?;
     let url = git::Url::from(project.id);
 
-    match init_configure(repo, &project, &default_branch, &url, identity, signer) {
+    match init_configure(repo, &project, &default_branch, &url, identity, login.node()) {
         Ok(signed) => Ok((project.id, doc, signed)),
         Err(err) => {
             if let Err(e) = project.remove() {

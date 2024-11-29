@@ -11,7 +11,8 @@ use storage::SignRepository;
 use storage::ValidateRepository;
 
 use crate::git::*;
-use crate::node::NodeSigner;
+use crate::node::{NodeId, NodeSigner};
+use crate::rad;
 use crate::storage;
 use crate::storage::Error;
 use crate::storage::{
@@ -69,7 +70,7 @@ impl change::Storage for Repository {
         spec: change::Template<Self::ObjectId>,
     ) -> Result<cob::Entry, Self::StoreError>
     where
-        Signer: crypto::Signer,
+        Signer: radicle_agent::Agent,
     {
         self.backend.store(authority, parents, signer, spec)
     }
@@ -143,13 +144,13 @@ impl cob::object::Storage for Repository {
 
     fn update(
         &self,
-        identifier: &PublicKey,
+        node_id: &NodeId,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
         entry: &cob::EntryId,
     ) -> Result<(), Self::UpdateError> {
         self.backend.reference(
-            git::refs::storage::cob(identifier, typename, object_id).as_str(),
+            git::refs::storage::cob(node_id, typename, object_id).as_str(),
             (*entry).into(),
             true,
             &format!(
@@ -163,13 +164,13 @@ impl cob::object::Storage for Repository {
 
     fn remove(
         &self,
-        identifier: &PublicKey,
+        node_id: &NodeId,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<(), Self::RemoveError> {
         let mut reference = self
             .backend
-            .find_reference(git::refs::storage::cob(identifier, typename, object_id).as_str())?;
+            .find_reference(git::refs::storage::cob(node_id, typename, object_id).as_str())?;
 
         reference.delete().map_err(Self::RemoveError::from)
     }
@@ -209,7 +210,7 @@ impl<'a, R: storage::WriteRepository> change::Storage for DraftStore<'a, R> {
         spec: change::Template<Self::ObjectId>,
     ) -> Result<cob::Entry, Self::StoreError>
     where
-        Signer: crypto::Signer,
+        Signer: radicle_agent::Agent,
     {
         self.repo.raw().store(authority, parents, signer, spec)
     }
@@ -415,13 +416,13 @@ impl<'a, R: storage::WriteRepository> cob::object::Storage for DraftStore<'a, R>
 
     fn update(
         &self,
-        identifier: &PublicKey,
+        node_id: &NodeId,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
         entry: &cob::history::EntryId,
     ) -> Result<(), Self::UpdateError> {
         self.repo.raw().reference(
-            git::refs::storage::draft::cob(identifier, typename, object_id).as_str(),
+            git::refs::storage::draft::cob(node_id, typename, object_id).as_str(),
             (*entry).into(),
             true,
             &format!(

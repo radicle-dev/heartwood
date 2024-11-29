@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use storage::{HasRepoId, RepositoryError};
 use thiserror::Error;
 
+use crate::agent::Agent;
 use crate::cob;
 use crate::cob::common::{Author, Authorization, CodeLocation, Label, Reaction, Timestamp};
 use crate::cob::store::Transaction;
@@ -21,10 +22,12 @@ use crate::cob::thread;
 use crate::cob::thread::Thread;
 use crate::cob::thread::{Comment, CommentId, Edit, Reactions};
 use crate::cob::{op, store, ActorId, Embed, EntryId, ObjectId, TypeName, Uri};
-use crate::crypto::{PublicKey, Signer};
+use crate::crypto::PublicKey;
 use crate::git;
 use crate::identity::doc::{DocAt, DocError};
 use crate::identity::PayloadError;
+use crate::node::Login;
+use crate::node::NodeSigner;
 use crate::prelude::*;
 use crate::storage;
 
@@ -337,7 +340,7 @@ impl<'a, R: WriteRepository> Merged<'a, R> {
     ///
     /// This removes Git refs relating to the patch, both in the working copy,
     /// and the stored copy; and updates `rad/sigrefs`.
-    pub fn cleanup<G: Signer>(
+    pub fn cleanup<G: NodeSigner>(
         self,
         working: &git::raw::Repository,
         signer: &G,
@@ -1975,20 +1978,20 @@ where
         Ok(())
     }
 
-    pub fn transaction<G, F>(
+    pub fn transaction<L, F>(
         &mut self,
         message: &str,
-        signer: &G,
+        login: &L,
         operations: F,
     ) -> Result<EntryId, Error>
     where
-        G: Signer,
+        L: Login,
         F: FnOnce(&mut Transaction<Patch, R>) -> Result<(), store::Error>,
     {
         let mut tx = Transaction::default();
         operations(&mut tx)?;
 
-        let (patch, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        let (patch, commit) = tx.commit(message, self.id, &mut self.store.raw, login)?;
         self.cache
             .update(&self.store.as_ref().id(), &self.id, &patch)
             .map_err(|e| Error::CacheUpdate {
@@ -2001,58 +2004,58 @@ where
     }
 
     /// Edit patch metadata.
-    pub fn edit<G: Signer>(
+    pub fn edit<L: Login>(
         &mut self,
         title: String,
         target: MergeTarget,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Edit", signer, |tx| tx.edit(title, target))
+        self.transaction("Edit", login, |tx| tx.edit(title, target))
     }
 
     /// Edit revision metadata.
-    pub fn edit_revision<G: Signer>(
+    pub fn edit_revision<L: Login>(
         &mut self,
         revision: RevisionId,
         description: String,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Edit revision", signer, |tx| {
+        self.transaction("Edit revision", login, |tx| {
             tx.edit_revision(revision, description, embeds.into_iter().collect())
         })
     }
 
     /// Redact a revision.
-    pub fn redact<G: Signer>(
+    pub fn redact<L: Login>(
         &mut self,
         revision: RevisionId,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Redact revision", signer, |tx| tx.redact(revision))
+        self.transaction("Redact revision", login, |tx| tx.redact(revision))
     }
 
     /// Create a thread on a patch revision.
-    pub fn thread<G: Signer, S: ToString>(
+    pub fn thread<L: Login, S: ToString>(
         &mut self,
         revision: RevisionId,
         body: S,
-        signer: &G,
+        login: &L,
     ) -> Result<CommentId, Error> {
-        self.transaction("Create thread", signer, |tx| tx.thread(revision, body))
+        self.transaction("Create thread", login, |tx| tx.thread(revision, body))
     }
 
     /// Comment on a patch revision.
-    pub fn comment<G: Signer, S: ToString>(
+    pub fn comment<L: Login, S: ToString>(
         &mut self,
         revision: RevisionId,
         body: S,
         reply_to: Option<CommentId>,
         location: Option<CodeLocation>,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Comment", signer, |tx| {
+        self.transaction("Comment", login, |tx| {
             tx.comment(
                 revision,
                 body,
@@ -2064,70 +2067,70 @@ where
     }
 
     /// React on a patch revision.
-    pub fn react<G: Signer>(
+    pub fn react<L: Login>(
         &mut self,
         revision: RevisionId,
         reaction: Reaction,
         location: Option<CodeLocation>,
         active: bool,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("React", signer, |tx| {
+        self.transaction("React", login, |tx| {
             tx.react(revision, reaction, location, active)
         })
     }
 
     /// Edit a comment on a patch revision.
-    pub fn comment_edit<G: Signer, S: ToString>(
+    pub fn comment_edit<L: Login, S: ToString>(
         &mut self,
         revision: RevisionId,
         comment: CommentId,
         body: S,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Edit comment", signer, |tx| {
+        self.transaction("Edit comment", login, |tx| {
             tx.comment_edit(revision, comment, body, embeds.into_iter().collect())
         })
     }
 
     /// React to a comment on a patch revision.
-    pub fn comment_react<G: Signer>(
+    pub fn comment_react<L: Login>(
         &mut self,
         revision: RevisionId,
         comment: CommentId,
         reaction: Reaction,
         active: bool,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("React comment", signer, |tx| {
+        self.transaction("React comment", login, |tx| {
             tx.comment_react(revision, comment, reaction, active)
         })
     }
 
     /// Redact a comment on a patch revision.
-    pub fn comment_redact<G: Signer>(
+    pub fn comment_redact<L: Login>(
         &mut self,
         revision: RevisionId,
         comment: CommentId,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Redact comment", signer, |tx| {
+        self.transaction("Redact comment", login, |tx| {
             tx.comment_redact(revision, comment)
         })
     }
 
     /// Comment on a line of code as part of a review.
-    pub fn review_comment<G: Signer, S: ToString>(
+    pub fn review_comment<L: Login, S: ToString>(
         &mut self,
         review: ReviewId,
         body: S,
         location: Option<CodeLocation>,
         reply_to: Option<CommentId>,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Review comment", signer, |tx| {
+        self.transaction("Review comment", login, |tx| {
             tx.review_comment(
                 review,
                 body,
@@ -2139,119 +2142,119 @@ where
     }
 
     /// Edit review comment.
-    pub fn edit_review_comment<G: Signer, S: ToString>(
+    pub fn edit_review_comment<L: Login, S: ToString>(
         &mut self,
         review: ReviewId,
         comment: EntryId,
         body: S,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Edit review comment", signer, |tx| {
+        self.transaction("Edit review comment", login, |tx| {
             tx.edit_review_comment(review, comment, body, embeds.into_iter().collect())
         })
     }
 
     /// React to a review comment.
-    pub fn react_review_comment<G: Signer>(
+    pub fn react_review_comment<L: Login>(
         &mut self,
         review: ReviewId,
         comment: EntryId,
         reaction: Reaction,
         active: bool,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("React to review comment", signer, |tx| {
+        self.transaction("React to review comment", login, |tx| {
             tx.react_review_comment(review, comment, reaction, active)
         })
     }
 
     /// React to a review comment.
-    pub fn redact_review_comment<G: Signer>(
+    pub fn redact_review_comment<L: Login>(
         &mut self,
         review: ReviewId,
         comment: EntryId,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Redact review comment", signer, |tx| {
+        self.transaction("Redact review comment", login, |tx| {
             tx.redact_review_comment(review, comment)
         })
     }
 
     /// Review a patch revision.
-    pub fn review<G: Signer>(
+    pub fn review<L: Login>(
         &mut self,
         revision: RevisionId,
         verdict: Option<Verdict>,
         summary: Option<String>,
         labels: Vec<Label>,
-        signer: &G,
+        login: &L,
     ) -> Result<ReviewId, Error> {
         if verdict.is_none() && summary.is_none() {
             return Err(Error::EmptyReview);
         }
-        self.transaction("Review", signer, |tx| {
+        self.transaction("Review", login, |tx| {
             tx.review(revision, verdict, summary, labels)
         })
         .map(ReviewId)
     }
 
     /// Edit a review.
-    pub fn review_edit<G: Signer>(
+    pub fn review_edit<L: Login>(
         &mut self,
         review: ReviewId,
         verdict: Option<Verdict>,
         summary: Option<String>,
         labels: Vec<Label>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Edit review", signer, |tx| {
+        self.transaction("Edit review", login, |tx| {
             tx.review_edit(review, verdict, summary, labels)
         })
     }
 
     /// Redact a patch review.
-    pub fn redact_review<G: Signer>(
+    pub fn redact_review<L: Login>(
         &mut self,
         review: ReviewId,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Redact review", signer, |tx| tx.redact_review(review))
+        self.transaction("Redact review", login, |tx| tx.redact_review(review))
     }
 
     /// Resolve a patch review comment.
-    pub fn resolve_review_comment<G: Signer>(
+    pub fn resolve_review_comment<L: Login>(
         &mut self,
         review: ReviewId,
         comment: CommentId,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Resolve review comment", signer, |tx| {
+        self.transaction("Resolve review comment", login, |tx| {
             tx.review_comment_resolve(review, comment)
         })
     }
 
     /// Unresolve a patch review comment.
-    pub fn unresolve_review_comment<G: Signer>(
+    pub fn unresolve_review_comment<L: Login>(
         &mut self,
         review: ReviewId,
         comment: CommentId,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Unresolve review comment", signer, |tx| {
+        self.transaction("Unresolve review comment", login, |tx| {
             tx.review_comment_unresolve(review, comment)
         })
     }
 
     /// Merge a patch revision.
-    pub fn merge<G: Signer>(
+    pub fn merge<L: Login>(
         &mut self,
         revision: RevisionId,
         commit: git::Oid,
-        signer: &G,
+        login: &L,
     ) -> Result<Merged<R>, Error> {
         // TODO: Don't allow merging the same revision twice?
-        let entry = self.transaction("Merge revision", signer, |tx| tx.merge(revision, commit))?;
+        let entry = self.transaction("Merge revision", login, |tx| tx.merge(revision, commit))?;
 
         Ok(Merged {
             entry,
@@ -2261,80 +2264,80 @@ where
     }
 
     /// Update a patch with a new revision.
-    pub fn update<G: Signer>(
+    pub fn update<L: Login>(
         &mut self,
         description: impl ToString,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
-        signer: &G,
+        login: &L,
     ) -> Result<RevisionId, Error> {
-        self.transaction("Add revision", signer, |tx| {
+        self.transaction("Add revision", login, |tx| {
             tx.revision(description, base, oid)
         })
         .map(RevisionId)
     }
 
     /// Lifecycle a patch.
-    pub fn lifecycle<G: Signer>(&mut self, state: Lifecycle, signer: &G) -> Result<EntryId, Error> {
-        self.transaction("Lifecycle", signer, |tx| tx.lifecycle(state))
+    pub fn lifecycle<L: Login>(&mut self, state: Lifecycle, login: &L) -> Result<EntryId, Error> {
+        self.transaction("Lifecycle", login, |tx| tx.lifecycle(state))
     }
 
     /// Assign a patch.
-    pub fn assign<G: Signer>(
+    pub fn assign<L: Login>(
         &mut self,
         assignees: BTreeSet<Did>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Assign", signer, |tx| tx.assign(assignees))
+        self.transaction("Assign", login, |tx| tx.assign(assignees))
     }
 
     /// Archive a patch.
-    pub fn archive<G: Signer>(&mut self, signer: &G) -> Result<bool, Error> {
-        self.lifecycle(Lifecycle::Archived, signer)?;
+    pub fn archive<L: Login>(&mut self, login: &L) -> Result<bool, Error> {
+        self.lifecycle(Lifecycle::Archived, login)?;
 
         Ok(true)
     }
 
     /// Mark an archived patch as ready to be reviewed again.
     /// Returns `false` if the patch was not archived.
-    pub fn unarchive<G: Signer>(&mut self, signer: &G) -> Result<bool, Error> {
+    pub fn unarchive<L: Login>(&mut self, login: &L) -> Result<bool, Error> {
         if !self.is_archived() {
             return Ok(false);
         }
-        self.lifecycle(Lifecycle::Open, signer)?;
+        self.lifecycle(Lifecycle::Open, login)?;
 
         Ok(true)
     }
 
     /// Mark a patch as ready to be reviewed.
     /// Returns `false` if the patch was not a draft.
-    pub fn ready<G: Signer>(&mut self, signer: &G) -> Result<bool, Error> {
+    pub fn ready<L: Login>(&mut self, login: &L) -> Result<bool, Error> {
         if !self.is_draft() {
             return Ok(false);
         }
-        self.lifecycle(Lifecycle::Open, signer)?;
+        self.lifecycle(Lifecycle::Open, login)?;
 
         Ok(true)
     }
 
     /// Mark an open patch as a draft.
     /// Returns `false` if the patch was not open and free of merges.
-    pub fn unready<G: Signer>(&mut self, signer: &G) -> Result<bool, Error> {
+    pub fn unready<L: Login>(&mut self, login: &L) -> Result<bool, Error> {
         if !matches!(self.state(), State::Open { conflicts } if conflicts.is_empty()) {
             return Ok(false);
         }
-        self.lifecycle(Lifecycle::Draft, signer)?;
+        self.lifecycle(Lifecycle::Draft, login)?;
 
         Ok(true)
     }
 
     /// Label a patch.
-    pub fn label<G: Signer>(
+    pub fn label<L: Login>(
         &mut self,
         labels: impl IntoIterator<Item = Label>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Label", signer, |tx| tx.label(labels))
+        self.transaction("Label", login, |tx| tx.label(labels))
     }
 }
 
@@ -2483,7 +2486,7 @@ where
     R: ReadRepository + SignRepository + cob::Store,
 {
     /// Open a new patch.
-    pub fn create<'g, C, G>(
+    pub fn create<'g, C, L>(
         &'g mut self,
         title: impl ToString,
         description: impl ToString,
@@ -2492,11 +2495,11 @@ where
         oid: impl Into<git::Oid>,
         labels: &[Label],
         cache: &'g mut C,
-        signer: &G,
+        login: &L,
     ) -> Result<PatchMut<'a, 'g, R, C>, Error>
     where
         C: cob::cache::Update<Patch>,
-        G: Signer,
+        L: Login,
     {
         self._create(
             title,
@@ -2507,12 +2510,12 @@ where
             labels,
             Lifecycle::default(),
             cache,
-            signer,
+            login,
         )
     }
 
     /// Draft a patch. This patch will be created in a [`State::Draft`] state.
-    pub fn draft<'g, C, G: Signer>(
+    pub fn draft<'g, C, L: Login>(
         &'g mut self,
         title: impl ToString,
         description: impl ToString,
@@ -2521,7 +2524,7 @@ where
         oid: impl Into<git::Oid>,
         labels: &[Label],
         cache: &'g mut C,
-        signer: &G,
+        login: &L,
     ) -> Result<PatchMut<'a, 'g, R, C>, Error>
     where
         C: cob::cache::Update<Patch>,
@@ -2535,7 +2538,7 @@ where
             labels,
             Lifecycle::Draft,
             cache,
-            signer,
+            login,
         )
     }
 
@@ -2559,7 +2562,7 @@ where
     }
 
     /// Create a patch. This is an internal function used by `create` and `draft`.
-    fn _create<'g, C, G: Signer>(
+    fn _create<'g, C, L: Login>(
         &'g mut self,
         title: impl ToString,
         description: impl ToString,
@@ -2569,12 +2572,12 @@ where
         labels: &[Label],
         state: Lifecycle,
         cache: &'g mut C,
-        signer: &G,
+        login: &L,
     ) -> Result<PatchMut<'a, 'g, R, C>, Error>
     where
         C: cob::cache::Update<Patch>,
     {
-        let (id, patch) = Transaction::initial("Create patch", &mut self.raw, signer, |tx, _| {
+        let (id, patch) = Transaction::initial("Create patch", &mut self.raw, login, |tx, _| {
             tx.revision(description, base, oid)?;
             tx.edit(title, target)?;
 

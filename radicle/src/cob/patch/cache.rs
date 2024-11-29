@@ -9,8 +9,9 @@ use crate::cob::cache::{self, StoreReader};
 use crate::cob::cache::{Remove, StoreWriter, Update};
 use crate::cob::store;
 use crate::cob::{Label, ObjectId, TypeName};
-use crate::crypto::Signer;
 use crate::git;
+use crate::node::Login;
+use crate::node::NodeSigner;
 use crate::prelude::RepoId;
 use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
 
@@ -108,7 +109,7 @@ impl<R, C> Cache<R, C> {
 impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
     /// Create a new [`Patch`] using the [`super::Patches`] as the
     /// main storage, and writing the update to the `cache`.
-    pub fn create<'g, G>(
+    pub fn create<'g, L>(
         &'g mut self,
         title: impl ToString,
         description: impl ToString,
@@ -116,11 +117,11 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         labels: &[Label],
-        signer: &G,
+        login: &L,
     ) -> Result<PatchMut<'a, 'g, R, C>, super::Error>
     where
         R: WriteRepository + cob::Store,
-        G: Signer,
+        L: Login,
         C: Update<Patch>,
     {
         self.store.create(
@@ -131,14 +132,14 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
             oid,
             labels,
             &mut self.cache,
-            signer,
+            login,
         )
     }
 
     /// Create a new [`Patch`], in a draft state, using the
     /// [`super::Patches`] as the main storage, and writing the update
     /// to the `cache`.
-    pub fn draft<'g, G>(
+    pub fn draft<'g, L>(
         &'g mut self,
         title: impl ToString,
         description: impl ToString,
@@ -146,11 +147,11 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         labels: &[Label],
-        signer: &G,
+        login: &L,
     ) -> Result<PatchMut<'a, 'g, R, C>, super::Error>
     where
         R: WriteRepository + cob::Store,
-        G: Signer,
+        L: Login,
         C: Update<Patch>,
     {
         self.store.draft(
@@ -161,7 +162,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
             oid,
             labels,
             &mut self.cache,
-            signer,
+            login,
         )
     }
 
@@ -169,7 +170,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
     /// removing the entry from the `cache`.
     pub fn remove<G>(&mut self, id: &PatchId, signer: &G) -> Result<(), super::Error>
     where
-        G: Signer,
+        G: NodeSigner,
         R: ReadRepository + SignRepository + cob::Store,
         C: Remove<Patch>,
     {

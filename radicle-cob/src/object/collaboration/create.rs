@@ -41,7 +41,7 @@ impl Create {
 /// [`crate::Entry`]s at content-addressable locations. Please see
 /// [`Store`] for further information.
 ///
-/// The `signer` is expected to be a cryptographic signing key. This
+/// The `agent` is expected to have a cryptographic signing key. This
 /// ensures that the objects origin is cryptographically verifiable.
 ///
 /// The `resource` is the parent of this object, for example a
@@ -53,29 +53,29 @@ impl Create {
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]. See
 /// [`Create`] for further information.
-pub fn create<T, S, G>(
+pub fn create<T, S, A>(
     storage: &S,
-    signer: &G,
+    agent: &A,
     resource: Option<Oid>,
     related: Vec<Oid>,
-    identifier: &PublicKey,
+    node: &PublicKey, // TODO(lorenz): This should be of type `&NodeId`.
     args: Create,
 ) -> Result<CollaborativeObject<T>, error::Create>
 where
     T: Evaluate<S>,
     S: Store,
-    G: crypto::Signer,
+    A: radicle_agent::Agent,
 {
     let type_name = args.type_name.clone();
     let version = args.version;
     let init_change = storage
-        .store(resource, related, signer, args.template())
+        .store(resource, related, agent, args.template())
         .map_err(error::Create::from)?;
     let object_id = init_change.id().into();
     let object = T::init(&init_change, storage).map_err(error::Create::evaluate)?;
 
     storage
-        .update(identifier, &type_name, &object_id, &object_id)
+        .update(node, &type_name, &object_id, &object_id)
         .map_err(|err| error::Create::Refs { err: Box::new(err) })?;
 
     let history = History::new_from_root(init_change);

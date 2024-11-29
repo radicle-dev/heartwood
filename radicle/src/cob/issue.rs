@@ -8,6 +8,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::agent::Agent;
 use crate::cob;
 use crate::cob::common::{Author, Authorization, Label, Reaction, Timestamp, Uri};
 use crate::cob::store::Transaction;
@@ -17,6 +18,8 @@ use crate::cob::thread::{Comment, CommentId, Thread};
 use crate::cob::{op, store, ActorId, Embed, EntryId, ObjectId, TypeName};
 use crate::crypto::Signer;
 use crate::identity::doc::DocError;
+use crate::node::Login;
+use crate::node::NodeSigner;
 use crate::prelude::{Did, Doc, ReadRepository, RepoId};
 use crate::storage::{HasRepoId, RepositoryError, WriteRepository};
 
@@ -606,107 +609,107 @@ where
     }
 
     /// Assign one or more actors to an issue.
-    pub fn assign<G: Signer>(
+    pub fn assign<L: Login>(
         &mut self,
         assignees: impl IntoIterator<Item = Did>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Assign", signer, |tx| tx.assign(assignees))
+        self.transaction("Assign", login, |tx| tx.assign(assignees))
     }
 
     /// Set the issue title.
-    pub fn edit<G: Signer>(&mut self, title: impl ToString, signer: &G) -> Result<EntryId, Error> {
-        self.transaction("Edit", signer, |tx| tx.edit(title))
+    pub fn edit<L: Login>(&mut self, title: impl ToString, login: &L) -> Result<EntryId, Error> {
+        self.transaction("Edit", login, |tx| tx.edit(title))
     }
 
     /// Set the issue description.
-    pub fn edit_description<G: Signer>(
+    pub fn edit_description<L: Login>(
         &mut self,
         description: impl ToString,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
         let (id, _) = self.root();
         let id = *id;
-        self.transaction("Edit description", signer, |tx| {
+        self.transaction("Edit description", login, |tx| {
             tx.edit_comment(id, description, embeds.into_iter().collect())
         })
     }
 
     /// Lifecycle an issue.
-    pub fn lifecycle<G: Signer>(&mut self, state: State, signer: &G) -> Result<EntryId, Error> {
-        self.transaction("Lifecycle", signer, |tx| tx.lifecycle(state))
+    pub fn lifecycle<L: Login>(&mut self, state: State, login: &L) -> Result<EntryId, Error> {
+        self.transaction("Lifecycle", login, |tx| tx.lifecycle(state))
     }
 
     /// Comment on an issue.
-    pub fn comment<G: Signer, S: ToString>(
+    pub fn comment<L: Login, S: ToString>(
         &mut self,
         body: S,
         reply_to: CommentId,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Comment", signer, |tx| {
+        self.transaction("Comment", login, |tx| {
             tx.comment(body, reply_to, embeds.into_iter().collect())
         })
     }
 
     /// Edit a comment.
-    pub fn edit_comment<G: Signer, S: ToString>(
+    pub fn edit_comment<L: Login, S: ToString>(
         &mut self,
         id: CommentId,
         body: S,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Edit comment", signer, |tx| {
+        self.transaction("Edit comment", login, |tx| {
             tx.edit_comment(id, body, embeds.into_iter().collect())
         })
     }
 
     /// Redact a comment.
-    pub fn redact_comment<G: Signer>(
+    pub fn redact_comment<L: Login>(
         &mut self,
         id: CommentId,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Redact comment", signer, |tx| tx.redact_comment(id))
+        self.transaction("Redact comment", login, |tx| tx.redact_comment(id))
     }
 
     /// Label an issue.
-    pub fn label<G: Signer>(
+    pub fn label<L: Login>(
         &mut self,
         labels: impl IntoIterator<Item = Label>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Label", signer, |tx| tx.label(labels))
+        self.transaction("Label", login, |tx| tx.label(labels))
     }
 
     /// React to an issue comment.
-    pub fn react<G: Signer>(
+    pub fn react<L: Login>(
         &mut self,
         to: CommentId,
         reaction: Reaction,
         active: bool,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("React", signer, |tx| tx.react(to, reaction, active))
+        self.transaction("React", login, |tx| tx.react(to, reaction, active))
     }
 
-    pub fn transaction<G, F>(
+    pub fn transaction<L, F>(
         &mut self,
         message: &str,
-        signer: &G,
+        login: &L,
         operations: F,
     ) -> Result<EntryId, Error>
     where
-        G: Signer,
+        L: Login,
         F: FnOnce(&mut Transaction<Issue, R>) -> Result<(), store::Error>,
     {
         let mut tx = Transaction::default();
         operations(&mut tx)?;
 
-        let (issue, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        let (issue, commit) = tx.commit(message, self.id, &mut self.store.raw, login)?;
         self.cache
             .update(&self.store.as_ref().id(), &self.id, &issue)
             .map_err(|e| Error::CacheUpdate {
@@ -781,7 +784,7 @@ where
     R: WriteRepository + cob::Store,
 {
     /// Create a new issue.
-    pub fn create<'g, G, C>(
+    pub fn create<'g, L, C>(
         &'g mut self,
         title: impl ToString,
         description: impl ToString,
@@ -789,13 +792,13 @@ where
         assignees: &[Did],
         embeds: impl IntoIterator<Item = Embed<Uri>>,
         cache: &'g mut C,
-        signer: &G,
+        login: &L,
     ) -> Result<IssueMut<'a, 'g, R, C>, Error>
     where
-        G: Signer,
+        L: Login,
         C: cob::cache::Update<Issue>,
     {
-        let (id, issue) = Transaction::initial("Create issue", &mut self.raw, signer, |tx, _| {
+        let (id, issue) = Transaction::initial("Create issue", &mut self.raw, login, |tx, _| {
             tx.thread(description, embeds)?;
             tx.edit(title)?;
 
@@ -820,7 +823,7 @@ where
     }
 
     /// Remove an issue.
-    pub fn remove<C, G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), store::Error>
+    pub fn remove<C, G: NodeSigner>(&self, id: &ObjectId, signer: &G) -> Result<(), store::Error>
     where
         C: cob::cache::Remove<Issue>,
     {

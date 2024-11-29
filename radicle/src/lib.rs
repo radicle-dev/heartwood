@@ -31,7 +31,7 @@ pub mod test;
 pub mod version;
 pub mod web;
 
-pub mod agent;
+pub extern crate radicle_agent as agent;
 pub mod did;
 
 pub use cob::{issue, patch};

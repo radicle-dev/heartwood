@@ -74,7 +74,7 @@ pub trait Storage {
     /// Update a ref to a particular collaborative object
     fn update(
         &self,
-        identifier: &PublicKey,
+        node_id: &PublicKey,
         typename: &TypeName,
         object_id: &ObjectId,
         entry: &EntryId,
@@ -83,7 +83,7 @@ pub trait Storage {
     /// Remove a ref to a particular collaborative object
     fn remove(
         &self,
-        identifier: &PublicKey,
+        node_id: &PublicKey,
         typename: &TypeName,
         object_id: &ObjectId,
     ) -> Result<(), Self::RemoveError>;

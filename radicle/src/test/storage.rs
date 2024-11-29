@@ -8,8 +8,9 @@ use git_ext::ref_format as fmt;
 
 use crate::crypto::{Signer, Verified};
 use crate::identity::doc::{Doc, DocAt, DocError, RawDoc, RepoId};
-use crate::node::NodeId;
+use crate::node::{NodeId, NodeSigner};
 
+use crate::rad;
 pub use crate::storage::*;
 
 use super::{arbitrary, fixtures};
@@ -347,7 +348,7 @@ impl WriteRepository for MockRepository {
 }
 
 impl SignRepository for MockRepository {
-    fn sign_refs<G: Signer>(
+    fn sign_refs<G: NodeSigner>(
         &self,
         _signer: &G,
     ) -> Result<crate::storage::refs::SignedRefs<Verified>, RepositoryError> {
@@ -419,7 +420,7 @@ impl radicle_cob::change::Storage for MockRepository {
         Self::StoreError,
     >
     where
-        G: radicle_crypto::Signer,
+        G: radicle_agent::Agent,
     {
         todo!()
     }

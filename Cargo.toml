@@ -2,12 +2,14 @@
 package.version = "0.9.0"
 members = [
   "radicle",
+  "radicle-agent",
   "radicle-cob",
   "radicle-cli",
   "radicle-cli-test",
   "radicle-crdt",
   "radicle-crypto",
   "radicle-dag",
+  "radicle-did",
   "radicle-fetch",
   "radicle-node",
   "radicle-remote-helper",

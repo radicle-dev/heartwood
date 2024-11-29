@@ -5,7 +5,7 @@ use crate::crypto::{PublicKey, Signer, Verified};
 use crate::git;
 use crate::identity::doc::Visibility;
 use crate::identity::RepoId;
-use crate::node::Alias;
+use crate::node::{Alias, Login, NodeSigner};
 use crate::rad;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
@@ -57,10 +57,10 @@ pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: &G) -> Result<Storage
 }
 
 /// Create a new repository at the given path, and initialize it into a project.
-pub fn project<P: AsRef<Path>, G: Signer>(
+pub fn project<P: AsRef<Path>, L: Login>(
     path: P,
     storage: &Storage,
-    signer: &G,
+    login: &L,
 ) -> Result<(RepoId, SignedRefs<Verified>, git2::Repository, git2::Oid), rad::InitError> {
     transport::local::register(storage.clone());
 
@@ -71,7 +71,7 @@ pub fn project<P: AsRef<Path>, G: Signer>(
         "Acme's repository",
         git::refname!("master"),
         Visibility::default(),
-        signer,
+        login,
         storage,
     )?;
 

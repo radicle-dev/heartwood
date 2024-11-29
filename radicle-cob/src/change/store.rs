@@ -19,15 +19,15 @@ pub trait Storage {
 
     /// Store a new change entry.
     #[allow(clippy::type_complexity)]
-    fn store<G>(
+    fn store<A>(
         &self,
         resource: Option<Self::Parent>,
         related: Vec<Self::Parent>,
-        signer: &G,
+        agent: &A,
         template: Template<Self::ObjectId>,
     ) -> Result<Entry<Self::Parent, Self::ObjectId, Self::Signatures>, Self::StoreError>
     where
-        G: crypto::Signer;
+        A: radicle_agent::Agent;
 
     /// Load a change entry.
     #[allow(clippy::type_complexity)]

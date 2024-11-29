@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::path::PathBuf;
 
+use crypto::ssh::agent::Agent;
 use git_ext::author::Author;
 use git_ext::commit::{headers::Headers, Commit};
 use git_ext::Oid;
@@ -95,15 +96,15 @@ impl change::Storage for git2::Repository {
     type Parent = Oid;
     type Signatures = ExtendedSignature;
 
-    fn store<Signer>(
+    fn store<A>(
         &self,
         resource: Option<Self::Parent>,
         mut related: Vec<Self::Parent>,
-        signer: &Signer,
+        agent: &A,
         spec: store::Template<Self::ObjectId>,
     ) -> Result<Entry, Self::StoreError>
     where
-        Signer: crypto::Signer,
+        A: radicle_agent::Agent,
     {
         let change::Template {
             type_name,
@@ -116,8 +117,8 @@ impl change::Storage for git2::Repository {
         let revision = write_manifest(self, &manifest, embeds, &contents)?;
         let tree = self.find_tree(revision)?;
         let signature = {
-            let sig = signer.sign(revision.as_bytes());
-            let key = signer.public_key();
+            let sig = agent.sign(revision.as_bytes());
+            let key = agent.public_key();
             ExtendedSignature::new(*key, sig)
         };
 

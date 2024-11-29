@@ -1888,6 +1888,7 @@ dependencies = [
  "pretty_assertions",
  "qcheck",
  "qcheck-macros",
+ "radicle-agent",
  "radicle-cob",
  "radicle-crypto",
  "radicle-git-ext",
@@ -1900,6 +1901,15 @@ dependencies = [
  "tempfile",
  "thiserror",
  "unicode-normalization",
+]
+
+[[package]]
+name = "radicle-agent"
+version = "0.1.0"
+dependencies = [
+ "radicle-crypto",
+ "radicle-did",
+ "signature 2.2.0",
 ]
 
 [[package]]
@@ -1969,6 +1979,7 @@ dependencies = [
  "once_cell",
  "qcheck",
  "qcheck-macros",
+ "radicle-agent",
  "radicle-crypto",
  "radicle-dag",
  "radicle-git-ext",
@@ -2020,6 +2031,10 @@ version = "0.9.0"
 dependencies = [
  "fastrand",
 ]
+
+[[package]]
+name = "radicle-did"
+version = "0.1.0"
 
 [[package]]
 name = "radicle-fetch"

@@ -9,7 +9,8 @@ use crate::cob::cache;
 use crate::cob::cache::{Remove, StoreReader, StoreWriter, Update};
 use crate::cob::store;
 use crate::cob::{Embed, Label, ObjectId, TypeName, Uri};
-use crate::crypto::Signer;
+use crate::node::Login;
+use crate::node::NodeSigner;
 use crate::prelude::{Did, RepoId};
 use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
 
@@ -73,18 +74,18 @@ impl<R, C> Cache<R, C> {
 impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
     /// Create a new [`Issue`] using the [`super::Issues`] as the
     /// main storage, and writing the update to the `cache`.
-    pub fn create<'g, G>(
+    pub fn create<'g, L>(
         &'g mut self,
         title: impl ToString,
         description: impl ToString,
         labels: &[Label],
         assignees: &[Did],
         embeds: impl IntoIterator<Item = Embed<Uri>>,
-        signer: &G,
+        login: &L,
     ) -> Result<IssueMut<'a, 'g, R, C>, super::Error>
     where
+        L: Login,
         R: ReadRepository + WriteRepository + cob::Store,
-        G: Signer,
         C: Update<Issue>,
     {
         self.store.create(
@@ -94,7 +95,7 @@ impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
             assignees,
             embeds,
             &mut self.cache,
-            signer,
+            login,
         )
     }
 
@@ -102,7 +103,7 @@ impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
     /// removing the entry from the `cache`.
     pub fn remove<G>(&mut self, id: &IssueId, signer: &G) -> Result<(), super::Error>
     where
-        G: Signer,
+        G: NodeSigner,
         R: ReadRepository + SignRepository + cob::Store,
         C: Remove<Issue>,
     {

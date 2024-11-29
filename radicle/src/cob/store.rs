@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::cob::op::Op;
 use crate::cob::{Create, Embed, EntryId, ObjectId, TypeName, Update, Updated, Uri, Version};
 use crate::git;
+use crate::node::Login;
 use crate::node::NodeSigner;
 use crate::prelude::*;
 use crate::storage::git as storage;
@@ -148,13 +149,13 @@ where
     T::Action: Serialize,
 {
     /// Update an object.
-    pub fn update<G: Signer>(
+    pub fn update<L: Login>(
         &self,
         object_id: ObjectId,
         message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
         embeds: Vec<Embed<Uri>>,
-        signer: &G,
+        login: &L,
     ) -> Result<Updated<T>, Error> {
         let actions = actions.into();
         let related = actions.iter().flat_map(T::Action::parents).collect();
@@ -170,10 +171,10 @@ where
             .collect::<Result<_, _>>()?;
         let updated = cob::update(
             self.repo,
-            signer,
+            login.agent(),
             self.identity,
             related,
-            signer.public_key(),
+            login.node().public_key(),
             Update {
                 object_id,
                 type_name: T::type_name().clone(),
@@ -183,19 +184,19 @@ where
             },
         )?;
         self.repo
-            .sign_refs(signer)
+            .sign_refs(login.node())
             .map_err(|e| Error::SignRefs(Box::new(e)))?;
 
         Ok(updated)
     }
 
     /// Create an object.
-    pub fn create<G: NodeSigner>(
+    pub fn create<L: Login>(
         &self,
         message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
         embeds: Vec<Embed<Uri>>,
-        signer: &G,
+        login: &L,
     ) -> Result<(ObjectId, T), Error> {
         let actions = actions.into();
         let parents = actions.iter().flat_map(T::Action::parents).collect();
@@ -209,12 +210,12 @@ where
                 })
             })
             .collect::<Result<_, _>>()?;
-        let cob = cob::create::<T, _, G>(
+        let cob = cob::create::<T, _, _>(
             self.repo,
-            signer,
+            login.agent(),
             self.identity,
             parents,
-            signer.public_key(),
+            login.node().public_key(),
             Create {
                 type_name: T::type_name().clone(),
                 version: Version::default(),
@@ -228,7 +229,7 @@ where
         // COBs.
         if T::type_name() != &*crate::cob::identity::TYPENAME {
             self.repo
-                .sign_refs(signer)
+                .sign_refs(login.node())
                 .map_err(|e| Error::SignRefs(Box::new(e)))?;
         }
         Ok((*cob.id(), cob.object))
@@ -315,14 +316,14 @@ where
     T: Cob + cob::Evaluate<R>,
 {
     /// Create a new transaction to be used as the initial set of operations for a COB.
-    pub fn initial<G, F>(
+    pub fn initial<L, F>(
         message: &str,
         store: &mut Store<T, R>,
-        signer: &G,
+        login: &L,
         operations: F,
     ) -> Result<(ObjectId, T), Error>
     where
-        G: Signer,
+        L: Login,
         F: FnOnce(&mut Self, &R) -> Result<(), Error>,
         R: ReadRepository + SignRepository + cob::Store,
         T::Action: Serialize + Clone,
@@ -333,7 +334,7 @@ where
         let actions = NonEmpty::from_vec(tx.actions)
             .expect("Transaction::initial: transaction must contain at least one action");
 
-        store.create(message, actions, tx.embeds, signer)
+        store.create(message, actions, tx.embeds, login)
     }
 
     /// Add an operation to this transaction.
@@ -353,12 +354,12 @@ where
     /// Commit transaction.
     ///
     /// Returns an operation that can be applied onto an in-memory state.
-    pub fn commit<G: Signer>(
+    pub fn commit<L: Login>(
         self,
         msg: &str,
         id: ObjectId,
         store: &mut Store<T, R>,
-        signer: &G,
+        login: &L,
     ) -> Result<(T, EntryId), Error>
     where
         R: ReadRepository + SignRepository + cob::Store,
@@ -370,7 +371,7 @@ where
             head,
             object: CollaborativeObject { object, .. },
             ..
-        } = store.update(id, msg, actions, self.embeds, signer)?;
+        } = store.update(id, msg, actions, self.embeds, login)?;
 
         Ok((object, head))
     }

@@ -21,7 +21,7 @@ use crate::crypto;
 use crate::crypto::Signature;
 use crate::git;
 use crate::identity::{project::Project, Did};
-use crate::node::NodeId;
+use crate::node::{Login, NodeSigner};
 use crate::storage;
 use crate::storage::{ReadRepository, RepositoryError};
 
@@ -835,15 +835,14 @@ impl Doc {
 
     /// Initialize an [`identity::Identity`] with this [`Doc`] as the associated
     /// document.
-    pub fn init<A: Agent>(
+    pub fn init<L: Login>(
         &self,
         repo: &storage::git::Repository,
-        node: &NodeId,
-        agent: &A,
+        login: &L,
     ) -> Result<git::Oid, RepositoryError> {
-        let cob = identity::Identity::initialize(self, repo, agent)?;
-        let id_ref = git::refs::storage::id(node);
-        let cob_ref = git::refs::storage::cob(node, &crate::cob::identity::TYPENAME, &cob.id);
+        let cob = identity::Identity::initialize(self, repo, login)?;
+        let id_ref = git::refs::storage::id(login.node().public_key());
+        let cob_ref = git::refs::storage::cob(login.node().public_key(), &crate::cob::identity::TYPENAME, &cob.id);
         // Set `.../refs/rad/id` -> `.../refs/cobs/xyz.radicle.id/<id>`
         repo.backend.reference_symbolic(
             id_ref.as_str(),

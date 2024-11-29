@@ -23,12 +23,15 @@ use std::str::FromStr;
 use std::{fmt, io, net, thread, time};
 
 use amplify::WrapperMut;
+use crypto::ssh::agent::AgentSigner;
+use crypto::Signer;
 use cyphernet::addr::NetAddr;
 use localtime::{LocalDuration, LocalTime};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json as json;
 
+use crate::agent::Agent;
 use crate::crypto::PublicKey;
 use crate::git;
 use crate::identity::RepoId;
@@ -1480,6 +1483,50 @@ impl NodeSigner for crypto::ssh::keystore::MemorySigner {
 #[cfg(any(test, feature = "test"))]
 impl NodeSigner for crypto::test::signer::MockSigner {
     fn public_key(&self) -> &crypto::PublicKey {
-        crypto::test::signer::MockSigner::public_key(self)
+        crypto::Signer::public_key(self)
+    }
+}
+
+/// Represents an agent together with the node they are using.
+pub trait Login
+{
+    type A: Agent;
+    type N: NodeSigner;
+
+    fn agent(&self) -> &Self::A;
+    fn node(&self) -> &Self::N;
+}
+
+
+#[cfg(any(test, feature = "test"))]
+struct MockAgent {
+    public_key: crypto::PublicKey,
+}
+
+#[cfg(any(test, feature = "test"))]
+impl Agent for MockAgent {
+    fn public_key(&self) -> &crypto::PublicKey {
+        &self.public_key
+    }
+}
+
+#[cfg(any(test, feature = "test"))]
+impl signature::Signer<crypto::Signature> for MockAgent {
+    fn try_sign(&self, msg: &[u8]) -> Result<crypto::Signature, signature::Error> {
+        todo!()
+    }
+}
+
+#[cfg(any(test, feature = "test"))]
+impl Login for crypto::test::signer::MockSigner {
+    type A = crypto::test::signer::MockSigner;
+    type N = crypto::test::signer::MockSigner;
+
+    fn agent(&self) -> &Self::A {
+        self
+    }
+
+    fn node(&self) -> &Self::N {
+        self
     }
 }

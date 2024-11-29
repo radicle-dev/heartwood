@@ -13,14 +13,16 @@ use std::{ops::Deref, str::FromStr};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
+use crate::agent::Agent;
 use crate::cob;
 use crate::cob::change::store::Entry;
 use crate::cob::store;
 use crate::cob::store::{Cob, CobAction, Store, Transaction};
 use crate::cob::{EntryId, ObjectId, TypeName};
 use crate::crypto::ssh::ExtendedSignature;
-use crate::crypto::Signer;
 use crate::git;
+use crate::node::Login;
+use crate::node::NodeSigner;
 use crate::prelude::ReadRepository;
 use crate::storage::{Oid, WriteRepository};
 
@@ -328,37 +330,37 @@ where
 
     /// Transition the `Job` into a running state, storing the provided
     /// metadata.
-    pub fn start<G: Signer>(
+    pub fn start<L: Login>(
         &mut self,
         run_id: String,
         info_url: Option<String>,
-        signer: &G,
+        login: &L,
     ) -> Result<EntryId, Error> {
-        self.transaction("Start", signer, |tx| {
+        self.transaction("Start", login, |tx| {
             tx.start(run_id, info_url)?;
             Ok(())
         })
     }
 
     /// Transition the `Job` into a finished state, with the provided `reason`.
-    pub fn finish<G: Signer>(&mut self, reason: Reason, signer: &G) -> Result<EntryId, Error> {
-        self.transaction("Finish", signer, |tx| tx.finish(reason))
+    pub fn finish<L: Login>(&mut self, reason: Reason, login: &L) -> Result<EntryId, Error> {
+        self.transaction("Finish", login, |tx| tx.finish(reason))
     }
 
-    pub fn transaction<G, F>(
+    pub fn transaction<L, F>(
         &mut self,
         message: &str,
-        signer: &G,
+        login: &L,
         operations: F,
     ) -> Result<EntryId, Error>
     where
-        G: Signer,
+        L: Login,
         F: FnOnce(&mut Transaction<Job, R>) -> Result<(), store::Error>,
     {
         let mut tx = Transaction::default();
         operations(&mut tx)?;
 
-        let (job, id) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        let (job, id) = tx.commit(message, self.id, &mut self.store.raw, login)?;
         self.job = job;
 
         Ok(id)
@@ -417,12 +419,12 @@ where
     }
 
     /// Create a fresh `Job` with the provided `commit_id`.
-    pub fn create<'g, G: Signer>(
+    pub fn create<'g, L: Login>(
         &'g mut self,
         commit_id: git::Oid,
-        signer: &G,
+        login: &L,
     ) -> Result<JobMut<'a, 'g, R>, Error> {
-        let (id, job) = Transaction::initial("Create job", &mut self.raw, signer, |tx, _| {
+        let (id, job) = Transaction::initial("Create job", &mut self.raw, login, |tx, _| {
             tx.trigger(commit_id)?;
             Ok(())
         })?;
@@ -435,7 +437,7 @@ where
     }
 
     /// Delete the `Job` identified by `id`.
-    pub fn remove<G: Signer>(&self, id: &JobId, signer: &G) -> Result<(), store::Error> {
+    pub fn remove<G: NodeSigner>(&self, id: &JobId, signer: &G) -> Result<(), store::Error> {
         self.raw.remove(id, signer)
     }
 }
