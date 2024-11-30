@@ -23,18 +23,18 @@ pub fn user() -> git::UserInfo {
 }
 
 /// Create a new storage with a project.
-pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: &G) -> Result<Storage, rad::InitError> {
+pub fn storage<P: AsRef<Path>, L: Login>(path: P, login: &L) -> Result<Storage, rad::InitError> {
     let path = path.as_ref();
     let storage = Storage::open(
         path.join("storage"),
         git::UserInfo {
             alias: Alias::new("Radcliff"),
-            key: *signer.public_key(),
+            key: *login.node().public_key(), // TODO(lorenz): This should probably be the DID of the agent.
         },
     )?;
 
     transport::local::register(storage.clone());
-    transport::remote::mock::register(signer.public_key(), storage.path());
+    transport::remote::mock::register(login.node().public_key(), storage.path());
 
     for (name, desc) in [
         ("acme", "Acme's repository"),
@@ -48,7 +48,7 @@ pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: &G) -> Result<Storage
             desc,
             git::refname!("master"),
             Visibility::default(),
-            signer,
+            login,
             &storage,
         )?;
     }

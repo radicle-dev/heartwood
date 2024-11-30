@@ -975,7 +975,8 @@ mod tests {
     fn test_remote_refs() {
         let dir = tempfile::tempdir().unwrap();
         let signer = MockSigner::default();
-        let storage = fixtures::storage(dir.path(), &signer).unwrap();
+        let login = crate::node::MockLogin::from(signer);
+        let storage = fixtures::storage(dir.path(), &login).unwrap();
         let inv = storage.repositories().unwrap();
         let proj = inv.first().unwrap();
         let mut refs = git::remote_refs(&git::Url::from(proj.rid)).unwrap();

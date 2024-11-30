@@ -134,8 +134,9 @@ pub mod setup {
         }
 
         pub fn project(&self) -> NodeRepo {
+            let login = crate::node::MockLogin::from(self.signer.clone());
             let (id, _, checkout, _) =
-                fixtures::project(self.root.join("working"), &self.storage, &self.signer).unwrap();
+                fixtures::project(self.root.join("working"), &self.storage, &login).unwrap();
             let repo = self.storage.repository(id).unwrap();
             let checkout = Some(NodeRepoCheckout { checkout });
 

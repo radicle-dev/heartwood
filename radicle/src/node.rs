@@ -24,7 +24,8 @@ use std::{fmt, io, net, thread, time};
 
 use amplify::WrapperMut;
 use crypto::ssh::agent::AgentSigner;
-use crypto::Signer;
+use crypto::test::signer::MockSigner;
+use crypto::{SecretKey, Signer};
 use cyphernet::addr::NetAddr;
 use localtime::{LocalDuration, LocalTime};
 use serde::de::DeserializeOwned;
@@ -1480,6 +1481,12 @@ impl NodeSigner for crypto::ssh::keystore::MemorySigner {
     }
 }
 
+impl NodeSigner for crypto::ssh::agent::AgentSigner {
+    fn public_key(&self) -> &crypto::PublicKey {
+        crypto::Signer::public_key(self)
+    }
+}
+
 #[cfg(any(test, feature = "test"))]
 impl NodeSigner for crypto::test::signer::MockSigner {
     fn public_key(&self) -> &crypto::PublicKey {
@@ -1497,36 +1504,60 @@ pub trait Login
     fn node(&self) -> &Self::N;
 }
 
-
-#[cfg(any(test, feature = "test"))]
-struct MockAgent {
+// #[cfg(any(test, feature = "test"))]
+pub struct MockAgent {
     public_key: crypto::PublicKey,
 }
 
-#[cfg(any(test, feature = "test"))]
+pub struct MockLogin {
+    agent: MockAgent,
+    node: MockSigner,
+}
+
+impl MockLogin {
+    fn new(public_key: PublicKey, secret_key: SecretKey) -> Self {
+        Self {
+            agent: MockAgent {
+                public_key,
+            },
+            node: secret_key.into(),
+        }
+    }
+
+    pub(crate) fn from(signer: MockSigner) -> Self {
+        Self {
+            agent: MockAgent {
+                public_key: Signer::public_key(&signer).clone(),
+            },
+            node: signer,
+        }
+    }
+}
+
+// #[cfg(any(test, feature = "test"))]
 impl Agent for MockAgent {
     fn public_key(&self) -> &crypto::PublicKey {
         &self.public_key
     }
 }
 
-#[cfg(any(test, feature = "test"))]
+// #[cfg(any(test, feature = "test"))]
 impl signature::Signer<crypto::Signature> for MockAgent {
-    fn try_sign(&self, msg: &[u8]) -> Result<crypto::Signature, signature::Error> {
-        todo!()
+    fn try_sign(&self, _msg: &[u8]) -> Result<crypto::Signature, signature::Error> {
+        todo!("need to get hold of private key material somehow, like in-memory or using SSH agent")
     }
 }
 
-#[cfg(any(test, feature = "test"))]
-impl Login for crypto::test::signer::MockSigner {
-    type A = crypto::test::signer::MockSigner;
-    type N = crypto::test::signer::MockSigner;
+// #[cfg(any(test, feature = "test"))]
+impl Login for MockLogin {
+    type A = MockAgent;
+    type N = MockSigner;
 
     fn agent(&self) -> &Self::A {
-        self
+        &self.agent
     }
 
     fn node(&self) -> &Self::N {
-        self
+        &self.node
     }
 }

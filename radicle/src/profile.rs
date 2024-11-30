@@ -292,22 +292,23 @@ impl Profile {
         Did::from(self.public_key)
     }
 
-    pub fn signer(&self) -> Result<Box<dyn Signer>, Error> {
+    // TODO(lorenz): In the profile, we might want to get the signer for both agent and node!
+    pub fn signer(&self) -> Result<Box<dyn crate::node::NodeSigner>, Error> {
         if !self.keystore.is_encrypted()? {
             let signer = keystore::MemorySigner::load(&self.keystore, None)?;
-            return Ok(signer.boxed());
+            return Ok(Box::new(signer));
         }
 
         if let Some(passphrase) = env::passphrase() {
             let signer = keystore::MemorySigner::load(&self.keystore, Some(passphrase))?;
-            return Ok(signer.boxed());
+            return Ok(Box::new(signer));
         }
 
         match Agent::connect() {
             Ok(agent) => {
                 let signer = agent.signer(self.public_key);
                 if signer.is_ready()? {
-                    Ok(signer.boxed())
+                    Ok(Box::new(signer))
                 } else {
                     Err(Error::KeyNotRegistered(self.public_key))
                 }

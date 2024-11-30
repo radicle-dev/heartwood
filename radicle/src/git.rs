@@ -5,12 +5,14 @@ use std::path::Path;
 use std::process::Command;
 use std::str::FromStr;
 
+use agent::Agent;
 use git_ext::ref_format as format;
 use once_cell::sync::Lazy;
 
 use crate::collections::RandomMap;
 use crate::crypto::PublicKey;
 use crate::node::Alias;
+use crate::node::NodeSigner;
 use crate::rad;
 use crate::storage;
 use crate::storage::refs::Refs;
@@ -785,6 +787,7 @@ pub struct UserInfo {
     /// Alias of the local peer.
     pub alias: Alias,
     /// [`PublicKey`] of the local peer.
+    // TODO(lorenz): This should be the DID of the agent.
     pub key: PublicKey,
 }
 
