@@ -4,7 +4,7 @@ description = "Terminal library used by the Radicle CLI"
 homepage = "https://radicle.xyz"
 repository = "https://app.radicle.xyz/seeds/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
 license = "MIT OR Apache-2.0"
-version = "0.11.0"
+version = "0.12.0"
 authors = ["cloudhead <cloudhead@radicle.xyz>"]
 edition = "2021"
 
