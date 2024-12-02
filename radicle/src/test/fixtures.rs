@@ -1,10 +1,11 @@
 use std::path::Path;
 use std::str::FromStr;
 
-use crate::crypto::{PublicKey, Signer, Verified};
+use crate::crypto::{PublicKey, Verified};
 use crate::git;
 use crate::identity::doc::Visibility;
 use crate::identity::RepoId;
+use crate::node::device::Device;
 use crate::node::Alias;
 use crate::rad;
 use crate::storage::git::transport;
@@ -23,7 +24,11 @@ pub fn user() -> git::UserInfo {
 }
 
 /// Create a new storage with a project.
-pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: &G) -> Result<Storage, rad::InitError> {
+pub fn storage<P, G>(path: P, signer: &Device<G>) -> Result<Storage, rad::InitError>
+where
+    P: AsRef<Path>,
+    G: crypto::signature::Signer<crypto::Signature>,
+{
     let path = path.as_ref();
     let storage = Storage::open(
         path.join("storage"),
@@ -57,11 +62,15 @@ pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: &G) -> Result<Storage
 }
 
 /// Create a new repository at the given path, and initialize it into a project.
-pub fn project<P: AsRef<Path>, G: Signer>(
+pub fn project<P, G>(
     path: P,
     storage: &Storage,
-    signer: &G,
-) -> Result<(RepoId, SignedRefs<Verified>, git2::Repository, git2::Oid), rad::InitError> {
+    signer: &Device<G>,
+) -> Result<(RepoId, SignedRefs<Verified>, git2::Repository, git2::Oid), rad::InitError>
+where
+    P: AsRef<Path>,
+    G: crypto::signature::Signer<crypto::Signature>,
+{
     transport::local::register(storage.clone());
 
     let (working, head) = repository(path);

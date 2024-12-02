@@ -34,7 +34,7 @@ pub const VERSION: Version = Version {
 
 pub mod prelude {
     pub use crate::bounded::BoundedVec;
-    pub use crate::crypto::{PublicKey, Signature, Signer};
+    pub use crate::crypto::{PublicKey, Signature};
     pub use crate::deserializer::Deserializer;
     pub use crate::identity::{Did, RepoId};
     pub use crate::node::Address;

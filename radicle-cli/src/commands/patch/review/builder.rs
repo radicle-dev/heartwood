@@ -21,7 +21,9 @@ use std::{fmt, io};
 use radicle::cob;
 use radicle::cob::patch::{PatchId, Revision, Verdict};
 use radicle::cob::{CodeLocation, CodeRange};
+use radicle::crypto;
 use radicle::git;
+use radicle::node::device::Device;
 use radicle::prelude::*;
 use radicle::storage::git::{cob::DraftStore, Repository};
 use radicle_git_ext::Oid;
@@ -569,11 +571,9 @@ impl<'a> Brain<'a> {
 }
 
 /// Builds a patch review interactively, across multiple files.
-pub struct ReviewBuilder<'a, G> {
+pub struct ReviewBuilder<'a> {
     /// Patch being reviewed.
     patch_id: PatchId,
-    /// Signer.
-    signer: G,
     /// Stored copy of repository.
     repo: &'a Repository,
     /// Single hunk review.
@@ -582,12 +582,11 @@ pub struct ReviewBuilder<'a, G> {
     verdict: Option<Verdict>,
 }
 
-impl<'a, G: Signer> ReviewBuilder<'a, G> {
+impl<'a> ReviewBuilder<'a> {
     /// Create a new review builder.
-    pub fn new(patch_id: PatchId, signer: G, repo: &'a Repository) -> Self {
+    pub fn new(patch_id: PatchId, repo: &'a Repository) -> Self {
         Self {
             patch_id,
-            signer,
             repo,
             hunk: None,
             verdict: None,
@@ -607,9 +606,16 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
     }
 
     /// Run the review builder for the given revision.
-    pub fn run(self, revision: &Revision, opts: &mut git::raw::DiffOptions) -> anyhow::Result<()> {
+    pub fn run<G>(
+        self,
+        revision: &Revision,
+        opts: &mut git::raw::DiffOptions,
+        signer: &Device<G>,
+    ) -> anyhow::Result<()>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         let repo = self.repo.raw();
-        let signer = &self.signer;
         let base = repo.find_commit((*revision.base()).into())?;
         let patch_id = self.patch_id;
         let tree = {

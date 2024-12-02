@@ -89,10 +89,10 @@ pub fn run(
                 .minimal(true)
                 .context_lines(unified as u32);
 
-            builder::ReviewBuilder::new(patch_id, signer, repository)
+            builder::ReviewBuilder::new(patch_id, repository)
                 .hunk(hunk)
                 .verdict(verdict)
-                .run(revision, &mut opts)?;
+                .run(revision, &mut opts, &signer)?;
         }
         Operation::Review { verdict, .. } => {
             let message = options.message.get(REVIEW_HELP_MSG)?;

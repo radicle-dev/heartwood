@@ -17,6 +17,7 @@ use crate::git::ext::author::Author;
 use crate::git::ext::commit::headers::Headers;
 use crate::git::ext::commit::{trailers::OwnedTrailer, Commit};
 use crate::git::Oid;
+use crate::node::device::Device;
 use crate::prelude::Did;
 use crate::profile::env;
 use crate::storage::ReadRepository;
@@ -148,17 +149,17 @@ where
 
 /// An object that can be used to create and sign operations.
 pub struct Actor<G> {
-    pub signer: G,
+    pub signer: Device<G>,
 }
 
-impl<G: Default> Default for Actor<G> {
+impl<G: Default + Signer> Default for Actor<G> {
     fn default() -> Self {
-        Self::new(G::default())
+        Self::new(Device::default())
     }
 }
 
 impl<G> Actor<G> {
-    pub fn new(signer: G) -> Self {
+    pub fn new(signer: Device<G>) -> Self {
         Self { signer }
     }
 }

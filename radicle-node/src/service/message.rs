@@ -2,6 +2,7 @@ use std::{fmt, io, mem};
 
 use nonempty::NonEmpty;
 use radicle::git;
+use radicle::node::device::Device;
 use radicle::storage::refs::RefsAt;
 
 use crate::crypto;
@@ -260,7 +261,12 @@ pub enum AnnouncementMessage {
 
 impl AnnouncementMessage {
     /// Sign this announcement message.
-    pub fn signed<G: crypto::Signer>(self, signer: &G) -> Announcement {
+    pub fn signed<G>(self, signer: &Device<G>) -> Announcement
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
+        use crypto::signature::Signer as _;
+
         let msg = wire::serialize(&self);
         let signature = signer.sign(&msg);
 
@@ -442,11 +448,17 @@ impl Message {
         .into()
     }
 
-    pub fn node<G: crypto::Signer>(message: NodeAnnouncement, signer: &G) -> Self {
+    pub fn node<G: crypto::signature::Signer<crypto::Signature>>(
+        message: NodeAnnouncement,
+        signer: &Device<G>,
+    ) -> Self {
         AnnouncementMessage::from(message).signed(signer).into()
     }
 
-    pub fn inventory<G: crypto::Signer>(message: InventoryAnnouncement, signer: &G) -> Self {
+    pub fn inventory<G: crypto::signature::Signer<crypto::Signature>>(
+        message: InventoryAnnouncement,
+        signer: &Device<G>,
+    ) -> Self {
         AnnouncementMessage::from(message).signed(signer).into()
     }
 
@@ -587,7 +599,6 @@ mod tests {
     use radicle::git::raw;
 
     use super::*;
-    use crate::crypto::test::signer::MockSigner;
     use crate::prelude::*;
     use crate::test::arbitrary;
     use crate::wire::Encode;
@@ -595,7 +606,7 @@ mod tests {
     #[test]
     fn test_ref_remote_limit() {
         let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
-        let signer = MockSigner::default();
+        let signer = Device::mock();
         let at = raw::Oid::zero().into();
 
         assert_eq!(refs.capacity(), REF_REMOTE_LIMIT);
@@ -613,7 +624,7 @@ mod tests {
             refs,
             timestamp: LocalTime::now().into(),
         })
-        .signed(&MockSigner::default())
+        .signed(&Device::mock())
         .into();
 
         let mut buf: Vec<u8> = Vec::new();
@@ -633,7 +644,7 @@ mod tests {
                     .expect("size within bounds limit"),
                 timestamp: LocalTime::now().into(),
             },
-            &MockSigner::default(),
+            &Device::mock(),
         );
         let mut buf: Vec<u8> = Vec::new();
         assert!(
@@ -655,7 +666,7 @@ mod tests {
 
     #[quickcheck]
     fn prop_refs_announcement_signing(rid: RepoId) {
-        let signer = MockSigner::new(&mut fastrand::Rng::new());
+        let signer = Device::mock_rng(&mut fastrand::Rng::new());
         let timestamp = Timestamp::EPOCH;
         let at = raw::Oid::zero().into();
         let refs = BoundedVec::collect_from(

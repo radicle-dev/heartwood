@@ -3,6 +3,7 @@ use super::*;
 use radicle::cob;
 use radicle::cob::patch;
 use radicle::crypto;
+use radicle::node::device::Device;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
 
@@ -32,10 +33,10 @@ fn edit_root<G>(
     mut patch: patch::PatchMut<'_, '_, Repository, cob::cache::StoreWriter>,
     title: String,
     description: String,
-    signer: &G,
+    signer: &Device<G>,
 ) -> anyhow::Result<()>
 where
-    G: crypto::Signer,
+    G: crypto::signature::Signer<crypto::Signature>,
 {
     let title = if title != patch.title() {
         Some(title)
@@ -75,10 +76,10 @@ fn edit_revision<G>(
     revision: patch::RevisionId,
     mut title: String,
     description: String,
-    signer: &G,
+    signer: &Device<G>,
 ) -> anyhow::Result<()>
 where
-    G: crypto::Signer,
+    G: crypto::signature::Signer<crypto::Signature>,
 {
     let embeds = patch.embeds().to_owned();
     let description = if description.is_empty() {

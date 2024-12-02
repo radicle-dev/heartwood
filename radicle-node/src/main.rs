@@ -5,7 +5,7 @@ use anyhow::Context;
 use crossbeam_channel as chan;
 
 use radicle::logger;
-use radicle::prelude::Signer;
+use radicle::node::device::Device;
 use radicle::profile;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::{Runtime, VERSION};
@@ -99,7 +99,9 @@ fn execute() -> anyhow::Result<()> {
 
     let passphrase = profile::env::passphrase();
     let keystore = Keystore::new(&home.keys());
-    let signer = MemorySigner::load(&keystore, passphrase).context("couldn't load secret key")?;
+    let signer = Device::from(
+        MemorySigner::load(&keystore, passphrase).context("couldn't load secret key")?,
+    );
 
     log::info!(target: "node", "Node ID is {}", signer.public_key());
 

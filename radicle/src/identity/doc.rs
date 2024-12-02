@@ -20,6 +20,7 @@ use crate::crypto;
 use crate::crypto::Signature;
 use crate::git;
 use crate::identity::{project::Project, Did};
+use crate::node::device::Device;
 use crate::storage;
 use crate::storage::{ReadRepository, RepositoryError};
 
@@ -803,10 +804,10 @@ impl Doc {
 
     /// [`Doc::encode`] and sign the [`Doc`], returning the set of bytes, its
     /// corresponding Git [`Oid`] and the [`Signature`] over the [`Oid`].
-    pub fn sign<G: crypto::Signer>(
-        &self,
-        signer: &G,
-    ) -> Result<(git::Oid, Vec<u8>, Signature), DocError> {
+    pub fn sign<G>(&self, signer: &G) -> Result<(git::Oid, Vec<u8>, Signature), DocError>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         let (oid, bytes) = self.encode()?;
         let sig = signer.sign(oid.as_bytes());
 
@@ -814,7 +815,10 @@ impl Doc {
     }
 
     /// Similar to [`Doc::sign`], but only returning the [`Signature`].
-    pub fn signature_of<G: crypto::Signer>(&self, signer: &G) -> Result<Signature, DocError> {
+    pub fn signature_of<G>(&self, signer: &G) -> Result<Signature, DocError>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         let (_, _, sig) = self.sign(signer)?;
 
         Ok(sig)
@@ -835,11 +839,14 @@ impl Doc {
 
     /// Initialize an [`identity::Identity`] with this [`Doc`] as the associated
     /// document.
-    pub fn init<G: crypto::Signer>(
+    pub fn init<G>(
         &self,
         repo: &storage::git::Repository,
-        signer: &G,
-    ) -> Result<git::Oid, RepositoryError> {
+        signer: &Device<G>,
+    ) -> Result<git::Oid, RepositoryError>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         let cob = identity::Identity::initialize(self, repo, signer)?;
         let id_ref = git::refs::storage::id(signer.public_key());
         let cob_ref = git::refs::storage::cob(
@@ -862,8 +869,6 @@ impl Doc {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
-    use radicle_crypto::test::signer::MockSigner;
-    use radicle_crypto::Signer as _;
     use serde_json::json;
 
     use crate::assert_matches;
@@ -880,7 +885,7 @@ mod test {
 
     #[test]
     fn test_duplicate_dids() {
-        let delegate = MockSigner::from_seed([0xff; 32]);
+        let delegate = Device::mock_from_seed([0xff; 32]);
         let did = Did::from(delegate.public_key());
         let mut doc = RawDoc::new(gen::<Project>(1), vec![did], 1, Visibility::Public);
         doc.delegate(did);
@@ -1015,7 +1020,7 @@ mod test {
 
         transport::local::register(storage.clone());
 
-        let delegate = MockSigner::from_seed([0xff; 32]);
+        let delegate = Device::mock_from_seed([0xff; 32]);
         let (repo, _) = fixtures::repository(tempdir.path().join("working"));
         let (id, _, _) = rad::init(
             &repo,
@@ -1063,7 +1068,7 @@ mod test {
 
         let (working, _) = fixtures::repository(tempdir.path().join("working"));
 
-        let delegate = MockSigner::from_seed([0xff; 32]);
+        let delegate = Device::mock_from_seed([0xff; 32]);
         let (rid, doc, _) = rad::init(
             &working,
             "heartwood".try_into().unwrap(),

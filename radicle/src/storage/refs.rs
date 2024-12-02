@@ -7,13 +7,15 @@ use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::str::FromStr;
 
-use crypto::{PublicKey, Signature, Signer, SignerError, Unverified, Verified};
+use crypto::signature::Signer;
+use crypto::{PublicKey, Signature, Unverified, Verified};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::git;
 use crate::git::ext as git_ext;
 use crate::git::Oid;
+use crate::node::device::Device;
 use crate::profile::env;
 use crate::storage;
 use crate::storage::{ReadRepository, RemoteId, RepoId, WriteRepository};
@@ -39,7 +41,7 @@ pub enum Error {
     #[error("invalid signature: {0}")]
     InvalidSignature(#[from] crypto::Error),
     #[error("signer error: {0}")]
-    Signer(#[from] SignerError),
+    Signer(#[from] crypto::signature::Error),
     #[error("canonical refs: {0}")]
     Canonical(#[from] canonical::Error),
     #[error("invalid reference")]
@@ -88,15 +90,15 @@ impl Refs {
     }
 
     /// Sign these refs with the given signer and return [`SignedRefs`].
-    pub fn signed<G>(self, signer: &G) -> Result<SignedRefs<Unverified>, Error>
+    pub fn signed<G>(self, device: &Device<G>) -> Result<SignedRefs<Unverified>, Error>
     where
-        G: Signer,
+        G: Signer<crypto::Signature>,
     {
         let refs = self;
         let msg = refs.canonical();
-        let signature = signer.try_sign(&msg)?;
+        let signature = device.try_sign(&msg)?;
 
-        Ok(SignedRefs::new(refs, *signer.public_key(), signature))
+        Ok(SignedRefs::new(refs, *device.public_key(), signature))
     }
 
     /// Get a particular ref.
@@ -464,7 +466,6 @@ pub mod canonical {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use crypto::test::signer::MockSigner;
     use qcheck_macros::quickcheck;
     use storage::{git::transport, RemoteRepository, SignRepository, WriteStorage};
 
@@ -490,8 +491,8 @@ mod tests {
     // `paris` repo. We also don't expected the signed refs to validate without error.
     fn test_rid_verification() {
         let tmp = tempfile::tempdir().unwrap();
-        let alice = MockSigner::default();
-        let bob = MockSigner::default();
+        let alice = Device::mock();
+        let bob = Device::mock();
         let storage = &Storage::open(tmp.path().join("storage"), fixtures::user()).unwrap();
 
         transport::local::register(storage.clone());

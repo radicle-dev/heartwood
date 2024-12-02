@@ -12,6 +12,7 @@ use netservices::Direction as Link;
 use once_cell::sync::Lazy;
 use radicle::identity::Visibility;
 use radicle::node::address::Store as _;
+use radicle::node::device::Device;
 use radicle::node::refs::Store as _;
 use radicle::node::routing::Store as _;
 use radicle::node::{ConnectOptions, DEFAULT_TIMEOUT};
@@ -21,7 +22,6 @@ use radicle::test::arbitrary::gen;
 use radicle::test::storage::MockRepository;
 
 use crate::collections::{RandomMap, RandomSet};
-use crate::crypto::test::signer::MockSigner;
 use crate::identity::RepoId;
 use crate::node;
 use crate::node::config::*;
@@ -270,7 +270,7 @@ fn test_inventory_sync() {
         [7, 7, 7, 7],
         Storage::open(tmp.path().join("alice"), fixtures::user()).unwrap(),
     );
-    let bob_signer = MockSigner::default();
+    let bob_signer = Device::mock();
     let bob_storage = fixtures::storage(tmp.path().join("bob"), &bob_signer).unwrap();
     let bob = Peer::with_storage("bob", [8, 8, 8, 8], bob_storage);
     let now = LocalTime::now().into();
@@ -682,7 +682,7 @@ fn test_refs_announcement_relay_public() {
 
     let bob = {
         let mut rng = fastrand::Rng::new();
-        let signer = MockSigner::new(&mut rng);
+        let signer = Device::mock_rng(&mut rng);
         let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
 
         Peer::config(
@@ -766,7 +766,7 @@ fn test_refs_announcement_relay_private() {
 
     let bob = {
         let mut rng = fastrand::Rng::new();
-        let signer = MockSigner::new(&mut rng);
+        let signer = Device::mock_rng(&mut rng);
         let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
 
         Peer::config(
@@ -855,7 +855,7 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
     );
     let bob = {
         let mut rng = fastrand::Rng::new();
-        let signer = MockSigner::new(&mut rng);
+        let signer = Device::mock_rng(&mut rng);
         let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
 
         Peer::config(
@@ -967,7 +967,7 @@ fn test_refs_announcement_no_subscribe() {
 fn test_refs_announcement_offline() {
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = {
-        let signer = MockSigner::default();
+        let signer = Device::mock();
         let storage = fixtures::storage(tmp.path().join("alice"), &signer).unwrap();
 
         Peer::config(

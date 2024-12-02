@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::cob::op::Op;
 use crate::cob::{Create, Embed, EntryId, ObjectId, TypeName, Update, Updated, Uri, Version};
 use crate::git;
+use crate::node::device::Device;
 use crate::prelude::*;
 use crate::storage::git as storage;
 use crate::storage::SignRepository;
@@ -208,15 +209,18 @@ where
     T::Action: Serialize,
 {
     /// Update an object.
-    pub fn update<G: Signer>(
+    pub fn update<G>(
         &self,
         type_name: &TypeName,
         object_id: ObjectId,
         message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
         embeds: Vec<Embed<Uri>>,
-        signer: &G,
-    ) -> Result<Updated<T>, Error> {
+        signer: &Device<G>,
+    ) -> Result<Updated<T>, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         let actions = actions.into();
         let related = actions.iter().flat_map(T::Action::parents).collect();
         let changes = actions.try_map(encoding::encode)?;
@@ -251,13 +255,16 @@ where
     }
 
     /// Create an object.
-    pub fn create<G: Signer>(
+    pub fn create<G>(
         &self,
         message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
         embeds: Vec<Embed<Uri>>,
-        signer: &G,
-    ) -> Result<(ObjectId, T), Error> {
+        signer: &Device<G>,
+    ) -> Result<(ObjectId, T), Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         let actions = actions.into();
         let parents = actions.iter().flat_map(T::Action::parents).collect();
         let contents = actions.try_map(encoding::encode)?;
@@ -270,7 +277,7 @@ where
                 })
             })
             .collect::<Result<_, _>>()?;
-        let cob = cob::create::<T, _, G>(
+        let cob = cob::create::<T, _, _>(
             self.repo,
             signer,
             self.identity,
@@ -296,7 +303,10 @@ where
     }
 
     /// Remove an object.
-    pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), Error> {
+    pub fn remove<G>(&self, id: &ObjectId, signer: &Device<G>) -> Result<(), Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         let name = git::refs::storage::cob(signer.public_key(), self.type_name, id);
         match self
             .repo
@@ -405,13 +415,13 @@ where
     pub fn initial<G, F, Tx>(
         message: &str,
         store: &mut Store<T, R>,
-        signer: &G,
+        signer: &Device<G>,
         operations: F,
     ) -> Result<(ObjectId, T), Error>
     where
         Tx: From<Self>,
         Self: From<Tx>,
-        G: Signer,
+        G: crypto::signature::Signer<crypto::Signature>,
         F: FnOnce(&mut Tx, &R) -> Result<(), Error>,
         R: ReadRepository + SignRepository + cob::Store,
         T::Action: Serialize + Clone,
@@ -469,16 +479,17 @@ where
     /// Commit transaction.
     ///
     /// Returns an operation that can be applied onto an in-memory state.
-    pub fn commit<G: Signer>(
+    pub fn commit<G>(
         self,
         msg: &str,
         id: ObjectId,
         store: &mut Store<T, R>,
-        signer: &G,
+        signer: &Device<G>,
     ) -> Result<(T, EntryId), Error>
     where
         R: ReadRepository + SignRepository + cob::Store,
         T::Action: Serialize + Clone,
+        G: crypto::signature::Signer<crypto::Signature>,
     {
         let actions = NonEmpty::from_vec(self.actions)
             .expect("Transaction::commit: transaction must not be empty");

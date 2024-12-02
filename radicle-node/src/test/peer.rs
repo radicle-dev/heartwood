@@ -7,8 +7,10 @@ use std::str::FromStr;
 
 use log::*;
 
+use radicle::crypto;
 use radicle::identity::Visibility;
 use radicle::node::address::Store as _;
+use radicle::node::device::Device;
 use radicle::node::Database;
 use radicle::node::UserAgent;
 use radicle::node::{address, Alias, ConnectOptions};
@@ -18,7 +20,6 @@ use radicle::storage::{ReadRepository, RemoteRepository};
 use radicle::Storage;
 
 use crate::crypto::test::signer::MockSigner;
-use crate::crypto::Signer;
 use crate::identity::RepoId;
 use crate::node;
 use crate::node::routing::Store as _;
@@ -56,7 +57,7 @@ pub struct Peer<S, G> {
 impl<S, G> simulator::Peer<S, G> for Peer<S, G>
 where
     S: WriteStorage + 'static,
-    G: Signer + 'static,
+    G: crypto::signature::Signer<crypto::Signature> + 'static,
 {
     fn init(&mut self) {}
 
@@ -98,11 +99,11 @@ where
     }
 }
 
-pub struct Config<G: Signer + 'static> {
+pub struct Config<G: crypto::signature::Signer<crypto::Signature> + 'static> {
     pub config: service::Config,
     pub local_time: LocalTime,
     pub policy: SeedingPolicy,
-    pub signer: G,
+    pub signer: Device<G>,
     pub rng: fastrand::Rng,
     pub tmp: tempfile::TempDir,
 }
@@ -110,7 +111,7 @@ pub struct Config<G: Signer + 'static> {
 impl Default for Config<MockSigner> {
     fn default() -> Self {
         let mut rng = fastrand::Rng::new();
-        let signer = MockSigner::new(&mut rng);
+        let signer = Device::mock_rng(&mut rng);
         let tmp = tempfile::TempDir::new().unwrap();
         let config = service::Config::test(Alias::from_str("mocky").unwrap());
 
@@ -125,7 +126,7 @@ impl Default for Config<MockSigner> {
     }
 }
 
-impl<G: Signer> Peer<Storage, G> {
+impl<G: crypto::signature::Signer<crypto::Signature>> Peer<Storage, G> {
     pub fn project(&mut self, name: &str, description: &str) -> RepoId {
         radicle::storage::git::transport::local::register(self.storage().clone());
 
@@ -148,7 +149,7 @@ impl<G: Signer> Peer<Storage, G> {
 impl<S, G> Peer<S, G>
 where
     S: WriteStorage + 'static,
-    G: Signer + 'static,
+    G: crypto::signature::Signer<crypto::Signature> + 'static,
 {
     pub fn config(
         name: &'static str,
@@ -387,7 +388,10 @@ where
         .expect("`inventory-announcement` must be sent");
     }
 
-    pub fn connect_to<T: WriteStorage + 'static, H: Signer + 'static>(
+    pub fn connect_to<
+        T: WriteStorage + 'static,
+        H: crypto::signature::Signer<crypto::Signature> + 'static,
+    >(
         &mut self,
         peer: &Peer<T, H>,
     ) {

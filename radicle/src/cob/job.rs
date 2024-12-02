@@ -19,8 +19,8 @@ use crate::cob::store;
 use crate::cob::store::{Cob, CobAction, Store, Transaction};
 use crate::cob::{EntryId, ObjectId, TypeName};
 use crate::crypto::ssh::ExtendedSignature;
-use crate::crypto::Signer;
 use crate::git;
+use crate::node::device::Device;
 use crate::prelude::ReadRepository;
 use crate::storage::{Oid, WriteRepository};
 
@@ -332,12 +332,15 @@ where
 
     /// Transition the `Job` into a running state, storing the provided
     /// metadata.
-    pub fn start<G: Signer>(
+    pub fn start<G>(
         &mut self,
         run_id: String,
         info_url: Option<String>,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
+        signer: &Device<G>,
+    ) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         self.transaction("Start", signer, |tx| {
             tx.start(run_id, info_url)?;
             Ok(())
@@ -345,18 +348,21 @@ where
     }
 
     /// Transition the `Job` into a finished state, with the provided `reason`.
-    pub fn finish<G: Signer>(&mut self, reason: Reason, signer: &G) -> Result<EntryId, Error> {
+    pub fn finish<G>(&mut self, reason: Reason, signer: &Device<G>) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         self.transaction("Finish", signer, |tx| tx.finish(reason))
     }
 
     pub fn transaction<G, F>(
         &mut self,
         message: &str,
-        signer: &G,
+        signer: &Device<G>,
         operations: F,
     ) -> Result<EntryId, Error>
     where
-        G: Signer,
+        G: crypto::signature::Signer<crypto::Signature>,
         F: FnOnce(&mut Transaction<Job, R>) -> Result<(), store::Error>,
     {
         let mut tx = Transaction::default();
@@ -421,11 +427,14 @@ where
     }
 
     /// Create a fresh `Job` with the provided `commit_id`.
-    pub fn create<'g, G: Signer>(
+    pub fn create<'g, G>(
         &'g mut self,
         commit_id: git::Oid,
-        signer: &G,
-    ) -> Result<JobMut<'a, 'g, R>, Error> {
+        signer: &Device<G>,
+    ) -> Result<JobMut<'a, 'g, R>, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         let (id, job) = Transaction::initial("Create job", &mut self.raw, signer, |tx, _| {
             tx.trigger(commit_id)?;
             Ok(())
@@ -439,7 +448,10 @@ where
     }
 
     /// Delete the `Job` identified by `id`.
-    pub fn remove<G: Signer>(&self, id: &JobId, signer: &G) -> Result<(), store::Error> {
+    pub fn remove<G>(&self, id: &JobId, signer: &Device<G>) -> Result<(), store::Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         self.raw.remove(id, signer)
     }
 }

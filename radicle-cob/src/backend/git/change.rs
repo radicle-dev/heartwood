@@ -103,7 +103,7 @@ impl change::Storage for git2::Repository {
         spec: store::Template<Self::ObjectId>,
     ) -> Result<Entry, Self::StoreError>
     where
-        Signer: crypto::Signer,
+        Signer: signature::Signer<Self::Signatures>,
     {
         let change::Template {
             type_name,
@@ -115,11 +115,7 @@ impl change::Storage for git2::Repository {
         let manifest = store::Manifest::new(type_name, Version::default());
         let revision = write_manifest(self, &manifest, embeds, &contents)?;
         let tree = self.find_tree(revision)?;
-        let signature = {
-            let sig = signer.sign(revision.as_bytes());
-            let key = signer.public_key();
-            ExtendedSignature::new(*key, sig)
-        };
+        let signature = signer.sign(revision.as_bytes());
 
         // Make sure there are no duplicates in the related list.
         related.sort();

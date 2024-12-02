@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use cob::object::Objects;
+use cob::signatures::ExtendedSignature;
 use radicle_cob as cob;
 use radicle_cob::change;
 use storage::RemoteRepository;
@@ -11,6 +12,9 @@ use storage::SignRepository;
 use storage::ValidateRepository;
 
 use crate::git::*;
+use crate::identity;
+use crate::identity::doc::DocError;
+use crate::node::device::Device;
 use crate::storage;
 use crate::storage::Error;
 use crate::storage::{
@@ -68,7 +72,7 @@ impl change::Storage for Repository {
         spec: change::Template<Self::ObjectId>,
     ) -> Result<cob::Entry, Self::StoreError>
     where
-        Signer: crypto::Signer,
+        Signer: crypto::signature::Signer<ExtendedSignature>,
     {
         self.backend.store(authority, parents, signer, spec)
     }
@@ -208,7 +212,7 @@ impl<R: storage::WriteRepository> change::Storage for DraftStore<'_, R> {
         spec: change::Template<Self::ObjectId>,
     ) -> Result<cob::Entry, Self::StoreError>
     where
-        Signer: crypto::Signer,
+        Signer: crypto::signature::Signer<ExtendedSignature>,
     {
         self.repo.raw().store(authority, parents, signer, spec)
     }
@@ -222,10 +226,13 @@ impl<R: storage::WriteRepository> change::Storage for DraftStore<'_, R> {
     }
 }
 
-impl<R: storage::ReadRepository> SignRepository for DraftStore<'_, R> {
-    fn sign_refs<G: crypto::Signer>(
+impl<R> SignRepository for DraftStore<'_, R>
+where
+    R: storage::ReadRepository,
+{
+    fn sign_refs<G: crypto::signature::Signer<crypto::Signature>>(
         &self,
-        signer: &G,
+        signer: &Device<G>,
     ) -> Result<storage::refs::SignedRefs<Verified>, RepositoryError> {
         // Since this is a draft store, we do not actually want to sign the refs.
         // Instead, we just return the existing signed refs.

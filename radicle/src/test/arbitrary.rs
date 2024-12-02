@@ -245,7 +245,7 @@ impl Arbitrary for storage::Remote<crypto::Unverified> {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let refs = Refs::arbitrary(g);
         let signer = MockSigner::arbitrary(g);
-        let signed = refs.signed(&signer).unwrap();
+        let signed = refs.signed(&signer.into()).unwrap();
 
         storage::Remote::<crypto::Unverified>::new(signed)
     }

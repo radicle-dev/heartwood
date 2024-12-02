@@ -11,12 +11,14 @@ use crossbeam_channel as chan;
 
 use localtime::LocalTime;
 use radicle::cob::{issue, migrate};
+use radicle::crypto;
 use radicle::crypto::ssh::{keystore::MemorySigner, Keystore};
 use radicle::crypto::test::signer::MockSigner;
-use radicle::crypto::{KeyPair, Seed, Signer};
+use radicle::crypto::{KeyPair, Seed};
 use radicle::git::refname;
 use radicle::identity::{RepoId, Visibility};
 use radicle::node::config::ConnectAddress;
+use radicle::node::device::Device;
 use radicle::node::policy::store as policy;
 use radicle::node::seed::Store as _;
 use radicle::node::{Alias, Database, UserAgent, POLICIES_DB_FILE};
@@ -160,7 +162,7 @@ impl Environment {
 pub struct Node<G> {
     pub id: NodeId,
     pub home: Home,
-    pub signer: G,
+    pub signer: Device<G>,
     pub storage: Storage,
     pub config: Config,
     pub db: service::Stores<Database>,
@@ -169,7 +171,7 @@ pub struct Node<G> {
 
 impl Node<MemorySigner> {
     pub fn new(profile: Profile) -> Self {
-        let signer = MemorySigner::load(&profile.keystore, None).unwrap();
+        let signer = Device::from(MemorySigner::load(&profile.keystore, None).unwrap());
         let id = *profile.id();
         let policies_db = profile.home.node().join(POLICIES_DB_FILE);
         let policies = policy::Store::open(policies_db).unwrap();
@@ -189,17 +191,19 @@ impl Node<MemorySigner> {
 }
 
 /// Handle to a running node.
-pub struct NodeHandle<G: Signer + cyphernet::Ecdh + 'static> {
+pub struct NodeHandle<G: crypto::signature::Signer<crypto::Signature> + cyphernet::Ecdh + 'static> {
     pub id: NodeId,
     pub storage: Storage,
-    pub signer: G,
+    pub signer: Device<G>,
     pub home: Home,
     pub addr: net::SocketAddr,
     pub thread: ManuallyDrop<thread::JoinHandle<Result<(), runtime::Error>>>,
     pub handle: ManuallyDrop<Handle>,
 }
 
-impl<G: Signer + cyphernet::Ecdh + 'static> Drop for NodeHandle<G> {
+impl<G: crypto::signature::Signer<crypto::Signature> + cyphernet::Ecdh + 'static> Drop
+    for NodeHandle<G>
+{
     fn drop(&mut self) {
         log::debug!(target: "test", "Node {} shutting down..", self.id);
 
@@ -213,7 +217,7 @@ impl<G: Signer + cyphernet::Ecdh + 'static> Drop for NodeHandle<G> {
     }
 }
 
-impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
+impl<G: crypto::signature::Signer<crypto::Signature> + cyphernet::Ecdh> NodeHandle<G> {
     /// Connect this node to another node, and wait for the connection to be established both ways.
     pub fn connect(&mut self, remote: &NodeHandle<G>) -> &mut Self {
         let local_events = self.handle.events();
@@ -481,7 +485,7 @@ impl Node<MockSigner> {
                 .collect::<String>(),
         );
         let home = Home::new(home).unwrap();
-        let signer = MockSigner::default();
+        let signer = Device::mock();
         let storage = Storage::open(
             home.storage(),
             git::UserInfo {
@@ -507,7 +511,10 @@ impl Node<MockSigner> {
     }
 }
 
-impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
+impl<G> Node<G>
+where
+    G: cyphernet::Ecdh<Pk = NodeId> + crypto::signature::Signer<crypto::Signature> + Clone,
+{
     /// Spawn a node in its own thread.
     pub fn spawn(self) -> NodeHandle<G> {
         let listen = vec![([0, 0, 0, 0], 0).into()];
@@ -606,7 +613,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
 
 /// Checks whether the nodes have converged in their routing tables.
 #[track_caller]
-pub fn converge<'a, G: Signer + cyphernet::Ecdh + 'static>(
+pub fn converge<'a, G: crypto::signature::Signer<crypto::Signature> + cyphernet::Ecdh + 'static>(
     nodes: impl IntoIterator<Item = &'a NodeHandle<G>>,
 ) -> BTreeSet<(RepoId, NodeId)> {
     let nodes = nodes.into_iter().collect::<Vec<_>>();

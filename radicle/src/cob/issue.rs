@@ -15,8 +15,8 @@ use crate::cob::store::{Cob, CobAction};
 use crate::cob::thread;
 use crate::cob::thread::{Comment, CommentId, Thread};
 use crate::cob::{op, store, ActorId, Embed, EntryId, ObjectId, TypeName};
-use crate::crypto::Signer;
 use crate::identity::doc::DocError;
+use crate::node::device::Device;
 use crate::prelude::{Did, Doc, ReadRepository, RepoId};
 use crate::storage::{HasRepoId, RepositoryError, WriteRepository};
 
@@ -608,26 +608,35 @@ where
     }
 
     /// Assign one or more actors to an issue.
-    pub fn assign<G: Signer>(
+    pub fn assign<G>(
         &mut self,
         assignees: impl IntoIterator<Item = Did>,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
+        signer: &Device<G>,
+    ) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         self.transaction("Assign", signer, |tx| tx.assign(assignees))
     }
 
     /// Set the issue title.
-    pub fn edit<G: Signer>(&mut self, title: impl ToString, signer: &G) -> Result<EntryId, Error> {
+    pub fn edit<G>(&mut self, title: impl ToString, signer: &Device<G>) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         self.transaction("Edit", signer, |tx| tx.edit(title))
     }
 
     /// Set the issue description.
-    pub fn edit_description<G: Signer>(
+    pub fn edit_description<G>(
         &mut self,
         description: impl ToString,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
+        signer: &Device<G>,
+    ) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         let (id, _) = self.root();
         let id = *id;
         self.transaction("Edit description", signer, |tx| {
@@ -636,73 +645,89 @@ where
     }
 
     /// Lifecycle an issue.
-    pub fn lifecycle<G: Signer>(&mut self, state: State, signer: &G) -> Result<EntryId, Error> {
+    pub fn lifecycle<G>(&mut self, state: State, signer: &Device<G>) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         self.transaction("Lifecycle", signer, |tx| tx.lifecycle(state))
     }
 
     /// Comment on an issue.
-    pub fn comment<G: Signer, S: ToString>(
+    pub fn comment<G, S>(
         &mut self,
         body: S,
         reply_to: CommentId,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
+        signer: &Device<G>,
+    ) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+        S: ToString,
+    {
         self.transaction("Comment", signer, |tx| {
             tx.comment(body, reply_to, embeds.into_iter().collect())
         })
     }
 
     /// Edit a comment.
-    pub fn edit_comment<G: Signer, S: ToString>(
+    pub fn edit_comment<G, S>(
         &mut self,
         id: CommentId,
         body: S,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
+        signer: &Device<G>,
+    ) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+        S: ToString,
+    {
         self.transaction("Edit comment", signer, |tx| {
             tx.edit_comment(id, body, embeds.into_iter().collect())
         })
     }
 
     /// Redact a comment.
-    pub fn redact_comment<G: Signer>(
-        &mut self,
-        id: CommentId,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
+    pub fn redact_comment<G>(&mut self, id: CommentId, signer: &Device<G>) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         self.transaction("Redact comment", signer, |tx| tx.redact_comment(id))
     }
 
     /// Label an issue.
-    pub fn label<G: Signer>(
+    pub fn label<G>(
         &mut self,
         labels: impl IntoIterator<Item = Label>,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
+        signer: &Device<G>,
+    ) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         self.transaction("Label", signer, |tx| tx.label(labels))
     }
 
     /// React to an issue comment.
-    pub fn react<G: Signer>(
+    pub fn react<G>(
         &mut self,
         to: CommentId,
         reaction: Reaction,
         active: bool,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
+        signer: &Device<G>,
+    ) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         self.transaction("React", signer, |tx| tx.react(to, reaction, active))
     }
 
     pub fn transaction<G, F>(
         &mut self,
         message: &str,
-        signer: &G,
+        signer: &Device<G>,
         operations: F,
     ) -> Result<EntryId, Error>
     where
-        G: Signer,
+        G: crypto::signature::Signer<crypto::Signature>,
         F: FnOnce(&mut Transaction<Issue, R>) -> Result<(), store::Error>,
     {
         let mut tx = Transaction::default();
@@ -791,10 +816,10 @@ where
         assignees: &[Did],
         embeds: impl IntoIterator<Item = Embed<Uri>>,
         cache: &'g mut C,
-        signer: &G,
+        signer: &Device<G>,
     ) -> Result<IssueMut<'a, 'g, R, C>, Error>
     where
-        G: Signer,
+        G: crypto::signature::Signer<crypto::Signature>,
         C: cob::cache::Update<Issue>,
     {
         let (id, issue) = Transaction::initial("Create issue", &mut self.raw, signer, |tx, _| {
@@ -822,9 +847,10 @@ where
     }
 
     /// Remove an issue.
-    pub fn remove<C, G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), store::Error>
+    pub fn remove<C, G>(&self, id: &ObjectId, signer: &Device<G>) -> Result<(), store::Error>
     where
         C: cob::cache::Remove<Issue>,
+        G: crypto::signature::Signer<crypto::Signature>,
     {
         self.raw.remove(id, signer)
     }
@@ -1717,13 +1743,12 @@ mod test {
 
     #[test]
     fn test_invalid_cob() {
-        use crate::crypto::test::signer::MockSigner;
         use cob::change::Storage as _;
         use cob::object::Storage as _;
         use nonempty::NonEmpty;
 
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let eve = MockSigner::default();
+        let eve = Device::mock();
         let identity = repo.identity().unwrap().head();
         let missing = arbitrary::oid();
         let type_name = Issue::type_name().clone();

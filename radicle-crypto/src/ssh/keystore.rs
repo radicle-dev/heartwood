@@ -10,6 +10,8 @@ use zeroize::Zeroizing;
 
 use crate::{KeyPair, PublicKey, SecretKey, Signature, Signer, SignerError};
 
+use super::ExtendedSignature;
+
 /// A secret key passphrase.
 pub type Passphrase = Zeroizing<String>;
 
@@ -184,6 +186,21 @@ pub enum MemorySignerError {
 pub struct MemorySigner {
     public: PublicKey,
     secret: Zeroizing<SecretKey>,
+}
+
+impl signature::Signer<Signature> for MemorySigner {
+    fn try_sign(&self, msg: &[u8]) -> Result<Signature, signature::Error> {
+        Ok(Signer::sign(self, msg))
+    }
+}
+
+impl signature::Signer<ExtendedSignature> for MemorySigner {
+    fn try_sign(&self, msg: &[u8]) -> Result<ExtendedSignature, signature::Error> {
+        Ok(ExtendedSignature {
+            key: self.public,
+            sig: Signer::sign(self, msg),
+        })
+    }
 }
 
 impl Signer for MemorySigner {

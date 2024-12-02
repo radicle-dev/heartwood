@@ -4,7 +4,8 @@ use std::ffi::OsString;
 use anyhow::{anyhow, Context as _};
 
 use radicle::cob::job::{JobStore, Reason, State};
-use radicle::crypto::Signer;
+use radicle::crypto;
+use radicle::node::device::Device;
 use radicle::node::Handle;
 use radicle::storage::{WriteRepository, WriteStorage};
 use radicle::{cob, Node};
@@ -260,13 +261,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn trigger<R: WriteRepository + cob::Store, G: Signer>(
+fn trigger<R, G>(
     commit: &Rev,
     store: &mut JobStore<R>,
     repo: &radicle::storage::git::Repository,
-    signer: &G,
+    signer: &Device<G>,
     quiet: bool,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<()>
+where
+    R: WriteRepository + cob::Store,
+    G: crypto::signature::Signer<crypto::Signature>,
+{
     let commit = commit.resolve(&repo.backend)?;
     let job = store.create(commit, signer)?;
     if !quiet {
@@ -275,14 +280,18 @@ fn trigger<R: WriteRepository + cob::Store, G: Signer>(
     Ok(())
 }
 
-fn start<R: WriteRepository + cob::Store, G: Signer>(
+fn start<R, G>(
     job_id: &Rev,
     run_id: &str,
     info_url: Option<String>,
     store: &mut JobStore<R>,
     repo: &radicle::storage::git::Repository,
-    signer: &G,
-) -> anyhow::Result<()> {
+    signer: &Device<G>,
+) -> anyhow::Result<()>
+where
+    R: WriteRepository + cob::Store,
+    G: crypto::signature::Signer<crypto::Signature>,
+{
     let job_id = job_id.resolve(&repo.backend)?;
     let mut job = store.get_mut(&job_id)?;
 
@@ -349,13 +358,17 @@ fn show<R: WriteRepository + cob::Store>(
     Ok(())
 }
 
-fn finish<R: WriteRepository + cob::Store, G: Signer>(
+fn finish<R, G>(
     job_id: &Rev,
     reason: Reason,
     store: &mut JobStore<R>,
     repo: &radicle::storage::git::Repository,
-    signer: &G,
-) -> anyhow::Result<()> {
+    signer: &Device<G>,
+) -> anyhow::Result<()>
+where
+    R: WriteRepository + cob::Store,
+    G: crypto::signature::Signer<crypto::Signature>,
+{
     let job_id = job_id.resolve(&repo.backend)?;
     let mut job = store.get_mut(&job_id)?;
 

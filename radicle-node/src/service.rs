@@ -28,6 +28,7 @@ use radicle::node::address;
 use radicle::node::address::Store as _;
 use radicle::node::address::{AddressBook, AddressType, KnownAddress};
 use radicle::node::config::PeerConfig;
+use radicle::node::device::Device;
 use radicle::node::refs::Store as _;
 use radicle::node::routing::Store as _;
 use radicle::node::seed;
@@ -37,7 +38,6 @@ use radicle::storage::refs::SIGREFS_BRANCH;
 use radicle::storage::RepositoryError;
 use radicle_fetch::policy::SeedingPolicy;
 
-use crate::crypto::Signer;
 use crate::identity::RepoId;
 use crate::node::routing;
 use crate::node::routing::InsertResult;
@@ -390,7 +390,7 @@ pub struct Service<D, S, G> {
     /// Service configuration.
     config: Config,
     /// Our cryptographic signer and key.
-    signer: G,
+    signer: Device<G>,
     /// Project storage.
     storage: S,
     /// Node database.
@@ -444,10 +444,7 @@ pub struct Service<D, S, G> {
     metrics: Metrics,
 }
 
-impl<D, S, G> Service<D, S, G>
-where
-    G: crypto::Signer,
-{
+impl<D, S, G> Service<D, S, G> {
     /// Get the local node id.
     pub fn node_id(&self) -> NodeId {
         *self.signer.public_key()
@@ -467,14 +464,14 @@ impl<D, S, G> Service<D, S, G>
 where
     D: Store,
     S: ReadStorage + 'static,
-    G: Signer,
+    G: crypto::signature::Signer<crypto::Signature>,
 {
     pub fn new(
         config: Config,
         db: Stores<D>,
         storage: S,
         policies: policy::Config<Write>,
-        signer: G,
+        signer: Device<G>,
         rng: Rng,
         node: NodeAnnouncement,
         emitter: Emitter<Event>,
@@ -596,7 +593,7 @@ where
     }
 
     /// Get the local signer.
-    pub fn signer(&self) -> &G {
+    pub fn signer(&self) -> &Device<G> {
         &self.signer
     }
 
@@ -2658,7 +2655,7 @@ pub trait ServiceState {
 impl<D, S, G> ServiceState for Service<D, S, G>
 where
     D: routing::Store,
-    G: Signer,
+    G: crypto::signature::Signer<crypto::Signature>,
     S: ReadStorage,
 {
     fn nid(&self) -> &NodeId {

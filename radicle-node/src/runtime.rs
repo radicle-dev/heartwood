@@ -9,6 +9,8 @@ use crossbeam_channel as chan;
 use cyphernet::Ecdh;
 use netservices::resource::NetAccept;
 use radicle::cob::migrate;
+use radicle::crypto;
+use radicle::node::device::Device;
 use radicle_fetch::FetchLimit;
 use radicle_signals::Signal;
 use reactor::poller::popol;
@@ -25,7 +27,6 @@ use radicle::profile::Home;
 use radicle::{cob, git, storage, Storage};
 
 use crate::control;
-use crate::crypto::Signer;
 use crate::node::{routing, NodeId};
 use crate::service::message::NodeAnnouncement;
 use crate::service::{gossip, policy, Event, INITIAL_SUBSCRIBE_BACKLOG_DELTA};
@@ -119,10 +120,10 @@ impl Runtime {
         config: service::Config,
         listen: Vec<net::SocketAddr>,
         signals: chan::Receiver<Signal>,
-        signer: G,
+        signer: Device<G>,
     ) -> Result<Runtime, Error>
     where
-        G: Signer + Ecdh<Pk = NodeId> + Clone + 'static,
+        G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone + 'static,
     {
         let id = *signer.public_key();
         let alias = config.alias.clone();

@@ -64,7 +64,7 @@ pub fn create<T, S, G>(
 where
     T: Evaluate<S>,
     S: Store,
-    G: crypto::Signer,
+    G: signature::Signer<crate::ExtendedSignature>,
 {
     let type_name = args.type_name.clone();
     let version = args.version;
