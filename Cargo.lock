@@ -2153,7 +2153,7 @@ version = "0.9.0"
 
 [[package]]
 name = "radicle-term"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "anstyle-query",
  "anyhow",

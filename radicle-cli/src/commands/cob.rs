@@ -234,7 +234,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     let Some(patch) = patches.get(oid)? else {
                         anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
                     };
-                    serde_json::to_writer_pretty(std::io::stdout(), &patch)?;
+                    serde_json::to_writer(std::io::stdout(), &patch)?;
                     println!()
                 }
             } else if type_name == cob::issue::TYPENAME.clone() {
@@ -244,7 +244,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     let Some(issue) = issues.get(oid)? else {
                         anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
                     };
-                    serde_json::to_writer_pretty(std::io::stdout(), &issue)?;
+                    serde_json::to_writer(std::io::stdout(), &issue)?;
                     println!()
                 }
             } else if type_name == cob::identity::TYPENAME.clone() {
@@ -253,7 +253,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     let Some(cob) = cob::get::<Identity, _>(&repo, &type_name, oid)? else {
                         anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
                     };
-                    serde_json::to_writer_pretty(std::io::stdout(), &cob.object)?;
+                    serde_json::to_writer(std::io::stdout(), &cob.object)?;
                     println!()
                 }
             } else {
