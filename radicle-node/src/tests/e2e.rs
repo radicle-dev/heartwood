@@ -1,6 +1,6 @@
 use std::{collections::HashSet, thread, time};
 
-use radicle::crypto::{test::signer::MockSigner, Signer};
+use radicle::node::device::Device;
 use radicle::node::{Alias, ConnectResult, FetchResult, Handle as _, DEFAULT_TIMEOUT};
 use radicle::storage::{
     ReadRepository, ReadStorage, RefUpdate, RemoteRepository, SignRepository, ValidateRepository,
@@ -281,7 +281,7 @@ fn test_replication_invalid() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"));
     let mut bob = Node::init(tmp.path(), config::relay("bob"));
-    let carol = MockSigner::default();
+    let carol = Device::mock();
     let acme = bob.project("acme", "");
     let repo = bob.storage.repository_mut(acme).unwrap();
     let (_, head) = repo.head().unwrap();
@@ -418,7 +418,7 @@ fn test_fetch_followed_remotes() {
     let mut signers = Vec::with_capacity(5);
     {
         for _ in 0..5 {
-            let signer = MockSigner::default();
+            let signer = Device::mock();
             rad::fork_remote(acme, &alice.id, &signer, &alice.storage).unwrap();
             signers.push(signer);
         }
@@ -473,7 +473,7 @@ fn test_missing_remote() {
 
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
-    let carol = MockSigner::default();
+    let carol = Device::mock();
 
     alice.connect(&bob);
     converge([&alice, &bob]);

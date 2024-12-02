@@ -74,6 +74,7 @@ pub mod setup {
 
     use super::storage::{Namespaces, RefUpdate};
     use crate::crypto::test::signer::MockSigner;
+    use crate::node::device::Device;
     use crate::storage::git::transport::remote;
     use crate::{
         git,
@@ -91,7 +92,7 @@ pub mod setup {
         pub tmp: TempDir,
         pub root: PathBuf,
         pub storage: Storage,
-        pub signer: MockSigner,
+        pub signer: Device<MockSigner>,
     }
 
     impl Default for Node {
@@ -104,6 +105,7 @@ pub mod setup {
 
     impl Node {
         pub fn new(tmp: TempDir, signer: MockSigner, alias: &str) -> Self {
+            let signer = Device::from(signer);
             let root = tmp.path().to_path_buf();
             let home = root.join("home");
             let paths = Home::new(home.as_path()).unwrap();

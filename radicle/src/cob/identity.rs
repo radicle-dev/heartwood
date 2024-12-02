@@ -4,13 +4,13 @@ use std::{fmt, ops::Deref, str::FromStr};
 use crypto::{PublicKey, Signature};
 use once_cell::sync::Lazy;
 use radicle_cob::{Embed, ObjectId, TypeName};
-use radicle_crypto::Signer;
 use radicle_git_ext as git_ext;
 use radicle_git_ext::Oid;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::identity::doc::Doc;
+use crate::node::device::Device;
 use crate::{
     cob,
     cob::{
@@ -192,11 +192,14 @@ impl Identity {
         }
     }
 
-    pub fn initialize<'a, R: WriteRepository + cob::Store, G: Signer>(
+    pub fn initialize<'a, R: WriteRepository + cob::Store, G>(
         doc: &Doc,
         store: &'a R,
-        signer: &G,
-    ) -> Result<IdentityMut<'a, R>, cob::store::Error> {
+        signer: &Device<G>,
+    ) -> Result<IdentityMut<'a, R>, cob::store::Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         let mut store = cob::store::Store::open(store)?;
         let (id, identity) = Transaction::<Identity, _>::initial(
             "Initialize identity",
@@ -732,7 +735,10 @@ impl Revision {
         })
     }
 
-    pub fn sign<G: Signer>(&self, signer: &G) -> Result<Signature, DocError> {
+    pub fn sign<G: crypto::signature::Signer<crypto::Signature>>(
+        &self,
+        signer: &G,
+    ) -> Result<Signature, DocError> {
         self.doc.signature_of(signer)
     }
 }
@@ -839,14 +845,14 @@ impl<R: ReadRepository> store::Transaction<Identity, R> {
 }
 
 impl<R: WriteRepository> store::Transaction<Identity, R> {
-    pub fn revision<G: Signer>(
+    pub fn revision<G: crypto::signature::Signer<crypto::Signature>>(
         &mut self,
         title: impl ToString,
         description: impl ToString,
         doc: &Doc,
         parent: Option<RevisionId>,
         repo: &R,
-        signer: &G,
+        signer: &Device<G>,
     ) -> Result<(), store::Error> {
         let (blob, bytes, signature) = doc.sign(signer).map_err(store::Error::Identity)?;
         // Store document blob in repository.
@@ -901,11 +907,11 @@ where
     pub fn transaction<G, F>(
         &mut self,
         message: &str,
-        signer: &G,
+        signer: &Device<G>,
         operations: F,
     ) -> Result<EntryId, Error>
     where
-        G: Signer,
+        G: crypto::signature::Signer<crypto::Signature>,
         F: FnOnce(&mut Transaction<Identity, R>, &R) -> Result<(), store::Error>,
     {
         let mut tx = Transaction::default();
@@ -919,13 +925,16 @@ where
 
     /// Update the identity by proposing a new revision.
     /// If the signer is the only delegate, the revision is accepted automatically.
-    pub fn update<G: Signer>(
+    pub fn update<G>(
         &mut self,
         title: impl ToString,
         description: impl ToString,
         doc: &Doc,
-        signer: &G,
-    ) -> Result<RevisionId, Error> {
+        signer: &Device<G>,
+    ) -> Result<RevisionId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         let parent = self.current;
         let id = self.transaction("Propose revision", signer, |tx, repo| {
             tx.revision(title, description, doc, Some(parent), repo, signer)
@@ -935,11 +944,10 @@ where
     }
 
     /// Accept an active revision.
-    pub fn accept<G: Signer>(
-        &mut self,
-        revision: &RevisionId,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
+    pub fn accept<G>(&mut self, revision: &RevisionId, signer: &Device<G>) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         let id = *revision;
         let revision = self.revision(revision).ok_or(Error::NotFound(id))?;
         let signature = revision.sign(signer)?;
@@ -948,31 +956,32 @@ where
     }
 
     /// Reject an active revision.
-    pub fn reject<G: Signer>(
-        &mut self,
-        revision: RevisionId,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
+    pub fn reject<G>(&mut self, revision: RevisionId, signer: &Device<G>) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         self.transaction("Reject revision", signer, |tx, _| tx.reject(revision))
     }
 
     /// Redact a revision.
-    pub fn redact<G: Signer>(
-        &mut self,
-        revision: RevisionId,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
+    pub fn redact<G>(&mut self, revision: RevisionId, signer: &Device<G>) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         self.transaction("Redact revision", signer, |tx, _| tx.redact(revision))
     }
 
     /// Edit an active revision's title or description.
-    pub fn edit<G: Signer>(
+    pub fn edit<G>(
         &mut self,
         revision: RevisionId,
         title: String,
         description: String,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
+        signer: &Device<G>,
+    ) -> Result<EntryId, Error>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         self.transaction("Edit revision", signer, |tx, _| {
             tx.edit(revision, title, description)
         })
@@ -1021,8 +1030,6 @@ mod lookup {
 #[allow(clippy::unwrap_used)]
 mod test {
     use qcheck_macros::quickcheck;
-    use radicle_crypto::test::signer::MockSigner;
-    use radicle_crypto::Signer as _;
 
     use crate::cob;
     use crate::crypto::PublicKey;
@@ -1052,7 +1059,7 @@ mod test {
     #[test]
     fn test_identity_updates() {
         let NodeWithRepo { node, repo } = NodeWithRepo::default();
-        let bob = MockSigner::default();
+        let bob = Device::mock();
         let signer = &node.signer;
         let mut identity = Identity::load_mut(&*repo).unwrap();
         let mut doc = identity.doc().clone().edit();
@@ -1112,8 +1119,8 @@ mod test {
     #[test]
     fn test_identity_update_rejected() {
         let NodeWithRepo { node, repo } = NodeWithRepo::default();
-        let bob = MockSigner::default();
-        let eve = MockSigner::default();
+        let bob = Device::mock();
+        let eve = Device::mock();
         let signer = &node.signer;
         let mut identity = Identity::load_mut(&*repo).unwrap();
         let mut doc = identity.doc().clone().edit();
@@ -1535,9 +1542,9 @@ mod test {
         let tempdir = tempfile::tempdir().unwrap();
         let mut rng = fastrand::Rng::new();
 
-        let alice = MockSigner::new(&mut rng);
-        let bob = MockSigner::new(&mut rng);
-        let eve = MockSigner::new(&mut rng);
+        let alice = Device::mock_rng(&mut rng);
+        let bob = Device::mock_rng(&mut rng);
+        let eve = Device::mock_rng(&mut rng);
 
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
         let (id, _, _, _) =

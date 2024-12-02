@@ -7,7 +7,7 @@ use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
-use crypto::{Signer, Verified};
+use crypto::Verified;
 use once_cell::sync::Lazy;
 use tempfile::TempDir;
 
@@ -15,6 +15,7 @@ use crate::git::canonical::Canonical;
 use crate::identity::doc::DocError;
 use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
+use crate::node::device::Device;
 use crate::node::SyncedAt;
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs, SignedRefsAt};
@@ -433,11 +434,15 @@ impl Repository {
     }
 
     /// Create the repository's identity branch.
-    pub fn init<G: Signer, S: WriteStorage>(
+    pub fn init<G, S>(
         doc: &Doc,
         storage: &S,
-        signer: &G,
-    ) -> Result<(Self, git::Oid), RepositoryError> {
+        signer: &Device<G>,
+    ) -> Result<(Self, git::Oid), RepositoryError>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+        S: WriteStorage,
+    {
         let (doc_oid, doc_bytes) = doc.encode()?;
         let id = RepoId::from(doc_oid);
         let repo = Self::create(paths::repository(storage, &id), id, storage.info())?;
@@ -885,7 +890,10 @@ impl WriteRepository for Repository {
 }
 
 impl SignRepository for Repository {
-    fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, RepositoryError> {
+    fn sign_refs<G: crypto::signature::Signer<crypto::Signature>>(
+        &self,
+        signer: &Device<G>,
+    ) -> Result<SignedRefs<Verified>, RepositoryError> {
         let remote = signer.public_key();
         // Ensure the root reference is set, which is checked during sigref verification.
         if self.identity_root_of(remote).is_err() {
@@ -959,7 +967,6 @@ pub mod paths {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use crypto::test::signer::MockSigner;
 
     use super::*;
     use crate::git;
@@ -970,7 +977,7 @@ mod tests {
     #[test]
     fn test_remote_refs() {
         let dir = tempfile::tempdir().unwrap();
-        let signer = MockSigner::default();
+        let signer = Device::mock();
         let storage = fixtures::storage(dir.path(), &signer).unwrap();
         let inv = storage.repositories().unwrap();
         let proj = inv.first().unwrap();
@@ -996,7 +1003,7 @@ mod tests {
     #[test]
     fn test_references_of() {
         let tmp = tempfile::tempdir().unwrap();
-        let signer = MockSigner::default();
+        let signer = Device::mock();
         let storage = Storage::open(tmp.path().join("storage"), fixtures::user()).unwrap();
 
         transport::local::register(storage.clone());
@@ -1031,7 +1038,7 @@ mod tests {
     fn test_sign_refs() {
         let tmp = tempfile::tempdir().unwrap();
         let mut rng = fastrand::Rng::new();
-        let signer = MockSigner::new(&mut rng);
+        let signer = Device::mock_rng(&mut rng);
         let storage = Storage::open(tmp.path(), fixtures::user()).unwrap();
         let alice = *signer.public_key();
         let (rid, _, working, _) =

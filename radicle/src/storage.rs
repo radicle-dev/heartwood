@@ -10,7 +10,7 @@ use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crypto::{PublicKey, Signer, Unverified, Verified};
+use crypto::{PublicKey, Unverified, Verified};
 pub use git::{Validation, Validations};
 pub use radicle_git_ext::Oid;
 
@@ -21,6 +21,7 @@ use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefStr, R
 use crate::identity::{Did, PayloadError};
 use crate::identity::{Doc, DocAt, DocError};
 use crate::identity::{Identity, RepoId};
+use crate::node::device::Device;
 use crate::node::SyncedAt;
 use crate::storage::git::NAMESPACES_GLOB;
 use crate::storage::refs::Refs;
@@ -657,7 +658,9 @@ pub trait WriteRepository: ReadRepository + SignRepository {
 /// Allows signing refs.
 pub trait SignRepository {
     /// Sign the repository's refs under the `refs/rad/sigrefs` branch.
-    fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, RepositoryError>;
+    fn sign_refs<G>(&self, signer: &Device<G>) -> Result<SignedRefs<Verified>, RepositoryError>
+    where
+        G: crypto::signature::Signer<crypto::Signature>;
 }
 
 impl<T, S> ReadStorage for T

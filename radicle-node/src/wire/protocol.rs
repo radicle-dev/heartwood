@@ -18,14 +18,15 @@ use localtime::LocalTime;
 use netservices::resource::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
 use netservices::session::{NoiseSession, ProtocolArtifact, Socks5Session};
 use netservices::{NetConnection, NetReader, NetWriter};
+use radicle::node::device::Device;
 use reactor::{ResourceId, ResourceType, Timestamp};
 
 use radicle::collections::RandomMap;
+use radicle::crypto;
 use radicle::node::config::AddressConfig;
 use radicle::node::NodeId;
 use radicle::storage::WriteStorage;
 
-use crate::crypto::Signer;
 use crate::prelude::Deserializer;
 use crate::service;
 use crate::service::io::Io;
@@ -306,13 +307,13 @@ impl Peers {
 }
 
 /// Wire protocol implementation for a set of peers.
-pub struct Wire<D, S, G: Signer + Ecdh> {
+pub struct Wire<D, S, G: crypto::signature::Signer<crypto::Signature> + Ecdh> {
     /// Backing service instance.
     service: Service<D, S, G>,
     /// Worker pool interface.
     worker: chan::Sender<Task>,
     /// Used for authentication.
-    signer: G,
+    signer: Device<G>,
     /// Node metrics.
     metrics: service::Metrics,
     /// Internal queue of actions to send to the reactor.
@@ -331,9 +332,9 @@ impl<D, S, G> Wire<D, S, G>
 where
     D: service::Store,
     S: WriteStorage + 'static,
-    G: Signer + Ecdh<Pk = NodeId>,
+    G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId>,
 {
-    pub fn new(service: Service<D, S, G>, worker: chan::Sender<Task>, signer: G) -> Self {
+    pub fn new(service: Service<D, S, G>, worker: chan::Sender<Task>, signer: Device<G>) -> Self {
         assert!(service.started().is_some(), "Service must be initialized");
 
         Self {
@@ -500,7 +501,7 @@ impl<D, S, G> reactor::Handler for Wire<D, S, G>
 where
     D: service::Store + Send,
     S: WriteStorage + Send + 'static,
-    G: Signer + Ecdh<Pk = NodeId> + Clone + Send,
+    G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone + Send,
 {
     type Listener = NetAccept<WireSession<G>>;
     type Transport = NetTransport<WireSession<G>>;
@@ -561,14 +562,17 @@ where
                     return;
                 }
 
-                let session =
-                    match accept::<G>(remote.clone().into(), connection, self.signer.clone()) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            log::error!(target: "wire", "Error creating session for {ip}: {e}");
-                            return;
-                        }
-                    };
+                let session = match accept::<G>(
+                    remote.clone().into(),
+                    connection,
+                    self.signer.clone().into_inner(),
+                ) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        log::error!(target: "wire", "Error creating session for {ip}: {e}");
+                        return;
+                    }
+                };
                 let transport = match NetTransport::with_session(session, Link::Inbound) {
                     Ok(transport) => transport,
                     Err(err) => {
@@ -963,7 +967,7 @@ impl<D, S, G> Iterator for Wire<D, S, G>
 where
     D: service::Store,
     S: WriteStorage + 'static,
-    G: Signer + Ecdh<Pk = NodeId>,
+    G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone,
 {
     type Item = Action<G>;
 
@@ -1016,7 +1020,7 @@ where
                     match dial::<G>(
                         addr.to_inner(),
                         node_id,
-                        self.signer.clone(),
+                        self.signer.clone().into_inner(),
                         self.service.config(),
                     )
                     .and_then(|session| {
@@ -1126,7 +1130,7 @@ where
 }
 
 /// Establish a new outgoing connection.
-pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
+pub fn dial<G: Ecdh<Pk = NodeId>>(
     remote_addr: NetAddr<HostName>,
     remote_id: <G as EcSk>::Pk,
     signer: G,
@@ -1185,7 +1189,7 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
 }
 
 /// Accept a new connection.
-pub fn accept<G: Signer + Ecdh<Pk = NodeId>>(
+pub fn accept<G: Ecdh<Pk = NodeId>>(
     remote_addr: NetAddr<HostName>,
     connection: net::TcpStream,
     signer: G,
@@ -1194,7 +1198,7 @@ pub fn accept<G: Signer + Ecdh<Pk = NodeId>>(
 }
 
 /// Create a new [`WireSession`].
-fn session<G: Signer + Ecdh<Pk = NodeId>>(
+fn session<G: Ecdh<Pk = NodeId>>(
     remote_addr: NetAddr<HostName>,
     remote_id: Option<NodeId>,
     connection: net::TcpStream,

@@ -10,8 +10,9 @@ use anyhow::{anyhow, Context as _};
 use radicle::cob::common::{Label, Reaction};
 use radicle::cob::issue::{CloseReason, State};
 use radicle::cob::{issue, thread};
-use radicle::crypto::Signer;
+use radicle::crypto;
 use radicle::issue::cache::Issues as _;
+use radicle::node::device::Device;
 use radicle::prelude::{Did, RepoId};
 use radicle::profile;
 use radicle::storage;
@@ -810,12 +811,12 @@ fn open<R, G>(
     assignees: Vec<Did>,
     options: &Options,
     cache: &mut issue::Cache<issue::Issues<'_, R>, cob::cache::StoreWriter>,
-    signer: &G,
+    signer: &Device<G>,
     profile: &Profile,
 ) -> anyhow::Result<()>
 where
     R: ReadRepository + WriteRepository + cob::Store,
-    G: Signer,
+    G: crypto::signature::Signer<crypto::Signature>,
 {
     let (title, description) = if let (Some(t), Some(d)) = (title.as_ref(), description.as_ref()) {
         (t.to_owned(), d.to_owned())
@@ -845,11 +846,11 @@ fn edit<'a, 'g, R, G>(
     id: Rev,
     title: Option<String>,
     description: Option<String>,
-    signer: &G,
+    signer: &Device<G>,
 ) -> anyhow::Result<issue::IssueMut<'a, 'g, R, cob::cache::StoreWriter>>
 where
     R: WriteRepository + ReadRepository + cob::Store,
-    G: radicle::crypto::Signer,
+    G: crypto::signature::Signer<crypto::Signature>,
 {
     let id = id.resolve(&repo.backend)?;
     let mut issue = issues.get_mut(&id)?;

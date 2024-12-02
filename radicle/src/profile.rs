@@ -24,7 +24,8 @@ use thiserror::Error;
 use crate::cob::migrate;
 use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{keystore, Keystore, Passphrase};
-use crate::crypto::{PublicKey, Signer};
+use crate::crypto::PublicKey;
+use crate::node::device::{BoxedDevice, Device};
 use crate::node::policy::config::store::Read;
 use crate::node::{
     notifications, policy, policy::Scope, Alias, AliasStore, Handle as _, Node, UserAgent,
@@ -293,22 +294,22 @@ impl Profile {
         Did::from(self.public_key)
     }
 
-    pub fn signer(&self) -> Result<Box<dyn Signer>, Error> {
+    pub fn signer(&self) -> Result<BoxedDevice, Error> {
         if !self.keystore.is_encrypted()? {
             let signer = keystore::MemorySigner::load(&self.keystore, None)?;
-            return Ok(signer.boxed());
+            return Ok(Device::from(signer).boxed());
         }
 
         if let Some(passphrase) = env::passphrase() {
             let signer = keystore::MemorySigner::load(&self.keystore, Some(passphrase))?;
-            return Ok(signer.boxed());
+            return Ok(Device::from(signer).boxed());
         }
 
         match Agent::connect() {
             Ok(agent) => {
                 let signer = agent.signer(self.public_key);
                 if signer.is_ready()? {
-                    Ok(signer.boxed())
+                    Ok(Device::from(signer).boxed())
                 } else {
                     Err(Error::KeyNotRegistered(self.public_key))
                 }

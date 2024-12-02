@@ -14,7 +14,7 @@ use std::{fmt, io, net};
 use localtime::{LocalDuration, LocalTime};
 use log::*;
 
-use crate::crypto::Signer;
+use crate::crypto;
 use crate::prelude::{Address, RepoId};
 use crate::service::io::Io;
 use crate::service::{DisconnectReason, Event, Message, Metrics, NodeId};
@@ -202,7 +202,7 @@ pub struct Simulation<S, G> {
     signer: PhantomData<G>,
 }
 
-impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
+impl<S: WriteStorage + 'static, G: crypto::signature::Signer<crypto::Signature>> Simulation<S, G> {
     /// Create a new simulation.
     pub fn new(time: LocalTime, rng: fastrand::Rng, opts: Options) -> Self {
         Self {

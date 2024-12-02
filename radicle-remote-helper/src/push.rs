@@ -5,13 +5,14 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{assert_eq, io};
 
+use radicle::node::device::Device;
 use thiserror::Error;
 
 use radicle::cob;
 use radicle::cob::object::ParseObjectId;
 use radicle::cob::patch;
 use radicle::cob::patch::cache::Patches as _;
-use radicle::crypto::Signer;
+use radicle::crypto;
 use radicle::explorer::ExplorerResource;
 use radicle::git::canonical;
 use radicle::git::canonical::Canonical;
@@ -389,7 +390,7 @@ pub fn run(
 }
 
 /// Open a new patch.
-fn patch_open<G: Signer>(
+fn patch_open<G>(
     src: &git::RefStr,
     upstream: &git::RefString,
     nid: &NodeId,
@@ -399,10 +400,13 @@ fn patch_open<G: Signer>(
         patch::Patches<'_, storage::git::Repository>,
         cob::cache::StoreWriter,
     >,
-    signer: &G,
+    signer: &Device<G>,
     profile: &Profile,
     opts: Options,
-) -> Result<Option<ExplorerResource>, Error> {
+) -> Result<Option<ExplorerResource>, Error>
+where
+    G: crypto::signature::Signer<crypto::Signature>,
+{
     let reference = working.find_reference(src.as_str())?;
     let commit = reference.peel_to_commit()?;
     let dst = git::refs::storage::staging::patch(nid, commit.id());
@@ -509,7 +513,7 @@ fn patch_open<G: Signer>(
 
 /// Update an existing patch.
 #[allow(clippy::too_many_arguments)]
-fn patch_update<G: Signer>(
+fn patch_update<G>(
     src: &git::RefStr,
     dst: &git::Qualified,
     force: bool,
@@ -521,9 +525,12 @@ fn patch_update<G: Signer>(
         patch::Patches<'_, storage::git::Repository>,
         cob::cache::StoreWriter,
     >,
-    signer: &G,
+    signer: &Device<G>,
     opts: Options,
-) -> Result<Option<ExplorerResource>, Error> {
+) -> Result<Option<ExplorerResource>, Error>
+where
+    G: crypto::signature::Signer<crypto::Signature>,
+{
     let reference = working.find_reference(src.as_str())?;
     let commit = reference.peel_to_commit()?;
     let patch_id = radicle::cob::ObjectId::from(oid);
@@ -592,7 +599,7 @@ fn patch_update<G: Signer>(
     Ok(Some(ExplorerResource::Patch { id: patch_id }))
 }
 
-fn push<G: Signer>(
+fn push<G>(
     src: &git::RefStr,
     dst: &git::Qualified,
     force: bool,
@@ -603,8 +610,11 @@ fn push<G: Signer>(
         patch::Patches<'_, storage::git::Repository>,
         cob::cache::StoreWriter,
     >,
-    signer: &G,
-) -> Result<Option<ExplorerResource>, Error> {
+    signer: &Device<G>,
+) -> Result<Option<ExplorerResource>, Error>
+where
+    G: crypto::signature::Signer<crypto::Signature>,
+{
     let head = match working.find_reference(src.as_str()) {
         Ok(obj) => obj.peel_to_commit()?,
         Err(e) => {
@@ -648,7 +658,7 @@ fn push<G: Signer>(
 }
 
 /// Revert all patches that are no longer included in the base branch.
-fn patch_revert_all<G: Signer>(
+fn patch_revert_all<G>(
     old: git::Oid,
     new: git::Oid,
     stored: &git::raw::Repository,
@@ -656,8 +666,11 @@ fn patch_revert_all<G: Signer>(
         patch::Patches<'_, storage::git::Repository>,
         cob::cache::StoreWriter,
     >,
-    _signer: &G,
-) -> Result<(), Error> {
+    _signer: &Device<G>,
+) -> Result<(), Error>
+where
+    G: crypto::signature::Signer<crypto::Signature>,
+{
     // Find all commits reachable from the old OID but not from the new OID.
     let mut revwalk = stored.revwalk()?;
     revwalk.push(*old)?;
@@ -710,7 +723,7 @@ fn patch_revert_all<G: Signer>(
 }
 
 /// Merge all patches that have been included in the base branch.
-fn patch_merge_all<G: Signer>(
+fn patch_merge_all<G>(
     old: git::Oid,
     new: git::Oid,
     working: &git::raw::Repository,
@@ -718,8 +731,11 @@ fn patch_merge_all<G: Signer>(
         patch::Patches<'_, storage::git::Repository>,
         cob::cache::StoreWriter,
     >,
-    signer: &G,
-) -> Result<(), Error> {
+    signer: &Device<G>,
+) -> Result<(), Error>
+where
+    G: crypto::signature::Signer<crypto::Signature>,
+{
     let mut revwalk = working.revwalk()?;
     revwalk.push_range(&format!("{old}..{new}"))?;
 
@@ -760,13 +776,17 @@ fn patch_merge_all<G: Signer>(
     Ok(())
 }
 
-fn patch_merge<C: cob::cache::Update<patch::Patch>, G: Signer>(
+fn patch_merge<C, G>(
     mut patch: patch::PatchMut<storage::git::Repository, C>,
     revision: patch::RevisionId,
     commit: git::Oid,
     working: &git::raw::Repository,
-    signer: &G,
-) -> Result<(), Error> {
+    signer: &Device<G>,
+) -> Result<(), Error>
+where
+    C: cob::cache::Update<patch::Patch>,
+    G: crypto::signature::Signer<crypto::Signature>,
+{
     let (latest, _) = patch.latest();
     let merged = patch.merge(revision, commit, signer)?;
 

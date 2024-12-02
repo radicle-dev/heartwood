@@ -6,8 +6,9 @@ use std::str::FromStr;
 
 use git_ext::ref_format as fmt;
 
-use crate::crypto::{Signer, Verified};
+use crate::crypto::Verified;
 use crate::identity::doc::{Doc, DocAt, DocError, RawDoc, RepoId};
+use crate::node::device::Device;
 use crate::node::NodeId;
 
 pub use crate::storage::*;
@@ -347,9 +348,9 @@ impl WriteRepository for MockRepository {
 }
 
 impl SignRepository for MockRepository {
-    fn sign_refs<G: Signer>(
+    fn sign_refs<G: crypto::signature::Signer<crypto::Signature>>(
         &self,
-        _signer: &G,
+        _signer: &Device<G>,
     ) -> Result<crate::storage::refs::SignedRefs<Verified>, RepositoryError> {
         todo!()
     }
@@ -419,7 +420,7 @@ impl radicle_cob::change::Storage for MockRepository {
         Self::StoreError,
     >
     where
-        G: radicle_crypto::Signer,
+        G: radicle_crypto::signature::Signer<Self::Signatures>,
     {
         todo!()
     }

@@ -638,6 +638,7 @@ mod tests {
     use crate::cob::test;
     use crate::crypto::test::signer::MockSigner;
     use crate::crypto::Signer;
+    use crate::node::device::Device;
     use crate::profile::env;
     use crate::test::arbitrary;
     use crate::test::arbitrary::gen;
@@ -651,13 +652,13 @@ mod tests {
     impl<G: Default + Signer> Default for Actor<G> {
         fn default() -> Self {
             Self {
-                inner: cob::test::Actor::new(G::default()),
+                inner: cob::test::Actor::<G>::default(),
             }
         }
     }
 
     impl<G: Signer> Actor<G> {
-        pub fn new(signer: G) -> Self {
+        pub fn new(signer: Device<G>) -> Self {
             Self {
                 inner: cob::test::Actor::new(signer),
             }

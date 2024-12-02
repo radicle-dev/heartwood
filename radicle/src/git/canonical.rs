@@ -249,12 +249,11 @@ impl Canonical {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use crypto::test::signer::MockSigner;
-    use radicle_crypto::Signer;
 
     use super::*;
     use crate::assert_matches;
     use crate::git;
+    use crate::node::device::Device;
     use crate::test::fixtures;
 
     /// Test helper to construct a Canonical and get the quorum
@@ -267,7 +266,7 @@ mod tests {
             .iter()
             .enumerate()
             .map(|(i, head)| {
-                let signer = MockSigner::from_seed([(i + 1) as u8; 32]);
+                let signer = Device::mock_from_seed([(i + 1) as u8; 32]);
                 let did = Did::from(signer.public_key());
                 (did, (*head).into())
             })

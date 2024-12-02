@@ -27,7 +27,7 @@ pub trait Storage {
         template: Template<Self::ObjectId>,
     ) -> Result<Entry<Self::Parent, Self::ObjectId, Self::Signatures>, Self::StoreError>
     where
-        G: crypto::Signer;
+        G: signature::Signer<Self::Signatures>;
 
     /// Load a change entry.
     #[allow(clippy::type_complexity)]

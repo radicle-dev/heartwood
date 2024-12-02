@@ -6,7 +6,7 @@ use tempfile::TempDir;
 use crate::{
     change,
     object::{self, Reference},
-    ObjectId, Store,
+    signatures, ObjectId, Store,
 };
 
 pub mod error {
@@ -76,7 +76,7 @@ impl change::Storage for Storage {
         Self::StoreError,
     >
     where
-        Signer: crypto::Signer,
+        Signer: signature::Signer<signatures::ExtendedSignature>,
     {
         self.as_raw().store(authority, parents, signer, spec)
     }

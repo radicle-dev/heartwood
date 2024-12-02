@@ -7,7 +7,7 @@ use radicle_crypto::PublicKey;
 
 use crate::{
     change, change_graph::ChangeGraph, history::EntryId, CollaborativeObject, Embed, Evaluate,
-    ObjectId, Store, TypeName,
+    ExtendedSignature, ObjectId, Store, TypeName,
 };
 
 use super::error;
@@ -67,7 +67,7 @@ pub fn update<T, S, G>(
 where
     T: Evaluate<S>,
     S: Store,
-    G: crypto::Signer,
+    G: signature::Signer<ExtendedSignature>,
 {
     let Update {
         type_name: ref typename,

@@ -9,8 +9,8 @@ use crate::cob::cache::{self, StoreReader};
 use crate::cob::cache::{Remove, StoreWriter, Update};
 use crate::cob::store;
 use crate::cob::{Label, ObjectId, TypeName};
-use crate::crypto::Signer;
 use crate::git;
+use crate::node::device::Device;
 use crate::prelude::RepoId;
 use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
 
@@ -116,11 +116,11 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         labels: &[Label],
-        signer: &G,
+        signer: &Device<G>,
     ) -> Result<PatchMut<'a, 'g, R, C>, super::Error>
     where
         R: WriteRepository + cob::Store,
-        G: Signer,
+        G: crypto::signature::Signer<crypto::Signature>,
         C: Update<Patch>,
     {
         self.store.create(
@@ -146,11 +146,11 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         labels: &[Label],
-        signer: &G,
+        signer: &Device<G>,
     ) -> Result<PatchMut<'a, 'g, R, C>, super::Error>
     where
         R: WriteRepository + cob::Store,
-        G: Signer,
+        G: crypto::signature::Signer<crypto::Signature>,
         C: Update<Patch>,
     {
         self.store.draft(
@@ -167,9 +167,9 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
 
     /// Remove the given `id` from the [`super::Patches`] storage, and
     /// removing the entry from the `cache`.
-    pub fn remove<G>(&mut self, id: &PatchId, signer: &G) -> Result<(), super::Error>
+    pub fn remove<G>(&mut self, id: &PatchId, signer: &Device<G>) -> Result<(), super::Error>
     where
-        G: Signer,
+        G: crypto::signature::Signer<crypto::Signature>,
         R: ReadRepository + SignRepository + cob::Store,
         C: Remove<Patch>,
     {

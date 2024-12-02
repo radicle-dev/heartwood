@@ -32,6 +32,12 @@ pub struct ExtendedSignature {
     pub sig: crypto::Signature,
 }
 
+impl From<ExtendedSignature> for crypto::Signature {
+    fn from(ExtendedSignature { sig, .. }: ExtendedSignature) -> Self {
+        sig
+    }
+}
+
 impl ExtendedSignature {
     /// Create a new extended signature.
     pub fn new(public_key: crypto::PublicKey, signature: crypto::Signature) -> Self {

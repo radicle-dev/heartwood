@@ -8,6 +8,8 @@ use thiserror::Error;
 
 pub use ed25519::{edwards25519, Error, KeyPair, Seed};
 
+pub extern crate signature;
+
 #[cfg(feature = "ssh")]
 pub mod ssh;
 #[cfg(any(test, feature = "test"))]

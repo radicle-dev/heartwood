@@ -399,7 +399,7 @@ mod test {
     use crate::test::arbitrary;
     use localtime::LocalTime;
     use radicle::assert_matches;
-    use radicle_crypto::test::signer::MockSigner;
+    use radicle::node::device::Device;
 
     #[test]
     fn test_announced() {
@@ -407,7 +407,7 @@ mod test {
         let nid = arbitrary::gen::<NodeId>(1);
         let rid = arbitrary::gen::<RepoId>(1);
         let timestamp = LocalTime::now().into();
-        let signer = MockSigner::default();
+        let signer = Device::mock();
         let refs = AnnouncementMessage::Refs(RefsAnnouncement {
             rid,
             refs: BoundedVec::new(),

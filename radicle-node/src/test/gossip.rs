@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use radicle::crypto::test::signer::MockSigner;
 use radicle::node;
+use radicle::node::device::Device;
 use radicle::node::UserAgent;
 use radicle::test::fixtures::gen;
 
@@ -17,7 +17,7 @@ pub fn messages(count: usize, now: LocalTime, delta: LocalDuration) -> Vec<Messa
     let mut msgs = Vec::new();
 
     for _ in 0..count {
-        let signer = MockSigner::new(&mut rng);
+        let signer = Device::mock_rng(&mut rng);
         let time = if delta == LocalDuration::from_secs(0) {
             now
         } else {

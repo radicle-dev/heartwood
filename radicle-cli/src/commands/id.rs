@@ -6,10 +6,11 @@ use anyhow::{anyhow, Context};
 
 use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
 use radicle::identity::{doc, Doc, Identity, PayloadError, RawDoc, Visibility};
-use radicle::prelude::{Did, RepoId, Signer};
+use radicle::node::device::Device;
+use radicle::prelude::{Did, RepoId};
 use radicle::storage::refs;
 use radicle::storage::{ReadRepository, ReadStorage as _, WriteRepository};
-use radicle::{cob, Profile};
+use radicle::{cob, crypto, Profile};
 use radicle_surf::diff::Diff;
 use radicle_term::Element;
 use serde_json as json;
@@ -722,13 +723,17 @@ and description.
     Ok(result)
 }
 
-fn update<R: WriteRepository + cob::Store, G: Signer>(
+fn update<R, G>(
     title: Option<String>,
     description: Option<String>,
     doc: Doc,
     current: &mut IdentityMut<R>,
-    signer: &G,
-) -> anyhow::Result<Revision> {
+    signer: &Device<G>,
+) -> anyhow::Result<Revision>
+where
+    R: WriteRepository + cob::Store,
+    G: crypto::signature::Signer<crypto::Signature>,
+{
     if let Some((title, description)) = edit_title_description(title, description)? {
         let id = current.update(title, description, &doc, signer)?;
         let revision = current

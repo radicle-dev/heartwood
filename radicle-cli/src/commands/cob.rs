@@ -471,7 +471,7 @@ pub fn run(Options { op }: Options, ctx: impl term::Context) -> anyhow::Result<(
                     let actions: Vec<cob::patch::Action> = read_jsonl(reader)?;
                     let mut patches = profile.patches_mut(&repo)?;
                     let mut patch = patches.get_mut(oid)?;
-                    patch.transaction(&message, &profile.signer()?, |tx| {
+                    patch.transaction(&message, &*profile.signer()?, |tx| {
                         tx.extend(actions)?;
                         tx.embed(embeds)?;
                         Ok(())
@@ -481,7 +481,7 @@ pub fn run(Options { op }: Options, ctx: impl term::Context) -> anyhow::Result<(
                     let actions: Vec<cob::issue::Action> = read_jsonl(reader)?;
                     let mut issues = profile.issues_mut(&repo)?;
                     let mut issue = issues.get_mut(oid)?;
-                    issue.transaction(&message, &profile.signer()?, |tx| {
+                    issue.transaction(&message, &*profile.signer()?, |tx| {
                         tx.extend(actions)?;
                         tx.embed(embeds)?;
                         Ok(())

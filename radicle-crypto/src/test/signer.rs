@@ -1,9 +1,26 @@
-use crate::{KeyPair, PublicKey, SecretKey, Seed, Signature, Signer, SignerError};
+use crate::{
+    ssh::ExtendedSignature, KeyPair, PublicKey, SecretKey, Seed, Signature, Signer, SignerError,
+};
 
 #[derive(Debug, Clone)]
 pub struct MockSigner {
     pk: PublicKey,
     sk: SecretKey,
+}
+
+impl signature::Signer<ExtendedSignature> for MockSigner {
+    fn try_sign(&self, msg: &[u8]) -> Result<ExtendedSignature, signature::Error> {
+        Ok(ExtendedSignature {
+            key: self.pk,
+            sig: signature::Signer::<Signature>::try_sign(self, msg)?,
+        })
+    }
+}
+
+impl signature::Signer<Signature> for MockSigner {
+    fn try_sign(&self, msg: &[u8]) -> Result<Signature, signature::Error> {
+        Ok(Signature(self.sk.sign(msg, None)))
+    }
 }
 
 impl MockSigner {

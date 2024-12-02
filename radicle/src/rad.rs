@@ -7,11 +7,12 @@ use once_cell::sync::Lazy;
 use thiserror::Error;
 
 use crate::cob::ObjectId;
-use crate::crypto::{Signer, Verified};
+use crate::crypto::Verified;
 use crate::git;
 use crate::identity::doc;
 use crate::identity::doc::{DocError, RepoId, Visibility};
 use crate::identity::project::{Project, ProjectName};
+use crate::node::device::Device;
 use crate::storage::git::transport;
 use crate::storage::git::Repository;
 use crate::storage::refs::SignedRefs;
@@ -48,15 +49,19 @@ pub enum InitError {
 }
 
 /// Initialize a new radicle project from a git repository.
-pub fn init<G: Signer, S: WriteStorage>(
+pub fn init<G, S>(
     repo: &git2::Repository,
     name: ProjectName,
     description: &str,
     default_branch: BranchName,
     visibility: Visibility,
-    signer: &G,
+    signer: &Device<G>,
     storage: S,
-) -> Result<(RepoId, identity::Doc, SignedRefs<Verified>), InitError> {
+) -> Result<(RepoId, identity::Doc, SignedRefs<Verified>), InitError>
+where
+    G: crypto::signature::Signer<crypto::Signature>,
+    S: WriteStorage,
+{
     // TODO: Better error when project id already exists in storage, but remote doesn't.
     let delegate: identity::Did = signer.public_key().into();
     let proj = Project::new(
@@ -98,10 +103,10 @@ fn init_configure<G>(
     default_branch: &BranchName,
     url: &git::Url,
     identity: git::Oid,
-    signer: &G,
+    signer: &Device<G>,
 ) -> Result<SignedRefs<Verified>, InitError>
 where
-    G: crypto::Signer,
+    G: crypto::signature::Signer<crypto::Signature>,
 {
     let pk = signer.public_key();
 
@@ -162,12 +167,16 @@ pub enum ForkError {
 }
 
 /// Create a local tree for an existing project, from an existing remote.
-pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
+pub fn fork_remote<G, S>(
     proj: RepoId,
     remote: &RemoteId,
-    signer: &G,
+    signer: &Device<G>,
     storage: S,
-) -> Result<(), ForkError> {
+) -> Result<(), ForkError>
+where
+    G: crypto::signature::Signer<crypto::Signature>,
+    S: storage::WriteStorage,
+{
     // TODO: Copy tags over?
 
     // Creates or copies the following references:
@@ -197,11 +206,11 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
     Ok(())
 }
 
-pub fn fork<G: Signer, S: storage::WriteStorage>(
-    rid: RepoId,
-    signer: &G,
-    storage: &S,
-) -> Result<(), ForkError> {
+pub fn fork<G, S>(rid: RepoId, signer: &Device<G>, storage: &S) -> Result<(), ForkError>
+where
+    G: crypto::signature::Signer<crypto::Signature>,
+    S: storage::WriteStorage,
+{
     let me = signer.public_key();
     let repository = storage.repository_mut(rid)?;
     let (canonical_branch, canonical_head) = repository.head()?;
@@ -451,7 +460,6 @@ mod tests {
     use std::collections::HashMap;
 
     use pretty_assertions::assert_eq;
-    use radicle_crypto::test::signer::MockSigner;
 
     use crate::git::{name::component, qualified};
     use crate::identity::Did;
@@ -465,7 +473,7 @@ mod tests {
     #[test]
     fn test_init() {
         let tempdir = tempfile::tempdir().unwrap();
-        let signer = MockSigner::default();
+        let signer = Device::mock();
         let public_key = *signer.public_key();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
 
@@ -518,8 +526,8 @@ mod tests {
     fn test_fork() {
         let mut rng = fastrand::Rng::new();
         let tempdir = tempfile::tempdir().unwrap();
-        let alice = MockSigner::new(&mut rng);
-        let bob = MockSigner::new(&mut rng);
+        let alice = Device::mock_rng(&mut rng);
+        let bob = Device::mock_rng(&mut rng);
         let bob_id = bob.public_key();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
 
@@ -556,7 +564,7 @@ mod tests {
     #[test]
     fn test_checkout() {
         let tempdir = tempfile::tempdir().unwrap();
-        let signer = MockSigner::default();
+        let signer = Device::mock();
         let remote_id = signer.public_key();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
 

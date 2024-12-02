@@ -24,6 +24,7 @@ nonempty = { version = "0.9.0", features = ["serialize"] }
 once_cell = { version = "1.13" }
 radicle-git-ext = { version = "0.8.0", features = ["serde"] }
 serde_json = { version = "1.0" }
+signature = { version = "2.2" }
 thiserror = { version = "1.0" }
 
 [dependencies.git2]
