@@ -4,7 +4,6 @@ use std::{collections::BTreeMap, error::Error};
 
 use git_ext::ref_format::RefString;
 use git_ext::Oid;
-use radicle_crypto::PublicKey;
 
 use crate::change::EntryId;
 use crate::{ObjectId, TypeName};
@@ -59,6 +58,8 @@ pub trait Storage {
     type UpdateError: Error + Send + Sync + 'static;
     type RemoveError: Error + Send + Sync + 'static;
 
+    type Namespace;
+
     /// Get all references which point to a head of the change graph for a
     /// particular object
     fn objects(
@@ -74,7 +75,7 @@ pub trait Storage {
     /// Update a ref to a particular collaborative object
     fn update(
         &self,
-        identifier: &PublicKey,
+        namespace: &Self::Namespace,
         typename: &TypeName,
         object_id: &ObjectId,
         entry: &EntryId,
@@ -83,7 +84,7 @@ pub trait Storage {
     /// Remove a ref to a particular collaborative object
     fn remove(
         &self,
-        identifier: &PublicKey,
+        namespace: &Self::Namespace,
         typename: &TypeName,
         object_id: &ObjectId,
     ) -> Result<(), Self::RemoveError>;

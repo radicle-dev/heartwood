@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, convert::TryFrom as _};
 
-use radicle_crypto::PublicKey;
+use radicle_git_ext::ref_format::{refname, Component};
 use tempfile::TempDir;
 
 use crate::{
@@ -105,6 +105,8 @@ impl object::Storage for Storage {
     type UpdateError = git2::Error;
     type RemoveError = git2::Error;
 
+    type Namespace = crypto::PublicKey;
+
     fn objects(
         &self,
         typename: &crate::TypeName,
@@ -148,12 +150,16 @@ impl object::Storage for Storage {
 
     fn update(
         &self,
-        identifier: &PublicKey,
+        namespace: &Self::Namespace,
         typename: &crate::TypeName,
         object_id: &ObjectId,
         entry: &change::EntryId,
     ) -> Result<(), Self::UpdateError> {
-        let name = format!("refs/rad/{}/cobs/{}/{}", identifier, typename, object_id);
+        let name = refname!("refs/rad")
+            .join(Component::from(namespace))
+            .join(refname!("cobs"))
+            .join::<Component>(typename.into())
+            .join::<Component>(object_id.into());
         self.raw
             .reference(&name, (*entry).into(), true, "new change")?;
         Ok(())
@@ -161,11 +167,15 @@ impl object::Storage for Storage {
 
     fn remove(
         &self,
-        identifier: &PublicKey,
+        namespace: &Self::Namespace,
         typename: &crate::TypeName,
         object_id: &ObjectId,
     ) -> Result<(), Self::RemoveError> {
-        let name = format!("refs/rad/{}/cobs/{}/{}", identifier, typename, object_id);
+        let name = refname!("refs/rad")
+            .join(Component::from(namespace))
+            .join(refname!("cobs"))
+            .join::<Component>(typename.into())
+            .join::<Component>(object_id.into());
         self.raw.find_reference(&name)?.delete()?;
 
         Ok(())

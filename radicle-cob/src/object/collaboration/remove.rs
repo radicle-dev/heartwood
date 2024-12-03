@@ -1,7 +1,5 @@
 // Copyright © 2022 The Radicle Link Contributors
 
-use radicle_crypto::PublicKey;
-
 use crate::{ObjectId, Store, TypeName};
 
 use super::error;
@@ -17,7 +15,7 @@ use super::error;
 /// type.
 pub fn remove<S>(
     storage: &S,
-    identifier: &PublicKey,
+    identifier: &S::Namespace,
     typename: &TypeName,
     oid: &ObjectId,
 ) -> Result<(), error::Remove>

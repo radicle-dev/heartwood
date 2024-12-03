@@ -12,7 +12,7 @@ use radicle::issue::cache::Issues as _;
 use radicle::node::notifications;
 use radicle::node::notifications::*;
 use radicle::patch::cache::Patches as _;
-use radicle::prelude::{Profile, RepoId};
+use radicle::prelude::{NodeId, Profile, RepoId};
 use radicle::storage::{BranchName, ReadRepository, ReadStorage};
 use radicle::{cob, git, Storage};
 
@@ -261,7 +261,7 @@ fn list_repo<'a, R: ReadStorage>(
     profile: &Profile,
 ) -> anyhow::Result<Option<term::VStack<'a>>>
 where
-    <R as ReadStorage>::Repository: cob::Store,
+    <R as ReadStorage>::Repository: cob::Store<Namespace = NodeId>,
 {
     let mut table = term::Table::new(term::TableOptions {
         spacing: 3,

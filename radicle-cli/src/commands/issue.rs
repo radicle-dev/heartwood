@@ -13,6 +13,7 @@ use radicle::cob::{issue, thread};
 use radicle::crypto;
 use radicle::issue::cache::Issues as _;
 use radicle::node::device::Device;
+use radicle::node::NodeId;
 use radicle::prelude::{Did, RepoId};
 use radicle::profile;
 use radicle::storage;
@@ -815,7 +816,7 @@ fn open<R, G>(
     profile: &Profile,
 ) -> anyhow::Result<()>
 where
-    R: ReadRepository + WriteRepository + cob::Store,
+    R: ReadRepository + WriteRepository + cob::Store<Namespace = NodeId>,
     G: crypto::signature::Signer<crypto::Signature>,
 {
     let (title, description) = if let (Some(t), Some(d)) = (title.as_ref(), description.as_ref()) {
@@ -849,7 +850,7 @@ fn edit<'a, 'g, R, G>(
     signer: &Device<G>,
 ) -> anyhow::Result<issue::IssueMut<'a, 'g, R, cob::cache::StoreWriter>>
 where
-    R: WriteRepository + ReadRepository + cob::Store,
+    R: WriteRepository + ReadRepository + cob::Store<Namespace = NodeId>,
     G: crypto::signature::Signer<crypto::Signature>,
 {
     let id = id.resolve(&repo.backend)?;
@@ -891,7 +892,7 @@ where
 }
 
 /// Get a comment from the user, by prompting.
-pub fn prompt_comment<R: WriteRepository + radicle::cob::Store>(
+pub fn prompt_comment<R: WriteRepository + radicle::cob::Store<Namespace = NodeId>>(
     message: Message,
     reply_to: Option<Rev>,
     issue: &issue::Issue,

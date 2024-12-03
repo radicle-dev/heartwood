@@ -4,6 +4,7 @@ use thiserror::Error;
 
 use radicle::cob;
 use radicle::git;
+use radicle::prelude::NodeId;
 use radicle::storage::git::transport::local::Url;
 use radicle::storage::ReadRepository;
 use radicle::Profile;
@@ -34,7 +35,7 @@ pub enum Error {
 }
 
 /// List refs for fetching (`git fetch` and `git ls-remote`).
-pub fn for_fetch<R: ReadRepository + cob::Store + 'static>(
+pub fn for_fetch<R: ReadRepository + cob::Store<Namespace = NodeId> + 'static>(
     url: &Url,
     profile: &Profile,
     stored: &R,
@@ -83,7 +84,7 @@ pub fn for_push<R: ReadRepository>(profile: &Profile, stored: &R) -> Result<(), 
 }
 
 /// List canonical patch references. These are magic refs that can be used to pull patch updates.
-fn patch_refs<R: ReadRepository + cob::Store + 'static>(
+fn patch_refs<R: ReadRepository + cob::Store<Namespace = NodeId> + 'static>(
     profile: &Profile,
     stored: &R,
 ) -> Result<(), Error> {

@@ -3,6 +3,7 @@ use radicle::{
         self,
         cache::{MigrateCallback, MigrateProgress},
     },
+    prelude::NodeId,
     profile,
     storage::ReadRepository,
     Profile,
@@ -61,7 +62,7 @@ pub fn patches<'a, R>(
     repository: &'a R,
 ) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreReader>, anyhow::Error>
 where
-    R: ReadRepository + cob::Store,
+    R: ReadRepository + cob::Store<Namespace = NodeId>,
 {
     profile.patches(repository).map_err(with_hint)
 }
@@ -72,7 +73,7 @@ pub fn patches_mut<'a, R>(
     repository: &'a R,
 ) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreWriter>, anyhow::Error>
 where
-    R: ReadRepository + cob::Store,
+    R: ReadRepository + cob::Store<Namespace = NodeId>,
 {
     profile.patches_mut(repository).map_err(with_hint)
 }
@@ -83,7 +84,7 @@ pub fn issues<'a, R>(
     repository: &'a R,
 ) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreReader>, anyhow::Error>
 where
-    R: ReadRepository + cob::Store,
+    R: ReadRepository + cob::Store<Namespace = NodeId>,
 {
     profile.issues(repository).map_err(with_hint)
 }
@@ -94,7 +95,7 @@ pub fn issues_mut<'a, R>(
     repository: &'a R,
 ) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreWriter>, anyhow::Error>
 where
-    R: ReadRepository + cob::Store,
+    R: ReadRepository + cob::Store<Namespace = NodeId>,
 {
     profile.issues_mut(repository).map_err(with_hint)
 }

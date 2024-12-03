@@ -11,19 +11,17 @@ use storage::RepositoryError;
 use storage::SignRepository;
 use storage::ValidateRepository;
 
+use crate::git;
 use crate::git::*;
 use crate::identity;
 use crate::identity::doc::DocError;
 use crate::node::device::Device;
+use crate::node::NodeId;
 use crate::storage;
 use crate::storage::Error;
 use crate::storage::{
     git::{Remote, Remotes, Validations},
     ReadRepository, Verified,
-};
-use crate::{
-    git, identity,
-    identity::{doc::DocError, PublicKey},
 };
 
 use super::{RemoteId, Repository};
@@ -92,6 +90,8 @@ impl cob::object::Storage for Repository {
     type UpdateError = git2::Error;
     type RemoveError = git2::Error;
 
+    type Namespace = NodeId;
+
     fn objects(
         &self,
         typename: &cob::TypeName,
@@ -146,13 +146,13 @@ impl cob::object::Storage for Repository {
 
     fn update(
         &self,
-        identifier: &PublicKey,
+        namespace: &Self::Namespace,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
         entry: &cob::EntryId,
     ) -> Result<(), Self::UpdateError> {
         self.backend.reference(
-            git::refs::storage::cob(identifier, typename, object_id).as_str(),
+            git::refs::storage::cob(namespace, typename, object_id).as_str(),
             (*entry).into(),
             true,
             &format!(
@@ -166,13 +166,13 @@ impl cob::object::Storage for Repository {
 
     fn remove(
         &self,
-        identifier: &PublicKey,
+        namespace: &Self::Namespace,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<(), Self::RemoveError> {
         let mut reference = self
             .backend
-            .find_reference(git::refs::storage::cob(identifier, typename, object_id).as_str())?;
+            .find_reference(git::refs::storage::cob(namespace, typename, object_id).as_str())?;
 
         reference.delete()
     }
@@ -377,6 +377,8 @@ impl<R: storage::WriteRepository> cob::object::Storage for DraftStore<'_, R> {
     type UpdateError = git2::Error;
     type RemoveError = git2::Error;
 
+    type Namespace = NodeId;
+
     fn objects(
         &self,
         typename: &cob::TypeName,
@@ -421,13 +423,13 @@ impl<R: storage::WriteRepository> cob::object::Storage for DraftStore<'_, R> {
 
     fn update(
         &self,
-        identifier: &PublicKey,
+        namespace: &Self::Namespace,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
         entry: &cob::history::EntryId,
     ) -> Result<(), Self::UpdateError> {
         self.repo.raw().reference(
-            git::refs::storage::draft::cob(identifier, typename, object_id).as_str(),
+            git::refs::storage::draft::cob(namespace, typename, object_id).as_str(),
             (*entry).into(),
             true,
             &format!(
@@ -441,12 +443,12 @@ impl<R: storage::WriteRepository> cob::object::Storage for DraftStore<'_, R> {
 
     fn remove(
         &self,
-        identifier: &PublicKey,
+        namespace: &Self::Namespace,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<(), Self::RemoveError> {
         let mut reference = self.repo.raw().find_reference(
-            git::refs::storage::draft::cob(identifier, typename, object_id).as_str(),
+            git::refs::storage::draft::cob(namespace, typename, object_id).as_str(),
         )?;
 
         reference.delete()

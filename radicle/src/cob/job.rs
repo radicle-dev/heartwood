@@ -21,6 +21,7 @@ use crate::cob::{EntryId, ObjectId, TypeName};
 use crate::crypto::ssh::ExtendedSignature;
 use crate::git;
 use crate::node::device::Device;
+use crate::node::NodeId;
 use crate::prelude::ReadRepository;
 use crate::storage::{Oid, WriteRepository};
 
@@ -315,7 +316,7 @@ impl<R> std::fmt::Debug for JobMut<'_, '_, R> {
 
 impl<R> JobMut<'_, '_, R>
 where
-    R: WriteRepository + cob::Store,
+    R: WriteRepository + cob::Store<Namespace = NodeId>,
 {
     /// Reload the COB from storage.
     pub fn reload(&mut self) -> Result<(), store::Error> {
@@ -397,7 +398,7 @@ impl<'a, R> Deref for JobStore<'a, R> {
 
 impl<'a, R> JobStore<'a, R>
 where
-    R: WriteRepository + ReadRepository + cob::Store,
+    R: WriteRepository + ReadRepository + cob::Store<Namespace = NodeId>,
 {
     pub fn open(repository: &'a R) -> Result<Self, store::Error> {
         let raw = store::Store::open(repository)?;

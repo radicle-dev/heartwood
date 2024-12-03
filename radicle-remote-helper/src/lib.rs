@@ -13,6 +13,7 @@ use std::{env, fmt, io};
 
 use thiserror::Error;
 
+use radicle::prelude::NodeId;
 use radicle::storage::git::transport::local::{Url, UrlError};
 use radicle::storage::{ReadRepository, WriteStorage};
 use radicle::{cob, profile};
@@ -262,7 +263,7 @@ pub(crate) fn warn(s: impl fmt::Display) {
 }
 
 /// Get the patch store.
-pub(crate) fn patches<'a, R: ReadRepository + cob::Store>(
+pub(crate) fn patches<'a, R: ReadRepository + cob::Store<Namespace = NodeId>>(
     profile: &Profile,
     repo: &'a R,
 ) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreReader>, list::Error> {

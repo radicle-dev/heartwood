@@ -364,6 +364,8 @@ impl radicle_cob::object::Storage for MockRepository {
     type UpdateError = Infallible;
     type RemoveError = Infallible;
 
+    type Namespace = crypto::PublicKey;
+
     fn objects(
         &self,
         _typename: &radicle_cob::TypeName,
@@ -384,7 +386,7 @@ impl radicle_cob::object::Storage for MockRepository {
 
     fn update(
         &self,
-        _identifier: &radicle_crypto::PublicKey,
+        _namespace: &Self::Namespace,
         _typename: &radicle_cob::TypeName,
         _object_id: &radicle_cob::ObjectId,
         _entry: &radicle_cob::EntryId,
@@ -394,7 +396,7 @@ impl radicle_cob::object::Storage for MockRepository {
 
     fn remove(
         &self,
-        _identifier: &radicle_crypto::PublicKey,
+        _namespace: &Self::Namespace,
         _typename: &radicle_cob::TypeName,
         _object_id: &radicle_cob::ObjectId,
     ) -> Result<(), Self::RemoveError> {

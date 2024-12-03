@@ -1976,7 +1976,7 @@ pub struct PatchMut<'a, 'g, R, C> {
 impl<'a, 'g, R, C> PatchMut<'a, 'g, R, C>
 where
     C: cob::cache::Update<Patch>,
-    R: ReadRepository + SignRepository + cob::Store,
+    R: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
 {
     pub fn new(id: ObjectId, patch: Patch, cache: &'g mut Cache<Patches<'a, R>, C>) -> Self {
         Self {
@@ -2507,7 +2507,7 @@ where
 
 impl<'a, R> Patches<'a, R>
 where
-    R: ReadRepository + cob::Store,
+    R: ReadRepository + cob::Store<Namespace = NodeId>,
 {
     /// Open a patches store.
     pub fn open(repository: &'a R) -> Result<Self, RepositoryError> {
@@ -2590,7 +2590,7 @@ where
 
 impl<'a, R> Patches<'a, R>
 where
-    R: ReadRepository + SignRepository + cob::Store,
+    R: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
 {
     /// Open a new patch.
     pub fn create<'g, C, G>(
