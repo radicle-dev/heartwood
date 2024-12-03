@@ -1,4 +1,6 @@
 use std::ffi::OsString;
+use std::io;
+use std::io::Write;
 use std::str::FromStr;
 
 use anyhow::anyhow;
@@ -10,7 +12,9 @@ use radicle::identity::Identity;
 use radicle::issue::cache::Issues;
 use radicle::patch::cache::Patches;
 use radicle::prelude::RepoId;
+use radicle::storage::git;
 use radicle::storage::ReadStorage;
+use radicle::Profile;
 use radicle_cob::object::collaboration::list;
 use serde_json::json;
 
@@ -227,41 +231,63 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         } => {
             let repo = storage.repository(repo)?;
 
-            if type_name == cob::patch::TYPENAME.clone() {
-                let patches = term::cob::patches(&profile, &repo)?;
-                for oid in revs {
-                    let oid = &oid.resolve(&repo.backend)?;
-                    let Some(patch) = patches.get(oid)? else {
-                        anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
-                    };
-                    serde_json::to_writer(std::io::stdout(), &patch)?;
-                    println!()
+            match show(revs, &repo, type_name, &profile) {
+                Err(e) => {
+                    if let Some(err) = e.downcast_ref::<io::Error>() {
+                        if err.kind() == io::ErrorKind::BrokenPipe {
+                            return Ok(());
+                        }
+                    }
+                    return Err(e);
                 }
-            } else if type_name == cob::issue::TYPENAME.clone() {
-                let issues = term::cob::issues(&profile, &repo)?;
-                for oid in revs {
-                    let oid = &oid.resolve(&repo.backend)?;
-                    let Some(issue) = issues.get(oid)? else {
-                        anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
-                    };
-                    serde_json::to_writer(std::io::stdout(), &issue)?;
-                    println!()
-                }
-            } else if type_name == cob::identity::TYPENAME.clone() {
-                for oid in revs {
-                    let oid = &oid.resolve(&repo.backend)?;
-                    let Some(cob) = cob::get::<Identity, _>(&repo, &type_name, oid)? else {
-                        anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
-                    };
-                    serde_json::to_writer(std::io::stdout(), &cob.object)?;
-                    println!()
-                }
-            } else {
-                anyhow::bail!("the type name '{type_name}' is unknown");
+                Ok(()) => {}
             }
         }
     }
 
+    Ok(())
+}
+
+fn show(
+    revs: Vec<Rev>,
+    repo: &git::Repository,
+    type_name: cob::TypeName,
+    profile: &Profile,
+) -> Result<(), anyhow::Error> {
+    let mut stdout = std::io::stdout();
+
+    if type_name == cob::patch::TYPENAME.clone() {
+        let patches = term::cob::patches(&profile, repo)?;
+        for oid in revs {
+            let oid = &oid.resolve(&repo.backend)?;
+            let Some(patch) = patches.get(oid)? else {
+                anyhow::bail!(cob::store::Error::NotFound(type_name, *oid));
+            };
+            serde_json::to_writer(&stdout, &patch)?;
+            stdout.write_all(b"\n")?;
+        }
+    } else if type_name == cob::issue::TYPENAME.clone() {
+        let issues = term::cob::issues(&profile, repo)?;
+        for oid in revs {
+            let oid = &oid.resolve(&repo.backend)?;
+            let Some(issue) = issues.get(oid)? else {
+                anyhow::bail!(cob::store::Error::NotFound(type_name, *oid))
+            };
+            serde_json::to_writer(&stdout, &issue)?;
+            stdout.write_all(b"\n")?;
+        }
+    } else if type_name == cob::identity::TYPENAME.clone() {
+        for oid in revs {
+            let oid = &oid.resolve(&repo.backend)?;
+            let Some(cob) = cob::get::<Identity, _>(repo, &type_name, oid)? else {
+                anyhow::bail!(cob::store::Error::NotFound(type_name, *oid));
+            };
+            serde_json::to_writer(&stdout, &cob.object)?;
+            stdout.write_all(b"\n")?;
+        }
+    } else {
+        anyhow::bail!("the type name '{type_name}' is unknown");
+    }
     Ok(())
 }
 
