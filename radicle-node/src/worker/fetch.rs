@@ -8,6 +8,7 @@ use localtime::LocalTime;
 use radicle::cob::TypedId;
 use radicle::crypto::PublicKey;
 use radicle::identity::DocAt;
+use radicle::prelude::NodeId;
 use radicle::prelude::RepoId;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{
@@ -299,7 +300,7 @@ fn cache_cobs<S, C>(
     cache: &mut C,
 ) -> Result<(), error::Cache>
 where
-    S: ReadRepository + cob::Store,
+    S: ReadRepository + cob::Store<Namespace = NodeId>,
     C: cob::cache::Update<cob::issue::Issue> + cob::cache::Update<cob::patch::Patch>,
     C: cob::cache::Remove<cob::issue::Issue> + cob::cache::Remove<cob::patch::Patch>,
 {

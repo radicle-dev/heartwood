@@ -13,16 +13,14 @@ use storage::ValidateRepository;
 
 use crate::git::*;
 use crate::node::device::Device;
+use crate::node::NodeId;
 use crate::storage;
 use crate::storage::Error;
 use crate::storage::{
     git::{Remote, Remotes, Validations},
     ReadRepository, Verified,
 };
-use crate::{
-    git, identity,
-    identity::{doc::DocError, PublicKey},
-};
+use crate::{git, identity, identity::doc::DocError};
 
 use super::{RemoteId, Repository};
 
@@ -90,6 +88,8 @@ impl cob::object::Storage for Repository {
     type UpdateError = git2::Error;
     type RemoveError = git2::Error;
 
+    type Namespace = NodeId;
+
     fn objects(
         &self,
         typename: &cob::TypeName,
@@ -144,7 +144,7 @@ impl cob::object::Storage for Repository {
 
     fn update(
         &self,
-        identifier: &PublicKey,
+        identifier: &Self::Namespace,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
         entry: &cob::EntryId,
@@ -164,7 +164,7 @@ impl cob::object::Storage for Repository {
 
     fn remove(
         &self,
-        identifier: &PublicKey,
+        identifier: &Self::Namespace,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<(), Self::RemoveError> {
@@ -375,6 +375,8 @@ impl<R: storage::WriteRepository> cob::object::Storage for DraftStore<'_, R> {
     type UpdateError = git2::Error;
     type RemoveError = git2::Error;
 
+    type Namespace = NodeId;
+
     fn objects(
         &self,
         typename: &cob::TypeName,
@@ -419,7 +421,7 @@ impl<R: storage::WriteRepository> cob::object::Storage for DraftStore<'_, R> {
 
     fn update(
         &self,
-        identifier: &PublicKey,
+        identifier: &Self::Namespace,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
         entry: &cob::history::EntryId,
@@ -439,7 +441,7 @@ impl<R: storage::WriteRepository> cob::object::Storage for DraftStore<'_, R> {
 
     fn remove(
         &self,
-        identifier: &PublicKey,
+        identifier: &Self::Namespace,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<(), Self::RemoveError> {

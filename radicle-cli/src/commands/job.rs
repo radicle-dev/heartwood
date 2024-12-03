@@ -6,7 +6,7 @@ use anyhow::{anyhow, Context as _};
 use radicle::cob::job::{JobStore, Reason, State};
 use radicle::crypto;
 use radicle::node::device::Device;
-use radicle::node::Handle;
+use radicle::node::{Handle, NodeId};
 use radicle::storage::{WriteRepository, WriteStorage};
 use radicle::{cob, Node};
 
@@ -269,7 +269,7 @@ fn trigger<R, G>(
     quiet: bool,
 ) -> anyhow::Result<()>
 where
-    R: WriteRepository + cob::Store,
+    R: WriteRepository + cob::Store<Namespace = NodeId>,
     G: crypto::signature::Signer<crypto::Signature>,
 {
     let commit = commit.resolve(&repo.backend)?;
@@ -289,7 +289,7 @@ fn start<R, G>(
     signer: &Device<G>,
 ) -> anyhow::Result<()>
 where
-    R: WriteRepository + cob::Store,
+    R: WriteRepository + cob::Store<Namespace = NodeId>,
     G: crypto::signature::Signer<crypto::Signature>,
 {
     let job_id = job_id.resolve(&repo.backend)?;
@@ -301,7 +301,9 @@ where
 }
 
 // TODO: This should use the COB cache for performance.
-fn list<R: WriteRepository + cob::Store>(store: &JobStore<R>) -> anyhow::Result<()> {
+fn list<R: WriteRepository + cob::Store<Namespace = NodeId>>(
+    store: &JobStore<R>,
+) -> anyhow::Result<()> {
     if store.is_empty()? {
         term::print(term::format::italic("Nothing to show."));
         return Ok(());
@@ -343,7 +345,7 @@ fn list<R: WriteRepository + cob::Store>(store: &JobStore<R>) -> anyhow::Result<
     Ok(())
 }
 
-fn show<R: WriteRepository + cob::Store>(
+fn show<R: WriteRepository + cob::Store<Namespace = NodeId>>(
     job_id: &Rev,
     store: &JobStore<R>,
     repo: &radicle::storage::git::Repository,
@@ -366,7 +368,7 @@ fn finish<R, G>(
     signer: &Device<G>,
 ) -> anyhow::Result<()>
 where
-    R: WriteRepository + cob::Store,
+    R: WriteRepository + cob::Store<Namespace = NodeId>,
     G: crypto::signature::Signer<crypto::Signature>,
 {
     let job_id = job_id.resolve(&repo.backend)?;

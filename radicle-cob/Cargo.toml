@@ -54,4 +54,4 @@ qcheck-macros = { version = "1", default-features = false }
 [dev-dependencies.radicle-crypto]
 path = "../radicle-crypto"
 version = "0"
-features = ["test"]
+features = ["test", "radicle-git-ext"]

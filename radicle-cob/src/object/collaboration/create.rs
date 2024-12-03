@@ -1,7 +1,6 @@
 // Copyright © 2022 The Radicle Link Contributors
 
 use nonempty::NonEmpty;
-use radicle_crypto::PublicKey;
 
 use crate::Embed;
 use crate::Evaluate;
@@ -58,7 +57,7 @@ pub fn create<T, S, G>(
     signer: &G,
     resource: Option<Oid>,
     related: Vec<Oid>,
-    identifier: &PublicKey,
+    identifier: &S::Namespace,
     args: Create,
 ) -> Result<CollaborativeObject<T>, error::Create>
 where

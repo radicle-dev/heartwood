@@ -174,7 +174,7 @@ where
 
 impl<'a, T, R> Store<'a, T, R>
 where
-    R: ReadRepository + cob::Store,
+    R: ReadRepository + cob::Store<Namespace = NodeId>,
     T: CobWithType,
 {
     /// Open a new generic store.
@@ -190,7 +190,7 @@ where
 
 impl<T, R> Store<'_, T, R>
 where
-    R: ReadRepository + cob::Store,
+    R: ReadRepository + cob::Store<Namespace = NodeId>,
     T: Cob + cob::Evaluate<R>,
 {
     pub fn transaction(
@@ -204,7 +204,7 @@ where
 
 impl<T, R> Store<'_, T, R>
 where
-    R: ReadRepository + SignRepository + cob::Store,
+    R: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
     T: Cob + cob::Evaluate<R>,
     T::Action: Serialize,
 {
@@ -423,7 +423,7 @@ where
         Self: From<Tx>,
         G: crypto::signature::Signer<crypto::Signature>,
         F: FnOnce(&mut Tx, &R) -> Result<(), Error>,
-        R: ReadRepository + SignRepository + cob::Store,
+        R: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
         T::Action: Serialize + Clone,
     {
         let mut tx = Tx::from(Transaction::default());
@@ -487,7 +487,7 @@ where
         signer: &Device<G>,
     ) -> Result<(T, EntryId), Error>
     where
-        R: ReadRepository + SignRepository + cob::Store,
+        R: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
         T::Action: Serialize + Clone,
         G: crypto::signature::Signer<crypto::Signature>,
     {

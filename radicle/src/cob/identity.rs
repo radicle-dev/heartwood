@@ -11,6 +11,7 @@ use thiserror::Error;
 
 use crate::identity::doc::Doc;
 use crate::node::device::Device;
+use crate::node::NodeId;
 use crate::{
     cob,
     cob::{
@@ -192,13 +193,14 @@ impl Identity {
         }
     }
 
-    pub fn initialize<'a, R: WriteRepository + cob::Store, G>(
+    pub fn initialize<'a, R, G>(
         doc: &Doc,
         store: &'a R,
         signer: &Device<G>,
     ) -> Result<IdentityMut<'a, R>, cob::store::Error>
     where
         G: crypto::signature::Signer<crypto::Signature>,
+        R: WriteRepository + cob::Store<Namespace = NodeId>,
     {
         let mut store = cob::store::Store::open(store)?;
         let (id, identity) = Transaction::<Identity, _>::initial(
@@ -227,7 +229,7 @@ impl Identity {
     }
 
     /// Get a proposal mutably.
-    pub fn get_mut<'a, R: WriteRepository + cob::Store>(
+    pub fn get_mut<'a, R: WriteRepository + cob::Store<Namespace = NodeId>>(
         id: &ObjectId,
         repo: &'a R,
     ) -> Result<IdentityMut<'a, R>, store::Error> {
@@ -248,7 +250,7 @@ impl Identity {
         Self::get(&oid, repo).map_err(RepositoryError::from)
     }
 
-    pub fn load_mut<R: WriteRepository + cob::Store>(
+    pub fn load_mut<R: WriteRepository + cob::Store<Namespace = NodeId>>(
         repo: &R,
     ) -> Result<IdentityMut<R>, RepositoryError> {
         let oid = repo.identity_root()?;
@@ -892,7 +894,7 @@ impl<R> fmt::Debug for IdentityMut<'_, R> {
 
 impl<R> IdentityMut<'_, R>
 where
-    R: WriteRepository + cob::Store,
+    R: WriteRepository + cob::Store<Namespace = NodeId>,
 {
     /// Reload the identity data from storage.
     pub fn reload(&mut self) -> Result<(), store::Error> {

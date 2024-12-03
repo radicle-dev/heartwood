@@ -7,6 +7,7 @@ use anyhow::{anyhow, Context};
 use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
 use radicle::identity::{doc, Doc, Identity, PayloadError, RawDoc, Visibility};
 use radicle::node::device::Device;
+use radicle::node::NodeId;
 use radicle::prelude::{Did, RepoId};
 use radicle::storage::refs;
 use radicle::storage::{ReadRepository, ReadStorage as _, WriteRepository};
@@ -731,7 +732,7 @@ fn update<R, G>(
     signer: &Device<G>,
 ) -> anyhow::Result<Revision>
 where
-    R: WriteRepository + cob::Store,
+    R: WriteRepository + cob::Store<Namespace = NodeId>,
     G: crypto::signature::Signer<crypto::Signature>,
 {
     if let Some((title, description)) = edit_title_description(title, description)? {

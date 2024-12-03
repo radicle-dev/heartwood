@@ -605,7 +605,7 @@ impl Home {
         repository: &'a R,
     ) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreReader>, Error>
     where
-        R: ReadRepository + cob::Store,
+        R: ReadRepository + cob::Store<Namespace = NodeId>,
     {
         let db = self.cobs_db()?;
         let store = cob::issue::Issues::open(repository)?;
@@ -621,7 +621,7 @@ impl Home {
         repository: &'a R,
     ) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreWriter>, Error>
     where
-        R: ReadRepository + cob::Store,
+        R: ReadRepository + cob::Store<Namespace = NodeId>,
     {
         let db = self.cobs_db_mut()?;
         let store = cob::issue::Issues::open(repository)?;
@@ -637,7 +637,7 @@ impl Home {
         repository: &'a R,
     ) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreReader>, Error>
     where
-        R: ReadRepository + cob::Store,
+        R: ReadRepository + cob::Store<Namespace = NodeId>,
     {
         let db = self.cobs_db()?;
         let store = cob::patch::Patches::open(repository)?;
@@ -653,7 +653,7 @@ impl Home {
         repository: &'a R,
     ) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreWriter>, Error>
     where
-        R: ReadRepository + cob::Store,
+        R: ReadRepository + cob::Store<Namespace = NodeId>,
     {
         let db = self.cobs_db_mut()?;
         let store = cob::patch::Patches::open(repository)?;

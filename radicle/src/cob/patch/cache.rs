@@ -15,8 +15,8 @@ use crate::prelude::RepoId;
 use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
 
 use super::{
-    ByRevision, MergeTarget, Patch, PatchCounts, PatchId, PatchMut, Revision, RevisionId, State,
-    Status,
+    ByRevision, MergeTarget, NodeId, Patch, PatchCounts, PatchId, PatchMut, Revision, RevisionId,
+    State, Status,
 };
 
 /// A set of read-only methods for a [`Patch`] store.
@@ -119,7 +119,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
         signer: &Device<G>,
     ) -> Result<PatchMut<'a, 'g, R, C>, super::Error>
     where
-        R: WriteRepository + cob::Store,
+        R: WriteRepository + cob::Store<Namespace = NodeId>,
         G: crypto::signature::Signer<crypto::Signature>,
         C: Update<Patch>,
     {
@@ -149,7 +149,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
         signer: &Device<G>,
     ) -> Result<PatchMut<'a, 'g, R, C>, super::Error>
     where
-        R: WriteRepository + cob::Store,
+        R: WriteRepository + cob::Store<Namespace = NodeId>,
         G: crypto::signature::Signer<crypto::Signature>,
         C: Update<Patch>,
     {
@@ -170,7 +170,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
     pub fn remove<G>(&mut self, id: &PatchId, signer: &Device<G>) -> Result<(), super::Error>
     where
         G: crypto::signature::Signer<crypto::Signature>,
-        R: ReadRepository + SignRepository + cob::Store,
+        R: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
         C: Remove<Patch>,
     {
         self.store.remove(id, signer)?;
@@ -276,7 +276,7 @@ where
 
 impl<'a, R> Cache<super::Patches<'a, R>, cache::NoCache>
 where
-    R: ReadRepository + cob::Store,
+    R: ReadRepository + cob::Store<Namespace = NodeId>,
 {
     /// Get a `Cache` that does no write-through modifications and
     /// uses the [`super::Patches`] store for all reads and writes.
@@ -488,7 +488,7 @@ impl Iterator for NoCacheIter<'_> {
 
 impl<R> Patches for Cache<super::Patches<'_, R>, cache::NoCache>
 where
-    R: ReadRepository + cob::Store,
+    R: ReadRepository + cob::Store<Namespace = NodeId>,
 {
     type Error = super::Error;
     type Iter<'b>

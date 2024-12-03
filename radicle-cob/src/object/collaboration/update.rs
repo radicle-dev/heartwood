@@ -3,7 +3,6 @@ use std::iter;
 
 use git_ext::Oid;
 use nonempty::NonEmpty;
-use radicle_crypto::PublicKey;
 
 use crate::{
     change, change_graph::ChangeGraph, history::EntryId, CollaborativeObject, Embed, Evaluate,
@@ -61,7 +60,7 @@ pub fn update<T, S, G>(
     signer: &G,
     resource: Option<Oid>,
     related: Vec<Oid>,
-    identifier: &PublicKey,
+    identifier: &S::Namespace,
     args: Update,
 ) -> Result<Updated<T>, error::Update>
 where
