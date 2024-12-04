@@ -23,8 +23,8 @@ while [ $# -gt 0 ]; do
 done
 
 # Current/latest tag.
-tag=$(git describe)
-version=$(echo $tag | sed 's/^v//')
+current=$(git describe --tags --match='v*' --abbrev=0)
+version=$(echo $current | sed 's/^v//')
 
 if [ -z "$from" ]; then
   previous="$(git describe --abbrev=0 HEAD^)"
@@ -52,9 +52,15 @@ echo
 echo "* This update is recommended for everyone. No manual intervention is required."
 echo
 echo "## Changelog"
+
+ncommits=$(git rev-list --count $previous..$current)
+ncontribs=$(git log $previous..HEAD --format='%ae' | sort -u | wc -l)
+
+echo
+echo "This release contains $ncommits commit(s) by $ncontribs contributor(s)."
 echo
 
-git log --pretty=format:'* `%h` **%s** *<%ae>*' $previous..HEAD
+git log --pretty=format:'* `%h` **%s** *<%ae>*' $previous..$current
 
 echo
 echo "## Checksums"
