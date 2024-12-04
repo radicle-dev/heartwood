@@ -231,16 +231,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         } => {
             let repo = storage.repository(repo)?;
 
-            match show(revs, &repo, type_name, &profile) {
-                Err(e) => {
-                    if let Some(err) = e.downcast_ref::<io::Error>() {
-                        if err.kind() == io::ErrorKind::BrokenPipe {
-                            return Ok(());
-                        }
+            if let Err(e) = show(revs, &repo, type_name, &profile) {
+                if let Some(err) = e.downcast_ref::<io::Error>() {
+                    if err.kind() == io::ErrorKind::BrokenPipe {
+                        return Ok(());
                     }
-                    return Err(e);
                 }
-                Ok(()) => {}
+                return Err(e);
             }
         }
     }
@@ -257,7 +254,7 @@ fn show(
     let mut stdout = std::io::stdout();
 
     if type_name == cob::patch::TYPENAME.clone() {
-        let patches = term::cob::patches(&profile, repo)?;
+        let patches = term::cob::patches(profile, repo)?;
         for oid in revs {
             let oid = &oid.resolve(&repo.backend)?;
             let Some(patch) = patches.get(oid)? else {
@@ -267,7 +264,7 @@ fn show(
             stdout.write_all(b"\n")?;
         }
     } else if type_name == cob::issue::TYPENAME.clone() {
-        let issues = term::cob::issues(&profile, repo)?;
+        let issues = term::cob::issues(profile, repo)?;
         for oid in revs {
             let oid = &oid.resolve(&repo.backend)?;
             let Some(issue) = issues.get(oid)? else {
