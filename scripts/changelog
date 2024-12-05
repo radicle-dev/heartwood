@@ -54,7 +54,7 @@ echo
 echo "## Changelog"
 
 ncommits=$(git rev-list --count $previous..$current)
-ncontribs=$(git log $previous..HEAD --format='%ae' | sort -u | wc -l)
+ncontribs=$(git log $previous..$current --format='%ae' | sort -u | wc -l)
 
 echo
 echo "This release contains $ncommits commit(s) by $ncontribs contributor(s)."
