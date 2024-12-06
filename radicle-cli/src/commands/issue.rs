@@ -37,7 +37,7 @@ Usage
 
     rad issue [<option>...]
     rad issue delete <issue-id> [<option>...]
-    rad issue edit <issue-id> [<option>...]
+    rad issue edit <issue-id> [--title <title>] [--description <text>] [<option>...]
     rad issue list [--assigned <did>] [--all | --closed | --open | --solved] [<option>...]
     rad issue open [--title <title>] [--description <text>] [--label <label>] [<option>...]
     rad issue react <issue-id> [--emoji <char>] [--to <comment>] [<option>...]
@@ -223,9 +223,16 @@ impl Args for Options {
                     });
                 }
 
-                // Open options.
-                Long("title") if op == Some(OperationName::Open) => {
+                // Open/Edit options.
+                Long("title")
+                    if op == Some(OperationName::Open) || op == Some(OperationName::Edit) =>
+                {
                     title = Some(parser.value()?.to_string_lossy().into());
+                }
+                Long("description")
+                    if op == Some(OperationName::Open) || op == Some(OperationName::Edit) =>
+                {
+                    description = Some(parser.value()?.to_string_lossy().into());
                 }
                 Short('l') | Long("label") if matches!(op, Some(OperationName::Open)) => {
                     let val = parser.value()?;
@@ -239,9 +246,6 @@ impl Args for Options {
                     let did = term::args::did(&val)?;
 
                     assignees.push(did);
-                }
-                Long("description") if op == Some(OperationName::Open) => {
-                    description = Some(parser.value()?.to_string_lossy().into());
                 }
 
                 // State options.
