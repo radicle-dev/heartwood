@@ -16,8 +16,8 @@ still returns successfully.
 ```
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --timeout 3
 ✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
-✗ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk.. error: failed to perform fetch handshake
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
+✗ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk@[..].. error: failed to perform fetch handshake
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
 ✗ Connecting to z6MksFq…bS9wzpT@[..].. error: connection reset
 ✓ Creating checkout in ./heartwood..
 ✓ Remote alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi added

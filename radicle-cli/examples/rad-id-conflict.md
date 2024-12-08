@@ -7,7 +7,7 @@ $ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delega
 ``` ~bob
 $ cd heartwood
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
 ```
 
@@ -28,7 +28,7 @@ revisions.
 
 ``` ~alice
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk@[..]..
 ✓ Fetched repository from 1 seed(s)
 $ rad id list
 ╭─────────────────────────────────────────────────────────────────────────────────╮
@@ -62,7 +62,7 @@ accepted now.
 
 ``` ~bob
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
 ```
 ``` ~bob (fail)

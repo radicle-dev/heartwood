@@ -9,8 +9,8 @@ to have a fork of the project and Alice must be aware of the fork:
 ``` ~bob
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope followed
 ✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'followed'
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
 ✓ Creating checkout in ./heartwood..
 ✓ Remote alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi added
 ✓ Remote-tracking branch alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi
@@ -50,15 +50,15 @@ So, instead Alice needs to first follow Bob and fetch his references:
 $ rad follow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias bob
 ✓ Follow policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
 $ rad sync
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
 ✓ Fetched repository from 2 seed(s)
 ✓ Synced with 1 node(s)
 $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --description "" --threshold 2 --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm -q
 069e7d58faa9a7473d27f5510d676af33282796f
 $ rad sync
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
 ✓ Fetched repository from 2 seed(s)
 ✓ Synced with 3 node(s)
 ```
@@ -67,8 +67,8 @@ Bob can confirm that he was made a delegate by fetching the update:
 
 ``` ~bob
 $ rad sync
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
 ✓ Fetched repository from 2 seed(s)
 ✓ Synced with 1 node(s)
 $ rad inspect --delegates
@@ -83,8 +83,8 @@ between Alice and Bob. Eve first needs to setup a fork:
 ``` ~eve
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope followed
 ✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'followed'
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
 ✓ Creating checkout in ./heartwood..
 ✓ Remote alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi added
 ✓ Remote-tracking branch alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi
@@ -107,8 +107,8 @@ Bob then adds Eve as a delegate:
 $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --description "" --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --no-confirm -q
 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3
 $ rad sync
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
 ✓ Fetched repository from 2 seed(s)
 ✓ Synced with 3 node(s)
 ```
@@ -122,8 +122,8 @@ the change to meet a quorum of votes (`votes >= (delegates / 2) + 1`):
 
 ``` ~alice
 $ rad sync
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
 ✓ Fetched repository from 2 seed(s)
 ✓ Nothing to announce, already in sync with 3 node(s) (see `rad sync status`)
 $ rad id list
@@ -157,8 +157,8 @@ since she has become a delegate:
 
 ``` ~alice
 $ rad sync --timeout 3
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
 ✓ Fetched repository from 2 seed(s)
 ✓ Synced with 3 node(s)
 $ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
@@ -173,8 +173,8 @@ see that both seeds are `synced`:
 
 ``` ~eve
 $ rad sync
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
 ✓ Fetched repository from 2 seed(s)
 ✓ Synced with 3 node(s)
 $ rad sync status

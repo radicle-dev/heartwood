@@ -9,9 +9,9 @@ use anyhow::{anyhow, Context as _};
 
 use radicle::node;
 use radicle::node::address::Store;
-use radicle::node::AliasStore;
-use radicle::node::Seed;
-use radicle::node::{FetchResult, FetchResults, Handle as _, Node, SyncStatus};
+use radicle::node::{
+    AliasStore, FetchResult, FetchResults, Handle as _, Node, Seed, Session, SyncStatus,
+};
 use radicle::prelude::{NodeId, Profile, RepoId};
 use radicle::storage::{ReadStorage, RemoteRepository};
 use radicle_term::Element;
@@ -461,25 +461,35 @@ pub fn fetch(
 
     // Fetch from specified seeds, connecting to them if necessary.
     for nid in &settings.seeds {
-        if node.session(*nid)?.is_some_and(|s| s.is_connected()) {
-            fetch_from(rid, nid, settings.timeout, &mut results, node)?;
-        } else {
-            let addrs = db.addresses_of(nid)?;
-            if addrs.is_empty() {
-                results.push(
+        match node.session(*nid)? {
+            Some(session) if session.is_connected() => {
+                fetch_from(
+                    rid,
+                    nid,
+                    &session.addr,
+                    settings.timeout,
+                    &mut results,
+                    node,
+                )?;
+            }
+            _ => {
+                let addrs = db.addresses_of(nid)?;
+                if addrs.is_empty() {
+                    results.push(
+                        *nid,
+                        FetchResult::Failed {
+                            reason: format!("no addresses found in routing table for {nid}"),
+                        },
+                    );
+                    term::warning(format!("no addresses found for {nid}, skipping.."));
+                } else if let Some(addr) = connect(
                     *nid,
-                    FetchResult::Failed {
-                        reason: format!("no addresses found in routing table for {nid}"),
-                    },
-                );
-                term::warning(format!("no addresses found for {nid}, skipping.."));
-            } else if connect(
-                *nid,
-                addrs.into_iter().map(|ka| ka.addr),
-                settings.timeout,
-                node,
-            ) {
-                fetch_from(rid, nid, settings.timeout, &mut results, node)?;
+                    addrs.into_iter().map(|ka| ka.addr),
+                    settings.timeout,
+                    node,
+                ) {
+                    fetch_from(rid, nid, &addr, settings.timeout, &mut results, node)?;
+                }
             }
         }
         // We are done when we either hit our replica count,
@@ -512,7 +522,18 @@ pub fn fetch(
         let Some(nid) = connected.pop_front() else {
             break;
         };
-        fetch_from(rid, &nid, settings.timeout, &mut results, node)?;
+        if let Some(session) = node.session(nid)? {
+            fetch_from(
+                rid,
+                &nid,
+                &session.addr,
+                settings.timeout,
+                &mut results,
+                node,
+            )?;
+        } else {
+            log::warn!("Could not obtain session for seed with ID {nid}, even though it should be connected.")
+        }
     }
 
     // Try to connect to disconnected seeds and fetch from them.
@@ -524,13 +545,13 @@ pub fn fetch(
             // Skip our own node.
             continue;
         }
-        if connect(
+        if let Some(addr) = connect(
             seed.nid,
             seed.addrs.into_iter().map(|ka| ka.addr),
             settings.timeout,
             node,
         ) {
-            fetch_from(rid, &seed.nid, settings.timeout, &mut results, node)?;
+            fetch_from(rid, &seed.nid, &addr, settings.timeout, &mut results, node)?;
         }
     }
 
@@ -542,7 +563,7 @@ fn connect(
     addrs: impl Iterator<Item = node::Address>,
     timeout: time::Duration,
     node: &mut Node,
-) -> bool {
+) -> Option<node::Address> {
     // Try all addresses until one succeeds.
     for addr in addrs {
         let spinner = term::spinner(format!(
@@ -552,7 +573,7 @@ fn connect(
         ));
         let cr = node.connect(
             nid,
-            addr,
+            addr.clone(),
             node::ConnectOptions {
                 persistent: false,
                 timeout,
@@ -562,7 +583,7 @@ fn connect(
         match cr {
             Ok(node::ConnectResult::Connected) => {
                 spinner.finish();
-                return true;
+                return Some(addr);
             }
             Ok(node::ConnectResult::Disconnected { reason }) => {
                 spinner.error(reason);
@@ -574,20 +595,29 @@ fn connect(
             }
         }
     }
-    false
+    None
 }
 
 fn fetch_from(
     rid: RepoId,
     seed: &NodeId,
+    addr: &node::Address,
     timeout: time::Duration,
     results: &mut FetchResults,
     node: &mut Node,
 ) -> Result<(), node::Error> {
+    // NOTE: addr is only used for better output.
+    // Whether it actually corresponds to the addr
+    // of the connection to seed is not checked.
+    // There could be races.
+    // Our goal is to provide better output to the user,
+    // and it should be good enough for that.
+
     let spinner = term::spinner(format!(
-        "Fetching {} from {}..",
+        "Fetching {} from {}@{}..",
         term::format::tertiary(rid),
-        term::format::tertiary(term::format::node(seed))
+        term::format::tertiary(term::format::node(seed)),
+        addr,
     ));
     let result = node.fetch(rid, *seed, timeout)?;
 

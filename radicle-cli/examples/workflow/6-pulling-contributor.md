@@ -10,7 +10,7 @@ f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 Then, we call `rad sync --fetch` to fetch from the maintainer:
 ```
 $ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
 ```
 

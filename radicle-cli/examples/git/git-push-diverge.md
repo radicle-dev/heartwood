@@ -13,7 +13,7 @@ Then, as Bob, we commit some code on top of the canonical head:
 
 ``` ~bob
 $ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
 $ rad inspect --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)

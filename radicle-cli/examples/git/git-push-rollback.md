@@ -12,7 +12,7 @@ Bob then syncs these changes and adds a new commit:
 
 ``` ~bob
 $ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
 $ git commit -m "Third commit" --allow-empty -q
 $ git push rad

@@ -6,7 +6,7 @@ $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --des
 ``` ~bob
 $ rad watch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --node z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z -r 'refs/rad/sigrefs' -t c9a828fc2fb01f893d6e6e9e17b9092dea2b3aba -i 500 --timeout 5000
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
 $ rad id --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ╭────────────────────────────────────────────────────────────────────────────────╮
@@ -57,8 +57,8 @@ $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --des
 
 ``` ~alice
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z@[..]..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk@[..]..
 ✓ Fetched repository from 2 seed(s)
 $ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)

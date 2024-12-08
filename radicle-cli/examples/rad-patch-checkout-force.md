@@ -24,7 +24,7 @@ On the other end, Bob uses `rad patch checkout` to view the patch:
 ``` ~bob
 $ cd heartwood
 $ rad sync -f
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
 $ rad patch checkout aa45913 --name alice-init
 ✓ Switched to branch alice-init at revision aa45913

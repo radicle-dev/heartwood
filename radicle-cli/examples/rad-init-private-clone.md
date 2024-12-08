@@ -7,7 +7,7 @@ $ rad ls
 ``` ~bob (fail)
 $ rad clone rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --timeout 1
 ✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'all'
-✗ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi.. error: failed to perform fetch handshake
+✗ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi@[..].. error: failed to perform fetch handshake
 ✗ Error: repository rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu not found
 ```
 
@@ -26,7 +26,7 @@ that Alice has the repo after she announced her refs:
 
 ``` ~bob
 $ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch
-✓ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi..
+✓ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi@[..]..
 ✓ Fetched repository from 1 seed(s)
 $ rad ls --private --all
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
