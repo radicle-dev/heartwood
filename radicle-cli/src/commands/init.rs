@@ -23,11 +23,11 @@ use radicle::{profile, Node};
 
 use crate::commands;
 use crate::git;
-use crate::terminal::{self as term, Context};
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::{self as term, Context};
 use crate::terminal::{Interactive, Terminal};
 
-use term::info as info;
+use term::info;
 
 pub const HELP: Help = Help {
     name: "init",
@@ -597,7 +597,8 @@ pub fn announce(
                 term.info(
                     "Your repository will be announced to the network when you start your node.",
                 );
-                info!(term,
+                info!(
+                    term,
                     "You can start your node with {}.",
                     &term::format::command("rad node start")
                 );

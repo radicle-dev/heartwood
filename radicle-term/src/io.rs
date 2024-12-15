@@ -103,8 +103,8 @@ macro_rules! println {
 pub use error;
 pub use hint;
 pub use info;
-pub use println;
 pub use notice;
+pub use println;
 pub use success;
 pub use tip;
 pub use warning;

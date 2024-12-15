@@ -2,8 +2,8 @@ use std::ffi::OsString;
 
 use radicle::storage::{ReadStorage, RepositoryInfo};
 
-use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::{self as term, Context as _};
 
 use term::Element;
 
@@ -87,6 +87,7 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
+    let term = profile.terminal();
     let storage = &profile.storage;
     let repos = storage.repositories()?;
     let policy = profile.policies()?;
@@ -157,7 +158,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         ]);
         table.divider();
         table.extend(rows);
-        table.print();
+        table.print_to(&term);
     }
 
     Ok(())

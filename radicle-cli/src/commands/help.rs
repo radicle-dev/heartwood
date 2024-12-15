@@ -2,7 +2,6 @@ use std::ffi::OsString;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::display;
 
 use super::*;
 

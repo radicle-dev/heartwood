@@ -316,6 +316,7 @@ fn sync_status(
     profile: &Profile,
     options: &Options,
 ) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let mut table = Table::<7, term::Label>::new(TableOptions::bordered());
     let mut seeds: Vec<_> = node.seeds(rid)?.into();
     let local_nid = node.nid()?;
@@ -382,11 +383,11 @@ fn sync_status(
             nid,
             addr,
             status.into(),
-            term::format::secondary(head).into(),
+            term.display(term::format::secondary(head)).into(),
             time.dim().italic().into(),
         ]);
     }
-    table.print();
+    table.print_to(&term);
 
     Ok(())
 }
@@ -405,9 +406,13 @@ fn announce_refs(
     };
     if let Err(e) = repo.remote(&profile.public_key) {
         if e.is_not_found() {
-            term::println!(term, "{}", term::format::italic(
-                "Nothing to announce, you don't have a fork of this repository.",
-            ));
+            term::println!(
+                term,
+                "{}",
+                term::format::italic(
+                    "Nothing to announce, you don't have a fork of this repository.",
+                )
+            );
             return Ok(());
         } else {
             return Err(anyhow!("failed to load local fork of {rid}: {e}"));

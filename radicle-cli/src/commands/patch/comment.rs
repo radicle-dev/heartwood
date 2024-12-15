@@ -9,6 +9,7 @@ use radicle::storage::git::Repository;
 
 use crate::git;
 use crate::terminal as term;
+use crate::terminal::Context;
 use crate::terminal::Element as _;
 
 pub fn run(
@@ -19,6 +20,7 @@ pub fn run(
     repo: &Repository,
     profile: &Profile,
 ) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let signer = term::signer(profile)?;
     let mut patches = term::cob::patches_mut(profile, repo)?;
 
@@ -44,7 +46,7 @@ pub fn run(
     if quiet {
         term::println!(term, "{comment_id}");
     } else {
-        term::comment::widget(&comment_id, comment, profile).print();
+        term::comment::widget(&comment_id, comment, profile).print_to(&term);
     }
     Ok(())
 }

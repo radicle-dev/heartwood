@@ -18,7 +18,6 @@ use crate::git::unified_diff::Encode as _;
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::display;
 use crate::terminal::patch::Message;
 use crate::terminal::Interactive;
 
@@ -324,7 +323,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
             if options.interactive.confirm(format!(
                 "Accept revision {}?",
-                display(&term::format::tertiary(id))
+                term.display(&term::format::tertiary(id))
             )) {
                 identity.accept(&revision.id, &signer)?;
 
@@ -352,7 +351,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
             if options.interactive.confirm(format!(
                 "Reject revision {}?",
-                display(&term::format::tertiary(revision.id))
+                term.display(&term::format::tertiary(revision.id))
             )) {
                 identity.reject(revision.id, &signer)?;
 
@@ -442,7 +441,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     .collect::<Vec<_>>();
                 if let Some(errs) = verify_delegates(&proposal, &repo)? {
                     term::error!(term, "failed to verify delegates for {rid}");
-                    term::error!(term,
+                    term::error!(
+                        term,
                         "the threshold of {} delegates cannot be met..",
                         proposal.threshold
                     );
@@ -521,9 +521,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Operation::ListRevisions => {
-            let mut revisions = term::Table::<7, term::Label>::new(
-                term::table::TableOptions::bordered(),
-            );
+            let mut revisions =
+                term::Table::<7, term::Label>::new(term::table::TableOptions::bordered());
 
             revisions.header([
                 term::format::dim(String::from("●")).into(),
@@ -553,7 +552,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
                 revisions.push([icon, id, title, alias, author, state, timestamp]);
             }
-            revisions.print();
+            revisions.print_to(&term);
         }
         Operation::RedactRevision { revision } => {
             let revision = get(revision, &identity, &repo)?.clone();
@@ -600,6 +599,7 @@ fn get<'a>(
 }
 
 fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let mut attrs = term::Table::<2, term::Label>::new(Default::default());
 
     attrs.push([
@@ -681,7 +681,7 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
         ]);
     }
     meta.push(signatures);
-    meta.print();
+    meta.print_to(&term);
 
     Ok(())
 }
@@ -808,9 +808,7 @@ impl VerificationError {
             ),
             VerificationError::MissingDelegate { did } => {
                 term::error!(term, "the delegate {did} is missing");
-                term::hint!(term,
-                    "run `rad follow {did}` to follow this missing peer"
-                );
+                term::hint!(term, "run `rad follow {did}` to follow this missing peer");
             }
         }
     }

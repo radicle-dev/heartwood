@@ -10,9 +10,9 @@ use radicle::node::Handle as _;
 use radicle::node::{Address, Node, NodeId, PeerAddr};
 use radicle::prelude::RepoId;
 
-use crate::terminal::{self as term, Context};
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::Element as _;
+use crate::terminal::{self as term, Context};
 
 #[path = "node/commands.rs"]
 mod commands;
@@ -253,7 +253,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             if addresses {
                 let cfg = node.config()?;
                 for addr in cfg.external_addresses {
-                    term::println!(term, "{}", ConnectAddress::from((*profile.id(), addr)).to_string());
+                    term::println!(
+                        term,
+                        "{}",
+                        ConnectAddress::from((*profile.id(), addr)).to_string()
+                    );
                 }
             } else {
                 control::config(&node)?;
@@ -263,12 +267,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             commands::db(&profile, args)?;
         }
         Operation::Debug => {
-            control::debug(&mut node)?;
+            control::debug(&mut node, &term)?;
         }
         Operation::Sessions => {
             let sessions = control::sessions(&node)?;
             if let Some(table) = sessions {
-                table.print();
+                table.print_to(&term);
             }
         }
         Operation::Events { timeout, count } => {
@@ -276,7 +280,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Routing { rid, nid, json } => {
             let store = profile.database()?;
-            routing::run(&store, rid, nid, json)?;
+            routing::run(&store, rid, nid, json, &term)?;
         }
         Operation::Logs { lines } => control::logs(lines, Some(time::Duration::MAX), &profile)?,
         Operation::Start {

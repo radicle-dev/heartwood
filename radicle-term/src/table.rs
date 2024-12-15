@@ -326,7 +326,10 @@ mod test {
         assert_eq!(inner.rows, 5);
 
         assert_eq!(
-            t.display(&Context { ansi: false, constraint }),
+            t.display(&Context {
+                ansi: false,
+                constraint
+            }),
             r#"
 ╭─────────────────╮
 │ Code   Name     │
@@ -370,7 +373,10 @@ mod test {
         assert_eq!(inner.rows, 5);
 
         assert_eq!(
-            t.display(&Context { ansi: false, constraint }),
+            t.display(&Context {
+                ansi: false,
+                constraint
+            }),
             r#"
 ╭────────────────────────╮
 │ Code   Name            │

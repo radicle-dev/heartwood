@@ -129,7 +129,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     );
 
     if !node.is_running() {
-        term::warning!(term,
+        term::warning!(
+            term,
             "Your node is not running. Start your node with {} to announce your repository \
             to the network",
             &term::format::command("rad node start")

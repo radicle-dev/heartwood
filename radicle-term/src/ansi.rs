@@ -12,7 +12,7 @@ mod tests;
 mod windows;
 
 pub use color::Color;
-pub use display::{display, display_with, Context, Display};
+pub use display::{display, Context, Display};
 pub use paint::paint;
 pub use paint::Filled;
 pub use paint::Paint;

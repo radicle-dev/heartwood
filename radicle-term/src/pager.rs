@@ -2,7 +2,7 @@ use std::io::{IsTerminal, Write};
 use std::{io, thread};
 
 use crate::element::Size;
-use crate::{display, Constraint, Display, Element, Line, Paint};
+use crate::{display, Constraint, Display, Element, Line, Paint, Terminal};
 
 use crossbeam_channel as chan;
 use radicle_signals as signals;
@@ -30,7 +30,7 @@ pub enum Error {
 /// This will install handlers for the pager until finished by the user, with there
 /// being only one element handling signals at a time. If the pager cannot install
 /// handlers, then it will return with an error.
-pub fn page<E: Element + Send + 'static>(element: E) -> Result<(), Error> {
+pub fn page<E: Element + Send + 'static>(element: E, term: Terminal) -> Result<(), Error> {
     let (events_tx, events_rx) = chan::unbounded();
     let (signals_tx, signals_rx) = chan::unbounded();
 
@@ -41,7 +41,7 @@ pub fn page<E: Element + Send + 'static>(element: E) -> Result<(), Error> {
             events_tx.send(e).ok();
         }
     });
-    let result = thread::spawn(move || main(element, signals_rx, events_rx))
+    let result = thread::spawn(move || main(element, signals_rx, events_rx, term))
         .join()
         .unwrap();
 
@@ -54,10 +54,11 @@ fn main<E: Element>(
     element: E,
     signals_rx: chan::Receiver<signals::Signal>,
     events_rx: chan::Receiver<Result<Event, io::Error>>,
+    term: Terminal,
 ) -> Result<(), Error> {
     let stdout = io::stdout();
     if !stdout.is_terminal() {
-        element.print();
+        element.print_to(&term);
         return Ok(());
     }
     let raw = stdout.into_raw_mode()?;

@@ -11,10 +11,10 @@ use radicle::prelude::*;
 use radicle::storage::git::transport;
 
 use crate::project;
-use crate::terminal::Context as _;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::{success, error};
+use crate::terminal::Context as _;
+use crate::terminal::{error, success};
 
 pub const HELP: Help = Help {
     name: "checkout",
@@ -152,7 +152,10 @@ pub fn setup_remotes(
     for remote_id in remotes {
         if let Err(e) = setup_remote(&setup, remote_id, None, &aliases) {
             // TODO: Test.
-            term::warning!(profile.terminal(), "Failed to setup remote for {remote_id}: {e}");
+            term::warning!(
+                profile.terminal(),
+                "Failed to setup remote for {remote_id}: {e}"
+            );
         }
     }
     Ok(())
@@ -178,13 +181,15 @@ pub fn setup_remote(
     };
     let (remote, branch) = setup.run(&remote_name, *remote_id)?;
 
-    success!(term,
+    success!(
+        term,
         "Remote {} added",
         &term::format::tertiary(remote.name)
     );
 
     if let Some(branch) = branch {
-        success!(term,
+        success!(
+            term,
             "Remote-tracking branch {} created for {}",
             &term::format::tertiary(branch),
             &term::format::node(remote_id)

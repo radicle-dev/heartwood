@@ -607,7 +607,12 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
     }
 
     /// Run the review builder for the given revision.
-    pub fn run(self, revision: &Revision, opts: &mut git::raw::DiffOptions, term: Terminal) -> anyhow::Result<()> {
+    pub fn run(
+        self,
+        revision: &Revision,
+        opts: &mut git::raw::DiffOptions,
+        term: Terminal,
+    ) -> anyhow::Result<()> {
         let repo = self.repo.raw();
         let signer = &self.signer;
         let base = repo.find_commit((*revision.base()).into())?;
@@ -723,16 +728,16 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
                     } else {
                         term.eprintln(
                             term::format::tertiary(
-                                "Commenting on binary blobs is not yet implemented"
+                                "Commenting on binary blobs is not yet implemented",
                             )
-                            .bold()
+                            .bold(),
                         );
                         queue.push_front((ix, item));
                     }
                 }
                 Some(ReviewAction::Split) => {
                     term.eprintln(
-                        term::format::tertiary("Splitting is not yet implemented").bold()
+                        term::format::tertiary("Splitting is not yet implemented").bold(),
                     );
                     queue.push_front((ix, item));
                 }
@@ -754,12 +759,10 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
                     queue.push_front((ix, item));
                 }
                 None => {
-                    term.eprintln(
-                        term::format::secondary(format!(
-                            "{} hunk(s) remaining to review",
-                            queue.len() + 1
-                        ))
-                    );
+                    term.eprintln(term::format::secondary(format!(
+                        "{} hunk(s) remaining to review",
+                        queue.len() + 1
+                    )));
                     queue.push_front((ix, item));
                 }
             }

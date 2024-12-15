@@ -20,9 +20,8 @@ use radicle_term::Terminal;
 use serde_json::json;
 
 use crate::git::Rev;
-use crate::terminal::{self as term, Context};
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::display;
+use crate::terminal::{self as term, Context};
 
 pub const HELP: Help = Help {
     name: "cob",
@@ -295,10 +294,7 @@ fn print_op_pretty(op: Op<Vec<u8>>, term: Terminal) -> anyhow::Result<()> {
         std::time::UNIX_EPOCH + std::time::Duration::from_secs(op.timestamp.as_secs()),
     )
     .to_rfc2822();
-    term.println(term::format::yellow(format!(
-        "commit   {}",
-        op.id
-    )));
+    term.println(term::format::yellow(format!("commit   {}", op.id)));
     if let Some(oid) = op.identity {
         term::print_display(&term::format::tertiary(format!("resource {oid}")));
     }

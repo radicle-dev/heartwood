@@ -12,10 +12,10 @@ use radicle::profile::env;
 use radicle::{profile, Profile};
 
 use crate::terminal as term;
-use crate::terminal::Context;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::Context;
 
-use crate::terminal::{info, notice, tip, warning, error, success};
+use crate::terminal::{error, info, notice, success, tip, warning};
 
 pub const HELP: Help = Help {
     name: "auth",
@@ -88,7 +88,8 @@ pub fn init(options: Options) -> anyhow::Result<()> {
 
     if let Ok(version) = radicle::git::version() {
         if version < radicle::git::VERSION_REQUIRED {
-            warning!(term,
+            warning!(
+                term,
                 "Your Git version is unsupported, please upgrade to {} or later",
                 &radicle::git::VERSION_REQUIRED
             );
@@ -138,7 +139,8 @@ pub fn init(options: Options) -> anyhow::Result<()> {
         }
     }
 
-    success!(term,
+    success!(
+        term,
         "Your Radicle DID is {}. This identifies your device. Run {} to show it at all times.",
         &term::format::highlight(profile.did()),
         &term::format::command("rad self")
@@ -150,18 +152,19 @@ pub fn init(options: Options) -> anyhow::Result<()> {
         term.hint("install ssh-agent to have it fill in your passphrase for you when signing.");
         term.blank();
     }
-    info!(term,
+    info!(
+        term,
         "To create a Radicle repository, run {} from a Git repository with at least one commit.",
         &term::format::command("rad init")
     );
-    info!(term,
+    info!(
+        term,
         "To clone a repository, run {}. For example, {} clones the Radicle 'heartwood' repository.",
         &term::format::command("rad clone <rid>"),
-        &term::format::command(
-            "rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
-        )
+        &term::format::command("rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5")
     );
-    info!(term,
+    info!(
+        term,
         "To get a list of all commands, run {}.",
         &term::format::command("rad")
     );
@@ -174,14 +177,16 @@ pub fn init(options: Options) -> anyhow::Result<()> {
 pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
     let term = profile.terminal();
     if !profile.keystore.is_encrypted()? {
-        success!(term,
+        success!(
+            term,
             "Authenticated as {}",
             &term::format::tertiary(profile.id())
         );
         return Ok(());
     }
     for (key, _) in &profile.config.node.extra {
-        warning!(term,
+        warning!(
+            term,
             "unused or deprecated configuration attribute {:?}",
             key
         );

@@ -5,7 +5,7 @@ use radicle::identity::{Did, RepoId};
 use radicle::node::{Alias, AliasStore as _, NodeId};
 use radicle::storage::ReadStorage as _;
 use radicle::Profile;
-use radicle_term::{Element, Table};
+use radicle_term::{Element, Table, Terminal};
 
 use crate::git;
 use crate::terminal as term;
@@ -80,7 +80,7 @@ pub fn untracked<'a>(
         .collect::<Result<Vec<_>, _>>()?)
 }
 
-pub fn print_tracked<'a>(tracked: impl Iterator<Item = &'a Tracked>) {
+pub fn print_tracked<'a>(tracked: impl Iterator<Item = &'a Tracked>, term: &Terminal) {
     let mut table = Table::default();
     for Tracked { direction, name } in tracked {
         let Some(direction) = direction else {
@@ -101,10 +101,10 @@ pub fn print_tracked<'a>(tracked: impl Iterator<Item = &'a Tracked>) {
             term::format::parens(term::format::secondary(dir.to_owned())),
         ]);
     }
-    table.print();
+    table.print_to(&term);
 }
 
-pub fn print_untracked<'a>(untracked: impl Iterator<Item = &'a Untracked>) {
+pub fn print_untracked<'a>(untracked: impl Iterator<Item = &'a Untracked>, term: &Terminal) {
     let mut t = Table::default();
     for Untracked { remote, alias } in untracked {
         t.push([
@@ -115,5 +115,5 @@ pub fn print_untracked<'a>(untracked: impl Iterator<Item = &'a Untracked>) {
             term::format::highlight(Did::from(remote).to_string()),
         ])
     }
-    t.print();
+    t.print_to(term);
 }

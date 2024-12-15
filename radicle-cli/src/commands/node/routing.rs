@@ -1,5 +1,6 @@
 use radicle::node;
 use radicle::prelude::{NodeId, RepoId};
+use radicle_term::Terminal;
 
 use crate::terminal as term;
 use crate::terminal::Element;
@@ -9,6 +10,7 @@ pub fn run<S: node::routing::Store>(
     rid: Option<RepoId>,
     nid: Option<NodeId>,
     json: bool,
+    term: &Terminal,
 ) -> anyhow::Result<()> {
     // Filters entries by RID or NID exclusively, or show all of them if none given.
     let entries = routing.entries()?.filter(|(rid_, nid_)| {
@@ -19,13 +21,13 @@ pub fn run<S: node::routing::Store>(
     if json {
         print_json(entries);
     } else {
-        print_table(entries);
+        print_table(entries, term);
     }
 
     Ok(())
 }
 
-fn print_table(entries: impl IntoIterator<Item = (RepoId, NodeId)>) {
+fn print_table(entries: impl IntoIterator<Item = (RepoId, NodeId)>, term: &Terminal) {
     let mut t = term::Table::new(term::table::TableOptions::bordered());
     t.header([
         term::format::default(String::from("RID")),
@@ -39,7 +41,7 @@ fn print_table(entries: impl IntoIterator<Item = (RepoId, NodeId)>) {
             term::format::node(&nid),
         ]);
     }
-    t.print();
+    t.print_to(&term);
 }
 
 fn print_json(entries: impl IntoIterator<Item = (RepoId, NodeId)>) {

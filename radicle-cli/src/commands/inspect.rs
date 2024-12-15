@@ -141,11 +141,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     };
 
     if options.target == Target::RepoId {
-        term::println!(
-            term,
-            "{}",
-            term::format::highlight(rid.urn())
-        );
+        term::println!(term, "{}", term::format::highlight(rid.urn()));
         return Ok(());
     }
     let profile = ctx.profile()?;
@@ -158,11 +154,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Target::Payload => {
             let (_, doc) = repo(rid, storage)?;
-            json::to_pretty(&doc.payload(), Path::new("radicle.json"))?.print();
+            term.printlns(json::to_pretty(&doc.payload(), Path::new("radicle.json"))?);
         }
         Target::Identity => {
             let (_, doc) = repo(rid, storage)?;
-            json::to_pretty(&*doc, Path::new("radicle.json"))?.print();
+            term.printlns(json::to_pretty(&*doc, Path::new("radicle.json"))?);
         }
         Target::Sigrefs => {
             let (repo, _) = repo(rid, storage)?;
@@ -193,7 +189,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
                 SeedingPolicy::Block => {
                     term::println!(
-                        term, 
+                        term,
                         "Repository {} is {}",
                         term::format::tertiary(&rid),
                         term::format::negative("not being seeded")
@@ -219,11 +215,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Target::Visibility => {
             let (_, doc) = repo(rid, storage)?;
-            term::println!(
-                term,
-                "{}",
-                term::format::visibility(doc.visibility())
-            );
+            term::println!(term, "{}", term::format::visibility(doc.visibility()));
         }
         Target::History => {
             let (repo, _) = repo(rid, storage)?;

@@ -11,8 +11,8 @@ use term::format::Author;
 use term::table::{Table, TableOptions};
 use term::Element as _;
 
-use crate::terminal as term;
 use crate::terminal::patch as common;
+use crate::terminal::{self as term, Context as _};
 
 /// List patches.
 pub fn run(
@@ -21,6 +21,7 @@ pub fn run(
     repository: &Repository,
     profile: &Profile,
 ) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let patches = term::cob::patches(profile, repository)?;
 
     let mut all = Vec::new();
@@ -86,7 +87,7 @@ pub fn run(
             Err(e) => errors.push((patch.title(), id, e.to_string())),
         }
     }
-    table.print();
+    table.print_to(&term);
 
     if !errors.is_empty() {
         for (title, id, error) in errors {

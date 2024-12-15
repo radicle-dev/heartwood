@@ -179,6 +179,7 @@ pub fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
     let (working, rid) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a repository"))?;
     let profile = ctx.profile()?;
+    let term = ctx.terminal();
 
     match options.op {
         Operation::Add {
@@ -209,7 +210,7 @@ pub fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                 // Only include a blank line if we're printing both tracked and untracked
                 let include_blank_line = !tracked.is_empty() && !untracked.is_empty();
 
-                list::print_tracked(tracked.iter());
+                list::print_tracked(tracked.iter(), &term);
                 if include_blank_line {
                     term.blank();
                 }
@@ -217,7 +218,7 @@ pub fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
             }
             ListOption::Tracked => {
                 let tracked = list::tracked(&working)?;
-                list::print_tracked(tracked.iter());
+                list::print_tracked(tracked.iter(), &term);
             }
             ListOption::Untracked => {
                 let tracked = list::tracked(&working)?;

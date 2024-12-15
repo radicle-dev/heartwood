@@ -19,7 +19,7 @@ use std::fmt;
 use std::io::IsTerminal;
 
 pub use ansi::Color;
-pub use ansi::{display, display_with, paint, Context, Display, Filled, Paint, Style};
+pub use ansi::{display, paint, Context, Display, Filled, Paint, Style};
 pub use editor::Editor;
 pub use element::{Constraint, Element, Line, Size};
 pub use hstack::HStack;

@@ -22,6 +22,8 @@ use crate::terminal::Element;
 
 pub use common::*;
 
+use super::Context as _;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
@@ -306,7 +308,7 @@ pub fn get_update_message(
 }
 
 /// List the given commits in a table.
-pub fn list_commits(commits: &[git::raw::Commit]) -> anyhow::Result<()> {
+pub fn list_commits(commits: &[git::raw::Commit], term: &Terminal) -> anyhow::Result<()> {
     let mut table = term::Table::default();
 
     for commit in commits {
@@ -318,7 +320,7 @@ pub fn list_commits(commits: &[git::raw::Commit]) -> anyhow::Result<()> {
             term::format::italic(String::from_utf8_lossy(message).to_string()),
         ]);
     }
-    table.print();
+    table.print_to(&term);
 
     Ok(())
 }
@@ -353,6 +355,7 @@ pub fn show(
     workdir: Option<&git::raw::Repository>,
     profile: &Profile,
 ) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let (_, revision) = patch.latest();
     let state = patch.state();
     let branches = if let Some(wd) = workdir {
@@ -452,7 +455,7 @@ pub fn show(
             widget.push(term::textarea(comment.body()).wrap(60));
         }
     }
-    widget.print();
+    widget.print_to(&term);
 
     Ok(())
 }
