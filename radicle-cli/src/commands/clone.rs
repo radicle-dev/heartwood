@@ -27,7 +27,6 @@ use crate::node::SyncSettings;
 use crate::project;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::display;
 
 pub const HELP: Help = Help {
     name: "clone",
@@ -182,8 +181,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         &term::format::dim(Path::new(".").join(path).display())
     );
 
-    let mut info: term::Table<1, term::Line> =
-        term::Table::new(term::TableOptions::bordered());
+    let mut info: term::Table<1, term::Line> = term::Table::new(term::TableOptions::bordered());
     info.push([term::format::bold(proj.name()).into()]);
     info.push([term::format::italic(proj.description()).into()]);
 
@@ -197,7 +195,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         term::format::tertiary(patches.open).into(),
         term::format::default("patches").into(),
     ])]);
-    info.print();
+    info.print_to(&term);
 
     let location = options
         .directory
@@ -287,10 +285,13 @@ pub fn clone<G: Signer>(
     }
 
     // Checkout.
-    let spinner = term::spinner(&term, format!(
-        "Creating checkout in ./{}..",
-        display(&term::format::tertiary(path.display()))
-    ));
+    let spinner = term::spinner(
+        &term,
+        format!(
+            "Creating checkout in ./{}..",
+            term.display(&term::format::tertiary(path.display()))
+        ),
+    );
     let working = rad::checkout(id, &me, path, &profile.storage)?;
 
     spinner.finish();

@@ -3,9 +3,9 @@ use std::ffi::OsString;
 use radicle::crypto::ssh;
 use radicle::Profile;
 
-use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::Element as _;
+use crate::terminal::{self as term, Context};
 
 pub const HELP: Help = Help {
     name: "self",
@@ -125,6 +125,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 fn all(profile: &Profile) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let mut table = term::Table::<2, term::Label>::default();
 
     table.push([
@@ -154,7 +155,7 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
     };
     table.push([
         term::format::style("SSH").into(),
-        ssh_agent.to_string().into(),
+        term.display(&ssh_agent).to_string().into(),
     ]);
 
     let ssh_short = ssh::fmt::fingerprint(node_id);
@@ -198,7 +199,7 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
         term::format::tertiary(profile.home.node().display()).into(),
     ]);
 
-    table.print();
+    table.print_to(&term);
 
     Ok(())
 }

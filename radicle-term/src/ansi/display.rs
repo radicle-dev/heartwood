@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::Constraint;
+use crate::{Constraint, Line};
 
 pub trait Display<C = Context> {
     fn fmt_with<'a>(&'a self, f: &mut fmt::Formatter<'_>, ctx: &'a C) -> fmt::Result;
@@ -45,17 +45,12 @@ impl Default for Context {
 }
 
 #[deprecated]
-pub fn display_with<'a, T: Display<C>, C>(display: &'a T, ctx: &'a C) -> impl fmt::Display + 'a {
-    DisplayWrapper {
-        ctx,
-        parent: display,
-    }
-}
-
-#[deprecated]
 pub fn display<'a, T: Display<Context> + Sized + 'a>(display: &'a T) -> impl fmt::Display + 'a {
     DisplayWrapper {
-        ctx: &Context { ansi: true, constraint: Constraint::UNBOUNDED, },
+        ctx: &Context {
+            ansi: true,
+            constraint: Constraint::UNBOUNDED,
+        },
         parent: display,
     }
 }

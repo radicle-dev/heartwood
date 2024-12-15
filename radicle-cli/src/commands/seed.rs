@@ -12,8 +12,8 @@ use radicle_term::Element as _;
 
 use crate::commands::rad_sync as sync;
 use crate::node::SyncSettings;
-use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::{self as term, Context as _};
 
 pub const HELP: Help = Help {
     name: "seed",
@@ -172,7 +172,11 @@ pub fn update(
     if let Ok(repo) = profile.storage.repository(rid) {
         if repo.identity_doc()?.is_public() {
             profile.add_inventory(rid, node)?;
-            term::success!(term, "Inventory updated with {}", term::format::tertiary(rid));
+            term::success!(
+                term,
+                "Inventory updated with {}",
+                term::format::tertiary(rid)
+            );
         }
     }
 
@@ -186,6 +190,7 @@ pub fn update(
 }
 
 pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let store = profile.policies()?;
     let storage = &profile.storage;
     let mut t = term::Table::new(term::table::TableOptions::bordered());
@@ -219,7 +224,7 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
     if t.is_empty() {
         term.println(term::format::dim("No seeding policies to show."));
     } else {
-        t.print();
+        t.print_to(&term);
     }
 
     Ok(())

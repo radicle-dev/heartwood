@@ -1,12 +1,12 @@
 use radicle::cob;
 use radicle::cob::job;
 use radicle_term::table::TableOptions;
-use radicle_term::{Table, VStack};
+use radicle_term::{Table, Terminal, VStack};
 
 use crate::terminal as term;
 use crate::terminal::Element;
 
-pub fn show(job: &job::Job, id: &cob::ObjectId) -> anyhow::Result<()> {
+pub fn show(job: &job::Job, id: &cob::ObjectId, term: &Terminal) -> anyhow::Result<()> {
     let mut attrs = Table::<2, term::Line>::new(TableOptions {
         spacing: 2,
         ..TableOptions::default()
@@ -45,7 +45,7 @@ pub fn show(job: &job::Job, id: &cob::ObjectId) -> anyhow::Result<()> {
         .border(Some(term::colors::FAINT))
         .child(attrs);
 
-    widget.print();
+    widget.print_to(&term);
 
     Ok(())
 }

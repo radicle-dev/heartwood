@@ -290,7 +290,10 @@ fn start<R: WriteRepository + cob::Store, G: Signer>(
 }
 
 // TODO: This should use the COB cache for performance.
-fn list<R: WriteRepository + cob::Store>(store: &JobStore<R>, term: &Terminal) -> anyhow::Result<()> {
+fn list<R: WriteRepository + cob::Store>(
+    store: &JobStore<R>,
+    term: &Terminal,
+) -> anyhow::Result<()> {
     if store.is_empty()? {
         term.println(term::format::italic("Nothing to show."));
         return Ok(());
@@ -312,10 +315,10 @@ fn list<R: WriteRepository + cob::Store>(store: &JobStore<R>, term: &Terminal) -
         };
         table.push([
             match ci.state() {
-                State::Fresh => term::format::positive("●").into(),
-                State::Running => term::format::positive("●").into(),
-                State::Finished(Reason::Succeeded) => term::format::positive("●").into(),
                 State::Finished(Reason::Failed) => term::format::negative("●").into(),
+                State::Finished(Reason::Succeeded) | State::Fresh | State::Running => {
+                    term::format::positive("●").into()
+                }
             },
             term::format::tertiary(term::format::cob(&id).to_string()),
             term::format::tertiary(term::format::oid(ci.commit()).to_string()),
@@ -326,7 +329,7 @@ fn list<R: WriteRepository + cob::Store>(store: &JobStore<R>, term: &Terminal) -
     if table.is_empty() {
         term.println(term::format::dim("No jobs to show."));
     } else {
-        table.print();
+        table.print_to(&term);
     }
 
     Ok(())

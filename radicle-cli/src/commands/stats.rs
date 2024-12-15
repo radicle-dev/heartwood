@@ -90,6 +90,7 @@ impl Args for Options {
 
 pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
+    let term = profile.terminal();
     let storage = &profile.storage;
     let mut stats = Stats::default();
 
@@ -193,7 +194,7 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     let output = term::json::to_pretty(&stats, Path::new("stats.json"))?;
-    output.print();
+    output.print_to(&term);
 
     Ok(())
 }

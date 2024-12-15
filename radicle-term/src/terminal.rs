@@ -1,6 +1,6 @@
 use crate::ansi::display::DisplayWrapper;
 use crate::{command, format};
-use crate::{display_with, style, Context, Display, Paint, Passphrase, Size};
+use crate::{style, Context, Display, Paint, Passphrase, Size};
 use std::ffi::OsStr;
 use std::{env, fmt, io};
 
@@ -33,26 +33,25 @@ impl Terminal<'_> {
         DisplayWrapper::new(display, &self.ctx)
     }
 
+    pub fn printlns<T>(&self, lines: Vec<T>)
+    where
+        T: Display,
+    {
+        for line in lines {
+            self.println(line);
+        }
+    }
+
     pub fn println(&self, msg: impl Display) {
-        println!(
-            "{}",
-            self.display(&msg)
-        )
+        println!("{}", self.display(&msg))
     }
 
     pub fn eprintln(&self, msg: impl Display) {
-        eprintln!(
-            "{}",
-            self.display(&msg)
-        )
+        eprintln!("{}", self.display(&msg))
     }
 
     pub fn info(&self, msg: impl Display) {
-        println!(
-            "{} {}",
-            self.display(&Paint::cyan("ℹ")),
-            self.display(&msg)
-        )
+        println!("{} {}", self.display(&Paint::cyan("ℹ")), self.display(&msg))
     }
 
     pub fn success(&self, msg: impl Display) {
@@ -95,7 +94,7 @@ impl Terminal<'_> {
 
     pub fn headline(&self, headline: impl Display) {
         println!();
-        println!("{}", display_with(&style(headline).bold(), &self.ctx));
+        println!("{}", self.display(&style(headline).bold()));
         println!();
     }
 
@@ -103,7 +102,7 @@ impl Terminal<'_> {
         println!();
         println!(
             "{}",
-            display_with(&format::yellow(header).bold().underline(), &self.ctx)
+            self.display(&format::yellow(header).bold().underline())
         );
         println!();
     }
@@ -135,12 +134,9 @@ impl Terminal<'_> {
     pub fn usage(&self, name: &str, usage: &str) {
         println!(
             "{} {}\n{}",
-            display_with(&ERROR_PREFIX, &self.ctx),
-            display_with(
-                &Paint::red(format!("Error: rad-{name}: invalid usage")),
-                &self.ctx
-            ),
-            display_with(&Paint::red(self.prefixed(TAB, usage)).dim(), &self.ctx)
+            self.display(&ERROR_PREFIX),
+            self.display(&Paint::red(format!("Error: rad-{name}: invalid usage"))),
+            self.display(&Paint::red(self.prefixed(TAB, usage)).dim()),
         );
     }
 

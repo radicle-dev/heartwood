@@ -68,11 +68,7 @@ where
     run_command_args(help, cmd, args)
 }
 
-pub fn run_command_args<A, C>(
-    help: Help,
-    cmd: C,
-    args: Vec<OsString>,
-) -> !
+pub fn run_command_args<A, C>(help: Help, cmd: C, args: Vec<OsString>) -> !
 where
     A: Args,
     C: Command<A, DefaultContext>,

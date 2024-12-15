@@ -81,7 +81,8 @@ impl Args for Options {
     }
 }
 
-pub fn run(options: Options, _ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+    let term = ctx.terminal();
     let repo = rad::repo()?;
     let oids = options
         .commits
@@ -145,7 +146,7 @@ pub fn run(options: Options, _ctx: impl term::Context) -> anyhow::Result<()> {
     let mut hi = Highlighter::default();
     let pretty = diff.pretty(&mut hi, &(), &repo);
 
-    term::pager::page(pretty)?;
+    term::pager::page(pretty, &term)?;
 
     Ok(())
 }

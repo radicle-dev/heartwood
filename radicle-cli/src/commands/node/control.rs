@@ -12,8 +12,8 @@ use radicle::Node;
 use radicle::{profile, Profile};
 use radicle_term::Terminal;
 
-use crate::terminal::{self as term, Context as _};
 use crate::terminal::Element as _;
+use crate::terminal::{self as term, Context as _};
 
 /// How long to wait for the node to start before returning an error.
 pub const NODE_START_TIMEOUT: time::Duration = time::Duration::from_secs(6);
@@ -123,9 +123,9 @@ pub fn stop(node: Node) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn debug(node: &mut Node) -> anyhow::Result<()> {
+pub fn debug(node: &mut Node, term: &Terminal) -> anyhow::Result<()> {
     let json = node.debug()?;
-    term::json::to_pretty(&json, Path::new("debug.json"))?.print();
+    term.printlns(term::json::to_pretty(&json, Path::new("debug.json"))?);
 
     Ok(())
 }
@@ -191,10 +191,13 @@ pub fn connect(
     timeout: time::Duration,
     term: &Terminal,
 ) -> anyhow::Result<()> {
-    let spinner = term::spinner(term, format!(
-        "Connecting to {}@{addr}...",
-        term::format::node(&nid)
-    ));
+    let spinner = term::spinner(
+        term,
+        format!(
+            "Connecting to {}@{addr}...",
+            term.display(&term::format::node(&nid))
+        ),
+    );
     match node.connect(
         nid,
         addr,
@@ -242,7 +245,7 @@ pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
     let sessions = sessions(node)?;
     if let Some(table) = sessions {
         term.blank();
-        table.print();
+        term.println(table);
     }
 
     if profile.home.node().join("node.log").exists() {

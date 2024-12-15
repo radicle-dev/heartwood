@@ -12,6 +12,8 @@ use crate::terminal as term;
 use crate::terminal::format::Author;
 use crate::terminal::Element;
 
+use super::Context as _;
+
 pub const OPEN_MSG: &str = r#"
 <!--
 Please enter an issue title and description.
@@ -44,10 +46,11 @@ pub fn show(
     format: Format,
     profile: &Profile,
 ) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let labels: Vec<String> = issue.labels().cloned().map(|t| t.into()).collect();
     let assignees: Vec<String> = issue
         .assignees()
-        .map(|a| term::format::did(a).to_string())
+        .map(|a| term.display(&term::format::did(a)).to_string())
         .collect();
     let author = issue.author();
     let did = author.id();
@@ -125,7 +128,7 @@ pub fn show(
             widget.push(term::textarea(comment.body()).wrap(60));
         }
     }
-    widget.print();
+    widget.print_to(&term);
 
     Ok(())
 }

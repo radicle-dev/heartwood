@@ -19,9 +19,9 @@ use radicle::{cob, git, Storage};
 use radicle_term::Terminal;
 use term::Element as _;
 
-use crate::terminal as term;
 use crate::terminal::args;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::{self as term, Context as _};
 
 pub const HELP: Help = Help {
     name: "inbox",
@@ -208,6 +208,7 @@ fn list(
     storage: &Storage,
     profile: &Profile,
 ) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let repos: Vec<term::VStack<'_>> = match mode {
         Mode::Contextual => {
             if let Ok((_, rid)) = radicle::rad::cwd() {
@@ -226,10 +227,10 @@ fn list(
     };
 
     if repos.is_empty() {
-        term::print_display(&term::format::italic("Your inbox is empty."));
+        term::println!(&term, "{}", term::format::italic("Your inbox is empty."));
     } else {
         for repo in repos {
-            repo.print();
+            repo.print_to(&term);
         }
     }
     Ok(())
@@ -493,7 +494,11 @@ impl NotificationRow {
     }
 }
 
-fn clear(mode: Mode, notifs: &mut notifications::StoreWriter, term: &Terminal) -> anyhow::Result<()> {
+fn clear(
+    mode: Mode,
+    notifs: &mut notifications::StoreWriter,
+    term: &Terminal,
+) -> anyhow::Result<()> {
     let cleared = match mode {
         Mode::All => notifs.clear_all()?,
         Mode::ById(ids) => notifs.clear(&ids)?,
@@ -524,6 +529,7 @@ fn show(
     storage: &Storage,
     profile: &Profile,
 ) -> anyhow::Result<()> {
+    let term = profile.terminal();
     let id = match mode {
         Mode::ById(ids) => match ids.as_slice() {
             [id] => *id,
@@ -556,7 +562,10 @@ fn show(
         NotificationKind::Cob { typed_id } if typed_id.is_identity() => {
             let identity = Identity::get(&typed_id.id, &repo)?;
 
-            term::json::to_pretty(&identity.doc, Path::new("radicle.json"))?.print();
+            term.printlns(term::json::to_pretty(
+                &identity.doc,
+                Path::new("radicle.json"),
+            )?);
         }
         NotificationKind::Branch { .. } => {
             let refstr = if let Some(remote) = n.remote {
@@ -573,7 +582,7 @@ fn show(
                 .wait()?;
         }
         notification => {
-            term::json::to_pretty(&notification, Path::new("notification.json"))?.print();
+            term::json::to_pretty(&notification, Path::new("notification.json"))?.print_to(&term);
         }
     }
     notifs.set_status(NotificationStatus::ReadAt(LocalTime::now()), &[id])?;

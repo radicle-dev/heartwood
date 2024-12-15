@@ -124,10 +124,7 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
     Ok(())
 }
 
-fn run_other(
-    exe: &str,
-    args: &[OsString],
-) -> Result<(), Option<anyhow::Error>> {
+fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
     match exe {
         "auth" => {
             term::run_command_args::<rad_auth::Options, _>(
@@ -207,11 +204,7 @@ fn run_other(
             );
         }
         "id" => {
-            term::run_command_args::<rad_id::Options, _>(
-                rad_id::HELP,
-                rad_id::run,
-                args.to_vec(),
-            );
+            term::run_command_args::<rad_id::Options, _>(rad_id::HELP, rad_id::run, args.to_vec());
         }
         "inbox" => term::run_command_args::<rad_inbox::Options, _>(
             rad_inbox::HELP,
@@ -247,11 +240,7 @@ fn run_other(
             );
         }
         "ls" => {
-            term::run_command_args::<rad_ls::Options, _>(
-                rad_ls::HELP,
-                rad_ls::run,
-                args.to_vec(),
-            );
+            term::run_command_args::<rad_ls::Options, _>(rad_ls::HELP, rad_ls::run, args.to_vec());
         }
         "node" => {
             term::run_command_args::<rad_node::Options, _>(

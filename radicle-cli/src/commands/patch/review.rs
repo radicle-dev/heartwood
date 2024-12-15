@@ -8,8 +8,8 @@ use radicle::git;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
 
-use crate::terminal::{self as term, Context as _};
 use crate::terminal::patch::Message;
+use crate::terminal::{self as term, Context as _};
 
 /// Review help message.
 pub const REVIEW_HELP_MSG: &str = r#"

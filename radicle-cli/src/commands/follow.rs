@@ -8,7 +8,6 @@ use radicle_term::{Element as _, Paint, Table};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::display;
 
 pub const HELP: Help = Help {
     name: "follow",
@@ -141,6 +140,7 @@ pub fn follow(
 }
 
 pub fn following(profile: &Profile, alias: Option<Alias>) -> anyhow::Result<()> {
+    let term = profile.term();
     let store = profile.policies()?;
     let aliases = profile.aliases();
     let mut t = term::Table::new(term::table::TableOptions::bordered());
@@ -161,7 +161,7 @@ pub fn following(profile: &Profile, alias: Option<Alias>) -> anyhow::Result<()> 
                 .filter(|p| p.alias.as_ref().is_some_and(|alias_| *alias_ == alias)),
         ),
     };
-    t.print();
+    t.print_to(&term);
 
     Ok(())
 }

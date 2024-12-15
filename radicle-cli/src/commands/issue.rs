@@ -21,12 +21,12 @@ use radicle::{cob, Node};
 
 use crate::git::Rev;
 use crate::node;
-use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::format::Author;
 use crate::terminal::issue::Format;
 use crate::terminal::patch::Message;
 use crate::terminal::Element;
+use crate::terminal::{self as term, Context as _};
 
 pub const HELP: Help = Help {
     name: "issue",
@@ -470,6 +470,7 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
+    let term = ctx.terminal();
     let rid = if let Some(rid) = options.repo {
         rid
     } else {
@@ -529,7 +530,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 term::println!(term, "{comment_id}");
             } else {
                 let comment = issue.thread().comment(&comment_id).unwrap();
-                term::comment::widget(&comment_id, comment, &profile).print();
+                term::comment::widget(&comment_id, comment, &profile).print_to(&term);
             }
         }
         Operation::CommentEdit {
@@ -697,6 +698,8 @@ fn list<C>(
 where
     C: issue::cache::Issues,
 {
+    let term = profile.terminal();
+
     if cache.is_empty()? {
         term::println!(term, "{}", term::format::italic("Nothing to show."));
         return Ok(());
@@ -793,7 +796,7 @@ where
                 .into(),
         ]);
     }
-    table.print();
+    table.print_to(&term);
 
     Ok(())
 }

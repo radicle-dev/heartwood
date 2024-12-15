@@ -6,6 +6,7 @@ use std::str::FromStr;
 use anyhow::anyhow;
 use radicle::node::Alias;
 use radicle::profile::{Config, ConfigError, ConfigPath, RawConfig};
+use radicle_term::Terminal;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -139,7 +140,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     match options.op {
         Operation::Show => {
             let profile = ctx.profile()?;
-            term::json::to_pretty(&profile.config, path.as_path())?.print();
+            term::json::to_pretty(&profile.config, path.as_path())?.print_to(&term);
         }
         Operation::Get(key) => {
             let mut temp_config = RawConfig::from_file(&path)?;
@@ -147,31 +148,31 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let value = temp_config
                 .get_mut(&key)
                 .ok_or_else(|| ConfigError::Custom(format!("{key} does not exist")))?;
-            print_value(value)?;
+            print_value(value, &term)?;
         }
         Operation::Set(key, value) => {
             let mut temp_config = RawConfig::from_file(&path)?;
             let value = temp_config.set(&key.into(), value.into())?;
             temp_config.write(&path)?;
-            print_value(&value)?;
+            print_value(&value, &term)?;
         }
         Operation::Push(key, value) => {
             let mut temp_config = RawConfig::from_file(&path)?;
             let value = temp_config.push(&key.into(), value.into())?;
             temp_config.write(&path)?;
-            print_value(&value)?;
+            print_value(&value, &term)?;
         }
         Operation::Remove(key, value) => {
             let mut temp_config = RawConfig::from_file(&path)?;
             let value = temp_config.remove(&key.into(), value.into())?;
             temp_config.write(&path)?;
-            print_value(&value)?;
+            print_value(&value, &term)?;
         }
         Operation::Unset(key) => {
             let mut temp_config = RawConfig::from_file(&path)?;
             let value = temp_config.unset(&key.into())?;
             temp_config.write(&path)?;
-            print_value(&value)?;
+            print_value(&value, &term)?;
         }
         Operation::Init => {
             if path.try_exists()? {
@@ -191,9 +192,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Edit => match term::editor::Editor::new(&path)?.extension("json").edit()? {
             Some(_) => {
-                term::success!(term, "Successfully made changes to the configuration at {path:?}")
+                term::success!(
+                    term,
+                    "Successfully made changes to the configuration at {path:?}"
+                )
             }
-            None => term::info!(term, "No changes were made to the configuration at {path:?}"),
+            None => term::info!(
+                term,
+                "No changes were made to the configuration at {path:?}"
+            ),
         },
     }
 
@@ -201,15 +208,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 /// Print a JSON Value.
-fn print_value(value: &serde_json::Value) -> anyhow::Result<()> {
+fn print_value(value: &serde_json::Value, term: &Terminal) -> anyhow::Result<()> {
     match value {
         serde_json::Value::Null => {}
         serde_json::Value::Bool(b) => term::println!(term, "{b}"),
-        serde_json::Value::Array(a) => a.iter().try_for_each(print_value)?,
+        serde_json::Value::Array(a) => a
+            .iter()
+            .try_for_each(|element| print_value(element, term))?,
         serde_json::Value::Number(n) => term::println!(term, "{n}"),
         serde_json::Value::String(s) => term::println!(term, "{s}"),
         serde_json::Value::Object(o) => {
-            term::json::to_pretty(&o, Path::new("config.json"))?.print()
+            term::json::to_pretty(&o, Path::new("config.json"))?.print_to(&term)
         }
     }
     Ok(())

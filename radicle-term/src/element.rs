@@ -4,7 +4,8 @@ use std::ops::Deref;
 use std::{io, vec};
 
 use crate::cell::Cell;
-use crate::{display, display_with, viewport, Color, Context, Display, Filled, Label, Style};
+use crate::display::DisplayWrapper;
+use crate::{display, viewport, Color, Context, Display, Filled, Label, Style, Terminal};
 
 /// Rendering constraint.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -83,10 +84,15 @@ pub trait Element: fmt::Debug + Send + Sync {
     }
 
     /// Print this element to stdout.
+    #[deprecated]
     fn print(&self) {
         for line in self.render(Constraint::from_env().unwrap_or_default()) {
             println!("{}", display(&line).to_string().trim_end());
         }
+    }
+
+    fn print_to(&self, term: &Terminal) {
+        term.printlns(self.render(Constraint::from_env().unwrap_or_default()));
     }
 
     /// Write using the given constraints to `stdout`.
@@ -104,7 +110,7 @@ pub trait Element: fmt::Debug + Send + Sync {
         for line in self.render(context.constraint) {
             out.extend(
                 line.into_iter()
-                    .map(|l| display_with(&l, context).to_string()),
+                    .map(|l| DisplayWrapper::new(&l, context).to_string()),
             );
             out.push('\n');
         }
