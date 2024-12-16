@@ -17,18 +17,18 @@ main() {
     echo "fatal: empty version number" >&2 ; exit 1
   fi
 
+  if ! git rev-parse --verify "v$version^{tag}" >/dev/null 2>&1; then
+    echo "error: '$version' is not a valid version, tag 'v$version' not found" >&2
+    exit 1
+  fi
+
   printf "Releasing Radicle %s? [y/N] " "$version"
   read confirmation
 
   case "$confirmation" in
     [Yy]*)
-      if git describe --exact-match --match='v*' 2>/dev/null; then
-        echo "Creating 'latest' symlink.."
-        ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf /mnt/radicle/files/releases/$version /mnt/radicle/files/releases/latest
-      else
-        echo "Release tag must start with 'v'; operation aborted."
-        exit 1
-      fi ;;
+      echo "Creating 'latest' symlink.."
+      ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf /mnt/radicle/files/releases/$version /mnt/radicle/files/releases/latest ;;
     *)
       echo "Operation aborted."
       exit 1 ;;
