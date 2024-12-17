@@ -1,27 +1,19 @@
-use std::borrow::Cow;
 use std::io;
-use std::io::BufRead;
 use std::path::PathBuf;
 use std::sync::{atomic::AtomicBool, Arc};
 
-use gix_features::progress::NestedProgress;
+use gix_features::progress::{DynNestedProgress, NestedProgress};
 use gix_pack as pack;
 use gix_protocol::fetch;
-use gix_protocol::fetch::{Delegate, DelegateBlocking};
+use gix_protocol::fetch::negotiate::one_round::State;
 use gix_protocol::handshake;
 use gix_protocol::handshake::Ref;
-use gix_protocol::ls_refs;
-use gix_protocol::FetchConnection;
-use gix_transport::bstr::BString;
-use gix_transport::client;
-use gix_transport::client::{ExtendedBufRead, MessageKind};
-use gix_transport::Protocol;
 
-use crate::git::packfile;
+use crate::git::{oid, packfile};
 
-use super::{agent_name, indicate_end_of_interaction, Connection, WantsHaves};
+use super::{agent_name, Connection, WantsHaves};
 
-pub type Error = gix_protocol::fetch::Error;
+pub type Error = fetch::Error;
 
 pub mod error {
     use std::io;
@@ -50,15 +42,11 @@ pub struct PackWriter {
 impl PackWriter {
     /// Write the packfile read from `pack` to the `objects/pack`
     /// directory.
-    pub fn write_pack<P>(
+    pub fn write_pack(
         &self,
-        mut pack: impl BufRead,
-        mut progress: P,
-    ) -> Result<pack::bundle::write::Outcome, error::PackWriter>
-    where
-        P: NestedProgress,
-        P::SubProgress: 'static,
-    {
+        pack: &mut dyn std::io::BufRead,
+        progress: &mut dyn DynNestedProgress,
+    ) -> Result<pack::bundle::write::Outcome, error::PackWriter> {
         let options = pack::bundle::write::Options {
             // N.b. use all cores. Can make configurable if needed
             // later.
@@ -80,9 +68,9 @@ impl PackWriter {
         )?);
         let thickener = thickener.to_handle_arc();
         Ok(pack::Bundle::write_to_directory(
-            &mut pack,
+            pack,
             Some(&self.git_dir.join("objects").join("pack")),
-            &mut progress,
+            progress,
             &self.interrupt,
             Some(thickener),
             options,
@@ -92,10 +80,8 @@ impl PackWriter {
 
 /// The fetch [`Delegate`] that negotiates the fetch with the
 /// server-side.
-pub struct Fetch {
+pub struct Negotiate {
     wants_haves: WantsHaves,
-    pack_writer: PackWriter,
-    out: FetchOut,
 }
 
 /// The result of running a fetch via [`run`].
@@ -108,74 +94,50 @@ pub struct FetchOut {
 // FIXME: the delegate pattern will be removed in the near future and
 // we should look at the fetch code being used in gix to see how we
 // can migrate to the proper form of fetching.
-impl Delegate for &mut Fetch {
-    fn receive_pack(
+impl fetch::Negotiate for Negotiate {
+    fn mark_complete_and_common_ref(
         &mut self,
-        input: impl io::BufRead,
-        progress: impl NestedProgress + 'static,
-        _refs: &[handshake::Ref],
-        previous_response: &fetch::Response,
-    ) -> io::Result<()> {
-        self.out
-            .refs
-            .extend(previous_response.wanted_refs().iter().map(
-                |fetch::response::WantedRef { id, path }| Ref::Direct {
-                    full_ref_name: path.clone(),
-                    object: *id,
-                },
-            ));
-        let pack = self
-            .pack_writer
-            .write_pack(input, progress)
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-        self.out.keepfile = pack.keep_path.as_ref().and_then(packfile::Keepfile::new);
-        self.out.pack = Some(pack);
-        Ok(())
+    ) -> Result<fetch::negotiate::Action, fetch::negotiate::Error> {
+        Ok(fetch::negotiate::Action::MustNegotiate {
+            remote_ref_target_known: vec![],
+        })
     }
-}
 
-impl DelegateBlocking for &mut Fetch {
-    fn negotiate(
+    fn add_wants(
         &mut self,
-        _refs: &[handshake::Ref],
         arguments: &mut fetch::Arguments,
-        _previous_response: Option<&fetch::Response>,
-    ) -> io::Result<fetch::Action> {
-        use crate::git::oid;
-
+        _remote_ref_target_known: &[bool],
+    ) -> bool {
+        let mut has_want = false;
         for oid in &self.wants_haves.wants {
             arguments.want(oid::to_object_id(*oid));
+            has_want = true;
         }
+        has_want
+    }
 
+    /// We don't actually negotiate, just provides all our haves and wants, while telling the
+    /// server to make the best of it and just send a pack.
+    /// Real Git negotiation can be done with calls to [`fetch::negotiate::one_round()`], but that
+    /// requires a [`fetch::RefMap`] which can be instantiated with refspecs.
+    fn one_round(
+        &mut self,
+        _state: &mut State,
+        arguments: &mut fetch::Arguments,
+        _previous_response: Option<&fetch::Response>,
+    ) -> Result<(fetch::negotiate::Round, bool), fetch::negotiate::Error> {
         for oid in &self.wants_haves.haves {
             arguments.have(oid::to_object_id(*oid));
         }
 
-        // N.b. sends `done` packet
-        Ok(fetch::Action::Cancel)
-    }
-
-    fn prepare_ls_refs(
-        &mut self,
-        _server: &client::Capabilities,
-        _arguments: &mut Vec<BString>,
-        _features: &mut Vec<(&str, Option<Cow<'_, str>>)>,
-    ) -> io::Result<ls_refs::Action> {
-        // N.b. we performed ls-refs before the fetch already.
-        Ok(ls_refs::Action::Skip)
-    }
-
-    fn prepare_fetch(
-        &mut self,
-        _version: Protocol,
-        _server: &client::Capabilities,
-        _features: &mut Vec<(&str, Option<Cow<'_, str>>)>,
-        _refs: &[handshake::Ref],
-    ) -> io::Result<fetch::Action> {
-        if self.wants_haves.wants.is_empty() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "empty fetch"));
-        }
-        Ok(fetch::Action::Continue)
+        let round = fetch::negotiate::Round {
+            haves_sent: self.wants_haves.haves.len(),
+            in_vain: 0,
+            haves_to_send: 0,
+            previous_response_had_at_least_one_in_common: false,
+        };
+        let is_done = true;
+        Ok((round, is_done))
     }
 }
 
@@ -200,115 +162,59 @@ where
 {
     log::trace!(target: "fetch", "Performing fetch");
 
-    let mut delegate = Fetch {
-        wants_haves,
-        pack_writer,
-        out: FetchOut {
-            refs: Vec::new(),
-            pack: None,
-            keepfile: None,
-        },
+    if wants_haves.wants.is_empty() {
+        return Err(Error::ReadRemainingBytes(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "empty fetch",
+        )));
+    }
+    let mut out = FetchOut {
+        refs: Vec::new(),
+        pack: None,
+        keepfile: None,
     };
+    let mut negotiate = Negotiate { wants_haves };
+    let agent = agent_name().map_err(Error::ReadRemainingBytes)?;
 
-    let handshake::Outcome {
-        server_protocol_version: protocol,
-        refs: _refs,
-        capabilities,
-    } = handshake;
-    let agent = agent_name()?;
-    let fetch = gix_protocol::Command::Fetch;
+    let mut pack_out = None;
+    let mut handshake = handshake.clone();
+    let fetch_out = gix_protocol::fetch(
+        &mut negotiate,
+        |read_pack, progress, _should_interrupt| -> Result<_, error::PackWriter> {
+            let res = pack_writer.write_pack(read_pack, progress)?;
+            pack_out = Some(res);
+            Ok(true)
+        },
+        progress,
+        &pack_writer.interrupt,
+        fetch::Context {
+            handshake: &mut handshake,
+            transport: &mut conn,
+            user_agent: ("agent", Some(agent.into())),
+            trace_packetlines: false,
+        },
+        fetch::Options {
+            shallow_file: "no shallow file required as we reject shallow remotes (and we aren't shallow ourselves)".into(),
+            reject_shallow_remote: true,
+            shallow: &fetch::Shallow::NoChange,
+            tags: fetch::Tags::None,
+        },
+    )?.expect("we always get a pack");
 
-    let mut features = fetch.default_features(*protocol, capabilities);
-    match (&mut delegate).prepare_fetch(*protocol, capabilities, &mut features, &[]) {
-        Ok(fetch::Action::Continue) => {
-            // FIXME: this is a private function in gitoxide
-            // fetch.validate_argument_prefixes_or_panic(protocol, &capabilities, &[], &features)
-        }
-        // N.b. we always return Action::Continue
-        Ok(fetch::Action::Cancel) => unreachable!(),
-        Err(err) => {
-            indicate_end_of_interaction(&mut conn)?;
-            return Err(err.into());
-        }
-    }
+    out.refs
+        .extend(fetch_out.last_response.wanted_refs().iter().map(
+            |fetch::response::WantedRef { id, path }| Ref::Direct {
+                full_ref_name: path.clone(),
+                object: *id,
+            },
+        ));
+    let pack_out = pack_out.expect("we always get a pack");
+    out.keepfile = pack_out
+        .keep_path
+        .as_ref()
+        .and_then(packfile::Keepfile::new);
+    out.pack = Some(pack_out);
 
-    gix_protocol::fetch::Response::check_required_features(*protocol, &features)?;
-    let sideband_all = features.iter().any(|(n, _)| *n == "sideband-all");
-    features.push(("agent", Some(Cow::Owned(agent))));
-    let mut args = fetch::Arguments::new(*protocol, features, false);
-
-    let mut previous_response = None::<fetch::Response>;
-    let mut round = 1;
-    'negotiation: loop {
-        progress.step();
-        progress.set_name(format!("negotiate (round {round})"));
-        round += 1;
-        let action = (&mut delegate).negotiate(&[], &mut args, previous_response.as_ref())?;
-        let mut reader = args.send(&mut conn, action == fetch::Action::Cancel)?;
-        if sideband_all {
-            setup_remote_progress(progress, &mut reader);
-        }
-        let response = fetch::Response::from_line_reader(*protocol, &mut reader, true, false)?;
-        previous_response = if response.has_pack() {
-            progress.step();
-            if !sideband_all {
-                setup_remote_progress(progress, &mut reader);
-            }
-            let timer = std::time::Instant::now();
-            // TODO: remove delegate in favor of functional style to fix progress-hack,
-            //       needed as it needs `'static`. As the top-level seems to pass `Discard`,
-            //       there should be no repercussions right now.
-            (&mut delegate).receive_pack(
-                &mut reader,
-                progress.add_child("receiving pack"),
-                &[],
-                &response,
-            )?;
-            log::trace!(target: "fetch", "Received pack ({}ms)", timer.elapsed().as_millis());
-            assert_eq!(
-                reader.stopped_at(),
-                None,
-                "packs are read without 'overshooting', hence it never encountered EOF"
-            );
-            // Consume anything that might still be left on the wire - this is 'EOF' most of the time,
-            // but some tests have 'garbage' here as well.
-            std::io::copy(&mut reader, &mut std::io::sink())?;
-            assert_eq!(
-                reader.stopped_at(),
-                Some(MessageKind::Flush),
-                "the flush packet was now consumed"
-            );
-            break 'negotiation;
-        } else {
-            match action {
-                fetch::Action::Cancel => break 'negotiation,
-                fetch::Action::Continue => Some(response),
-            }
-        }
-    }
-    if matches!(protocol, Protocol::V2)
-        && matches!(conn.mode, FetchConnection::TerminateOnSuccessfulCompletion)
-    {
-        log::trace!(target: "fetch", "Indicating end of interaction");
-        indicate_end_of_interaction(&mut conn)?;
-    }
-
-    log::trace!(target: "fetch", "fetched refs: {:?}", delegate.out.refs);
-    Ok(delegate.out)
-}
-
-fn setup_remote_progress<'a, P>(
-    progress: &mut P,
-    reader: &mut Box<dyn gix_transport::client::ExtendedBufRead<'a> + Unpin + 'a>,
-) where
-    P: NestedProgress,
-    P::SubProgress: 'static,
-{
-    reader.set_progress_handler(Some(Box::new({
-        let mut remote_progress = progress.add_child("remote");
-        move |is_err: bool, data: &[u8]| {
-            gix_protocol::RemoteProgress::translate_to_progress(is_err, data, &mut remote_progress);
-            gix_transport::packetline::read::ProgressAction::Continue
-        }
-    }) as gix_transport::client::HandleProgress<'a>));
+    log::trace!(target: "fetch", "fetched refs: {:?}", out.refs);
+    Ok(out)
 }

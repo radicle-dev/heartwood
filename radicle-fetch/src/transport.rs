@@ -10,9 +10,7 @@ use std::sync::Arc;
 use bstr::BString;
 use gix_features::progress::prodash::progress;
 use gix_protocol::handshake;
-use gix_protocol::FetchConnection;
 use gix_transport::client;
-use gix_transport::client::TransportWithoutIO as _;
 use gix_transport::Protocol;
 use gix_transport::Service;
 use radicle::git::Oid;
@@ -85,7 +83,7 @@ where
         log::trace!(target: "fetch", "Performing handshake for {}", self.repo);
         let (read, write) = self.stream.open().map_err(io_other)?;
         gix_protocol::fetch::handshake(
-            &mut Connection::new(read, write, FetchConnection::AllowReuse, self.repo.clone()),
+            &mut Connection::new(read, write, self.repo.clone()),
             |_| Ok(None),
             vec![],
             &mut progress::Discard,
@@ -105,11 +103,10 @@ where
         ls_refs::run(
             ls_refs::Config {
                 prefixes,
-                extra_params: vec![],
                 repo: self.repo.clone(),
             },
             handshake,
-            Connection::new(read, write, FetchConnection::AllowReuse, self.repo.clone()),
+            Connection::new(read, write, self.repo.clone()),
             &mut progress::Discard,
         )
         .map_err(io_other)
@@ -137,7 +134,7 @@ where
                     interrupt,
                 },
                 handshake,
-                Connection::new(read, write, FetchConnection::AllowReuse, self.repo.clone()),
+                Connection::new(read, write, self.repo.clone()),
                 &mut progress::Discard,
             )
             .map_err(io_other)?
@@ -184,7 +181,6 @@ where
 
 pub(crate) struct Connection<R, W> {
     inner: client::git::Connection<R, W>,
-    mode: FetchConnection,
 }
 
 impl<R, W> Connection<R, W>
@@ -192,7 +188,7 @@ where
     R: io::Read,
     W: io::Write,
 {
-    pub fn new(read: R, write: W, mode: FetchConnection, repo: BString) -> Self {
+    pub fn new(read: R, write: W, repo: BString) -> Self {
         Self {
             inner: client::git::Connection::new(
                 read,
@@ -203,7 +199,6 @@ where
                 client::git::ConnectMode::Daemon,
                 false,
             ),
-            mode,
         }
     }
 }
@@ -254,20 +249,6 @@ where
     fn supported_protocol_versions(&self) -> &[Protocol] {
         &[Protocol::V2]
     }
-}
-
-fn indicate_end_of_interaction<R, W>(transport: &mut Connection<R, W>) -> Result<(), client::Error>
-where
-    R: io::Read,
-    W: io::Write,
-{
-    // An empty request marks the (early) end of the interaction. Only relevant in stateful transports though.
-    if transport.connection_persists_across_multiple_requests() {
-        transport
-            .request(client::WriteMode::Binary, client::MessageKind::Flush, false)?
-            .into_read()?;
-    }
-    Ok(())
 }
 
 fn io_other(err: impl std::error::Error + Send + Sync + 'static) -> io::Error {
