@@ -213,6 +213,7 @@ where
     let handshake::Outcome {
         server_protocol_version: protocol,
         refs: _refs,
+        v1_shallow_updates: _,
         capabilities,
     } = handshake;
     let agent = agent_name()?;
