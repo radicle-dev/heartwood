@@ -7,10 +7,16 @@ edition = "2021"
 version = "0.9.0"
 
 [dependencies]
-keri-core = "0.13.0"
+#keri-core = "0.14.2"
+keri-core = { path = "/home/lorenz/src/github.com/THCLab/keriox/keriox_core" }
 tempfile = "*"
 serde_json = "*"
+anyhow = "1.0.94"
+#keri-controller = "0.14.2"
+teliox = "0.14.2"
+serde = "1.0.216"
 
 [dev-dependencies]
 async-std = "*"
-keri-controller = "0.13.0"
+tempfile = "*"
+#keri-controller = "0.14.2"
