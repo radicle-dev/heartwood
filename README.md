@@ -11,6 +11,10 @@ Radicle was designed to be a secure, decentralized and powerful alternative to
 code forges such as GitHub and GitLab that preserves user sovereignty
 and freedom.
 
+See the [Radicle home page](https://radicle.xyz/) for general
+information, and the [Zulip chat](https://radicle.zulipchat.com/) to
+talk to the project.
+
 See the [Protocol Guide](https://radicle.xyz/guides/protocol) for an
 in-depth description of how Radicle works.
 
