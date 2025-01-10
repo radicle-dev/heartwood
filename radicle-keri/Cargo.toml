@@ -1,5 +1,6 @@
 [package]
 name = "radicle-keri"
+description = "Radicle KERI Implementation"
 homepage = "https://radicle.xyz"
 repository = "https://app.radicle.xyz/seeds/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
 license = "MIT OR Apache-2.0"
@@ -15,6 +16,17 @@ anyhow = "1.0.94"
 #keri-controller = "0.14.2"
 teliox = "0.14.2"
 serde = "1.0.216"
+once_cell = { version = "1.13" }
+
+# N.b. this is required to use macros, even though it's re-exported
+# through radicle
+radicle-git-ext = { version = "0.8.0", features = ["serde"] }
+
+
+[dependencies.radicle]
+path = "../radicle"
+version = "0"
+features = ["logger"]
 
 [dev-dependencies]
 async-std = "*"

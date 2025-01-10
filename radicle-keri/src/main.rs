@@ -7,6 +7,10 @@ use keri_core::event_message::msg::KeriEvent;
 use keri_core::event_message::signed_event_message::{
     Notice, SignedEventMessage, SignedNontransferableReceipt, SignedTransferableReceipt,
 };
+use radicle::crypto::PublicKey;
+use radicle::prelude::Did;
+use radicle::storage::git::Repository;
+use radicle::storage::ReadRepository;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::vec;
@@ -32,6 +36,14 @@ use keri_core::{
 };
 
 use serde::{Deserialize, Serialize};
+
+use once_cell::sync::Lazy;
+
+pub use radicle::git::ext::ref_format::{
+    component, lit, name, qualified, refname, refspec,
+    refspec::{PatternStr, PatternString, Refspec},
+    Component, Namespaced, Qualified, RefStr, RefString,
+};
 
 /*
 struct RadicleEvents {
@@ -355,12 +367,11 @@ impl EventDatabase for SledEventDatabase {
 }
 
 #[derive(Serialize, Deserialize)]
-struct RadicleEventDatabase {
+struct RadicleInMemoryEventDatabase {
     kel: HashMap<IdentifierPrefix, Vec<Timestamped<SignedEventMessage>>>,
-    // repo: Repository,
 }
 
-impl RadicleEventDatabase {
+impl RadicleInMemoryEventDatabase {
     pub fn new() -> Self {
         Self {
             kel: HashMap::new(),
@@ -368,7 +379,7 @@ impl RadicleEventDatabase {
     }
 }
 
-impl EventDatabase for RadicleEventDatabase {
+impl EventDatabase for RadicleInMemoryEventDatabase {
     fn add_kel_finalized_event(
         &mut self,
         event: SignedEventMessage,
@@ -469,6 +480,45 @@ impl EventDatabase for RadicleEventDatabase {
     }
 }
 
+
+struct RadicleRepositoryEventDatabase {
+    repo: Repository,
+    // TODO(lorenz): Use a DID type, not just a string.
+    did: String,
+    remote: PublicKey,
+}
+
+
+static BASE_REF: Lazy<Qualified> = Lazy::new(|| {
+    Qualified::from_components(name::component!("did"), name::component!("keri"), None)
+});
+
+static KEL_REF: Lazy<Qualified> = Lazy::new(|| {
+    Qualified::from_refstr(
+    RefStr::try_from_str("kel").expect("Failed to create RefStr for KEL")
+    ).expect("Failed to create Qualified for KEL")
+});
+
+impl RadicleRepositoryEventDatabase {
+    fn new(repo: Repository, did: String, remote: PublicKey) -> Self {
+        Self { repo, did, remote }
+    }
+
+    fn get_ref(&self) -> Qualified {
+        let did_component = RefStr::try_from_str(self.did.as_str()).unwrap();
+        BASE_REF.clone().join(did_component).join(KEL_REF.clone())
+    }
+
+    fn foo(&self) -> Result<(), radicle::git::raw::Error> {
+        let oid = self.repo.reference_oid(&self.remote, &self.get_ref())?;
+        
+        Ok(())
+    }
+}
+
+impl EventDatabase for RadicleRepositoryEventDatabase {
+}
+
 #[cfg(test)]
 mod tests {
     use tempfile::tempdir;
@@ -485,7 +535,7 @@ mod tests {
             .unwrap();
 
         let db_sled = SledEventDatabase::new(&temp).unwrap();
-        let mut db_rad = RadicleEventDatabase::new();
+        let mut db_rad = RadicleInMemoryEventDatabase::new();
 
         let events_raw = r#"{"v":"KERI10JSON000159_","t":"icp","d":"ENRc2DeK48BKJ3ST8mypvngVwEAxw9rZr_GPNP25TmQ_","i":"ENRc2DeK48BKJ3ST8mypvngVwEAxw9rZr_GPNP25TmQ_","s":"0","kt":"1","k":["DDhKvndcqZlJNx-mtC_5eTy7UiuxOPVgAV3HsmofP2Ll"],"nt":"1","n":["EOOlrw-1jQHp8IfE1mfOb_ikXpHksVSyZ0RCnu5X0Rfg"],"bt":"0","b":["DNjeO6mfXSbrFFdk5UjDmioaho6ON0Sp6JMfhKz2jJF-"],"c":[],"a":[]}-AABAAD34oIVuxmLLKldRCzhfxR9hNg2SOMbOKZn1hp6D1OBmA6Hut6gSID21vFk50ost8_-VNbjHIQnHZ8WulUJ_yQL{"v":"KERI10JSON000091_","t":"rct","d":"ENRc2DeK48BKJ3ST8mypvngVwEAxw9rZr_GPNP25TmQ_","i":"ENRc2DeK48BKJ3ST8mypvngVwEAxw9rZr_GPNP25TmQ_","s":"0"}-CABDNjeO6mfXSbrFFdk5UjDmioaho6ON0Sp6JMfhKz2jJF-0BCTI8wy4v_Iyiyh4cSuG02R-K4GZHMXQVyC3yckpPpev0yWUiuera6q7ErDIQDLvjnMG5UuE2Ycw8-sxzeybicP"#;
         let to_process = parse_event_stream(events_raw.as_bytes())?;
