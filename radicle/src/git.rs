@@ -446,7 +446,9 @@ pub fn remote_refs(url: &Url) -> Result<RandomMap<RemoteId, Refs>, ListRefsError
 /// e.g. in the reference below, the segment is
 /// `z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C`:
 ///
-///     refs/namespaces/z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C/refs/heads/main
+/// ```text, no_run
+/// refs/namespaces/z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C/refs/heads/main
+/// ```
 ///
 /// The `T` can be specified when calling the function. For example, if you
 /// wanted to parse the namespace as a `PublicKey`, then you would the function
@@ -473,7 +475,9 @@ where
 /// e.g. in the reference below, the segment is
 /// `z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C`:
 ///
-///     refs/namespaces/z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C/refs/heads/main
+/// ```text, no_run
+/// refs/namespaces/z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C/refs/heads/main
+/// ```
 ///
 /// The `T` can be specified when calling the function. For example, if you
 /// wanted to parse the namespace as a `PublicKey`, then you would the function
