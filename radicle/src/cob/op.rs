@@ -32,6 +32,23 @@ pub struct ManifestError {
     err: Box<dyn std::error::Error + Send + Sync + 'static>,
 }
 
+/// Error loading an `Op` from storage.
+#[derive(Error, Debug)]
+pub enum LoadError {
+    #[error("failed to load Op at '{object}': {err}")]
+    Load {
+        object: git::Oid,
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+    #[error("failed to decode Op at '{object}': {err}")]
+    Encoding {
+        object: git::Oid,
+        #[source]
+        err: OpEncodingError,
+    },
+}
+
 /// The `Op` is the operation that is applied onto a state to form a CRDT.
 ///
 /// Everything that can be done in the system is represented by an `Op`.
@@ -115,6 +132,23 @@ impl<A> Op<A> {
             object: *id,
             err: Box::new(err),
         })
+    }
+
+    /// Get the `Op` identified by the `id` in the provided `store`.
+    pub fn load<S>(store: &S, id: git::Oid) -> Result<Self, LoadError>
+    where
+        S: cob::change::Storage<
+            ObjectId = git::Oid,
+            Parent = git::Oid,
+            Signatures = crypto::ssh::ExtendedSignature,
+        >,
+        for<'de> A: serde::Deserialize<'de>,
+    {
+        let entry = store.load(id).map_err(|err| LoadError::Load {
+            object: id,
+            err: Box::new(err),
+        })?;
+        Op::try_from(&entry).map_err(|err| LoadError::Encoding { object: id, err })
     }
 }
 
