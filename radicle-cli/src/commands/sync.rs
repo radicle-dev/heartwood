@@ -9,9 +9,7 @@ use anyhow::{anyhow, Context as _};
 
 use radicle::node;
 use radicle::node::address::Store;
-use radicle::node::{
-    AliasStore, FetchResult, FetchResults, Handle as _, Node, Seed, Session, SyncStatus,
-};
+use radicle::node::{AliasStore, FetchResult, FetchResults, Handle as _, Node, Seed, SyncStatus};
 use radicle::prelude::{NodeId, Profile, RepoId};
 use radicle::storage::{ReadStorage, RemoteRepository};
 use radicle_term::Element;

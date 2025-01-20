@@ -37,7 +37,7 @@ Usage
     rad node debug [<option>...]
     rad node connect <nid>@<addr> [<option>...]
     rad node routing [--rid <rid>] [--nid <nid>] [--json] [<option>...]
-    rad node inventory [<option>...]
+    rad node inventory [--nid <nid>] [<option>...]
     rad node events [--timeout <secs>] [-n <count>] [<option>...]
     rad node config [--addresses]
     rad node db <command> [<option>..]
@@ -55,6 +55,10 @@ Routing options
     --rid <rid>          Show the routing table entries for the given RID
     --nid <nid>          Show the routing table entries for the given NID
     --json               Output the routing table as json
+
+Inventory options
+
+    --nid <nid>          List the inventory of the given NID (default: self)
 
 Events options
 
@@ -101,7 +105,9 @@ pub enum Operation {
         lines: usize,
     },
     Status,
-    Inventory,
+    Inventory {
+        nid: Option<NodeId>,
+    },
     Debug,
     Sessions,
     Stop,
@@ -171,7 +177,10 @@ impl Args for Options {
                     let val = parser.value()?;
                     rid = term::args::rid(&val).ok();
                 }
-                Long("nid") if matches!(op, Some(OperationName::Routing)) => {
+                Long("nid")
+                    if matches!(op, Some(OperationName::Routing))
+                        || matches!(op, Some(OperationName::Inventory)) =>
+                {
                     let val = parser.value()?;
                     nid = term::args::nid(&val).ok();
                 }
@@ -230,7 +239,7 @@ impl Args for Options {
                 options,
                 path: path.unwrap_or(PathBuf::from("radicle-node")),
             },
-            OperationName::Inventory => Operation::Inventory,
+            OperationName::Inventory => Operation::Inventory { nid },
             OperationName::Status => Operation::Status,
             OperationName::Debug => Operation::Debug,
             OperationName::Sessions => Operation::Sessions,
@@ -286,8 +295,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         } => {
             control::start(node, !foreground, verbose, options, &path, &profile)?;
         }
-        Operation::Inventory => {
-            for rid in profile.routing()?.get_inventory(profile.id())? {
+        Operation::Inventory { nid } => {
+            let nid = nid.as_ref().unwrap_or(profile.id());
+            for rid in profile.routing()?.get_inventory(nid)? {
                 println!("{}", term::format::tertiary(rid));
             }
         }
