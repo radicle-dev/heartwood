@@ -316,7 +316,7 @@ pub fn list_commits(commits: &[git::raw::Commit], term: &Terminal) -> anyhow::Re
             .summary_bytes()
             .unwrap_or_else(|| commit.message_bytes());
         table.push([
-            term::format::secondary(term::format::oid(commit.id()).into()),
+            term::format::secondary::<String, _>(term::format::oid(commit.id()).into()),
             term::format::italic(String::from_utf8_lossy(message).to_string()),
         ]);
     }
@@ -469,7 +469,7 @@ fn patch_commit_lines(
 
     for commit in patch_commits(stored.raw(), &from, &to)? {
         lines.push(term::Line::spaced([
-            term::label(term::format::secondary::<String>(
+            term::label(term::format::secondary::<String, _>(
                 term::format::oid(commit.id()).into(),
             )),
             term::label(term::format::default(

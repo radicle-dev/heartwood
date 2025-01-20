@@ -5,8 +5,9 @@ use radicle::cob::patch::{Patch, Verdict};
 use radicle::git;
 use radicle::patch::{Merge, Review, Revision, RevisionId};
 use radicle::profile::Profile;
+use radicle_term::Paint;
 
-use crate::terminal as term;
+use crate::terminal::{self as term, Context};
 use crate::terminal::format::Author;
 
 pub fn timeline<'a>(
@@ -104,9 +105,11 @@ impl<'a> Opened<'a> {
     }
 
     fn into_lines(self, profile: &'a Profile) -> impl Iterator<Item = term::Line> + 'a {
+        let term = profile.terminal();
+        let timestamp_str = term.display(&term::format::timestamp(self.timestamp).dim()).to_string();
         iter::once(
             term::Line::spaced([
-                term::format::positive("●").into(),
+                term::format::positive::<_, &str>("●").into(),
                 term::format::default("opened by").into(),
             ])
             .space()
@@ -114,7 +117,7 @@ impl<'a> Opened<'a> {
             .space()
             .extend(term::Line::spaced([
                 term::format::parens(term::format::secondary(term::format::oid(self.head))).into(),
-                term::format::dim(term::format::timestamp(self.timestamp)).into(),
+                timestamp_str.into(),
             ])),
         )
         .chain(self.updates.into_iter().map(|up| {
@@ -229,12 +232,14 @@ impl<'a> RevisionEntry<'a> {
         head: git::Oid,
         updates: Vec<Update<'a>>,
     ) -> impl Iterator<Item = term::Line> + 'a {
+        let term = profile.terminal();
+        let timestamp_str = term.display(&term::format::timestamp(timestamp).dim()).to_string();
         iter::once(term::Line::spaced([
-            term::format::tertiary("↑").into(),
+            term::format::tertiary::<_, String>("↑").into(),
             term::format::default("updated to").into(),
             term::format::dim(id).into(),
             term::format::parens(term::format::secondary(term::format::oid(head))).into(),
-            term::format::dim(term::format::timestamp(timestamp)).into(),
+            timestamp_str.into(),
         ]))
         .chain(updates.into_iter().map(|up| {
             term::Line::spaced([term::Label::space(), term::Label::from("└─ ")])
@@ -250,16 +255,20 @@ impl<'a> RevisionEntry<'a> {
         head: git::Oid,
         updates: Vec<Update<'a>>,
     ) -> impl Iterator<Item = term::Line> + 'a {
+        let term = profile.terminal();
         let (alias, nid) = author.labels();
+        let id_str = term.display(&term::format::dim::<_, String>(term::format::oid(id))).to_string();
+        let head_str = term.display(&term::format::parens(term::format::secondary(term::format::oid(head)))).to_string();
+        let timestamp_str = term.display(&term::format::dim::<_, String>(term::format::timestamp(timestamp))).to_string();
         iter::once(term::Line::spaced([
-            term::format::tertiary("*").into(),
+            term::format::tertiary::<&str, &str>("*").into(),
             term::format::default("revised by").into(),
             alias,
             nid,
             term::format::default("in").into(),
-            term::format::dim(term::format::oid(id)).into(),
-            term::format::parens(term::format::secondary(term::format::oid(head))).into(),
-            term::format::dim(term::format::timestamp(timestamp)).into(),
+            id_str.into(),
+            head_str.into(),
+            timestamp_str.into(),
         ]))
         .chain(updates.into_iter().map(|up| {
             term::Line::spaced([term::Label::space(), term::Label::from("└─ ")])
@@ -289,7 +298,7 @@ impl<'a> Update<'a> {
         let mut line = match self {
             Update::Reviewed { review } => {
                 let verdict = review.verdict();
-                let verdict_symbol = match verdict {
+                let verdict_symbol: Paint<String> = match verdict {
                     Some(Verdict::Accept) => term::format::positive("✓"),
                     Some(Verdict::Reject) => term::format::negative("✗"),
                     None => term::format::dim("⋄"),
@@ -310,19 +319,19 @@ impl<'a> Update<'a> {
             Update::Merged { author, merge } => {
                 let (alias, nid) = author.labels();
                 term::Line::spaced([
-                    term::format::primary("✓").bold().into(),
+                    term::format::primary::<_, String>("✓").bold().into(),
                     term::format::default("merged by").into(),
                     alias,
                     nid,
                     term::format::default("at revision").into(),
-                    term::format::dim(term::format::oid(merge.revision)).into(),
+                    term::format::dim::<_, String>(term::format::oid(merge.revision)).into(),
                     term::format::parens(term::format::secondary(term::format::oid(merge.commit)))
                         .into(),
                 ])
             }
         };
         line.push(term::Label::space());
-        line.push(term::format::dim(term::format::timestamp(timestamp)));
+        line.push(term::format::dim::<_, String>(term::format::timestamp(timestamp)));
         line
     }
 }

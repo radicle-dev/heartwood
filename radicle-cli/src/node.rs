@@ -10,7 +10,7 @@ use radicle::storage::{ReadRepository, RepositoryError};
 use radicle::{Node, Profile};
 use radicle_term::format;
 
-use crate::terminal as term;
+use crate::terminal::{self as term, Context as _};
 
 /// Default time to wait for syncing to complete.
 pub const DEFAULT_SYNC_TIMEOUT: time::Duration = time::Duration::from_secs(9);
@@ -177,6 +177,7 @@ fn announce_<R: ReadRepository>(
     node: &mut Node,
     profile: &Profile,
 ) -> Result<AnnounceResult, SyncError> {
+    let term = profile.terminal();
     let rid = repo.id();
     let doc = repo.identity_doc()?;
     let mut settings = settings.with_profile(profile);
@@ -286,7 +287,8 @@ fn announce_<R: ReadRepository>(
     }
     for seed in &result.timed_out {
         if settings.seeds.contains(seed) {
-            term::notice!(&mut reporting.completion; "Seed {seed} timed out..");
+            // TODO(lorenz): This was printed as a notice before!
+            writeln!(&mut reporting.completion, "Seed {seed} timed out..");
         }
     }
     if result.synced.is_empty() {

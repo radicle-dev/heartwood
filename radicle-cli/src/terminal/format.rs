@@ -3,6 +3,7 @@ use std::fmt;
 use localtime::LocalTime;
 
 pub use radicle_term::format::*;
+use radicle_term::Display;
 pub use radicle_term::{style, Paint};
 
 use radicle::cob::ObjectId;
@@ -17,17 +18,17 @@ use radicle_term::element::Line;
 use crate::terminal as term;
 
 /// Format a node id to be more compact.
-pub fn node(node: &NodeId) -> Paint<String> {
+pub fn node(node: &NodeId) -> String {
     let node = node.to_human();
     let start = node.chars().take(7).collect::<String>();
     let end = node.chars().skip(node.len() - 7).collect::<String>();
 
-    Paint::new(format!("{start}…{end}"))
+    format!("{start}…{end}")
 }
 
 /// Format a git Oid.
-pub fn oid(oid: impl Into<radicle::git::Oid>) -> Paint<String> {
-    Paint::new(format!("{:.7}", oid.into()))
+pub fn oid(oid: impl Into<radicle::git::Oid>) -> String {
+    format!("{:.7}", oid.into())
 }
 
 /// Format a job COB state.
@@ -36,23 +37,25 @@ pub fn job_state(state: radicle::cob::job::State) -> Paint<String> {
 }
 
 /// Wrap parenthesis around styled input, eg. `"input"` -> `"(input)"`.
-pub fn parens<D: fmt::Display>(input: Paint<D>) -> Paint<String> {
-    Paint::new(format!("({})", input.item)).with_style(input.style)
+pub fn parens<T: Into<Paint<String>>>(input: T) -> Paint<String> {
+    let paint = input.into();
+    Paint::new(format!("({})", paint.item)).with_style(paint.style)
 }
 
 /// Wrap spaces around styled input, eg. `"input"` -> `" input "`.
-pub fn spaced<D: fmt::Display>(input: Paint<D>) -> Paint<String> {
-    Paint::new(format!(" {} ", input.item)).with_style(input.style)
+pub fn spaced<T: Into<Paint<String>>>(input: T) -> Paint<String> {
+    let paint = input.into();
+    Paint::new(format!(" {} ", paint.item)).with_style(paint.style)
 }
 
 /// Format a command suggestion, eg. `rad init`.
-pub fn command<D: fmt::Display>(cmd: D) -> Paint<String> {
+pub fn command<T: fmt::Display>(cmd: T) -> Paint<String> {
     primary(format!("`{cmd}`"))
 }
 
 /// Format a COB id.
-pub fn cob(id: &ObjectId) -> Paint<String> {
-    Paint::new(format!("{:.7}", id.to_string()))
+pub fn cob(id: &ObjectId) -> String {
+    format!("{:.7}", id.to_string())
 }
 
 /// Format a DID.
@@ -87,7 +90,7 @@ pub fn timestamp(time: impl Into<LocalTime>) -> Paint<String> {
     Paint::new(fmt.convert(duration.into()))
 }
 
-pub fn bytes(size: usize) -> Paint<String> {
+pub fn bytes(size: usize) -> String {
     const KB: usize = 1024;
     const MB: usize = 1024usize.pow(2);
     const GB: usize = 1024usize.pow(3);
@@ -100,7 +103,7 @@ pub fn bytes(size: usize) -> Paint<String> {
     } else {
         format!("{} GiB", size / GB)
     };
-    Paint::new(size)
+    size
 }
 
 /// Format a ref update.
@@ -144,19 +147,19 @@ impl<'a> Identity<'a> {
     }
 }
 
-impl<'a> fmt::Display for Identity<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for Identity<'_> {
+    fn fmt_with<'a>(&'a self, f: &mut fmt::Formatter<'_>, ctx: &'a radicle_term::Context) -> fmt::Result {
         let nid = self.profile.id();
         let alias = self.profile.aliases().alias(nid);
         let node_id = match self.short {
-            true => self::node(nid).to_string(),
+            true => self::node(nid).display(ctx).to_string(),
             false => nid.to_human(),
         };
 
         if self.styled {
-            write!(f, "{}", term::format::highlight(node_id))?;
+            write!(f, "{}", term::format::highlight(node_id).display(ctx))?;
             if let Some(a) = alias {
-                write!(f, " {}", term::format::parens(term::format::dim(a)))?;
+                write!(f, " {}", term::format::parens(term::format::dim(a.to_string())).display(ctx))?;
             }
         } else {
             write!(f, "{node_id}")?;
@@ -192,7 +195,7 @@ impl<'a> Author<'a> {
 
     pub fn you(&self) -> Option<term::Label> {
         if self.you {
-            Some(term::format::primary("(you)").dim().italic().into())
+            Some(term::format::primary::<_, &str>("(you)").dim().italic().into())
         } else {
             None
         }
@@ -206,7 +209,7 @@ impl<'a> Author<'a> {
     ///   * `(<blank>, <did>)` -- the `Author` is another peer and has no alias
     pub fn labels(self) -> (term::Label, term::Label) {
         let alias = match self.alias.as_ref() {
-            Some(alias) => term::format::primary(alias).into(),
+            Some(alias) => term::format::primary(alias.to_string()).into(),
             None if self.you => term::format::primary(term::format::node(self.nid))
                 .dim()
                 .into(),
@@ -301,7 +304,7 @@ pub mod patch {
             State::Draft { .. } => term::format::dim(s.to_string()),
             State::Open { .. } => term::format::positive(s.to_string()),
             State::Archived => term::format::yellow(s.to_string()),
-            State::Merged { .. } => term::format::secondary(s.to_string()),
+            State::Merged { .. } => term::format::secondary(Paint::new(s.to_string())),
         }
     }
 }

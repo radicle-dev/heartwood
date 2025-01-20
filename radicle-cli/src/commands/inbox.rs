@@ -344,7 +344,7 @@ where
         Ok(Some(
             term::VStack::default()
                 .border(Some(term::colors::FAINT))
-                .child(term::label(term::format::bold(proj.name())))
+                .child(term::label(term::format::bold::<_, &str>(proj.name())))
                 .divider()
                 .child(table),
         ))
@@ -366,8 +366,8 @@ impl NotificationRow {
         name: term::Paint<String>,
     ) -> Self {
         Self {
-            category: term::format::dim(category),
-            summary: term::Paint::new(summary),
+            category: term::Paint::new(category).dim(),
+            summary: summary.into(),
             state,
             name,
         }
@@ -394,7 +394,7 @@ impl NotificationRow {
             .map(|oid| repo.is_ancestor_of(oid, head))
             .transpose()
         {
-            Ok(Some(true)) => term::Paint::<String>::from(term::format::secondary("merged")),
+            Ok(Some(true)) => term::format::secondary("merged"),
             Ok(Some(false)) | Ok(None) => term::format::ref_update(&n.update).into(),
             Err(e) => return Err(e.into()),
         }
@@ -404,7 +404,7 @@ impl NotificationRow {
             "branch".to_string(),
             commit,
             state,
-            term::format::default(name.to_string()),
+            name.to_string().into(),
         ))
     }
 
@@ -465,14 +465,14 @@ impl NotificationRow {
             (
                 typed_id.type_name.to_string(),
                 "".to_owned(),
-                term::format::default(String::new()),
+                String::new().into(),
             )
         };
         Ok(Some(Self::new(
             category,
             summary,
             state,
-            term::format::cob(id),
+            term::format::cob(id).into(),
         )))
     }
 
@@ -489,7 +489,7 @@ impl NotificationRow {
             "unknown".to_string(),
             commit,
             "".into(),
-            term::format::default(refname.to_string()),
+            refname.to_string().into(),
         ))
     }
 }

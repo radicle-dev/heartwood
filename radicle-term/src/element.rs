@@ -4,7 +4,6 @@ use std::ops::Deref;
 use std::{io, vec};
 
 use crate::cell::Cell;
-use crate::display::DisplayWrapper;
 use crate::{display, viewport, Color, Context, Display, Filled, Label, Style, Terminal};
 
 /// Rendering constraint.
@@ -110,7 +109,8 @@ pub trait Element: fmt::Debug + Send + Sync {
         for line in self.render(context.constraint) {
             out.extend(
                 line.into_iter()
-                    .map(|l| DisplayWrapper::new(&l, context).to_string()),
+                    // .map(|l| DisplayWrapper::new(&l, context).to_string()),
+                    .map(|l| display::Display::display(&l, context).to_string()),
             );
             out.push('\n');
         }

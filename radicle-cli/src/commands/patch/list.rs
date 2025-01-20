@@ -140,10 +140,10 @@ pub fn row(
 
     Ok([
         match state {
-            patch::State::Open { .. } => term::format::positive("●").into(),
-            patch::State::Archived { .. } => term::format::yellow("●").into(),
-            patch::State::Draft => term::format::dim("●").into(),
-            patch::State::Merged { .. } => term::format::primary("✔").into(),
+            patch::State::Open { .. } => term::format::positive::<_, &str>("●").into(),
+            patch::State::Archived { .. } => term::format::yellow::<_, &str>("●").into(),
+            patch::State::Draft => term::format::dim::<_, &str>("●").into(),
+            patch::State::Merged { .. } => term::format::primary::<_, &str>("✔").into(),
         },
         term::format::tertiary(term::format::cob(id)).into(),
         term::format::default(patch.title().to_owned()).into(),

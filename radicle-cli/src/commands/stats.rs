@@ -12,6 +12,7 @@ use radicle::storage::{ReadRepository, ReadStorage, WriteRepository};
 use radicle_term::Element;
 use serde::Serialize;
 
+use crate::terminal::Context as _;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 

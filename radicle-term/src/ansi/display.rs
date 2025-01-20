@@ -2,11 +2,20 @@ use std::fmt;
 
 use crate::{Constraint, Line};
 
+use super::{Color, Style};
+
 pub trait Display<C = Context> {
     fn fmt_with<'a>(&'a self, f: &mut fmt::Formatter<'_>, ctx: &'a C) -> fmt::Result;
+
+    fn display<'a>(&'a self, ctx: &'a C) -> impl fmt::Display + 'a
+    where
+        Self: Sized,
+    {
+        DisplayWrapper::new(self, ctx)
+    }
 }
 
-pub(crate) struct DisplayWrapper<'a, T: Display<C>, C> {
+struct DisplayWrapper<'a, T: Display<C>, C> {
     ctx: &'a C,
     parent: &'a T,
 }
@@ -29,16 +38,25 @@ impl<T: fmt::Display, C> Display<C> for T {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Context {
-    pub ansi: bool,
+    pub style: Option<Style>,
     pub constraint: Constraint,
+}
+
+impl Context {
+    pub fn fg(color: Color) -> Context {
+        Context {
+            style: Some(Style::new(color)),
+            constraint: Constraint::default(),
+        }
+    }
 }
 
 impl Default for Context {
     fn default() -> Self {
         Context {
-            ansi: super::Paint::is_enabled(),
+            style: super::Paint::is_enabled().then(Style::default),
             constraint: Constraint::default(),
         }
     }
@@ -48,7 +66,7 @@ impl Default for Context {
 pub fn display<'a, T: Display<Context> + Sized + 'a>(display: &'a T) -> impl fmt::Display + 'a {
     DisplayWrapper {
         ctx: &Context {
-            ansi: true,
+            style: None,
             constraint: Constraint::UNBOUNDED,
         },
         parent: display,

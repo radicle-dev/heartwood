@@ -66,7 +66,7 @@ pub fn ahead_behind(
 ) -> anyhow::Result<term::Line> {
     let (a, b) = repo.graph_ahead_behind(revision_oid, head_oid)?;
     if a == 0 && b == 0 {
-        return Ok(term::Line::new(term::format::dim("up to date")));
+        return Ok(term::Line::new(term::format::dim::<_, &str>("up to date")));
     }
 
     let ahead = term::format::positive(a);

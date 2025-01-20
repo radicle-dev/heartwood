@@ -73,6 +73,7 @@
 //!  omitting
 //! ```
 use radicle_surf::diff::*;
+use radicle_term::{Constraint, Context};
 
 use std::io;
 
@@ -319,39 +320,48 @@ impl unified_diff::Encode for DiffModification {
         match self {
             DiffModification::AdditionAddition { line, .. } => {
                 let s = format!("++{}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::new(term::Color::Green))?;
+                w.write(s, Context::fg(term::Color::Green))?;
             }
             DiffModification::AdditionDeletion { line, .. } => {
                 let s = format!("-+{}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::new(term::Color::Red))?;
+                w.write(s, Context::fg(term::Color::Red))?;
             }
             DiffModification::ContextAddition { line, .. } => {
                 let s = format!("+ {}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::new(term::Color::Green))?;
+                w.write(s, Context::fg(term::Color::Green))?;
             }
             DiffModification::DeletionAddition { line, .. } => {
                 let s = format!("+-{}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::new(term::Color::Green))?;
+                w.write(s, Context::fg(term::Color::Green))?;
             }
             DiffModification::DeletionDeletion { line, .. } => {
                 let s = format!("--{}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::new(term::Color::Red))?;
+                w.write(s, Context::fg(term::Color::Red))?;
             }
             DiffModification::ContextDeletion { line, .. } => {
                 let s = format!("- {}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::new(term::Color::Red))?;
+                w.write(s, Context::fg(term::Color::Red))?;
             }
             DiffModification::AdditionContext { line, .. } => {
                 let s = format!(" +{}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::new(term::Color::Green).dim())?
+                w.write(s, Context {
+                    style: Some(term::Style::new(term::Color::Green).dim()),
+                    constraint: Constraint::default(),
+                })?;
             }
             DiffModification::DeletionContext { line, .. } => {
                 let s = format!(" -{}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::new(term::Color::Red).dim())?;
+                w.write(s, Context {
+                    style: Some(term::Style::new(term::Color::Red).dim()),
+                    constraint: Constraint::default(),
+                })?;
             }
             DiffModification::ContextContext { line, .. } => {
                 let s = format!("  {}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::default().dim())?;
+                w.write(s, Context {
+                    style: Some(term::Style::default().dim()),
+                    constraint: Constraint::default(),
+                })?;
             }
         }
 

@@ -222,7 +222,7 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
     }
 
     if t.is_empty() {
-        term.println(term::format::dim("No seeding policies to show."));
+        term.println(term::format::dim::<_, &str>("No seeding policies to show."));
     } else {
         t.print_to(&term);
     }

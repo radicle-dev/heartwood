@@ -41,7 +41,9 @@ pub fn page<E: Element + Send + 'static>(element: E, term: Terminal) -> Result<(
             events_tx.send(e).ok();
         }
     });
-    let result = thread::spawn(move || main(element, signals_rx, events_rx, term))
+    let result = thread::spawn(move || {
+        main(element, signals_rx, events_rx, term)
+})
         .join()
         .unwrap();
 

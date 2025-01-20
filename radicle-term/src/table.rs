@@ -327,7 +327,7 @@ mod test {
 
         assert_eq!(
             t.display(&Context {
-                ansi: false,
+                style: false,
                 constraint
             }),
             r#"
@@ -374,7 +374,7 @@ mod test {
 
         assert_eq!(
             t.display(&Context {
-                ansi: false,
+                style: false,
                 constraint
             }),
             r#"
@@ -406,7 +406,7 @@ mod test {
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(&Context { ansi: true, constraint }),
+            t.display(&Context { style: true, constraint }),
             [
                 "pineapple rosem…\n",
                 "apples    pears \n"
@@ -445,7 +445,7 @@ mod test {
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(&Context { ansi: true, constraint }),
+            t.display(&Context { style: true, constraint }),
             [
                 "🍍pineapple __r…\n",
                 "__pears     🍎a…\n"

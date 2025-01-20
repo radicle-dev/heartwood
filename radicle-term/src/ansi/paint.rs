@@ -6,7 +6,7 @@ use std::{fmt, sync};
 use once_cell::sync::Lazy;
 
 use super::color::Color;
-use super::display::{Context, Display, DisplayWrapper};
+use super::display::{Context, Display};
 use super::style::{Property, Style};
 
 /// What file is used for text output.
@@ -259,19 +259,19 @@ impl<T: fmt::Display> Display for Paint<T> {
 
 impl<T: Display> Display for Paint<T> {
     fn fmt_with(&self, f: &mut fmt::Formatter<'_>, ctx: &Context) -> fmt::Result {
-        if ctx.ansi && self.style.wrap {
+        if ctx.style.is_some() && self.style.wrap {
             let mut prefix = String::new();
             prefix.push_str("\x1B[0m");
             self.style.fmt_prefix(&mut prefix)?;
             self.style.fmt_prefix(f)?;
 
-            let item = DisplayWrapper::new(&self.item, ctx)
+            let item = self.item.display(ctx) // DisplayWrapper::new(&self.item, ctx)
                 .to_string()
                 .replace("\x1B[0m", &prefix);
 
             fmt::Display::fmt(&item, f)?;
             self.style.fmt_suffix(f)
-        } else if ctx.ansi {
+        } else if ctx.style.is_some() {
             self.style.fmt_prefix(f)?;
             self.item.fmt_with(f, ctx)?;
             self.style.fmt_suffix(f)

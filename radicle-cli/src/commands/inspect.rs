@@ -206,7 +206,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                         term,
                         "{} {}",
                         term::format::tertiary(&did),
-                        term::format::parens(term::format::dim(alias))
+                        term::format::parens(term::format::dim(alias.to_string()))
                     );
                 } else {
                     term::println!(term, "{}", term::format::tertiary(&did));

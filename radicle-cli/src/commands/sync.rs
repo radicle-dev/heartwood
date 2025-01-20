@@ -15,9 +15,11 @@ use radicle::node::{FetchResult, FetchResults, Handle as _, Node, SyncStatus};
 use radicle::prelude::{NodeId, Profile, RepoId};
 use radicle::storage::{ReadStorage, RemoteRepository};
 use radicle_term::Element;
+use radicle_term::Terminal;
 
 use crate::node::SyncReporting;
 use crate::node::SyncSettings;
+use crate::terminal::Context as _;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::format::Author;
@@ -304,7 +306,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Operation::Synchronize(SyncMode::Inventory) => {
-            announce_inventory(node)?;
+            announce_inventory(profile.terminal(), node)?;
         }
     }
     Ok(())
@@ -338,8 +340,8 @@ fn sync_status(
     for seed in seeds {
         let (icon, status, head, time) = match seed.sync {
             Some(SyncStatus::Synced { at }) => (
-                term::format::positive("●"),
-                term::format::positive(if seed.nid != local_nid { "synced" } else { "" }),
+                term::format::positive::<_, &str>("●"),
+                term::format::positive::<_, &str>(if seed.nid != local_nid { "synced" } else { "" }),
                 term::format::oid(at.oid),
                 term::format::timestamp(at.timestamp),
             ),
@@ -364,7 +366,7 @@ fn sync_status(
             None if options.verbose => (
                 term::format::dim("●"),
                 term::format::dim("unknown"),
-                term::paint(String::new()),
+                String::new(),
                 term::paint(String::new()),
             ),
             None => continue,
@@ -383,7 +385,7 @@ fn sync_status(
             nid,
             addr,
             status.into(),
-            term.display(term::format::secondary(head)).into(),
+            term.display(&term::format::secondary::<_, String>(head)).to_string().into(),
             time.dim().italic().into(),
         ]);
     }
@@ -433,9 +435,9 @@ fn announce_refs(
     Ok(())
 }
 
-pub fn announce_inventory(mut node: Node) -> anyhow::Result<()> {
+pub fn announce_inventory(term: Terminal, mut node: Node) -> anyhow::Result<()> {
     let peers = node.sessions()?.iter().filter(|s| s.is_connected()).count();
-    let spinner = term::spinner(format!("Announcing inventory to {peers} peers.."));
+    let spinner = term::spinner(term, format!("Announcing inventory to {peers} peers.."));
 
     node.announce_inventory()?;
     spinner.finish();
@@ -459,6 +461,7 @@ pub fn fetch(
     node: &mut Node,
     profile: &Profile,
 ) -> Result<FetchResults, FetchError> {
+    let term = profile.terminal();
     let local = node.nid()?;
     let replicas = settings.replicas;
     let mut results = FetchResults::default();
@@ -467,7 +470,7 @@ pub fn fetch(
     // Fetch from specified seeds, connecting to them if necessary.
     for nid in &settings.seeds {
         if node.session(*nid)?.is_some_and(|s| s.is_connected()) {
-            fetch_from(rid, nid, settings.timeout, &mut results, node)?;
+            fetch_from(&term, rid, nid, settings.timeout, &mut results, node)?;
         } else {
             let addrs = db.addresses_of(nid)?;
             if addrs.is_empty() {
@@ -477,14 +480,15 @@ pub fn fetch(
                         reason: format!("no addresses found in routing table for {nid}"),
                     },
                 );
-                term::warning(format!("no addresses found for {nid}, skipping.."));
+                term::warning!(term, "no addresses found for {nid}, skipping..");
             } else if connect(
+                &term,
                 *nid,
                 addrs.into_iter().map(|ka| ka.addr),
                 settings.timeout,
                 node,
             ) {
-                fetch_from(rid, nid, settings.timeout, &mut results, node)?;
+                fetch_from(&term, rid, nid, settings.timeout, &mut results, node)?;
             }
         }
         // We are done when we either hit our replica count,
@@ -517,7 +521,7 @@ pub fn fetch(
         let Some(nid) = connected.pop_front() else {
             break;
         };
-        fetch_from(rid, &nid, settings.timeout, &mut results, node)?;
+        fetch_from(&term, rid, &nid, settings.timeout, &mut results, node)?;
     }
 
     // Try to connect to disconnected seeds and fetch from them.
@@ -530,12 +534,13 @@ pub fn fetch(
             continue;
         }
         if connect(
+            &term,
             seed.nid,
             seed.addrs.into_iter().map(|ka| ka.addr),
             settings.timeout,
             node,
         ) {
-            fetch_from(rid, &seed.nid, settings.timeout, &mut results, node)?;
+            fetch_from(&term, rid, &seed.nid, settings.timeout, &mut results, node)?;
         }
     }
 
@@ -543,6 +548,7 @@ pub fn fetch(
 }
 
 fn connect(
+    term: &Terminal,
     nid: NodeId,
     addrs: impl Iterator<Item = node::Address>,
     timeout: time::Duration,
@@ -550,9 +556,9 @@ fn connect(
 ) -> bool {
     // Try all addresses until one succeeds.
     for addr in addrs {
-        let spinner = term::spinner(format!(
+        let spinner = term::spinner(term.clone(), format!(
             "Connecting to {}@{}..",
-            term::format::tertiary(term::format::node(&nid)),
+            term.display(&term::format::tertiary::<_, String>(term::format::node(&nid))),
             &addr
         ));
         let cr = node.connect(
@@ -583,16 +589,17 @@ fn connect(
 }
 
 fn fetch_from(
+    term: &Terminal,
     rid: RepoId,
     seed: &NodeId,
     timeout: time::Duration,
     results: &mut FetchResults,
     node: &mut Node,
 ) -> Result<(), node::Error> {
-    let spinner = term::spinner(format!(
+    let spinner = term::spinner(term.clone(), format!(
         "Fetching {} from {}..",
-        term::format::tertiary(rid),
-        term::format::tertiary(term::format::node(seed))
+        term.display(&term::format::tertiary(rid)),
+        term.display(&term::format::tertiary::<_, String>(term::format::node(seed)))
     ));
     let result = node.fetch(rid, *seed, timeout)?;
 

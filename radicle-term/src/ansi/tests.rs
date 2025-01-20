@@ -1,6 +1,5 @@
 use std::sync::Mutex;
 
-use super::display::DisplayWrapper;
 use super::Color::*;
 use super::Paint;
 use crate::display;
@@ -142,10 +141,10 @@ fn colors_enabled() {
 }
 
 fn to_non_ansi_string(display: &impl Display) -> String {
-    DisplayWrapper::new(
-        display,
+    // DisplayWrapper::new(
+        display.display(
         &Context {
-            ansi: false,
+            style: false,
             constraint: Constraint::UNBOUNDED,
         },
     )

@@ -97,12 +97,12 @@ pub fn show(
             issue::State::Closed {
                 reason: CloseReason::Solved,
             } => term::Line::spaced([
-                term::format::negative("closed").into(),
-                term::format::negative("(solved)").italic().dim().into(),
+                term::format::negative::<_, &str>("closed").into(),
+                term::format::negative::<_, &str>("(solved)").italic().dim().into(),
             ]),
             issue::State::Closed {
                 reason: CloseReason::Other,
-            } => term::Line::spaced([term::format::negative("closed").into()]),
+            } => term::Line::spaced([term::format::negative::<_, &str>("closed").into()]),
         },
     ]);
 

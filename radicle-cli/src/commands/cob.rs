@@ -188,6 +188,7 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
+    let term = profile.terminal();
     let storage = &profile.storage;
 
     match options.op {
@@ -217,10 +218,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Migrate => {
             let mut db = profile.cobs_db_mut()?;
             if db.check_version().is_ok() {
-                term::success!("Collaborative objects database is already up to date");
+                term::success!(term, "Collaborative objects database is already up to date");
             } else {
-                let version = db.migrate(term::cob::migrate::spinner())?;
+                let version = db.migrate(term::cob::migrate::spinner(profile.terminal()))?;
                 term::success!(
+                    term,
                     "Migrated collaborative objects database successfully (version={version})"
                 );
             }

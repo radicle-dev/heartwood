@@ -19,23 +19,31 @@ pub struct MigrateSpinner {
     spinner: Option<term::Spinner>,
 }
 
+impl MigrateSpinner {
+    pub fn new(term: term::Terminal) -> Self {
+        Self {
+            spinner: Some(term::spinner(term, "Migration in progress..")),
+        }
+    }
+}
+
 impl Default for MigrateSpinner {
     /// Create a new [`MigrateSpinner`].
     fn default() -> Self {
-        Self { spinner: None }
+        MigrateSpinner::new(term::Terminal::default())
     }
 }
 
 impl MigrateCallback for MigrateSpinner {
     fn progress(&mut self, progress: MigrateProgress) {
-        self.spinner
-            .get_or_insert_with(|| term::spinner("Migration in progress.."))
-            .message(format!(
+        if let Some(spinner) = &mut self.spinner {
+            spinner.message(format!(
                 "Migration {}/{} in progress.. ({}%)",
                 progress.migration.current(),
                 progress.migration.total(),
                 progress.rows.percentage()
             ));
+        }
 
         if progress.is_done() {
             if let Some(spinner) = self.spinner.take() {
@@ -50,8 +58,8 @@ pub mod migrate {
     use super::MigrateSpinner;
 
     /// Display migration progress via a spinner.
-    pub fn spinner() -> MigrateSpinner {
-        MigrateSpinner::default()
+    pub fn spinner(term: radicle_term::Terminal) -> MigrateSpinner {
+        MigrateSpinner::new(term)
     }
 }
 

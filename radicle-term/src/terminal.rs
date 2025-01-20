@@ -1,4 +1,3 @@
-use crate::ansi::display::DisplayWrapper;
 use crate::{command, format};
 use crate::{style, Context, Display, Paint, Passphrase, Size};
 use std::ffi::OsStr;
@@ -11,12 +10,13 @@ use inquire::{
 
 use crate::{CONFIG, ERROR_HINT_PREFIX, ERROR_PREFIX, TAB, WARNING_PREFIX};
 
-pub struct Terminal<'a> {
+#[derive(Copy, Clone, Debug)]
+pub struct Terminal {
     ctx: Context,
-    config: RenderConfig<'a>,
+    config: RenderConfig<'static>,
 }
 
-impl Default for Terminal<'_> {
+impl Default for Terminal {
     fn default() -> Self {
         Self {
             ctx: Context::default(),
@@ -25,12 +25,13 @@ impl Default for Terminal<'_> {
     }
 }
 
-impl Terminal<'_> {
+impl Terminal {
     pub fn display<'a, T: Display<Context> + Sized + 'a>(
         &'a self,
         display: &'a T,
     ) -> impl fmt::Display + 'a {
-        DisplayWrapper::new(display, &self.ctx)
+        display.display(&self.ctx)
+        // DisplayWrapper::new(display, &self.ctx)
     }
 
     pub fn printlns<T>(&self, lines: Vec<T>)
@@ -65,7 +66,7 @@ impl Terminal<'_> {
     pub fn tip(&self, msg: impl Display) {
         println!(
             "{} {}",
-            self.display(&format::yellow("*")),
+            self.display(&format::yellow::<_, String>("*")),
             self.display(&style(self.display(&msg).to_string()).italic())
         )
     }
@@ -102,7 +103,7 @@ impl Terminal<'_> {
         println!();
         println!(
             "{}",
-            self.display(&format::yellow(header).bold().underline())
+            self.display(&format::yellow::<_, String>(header).bold().underline())
         );
         println!();
     }

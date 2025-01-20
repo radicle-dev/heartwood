@@ -1,5 +1,6 @@
 use crate::Paint;
 
+#[deprecated]
 pub fn default<D: std::fmt::Display>(msg: D) -> Paint<D> {
     Paint::new(msg)
 }
@@ -8,40 +9,41 @@ pub fn wrap<D: std::fmt::Display>(msg: D) -> Paint<D> {
     Paint::wrapping(msg)
 }
 
-pub fn negative<D: std::fmt::Display>(msg: D) -> Paint<D> {
-    Paint::red(msg)
+pub fn negative<T: Into<Paint<U>>, U>(msg: T) -> Paint<U> {
+    msg.into().fg(crate::Color::Red)
 }
 
-pub fn positive<D: std::fmt::Display>(msg: D) -> Paint<D> {
-    Paint::green(msg)
+pub fn positive<T: Into<Paint<U>>, U>(msg: T) -> Paint<U> {
+    msg.into().fg(crate::Color::Green)
 }
 
-pub fn primary<D: std::fmt::Display>(msg: D) -> Paint<D> {
-    Paint::magenta(msg)
+pub fn primary<T: Into<Paint<U>>, U>(msg: T) -> Paint<U> {
+    msg.into().fg(crate::Color::Magenta)
 }
 
-pub fn secondary<D: std::fmt::Display>(msg: D) -> Paint<D> {
-    Paint::blue(msg)
+pub fn secondary<T: Into<Paint<U>>, U>(msg: T) -> Paint<U> {
+    msg.into().fg(crate::Color::Blue)
 }
 
-pub fn tertiary<D: std::fmt::Display>(msg: D) -> Paint<D> {
-    Paint::cyan(msg)
+pub fn tertiary<T: Into<Paint<U>>, U>(msg: T) -> Paint<U> {
+    msg.into().fg(crate::Color::Cyan)
 }
 
-pub fn yellow<D: std::fmt::Display>(msg: D) -> Paint<D> {
-    Paint::yellow(msg)
+#[deprecated]
+pub fn yellow<T: Into<Paint<U>>, U>(msg: T) -> Paint<U> {
+    msg.into().fg(crate::Color::Yellow)
 }
 
-pub fn hint<D: std::fmt::Display>(msg: D) -> Paint<D> {
-    Paint::yellow(msg)
+pub fn hint<T: Into<Paint<U>>, U>(msg: T) -> Paint<U> {
+    msg.into().fg(crate::Color::Yellow)
 }
 
-pub fn faint<D: std::fmt::Display>(msg: D) -> Paint<D> {
-    Paint::fixed(236, msg)
+pub fn faint<T: Into<Paint<U>>, U>(msg: T) -> Paint<U> {
+    msg.into().fg(crate::Color::Fixed(236))
 }
 
-pub fn highlight<D: std::fmt::Debug + std::fmt::Display>(input: D) -> Paint<D> {
-    Paint::green(input).bold()
+pub fn highlight<T: Into<Paint<U>>, U>(msg: T) -> Paint<U> {
+    msg.into().fg(crate::Color::Green).bold()
 }
 
 pub fn badge_primary<D: std::fmt::Display>(input: D) -> Paint<String> {
@@ -84,14 +86,27 @@ pub fn badge_secondary<D: std::fmt::Display>(input: D) -> Paint<String> {
     }
 }
 
-pub fn bold<D: std::fmt::Display>(input: D) -> Paint<D> {
-    Paint::new(input).bold()
+#[deprecated]
+pub fn bold<T: Into<Paint<U>>, U>(msg: T) -> Paint<U> {
+    msg.into().bold()
 }
 
-pub fn dim<D: std::fmt::Display>(input: D) -> Paint<D> {
-    Paint::new(input).dim()
+#[deprecated]
+pub fn dim<T: Into<Paint<U>>, U>(msg: T) -> Paint<U> {
+    msg.into().dim()
 }
 
-pub fn italic<D: std::fmt::Display>(input: D) -> Paint<D> {
-    Paint::new(input).italic().dim()
+#[deprecated]
+pub fn italic<T: Into<Paint<U>>, U>(msg: T) -> Paint<U> {
+    msg.into().italic().dim()
+}
+
+pub fn notice(msg: String) -> Paint<String> {
+
+
+        println!(
+            "{} {}",
+            self.display(&Paint::new("!").dim()),
+            self.display(&msg)
+        )
 }

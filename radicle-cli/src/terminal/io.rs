@@ -10,6 +10,8 @@ pub use radicle_term::spinner;
 
 use inquire::validator;
 
+use super::Context as _;
+
 /// Validates secret key passphrases.
 #[derive(Clone)]
 pub struct PassphraseValidator {
@@ -55,7 +57,7 @@ pub fn signer(profile: &Profile) -> anyhow::Result<Box<dyn Signer>> {
         }
         Err(e) => return Err(e.into()),
     };
-    let spinner = spinner("Unsealing key...");
+    let spinner = spinner(profile.terminal().clone(), "Unsealing key...");
     let signer = MemorySigner::load(&profile.keystore, Some(passphrase))?;
 
     spinner.finish();

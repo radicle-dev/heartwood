@@ -262,38 +262,38 @@ pub fn sessions(node: &Node) -> Result<Option<term::Table<4, term::Label>>, node
     if sessions.is_empty() {
         return Ok(None);
     }
-    let mut table = term::Table::new(term::table::TableOptions::bordered());
+    let mut table: term::Table<4, term::Label> = term::Table::new(term::table::TableOptions::bordered());
     let now = LocalTime::now();
 
     table.header([
-        term::format::bold("Peer").into(),
-        term::format::bold("Address").into(),
-        term::format::bold("State").into(),
-        term::format::bold("Since").into(),
+        term::format::bold::<_, &str>("Peer").into(),
+        term::format::bold::<_, &str>("Address").into(),
+        term::format::bold::<_, &str>("State").into(),
+        term::format::bold::<_, &str>("Since").into(),
     ]);
     table.divider();
 
     for sess in sessions {
-        let nid = term::format::tertiary(sess.nid).into();
+        let nid: term::Label = term::format::tertiary(sess.nid).into();
         let (addr, state, time) = match sess.state {
             node::State::Initial => (
                 term::Label::blank(),
-                term::Label::from(term::format::dim("initial")),
+                term::Label::from(term::format::dim::<_, &str>("initial")),
                 term::Label::blank(),
             ),
             node::State::Attempted => (
                 sess.addr.to_string().into(),
-                term::Label::from(term::format::tertiary("attempted")),
+                term::Label::from(term::format::tertiary::<_, &str>("attempted")),
                 term::Label::blank(),
             ),
             node::State::Connected { since, .. } => (
                 sess.addr.to_string().into(),
-                term::Label::from(term::format::positive("connected")),
+                term::Label::from(term::format::positive::<_, &str>("connected")),
                 term::format::dim(now - since).into(),
             ),
             node::State::Disconnected { since, .. } => (
                 sess.addr.to_string().into(),
-                term::Label::from(term::format::negative("disconnected")),
+                term::Label::from(term::format::negative::<_, &str>("disconnected")),
                 term::format::dim(now - since).into(),
             ),
         };

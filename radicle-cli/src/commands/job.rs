@@ -320,9 +320,9 @@ fn list<R: WriteRepository + cob::Store>(
                     term::format::positive("●").into()
                 }
             },
-            term::format::tertiary(term::format::cob(&id).to_string()),
-            term::format::tertiary(term::format::oid(ci.commit()).to_string()),
-            term::format::tertiary(term::format::job_state(ci.state()).to_string()),
+            term::format::tertiary(term.display(&term::format::cob(&id)).to_string()),
+            term::format::tertiary(term.display(&term::format::oid(ci.commit())).to_string()),
+            term::format::tertiary(term.display(&term::format::job_state(ci.state())).to_string()),
         ]);
     }
 

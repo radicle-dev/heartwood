@@ -4,6 +4,9 @@ use std::io;
 use std::path::PathBuf;
 
 use radicle_surf::diff::FileStats;
+use radicle_term::Constraint;
+use radicle_term::Context;
+use radicle_term::Display;
 use thiserror::Error;
 
 use radicle::git;
@@ -545,15 +548,18 @@ impl Encode for Modification {
         match self {
             Modification::Deletion(radicle_surf::diff::Deletion { line, .. }) => {
                 let s = format!("-{}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::new(term::Color::Red))?;
+                w.write(s, Context::fg(term::Color::Red))?;
             }
             Modification::Addition(radicle_surf::diff::Addition { line, .. }) => {
                 let s = format!("+{}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::new(term::Color::Green))?;
+                w.write(s, Context::fg(term::Color::Green))?;
             }
             Modification::Context { line, .. } => {
                 let s = format!(" {}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::default().dim())?;
+                w.write(s, Context {
+                    style: Some(term::Style::default().dim()),
+                    constraint: Constraint::default(),
+                })?;
             }
         }
 
@@ -585,20 +591,19 @@ impl<'a> Writer<'a> {
         self
     }
 
-    pub fn write(&mut self, s: impl fmt::Display, style: term::Style) -> io::Result<()> {
-        if self.styled {
-            writeln!(self.stream, "{}", term::Paint::new(s).with_style(style))
-        } else {
-            writeln!(self.stream, "{s}")
+    pub fn write(&mut self, s: impl term::Display, context: Context) -> io::Result<()> {
+        match context.style {
+            Some(style) => writeln!(self.stream, "{}", term::Paint::new(s).with_style(style).display(&context)),
+            None => writeln!(self.stream, "{}", s.display(&context)),
         }
     }
 
-    pub fn meta(&mut self, s: impl fmt::Display) -> io::Result<()> {
-        self.write(s, term::Style::new(term::Color::Yellow))
+    pub fn meta(&mut self, s: impl term::Display) -> io::Result<()> {
+        self.write(s, Context::fg(term::Color::Yellow))
     }
 
-    pub fn magenta(&mut self, s: impl fmt::Display) -> io::Result<()> {
-        self.write(s, term::Style::new(term::Color::Magenta))
+    pub fn magenta(&mut self, s: impl term::Display) -> io::Result<()> {
+        self.write(s, Context::fg(term::Color::Magenta))
     }
 }
 

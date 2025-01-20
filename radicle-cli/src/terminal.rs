@@ -75,6 +75,8 @@ where
 {
     use io as term;
 
+    let term = Terminal::default();
+
     let options = match A::from_args(args) {
         Ok((opts, unparsed)) => {
             if let Err(err) = args::finish(unparsed) {
@@ -108,10 +110,10 @@ where
                 Some(Error::WithHint { hint, .. }) => Some(hint),
                 None => None,
             };
-            io::error(format!("rad {}: {err}", help.name));
+            io::error!(term, "rad {}: {err}", help.name);
 
             if let Some(hint) = hint {
-                io::hint(hint);
+                io::hint!(term, "{}", hint);
             }
             process::exit(1);
         }
@@ -120,7 +122,7 @@ where
     match cmd.run(options, DefaultContext) {
         Ok(()) => process::exit(0),
         Err(err) => {
-            terminal::fail(help.name, &err);
+            terminal::fail(&err);
             process::exit(1);
         }
     }
@@ -148,21 +150,22 @@ impl Context for DefaultContext {
     }
 }
 
-pub fn fail(_name: &str, error: &anyhow::Error) {
+pub fn fail(error: &anyhow::Error) {
+    let term = Terminal::default();
     let err = error.to_string();
     let err = err.trim_end();
 
     for line in err.lines() {
-        io::error(line);
+        io::error!(term, "{}", line);
     }
 
     // Catch common node errors, and offer a hint.
     if let Some(e) = error.downcast_ref::<radicle::node::Error>() {
         if e.is_connection_err() {
-            io::hint("to start your node, run `rad node start`.");
+            io::hint!(term, "to start your node, run `rad node start`.");
         }
     }
     if let Some(Error::WithHint { hint, .. }) = error.downcast_ref::<Error>() {
-        io::hint(hint);
+        io::hint!(term, "{}", hint);
     }
 }

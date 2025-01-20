@@ -53,7 +53,7 @@ macro_rules! info {
 
 #[macro_export]
 macro_rules! success {
-    ($term:expr, $pattern:literal $(,$arg:expr)* $(,)?) => ({
+    ($term:expr, $pattern:literal $($($arg:expr)+$(,)?)* ) => ({
         term.success(std::fmt::format(std::format_args!($pattern $(, term.display(&$arg))*)));
     });
 }
@@ -69,6 +69,10 @@ macro_rules! tip {
 macro_rules! notice {
     ($term:expr, $pattern:literal $(,$arg:expr)* $(,)?) => ({
         term.notice(std::fmt::format(std::format_args!($pattern $(, term.display(&$arg))*)));
+    });
+
+    ($writer:expr; $($arg:tt)*) => ({
+        writeln!($writer, $($arg)*).ok();
     });
 }
 
@@ -136,7 +140,7 @@ pub fn headline(headline: impl fmt::Display) {
 #[deprecated]
 pub fn header(header: &str) {
     std::println!();
-    std::println!("{}", display(&format::yellow(header).bold().underline()));
+    std::println!("{}", display(&format::yellow::<_, &str>(header).bold().underline()));
     std::println!();
 }
 

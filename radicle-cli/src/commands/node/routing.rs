@@ -1,6 +1,6 @@
 use radicle::node;
 use radicle::prelude::{NodeId, RepoId};
-use radicle_term::Terminal;
+use radicle_term::{Paint, Terminal};
 
 use crate::terminal as term;
 use crate::terminal::Element;
@@ -30,15 +30,15 @@ pub fn run<S: node::routing::Store>(
 fn print_table(entries: impl IntoIterator<Item = (RepoId, NodeId)>, term: &Terminal) {
     let mut t = term::Table::new(term::table::TableOptions::bordered());
     t.header([
-        term::format::default(String::from("RID")),
-        term::format::default(String::from("NID")),
+        String::from("RID").into(),
+        String::from("NID").into(),	
     ]);
     t.divider();
 
     for (rid, nid) in entries {
         t.push([
             term::format::highlight(rid.to_string()),
-            term::format::node(&nid),
+            term::format::node(&nid).into(),
         ]);
     }
     t.print_to(&term);
