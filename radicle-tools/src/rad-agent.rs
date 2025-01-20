@@ -28,11 +28,11 @@ fn main() -> anyhow::Result<()> {
             println!("ok");
         }
         Some("remove") => {
-            agent.remove_identity(profile.id())?;
+            agent.unregister(profile.id())?;
             println!("ok");
         }
         Some("remove-all") => {
-            agent.remove_all_identities()?;
+            agent.unregister_all()?;
             println!("ok");
         }
         Some("sign") => {

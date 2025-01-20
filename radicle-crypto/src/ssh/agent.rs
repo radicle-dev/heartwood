@@ -1,5 +1,4 @@
-use std::ops::{Deref, DerefMut};
-use std::sync::Mutex;
+use std::cell::RefCell;
 
 pub use radicle_ssh::agent::client::AgentClient;
 pub use radicle_ssh::agent::client::Error;
@@ -27,41 +26,47 @@ impl Agent {
         self.client.add_identity(key, &[])
     }
 
+    pub fn unregister(&mut self, key: &PublicKey) -> Result<(), ssh::Error> {
+        self.client.remove_identity(key)
+    }
+
+    pub fn unregister_all(&mut self) -> Result<(), ssh::Error> {
+        self.client.remove_all_identities()
+    }
+
+    pub fn sign(&mut self, key: &PublicKey, data: &[u8]) -> Result<[u8; 64], ssh::Error> {
+        self.client.sign(key, data)
+    }
+
     /// Get a signer from this agent, given the public key.
     pub fn signer(self, key: PublicKey) -> AgentSigner {
         AgentSigner::new(self, key)
     }
-}
 
-impl Deref for Agent {
-    type Target = AgentClient<Stream>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.client
+    pub fn pid(&self) -> Option<u32> {
+        self.client.pid()
     }
-}
 
-impl DerefMut for Agent {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.client
+    pub fn request_identities(&mut self) -> Result<Vec<PublicKey>, ssh::agent::client::Error> {
+        self.client.request_identities()
     }
 }
 
 /// A [`Signer`] that uses `ssh-agent`.
 pub struct AgentSigner {
-    agent: Mutex<Agent>,
+    agent: RefCell<Agent>,
     public: PublicKey,
 }
 
 impl AgentSigner {
     pub fn new(agent: Agent, public: PublicKey) -> Self {
-        let agent = Mutex::new(agent);
+        let agent = RefCell::new(agent);
 
         Self { agent, public }
     }
 
     pub fn is_ready(&self) -> Result<bool, Error> {
-        let ids = self.agent.lock().unwrap().request_identities()?;
+        let ids = self.agent.borrow_mut().request_identities()?;
 
         Ok(ids.contains(&self.public))
     }
@@ -84,9 +89,7 @@ impl Signer for AgentSigner {
     fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError> {
         let sig = self
             .agent
-            .lock()
-            // We'll take our chances here; the worse that can happen is the agent returns an error.
-            .unwrap_or_else(|e| e.into_inner())
+            .borrow_mut()
             .sign(&self.public, msg)
             .map_err(SignerError::new)?;
 

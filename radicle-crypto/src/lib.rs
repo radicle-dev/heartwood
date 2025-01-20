@@ -39,7 +39,7 @@ impl SignerError {
     }
 }
 
-pub trait Signer: Send + Sync {
+pub trait Signer: Send {
     /// Return this signer's public/verification key.
     fn public_key(&self) -> &PublicKey;
     /// Sign a message and return the signature.
