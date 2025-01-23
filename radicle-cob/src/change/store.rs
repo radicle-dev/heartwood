@@ -38,6 +38,9 @@ pub trait Storage {
 
     /// Returns the parents of the object with the specified ID.
     fn parents_of(&self, id: &Oid) -> Result<Vec<Oid>, Self::LoadError>;
+
+    /// Load only the manifest of the change entry.
+    fn manifest_of(&self, id: &Oid) -> Result<Manifest, Self::LoadError>;
 }
 
 /// Change template, used to create a new change.

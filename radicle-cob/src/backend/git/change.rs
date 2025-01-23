@@ -163,6 +163,12 @@ impl change::Storage for git2::Repository {
             .collect::<Vec<_>>())
     }
 
+    fn manifest_of(&self, id: &Oid) -> Result<crate::Manifest, Self::LoadError> {
+        let commit = self.find_commit(**id)?;
+        let tree = commit.tree()?;
+        load_manifest(self, &tree)
+    }
+
     fn load(&self, id: Self::ObjectId) -> Result<Entry, Self::LoadError> {
         let commit = Commit::read(self, id.into())?;
         let timestamp = git2::Time::from(commit.committer().time).seconds() as u64;

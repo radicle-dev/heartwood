@@ -97,6 +97,10 @@ impl change::Storage for Storage {
             .map(git_ext::Oid::from)
             .collect::<Vec<_>>())
     }
+
+    fn manifest_of(&self, id: &git_ext::Oid) -> Result<crate::Manifest, Self::LoadError> {
+        self.as_raw().manifest_of(id)
+    }
 }
 
 impl object::Storage for Storage {

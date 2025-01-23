@@ -437,4 +437,8 @@ impl radicle_cob::change::Storage for MockRepository {
     fn parents_of(&self, _id: &Oid) -> Result<Vec<Oid>, Self::LoadError> {
         todo!()
     }
+
+    fn manifest_of(&self, _id: &Oid) -> Result<radicle_cob::Manifest, Self::LoadError> {
+        todo!()
+    }
 }
