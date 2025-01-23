@@ -6,6 +6,7 @@ use thiserror::Error;
 use radicle_cob::history::{Entry, EntryId};
 use radicle_crypto::PublicKey;
 
+use crate::cob;
 use crate::cob::Timestamp;
 use crate::identity::DocAt;
 use crate::storage::ReadRepository;
@@ -21,6 +22,14 @@ pub enum OpEncodingError {
     Encoding(#[from] serde_json::Error),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
+}
+
+#[derive(Error, Debug)]
+#[error("failed to load manifest of '{object}': {err}")]
+pub struct ManifestError {
+    object: git::Oid,
+    #[source]
+    err: Box<dyn std::error::Error + Send + Sync + 'static>,
 }
 
 /// The `Op` is the operation that is applied onto a state to form a CRDT.
@@ -92,6 +101,20 @@ impl<A> Op<A> {
             None => Ok(None),
             Some(head) => repo.identity_doc_at(head).map(Some),
         }
+    }
+
+    pub fn manifest_of<S>(store: &S, id: &git::Oid) -> Result<Manifest, ManifestError>
+    where
+        S: cob::change::Storage<
+            ObjectId = git::Oid,
+            Parent = git::Oid,
+            Signatures = crypto::ssh::ExtendedSignature,
+        >,
+    {
+        store.manifest_of(id).map_err(|err| ManifestError {
+            object: *id,
+            err: Box::new(err),
+        })
     }
 }
 
