@@ -56,6 +56,16 @@ They can be used as a starting point for further customization.
 
 For running in debug mode, see [HACKING.md](HACKING.md).
 
+## Feedback
+
+If you have feedback, feel free to create issues using `rad issue`, join
+[our Zulip][zulip], or email [feedback@radicle.xyz][mail-feedback].
+Emails sent to this address are [automatically posted][zulip-help-email] to
+[our **public** #feedback channel on Zulip][zulip-feedback], revealing the
+[`From` header][rfc2822s3.6.2] (which usually contains your name and email
+address). This allows us to discuss your feedback on Zulip, and, if necessary,
+respond to you via email.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [HACKING.md](HACKING.md) for an
@@ -66,3 +76,9 @@ introduction to contributing to Radicle.
 Radicle is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
 
 See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) for details.
+
+[zulip]: https://radicle.zulipchat.com/
+[zulip-feedback]: https://radicle.zulipchat.com/#narrow/channel/392584-feedback
+[zulip-help-email]: https://talently.zulip.com/help/message-a-channel-by-email
+[mail-feedback]: mailto:feedback@radicle.xyz
+[rfc2822s3.6.2]: https://datatracker.ietf.org/doc/html/rfc2822#section-3.6.2
