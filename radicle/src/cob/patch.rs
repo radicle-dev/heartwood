@@ -3450,6 +3450,153 @@ mod test {
     }
 
     #[test]
+    fn test_draft_patch_review() {
+        use crate::storage::git::cob::DraftStore;
+
+        let alice = test::setup::Node::default();
+        let repo = alice.project();
+        let branch = repo
+            .checkout()
+            .branch_with([("README.md", b"Hello, World!")]);
+        let mut patches = Cache::no_cache(&*repo).unwrap();
+        let mut patch = patches
+            .create(
+                "My first patch",
+                "Blah blah blah.",
+                MergeTarget::Delegates,
+                branch.base,
+                branch.oid,
+                &[],
+                &alice.signer,
+            )
+            .unwrap();
+        let patch_id = patch.id;
+
+        let draft = DraftStore::new(&repo.repo, *alice.signer.public_key());
+        let mut draft_cache = Cache::no_cache(&draft).unwrap();
+        let mut draft_patch = draft_cache.get_mut(&patch_id).unwrap();
+        let review_id = draft_patch
+            .review(
+                RevisionId(*patch_id),
+                Some(Verdict::Reject),
+                Some("No good".to_string()),
+                vec![],
+                &alice.signer,
+            )
+            .unwrap();
+        draft_patch
+            .review_comment(
+                review_id,
+                "'Hello, World!' is such a cliché",
+                None,
+                None,
+                [],
+                &alice.signer,
+            )
+            .unwrap();
+
+        // Check that the reviews are present before publishing
+        {
+            let mut reviews = draft_patch.reviews_of(RevisionId(*patch_id));
+            let review = reviews.next();
+            assert!(
+                review.is_some(),
+                "expected a single draft review, but found none"
+            );
+            let (_, review) = review.unwrap();
+            assert_eq!(review.comments().count(), 1);
+        }
+
+        let update = repo
+            .checkout()
+            .branch_with([("README.md", b"Hello, Radicle!")]);
+        let _revision_id = patch
+            .update("I've made changes.", branch.base, update.oid, &alice.signer)
+            .unwrap();
+        assert_eq!(patch.revisions().count(), 2);
+
+        draft
+            .publish::<Patch, _>(super::TYPENAME.clone(), &patch_id, &alice.signer)
+            .unwrap();
+
+        patch.reload().unwrap();
+        assert_eq!(patch.revisions().count(), 2);
+        let mut reviews = patch.reviews_of(RevisionId(*patch_id));
+        let review = reviews.next();
+        assert!(review.is_some(), "expected a single review, but found none");
+        let (_, review) = review.unwrap();
+        assert_eq!(review.comments().count(), 1);
+    }
+
+    #[test]
+    fn test_draft_patch_review_redacted_revision() {
+        use crate::storage::git::cob::DraftStore;
+
+        let alice = test::setup::Node::default();
+        let repo = alice.project();
+        let branch = repo
+            .checkout()
+            .branch_with([("README.md", b"Hello, World!")]);
+        let mut patches = Cache::no_cache(&*repo).unwrap();
+        let mut patch = patches
+            .create(
+                "My first patch",
+                "Blah blah blah.",
+                MergeTarget::Delegates,
+                branch.base,
+                branch.oid,
+                &[],
+                &alice.signer,
+            )
+            .unwrap();
+        let patch_id = patch.id;
+
+        let update = repo
+            .checkout()
+            .branch_with([("README.md", b"Hello, Radicle!")]);
+        let revision_id = patch
+            .update("I've made changes.", branch.base, update.oid, &alice.signer)
+            .unwrap();
+        assert_eq!(patch.revisions().count(), 2);
+
+        let draft = DraftStore::new(&repo.repo, *alice.signer.public_key());
+        let mut draft_cache = Cache::no_cache(&draft).unwrap();
+        let mut draft_patch = draft_cache.get_mut(&patch_id).unwrap();
+        let review_id = draft_patch
+            .review(
+                revision_id,
+                Some(Verdict::Reject),
+                Some("No good".to_string()),
+                vec![],
+                &alice.signer,
+            )
+            .unwrap();
+        draft_patch
+            .review_comment(
+                review_id,
+                "'Hello, World!' is such a cliché",
+                None,
+                None,
+                [],
+                &alice.signer,
+            )
+            .unwrap();
+
+        // Revision gets redacted before the review gets published
+        patch.redact(revision_id, &alice.signer).unwrap();
+
+        draft
+            .publish::<Patch, _>(super::TYPENAME.clone(), &patch_id, &alice.signer)
+            .unwrap();
+
+        patch.reload().unwrap();
+        assert_eq!(patch.revisions().count(), 1);
+        let mut reviews = patch.reviews_of(revision_id);
+        let review = reviews.next();
+        assert!(review.is_none());
+    }
+
+    #[test]
     fn test_json() {
         use serde_json::json;
 

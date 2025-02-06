@@ -50,6 +50,15 @@ pub enum TypesError {
     RefFormat(#[from] git::fmt::Error),
 }
 
+#[derive(Debug, Error)]
+#[error("failed to check if '{typename}/{object}' is in progress: {err}")]
+pub struct InProgressError {
+    typename: cob::TypeName,
+    object: ObjectId,
+    #[source]
+    err: git::raw::Error,
+}
+
 impl cob::Store for Repository {}
 
 impl change::Storage for Repository {
@@ -203,6 +212,73 @@ pub struct DraftStore<'a, R> {
 impl<'a, R> DraftStore<'a, R> {
     pub fn new(repo: &'a R, remote: RemoteId) -> Self {
         Self { repo, remote }
+    }
+}
+
+impl<'a, R> DraftStore<'a, R>
+where
+    R: cob::Store,
+    R: storage::WriteRepository + cob::object::Storage,
+{
+    // TODO(finto): this might need to be exposed via the cache too
+    /// Publishes the COB draft, for the given `id`, to the published reference.
+    /// That is it performs a merge of the two references:
+    /// ```
+    /// refs/namespaces/<remote>/refs/cobs/<typename>/<object_id>
+    /// refs/namespaces/<remote>/refs/drafts/cobs/<typename>/<object_id>
+    /// ```
+    pub fn publish<T, G>(
+        &self,
+        typename: cob::TypeName,
+        object_id: &ObjectId,
+        signer: &G,
+    ) -> Result<cob::CollaborativeObject<T>, cob::object::collaboration::error::Merge>
+    where
+        T: cob::Evaluate<Self>,
+        T: cob::Evaluate<R>,
+        G: crypto::Signer,
+    {
+        use cob::object::collaboration::{Draft, Published};
+
+        let message = format!("publish draft {typename}/{object_id}");
+        let cob::Merged { object, .. } = cob::merge::<T, Self, R, _>(
+            &Draft::new(self),
+            &Published::new(self.repo),
+            signer,
+            &self.remote,
+            cob::object::Merge {
+                type_name: typename,
+                object_id: *object_id,
+                message,
+            },
+        )?;
+        Ok(object)
+    }
+}
+
+impl<'a, R> DraftStore<'a, R>
+where
+    R: ReadRepository,
+{
+    /// Check if there is a draft in progress for the given `typename` and `object_id`.
+    pub fn in_progress(
+        &self,
+        typename: &cob::TypeName,
+        object_id: &ObjectId,
+    ) -> Result<bool, InProgressError> {
+        let draft_ref = git::refs::storage::draft::cob(&self.remote, typename, object_id);
+        match self
+            .repo
+            .reference_oid(&self.remote, &draft_ref.strip_namespace())
+        {
+            Ok(_) => Ok(true),
+            Err(e) if e.code() == git::raw::ErrorCode::NotFound => Ok(false),
+            Err(e) => Err(InProgressError {
+                typename: typename.clone(),
+                object: *object_id,
+                err: e,
+            }),
+        }
     }
 }
 
