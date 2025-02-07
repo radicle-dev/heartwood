@@ -2476,7 +2476,10 @@ where
 
     /// Fetch all repositories that are seeded but missing from storage.
     fn fetch_missing_repositories(&mut self) -> Result<(), Error> {
-        for policy in self.policies.seed_policies()? {
+        // TODO(finto): could filter the policies based on the continue checks
+        // below, but `storage.contains` is fallible
+        let policies = self.policies.seed_policies()?.collect::<Vec<_>>();
+        for policy in policies {
             let rid = policy.rid;
 
             if !policy.is_allow() {

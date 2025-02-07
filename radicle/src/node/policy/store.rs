@@ -295,52 +295,21 @@ impl<T> Store<T> {
     }
 
     /// Get node follow policies.
-    pub fn follow_policies(&self) -> Result<Box<dyn Iterator<Item = FollowPolicy>>, Error> {
-        let mut stmt = self
+    pub fn follow_policies(&self) -> Result<FollowPolicies<'_>, Error> {
+        let stmt = self
             .db
-            .prepare("SELECT id, alias, policy FROM `following`")?
-            .into_iter();
-        let mut entries = Vec::new();
-
-        while let Some(Ok(row)) = stmt.next() {
-            let id = row.read("id");
-            let alias = row.read::<&str, _>("alias").to_owned();
-            let alias = alias
-                .is_empty()
-                .not()
-                .then_some(alias.to_owned())
-                .and_then(|s| Alias::from_str(&s).ok());
-            let policy = row.read::<Policy, _>("policy");
-
-            entries.push(FollowPolicy {
-                nid: id,
-                alias,
-                policy,
-            });
-        }
-        Ok(Box::new(entries.into_iter()))
+            .prepare("SELECT id, alias, policy FROM `following`")?;
+        Ok(FollowPolicies {
+            inner: stmt.into_iter(),
+        })
     }
 
-    // TODO: see if sql can return iterator directly
     /// Get repository seed policies.
-    pub fn seed_policies(&self) -> Result<Box<dyn Iterator<Item = SeedPolicy>>, Error> {
-        let mut stmt = self
-            .db
-            .prepare("SELECT id, scope, policy FROM `seeding`")?
-            .into_iter();
-        let mut entries = Vec::new();
-
-        while let Some(Ok(row)) = stmt.next() {
-            let id = row.read("id");
-            let policy = match row.read::<Policy, _>("policy") {
-                Policy::Allow => SeedingPolicy::Allow {
-                    scope: row.read::<Scope, _>("scope"),
-                },
-                Policy::Block => SeedingPolicy::Block,
-            };
-            entries.push(SeedPolicy { rid: id, policy });
-        }
-        Ok(Box::new(entries.into_iter()))
+    pub fn seed_policies(&self) -> Result<SeedPolicies<'_>, Error> {
+        let stmt = self.db.prepare("SELECT id, scope, policy FROM `seeding`")?;
+        Ok(SeedPolicies {
+            inner: stmt.into_iter(),
+        })
     }
 
     pub fn nodes_by_alias<'a>(&'a self, alias: &Alias) -> Result<NodeAliasIter<'a>, Error> {
@@ -352,6 +321,54 @@ impl<T> Store<T> {
         Ok(NodeAliasIter {
             inner: stmt.into_iter(),
         })
+    }
+}
+
+pub struct FollowPolicies<'a> {
+    inner: sql::CursorWithOwnership<'a>,
+}
+
+impl<'a> Iterator for FollowPolicies<'a> {
+    type Item = FollowPolicy;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row = self.inner.next()?;
+        let Ok(row) = row else { return self.next() };
+        let id = row.read("id");
+        let alias = row.read::<&str, _>("alias").to_owned();
+        let alias = alias
+            .is_empty()
+            .not()
+            .then_some(alias.to_owned())
+            .and_then(|s| Alias::from_str(&s).ok());
+        let policy = row.read::<Policy, _>("policy");
+
+        Some(FollowPolicy {
+            nid: id,
+            alias,
+            policy,
+        })
+    }
+}
+
+pub struct SeedPolicies<'a> {
+    inner: sql::CursorWithOwnership<'a>,
+}
+
+impl<'a> Iterator for SeedPolicies<'a> {
+    type Item = SeedPolicy;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row = self.inner.next()?;
+        let Ok(row) = row else { return self.next() };
+        let id = row.read("id");
+        let policy = match row.read::<Policy, _>("policy") {
+            Policy::Allow => SeedingPolicy::Allow {
+                scope: row.read::<Scope, _>("scope"),
+            },
+            Policy::Block => SeedingPolicy::Block,
+        };
+        Some(SeedPolicy { rid: id, policy })
     }
 }
 
