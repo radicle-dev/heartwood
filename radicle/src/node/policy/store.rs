@@ -117,7 +117,7 @@ impl Store<Write> {
     }
 
     /// Follow a node.
-    pub fn follow(&mut self, id: &NodeId, alias: Option<&str>) -> Result<bool, Error> {
+    pub fn follow(&mut self, id: &NodeId, alias: Option<&Alias>) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
             "INSERT INTO `following` (id, alias)
              VALUES (?1, ?2)
@@ -126,7 +126,7 @@ impl Store<Write> {
         )?;
 
         stmt.bind((1, id))?;
-        stmt.bind((2, alias.unwrap_or_default()))?;
+        stmt.bind((2, alias.map_or("", |alias| alias.as_str())))?;
         stmt.next()?;
 
         Ok(self.db.change_count() > 0)
@@ -410,10 +410,11 @@ mod test {
     fn test_follow_and_unfollow_node() {
         let id = arbitrary::gen::<NodeId>(1);
         let mut db = Store::open(":memory:").unwrap();
+        let eve = Alias::new("eve");
 
-        assert!(db.follow(&id, Some("eve")).unwrap());
+        assert!(db.follow(&id, Some(&eve)).unwrap());
         assert!(db.is_following(&id).unwrap());
-        assert!(!db.follow(&id, Some("eve")).unwrap());
+        assert!(!db.follow(&id, Some(&eve)).unwrap());
         assert!(db.unfollow(&id).unwrap());
         assert!(!db.is_following(&id).unwrap());
     }
@@ -463,7 +464,7 @@ mod test {
         let id = arbitrary::gen::<NodeId>(1);
         let mut db = Store::open(":memory:").unwrap();
 
-        assert!(db.follow(&id, Some("eve")).unwrap());
+        assert!(db.follow(&id, Some(&Alias::new("eve"))).unwrap());
         assert_eq!(
             db.follow_policy(&id).unwrap().unwrap().alias,
             Some(Alias::from_str("eve").unwrap())
@@ -471,7 +472,7 @@ mod test {
         assert!(db.follow(&id, None).unwrap());
         assert_eq!(db.follow_policy(&id).unwrap().unwrap().alias, None);
         assert!(!db.follow(&id, None).unwrap());
-        assert!(db.follow(&id, Some("alice")).unwrap());
+        assert!(db.follow(&id, Some(&Alias::new("alice"))).unwrap());
         assert_eq!(
             db.follow_policy(&id).unwrap().unwrap().alias,
             Some(Alias::new("alice"))
@@ -532,11 +533,11 @@ mod test {
         let (long, long_ids) = input.long();
 
         for id in short_ids {
-            db.follow(id, Some(short.as_str())).unwrap();
+            db.follow(id, Some(short)).unwrap();
         }
 
         for id in long_ids {
-            db.follow(id, Some(long.as_str())).unwrap();
+            db.follow(id, Some(long)).unwrap();
         }
 
         node::properties::test_reverse_lookup(&db, input)

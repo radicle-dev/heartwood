@@ -893,7 +893,7 @@ where
             Command::Follow(id, alias, resp) => {
                 let seeded = self
                     .policies
-                    .follow(&id, alias.as_deref())
+                    .follow(&id, alias.as_ref())
                     .expect("Service::command: error following node");
                 resp.send(seeded).ok();
             }

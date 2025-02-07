@@ -116,7 +116,7 @@ pub fn follow(
         Ok(updated) => updated,
         Err(e) if e.is_connection_err() => {
             let mut config = profile.policies_mut()?;
-            config.follow(&nid, alias.as_deref())?
+            config.follow(&nid, alias.as_ref())?
         }
         Err(e) => return Err(e.into()),
     };
