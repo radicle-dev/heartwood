@@ -13,7 +13,7 @@ pub mod routing;
 pub mod seed;
 pub mod timestamp;
 
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::io::{BufRead, BufReader};
 use std::marker::PhantomData;
 use std::ops::{ControlFlow, Deref};
@@ -385,6 +385,27 @@ impl TryFrom<String> for Alias {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Alias::from_str(&value)
+    }
+}
+
+impl TryFrom<&sqlite::Value> for Alias {
+    type Error = sqlite::Error;
+
+    fn try_from(value: &sqlite::Value) -> Result<Self, Self::Error> {
+        match value {
+            sqlite::Value::String(s) => Self::from_str(s).map_err(|e| sqlite::Error {
+                code: None,
+                message: Some(e.to_string()),
+            }),
+            _ => Err(sqlite::Error {
+                code: None,
+                message: Some(format!(
+                    "sql: invalid type {:?} for alias, expected {:?}",
+                    value.kind(),
+                    sqlite::Type::String
+                )),
+            }),
+        }
     }
 }
 
@@ -1361,11 +1382,108 @@ impl Handle for Node {
 pub trait AliasStore {
     /// Returns alias of a `NodeId`.
     fn alias(&self, nid: &NodeId) -> Option<Alias>;
+
+    /// Return all the [`NodeId`]s that match the `alias`.
+    ///
+    /// Note that the implementation may choose to allow the alias to be a
+    /// substring for more dynamic queries, thus a `BTreeMap` is returned to return
+    /// the full [`Alias`] and matching [`NodeId`]s.
+    fn reverse_lookup(&self, alias: &Alias) -> BTreeMap<Alias, BTreeSet<NodeId>>;
 }
 
 impl AliasStore for HashMap<NodeId, Alias> {
     fn alias(&self, nid: &NodeId) -> Option<Alias> {
         self.get(nid).map(ToOwned::to_owned)
+    }
+
+    fn reverse_lookup(&self, needle: &Alias) -> BTreeMap<Alias, BTreeSet<NodeId>> {
+        self.iter()
+            .fold(BTreeMap::new(), |mut result, (node, alias)| {
+                if alias.contains(needle.as_str()) {
+                    let nodes = result.entry(alias.clone()).or_default();
+                    nodes.insert(*node);
+                }
+                result
+            })
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod properties {
+    use std::collections::BTreeSet;
+
+    use crate::node::{Alias, NodeId};
+    use crate::test::arbitrary;
+
+    use super::AliasStore;
+
+    pub struct AliasInput {
+        short: (Alias, BTreeSet<NodeId>),
+        long: (Alias, BTreeSet<NodeId>),
+    }
+
+    impl AliasInput {
+        pub fn new() -> Self {
+            let short = arbitrary::gen::<Alias>(0);
+            let long = {
+                // Ensure we have a second, unique alias
+                let mut a = short.to_string();
+                a.push_str(arbitrary::gen::<Alias>(1).as_str());
+                Alias::new(a)
+            };
+            Self {
+                short: (short, arbitrary::vec::<NodeId>(3).into_iter().collect()),
+                long: (long, arbitrary::vec::<NodeId>(2).into_iter().collect()),
+            }
+        }
+
+        pub fn short(&self) -> &(Alias, BTreeSet<NodeId>) {
+            &self.short
+        }
+
+        pub fn long(&self) -> &(Alias, BTreeSet<NodeId>) {
+            &self.long
+        }
+    }
+
+    /// Given the `AliasInput` ensure that the lookup of `NodeId`s for two
+    /// aliases works as intended.
+    ///
+    /// The `short` alias is a prefix of the `long` alias, so when looking up
+    /// the `short` alias, both sets of results will return. For the `long`
+    /// alias, only its results will return.
+    ///
+    /// It is also expected that the lookup is case insensitive.
+    pub fn test_reverse_lookup(store: &impl AliasStore, AliasInput { short, long }: AliasInput) {
+        let (short, short_ids) = short;
+        let (long, long_ids) = long;
+        let first = store.reverse_lookup(&short);
+        // We get back the results for `short`
+        assert_eq!(first.get(&short), Some(&short_ids),);
+        // We also get back the results for `long` since `short` is a prefix of it
+        assert_eq!(first.get(&long), Some(&long_ids));
+
+        let second = store.reverse_lookup(&long);
+        // We do not get back a result for `short` since it is only a suffix of `long`
+        assert_eq!(second.get(&short), None);
+        assert_eq!(second.get(&long), Some(&long_ids));
+
+        let mixed_case = Alias::new(
+            short
+                .as_str()
+                .chars()
+                .enumerate()
+                .map(|(i, c)| {
+                    if i % 2 == 0 {
+                        c.to_ascii_uppercase()
+                    } else {
+                        c.to_ascii_lowercase()
+                    }
+                })
+                .collect::<String>(),
+        );
+        let upper = store.reverse_lookup(&mixed_case);
+        assert!(upper.contains_key(&short));
     }
 }
 

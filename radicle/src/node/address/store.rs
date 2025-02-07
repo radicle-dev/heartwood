@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::net::IpAddr;
 use std::num::TryFromIntError;
 use std::str::FromStr;
@@ -20,6 +21,8 @@ pub enum Error {
     Internal(#[from] sql::Error),
     #[error("alias error: {0}")]
     InvalidAlias(#[from] AliasError),
+    #[error("node id error: {0}")]
+    Node(#[from] crypto::PublicKeyError),
     #[error("integer conversion error: {0}")]
     TryFromInt(#[from] TryFromIntError),
     /// No rows returned in query result.
@@ -92,6 +95,14 @@ pub trait Store {
         addr: &Address,
         severity: Severity,
     ) -> Result<(), Error>;
+}
+
+pub trait StoreExt {
+    type NodeAlias<'a>: Iterator<Item = Result<(NodeId, Alias), Error>> + 'a
+    where
+        Self: 'a;
+
+    fn nodes_by_alias<'a>(&'a self, alias: &Alias) -> Result<Self::NodeAlias<'a>, Error>;
 }
 
 impl Store for Database {
@@ -413,9 +424,51 @@ impl Store for Database {
     }
 }
 
+pub struct NodeAliasIter<'a> {
+    inner: sql::CursorWithOwnership<'a>,
+}
+
+impl<'a> NodeAliasIter<'a> {
+    fn parse_row(row: sql::Row) -> Result<(NodeId, Alias), Error> {
+        let nid = row.try_read::<NodeId, _>("id")?;
+        let alias = row.try_read::<&str, _>("alias")?.parse()?;
+        Ok((nid, alias))
+    }
+}
+
+impl<'a> Iterator for NodeAliasIter<'a> {
+    type Item = Result<(NodeId, Alias), Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row = self.inner.next()?;
+        Some(row.map_err(Error::from).and_then(Self::parse_row))
+    }
+}
+
+impl StoreExt for Database {
+    type NodeAlias<'a> = NodeAliasIter<'a>
+    where
+        Self: 'a;
+
+    fn nodes_by_alias<'a>(&'a self, alias: &Alias) -> Result<Self::NodeAlias<'a>, Error> {
+        let mut stmt = self.db.prepare(
+            "SELECT id, alias
+             FROM nodes
+             WHERE UPPER(alias) LIKE ?",
+        )?;
+        stmt.bind((
+            1,
+            sql::Value::String(format!("%{}%", alias.as_str().to_uppercase())),
+        ))?;
+        Ok(NodeAliasIter {
+            inner: stmt.into_iter(),
+        })
+    }
+}
+
 impl<T> AliasStore for T
 where
-    T: Store,
+    T: Store + StoreExt,
 {
     /// Retrieve `alias` of given node.
     /// Calls `Self::get` under the hood.
@@ -423,6 +476,18 @@ where
         self.get(nid)
             .map(|node| node.map(|n| n.alias))
             .unwrap_or(None)
+    }
+
+    fn reverse_lookup(&self, alias: &Alias) -> BTreeMap<Alias, BTreeSet<NodeId>> {
+        let Ok(iter) = self.nodes_by_alias(alias) else {
+            return BTreeMap::new();
+        };
+        iter.flatten()
+            .fold(BTreeMap::new(), |mut result, (node, alias)| {
+                let nodes = result.entry(alias).or_default();
+                nodes.insert(node);
+                result
+            })
     }
 }
 
@@ -903,5 +968,29 @@ mod test {
         assert!(db.is_addr_banned(&ka2.addr).unwrap()); // Banned because node is banned.
         assert!(db.is_ip_banned(ip1.into()).unwrap());
         assert!(db.is_ip_banned(ip2.into()).unwrap());
+    }
+
+    #[test]
+    fn test_node_aliases() {
+        let mut db = Database::memory().unwrap();
+        let input = node::properties::AliasInput::new();
+        let (short, short_ids) = input.short();
+        let (long, long_ids) = input.long();
+        let features = node::Features::SEED;
+        let agent = UserAgent::default();
+        let timestamp = Timestamp::from(LocalTime::now());
+        let ka = arbitrary::gen::<KnownAddress>(1);
+
+        for id in short_ids {
+            db.insert(id, 1, features, short, 16, &agent, timestamp, [ka.clone()])
+                .unwrap();
+        }
+
+        for id in long_ids {
+            db.insert(id, 1, features, long, 16, &agent, timestamp, [ka.clone()])
+                .unwrap();
+        }
+
+        node::properties::test_reverse_lookup(&db, input)
     }
 }

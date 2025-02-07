@@ -1,4 +1,5 @@
 #![allow(clippy::type_complexity)]
+use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 use std::path::Path;
 use std::{fmt, io, ops::Not as _, str::FromStr, time};
@@ -341,6 +342,38 @@ impl<T> Store<T> {
         }
         Ok(Box::new(entries.into_iter()))
     }
+
+    pub fn nodes_by_alias<'a>(&'a self, alias: &Alias) -> Result<NodeAliasIter<'a>, Error> {
+        let mut stmt = self
+            .db
+            .prepare("SELECT id, alias FROM `following` WHERE UPPER(alias) LIKE ?")?;
+        let query = format!("%{}%", alias.as_str().to_uppercase());
+        stmt.bind((1, sql::Value::String(query)))?;
+        Ok(NodeAliasIter {
+            inner: stmt.into_iter(),
+        })
+    }
+}
+
+pub struct NodeAliasIter<'a> {
+    inner: sql::CursorWithOwnership<'a>,
+}
+
+impl<'a> NodeAliasIter<'a> {
+    fn parse_row(row: sql::Row) -> Result<(NodeId, Alias), Error> {
+        let nid = row.try_read::<NodeId, _>("id")?;
+        let alias = row.try_read::<Alias, _>("alias")?;
+        Ok((nid, alias))
+    }
+}
+
+impl<'a> Iterator for NodeAliasIter<'a> {
+    type Item = Result<(NodeId, Alias), Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row = self.inner.next()?;
+        Some(row.map_err(Error::from).and_then(Self::parse_row))
+    }
 }
 
 impl<T> AliasStore for Store<T> {
@@ -351,12 +384,24 @@ impl<T> AliasStore for Store<T> {
             .map(|node| node.and_then(|n| n.alias))
             .unwrap_or(None)
     }
+
+    fn reverse_lookup(&self, alias: &Alias) -> BTreeMap<Alias, BTreeSet<NodeId>> {
+        let Ok(iter) = self.nodes_by_alias(alias) else {
+            return BTreeMap::new();
+        };
+        iter.flatten()
+            .fold(BTreeMap::new(), |mut result, (node, alias)| {
+                let nodes = result.entry(alias).or_default();
+                nodes.insert(node);
+                result
+            })
+    }
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
-    use crate::assert_matches;
+    use crate::{assert_matches, node};
 
     use super::*;
     use crate::test::arbitrary;
@@ -477,5 +522,23 @@ mod test {
             db.follow_policy(&id).unwrap().unwrap().policy,
             Policy::Block
         );
+    }
+
+    #[test]
+    fn test_node_aliases() {
+        let mut db = Store::open(":memory:").unwrap();
+        let input = node::properties::AliasInput::new();
+        let (short, short_ids) = input.short();
+        let (long, long_ids) = input.long();
+
+        for id in short_ids {
+            db.follow(id, Some(short.as_str())).unwrap();
+        }
+
+        for id in long_ids {
+            db.follow(id, Some(long.as_str())).unwrap();
+        }
+
+        node::properties::test_reverse_lookup(&db, input)
     }
 }

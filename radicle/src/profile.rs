@@ -14,6 +14,7 @@
 pub mod config;
 pub use config::{Config, ConfigError, ConfigPath, RawConfig};
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
@@ -409,6 +410,10 @@ impl AliasStore for Profile {
     fn alias(&self, nid: &NodeId) -> Option<Alias> {
         self.aliases().alias(nid)
     }
+
+    fn reverse_lookup(&self, alias: &Alias) -> BTreeMap<Alias, BTreeSet<NodeId>> {
+        self.aliases().reverse_lookup(alias)
+    }
 }
 
 /// Holds multiple alias stores, and will try
@@ -426,6 +431,17 @@ impl AliasStore for Aliases {
             .as_ref()
             .and_then(|db| db.alias(nid))
             .or_else(|| self.db.as_ref().and_then(|db| db.alias(nid)))
+    }
+
+    fn reverse_lookup(&self, alias: &Alias) -> BTreeMap<Alias, BTreeSet<NodeId>> {
+        let mut nodes = BTreeMap::new();
+        if let Some(db) = self.policies.as_ref() {
+            nodes.extend(db.reverse_lookup(alias));
+        }
+        if let Some(db) = self.db.as_ref() {
+            nodes.extend(db.reverse_lookup(alias));
+        }
+        nodes
     }
 }
 
