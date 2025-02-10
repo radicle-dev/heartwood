@@ -4,12 +4,15 @@ use crypto::test::signer::MockSigner;
 use crypto::{PublicKey, Signer};
 use git_ext::ref_format::{refname, Component, RefString};
 use nonempty::{nonempty, NonEmpty};
+use pretty_assertions::{assert_eq, assert_ne};
 use qcheck::Arbitrary;
 
+use crate::object::collaboration;
 use crate::{
     create, get, list, object, test::arbitrary::Invalid, update, Create, Entry, ObjectId, TypeName,
     Update, Updated, Version,
 };
+use crate::{merge, Merge, Merged};
 
 use super::test;
 
@@ -155,6 +158,96 @@ fn update_cob() {
 }
 
 #[test]
+fn merge_cob() {
+    let storage = test::Storage::new();
+    let signer = gen::<MockSigner>(1);
+    let terry = test::Person::new(&storage, "terry", *signer.public_key()).unwrap();
+    let proj = test::Project::new(&storage, "discworld", *signer.public_key()).unwrap();
+    let proj = test::RemoteProject {
+        project: proj,
+        person: terry,
+    };
+    let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
+    let cob = create::<NonEmpty<Entry>, _, _>(
+        &storage,
+        &signer,
+        Some(proj.project.content_id),
+        vec![],
+        signer.public_key(),
+        Create {
+            contents: nonempty!(Vec::new()),
+            type_name: typename.clone(),
+            message: "creating xyz.rad.issue".to_string(),
+            embeds: vec![],
+            version: Version::default(),
+        },
+    )
+    .unwrap();
+
+    let drafts = test::Drafts::new(&storage, *signer.public_key());
+    let Updated { .. } = update::<NonEmpty<Entry>, _, _>(
+        &drafts,
+        &signer,
+        Some(proj.project.content_id),
+        vec![],
+        signer.public_key(),
+        Update {
+            changes: nonempty!(b"issue 1".to_vec()),
+            object_id: *cob.id(),
+            type_name: typename.clone(),
+            embeds: vec![],
+            message: "commenting xyz.rad.issue".to_string(),
+        },
+    )
+    .unwrap();
+
+    let Updated { object, .. } = update::<NonEmpty<Entry>, _, _>(
+        &storage,
+        &signer,
+        Some(proj.project.content_id),
+        vec![],
+        signer.public_key(),
+        Update {
+            changes: nonempty!(b"issue bar".to_vec()),
+            object_id: *cob.id(),
+            type_name: typename.clone(),
+            embeds: vec![],
+            message: "commenting xyz.rad.issue".to_string(),
+        },
+    )
+    .unwrap();
+
+    assert_ne!(
+        get::<NonEmpty<Entry>, _>(&drafts, &typename, cob.id())
+            .unwrap()
+            .expect("BUG: draft cob was missing"),
+        get(&storage, &typename, object.id())
+            .unwrap()
+            .expect("BUG: cob was missing")
+    );
+
+    let Merged { object, .. } = merge::<NonEmpty<Entry>, _, _, _>(
+        &collaboration::Draft::new(&drafts),
+        &collaboration::Published::new(&storage),
+        &signer,
+        signer.public_key(),
+        Merge {
+            object_id: *cob.id(),
+            type_name: typename.clone(),
+            message: "commenting xyz.rad.issue".to_string(),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(
+        object,
+        get(&storage, &typename, object.id())
+            .unwrap()
+            .expect("BUG: cob was missing")
+    )
+}
+
+#[test]
 fn traverse_cobs() {
     let storage = test::Storage::new();
     let neil_signer = gen::<MockSigner>(2);
@@ -211,7 +304,7 @@ fn traverse_cobs() {
     )
     .unwrap();
 
-    let root = object.history.root().id;
+    let root = *object.history.root().id();
     // traverse over the history and filter by changes that were only authorized by terry
     let contents = object
         .history()

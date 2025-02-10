@@ -21,6 +21,9 @@ pub mod info;
 mod list;
 pub use list::list;
 
+mod merge;
+pub use merge::{merge, Draft, Merge, Merged, Published};
+
 mod remove;
 pub use remove::remove;
 

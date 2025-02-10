@@ -36,6 +36,21 @@ impl From<Vec<Reference>> for Objects {
     }
 }
 
+impl Extend<Reference> for Objects {
+    fn extend<T: IntoIterator<Item = Reference>>(&mut self, iter: T) {
+        self.0.extend(iter)
+    }
+}
+
+impl IntoIterator for Objects {
+    type Item = Reference;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 /// A [`Reference`] that must directly point to the [`Commit`] for a
 /// [`crate::CollaborativeObject`].
 #[derive(Clone, Debug)]

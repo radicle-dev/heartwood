@@ -118,7 +118,7 @@ where
             related: vec![],
             manifest,
         };
-        self.history.extend(change);
+        self.history.extend(change.into());
 
         oid
     }

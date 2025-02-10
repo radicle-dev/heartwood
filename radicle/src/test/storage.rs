@@ -428,13 +428,29 @@ impl radicle_cob::change::Storage for MockRepository {
         &self,
         _id: Self::ObjectId,
     ) -> Result<
-        radicle_cob::change::store::Entry<Self::Parent, Self::ObjectId, Self::Signatures>,
+        radicle_cob::change::store::ChangeEntry<Self::Parent, Self::ObjectId, Self::Signatures>,
         Self::LoadError,
     > {
         todo!()
     }
 
     fn parents_of(&self, _id: &Oid) -> Result<Vec<Oid>, Self::LoadError> {
+        todo!()
+    }
+
+    fn merge<G>(
+        &self,
+        _tips: Vec<Self::ObjectId>,
+        _signer: &G,
+        _type_name: radicle_cob::TypeName,
+        _message: String,
+    ) -> Result<
+        radicle_cob::change::store::MergeEntry<Self::Parent, Self::ObjectId, Self::Signatures>,
+        Self::StoreError,
+    >
+    where
+        G: crypto::Signer,
+    {
         todo!()
     }
 }

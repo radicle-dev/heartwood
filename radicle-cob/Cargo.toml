@@ -47,10 +47,11 @@ features = ["derive"]
 [dev-dependencies]
 fastrand = { version = "2.0.0", default-features = false }
 tempfile = { version = "3" }
+pretty_assertions = { version = "1" }
 qcheck = { version = "1", default-features = false }
 qcheck-macros = { version = "1", default-features = false }
 
 [dev-dependencies.radicle-crypto]
 path = "../radicle-crypto"
 version = "0"
-features = ["test"]
+features = ["test", "radicle-git-ext"]

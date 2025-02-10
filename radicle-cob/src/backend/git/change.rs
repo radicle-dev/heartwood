@@ -12,6 +12,7 @@ use once_cell::sync::Lazy;
 use radicle_git_ext::commit::trailers::OwnedTrailer;
 
 use crate::change::store::Version;
+use crate::change::{ChangeEntry, MergeEntry};
 use crate::signatures;
 use crate::trailers::CommitTrailer;
 use crate::{
@@ -23,6 +24,8 @@ use crate::{
 
 /// Name of the COB manifest file.
 pub const MANIFEST_BLOB_NAME: &str = "manifest";
+/// The kind of change entry a commit represents.
+pub const ENTRY_KIND: &str = "kind";
 /// Path under which COB embeds are kept.
 pub static EMBEDS_PATH: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("embeds"));
 
@@ -66,6 +69,14 @@ pub mod error {
         ManifestIsNotBlob(Oid),
         #[error("the 'manifest' found at '{id}' was invalid: {err}")]
         InvalidManifest {
+            id: Oid,
+            #[source]
+            err: serde_json::Error,
+        },
+        #[error("the 'kind' found at '{0}' was not a blob")]
+        EntryKindIsNotBlob(Oid),
+        #[error("the 'kinf' found at '{id}' was invalid: {err}")]
+        InvalidEntryKind {
             id: Oid,
             #[source]
             err: serde_json::Error,
@@ -155,6 +166,43 @@ impl change::Storage for git2::Repository {
         })
     }
 
+    fn merge<G>(
+        &self,
+        tips: Vec<Self::ObjectId>,
+        signer: &G,
+        type_name: crate::TypeName,
+        message: String,
+    ) -> Result<store::MergeEntry<Self::Parent, Self::ObjectId, Self::Signatures>, Self::StoreError>
+    where
+        G: crypto::Signer,
+    {
+        let manifest = store::Manifest::new(type_name, Version::default());
+        let revision = write_merge_manifest(self, &manifest)?;
+        let tree = self.find_tree(revision)?;
+        let signature = {
+            let sig = signer.sign(revision.as_bytes());
+            let key = signer.public_key();
+            ExtendedSignature::new(*key, sig)
+        };
+        let (id, timestamp) = write_commit(
+            self,
+            None,
+            tips.iter().copied().map(git2::Oid::from),
+            message,
+            signature.clone(),
+            None,
+            tree,
+        )?;
+        Ok(MergeEntry {
+            id,
+            revision: revision.into(),
+            signature,
+            parents: tips,
+            manifest,
+            timestamp,
+        })
+    }
+
     fn parents_of(&self, id: &Oid) -> Result<Vec<Oid>, Self::LoadError> {
         Ok(self
             .find_commit(**id)?
@@ -163,7 +211,7 @@ impl change::Storage for git2::Repository {
             .collect::<Vec<_>>())
     }
 
-    fn load(&self, id: Self::ObjectId) -> Result<Entry, Self::LoadError> {
+    fn load(&self, id: Self::ObjectId) -> Result<ChangeEntry, Self::LoadError> {
         let commit = Commit::read(self, id.into())?;
         let timestamp = git2::Time::from(commit.committer().time).seconds() as u64;
         let trailers = parse_trailers(commit.trailers())?;
@@ -199,19 +247,32 @@ impl change::Storage for git2::Repository {
 
         let tree = self.find_tree(*commit.tree())?;
         let manifest = load_manifest(self, &tree)?;
-        let contents = load_contents(self, &tree)?;
+        let kind = load_entry_kind(self, &tree)?;
 
-        Ok(Entry {
-            id,
-            revision: tree.id().into(),
-            signature: ExtendedSignature::new(key, sig),
-            resource: resources.pop(),
-            related,
-            parents,
-            manifest,
-            contents,
-            timestamp,
-        })
+        match kind {
+            store::EntryKind::Merge => Ok(ChangeEntry::Merge(MergeEntry {
+                id,
+                revision: tree.id().into(),
+                signature: ExtendedSignature::new(key, sig),
+                parents,
+                manifest,
+                timestamp,
+            })),
+            store::EntryKind::Commit => {
+                let contents = load_contents(self, &tree)?;
+                Ok(ChangeEntry::Entry(Entry {
+                    id,
+                    revision: tree.id().into(),
+                    signature: ExtendedSignature::new(key, sig),
+                    resource: resources.pop(),
+                    related,
+                    parents,
+                    manifest,
+                    contents,
+                    timestamp,
+                }))
+            }
+        }
     }
 }
 
@@ -247,6 +308,24 @@ fn load_manifest(
         id: tree.id().into(),
         err,
     })
+}
+
+fn load_entry_kind(
+    repo: &git2::Repository,
+    tree: &git2::Tree,
+) -> Result<store::EntryKind, error::Load> {
+    tree.get_name(ENTRY_KIND)
+        .map_or(Ok(store::EntryKind::Commit), |entry| {
+            let object = entry.to_object(repo)?;
+            let blob = object
+                .as_blob()
+                .ok_or_else(|| error::Load::EntryKindIsNotBlob(tree.id().into()))?;
+
+            serde_json::from_slice(blob.content()).map_err(|err| error::Load::InvalidEntryKind {
+                id: tree.id().into(),
+                err,
+            })
+        })
 }
 
 fn load_contents(repo: &git2::Repository, tree: &git2::Tree) -> Result<Contents, error::Load> {
@@ -341,11 +420,9 @@ fn write_commit(
     Ok((Oid::from(oid), timestamp as u64))
 }
 
-fn write_manifest(
+fn write_merge_manifest(
     repo: &git2::Repository,
     manifest: &store::Manifest,
-    embeds: Vec<Embed<Oid>>,
-    contents: &NonEmpty<Vec<u8>>,
 ) -> Result<git2::Oid, git2::Error> {
     let mut root = repo.treebuilder(None)?;
 
@@ -355,13 +432,49 @@ fn write_manifest(
         // errors here is a programming error, which we can't recover from.
         #[allow(clippy::unwrap_used)]
         let manifest = serde_json::to_vec(manifest).unwrap();
+        #[allow(clippy::unwrap_used)]
+        let kind = serde_json::to_vec(&store::EntryKind::Merge).unwrap();
+
         let manifest_oid = repo.blob(&manifest)?;
+        root.insert(
+            MANIFEST_BLOB_NAME,
+            manifest_oid,
+            git2::FileMode::Blob.into(),
+        )?;
+
+        let kind_oid = repo.blob(&kind)?;
+        root.insert(ENTRY_KIND, kind_oid, git2::FileMode::Blob.into())?;
+    }
+    let oid = root.write()?;
+
+    Ok(oid)
+}
+
+fn write_manifest(
+    repo: &git2::Repository,
+    manifest: &store::Manifest,
+    embeds: Vec<Embed<Oid>>,
+    contents: &NonEmpty<Vec<u8>>,
+) -> Result<git2::Oid, git2::Error> {
+    let mut root = repo.treebuilder(None)?;
+
+    // Insert manifest file and entry kind into tree.
+    {
+        // SAFETY: we're serializing to an in memory buffer so the only source of
+        // errors here is a programming error, which we can't recover from.
+        #[allow(clippy::unwrap_used)]
+        let manifest = serde_json::to_vec(manifest).unwrap();
+        let manifest_oid = repo.blob(&manifest)?;
+        #[allow(clippy::unwrap_used)]
+        let kind = serde_json::to_vec(&store::EntryKind::Commit).unwrap();
+        let kind_oid = repo.blob(&kind)?;
 
         root.insert(
             MANIFEST_BLOB_NAME,
             manifest_oid,
             git2::FileMode::Blob.into(),
         )?;
+        root.insert(ENTRY_KIND, kind_oid, git2::FileMode::Blob.into())?;
     }
 
     // Insert each COB entry.

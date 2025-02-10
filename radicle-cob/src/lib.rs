@@ -23,6 +23,10 @@
 //!   * [`list`]
 //!   * [`update`]
 //!
+//! There is an additional [`merge`] function that allows an interface for
+//! keeping track of draft changes on a separate reference, which can then be
+//! merged back into the published reference.
+//!
 //! ## Storage
 //!
 //! The storing of collaborative objects is based on a git
@@ -70,7 +74,7 @@ mod trailers;
 
 pub mod change;
 pub use change::store::{Contents, Embed, EntryId, Manifest, Version};
-pub use change::Entry;
+pub use change::{ChangeEntry, Entry, MergeEntry};
 
 pub mod history;
 pub use history::History;
@@ -83,8 +87,8 @@ pub use type_name::TypeName;
 
 pub mod object;
 pub use object::{
-    create, get, info, list, remove, update, CollaborativeObject, Create, Evaluate, ObjectId,
-    Update, Updated,
+    create, get, info, list, merge, remove, update, CollaborativeObject, Create, Evaluate, Merge,
+    Merged, ObjectId, Update, Updated,
 };
 
 #[cfg(test)]

@@ -20,7 +20,7 @@ pub use radicle_cob::{
     CollaborativeObject, Contents, Create, Embed, Entry, Evaluate, History, Manifest, ObjectId,
     Store, TypeName, Update, Updated, Version,
 };
-pub use radicle_cob::{create, get, git, list, remove, update};
+pub use radicle_cob::{create, get, git, list, merge, remove, update};
 
 /// The exact identifier for a particular COB.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]

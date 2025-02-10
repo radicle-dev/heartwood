@@ -13,6 +13,7 @@ use crate::{change_graph::ChangeGraph, ObjectId, Store, TypeName};
 use super::error;
 
 /// Additional information about the change graph of an object
+#[derive(Debug)]
 pub struct ChangeGraphInfo {
     /// The ID of the object
     pub object_id: ObjectId,

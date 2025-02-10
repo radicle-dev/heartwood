@@ -110,7 +110,7 @@ where
         .object
         .apply(&entry, iter::empty(), storage)
         .map_err(error::Update::evaluate)?;
-    object.history.extend(entry);
+    object.history.extend(entry.into());
 
     // Here we actually update the references to point to the new update.
     storage

@@ -73,7 +73,23 @@ impl change::Storage for Repository {
         self.backend.store(authority, parents, signer, spec)
     }
 
-    fn load(&self, id: Self::ObjectId) -> Result<cob::Entry, Self::LoadError> {
+    fn merge<G>(
+        &self,
+        tips: Vec<Self::ObjectId>,
+        signer: &G,
+        type_name: radicle_cob::TypeName,
+        message: String,
+    ) -> Result<
+        change::store::MergeEntry<Self::Parent, Self::ObjectId, Self::Signatures>,
+        Self::StoreError,
+    >
+    where
+        G: crypto::Signer,
+    {
+        change::Storage::merge(&self.backend, tips, signer, type_name, message)
+    }
+
+    fn load(&self, id: Self::ObjectId) -> Result<cob::ChangeEntry, Self::LoadError> {
         self.backend.load(id)
     }
 
@@ -213,7 +229,23 @@ impl<'a, R: storage::WriteRepository> change::Storage for DraftStore<'a, R> {
         self.repo.raw().store(authority, parents, signer, spec)
     }
 
-    fn load(&self, id: Self::ObjectId) -> Result<cob::Entry, Self::LoadError> {
+    fn merge<G>(
+        &self,
+        tips: Vec<Self::ObjectId>,
+        signer: &G,
+        type_name: radicle_cob::TypeName,
+        message: String,
+    ) -> Result<
+        change::store::MergeEntry<Self::Parent, Self::ObjectId, Self::Signatures>,
+        Self::StoreError,
+    >
+    where
+        G: crypto::Signer,
+    {
+        change::Storage::merge(self.repo.raw(), tips, signer, type_name, message)
+    }
+
+    fn load(&self, id: Self::ObjectId) -> Result<cob::ChangeEntry, Self::LoadError> {
         self.repo.raw().load(id)
     }
 

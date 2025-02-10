@@ -56,6 +56,32 @@ impl Retrieve {
 }
 
 #[derive(Debug, Error)]
+pub enum Merge {
+    #[error(transparent)]
+    Evaluate(Box<dyn std::error::Error + Send + Sync + 'static>),
+    #[error("no object found")]
+    NoSuchObject,
+    #[error(transparent)]
+    CreateChange(#[from] git::change::error::Create),
+    #[error("failed to get references during object merge: {err}")]
+    Refs {
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+    #[error("failed to remove the merged draft: {err}")]
+    Remove {
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+}
+
+impl Merge {
+    pub(crate) fn evaluate(err: impl std::error::Error + Send + Sync + 'static) -> Self {
+        Self::Evaluate(Box::new(err))
+    }
+}
+
+#[derive(Debug, Error)]
 pub enum Update {
     #[error(transparent)]
     Evaluate(Box<dyn std::error::Error + Send + Sync + 'static>),

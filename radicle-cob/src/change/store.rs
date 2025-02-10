@@ -29,12 +29,24 @@ pub trait Storage {
     where
         G: crypto::Signer;
 
+    /// Merge a set of entries into a [`MergeEntry`].
+    #[allow(clippy::type_complexity)]
+    fn merge<G>(
+        &self,
+        tips: Vec<Self::ObjectId>,
+        signer: &G,
+        type_name: TypeName,
+        message: String,
+    ) -> Result<MergeEntry<Self::ObjectId, Self::ObjectId, Self::Signatures>, Self::StoreError>
+    where
+        G: crypto::Signer;
+
     /// Load a change entry.
     #[allow(clippy::type_complexity)]
     fn load(
         &self,
         id: Self::ObjectId,
-    ) -> Result<Entry<Self::Parent, Self::ObjectId, Self::Signatures>, Self::LoadError>;
+    ) -> Result<ChangeEntry<Self::Parent, Self::ObjectId, Self::Signatures>, Self::LoadError>;
 
     /// Returns the parents of the object with the specified ID.
     fn parents_of(&self, id: &Oid) -> Result<Vec<Oid>, Self::LoadError>;
@@ -42,6 +54,15 @@ pub trait Storage {
 
 /// Change template, used to create a new change.
 pub struct Template<Id> {
+    pub type_name: TypeName,
+    pub tips: Vec<Id>,
+    pub message: String,
+    pub embeds: Vec<Embed<Oid>>,
+    pub contents: NonEmpty<Vec<u8>>,
+}
+
+/// Change template, used to create a new change.
+pub struct MergeTemplate<Id> {
     pub type_name: TypeName,
     pub tips: Vec<Id>,
     pub message: String,
@@ -58,6 +79,81 @@ pub type Timestamp = u64;
 
 /// A unique identifier for a history entry.
 pub type EntryId = Oid;
+
+/// An entry for a change made in the store.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ChangeEntry<Resource, Id, Signature> {
+    /// A single entry that contains contents.
+    Entry(Entry<Resource, Id, Signature>),
+    /// A merge of two or more entries.
+    Merge(MergeEntry<Resource, Id, Signature>),
+}
+
+impl<R, I, S> ChangeEntry<R, I, S> {
+    /// Get the identifier for the change.
+    pub fn id(&self) -> &I {
+        match self {
+            ChangeEntry::Entry(change) => &change.id,
+            ChangeEntry::Merge(change) => &change.id,
+        }
+    }
+
+    /// Get the parent identifier of the change.
+    pub fn parents(&self) -> &Vec<R> {
+        match self {
+            ChangeEntry::Entry(change) => &change.parents,
+            ChangeEntry::Merge(change) => &change.parents,
+        }
+    }
+
+    /// Get the optional resource identifier.
+    pub fn resource(&self) -> Option<&R> {
+        match self {
+            ChangeEntry::Entry(change) => change.resource(),
+            ChangeEntry::Merge(_) => None,
+        }
+    }
+
+    /// Get the timestamp this change occurred at.
+    pub fn timestamp(&self) -> &Timestamp {
+        match self {
+            ChangeEntry::Entry(c) => &c.timestamp,
+            ChangeEntry::Merge(c) => &c.timestamp,
+        }
+    }
+
+    /// Convert the `ChangeEntry` into its underlying [`Entry`].
+    ///
+    /// Returns `None` is it is a [`MergeEntry`].
+    pub fn as_entry(&self) -> Option<&Entry<R, I, S>> {
+        match self {
+            ChangeEntry::Entry(e) => Some(e),
+            ChangeEntry::Merge(_) => None,
+        }
+    }
+
+    /// Convert the `ChangeEntry` into its underlying [`Entry`].
+    ///
+    /// Returns `None` is it is a [`MergeEntry`].
+    pub fn into_entry(self) -> Option<Entry<R, I, S>> {
+        match self {
+            ChangeEntry::Entry(e) => Some(e),
+            ChangeEntry::Merge(_) => None,
+        }
+    }
+}
+
+impl<R, I, S> From<Entry<R, I, S>> for ChangeEntry<R, I, S> {
+    fn from(entry: Entry<R, I, S>) -> Self {
+        Self::Entry(entry)
+    }
+}
+
+impl<R, I, S> From<MergeEntry<R, I, S>> for ChangeEntry<R, I, S> {
+    fn from(entry: MergeEntry<R, I, S>) -> Self {
+        Self::Merge(entry)
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Entry<Resource, Id, Signature> {
@@ -122,6 +218,25 @@ where
     }
 }
 
+impl<R, Id> ChangeEntry<R, Id, signatures::ExtendedSignature>
+where
+    Id: AsRef<[u8]>,
+{
+    pub fn valid_signatures(&self) -> bool {
+        match self {
+            ChangeEntry::Entry(c) => c.valid_signatures(),
+            ChangeEntry::Merge(c) => c.valid_signatures(),
+        }
+    }
+
+    pub fn author(&self) -> &crypto::PublicKey {
+        match self {
+            ChangeEntry::Entry(c) => c.author(),
+            ChangeEntry::Merge(c) => c.author(),
+        }
+    }
+}
+
 impl<R, Id> Entry<R, Id, signatures::ExtendedSignature>
 where
     Id: AsRef<[u8]>,
@@ -133,6 +248,37 @@ where
     pub fn author(&self) -> &crypto::PublicKey {
         &self.signature.key
     }
+}
+
+impl<R, Id> MergeEntry<R, Id, signatures::ExtendedSignature>
+where
+    Id: AsRef<[u8]>,
+{
+    pub fn valid_signatures(&self) -> bool {
+        self.signature.verify(self.revision.as_ref())
+    }
+
+    pub fn author(&self) -> &crypto::PublicKey {
+        &self.signature.key
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MergeEntry<Resource, Id, Signature> {
+    /// The content address of the entry itself.
+    pub id: Id,
+    /// The content address of the tree of the entry.
+    pub revision: Id,
+    /// The cryptographic signature(s) and their public keys of the
+    /// authors.
+    pub signature: Signature,
+    /// The set of entries that are being merged.
+    pub parents: Vec<Resource>,
+    /// The manifest describing the type of object as well as the type
+    /// of history for this entry.
+    pub manifest: Manifest,
+    /// Timestamp of change.
+    pub timestamp: Timestamp,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -151,6 +297,13 @@ impl Manifest {
     pub fn new(type_name: TypeName, version: Version) -> Self {
         Self { type_name, version }
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EntryKind {
+    Merge,
+    #[default]
+    Commit,
 }
 
 /// COB version.

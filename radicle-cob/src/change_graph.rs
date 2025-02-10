@@ -1,14 +1,15 @@
 // Copyright © 2021 The Radicle Link Contributors
 
-use std::ops::ControlFlow;
+use std::ops::{ControlFlow, Deref};
 use std::{cmp::Ordering, collections::BTreeSet};
 
 use git_ext::Oid;
 use radicle_dag::Dag;
 
+use crate::ChangeEntry;
 use crate::{
     change, object, object::collaboration::Evaluate, signatures::ExtendedSignature,
-    CollaborativeObject, Entry, EntryId, History, ObjectId, TypeName,
+    CollaborativeObject, EntryId, History, ObjectId, TypeName,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -24,7 +25,7 @@ pub enum EvaluateError {
 /// The graph of changes for a particular collaborative object
 pub(super) struct ChangeGraph {
     object_id: ObjectId,
-    graph: Dag<Oid, Entry>,
+    graph: Dag<Oid, ChangeEntry>,
 }
 
 impl ChangeGraph {
@@ -100,18 +101,22 @@ impl ChangeGraph {
         let root = self
             .graph
             .get(&root)
-            .ok_or(EvaluateError::MissingRoot(root))?;
+            .ok_or_else(|| EvaluateError::MissingRoot(root))?;
 
         if !root.valid_signatures() {
-            return Err(EvaluateError::Signature(root.id));
+            return Err(EvaluateError::Signature(*root.id()));
         }
+        let Some(root) = root.clone().map_value(|e| e.into_entry()).transpose_value() else {
+            return Err(EvaluateError::Init(
+                "root must not be a merge entry".to_string().into(),
+            ));
+        };
         // Evaluate the root separately, since we can't have a COB without a valid root.
         // Then, traverse the graph starting from the root's dependents.
-        let mut object =
-            T::init(&root.value, store).map_err(|e| EvaluateError::Init(Box::new(e)))?;
+        let mut object = T::init(&root, store).map_err(|e| EvaluateError::Init(Box::new(e)))?;
         let children = Vec::from_iter(root.dependents.iter().cloned());
         let manifest = root.manifest.clone();
-        let root = root.id;
+        let root = root.id();
 
         self.graph.prune_by(
             &children,
@@ -120,14 +125,24 @@ impl ChangeGraph {
                 if !entry.valid_signatures() {
                     return ControlFlow::Break(());
                 }
-                // Apply the entry to the state, and if there's an error, prune that branch.
-                if object
-                    .apply(entry, siblings.map(|(k, n)| (k, &n.value)), store)
-                    .is_err()
-                {
-                    return ControlFlow::Break(());
+                match entry.deref() {
+                    change::store::ChangeEntry::Entry(entry) => {
+                        // Apply the entry to the state, and if there's an error, prune that branch.
+                        if object
+                            .apply(
+                                entry,
+                                siblings.filter_map(|(k, n)| n.value.as_entry().map(|e| (k, e))),
+                                store,
+                            )
+                            .is_err()
+                        {
+                            ControlFlow::Break(())
+                        } else {
+                            ControlFlow::Continue(())
+                        }
+                    }
+                    change::store::ChangeEntry::Merge(_) => ControlFlow::Continue(()),
                 }
-                ControlFlow::Continue(())
             },
             Self::chronological,
         );
@@ -135,7 +150,7 @@ impl ChangeGraph {
         Ok(CollaborativeObject {
             manifest,
             object,
-            history: History::new(root, self.graph),
+            history: History::new(*root, self.graph),
             id: self.object_id,
         })
     }
@@ -149,13 +164,13 @@ impl ChangeGraph {
         self.graph.len()
     }
 
-    fn chronological(x: (&Oid, &Entry), y: (&Oid, &Entry)) -> Ordering {
-        x.1.timestamp.cmp(&y.1.timestamp).then(x.0.cmp(y.0))
+    fn chronological(x: (&Oid, &ChangeEntry), y: (&Oid, &ChangeEntry)) -> Ordering {
+        x.1.timestamp().cmp(y.1.timestamp()).then(x.0.cmp(y.0))
     }
 }
 
 struct GraphBuilder {
-    graph: Dag<Oid, Entry>,
+    graph: Dag<Oid, ChangeEntry>,
 }
 
 impl Default for GraphBuilder {
@@ -167,9 +182,9 @@ impl Default for GraphBuilder {
 impl GraphBuilder {
     /// Add a change to the graph which we are building up, returning any edges
     /// corresponding to the parents of this node in the change graph
-    fn add_change(&mut self, commit_id: Oid, change: Entry) -> Vec<(Oid, Oid)> {
+    fn add_change(&mut self, commit_id: Oid, change: ChangeEntry) -> Vec<(Oid, Oid)> {
         let resource = change.resource().copied();
-        let parents = change.parents.clone();
+        let parents = change.parents().clone();
 
         if !self.graph.contains(&commit_id) {
             self.graph.node(commit_id, change);
