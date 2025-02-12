@@ -15,6 +15,7 @@ members = [
   "radicle-tools",
   "radicle-signals",
   "radicle-systemd",
+  "radicle-job",
 ]
 default-members = [
   "radicle",

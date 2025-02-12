@@ -1,0 +1,24 @@
+[package]
+name = "radicle-job"
+edition = "2021"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+indexmap = { version = "2.7.1", features = ["serde"] }
+nonempty = "0.11.0"
+once_cell = "1.20.3"
+qcheck = "1.0.0"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0.11"
+url = { version = "2.5.4", features = ["serde"] }
+uuid = { version = "1.13.1", features = ["serde", "v4"] }
+
+[dependencies.radicle]
+path = "../radicle"
+
+[dev-dependencies.radicle]
+path = "../radicle"
+features = ["test"]
