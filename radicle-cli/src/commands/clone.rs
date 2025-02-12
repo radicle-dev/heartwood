@@ -133,7 +133,6 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let signer = term::signer(&profile)?;
     let mut node = radicle::Node::new(profile.socket());
 
     if !node.is_running() {
@@ -148,7 +147,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         options.scope,
         options.sync.with_profile(&profile),
         &mut node,
-        &signer,
         &profile,
     )?;
     let delegates = doc
@@ -229,16 +227,15 @@ pub enum CloneError {
     Fetch(#[from] sync::FetchError),
 }
 
-pub fn clone<G: Signer>(
+pub fn clone(
     id: RepoId,
     directory: Option<PathBuf>,
     scope: Scope,
     settings: SyncSettings,
     node: &mut Node,
-    signer: &G,
     profile: &Profile,
 ) -> Result<(raw::Repository, storage::git::Repository, Doc, Project), CloneError> {
-    let me = *signer.public_key();
+    let me = profile.id();
 
     // Seed repository.
     if node.seed(id, scope)? {
@@ -283,7 +280,7 @@ pub fn clone<G: Signer>(
         "Creating checkout in ./{}..",
         term::format::tertiary(path.display())
     ));
-    let working = rad::checkout(id, &me, path, &profile.storage)?;
+    let working = rad::checkout(id, me, path, &profile.storage)?;
 
     spinner.finish();
 

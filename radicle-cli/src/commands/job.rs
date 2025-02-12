@@ -205,7 +205,6 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let signer = term::signer(&profile)?;
     let (_, rid) = radicle::rad::cwd()?;
     let repo = profile.storage.repository_mut(rid)?;
     let announce = options.announce
@@ -222,6 +221,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     match options.op {
         Operation::Trigger { commit } => {
+            let signer = term::signer(&profile)?;
             trigger(&commit, &mut ci_store, &repo, &signer, options.quiet)?;
         }
         Operation::Start {
@@ -229,6 +229,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             run_id,
             info_url,
         } => {
+            let signer = term::signer(&profile)?;
             start(&job_id, &run_id, info_url, &mut ci_store, &repo, &signer)?;
         }
         Operation::List => {
@@ -238,9 +239,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             show(&job_id, &ci_store, &repo)?;
         }
         Operation::Finish { job_id, reason } => {
+            let signer = term::signer(&profile)?;
             finish(&job_id, reason, &mut ci_store, &repo, &signer)?;
         }
         Operation::Delete { job_id } => {
+            let signer = term::signer(&profile)?;
             let job_id = job_id.resolve(&repo.backend)?;
             ci_store.remove(&job_id, &signer)?;
         }
