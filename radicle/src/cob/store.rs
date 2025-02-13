@@ -314,20 +314,23 @@ where
     T: Cob + cob::Evaluate<R>,
 {
     /// Create a new transaction to be used as the initial set of operations for a COB.
-    pub fn initial<G, F>(
+    pub fn initial<G, F, Tx>(
         message: &str,
         store: &mut Store<T, R>,
         signer: &G,
         operations: F,
     ) -> Result<(ObjectId, T), Error>
     where
+        Tx: From<Self>,
+        Self: From<Tx>,
         G: Signer,
-        F: FnOnce(&mut Self, &R) -> Result<(), Error>,
+        F: FnOnce(&mut Tx, &R) -> Result<(), Error>,
         R: ReadRepository + SignRepository + cob::Store,
         T::Action: Serialize + Clone,
     {
-        let mut tx = Transaction::default();
+        let mut tx = Tx::from(Transaction::default());
         operations(&mut tx, store.as_ref())?;
+        let tx = Self::from(tx);
 
         let actions = NonEmpty::from_vec(tx.actions)
             .expect("Transaction::initial: transaction must contain at least one action");
