@@ -69,6 +69,7 @@ default-features = false
 optional = true
 
 [dev-dependencies]
+emojis = { version = "0.6" }
 pretty_assertions = { version = "1.3.0" }
 qcheck-macros = { version = "1", default-features = false }
 qcheck = { version = "1", default-features = false }

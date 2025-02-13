@@ -91,12 +91,18 @@ impl Reaction {
     pub fn new(emoji: char) -> Result<Self, ReactionError> {
         let val = emoji as u32;
         let emoticons = 0x1F600..=0x1F64F;
+        let hearts = 0x1FA75..=0x1FA77;
+        let body_update = 0x1FAC0..=0x1FAC6;
+        let emoticons_update = 0x1FAE0..=0x1FAF8;
         let misc = 0x1F300..=0x1F5FF; // Miscellaneous Symbols and Pictographs
         let dingbats = 0x2700..=0x27BF;
         let supp = 0x1F900..=0x1F9FF; // Supplemental Symbols and Pictographs
         let transport = 0x1F680..=0x1F6FF;
 
         if emoticons.contains(&val)
+            || hearts.contains(&val)
+            || body_update.contains(&val)
+            || emoticons_update.contains(&val)
             || misc.contains(&val)
             || dingbats.contains(&val)
             || supp.contains(&val)
@@ -367,32 +373,6 @@ impl From<bool> for Authorization {
     }
 }
 
-#[cfg(test)]
-#[allow(clippy::unwrap_used)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_color() {
-        let c = Color::from_str("#ffccaa").unwrap();
-        assert_eq!(c.to_string(), "#ffccaa".to_owned());
-        assert_eq!(serde_json::to_string(&c).unwrap(), "\"#ffccaa\"".to_owned());
-        assert_eq!(serde_json::from_str::<'_, Color>("\"#ffccaa\"").unwrap(), c);
-
-        let c = Color::from_str("#0000aa").unwrap();
-        assert_eq!(c.to_string(), "#0000aa".to_owned());
-
-        let c = Color::from_str("#aa0000").unwrap();
-        assert_eq!(c.to_string(), "#aa0000".to_owned());
-
-        let c = Color::from_str("#00aa00").unwrap();
-        assert_eq!(c.to_string(), "#00aa00".to_owned());
-
-        Color::from_str("#aa00").unwrap_err();
-        Color::from_str("#abc").unwrap_err();
-    }
-}
-
 /// Describes a code location that can be used for comments on
 /// patches, issues, and diffs.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -443,6 +423,63 @@ impl std::cmp::Ord for CodeRange {
                     range: r2,
                 },
             ) => l1.cmp(l2).then(r1.clone().cmp(r2.clone())),
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod test {
+    use std::collections::BTreeSet;
+
+    use super::*;
+
+    #[test]
+    fn test_color() {
+        let c = Color::from_str("#ffccaa").unwrap();
+        assert_eq!(c.to_string(), "#ffccaa".to_owned());
+        assert_eq!(serde_json::to_string(&c).unwrap(), "\"#ffccaa\"".to_owned());
+        assert_eq!(serde_json::from_str::<'_, Color>("\"#ffccaa\"").unwrap(), c);
+
+        let c = Color::from_str("#0000aa").unwrap();
+        assert_eq!(c.to_string(), "#0000aa".to_owned());
+
+        let c = Color::from_str("#aa0000").unwrap();
+        assert_eq!(c.to_string(), "#aa0000".to_owned());
+
+        let c = Color::from_str("#00aa00").unwrap();
+        assert_eq!(c.to_string(), "#00aa00".to_owned());
+
+        Color::from_str("#aa00").unwrap_err();
+        Color::from_str("#abc").unwrap_err();
+    }
+
+    #[test]
+    fn test_emojis() {
+        let emojis = emojis::Group::SmileysAndEmotion
+            .emojis()
+            .chain(emojis::Group::PeopleAndBody.emojis())
+            .filter_map(|emoji| {
+                if emoji.as_str().chars().count() == 1 {
+                    Some(emoji.as_str().chars().next().unwrap())
+                } else {
+                    None
+                }
+            });
+        let mut failed = BTreeSet::new();
+        for emoji in emojis {
+            if Reaction::new(emoji).is_err() {
+                failed.insert(emoji);
+            }
+        }
+        if !failed.is_empty() {
+            for emoji in failed {
+                eprintln!(
+                    "cannot construct Reaction for '{emoji}' {:#04X}",
+                    (emoji as u32)
+                );
+            }
+            panic!("Failed to construct Reaction for these emojis");
         }
     }
 }
