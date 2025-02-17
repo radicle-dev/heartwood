@@ -31,6 +31,32 @@ impl<K, V> Node<K, V> {
             dependents: BTreeSet::new(),
         }
     }
+
+    /// Map a function over the `Node` value.
+    pub fn map_value<U, F>(self, f: F) -> Node<K, U>
+    where
+        F: FnOnce(V) -> U,
+    {
+        Node {
+            key: self.key,
+            value: f(self.value),
+            dependencies: self.dependencies,
+            dependents: self.dependents,
+        }
+    }
+}
+
+impl<K, V> Node<K, Option<V>> {
+    /// Given a [`Node`] with an optional value, peel the `Option` to get an
+    /// optional `Node<K, V>`.
+    pub fn transpose_value(self) -> Option<Node<K, V>> {
+        self.value.map(|value| Node {
+            key: self.key,
+            value,
+            dependencies: self.dependencies,
+            dependents: self.dependents,
+        })
+    }
 }
 
 impl<K, V> Borrow<V> for &Node<K, V> {
