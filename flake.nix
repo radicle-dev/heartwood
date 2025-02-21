@@ -2,18 +2,16 @@
   description = "Radicle";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/release-24.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/release-24.11";
 
     crane = {
       url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs = {
         nixpkgs.follows = "nixpkgs";
-        flake-utils.follows = "flake-utils";
       };
     };
 
@@ -54,6 +52,7 @@
           ".diff" # testing
           ".md" # testing
           ".adoc" # man pages
+          ".json" # testing samples
         ]
         ||
         # Default filter from crane (allow .rs files)
@@ -136,9 +135,13 @@
             nativeBuildInputs = [
               # git is required so the sandbox can access it.
               pkgs.git
-              # Ensure that `git-remote-rad` is present for testing.
-              self.packages.${system}.radicle-remote-helper
             ];
+            # Ensure that the binaries are built for the radicle-cli tests to
+            # avoid timeouts
+            preCheck = ''
+              cargo build -p radicle-remote-helper --target-dir radicle-cli/target
+              cargo build -p radicle-cli --target-dir radicle-cli/target
+            '';
             # Ensure dev is used since we rely on env variables being
             # set in tests.
             env.CARGO_PROFILE = "dev";
@@ -229,6 +232,8 @@
       devShells.default = craneLib.devShell {
         # Extra inputs can be added here; cargo and rustc are provided by default.
         packages = with pkgs; [
+          cargo-audit
+          cargo-deny
           cargo-watch
           cargo-nextest
           ripgrep
