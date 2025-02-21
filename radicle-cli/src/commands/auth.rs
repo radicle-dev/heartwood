@@ -3,7 +3,7 @@ use std::ffi::OsString;
 use std::ops::Not as _;
 use std::str::FromStr;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 
 use radicle::crypto::ssh;
 use radicle::crypto::ssh::Passphrase;
@@ -129,7 +129,7 @@ pub fn init(options: Options) -> anyhow::Result<()> {
             Err(e) if e.is_not_running() => {
                 agent = false;
             }
-            Err(e) => Err(e)?,
+            Err(e) => Err(e).context("failed to connect to ssh-agent")?,
         }
     }
 
