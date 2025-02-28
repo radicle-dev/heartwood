@@ -505,6 +505,7 @@ where
             patch::MergeTarget::default(),
             base,
             head,
+            None,
             &[],
             signer,
         )
@@ -515,6 +516,7 @@ where
             patch::MergeTarget::default(),
             base,
             head,
+            None,
             &[],
             signer,
         )
