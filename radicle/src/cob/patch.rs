@@ -254,6 +254,11 @@ pub enum Action {
         /// Review comments resolved by this revision.
         #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
         resolves: BTreeSet<(EntryId, CommentId)>,
+        /// The diff options for the patch.
+        ///
+        /// **N.B**: Only relevant for the initial revision creation.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        diff_options: Option<diff::Options>,
     },
     #[serde(rename = "revision.edit")]
     RevisionEdit {
@@ -333,7 +338,9 @@ pub enum Action {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewComment {
+    /// The [`ReviewId`] that this comment is associated with.
     review: ReviewId,
+    /// The text body of the review comment.
     body: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     location: Option<PartialLocation>,
@@ -501,11 +508,63 @@ pub struct Patch {
     pub(super) timeline: Vec<EntryId>,
     /// Reviews index. Keeps track of reviews for better performance.
     pub(super) reviews: BTreeMap<ReviewId, Option<(RevisionId, ActorId)>>,
+    #[serde(default)]
+    pub(super) diff_options: diff::Options,
+}
+
+/// Data to create a new [`Patch`].
+///
+/// A new request can be constructed with [`CreatePatchRequest::new`]. The
+/// [`MergeTarget`] and [`diff::Options`] can be set for the request by using
+/// [`CreatePatchRequest::with_target`] and
+/// [`CreatePatchRequest::with_diff_options`], respectively.
+///
+/// To use the [`CreatePatchRequest`], see [`Patch::new`].
+pub struct CreatePatchRequest {
+    title: String,
+    target: MergeTarget,
+    id: RevisionId,
+    revision: Revision,
+    diff_options: diff::Options,
+}
+
+impl CreatePatchRequest {
+    /// Construct a new `CreatePatch` using default for `target`and
+    /// `diff_options`.
+    pub fn new(title: String, id: RevisionId, revision: Revision) -> Self {
+        Self {
+            title,
+            target: MergeTarget::default(),
+            id,
+            revision,
+            diff_options: diff::Options::default(),
+        }
+    }
+
+    /// Set the `target`.
+    pub fn with_target(self, target: MergeTarget) -> Self {
+        Self { target, ..self }
+    }
+
+    /// Set the `diff_options`.
+    pub fn with_diff_options(self, diff_options: diff::Options) -> Self {
+        Self {
+            diff_options,
+            ..self
+        }
+    }
 }
 
 impl Patch {
-    /// Construct a new patch object from a revision.
-    pub fn new(title: String, target: MergeTarget, (id, revision): (RevisionId, Revision)) -> Self {
+    /// Construct a new patch object from a [`CreatePatchRequest`].
+    pub fn new(create: CreatePatchRequest) -> Self {
+        let CreatePatchRequest {
+            title,
+            target,
+            id,
+            revision,
+            diff_options,
+        } = create;
         Self {
             title,
             author: revision.author.clone(),
@@ -517,6 +576,7 @@ impl Patch {
             assignees: BTreeSet::default(),
             timeline: vec![id.into_inner()],
             reviews: BTreeMap::default(),
+            diff_options,
         }
     }
 
@@ -912,6 +972,8 @@ impl Patch {
                 base,
                 oid,
                 resolves,
+                // ignored for new revisions
+                diff_options: _,
             } => {
                 debug_assert!(!self.revisions.contains_key(&entry));
                 let id = RevisionId(entry);
@@ -1317,6 +1379,7 @@ impl store::Cob for Patch {
             base,
             oid,
             resolves,
+            diff_options,
         }) = actions.next()
         else {
             return Err(Error::Init("the first action must be of type `revision`"));
@@ -1333,7 +1396,10 @@ impl store::Cob for Patch {
             op.timestamp,
             resolves,
         );
-        let mut patch = Patch::new(title, target, (RevisionId(op.id), revision));
+        let create = CreatePatchRequest::new(title, RevisionId(op.id), revision)
+            .with_target(target)
+            .with_diff_options(diff_options.unwrap_or_default());
+        let mut patch = Patch::new(create);
 
         for action in actions {
             match patch.authorization(&action, &op.author, &doc)? {
@@ -2087,6 +2153,22 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         self.push(Action::Merge { revision, commit })
     }
 
+    fn initial_revision(
+        &mut self,
+        description: impl ToString,
+        base: impl Into<git::Oid>,
+        oid: impl Into<git::Oid>,
+        opts: Option<diff::Options>,
+    ) -> Result<(), store::Error> {
+        self.push(Action::Revision {
+            description: description.to_string(),
+            base: base.into(),
+            oid: oid.into(),
+            resolves: BTreeSet::new(),
+            diff_options: opts,
+        })
+    }
+
     /// Update a patch with a new revision.
     pub fn revision(
         &mut self,
@@ -2099,6 +2181,7 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
             base: base.into(),
             oid: oid.into(),
             resolves: BTreeSet::new(),
+            diff_options: None,
         })
     }
 
@@ -2671,6 +2754,7 @@ where
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
+        opts: Option<diff::Options>,
         labels: &[Label],
         cache: &'g mut C,
         signer: &G,
@@ -2685,6 +2769,7 @@ where
             target,
             base,
             oid,
+            opts,
             labels,
             Lifecycle::default(),
             cache,
@@ -2700,6 +2785,7 @@ where
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
+        opts: Option<diff::Options>,
         labels: &[Label],
         cache: &'g mut C,
         signer: &G,
@@ -2713,6 +2799,7 @@ where
             target,
             base,
             oid,
+            opts,
             labels,
             Lifecycle::Draft,
             cache,
@@ -2747,6 +2834,7 @@ where
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
+        opts: Option<diff::Options>,
         labels: &[Label],
         state: Lifecycle,
         cache: &'g mut C,
@@ -2756,7 +2844,7 @@ where
         C: cob::cache::Update<Patch>,
     {
         let (id, patch) = Transaction::initial("Create patch", &mut self.raw, signer, |tx, _| {
-            tx.revision(description, base, oid)?;
+            tx.initial_revision(description, base, oid, opts)?;
             tx.edit(title, target)?;
 
             if !labels.is_empty() {
@@ -3053,6 +3141,7 @@ mod test {
                 target,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3093,6 +3182,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3126,6 +3216,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3157,6 +3248,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3209,6 +3301,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3249,6 +3342,7 @@ mod test {
                 base,
                 oid,
                 resolves: Default::default(),
+                diff_options: None,
             },
             Action::Edit {
                 title: String::from("My patch"),
@@ -3260,6 +3354,7 @@ mod test {
             base,
             oid,
             resolves: Default::default(),
+            diff_options: None,
         }]);
         let a3 = alice.op::<Patch>([Action::RevisionRedact {
             revision: RevisionId(a2.id()),
@@ -3300,6 +3395,7 @@ mod test {
                     base,
                     oid,
                     resolves: Default::default(),
+                    diff_options: None,
                 },
                 Action::Edit {
                     title: String::from("Some patch"),
@@ -3315,6 +3411,7 @@ mod test {
                 base,
                 oid,
                 resolves: Default::default(),
+                diff_options: None,
             },
             &alice,
         );
@@ -3360,6 +3457,7 @@ mod test {
                 base,
                 oid,
                 resolves: Default::default(),
+                diff_options: None,
             },
             Action::Edit {
                 title: String::from("My patch"),
@@ -3397,6 +3495,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3441,6 +3540,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3472,6 +3572,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3516,6 +3617,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3563,6 +3665,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3611,6 +3714,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3660,6 +3764,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )

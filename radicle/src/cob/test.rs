@@ -236,6 +236,7 @@ impl<G: Signer> Actor<G> {
                     base,
                     oid,
                     resolves: Default::default(),
+                    diff_options: None,
                 },
                 patch::Action::Edit {
                     title: title.to_string(),

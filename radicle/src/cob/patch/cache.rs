@@ -15,8 +15,8 @@ use crate::prelude::RepoId;
 use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
 
 use super::{
-    ByRevision, MergeTarget, Patch, PatchCounts, PatchId, PatchMut, Revision, RevisionId, State,
-    Status,
+    diff, ByRevision, MergeTarget, Patch, PatchCounts, PatchId, PatchMut, Revision, RevisionId,
+    State, Status,
 };
 
 /// A set of read-only methods for a [`Patch`] store.
@@ -115,6 +115,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
+        opts: Option<diff::Options>,
         labels: &[Label],
         signer: &G,
     ) -> Result<PatchMut<'a, 'g, R, C>, super::Error>
@@ -129,6 +130,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
             target,
             base,
             oid,
+            opts,
             labels,
             &mut self.cache,
             signer,
@@ -145,6 +147,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
+        opts: Option<diff::Options>,
         labels: &[Label],
         signer: &G,
     ) -> Result<PatchMut<'a, 'g, R, C>, super::Error>
@@ -159,6 +162,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
             target,
             base,
             oid,
+            opts,
             labels,
             &mut self.cache,
             signer,
@@ -714,7 +718,8 @@ mod tests {
     use crate::cob::thread::{Comment, Thread};
     use crate::cob::Author;
     use crate::patch::{
-        ByRevision, MergeTarget, Patch, PatchCounts, PatchId, Revision, RevisionId, State, Status,
+        ByRevision, CreatePatchRequest, Patch, PatchCounts, PatchId, Revision, RevisionId, State,
+        Status,
     };
     use crate::prelude::Did;
     use crate::profile::env;
@@ -767,13 +772,15 @@ mod tests {
         let mut cache = memory(repo);
         assert!(cache.is_empty().unwrap());
 
-        let patch = Patch::new("Patch #1".to_string(), MergeTarget::Delegates, revision());
+        let (id, rev) = revision();
+        let patch = Patch::new(CreatePatchRequest::new("Patch #1".to_string(), id, rev));
         let id = ObjectId::from_str("47799cbab2eca047b6520b9fce805da42b49ecab").unwrap();
         cache.update(&cache.rid(), &id, &patch).unwrap();
 
+        let (id, rev) = revision();
         let patch = Patch {
             state: State::Archived,
-            ..Patch::new("Patch #2".to_string(), MergeTarget::Delegates, revision())
+            ..Patch::new(CreatePatchRequest::new("Patch #2".to_string(), id, rev))
         };
         let id = ObjectId::from_str("ae981ded6ed2ed2cdba34c8603714782667f18a3").unwrap();
         cache.update(&cache.rid(), &id, &patch).unwrap();
@@ -803,16 +810,18 @@ mod tests {
             .collect::<BTreeSet<PatchId>>();
 
         for id in open_ids.iter() {
-            let patch = Patch::new(id.to_string(), MergeTarget::Delegates, revision());
+            let (rev_id, rev) = revision();
+            let patch = Patch::new(CreatePatchRequest::new(id.to_string(), rev_id, rev));
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
                 .unwrap();
         }
 
         for id in draft_ids.iter() {
+            let (rev_id, rev) = revision();
             let patch = Patch {
                 state: State::Draft,
-                ..Patch::new(id.to_string(), MergeTarget::Delegates, revision())
+                ..Patch::new(CreatePatchRequest::new(id.to_string(), rev_id, rev))
             };
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
@@ -820,9 +829,10 @@ mod tests {
         }
 
         for id in archived_ids.iter() {
+            let (rev_id, rev) = revision();
             let patch = Patch {
                 state: State::Archived,
-                ..Patch::new(id.to_string(), MergeTarget::Delegates, revision())
+                ..Patch::new(CreatePatchRequest::new(id.to_string(), rev_id, rev))
             };
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
@@ -830,12 +840,13 @@ mod tests {
         }
 
         for id in merged_ids.iter() {
+            let (rev_id, rev) = revision();
             let patch = Patch {
                 state: State::Merged {
                     revision: arbitrary::oid().into(),
                     commit: arbitrary::oid(),
                 },
-                ..Patch::new(id.to_string(), MergeTarget::Delegates, revision())
+                ..Patch::new(CreatePatchRequest::new(id.to_string(), rev_id, rev))
             };
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
@@ -869,7 +880,8 @@ mod tests {
         let mut patches = Vec::with_capacity(ids.len());
 
         for id in ids.iter() {
-            let patch = Patch::new(id.to_string(), MergeTarget::Delegates, revision());
+            let (rev_id, rev) = revision();
+            let patch = Patch::new(CreatePatchRequest::new(id.to_string(), rev_id, rev));
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
                 .unwrap();
@@ -897,11 +909,11 @@ mod tests {
             .iter()
             .next()
             .expect("at least one revision should have been created");
-        let mut patch = Patch::new(
+        let mut patch = Patch::new(CreatePatchRequest::new(
             patch_id.to_string(),
-            MergeTarget::Delegates,
-            (*rev_id, rev.clone()),
-        );
+            *rev_id,
+            rev.clone(),
+        ));
         let timeline = revisions.keys().copied().collect::<Vec<_>>();
         patch
             .timeline
@@ -937,7 +949,8 @@ mod tests {
         let mut patches = Vec::with_capacity(ids.len());
 
         for id in ids.iter() {
-            let patch = Patch::new(id.to_string(), MergeTarget::Delegates, revision());
+            let (rev_id, rev) = revision();
+            let patch = Patch::new(CreatePatchRequest::new(id.to_string(), rev_id, rev));
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
                 .unwrap();
@@ -964,7 +977,8 @@ mod tests {
         let mut patches = Vec::with_capacity(ids.len());
 
         for id in ids.iter() {
-            let patch = Patch::new(id.to_string(), MergeTarget::Delegates, revision());
+            let (rev_id, rev) = revision();
+            let patch = Patch::new(CreatePatchRequest::new(id.to_string(), rev_id, rev));
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
                 .unwrap();
@@ -990,7 +1004,8 @@ mod tests {
             .collect::<BTreeSet<PatchId>>();
 
         for id in ids.iter() {
-            let patch = Patch::new(id.to_string(), MergeTarget::Delegates, revision());
+            let (rev_id, rev) = revision();
+            let patch = Patch::new(CreatePatchRequest::new(id.to_string(), rev_id, rev));
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
                 .unwrap();

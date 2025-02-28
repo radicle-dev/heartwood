@@ -436,6 +436,7 @@ fn patch_open<G: Signer>(
             patch::MergeTarget::default(),
             base,
             commit.id(),
+            None,
             &[],
             signer,
         )
@@ -446,6 +447,7 @@ fn patch_open<G: Signer>(
             patch::MergeTarget::default(),
             base,
             commit.id(),
+            None,
             &[],
             signer,
         )
