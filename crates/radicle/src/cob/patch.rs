@@ -2,7 +2,7 @@ pub mod cache;
 pub mod diff;
 
 mod actions;
-pub use actions::ReviewEdit;
+pub use actions::{ReviewComment, ReviewEdit};
 
 mod encoding;
 
@@ -20,7 +20,7 @@ use storage::{HasRepoId, RepositoryError};
 use thiserror::Error;
 
 use crate::cob;
-use crate::cob::common::{Author, Authorization, CodeLocation, Label, Reaction, Timestamp};
+use crate::cob::common::{Author, Authorization, DiffLocation, Label, Reaction, Timestamp};
 use crate::cob::store::Transaction;
 use crate::cob::store::{Cob, CobAction};
 use crate::cob::thread;
@@ -195,21 +195,6 @@ pub enum Action {
     },
     #[serde(rename = "review.redact")]
     ReviewRedact { review: ReviewId },
-    #[serde(rename = "review.comment")]
-    ReviewComment {
-        review: ReviewId,
-        body: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        location: Option<CodeLocation>,
-        /// Comment this is a reply to.
-        /// Should be [`None`] if it's the first comment.
-        /// Should be [`Some`] otherwise.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        reply_to: Option<CommentId>,
-        /// Embeded content.
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        embeds: Vec<Embed<Uri>>,
-    },
     #[serde(rename = "review.comment.edit")]
     ReviewCommentEdit {
         review: ReviewId,
@@ -258,36 +243,8 @@ pub enum Action {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         embeds: Vec<Embed<Uri>>,
     },
-    /// React to the revision.
-    #[serde(rename = "revision.react")]
-    RevisionReact {
-        revision: RevisionId,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        location: Option<CodeLocation>,
-        reaction: Reaction,
-        active: bool,
-    },
     #[serde(rename = "revision.redact")]
     RevisionRedact { revision: RevisionId },
-    #[serde(rename_all = "camelCase")]
-    #[serde(rename = "revision.comment")]
-    RevisionComment {
-        /// The revision to comment on.
-        revision: RevisionId,
-        /// For comments on the revision code.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        location: Option<CodeLocation>,
-        /// Comment body.
-        body: String,
-        /// Comment this is a reply to.
-        /// Should be [`None`] if it's the top-level comment.
-        /// Should be the root [`CommentId`] if it's a top-level comment.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        reply_to: Option<CommentId>,
-        /// Embeded content.
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        embeds: Vec<Embed<Uri>>,
-    },
     /// Edit a revision comment.
     #[serde(rename = "revision.comment.edit")]
     RevisionCommentEdit {
@@ -310,12 +267,40 @@ pub enum Action {
         reaction: Reaction,
         active: bool,
     },
-    /// Edit a review's summary, verdict, labels, and embeds.
+
     // Note that the tags live on `actions::ReviewEdit`, and according to the
     // serde.rs docs, it must come after the other variants due to the
     // `untagged` declaration.
+    /// Edit a review's summary, verdict, labels, and embeds.
     #[serde(untagged)]
     ReviewEdit(actions::ReviewEdit),
+    /// Publish a comment to a review.
+    #[serde(untagged)]
+    ReviewComment(actions::ReviewComment),
+    /// Publish a comment to a revision.
+    #[serde(untagged)]
+    RevisionComment(actions::RevisionComment),
+    /// React to the revision.
+    #[serde(untagged)]
+    RevisionReact(actions::RevisionReact),
+}
+
+impl From<actions::ReviewComment> for Action {
+    fn from(value: actions::ReviewComment) -> Self {
+        Action::ReviewComment(value)
+    }
+}
+
+impl From<actions::RevisionComment> for Action {
+    fn from(value: actions::RevisionComment) -> Self {
+        Action::RevisionComment(value)
+    }
+}
+
+impl From<actions::RevisionReact> for Action {
+    fn from(value: actions::RevisionReact) -> Self {
+        Action::RevisionReact(value)
+    }
 }
 
 impl CobAction for Action {
@@ -877,23 +862,7 @@ impl Patch {
                     )),
                 );
             }
-            Action::RevisionReact {
-                revision,
-                reaction,
-                active,
-                location,
-            } => {
-                if let Some(revision) = lookup::revision_mut(self, &revision)? {
-                    let key = (author, reaction);
-                    let reactions = revision.reactions.entry(location).or_default();
-
-                    if active {
-                        reactions.insert(key);
-                    } else {
-                        reactions.remove(&key);
-                    }
-                }
-            }
+            Action::RevisionReact(react) => react.run(author, self)?,
             Action::RevisionRedact { revision } => {
                 // Not allowed to delete the root revision.
                 let (root, _) = self.root();
@@ -998,26 +967,7 @@ impl Patch {
                     thread::unresolve(&mut review.comments, entry, comment)?;
                 }
             }
-            Action::ReviewComment {
-                review,
-                body,
-                location,
-                reply_to,
-                embeds,
-            } => {
-                if let Some(review) = lookup::review_mut(self, &review)? {
-                    thread::comment(
-                        &mut review.comments,
-                        entry,
-                        author,
-                        timestamp,
-                        body,
-                        reply_to,
-                        location,
-                        embeds,
-                    )?;
-                }
-            }
+            Action::ReviewComment(action) => action.run(entry, author, timestamp, self)?,
             Action::ReviewRedact { review } => {
                 // Redactions must have observed a review to be valid.
                 let Some(locator) = self.reviews.get_mut(&review) else {
@@ -1122,26 +1072,7 @@ impl Patch {
                 }
             }
 
-            Action::RevisionComment {
-                revision,
-                body,
-                reply_to,
-                embeds,
-                location,
-            } => {
-                if let Some(revision) = lookup::revision_mut(self, &revision)? {
-                    thread::comment(
-                        &mut revision.discussion,
-                        entry,
-                        author,
-                        timestamp,
-                        body,
-                        reply_to,
-                        location,
-                        embeds,
-                    )?;
-                }
-            }
+            Action::RevisionComment(comment) => comment.run(entry, author, timestamp, self)?,
             Action::RevisionCommentEdit {
                 revision,
                 comment,
@@ -1391,7 +1322,7 @@ mod lookup {
 
 /// A patch revision.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", from = "encoding::revision::Revision")]
 pub struct Revision {
     /// Revision identifier.
     pub(super) id: RevisionId,
@@ -1404,7 +1335,7 @@ pub struct Revision {
     /// Reference to the Git object containing the code (revision head).
     pub(super) oid: git::Oid,
     /// Discussion around this revision.
-    pub(super) discussion: Thread<Comment<CodeLocation>>,
+    pub(super) discussion: Thread<Comment<DiffLocation>>,
     /// Reviews of this revision's changes (all review edits are kept).
     pub(super) reviews: BTreeMap<ActorId, Review>,
     /// When this revision was created.
@@ -1412,11 +1343,8 @@ pub struct Revision {
     /// Review comments resolved by this revision.
     pub(super) resolves: BTreeSet<(EntryId, CommentId)>,
     /// Reactions on code locations and revision itself
-    #[serde(
-        serialize_with = "ser::serialize_reactions",
-        deserialize_with = "ser::deserialize_reactions"
-    )]
-    pub(super) reactions: BTreeMap<Option<CodeLocation>, Reactions>,
+    #[serde(serialize_with = "encoding::ser::serialize_reactions")]
+    pub(super) reactions: BTreeMap<Option<DiffLocation>, Reactions>,
 }
 
 impl Revision {
@@ -1461,7 +1389,7 @@ impl Revision {
         &self.description.last().embeds
     }
 
-    pub fn reactions(&self) -> &BTreeMap<Option<CodeLocation>, BTreeSet<(PublicKey, Reaction)>> {
+    pub fn reactions(&self) -> &BTreeMap<Option<DiffLocation>, BTreeSet<(PublicKey, Reaction)>> {
         &self.reactions
     }
 
@@ -1491,7 +1419,7 @@ impl Revision {
     }
 
     /// Discussion around this revision.
-    pub fn discussion(&self) -> &Thread<Comment<CodeLocation>> {
+    pub fn discussion(&self) -> &Thread<Comment<DiffLocation>> {
         &self.discussion
     }
 
@@ -1501,7 +1429,7 @@ impl Revision {
     }
 
     /// Iterate over all top-level replies.
-    pub fn replies(&self) -> impl Iterator<Item = (&CommentId, &thread::Comment<CodeLocation>)> {
+    pub fn replies(&self) -> impl Iterator<Item = (&CommentId, &thread::Comment<DiffLocation>)> {
         self.discussion.comments()
     }
 
@@ -1628,9 +1556,8 @@ impl fmt::Display for Verdict {
 }
 
 /// A patch review on a revision.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[serde(from = "encoding::review::Review")]
 pub struct Review {
     /// Review identifier.
     pub(super) id: ReviewId,
@@ -1648,7 +1575,7 @@ pub struct Review {
     /// edit of the summary.
     pub(super) summary: NonEmpty<Edit>,
     /// Review comments.
-    pub(super) comments: Thread<Comment<CodeLocation>>,
+    pub(super) comments: Thread<Comment<DiffLocation>>,
     /// Labels qualifying the review. For example if this review only looks at the
     /// concept or intention of the patch, it could have a "concept" label.
     pub(super) labels: Vec<Label>,
@@ -1698,7 +1625,7 @@ impl Review {
     }
 
     /// Review inline code comments.
-    pub fn comments(&self) -> impl DoubleEndedIterator<Item = (&EntryId, &Comment<CodeLocation>)> {
+    pub fn comments(&self) -> impl DoubleEndedIterator<Item = (&EntryId, &Comment<DiffLocation>)> {
         self.comments.comments()
     }
 
@@ -1766,13 +1693,13 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         revision: RevisionId,
         body: S,
     ) -> Result<(), store::Error> {
-        self.push(Action::RevisionComment {
+        self.push(Action::RevisionComment(actions::RevisionComment::new(
             revision,
-            body: body.to_string(),
-            reply_to: None,
-            location: None,
-            embeds: vec![],
-        })
+            None,
+            body.to_string(),
+            None,
+            vec![],
+        )))
     }
 
     /// React on a patch revision.
@@ -1780,15 +1707,12 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         &mut self,
         revision: RevisionId,
         reaction: Reaction,
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         active: bool,
     ) -> Result<(), store::Error> {
-        self.push(Action::RevisionReact {
-            revision,
-            reaction,
-            location,
-            active,
-        })
+        self.push(Action::RevisionReact(actions::RevisionReact::new(
+            revision, location, reaction, active,
+        )))
     }
 
     /// Comment on a patch revision.
@@ -1797,17 +1721,17 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         revision: RevisionId,
         body: S,
         reply_to: Option<CommentId>,
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         embeds: Vec<Embed<Uri>>,
     ) -> Result<(), store::Error> {
         self.embed(embeds.clone())?;
-        self.push(Action::RevisionComment {
+        self.push(Action::RevisionComment(actions::RevisionComment::new(
             revision,
-            body: body.to_string(),
-            reply_to,
             location,
+            body.to_string(),
+            reply_to,
             embeds,
-        })
+        )))
     }
 
     /// Edit a comment on a patch revision.
@@ -1857,18 +1781,18 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         &mut self,
         review: ReviewId,
         body: S,
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         reply_to: Option<CommentId>,
         embeds: Vec<Embed<Uri>>,
     ) -> Result<(), store::Error> {
         self.embed(embeds.clone())?;
-        self.push(Action::ReviewComment {
+        self.push(Action::ReviewComment(actions::ReviewComment::new(
             review,
-            body: body.to_string(),
+            body.to_string(),
             location,
             reply_to,
             embeds,
-        })
+        )))
     }
 
     /// Resolve a review comment.
@@ -2143,7 +2067,7 @@ where
         revision: RevisionId,
         body: S,
         reply_to: Option<CommentId>,
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &Device<G>,
     ) -> Result<EntryId, Error>
@@ -2167,7 +2091,7 @@ where
         &mut self,
         revision: RevisionId,
         reaction: Reaction,
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         active: bool,
         signer: &Device<G>,
     ) -> Result<EntryId, Error>
@@ -2234,7 +2158,7 @@ where
         &mut self,
         review: ReviewId,
         body: S,
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         reply_to: Option<CommentId>,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &Device<G>,
@@ -2847,129 +2771,10 @@ impl From<RangeDiff> for std::process::Command {
     }
 }
 
-/// Helpers for de/serialization of patch data types.
-mod ser {
-    use std::collections::{BTreeMap, BTreeSet};
-
-    use serde::ser::SerializeSeq;
-
-    use crate::cob::{thread::Reactions, ActorId, CodeLocation};
-
-    /// Serialize a `Revision`'s reaction as an object containing the
-    /// `location`, `emoji`, and all `authors` that have performed the
-    /// same reaction.
-    #[derive(Debug, serde::Serialize, serde::Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Reaction {
-        location: Option<CodeLocation>,
-        emoji: super::Reaction,
-        authors: Vec<ActorId>,
-    }
-
-    impl Reaction {
-        fn as_revision_reactions(
-            reactions: Vec<Reaction>,
-        ) -> BTreeMap<Option<CodeLocation>, Reactions> {
-            reactions.into_iter().fold(
-                BTreeMap::<Option<CodeLocation>, Reactions>::new(),
-                |mut reactions,
-                 Reaction {
-                     location,
-                     emoji,
-                     authors,
-                 }| {
-                    let mut inner = authors
-                        .into_iter()
-                        .map(|author| (author, emoji))
-                        .collect::<BTreeSet<_>>();
-                    let entry = reactions.entry(location).or_default();
-                    entry.append(&mut inner);
-                    reactions
-                },
-            )
-        }
-    }
-
-    /// Helper to serialize a `Revision`'s reactions, since
-    /// `CodeLocation` cannot be a key for a JSON object.
-    ///
-    /// The set `reactions` are first turned into a set of
-    /// [`Reaction`]s and then serialized via a `Vec`.
-    pub fn serialize_reactions<S>(
-        reactions: &BTreeMap<Option<CodeLocation>, Reactions>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let reactions = reactions
-            .iter()
-            .flat_map(|(location, reaction)| {
-                let reactions = reaction.iter().fold(
-                    BTreeMap::new(),
-                    |mut acc: BTreeMap<&super::Reaction, Vec<_>>, (author, emoji)| {
-                        acc.entry(emoji).or_default().push(*author);
-                        acc
-                    },
-                );
-                reactions
-                    .into_iter()
-                    .map(|(emoji, authors)| Reaction {
-                        location: location.clone(),
-                        emoji: *emoji,
-                        authors,
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-        let mut s = serializer.serialize_seq(Some(reactions.len()))?;
-        for r in &reactions {
-            s.serialize_element(r)?;
-        }
-        s.end()
-    }
-
-    /// Helper to deserialize a `Revision`'s reactions, the inverse of
-    /// `serialize_reactions`.
-    ///
-    /// The `Vec` of [`Reaction`]s are deserialized and converted to a
-    /// `BTreeMap<Option<CodeLocation>, Reactions>`.
-    pub fn deserialize_reactions<'de, D>(
-        deserializer: D,
-    ) -> Result<BTreeMap<Option<CodeLocation>, Reactions>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct ReactionsVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for ReactionsVisitor {
-            type Value = Vec<Reaction>;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("a reaction of the form {'location', 'emoji', 'authors'}")
-            }
-
-            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-            where
-                A: serde::de::SeqAccess<'de>,
-            {
-                let mut reactions = Vec::new();
-                while let Some(reaction) = seq.next_element()? {
-                    reactions.push(reaction);
-                }
-                Ok(reactions)
-            }
-        }
-
-        let reactions = deserializer.deserialize_seq(ReactionsVisitor)?;
-        Ok(Reaction::as_revision_reactions(reactions))
-    }
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
-    use std::path::PathBuf;
+    use std::path::Path;
     use std::str::FromStr;
     use std::vec;
 
@@ -3006,10 +2811,10 @@ mod test {
         #[serde(rename_all = "camelCase")]
         struct TestReactions {
             #[serde(
-                serialize_with = "super::ser::serialize_reactions",
-                deserialize_with = "super::ser::deserialize_reactions"
+                serialize_with = "encoding::ser::serialize_reactions",
+                deserialize_with = "encoding::ser::deserialize_reactions"
             )]
-            inner: BTreeMap<Option<CodeLocation>, Reactions>,
+            inner: BTreeMap<Option<encoding::Location>, Reactions>,
         }
 
         let reactions = TestReactions {
@@ -3370,12 +3175,12 @@ mod test {
                 target: MergeTarget::Delegates,
             },
         ]);
-        let a2 = alice.op::<Patch>([Action::RevisionReact {
-            revision: RevisionId(a1.id()),
-            location: None,
+        let a2 = alice.op::<Patch>([Action::from(actions::RevisionReact::new(
+            RevisionId(a1.id()),
+            None,
             reaction,
-            active: true,
-        }]);
+            true,
+        ))]);
         let patch = Patch::from_ops([a1, a2], &repo).unwrap();
 
         let (_, r1) = patch.revisions().next().unwrap();
@@ -3534,11 +3339,11 @@ mod test {
             .unwrap();
 
         let (rid, _) = patch.latest();
-        let location = CodeLocation {
-            commit: branch.oid,
-            path: PathBuf::from_str("README").unwrap(),
-            old: None,
-            new: Some(CodeRange::Lines { range: 5..8 }),
+        let location = DiffLocation {
+            base: branch.base,
+            head: branch.oid,
+            path: Path::new("README.md").to_path_buf(),
+            selection: None,
         };
         let review = patch
             .review(rid, Some(Verdict::Accept), None, vec![], &alice.signer)

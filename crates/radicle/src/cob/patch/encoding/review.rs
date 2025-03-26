@@ -14,8 +14,11 @@ use serde_untagged::UntaggedEnumVisitor;
 
 use crate::cob::patch;
 use crate::cob::patch::{
-    Author, CodeLocation, Comment, Edit, Label, Reactions, ReviewId, Thread, Timestamp, Verdict,
+    Author, Comment, Edit, Label, Reactions, ReviewId, Thread, Timestamp, Verdict,
 };
+use crate::git;
+
+use super::Location;
 
 /// The encoding for a `patch::Review` that can be deserialized and migrated.
 ///
@@ -29,7 +32,6 @@ pub(in crate::cob::patch) struct Review {
     id: ReviewId,
     author: Author,
     verdict: Option<Verdict>,
-    comments: Thread<Comment<CodeLocation>>,
     labels: Vec<Label>,
     timestamp: Timestamp,
 
@@ -40,6 +42,40 @@ pub(in crate::cob::patch) struct Review {
     // V1 -> V2 conversion
     #[serde(default)]
     summary: Summary,
+    comments: Thread<Comment<Location>>,
+}
+
+impl Review {
+    pub fn decode(self, context: git::Oid) -> patch::Review {
+        let Review {
+            id,
+            author,
+            verdict,
+            comments: Thread { comments, timeline },
+            labels,
+            timestamp,
+            reactions,
+            summary,
+        } = self;
+        let summary = summary.into_edits(&author, &timestamp);
+        let comments = comments
+            .into_iter()
+            .map(|(id, comment)| {
+                let comment = comment.map(|c| c.map(|l| l.into_diff_location(context)));
+                (id, comment)
+            })
+            .collect();
+        patch::Review {
+            id,
+            author,
+            verdict,
+            summary,
+            comments: Thread { comments, timeline },
+            labels,
+            reactions,
+            timestamp,
+        }
+    }
 }
 
 /// The [`Summary`] type represents the different versions of the `summary`
@@ -94,44 +130,43 @@ impl Summary {
     }
 }
 
-impl From<Review> for patch::Review {
-    fn from(review: Review) -> Self {
-        let Review {
-            id,
-            author,
-            verdict,
-            comments,
-            labels,
-            timestamp,
-            reactions,
-            summary,
-        } = review;
-        let summary = summary.into_edits(&author, &timestamp);
-        Self {
-            id,
-            author,
-            verdict,
-            summary,
-            comments,
-            labels,
-            reactions,
-            timestamp,
-        }
-    }
-}
-
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod test {
-    use nonempty::nonempty;
+    use std::collections::BTreeSet;
+
+    use nonempty::{nonempty, NonEmpty};
     use serde_json::json;
 
     use crate::{
-        cob::{thread::Edit, Timestamp},
-        patch,
+        cob::{
+            thread::{Edit, Thread},
+            Author, Timestamp,
+        },
+        patch::{self, ReviewId, Verdict},
+        prelude::Did,
     };
 
     use super::{Review, Summary};
+
+    fn author() -> Author {
+        Author::new(
+            "did:key:z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx"
+                .parse::<Did>()
+                .unwrap(),
+        )
+    }
+
+    fn timestamp() -> Timestamp {
+        Timestamp::from_secs(1710947885_u64)
+    }
+
+    fn review_id() -> ReviewId {
+        "89d45fb371eb2622ba88188d474347cc526d80bb"
+            .parse::<crate::cob::EntryId>()
+            .unwrap()
+            .into()
+    }
 
     #[test]
     fn test_review_summary() {
@@ -179,9 +214,25 @@ mod test {
             "timestamp": 1710947885000_i64
         });
         let v1 = serde_json::from_value::<Review>(review.clone()).unwrap();
+        let author = author();
+        let timestamp = timestamp();
         assert_eq!(
-            serde_json::from_value::<patch::Review>(review).unwrap(),
-            v1.into()
+            v1.decode(git2::Oid::zero().into()),
+            patch::Review {
+                id: review_id(),
+                author: author.clone(),
+                verdict: Some(Verdict::Accept),
+                summary: NonEmpty::new(Edit::new(
+                    *author.public_key(),
+                    "".to_string(),
+                    timestamp,
+                    vec![]
+                )),
+                comments: Thread::default(),
+                labels: vec![],
+                reactions: BTreeSet::new(),
+                timestamp,
+            }
         );
     }
 
@@ -199,9 +250,25 @@ mod test {
             "timestamp": 1710947885000_i64
         });
         let v1 = serde_json::from_value::<Review>(review.clone()).unwrap();
+        let author = author();
+        let timestamp = timestamp();
         assert_eq!(
-            serde_json::from_value::<patch::Review>(review).unwrap(),
-            v1.into()
+            v1.decode(git2::Oid::zero().into()),
+            patch::Review {
+                id: review_id(),
+                author: author.clone(),
+                verdict: Some(Verdict::Accept),
+                summary: NonEmpty::new(Edit::new(
+                    *author.public_key(),
+                    "".to_string(),
+                    timestamp,
+                    vec![]
+                )),
+                comments: Thread::default(),
+                labels: vec![],
+                reactions: BTreeSet::new(),
+                timestamp,
+            }
         );
     }
 
@@ -219,10 +286,27 @@ mod test {
             "labels": [],
             "timestamp": 1710947885000_i64
         });
+
         let v1 = serde_json::from_value::<Review>(review.clone()).unwrap();
+        let author = author();
+        let timestamp = timestamp();
         assert_eq!(
-            serde_json::from_value::<patch::Review>(review).unwrap(),
-            v1.into()
+            v1.decode(git2::Oid::zero().into()),
+            patch::Review {
+                id: review_id(),
+                author: author.clone(),
+                verdict: Some(Verdict::Accept),
+                summary: NonEmpty::new(Edit::new(
+                    *author.public_key(),
+                    "lgtm".to_string(),
+                    timestamp,
+                    vec![]
+                )),
+                comments: Thread::default(),
+                labels: vec![],
+                reactions: BTreeSet::new(),
+                timestamp,
+            }
         );
     }
 
@@ -246,9 +330,25 @@ mod test {
             "timestamp": 1710947885000_i64
         });
         let v2 = serde_json::from_value::<Review>(review.clone()).unwrap();
+        let author = author();
+        let timestamp = timestamp();
         assert_eq!(
-            serde_json::from_value::<patch::Review>(review).unwrap(),
-            v2.into()
+            v2.decode(git2::Oid::zero().into()),
+            patch::Review {
+                id: review_id(),
+                author: author.clone(),
+                verdict: Some(Verdict::Accept),
+                summary: NonEmpty::new(Edit::new(
+                    *author.public_key(),
+                    "lgtm".to_string(),
+                    timestamp,
+                    vec![]
+                )),
+                comments: Thread::default(),
+                labels: vec![],
+                reactions: BTreeSet::new(),
+                timestamp,
+            }
         );
     }
 }

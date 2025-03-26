@@ -234,6 +234,21 @@ impl<L> Comment<L> {
     pub fn unresolve(&mut self) {
         self.resolved = false;
     }
+
+    pub(crate) fn map<M, F>(self, f: F) -> Comment<M>
+    where
+        F: FnOnce(L) -> M,
+    {
+        let location = self.location.map(f);
+        Comment {
+            author: self.author,
+            edits: self.edits,
+            reactions: self.reactions,
+            reply_to: self.reply_to,
+            location,
+            resolved: self.resolved,
+        }
+    }
 }
 
 impl<T: PartialOrd> PartialOrd for Comment<T> {
