@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod diff;
 
 mod actions;
 pub use actions::ReviewEdit;
