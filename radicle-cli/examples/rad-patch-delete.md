@@ -23,7 +23,7 @@ $ rad sync -f
 ✓ Fetched repository from 1 seed(s)
 $ rad patch comment 6c61ef1 -m "I think we should use MIT"
 ╭───────────────────────────╮
-│ bob (you) now 833db19     │
+│ bob (you) now f20d3ec     │
 │ I think we should use MIT │
 ╰───────────────────────────╯
 ✓ Synced with 2 node(s)
@@ -45,12 +45,12 @@ $ rad patch show 6c61ef1 -v
 ├────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (717c900) now              │
 ├────────────────────────────────────────────────────┤
-│ bob z6Mkt67…v4N1tRk now 833db19                    │
+│ bob z6Mkt67…v4N1tRk now f20d3ec                    │
 │ I think we should use MIT                          │
 ╰────────────────────────────────────────────────────╯
-$ rad patch comment 6c61ef1 --reply-to 833db19 -m "Thanks, I'll add it!"
+$ rad patch comment 6c61ef1 --reply-to f20d3ec -m "Thanks, I'll add it!"
 ╭─────────────────────────╮
-│ alice (you) now 1803a38 │
+│ alice (you) now d68347d │
 │ Thanks, I'll add it!    │
 ╰─────────────────────────╯
 ✓ Synced with 2 node(s)
@@ -68,7 +68,7 @@ $ git commit -am "Add MIT License"
 
 ``` ~alice (stderr)
 $ git push -f
-✓ Patch 6c61ef1 updated to revision 93915b9afa94a9dc4f52f12cdf077d4613ea3eb3
+✓ Patch 6c61ef1 updated to revision 7d596c531ae16b5b23984ae3d205f3690f280c60
 To compare against your previous revision 6c61ef1, run:
 
    git range-diff f2de534[..] 717c900[..] 1cc8cd9[..]
@@ -96,7 +96,7 @@ $ rad patch show 6c61ef1 -v
 │ 717c900 Introduce license                                           │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by alice z6MknSL…StBU8Vi (717c900) now                     │
-│ ↑ updated to 93915b9afa94a9dc4f52f12cdf077d4613ea3eb3 (1cc8cd9) now │
+│ ↑ updated to 7d596c531ae16b5b23984ae3d205f3690f280c60 (1cc8cd9) now │
 │   └─ ✓ accepted by bob (you) now                                    │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
@@ -122,7 +122,7 @@ $ rad patch show 6c61ef1 -v
 │ 717c900 Introduce license                                           │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by alice (you) (717c900) now                               │
-│ ↑ updated to 93915b9afa94a9dc4f52f12cdf077d4613ea3eb3 (1cc8cd9) now │
+│ ↑ updated to 7d596c531ae16b5b23984ae3d205f3690f280c60 (1cc8cd9) now │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 

@@ -1,5 +1,6 @@
 use std::fmt;
 use std::fmt::Display;
+use std::hash::Hash;
 use std::ops::{Deref, Range};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -373,29 +374,67 @@ impl From<bool> for Authorization {
     }
 }
 
+/// **Note**: this type is deprecated and should no longer be used.
+/// Use [`DiffLocation`] instead.
+///
 /// Describes a code location that can be used for comments on
 /// patches, issues, and diffs.
+///
+/// It is called a `PartialLocation`, because it describes a potential diff
+/// compared to its `commit`, but does not describe the other `Oid` – thus the
+/// other `Oid` must be inferred from context.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CodeLocation {
+pub struct PartialLocation {
     /// [`Oid`] of the Git commit.
-    pub commit: Oid,
+    commit: Oid,
     /// Path of file.
-    pub path: PathBuf,
+    path: PathBuf,
     /// Line range on old file. `None` for added files.
-    pub old: Option<CodeRange>,
+    old: Option<CodeRange>,
     /// Line range on new file. `None` for deleted files.
-    pub new: Option<CodeRange>,
+    new: Option<CodeRange>,
 }
 
-/// Code range.
+/// The specified range that selects a section of code.
+///
+/// When used with [`HunkIndex`], the range represents the lines within the hunk
+/// itself, which are 0-indexed.
+///
+/// Note: `CodeRange` is an `enum` that has the single variant `Lines`, but may
+/// add more cases in the future.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum CodeRange {
     /// One or more lines.
     Lines { range: Range<usize> },
-    /// Character range within a line.
-    Chars { line: usize, range: Range<usize> },
+}
+
+impl CodeRange {
+    /// Get the starting position of the range.
+    ///
+    /// If the range is [`CodeRange::Lines`], this corresponds to the start of
+    /// the line range.
+    pub fn line_start(&self) -> usize {
+        match self {
+            CodeRange::Lines { range } => range.start,
+        }
+    }
+
+    /// Get the ending position of the range.
+    ///
+    /// If the range is [`CodeRange::Lines`], this corresponds to the end of
+    /// the line range.
+    pub fn line_end(&self) -> usize {
+        match self {
+            CodeRange::Lines { range } => range.end,
+        }
+    }
+
+    /// Construct a `CodeRange` for which is one or more lines.
+    pub fn lines(range: Range<usize>) -> Self {
+        Self::Lines { range }
+    }
 }
 
 impl std::cmp::PartialOrd for CodeRange {
@@ -407,22 +446,9 @@ impl std::cmp::PartialOrd for CodeRange {
 impl std::cmp::Ord for CodeRange {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match (self, other) {
-            (CodeRange::Lines { .. }, CodeRange::Chars { .. }) => std::cmp::Ordering::Less,
-            (CodeRange::Chars { .. }, CodeRange::Lines { .. }) => std::cmp::Ordering::Greater,
-
             (CodeRange::Lines { range: a }, CodeRange::Lines { range: b }) => {
                 a.clone().cmp(b.clone())
             }
-            (
-                CodeRange::Chars {
-                    line: l1,
-                    range: r1,
-                },
-                CodeRange::Chars {
-                    line: l2,
-                    range: r2,
-                },
-            ) => l1.cmp(l2).then(r1.clone().cmp(r2.clone())),
         }
     }
 }
@@ -443,6 +469,8 @@ pub struct DiffLocation {
 }
 
 impl DiffLocation {
+    /// Construct a file-level diff location, where the
+    /// [`DiffLocation::selection`] is `None`.
     pub fn file_level(base: Oid, head: Oid, path: PathBuf) -> Self {
         Self {
             base,
@@ -452,6 +480,8 @@ impl DiffLocation {
         }
     }
 
+    /// Construct a hunk-level diff location, where the
+    /// [`DiffLocation::selection`] is set to the given `hunk`.
     pub fn hunk_level(base: Oid, head: Oid, path: PathBuf, hunk: HunkIndex) -> Self {
         Self {
             base,
@@ -461,12 +491,19 @@ impl DiffLocation {
         }
     }
 
-    pub fn code_range(&self) -> Option<&CodeRange> {
-        self.selection().map(|s| s.range())
-    }
-
+    /// Get the [`DiffLocation::selection`].
     pub fn selection(&self) -> Option<&HunkIndex> {
         self.selection.as_ref()
+    }
+
+    /// Get the index for the hunk of the [`DiffLocation::selection`].
+    pub fn hunk_index(&self) -> Option<usize> {
+        self.selection().map(|s| s.index())
+    }
+
+    /// Get the [`CodeRange`] of the [`DiffLocation::selection`].
+    pub fn code_range(&self) -> Option<&CodeRange> {
+        self.selection().map(|s| s.range())
     }
 }
 
@@ -475,9 +512,9 @@ impl DiffLocation {
 #[serde(rename_all = "camelCase")]
 pub struct HunkIndex {
     /// The index of the hunk in the patch.
-    pub hunk: usize,
+    hunk: usize,
     /// The line selection within the hunk itself.
-    pub range: CodeRange,
+    range: CodeRange,
 }
 
 impl HunkIndex {

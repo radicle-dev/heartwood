@@ -62,7 +62,7 @@ $ git commit -m "Use markdown for requirements"
 ```
 ``` (stderr)
 $ git push rad -o no-sync -o patch.message="Use markdown for requirements"
-✓ Patch e4934b6 updated to revision 9d62420e779e5cfe1dc02c51eddec9a0907aa844
+✓ Patch e4934b6 updated to revision 9e458d00b2e9a26993113c48259781725e2cbee3
 To compare against your previous revision 773b9aa, run:
 
    git range-diff f2de534[..] 27857ec[..] f567f69[..]
@@ -74,7 +74,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 Great, all fixed up, lets accept and merge the code.
 
 ```
-$ rad patch review e4934b6 --revision 9d62420 --accept
+$ rad patch review e4934b6 --revision 9e458d00b2e9a26993113c48259781725e2cbee3 --accept
 ✓ Patch e4934b6 accepted
 ✓ Synced with 1 node(s)
 $ git checkout master
@@ -90,7 +90,7 @@ Fast-forward
 ```
 ``` (stderr)
 $ git push rad master
-✓ Patch e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46 merged at revision 9d62420
+✓ Patch e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46 merged at revision 9e458d0
 ✓ Canonical head updated to f567f695d25b4e8fb63b5f5ad2a584529826e908
 ✓ Synced with 1 node(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
@@ -116,9 +116,9 @@ $ rad patch show e4934b6
 ├─────────────────────────────────────────────────────────────────────┤
 │ ● opened by bob z6Mkt67…v4N1tRk (3e674d1) now                       │
 │ ↑ updated to 773b9aab58b11e9fa83d0ed0baca2bea6ff889c9 (27857ec) now │
-│ * revised by alice (you) in 9d62420 (f567f69) now                   │
+│ * revised by alice (you) in 9e458d0 (f567f69) now                   │
 │   └─ ✓ accepted by alice (you) now                                  │
-│   └─ ✓ merged by alice (you) at revision 9d62420 (f567f69) now      │
+│   └─ ✓ merged by alice (you) at revision 9e458d0 (f567f69) now      │
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 

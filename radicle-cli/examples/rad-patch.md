@@ -140,19 +140,19 @@ And let's leave a quick comment for our team:
 ```
 $ rad patch comment aa45913 --message 'I cannot wait to get back to the 90s!' --no-announce
 ╭───────────────────────────────────────╮
-│ alice (you) now 686ec1c               │
+│ alice (you) now a6202ea               │
 │ I cannot wait to get back to the 90s! │
 ╰───────────────────────────────────────╯
-$ rad patch comment aa45913 --message 'My favorite decade!' --reply-to 686ec1c -q --no-announce
-f4336e42daf76342f787d574b5ee779d89d05c7a
+$ rad patch comment aa45913 --message 'My favorite decade!' --reply-to a6202ea -q --no-announce
+5880c53b2b34d4eb9f9bee0f44cb23fbaa9c021e
 ```
 
 If we realize we made a mistake in the comment, we can go back and edit it:
 
 ```
-$ rad patch comment aa45913 --edit 686ec1c --message 'I cannot wait to get back to the 80s!' --no-announce
+$ rad patch comment aa45913 --edit a6202ea --message 'I cannot wait to get back to the 80s!' --no-announce
 ╭───────────────────────────────────────╮
-│ alice (you) now 686ec1c               │
+│ alice (you) now a6202ea               │
 │ I cannot wait to get back to the 80s! │
 ╰───────────────────────────────────────╯
 ```
@@ -160,8 +160,8 @@ $ rad patch comment aa45913 --edit 686ec1c --message 'I cannot wait to get back 
 And if we really made a mistake, then we can redact the comment entirely:
 
 ```
-$ rad patch comment aa45913 --redact f4336e4 --no-announce
-✓ Redacted comment f4336e42daf76342f787d574b5ee779d89d05c7a
+$ rad patch comment aa45913 --redact 5880c53b2b34d4eb9f9bee0f44cb23fbaa9c021e --no-announce
+✓ Redacted comment 5880c53b2b34d4eb9f9bee0f44cb23fbaa9c021e
 ```
 
 Now, let's checkout the patch that we just created:

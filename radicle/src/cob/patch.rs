@@ -15,7 +15,9 @@ use storage::{HasRepoId, RepositoryError};
 use thiserror::Error;
 
 use crate::cob;
-use crate::cob::common::{Author, Authorization, CodeLocation, Label, Reaction, Timestamp};
+use crate::cob::common::{
+    Author, Authorization, DiffLocation, Label, PartialLocation, Reaction, Timestamp,
+};
 use crate::cob::store::Transaction;
 use crate::cob::store::{Cob, CobAction};
 use crate::cob::thread;
@@ -199,12 +201,18 @@ pub enum Action {
     },
     #[serde(rename = "review.redact")]
     ReviewRedact { review: ReviewId },
+    /// **DEPRECATED**
+    ///
+    /// We do not construct this variant anymore. Use [`Action::ReviewComment`]
+    /// instead.
     #[serde(rename = "review.comment")]
+    ReviewCommentV1(ReviewComment),
+    #[serde(rename = "review.comment.v2")]
     ReviewComment {
         review: ReviewId,
         body: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         /// Comment this is a reply to.
         /// Should be [`None`] if it's the first comment.
         /// Should be [`Some`] otherwise.
@@ -255,25 +263,36 @@ pub enum Action {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         embeds: Vec<Embed<Uri>>,
     },
-    /// React to the revision.
+    /// **DEPRECATED**
+    ///
+    /// We do not construct this variant anymore. Use
+    /// [`Action::RevisionReact`] instead.
     #[serde(rename = "revision.react")]
+    RevisionReactV1(RevisionReact),
+    /// React to the revision.
+    #[serde(rename = "revision.react.v2")]
     RevisionReact {
         revision: RevisionId,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         reaction: Reaction,
         active: bool,
     },
     #[serde(rename = "revision.redact")]
     RevisionRedact { revision: RevisionId },
-    #[serde(rename_all = "camelCase")]
+    /// **DEPRECATED**
+    ///
+    /// We do not construct this variant anymore. Use
+    /// [`Action::RevisionComment`] instead.
     #[serde(rename = "revision.comment")]
+    RevisionCommentV1(RevisionComment),
+    #[serde(rename = "revision.comment.v2")]
     RevisionComment {
         /// The revision to comment on.
         revision: RevisionId,
         /// For comments on the revision code.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         /// Comment body.
         body: String,
         /// Comment this is a reply to.
@@ -307,6 +326,57 @@ pub enum Action {
         reaction: Reaction,
         active: bool,
     },
+}
+
+/// Deliberately cannot be constructed outside of this module, so that it is no
+/// longer used.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewComment {
+    review: ReviewId,
+    body: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    location: Option<PartialLocation>,
+    /// Comment this is a reply to.
+    /// Should be [`None`] if it's the first comment.
+    /// Should be [`Some`] otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reply_to: Option<CommentId>,
+    /// Embeded content.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    embeds: Vec<Embed<Uri>>,
+}
+
+/// Deliberately cannot be constructed outside of this module, so that it is no
+/// longer used.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionComment {
+    /// The revision to comment on.
+    revision: RevisionId,
+    /// For comments on the revision code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    location: Option<PartialLocation>,
+    /// Comment body.
+    body: String,
+    /// Comment this is a reply to.
+    /// Should be [`None`] if it's the top-level comment.
+    /// Should be the root [`CommentId`] if it's a top-level comment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reply_to: Option<CommentId>,
+    /// Embeded content.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    embeds: Vec<Embed<Uri>>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionReact {
+    revision: RevisionId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    location: Option<PartialLocation>,
+    reaction: Reaction,
+    active: bool,
 }
 
 impl CobAction for Action {
@@ -680,6 +750,7 @@ impl Patch {
                 }
             }
             // Anyone can comment on a review.
+            Action::ReviewCommentV1 { .. } => Authorization::Allow,
             Action::ReviewComment { .. } => Authorization::Allow,
             // The comment author can edit and redact their own comment.
             Action::ReviewCommentEdit {
@@ -723,7 +794,9 @@ impl Patch {
                 }
             }
             // Anyone can react to or comment on a revision.
+            Action::RevisionReactV1 { .. } => Authorization::Allow,
             Action::RevisionReact { .. } => Authorization::Allow,
+            Action::RevisionCommentV1 { .. } => Authorization::Allow,
             Action::RevisionComment { .. } => Authorization::Allow,
             // Only the comment author can edit or redact their comment.
             Action::RevisionCommentEdit {
@@ -856,6 +929,24 @@ impl Patch {
                     )),
                 );
             }
+            Action::RevisionReactV1(RevisionReact {
+                revision,
+                reaction,
+                active,
+                location,
+            }) => {
+                if let Some(revision) = lookup::revision_mut(self, &revision)? {
+                    let key = (author, reaction);
+                    let location = location.map(CodeLocation::from);
+                    let reactions = revision.reactions.entry(location).or_default();
+
+                    if active {
+                        reactions.insert(key);
+                    } else {
+                        reactions.remove(&key);
+                    }
+                }
+            }
             Action::RevisionReact {
                 revision,
                 reaction,
@@ -864,6 +955,7 @@ impl Patch {
             } => {
                 if let Some(revision) = lookup::revision_mut(self, &revision)? {
                     let key = (author, reaction);
+                    let location = location.map(CodeLocation::from);
                     let reactions = revision.reactions.entry(location).or_default();
 
                     if active {
@@ -991,6 +1083,26 @@ impl Patch {
                     thread::unresolve(&mut review.comments, entry, comment)?;
                 }
             }
+            Action::ReviewCommentV1(ReviewComment {
+                review,
+                body,
+                location,
+                reply_to,
+                embeds,
+            }) => {
+                if let Some(review) = lookup::review_mut(self, &review)? {
+                    thread::comment(
+                        &mut review.comments,
+                        entry,
+                        author,
+                        timestamp,
+                        body,
+                        reply_to,
+                        location.map(|loc| loc.into()),
+                        embeds,
+                    )?;
+                }
+            }
             Action::ReviewComment {
                 review,
                 body,
@@ -1006,7 +1118,7 @@ impl Patch {
                         timestamp,
                         body,
                         reply_to,
-                        location,
+                        location.map(|loc| loc.into()),
                         embeds,
                     )?;
                 }
@@ -1102,6 +1214,26 @@ impl Patch {
                 }
             }
 
+            Action::RevisionCommentV1(RevisionComment {
+                revision,
+                body,
+                reply_to,
+                embeds,
+                location,
+            }) => {
+                if let Some(revision) = lookup::revision_mut(self, &revision)? {
+                    thread::comment(
+                        &mut revision.discussion,
+                        entry,
+                        author,
+                        timestamp,
+                        body,
+                        reply_to,
+                        location.map(|loc| loc.into()),
+                        embeds,
+                    )?;
+                }
+            }
             Action::RevisionComment {
                 revision,
                 body,
@@ -1117,7 +1249,7 @@ impl Patch {
                         timestamp,
                         body,
                         reply_to,
-                        location,
+                        location.map(|loc| loc.into()),
                         embeds,
                     )?;
                 }
@@ -1366,6 +1498,32 @@ mod lookup {
             }
             None => Err(Error::Missing(review.into_inner())),
         }
+    }
+}
+
+/// A `CodeLocation` enumerates the different locations that refer to code.
+///
+/// [`CodeLocation::Partial`] is the variant that ensures we are
+/// backwards-compatible.
+///
+/// [`CodeLocation::Diff`] is the variant that is the location that is used in
+/// the public API.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum CodeLocation {
+    Partial(PartialLocation),
+    Diff(DiffLocation),
+}
+
+impl From<PartialLocation> for CodeLocation {
+    fn from(loc: PartialLocation) -> Self {
+        Self::Partial(loc)
+    }
+}
+
+impl From<DiffLocation> for CodeLocation {
+    fn from(loc: DiffLocation) -> Self {
+        Self::Diff(loc)
     }
 }
 
@@ -1735,7 +1893,7 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         &mut self,
         revision: RevisionId,
         reaction: Reaction,
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         active: bool,
     ) -> Result<(), store::Error> {
         self.push(Action::RevisionReact {
@@ -1752,7 +1910,7 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         revision: RevisionId,
         body: S,
         reply_to: Option<CommentId>,
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         embeds: Vec<Embed<Uri>>,
     ) -> Result<(), store::Error> {
         self.embed(embeds.clone())?;
@@ -1807,12 +1965,12 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         self.push(Action::RevisionCommentRedact { revision, comment })
     }
 
-    /// Comment on a review.
+    /// Comment on a review for a diff location.
     pub fn review_comment<S: ToString>(
         &mut self,
         review: ReviewId,
         body: S,
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         reply_to: Option<CommentId>,
         embeds: Vec<Embed<Uri>>,
     ) -> Result<(), store::Error> {
@@ -2071,7 +2229,7 @@ where
         revision: RevisionId,
         body: S,
         reply_to: Option<CommentId>,
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &G,
     ) -> Result<EntryId, Error> {
@@ -2091,7 +2249,7 @@ where
         &mut self,
         revision: RevisionId,
         reaction: Reaction,
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         active: bool,
         signer: &G,
     ) -> Result<EntryId, Error> {
@@ -2145,7 +2303,7 @@ where
         &mut self,
         review: ReviewId,
         body: S,
-        location: Option<CodeLocation>,
+        location: Option<DiffLocation>,
         reply_to: Option<CommentId>,
         embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &G,
@@ -2689,7 +2847,9 @@ mod ser {
 
     use serde::ser::SerializeSeq;
 
-    use crate::cob::{thread::Reactions, ActorId, CodeLocation};
+    use crate::cob::{thread::Reactions, ActorId};
+
+    use super::CodeLocation;
 
     /// Serialize a `Revision`'s reaction as an object containing the
     /// `location`, `emoji`, and all `authors` that have performed the
@@ -2805,7 +2965,7 @@ mod ser {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
-    use std::path::PathBuf;
+    use std::path::Path;
     use std::str::FromStr;
     use std::vec;
 
@@ -2823,7 +2983,7 @@ mod test {
     use crate::test::arbitrary::gen;
     use crate::test::storage::MockRepository;
 
-    use cob::migrate;
+    use cob::{migrate, DiffLocation, HunkIndex};
 
     #[test]
     fn test_json_serialization() {
@@ -3362,11 +3522,11 @@ mod test {
             .unwrap();
 
         let (rid, _) = patch.latest();
-        let location = CodeLocation {
-            commit: branch.oid,
-            path: PathBuf::from_str("README").unwrap(),
-            old: None,
-            new: Some(CodeRange::Lines { range: 5..8 }),
+        let location = DiffLocation {
+            base: *patch.base(),
+            head: *patch.head(),
+            path: Path::new("README").to_path_buf(),
+            selection: Some(HunkIndex::new(1, CodeRange::lines(5..8))),
         };
         let review = patch
             .review(rid, Some(Verdict::Accept), None, vec![], &alice.signer)
@@ -3387,7 +3547,7 @@ mod test {
         let (_, comment) = review.comments().next().unwrap();
 
         assert_eq!(comment.body(), "I like these lines of code");
-        assert_eq!(comment.location(), Some(&location));
+        assert_eq!(comment.location(), Some(&location.into()));
     }
 
     #[test]

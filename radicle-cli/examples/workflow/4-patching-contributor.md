@@ -90,6 +90,6 @@ And let's leave a quick comment for our team:
 
 ```
 $ rad patch comment e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46 --message 'I cannot wait to get back to the 90s!' -q
-8c66f87afadc7c7c857f8bb92973c25f64e75776
+4830a8598c5f6ad9f4aa3acd701a61a380b0d275
 ✓ Synced with 1 node(s)
 ```
