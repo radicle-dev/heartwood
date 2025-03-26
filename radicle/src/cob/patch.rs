@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod diff;
 
 use std::collections::btree_map;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
