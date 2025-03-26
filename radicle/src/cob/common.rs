@@ -427,6 +427,73 @@ impl std::cmp::Ord for CodeRange {
     }
 }
 
+/// Describes a selection within a diff.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiffLocation {
+    /// The old side of the commit diff.
+    pub base: Oid,
+    /// The new side of the commit diff.
+    pub head: Oid,
+    /// Path of the file.
+    pub path: PathBuf,
+    /// The selected section of the diff patch.
+    /// If the selection is `None`, then this is a file-level comment.
+    pub selection: Option<HunkIndex>,
+}
+
+impl DiffLocation {
+    pub fn file_level(base: Oid, head: Oid, path: PathBuf) -> Self {
+        Self {
+            base,
+            head,
+            path,
+            selection: None,
+        }
+    }
+
+    pub fn hunk_level(base: Oid, head: Oid, path: PathBuf, hunk: HunkIndex) -> Self {
+        Self {
+            base,
+            head,
+            path,
+            selection: Some(hunk),
+        }
+    }
+
+    pub fn code_range(&self) -> Option<&CodeRange> {
+        self.selection().map(|s| s.range())
+    }
+
+    pub fn selection(&self) -> Option<&HunkIndex> {
+        self.selection.as_ref()
+    }
+}
+
+/// The combined index of the hunk and range within that hunk.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HunkIndex {
+    /// The index of the hunk in the patch.
+    pub hunk: usize,
+    /// The line selection within the hunk itself.
+    pub range: CodeRange,
+}
+
+impl HunkIndex {
+    pub fn new(hunk: usize, range: CodeRange) -> Self {
+        Self { hunk, range }
+    }
+
+    pub fn index(&self) -> usize {
+        self.hunk
+    }
+
+    pub fn range(&self) -> &CodeRange {
+        &self.range
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
