@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 use std::collections::HashMap;
 use std::io::IsTerminal;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{assert_eq, io};
 
@@ -30,6 +30,10 @@ use crate::{hint, read_line, warn, Options};
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error(
+        "the Git repository found at {path:?} is a bare repository, expected a working directory"
+    )]
+    BareRepository { path: PathBuf },
     /// Public key doesn't match the remote namespace we're pushing to.
     #[error("cannot push to remote namespace owned by {0}")]
     KeyMismatch(Did),
@@ -777,12 +781,32 @@ fn push_ref(
     working: &git::raw::Repository,
     stored: &git::raw::Repository,
 ) -> Result<(), Error> {
-    let mut remote = working.remote_anonymous(&git::url::File::new(stored.path()).to_string())?;
-    let refspec = git::Refspec { src, dst, force };
-
+    let url = git::url::File::new(stored.path()).to_string();
     // Nb. The *force* indicator (`+`) is processed by Git tooling before we even reach this code.
     // This happens during the `list for-push` phase.
-    remote.push(&[refspec.to_string().as_str()], None)?;
+    let refspec = git::Refspec { src, dst, force };
+    let repo = working.workdir().ok_or(Error::BareRepository {
+        path: working.path().to_path_buf(),
+    })?;
+
+    radicle::git::run::<_, _, &str, &str>(
+        repo,
+        [
+            "push",
+            url.to_string().as_str(),
+            refspec.to_string().as_str(),
+        ],
+        [],
+    )
+    .map_err(|err| {
+        Error::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!(
+                "failed to run `git push {url} {refspec}` in {:?}: {err}",
+                working.path()
+            ),
+        ))
+    })?;
 
     Ok(())
 }

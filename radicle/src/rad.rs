@@ -1,6 +1,6 @@
 #![allow(clippy::let_unit_value)]
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use once_cell::sync::Lazy;
@@ -29,6 +29,10 @@ pub static PATCHES_REFNAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("r
 
 #[derive(Error, Debug)]
 pub enum InitError {
+    #[error(
+        "the Git repository found at {path:?} is a bare repository, expected a working directory"
+    )]
+    BareRepository { path: PathBuf },
     #[error("doc: {0}")]
     Doc(#[from] DocError),
     #[error("repository: {0}")]
@@ -103,13 +107,36 @@ where
 
     git::configure_repository(repo)?;
     git::configure_remote(repo, &REMOTE_NAME, url, &url.clone().with_namespace(*pk))?;
-    git::push(
-        repo,
-        &REMOTE_NAME,
-        [(
-            &git::fmt::lit::refs_heads(default_branch).into(),
-            &git::fmt::lit::refs_heads(default_branch).into(),
-        )],
+    let branch = git::Qualified::from(git::fmt::lit::refs_heads(default_branch));
+    // Pushes to default branch to the namespace of the `signer`
+    let pushspec = git::Refspec {
+        src: branch.clone(),
+        dst: branch.with_namespace(git::Component::from(pk)),
+        force: false,
+    };
+    git::run::<_, _, &str, &str>(
+        repo.workdir().ok_or(InitError::BareRepository {
+            path: repo.path().to_path_buf(),
+        })?,
+        [
+            "push",
+            &format!("{}", stored.path().canonicalize()?.display()),
+            &pushspec.to_string(),
+        ],
+        [],
+    )?;
+    // N.b. we need to create the remote branch for the default branch
+    let rad_remote =
+        git::Qualified::from(git::lit::refs_remotes(&*REMOTE_COMPONENT)).join(default_branch);
+    let oid = repo.refname_to_id(branch.as_str())?;
+    repo.reference(
+        rad_remote.as_str(),
+        oid,
+        false,
+        &format!(
+            "radicle: remote branch {}/{}",
+            *REMOTE_COMPONENT, default_branch
+        ),
     )?;
     stored.set_remote_identity_root_to(pk, identity)?;
     stored.set_identity_head_to(identity)?;
