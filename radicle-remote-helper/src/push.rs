@@ -777,12 +777,30 @@ fn push_ref(
     working: &git::raw::Repository,
     stored: &git::raw::Repository,
 ) -> Result<(), Error> {
-    let mut remote = working.remote_anonymous(&git::url::File::new(stored.path()).to_string())?;
-    let refspec = git::Refspec { src, dst, force };
-
+    let url = git::url::File::new(stored.path()).to_string();
     // Nb. The *force* indicator (`+`) is processed by Git tooling before we even reach this code.
     // This happens during the `list for-push` phase.
-    remote.push(&[refspec.to_string().as_str()], None)?;
+    let refspec = git::Refspec { src, dst, force };
+    let repo = storage::git::paths::working_copy(working)?;
+
+    radicle::git::run::<_, _, &str, &str>(
+        repo,
+        [
+            "push",
+            url.to_string().as_str(),
+            refspec.to_string().as_str(),
+        ],
+        [],
+    )
+    .map_err(|err| {
+        Error::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!(
+                "failed to run `git push {url} {refspec}` in {:?}: {err}",
+                working.path()
+            ),
+        ))
+    })?;
 
     Ok(())
 }
