@@ -777,12 +777,36 @@ fn push_ref(
     working: &git::raw::Repository,
     stored: &git::raw::Repository,
 ) -> Result<(), Error> {
-    let mut remote = working.remote_anonymous(&git::url::File::new(stored.path()).to_string())?;
+    let url = git::url::File::new(stored.path()).to_string();
+    // let remote = working.remote_anonymous(&url)?;
+    // let _ = working.remote("rad-tmp", &url.to_string())?;
     let refspec = git::Refspec { src, dst, force };
+
+    // let path = Path::new(url.as_str());
+    // for e in std::fs::read_dir(path).expect("FATAL: could not read dir") {
+    //     let e = e.expect("FATAL: bad entry");
+    //     println!("FileName: {:?}", e.file_name());
+    // }
 
     // Nb. The *force* indicator (`+`) is processed by Git tooling before we even reach this code.
     // This happens during the `list for-push` phase.
-    remote.push(&[refspec.to_string().as_str()], None)?;
+    // remote.push(&[refspec.to_string().as_str()], None)?;
+
+    radicle::git::run::<_, _, &str, &str>(
+        working.path(),
+        [
+            "push",
+            url.to_string().as_str(),
+            refspec.to_string().as_str(),
+        ],
+        [],
+    )
+    .map_err(|err| {
+        Error::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("failed to run `git push rad-tmp {refspec}`: {err}"),
+        ))
+    })?;
 
     Ok(())
 }
