@@ -103,14 +103,24 @@ where
 
     git::configure_repository(repo)?;
     git::configure_remote(repo, &REMOTE_NAME, url, &url.clone().with_namespace(*pk))?;
-    git::push(
-        repo,
-        &REMOTE_NAME,
-        [(
-            &git::fmt::lit::refs_heads(default_branch).into(),
-            &git::fmt::lit::refs_heads(default_branch).into(),
-        )],
+    // Attempt to push via the `git` CLI to see if that improves timings
+    git::run::<_, _, &str, &str>(
+        repo.path(),
+        [
+            "push",
+            "rad",
+            git::Qualified::from(git::fmt::lit::refs_heads(default_branch)).as_str(),
+        ],
+        [],
     )?;
+    // git::push(
+    //     repo,
+    //     &REMOTE_NAME,
+    //     [(
+    //         &git::fmt::lit::refs_heads(default_branch).into(),
+    //         &git::fmt::lit::refs_heads(default_branch).into(),
+    //     )],
+    // )?;
     stored.set_remote_identity_root_to(pk, identity)?;
     stored.set_identity_head_to(identity)?;
     stored.set_head()?;

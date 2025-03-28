@@ -135,7 +135,19 @@ pub mod setup {
 
         pub fn project(&self) -> NodeRepo {
             let (id, _, checkout, _) =
-                fixtures::project(self.root.join("working"), &self.storage, &self.signer).unwrap();
+                match fixtures::project(self.root.join("working"), &self.storage, &self.signer) {
+                    Ok(ok) => ok,
+                    Err(e) => {
+                        use std::error::Error;
+                        eprintln!("Failed to create fixture project: {e}");
+                        if let Some(e) = e.source() {
+                            eprintln!("Due to: {}", e);
+                        }
+                        panic!("FATAL: abort project creation");
+                    }
+                };
+            // let (id, _, checkout, _) =
+            //     fixtures::project(self.root.join("working"), &self.storage, &self.signer).unwrap();
             let repo = self.storage.repository(id).unwrap();
             let checkout = Some(NodeRepoCheckout { checkout });
 
