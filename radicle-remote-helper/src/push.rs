@@ -793,7 +793,10 @@ fn push_ref(
     // remote.push(&[refspec.to_string().as_str()], None)?;
 
     radicle::git::run::<_, _, &str, &str>(
-        working.path(),
+        working.path().parent().ok_or(Error::Io(io::Error::new(
+            io::ErrorKind::Other,
+            format!("{:?} not a working copy git repository", working.path()),
+        )))?,
         [
             "push",
             url.to_string().as_str(),
@@ -804,7 +807,10 @@ fn push_ref(
     .map_err(|err| {
         Error::Io(std::io::Error::new(
             std::io::ErrorKind::Other,
-            format!("failed to run `git push rad-tmp {refspec}`: {err}"),
+            format!(
+                "failed to run `git push {url} {refspec}` in {:?}: {err}",
+                working.path()
+            ),
         ))
     })?;
 
