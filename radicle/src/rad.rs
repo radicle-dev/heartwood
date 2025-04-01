@@ -101,15 +101,47 @@ where
 {
     let pk = signer.public_key();
 
+    debug_assert!(
+        stored.path().exists(),
+        "FATAL: Stored Repository is missing"
+    );
+    eprintln!("Stored Path: {:?}", stored.path());
+    eprintln!("{:?}", stored.remotes().unwrap().collect::<Vec<_>>());
+    for entry in std::fs::read_dir(stored.path()).unwrap() {
+        let entry = entry.unwrap();
+        eprintln!("Entry: {:?}", entry.file_name());
+    }
     git::configure_repository(repo)?;
     git::configure_remote(repo, &REMOTE_NAME, url, &url.clone().with_namespace(*pk))?;
-    git::push(
-        repo,
-        &REMOTE_NAME,
-        [(
-            &git::fmt::lit::refs_heads(default_branch).into(),
-            &git::fmt::lit::refs_heads(default_branch).into(),
-        )],
+    // git::push(
+    //     repo,
+    //     &REMOTE_NAME,
+    //     [(
+    //         &git::fmt::lit::refs_heads(default_branch).into(),
+    //         &git::fmt::lit::refs_heads(default_branch).into(),
+    //     )],
+    // )?;
+    let branch = git::Qualified::from(git::fmt::lit::refs_heads(default_branch));
+    git::run::<_, _, &str, &str>(
+        repo.path().parent().unwrap(),
+        [
+            "push",
+            // REMOTE_NAME.as_str(),
+            &format!("{}", stored.path().canonicalize().unwrap().display()),
+            &format!(
+                "{}:{}",
+                branch,
+                branch.with_namespace(git::Component::from(pk))
+            ),
+        ],
+        [],
+    )?;
+    let oid = repo.refname_to_id(branch.as_str())?;
+    repo.reference(
+        &format!("refs/remotes/{}/{}", REMOTE_NAME.as_str(), default_branch),
+        oid,
+        false,
+        "Radicle: upstream initial branch",
     )?;
     stored.set_remote_identity_root_to(pk, identity)?;
     stored.set_identity_head_to(identity)?;
