@@ -1,6 +1,7 @@
 use std::collections::HashSet;
-use std::net;
 use std::ops::Deref;
+use std::str::FromStr;
+use std::{fmt, net};
 
 use cyphernet::addr::PeerAddr;
 use localtime::LocalDuration;
@@ -114,6 +115,9 @@ pub struct Limits {
     /// Connection limits.
     #[serde(default)]
     pub connection: ConnectionLimits,
+    /// Channel limits.
+    #[serde(default)]
+    pub fetch_pack_receive: ByteLimit,
 }
 
 impl Default for Limits {
@@ -126,7 +130,85 @@ impl Default for Limits {
             max_open_files: 4096,
             rate: RateLimits::default(),
             connection: ConnectionLimits::default(),
+            fetch_pack_receive: ByteLimit::default(),
         }
+    }
+}
+
+/// Limiter for byte streams.
+///
+/// Default: 500MiB
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(into = "String", try_from = "String")]
+pub struct ByteLimit {
+    limit: bytesize::ByteSize,
+}
+
+impl From<bytesize::ByteSize> for ByteLimit {
+    fn from(limit: bytesize::ByteSize) -> Self {
+        Self { limit }
+    }
+}
+
+impl From<ByteLimit> for String {
+    fn from(limit: ByteLimit) -> Self {
+        limit.to_string()
+    }
+}
+
+impl TryFrom<String> for ByteLimit {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        s.parse()
+    }
+}
+
+impl FromStr for ByteLimit {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(ByteLimit { limit: s.parse()? })
+    }
+}
+
+impl fmt::Display for ByteLimit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.limit)
+    }
+}
+
+impl ByteLimit {
+    /// New `ByteLimit` in bytes.
+    pub fn bytes(size: u64) -> Self {
+        bytesize::ByteSize::b(size).into()
+    }
+
+    /// New `ByteLimit` in kibibytes.
+    pub fn kibibytes(size: u64) -> Self {
+        bytesize::ByteSize::kib(size).into()
+    }
+
+    /// New `ByteLimit` in mebibytes.
+    pub fn mebibytes(size: u64) -> Self {
+        bytesize::ByteSize::mib(size).into()
+    }
+
+    /// New `ByteLimit` in gibibytes.
+    pub fn gibibytes(size: u64) -> Self {
+        bytesize::ByteSize::gib(size).into()
+    }
+
+    /// Check if the number of `bytes` has exceeded the limit.
+    pub fn exceeded_by(&self, bytes: usize) -> bool {
+        bytes >= self.limit.as_u64() as usize
+    }
+}
+
+impl Default for ByteLimit {
+    fn default() -> Self {
+        Self::mebibytes(500)
     }
 }
 

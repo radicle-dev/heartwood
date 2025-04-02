@@ -4,6 +4,7 @@ use std::ops::Deref;
 use std::{fmt, io, time};
 
 use crossbeam_channel as chan;
+use radicle::node::config::ByteLimit;
 use radicle::node::NodeId;
 
 use crate::runtime::Handle;
@@ -13,6 +14,32 @@ use crate::wire::StreamId;
 /// Note that as long as we're using [`std::io::copy`] to copy data from the
 /// upload-pack's stdout, the data chunks are of a maximum size of 8192 bytes.
 pub const MAX_WORKER_CHANNEL_SIZE: usize = 64;
+
+#[derive(Clone, Copy, Debug)]
+pub struct ChannelsConfig {
+    timeout: time::Duration,
+    reader_limit: ByteLimit,
+}
+
+impl ChannelsConfig {
+    pub fn new(timeout: time::Duration) -> Self {
+        Self {
+            timeout,
+            reader_limit: ByteLimit::default(),
+        }
+    }
+
+    pub fn with_timeout(self, timeout: time::Duration) -> Self {
+        Self { timeout, ..self }
+    }
+
+    pub fn with_reader_limit(self, reader_limit: ByteLimit) -> Self {
+        Self {
+            reader_limit,
+            ..self
+        }
+    }
+}
 
 /// A reader and writer pair that can be used in the fetch protocol.
 ///
@@ -92,20 +119,23 @@ impl<T: AsRef<[u8]>> Channels<T> {
     pub fn new(
         sender: chan::Sender<ChannelEvent<T>>,
         receiver: chan::Receiver<ChannelEvent<T>>,
-        timeout: time::Duration,
+        config: ChannelsConfig,
     ) -> Self {
-        let sender = ChannelWriter { sender, timeout };
-        let receiver = ChannelReader::new(receiver, timeout);
+        let sender = ChannelWriter {
+            sender,
+            timeout: config.timeout,
+        };
+        let receiver = ChannelReader::new(receiver, config.timeout, config.reader_limit);
 
         Self { sender, receiver }
     }
 
-    pub fn pair(timeout: time::Duration) -> io::Result<(Channels<T>, Channels<T>)> {
+    pub fn pair(config: ChannelsConfig) -> io::Result<(Channels<T>, Channels<T>)> {
         let (l_send, r_recv) = chan::bounded::<ChannelEvent<T>>(MAX_WORKER_CHANNEL_SIZE);
         let (r_send, l_recv) = chan::bounded::<ChannelEvent<T>>(MAX_WORKER_CHANNEL_SIZE);
 
-        let l = Channels::new(l_send, l_recv, timeout);
-        let r = Channels::new(r_send, r_recv, timeout);
+        let l = Channels::new(l_send, l_recv, config);
+        let r = Channels::new(r_send, r_recv, config);
 
         Ok((l, r))
     }
@@ -123,12 +153,41 @@ impl<T: AsRef<[u8]>> Channels<T> {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ReadLimiter {
+    limit: ByteLimit,
+    total_read: usize,
+}
+
+impl ReadLimiter {
+    pub fn new(limit: ByteLimit) -> Self {
+        Self {
+            limit,
+            total_read: 0,
+        }
+    }
+
+    pub fn read(&mut self, bytes: usize) -> io::Result<()> {
+        self.total_read += bytes;
+        log::trace!(target: "worker", "limit {}, total bytes read: {}", self.limit, self.total_read);
+        if self.limit.exceeded_by(self.total_read) {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "sender has exceeded number of allowed bytes, aborting read",
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
+
 /// Wraps a [`chan::Receiver`] and provides it with [`io::Read`].
 #[derive(Clone)]
 pub struct ChannelReader<T = Vec<u8>> {
     buffer: io::Cursor<Vec<u8>>,
     receiver: chan::Receiver<ChannelEvent<T>>,
     timeout: time::Duration,
+    limiter: ReadLimiter,
 }
 
 impl<T> Deref for ChannelReader<T> {
@@ -140,11 +199,16 @@ impl<T> Deref for ChannelReader<T> {
 }
 
 impl<T: AsRef<[u8]>> ChannelReader<T> {
-    pub fn new(receiver: chan::Receiver<ChannelEvent<T>>, timeout: time::Duration) -> Self {
+    pub fn new(
+        receiver: chan::Receiver<ChannelEvent<T>>,
+        timeout: time::Duration,
+        limit: ByteLimit,
+    ) -> Self {
         Self {
             buffer: io::Cursor::new(Vec::new()),
             receiver,
             timeout,
+            limiter: ReadLimiter::new(limit),
         }
     }
 }
@@ -152,6 +216,7 @@ impl<T: AsRef<[u8]>> ChannelReader<T> {
 impl Read for ChannelReader<Vec<u8>> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let read = self.buffer.read(buf)?;
+        self.limiter.read(read)?;
         if read > 0 {
             return Ok(read);
         }
