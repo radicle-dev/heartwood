@@ -35,7 +35,7 @@ use crate::wire::frame;
 use crate::wire::frame::{Frame, FrameData, StreamId};
 use crate::wire::Encode;
 use crate::worker;
-use crate::worker::{ChannelEvent, FetchRequest, FetchResult, Task, TaskResult};
+use crate::worker::{ChannelEvent, ChannelsConfig, FetchRequest, FetchResult, Task, TaskResult};
 use crate::Link;
 
 /// NoiseXK handshake pattern.
@@ -128,22 +128,22 @@ impl Streams {
     }
 
     /// Open a new stream.
-    fn open(&mut self, timeout: time::Duration) -> (StreamId, worker::Channels) {
+    fn open(&mut self, config: ChannelsConfig) -> (StreamId, worker::Channels) {
         self.seq += 1;
 
         let id = StreamId::git(self.link)
             .nth(self.seq)
             .expect("Streams::open: too many streams");
         let channels = self
-            .register(id, timeout)
+            .register(id, config)
             .expect("Streams::open: stream was already open");
 
         (id, channels)
     }
 
     /// Register an open stream.
-    fn register(&mut self, stream: StreamId, timeout: time::Duration) -> Option<worker::Channels> {
-        let (wire, worker) = worker::Channels::pair(timeout)
+    fn register(&mut self, stream: StreamId, config: ChannelsConfig) -> Option<worker::Channels> {
+        let (wire, worker) = worker::Channels::pair(config)
             .expect("Streams::register: fatal: unable to create channels");
 
         match self.streams.entry(stream) {
@@ -762,8 +762,13 @@ where
                                 log::debug!(target: "wire", "Received `open` command for stream {stream} from {nid}");
                                 metrics.streams_opened += 1;
                                 metrics.received_fetch_requests += 1;
-
-                                let Some(channels) = streams.register(stream, FETCH_TIMEOUT) else {
+                                let reader_limit =
+                                    self.service.config().limits.channels.reader_limit;
+                                let Some(channels) = streams.register(
+                                    stream,
+                                    ChannelsConfig::new(FETCH_TIMEOUT)
+                                        .with_reader_limit(reader_limit),
+                                ) else {
                                     log::warn!(target: "wire", "Peer attempted to open already-open stream stream {stream}");
                                     continue;
                                 };
@@ -1062,6 +1067,7 @@ where
                     rid,
                     remote,
                     timeout,
+                    reader_limit,
                     refs_at,
                 } => {
                     log::trace!(target: "wire", "Processing fetch for {rid} from {remote}..");
@@ -1076,7 +1082,8 @@ where
                         log::error!(target: "wire", "Peer {remote} is not connected: dropping fetch");
                         continue;
                     };
-                    let (stream, channels) = streams.open(timeout);
+                    let (stream, channels) =
+                        streams.open(ChannelsConfig::new(timeout).with_reader_limit(reader_limit));
 
                     log::debug!(target: "wire", "Opened new stream with id {stream} for {rid} and remote {remote}");
 

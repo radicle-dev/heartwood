@@ -1098,7 +1098,13 @@ where
             refs_at: refs_at.clone(),
             subscribers: vec![],
         });
-        self.outbox.fetch(session, rid, refs_at, timeout);
+        self.outbox.fetch(
+            session,
+            rid,
+            refs_at,
+            timeout,
+            self.config.limits.channels.reader_limit,
+        );
 
         Ok(fetching)
     }
