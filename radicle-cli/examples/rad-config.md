@@ -47,7 +47,8 @@ $ rad config
       "connection": {
         "inbound": 128,
         "outbound": 16
-      }
+      },
+      "fetchPackReceive": "500.0 MiB"
     },
     "workers": 8,
     "seedingPolicy": {

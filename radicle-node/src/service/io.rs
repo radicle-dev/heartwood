@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::time;
 
 use log::*;
+use radicle::node::config::FetchPackSizeLimit;
 use radicle::storage::refs::RefsAt;
 
 use crate::prelude::*;
@@ -30,6 +31,8 @@ pub enum Io {
         refs_at: Option<Vec<RefsAt>>,
         /// Fetch timeout.
         timeout: time::Duration,
+        /// Limit the number of bytes fetched.
+        reader_limit: FetchPackSizeLimit,
     },
     /// Ask for a wakeup in a specified amount of time.
     Wakeup(LocalDuration),
@@ -124,6 +127,7 @@ impl Outbox {
         rid: RepoId,
         refs_at: Vec<RefsAt>,
         timeout: time::Duration,
+        reader_limit: FetchPackSizeLimit,
     ) {
         peer.fetching(rid);
 
@@ -143,6 +147,7 @@ impl Outbox {
             refs_at,
             remote: peer.id,
             timeout,
+            reader_limit,
         });
     }
 

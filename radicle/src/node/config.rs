@@ -1,6 +1,7 @@
 use std::collections::HashSet;
-use std::net;
 use std::ops::Deref;
+use std::str::FromStr;
+use std::{fmt, net};
 
 use cyphernet::addr::PeerAddr;
 use localtime::LocalDuration;
@@ -114,6 +115,9 @@ pub struct Limits {
     /// Connection limits.
     #[serde(default)]
     pub connection: ConnectionLimits,
+    /// Channel limits.
+    #[serde(default)]
+    pub fetch_pack_receive: FetchPackSizeLimit,
 }
 
 impl Default for Limits {
@@ -126,7 +130,85 @@ impl Default for Limits {
             max_open_files: 4096,
             rate: RateLimits::default(),
             connection: ConnectionLimits::default(),
+            fetch_pack_receive: FetchPackSizeLimit::default(),
         }
+    }
+}
+
+/// Limiter for byte streams.
+///
+/// Default: 500MiB
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(into = "String", try_from = "String")]
+pub struct FetchPackSizeLimit {
+    limit: bytesize::ByteSize,
+}
+
+impl From<bytesize::ByteSize> for FetchPackSizeLimit {
+    fn from(limit: bytesize::ByteSize) -> Self {
+        Self { limit }
+    }
+}
+
+impl From<FetchPackSizeLimit> for String {
+    fn from(limit: FetchPackSizeLimit) -> Self {
+        limit.to_string()
+    }
+}
+
+impl TryFrom<String> for FetchPackSizeLimit {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        s.parse()
+    }
+}
+
+impl FromStr for FetchPackSizeLimit {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(FetchPackSizeLimit { limit: s.parse()? })
+    }
+}
+
+impl fmt::Display for FetchPackSizeLimit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.limit)
+    }
+}
+
+impl FetchPackSizeLimit {
+    /// New `FetchPackSizeLimit` in bytes.
+    pub fn bytes(size: u64) -> Self {
+        bytesize::ByteSize::b(size).into()
+    }
+
+    /// New `FetchPackSizeLimit` in kibibytes.
+    pub fn kibibytes(size: u64) -> Self {
+        bytesize::ByteSize::kib(size).into()
+    }
+
+    /// New `FetchPackSizeLimit` in mebibytes.
+    pub fn mebibytes(size: u64) -> Self {
+        bytesize::ByteSize::mib(size).into()
+    }
+
+    /// New `FetchPackSizeLimit` in gibibytes.
+    pub fn gibibytes(size: u64) -> Self {
+        bytesize::ByteSize::gib(size).into()
+    }
+
+    /// Check if this limit is exceeded by the number of `bytes` provided.
+    pub fn exceeded_by(&self, bytes: usize) -> bool {
+        bytes >= self.limit.as_u64() as usize
+    }
+}
+
+impl Default for FetchPackSizeLimit {
+    fn default() -> Self {
+        Self::mebibytes(500)
     }
 }
 

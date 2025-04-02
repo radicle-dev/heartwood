@@ -1493,3 +1493,44 @@ fn test_multiple_offline_inits() {
         assert!(projects.contains(&repo.rid), "Bob is missing {}", repo.rid);
     }
 }
+
+#[test]
+fn test_channel_reader_limit() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let limits = radicle::node::config::Limits {
+        fetch_pack_receive: radicle::node::config::FetchPackSizeLimit::bytes(1000),
+        ..radicle::node::config::Limits::default()
+    };
+    let bob = Node::init(
+        tmp.path(),
+        Config {
+            limits,
+            ..config::relay("bob")
+        },
+    );
+    let acme = alice.project("acme", "");
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    alice.connect(&bob);
+    converge([&alice, &bob]);
+
+    let updated = bob.handle.seed(acme, Scope::All).unwrap();
+    assert!(updated);
+
+    let result = bob.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
+    assert!(!result.is_success());
+
+    let FetchResult::Failed { reason } = result else {
+        panic!("fetch result must be failed")
+    };
+    assert!(
+        reason.contains("Failed to consume the pack sent by the remote"),
+        "actual: {}",
+        reason
+    );
+}
