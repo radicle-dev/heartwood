@@ -946,13 +946,32 @@ pub mod trailers {
 }
 
 pub mod paths {
+    use std::io;
     use std::path::PathBuf;
+
+    use crate::git;
 
     use super::ReadStorage;
     use super::RepoId;
 
     pub fn repository<S: ReadStorage>(storage: &S, proj: &RepoId) -> PathBuf {
         storage.path().join(proj.canonical())
+    }
+
+    pub fn working_copy(working: &git::raw::Repository) -> io::Result<PathBuf> {
+        // N.b. `Repository::path` returns `.git` directory, if it is not a bare
+        // repository.
+        let dot_git = working.path();
+        dot_git
+            .parent()
+            .map(|path| path.to_path_buf())
+            .ok_or(io::Error::new(
+                io::ErrorKind::Other,
+                format!(
+                    "working copy {:?} could be a bare Git repository",
+                    working.path()
+                ),
+            ))
     }
 }
 
