@@ -215,7 +215,7 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
 #[derive(Error, Debug)]
 pub enum CheckoutError {
     #[error("failed to fetch to working copy")]
-    Fetch(#[source] git2::Error),
+    Fetch(#[source] std::io::Error),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("payload: {0}")]
@@ -254,7 +254,31 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
         &url,
         &url.clone().with_namespace(*remote),
     )?;
-    git::fetch(&repo, &REMOTE_NAME).map_err(CheckoutError::Fetch)?;
+    let fetchspec = git::Refspec {
+        src: git::refspec::pattern!("refs/heads/*"),
+        dst: git::Qualified::from(git::lit::refs_remotes(&*REMOTE_NAME))
+            .to_pattern(git::refspec::STAR)
+            .into_patternstring(),
+        force: false,
+    };
+    let stored = storage.repository(proj)?;
+    git::run::<_, _, &str, &str>(
+        storage::git::paths::working_copy(&repo).map_err(CheckoutError::Fetch)?,
+        [
+            "fetch",
+            &format!(
+                "{}",
+                stored
+                    .path()
+                    .canonicalize()
+                    .map_err(CheckoutError::Fetch)?
+                    .display()
+            ),
+            &fetchspec.to_string(),
+        ],
+        [],
+    )
+    .map_err(CheckoutError::Fetch)?;
 
     {
         // Setup default branch.
