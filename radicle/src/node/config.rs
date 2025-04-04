@@ -1,6 +1,6 @@
 use std::collections::HashSet;
-use std::net;
 use std::ops::Deref;
+use std::{fmt, net};
 
 use cyphernet::addr::PeerAddr;
 use localtime::LocalDuration;
@@ -114,6 +114,9 @@ pub struct Limits {
     /// Connection limits.
     #[serde(default)]
     pub connection: ConnectionLimits,
+    /// Channel limits.
+    #[serde(default)]
+    pub channels: ChannelLimits,
 }
 
 impl Default for Limits {
@@ -126,7 +129,62 @@ impl Default for Limits {
             max_open_files: 4096,
             rate: RateLimits::default(),
             connection: ConnectionLimits::default(),
+            channels: ChannelLimits::default(),
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChannelLimits {
+    pub reader_limit: ByteLimit,
+}
+
+/// Limiter for byte streams.
+///
+/// Default: 500MB
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", transparent)]
+pub struct ByteLimit {
+    limit: usize,
+}
+
+impl fmt::Display for ByteLimit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.limit)
+    }
+}
+
+impl ByteLimit {
+    /// New `ByteLimit` in bytes.
+    pub fn new(size: usize) -> Self {
+        Self { limit: size }
+    }
+
+    /// New `ByteLimit` in kilobytes.
+    pub fn kilobytes(size: usize) -> Self {
+        Self::new(size * 1_000)
+    }
+
+    /// New `ByteLimit` in megabytes.
+    pub fn megabytes(size: usize) -> Self {
+        Self::new(size * 1_000_000)
+    }
+
+    /// New `ByteLimit` in gigabytes.
+    pub fn gigabytes(size: usize) -> Self {
+        Self::new(size * 1_000_000_000)
+    }
+
+    /// Check has the number of `bytes` reached the byte limit.
+    pub fn has_reached(&self, bytes: usize) -> bool {
+        bytes >= self.limit
+    }
+}
+
+impl Default for ByteLimit {
+    fn default() -> Self {
+        Self::megabytes(500)
     }
 }
 

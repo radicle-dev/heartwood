@@ -103,13 +103,34 @@ where
 
     git::configure_repository(repo)?;
     git::configure_remote(repo, &REMOTE_NAME, url, &url.clone().with_namespace(*pk))?;
-    git::push(
-        repo,
-        &REMOTE_NAME,
-        [(
-            &git::fmt::lit::refs_heads(default_branch).into(),
-            &git::fmt::lit::refs_heads(default_branch).into(),
-        )],
+    let branch = git::Qualified::from(git::fmt::lit::refs_heads(default_branch));
+    // Pushes to default branch to the namespace of the `signer`
+    let pushspec = git::Refspec {
+        src: branch.clone(),
+        dst: branch.with_namespace(git::Component::from(pk)),
+        force: false,
+    };
+    git::run::<_, _, &str, &str>(
+        storage::git::paths::working_copy(repo)?,
+        [
+            "push",
+            &format!("{}", stored.path().canonicalize()?.display()),
+            &pushspec.to_string(),
+        ],
+        [],
+    )?;
+    // N.b. we need to create the remote branch for the default branch
+    let rad_remote =
+        git::Qualified::from(git::lit::refs_remotes(&*REMOTE_COMPONENT)).join(default_branch);
+    let oid = repo.refname_to_id(branch.as_str())?;
+    repo.reference(
+        rad_remote.as_str(),
+        oid,
+        false,
+        &format!(
+            "radicle: remote branch {}/{}",
+            *REMOTE_COMPONENT, default_branch
+        ),
     )?;
     stored.set_remote_identity_root_to(pk, identity)?;
     stored.set_identity_head_to(identity)?;
@@ -194,7 +215,7 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
 #[derive(Error, Debug)]
 pub enum CheckoutError {
     #[error("failed to fetch to working copy")]
-    Fetch(#[source] git2::Error),
+    Fetch(#[source] std::io::Error),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("payload: {0}")]
@@ -233,7 +254,31 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
         &url,
         &url.clone().with_namespace(*remote),
     )?;
-    git::fetch(&repo, &REMOTE_NAME).map_err(CheckoutError::Fetch)?;
+    let fetchspec = git::Refspec {
+        src: git::refspec::pattern!("refs/heads/*"),
+        dst: git::Qualified::from(git::lit::refs_remotes(&*REMOTE_NAME))
+            .to_pattern(git::refspec::STAR)
+            .into_patternstring(),
+        force: false,
+    };
+    let stored = storage.repository(proj)?;
+    git::run::<_, _, &str, &str>(
+        storage::git::paths::working_copy(&repo).map_err(CheckoutError::Fetch)?,
+        [
+            "fetch",
+            &format!(
+                "{}",
+                stored
+                    .path()
+                    .canonicalize()
+                    .map_err(CheckoutError::Fetch)?
+                    .display()
+            ),
+            &fetchspec.to_string(),
+        ],
+        [],
+    )
+    .map_err(CheckoutError::Fetch)?;
 
     {
         // Setup default branch.

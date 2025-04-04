@@ -47,6 +47,9 @@ $ rad config
       "connection": {
         "inbound": 128,
         "outbound": 16
+      },
+      "channels": {
+        "readerLimit": 500000000
       }
     },
     "workers": 8,

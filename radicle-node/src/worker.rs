@@ -23,7 +23,7 @@ use crate::service::policy;
 use crate::service::policy::SeedingPolicy;
 use crate::wire::StreamId;
 
-pub use channels::{ChannelEvent, Channels};
+pub use channels::{ChannelEvent, Channels, ChannelsConfig};
 
 /// Worker pool configuration.
 pub struct Config {
