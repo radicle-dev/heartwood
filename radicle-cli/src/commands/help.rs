@@ -91,8 +91,12 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     term::blank();
 
     term::print("Do you have feedback?");
-    term::print(" - Chat <\x1b]8;;https://radicle.zulipchat.com\x1b\\radicle.zulipchat.com\x1b]8;;\x1b\\>");
-    term::print(" - Mail <\x1b]8;;mailto:feedback@radicle.xyz\x1b\\feedback@radicle.xyz\x1b]8;;\x1b\\>");
+    term::print(
+        " - Chat <\x1b]8;;https://radicle.zulipchat.com\x1b\\radicle.zulipchat.com\x1b]8;;\x1b\\>",
+    );
+    term::print(
+        " - Mail <\x1b]8;;mailto:feedback@radicle.xyz\x1b\\feedback@radicle.xyz\x1b]8;;\x1b\\>",
+    );
     term::print("   (Messages are automatically posted to the public #feedback channel on Zulip.)");
 
     Ok(())
