@@ -1,0 +1,53 @@
+pre_plan:
+  - action: cargo_fetch
+plan:
+  - action: cargo_fmt
+  - action: cargo_clippy
+  - action: cargo_build
+  - action: cargo_test
+
+  # Make sure docs build.
+  - action: shell
+    shell: |
+      # Because of a (temporary) limitation in Ambient, we need to set
+      # these variables manually. Once Ambient manages environment
+      # variables better, these can be deleted.
+      export CARGO_TARGET_DIR=/workspace/cache
+      export CARGO_HOME=/workspace/deps
+      export HOME=/root
+      export PATH="/root/.cargo/bin:$PATH"
+
+      cargo doc --workspace --no-deps
+
+  # Prepare source tree for building a Debian package.
+  - action: shell
+    shell: |
+      # Because of a (temporary) limitation in Ambient, we need to set
+      # these variables manually. Once Ambient manages environment
+      # variables better, these can be deleted.
+      export CARGO_TARGET_DIR=/workspace/cache
+      export CARGO_HOME=/workspace/deps
+      export HOME=/root
+      export PATH="/root/.cargo/bin:$PATH"
+
+      # These are based on debian/control.
+      export DEBEMAIL=liw@liw.fi
+      export DEBFULLNAME="Lars Wirzenius"
+
+      # Clean up after tests and documentation building. The Debian
+      # package building tools do not want changes outside the
+      # `debian` directory, compared to what is committed to Git, from
+      # which the "upstream tarball" is created.
+      git reset --hard
+      git clean -fdx
+      git status --ignored
+
+      # Update debian/changelog with a new version so that every run
+      # creates a newer version. This avoids us having to update the
+      # file manually for every CI run.
+      V="$(dpkg-parsechangelog -SVersion | sed 's/-[^-]*$//')"
+      T="$(date -u "+%Y%m%dT%H%M%S")"
+      version="$V.ci$T-1"
+      dch -v "$version" "CI build under Ambient."
+      dch -r ''
+  - action: deb
