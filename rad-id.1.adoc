@@ -73,6 +73,11 @@ automatically accepted and included into the identity document.
 *--allow* _<did>_::
   Update the identity by giving a specific peer access to a private repository.
 
+*--disallow* _<did>_::
+  Update the identity by removing a specific peer's access to a private repository.
+  Note that the peer could have the contents of the repository up until the
+  point that access was revoked.
+
 *--payload* _<id> <key> <val>_::
   Update the identity by setting metadata in one of the identity payloads.
   This can be used to update a repository's project name or description, for
@@ -80,6 +85,9 @@ automatically accepted and included into the identity document.
 
 *--no-confirm*::
   Don't ask for confirmation before creating the revision.
+
+*--edit*::
+  Opens your $EDITOR to edit the JSON contents directly.
 
 === edit
 
