@@ -10,7 +10,7 @@ pub struct WeightedGenerator<'a, T, C> {
     ctx: C,
 }
 
-impl<'a, T, C> Iterator for WeightedGenerator<'a, T, C> {
+impl<T, C> Iterator for WeightedGenerator<'_, T, C> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -18,7 +18,7 @@ impl<'a> HStack<'a> {
     }
 }
 
-impl<'a> Element for HStack<'a> {
+impl Element for HStack<'_> {
     fn size(&self, parent: Constraint) -> Size {
         let width = self.elems.iter().map(|c| c.columns(parent)).sum();
         let height = self.elems.iter().map(|c| c.rows(parent)).max().unwrap_or(0);

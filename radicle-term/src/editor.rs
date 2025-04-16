@@ -83,6 +83,7 @@ impl Editor {
 
     /// Initialize the file with the provided `content`, as long as the file
     /// does not already contain anything.
+    #[allow(clippy::byte_char_slices)]
     pub fn initial(self, content: impl AsRef<[u8]>) -> io::Result<Self> {
         let content = content.as_ref();
         let mut file = fs::OpenOptions::new()

@@ -101,19 +101,19 @@ impl StreamId {
     /// Create a control identifier.
     pub fn control(link: Link) -> Self {
         let link = if link.is_outbound() { 0 } else { 1 };
-        Self(VarInt::from((StreamKind::Control as u8) << 1 | link))
+        Self(VarInt::from(((StreamKind::Control as u8) << 1) | link))
     }
 
     /// Create a gossip identifier.
     pub fn gossip(link: Link) -> Self {
         let link = if link.is_outbound() { 0 } else { 1 };
-        Self(VarInt::from((StreamKind::Gossip as u8) << 1 | link))
+        Self(VarInt::from(((StreamKind::Gossip as u8) << 1) | link))
     }
 
     /// Create a git identifier.
     pub fn git(link: Link) -> Self {
         let link = if link.is_outbound() { 0 } else { 1 };
-        Self(VarInt::from((StreamKind::Git as u8) << 1 | link))
+        Self(VarInt::from(((StreamKind::Git as u8) << 1) | link))
     }
 
     /// Get the nth identifier while preserving the stream type and initiator.

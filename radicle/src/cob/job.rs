@@ -300,7 +300,7 @@ impl<'a, 'g, R> From<JobMut<'a, 'g, R>> for (JobId, Job) {
     }
 }
 
-impl<'a, 'g, R> std::fmt::Debug for JobMut<'a, 'g, R> {
+impl<R> std::fmt::Debug for JobMut<'_, '_, R> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("JobMut")
             .field("id", &self.id)
@@ -309,7 +309,7 @@ impl<'a, 'g, R> std::fmt::Debug for JobMut<'a, 'g, R> {
     }
 }
 
-impl<'a, 'g, R> JobMut<'a, 'g, R>
+impl<R> JobMut<'_, '_, R>
 where
     R: WriteRepository + cob::Store,
 {
@@ -365,7 +365,7 @@ where
     }
 }
 
-impl<'a, 'g, R> Deref for JobMut<'a, 'g, R> {
+impl<R> Deref for JobMut<'_, '_, R> {
     type Target = Job;
 
     fn deref(&self) -> &Self::Target {

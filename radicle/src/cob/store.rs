@@ -111,7 +111,7 @@ pub struct Store<'a, T, R> {
     witness: PhantomData<T>,
 }
 
-impl<'a, T, R> AsRef<R> for Store<'a, T, R> {
+impl<T, R> AsRef<R> for Store<'_, T, R> {
     fn as_ref(&self) -> &R {
         self.repo
     }
@@ -140,7 +140,7 @@ where
     }
 }
 
-impl<'a, T, R> Store<'a, T, R>
+impl<T, R> Store<'_, T, R>
 where
     R: ReadRepository + SignRepository + cob::Store,
     T: Cob + cob::Evaluate<R>,

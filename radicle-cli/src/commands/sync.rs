@@ -490,7 +490,7 @@ pub fn fetch(
         if settings
             .seeds
             .iter()
-            .all(|nid| results.get(nid).map_or(false, |r| r.is_success()))
+            .all(|nid| results.get(nid).is_some_and(|r| r.is_success()))
         {
             return Ok(results);
         }

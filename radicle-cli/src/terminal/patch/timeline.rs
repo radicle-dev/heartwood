@@ -276,7 +276,7 @@ enum Update<'a> {
     Merged { author: Author<'a>, merge: Merge },
 }
 
-impl<'a> Update<'a> {
+impl Update<'_> {
     fn timestamp(&self) -> cob::Timestamp {
         match self {
             Update::Reviewed { review } => review.timestamp(),

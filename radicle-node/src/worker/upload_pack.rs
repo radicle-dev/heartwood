@@ -268,7 +268,7 @@ pub(super) mod pktline {
         }
     }
 
-    impl<'a, R: io::Read> io::Read for Reader<'a, R> {
+    impl<R: io::Read> io::Read for Reader<'_, R> {
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             self.stream.read(buf)
         }

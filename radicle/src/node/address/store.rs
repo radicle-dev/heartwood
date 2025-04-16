@@ -428,7 +428,7 @@ pub struct NodeAliasIter<'a> {
     inner: sql::CursorWithOwnership<'a>,
 }
 
-impl<'a> NodeAliasIter<'a> {
+impl NodeAliasIter<'_> {
     fn parse_row(row: sql::Row) -> Result<(NodeId, Alias), Error> {
         let nid = row.try_read::<NodeId, _>("id")?;
         let alias = row.try_read::<&str, _>("alias")?.parse()?;
@@ -436,7 +436,7 @@ impl<'a> NodeAliasIter<'a> {
     }
 }
 
-impl<'a> Iterator for NodeAliasIter<'a> {
+impl Iterator for NodeAliasIter<'_> {
     type Item = Result<(NodeId, Alias), Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -446,7 +446,8 @@ impl<'a> Iterator for NodeAliasIter<'a> {
 }
 
 impl StoreExt for Database {
-    type NodeAlias<'a> = NodeAliasIter<'a>
+    type NodeAlias<'a>
+        = NodeAliasIter<'a>
     where
         Self: 'a;
 

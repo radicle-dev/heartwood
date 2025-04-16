@@ -19,7 +19,7 @@ pub enum Updated<'a> {
     Rejected(Update<'a>),
 }
 
-impl<'a> From<RefUpdate> for Updated<'a> {
+impl From<RefUpdate> for Updated<'_> {
     fn from(up: RefUpdate) -> Self {
         Updated::Accepted(up)
     }
@@ -176,13 +176,11 @@ fn direct<'a>(
                     no_ff,
                 }
                 .into()),
-                Ancestry::Diverged => {
-                    return Err(error::Update::NonFF {
-                        name: name.to_owned(),
-                        new: target,
-                        cur: prev,
-                    })
-                }
+                Ancestry::Diverged => Err(error::Update::NonFF {
+                    name: name.to_owned(),
+                    new: target,
+                    cur: prev,
+                }),
             }
         }
         None => {

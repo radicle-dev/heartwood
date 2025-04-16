@@ -364,7 +364,7 @@ pub struct NoCacheIter<'a> {
     inner: Box<dyn Iterator<Item = Result<(IssueId, Issue), super::Error>> + 'a>,
 }
 
-impl<'a> Iterator for NoCacheIter<'a> {
+impl Iterator for NoCacheIter<'_> {
     type Item = Result<(IssueId, Issue), super::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -372,12 +372,15 @@ impl<'a> Iterator for NoCacheIter<'a> {
     }
 }
 
-impl<'a, R> Issues for Cache<super::Issues<'a, R>, cache::NoCache>
+impl<R> Issues for Cache<super::Issues<'_, R>, cache::NoCache>
 where
     R: ReadRepository + cob::Store,
 {
     type Error = super::Error;
-    type Iter<'b> = NoCacheIter<'b> where Self: 'b;
+    type Iter<'b>
+        = NoCacheIter<'b>
+    where
+        Self: 'b;
 
     fn get(&self, id: &IssueId) -> Result<Option<Issue>, Self::Error> {
         self.store.get(id).map_err(super::Error::from)
@@ -406,7 +409,7 @@ where
     }
 
     fn counts(&self) -> Result<IssueCounts, Self::Error> {
-        self.store.counts().map_err(super::Error::from)
+        self.store.counts()
     }
 }
 
@@ -430,7 +433,7 @@ pub struct IssuesIter<'a> {
     inner: sql::CursorWithOwnership<'a>,
 }
 
-impl<'a> IssuesIter<'a> {
+impl IssuesIter<'_> {
     fn parse_row(row: sql::Row) -> Result<(IssueId, Issue), Error> {
         let id = IssueId::from_str(row.read::<&str, _>("id"))?;
         let issue = serde_json::from_str::<Issue>(row.read::<&str, _>("issue"))?;
@@ -438,7 +441,7 @@ impl<'a> IssuesIter<'a> {
     }
 }
 
-impl<'a> Iterator for IssuesIter<'a> {
+impl Iterator for IssuesIter<'_> {
     type Item = Result<(IssueId, Issue), Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -452,7 +455,10 @@ where
     R: HasRepoId,
 {
     type Error = Error;
-    type Iter<'b> = IssuesIter<'b> where Self: 'b;
+    type Iter<'b>
+        = IssuesIter<'b>
+    where
+        Self: 'b;
 
     fn get(&self, id: &IssueId) -> Result<Option<Issue>, Self::Error> {
         query::get(&self.cache.db, &self.rid(), id)
@@ -476,7 +482,10 @@ where
     R: HasRepoId,
 {
     type Error = Error;
-    type Iter<'b> = IssuesIter<'b> where Self: 'b;
+    type Iter<'b>
+        = IssuesIter<'b>
+    where
+        Self: 'b;
 
     fn get(&self, id: &IssueId) -> Result<Option<Issue>, Self::Error> {
         query::get(&self.cache.db, &self.rid(), id)

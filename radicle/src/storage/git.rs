@@ -52,7 +52,7 @@ pub struct Ref {
     pub namespace: Option<RemoteId>,
 }
 
-impl<'a> TryFrom<git2::Reference<'a>> for Ref {
+impl TryFrom<git2::Reference<'_>> for Ref {
     type Error = RefError;
 
     fn try_from(r: git2::Reference) -> Result<Self, Self::Error> {

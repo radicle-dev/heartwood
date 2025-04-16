@@ -108,7 +108,7 @@ pub struct FetchOut {
 // FIXME: the delegate pattern will be removed in the near future and
 // we should look at the fetch code being used in gix to see how we
 // can migrate to the proper form of fetching.
-impl<'a> Delegate for &'a mut Fetch {
+impl Delegate for &mut Fetch {
     fn receive_pack(
         &mut self,
         input: impl io::BufRead,
@@ -134,7 +134,7 @@ impl<'a> Delegate for &'a mut Fetch {
     }
 }
 
-impl<'a> DelegateBlocking for &'a mut Fetch {
+impl DelegateBlocking for &mut Fetch {
     fn negotiate(
         &mut self,
         _refs: &[handshake::Ref],

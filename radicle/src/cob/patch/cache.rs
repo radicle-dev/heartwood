@@ -425,7 +425,7 @@ pub struct PatchesIter<'a> {
     inner: sql::CursorWithOwnership<'a>,
 }
 
-impl<'a> PatchesIter<'a> {
+impl PatchesIter<'_> {
     fn parse_row(row: sql::Row) -> Result<(PatchId, Patch), Error> {
         let id = PatchId::from_str(row.read::<&str, _>("id"))?;
         let patch = serde_json::from_str::<Patch>(row.read::<&str, _>("patch"))
@@ -434,7 +434,7 @@ impl<'a> PatchesIter<'a> {
     }
 }
 
-impl<'a> Iterator for PatchesIter<'a> {
+impl Iterator for PatchesIter<'_> {
     type Item = Result<(PatchId, Patch), Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -448,7 +448,8 @@ where
     R: HasRepoId,
 {
     type Error = Error;
-    type Iter<'b> = PatchesIter<'b>
+    type Iter<'b>
+        = PatchesIter<'b>
     where
         Self: 'b;
 
@@ -477,7 +478,7 @@ pub struct NoCacheIter<'a> {
     inner: Box<dyn Iterator<Item = Result<(PatchId, Patch), super::Error>> + 'a>,
 }
 
-impl<'a> Iterator for NoCacheIter<'a> {
+impl Iterator for NoCacheIter<'_> {
     type Item = Result<(PatchId, Patch), super::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -485,12 +486,15 @@ impl<'a> Iterator for NoCacheIter<'a> {
     }
 }
 
-impl<'a, R> Patches for Cache<super::Patches<'a, R>, cache::NoCache>
+impl<R> Patches for Cache<super::Patches<'_, R>, cache::NoCache>
 where
     R: ReadRepository + cob::Store,
 {
     type Error = super::Error;
-    type Iter<'b> = NoCacheIter<'b> where Self: 'b;
+    type Iter<'b>
+        = NoCacheIter<'b>
+    where
+        Self: 'b;
 
     fn get(&self, id: &PatchId) -> Result<Option<Patch>, Self::Error> {
         self.store.get(id).map_err(super::Error::from)
@@ -536,7 +540,8 @@ where
     R: HasRepoId,
 {
     type Error = Error;
-    type Iter<'b> = PatchesIter<'b>
+    type Iter<'b>
+        = PatchesIter<'b>
     where
         Self: 'b;
 

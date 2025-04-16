@@ -1,10 +1,10 @@
 #![allow(clippy::or_fun_call)]
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::str::FromStr;
 
-use anyhow::{anyhow, Context as _};
+use anyhow::Context as _;
 use chrono::prelude::*;
 
 use radicle::identity::RepoId;
@@ -114,12 +114,10 @@ impl Args for Options {
 
                     if let Ok(val) = RepoId::from_str(&val) {
                         rid = Some(val);
-                    } else if let Ok(val) = PathBuf::from_str(&val) {
-                        rid = radicle::rad::at(val)
+                    } else {
+                        rid = radicle::rad::at(Path::new(val.as_ref()))
                             .map(|(_, id)| Some(id))
                             .context("Supplied argument is not a valid path")?;
-                    } else {
-                        return Err(anyhow!("invalid path or RID '{}'", val));
                     }
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),

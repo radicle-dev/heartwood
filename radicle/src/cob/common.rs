@@ -127,7 +127,7 @@ impl<'de> Deserialize<'de> for Reaction {
     {
         struct ReactionVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for ReactionVisitor {
+        impl serde::de::Visitor<'_> for ReactionVisitor {
             type Value = Reaction;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -316,7 +316,7 @@ impl std::str::FromStr for Uri {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if !s.chars().all(|c| c.is_ascii()) {
+        if !s.is_ascii() {
             return Err(s.to_owned());
         }
         if !s.contains(':') {

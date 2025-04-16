@@ -72,7 +72,7 @@ impl Iterator for Iter {
 }
 
 /// Represents a set of styling options.
-#[repr(packed)]
+#[repr(C, packed)]
 #[derive(Default, Debug, Eq, Ord, PartialOrd, Copy, Clone)]
 pub struct Style {
     pub(crate) foreground: Color,

@@ -867,7 +867,7 @@ pub struct IdentityMut<'a, R> {
     store: store::Store<'a, Identity, R>,
 }
 
-impl<'a, R> fmt::Debug for IdentityMut<'a, R> {
+impl<R> fmt::Debug for IdentityMut<'_, R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("IdentityMut")
             .field("id", &self.id)
@@ -876,7 +876,7 @@ impl<'a, R> fmt::Debug for IdentityMut<'a, R> {
     }
 }
 
-impl<'a, R> IdentityMut<'a, R>
+impl<R> IdentityMut<'_, R>
 where
     R: WriteRepository + cob::Store,
 {
@@ -971,7 +971,7 @@ where
     }
 }
 
-impl<'a, R> Deref for IdentityMut<'a, R> {
+impl<R> Deref for IdentityMut<'_, R> {
     type Target = Identity;
 
     fn deref(&self) -> &Self::Target {
