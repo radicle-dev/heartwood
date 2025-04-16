@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use radicle::cob::issue::Issue;
 use radicle::cob::thread::{Comment, CommentId};
 use radicle::crypto::ssh::keystore::MemorySigner;
@@ -63,7 +64,7 @@ pub fn signer(profile: &Profile) -> anyhow::Result<Box<dyn Signer>> {
     Ok(signer.boxed())
 }
 
-pub fn comment_select(issue: &Issue) -> Option<(&CommentId, &Comment)> {
+pub fn comment_select(issue: &Issue) -> anyhow::Result<(&CommentId, &Comment)> {
     let comments = issue.comments().collect::<Vec<_>>();
     let selection = Select::new(
         "Which comment do you want to react to?",
@@ -71,8 +72,10 @@ pub fn comment_select(issue: &Issue) -> Option<(&CommentId, &Comment)> {
     )
     .with_render_config(*CONFIG)
     .with_formatter(&|i| comments[i.index].1.body().to_owned())
-    .prompt()
-    .ok()?;
+    .prompt()?;
 
-    comments.get(selection).copied()
+    comments
+        .get(selection)
+        .copied()
+        .ok_or(anyhow!("failed to perform comment selection"))
 }

@@ -591,10 +591,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let id = id.resolve(&repo.backend)?;
             if let Ok(mut issue) = issues.get_mut(&id) {
                 let signer = term::signer(&profile)?;
-                let comment_id = comment_id.unwrap_or_else(|| {
-                    let (comment_id, _) = term::io::comment_select(&issue).unwrap();
-                    *comment_id
-                });
+                let comment_id = match comment_id {
+                    Some(cid) => cid,
+                    None => *term::io::comment_select(&issue).map(|(cid, _)| cid)?,
+                };
                 issue.react(comment_id, reaction, true, &signer)?;
             }
         }
