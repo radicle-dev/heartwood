@@ -10,7 +10,7 @@ pub struct Version<'a> {
     pub timestamp: &'a str,
 }
 
-impl<'a> Version<'a> {
+impl Version<'_> {
     /// Write program version as string.
     /// Adjust with caution, third party applications parse the string for version info.
     pub fn write(&self, mut w: impl std::io::Write) -> Result<(), io::Error> {

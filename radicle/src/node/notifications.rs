@@ -76,7 +76,7 @@ pub enum NotificationKindError {
     RefFormat(#[from] radicle_git_ext::ref_format::Error),
 }
 
-impl<'a> TryFrom<Qualified<'a>> for NotificationKind {
+impl TryFrom<Qualified<'_>> for NotificationKind {
     type Error = NotificationKindError;
 
     fn try_from(value: Qualified) -> Result<Self, Self::Error> {

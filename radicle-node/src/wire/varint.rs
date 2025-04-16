@@ -135,11 +135,11 @@ impl Encode for VarInt {
         if x < 2u64.pow(6) {
             (x as u8).encode(w)
         } else if x < 2u64.pow(14) {
-            (0b01 << 14 | x as u16).encode(w)
+            ((0b01 << 14) | x as u16).encode(w)
         } else if x < 2u64.pow(30) {
-            (0b10 << 30 | x as u32).encode(w)
+            ((0b10 << 30) | x as u32).encode(w)
         } else if x < 2u64.pow(62) {
-            (0b11 << 62 | x).encode(w)
+            ((0b11 << 62) | x).encode(w)
         } else {
             panic!("VarInt::encode: integer overflow");
         }

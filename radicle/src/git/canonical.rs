@@ -200,7 +200,7 @@ impl Canonical {
 
         let (mut longest, _) = candidates
             .pop_first()
-            .ok_or_else(|| QuorumError::NoCandidates(NoCandidates { threshold }))?;
+            .ok_or(QuorumError::NoCandidates(NoCandidates { threshold }))?;
 
         // Now that all scores are calculated, figure out what is the longest branch
         // that passes the threshold. In case of divergence, return an error.

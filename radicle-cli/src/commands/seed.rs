@@ -7,7 +7,7 @@ use anyhow::anyhow;
 use radicle::node::policy;
 use radicle::node::policy::{Policy, Scope};
 use radicle::node::Handle;
-use radicle::{prelude::*, storage, Node};
+use radicle::{prelude::*, Node};
 use radicle_term::Element as _;
 
 use crate::commands::rad_sync as sync;
@@ -201,7 +201,6 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
         let id = rid.to_string();
         let name = storage
             .repository(rid)
-            .map_err(storage::RepositoryError::from)
             .and_then(|repo| repo.project().map(|proj| proj.name().to_string()))
             .unwrap_or_default();
         let scope = policy.scope().unwrap_or_default().to_string();

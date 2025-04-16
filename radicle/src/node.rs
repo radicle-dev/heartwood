@@ -757,7 +757,7 @@ impl Seeds {
 
     /// Check if a seed is connected.
     pub fn is_connected(&self, nid: &NodeId) -> bool {
-        self.0.get(nid).map_or(false, |s| s.is_connected())
+        self.0.get(nid).is_some_and(|s| s.is_connected())
     }
 
     /// Return a new seeds object with the given RNG.
@@ -1197,14 +1197,12 @@ impl Handle for Node {
         self.call::<NodeId>(Command::NodeId, DEFAULT_TIMEOUT)?
             .next()
             .ok_or(Error::EmptyResponse)?
-            .map_err(Error::from)
     }
 
     fn listen_addrs(&self) -> Result<Vec<net::SocketAddr>, Error> {
         self.call::<Vec<net::SocketAddr>>(Command::ListenAddrs, DEFAULT_TIMEOUT)?
             .next()
             .ok_or(Error::EmptyResponse)?
-            .map_err(Error::from)
     }
 
     fn is_running(&self) -> bool {
@@ -1222,7 +1220,6 @@ impl Handle for Node {
         self.call::<config::Config>(Command::Config, DEFAULT_TIMEOUT)?
             .next()
             .ok_or(Error::EmptyResponse)?
-            .map_err(Error::from)
     }
 
     fn connect(

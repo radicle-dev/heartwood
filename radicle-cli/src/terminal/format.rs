@@ -144,7 +144,7 @@ impl<'a> Identity<'a> {
     }
 }
 
-impl<'a> fmt::Display for Identity<'a> {
+impl fmt::Display for Identity<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let nid = self.profile.id();
         let alias = self.profile.aliases().alias(nid);

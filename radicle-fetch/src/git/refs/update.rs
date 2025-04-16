@@ -34,7 +34,7 @@ pub struct Applied<'a> {
     pub updated: Vec<RefUpdate>,
 }
 
-impl<'a> Applied<'a> {
+impl Applied<'_> {
     pub fn append(&mut self, other: &mut Self) {
         self.rejected.append(&mut other.rejected);
         self.updated.append(&mut other.updated);

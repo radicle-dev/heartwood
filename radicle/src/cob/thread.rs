@@ -387,7 +387,7 @@ impl<L> Thread<Comment<L>> {
     pub fn replies<'a>(
         &'a self,
         to: &'a CommentId,
-    ) -> impl Iterator<Item = (&CommentId, &Comment<L>)> {
+    ) -> impl Iterator<Item = (&'a CommentId, &'a Comment<L>)> {
         self.comments().filter_map(move |(id, c)| {
             if let Some(reply_to) = c.reply_to {
                 if &reply_to == to {

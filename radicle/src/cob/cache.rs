@@ -50,7 +50,7 @@ pub struct MigrateProgress<'a> {
     pub rows: &'a Progress,
 }
 
-impl<'a> MigrateProgress<'a> {
+impl MigrateProgress<'_> {
     /// If we're done with the migration.
     pub fn is_done(&self) -> bool {
         self.migration.current() == self.migration.total()

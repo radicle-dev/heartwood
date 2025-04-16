@@ -117,7 +117,7 @@ impl<'a> Deref for Remote<'a> {
     }
 }
 
-impl<'a> DerefMut for Remote<'a> {
+impl DerefMut for Remote<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }

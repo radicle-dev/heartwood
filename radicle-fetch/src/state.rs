@@ -608,7 +608,7 @@ pub(crate) struct Cached<'a, S> {
     state: &'a mut FetchState,
 }
 
-impl<'a, S> Cached<'a, S> {
+impl<S> Cached<'_, S> {
     /// Resolves `refname` to its [`ObjectId`] by first looking at the
     /// [`FetchState`] and falling back to the [`Handle::refdb`].
     pub fn refname_to_id<'b, N>(
@@ -656,7 +656,7 @@ impl<'a, S> Cached<'a, S> {
     }
 }
 
-impl<'a, S> RemoteRepository for Cached<'a, S> {
+impl<S> RemoteRepository for Cached<'_, S> {
     fn remote(&self, remote: &RemoteId) -> Result<Remote, storage::refs::Error> {
         // N.b. this is unused so we just delegate to the underlying
         // repository for a correct implementation.
@@ -676,7 +676,7 @@ impl<'a, S> RemoteRepository for Cached<'a, S> {
     }
 }
 
-impl<'a, S> ValidateRepository for Cached<'a, S> {
+impl<S> ValidateRepository for Cached<'_, S> {
     // N.b. we don't verify the `rad/id` of each remote since they may
     // not have a reference to the COB if they have not interacted
     // with it.

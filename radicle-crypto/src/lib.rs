@@ -402,7 +402,7 @@ impl Deref for PublicKey {
 }
 
 #[cfg(feature = "radicle-git-ext")]
-impl<'a> From<&PublicKey> for radicle_git_ext::ref_format::Component<'a> {
+impl From<&PublicKey> for radicle_git_ext::ref_format::Component<'_> {
     fn from(id: &PublicKey) -> Self {
         use radicle_git_ext::ref_format::{Component, RefString};
         let refstr =

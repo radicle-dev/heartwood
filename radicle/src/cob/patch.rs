@@ -332,7 +332,7 @@ pub struct Merged<'a, R> {
     stored: &'a R,
 }
 
-impl<'a, R: WriteRepository> Merged<'a, R> {
+impl<R: WriteRepository> Merged<'_, R> {
     /// Cleanup after merging a patch.
     ///
     /// This removes Git refs relating to the patch, both in the working copy,
@@ -521,7 +521,7 @@ impl Patch {
     pub fn revisions_by<'a>(
         &'a self,
         author: &'a PublicKey,
-    ) -> impl DoubleEndedIterator<Item = (RevisionId, &Revision)> {
+    ) -> impl DoubleEndedIterator<Item = (RevisionId, &'a Revision)> {
         self.revisions()
             .filter(move |(_, r)| (r.author.public_key() == author))
     }
@@ -569,7 +569,7 @@ impl Patch {
 
     /// Get the commit range of this patch.
     pub fn range(&self) -> Result<(git::Oid, git::Oid), git::ext::Error> {
-        return Ok((*self.base(), *self.head()));
+        Ok((*self.base(), *self.head()))
     }
 
     /// Index of latest revision in the revisions list.
@@ -596,7 +596,7 @@ impl Patch {
     }
 
     /// Latest revision by the given author.
-    pub fn latest_by<'a>(&'a self, author: &'a PublicKey) -> Option<(RevisionId, &Revision)> {
+    pub fn latest_by<'a>(&'a self, author: &'a PublicKey) -> Option<(RevisionId, &'a Revision)> {
         self.revisions_by(author).next_back()
     }
 
@@ -2348,7 +2348,7 @@ where
     }
 }
 
-impl<'a, 'g, R, C> Deref for PatchMut<'a, 'g, R, C> {
+impl<R, C> Deref for PatchMut<'_, '_, R, C> {
     type Target = Patch;
 
     fn deref(&self) -> &Self::Target {
@@ -2396,7 +2396,7 @@ impl<'a, R> Deref for Patches<'a, R> {
     }
 }
 
-impl<'a, R> HasRepoId for Patches<'a, R>
+impl<R> HasRepoId for Patches<'_, R>
 where
     R: ReadRepository,
 {
@@ -2481,7 +2481,7 @@ where
     pub fn proposed_by<'b>(
         &'b self,
         who: &'b Did,
-    ) -> Result<impl Iterator<Item = (PatchId, Patch)> + '_, Error> {
+    ) -> Result<impl Iterator<Item = (PatchId, Patch)> + 'b, Error> {
         Ok(self
             .proposed()?
             .filter(move |(_, p)| p.author().id() == who))

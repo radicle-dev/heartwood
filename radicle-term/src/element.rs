@@ -109,7 +109,7 @@ pub trait Element: fmt::Debug + Send + Sync {
     }
 }
 
-impl<'a> Element for Box<dyn Element + 'a> {
+impl Element for Box<dyn Element + '_> {
     fn size(&self, parent: Constraint) -> Size {
         self.deref().size(parent)
     }

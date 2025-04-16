@@ -328,7 +328,7 @@ pub struct FollowPolicies<'a> {
     inner: sql::CursorWithOwnership<'a>,
 }
 
-impl<'a> Iterator for FollowPolicies<'a> {
+impl Iterator for FollowPolicies<'_> {
     type Item = FollowPolicy;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -355,7 +355,7 @@ pub struct SeedPolicies<'a> {
     inner: sql::CursorWithOwnership<'a>,
 }
 
-impl<'a> Iterator for SeedPolicies<'a> {
+impl Iterator for SeedPolicies<'_> {
     type Item = SeedPolicy;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -376,7 +376,7 @@ pub struct NodeAliasIter<'a> {
     inner: sql::CursorWithOwnership<'a>,
 }
 
-impl<'a> NodeAliasIter<'a> {
+impl NodeAliasIter<'_> {
     fn parse_row(row: sql::Row) -> Result<(NodeId, Alias), Error> {
         let nid = row.try_read::<NodeId, _>("id")?;
         let alias = row.try_read::<Alias, _>("alias")?;
@@ -384,7 +384,7 @@ impl<'a> NodeAliasIter<'a> {
     }
 }
 
-impl<'a> Iterator for NodeAliasIter<'a> {
+impl Iterator for NodeAliasIter<'_> {
     type Item = Result<(NodeId, Alias), Error>;
 
     fn next(&mut self) -> Option<Self::Item> {

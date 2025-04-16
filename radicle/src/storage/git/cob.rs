@@ -170,7 +170,7 @@ impl cob::object::Storage for Repository {
             .backend
             .find_reference(git::refs::storage::cob(identifier, typename, object_id).as_str())?;
 
-        reference.delete().map_err(Self::RemoveError::from)
+        reference.delete()
     }
 }
 
@@ -190,9 +190,9 @@ impl<'a, R> DraftStore<'a, R> {
     }
 }
 
-impl<'a, R: storage::WriteRepository> cob::Store for DraftStore<'a, R> {}
+impl<R: storage::WriteRepository> cob::Store for DraftStore<'_, R> {}
 
-impl<'a, R: storage::WriteRepository> change::Storage for DraftStore<'a, R> {
+impl<R: storage::WriteRepository> change::Storage for DraftStore<'_, R> {
     type StoreError = <git2::Repository as change::Storage>::StoreError;
     type LoadError = <git2::Repository as change::Storage>::LoadError;
 
@@ -222,7 +222,7 @@ impl<'a, R: storage::WriteRepository> change::Storage for DraftStore<'a, R> {
     }
 }
 
-impl<'a, R: storage::ReadRepository> SignRepository for DraftStore<'a, R> {
+impl<R: storage::ReadRepository> SignRepository for DraftStore<'_, R> {
     fn sign_refs<G: crypto::Signer>(
         &self,
         signer: &G,
@@ -235,7 +235,7 @@ impl<'a, R: storage::ReadRepository> SignRepository for DraftStore<'a, R> {
     }
 }
 
-impl<'a, R: storage::RemoteRepository> RemoteRepository for DraftStore<'a, R> {
+impl<R: storage::RemoteRepository> RemoteRepository for DraftStore<'_, R> {
     fn remote(&self, id: &RemoteId) -> Result<Remote<Verified>, storage::refs::Error> {
         self.repo.remote(id)
     }
@@ -249,13 +249,13 @@ impl<'a, R: storage::RemoteRepository> RemoteRepository for DraftStore<'a, R> {
     }
 }
 
-impl<'a, R: storage::ValidateRepository> ValidateRepository for DraftStore<'a, R> {
+impl<R: storage::ValidateRepository> ValidateRepository for DraftStore<'_, R> {
     fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Validations, Error> {
         self.repo.validate_remote(remote)
     }
 }
 
-impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
+impl<R: storage::ReadRepository> ReadRepository for DraftStore<'_, R> {
     fn id(&self) -> identity::RepoId {
         self.repo.id()
     }
@@ -364,7 +364,7 @@ impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
     }
 }
 
-impl<'a, R: storage::WriteRepository> cob::object::Storage for DraftStore<'a, R> {
+impl<R: storage::WriteRepository> cob::object::Storage for DraftStore<'_, R> {
     type ObjectsError = ObjectsError;
     type TypesError = git::ext::Error;
     type UpdateError = git2::Error;

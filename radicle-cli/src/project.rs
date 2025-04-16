@@ -16,7 +16,7 @@ pub struct SetupRemote<'a> {
     pub repo: &'a git::Repository,
 }
 
-impl<'a> SetupRemote<'a> {
+impl SetupRemote<'_> {
     /// Run the setup for the given peer.
     pub fn run(
         &self,

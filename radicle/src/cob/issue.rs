@@ -306,7 +306,7 @@ impl Issue {
     pub fn replies_to<'a>(
         &'a self,
         to: &'a CommentId,
-    ) -> impl Iterator<Item = (&CommentId, &thread::Comment)> {
+    ) -> impl Iterator<Item = (&'a CommentId, &'a thread::Comment)> {
         self.thread.replies(to)
     }
 
@@ -576,7 +576,7 @@ pub struct IssueMut<'a, 'g, R, C> {
     cache: &'g mut C,
 }
 
-impl<'a, 'g, R, C> std::fmt::Debug for IssueMut<'a, 'g, R, C> {
+impl<R, C> std::fmt::Debug for IssueMut<'_, '_, R, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("IssueMut")
             .field("id", &self.id)
@@ -585,7 +585,7 @@ impl<'a, 'g, R, C> std::fmt::Debug for IssueMut<'a, 'g, R, C> {
     }
 }
 
-impl<'a, 'g, R, C> IssueMut<'a, 'g, R, C>
+impl<R, C> IssueMut<'_, '_, R, C>
 where
     R: WriteRepository + cob::Store,
     C: cob::cache::Update<Issue>,
@@ -719,7 +719,7 @@ where
     }
 }
 
-impl<'a, 'g, R, C> Deref for IssueMut<'a, 'g, R, C> {
+impl<R, C> Deref for IssueMut<'_, '_, R, C> {
     type Target = Issue;
 
     fn deref(&self) -> &Self::Target {
@@ -739,7 +739,7 @@ impl<'a, R> Deref for Issues<'a, R> {
     }
 }
 
-impl<'a, R> HasRepoId for Issues<'a, R>
+impl<R> HasRepoId for Issues<'_, R>
 where
     R: ReadRepository,
 {

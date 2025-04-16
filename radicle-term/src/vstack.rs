@@ -25,7 +25,7 @@ enum Row<'a> {
     Dividier,
 }
 
-impl<'a> Row<'a> {
+impl Row<'_> {
     fn width(&self, c: Constraint) -> usize {
         match self {
             Self::Element(e) => e.columns(c),
@@ -140,7 +140,7 @@ impl<'a> VStack<'a> {
     }
 }
 
-impl<'a> Element for VStack<'a> {
+impl Element for VStack<'_> {
     fn size(&self, parent: Constraint) -> Size {
         self.outer(parent)
     }
