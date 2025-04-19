@@ -22,8 +22,7 @@ main() {
   fi
 
   rev="$(git rev-parse --short HEAD)"
-  tempdir="$(mktemp -d)"
-  gitarchive="$tempdir/heartwood-$rev.tar.gz"
+  gitarchive="build/heartwood-$rev.tar.gz"
   keypath="$(rad path)/keys/radicle.pub"
   version="$(build/version)"
   image=radicle-build-$version
@@ -73,7 +72,6 @@ main() {
   done
 
   # Remove build artifacts that aren't needed anymore.
-  rm -f $gitarchive
   podman rm radicle-build-container > /dev/null
   podman rmi --ignore localhost/$image
 }
