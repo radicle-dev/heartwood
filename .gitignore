@@ -1,3 +1,4 @@
 /target
 /radicle-cli/target
 /build/artifacts
+/build/*.tar.gz
