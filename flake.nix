@@ -2,17 +2,20 @@
   description = "Radicle";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/release-24.11";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/release-24.11";
+    nixpkgs-stable.url = "github:NixOS/nixpkgs/release-24.11";
+    nixpkgs.follows = "nixpkgs-stable";
 
-    crane = {
-      url = "github:ipetkov/crane";
+    crane.url = "github:ipetkov/crane";
+
+    pre-commit-hooks = {
+      url = "github:cachix/git-hooks.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-      };
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     flake-utils.url = "github:numtide/flake-utils";
@@ -35,7 +38,7 @@
     advisory-db,
     rust-overlay,
     ...
-  }:
+  } @ inputs:
     flake-utils.lib.eachDefaultSystem (system: let
       lib = nixpkgs.lib;
       pkgs = import nixpkgs {
@@ -43,8 +46,8 @@
         overlays = [(import rust-overlay)];
       };
 
-      rustToolChain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
-      craneLib = (crane.mkLib pkgs).overrideToolchain rustToolChain;
+      rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+      craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
       srcFilters = path: type:
         builtins.any (suffix: lib.hasSuffix suffix path) [
@@ -105,6 +108,23 @@
 
       # Set of checks that are run: `nix flake check`
       checks = {
+        pre-commit-check = inputs.pre-commit-hooks.lib.${system}.run {
+          src = ./.;
+          settings.rust.check.cargoDeps = pkgs.rustPlatform.importCargoLock {lockFile = ./Cargo.lock;};
+          hooks = {
+            alejandra.enable = true;
+            rustfmt.enable = true;
+            cargo-check.enable = true;
+            clippy = {
+              enable = true;
+              settings.denyWarnings = true;
+              packageOverrides.cargo = rustToolchain;
+              packageOverrides.clippy = rustToolchain;
+            };
+            shellcheck.enable = true;
+          };
+        };
+
         # Build the crate as part of `nix flake check` for convenience
         inherit (self.packages.${system}) radicle;
 
@@ -230,6 +250,9 @@
       };
 
       devShells.default = craneLib.devShell {
+        inherit (self.checks.${system}.pre-commit-check) shellHook;
+        buildInputs = self.checks.${system}.pre-commit-check.enabledPackages;
+
         # Extra inputs can be added here; cargo and rustc are provided by default.
         packages = with pkgs; [
           cargo-audit
@@ -241,7 +264,7 @@
           sqlite
         ];
 
-        env.RUST_SRC_PATH = "${rustToolChain}/lib/rustlib/src/rust/library";
+        env.RUST_SRC_PATH = "${rustToolchain}/lib/rustlib/src/rust/library";
       };
     });
 }
