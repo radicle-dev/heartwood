@@ -7,7 +7,8 @@ main() {
   # Set minimal locale.
   export LC_ALL=C
   # Set source date. This is honored by `asciidoctor` and other tools.
-  export SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
+  SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
+  export SOURCE_DATE_EPOCH
 
   if ! command -v rad > /dev/null; then
     echo "fatal: rad is not installed" >&2 ; exit 1
@@ -21,7 +22,7 @@ main() {
     echo "fatal: sha256sum is not installed" >&2 ; exit 1
   fi
 
-  rev="$(git rev-parse --short HEAD)"
+  rev="$(git rev-parse HEAD)"
   gitarchive="build/heartwood-$rev.tar.gz"
   keypath="$(rad path)/keys/radicle.pub"
   version="$(build/version)"
@@ -42,38 +43,39 @@ main() {
     --build-arg SOURCE_DATE_EPOCH \
     --build-arg TZ \
     --build-arg LC_ALL \
-    --build-arg RADICLE_VERSION=$version \
-    --build-arg GIT_HEAD=$rev \
-    --arch amd64 --tag $image -f ./build/Dockerfile - < $gitarchive
+    --build-arg "RADICLE_VERSION=$version" \
+    --build-arg "GIT_HEAD=$rev" \
+    --arch amd64 --tag "$image" -f ./build/Dockerfile - < "$gitarchive"
 
   echo "Creating container (radicle-build-container).."
-  podman --cgroup-manager=cgroupfs create --ulimit=host --replace --name radicle-build-container $image
+  podman --cgroup-manager=cgroupfs create --ulimit=host --replace --name radicle-build-container "$image"
 
   # Copy build artifacts to output folder.
   outdir=build/artifacts
   mkdir -p $outdir
   podman cp --overwrite radicle-build-container:/builds/. $outdir/
 
-  for target in $(cat build/TARGETS); do
+  while IFS= read -r target
+  do
     echo "Signing artifacts for $target.."
 
     filename="radicle-$version-$target.tar.xz"
     filepath="$outdir/$filename"
 
     # Output SHA256 digest of archive.
-    checksum="$(cd $outdir && sha256sum $filename)"
+    checksum="$(cd $outdir && sha256sum "$filename")"
     echo "Checksum of $filepath is $(echo "$checksum" | cut -d' ' -f1)"
-    echo "$checksum" > $filepath.sha256
+    echo "$checksum" > "${filepath}.sha256"
 
     # Sign archive and verify archive.
-    rm -f $filepath.sig # Delete existing signature
-    ssh-keygen -Y sign -n file -f $keypath $filepath
-    ssh-keygen -Y check-novalidate -n file -s $filepath.sig < $filepath
-  done
+    rm -f "${filepath}.sig" # Delete existing signature
+    ssh-keygen -Y sign -n file -f "$keypath" "$filepath"
+    ssh-keygen -Y check-novalidate -n file -s "$filepath.sig" < "$filepath"
+  done < build/TARGETS
 
   # Remove build artifacts that aren't needed anymore.
   podman rm radicle-build-container > /dev/null
-  podman rmi --ignore localhost/$image
+  podman rmi --ignore "localhost/$image"
 }
 
 # Run build.

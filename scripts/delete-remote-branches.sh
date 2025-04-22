@@ -20,7 +20,7 @@ for branch in $(git branch -r --format "%(refname:short)"); do
   # Extract the branch name without the "$remote/" prefix.
   branch=${branch#"$remote/"}
   # Never delete the master branch.
-  if [ "$branch" == "master" ]; then
+  if [ "$branch" = "master" ]; then
     continue
   fi
 

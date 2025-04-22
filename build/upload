@@ -17,22 +17,23 @@ main() {
   destination="/mnt/radicle/files/releases/$version"
 
   # Create remote folder.
-  ssh -i $SSH_KEY $SSH_ADDRESS mkdir -p $destination
+  ssh -i "$SSH_KEY" "$SSH_ADDRESS" mkdir -p "$destination"
   # Copy files over.
-  scp -i $SSH_KEY build/artifacts/radicle-$version* $SSH_ADDRESS:$destination
-  scp -i $SSH_KEY build/artifacts/radicle.json $SSH_ADDRESS:$destination
-  scp -i $SSH_KEY build/heartwood-$version.tar.gz $SSH_ADDRESS:$destination
+  scp -i "$SSH_KEY" "build/artifacts/radicle-$version"* "$SSH_ADDRESS:$destination"
+  scp -i "$SSH_KEY" build/artifacts/radicle.json "$SSH_ADDRESS:$destination"
+  scp -i "$SSH_KEY" "build/heartwood-$version.tar.gz" "$SSH_ADDRESS:$destination"
 
-  for target in $(cat build/TARGETS); do
+  while IFS= read -r target
+  do
     archive=$destination/radicle-$version-$target.tar.xz
     symlink=$destination/radicle-$target.tar.xz
 
     echo "Creating symlinks for $target.."
 
-    ssh -i $SSH_KEY $SSH_ADDRESS ln -snf $archive $symlink
-    ssh -i $SSH_KEY $SSH_ADDRESS ln -snf $archive.sig $symlink.sig
-    ssh -i $SSH_KEY $SSH_ADDRESS ln -snf $archive.sha256 $symlink.sha256
-  done
+    ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf "$archive" "$symlink"
+    ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf "$archive.sig" "$symlink.sig"
+    ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf "$archive.sha256" "$symlink.sha256"
+  done < build/TARGETS
 
   # TODO(cloudhead): Don't pass `--tags` when we have canonical refs.
   echo "Pushing tags.."

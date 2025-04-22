@@ -19,8 +19,8 @@ if [ "$signing_key" != "$(rad self --ssh-key)" ]; then
 fi
 
 printf "\n"
-printf "Tag the above commit with \033[35m$tag\033[0m, using \033[35m$(rad self --did)\033[0m? [y/N] "
-read confirmation
+printf "Tag the above commit with \033[35m%s\033[0m, using \033[35m$(rad self --did)\033[0m? [y/N] " "$tag"
+read -r confirmation
 rad auth
 
 case "$confirmation" in
