@@ -528,7 +528,7 @@ fn patch_update<G: Signer>(
 
     push_ref(src, &dst, force, working, stored.raw())?;
 
-    let Ok(mut patch) = patches.get_mut(&patch_id) else {
+    let Ok(Some(patch)) = patches.get(&patch_id) else {
         return Err(Error::NotFound(patch_id));
     };
 
@@ -536,10 +536,13 @@ fn patch_update<G: Signer>(
     if patch.revisions().any(|(_, r)| *r.head() == commit.id()) {
         return Ok(None);
     }
+
+    let latest = patch.latest();
+
     let message = term::patch::get_update_message(
         opts.message,
         &stored.backend,
-        patch.latest().1,
+        latest.1,
         &commit.id().into(),
     )?;
 
@@ -550,6 +553,11 @@ fn patch_update<G: Signer>(
     } else {
         stored.merge_base(&target, &head)?
     };
+
+    let Ok(mut patch) = patches.get_mut(&patch_id) else {
+        return Err(Error::NotFound(patch_id));
+    };
+
     let revision = patch.update(message, base, head, signer)?;
 
     eprintln!(
@@ -567,6 +575,35 @@ fn patch_update<G: Signer>(
     // it'll seem like the patch is "empty", because the changes are already in the base branch.
     if base == head && patch.is_open() {
         patch_merge(patch, revision, head, working, signer)?;
+    } else {
+        let range_diff = term::format::command(if &base == latest.1.base() {
+            format!("git range-diff {} {} {}", base, latest.1.head(), head)
+        } else {
+            format!(
+                "git range-diff {}..{} {}..{}",
+                latest.1.base(),
+                latest.1.head(),
+                base,
+                head
+            )
+        });
+
+        let prev = {
+            let latest_oid = git::Oid::from(latest.0);
+            if latest_oid == *oid {
+                String::new()
+            } else {
+                format!(
+                    " {}",
+                    term::format::tertiary(term::format::cob(&cob::ObjectId::from(latest_oid)))
+                )
+            }
+        };
+
+        eprintln!(
+            "To compare against your previous revision{}, run:\n\n   {}\n",
+            prev, range_diff
+        );
     }
 
     Ok(Some(ExplorerResource::Patch { id: patch_id }))
