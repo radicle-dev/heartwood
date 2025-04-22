@@ -25,9 +25,12 @@ if ! command -v sed > /dev/null; then
 fi
 
 function removeImgTags {
-  local html="$(cat)"
-  local imgTags="$(echo "$html" | pcregrep -M '<img [^>]*>')"
+  local html
+  html="$(cat)"
+  local imgTags
+  imgTags="$(echo "$html" | pcregrep -M '<img [^>]*>')"
 
+  # shellcheck disable=SC2066
   for imgTag in "$imgTags"; do
     html="$(echo "$html" | sed -z "s@$imgTag@@")"
   done

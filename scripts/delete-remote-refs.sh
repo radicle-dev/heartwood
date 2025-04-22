@@ -16,14 +16,14 @@ if [ "$REMOTE" = "$(rad self --nid)" ]; then
   exit 1
 fi
 
-cd $RAD_HOME/storage/$REPO
+cd "$RAD_HOME/storage/$REPO"
 
 refs=$(git for-each-ref --format="%(refname)")
 pattern="refs/namespaces/$2/refs/*"
 
 for ref in $refs; do
   case "$ref" in
-    $pattern)
+    "$pattern" )
       git update-ref -d "$ref"
       printf 'Deleted %s\n' "$ref"
       ;;

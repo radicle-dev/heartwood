@@ -6,4 +6,4 @@ fi
 # Remove `v` prefix from version.
 version=${version#v}
 
-echo $version
+echo "$version"

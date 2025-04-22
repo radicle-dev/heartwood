@@ -10,6 +10,7 @@ name="$(dpkg-parsechangelog -SSource)"
 version="$(dpkg-parsechangelog -SVersion)"
 
 # Get upstream version: everything before the last dash.
+# shellcheck disable=SC2001
 uv="$(echo "$version" | sed 's/-[^-]*$//')"
 orig="${name}_${uv}.orig.tar.xz"
 

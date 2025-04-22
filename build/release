@@ -23,12 +23,12 @@ main() {
   fi
 
   printf "Releasing Radicle %s? [y/N] " "$version"
-  read confirmation
+  read -r confirmation
 
   case "$confirmation" in
     [Yy]*)
       echo "Creating 'latest' symlink.."
-      ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf /mnt/radicle/files/releases/$version /mnt/radicle/files/releases/latest ;;
+      ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf "/mnt/radicle/files/releases/$version" /mnt/radicle/files/releases/latest ;;
     *)
       echo "Operation aborted."
       exit 1 ;;
