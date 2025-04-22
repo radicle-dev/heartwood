@@ -69,6 +69,10 @@ $ git commit -am "Add MIT License"
 ``` ~alice (stderr)
 $ git push -f
 ✓ Patch 6c61ef1 updated to revision 93915b9afa94a9dc4f52f12cdf077d4613ea3eb3
+To compare against your previous revision 6c61ef1, run:
+
+   git range-diff f2de534[..] 717c900[..] 1cc8cd9[..]
+
 ✓ Synced with 2 node(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    717c900..1cc8cd9  prepare-license -> patches/6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b

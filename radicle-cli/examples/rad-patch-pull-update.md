@@ -83,6 +83,10 @@ Bob then updates the patch.
 $ git commit --allow-empty -m "Bob's commit #2" -q
 $ git push rad -o sync -o patch.message="Updated."
 ✓ Patch 55b9721 updated to revision f91e056da05b2d9a58af1160c76245bc3debf7a8
+To compare against your previous revision 55b9721, run:
+
+   git range-diff f2de534[..] bdcdb30[..] cad2666[..]
+
 ✓ Synced with 1 node(s)
 To rad://zhbMU4DUXrzB8xT6qAJh6yZ7bFMK/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
    bdcdb30..cad2666  bob/feature -> patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb

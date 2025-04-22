@@ -33,6 +33,10 @@ $ git commit -v -m "Define the LICENSE"
 ``` (stderr)
 $ git push -f -o patch.message="Add License"
 ✓ Patch 89f7afb updated to revision 5d78dd5376453e25df5988ec86951c99cb73742c
+To compare against your previous revision 89f7afb, run:
+
+   git range-diff f2de534[..] 03c02af[..] 8945f61[..]
+
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    03c02af..8945f61  changes -> patches/89f7afb1511b976482b21f6b2f39aef7f4fb88a2
 ```

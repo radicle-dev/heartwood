@@ -63,6 +63,10 @@ $ git commit -m "Use markdown for requirements"
 ``` (stderr)
 $ git push rad -o no-sync -o patch.message="Use markdown for requirements"
 ✓ Patch e4934b6 updated to revision 9d62420e779e5cfe1dc02c51eddec9a0907aa844
+To compare against your previous revision 773b9aa, run:
+
+   git range-diff f2de534[..] 27857ec[..] f567f69[..]
+
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new branch]      patch/e4934b6 -> patches/e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46
 ```
