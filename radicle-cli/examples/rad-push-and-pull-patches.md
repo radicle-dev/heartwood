@@ -33,6 +33,10 @@ $ git checkout patch/d004b67 -q
 $ git commit --allow-empty -m "Changes #2" -q
 $ git push
 ✓ Patch d004b67 updated to revision 2eb705c3da98e05c083df15be5b1bd6856a0bd77
+To compare against your previous revision d004b67, run:
+
+   git range-diff f2de534[..] 8d5f1ba[..] c2aaf1c[..]
+
 ✓ Synced with 1 node(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new branch]      patch/d004b67 -> patches/d004b67355456c46de10c0d287e4a791ad1a6945
@@ -52,6 +56,10 @@ $ git checkout - -q
 $ git commit --allow-empty -m "Changes #3" -q
 $ git push
 ✓ Patch d004b67 updated to revision 7b5015a8dac188bb0d44a334aa68a51298750b07
+To compare against your previous revision d004b67, run:
+
+   git range-diff f2de534[..] 8d5f1ba[..] d9f8caf[..]
+
 ✓ Synced with 1 node(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    c2aaf1c..d9f8caf  patch/d004b67 -> patches/d004b67355456c46de10c0d287e4a791ad1a6945

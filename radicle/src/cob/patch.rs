@@ -2609,6 +2609,67 @@ where
     }
 }
 
+/// Models a comparison between two commit ranges,
+/// commonly obtained from two revisions (likely of the same patch).
+/// This can be used to generate a `git range-diff` command.
+/// See <https://git-scm.com/docs/git-range-diff>.
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+pub struct RangeDiff {
+    old: (git::Oid, git::Oid),
+    new: (git::Oid, git::Oid),
+}
+
+impl RangeDiff {
+    const COMMAND: &str = "git";
+    const SUBCOMMAND: &str = "range-diff";
+
+    pub fn new(old: &Revision, new: &Revision) -> Self {
+        Self {
+            old: old.range(),
+            new: new.range(),
+        }
+    }
+
+    pub fn to_command(&self) -> String {
+        let range = if self.has_same_base() {
+            format!("{} {} {}", self.old.0, self.old.1, self.new.1)
+        } else {
+            format!(
+                "{}..{} {}..{}",
+                self.old.0, self.old.1, self.new.0, self.new.1,
+            )
+        };
+
+        Self::COMMAND.to_string() + " " + Self::SUBCOMMAND + " " + &range
+    }
+
+    fn has_same_base(&self) -> bool {
+        self.old.0 == self.new.0
+    }
+}
+
+impl From<RangeDiff> for std::process::Command {
+    fn from(range_diff: RangeDiff) -> Self {
+        let mut command = std::process::Command::new(RangeDiff::COMMAND);
+
+        command.arg(RangeDiff::SUBCOMMAND);
+
+        if range_diff.has_same_base() {
+            command.args([
+                range_diff.old.0.to_string(),
+                range_diff.old.1.to_string(),
+                range_diff.new.1.to_string(),
+            ]);
+        } else {
+            command.args([
+                format!("{}..{}", range_diff.old.0, range_diff.old.1),
+                format!("{}..{}", range_diff.new.0, range_diff.new.1),
+            ]);
+        }
+        command
+    }
+}
+
 /// Helpers for de/serialization of patch data types.
 mod ser {
     use std::collections::{BTreeMap, BTreeSet};

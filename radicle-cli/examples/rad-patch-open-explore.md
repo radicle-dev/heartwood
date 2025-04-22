@@ -19,6 +19,10 @@ If we update the patch, the URL is also output.
 $ git commit --amend --allow-empty -q -m "Other changes"
 $ git push -f
 ✓ Patch acab0ec updated to revision f7a830d829d0cdf398f63a32b0d5ee31f08e21ab
+To compare against your previous revision acab0ec, run:
+
+   git range-diff f2de534[..] e12525d[..] b2b6432[..]
+
 ✓ Synced with 1 node(s)
 
   https://app.radicle.xyz/nodes/[..]/rad:z3yXbb1sR6UG6ixxV2YF9jUP7ABra/patches/acab0ec777a97d013f30be5d5d1aec32562ecb02

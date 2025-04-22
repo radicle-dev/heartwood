@@ -97,6 +97,9 @@ pub enum Error {
     /// Patch not found in store.
     #[error("patch `{0}` not found")]
     NotFound(patch::PatchId),
+    /// Revision not found in store.
+    #[error("revision `{0}` not found")]
+    RevisionNotFound(patch::RevisionId),
     /// Patch is empty.
     #[error("patch commits are already included in the base branch")]
     EmptyPatch,
@@ -528,7 +531,7 @@ fn patch_update<G: Signer>(
 
     push_ref(src, &dst, force, working, stored.raw())?;
 
-    let Ok(mut patch) = patches.get_mut(&patch_id) else {
+    let Ok(Some(patch)) = patches.get(&patch_id) else {
         return Err(Error::NotFound(patch_id));
     };
 
@@ -536,10 +539,14 @@ fn patch_update<G: Signer>(
     if patch.revisions().any(|(_, r)| *r.head() == commit.id()) {
         return Ok(None);
     }
+
+    let (latest_id, latest) = patch.latest();
+    let latest = latest.clone();
+
     let message = term::patch::get_update_message(
         opts.message,
         &stored.backend,
-        patch.latest().1,
+        &latest,
         &commit.id().into(),
     )?;
 
@@ -550,13 +557,18 @@ fn patch_update<G: Signer>(
     } else {
         stored.merge_base(&target, &head)?
     };
-    let revision = patch.update(message, base, head, signer)?;
+
+    let mut patch_mut = patch::PatchMut::new(patch_id, patch, &mut patches);
+    let revision = patch_mut.update(message, base, head, signer)?;
+    let Some(revision) = patch_mut.revision(&revision).cloned() else {
+        return Err(Error::RevisionNotFound(revision));
+    };
 
     eprintln!(
         "{} Patch {} updated to revision {}",
         term::format::positive("✓"),
         term::format::tertiary(term::format::cob(&patch_id)),
-        term::format::dim(revision)
+        term::format::dim(revision.id())
     );
 
     // In this case, the patch was already merged via git, and pushed to storage.
@@ -565,8 +577,16 @@ fn patch_update<G: Signer>(
     // This can happen if for eg. a patch commit is amended, the patch branch is merged
     // and pushed, but the patch hasn't yet been updated. On push to the patch branch,
     // it'll seem like the patch is "empty", because the changes are already in the base branch.
-    if base == head && patch.is_open() {
-        patch_merge(patch, revision, head, working, signer)?;
+    if base == head && patch_mut.is_open() {
+        patch_merge(patch_mut, revision.id(), head, working, signer)?;
+    } else {
+        eprintln!(
+            "To compare against your previous revision {}, run:\n\n   {}\n",
+            term::format::tertiary(term::format::cob(&cob::ObjectId::from(git::Oid::from(
+                latest_id
+            )))),
+            patch::RangeDiff::new(&latest, &revision).to_command()
+        );
     }
 
     Ok(Some(ExplorerResource::Patch { id: patch_id }))

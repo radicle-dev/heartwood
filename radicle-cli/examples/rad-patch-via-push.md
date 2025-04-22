@@ -113,6 +113,10 @@ $ git commit -a -m "Improve code" -q --allow-empty
 ``` (stderr)
 $ git push rad
 ✓ Patch 9580891 updated to revision d7040c6c97629c2b94f86fb639bebbff5de39697
+To compare against your previous revision 9580891, run:
+
+   git range-diff f2de534[..] 8b0ea80[..] 02bef3f[..]
+
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    8b0ea80..02bef3f  feature/2 -> patches/95808913573cead52ad7b42c7b475260ec45c4b2
 ```
@@ -201,6 +205,10 @@ use `--force` to force the update.
 ``` (stderr)
 $ git push --force
 ✓ Patch 9580891 updated to revision 670d02794aa05afd6e0851f4aa848bc87c4712c7
+To compare against your previous revision d7040c6, run:
+
+   git range-diff f2de534[..] 02bef3f[..] 9304dbc[..]
+
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + 02bef3f...9304dbc feature/2 -> patches/95808913573cead52ad7b42c7b475260ec45c4b2 (forced update)
 ```

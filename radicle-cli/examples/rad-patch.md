@@ -127,6 +127,10 @@ $ git commit --message "Add README, just for the fun"
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun"
 ✓ Patch aa45913 updated to revision 6e5a3b7b2ce27b32e7ccc2f0b3f4594897dde638
+To compare against your previous revision aa45913, run:
+
+   git range-diff f2de534[..] 3e674d1[..] 27857ec[..]
+
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    3e674d1..27857ec  flux-capacitor-power -> patches/aa45913e757cacd46972733bddee5472c78fa32a
 ```
