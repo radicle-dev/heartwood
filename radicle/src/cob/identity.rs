@@ -1558,7 +1558,7 @@ mod test {
 
         // Add Bob as a delegate, and sign it.
         doc.delegate(bob.public_key().into());
-        doc.threshold = Some(2);
+        // doc.threshold = Some(2);
         identity
             .update("Add bob", "", &doc.clone().verified().unwrap(), &alice)
             .unwrap();

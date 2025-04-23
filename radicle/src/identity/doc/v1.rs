@@ -31,11 +31,11 @@ pub(crate) const IDENTITY_VERSION: Version = Version(unsafe { NonZeroU32::new_un
 /// serializing an unverified document, while also making sure that any document
 /// that is deserialized is verified.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename = "1", rename_all = "camelCase")]
 pub struct RawDoc {
     /// Version of the identity document.
-    #[serde(default = "super::missing_version")]
-    version: Version,
+    //#[serde(default = "super::missing_version")]
+    //version: Version,
     /// The payload section.
     pub payload: BTreeMap<PayloadId, Payload>,
     /// The delegates section.
@@ -58,7 +58,6 @@ impl RawDoc {
     ///  - [`RawDoc::threshold`]: ensure that it is in the range `[1, delegates.len()]`.
     pub fn verified(self) -> Result<Doc, DocError> {
         let RawDoc {
-            version,
             payload,
             delegates,
             threshold,
@@ -67,7 +66,7 @@ impl RawDoc {
         let delegates = Delegates::new(delegates)?;
         let threshold = Threshold::new(threshold, &delegates)?;
         Ok(Doc {
-            version,
+            version: IDENTITY_VERSION,
             payload,
             delegates,
             threshold,
@@ -184,6 +183,8 @@ impl Doc {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
+    use crate::identity::VersionedRawDoc;
+
     use super::*;
 
     use nonempty::NonEmpty;
@@ -237,17 +238,16 @@ mod test {
                 .parse::<Did>()
                 .unwrap(),
         ];
+
+        let expected_doc = RawDoc {
+            payload: payload.clone(),
+            delegates: delegates.clone(),
+            threshold: 1,
+            visibility: Visibility::Public,
+        };
+
         // And this is the expected outcome of the deserialization
-        assert_eq!(
-            doc,
-            RawDoc {
-                version: IDENTITY_VERSION,
-                payload: payload.clone(),
-                delegates: delegates.clone(),
-                threshold: 1,
-                visibility: Visibility::Public,
-            }
-        );
+        assert_eq!(doc, expected_doc);
 
         // Deserializing into the verified document should also succeed.
         let verified = serde_json::from_str::<Doc>(&v1.to_string()).unwrap();
@@ -262,5 +262,9 @@ mod test {
                 visibility: Visibility::Public,
             }
         );
+
+        let versioned = serde_json::from_str::<VersionedRawDoc>(&v1.to_string()).unwrap();
+
+        assert_eq!(versioned, VersionedRawDoc::V1(expected_doc));
     }
 }

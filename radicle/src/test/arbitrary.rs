@@ -15,7 +15,7 @@ use crate::git::canonical::rules::RawRules;
 use crate::identity::doc::Visibility;
 use crate::identity::project::ProjectName;
 use crate::identity::{
-    doc::{Doc, DocAt, RawDoc, RepoId},
+    doc::{Doc, DocAt, RawDoc, RepoId, VersionedRawDoc},
     project::Project,
     Did,
 };
@@ -139,13 +139,19 @@ impl Arbitrary for Visibility {
     }
 }
 
-impl Arbitrary for RawDoc {
+impl Arbitrary for VersionedRawDoc {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let proj = Project::arbitrary(g);
         let delegate = Did::arbitrary(g);
         let visibility = Visibility::arbitrary(g);
 
-        Self::new(proj, vec![delegate], 1, RawRules::default(), visibility)
+        VersionedRawDoc::V2(RawDoc::new(
+            proj,
+            vec![delegate],
+            1,
+            RawRules::default(),
+            visibility,
+        ))
     }
 }
 
