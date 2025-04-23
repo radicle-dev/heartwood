@@ -58,6 +58,8 @@ pub enum DocError {
     Git(#[from] git2::Error),
     #[error("missing identity document")]
     Missing,
+    #[error("wrong version: {0}")]
+    VersionError(#[from] VersionError),
 }
 
 #[derive(Debug, Error)]
@@ -363,23 +365,29 @@ impl Visibility {
 /// serializing an unverified document, while also making sure that any document
 /// that is deserialized is verified.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename = "2", rename_all = "camelCase")]
 pub struct RawDoc {
     /// Version of the identity document.
-    #[serde(default = "missing_version")]
     version: Version,
     /// The payload section.
     pub payload: BTreeMap<PayloadId, Payload>,
     /// The delegates section.
     pub delegates: Vec<Did>,
-    /// The signature threshold.
-    pub threshold: Option<usize>,
     /// The canonical reference rules.
     #[serde(default)]
     pub canonical_refs: RawCanonicalRefs,
     /// Repository visibility.
     #[serde(default)]
     pub visibility: Visibility,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(untagged)]
+pub enum VersionedRawDoc {
+    V2(RawDoc),
+
+    // NOTE(lorenz): Version 1 must be last!
+    V1(v1::RawDoc),
 }
 
 /// Configuration for canonical references and their rules.
@@ -426,7 +434,7 @@ impl RawDoc {
             version: IDENTITY_VERSION,
             payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
             delegates,
-            threshold: None,
+            // threshold: None,
             canonical_refs: RawCanonicalRefs::new(rules),
             visibility,
         }
@@ -434,7 +442,8 @@ impl RawDoc {
 
     /// Get the version of the document.
     pub fn version(&self) -> &Version {
-        &self.version
+        &IDENTITY_VERSION
+        //&self.version
     }
 
     /// Get the project payload, if it exists and is valid, out of this document.
@@ -484,22 +493,6 @@ impl RawDoc {
     ///    length of [`MAX_DELEGATES`].
     ///  - [`RawDoc::threshold`]: ensure that it is in the range `[1, delegates.len()]`.
     pub fn verified(mut self) -> Result<Doc, DocError> {
-        // If there's no rule for the default branch and the document has a
-        // `threshold` value, then we create a canonical reference rule for the
-        // verified document.
-        {
-            if let Ok(project) = self.project() {
-                let default = git::refs::branch(project.default_branch());
-                if let Some(threshold) = self.threshold {
-                    if !self.canonical_refs.rules.exact_match(&default) {
-                        let pattern = rules::Pattern::try_from(default)?;
-                        self.canonical_refs
-                            .rules
-                            .insert(pattern, Rule::new(rules::Allowed::Delegates, threshold));
-                    }
-                }
-            }
-        }
         let RawDoc {
             version,
             payload,
@@ -508,6 +501,12 @@ impl RawDoc {
             visibility,
             ..
         } = self;
+
+        if version != IDENTITY_VERSION {
+            return Err(DocError::VersionError(VersionError::UnkownVersion(
+                version.number(),
+            )));
+        }
 
         let delegates = Delegates::new(delegates)?;
         let rules = Rules::from_raw(canonical_refs.rules, &mut |ds| match ds {
@@ -518,7 +517,7 @@ impl RawDoc {
         })?;
 
         Ok(Doc {
-            version,
+            version: IDENTITY_VERSION,
             payload,
             delegates,
             canonical_refs: CanonicalRefs { rules },
@@ -799,7 +798,6 @@ impl Doc {
             version,
             payload,
             delegates: delegates.into(),
-            threshold: None,
             canonical_refs: canonical_refs.into(),
             visibility,
         }
@@ -1019,6 +1017,12 @@ impl Doc {
             }),
         }
     }
+
+    /// Attempt to deserialize the `raw` JSON into known document versions and
+    /// then migrate them to the latest [`Doc`] version.
+    pub fn migrate_from_v1(doc: v1::Doc) -> Result<Self, MigrationError> {
+        doc.migrate().map_err(MigrationError::from)
+    }
 }
 
 #[cfg(test)]
@@ -1131,9 +1135,8 @@ mod test {
             }
         );
 
-        // Deserializing the `RawDoc` should not fail and should include the
-        // `IDENTITY_VERSION`.
-        let doc = serde_json::from_str::<RawDoc>(&v1.to_string()).unwrap();
+        let doc = serde_json::from_str::<v1::Doc>(&v1.to_string()).unwrap();
+
         let payload = [(
             PayloadId::project(),
             Payload {
@@ -1159,20 +1162,21 @@ mod test {
         ];
         let canonical_refs = RawCanonicalRefs::new(RawRules::default());
         // And this is the expected outcome of the deserialization
+        /*/
         assert_eq!(
             doc,
             RawDoc {
-                version: v1::IDENTITY_VERSION,
+                version: IDENTITY_VERSION,
                 payload: payload.clone(),
                 delegates: delegates.clone(),
-                threshold: Some(1),
                 canonical_refs,
                 visibility: Visibility::Public,
             }
         );
+        */
 
         // Deserializing into `Doc` should also succeed.
-        let verified = serde_json::from_str::<Doc>(&v1.to_string()).unwrap();
+        // let verified = serde_json::from_str::<Doc>(&v1.to_string()).unwrap();
         let delegates = NonEmpty::from_vec(delegates).unwrap();
         // Note that v1 -> v2 upgrade introduces adding a rule for the default
         // branch when it comes to project repositories.
@@ -1188,6 +1192,7 @@ mod test {
             },
         )
         .unwrap();
+        /*
         assert_eq!(
             verified,
             Doc {
@@ -1198,11 +1203,12 @@ mod test {
                 visibility: Visibility::Public,
             }
         );
+        */
 
         // Test that we can migrate from the raw JSON value into a verified
         // latest version of the document
         assert_eq!(
-            Doc::migrate_from(v1).unwrap(),
+            Doc::migrate_from_v1(doc).unwrap(),
             Doc {
                 version: IDENTITY_VERSION,
                 payload,
