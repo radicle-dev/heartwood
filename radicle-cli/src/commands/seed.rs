@@ -4,6 +4,7 @@ use std::time;
 
 use anyhow::anyhow;
 
+use nonempty::NonEmpty;
 use radicle::node::policy;
 use radicle::node::policy::{Policy, Scope};
 use radicle::node::Handle;
@@ -22,7 +23,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad seed [<rid>] [--[no-]fetch] [--from <nid>] [--scope <scope>] [<option>...]
+    rad seed [<rid>...] [--[no-]fetch] [--from <nid>] [--scope <scope>] [<option>...]
 
     The `seed` command, when no Repository ID (<rid>) is provided, will list the
     repositories being seeded.
@@ -49,7 +50,7 @@ Options
 #[derive(Debug)]
 pub enum Operation {
     Seed {
-        rid: RepoId,
+        rids: NonEmpty<RepoId>,
         fetch: bool,
         seeds: BTreeSet<NodeId>,
         timeout: time::Duration,
@@ -69,7 +70,7 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut rid: Option<RepoId> = None;
+        let mut rids: Vec<RepoId> = Vec::new();
         let mut scope: Option<Scope> = None;
         let mut fetch: Option<bool> = None;
         let mut timeout = time::Duration::from_secs(9);
@@ -79,7 +80,8 @@ impl Args for Options {
         while let Some(arg) = parser.next()? {
             match &arg {
                 Value(val) => {
-                    rid = Some(term::args::rid(val)?);
+                    let rid = term::args::rid(val)?;
+                    rids.push(rid);
                 }
                 Long("scope") => {
                     let val = parser.value()?;
@@ -113,9 +115,9 @@ impl Args for Options {
             }
         }
 
-        let op = match rid {
-            Some(rid) => Operation::Seed {
-                rid,
+        let op = match NonEmpty::from_vec(rids) {
+            Some(rids) => Operation::Seed {
+                rids,
                 fetch: fetch.unwrap_or(true),
                 scope: scope.unwrap_or(Scope::All),
                 timeout,
@@ -134,24 +136,28 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     match options.op {
         Operation::Seed {
-            rid,
+            rids,
             fetch,
             scope,
             timeout,
             seeds,
         } => {
-            update(rid, scope, &mut node, &profile)?;
+            for rid in rids {
+                update(rid, scope, &mut node, &profile)?;
 
-            if fetch && node.is_running() {
-                sync::fetch(
-                    rid,
-                    SyncSettings::default()
-                        .seeds(seeds)
-                        .timeout(timeout)
-                        .with_profile(&profile),
-                    &mut node,
-                    &profile,
-                )?;
+                if fetch && node.is_running() {
+                    if let Err(e) = sync::fetch(
+                        rid,
+                        SyncSettings::default()
+                            .seeds(seeds.clone())
+                            .timeout(timeout)
+                            .with_profile(&profile),
+                        &mut node,
+                        &profile,
+                    ) {
+                        term::error(e);
+                    }
+                }
             }
         }
         Operation::List => seeding(&profile)?,
