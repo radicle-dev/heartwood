@@ -1348,6 +1348,29 @@ fn rad_seed_and_follow() {
 }
 
 #[test]
+fn rad_seed_many() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let mut bob = environment.node(Config::test(Alias::new("bob")));
+    // Bob creates two projects that Alice seeds in the test
+    let _ = bob.project("heartwood", "Radicle Heartwood Protocol & Stack");
+    let _ = bob.project("nixpkgs", "Home for Nix Packages");
+    let working = tempfile::tempdir().unwrap();
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    bob.connect(&alice).converge([&alice]);
+
+    test(
+        "examples/rad-seed-many.md",
+        working.path(),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_unseed() {
     let mut environment = Environment::new();
     let mut alice = environment.node(Config::test(Alias::new("alice")));
