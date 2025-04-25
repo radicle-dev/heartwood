@@ -1384,6 +1384,26 @@ fn rad_unseed() {
 }
 
 #[test]
+fn rad_unseed_many() {
+    let mut environment = Environment::new();
+    let mut alice = environment.node(Config::test(Alias::new("alice")));
+    let working = tempfile::tempdir().unwrap();
+
+    // Setup a test project.
+    alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
+    alice.project("nixpkgs", "Home for Nix Packages");
+    let alice = alice.spawn();
+
+    test(
+        "examples/rad-unseed-many.md",
+        working,
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_block() {
     let mut environment = Environment::new();
     let alice = environment.node(Config {

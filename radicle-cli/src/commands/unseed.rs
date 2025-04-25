@@ -1,6 +1,7 @@
 use std::ffi::OsString;
 
 use anyhow::anyhow;
+use nonempty::NonEmpty;
 
 use radicle::{prelude::*, Node};
 
@@ -14,10 +15,10 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad unseed <rid> [<option>...]
+    rad unseed <rid>... [<option>...]
 
     The `unseed` command removes the seeding policy, if found,
-    for the given repository.
+    for the given repositories.
 
 Options
 
@@ -27,7 +28,7 @@ Options
 
 #[derive(Debug)]
 pub struct Options {
-    rid: RepoId,
+    rids: NonEmpty<RepoId>,
 }
 
 impl Args for Options {
@@ -35,12 +36,13 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut rid: Option<RepoId> = None;
+        let mut rids: Vec<RepoId> = Vec::new();
 
         while let Some(arg) = parser.next()? {
             match &arg {
                 Value(val) => {
-                    rid = Some(term::args::rid(val)?);
+                    let rid = term::args::rid(val)?;
+                    rids.push(rid);
                 }
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
@@ -53,8 +55,8 @@ impl Args for Options {
 
         Ok((
             Options {
-                rid: rid.ok_or(anyhow!(
-                    "A Repository ID must be provided; see `rad unseed --help`"
+                rids: NonEmpty::from_vec(rids).ok_or(anyhow!(
+                    "At least one Repository ID must be provided; see `rad unseed --help`"
                 ))?,
             },
             vec![],
@@ -66,7 +68,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let mut node = radicle::Node::new(profile.socket());
 
-    delete(options.rid, &mut node, &profile)?;
+    for rid in options.rids {
+        delete(rid, &mut node, &profile)?;
+    }
 
     Ok(())
 }
