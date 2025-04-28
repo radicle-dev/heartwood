@@ -701,6 +701,22 @@ pub fn set_upstream(
     Ok(())
 }
 
+pub fn init_default_branch(repo: &git2::Repository) -> Result<Option<String>, git2::Error> {
+    let config = repo.config().and_then(|mut c| c.snapshot())?;
+    let default_branch = config.get_str("init.defaultbranch")?;
+    let branch = repo.find_branch(default_branch, git2::BranchType::Local)?;
+    Ok(branch.into_reference().shorthand().map(ToOwned::to_owned))
+}
+
+pub fn head_refname(repo: &git2::Repository) -> Result<Option<String>, git2::Error> {
+    let head = repo.head()?;
+    match head.shorthand() {
+        Some("HEAD") => Ok(None),
+        Some(refname) => Ok(Some(refname.to_owned())),
+        None => Ok(None),
+    }
+}
+
 /// Execute a git command by spawning a child process.
 pub fn run<P, S, K, V>(
     repo: P,

@@ -12,6 +12,7 @@ use serde_json as json;
 
 use radicle::crypto::ssh;
 use radicle::explorer::ExplorerUrl;
+use radicle::git::raw;
 use radicle::git::RefString;
 use radicle::identity::project::ProjectName;
 use radicle::identity::{Doc, RepoId, Visibility};
@@ -216,11 +217,21 @@ pub fn init(
         .unwrap_or_else(|| repo.path())
         .canonicalize()?;
     let interactive = options.interactive;
-    let head: String = repo
-        .head()
-        .ok()
-        .and_then(|head| head.shorthand().map(|h| h.to_owned()))
-        .ok_or_else(|| anyhow!("repository head must point to a commit"))?;
+
+    let default_branch = match find_default_branch(&repo) {
+        Err(err @ DefaultBranchError::Head) => {
+            term::error(err);
+            term::hint("try `git checkout <default branch>` or set `git config set --local init.defaultBranch <default branch>`");
+            anyhow::bail!("aborting `rad init`")
+        }
+        Err(err @ DefaultBranchError::NoHead) => {
+            term::error(err);
+            term::hint("perhaps you need to create a branch?");
+            anyhow::bail!("aborting `rad init`")
+        }
+        Err(err) => anyhow::bail!(err),
+        Ok(branch) => branch,
+    };
 
     term::headline(format!(
         "Initializing{}radicle 👾 repository in {}..",
@@ -252,10 +263,10 @@ pub fn init(
         Some(branch) => branch,
         None if interactive.yes() => term::input(
             "Default branch",
-            Some(head),
+            Some(default_branch),
             Some("Please specify an existing branch"),
         )?,
-        None => head,
+        None => default_branch,
     };
     let branch = RefString::try_from(branch.clone())
         .map_err(|e| anyhow!("invalid branch name {:?}: {}", branch, e))?;
@@ -670,4 +681,40 @@ pub fn setup_signing(
         );
     }
     Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+enum DefaultBranchError {
+    #[error("could not determine default branch in repository")]
+    NoHead,
+    #[error("in detached HEAD state")]
+    Head,
+    #[error("could not determine default branch in repository: {0}")]
+    Git(raw::Error),
+}
+
+fn find_default_branch(repo: &raw::Repository) -> Result<String, DefaultBranchError> {
+    match find_init_default_branch(repo).ok().flatten() {
+        Some(refname) => Ok(refname),
+        None => Ok(find_repository_head(repo)?),
+    }
+}
+
+fn find_init_default_branch(repo: &raw::Repository) -> Result<Option<String>, raw::Error> {
+    let config = repo.config().and_then(|mut c| c.snapshot())?;
+    let default_branch = config.get_str("init.defaultbranch")?;
+    let branch = repo.find_branch(default_branch, raw::BranchType::Local)?;
+    Ok(branch.into_reference().shorthand().map(ToOwned::to_owned))
+}
+
+fn find_repository_head(repo: &raw::Repository) -> Result<String, DefaultBranchError> {
+    match repo.head() {
+        Err(e) if e.code() == raw::ErrorCode::UnbornBranch => Err(DefaultBranchError::NoHead),
+        Err(e) => Err(DefaultBranchError::Git(e)),
+        Ok(head) => head
+            .shorthand()
+            .filter(|refname| *refname != "HEAD")
+            .ok_or(DefaultBranchError::Head)
+            .map(|refname| refname.to_owned()),
+    }
 }
