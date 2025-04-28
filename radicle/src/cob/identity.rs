@@ -77,7 +77,11 @@ pub enum Action {
     RevisionRedact { revision: RevisionId },
 }
 
-impl CobAction for Action {}
+impl CobAction for Action {
+    fn produces_identifier(&self) -> bool {
+        matches!(self, Self::Revision { .. })
+    }
+}
 
 /// Error applying an operation onto a state.
 #[derive(Error, Debug)]

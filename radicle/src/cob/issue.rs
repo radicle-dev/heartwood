@@ -935,7 +935,11 @@ pub enum Action {
     },
 }
 
-impl CobAction for Action {}
+impl CobAction for Action {
+    fn produces_identifier(&self) -> bool {
+        matches!(self, Self::Comment { .. })
+    }
+}
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
@@ -946,8 +950,8 @@ mod test {
     use crate::cob::{store::CobWithType, ActorId, Reaction};
     use crate::git::Oid;
     use crate::issue::cache::Issues as _;
-    use crate::test;
     use crate::test::arbitrary;
+    use crate::{assert_matches, test};
 
     #[test]
     fn test_concurrency() {
@@ -1686,6 +1690,29 @@ mod test {
 
         issue.reload().unwrap();
         assert_eq!(issue.comments().count(), 1);
+    }
+
+    #[test]
+    fn test_invalid_tx_reference() {
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Cache::no_cache(&*repo).unwrap();
+        let issue = issues
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
+            .unwrap();
+
+        // Comments require references, so adding two of them to the same transaction errors.
+        let mut tx: Transaction<Issue, test::storage::git::Repository> =
+            Transaction::<Issue, _>::default();
+        tx.comment("First reply", *issue.id, vec![]).unwrap();
+        let err = tx.comment("Second reply", *issue.id, vec![]).unwrap_err();
+        assert_matches!(err, cob::store::Error::ClashingIdentifiers(_, _));
     }
 
     #[test]

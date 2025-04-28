@@ -320,6 +320,16 @@ impl CobAction for Action {
             _ => vec![],
         }
     }
+
+    fn produces_identifier(&self) -> bool {
+        matches!(
+            self,
+            Self::Revision { .. }
+                | Self::RevisionComment { .. }
+                | Self::Review { .. }
+                | Self::ReviewComment { .. }
+        )
+    }
 }
 
 /// Output of a merge.

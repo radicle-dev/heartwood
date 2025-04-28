@@ -22,6 +22,23 @@ pub trait CobAction: Debug {
     fn parents(&self) -> Vec<git::Oid> {
         Vec::new()
     }
+
+    /// The outcome of some actions are to be referred later.
+    /// For example, one action may create a comment, followed by another
+    /// action that may create a reply to the comment, referring to it.
+    /// Since actions are stored as part of [`crate::cob::op::Op`],
+    /// and operations are the smallest identifiable units,
+    /// this may lead to ambiguity.
+    /// It would not be possible to to, say, address one particular comment out
+    /// of two, if the corresponding actions of creations were part of the
+    /// same operation.
+    /// To help avoid this, implementations signal whether specific actions
+    /// require "their own" identifier.
+    /// This allows checking for multiple such actions before creating an
+    /// operation.
+    fn produces_identifier(&self) -> bool {
+        false
+    }
 }
 
 /// A collaborative object. Can be materialized from an operation history.
@@ -111,6 +128,8 @@ pub enum Error {
         #[source]
         err: git::raw::Error,
     },
+    #[error("transaction already contains action {0} which produces an identifier, denying to add action {1} which also produces an identifier")]
+    ClashingIdentifiers(String, String),
 }
 
 /// Storage for collaborative objects of a specific type `T` in a single repository.
@@ -340,6 +359,13 @@ pub struct Transaction<T: Cob + cob::Evaluate<R>, R> {
     actions: Vec<T::Action>,
     embeds: Vec<Embed<Uri>>,
 
+    // Internal state kept for validation of the transaction.
+    // If an action that produces an identifier is added to
+    // the transaction, then this will track its index,
+    // so that adding a second action that produces an identifier
+    // can fail with a useful error.
+    produces_identifier: Option<usize>,
+
     repo: PhantomData<R>,
     type_name: TypeName,
 }
@@ -349,6 +375,7 @@ impl<T: Cob + CobWithType + cob::Evaluate<R>, R> Default for Transaction<T, R> {
         Self {
             actions: Vec::new(),
             embeds: Vec::new(),
+            produces_identifier: None,
             repo: PhantomData,
             type_name: T::type_name().clone(),
         }
@@ -363,6 +390,7 @@ where
         Self {
             actions,
             embeds,
+            produces_identifier: None,
             repo: PhantomData,
             type_name,
         }
@@ -405,15 +433,29 @@ where
 {
     /// Add an action to this transaction.
     pub fn push(&mut self, action: T::Action) -> Result<(), Error> {
+        if action.produces_identifier() {
+            if let Some(index) = self.produces_identifier {
+                return Err(Error::ClashingIdentifiers(
+                    serde_json::to_string(&self.actions[index])?,
+                    serde_json::to_string(&action)?,
+                ));
+            } else {
+                self.produces_identifier = Some(self.actions.len())
+            }
+        }
+
         self.actions.push(action);
 
         Ok(())
     }
 
     /// Add actions to this transaction.
-    pub fn extend(&mut self, actions: impl IntoIterator<Item = T::Action>) -> Result<(), Error> {
-        self.actions.extend(actions);
-
+    /// Note that we cannot implement [`std::iter::Extend`] because [`Self::push`]
+    /// validates the action being pushed, and therefore is falliable.
+    pub fn extend<I: IntoIterator<Item = T::Action>>(&mut self, actions: I) -> Result<(), Error> {
+        for action in actions {
+            self.push(action)?;
+        }
         Ok(())
     }
 

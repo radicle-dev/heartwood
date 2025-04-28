@@ -272,7 +272,11 @@ pub enum Action {
     },
 }
 
-impl cob::store::CobAction for Action {}
+impl cob::store::CobAction for Action {
+    fn produces_identifier(&self) -> bool {
+        matches!(self, Self::Comment { .. })
+    }
+}
 
 impl From<Action> for nonempty::NonEmpty<Action> {
     fn from(action: Action) -> Self {
