@@ -8,7 +8,7 @@
 
     crane.url = "github:ipetkov/crane";
 
-    pre-commit-hooks = {
+    git-hooks = {
       url = "github:cachix/git-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
@@ -108,15 +108,19 @@
 
       # Set of checks that are run: `nix flake check`
       checks = {
-        pre-commit-check = inputs.pre-commit-hooks.lib.${system}.run {
+        pre-commit-check = inputs.git-hooks.lib.${system}.run {
           src = ./.;
           settings.rust.check.cargoDeps = pkgs.rustPlatform.importCargoLock {lockFile = ./Cargo.lock;};
           hooks = {
             alejandra.enable = true;
             rustfmt.enable = true;
-            cargo-check.enable = true;
+            cargo-check = {
+              enable = true;
+              stages = ["pre-push"];
+            };
             clippy = {
               enable = true;
+              stages = ["pre-push"];
               settings.denyWarnings = true;
               packageOverrides.cargo = rustToolchain;
               packageOverrides.clippy = rustToolchain;
