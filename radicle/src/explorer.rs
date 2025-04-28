@@ -81,8 +81,9 @@ impl std::fmt::Display for ExplorerUrl {
 }
 
 /// A public explorer, eg. `https://app.radicle.xyz`.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Explorer(String);
 
 impl Default for Explorer {

@@ -25,6 +25,7 @@ pub enum ConfigError {
 /// Local radicle configuration.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Config {
     /// Public explorer. This is used for generating links.
     #[serde(default)]
@@ -358,5 +359,21 @@ impl From<String> for ConfigPath {
     fn from(value: String) -> Self {
         let parts: Vec<String> = value.split('.').map(|s| s.to_string()).collect();
         ConfigPath(parts)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod test {
+    #[test]
+    fn schema() {
+        use super::Config;
+        use crate::prelude::Alias;
+        use serde_json::to_value;
+
+        let schema = to_value(schemars::schema_for!(Config)).unwrap();
+        let config = to_value(Config::new(Alias::new("schema"))).unwrap();
+        jsonschema::validate(&schema, &config)
+            .expect("generated configuration should validate under generated JSON Schema");
     }
 }

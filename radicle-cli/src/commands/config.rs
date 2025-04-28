@@ -23,6 +23,7 @@ Usage
     rad config init --alias <alias> [<option>...]
     rad config edit [<option>...]
     rad config get <key> [<option>...]
+    rad config schema [<option>...]
     rad config set <key> <value> [<option>...]
     rad config unset <key> [<option>...]
     rad config push <key> <value> [<option>...]
@@ -43,6 +44,7 @@ enum Operation {
     #[default]
     Show,
     Get(String),
+    Schema,
     Set(String, String),
     Push(String, String),
     Remove(String, String),
@@ -79,6 +81,7 @@ impl Args for Options {
                 }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "show" => op = Some(Operation::Show),
+                    "schema" => op = Some(Operation::Schema),
                     "edit" => op = Some(Operation::Edit),
                     "init" => op = Some(Operation::Init),
                     "get" => {
@@ -139,6 +142,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Show => {
             let profile = ctx.profile()?;
             term::json::to_pretty(&profile.config, path.as_path())?.print();
+        }
+        Operation::Schema => {
+            term::json::to_pretty(&schemars::schema_for!(Config), path.as_path())?.print();
         }
         Operation::Get(key) => {
             let mut temp_config = RawConfig::from_file(&path)?;

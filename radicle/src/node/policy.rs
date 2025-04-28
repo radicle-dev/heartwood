@@ -35,7 +35,7 @@ pub struct FollowPolicy {
 }
 
 /// Seeding policy of a node or repo.
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "policy")]
 pub enum SeedingPolicy {
     /// Allow seeding.
@@ -159,6 +159,7 @@ impl TryFrom<&sqlite::Value> for Policy {
 /// Follow scope of a seeded repository.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum Scope {
     /// Seed remotes that are explicitly followed.
     Followed,
