@@ -5,6 +5,7 @@ use std::{fmt, net};
 
 use cyphernet::addr::PeerAddr;
 use localtime::LocalDuration;
+use serde::{Deserialize, Serialize};
 use serde_json as json;
 
 use crate::node;
@@ -57,8 +58,9 @@ pub mod seeds {
 }
 
 /// Peer-to-peer network.
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum Network {
     #[default]
     Main,
@@ -94,16 +96,25 @@ impl Network {
 }
 
 /// Configuration parameters defining attributes of minima and maxima.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Limits {
     /// Number of routing table entries before we start pruning.
     pub routing_max_size: usize,
     /// How long to keep a routing table entry before being pruned.
     #[serde(with = "crate::serde_ext::localtime::duration")]
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "crate::schemars_ext::localtime::LocalDuration")
+    )]
     pub routing_max_age: LocalDuration,
     /// How long to keep a gossip message entry before pruning it.
     #[serde(with = "crate::serde_ext::localtime::duration")]
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "crate::schemars_ext::localtime::LocalDuration")
+    )]
     pub gossip_max_age: LocalDuration,
     /// Maximum number of concurrent fetches per peer connection.
     pub fetch_concurrency: usize,
@@ -138,10 +149,19 @@ impl Default for Limits {
 /// Limiter for byte streams.
 ///
 /// Default: 500MiB
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(into = "String", try_from = "String")]
+#[cfg_attr(
+    feature = "schemars",
+    derive(schemars::JsonSchema),
+    schemars(transparent)
+)]
 pub struct FetchPackSizeLimit {
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "crate::schemars_ext::bytesize::ByteSize")
+    )]
     limit: bytesize::ByteSize,
 }
 
@@ -213,8 +233,9 @@ impl Default for FetchPackSizeLimit {
 }
 
 /// Connection limits.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct ConnectionLimits {
     /// Max inbound connections.
     pub inbound: usize,
@@ -232,16 +253,18 @@ impl Default for ConnectionLimits {
 }
 
 /// Rate limts for a single connection.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct RateLimit {
     pub fill_rate: f64,
     pub capacity: usize,
 }
 
 /// Rate limits for inbound and outbound connections.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct RateLimits {
     pub inbound: RateLimit,
     pub outbound: RateLimit,
@@ -263,9 +286,30 @@ impl Default for RateLimits {
 }
 
 /// Full address used to connect to a remote node.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Hash)]
-#[serde(transparent)]
-pub struct ConnectAddress(#[serde(with = "crate::serde_ext::string")] PeerAddr<NodeId, Address>);
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(
+    feature = "schemars",
+    derive(schemars::JsonSchema),
+    schemars(description = "\
+    A node address to connect to. Format: An Ed25519 public key in multibase encoding, \
+    followed by the symbol '@', followed by an IP address, or a DNS name, or a Tor onion \
+    name, followed by the symbol ':', followed by a TCP port number.\
+")
+)]
+pub struct ConnectAddress(
+    #[serde(with = "crate::serde_ext::string")]
+    #[schemars(
+        with = "String",
+        regex(pattern = r"^.+@.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$"),
+        extend("examples" = [
+            "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776",
+            "z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C@xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
+            "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi@seed.example.com:8776",
+            "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5@192.0.2.0:31337",
+        ]),
+    )]
+    PeerAddr<NodeId, Address>,
+);
 
 impl From<PeerAddr<NodeId, Address>> for ConnectAddress {
     fn from(value: PeerAddr<NodeId, Address>) -> Self {
@@ -300,8 +344,9 @@ impl Deref for ConnectAddress {
 }
 
 /// Peer configuration.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum PeerConfig {
     /// Static peer set. Connect to the configured peers and maintain the connections.
     Static,
@@ -316,8 +361,9 @@ impl Default for PeerConfig {
 }
 
 /// Relay configuration.
-#[derive(Debug, Copy, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum Relay {
     /// Always relay messages.
     Always,
@@ -329,8 +375,9 @@ pub enum Relay {
 }
 
 /// Proxy configuration.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "mode")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum AddressConfig {
     /// Proxy connections to this address type.
     Proxy {
@@ -343,8 +390,9 @@ pub enum AddressConfig {
 }
 
 /// Default seeding policy. Applies when no repository policies for the given repo are found.
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "default")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum DefaultSeedingPolicy {
     /// Allow seeding.
     Allow {
@@ -379,13 +427,19 @@ impl From<DefaultSeedingPolicy> for SeedingPolicy {
 }
 
 /// Service configuration.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    feature = "schemars",
+    derive(schemars::JsonSchema),
+    schemars(rename = "NodeConfig")
+)]
 pub struct Config {
     /// Node alias.
     pub alias: Alias,
-    /// Address to listen on.
+    /// Socket address (a combination of IPv4 or IPv6 address and TCP port) to listen on.
     #[serde(default)]
+    #[cfg_attr(feature = "schemars", schemars(example = &"127.0.0.1:8776"))]
     pub listen: Vec<net::SocketAddr>,
     /// Peer configuration.
     #[serde(default)]
@@ -409,6 +463,10 @@ pub struct Config {
     /// Log level.
     #[serde(default = "defaults::log")]
     #[serde(with = "crate::serde_ext::string")]
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "crate::schemars_ext::log::Level")
+    )]
     pub log: log::Level,
     /// Whether or not our node should relay messages.
     #[serde(default, deserialize_with = "crate::serde_ext::ok_or_default")]

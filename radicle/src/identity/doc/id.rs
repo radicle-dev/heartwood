@@ -20,7 +20,17 @@ pub enum IdError {
 
 /// A repository identifier.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RepoId(git::Oid);
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+pub struct RepoId(
+    #[cfg_attr(feature = "schemars", schemars(
+        with = "String",
+        description = "A repository identifier. Starts with \"rad:\", followed by a multibase Base58 encoded Git object identifier.",
+        regex(pattern = r"rad:z[1-9a-km-zA-HJ-NP-Z]+"),
+        length(min = 5),
+        example = &"rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5",
+    ))]
+    git::Oid,
+);
 
 impl fmt::Display for RepoId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
