@@ -23,6 +23,8 @@ pub mod logger;
 pub mod node;
 pub mod profile;
 pub mod rad;
+#[cfg(feature = "schemars")]
+pub(crate) mod schemars_ext;
 pub mod serde_ext;
 pub mod sql;
 pub mod storage;

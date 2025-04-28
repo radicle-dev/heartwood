@@ -35,6 +35,7 @@ sqlite = { version = "0.32.0", features = ["bundled"] }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }
 unicode-normalization = { version = "0.1" }
+schemars = { version = "1.0.0-alpha.17", optional = true}
 
 [dependencies.chrono]
 version = "0.4.0"
@@ -75,6 +76,7 @@ emojis = { version = "0.6" }
 pretty_assertions = { version = "1.3.0" }
 qcheck-macros = { version = "1", default-features = false }
 qcheck = { version = "1", default-features = false }
+jsonschema = { version = "0.30" }
 
 [dev-dependencies.radicle-crypto]
 path = "../radicle-crypto"

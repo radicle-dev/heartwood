@@ -180,7 +180,7 @@ impl Penalty {
 }
 
 /// Repository sync status for our own refs.
-#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(tag = "status")]
 #[serde(rename_all = "camelCase")]
 pub enum SyncStatus {
@@ -220,7 +220,7 @@ impl PartialOrd for SyncStatus {
 }
 
 /// Node user agent.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
 pub struct UserAgent(String);
 
 impl UserAgent {
@@ -290,10 +290,25 @@ impl AsRef<str> for UserAgent {
     }
 }
 
-/// Node alias.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, serde::Serialize, serde::Deserialize)]
+/// Node alias, i.e. a short and memorable name for it.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
-pub struct Alias(String);
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+pub struct Alias(
+    // To exclude control characters, one might be inclined to use the character
+    // class `[[:cntrl:]]` which is understood by the `regex` crate.
+    // However, the patterns in JSON schema must conform to ECMA-262, which does
+    // not specify the character class.
+    // Thus, we unfold its definition from <https://www.unicode.org/reports/tr18/#cntrl>,
+    // which refers to the "general category" named "Cc",
+    // see <https://unicode.org/reports/tr44/#General_Category_Values>.
+    // We obtain the two ranges below from <https://www.unicode.org/notes/tn36/Categories.txt>.
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(regex(pattern = r"^[^\x00-\x1F\x7F-\x9F\s]{0,32}$"), length(max = 32))
+    )]
+    String,
+);
 
 impl Alias {
     /// Create a new alias from a string. Panics if the string is not a valid alias.
@@ -410,7 +425,7 @@ impl TryFrom<&sqlite::Value> for Alias {
 }
 
 /// Options passed to the "connect" node command.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectOptions {
     /// Establish a persistent connection.
     pub persistent: bool,
@@ -499,10 +514,29 @@ impl<T: Serialize> CommandResult<T> {
 }
 
 /// Peer public protocol address.
-#[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug, Hash, From, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash, From, Wrapper, WrapperMut, Serialize, Deserialize)]
 #[wrapper(Deref, Display, FromStr)]
 #[wrapper_mut(DerefMut)]
-pub struct Address(#[serde(with = "crate::serde_ext::string")] NetAddr<HostName>);
+#[cfg_attr(
+    feature = "schemars",
+    derive(schemars::JsonSchema),
+    schemars(description = "\
+        An IP address, or a DNS name, or a Tor onion name, followed by the symbol ':', \
+        followed by a TCP port number.")
+)]
+pub struct Address(
+    #[serde(with = "crate::serde_ext::string")]
+    #[cfg_attr(feature = "schemars", schemars(
+        with = "String",
+        regex(pattern = r"^.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$"),
+        extend("examples" = [
+            "xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
+            "seed.example.com:8776",
+            "192.0.2.0:31337",
+        ]),
+    ))]
+    NetAddr<HostName>,
+);
 
 impl Address {
     /// Check whether this address is from the local network.
@@ -666,7 +700,7 @@ impl Session {
 }
 
 /// A seed for some repository, with metadata about its status.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Seed {
     /// The Node ID.
@@ -707,7 +741,7 @@ impl Seed {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 /// Represents a set of seeds with associated metadata. Uses an RNG
 /// underneath, so every iteration returns a different ordering.
 #[serde(into = "Vec<Seed>", from = "Vec<Seed>")]
