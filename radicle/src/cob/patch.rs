@@ -320,6 +320,10 @@ impl CobAction for Action {
             _ => vec![],
         }
     }
+    
+    fn requires_reference(&self) -> bool {
+        matches!(self, Self::Revision { .. } | Self::RevisionComment { .. } | Self::Review { .. })
+    }
 }
 
 /// Output of a merge.

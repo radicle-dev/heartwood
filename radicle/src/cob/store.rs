@@ -22,6 +22,18 @@ pub trait CobAction: Debug {
     fn parents(&self) -> Vec<git::Oid> {
         Vec::new()
     }
+
+    /// Some actions are to be referred to later, e.g. one comment may
+    /// be a reply to a previous comment. Since a [`crate::cob::op::Op`] may
+    /// contain multiple actions, this may lead to ambiguity of such
+    /// references, as the smallest unit we can address are operations.
+    /// To help avoid ambiguity in references, implementations signal
+    /// whether specific actions require references.
+    /// This allows checking for multiple such actions before creating an
+    /// operation.
+    fn requires_reference(&self) -> bool {
+        false
+    }
 }
 
 /// A collaborative object. Can be materialized from an operation history.
@@ -111,6 +123,8 @@ pub enum Error {
         #[source]
         err: git::raw::Error,
     },
+    #[error("transaction already contains action {0} which requires a unique reference, denying to add action {1} which also requires a unique reference")]
+    ReferenceValidation(String, String)
 }
 
 /// Storage for collaborative objects of a specific type `T` in a single repository.
@@ -340,6 +354,13 @@ pub struct Transaction<T: Cob + cob::Evaluate<R>, R> {
     actions: Vec<T::Action>,
     embeds: Vec<Embed<Uri>>,
 
+    // Internal state kept for validation of the transaction.
+    // If an action that requires a reference is added to
+    // the transaction, then this will track its index,
+    // so that adding a second action that requires a reference
+    // can fail with a useful error.
+    requires_reference: Option<usize>,
+
     repo: PhantomData<R>,
     type_name: TypeName,
 }
@@ -349,6 +370,7 @@ impl<T: Cob + CobWithType + cob::Evaluate<R>, R> Default for Transaction<T, R> {
         Self {
             actions: Vec::new(),
             embeds: Vec::new(),
+            requires_reference: None,
             repo: PhantomData,
             type_name: T::type_name().clone(),
         }
@@ -363,6 +385,7 @@ where
         Self {
             actions,
             embeds,
+            requires_reference: None,
             repo: PhantomData,
             type_name,
         }
@@ -405,15 +428,26 @@ where
 {
     /// Add an action to this transaction.
     pub fn push(&mut self, action: T::Action) -> Result<(), Error> {
+        if action.requires_reference() {
+            if let Some(index) = self.requires_reference {
+                return Err(Error::ReferenceValidation(serde_json::to_string(&self.actions[index])?, serde_json::to_string(&action)?));
+            } else {
+                self.requires_reference = Some(self.actions.len())
+            }
+        }
+
         self.actions.push(action);
 
         Ok(())
     }
 
     /// Add actions to this transaction.
-    pub fn extend(&mut self, actions: impl IntoIterator<Item = T::Action>) -> Result<(), Error> {
-        self.actions.extend(actions);
-
+    /// Note that we cannot implement [`std::iter::Extend`] because [`Self::push`]
+    /// validates the action being pushed, and therefore is falliable.
+    pub fn extend<I: IntoIterator<Item = T::Action>>(&mut self, actions: I) -> Result<(), Error> {
+        for action in actions {
+            self.push(action)?;
+        }
         Ok(())
     }
 
