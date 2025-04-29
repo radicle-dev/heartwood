@@ -607,7 +607,15 @@ impl Home {
         R: ReadRepository + cob::Store,
     {
         let db = self.cobs_db()?;
-        let store = cob::issue::Issues::open(repository)?;
+        let policy_store = self.policies()?;
+        let blocked = policy_store
+            .follow_policies()?
+            .filter_map(|entry| match entry.policy {
+                policy::Policy::Allow => None,
+                policy::Policy::Block => Some(entry.nid),
+            })
+            .collect();
+        let store = cob::issue::Issues::open(repository, blocked)?;
 
         db.check_version()?;
 
@@ -623,7 +631,16 @@ impl Home {
         R: ReadRepository + cob::Store,
     {
         let db = self.cobs_db_mut()?;
-        let store = cob::issue::Issues::open(repository)?;
+        // TODO(finto): add a helper
+        let policy_store = self.policies()?;
+        let blocked = policy_store
+            .follow_policies()?
+            .filter_map(|entry| match entry.policy {
+                policy::Policy::Allow => None,
+                policy::Policy::Block => Some(entry.nid),
+            })
+            .collect();
+        let store = cob::issue::Issues::open(repository, blocked)?;
 
         db.check_version()?;
 

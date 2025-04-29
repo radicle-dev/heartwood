@@ -770,11 +770,22 @@ where
     R: ReadRepository + cob::Store,
 {
     /// Open an issues store.
-    pub fn open(repository: &'a R) -> Result<Self, RepositoryError> {
+    pub fn open(
+        repository: &'a R,
+        blocked: BTreeSet<crypto::PublicKey>,
+    ) -> Result<Self, RepositoryError> {
         let identity = repository.identity_head()?;
-        let raw = store::Store::open(repository)?.identity(identity);
+        let raw = store::Store::open(repository)?
+            .identity(identity)
+            .block(blocked);
 
         Ok(Self { raw })
+    }
+
+    pub fn with_blocked(self, blocked: BTreeSet<crypto::PublicKey>) -> Self {
+        Self {
+            raw: self.raw.block(blocked),
+        }
     }
 }
 
@@ -1654,9 +1665,14 @@ mod test {
         issue.reload().unwrap();
         assert_eq!(issue.comments().count(), 1);
 
-        let cob = cob::get::<Issue, _>(&*repo, Issue::type_name(), issue.id())
-            .unwrap()
-            .unwrap();
+        let cob = cob::get::<Issue, _>(
+            &*repo,
+            Issue::type_name(),
+            issue.id(),
+            &cob::Filter::default(),
+        )
+        .unwrap()
+        .unwrap();
 
         assert_eq!(cob.history().len(), 1);
         assert_eq!(
@@ -1740,9 +1756,14 @@ mod test {
             .unwrap();
 
         // Initially, there is one node in the DAG.
-        let cob = cob::get::<NonEmpty<cob::Entry>, _>(&*repo, &type_name, issue.id())
-            .unwrap()
-            .unwrap();
+        let cob = cob::get::<NonEmpty<cob::Entry>, _>(
+            &*repo,
+            &type_name,
+            issue.id(),
+            &cob::Filter::default(),
+        )
+        .unwrap()
+        .unwrap();
 
         assert_eq!(cob.history.len(), 1);
         assert_eq!(cob.object.len(), 1);
@@ -1774,16 +1795,21 @@ mod test {
 
         // If we fetch the COB with its history, *without* trying to interpret it as an issue,
         // we'll see that all entries, including the invalid one are there.
-        let cob = cob::get::<NonEmpty<cob::Entry>, _>(&*repo, &type_name, issue.id())
-            .unwrap()
-            .unwrap();
+        let cob = cob::get::<NonEmpty<cob::Entry>, _>(
+            &*repo,
+            &type_name,
+            issue.id(),
+            &cob::Filter::default(),
+        )
+        .unwrap()
+        .unwrap();
 
         assert_eq!(cob.history.len(), 2);
         assert_eq!(cob.object.len(), 2);
         assert_eq!(cob.object.last().contents(), &contents);
 
         // However, if we try to fetch it as an *issue*, the invalid comment is pruned.
-        let cob = cob::get::<Issue, _>(&*repo, &type_name, issue.id())
+        let cob = cob::get::<Issue, _>(&*repo, &type_name, issue.id(), &cob::Filter::default())
             .unwrap()
             .unwrap();
         assert_eq!(cob.history.len(), 1);
@@ -1801,9 +1827,14 @@ mod test {
         assert_eq!(issue.comments().last().unwrap().1.body(), "Valid comment");
 
         // The actual DAG contains 3 nodes, but only 2 were loaded as an issue.
-        let cob = cob::get::<NonEmpty<cob::Entry>, _>(&*repo, &type_name, issue.id())
-            .unwrap()
-            .unwrap();
+        let cob = cob::get::<NonEmpty<cob::Entry>, _>(
+            &*repo,
+            &type_name,
+            issue.id(),
+            &cob::Filter::default(),
+        )
+        .unwrap()
+        .unwrap();
 
         assert_eq!(cob.history.len(), 3);
         assert_eq!(cob.object.len(), 3);
@@ -1814,14 +1845,57 @@ mod test {
             .comment("Eve's comment", *issue.id, vec![], &eve)
             .unwrap();
 
-        let cob = cob::get::<NonEmpty<cob::Entry>, _>(&*repo, &type_name, issue.id())
-            .unwrap()
-            .unwrap();
+        let cob = cob::get::<NonEmpty<cob::Entry>, _>(
+            &*repo,
+            &type_name,
+            issue.id(),
+            &cob::Filter::default(),
+        )
+        .unwrap()
+        .unwrap();
 
         // There are three nodes still, but they are all valid comments.
         // The invalid comment of Eve was replaced with a valid one.
         assert_eq!(issue.comments().count(), 3);
         assert_eq!(cob.history.len(), 3);
         assert_eq!(cob.object.len(), 3);
+    }
+
+    #[test]
+    fn test_blocked_user_comments() {
+        let t = test::setup::Network::default();
+        let mut issues_alice = Cache::no_cache(&*t.alice.repo).unwrap();
+        let mut bob_issues = Cache::no_cache(&*t.bob.repo).unwrap();
+        let mut issue_alice = issues_alice
+            .create(
+                "Alice Issue",
+                "Alice's comment",
+                &[],
+                &[],
+                [],
+                &t.alice.signer,
+            )
+            .unwrap();
+        let id = *issue_alice.id();
+
+        t.bob.repo.fetch(&t.alice);
+
+        let mut issue_bob = bob_issues.get_mut(&id).unwrap();
+
+        issue_bob
+            .comment("Illicit", *id, vec![], &t.bob.signer)
+            .unwrap();
+        issue_bob.comment("Ok", *id, vec![], &t.bob.signer).unwrap();
+
+        t.alice.repo.fetch(&t.bob);
+        issue_alice.reload().unwrap();
+        assert_eq!(issue_alice.comments().count(), 3);
+
+        // Block `bob`'s comments and reload the issue
+        let issues_alice =
+            issues_alice.with_blocked([*t.bob.signer.public_key()].into_iter().collect());
+        let issue_alice = issues_alice.get(&id).unwrap().unwrap();
+
+        assert_eq!(issue_alice.comments().count(), 1);
     }
 }

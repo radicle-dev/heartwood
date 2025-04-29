@@ -218,7 +218,7 @@ impl Identity {
     ) -> Result<Identity, store::Error> {
         use cob::store::CobWithType;
 
-        cob::get::<Self, _>(repo, Self::type_name(), object)
+        cob::get::<Self, _>(repo, Self::type_name(), object, &cob::Filter::default())
             .map(|r| r.map(|cob| cob.object))?
             .ok_or_else(move || store::Error::NotFound(TYPENAME.clone(), *object))
     }

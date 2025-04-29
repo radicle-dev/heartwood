@@ -1,11 +1,12 @@
 //! Generic COB storage.
 #![allow(clippy::large_enum_variant)]
 #![allow(clippy::type_complexity)]
+use std::collections::BTreeSet;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use nonempty::NonEmpty;
-use radicle_cob::CollaborativeObject;
+use radicle_cob::{CollaborativeObject, Filter};
 use serde::{Deserialize, Serialize};
 
 use crate::cob::op::Op;
@@ -138,11 +139,20 @@ pub struct Store<'a, T, R> {
     repo: &'a R,
     witness: PhantomData<T>,
     type_name: &'a TypeName,
+    filter: Filter,
 }
 
 impl<T, R> AsRef<R> for Store<'_, T, R> {
     fn as_ref(&self) -> &R {
         self.repo
+    }
+}
+
+impl<T, R> Store<'_, T, R> {
+    /// Block the set of keys provided, when evaluating the value for `T`.
+    pub fn block(self, keys: BTreeSet<crypto::PublicKey>) -> Self {
+        let filter = self.filter.block(keys);
+        Self { filter, ..self }
     }
 }
 
@@ -157,6 +167,7 @@ where
             identity: None,
             witness: PhantomData,
             type_name,
+            filter: Filter::default(),
         })
     }
 
@@ -167,6 +178,7 @@ where
             witness: self.witness,
             identity: Some(identity),
             type_name: self.type_name,
+            filter: Filter::default(),
         }
     }
 }
@@ -183,6 +195,7 @@ where
             identity: None,
             witness: PhantomData,
             type_name: T::type_name(),
+            filter: Filter::default(),
         })
     }
 }
@@ -326,7 +339,7 @@ where
 {
     /// Get an object.
     pub fn get(&self, id: &ObjectId) -> Result<Option<T>, Error> {
-        cob::get::<T, _>(self.repo, self.type_name, id)
+        cob::get::<T, _>(self.repo, self.type_name, id, &self.filter)
             .map(|r| r.map(|cob| cob.object))
             .map_err(Error::from)
     }
@@ -497,8 +510,9 @@ pub fn ops<R: cob::Store>(
     id: &ObjectId,
     type_name: &TypeName,
     repo: &R,
+    filter: &Filter,
 ) -> Result<NonEmpty<Op<Vec<u8>>>, Error> {
-    let cob = cob::get::<NonEmpty<cob::Entry>, _>(repo, type_name, id)?;
+    let cob = cob::get::<NonEmpty<cob::Entry>, _>(repo, type_name, id, filter)?;
 
     if let Some(cob) = cob {
         Ok(cob.object.map(Op::from))

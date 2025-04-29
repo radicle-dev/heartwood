@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::ops::ControlFlow;
 use std::str::FromStr;
 
@@ -204,11 +205,19 @@ where
     /// Get a `Cache` that does no write-through modifications and
     /// uses the [`super::Issues`] store for all reads and writes.
     pub fn no_cache(repository: &'a R) -> Result<Self, RepositoryError> {
-        let store = super::Issues::open(repository)?;
+        // TODO(finto): might need to thread through the blocked list
+        let store = super::Issues::open(repository, BTreeSet::new())?;
         Ok(Self {
             store,
             cache: cache::NoCache,
         })
+    }
+
+    pub fn with_blocked(self, blocked: BTreeSet<crypto::PublicKey>) -> Self {
+        Self {
+            store: self.store.with_blocked(blocked),
+            ..self
+        }
     }
 
     /// Get the [`IssueMut`], identified by `id`.
