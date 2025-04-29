@@ -1,6 +1,6 @@
 // Copyright © 2022 The Radicle Link Contributors
 
-use std::{error::Error, fmt, num::NonZeroUsize};
+use std::{collections::BTreeSet, error::Error, fmt, num::NonZeroUsize};
 
 use nonempty::NonEmpty;
 use radicle_git_ext::Oid;
@@ -47,6 +47,26 @@ pub struct Template<Id> {
     pub message: String,
     pub embeds: Vec<Embed<Oid>>,
     pub contents: NonEmpty<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Filter {
+    /// Filter out a blocked set of keys.
+    blocked: BTreeSet<crypto::PublicKey>,
+    // TODO(finto): we could also add filters for the `Contents`
+}
+
+impl Filter {
+    /// Add the set of `keys` to the blocked list.
+    pub fn block(mut self, keys: BTreeSet<crypto::PublicKey>) -> Self {
+        self.blocked.extend(keys);
+        self
+    }
+
+    /// Check if the given `key` is blocked.
+    pub fn is_blocked(&self, key: &crypto::PublicKey) -> bool {
+        self.blocked.contains(key)
+    }
 }
 
 /// Entry contents.

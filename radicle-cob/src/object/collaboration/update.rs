@@ -6,8 +6,10 @@ use nonempty::NonEmpty;
 use radicle_crypto::PublicKey;
 
 use crate::{
-    change, change_graph::ChangeGraph, history::EntryId, CollaborativeObject, Embed, Evaluate,
-    ObjectId, Store, TypeName,
+    change::{self, store::Filter},
+    change_graph::ChangeGraph,
+    history::EntryId,
+    CollaborativeObject, Embed, Evaluate, ObjectId, Store, TypeName,
 };
 
 use super::error;
@@ -83,8 +85,9 @@ where
 
     let graph = ChangeGraph::load(storage, existing_refs.iter(), typename, &object_id)
         .ok_or(error::Update::NoSuchObject)?;
-    let mut object: CollaborativeObject<T> =
-        graph.evaluate(storage).map_err(error::Update::evaluate)?;
+    let mut object: CollaborativeObject<T> = graph
+        .evaluate(storage, &Filter::default())
+        .map_err(error::Update::evaluate)?;
 
     // Create a commit for this change, but don't update any references yet.
     let entry = storage.store(

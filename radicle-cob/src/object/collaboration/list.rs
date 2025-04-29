@@ -1,6 +1,9 @@
 // Copyright © 2022 The Radicle Link Contributors
 
-use crate::{change_graph::ChangeGraph, CollaborativeObject, Evaluate, Store, TypeName};
+use crate::{
+    change::store::Filter, change_graph::ChangeGraph, CollaborativeObject, Evaluate, Store,
+    TypeName,
+};
 
 use super::error;
 
@@ -26,8 +29,11 @@ where
     let mut result = Vec::new();
     for (oid, tip_refs) in references {
         log::trace!(target: "cob", "Loading object '{oid}'");
-        let loaded = ChangeGraph::load(storage, tip_refs.iter(), typename, &oid)
-            .map(|graph| graph.evaluate(storage).map_err(error::Retrieve::evaluate));
+        let loaded = ChangeGraph::load(storage, tip_refs.iter(), typename, &oid).map(|graph| {
+            graph
+                .evaluate(storage, &Filter::default())
+                .map_err(error::Retrieve::evaluate)
+        });
 
         match loaded {
             Some(Ok(obj)) => {

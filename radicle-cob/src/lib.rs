@@ -69,7 +69,7 @@ mod change_graph;
 mod trailers;
 
 pub mod change;
-pub use change::store::{Contents, Embed, EntryId, Manifest, Version};
+pub use change::store::{Contents, Embed, EntryId, Filter, Manifest, Version};
 pub use change::Entry;
 
 pub mod history;

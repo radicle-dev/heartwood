@@ -6,6 +6,7 @@ use git_ext::ref_format::{refname, Component, RefString};
 use nonempty::{nonempty, NonEmpty};
 use qcheck::Arbitrary;
 
+use crate::Filter;
 use crate::{
     create, get, list, object, test::arbitrary::Invalid, update, Create, Entry, ObjectId, TypeName,
     Update, Updated, Version,
@@ -40,7 +41,7 @@ fn roundtrip() {
     )
     .unwrap();
 
-    let expected = get(&storage, &typename, cob.id())
+    let expected = get(&storage, &typename, cob.id(), Filter::default())
         .unwrap()
         .expect("BUG: cob was missing");
 
@@ -126,7 +127,7 @@ fn update_cob() {
     )
     .unwrap();
 
-    let not_expected = get::<NonEmpty<Entry>, _>(&storage, &typename, cob.id())
+    let not_expected = get::<NonEmpty<Entry>, _>(&storage, &typename, cob.id(), Filter::default())
         .unwrap()
         .expect("BUG: cob was missing");
 
@@ -146,7 +147,7 @@ fn update_cob() {
     )
     .unwrap();
 
-    let expected = get(&storage, &typename, object.id())
+    let expected = get(&storage, &typename, object.id(), Filter::default())
         .unwrap()
         .expect("BUG: cob was missing");
 
@@ -233,6 +234,88 @@ fn traverse_cobs() {
         });
 
     assert_eq!(contents, vec![b"issue 1".to_vec(), b"issue 2".to_vec()]);
+}
+
+#[test]
+fn block_entries_in_get() {
+    let storage = test::Storage::new();
+    let neil_signer = gen::<MockSigner>(2);
+    let neil = test::Person::new(&storage, "gaiman", *neil_signer.public_key()).unwrap();
+    let terry_signer = gen::<MockSigner>(1);
+    let terry = test::Person::new(&storage, "pratchett", *terry_signer.public_key()).unwrap();
+    let proj = test::Project::new(&storage, "discworld", *terry_signer.public_key()).unwrap();
+    let terry_proj = test::RemoteProject {
+        project: proj.clone(),
+        person: terry,
+    };
+    let neil_proj = test::RemoteProject {
+        project: proj,
+        person: neil,
+    };
+    let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
+    let cob = create::<NonEmpty<Entry>, _, _>(
+        &storage,
+        &terry_signer,
+        Some(terry_proj.project.content_id),
+        vec![],
+        terry_signer.public_key(),
+        Create {
+            contents: nonempty!(b"issue 1".to_vec()),
+            type_name: typename.clone(),
+            message: "creating xyz.rad.issue".to_string(),
+            embeds: vec![],
+            version: Version::default(),
+        },
+    )
+    .unwrap();
+    copy_to(
+        storage.as_raw(),
+        terry_signer.public_key(),
+        &neil_proj,
+        &typename,
+        *cob.id(),
+    )
+    .unwrap();
+
+    let Updated { .. } = update::<NonEmpty<Entry>, _, _>(
+        &storage,
+        &neil_signer,
+        Some(neil_proj.project.content_id),
+        vec![],
+        neil_signer.public_key(),
+        Update {
+            changes: nonempty!(b"issue 2".to_vec()),
+            object_id: *cob.id(),
+            type_name: typename.clone(),
+            embeds: vec![],
+            message: "commenting on xyz.rad.issue".to_string(),
+        },
+    )
+    .unwrap();
+
+    let not_blocked_issue =
+        get::<NonEmpty<Entry>, _>(&storage, &typename, cob.id(), Filter::default()).unwrap();
+    assert_eq!(
+        not_blocked_issue
+            .unwrap()
+            .object
+            .map(|entry| entry.contents),
+        nonempty![
+            nonempty![b"issue 1".to_vec()],
+            nonempty![b"issue 2".to_vec()]
+        ],
+    );
+    let blocked_issue = get::<NonEmpty<Entry>, _>(
+        &storage,
+        &typename,
+        cob.id(),
+        Filter::default().block([*neil_signer.public_key()].into_iter().collect()),
+    )
+    .unwrap();
+    assert_eq!(
+        blocked_issue.unwrap().object.map(|entry| entry.contents),
+        nonempty![nonempty![b"issue 1".to_vec()]],
+    );
 }
 
 #[quickcheck]

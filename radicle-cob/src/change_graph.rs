@@ -6,6 +6,7 @@ use std::{cmp::Ordering, collections::BTreeSet};
 use git_ext::Oid;
 use radicle_dag::Dag;
 
+use crate::change::store::Filter;
 use crate::{
     change, object, object::collaboration::Evaluate, signatures::ExtendedSignature,
     CollaborativeObject, Entry, EntryId, History, ObjectId, TypeName,
@@ -95,6 +96,7 @@ impl ChangeGraph {
     pub(crate) fn evaluate<S, T: Evaluate<S>>(
         mut self,
         store: &S,
+        filter: &Filter,
     ) -> Result<CollaborativeObject<T>, EvaluateError> {
         let root = *self.object_id;
         let root = self
@@ -116,6 +118,12 @@ impl ChangeGraph {
         self.graph.prune_by(
             &children,
             |_, entry, siblings| {
+                // Ignore author entries that are blocked, but still try to
+                // process the other entries.
+                if filter.is_blocked(entry.value.author()) {
+                    return ControlFlow::Continue(());
+                }
+
                 // Check the entry signatures are valid.
                 if !entry.valid_signatures() {
                     return ControlFlow::Break(());
