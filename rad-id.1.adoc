@@ -18,7 +18,7 @@ rad-id - Manage changes to a Radicle repository's identity.
 *rad id* _edit_ <revision-id> [--title <string>] [--description <string>] [<option>...] +
 *rad id* _show_ <revision-id> [<option>...] +
 *rad id* _accept_ | _reject_ <revision-id> [<option>...] +
-*rad id* _redact_ <revision-id> [<option>...]
+*rad id* _redact_ <revision-id> [<option>...] +
 *rad id* _migrate_ [--from <version>] [<option>...]
 
 == Description
@@ -93,8 +93,8 @@ automatically accepted and included into the identity document.
 === migrate
 
 Propose a migration revision to the identity document. The migration will
-automatically convert the current identity document into the latest version, if
-possible.
+automatically convert the current identity document into the latest version,
+if possible.
 
 If a title and description are not provided on the command line, you will be
 prompted to enter one via your text editor.
