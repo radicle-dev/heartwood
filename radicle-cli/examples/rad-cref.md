@@ -77,6 +77,10 @@ true:
 ```
 $ rad cref
 {
+  "refs/tags/releases/*": {
+    "allow": "delegates",
+    "threshold": 1
+  },
   "refs/heads/dev": {
     "allow": [
       "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
@@ -85,10 +89,6 @@ $ rad cref
     "threshold": 2
   },
   "refs/heads/master": {
-    "allow": "delegates",
-    "threshold": 1
-  },
-  "refs/tags/releases/*": {
     "allow": "delegates",
     "threshold": 1
   }
@@ -109,11 +109,11 @@ Let's check that we only have 2 rules now:
 ```
 $ rad cref
 {
-  "refs/heads/master": {
+  "refs/tags/releases/*": {
     "allow": "delegates",
     "threshold": 1
   },
-  "refs/tags/releases/*": {
+  "refs/heads/master": {
     "allow": "delegates",
     "threshold": 1
   }

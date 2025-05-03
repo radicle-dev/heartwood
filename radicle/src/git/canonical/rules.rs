@@ -24,6 +24,8 @@ use crate::git::Qualified;
 use crate::identity::{doc, Did};
 use crate::storage::git::Repository;
 
+const ASTERISK: char = '*';
+
 static REFS_RAD: Lazy<RefString> = Lazy::new(|| refname!("refs/rad"));
 
 /// Private trait to ensure that not any `Rule` can be deserialized.
@@ -85,7 +87,7 @@ impl Pattern {
         //
         //   - a trailing `*` changes to `**/*`
         //   - a `*` in between path components changes to `**`
-        let spec = match self.0.as_str().split_once('*') {
+        let spec = match self.0.as_str().split_once(ASTERISK) {
             None => self.0.to_string(),
             // Expand `refs/tags/*` to `refs/tags/**/*`
             Some((prefix, "")) => {
@@ -117,47 +119,132 @@ impl PartialOrd for Pattern {
     }
 }
 
-/// Given two `Patterns`s, determine their priority if they are overlapping, due
-/// to a `*` component.
+/// Patterns are ordered by their specificity.
 ///
-/// Using the `<` operator, where the left-hand-side means more specific. When
-/// the paths are equally specific, but not equal paths, then it falls back to
-/// lexicographical ordering. Here are some examples:
+/// This is heavily influenced by the evaluation priority of Rules. For a
+/// candidate reference name, we want the rule associated with the most specific
+/// pattern to apply, i.e. to take priority over all other rules with less
+/// specific patterns.
+///
+/// For two patterns φ and ψ, we say that "φ is more specific than ψ", denoted
+/// φ < ψ if:
+///
+///  1. The number of components in φ is larger than the number of components
+///     in ψ. (Note that the number of components is equal to the number of
+///     occurrences of the symbol '/' in the pattern, plus 1).
+///     The justification is, that refnames might be interpreted as a hierarchy
+///     where a match on more components would mean a match at a lower level in
+///     the hierarchy, thus being more specific.
+///     Imagine a refname hierarchy that maps to a corporate hierarchy.
+///     The pattern "department-1" matches all refnames that are administered
+///     by a particular department, and thus is not very specific.
+///     To contrast, the pattern "department-1/team-a/project-i/nice-feature"
+///     is very specific as it matches all refnames that relate to the
+///     development of a particular feature for a particular project by a
+///     particular team.
+///     Note that this would also apply when the connection between the φ and ψ
+///     is not as obvious, e.g. also "a/b/c/d/*" < "*/x".
+///
+/// (Note that for the following items, one may assume that φ and ψ have the
+/// same number of components.)
+///
+///  2. If path component i of φ, denoted φ[i], is more specific than path
+///     component i of ψ, denoted ψ[i]. This is the case if:
+///      a. φ[i] does not contain an asterisk and ψ[i] contains an asterisk,
+///         i.e. the symbol '*', e.g. "a" < "*" and "abc" < "a*".
+///         Note that this is important to capture specificity accross
+///         components, i.e. to conclude that "a/b/*" < "a/*/c".
+///      b. Both φ[i] and ψ[i] contain an asterisk.
+///          A. The asterisk in φ[i] is further right than the asterisk in φ[i],
+///             e.g. "xx*" < "a*".
+///          B. The asterisk in φ[i] and ψ[i] is equally far to the right,
+///             and φ[i] is longer than ψ[i], e.g. "a*b" < "x*".
+///
+///  3. Otherwise, fall back to a lexicographic ordering.
+///
+/// Some examples (justification in parentheses):
 ///
 /// ```text, no_run
-/// refs/tags/release/candidates/* < refs/tags/release/* < refs/tags/*
-/// refs/tags/v1.0 < refs/tags/*
-/// refs/heads/* < refs/tags/*
-/// refs/heads/main < refs/tags/v1.0
-/// refs/heads/main == refs/heads/main
+/// refs/tags/release/candidates/* <(1.)   refs/tags/release/* <(1.) refs/tags/*
+/// refs/tags/v1.0                 <(2.a.) refs/tags/*
+/// refs/heads/*                   <(3.)   refs/tags/*
+/// refs/heads/main                <(3.)   refs/tags/v1.0
 /// ```
 impl Ord for Pattern {
     fn cmp(&self, other: &Self) -> Ordering {
         let mut lhs = self.0.components();
         let mut rhs = other.0.components();
 
+        #[derive(Debug, Clone, Copy)]
+        #[repr(i8)]
+        enum ComponentOrdering {
+            MatchLength(Ordering),
+            Lexicographic(Ordering),
+        }
+
+        impl ComponentOrdering {
+            fn merge(&mut self, other: Self) {
+                *self = match (*self, other) {
+                    (Self::Lexicographic(Ordering::Equal), Self::Lexicographic(other)) => {
+                        Self::Lexicographic(other)
+                    }
+                    (Self::Lexicographic(_), Self::MatchLength(other)) => Self::MatchLength(other),
+                    (Self::MatchLength(Ordering::Equal), Self::MatchLength(other)) => {
+                        Self::MatchLength(other)
+                    }
+                    (clone, _) => clone,
+                }
+            }
+        }
+
+        impl From<ComponentOrdering> for Ordering {
+            fn from(value: ComponentOrdering) -> Self {
+                match value {
+                    ComponentOrdering::MatchLength(ordering) => ordering,
+                    ComponentOrdering::Lexicographic(ordering) => ordering,
+                }
+            }
+        }
+
+        impl Default for ComponentOrdering {
+            /// The weakest value of Self, which will be absorbed by any
+            /// other in [`ComponentOrdering::merge`].
+            fn default() -> Self {
+                Self::Lexicographic(Ordering::Equal)
+            }
+        }
+
+        use git::refspec::Component;
+
+        fn cmp_component(lhs: Component<'_>, rhs: Component<'_>) -> ComponentOrdering {
+            let (l, r) = (lhs.as_str(), rhs.as_str());
+            match (l.find(ASTERISK), r.find(ASTERISK)) {
+                (Some(_), None) => ComponentOrdering::MatchLength(Ordering::Greater), // (2.a.)
+                (None, Some(_)) => ComponentOrdering::MatchLength(Ordering::Less),    // (2.a.)
+                (Some(li), Some(ri)) => {
+                    if li != ri {
+                        ComponentOrdering::MatchLength(li.cmp(&ri).reverse()) // (2.b.A)
+                    } else if l.len() != r.len() {
+                        ComponentOrdering::MatchLength(l.len().cmp(&r.len()).reverse())
+                    // (2.b.B)
+                    } else {
+                        ComponentOrdering::Lexicographic(l.cmp(r)) // (3.)
+                    }
+                }
+                (None, None) => ComponentOrdering::Lexicographic(l.cmp(r)), // (3.)
+            }
+        }
+
+        let mut result = ComponentOrdering::default();
+
         loop {
             match (lhs.next(), rhs.next()) {
-                (None, None) => return Ordering::Equal,
-                (None, Some(_)) => return Ordering::Greater,
-                (Some(_), None) => return Ordering::Less,
-                (Some(l), Some(r)) => match (l.as_str(), r.as_str()) {
-                    ("*", "*") => continue,
-                    ("*", _) => return Ordering::Greater,
-                    (_, "*") => return Ordering::Less,
-                    (l, r) => {
-                        if l != r {
-                            // N.B. we do not want cases where `refs/heads/main`
-                            // is considered `Equal` to `refs/heads/trunk`,
-                            // otherwise they would overwrite each other in the
-                            // cases of using a `BTreeMap`. Instead, we defer to
-                            // lexicographical ordering.
-                            return l.cmp(r);
-                        } else {
-                            continue;
-                        }
-                    }
-                },
+                (None, Some(_)) => return Ordering::Greater, // (1.)
+                (Some(_), None) => return Ordering::Less,    // (1.)
+                (Some(lhs), Some(rhs)) => {
+                    result.merge(cmp_component(lhs, rhs));
+                }
+                (None, None) => return result.into(),
             }
         }
     }
@@ -658,6 +745,10 @@ mod tests {
         s.parse().unwrap()
     }
 
+    fn pattern(qp: QualifiedPattern<'static>) -> Pattern {
+        Pattern::try_from(qp).unwrap()
+    }
+
     fn resolve_from_doc(delegate: Allowed, doc: &Doc) -> Result<doc::Delegates, ValidationError> {
         match delegate {
             Allowed::Delegates => Ok(doc.delegates().clone()),
@@ -736,7 +827,7 @@ mod tests {
  "#;
         let expected = [
             (
-                Pattern::try_from(qualified_pattern!("refs/heads/main")).unwrap(),
+                pattern(qualified_pattern!("refs/heads/main")),
                 Rule::new(
                     Allowed::Set(nonempty![
                         did("did:key:z6MkpQTLwr8QyADGmBGAMsGttvWzP4PojUMs4hREZW5T5E3K"),
@@ -746,7 +837,7 @@ mod tests {
                 ),
             ),
             (
-                Pattern::try_from(qualified_pattern!("refs/tags/releases/*")).unwrap(),
+                pattern(qualified_pattern!("refs/tags/releases/*")),
                 Rule::new(
                     Allowed::Set(nonempty![
                         did("did:key:z6MknLWe8A7UJxvTfY36JcB8XrP1KTLb5HFTX38hEmdY3b56"),
@@ -757,7 +848,7 @@ mod tests {
                 ),
             ),
             (
-                Pattern::try_from(qualified_pattern!("refs/heads/development")).unwrap(),
+                pattern(qualified_pattern!("refs/heads/development")),
                 Rule::new(
                     Allowed::Set(nonempty![did(
                         "did:key:z6MkhH7ENYE62JAjTiRZPU71MGZ6xCwnbyHHWfrBu3fr6PVG"
@@ -766,7 +857,7 @@ mod tests {
                 ),
             ),
             (
-                Pattern::try_from(qualified_pattern!("refs/heads/release/*")).unwrap(),
+                pattern(qualified_pattern!("refs/heads/release/*")),
                 Rule::new(Allowed::Delegates, 1),
             ),
         ]
@@ -783,43 +874,103 @@ mod tests {
     }
 
     #[test]
-    fn test_priority() {
-        let pattern1 = Pattern::try_from(qualified_pattern!("refs/tags/*")).unwrap();
-        let pattern2 = Pattern::try_from(qualified_pattern!("refs/tags/v1")).unwrap();
-        let pattern3 = Pattern::try_from(qualified_pattern!("refs/heads/main")).unwrap();
-        let pattern4 = Pattern::try_from(qualified_pattern!("refs/tags/v1.0.0")).unwrap();
-        let pattern5 = Pattern::try_from(qualified_pattern!("refs/tags/release/v1.0.0")).unwrap();
-        let pattern6 = Pattern::try_from(qualified_pattern!("refs/tags/*/v1.0.0")).unwrap();
+    fn test_order() {
+        assert!(
+            pattern(qualified_pattern!("a/b/c/d/*")) < pattern(qualified_pattern!("*/x")),
+            "example 1"
+        );
+        assert!(
+            pattern(qualified_pattern!("a")) < pattern(qualified_pattern!("*")),
+            "example 2.a"
+        );
+        assert!(
+            pattern(qualified_pattern!("abc")) < pattern(qualified_pattern!("a*")),
+            "example 2.a"
+        );
+        assert!(
+            pattern(qualified_pattern!("a/b/*")) < pattern(qualified_pattern!("a/*/c")),
+            "example 2.a"
+        );
+        assert!(
+            pattern(qualified_pattern!("xx*")) < pattern(qualified_pattern!("a*")),
+            "example 2.b.A"
+        );
+        assert!(
+            pattern(qualified_pattern!("a*b")) < pattern(qualified_pattern!("x*")),
+            "example 2.b.B"
+        );
+
+        let pattern01 = pattern(qualified_pattern!("refs/tags/*"));
+        let pattern02 = pattern(qualified_pattern!("refs/tags/v1"));
+        let pattern04 = pattern(qualified_pattern!("refs/tags/v1.0.0"));
+        let pattern03 = pattern(qualified_pattern!("refs/heads/main"));
+        let pattern05 = pattern(qualified_pattern!("refs/tags/release/v1.0.0"));
+        let pattern06 = pattern(qualified_pattern!("refs/tags/*/v1.0.0"));
+
+        let pattern07 = pattern(qualified_pattern!("refs/tags/x*"));
+        let pattern08 = pattern(qualified_pattern!("refs/tags/xx*"));
+
+        let pattern09 = pattern(qualified_pattern!("refs/foos/*"));
+
+        let pattern10 = pattern(qualified_pattern!("a"));
+        let pattern11 = pattern(qualified_pattern!("b"));
+
+        let pattern12 = pattern(qualified_pattern!("a/*"));
+        let pattern13 = pattern(qualified_pattern!("b/*"));
+
+        let pattern14 = pattern(qualified_pattern!("a/*/ab"));
+        let pattern15 = pattern(qualified_pattern!("a/*/a"));
+
+        let pattern16 = pattern(qualified_pattern!("a/*/b"));
+        let pattern17 = pattern(qualified_pattern!("a/*/a"));
 
         // Test priority for path specificity
-        assert!(pattern1 > pattern2);
-        assert!(pattern6 > pattern2);
+        assert!(
+            pattern06 < pattern02,
+            "match for 06 is always more specific since it has more components"
+        );
+        assert!(pattern02 < pattern01, "match for 02 is also match for 01");
+        assert!(pattern08 < pattern07, "match for 08 is also match for 07");
         // Test equality
-        assert!(pattern2 == pattern2);
+        assert!(pattern02 == pattern02);
         // Test lexicographical fallback when paths are equally specific
-        assert!(pattern3 < pattern1);
+        assert!(pattern02 < pattern04);
+        assert!(pattern03 < pattern01);
+        assert!(pattern09 < pattern01);
+        assert!(pattern10 < pattern11);
+        assert!(pattern12 < pattern13);
+        assert!(pattern15 < pattern14);
+        assert!(
+            pattern17 < pattern16,
+            "matches have same length, but lexicographically, 'a' < 'b'"
+        );
 
         // Test example from docs
-        let pattern7 =
-            Pattern::try_from(qualified_pattern!("refs/tags/release/candidates/*")).unwrap();
-        let pattern8 = Pattern::try_from(qualified_pattern!("refs/tags/release/*")).unwrap();
-        let pattern9 = Pattern::try_from(qualified_pattern!("refs/tags/*")).unwrap();
-        assert!(pattern7 < pattern8 && pattern8 < pattern9);
+        let pattern18 = pattern(qualified_pattern!("refs/tags/release/candidates/*"));
+        let pattern19 = pattern(qualified_pattern!("refs/tags/release/*"));
+        let pattern20 = pattern(qualified_pattern!("refs/tags/*"));
+
+        assert!(pattern18 < pattern19);
+        assert!(pattern19 < pattern20);
+
+        let pattern21 = pattern(qualified_pattern!("refs/heads/dev"));
+
+        assert!(pattern21 < pattern03);
 
         let mut patterns = [
-            pattern1.clone(),
-            pattern2.clone(),
-            pattern3.clone(),
-            pattern4.clone(),
-            pattern5.clone(),
-            pattern6.clone(),
+            pattern01.clone(),
+            pattern02.clone(),
+            pattern03.clone(),
+            pattern04.clone(),
+            pattern05.clone(),
+            pattern06.clone(),
         ];
         patterns.sort();
 
         assert_eq!(
             patterns,
-            [pattern3, pattern5, pattern2, pattern4, pattern6, pattern1]
-        )
+            [pattern05, pattern06, pattern03, pattern02, pattern04, pattern01]
+        );
     }
 
     #[test]
@@ -866,7 +1017,7 @@ mod tests {
     #[test]
     fn test_rule_validate_failures() {
         let doc = arbitrary::gen::<Doc>(1);
-        let pattern = Pattern::try_from(qualified_pattern!("refs/heads/main")).unwrap();
+        let pattern = pattern(qualified_pattern!("refs/heads/main"));
 
         assert!(matches!(
             Rule::new(Allowed::Delegates, 256)
@@ -1006,19 +1157,18 @@ mod tests {
         let rules = Rules::from_raw(
             [
                 (
-                    Pattern::try_from(qualified_pattern!("refs/tags/*")).unwrap(),
+                    pattern(qualified_pattern!("refs/tags/*")),
                     Rule::new(Allowed::Delegates, 1),
                 ),
                 (
-                    Pattern::try_from(qualified_pattern!("refs/tags/release/*")).unwrap(),
+                    pattern(qualified_pattern!("refs/tags/release/*")),
                     Rule::new(Allowed::Delegates, 1),
                 ),
                 // Ensure that none of the other rules apply by ensuring we need
                 // both delegates to get the quorum of the
                 // `refs/tags/release/candidates/v1.0` reference
                 (
-                    Pattern::try_from(qualified_pattern!("refs/tags/release/candidates/*"))
-                        .unwrap(),
+                    pattern(qualified_pattern!("refs/tags/release/candidates/*")),
                     Rule::new(Allowed::Delegates, 2),
                 ),
             ],
