@@ -405,10 +405,7 @@ impl FetchState {
 
         // The threshold is only relevant to the default branch, if there is
         // none we set the threshold to 0 so that validation succeeds.
-        let threshold: usize = anchor
-            .default_branch_rule()?
-            .map(|rule| (*rule.threshold()).into())
-            .unwrap_or(0);
+        let threshold: usize = anchor.default_branch_threshold()?.unwrap_or(0);
         // The local peer does not need to count towards the threshold
         // since they must be valid already.
         let threshold = if is_delegate {

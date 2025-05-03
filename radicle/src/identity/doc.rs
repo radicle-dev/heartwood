@@ -805,6 +805,12 @@ impl Doc {
         }
     }
 
+    pub fn default_branch_threshold(&self) -> Result<Option<usize>, PayloadError> {
+        Ok(self
+            .default_branch_rule()?
+            .map(|rule| (*rule.threshold()).into()))
+    }
+
     /// Get the matching rule, if present, from the identity's canonical
     /// reference rules.
     pub fn rule_of<'a>(&self, refname: git::Qualified<'a>) -> Option<MatchedRule<'a>> {

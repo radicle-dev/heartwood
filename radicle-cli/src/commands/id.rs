@@ -735,12 +735,11 @@ fn verify_project_delegates<S>(proposal: &RawDoc, current: &Doc, repo: &S) -> an
 where
     S: ReadRepository,
 {
-    let rule = current.default_branch_rule()?;
-    let threshold = rule.map(|rule| *rule.threshold()).ok_or(anyhow::anyhow!(
-        "failed to find canonical ref rule for default branch"
-    ))?;
+    let Some(threshold) = current.default_branch_threshold()? else {
+        anyhow::bail!("failed to find canonical ref rule for default branch");
+    };
 
-    if let Some(errs) = verify_delegates(&proposal.delegates, threshold.into(), repo)? {
+    if let Some(errs) = verify_delegates(&proposal.delegates, threshold, repo)? {
         term::error(format!("failed to verify delegates for {}", repo.rid()));
         term::error(format!(
             "the threshold of {} delegates cannot be met..",
@@ -751,6 +750,7 @@ where
         }
         anyhow::bail!("fatal: refusing to update identity document");
     }
+
     Ok(())
 }
 
