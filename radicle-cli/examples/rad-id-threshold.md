@@ -48,13 +48,12 @@ $ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delega
 +    "did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk"
    ],
    "canonicalRefs": {
-     "rules": [
-       {
-         "refspec": "refs/heads/master",
-         "delegates": "$identity",
+     "rules": {
+       "refs/heads/master": {
+         "allow": "delegates",
          "threshold": 1
        }
-     ]
+     }
    }
  }
 ```

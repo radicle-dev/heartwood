@@ -539,7 +539,7 @@ fn rad_id() {
 // the default branch rule and the delegate set at the same time, but right now
 // that's not possible via the CLI.
 #[test]
-#[ignore]
+#[ignore = "not implemented"]
 fn rad_id_threshold() {
     let mut environment = Environment::new();
     let alice = environment.node(config::node("alice"));
