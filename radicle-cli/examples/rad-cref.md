@@ -70,6 +70,19 @@ $ rad cref add refs/tags/releases/* --title "Add canonical reference rule for re
 ✓ Identity revision a880b05441f00cc90bc7bae76e0f1ef16b73daf1 created
 ```
 
+We can test that our rule matches against the reference name `refs/tags/releases/v1.2`
+as expected:
+
+```
+$ rad cref match refs/tags/releases/v1.2
+{
+  "refs/tags/releases/*": {
+    "allow": "delegates",
+    "threshold": 1
+  }
+}
+```
+
 Here, we didn't specify the `--allow` or `--threshold` options. This means
 the defaults of `delegates` and `1` will be used. So let's check that this is
 true:
@@ -118,6 +131,13 @@ $ rad cref
     "threshold": 1
   }
 }
+```
+
+Let's also check that the refname `refs/heads/weird` does not match any rules:
+
+```
+$ rad cref match refs/heads/weird
+{}
 ```
 
 The `refspec` value must be a fully-qualified reference name. That is, it must

@@ -736,7 +736,7 @@ where
     S: ReadRepository,
 {
     let Some(threshold) = current.default_branch_threshold()? else {
-        anyhow::bail!("failed to find canonical ref rule for default branch");
+        anyhow::bail!("failed to find threshold of canonical ref rule for default branch");
     };
 
     if let Some(errs) = verify_delegates(&proposal.delegates, threshold, repo)? {

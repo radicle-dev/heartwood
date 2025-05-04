@@ -743,11 +743,12 @@ impl ReadRepository for Repository {
 
     fn canonical_head(&self) -> Result<(Qualified, Oid), RepositoryError> {
         let doc = self.identity_doc()?;
-        let rule = doc
-            .default_branch_rule()?
-            .ok_or(RepositoryError::MissingBranchRule)?;
-        let oid = rule.canonical(self)?.quorum(self.raw())?;
-        Ok((rule.refname().clone().to_owned(), oid))
+        let refname = git::refs::branch(doc.project()?.default_branch());
+        Ok(doc
+            .rules()
+            .canonical(refname, self)?
+            .ok_or(RepositoryError::MissingBranchRule)?
+            .quorum(self.raw())?)
     }
 
     fn identity_head(&self) -> Result<Oid, RepositoryError> {

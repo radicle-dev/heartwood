@@ -93,8 +93,7 @@ commit:
 
 ``` ~alice (stderr)
 $ git push rad -f
-warn: could not determine canonical tip for `refs/heads/master`
-warn: no commit found with at least 3 vote(s) (threshold not met)
+warn: could not determine tip for canonical reference 'refs/heads/master', no commit with at least 3 vote(s) found (threshold not met)
 warn: it is recommended to find a commit to agree upon
 ✓ Synced with 2 node(s)
 To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi

@@ -9,6 +9,8 @@ use radicle::cob::identity::Identity;
 use radicle::git::canonical::rules;
 use radicle::git::canonical::rules::Rule;
 use radicle::git::canonical::RawRule;
+use radicle::git::canonical::Rules;
+use radicle::git::Qualified;
 use radicle::identity::Did;
 use radicle::identity::IdentityMut;
 use radicle::identity::RawDoc;
@@ -34,17 +36,23 @@ Usage
     rad cref add <refspec> [--allow <did>..] [--threshold <num>] [<option>...]
     rad cref edit <refspec> [--allow <did>..] [--threshold <num>] [<option>...]
     rad cref remove <refspec> [<option>...]
+    rad cref match <refname>
 
     The *rad cref* command is used to manage the rules for setting
     canonical references in the Radicle repository.
 
-    The *list* command lists all the rules associated with the repository.
+    The *list* command lists all the rules associated with the repository that
+    match the given *refname*.
 
     The *add* command will add the rule for the given *refspec*.
 
     The *edit* command will amend the rule for the given *refspec*.
 
     The *remove* command will remove the rule for the given *refspec*.
+
+    The *match* command evaluates all rules against given reference name,
+    it prints the set of matched rules, in order of precedence, i.e. the
+    first rule printed is the one that applies to the given reference name.
 
 Add/Edit options
 
@@ -77,6 +85,9 @@ pub enum Operation {
         threshold: usize,
     },
     List,
+    Match {
+        refname: Qualified<'static>,
+    },
     Remove {
         title: Option<String>,
         description: Option<String>,
@@ -90,6 +101,7 @@ pub enum OperationName {
     Edit,
     #[default]
     List,
+    Match,
     Remove,
 }
 
@@ -106,6 +118,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut pattern: Option<rules::Pattern> = None;
+        let mut refname: Option<Qualified<'static>> = None;
         let mut allow: Vec<Did> = Vec::new();
         let mut threshold: Option<usize> = None;
         let mut rid: Option<RepoId> = None;
@@ -120,9 +133,14 @@ impl Args for Options {
                     "e" | "edit" => op = Some(OperationName::Edit),
                     "r" | "remove" => op = Some(OperationName::Remove),
                     "l" | "list" => op = Some(OperationName::List),
+                    "m" | "match" => op = Some(OperationName::Match),
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
+
+                Value(val) if matches!(op, Some(OperationName::Match)) => {
+                    refname = Some(term::args::qualified_refstring(val)?);
+                }
 
                 Value(val)
                     if matches!(
@@ -203,6 +221,9 @@ impl Args for Options {
                 pattern: pattern.ok_or_else(|| anyhow!("a refspec must be provided"))?,
             },
             OperationName::List => Operation::List,
+            OperationName::Match => Operation::Match {
+                refname: refname.ok_or_else(|| anyhow!("a refname must be provided"))?,
+            },
         };
 
         Ok((Options { op, rid, quiet }, vec![]))
@@ -283,7 +304,19 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             )?;
         }
         Operation::List => {
-            print_rules(current.rules())?;
+            if !options.quiet {
+                print_rules(current.rules())?;
+            }
+        }
+        Operation::Match { refname } => {
+            if !options.quiet {
+                print_rules(&Rules::from_iter(
+                    current
+                        .rules()
+                        .matches(&refname)
+                        .map(|(pattern, rule)| (pattern.clone(), rule.clone())),
+                ))?;
+            }
         }
     }
     Ok(())

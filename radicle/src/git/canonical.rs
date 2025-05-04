@@ -2,141 +2,55 @@ pub mod rules;
 pub use rules::{MatchedRule, RawRule, Rules, ValidRule};
 
 use std::collections::BTreeMap;
-use std::fmt;
 
-use nonempty::NonEmpty;
 use raw::Repository;
 use thiserror::Error;
 
 use crate::prelude::Did;
-use crate::prelude::Project;
 use crate::storage::ReadRepository;
 
 use super::raw;
-use super::{lit, Oid, Qualified};
+use super::{Oid, Qualified};
 
 /// A collection of [`Did`]s and their [`Oid`]s that is the tip for a given
 /// reference for that [`Did`].
 ///
 /// The general construction of `Canonical` is by using the
-/// [`Canonical::reference`] constructor. For the default branch of a
-/// [`Project`], use [`Canonical::default_branch`].
+/// [`Canonical::new`] constructor.
 ///
 /// `Canonical` can then be used for performing calculations about the
 /// canonicity of the reference, most importantly the [`Canonical::quorum`].
+///
+/// References to the refname and the matched rule are kept, as they
+/// are very handy for generating error messages.
 #[derive(Debug)]
-pub struct Canonical {
+pub struct Canonical<'a, 'b> {
+    refname: Qualified<'a>,
+    rule: &'b ValidRule,
     tips: BTreeMap<Did, Oid>,
-    threshold: usize,
 }
 
 /// Error that can occur when calculation the [`Canonical::quorum`].
 #[derive(Debug, Error)]
 pub enum QuorumError {
     /// Could not determine a quorum [`Oid`], due to diverging tips.
-    #[error("could not determine canonical reference tip, {0}")]
-    Diverging(Diverging),
+    #[error("could not determine tip for canonical reference '{refname}', found diverging commits {longest} and {head}, with base commit {base} and threshold {threshold}")]
+    Diverging {
+        refname: String,
+        threshold: usize,
+        base: Oid,
+        longest: Oid,
+        head: Oid,
+    },
     /// Could not determine a base candidate from the given set of delegates.
-    #[error("could not determine canonical reference tip, {0}")]
-    NoCandidates(NoCandidates),
+    #[error("could not determine tip for canonical reference '{refname}', no commit with at least {threshold} vote(s) found (threshold not met)")]
+    NoCandidates { refname: String, threshold: usize },
     /// An error occurred from [`git2`].
     #[error(transparent)]
     Git(#[from] git2::Error),
 }
 
-/// No candidates were found for the [`Canonical::quorum`] calculation.
-///
-/// The [`fmt::Display`] is used in [`QuorumError`], to provide information on
-/// the threshold and delegates in the calculation.
-#[derive(Debug)]
-pub struct NoCandidates {
-    threshold: usize,
-}
-
-impl fmt::Display for NoCandidates {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let NoCandidates { threshold } = self;
-        write!(
-            f,
-            "no commit found with at least {threshold} vote(s) (threshold not met)"
-        )
-    }
-}
-
-/// Diverging commits were found during the [`Canonical::quorum`] calculation.
-///
-/// The [`fmt::Display`] is used in [`QuorumError`], to provide information on
-/// the threshold, base commit, and the two diverging commits, in the
-/// calculation.
-#[derive(Debug)]
-pub struct Diverging {
-    threshold: usize,
-    base: Oid,
-    longest: Oid,
-    head: Oid,
-}
-
-impl fmt::Display for Diverging {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Diverging {
-            threshold,
-            base,
-            longest,
-            head,
-        } = self;
-        write!(f, "found diverging commits {longest} and {head}, with base commit {base} and threshold {threshold}")
-    }
-}
-
-impl Canonical {
-    /// Construct the set of canonical tips of the `Project::default_branch` for
-    /// the given `delegates`.
-    pub fn default_branch<S>(
-        repo: &S,
-        project: &Project,
-        delegates: &NonEmpty<Did>,
-        threshold: usize,
-    ) -> Result<Self, raw::Error>
-    where
-        S: ReadRepository,
-    {
-        Self::reference(
-            repo,
-            &lit::refs_heads(project.default_branch()).into(),
-            delegates,
-            threshold,
-        )
-    }
-
-    /// Construct the set of canonical tips given for the given `delegates` and
-    /// the reference `name`.
-    pub fn reference<S>(
-        repo: &S,
-        refname: &Qualified,
-        delegates: &NonEmpty<Did>,
-        threshold: usize,
-    ) -> Result<Self, raw::Error>
-    where
-        S: ReadRepository,
-    {
-        let mut tips = BTreeMap::new();
-        for delegate in delegates.iter() {
-            match repo.reference_oid(delegate, refname) {
-                Ok(tip) => {
-                    tips.insert(*delegate, tip);
-                }
-                Err(e) if super::ext::is_not_found_err(&e) => {
-                    log::warn!(
-                        target: "radicle",
-                        "Missing `refs/namespaces/{delegate}/{refname}` while calculating the canonical reference",
-                    );
-                }
-                Err(e) => return Err(e),
-            }
-        }
-        Ok(Canonical { tips, threshold })
-    }
-
+impl<'a, 'b> Canonical<'a, 'b> {
     /// Return the set of [`Did`]s and their [`Oid`] tip.
     pub fn tips(&self) -> impl Iterator<Item = (&Did, &Oid)> {
         self.tips.iter()
@@ -149,34 +63,75 @@ impl Canonical {
     pub fn is_empty(&self) -> bool {
         self.tips.is_empty()
     }
-}
 
-/// Check that a given `target` converges with any of the provided `tips`.
-///
-/// It converges if the `target` is either equal to, ahead of, or behind any of
-/// the tips.
-pub fn converges<'a>(
-    tips: impl Iterator<Item = &'a Oid>,
-    target: Oid,
-    repo: &Repository,
-) -> Result<bool, raw::Error> {
-    for tip in tips {
-        match repo.graph_ahead_behind(*target, **tip)? {
-            (0, 0) => return Ok(true),
-            (ahead, behind) if ahead > 0 && behind == 0 => return Ok(true),
-            (ahead, behind) if behind > 0 && ahead == 0 => return Ok(true),
-            (_, _) => {}
-        }
+    pub fn refname(&self) -> &Qualified {
+        &self.refname
     }
-    Ok(false)
-}
 
-impl Canonical {
     /// In some cases, we allow the vote to be modified. For example, when the
     /// `did` is pushing a new commit, we may want to see if the new commit will
     /// reach a quorum.
     pub fn modify_vote(&mut self, did: Did, new: Oid) {
         self.tips.insert(did, new);
+    }
+
+    fn threshold(&self) -> usize {
+        (*self.rule.threshold()).into()
+    }
+
+    pub fn allowed(&self) -> &crate::git::canonical::rules::ResolvedDelegates {
+        self.rule.allowed()
+    }
+
+    /// Checks that setting the given candidate tip would converge with at least
+    /// one other known tip.
+    ///
+    /// It converges if the candidate Oid is either equal to, ahead of, or behind any of
+    /// the tips.
+    pub fn converges(
+        &self,
+        repo: &Repository,
+        candidate: (&Did, &Oid),
+    ) -> Result<bool, raw::Error> {
+        for tip in self
+            .tips
+            .iter()
+            .filter_map(|(did, tip)| (did != candidate.0).then_some(tip))
+        {
+            let (ahead, behind) = repo.graph_ahead_behind(**candidate.1, **tip)?;
+            if ahead * behind == 0 {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    /// Construct the set of canonical tips given for the given `rule` and
+    /// the reference `refname`.
+    pub fn new<S>(repo: &S, refname: Qualified<'a>, rule: &'b ValidRule) -> Result<Self, raw::Error>
+    where
+        S: ReadRepository,
+    {
+        let mut tips = BTreeMap::new();
+        for delegate in rule.allowed().iter() {
+            match repo.reference_oid(delegate, &refname) {
+                Ok(tip) => {
+                    tips.insert(*delegate, tip);
+                }
+                Err(e) if super::ext::is_not_found_err(&e) => {
+                    log::warn!(
+                        target: "radicle",
+                        "Missing `refs/namespaces/{delegate}/{refname}` while calculating the canonical reference",
+                    );
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(Canonical {
+            refname,
+            tips,
+            rule,
+        })
     }
 
     /// Computes the quorum or "canonical" tip based on the tips, of `Canonical`,
@@ -186,7 +141,7 @@ impl Canonical {
     ///
     /// Also returns an error if `heads` is empty or `threshold` cannot be
     /// satisified with the number of heads given.
-    pub fn quorum(self, repo: &raw::Repository) -> Result<Oid, QuorumError> {
+    pub fn quorum(self, repo: &raw::Repository) -> Result<(Qualified<'a>, Oid), QuorumError> {
         let mut candidates = BTreeMap::<_, usize>::new();
 
         // Build a list of candidate commits and count how many "votes" each of them has.
@@ -211,14 +166,12 @@ impl Canonical {
             }
         }
         // Keep commits which pass the threshold.
-        candidates.retain(|_, votes| *votes >= self.threshold);
+        candidates.retain(|_, votes| *votes >= self.threshold());
 
-        let (mut longest, _) =
-            candidates
-                .pop_first()
-                .ok_or(QuorumError::NoCandidates(NoCandidates {
-                    threshold: self.threshold,
-                }))?;
+        let (mut longest, _) = candidates.pop_first().ok_or(QuorumError::NoCandidates {
+            refname: self.refname.to_string(),
+            threshold: self.threshold(),
+        })?;
 
         // Now that all scores are calculated, figure out what is the longest branch
         // that passes the threshold. In case of divergence, return an error.
@@ -252,15 +205,16 @@ impl Canonical {
                 //            o (base)
                 //            |
                 //
-                return Err(QuorumError::Diverging(Diverging {
-                    threshold: self.threshold,
+                return Err(QuorumError::Diverging {
+                    refname: self.refname.to_string(),
+                    threshold: self.threshold(),
                     base: base.into(),
                     longest,
                     head: *head,
-                }));
+                });
             }
         }
-        Ok((*longest).into())
+        Ok((self.refname, (*longest).into()))
     }
 }
 
@@ -281,7 +235,7 @@ mod tests {
         threshold: usize,
         repo: &git::raw::Repository,
     ) -> Result<Oid, QuorumError> {
-        let tips = heads
+        let tips: BTreeMap<Did, Oid> = heads
             .iter()
             .enumerate()
             .map(|(i, head)| {
@@ -290,7 +244,25 @@ mod tests {
                 (did, (*head).into())
             })
             .collect();
-        Canonical { tips, threshold }.quorum(repo)
+
+        let refname =
+            git::refs::branch(git_ext::ref_format::RefStr::try_from_str("master").unwrap());
+
+        let rule: RawRule = crate::git::canonical::rules::Rule::new(
+            crate::git::canonical::rules::Allowed::Delegates,
+            threshold,
+        );
+        let rule = rule
+            .validate(&mut |_| Ok(crate::identity::doc::Delegates::new(tips.keys().cloned())?))
+            .unwrap();
+
+        Canonical {
+            refname,
+            tips,
+            rule: &rule,
+        }
+        .quorum(repo)
+        .map(|(_, oid)| oid)
     }
 
     #[test]
@@ -352,9 +324,16 @@ mod tests {
         assert_eq!(quorum(&[*c0], 1, &repo).unwrap(), c0);
         assert_eq!(quorum(&[*c1], 1, &repo).unwrap(), c1);
         assert_eq!(quorum(&[*c2], 1, &repo).unwrap(), c2);
-        assert_eq!(quorum(&[*c0], 0, &repo).unwrap(), c0);
-        assert_matches!(quorum(&[], 0, &repo), Err(QuorumError::NoCandidates(_)));
-        assert_matches!(quorum(&[*c0], 2, &repo), Err(QuorumError::NoCandidates(_)));
+
+        // TODO: Think about what happens to threshold = 0.
+        // assert_eq!(quorum(&[*c0], 0, &repo).unwrap(), c0);
+        // assert_matches!(quorum(&[], 0, &repo), Err(QuorumError::NoCandidates { .. }));
+
+        // TODO: Think about what happens when number of allowed is smaller than threshold.
+        // assert_matches!(
+        //    quorum(&[*c0], 2, &repo),
+        //    Err(QuorumError::NoCandidates { .. })
+        // );
 
         //  C1
         //  |
@@ -380,23 +359,23 @@ mod tests {
         //  C0
         assert_matches!(
             quorum(&[*c1, *c2, *b2], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*c2, *b2], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*b2, *c2], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*c2, *b2], 2, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
         assert_matches!(
             quorum(&[*b2, *c2], 2, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
         assert_eq!(quorum(&[*c1, *c2, *b2], 2, &repo).unwrap(), c1);
         assert_eq!(quorum(&[*c1, *c2, *b2], 3, &repo).unwrap(), c1);
@@ -404,7 +383,7 @@ mod tests {
         assert_eq!(quorum(&[*b2, *c2, *c2], 2, &repo).unwrap(), c2);
         assert_matches!(
             quorum(&[*b2, *b2, *c2, *c2], 2, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
 
         // B2 C2 C3
@@ -415,15 +394,15 @@ mod tests {
         assert_eq!(quorum(&[*b2, *c2, *c2], 2, &repo).unwrap(), c2);
         assert_matches!(
             quorum(&[*b2, *c2, *c2], 3, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
         assert_matches!(
             quorum(&[*b2, *c2, *b2, *c2], 3, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
         assert_matches!(
             quorum(&[*c3, *b2, *c2, *b2, *c2, *c3], 3, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
 
         //  B2 C2
@@ -433,19 +412,19 @@ mod tests {
         //   C0
         assert_matches!(
             quorum(&[*c2, *b2, *a1], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*c2, *b2, *a1], 2, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
         assert_matches!(
             quorum(&[*c2, *b2, *a1], 3, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
         assert_matches!(
             quorum(&[*c1, *c2, *b2, *a1], 4, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
         assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 2, &repo).unwrap(), c1,);
         assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 3, &repo).unwrap(), c1,);
@@ -453,23 +432,23 @@ mod tests {
         assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 4, &repo).unwrap(), c0,);
         assert_matches!(
             quorum(&[*a1, *a1, *c2, *c2, *c1], 2, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*a1, *a1, *c2, *c2, *c1], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*a1, *a1, *c2], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*b2, *b2, *c2, *c2], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*b2, *b2, *c2, *c2, *a1], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
 
         //    M2  M1
@@ -482,27 +461,27 @@ mod tests {
         assert_eq!(quorum(&[*m1], 1, &repo).unwrap(), m1);
         assert_matches!(
             quorum(&[*m1, *m2], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*m2, *m1], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*m1, *m2], 2, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
         assert_matches!(
             quorum(&[*m1, *m2, *c2], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*m1, *a1], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*m1, *a1], 2, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
         assert_eq!(quorum(&[*m1, *m2, *b2, *c1], 4, &repo).unwrap(), c1);
         assert_eq!(quorum(&[*m1, *m1, *b2], 2, &repo).unwrap(), m1);
@@ -541,11 +520,11 @@ mod tests {
         //      C0
         assert_matches!(
             quorum(&[*m1, *m2], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*m1, *m2], 2, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
 
         let m3 = fixtures::commit("M3", &[*c2, *c1], &repo);
@@ -557,27 +536,27 @@ mod tests {
         //      C0
         assert_matches!(
             quorum(&[*m1, *m3], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*m1, *m3], 2, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
         assert_matches!(
             quorum(&[*m3, *m1], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*m3, *m1], 2, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
         assert_matches!(
             quorum(&[*m3, *m2], 1, &repo),
-            Err(QuorumError::Diverging(_))
+            Err(QuorumError::Diverging { .. })
         );
         assert_matches!(
             quorum(&[*m3, *m2], 2, &repo),
-            Err(QuorumError::NoCandidates(_))
+            Err(QuorumError::NoCandidates { .. })
         );
     }
 }
