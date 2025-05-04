@@ -31,14 +31,14 @@ pub const HELP: Help = Help {
 Usage
 
     rad cref list [<option>...]
-    rad cref add <refspec> [--delegate <did>..] [--threshold <num>] [<option>...]
-    rad cref edit <refspec> [--delegate <did>..] [--threshold <num>] [<option>...]
+    rad cref add <refspec> [--allow <did>..] [--threshold <num>] [<option>...]
+    rad cref edit <refspec> [--allow <did>..] [--threshold <num>] [<option>...]
     rad cref remove <refspec> [<option>...]
 
     The *rad cref* command is used to manage the rules for setting
     canonical references in the Radicle repository.
 
-    The *list* command lists all the rules associated with the identity.
+    The *list* command lists all the rules associated with the repository.
 
     The *add* command will add the rule for the given *refspec*.
 
@@ -48,9 +48,9 @@ Usage
 
 Add/Edit options
 
-   --delegate <did>        Delegate DID to be used for the canonical reference rule.
+   --allow <did>           Delegate DID to be used for the canonical reference rule.
                            Can be used multiple times to specify more delegates.
-                           If not specified the default '$identity' token will be used.
+                           If not specified the default 'delegates' token will be used.
    --threshold <num>       The threshold number of votes required to make a reference canonical (default: 1)
 
 Options
@@ -66,14 +66,14 @@ pub enum Operation {
         title: Option<String>,
         description: Option<String>,
         pattern: rules::Pattern,
-        delegates: rules::Allowed,
+        allow: rules::Allowed,
         threshold: usize,
     },
     Edit {
         title: Option<String>,
         description: Option<String>,
         pattern: rules::Pattern,
-        delegates: rules::Allowed,
+        allow: rules::Allowed,
         threshold: usize,
     },
     List,
@@ -106,7 +106,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut pattern: Option<rules::Pattern> = None;
-        let mut delegates: Vec<Did> = Vec::new();
+        let mut allow: Vec<Did> = Vec::new();
         let mut threshold: Option<usize> = None;
         let mut rid: Option<RepoId> = None;
         let mut title: Option<String> = None;
@@ -151,11 +151,9 @@ impl Args for Options {
                 {
                     description = Some(parser.value()?.to_string_lossy().into());
                 }
-                Long("delegate")
-                    if matches!(op, Some(OperationName::Add | OperationName::Edit)) =>
-                {
+                Long("allow") if matches!(op, Some(OperationName::Add | OperationName::Edit)) => {
                     let did = term::args::did(&parser.value()?)?;
-                    delegates.push(did);
+                    allow.push(did);
                 }
                 Long("threshold")
                     if matches!(op, Some(OperationName::Add | OperationName::Edit)) =>
@@ -185,7 +183,7 @@ impl Args for Options {
                 title,
                 description,
                 pattern: pattern.ok_or_else(|| anyhow!("a refspec must be provided"))?,
-                delegates: NonEmpty::from_vec(delegates)
+                allow: NonEmpty::from_vec(allow)
                     .map(rules::Allowed::Set)
                     .unwrap_or(rules::Allowed::Delegates),
                 threshold: threshold.unwrap_or(1),
@@ -194,7 +192,7 @@ impl Args for Options {
                 title,
                 description,
                 pattern: pattern.ok_or_else(|| anyhow!("a refspec must be provided"))?,
-                delegates: NonEmpty::from_vec(delegates)
+                allow: NonEmpty::from_vec(allow)
                     .map(rules::Allowed::Set)
                     .unwrap_or(rules::Allowed::Delegates),
                 threshold: threshold.unwrap_or(1),
@@ -229,10 +227,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             title,
             description,
             pattern,
-            delegates,
+            allow,
             threshold,
         } => {
-            let rule = Rule::new(delegates, threshold);
+            let rule = Rule::new(allow, threshold);
             let proposal = current.doc.clone().edit();
             add(
                 proposal,
@@ -250,10 +248,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             title,
             description,
             pattern,
-            delegates,
+            allow,
             threshold,
         } => {
-            let rule = Rule::new(delegates, threshold);
+            let rule = Rule::new(allow, threshold);
             let proposal = current.doc.clone().edit();
             edit(
                 proposal,

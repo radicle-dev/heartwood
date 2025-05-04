@@ -23,7 +23,7 @@ divergence.
 So, let's add another rule through the `add` subcommand:
 
 ```
-$ rad cref add refs/heads/dev --delegate did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --threshold 2 --title "Add canonical reference rule for refs/heads/dev"
+$ rad cref add refs/heads/dev --allow did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --threshold 2 --title "Add canonical reference rule for refs/heads/dev"
 ✓ Rule for refs/heads/dev has been added
 ✓ Identity revision a92caeb23f9df6f2136c583ef6f01cb81fea853f created
 ```
@@ -70,7 +70,7 @@ $ rad cref add refs/tags/releases/* --title "Add canonical reference rule for re
 ✓ Identity revision a880b05441f00cc90bc7bae76e0f1ef16b73daf1 created
 ```
 
-Here, we didn't specify the `--delegate` or `--threshold` options. This means
+Here, we didn't specify the `--allow` or `--threshold` options. This means
 the defaults of `delegates` and `1` will be used. So let's check that this is
 true:
 
@@ -141,7 +141,7 @@ Finally, rules are verified according to the RIP. In this case we'll add a rule
 with a single delegate but a threshold of 2:
 
 ``` (fails)
-$ rad cref add refs/tags/* --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --threshold 2 --title "Add canonical reference rule for refs/tags/*"
+$ rad cref add refs/tags/* --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --threshold 2 --title "Add canonical reference rule for refs/tags/*"
 ✗ Error: invalid threshold `2`: threshold cannot exceed number of delegates
 ```
 
