@@ -26,7 +26,7 @@ wait for nodes to announce that they have fetched those refs.
 
 ```
 $ rad sync --announce
-✓ Synced with 2 node(s)
+✓ Announced to 2 seed(s) to meet replication target.
 ```
 
 Now, when we run `rad sync status` again, we can see that `bob` and
@@ -48,7 +48,7 @@ be up to date.
 
 ```
 $ rad sync --announce
-✓ Nothing to announce, already in sync with 2 node(s) (see `rad sync status`)
+✓ All preferred seeds are in sync, and the replication target is met. Nothing to announce.
 ```
 
 We can also use the `--fetch` option to only fetch objects:
@@ -67,7 +67,7 @@ $ rad sync --fetch --announce
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z@[..]..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk@[..]..
 ✓ Fetched repository from 2 seed(s)
-✓ Nothing to announce, already in sync with 2 node(s) (see `rad sync status`)
+✓ All preferred seeds are in sync, and the replication target is met. Nothing to announce.
 ```
 
 It's also possible to use the `--seed` flag to only sync with a specific node:
@@ -89,11 +89,11 @@ $ rad issue open --title "Test `rad sync --replicas`" --description "Check that 
 $ rad sync --replicas 1
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z@[..]..
 ✓ Fetched repository from 1 seed(s)
-✓ Synced with 1 node(s)
+✓ Announced to 2 seed(s) to meet replication target (1 succeeded, 0 failed).
 ```
 
-Note that we see `✓ Fetched repository from 1 seed(s)` and `✓ Synced
-with 1 node(s)`. This does not necessarily mean that only `bob` or
+Note that we see `✓ Fetched repository from 1 seed(s)` and announced to only
+with 1 seed. This does not necessarily mean that only `bob` or
 `eve` were synchronized with, since they both could have received the
 announcement of the new changes. However, it does mean that we only
 wait for at least 1 of the nodes to have fetched the changes from us.

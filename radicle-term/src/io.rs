@@ -197,6 +197,10 @@ pub fn hint(hint: impl fmt::Display) {
     println!("{ERROR_HINT_PREFIX} {}", format::hint(hint));
 }
 
+pub fn hint_write(write: &mut impl io::Write, hint: impl fmt::Display) -> io::Result<()> {
+    writeln!(write, "{ERROR_HINT_PREFIX} {}", format::hint(hint))
+}
+
 pub fn ask<D: fmt::Display>(prompt: D, default: bool) -> bool {
     let prompt = prompt.to_string();
 

@@ -18,7 +18,7 @@ the refs.
 $ rad id update --title "Allow Bob" --description "" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
 ...
 $ rad sync --announce --timeout 3
-✓ Synced with 1 node(s)
+✓ Announced to 1 seed(s) to meet replication target.
 ```
 
 Bob can now fetch the private repo without specifying a seed, because he knows

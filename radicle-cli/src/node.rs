@@ -180,116 +180,320 @@ fn announce_<R: ReadRepository>(
     let rid = repo.id();
     let doc = repo.identity_doc()?;
     let mut settings = settings.with_profile(profile);
-    let unsynced: Vec<_> = if doc.is_public() {
-        // All seeds.
-        let all = node.seeds(rid)?;
-        if all.is_empty() {
-            term::info!(&mut reporting.completion; "No seeds found for {rid}.");
-            return Ok(AnnounceResult::default());
-        }
-        // Seeds in sync with us.
-        let synced = all
-            .iter()
-            .filter(|s| s.is_synced())
-            .map(|s| s.nid)
-            .collect::<BTreeSet<_>>();
-        // Replicas not counting our local replica.
-        let replicas = synced.iter().filter(|nid| *nid != profile.id()).count();
-        // Maximum replication factor we can achieve.
-        let max_replicas = all.iter().filter(|s| &s.nid != profile.id()).count();
-        // If the seeds we specified in the sync settings are all synced.
-        let is_seeds_synced = settings.seeds.iter().all(|s| synced.contains(s));
-        // If we met our desired replica count. Note that this can never exceed the maximum count.
-        let is_replicas_synced = replicas >= settings.replicas.min(max_replicas);
 
-        // Nothing to do if we've met our sync state.
-        if is_seeds_synced && is_replicas_synced {
-            term::success!(
-                &mut reporting.completion;
-                "Nothing to announce, already in sync with {replicas} node(s) (see `rad sync status`)"
-            );
-            return Ok(AnnounceResult::default());
-        }
-        // Return nodes we can announce to. They don't have to be connected directly.
-        all.iter()
-            .filter(|s| !s.is_synced() && &s.nid != profile.id())
-            .map(|s| s.nid)
+    let seeds = node.seeds(rid)?;
+    let me = radicle::identity::Did::from(profile.id());
+
+    // Note that we filter out `me` from the candidate set,
+    // as we do not count want to sync with outselves and we
+    // do not count ourselves towards the replication target.
+    let candidates: BTreeSet<NodeId> = if doc.is_public() {
+        seeds
+            .iter()
+            .filter_map(|seed| (seed.nid != *me).then_some(seed.nid))
             .collect()
     } else {
         node.sessions()?
             .into_iter()
-            .filter(|s| s.state.is_connected() && doc.is_visible_to(&s.nid.into()))
-            .map(|s| s.nid)
+            .filter_map(|session| {
+                (session.nid != *me
+                    && session.state.is_connected()
+                    && doc.is_visible_to(&session.nid.into()))
+                .then_some(session.nid)
+            })
             .collect()
     };
 
-    if unsynced.is_empty() {
-        term::info!(&mut reporting.completion; "No seeds to announce to for {rid}. (see `rad sync status`)");
+    if candidates.is_empty() {
+        term::info!(&mut reporting.completion; "No candidate seeds found to announce {rid} to.");
+        if !doc.is_public() && profile.config.cli.hints {
+            term::hint_write(&mut reporting.completion, "This is a private repository. It can only be synced with connected nodes to which it is visible.").ok();
+            if let Some(visible_to) = doc.visible_to() {
+                term::hint_write(
+                    &mut reporting.completion,
+                    "The repository is currently visible to:",
+                )
+                .ok();
+                visible_to.iter().filter(|did| **did != me).for_each(|n| {
+                    term::hint_write(&mut reporting.completion, format!("  - {}", format::dim(n)))
+                        .ok();
+                });
+            }
+        }
         return Ok(AnnounceResult::default());
     }
+
+    let (synced, unsynced) = candidates
+        .iter()
+        .filter(|nid| !settings.seeds.contains(nid))
+        .partition::<BTreeSet<_>, _>(|s| seeds.get(s).is_some_and(|s| s.is_synced()));
+
+    let (preferred_synced, preferred_unsynced) = settings
+        .seeds
+        .iter()
+        .partition::<BTreeSet<_>, _>(|s| seeds.get(s).is_some_and(|s| s.is_synced()));
+
+    // Replicas not counting our local replica.
+    let replicas = synced.len() + preferred_synced.len();
+
+    // Maximum replication factor we can achieve.
+    let max_replicas = unsynced.len() + preferred_unsynced.len();
+
     // Cap the replicas to the maximum achievable.
     // Nb. It's impossible to know if a replica follows our node. This means that if we announce
     // only our refs, and the replica doesn't follow us, it won't fetch from us.
-    settings.replicas = settings.replicas.min(unsynced.len());
+    settings.replicas = settings.replicas.min(max_replicas);
 
-    let mut spinner = term::spinner_to(
-        format!("Found {} seed(s)..", unsynced.len()),
-        reporting.completion.clone(),
-        reporting.progress.clone(),
-    );
-    let result = node.announce(
-        rid,
-        unsynced,
-        settings.timeout,
-        |event, replicas| match event {
-            node::AnnounceEvent::Announced => ControlFlow::Continue(()),
-            node::AnnounceEvent::RefsSynced { remote, time } => {
-                spinner.message(format!(
-                    "Synced with {} in {}..",
-                    format::dim(remote),
-                    format::dim(format!("{time:?}"))
-                ));
+    // If we met our desired replica count. Note that this can never exceed the maximum count.
+    let is_replicas_synced = replicas >= settings.replicas;
 
-                // We're done syncing when both of these conditions are met:
-                //
-                // 1. We've matched or exceeded our target replica count.
-                // 2. We've synced with one of the seeds specified manually.
-                if replicas.len() >= settings.replicas
-                    && (settings.seeds.is_empty()
-                        || settings.seeds.iter().any(|s| replicas.contains_key(s)))
-                {
-                    ControlFlow::Break(())
+    // If the seeds we specified in the sync settings are all synced.
+    let is_seeds_synced = preferred_unsynced.is_empty();
+
+    if is_seeds_synced && is_replicas_synced {
+        term::success!(
+            &mut reporting.completion;
+            "All preferred seeds are {}, and the replication target {}. Nothing to announce.",
+            format::positive("in sync"),
+            format::positive("is met"),
+        );
+        if profile.config.cli.hints {
+            term::hint_write(
+                &mut reporting.completion,
+                "For further information, run `rad sync status`.",
+            )
+            .ok();
+        }
+        return Ok(AnnounceResult::default());
+    }
+
+    Ok(
+        (if preferred_unsynced.is_empty() && !preferred_synced.is_empty() {
+            term::success!(
+                &mut reporting.completion;
+                "Preferred seeds are in sync."
+            );
+            AnnounceResult::default()
+        } else if preferred_unsynced.is_empty() && preferred_synced.is_empty() {
+            AnnounceResult::default()
+        } else {
+            // We first sync with preferred seeds.
+            let preferred_len = preferred_synced.len() + preferred_unsynced.len();
+            let mut spinner = term::spinner_to(
+                format!(
+                    "Announcing to {} preferred seed(s) ({} {}, {} {}) …",
+                    preferred_len,
+                    format::secondary(preferred_synced.len()),
+                    format::positive("succeeded"),
+                    format::secondary(preferred_unsynced.len()),
+                    format::negative("pending")
+                ),
+                reporting.completion.clone(),
+                reporting.progress.clone(),
+            );
+
+            let (mut preferred_synced, mut preferred_unsynced) =
+                (preferred_synced, preferred_unsynced);
+            let result = node.announce(
+                rid,
+                preferred_unsynced.clone(),
+                settings.timeout,
+                |event, _| match event {
+                    node::AnnounceEvent::Announced => ControlFlow::Continue(()),
+                    node::AnnounceEvent::RefsSynced { remote, time } => {
+                        preferred_unsynced.remove(&remote);
+                        preferred_synced.insert(remote);
+
+                        spinner.message(format!(
+                            "Announcing to {} preferred seed(s) ({} {}, {} {}) … {}",
+                            preferred_len,
+                            format::secondary(preferred_synced.len()),
+                            format::positive("succeeded"),
+                            format::secondary(preferred_unsynced.len()),
+                            format::negative("pending"),
+                            format::italic(format!(
+                                "[{} {}]",
+                                format::primary(term::format::node(&remote)),
+                                format::dim(format!("in {time:?}"))
+                            ))
+                        ));
+
+                        if preferred_unsynced.is_empty() {
+                            ControlFlow::Break(())
+                        } else {
+                            ControlFlow::Continue(())
+                        }
+                    }
+                },
+            )?;
+
+            spinner.message(format!(
+                "{} to preferred {} seed(s){}.",
+                if preferred_unsynced.is_empty() {
+                    "Announced"
                 } else {
-                    ControlFlow::Continue(())
+                    "Failed to announce"
+                },
+                preferred_len,
+                if preferred_synced.len() * preferred_unsynced.len() == 0 {
+                    "".to_string()
+                } else {
+                    format!(
+                        " ({} {}, {} {})",
+                        format::secondary(preferred_synced.len()),
+                        format::positive("succeeded"),
+                        format::secondary(preferred_unsynced.len()),
+                        format::negative("failed")
+                    )
+                }
+            ));
+
+            if !preferred_unsynced.is_empty() {
+                spinner.failed();
+            } else {
+                spinner.finish();
+            }
+
+            // We expect that the users keeps `settings.seeds` (even if filled with
+            // preferred seeds from config file) to a reasonable size. Then, it is
+            // much more important to know syncing with which nodes *failed* then
+            // for which it *succeeded*. Anyway, the debug flag will give a full
+            // picture.
+            if reporting.debug {
+                for (seed, time) in &result.synced {
+                    term::success!(
+                        &mut reporting.completion;
+                        "{}",
+                        format::dim(format!(
+                            "Announced to preferred seed {} in {time:?}.",
+                            term::format::primary(term::format::node(seed))
+                        ))
+                    );
                 }
             }
-        },
-    )?;
 
-    if result.synced.is_empty() {
-        spinner.failed();
-    } else {
-        spinner.message(format!("Synced with {} node(s)", result.synced.len()));
-        spinner.finish();
-
-        if reporting.debug {
-            for (seed, time) in &result.synced {
-                writeln!(
-                    &mut reporting.completion,
-                    "  {}",
-                    term::format::dim(format!("Synced with {seed} in {time:?}")),
-                )
-                .ok();
+            for seed in &result.timed_out {
+                term::notice!(&mut reporting.completion; "Preferred seed {} {}.", term::format::primary(term::format::node(seed)), format::negative("timed out"));
             }
-        }
-    }
-    for seed in &result.timed_out {
-        if settings.seeds.contains(seed) {
-            term::notice!(&mut reporting.completion; "Seed {seed} timed out..");
-        }
-    }
-    if result.synced.is_empty() {
-        return Err(SyncError::AllSeedsTimedOut);
-    }
-    Ok(result)
+
+            if !reporting.debug && !preferred_unsynced.is_empty() {
+                term::notice!(&mut reporting.completion; "For more details, run `rad sync status`.");
+            }
+
+            result
+        }) + if is_replicas_synced {
+            term::success!(
+                &mut reporting.completion;
+                "Found {} replica(s), meeting target of {}.",
+                format::primary(replicas),
+                format::primary(settings.replicas)
+            );
+            AnnounceResult::default()
+        } else if unsynced.is_empty() {
+            term::notice!(
+                &mut reporting.completion;
+                "No other seeds to announce to.",
+            );
+            AnnounceResult::default()
+        } else {
+            // We then attempt to sync with all others.
+            let unsynced_len = unsynced.len();
+
+            let mut spinner = term::spinner_to(
+                format!(
+                    "Announcing to {} seed(s) to meet replication target ({} {}, {} {}) …",
+                    unsynced_len,
+                    format::secondary(replicas),
+                    format::positive("succeeded"),
+                    format::secondary(settings.replicas - replicas),
+                    format::negative("pending")
+                ),
+                reporting.completion.clone(),
+                reporting.progress.clone(),
+            );
+
+            let mut replicas = replicas;
+
+            let result =
+                node.announce(
+                    rid,
+                    unsynced,
+                    settings.timeout,
+                    |event, replica_map| match event {
+                        node::AnnounceEvent::Announced => ControlFlow::Continue(()),
+                        node::AnnounceEvent::RefsSynced { remote, time } => {
+                            replicas = replica_map.len();
+                            spinner.message(format!(
+                        "Announcing to {} seed(s) to meet replication target ({} {}, {} {}) … {}",
+                        unsynced_len,
+                        format::secondary(replicas),
+                        format::positive("succeeded"),
+                        format::secondary(settings.replicas - replicas),
+                        format::negative("pending"),
+                        format::italic(format!(
+                            "[{} {}]",
+                            format::primary(term::format::node(&remote)),
+                            format::dim(format!("in {time:?}"))
+                        ))
+                    ));
+
+                            if replicas >= settings.replicas {
+                                ControlFlow::Break(())
+                            } else {
+                                ControlFlow::Continue(())
+                            }
+                        }
+                    },
+                )?;
+
+            spinner.message(format!(
+                "{} to {} seed(s) to meet replication target{}.",
+                if replicas >= settings.replicas {
+                    "Announced"
+                } else {
+                    "Failed to announce"
+                },
+                unsynced_len,
+                if settings.replicas == unsynced_len
+                    && replicas * (settings.replicas - replicas) == 0
+                {
+                    "".to_string()
+                } else {
+                    format!(
+                        " ({} {}, {} {})",
+                        format::secondary(replicas),
+                        format::positive("succeeded"),
+                        format::secondary(settings.replicas - replicas),
+                        format::negative("failed")
+                    )
+                }
+            ));
+
+            if replicas >= settings.replicas {
+                spinner.finish();
+            } else {
+                spinner.failed();
+            }
+
+            if reporting.debug {
+                for (seed, time) in &result.synced {
+                    term::success!(
+                        &mut reporting.completion;
+                        "{}",
+                        format::dim(format!(
+                            "Announced to seed {} in {time:?}.",
+                            term::format::primary(term::format::node(seed))
+                        ))
+                    );
+                }
+                for seed in &result.timed_out {
+                    term::notice!(&mut reporting.completion; "Seed {} {}.", term::format::primary(term::format::node(seed)), format::negative("timed out"));
+                }
+            } else if !&result.timed_out.is_empty() {
+                term::notice!(&mut reporting.completion; "{} seed(s) {}. For more details, run `rad sync` with the `--debug` flag, or run `rad sync status`.", &result.timed_out.len(), format::negative("timed out"));
+            }
+
+            result
+        },
+    )
 }

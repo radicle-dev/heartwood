@@ -764,6 +764,10 @@ impl Seeds {
     pub fn with(self, rng: fastrand::Rng) -> Self {
         Self(self.0.with(rng))
     }
+
+    pub fn get(&self, nid: &NodeId) -> Option<&Seed> {
+        self.0.get(nid)
+    }
 }
 
 impl From<Seeds> for Vec<Seed> {
@@ -796,6 +800,16 @@ impl AnnounceResult {
             .iter()
             .find(|(id, _)| id == nid)
             .map(|(_, time)| *time)
+    }
+}
+
+impl std::ops::Add for AnnounceResult {
+    type Output = Self;
+
+    fn add(mut self, AnnounceResult { timed_out, synced }: Self) -> Self {
+        self.timed_out.extend(timed_out);
+        self.synced.extend(synced);
+        self
     }
 }
 

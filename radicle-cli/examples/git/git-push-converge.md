@@ -92,7 +92,7 @@ $ git push rad -f
 warn: could not determine canonical tip for `refs/heads/master`
 warn: no commit found with at least 3 vote(s) (threshold not met)
 warn: it is recommended to find a commit to agree upon
-✓ Synced with 2 node(s)
+✓ Announced to 2 seed(s) to meet replication target.
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    d09e634..0f9bd80  master -> master
 ```
@@ -116,7 +116,7 @@ become the canonical `master`.
 ``` ~bob (stderr)
 $ git push rad
 ✓ Canonical head updated to 3a75f66dd0020c9a0355cc6ec21f15de989e2001
-✓ Synced with 2 node(s)
+✓ Announced to 2 seed(s) to meet replication target.
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
    2a37862..0f9bd80  master -> master
 ```
@@ -137,7 +137,7 @@ HEAD is now at 0f9bd80 Merge remote-tracking branch 'eve/master'
 ``` ~eve (stderr)
 $ git push rad
 ✓ Canonical head updated to 0f9bd8035c04b3f73f5408e73e8454879b20800b
-✓ Synced with 2 node(s)
+✓ Announced to 2 seed(s) to meet replication target.
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
    3a75f66..0f9bd80  master -> master
 ```

@@ -13,7 +13,7 @@ $ rad issue open --title "Add Bob as a delegate" --description "We agreed to add
 │ We agreed to add me as a delegate, so I am creating an issue │
 │ to track that work                                           │
 ╰──────────────────────────────────────────────────────────────╯
-✓ Synced with 1 node(s)
+✓ Announced to 1 seed(s) to meet replication target.
 ```
 
 and if we inspect Alice's references, then we will see the following:

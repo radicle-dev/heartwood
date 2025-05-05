@@ -37,7 +37,7 @@ To compare against your previous revision d004b67, run:
 
    git range-diff f2de534[..] 8d5f1ba[..] c2aaf1c[..]
 
-✓ Synced with 1 node(s)
+✓ Announced to 1 seed(s) to meet replication target.
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new branch]      patch/d004b67 -> patches/d004b67355456c46de10c0d287e4a791ad1a6945
 ```
@@ -60,7 +60,7 @@ To compare against your previous revision d004b67, run:
 
    git range-diff f2de534[..] 8d5f1ba[..] d9f8caf[..]
 
-✓ Synced with 1 node(s)
+✓ Announced to 1 seed(s) to meet replication target.
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    c2aaf1c..d9f8caf  patch/d004b67 -> patches/d004b67355456c46de10c0d287e4a791ad1a6945
 ```

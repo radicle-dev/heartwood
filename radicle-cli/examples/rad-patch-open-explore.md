@@ -5,7 +5,8 @@ $ git checkout -b changes -q
 $ git commit --allow-empty -q -m "Changes"
 $ git push rad HEAD:refs/patches
 ✓ Patch acab0ec777a97d013f30be5d5d1aec32562ecb02 opened
-✓ Synced with 1 node(s)
+✓ Announced to preferred 1 seed(s).
+! No other seeds to announce to.
 
   https://app.radicle.xyz/nodes/[..]/rad:z3yXbb1sR6UG6ixxV2YF9jUP7ABra/patches/acab0ec777a97d013f30be5d5d1aec32562ecb02
 
@@ -23,7 +24,8 @@ To compare against your previous revision acab0ec, run:
 
    git range-diff f2de534[..] e12525d[..] b2b6432[..]
 
-✓ Synced with 1 node(s)
+✓ Announced to preferred 1 seed(s).
+! No other seeds to announce to.
 
   https://app.radicle.xyz/nodes/[..]/rad:z3yXbb1sR6UG6ixxV2YF9jUP7ABra/patches/acab0ec777a97d013f30be5d5d1aec32562ecb02
 
@@ -39,7 +41,8 @@ $ git merge changes -q
 $ git push rad master
 ✓ Patch acab0ec777a97d013f30be5d5d1aec32562ecb02 merged
 ✓ Canonical head updated to b2b6432af93f8fe188e32d400263021b602cfec8
-✓ Synced with 1 node(s)
+✓ Announced to preferred 1 seed(s).
+! No other seeds to announce to.
 
   https://app.radicle.xyz/nodes/[..]/rad:z3yXbb1sR6UG6ixxV2YF9jUP7ABra/tree/b2b6432af93f8fe188e32d400263021b602cfec8
 

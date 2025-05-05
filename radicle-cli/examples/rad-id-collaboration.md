@@ -53,14 +53,14 @@ $ rad sync
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
 ✓ Fetched repository from 2 seed(s)
-✓ Synced with 1 node(s)
+✓ Announced to 1 seed(s) to meet replication target.
 $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --description "" --threshold 2 --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm -q
 069e7d58faa9a7473d27f5510d676af33282796f
 $ rad sync
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
 ✓ Fetched repository from 2 seed(s)
-✓ Synced with 3 node(s)
+✓ Announced to 3 seed(s) to meet replication target.
 ```
 
 Bob can confirm that he was made a delegate by fetching the update:
@@ -70,7 +70,7 @@ $ rad sync
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
 ✓ Fetched repository from 2 seed(s)
-✓ Synced with 1 node(s)
+✓ Announced to 1 seed(s) to meet replication target.
 $ rad inspect --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
@@ -110,7 +110,7 @@ $ rad sync
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
 ✓ Fetched repository from 2 seed(s)
-✓ Synced with 3 node(s)
+✓ Announced to 3 seed(s) to meet replication target.
 ```
 
 Notice how there was no need to follow Eve right away in this case?
@@ -160,7 +160,7 @@ $ rad sync --timeout 3
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
 ✓ Fetched repository from 2 seed(s)
-✓ Synced with 3 node(s)
+✓ Announced to 3 seed(s) to meet replication target.
 $ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 1f716870f890be0c13fdd0af9f527af849fec792
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk c40018821dc1b41cad75e91e0c9d00827e815324
@@ -176,7 +176,7 @@ $ rad sync
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
 ✓ Fetched repository from 2 seed(s)
-✓ Synced with 3 node(s)
+✓ Announced to 3 seed(s) to meet replication target.
 $ rad sync status
 ╭─────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   Node                            Address                        Status   Tip       Timestamp │

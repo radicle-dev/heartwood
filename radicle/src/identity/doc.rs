@@ -752,6 +752,13 @@ impl Doc {
         }
     }
 
+    pub fn visible_to(&self) -> Option<&BTreeSet<Did>> {
+        match &self.visibility {
+            Visibility::Public => None,
+            Visibility::Private { allow } => Some(allow),
+        }
+    }
+
     /// Validate `signature` using this document's delegates, against a given
     /// document blob.
     pub fn verify_signature(
