@@ -1080,8 +1080,7 @@ impl Patch {
                 );
 
                 {
-                    if let Some(rule) = identity.default_branch_rule()? {
-                        let threshold = (*rule.rule().threshold()).into();
+                    if let Some(threshold) = identity.default_branch_threshold()? {
                         // Discard revisions that weren't merged by a threshold of delegates.
                         merges.retain(|_, count| *count >= threshold);
                     }

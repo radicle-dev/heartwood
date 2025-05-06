@@ -273,28 +273,21 @@ pub fn run(
                         // Note that we *do* allow rolling back to a previous commit on the
                         // canonical branch.
 
-                        if let Some(rule) = rules.matches(dst.clone()) {
-                            if rule.allowed().contains(&me) {
-                                let mut canonical = rule.canonical(stored)?;
+                        if let Some(mut canonical) = rules.canonical(dst.clone(), stored)? {
+                            if canonical.is_allowed(&me) {
                                 let head = working.find_reference(src.as_str())?;
                                 let head = head.peel_to_commit()?.id();
-                                let converges = canonical::converges(
-                                    canonical
-                                        .tips()
-                                        .filter_map(|(did, tip)| (*did != me).then_some(tip)),
-                                    head.into(),
-                                    &working,
-                                )?;
+                                let converges =
+                                    canonical.converges(&working, (&me, &head.into()))?;
 
                                 // If `canonical` is empty then we're creating a new reference.
                                 // If we're the only delegate then we need to modify our vote.
-                                if converges || canonical.is_empty() || rule.allowed().is_only(&me)
-                                {
+                                if converges || canonical.has_no_tips() || canonical.is_only(&me) {
                                     canonical.modify_vote(me, head.into());
                                 }
 
                                 match canonical.quorum(&working) {
-                                    Ok(canonical_oid) => {
+                                    Ok((dst, canonical_oid)) => {
                                         // Canonical head is an ancestor of head.
                                         let is_ff = head == *canonical_oid
                                             || working.graph_descendant_of(head, *canonical_oid)?;
@@ -302,13 +295,13 @@ pub fn run(
                                         if !is_ff && !converges {
                                             if hints {
                                                 hint(
-                                                format!("you are attempting to push a commit that would cause \
-                                                 your upstream to diverge from the canonical reference {dst}"),
-                                            );
+                                                    format!("you are attempting to push a commit that would cause \
+                                                    your upstream to diverge from the canonical reference {dst}"),
+                                                );
                                                 hint(
-                                                "to integrate the remote changes, run `git pull --rebase` \
-                                                 and try again",
-                                            );
+                                                    "to integrate the remote changes, run `git pull --rebase` \
+                                                    and try again",
+                                                );
                                             }
                                             return Err(Error::HeadsDiverge(
                                                 head.into(),
@@ -318,21 +311,11 @@ pub fn run(
                                         set_canonical_refs
                                             .push((dst.clone().to_owned(), canonical_oid));
                                     }
-                                    Err(canonical::QuorumError::Diverging(e)) => {
-                                        warn(format!(
-                                            "could not determine canonical tip for `{dst}`"
-                                        ));
+                                    Err(canonical::QuorumError::Git(e)) => return Err(e.into()),
+                                    Err(e) => {
                                         warn(e.to_string());
                                         warn("it is recommended to find a commit to agree upon");
                                     }
-                                    Err(canonical::QuorumError::NoCandidates(e)) => {
-                                        warn(format!(
-                                            "could not determine canonical tip for `{dst}`"
-                                        ));
-                                        warn(e.to_string());
-                                        warn("it is recommended to find a commit to agree upon");
-                                    }
-                                    Err(e) => return Err(e.into()),
                                 }
                             }
                         }

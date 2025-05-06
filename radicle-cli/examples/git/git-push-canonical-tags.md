@@ -125,8 +125,7 @@ no quorum was found for the new tag:
 ``` ~bob (stderr)
 $ git tag v2.0
 $ git push rad --tags
-warn: could not determine canonical tip for `refs/tags/v2.0`
-warn: no commit found with at least 2 vote(s) (threshold not met)
+warn: could not determine tip for canonical reference 'refs/tags/v2.0', no commit with at least 2 vote(s) found (threshold not met)
 warn: it is recommended to find a commit to agree upon
 ✓ Synced with 1 node(s)
 To rad://z3W5xAVWJ9Gc4LbN16mE3tjWX92t2/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk

@@ -25,7 +25,7 @@ use crate::crypto;
 use crate::crypto::Signature;
 use crate::git;
 use crate::git::canonical::rules;
-use crate::git::canonical::rules::{MatchedRule, RawRules, Rule};
+use crate::git::canonical::rules::{RawRules, Rule};
 use crate::git::canonical::Rules;
 use crate::identity::{project::Project, Did};
 use crate::storage;
@@ -795,20 +795,21 @@ impl Doc {
         &self.canonical_refs.rules
     }
 
-    /// Return the canonical reference rule for the identity's default branch,
-    /// if the repository has a [`Doc::project`] associated with it.
-    pub fn default_branch_rule(&self) -> Result<Option<MatchedRule>, PayloadError> {
-        match self.project() {
-            Ok(project) => Ok(self.rule_of(git::refs::branch(project.default_branch()).clone())),
+    pub fn default_branch_threshold(&self) -> Result<Option<usize>, PayloadError> {
+        let Some(refname) = match self.project() {
+            Ok(project) => Ok(Some(git::refs::branch(project.default_branch()))),
             Err(e) if e.is_not_found() => Ok(None),
             Err(e) => Err(e),
-        }
-    }
+        }?
+        else {
+            return Ok(None);
+        };
 
-    /// Get the matching rule, if present, from the identity's canonical
-    /// reference rules.
-    pub fn rule_of<'a>(&self, refname: git::Qualified<'a>) -> Option<MatchedRule<'a>> {
-        self.rules().matches(refname)
+        Ok(self
+            .rules()
+            .matches(&refname)
+            .next()
+            .map(|(_, rule)| (*rule.threshold()).into()))
     }
 
     /// Check whether this document and the associated repository is visible to

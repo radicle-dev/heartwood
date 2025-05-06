@@ -108,6 +108,17 @@ pub fn refstring(flag: &str, value: OsString) -> anyhow::Result<RefString> {
     })
 }
 
+pub fn qualified_refstring(value: OsString) -> anyhow::Result<radicle::git::Qualified<'static>> {
+    let refstring = RefString::try_from(
+        value
+            .into_string()
+            .map_err(|_| anyhow!("the value specified is not valid UTF-8"))?,
+    )
+    .map_err(|_| anyhow!("the value specified is not a valid ref string",))?;
+    radicle::git::Qualified::from_refstr(refstring)
+        .ok_or_else(|| anyhow!("the value specified is not a valid qualified ref string",))
+}
+
 pub fn qualified_pattern_string(value: OsString) -> anyhow::Result<QualifiedPattern<'static>> {
     let value = value
         .into_string()
