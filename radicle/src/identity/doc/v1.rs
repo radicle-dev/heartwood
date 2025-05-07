@@ -115,6 +115,16 @@ pub enum MigrationError {
 }
 
 impl Doc {
+    pub fn initial(project: Project, delegate: Did, visibility: Visibility) -> Self {
+        Self {
+            version: VersionOne,
+            payload: BTreeMap::from([(PayloadId::project(), project.into())]),
+            delegates: Delegates::from(delegate),
+            threshold: Threshold::MIN,
+            visibility,
+        }
+    }
+
     /// Automatically migrate the `v1` `Doc` to the latest [`super::Doc`] version.
     ///
     /// This can be used to get the latest version in a verified state for

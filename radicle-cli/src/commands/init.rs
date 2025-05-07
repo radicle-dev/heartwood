@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::{anyhow, bail, Context as _};
+use radicle::identity::doc::version::Version;
 use serde_json as json;
 
 use radicle::crypto::ssh;
@@ -50,6 +51,7 @@ Options
         --no-confirm               Don't ask for confirmation during setup
         --no-seed                  Don't seed this repository after initializing it
     -v, --verbose                  Verbose mode
+        --version <integer>        Version of the identity document that should be used
         --help                     Print help
 "#,
 };
@@ -68,6 +70,7 @@ pub struct Options {
     pub set_upstream: bool,
     pub verbose: bool,
     pub seed: bool,
+    pub version: Version,
 }
 
 impl Args for Options {
@@ -87,6 +90,7 @@ impl Args for Options {
         let mut existing = None;
         let mut seed = true;
         let mut verbose = false;
+        let mut version = Version::latest();
         let mut visibility = None;
 
         while let Some(arg) = parser.next()? {
@@ -152,6 +156,9 @@ impl Args for Options {
                 Long("verbose") | Short('v') => {
                     verbose = true;
                 }
+                Long("version") => {
+                    version = Version::from_str(&parser.value()?.to_string_lossy())?;
+                }
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
@@ -176,6 +183,7 @@ impl Args for Options {
                 seed,
                 visibility,
                 verbose,
+                version,
             },
             vec![],
         ))
@@ -277,6 +285,7 @@ pub fn init(
 
     match radicle::rad::init(
         &repo,
+        version,
         name,
         &description,
         branch.clone(),

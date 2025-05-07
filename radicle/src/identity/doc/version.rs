@@ -1,6 +1,7 @@
 use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 
+use git_ext::commit::error::Parse;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use thiserror::Error;
@@ -41,6 +42,27 @@ impl From<Version> for u64 {
         version.0.into()
     }
 }
+
+impl std::str::FromStr for Version {
+    type Err = ParseVersionError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse::<NonZeroU64>()
+            .ok()
+            .map(Version)
+            .filter(|version| KNOWN_VERSIONS.contains(version))
+            .ok_or_else(|| ParseVersionError(String::from(s)))
+    }
+}
+
+impl Default for Version {
+    fn default() -> Self {
+        Self::latest()
+    }
+}
+
+#[derive(Debug, Error)]
+#[error("encountered unknown identity document version '{0}', expected a non-zero integer in the interval [{},{}]", Version::MIN, Version::LATEST)]
+pub struct ParseVersionError(String);
 
 #[derive(Debug, Error)]
 pub enum VersionError {

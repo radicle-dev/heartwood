@@ -1,4 +1,5 @@
 #![allow(clippy::let_unit_value)]
+use std::convert::identity;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -10,7 +11,9 @@ use crate::cob::ObjectId;
 use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::git::canonical::rules;
-use crate::identity::doc;
+use crate::identity::doc::version::{Version, VersionOne, VersionTwo};
+use crate::identity::doc::Doc;
+use crate::identity::doc::{self, v1, VersionedDoc};
 use crate::identity::doc::{DocError, RepoId, Visibility};
 use crate::identity::project::{Project, ProjectName};
 use crate::storage::git::transport;
@@ -53,6 +56,7 @@ pub enum InitError {
 /// Initialize a new radicle project from a git repository.
 pub fn init<G: Signer, S: WriteStorage>(
     repo: &git2::Repository,
+    version: Version,
     name: ProjectName,
     description: &str,
     default_branch: BranchName,
@@ -75,8 +79,24 @@ pub fn init<G: Signer, S: WriteStorage>(
                 .join(", "),
         )
     })?;
-    let doc = identity::Doc::initial(proj, delegate, visibility)?;
-    let (project, identity) = Repository::init(&doc, &storage, signer)?;
+
+    let versioned = if version == VersionOne.into() {
+        VersionedDoc::V1(v1::Doc::initial(proj, delegate, visibility))
+    } else if version == VersionTwo.into() {
+        VersionedDoc::V2(Doc::initial(proj, delegate, visibility)?)
+    } else {
+        panic!()
+    };
+
+    let doc: Doc =
+        Doc::try_from(versioned.clone()).map_err(|err| InitError::from(DocError::from(err)))?;
+
+    // TODO(lorenz):
+    // We now have a versioned doc which we can encode, and a doc in the current version.
+    // Wiring all this up down to the COB store is tricky though…
+    // My best guess is to rewrite `Repository::init` and lower to work with `VersionedDoc`…
+
+    let (project, identity) = Repository::init(&versioned, &storage, signer)?;
     let url = git::Url::from(project.id);
 
     match init_configure(repo, &project, &default_branch, &url, identity, signer) {

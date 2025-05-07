@@ -1,6 +1,6 @@
 mod id;
-mod v1;
-mod version;
+pub mod v1;
+pub mod version;
 
 use version::VersionTwo;
 use version::KNOWN_VERSIONS;
@@ -268,10 +268,12 @@ pub struct RawDoc {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum VersionedRawDoc {
-    V2(RawDoc),
-    V1(v1::RawDoc),
+pub enum VersionedDoc<V1 = v1::Doc, V2 = Doc> {
+    V1(V1),
+    V2(V2),
 }
+
+type VersionedRawDoc = VersionedDoc<v1::RawDoc, RawDoc>;
 
 impl<'de> Deserialize<'de> for VersionedRawDoc {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -328,17 +330,44 @@ impl<'de> Deserialize<'de> for VersionedRawDoc {
     }
 }
 
-impl TryFrom<VersionedRawDoc> for Doc {
+impl TryFrom<VersionedRawDoc> for VersionedDoc {
     type Error = DocError;
 
-    fn try_from(value: VersionedRawDoc) -> Result<Doc, Self::Error> {
+    fn try_from(value: VersionedRawDoc) -> Result<VersionedDoc, Self::Error> {
+        Ok(match value {
+            VersionedRawDoc::V1(raw) => VersionedDoc::V1(raw.verified()?),
+            VersionedRawDoc::V2(raw) => VersionedDoc::V2(raw.verified()?),
+        })
+    }
+}
+
+impl TryFrom<VersionedDoc> for Doc {
+    type Error = MigrationError;
+
+    fn try_from(value: VersionedDoc) -> Result<Doc, Self::Error> {
         match value {
-            VersionedRawDoc::V1(raw) => {
-                let doc = raw.verified()?;
-                Ok(Doc::migrate_from(doc)?)
-            }
-            VersionedRawDoc::V2(raw) => raw.verified(),
+            VersionedDoc::V1(doc) => Doc::migrate_from(doc),
+            VersionedDoc::V2(doc) => Ok(doc),
         }
+    }
+}
+
+impl VersionedDoc {
+    /// Encode the wrapped document  as canonical JSON, returning the set of bytes and its
+    /// corresponding Git [`Oid`].
+    pub fn encode(&self) -> Result<(git::Oid, Vec<u8>), DocError> {
+        let mut buf = Vec::new();
+        let mut serializer =
+            serde_json::Serializer::with_formatter(&mut buf, CanonicalFormatter::new());
+
+        match self {
+            Self::V1(doc) => doc.serialize(&mut serializer)?,
+            Self::V2(doc) => doc.serialize(&mut serializer)?,
+        };
+
+        let oid = git2::Oid::hash_object(git2::ObjectType::Blob, &buf)?;
+
+        Ok((oid.into(), buf))
     }
 }
 

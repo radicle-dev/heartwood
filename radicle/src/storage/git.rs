@@ -11,7 +11,7 @@ use crypto::{Signer, Verified};
 use once_cell::sync::Lazy;
 use tempfile::TempDir;
 
-use crate::identity::doc::DocError;
+use crate::identity::doc::{DocError, VersionedDoc};
 use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
 use crate::node::SyncedAt;
@@ -433,7 +433,7 @@ impl Repository {
 
     /// Create the repository's identity branch.
     pub fn init<G: Signer, S: WriteStorage>(
-        doc: &Doc,
+        doc: &VersionedDoc,
         storage: &S,
         signer: &G,
     ) -> Result<(Self, git::Oid), RepositoryError> {
@@ -444,7 +444,8 @@ impl Repository {
 
         debug_assert_eq!(oid, *doc_oid);
 
-        let commit = doc.init(&repo, signer)?;
+        // TODO(lorenz): OK, I am too tired for this…
+        let commit = todo!(); // doc.init(&repo, signer)?;
 
         Ok((repo, commit))
     }

@@ -1,5 +1,6 @@
 use std::ffi::OsString;
 use std::net::SocketAddr;
+use std::num::NonZeroU64;
 use std::str::FromStr;
 use std::time;
 
@@ -9,6 +10,7 @@ use radicle::cob;
 use radicle::cob::{issue, patch};
 use radicle::crypto;
 use radicle::git::{refspec::QualifiedPattern, Oid, PatternString, RefString};
+use radicle::identity::doc::version::Version;
 use radicle::node::{Address, Alias};
 use radicle::prelude::{Did, NodeId, RepoId};
 
@@ -230,4 +232,9 @@ pub fn patch(val: &OsString) -> anyhow::Result<patch::PatchId> {
 pub fn cob(val: &OsString) -> anyhow::Result<cob::ObjectId> {
     let val = val.to_string_lossy();
     cob::ObjectId::from_str(&val).map_err(|_| anyhow!("invalid Object ID '{}'", val))
+}
+
+pub fn version(val: &OsString) -> anyhow::Result<Version> {
+    let val = val.to_string_lossy();
+    Version::from_str(&val)
 }
