@@ -1528,8 +1528,11 @@ fn test_channel_reader_limit() {
     let FetchResult::Failed { reason } = result else {
         panic!("fetch result must be failed")
     };
+    // Either gitoxide will error by being unable to consume the packet, or the
+    // byte limit error will be returned
     assert!(
-        reason.contains("Failed to consume the pack sent by the remote"),
+        reason.contains("Failed to consume the pack sent by the remote")
+            || reason.contains("exceeded number of allowed bytes"),
         "actual: {}",
         reason
     );
