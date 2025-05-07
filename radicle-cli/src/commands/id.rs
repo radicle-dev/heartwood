@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::path::Path;
 use std::str::FromStr;
 use std::{ffi::OsString, io};
 
@@ -563,10 +564,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Migrate { title, description } => {
             let proposal = repo.identity_doc()?.doc;
-            if options.interactive.confirm(format!(
-                "Perform migration?\n{}",
-                term::format::tertiary(serde_json::to_string_pretty(&proposal)?)
-            )) {
+            crate::terminal::json::to_pretty(&proposal, Path::new("radicle.json"))?.print();
+            if options.interactive.confirm("Perform migration?") {
                 let revision = id::propose_changes(
                     &profile,
                     &repo,
