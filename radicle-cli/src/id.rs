@@ -30,9 +30,15 @@ where
     }
 
     let proposal = proposal.verified()?;
-    if proposal == current.doc {
-        return Ok(None);
-    }
+
+    // FIXME(lorenz): Note that we cannot just compare against the current
+    // identity. The reason is that by loading the identity, it is migrated
+    // in memory. We could serialize the proposal to JSON, and look at the
+    // current doc as blob containing JSON.
+    //if proposal == current.doc {
+    //    return Ok(None);
+    //}
+
     let signer = term::signer(profile)?;
     // N.b. get the parent OID before updating the identity
     let parent = current.current().id;
