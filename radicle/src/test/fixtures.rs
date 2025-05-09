@@ -81,12 +81,15 @@ pub fn project<P: AsRef<Path>, G: Signer>(
 /// Creates a regular repository at the given path with a couple of commits.
 pub fn repository<P: AsRef<Path>>(path: P) -> (git2::Repository, git2::Oid) {
     let repo = git2::Repository::init(path).unwrap();
-    let sig = git2::Signature::new(
-        "anonymous",
-        "anonymous@radicle.xyz",
-        &git2::Time::new(RADICLE_EPOCH, 0),
-    )
-    .unwrap();
+    let user_name = "anonymous";
+    let user_email = "anonymous@radicle.xyz";
+    {
+        let mut config = repo.config().unwrap();
+        config.set_str("user.name", user_name).unwrap();
+        config.set_str("user.email", user_email).unwrap();
+    }
+    let sig =
+        git2::Signature::new(user_name, user_email, &git2::Time::new(RADICLE_EPOCH, 0)).unwrap();
     let head = git::initial_commit(&repo, &sig).unwrap();
     let tree = git::write_tree(Path::new("README"), "Hello World!\n".as_bytes(), &repo).unwrap();
     let oid = {
