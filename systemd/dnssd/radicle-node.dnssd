@@ -1,0 +1,10 @@
+[Service]
+# See <https://www.freedesktop.org/software/systemd/man/latest/systemd.dnssd.html>
+
+# Recommendation for "Instance Name"
+# (see RFC 6763, Sec. 4.1.1, <https://datatracker.ietf.org/doc/html/rfc6763#section-4.1.1>):
+# Your node's alias.
+Name=example
+
+Type=_radicle-node._tcp
+Port=8776
