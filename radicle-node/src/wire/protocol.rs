@@ -31,6 +31,7 @@ use crate::service;
 use crate::service::io::Io;
 use crate::service::FETCH_TIMEOUT;
 use crate::service::{session, DisconnectReason, Metrics, Service};
+use crate::wire::error::StreamError;
 use crate::wire::frame;
 use crate::wire::frame::{Frame, FrameData, StreamId};
 use crate::wire::Encode;
@@ -115,11 +116,6 @@ impl Streams {
             link,
             seq: 0,
         }
-    }
-
-    /// Get a known stream.
-    fn get(&self, stream: &StreamId) -> Option<&Stream> {
-        self.streams.get(stream)
     }
 
     /// Get a known stream, mutably.
@@ -414,37 +410,50 @@ where
             // early "close" from the remote. Otherwise, we unregister it here and send the "close"
             // ourselves.
             if let Some(s) = streams.unregister(&task.stream) {
-                log::debug!(
-                    target: "wire", "Stream {} of {} closing with {} byte(s) sent and {} byte(s) received",
-                    task.stream, task.remote, s.sent_bytes, s.received_bytes
-                );
-                let frame = Frame::<service::Message>::control(
-                    *link,
-                    frame::Control::Close {
+                let respond = match &task.result {
+                    FetchResult::Responder { result: Err(e), .. } => Some(e),
+                    FetchResult::Responder { result: Ok(()), .. }
+                    | FetchResult::Initiator { .. } => None,
+                };
+
+                let ctrl = match respond {
+                    Some(e) => frame::Control::Error {
                         stream: task.stream,
+                        error: StreamError::from(e),
                     },
-                );
+                    None => {
+                        log::debug!(
+                            target: "wire", "Stream {} of {} closing with {} byte(s) sent and {} byte(s) received",
+                            task.stream, task.remote, s.sent_bytes, s.received_bytes
+                        );
+                        frame::Control::Close {
+                            stream: task.stream,
+                        }
+                    }
+                };
+
+                let frame = Frame::<service::Message>::control(*link, ctrl);
                 self.actions.push_back(Action::Send(fd, frame.to_bytes()));
+            } else {
+                log::debug!(target: "wire", "Peer {nid} connected after a fetch, but stream {} is gone?! Cannot report back.", task.stream);
             }
         } else {
-            // If the peer disconnected, we'll get here, but we still want to let the service know
-            // about the fetch result, so we don't return here.
-            log::warn!(target: "wire", "Peer {nid} is not connected; ignoring fetch result");
-            return;
-        };
+            log::debug!(target: "wire", "Peer {nid} not connected after a fetch?! Cannot report back.");
+        }
 
-        // Only call into the service if we initiated this fetch.
         match task.result {
             FetchResult::Initiator { rid, result } => {
                 self.service.fetched(rid, nid, result);
             }
             FetchResult::Responder { rid, result } => {
-                if let Some(rid) = rid {
-                    if let Some(err) = result.err() {
-                        log::info!(target: "wire", "Peer {nid} failed to fetch {rid} from us: {err}");
-                    } else {
-                        log::info!(target: "wire", "Peer {nid} fetched {rid} from us successfully");
-                    }
+                let rid = match rid {
+                    Some(rid) => rid.to_string(),
+                    None => String::from("an unknown repo"),
+                };
+                if let Some(err) = result.err() {
+                    log::info!(target: "wire", "Peer {nid} failed to fetch {rid} from us: {err}");
+                } else {
+                    log::info!(target: "wire", "Peer {nid} fetched {rid} from us successfully");
                 }
             }
         }
@@ -473,7 +482,9 @@ where
                     Frame::<service::Message>::git(stream, data)
                 }
                 ChannelEvent::Close => Frame::control(*link, frame::Control::Close { stream }),
-                ChannelEvent::Eof => Frame::control(*link, frame::Control::Eof { stream }),
+                ChannelEvent::Error(e) => {
+                    Frame::control(*link, frame::Control::Error { stream, error: e })
+                }
             };
             self.actions
                 .push_back(reactor::Action::Send(fd, frame.to_bytes()));
@@ -788,20 +799,6 @@ where
                                 }
                             }
                             Ok(Some(Frame {
-                                data: FrameData::Control(frame::Control::Eof { stream }),
-                                ..
-                            })) => {
-                                if let Some(s) = streams.get(&stream) {
-                                    log::debug!(target: "wire", "Received `end-of-file` on stream {stream} from {nid}");
-
-                                    if s.channels.send(ChannelEvent::Eof).is_err() {
-                                        log::error!(target: "wire", "Worker is disconnected; cannot send `EOF`");
-                                    }
-                                } else {
-                                    log::debug!(target: "wire", "Ignoring frame on closed or unknown stream {stream}");
-                                }
-                            }
-                            Ok(Some(Frame {
                                 data: FrameData::Control(frame::Control::Close { stream }),
                                 ..
                             })) => {
@@ -814,6 +811,21 @@ where
                                         s.sent_bytes, s.received_bytes
                                     );
                                     s.channels.close().ok();
+                                }
+                            }
+                            Ok(Some(Frame {
+                                data: FrameData::Control(frame::Control::Error { stream, error }),
+                                ..
+                            })) => {
+                                log::debug!(target: "wire", "Received `error` for stream {stream} from {nid}: {error}");
+
+                                if let Some(mut s) = streams.unregister(&stream) {
+                                    log::debug!(
+                                        target: "wire",
+                                        "Stream {stream} of {nid} errored with {} byte(s) sent and {} byte(s) received",
+                                        s.sent_bytes, s.received_bytes
+                                    );
+                                    s.channels.error(error).ok();
                                 }
                             }
                             Ok(Some(Frame {

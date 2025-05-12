@@ -1,8 +1,10 @@
+mod error;
 mod frame;
 mod message;
 mod protocol;
 mod varint;
 
+pub use error::StreamError;
 pub use frame::StreamId;
 pub use message::{AddressType, MessageType};
 pub use protocol::{Control, Wire, WireReader, WireSession, WireWriter};

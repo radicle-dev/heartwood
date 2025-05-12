@@ -8,7 +8,7 @@ use radicle::node::config::FetchPackSizeLimit;
 use radicle::node::NodeId;
 
 use crate::runtime::Handle;
-use crate::wire::StreamId;
+use crate::wire::{StreamError, StreamId};
 
 /// Maximum size of channel used to communicate with a worker.
 /// Note that as long as we're using [`std::io::copy`] to copy data from the
@@ -83,14 +83,13 @@ impl radicle_fetch::transport::ConnectionStream for ChannelsFlush {
 }
 
 /// Data that can be sent and received on worker channels.
-pub enum ChannelEvent<T = Vec<u8>> {
+pub enum ChannelEvent<T = Vec<u8>, E = StreamError> {
     /// Git protocol data.
     Data(T),
-    /// A request to close the channel.
-    Close,
     /// A signal that the git protocol has ended, eg. when the remote fetch closes the
     /// connection.
-    Eof,
+    Close,
+    Error(E),
 }
 
 impl<T> From<T> for ChannelEvent<T> {
@@ -104,7 +103,7 @@ impl<T> fmt::Debug for ChannelEvent<T> {
         match self {
             Self::Data(_) => write!(f, "ChannelEvent::Data(..)"),
             Self::Close => write!(f, "ChannelEvent::Close"),
-            Self::Eof => write!(f, "ChannelEvent::Eof"),
+            Self::Error(err) => write!(f, "ChannelEvent::Error({})", err),
         }
     }
 }
@@ -150,6 +149,10 @@ impl<T: AsRef<[u8]>> Channels<T> {
 
     pub fn close(self) -> Result<(), chan::SendError<ChannelEvent<T>>> {
         self.sender.close()
+    }
+
+    pub fn error(&mut self, error: StreamError) -> Result<(), chan::SendError<ChannelEvent<T>>> {
+        self.sender.error(error)
     }
 }
 
@@ -226,8 +229,21 @@ impl Read for ChannelReader<Vec<u8>> {
                 self.buffer = io::Cursor::new(data);
                 self.buffer.read(buf)
             }
-            Ok(ChannelEvent::Eof) => Err(io::ErrorKind::UnexpectedEof.into()),
-            Ok(ChannelEvent::Close) => Err(io::ErrorKind::ConnectionReset.into()),
+            Ok(ChannelEvent::Close) => Err(io::ErrorKind::UnexpectedEof.into()),
+            Ok(ChannelEvent::Error(StreamError::Io(kind))) => Err(io::Error::new(
+                kind,
+                format!(
+                    "error reading from stream: other side reported i/o error: {}",
+                    kind
+                ),
+            )),
+            Ok(ChannelEvent::Error(err)) => Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!(
+                    "error reading from stream: other side reported error: {}",
+                    err
+                ),
+            )),
 
             Err(chan::RecvTimeoutError::Timeout) => Err(io::Error::new(
                 io::ErrorKind::TimedOut,
@@ -243,8 +259,8 @@ impl Read for ChannelReader<Vec<u8>> {
 
 /// Wraps a [`chan::Sender`] and provides it with [`io::Write`].
 #[derive(Clone)]
-struct ChannelWriter<T = Vec<u8>> {
-    sender: chan::Sender<ChannelEvent<T>>,
+struct ChannelWriter<T = Vec<u8>, E = StreamError> {
+    sender: chan::Sender<ChannelEvent<T, E>>,
     timeout: time::Duration,
 }
 
@@ -260,11 +276,11 @@ pub struct ChannelFlushWriter<T = Vec<u8>> {
     remote: NodeId,
 }
 
-impl radicle_fetch::transport::SignalEof for ChannelFlushWriter<Vec<u8>> {
+impl radicle_fetch::transport::Close for ChannelFlushWriter<Vec<u8>> {
     type Error = io::Error;
 
-    fn eof(&mut self) -> io::Result<()> {
-        self.writer.send(ChannelEvent::Eof)?;
+    fn close(&mut self) -> io::Result<()> {
+        self.writer.send(ChannelEvent::Close)?;
         self.flush()
     }
 }
@@ -300,5 +316,10 @@ impl<T: AsRef<[u8]>> ChannelWriter<T> {
     /// Permanently close this stream.
     pub fn close(self) -> Result<(), chan::SendError<ChannelEvent<T>>> {
         self.sender.send(ChannelEvent::Close)
+    }
+
+    /// Mark this stream as errored.
+    pub fn error(&mut self, error: StreamError) -> Result<(), chan::SendError<ChannelEvent<T>>> {
+        self.sender.send(ChannelEvent::Error(error))
     }
 }

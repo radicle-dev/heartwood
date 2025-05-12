@@ -26,15 +26,15 @@ use crate::git::repository;
 /// processes for communicating during their respective protocols.
 pub trait ConnectionStream {
     type Read: io::Read;
-    type Write: io::Write + SignalEof;
+    type Write: io::Write + Close;
     type Error: std::error::Error + Send + Sync + 'static;
 
     fn open(&mut self) -> Result<(&mut Self::Read, &mut Self::Write), Self::Error>;
 }
 
-/// The ability to signal EOF to the server side so that it can stop
-/// serving for this fetch request.
-pub trait SignalEof {
+/// The ability to signal to the server side so that it can stop
+/// serving for this fetch request, i.e. close the stream.
+pub trait Close {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Since the git protocol is tunneled over an existing
@@ -46,9 +46,9 @@ pub trait SignalEof {
     /// Hence, there's no other way for the server to know that we're
     /// done sending requests than to send a special message outside
     /// the git protocol. This message can then be processed by the
-    /// remote worker to end the protocol. We use the special "eof"
+    /// remote worker to end the protocol. We use the special "close"
     /// control message for this.
-    fn eof(&mut self) -> Result<(), Self::Error>;
+    fn close(&mut self) -> Result<(), Self::Error>;
 }
 
 /// Configuration for running a Git `handshake`, `ls-refs`, or
@@ -175,7 +175,7 @@ where
     /// fetch commands.
     pub(crate) fn done(&mut self) -> io::Result<()> {
         let (_, w) = self.stream.open().map_err(io_other)?;
-        w.eof().map_err(io_other)
+        w.close().map_err(io_other)
     }
 }
 

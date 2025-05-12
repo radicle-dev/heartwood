@@ -4,6 +4,8 @@ use std::{fmt, io};
 
 use crate::{wire, wire::varint, wire::varint::VarInt, wire::Message, Link, PROTOCOL_VERSION};
 
+use super::error::StreamError;
+
 /// Protocol version strings all start with the magic sequence `rad`, followed
 /// by a version number.
 pub const PROTOCOL_VERSION_STRING: Version = Version([b'r', b'a', b'd', PROTOCOL_VERSION]);
@@ -13,7 +15,13 @@ const CONTROL_OPEN: u8 = 0;
 /// Control close byte.
 const CONTROL_CLOSE: u8 = 1;
 /// Control EOF byte.
+/// This is here for backwards compatibility. Previous versions of would send
+/// it to signal closing a particular stream. We now use [`CONTROL_CLOSE`]
+/// instead. Errors, including unexpected end of file, are signaled via
+/// [`CONTROL_ERROR`].
 const CONTROL_EOF: u8 = 2;
+/// Control error byte.
+const CONTROL_ERROR: u8 = 3;
 
 /// Protocol version.
 #[derive(Debug, PartialEq, Eq)]
@@ -260,12 +268,13 @@ pub enum Control {
         /// The stream to close.
         stream: StreamId,
     },
-    /// Signal an end-of-file. This can be used to simulate connections terminating
-    /// without having to close the connection. These control messages are turned into
-    /// [`io::ErrorKind::UnexpectedEof`] errors on read.
-    Eof {
-        /// The stream to send an EOF on.
+    /// Signal that an error happened on a stream, which left it in an
+    /// unrecoverable state.
+    Error {
+        /// The stream to report an error for.
         stream: StreamId,
+        /// What happened to that stream.
+        error: StreamError,
     },
 }
 
@@ -277,13 +286,14 @@ impl wire::Decode for Control {
                 let stream = StreamId::decode(reader)?;
                 Ok(Control::Open { stream })
             }
-            CONTROL_CLOSE => {
+            CONTROL_CLOSE | CONTROL_EOF => {
                 let stream = StreamId::decode(reader)?;
                 Ok(Control::Close { stream })
             }
-            CONTROL_EOF => {
+            CONTROL_ERROR => {
                 let stream = StreamId::decode(reader)?;
-                Ok(Control::Eof { stream })
+                let error = StreamError::decode(reader)?;
+                Ok(Control::Error { stream, error })
             }
             other => Err(wire::Error::InvalidControlMessage(other)),
         }
@@ -299,13 +309,14 @@ impl wire::Encode for Control {
                 n += CONTROL_OPEN.encode(writer)?;
                 n += id.encode(writer)?;
             }
-            Self::Eof { stream: id } => {
-                n += CONTROL_EOF.encode(writer)?;
-                n += id.encode(writer)?;
-            }
             Self::Close { stream: id } => {
                 n += CONTROL_CLOSE.encode(writer)?;
                 n += id.encode(writer)?;
+            }
+            Self::Error { stream: id, error } => {
+                n += CONTROL_ERROR.encode(writer)?;
+                n += id.encode(writer)?;
+                n += error.encode(writer)?;
             }
         }
         Ok(n)

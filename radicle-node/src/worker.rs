@@ -6,6 +6,7 @@ pub mod fetch;
 pub mod garbage;
 
 use std::io;
+use std::io::ErrorKind;
 use std::path::PathBuf;
 
 use crossbeam_channel as chan;
@@ -21,7 +22,7 @@ use radicle_fetch::FetchLimit;
 use crate::runtime::{thread, Emitter, Handle};
 use crate::service::policy;
 use crate::service::policy::SeedingPolicy;
-use crate::wire::StreamId;
+use crate::wire::{StreamError, StreamId};
 
 pub use channels::{ChannelEvent, Channels, ChannelsConfig};
 
@@ -86,10 +87,22 @@ pub enum UploadError {
     PolicyStore(#[from] radicle::node::policy::store::Error),
 }
 
-impl UploadError {
-    /// Check if it's an end-of-file error.
-    pub fn is_eof(&self) -> bool {
-        matches!(self, UploadError::Io(e) if e.kind() == io::ErrorKind::UnexpectedEof)
+impl From<&UploadError> for StreamError {
+    fn from(value: &UploadError) -> Self {
+        match value {
+            UploadError::PacketLine(_)
+            | UploadError::Storage(radicle::storage::Error::InvalidId(_)) => {
+                StreamError::Io(ErrorKind::InvalidData)
+            }
+            UploadError::Unauthorized(_, _)
+            | UploadError::Storage(radicle::storage::Error::InvalidRef) => {
+                StreamError::Io(ErrorKind::NotFound)
+            }
+            UploadError::Io(e)
+            | UploadError::Storage(radicle::storage::Error::Io(e))
+            | UploadError::PolicyStore(policy::Error::Io(e)) => StreamError::Io(e.kind()),
+            _ => StreamError::Unknown,
+        }
     }
 }
 
@@ -243,7 +256,7 @@ impl Worker {
                     Err(e) => {
                         return FetchResult::Responder {
                             rid: None,
-                            result: Err(e.into()),
+                            result: Err(UploadError::PacketLine(e)),
                         }
                     }
                 };
