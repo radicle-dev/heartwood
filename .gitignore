@@ -3,3 +3,4 @@
 /build/artifacts
 /build/*.tar.gz
 /.pre-commit-config.yaml
+/.direnv/
