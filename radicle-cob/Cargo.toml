@@ -11,6 +11,7 @@ authors = [
 edition = "2021"
 license = "MIT OR Apache-2.0"
 keywords = ["radicle", "cob", "cobs"]
+rust-version.workspace = true
 
 [features]
 default = []

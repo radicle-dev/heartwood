@@ -6,6 +6,7 @@ repository = "https://app.radicle.xyz/seeds/seed.radicle.xyz/rad:z3gqcJUoA1n9HaH
 license = "MIT OR Apache-2.0"
 edition = "2021"
 version = "0.11.0"
+rust-version.workspace = true
 
 [dependencies]
 crossbeam-channel = { version = "0.5.6" }

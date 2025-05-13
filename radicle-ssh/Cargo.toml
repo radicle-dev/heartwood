@@ -11,6 +11,7 @@ authors = [
   "cloudhead <cloudhead@radicle.xyz>"
 ]
 edition = "2021"
+rust-version.workspace = true
 
 [dependencies]
 byteorder = "1.4"

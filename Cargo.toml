@@ -1,5 +1,4 @@
 [workspace]
-package.version = "0.9.0"
 members = [
   "radicle",
   "radicle-cob",
@@ -31,11 +30,23 @@ default-members = [
 ]
 resolver = "2"
 
-[profile.container]
-inherits = "release"
-debug = true
-incremental = false
+[workspace.package]
+version = "0.9.0"
+
+# Even though some crates in this workspace may build fine
+# on a lower version, we set it here and inherit in all
+# crates. This is to simplify maintenance. As of 2025-05-13
+# we do not have the capacity to think about `rust-version`
+# *per crate*. If anyone ever wants to set it to a different
+# value per crate, this is of course possible. We're waiting
+# for the day it makes a difference…
+rust-version = "1.81.0"
 
 [workspace.lints]
 clippy.type_complexity = "allow"
 clippy.enum_variant_names = "allow"
+
+[profile.container]
+inherits = "release"
+debug = true
+incremental = false

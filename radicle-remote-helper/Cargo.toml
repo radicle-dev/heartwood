@@ -7,6 +7,7 @@ version = "0.10.0"
 authors = ["cloudhead <cloudhead@radicle.xyz>"]
 edition = "2021"
 build = "build.rs"
+rust-version.workspace = true
 
 [dependencies]
 thiserror = { version = "1" }

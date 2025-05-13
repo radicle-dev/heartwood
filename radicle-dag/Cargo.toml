@@ -7,6 +7,7 @@ license = "MIT OR Apache-2.0"
 authors = ["cloudhead <cloudhead@radicle.xyz>"]
 version = "0.10.0"
 edition = "2021"
+rust-version.workspace = true
 
 [dependencies]
 fastrand = { version = "2.0.0" }
