@@ -72,24 +72,26 @@ impl FetchError {
 pub enum UploadError {
     #[error("error parsing git command packet-line: {0}")]
     PacketLine(io::Error),
+    #[error("error while performing git upload-pack: {0}")]
+    UploadPack(io::Error),
     #[error(transparent)]
-    Io(#[from] io::Error),
+    Authorization(#[from] AuthorizationError),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum AuthorizationError {
     #[error("{0} is not authorized to fetch {1}")]
     Unauthorized(NodeId, RepoId),
     #[error(transparent)]
-    Storage(#[from] radicle::storage::Error),
-    #[error(transparent)]
-    Identity(#[from] radicle::identity::DocError),
+    PolicyStore(#[from] radicle::node::policy::store::Error),
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
-    #[error(transparent)]
-    PolicyStore(#[from] radicle::node::policy::store::Error),
 }
 
 impl UploadError {
     /// Check if it's an end-of-file error.
     pub fn is_eof(&self) -> bool {
-        matches!(self, UploadError::Io(e) if e.kind() == io::ErrorKind::UnexpectedEof)
+        matches!(self, UploadError::UploadPack(e) if e.kind() == io::ErrorKind::UnexpectedEof)
     }
 }
 
@@ -243,7 +245,7 @@ impl Worker {
                     Err(e) => {
                         return FetchResult::Responder {
                             rid: None,
-                            result: Err(e.into()),
+                            result: Err(UploadError::PacketLine(e)),
                         }
                     }
                 };
@@ -252,7 +254,7 @@ impl Worker {
                 if let Err(e) = self.is_authorized(remote, header.repo) {
                     return FetchResult::Responder {
                         rid: Some(header.repo),
-                        result: Err(e),
+                        result: Err(e.into()),
                     };
                 }
 
@@ -267,7 +269,7 @@ impl Worker {
                     timeout,
                 )
                 .map(|_| ())
-                .map_err(|e| e.into());
+                .map_err(UploadError::UploadPack);
                 log::debug!(target: "worker", "Upload process on stream {stream} exited with result {result:?}");
 
                 FetchResult::Responder {
@@ -278,18 +280,18 @@ impl Worker {
         }
     }
 
-    fn is_authorized(&self, remote: NodeId, rid: RepoId) -> Result<(), UploadError> {
+    fn is_authorized(&self, remote: NodeId, rid: RepoId) -> Result<(), AuthorizationError> {
         let policy = self.policies.seed_policy(&rid)?.policy;
         // Check policy first, since if we're blocking then we likely don't have
         // the repository.
         if policy.is_block() {
-            return Err(UploadError::Unauthorized(remote, rid));
+            return Err(AuthorizationError::Unauthorized(remote, rid));
         }
         let repo = self.storage.repository(rid)?;
         let doc = repo.identity_doc()?;
 
         if !doc.is_visible_to(&remote.into()) {
-            Err(UploadError::Unauthorized(remote, rid))
+            Err(AuthorizationError::Unauthorized(remote, rid))
         } else {
             Ok(())
         }
