@@ -41,53 +41,48 @@ impl ChangeGraph {
     {
         log::debug!(target: "cob", "Loading object of type {typename} at {oid}");
 
-        let mut builder = GraphBuilder::default();
-        let mut edges_to_process: Vec<(Oid, Oid)> = Vec::new();
+        let mut graph: Dag<Oid, Entry> = Dag::new();
 
-        // Populate the initial set of edges_to_process from the refs we have
-        for reference in tip_refs {
-            log::trace!(target: "cob", "Loading object from reference '{}'", reference.name);
+        // Populate the initial set of node ids from the refs we have
+        let mut child_ids = Vec::from_iter(tip_refs.map(|r| r.target.id));
+        let mut edges_to_add = Vec::new();
 
-            match storage.load(reference.target.id) {
+        while let Some(child_id) = child_ids.pop() {
+            // Skip if we already processed this node.
+            if graph.contains(&child_id) {
+                continue;
+            }
+
+            match storage.load(child_id) {
                 Ok(change) => {
-                    let new_edges = builder.add_change(reference.target.id, change);
-                    edges_to_process.extend(new_edges);
+                    for parent_id in &change.parents {
+                        edges_to_add.push((child_id, *parent_id));
+                        child_ids.push(*parent_id);
+                        debug_assert_ne!(Some(*parent_id), change.resource);
+                    }
+                    graph.node(child_id, change);
                 }
                 Err(e) => {
                     log::warn!(
                         target: "cob",
-                        "Unable to load change from reference {}->{}: {e}",
-                        reference.name,
-                        reference.target.id,
+                        "Unable to load change tree from commit {child_id}: {e}",
                     );
                 }
             }
         }
 
-        // Process edges until we have no more to process
-        while let Some((parent_commit_id, child_commit_id)) = edges_to_process.pop() {
-            log::trace!(
-                target: "cob",
-                "Loading change parent='{}', child='{}'",
-                parent_commit_id,
-                child_commit_id
-            );
-            match storage.load(parent_commit_id) {
-                Ok(change) => {
-                    let new_edges = builder.add_change(parent_commit_id, change);
-                    edges_to_process.extend(new_edges);
-                    builder.add_edge(child_commit_id, parent_commit_id);
-                }
-                Err(e) => {
-                    log::warn!(
-                        target: "cob",
-                        "Unable to load change tree from commit {}: {e}",
-                        parent_commit_id,
-                    );
-                }
-            }
+        // The Dag::dependency() function implicitly assumes that both nodes already exist in the graph.
+        // Therefore, we add the edges only after successfully processing all nodes.
+        for (child_id, parent_id) in edges_to_add {
+            graph.dependency(child_id, parent_id);
         }
-        builder.build(*oid)
+
+        graph.roots().next()?;
+
+        Some(ChangeGraph {
+            object_id: *oid,
+            graph,
+        })
     }
 
     /// Given a graph evaluate it to produce a collaborative object. This will
@@ -151,56 +146,5 @@ impl ChangeGraph {
 
     fn chronological(x: (&Oid, &Entry), y: (&Oid, &Entry)) -> Ordering {
         x.1.timestamp.cmp(&y.1.timestamp).then(x.0.cmp(y.0))
-    }
-}
-
-struct GraphBuilder {
-    graph: Dag<Oid, Entry>,
-}
-
-impl Default for GraphBuilder {
-    fn default() -> Self {
-        GraphBuilder { graph: Dag::new() }
-    }
-}
-
-impl GraphBuilder {
-    /// Add a change to the graph which we are building up, returning any edges
-    /// corresponding to the parents of this node in the change graph
-    fn add_change(&mut self, commit_id: Oid, change: Entry) -> Vec<(Oid, Oid)> {
-        let resource = change.resource().copied();
-        let parents = change.parents.clone();
-
-        if !self.graph.contains(&commit_id) {
-            self.graph.node(commit_id, change);
-        }
-
-        parents
-            .into_iter()
-            .filter_map(move |parent| {
-                debug_assert_ne!(Some(parent), resource);
-
-                if !self.graph.has_dependency(&commit_id, &parent) {
-                    Some((parent, commit_id))
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
-    fn add_edge(&mut self, child: Oid, parent: Oid) {
-        self.graph.dependency(child, parent);
-    }
-
-    fn build(self, object_id: ObjectId) -> Option<ChangeGraph> {
-        if self.graph.roots().next().is_some() {
-            Some(ChangeGraph {
-                object_id,
-                graph: self.graph,
-            })
-        } else {
-            None
-        }
     }
 }
