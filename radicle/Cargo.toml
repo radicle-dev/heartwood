@@ -12,6 +12,7 @@ edition = "2021"
 default = []
 test = ["qcheck", "radicle-crypto/test"]
 logger = ["colored", "chrono"]
+libp2p = [ "dep:multiaddr" ]
 
 [dependencies]
 amplify = { version = "4.0.0", default-features = false, features = ["std"] }
@@ -34,6 +35,7 @@ sqlite = { version = "0.32.0", features = ["bundled"] }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }
 unicode-normalization = { version = "0.1" }
+multiaddr = { version = "*", optional = true }
 
 [dependencies.chrono]
 version = "0.4.0"

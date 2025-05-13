@@ -1,0 +1,69 @@
+[package]
+name = "radicle-bulin"
+description = "Radicle Bulin"
+homepage = "https://radicle.xyz"
+repository = "https://app.radicle.xyz/seeds/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
+license = "MIT OR Apache-2.0"
+edition = "2021"
+version = "0.1.0"
+
+[dependencies]
+libp2p = { version = "0.55", features = ["noise", "ping", "tcp", "tokio", "yamux", "gossipsub", "mdns", "macros", "identify"] }
+futures = "0.3.30"
+tokio = { version = "1.38.0", features = ["full"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+#
+amplify = { version = "4.0.0" }
+anyhow = { version = "1" }
+bloomy = { version = "1.2" }
+byteorder = { version = "1" }
+chrono = { version = "0.4.0", default-features = false, features = ["clock"] }
+colored = { version = "2.1.0" }
+crossbeam-channel = { version = "0.5.6" }
+cyphernet = { version = "0.5.2", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
+fastrand = { version = "2.0.0" }
+io-reactor = { version = "0.5.1", features = ["popol"] }
+lexopt = { version = "0.3.0" }
+libc = { version = "0.2.137" }
+log = { version = "0.4.17", features = ["std"] }
+localtime = { version = "1.2.0" }
+netservices = { version = "0.8.0", features = ["io-reactor", "socket2"] }
+nonempty = { version = "0.9.0", features = ["serialize"] }
+once_cell = { version = "1.13" }
+qcheck = { version = "1", default-features = false, optional = true }
+# N.b. this is required to use macros, even though it's re-exported
+# through radicle
+radicle-git-ext = { version = "0.8.0", features = ["serde"] }
+sqlite = { version = "0.32.0", features = ["bundled"] }
+scrypt = { version = "0.11.0", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+snapbox = { version = "0.4.3", optional = true }
+socket2 = { version = "0.5.7" }
+tempfile = { version = "3.3.0" }
+thiserror = { version = "1" }
+
+[dependencies.radicle]
+path = "../radicle"
+version = "0"
+features = ["logger"]
+
+[dependencies.radicle-fetch]
+path = "../radicle-fetch"
+version = "0"
+
+[dependencies.radicle-signals]
+path = "../radicle-signals"
+version = "0"
+
+[dependencies.radicle-systemd]
+path = "../radicle-systemd"
+version = "0.9.0"
+optional = true
+
+[dev-dependencies]
+radicle = { path = "../radicle", version = "0", features = ["test"] }
+radicle-crypto = { path = "../radicle-crypto", version = "0", features = ["test", "cyphernet"] }
+qcheck = { version = "1", default-features = false }
+qcheck-macros = { version = "1", default-features = false }
+snapbox = { version = "0.4.3" }

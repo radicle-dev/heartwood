@@ -9,7 +9,7 @@ edition = "2021"
 
 [dependencies]
 bstr = { version = "1.3" }
-either = { version = "1.9.0" }
+either = { version = "1.15.0" }
 gix-features = { version = "0.39.1", features = ["progress"] }
 gix-hash = { version = "0.15.1" }
 gix-odb = { version = "0.66.0" }

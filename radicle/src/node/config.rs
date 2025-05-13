@@ -299,6 +299,13 @@ impl Deref for ConnectAddress {
     }
 }
 
+#[cfg(feature = "libp2p")]
+impl From<ConnectAddress> for multiaddr::Multiaddr {
+    fn from(value: ConnectAddress) -> Self {
+        todo!()
+    }
+}
+
 /// Peer configuration.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
