@@ -46,8 +46,19 @@
         overlays = [(import rust-overlay)];
       };
 
-      rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
-      craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
+      msrv = let
+        msrv = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace.package.rust-version;
+      in rec {
+        toolchain = pkgs.rust-bin.stable.${msrv}.default;
+        craneLib = (crane.mkLib pkgs).overrideToolchain toolchain;
+        commonArgs = mkCommonArgs craneLib;
+      };
+
+      rustup = rec {
+        toolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+        craneLib = (crane.mkLib pkgs).overrideToolchain toolchain;
+        commonArgs = mkCommonArgs craneLib;
+      };
 
       srcFilters = path: type:
         builtins.any (suffix: lib.hasSuffix suffix path) [
@@ -56,10 +67,11 @@
           ".md" # testing
           ".adoc" # man pages
           ".json" # testing samples
+          "rad-cob-multiset" # testing external COBs
         ]
         ||
         # Default filter from crane (allow .rs files)
-        (craneLib.filterCargoSources path type);
+        (rustup.craneLib.filterCargoSources path type);
 
       src = lib.cleanSourceWith {
         src = ./.;
@@ -72,23 +84,25 @@
         strictDeps = true;
       };
 
-      # Build *just* the cargo dependencies, so we can reuse
-      # all of that work (e.g. via cachix) when running in CI
-      cargoArtifacts = craneLib.buildDepsOnly basicArgs;
-
       # Common arguments can be set here to avoid repeating them later
-      commonArgs =
+      mkCommonArgs = craneLib:
         basicArgs
         // {
-          inherit cargoArtifacts;
+          # Build *just* the cargo dependencies, so we can reuse
+          # all of that work (e.g. via cachix) when running in CI
+          cargoArtifacts = craneLib.buildDepsOnly basicArgs;
 
           nativeBuildInputs = with pkgs; [
+            asciidoctor
             git
-            # Add additional build inputs here
+            installShellFiles
           ];
           buildInputs = lib.optionals pkgs.stdenv.buildPlatform.isDarwin (with pkgs; [
             darwin.apple_sdk.frameworks.Security
           ]);
+          nativeCheckInputs = with pkgs; [
+            jq
+          ];
 
           env =
             {
@@ -102,97 +116,29 @@
               else {}
             );
         };
-    in {
-      # Formatter
-      formatter = pkgs.alejandra;
 
-      # Set of checks that are run: `nix flake check`
-      checks = {
-        pre-commit-check = inputs.git-hooks.lib.${system}.run {
-          src = ./.;
-          settings.rust.check.cargoDeps = pkgs.rustPlatform.importCargoLock {lockFile = ./Cargo.lock;};
-          hooks = {
-            alejandra.enable = true;
-            rustfmt.enable = true;
-            cargo-check = {
-              enable = true;
-              stages = ["pre-push"];
-            };
-            clippy = {
-              enable = true;
-              stages = ["pre-push"];
-              settings.denyWarnings = true;
-              packageOverrides.cargo = rustToolchain;
-              packageOverrides.clippy = rustToolchain;
-            };
-            shellcheck.enable = true;
-          };
-        };
-
-        # Build the crate as part of `nix flake check` for convenience
-        inherit (self.packages.${system}) radicle;
-
-        # Run clippy (and deny all warnings) on the crate source,
-        # again, reusing the dependency artifacts from above.
-        #
-        # Note that this is done as a separate derivation so that
-        # we can block the CI if there are issues here, but not
-        # prevent downstream consumers from building our crate by itself.
-        clippy = craneLib.cargoClippy (commonArgs
+      buildCrate = rust: {
+        name,
+        pages ? [],
+      }:
+        rust.craneLib.buildPackage (rust.commonArgs
           // {
-            cargoClippyExtraArgs = "--all-targets -- --deny warnings";
-          });
-
-        doc = craneLib.cargoDoc commonArgs;
-        deny = craneLib.cargoDeny commonArgs;
-        fmt = craneLib.cargoFmt basicArgs;
-
-        audit = craneLib.cargoAudit {
-          inherit src advisory-db;
-        };
-
-        # Run tests with cargo-nextest
-        nextest = craneLib.cargoNextest (commonArgs
-          // {
-            partitions = 1;
-            partitionType = "count";
-            nativeBuildInputs = [
-              # git is required so the sandbox can access it.
-              pkgs.git
-            ];
-            # Ensure that the binaries are built for the radicle-cli tests to
-            # avoid timeouts
-            preCheck = ''
-              cargo build -p radicle-remote-helper --target-dir radicle-cli/target
-              cargo build -p radicle-cli --target-dir radicle-cli/target
+            inherit (rust.craneLib.crateNameFromCargoToml {cargoToml = src + "/" + name + "/Cargo.toml";}) pname version;
+            cargoExtraArgs = "-p ${name}";
+            doCheck = false;
+            postInstall = ''
+              for page in ${lib.escapeShellArgs pages}; do
+                asciidoctor -d manpage -b manpage $page
+                installManPage ''${page::-5}
+              done
             '';
-            # Ensure dev is used since we rely on env variables being
-            # set in tests.
-            env.CARGO_PROFILE = "dev";
           });
-      };
-
-      packages = let
-        crate = {
-          name,
-          pages ? [],
-        }:
-          craneLib.buildPackage (commonArgs
-            // {
-              inherit (craneLib.crateNameFromCargoToml {cargoToml = src + "/" + name + "/Cargo.toml";}) pname version;
-              cargoExtraArgs = "-p ${name}";
-              doCheck = false;
-
-              nativeBuildInputs = with pkgs; [asciidoctor installShellFiles jq];
-              postInstall = ''
-                for page in ${lib.escapeShellArgs pages}; do
-                  asciidoctor -d manpage -b manpage $page
-                  installManPage ''${page::-5}
-                done
-              '';
-            });
-        crates = builtins.listToAttrs (map
-          ({name, ...} @ package: lib.nameValuePair name (crate package))
+      buildCrates = {
+        rust ? rustup,
+        prefix ? "",
+      }:
+        builtins.listToAttrs (map
+          ({name, ...} @ package: lib.nameValuePair (prefix + name) ((buildCrate rust) package))
           [
             {
               name = "radicle-cli";
@@ -211,6 +157,79 @@
               pages = ["radicle-node.1.adoc"];
             }
           ]);
+    in {
+      # Formatter
+      formatter = pkgs.alejandra;
+
+      # Set of checks that are run: `nix flake check`
+      checks =
+        (buildCrates {
+          rust = msrv;
+          prefix = "msrv-";
+        })
+        // {
+          pre-commit-check = inputs.git-hooks.lib.${system}.run {
+            src = ./.;
+            settings.rust.check.cargoDeps = pkgs.rustPlatform.importCargoLock {lockFile = ./Cargo.lock;};
+            hooks = {
+              alejandra.enable = true;
+              rustfmt.enable = true;
+              cargo-check = {
+                enable = true;
+                stages = ["pre-push"];
+              };
+              clippy = {
+                enable = true;
+                stages = ["pre-push"];
+                settings.denyWarnings = true;
+                packageOverrides.cargo = rustup.toolchain;
+                packageOverrides.clippy = rustup.toolchain;
+              };
+              shellcheck.enable = true;
+            };
+          };
+
+          # Build the crate as part of `nix flake check` for convenience
+          inherit (self.packages.${system}) radicle;
+
+          # Run clippy (and deny all warnings) on the crate source,
+          # again, reusing the dependency artifacts from above.
+          #
+          # Note that this is done as a separate derivation so that
+          # we can block the CI if there are issues here, but not
+          # prevent downstream consumers from building our crate by itself.
+          clippy = rustup.craneLib.cargoClippy (rustup.commonArgs
+            // {
+              cargoClippyExtraArgs = "--all-targets -- --deny warnings";
+            });
+
+          doc = rustup.craneLib.cargoDoc rustup.commonArgs;
+          deny = rustup.craneLib.cargoDeny rustup.commonArgs;
+          fmt = rustup.craneLib.cargoFmt basicArgs;
+
+          audit = rustup.craneLib.cargoAudit {
+            inherit src advisory-db;
+          };
+
+          # Run tests with cargo-nextest
+          nextest = rustup.craneLib.cargoNextest (rustup.commonArgs
+            // {
+              # Ensure that the binaries are built for the radicle-cli tests to
+              # avoid timeouts
+              preCheck = ''
+                patchShebangs --build radicle-cli/examples/rad-cob-multiset
+                              cargo build -p radicle-remote-helper --target-dir radicle-cli/target
+                              cargo build -p radicle-cli --target-dir radicle-cli/target
+              '';
+              # Ensure dev is used since we rely on env variables being
+              # set in tests.
+              env.CARGO_PROFILE = "dev";
+              cargoNextestExtraArgs = "--no-capture";
+            });
+        };
+
+      packages = let
+        crates = buildCrates {};
       in
         crates
         // rec {
@@ -253,7 +272,7 @@
         drv = self.packages.${system}.radicle-node;
       };
 
-      devShells.default = craneLib.devShell {
+      devShells.default = rustup.craneLib.devShell {
         inherit (self.checks.${system}.pre-commit-check) shellHook;
         buildInputs = self.checks.${system}.pre-commit-check.enabledPackages;
 
@@ -268,7 +287,7 @@
           sqlite
         ];
 
-        env.RUST_SRC_PATH = "${rustToolchain}/lib/rustlib/src/rust/library";
+        env.RUST_SRC_PATH = "${rustup.toolchain}/lib/rustlib/src/rust/library";
       };
     });
 }
