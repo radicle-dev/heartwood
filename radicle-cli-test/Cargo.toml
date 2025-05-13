@@ -9,6 +9,7 @@ edition = "2021"
 categories = ["development-tools::testing"]
 keywords = ["cli", "test", "command"]
 readme = "README.md"
+rust-version.workspace = true
 
 [dependencies]
 escargot = { version = "0.5.7" }
