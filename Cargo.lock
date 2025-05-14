@@ -2580,7 +2580,7 @@ dependencies = [
 
 [[package]]
 name = "radicle"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "amplify",
  "base64 0.21.7",
@@ -2618,7 +2618,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cli"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2662,7 +2662,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cli-test"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "escargot",
  "log",
@@ -2710,7 +2710,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-crypto"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "amplify",
  "cyphernet",
@@ -2739,7 +2739,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-fetch"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "bstr",
  "either",
@@ -2772,7 +2772,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-node"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "amplify",
  "anyhow",

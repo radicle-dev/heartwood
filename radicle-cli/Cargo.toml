@@ -3,7 +3,7 @@ name = "radicle-cli"
 description = "Radicle CLI"
 homepage = "https://radicle.xyz"
 license = "MIT OR Apache-2.0"
-version = "0.12.1"
+version = "0.13.0"
 authors = ["cloudhead <cloudhead@radicle.xyz>"]
 edition = "2021"
 build = "build.rs"
@@ -49,30 +49,30 @@ zeroize = { version = "1.1" }
 schemars = { version = "1.0.0-alpha.17" }
 
 [dependencies.radicle]
-version = "0"
+version = "0.15"
 path = "../radicle"
 features = ["logger", "schemars"]
 
-[dependencies.radicle-cli-test]
-version = "0"
-path = "../radicle-cli-test"
-
 [dependencies.radicle-cob]
-version = "0"
+version = "0.13"
 path = "../radicle-cob"
 
 [dependencies.radicle-crypto]
-version = "0"
+version = "0.12"
 path = "../radicle-crypto"
 
 [dependencies.radicle-term]
-version = "0"
+version = "0.12"
 path = "../radicle-term"
 
 [dev-dependencies]
 pretty_assertions = { version = "1.3.0" }
 radicle = { version = "0", path = "../radicle", features = ["test"] }
 radicle-node = { path = "../radicle-node", features = ["test"] }
+
+[dev-dependencies.radicle-cli-test]
+version = "0"
+path = "../radicle-cli-test"
 
 [lints]
 workspace = true

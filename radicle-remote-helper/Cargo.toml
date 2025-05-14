@@ -16,15 +16,15 @@ radicle-git-ext = { version = "0.8.0" }
 
 [dependencies.radicle]
 path = "../radicle"
-version = "0"
+version = "0.15"
 
 [dependencies.radicle-crypto]
 path = "../radicle-crypto"
-version = "0"
+version = "0.12"
 
 [dependencies.radicle-cli]
 path = "../radicle-cli"
-version = "0"
+version = "0.13"
 
 [[bin]]
 name = "git-remote-rad"

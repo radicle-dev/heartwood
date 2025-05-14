@@ -3,7 +3,7 @@ name = "radicle-node"
 description = "The Radicle Node"
 homepage = "https://radicle.xyz"
 license = "MIT OR Apache-2.0"
-version = "0.10.0"
+version = "0.11.0"
 authors = ["cloudhead <cloudhead@radicle.xyz>"]
 edition = "2021"
 build = "build.rs"
@@ -47,16 +47,16 @@ thiserror = { version = "1" }
 
 [dependencies.radicle]
 path = "../radicle"
-version = "0"
+version = "0.15"
 features = ["logger"]
 
 [dependencies.radicle-fetch]
 path = "../radicle-fetch"
-version = "0"
+version = "0.11"
 
 [dependencies.radicle-signals]
 path = "../radicle-signals"
-version = "0"
+version = "0.11"
 
 [dependencies.radicle-systemd]
 path = "../radicle-systemd"

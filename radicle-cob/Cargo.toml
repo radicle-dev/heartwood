@@ -35,12 +35,12 @@ features = ["vendored-libgit2"]
 
 [dependencies.radicle-crypto]
 path = "../radicle-crypto"
-version = "0"
+version = "0.12"
 features = ["ssh"]
 
 [dependencies.radicle-dag]
 path = "../radicle-dag"
-version = "0"
+version = "0.10"
 
 [dependencies.serde]
 version = "1.0"
