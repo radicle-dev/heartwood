@@ -9,6 +9,8 @@ pub mod limiter;
 pub mod message;
 pub mod session;
 
+mod protocol;
+
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::net::IpAddr;
@@ -442,6 +444,8 @@ pub struct Service<D, S, G> {
     listening: Vec<net::SocketAddr>,
     /// Latest metrics for all nodes connected to since the last start.
     metrics: Metrics,
+    /// Sans-I/O protocol adapter for the radicle-protocol crate.
+    protocol_adapter: protocol::ProtocolAdapter,
 }
 
 impl<D, S, G> Service<D, S, G>
@@ -485,6 +489,11 @@ where
         let clock = LocalTime::default(); // Updated on initialize.
         let inventory = gossip::inventory(clock.into(), []); // Updated on initialize.
 
+        // Initialize the protocol adapter with default configuration
+        let protocol_config = protocol::default_protocol_config();
+        let protocol_adapter =
+            protocol::ProtocolAdapter::new(*signer.public_key(), protocol_config);
+
         Self {
             config,
             storage,
@@ -513,6 +522,7 @@ where
             emitter,
             listening: vec![],
             metrics: Metrics::default(),
+            protocol_adapter,
         }
     }
 
@@ -732,6 +742,14 @@ where
                 .seed_policies()?
                 .filter_map(|t| (t.policy.is_allow()).then_some(t.rid)),
         );
+
+        // Update the protocol adapter with the current filter
+        if let Err(e) = self
+            .protocol_adapter
+            .handle_subscription(self.filter.clone())
+        {
+            error!(target: "service", "Error setting filter in protocol adapter: {e}");
+        }
         // Connect to configured peers.
         let addrs = self.config.connect.clone();
         for (id, addr) in addrs.into_iter().map(|ca| ca.into()) {
@@ -777,6 +795,38 @@ where
 
         if now - self.last_idle >= IDLE_INTERVAL {
             trace!(target: "service", "Running 'idle' task...");
+
+            // Check protocol adapter timers
+            match self.protocol_adapter.check_timers() {
+                Ok(actions) => {
+                    for action in actions {
+                        trace!(target: "service", "Processing protocol timer action: {:?}", action);
+                        // Process actions from timer events
+                        match action {
+                            io::Io::Write(peer_id, messages) => {
+                                if let Some(session) = self.sessions.get_mut(&peer_id) {
+                                    for message in messages {
+                                        self.outbox.write(session, message);
+                                    }
+                                }
+                            }
+                            io::Io::Disconnect(peer_id, reason) => {
+                                if let Some(session) = self.sessions.get_mut(&peer_id) {
+                                    debug!(target: "service", "Protocol requested disconnect of peer {}: {:?}", peer_id, reason);
+                                    self.outbox.disconnect(peer_id, reason);
+                                }
+                            }
+                            io::Io::Wakeup(_) => {
+                                // Timer already rescheduled in protocol adapter
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!(target: "service", "Error checking protocol timers: {e}");
+                }
+            }
 
             self.keep_alive(&now);
             self.disconnect_unresponsive_peers(&now);
@@ -1315,6 +1365,24 @@ where
 
         let msgs = self.initial(link);
 
+        // Notify the protocol adapter about this connection
+        match self
+            .protocol_adapter
+            .handle_connection(remote, link.is_inbound())
+        {
+            Ok(actions) => {
+                // Process any actions from the protocol adapter
+                for action in actions {
+                    trace!(target: "service", "Processing protocol connection action: {:?}", action);
+                    // Handle actions (send messages, set timers, etc.)
+                    // This would be processed similar to handle_message
+                }
+            }
+            Err(e) => {
+                error!(target: "service", "Error handling connection in protocol adapter: {e}");
+            }
+        }
+
         if link.is_outbound() {
             if let Some(peer) = self.sessions.get_mut(&remote) {
                 peer.to_connected(self.clock);
@@ -1386,6 +1454,11 @@ where
             nid: remote,
             reason: reason.to_string(),
         });
+
+        // Notify the protocol adapter about this disconnection
+        if let Err(e) = self.protocol_adapter.handle_disconnection(remote) {
+            error!(target: "service", "Error handling disconnection in protocol adapter: {e}");
+        }
 
         let link = session.link;
         let addr = session.addr.clone();
@@ -1818,6 +1891,14 @@ where
 
                 peer.to_connected(self.clock);
 
+                // Notify the protocol adapter about this new connection
+                if let Err(e) = self
+                    .protocol_adapter
+                    .handle_connection(*remote, peer.link.is_inbound())
+                {
+                    error!(target: "service", "Error handling connection in protocol adapter: {e}");
+                }
+
                 None
             }
             session::State::Connected {
@@ -1827,13 +1908,49 @@ where
 
         trace!(target: "service", "Received message {message:?} from {remote}");
 
-        match message {
+        // Process message with the protocol adapter
+        match self.protocol_adapter.handle_message(&message, *remote) {
+            Ok(actions) => {
+                // Process I/O actions from the protocol adapter
+                for action in actions {
+                    trace!(target: "service", "Processing protocol action: {:?}", action);
+                    match action {
+                        io::Io::Write(peer_id, messages) => {
+                            if let Some(session) = self.sessions.get_mut(&peer_id) {
+                                for message in messages {
+                                    self.outbox.write(session, message);
+                                }
+                            }
+                        }
+                        io::Io::Disconnect(peer_id, reason) => {
+                            if let Some(session) = self.sessions.get_mut(&peer_id) {
+                                // Handle disconnect in the service
+                                debug!(target: "service", "Protocol requested disconnect of peer {}: {:?}", peer_id, reason);
+                                // Actual disconnection handling would be done elsewhere
+                            }
+                        }
+                        io::Io::Wakeup(duration) => {
+                            // Schedule a wakeup
+                            trace!(target: "service", "Protocol requested wakeup after {:?}", duration);
+                            // The idle task will handle timer checks
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Err(e) => {
+                error!(target: "service", "Error processing message in protocol adapter: {e}");
+            }
+        }
+
+        // Existing service-specific logic that's not fully handled by the protocol adapter yet
+        match &message {
             // Process a peer announcement.
             Message::Announcement(ann) => {
                 let relayer = remote;
                 let relayer_addr = peer.addr.clone();
 
-                if let Some(id) = self.handle_announcement(relayer, &relayer_addr, &ann)? {
+                if let Some(id) = self.handle_announcement(relayer, &relayer_addr, ann)? {
                     if self.config.is_relay() {
                         if let AnnouncementMessage::Inventory(_) = ann.message {
                             if let Err(e) = self
@@ -1845,7 +1962,7 @@ where
                                 return Ok(());
                             }
                         } else {
-                            self.relay(id, ann);
+                            self.relay(id, ann.clone());
                         }
                     }
                 }
@@ -1880,20 +1997,23 @@ where
                         error!(target: "service", "Error querying gossip messages from store: {e}");
                     }
                 }
-                peer.subscribe = Some(subscribe);
+                peer.subscribe = Some(subscribe.clone());
             }
             Message::Info(info) => {
-                self.handle_info(*remote, &info)?;
+                self.handle_info(*remote, info)?;
             }
             Message::Ping(Ping { ponglen, .. }) => {
+                // Note: Protocol adapter already handled the ping response,
+                // this is maintained for backward compatibility during transition
+
                 // Ignore pings which ask for too much data.
-                if ponglen > Ping::MAX_PONG_ZEROES {
+                if *ponglen > Ping::MAX_PONG_ZEROES {
                     return Ok(());
                 }
                 self.outbox.write(
                     peer,
                     Message::Pong {
-                        zeroes: ZeroBytes::new(ponglen),
+                        zeroes: ZeroBytes::new(*ponglen),
                     },
                 );
             }

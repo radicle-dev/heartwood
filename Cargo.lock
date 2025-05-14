@@ -2390,6 +2390,7 @@ dependencies = [
  "radicle-crypto",
  "radicle-fetch",
  "radicle-git-ext",
+ "radicle-protocol",
  "radicle-signals",
  "radicle-systemd",
  "scrypt",
@@ -2399,6 +2400,41 @@ dependencies = [
  "socket2",
  "sqlite",
  "tempfile",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "radicle-protocol"
+version = "0.1.0"
+dependencies = [
+ "amplify",
+ "anyhow",
+ "bloomy",
+ "byteorder",
+ "chrono",
+ "colored",
+ "crossbeam-channel",
+ "cyphernet",
+ "fastrand",
+ "lexopt",
+ "libc",
+ "localtime",
+ "log",
+ "netservices",
+ "nonempty 0.9.0",
+ "once_cell",
+ "qcheck",
+ "qcheck-macros",
+ "radicle",
+ "radicle-crypto",
+ "radicle-fetch",
+ "radicle-git-ext",
+ "radicle-signals",
+ "scrypt",
+ "serde",
+ "serde_json",
+ "snapbox",
+ "socket2",
  "thiserror 1.0.69",
 ]
 

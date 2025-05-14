@@ -1,17 +1,11 @@
 [package]
-name = "radicle-node"
-description = "The Radicle Node"
+name = "radicle-protocol"
+description = "The Radicle Protocol"
 homepage = "https://radicle.xyz"
 license = "MIT OR Apache-2.0"
-version = "0.10.0"
-authors = ["cloudhead <cloudhead@radicle.xyz>"]
+version = "0.1.0"
+authors = ["Radicle Team <team@radicle.xyz>"]
 edition = "2021"
-build = "build.rs"
-
-[features]
-default = ["systemd"]
-systemd = ["dep:radicle-systemd"]
-test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "qcheck", "snapbox"]
 
 [dependencies]
 amplify = { version = "4.0.0" }
@@ -23,7 +17,6 @@ colored = { version = "2.1.0" }
 crossbeam-channel = { version = "0.5.6" }
 cyphernet = { version = "0.5.2", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
 fastrand = { version = "2.0.0" }
-io-reactor = { version = "0.5.1", features = ["popol"] }
 lexopt = { version = "0.3.0" }
 libc = { version = "0.2.137" }
 log = { version = "0.4.17", features = ["std"] }
@@ -35,13 +28,11 @@ qcheck = { version = "1", default-features = false, optional = true }
 # N.b. this is required to use macros, even though it's re-exported
 # through radicle
 radicle-git-ext = { version = "0.8.0", features = ["serde"] }
-sqlite = { version = "0.32.0", features = ["bundled"] }
 scrypt = { version = "0.11.0", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 snapbox = { version = "0.4.3", optional = true }
 socket2 = { version = "0.5.7" }
-tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }
 
 [dependencies.radicle]
@@ -53,18 +44,9 @@ features = ["logger"]
 path = "../radicle-fetch"
 version = "0"
 
-[dependencies.radicle-protocol]
-path = "../radicle-protocol"
-version = "0"
-
 [dependencies.radicle-signals]
 path = "../radicle-signals"
 version = "0"
-
-[dependencies.radicle-systemd]
-path = "../radicle-systemd"
-version = "0.9.0"
-optional = true
 
 [dev-dependencies]
 radicle = { path = "../radicle", version = "0", features = ["test"] }
