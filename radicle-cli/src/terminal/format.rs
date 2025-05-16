@@ -113,6 +113,35 @@ pub fn ref_update(update: &RefUpdate) -> Paint<&'static str> {
     }
 }
 
+pub fn ref_update_verbose(update: &RefUpdate) -> Paint<String> {
+    match update {
+        RefUpdate::Created { name, .. } => format!(
+            "{: <17} {}",
+            term::format::positive("* [new ref]"),
+            term::format::secondary(name),
+        )
+        .into(),
+        RefUpdate::Updated { name, old, new } => format!(
+            "{: <17} {}",
+            format!("{}..{}", term::format::oid(*old), term::format::oid(*new)),
+            term::format::secondary(name),
+        )
+        .into(),
+        RefUpdate::Deleted { name, .. } => format!(
+            "{: <17} {}",
+            term::format::negative("- [deleted]"),
+            term::format::secondary(name),
+        )
+        .into(),
+        RefUpdate::Skipped { name, .. } => format!(
+            "{: <17} {}",
+            term::format::italic("* [skipped]"),
+            term::format::secondary(name)
+        )
+        .into(),
+    }
+}
+
 /// Identity formatter that takes a profile and displays it as
 /// `<node-id> (<username>)` depending on the configuration.
 pub struct Identity<'a> {

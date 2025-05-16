@@ -12,6 +12,7 @@ pub mod policy;
 pub mod refs;
 pub mod routing;
 pub mod seed;
+pub mod sync;
 pub mod timestamp;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
@@ -902,7 +903,7 @@ impl<S: ToString> From<Result<(Vec<RefUpdate>, HashSet<NodeId>, bool), S>> for F
 }
 
 /// Holds multiple fetch results.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct FetchResults(Vec<(NodeId, FetchResult)>);
 
 impl FetchResults {

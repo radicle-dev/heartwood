@@ -19,8 +19,9 @@ by passing the `--fetch` option.
 
 ```
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
-✓ Fetched repository from 1 seed(s)
+Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
+✓ Target met: 1 seed(s)
+🌱 Fetched from z6MknSL…StBU8Vi
 ```
 
 However, we don't have a local fork of the project. We can follow this

@@ -4,7 +4,7 @@ use std::io;
 use std::io::Write;
 use std::ops::ControlFlow;
 
-use radicle::node::{self, AnnounceResult};
+use radicle::node::{self, sync, AnnounceResult};
 use radicle::node::{Handle as _, NodeId};
 use radicle::storage::{ReadRepository, RepositoryError};
 use radicle::{Node, Profile};
@@ -19,7 +19,7 @@ pub const DEFAULT_SYNC_TIMEOUT: time::Duration = time::Duration::from_secs(9);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncSettings {
     /// Sync with at least N replicas.
-    pub replicas: usize,
+    pub replicas: sync::ReplicationFactor,
     /// Sync with the given list of seeds.
     pub seeds: BTreeSet<NodeId>,
     /// How long to wait for syncing to complete.
@@ -34,7 +34,7 @@ impl SyncSettings {
     }
 
     /// Set replicas.
-    pub fn replicas(mut self, replicas: usize) -> Self {
+    pub fn replicas(mut self, replicas: sync::ReplicationFactor) -> Self {
         self.replicas = replicas;
         self
     }
@@ -66,7 +66,7 @@ impl SyncSettings {
 impl Default for SyncSettings {
     fn default() -> Self {
         Self {
-            replicas: 3,
+            replicas: sync::ReplicationFactor::default(),
             seeds: BTreeSet::new(),
             timeout: DEFAULT_SYNC_TIMEOUT,
         }
@@ -200,7 +200,7 @@ fn announce_<R: ReadRepository>(
         // If the seeds we specified in the sync settings are all synced.
         let is_seeds_synced = settings.seeds.iter().all(|s| synced.contains(s));
         // If we met our desired replica count. Note that this can never exceed the maximum count.
-        let is_replicas_synced = replicas >= settings.replicas.min(max_replicas);
+        let is_replicas_synced = replicas >= settings.replicas.lower_bound().min(max_replicas);
 
         // Nothing to do if we've met our sync state.
         if is_seeds_synced && is_replicas_synced {
@@ -254,7 +254,7 @@ fn announce_<R: ReadRepository>(
                 //
                 // 1. We've matched or exceeded our target replica count.
                 // 2. We've synced with one of the seeds specified manually.
-                if replicas.len() >= settings.replicas
+                if replicas.len() >= settings.replicas.lower_bound()
                     && (settings.seeds.is_empty()
                         || settings.seeds.iter().any(|s| replicas.contains_key(s)))
                 {
