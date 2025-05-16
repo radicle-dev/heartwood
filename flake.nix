@@ -218,8 +218,8 @@
               # avoid timeouts
               preCheck = ''
                 patchShebangs --build radicle-cli/examples/rad-cob-multiset
-                              cargo build -p radicle-remote-helper --target-dir radicle-cli/target
-                              cargo build -p radicle-cli --target-dir radicle-cli/target
+                cargo build -p radicle-remote-helper --target-dir radicle-cli/target
+                cargo build -p radicle-cli --target-dir radicle-cli/target
               '';
               # Ensure dev is used since we rely on env variables being
               # set in tests.

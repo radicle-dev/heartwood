@@ -4,3 +4,4 @@
 /build/*.tar.gz
 /.pre-commit-config.yaml
 /.direnv/
+/result
