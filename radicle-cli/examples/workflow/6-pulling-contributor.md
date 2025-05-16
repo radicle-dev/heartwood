@@ -10,8 +10,9 @@ f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 Then, we call `rad sync --fetch` to fetch from the maintainer:
 ```
 $ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
-✓ Fetched repository from 1 seed(s)
+Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
+✓ Target met: 1 replica(s)
+🌱 Fetched from z6MknSL…StBU8Vi
 ```
 
 Now let's checkout `master` and pull the maintainer's changes:

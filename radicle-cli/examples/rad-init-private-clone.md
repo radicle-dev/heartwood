@@ -7,7 +7,8 @@ $ rad ls
 ``` ~bob (fail)
 $ rad clone rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --timeout 1
 ✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'all'
-✗ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi@[..].. error: failed to perform fetch handshake
+Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from the network, found 1 potential seed(s).
+✗ Target not met: could not fetch from [z6MknSL…StBU8Vi], and required 1 more replica(s)
 ✗ Error: repository rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu not found
 ```
 
@@ -26,8 +27,9 @@ that Alice has the repo after she announced her refs:
 
 ``` ~bob
 $ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch
-✓ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi@[..]..
-✓ Fetched repository from 1 seed(s)
+Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from the network, found 1 potential seed(s).
+✓ Target met: 1 replica(s)
+🌱 Fetched from z6MknSL…StBU8Vi
 $ rad ls --private --all
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │

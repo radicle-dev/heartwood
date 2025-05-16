@@ -7,8 +7,9 @@ $ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delega
 ``` ~bob
 $ cd heartwood
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
-✓ Fetched repository from 1 seed(s)
+Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
+✓ Target met: 1 replica(s)
+🌱 Fetched from z6MknSL…StBU8Vi
 ```
 
 One thing that can happen is that two delegates propose a revision at the same
@@ -28,8 +29,9 @@ revisions.
 
 ``` ~alice
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk@[..]..
-✓ Fetched repository from 1 seed(s)
+Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
+✓ Target met: 1 replica(s)
+🌱 Fetched from z6Mkt67…v4N1tRk
 $ rad id list
 ╭─────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title               Author                     Status     Created │
@@ -62,8 +64,9 @@ accepted now.
 
 ``` ~bob
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
-✓ Fetched repository from 1 seed(s)
+Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
+✓ Target met: 1 replica(s)
+🌱 Fetched from z6MknSL…StBU8Vi
 ```
 ``` ~bob (fail)
 $ rad id accept 12d7300 -q

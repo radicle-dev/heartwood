@@ -5,7 +5,9 @@ is used):
 ```
 $ rad seed rad:z3Rry7rpdWuGpfjPYGzdJKQADsoNW rad:z3zTnCfi6cVSZG8eCGn6AMDypgAPm
 ✓ Seeding policy updated for rad:z3Rry7rpdWuGpfjPYGzdJKQADsoNW with scope 'all'
-✓ Fetching rad:z3Rry7rpdWuGpfjPYGzdJKQADsoNW from z6Mkt67…v4N1tRk@[..]
+Fetching rad:z3Rry7rpdWuGpfjPYGzdJKQADsoNW from the network, found 1 potential seed(s).
+✓ Target met: 1 replica(s)
 ✓ Seeding policy updated for rad:z3zTnCfi6cVSZG8eCGn6AMDypgAPm with scope 'all'
-✓ Fetching rad:z3zTnCfi6cVSZG8eCGn6AMDypgAPm from z6Mkt67…v4N1tRk@[..]
+Fetching rad:z3zTnCfi6cVSZG8eCGn6AMDypgAPm from the network, found 1 potential seed(s).
+✓ Target met: 1 replica(s)
 ```

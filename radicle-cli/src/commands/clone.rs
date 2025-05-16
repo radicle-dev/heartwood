@@ -82,7 +82,8 @@ impl Args for Options {
                     let value = term::args::nid(&value)?;
 
                     sync.seeds.insert(value);
-                    sync.replicas = sync.seeds.len();
+                    let n = sync.seeds.len();
+                    sync.replicas = node::sync::Replicas::must_reach(n);
                 }
                 Long("scope") => {
                     let value = parser.value()?;
@@ -245,11 +246,16 @@ pub fn clone(
         );
     }
 
-    let results = sync::fetch(id, settings, node, profile)?;
+    let result = sync::fetch(id, settings, node, profile)?;
+    // FIXME: handle the two cases
+    let fetch_results = match &result {
+        node::sync::FetcherResult::TargetReached(success) => success.fetch_results(),
+        node::sync::FetcherResult::TargetError(failed) => failed.fetch_results(),
+    };
     let Ok(repository) = profile.storage.repository(id) else {
         // If we don't have the repository locally, even after attempting to fetch,
         // there's nothing we can do.
-        if results.is_empty() {
+        if fetch_results.is_empty() {
             return Err(CloneError::NoSeeds(id));
         } else {
             return Err(CloneError::NotFound(id));
@@ -267,8 +273,8 @@ pub fn clone(
         }
     }
 
-    if results.success().next().is_none() {
-        if results.failed().next().is_some() {
+    if fetch_results.success().next().is_none() {
+        if fetch_results.failed().next().is_some() {
             term::warning("Fetching failed, local copy is potentially stale");
         } else {
             term::warning("No seeds found, local copy is potentially stale");
