@@ -19,8 +19,10 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 ``` ~bob
 $ cd heartwood
 $ rad sync -f
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi@[..]..
-✓ Fetched repository from 1 seed(s)
+Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential seed(s).
+✓ Target met: 2 seed(s)
+🌱 Fetched from z6MknSL…StBU8Vi
+🌱 Fetched from z6Mkux1…nVhib7Z
 $ rad patch comment 6c61ef1 -m "I think we should use MIT"
 ╭───────────────────────────╮
 │ bob (you) now 833db19     │
