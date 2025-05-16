@@ -208,16 +208,16 @@ fn rad_cob_multiset() {
         // `rad-cob-multiset` is a `jq` script, which requires `jq` to be installed.
         // We test whether `jq` is installed, and have this test succeed if it is not.
         // Programmatic skipping of tests is not supported as of 2024-08.
+        use std::io::ErrorKind;
+        use std::process::{Command, Stdio};
 
-        let output = std::process::Command::new("/usr/bin/env")
-            .arg("jq")
-            .arg("-V")
-            .output()
-            .unwrap();
-
-        if !output.status.success() {
-            log::warn!(target: "test", "`jq` not found. Succeeding prematurely. {:?}", output);
-            return;
+        match Command::new("jq").arg("-V").stdout(Stdio::null()).status() {
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                log::warn!(target: "test", "`jq` not found. Succeeding prematurely.");
+                return;
+            }
+            Err(e) => panic!("while checking for jq: {}", e),
+            Ok(_) => {}
         }
     }
 
