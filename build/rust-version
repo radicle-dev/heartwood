@@ -1,0 +1,7 @@
+#!/bin/sh
+
+if ! version=$(grep -m 1 -oP "channel\s*=\s*\K(.*)" rust-toolchain.toml); then
+  echo "fatal: no rust version found via rust-toolchain.toml" >&2 ; exit 1
+fi
+
+echo "$version"

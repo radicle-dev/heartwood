@@ -1,5 +1,8 @@
 # Builds release binaries for Radicle.
-FROM rust:1.80-alpine3.20 as builder
+ARG RUST_VERSION="1.85"
+ARG ALPINE_VERSION="3.20"
+
+FROM rust:${RUST_VERSION}-alpine${ALPINE_VERSION} as builder
 LABEL maintainer="Radicle Team <team@radicle.xyz>"
 WORKDIR /src
 COPY . .
