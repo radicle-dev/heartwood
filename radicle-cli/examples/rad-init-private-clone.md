@@ -9,7 +9,9 @@ $ rad clone rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --seed z6MknSLrJoTcukLrE435hVNQT4J
 ✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'all'
 Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from the network, found 1 potential seed(s).
 ✗ Target not met: could not fetch from [z6MknSL…StBU8Vi], and required 1 more seed(s)
-✗ Error: repository rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu not found
+! Warning: Failed to fetch from 1 seed(s).
+! Warning: z6MknSL…StBU8Vi: failed to perform fetch handshake
+✗ Error: no seeds found for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu
 ```
 
 She allows Bob to view the repository. And when she syncs, one node (Bob) gets

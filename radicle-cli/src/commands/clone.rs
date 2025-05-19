@@ -11,14 +11,15 @@ use thiserror::Error;
 
 use radicle::git::raw;
 use radicle::identity::doc;
-use radicle::identity::doc::{DocError, RepoId};
+use radicle::identity::doc::RepoId;
 use radicle::node;
 use radicle::node::policy::Scope;
 use radicle::node::{Handle as _, Node};
 use radicle::prelude::*;
 use radicle::rad;
 use radicle::storage;
-use radicle::storage::RepositoryError;
+use radicle::storage::RemoteId;
+use radicle::storage::{HasRepoId, RepositoryError};
 
 use crate::commands::rad_checkout as checkout;
 use crate::commands::rad_sync as sync;
@@ -82,8 +83,6 @@ impl Args for Options {
                     let value = term::args::nid(&value)?;
 
                     sync.seeds.insert(value);
-                    let n = sync.seeds.len();
-                    sync.replicas = node::sync::ReplicationFactor::must_reach(n);
                 }
                 Long("scope") => {
                     let value = parser.value()?;
@@ -142,14 +141,21 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         );
     }
 
-    let (working, repo, doc, proj) = clone(
+    let Success {
+        working_copy: working,
+        repository: repo,
+        doc,
+        project: proj,
+    } = clone(
         options.id,
         options.directory.clone(),
         options.scope,
         options.sync.with_profile(&profile),
         &mut node,
         &profile,
-    )?;
+    )?
+    .print_or_success()
+    .ok_or_else(|| anyhow::anyhow!("failed to clone {}", options.id))?;
     let delegates = doc
         .delegates()
         .iter()
@@ -205,39 +211,101 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 #[derive(Error, Debug)]
-pub enum CloneError {
-    #[error("the directory path {path:?} already exists")]
-    Exists { path: PathBuf },
+enum CloneError {
     #[error("node: {0}")]
     Node(#[from] node::Error),
-    #[error("storage: {0}")]
-    Storage(#[from] storage::Error),
     #[error("checkout: {0}")]
     Checkout(#[from] rad::CheckoutError),
-    #[error("identity document error: {0}")]
-    Doc(#[from] DocError),
-    #[error("payload: {0}")]
-    Payload(#[from] doc::PayloadError),
-    #[error(transparent)]
-    Repository(#[from] RepositoryError),
-    #[error("repository {0} not found")]
-    NotFound(RepoId),
     #[error("no seeds found for {0}")]
     NoSeeds(RepoId),
     #[error("fetch: {0}")]
     Fetch(#[from] sync::FetchError),
 }
 
-pub fn clone(
+struct Checkout {
+    id: RepoId,
+    remote: RemoteId,
+    path: PathBuf,
+    repository: storage::git::Repository,
+    doc: Doc,
+    project: Project,
+}
+
+impl Checkout {
+    fn new(
+        repository: storage::git::Repository,
+        profile: &Profile,
+        directory: Option<PathBuf>,
+    ) -> Result<Self, CheckoutFailure> {
+        let rid = repository.rid();
+        let doc = repository
+            .identity_doc()
+            .map_err(|err| CheckoutFailure::Identity { rid, err })?;
+        let proj = doc
+            .project()
+            .map_err(|err| CheckoutFailure::Payload { rid, err })?;
+        let path = directory.unwrap_or(Path::new(proj.name()).to_path_buf());
+        // N.b. fail if the path exists and is not empty
+        if path.exists() {
+            if path.read_dir().map_or(true, |mut dir| dir.next().is_some()) {
+                return Err(CheckoutFailure::Exists { rid, path });
+            }
+        }
+
+        Ok(Self {
+            id: rid,
+            remote: *profile.id(),
+            path,
+            repository,
+            doc: doc.doc,
+            project: proj,
+        })
+    }
+
+    fn destination(&self) -> &PathBuf {
+        &self.path
+    }
+
+    fn run<S>(self, storage: &S) -> Result<CloneResult, rad::CheckoutError>
+    where
+        S: storage::ReadStorage,
+    {
+        let destination = self.destination().to_path_buf();
+        // Checkout.
+        let mut spinner = term::spinner(format!(
+            "Creating checkout in ./{}..",
+            term::format::tertiary(destination.display())
+        ));
+        match rad::checkout(self.id, &self.remote, self.path, storage) {
+            Err(err) => {
+                spinner.message(format!(
+                    "Failed to checkout in ./{}",
+                    term::format::tertiary(destination.display())
+                ));
+                spinner.failed();
+                Err(err)
+            }
+            Ok(working_copy) => {
+                spinner.finish();
+                Ok(CloneResult::Success(Success {
+                    working_copy,
+                    repository: self.repository,
+                    doc: self.doc,
+                    project: self.project,
+                }))
+            }
+        }
+    }
+}
+
+fn clone(
     id: RepoId,
     directory: Option<PathBuf>,
     scope: Scope,
     settings: SyncSettings,
     node: &mut Node,
     profile: &Profile,
-) -> Result<(raw::Repository, storage::git::Repository, Doc, Project), CloneError> {
-    let me = profile.id();
-
+) -> Result<CloneResult, CloneError> {
     // Seed repository.
     if node.seed(id, scope)? {
         term::success!(
@@ -246,49 +314,121 @@ pub fn clone(
         );
     }
 
-    let result = sync::fetch(id, settings, node, profile)?;
-    // FIXME: handle the two cases
-    let fetch_results = match &result {
-        node::sync::FetcherResult::TargetReached(success) => success.fetch_results(),
-        node::sync::FetcherResult::TargetError(failed) => failed.fetch_results(),
-    };
-    let Ok(repository) = profile.storage.repository(id) else {
-        // If we don't have the repository locally, even after attempting to fetch,
-        // there's nothing we can do.
-        if fetch_results.is_empty() {
-            return Err(CloneError::NoSeeds(id));
-        } else {
-            return Err(CloneError::NotFound(id));
+    match profile.storage.repository(id) {
+        Err(_) => {
+            // N.b. We only need to reach 1 replica in order for a clone to be
+            // considered successful.
+            let settings = settings.replicas(node::sync::ReplicationFactor::must_reach(1));
+            let result = sync::fetch(id, settings, node, profile)?;
+            match &result {
+                node::sync::FetcherResult::TargetReached(_) => {
+                    profile.storage.repository(id).map_or_else(
+                        |err| Ok(CloneResult::RepositoryMissing { rid: id, err }),
+                        |repository| Ok(perform_checkout(repository, profile, directory)?),
+                    )
+                }
+                node::sync::FetcherResult::TargetError(failure) => {
+                    Err(handle_fetch_error(id, failure))
+                }
+            }
         }
-    };
-
-    let doc = repository.identity_doc()?;
-    let proj = doc.project()?;
-    let path = directory.unwrap_or(Path::new(proj.name()).to_path_buf());
-
-    // N.b. fail if the path exists and is not empty
-    if path.exists() {
-        if path.read_dir().map_or(true, |mut dir| dir.next().is_some()) {
-            return Err(CloneError::Exists { path });
-        }
+        Ok(repository) => Ok(perform_checkout(repository, profile, directory)?),
     }
+}
 
-    if fetch_results.success().next().is_none() {
-        if fetch_results.failed().next().is_some() {
-            term::warning("Fetching failed, local copy is potentially stale");
-        } else {
-            term::warning("No seeds found, local copy is potentially stale");
-        }
-    }
+fn perform_checkout(
+    repository: storage::git::Repository,
+    profile: &Profile,
+    directory: Option<PathBuf>,
+) -> Result<CloneResult, rad::CheckoutError> {
+    Checkout::new(repository, profile, directory).map_or_else(
+        |failure| Ok(CloneResult::Failure(failure)),
+        |checkout| checkout.run(&profile.storage),
+    )
+}
 
-    // Checkout.
-    let spinner = term::spinner(format!(
-        "Creating checkout in ./{}..",
-        term::format::tertiary(path.display())
+fn handle_fetch_error(id: RepoId, failure: &node::sync::fetch::TargetMissed) -> CloneError {
+    term::warning(format!(
+        "Failed to fetch from {} seed(s).",
+        failure.progress().failed()
     ));
-    let working = rad::checkout(id, me, path, &profile.storage)?;
+    for (node, reason) in failure.fetch_results().failed() {
+        term::warning(format!(
+            "{}: {}",
+            term::format::node(node),
+            term::format::yellow(reason),
+        ))
+    }
+    CloneError::NoSeeds(id)
+}
 
-    spinner.finish();
+enum CloneResult {
+    Success(Success),
+    RepositoryMissing { rid: RepoId, err: RepositoryError },
+    Failure(CheckoutFailure),
+}
 
-    Ok((working, repository, doc.into(), proj))
+struct Success {
+    working_copy: raw::Repository,
+    repository: storage::git::Repository,
+    doc: Doc,
+    project: Project,
+}
+
+impl CloneResult {
+    fn print_or_success(self) -> Option<Success> {
+        match self {
+            CloneResult::Success(success) => Some(success),
+            CloneResult::RepositoryMissing { rid, err } => {
+                term::error(format!(
+                    "failed to find repository in storage after fetching: {err}"
+                ));
+                term::hint(format!(
+                    "try `rad inspect {rid}` to see if the repository exists"
+                ));
+                None
+            }
+            CloneResult::Failure(failure) => {
+                failure.print();
+                None
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum CheckoutFailure {
+    Identity { rid: RepoId, err: RepositoryError },
+    Payload { rid: RepoId, err: doc::PayloadError },
+    Exists { rid: RepoId, path: PathBuf },
+}
+
+impl CheckoutFailure {
+    fn print(&self) {
+        match self {
+            CheckoutFailure::Identity { rid, err } => {
+                term::error(format!(
+                    "failed to get the identity document of {rid} after fetching: {err}"
+                ));
+                term::hint(format!(
+                    "try `rad inspect {rid} --identity`, if this works then try `rad checkout {rid}`"
+                ));
+            }
+            CheckoutFailure::Payload { rid, err } => {
+                term::error(format!(
+                    "failed to get the project payload of {rid} after fetching: {err}"
+                ));
+                term::hint(format!(
+                    "try `rad inspect {rid} --payload`, if this works then try `rad checkout {rid}`"
+                ));
+            }
+            CheckoutFailure::Exists { rid, path } => {
+                term::error(format!(
+                    "refusing to checkout repository to {}, since it already exists",
+                    path.display()
+                ));
+                term::hint(format!("try `rad checkout {rid}` in a new directory"))
+            }
+        }
+    }
 }

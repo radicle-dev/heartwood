@@ -1091,13 +1091,8 @@ fn rad_patch_checkout_force() {
     bob.handle.seed(acme, Scope::All).unwrap();
     alice.connect(&bob).converge([&bob]);
 
-    test(
-        "examples/rad-clone.md",
-        working.join("bob"),
-        Some(&bob.home),
-        [],
-    )
-    .unwrap();
+    bob.rad("clone", &[acme.to_string().as_str()], working.join("bob"))
+        .unwrap();
 
     formula(&environment.tmp(), "examples/rad-patch-checkout-force.md")
         .unwrap()
@@ -1332,13 +1327,8 @@ fn rad_patch_delete() {
     bob.connect(&seed).converge([&seed]);
     bob.routes_to(&[(acme, seed.id)]);
 
-    test(
-        "examples/rad-clone.md",
-        working.join("bob"),
-        Some(&bob.home),
-        [],
-    )
-    .unwrap();
+    bob.rad("clone", &[acme.to_string().as_str()], working.join("bob"))
+        .unwrap();
 
     formula(&environment.tmp(), "examples/rad-patch-delete.md")
         .unwrap()
@@ -1991,10 +1981,6 @@ fn rad_diff() {
     test("examples/rad-diff.md", working, None, []).unwrap();
 }
 
-// FIXME(fintohaps): I plan on fixing this logic in the next patch – clone
-// should not need to fetch from the network if the repository is already
-// available locally.
-#[ignore]
 #[test]
 // User tries to clone; no seeds are available, but user has the repo locally.
 fn test_clone_without_seeds() {
