@@ -23,7 +23,7 @@ and is not empty, will fail:
 
 ``` (fail)
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope followed Developer/Radicle
-Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
-✓ Target met: 1 seed(s)
-✗ Error: the directory path "Developer/Radicle" already exists
+✗ Error: refusing to checkout repository to Developer/Radicle, since it already exists
+✗ Hint: try `rad checkout rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji` in a new directory
+✗ Error: failed to clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ```
