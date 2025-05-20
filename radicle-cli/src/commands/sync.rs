@@ -194,12 +194,7 @@ impl Args for Options {
                 }
                 Long("min-replicas") => {
                     let val = parser.value()?;
-                    let count = term::args::number(&val)?;
-
-                    if count == 0 {
-                        anyhow::bail!("value for `--min-replicas` must be greater than zero");
-                    }
-                    min_replicas = Some(count);
+                    min_replicas = Some(term::args::number(&val)?);
                 }
                 Long("seed") => {
                     let val = parser.value()?;
@@ -254,7 +249,7 @@ impl Args for Options {
 
             let replicas = match (min_replicas, replicas) {
                 (None, None) => sync::Replicas::default(),
-                (None, Some(r)) => sync::Replicas::new(r, r),
+                (None, Some(max)) => sync::Replicas::new(max, max),
                 (Some(min), Some(max)) => sync::Replicas::new(min, max),
                 (Some(min), None) => sync::Replicas::new(min, min),
             };
