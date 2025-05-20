@@ -46,14 +46,23 @@ Usage
     When `--fetch` is specified, any number of seeds may be given
     using the `--seed` option, eg. `--seed <nid>@<addr>:<port>`.
 
-    When `--replicas` is specified, the given replication factor will try
-    to be matched. For example, `--replicas 5` will sync with 5 seeds.
+    The synchronization process can be configured using `--min <min>` and
+    `--max <max>`.
 
-    When `--min-replicas` is specified, the given replication factor will try to
-    be matched. For example, `--min-replicas 5` will sync with 5 seeds. If this
-    is used in conjunction with `--replicas`, the process will treat
-    `--replicas` as the successful target, however, if the minimum number of
-    replicas is reached, it is considered a warning instead of an error.
+    For fetching, the synchronization process will be considered successful if
+    at least `<min>` seeds were fetched from *or* all preferred seeds were
+    fetched from.
+
+    For reference announcing, the synchronization process will be considered
+    successful if at least `<min>` seeds were pushed to *and* all preferred
+    seeds were pushed to.
+
+    In both cases, even with `<min>` seeds in sync, the process will continue
+    and attempt to sync with `<max>` seeds. If the number of seeds that could
+    be synced with is between `<min>` (inclusive) and `<max>` (inclusive), then
+    a warning will be emitted.
+
+    The option `--replicas <count>` is acts as `--min <count> --max <count>`.
 
     When `--fetch` or `--announce` are specified on their own, this command
     will only fetch or announce.
@@ -74,7 +83,8 @@ Options
         --timeout       <secs>    How many seconds to wait while syncing
         --seed          <nid>     Sync with the given node (may be specified multiple times)
     -r, --replicas      <count>   Sync with a specific number of seeds
-        --min-replicas  <count>   Sync with a lower bound of seeds
+        --max           <count>   Sync with an upper bound of seeds
+        --min           <count>   Sync with a lower bound of seeds
     -v, --verbose                 Verbose output
         --debug                   Print debug information afer sync
         --help                    Print help
