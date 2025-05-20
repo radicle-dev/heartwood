@@ -49,11 +49,20 @@ Usage
     When `--replicas` is specified, the given replication factor will try
     to be matched. For example, `--replicas 5` will sync with 5 seeds.
 
-    When `--max-replicas` is specified without `--replicas`, it acts the same a
-    replicas. Otherwise, it will use the value as an upper bound of seed to
-    replicate from. If the max is not reached, the sync is still considered a
-    success. For example, `--replicas 2 --max-replicas 3` will sync with 2 seeds
-    and attempt to sync with a third.
+    The synchronization process can be configured using `--replicas <min>` and
+    `--replicas-max <max>`. If these options are used independently, then the
+    replication factor is taken as the given `<min>`/`<max>` value. If the
+    options are used together, then the replication factor has a minimum and
+    maximum bound.
+
+    For fetching, the synchronization process will be considered successful if
+    at least `<min>` seeds were fetched from *or* all preferred seeds were
+    fetched from. If `<max>` is specified then the process will continue and
+    attempt to sync with `<max>` seeds.
+
+    For reference announcing, the synchronization process will be considered
+    successful if at least `<min>` seeds were pushed to *and* all preferred
+    seeds were pushed to.
 
     When `--fetch` or `--announce` are specified on their own, this command
     will only fetch or announce.
