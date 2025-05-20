@@ -504,14 +504,17 @@ pub fn fetch(
                 .with_candidates(candidates)
         }
     };
-    let mut fetcher = sync::Fetcher::new(config);
 
-    let mut progress = fetcher.progress();
     term::info!(
-        "Fetching {} from the network, found {} potential seed(s).",
-        term::format::tertiary(rid),
-        term::format::tertiary(progress.candidate())
+        "Attempting to fetch {} from at least {} and at most {} out of {} known seeds.",
+        term::format::secondary(rid),
+        term::format::secondary(settings.replicas.min()),
+        term::format::secondary(settings.replicas.max()),
+        term::format::secondary(config.candidates()),
     );
+
+    let mut fetcher = sync::Fetcher::new(config);
+    let mut progress = fetcher.progress();
     let mut spinner = FetcherSpinner::new(fetcher.target(), &progress);
 
     while let Some(nid) = fetcher.next_node() {
@@ -545,19 +548,19 @@ pub fn fetch(
                     progress = update
                 }
                 std::ops::ControlFlow::Break(success) => {
-                    spinner.finished(success.outcome(), &success.progress());
-                    return Ok(sync::FetcherResult::TargetReached(success));
+                    spinner.finished(success.outcome());
+                    return Ok(sync::FetcherResult::MaximumReached(success));
                 }
             }
         }
     }
     let result = fetcher.finish();
     match &result {
-        sync::FetcherResult::TargetReached(success) => {
-            spinner.finished(success.outcome(), &success.progress());
+        sync::FetcherResult::MaximumReached(success) => {
+            spinner.finished(success.outcome());
         }
-        sync::FetcherResult::TargetWarning(missed) => spinner.warn(missed),
-        sync::FetcherResult::TargetError(missed) => spinner.failed(missed),
+        sync::FetcherResult::MinimumReached(missed) => spinner.warn(missed),
+        sync::FetcherResult::Failed(missed) => spinner.failed(missed),
     }
     Ok(result)
 }
@@ -641,7 +644,7 @@ impl FetcherSpinner {
             term::format::secondary(progress.preferred()),
             term::format::secondary(preferred_seeds),
             term::format::secondary(progress.succeeded()),
-            term::format::secondary(replicas.max())
+            term::format::secondary(replicas.min())
         ));
         Self {
             preferred_seeds: target.preferred_seeds().len(),
@@ -656,7 +659,7 @@ impl FetcherSpinner {
             term::format::secondary(progress.preferred()),
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
-            term::format::secondary(self.replicas.max()),
+            term::format::secondary(self.replicas.min()),
         ))
     }
 
@@ -671,9 +674,9 @@ impl FetcherSpinner {
             term::format::secondary(progress.preferred()),
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
-            term::format::secondary(self.replicas.max()),
-            term::format::tertiary(term::format::node(node)),
-            term::format::tertiary(addr),
+            term::format::secondary(self.replicas.min()),
+            term::format::dim(term::format::node(node)),
+            term::format::dim(addr),
         ))
     }
 
@@ -688,26 +691,24 @@ impl FetcherSpinner {
             term::format::secondary(progress.preferred()),
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
-            term::format::secondary(self.replicas.max()),
-            term::format::tertiary(term::format::node(node)),
-            term::format::tertiary(addr),
+            term::format::secondary(self.replicas.min()),
+            term::format::dim(term::format::node(node)),
+            term::format::dim(addr),
         ))
     }
 
-    fn finished(mut self, outcome: &SuccessfulOutcome, progress: &sync::fetch::Progress) {
+    fn finished(mut self, outcome: &SuccessfulOutcome) {
         match outcome {
             SuccessfulOutcome::PreferredNodes => {
                 self.spinner.message(format!(
-                    "Target met: {} of {} preferred seeds.",
-                    term::format::secondary(progress.preferred()),
+                    "Target met: {} preferred seeds.",
                     term::format::secondary(self.preferred_seeds),
                 ));
             }
             SuccessfulOutcome::Replicas => {
                 self.spinner.message(format!(
-                    "Target met: {} of at least {} replicas.",
-                    term::format::secondary(progress.succeeded()),
-                    term::format::secondary(self.replicas.max()),
+                    "Target met: At least {} replicas.",
+                    term::format::secondary(self.replicas.min()),
                 ));
             }
         }
@@ -721,19 +722,17 @@ impl FetcherSpinner {
             .iter()
             .map(|nid| term::format::node(nid).to_string())
             .collect::<Vec<_>>();
-        let required = missed.required_nodes();
         if !missing_preferred_seeds.is_empty() {
             message.push_str(&format!(
-                "could not fetch from [{}], reached minimum {} replica(s) but required {} more",
+                "Reached {} replica(s) but could not fetch from [{}].",
                 missing_preferred_seeds.join(", "),
                 missed.target().replicas().min(),
-                required
             ));
         } else {
-            message.push_str(&format!("required {} more replica(s)", required));
+            // message.push_str(&format!("required {} more replica(s)", required));
         }
         self.spinner.message(message);
-        self.spinner.warn();
+        self.spinner.finish();
     }
 
     fn failed(mut self, missed: &sync::fetch::TargetMissed) {
@@ -743,7 +742,8 @@ impl FetcherSpinner {
             .iter()
             .map(|nid| term::format::node(nid).to_string())
             .collect::<Vec<_>>();
-        let required = missed.required_nodes();
+        // let required = missed.required_nodes();
+        let required = 42usize;
         if !missing_preferred_seeds.is_empty() {
             message.push_str(&format!(
                 "could not fetch from [{}], and required {} more replica(s)",
@@ -760,14 +760,13 @@ impl FetcherSpinner {
 
 fn display_fetch_result(result: &sync::FetcherResult, verbose: bool) {
     match result {
-        sync::FetcherResult::TargetReached(success) => {
-            let progress = success.progress();
+        sync::FetcherResult::MaximumReached(success) => {
             let results = success.fetch_results();
-            display_success(results.success(), verbose);
-            let failed = progress.failed();
+            display_success(results.iter_successes(), verbose);
+            let failed = results.iter_failures().count();
             if failed > 0 && verbose {
                 term::warning(format!("Failed to fetch from {failed} seed(s)."));
-                for (node, reason) in results.failed() {
+                for (node, reason) in results.iter_failures() {
                     term::warning(format!(
                         "{}: {}",
                         term::format::node(node),
@@ -776,11 +775,10 @@ fn display_fetch_result(result: &sync::FetcherResult, verbose: bool) {
                 }
             }
         }
-        sync::FetcherResult::TargetWarning(warning) => {
+        sync::FetcherResult::MinimumReached(warning) => {
             let results = warning.fetch_results();
-            let progress = warning.progress();
             let target = warning.target();
-            let succeeded = progress.succeeded();
+            let succeeded = results.iter_successes().count();
             let missed = warning.missed_nodes();
             term::warning(format!(
                 "Fetched from {} seed(s), exceeded minimum of {}, but could not reach maximum of {}",
@@ -789,7 +787,7 @@ fn display_fetch_result(result: &sync::FetcherResult, verbose: bool) {
                 target.replicas().max(),
             ));
             term::warning(format!("Could not replicate from {} seed(s)", missed.len()));
-            for (node, reason) in results.failed() {
+            for (node, reason) in results.iter_failures() {
                 term::warning(format!(
                     "{}: {}",
                     term::format::node(node),
@@ -798,23 +796,25 @@ fn display_fetch_result(result: &sync::FetcherResult, verbose: bool) {
             }
             if succeeded > 0 {
                 term::info!("Successfully fetched from the following nodes:");
-                display_success(results.success(), verbose)
+                display_success(results.iter_successes(), verbose)
             }
         }
-        sync::FetcherResult::TargetError(failed) => {
+        sync::FetcherResult::Failed(failed) => {
             let results = failed.fetch_results();
-            let progress = failed.progress();
             let target = failed.target();
-            let succeeded = progress.succeeded();
+            let succeeded = results.iter_successes().count();
             let missed = failed.missed_nodes();
             term::error(format!(
-                "Fetched from {} seed(s), could not reach minimum of {} nor maximum of {}",
+                "Fetched from {} seed(s), could not reach minimum of {} nor maximum of {}.",
                 succeeded,
                 target.replicas().min(),
                 target.replicas().max(),
             ));
-            term::error(format!("Could not replicate from {} seed(s)", missed.len()));
-            for (node, reason) in results.failed() {
+            term::error(format!(
+                "Could not replicate from {} seed(s).",
+                missed.len()
+            ));
+            for (node, reason) in results.iter_failures() {
                 term::error(format!(
                     "{}: {}",
                     term::format::node(node),
@@ -823,7 +823,7 @@ fn display_fetch_result(result: &sync::FetcherResult, verbose: bool) {
             }
             if succeeded > 0 {
                 term::info!("Successfully fetched from the following nodes:");
-                display_success(results.success(), verbose)
+                display_success(results.iter_successes(), verbose)
             }
         }
     }

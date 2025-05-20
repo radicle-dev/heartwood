@@ -868,32 +868,44 @@ impl<S: ToString> From<Result<(Vec<RefUpdate>, HashSet<NodeId>, bool), S>> for F
 
 /// Holds multiple fetch results.
 #[derive(Clone, Debug, Default)]
-pub struct FetchResults(Vec<(NodeId, FetchResult)>);
+pub struct FetchResults {
+    results: Vec<(NodeId, FetchResult)>,
+    successes: usize,
+    failures: usize,
+}
 
 impl FetchResults {
     /// Push a fetch result.
     pub fn push(&mut self, nid: NodeId, result: FetchResult) {
-        self.0.push((nid, result));
+        match result {
+            FetchResult::Failed { .. } => {
+                self.failures += 1;
+            }
+            FetchResult::Success { .. } => {
+                self.successes += 1;
+            }
+        }
+        self.results.push((nid, result));
     }
 
     /// Check if the results contains the given NID.
     pub fn contains(&self, nid: &NodeId) -> bool {
-        self.0.iter().any(|(n, _)| n == nid)
+        self.results.iter().any(|(n, _)| n == nid)
     }
 
     /// Get a node's result.
     pub fn get(&self, nid: &NodeId) -> Option<&FetchResult> {
-        self.0.iter().find(|(n, _)| n == nid).map(|(_, r)| r)
+        self.results.iter().find(|(n, _)| n == nid).map(|(_, r)| r)
     }
 
     /// Iterate over all fetch results.
     pub fn iter(&self) -> impl Iterator<Item = (&NodeId, &FetchResult)> {
-        self.0.iter().map(|(nid, r)| (nid, r))
+        self.results.iter().map(|(nid, r)| (nid, r))
     }
 
     /// Iterate over successful fetches.
-    pub fn success(&self) -> impl Iterator<Item = (&NodeId, &[RefUpdate], HashSet<NodeId>)> {
-        self.0.iter().filter_map(|(nid, r)| {
+    pub fn iter_successes(&self) -> impl Iterator<Item = (&NodeId, &[RefUpdate], HashSet<NodeId>)> {
+        self.results.iter().filter_map(|(nid, r)| {
             if let FetchResult::Success {
                 updated,
                 namespaces,
@@ -908,8 +920,8 @@ impl FetchResults {
     }
 
     /// Iterate over failed fetches.
-    pub fn failed(&self) -> impl Iterator<Item = (&NodeId, &str)> {
-        self.0.iter().filter_map(|(nid, r)| {
+    pub fn iter_failures(&self) -> impl Iterator<Item = (&NodeId, &str)> {
+        self.results.iter().filter_map(|(nid, r)| {
             if let FetchResult::Failed { reason } = r {
                 Some((nid, reason.as_str()))
             } else {
@@ -917,11 +929,13 @@ impl FetchResults {
             }
         })
     }
-}
 
-impl From<Vec<(NodeId, FetchResult)>> for FetchResults {
-    fn from(value: Vec<(NodeId, FetchResult)>) -> Self {
-        Self(value)
+    pub fn successes(&self) -> usize {
+        self.successes
+    }
+
+    pub fn failures(&self) -> usize {
+        self.failures
     }
 }
 
@@ -929,7 +943,7 @@ impl Deref for FetchResults {
     type Target = [(NodeId, FetchResult)];
 
     fn deref(&self) -> &Self::Target {
-        self.0.as_slice()
+        self.results.as_slice()
     }
 }
 
@@ -938,7 +952,7 @@ impl IntoIterator for FetchResults {
     type IntoIter = std::vec::IntoIter<(NodeId, FetchResult)>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        self.results.into_iter()
     }
 }
 

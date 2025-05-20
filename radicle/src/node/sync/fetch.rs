@@ -149,9 +149,7 @@ impl Fetcher {
     pub fn progress(&self) -> Progress {
         let (preferred, succeeded) = self.success_counts();
         Progress {
-            candidate: self.candidates.len(),
             succeeded,
-            failed: self.results.failed().count(),
             preferred,
         }
     }
@@ -167,7 +165,6 @@ impl Fetcher {
             .map_or(ControlFlow::Continue(progress), |outcome| {
                 ControlFlow::Break(Success {
                     outcome,
-                    progress,
                     results: self.results.clone(),
                 })
             })
@@ -205,7 +202,7 @@ impl Fetcher {
 
     fn success_counts(&self) -> (usize, usize) {
         self.results
-            .success()
+            .iter_successes()
             .fold((0, 0), |(mut preferred, mut succeeded), (nid, _, _)| {
                 succeeded += 1;
                 if self.target.seeds.contains(nid) {
@@ -244,12 +241,8 @@ impl PrivateNetwork {
 /// The progress a [`Fetcher`] is making.
 #[derive(Clone, Copy, Debug)]
 pub struct Progress {
-    /// How many candidate nodes are known.
-    candidate: usize,
     /// How many fetches succeeded.
     succeeded: usize,
-    /// How many fetches failed.
-    failed: usize,
     /// How many fetches succeeded from preferred seeds.
     preferred: usize,
 }
@@ -260,18 +253,9 @@ impl Progress {
         self.succeeded
     }
 
-    /// Get the number of failed fetches.
-    pub fn failed(&self) -> usize {
-        self.failed
-    }
-
     /// Get the number of successful fetches from preferred seeds.
     pub fn preferred(&self) -> usize {
         self.preferred
-    }
-
-    pub fn candidate(&self) -> usize {
-        self.candidate
     }
 }
 
@@ -305,16 +289,11 @@ pub enum SuccessfulOutcome {
 /// A successful `Fetcher` process result, where the target was reached.
 pub struct Success {
     outcome: SuccessfulOutcome,
-    progress: Progress,
+    // progress: Progress,
     results: FetchResults,
 }
 
 impl Success {
-    /// Get the final [`Progress`] of the fetcher result.
-    pub fn progress(&self) -> Progress {
-        self.progress
-    }
-
     /// Get the final [`FetchResults`] of the fetcher result.
     pub fn fetch_results(&self) -> &FetchResults {
         &self.results
@@ -331,7 +310,6 @@ impl Success {
 /// Note that the caller can still decide if the process was a success based on
 /// the [`FetchResults`].
 pub struct TargetMissed {
-    progress: Progress,
     target: Target,
     results: FetchResults,
     required: usize,
@@ -339,11 +317,6 @@ pub struct TargetMissed {
 }
 
 impl TargetMissed {
-    /// Get the final [`Progress`] of the fetcher result.
-    pub fn progress(&self) -> Progress {
-        self.progress
-    }
-
     /// Get the [`Target`] that was trying to be reached.
     pub fn target(&self) -> &Target {
         &self.target
@@ -369,35 +342,23 @@ impl TargetMissed {
 /// The result of a [`Fetcher`] process.
 pub enum FetcherResult {
     /// The target was reached and the process is considered a success.
-    TargetReached(Success),
+    MaximumReached(Success),
     /// The replication factor reached the minimum but did not reach the
     /// maximum. In this case the overall fetch is not considered an error, and
     /// instead is part-way to success.
-    TargetWarning(TargetMissed),
+    MinimumReached(TargetMissed),
     /// The replication factor could not be reached at all, neither minimum nor
     /// maximum, and so this fetch should be considered an error.
-    TargetError(TargetMissed),
+    Failed(TargetMissed),
 }
 
 impl FetcherResult {
-    /// Get the final [`Progress`] of the fetcher result.
-    pub fn progress(&self) -> Progress {
-        match self {
-            FetcherResult::TargetReached(s) => s.progress(),
-            FetcherResult::TargetWarning(f) | FetcherResult::TargetError(f) => f.progress(),
-        }
-    }
-
     fn target_reached(
         outcome: SuccessfulOutcome,
-        progress: Progress,
+        _progress: Progress,
         results: FetchResults,
     ) -> Self {
-        Self::TargetReached(Success {
-            outcome,
-            progress,
-            results,
-        })
+        Self::MaximumReached(Success { outcome, results })
     }
 
     fn target_warning(
@@ -407,8 +368,7 @@ impl FetcherResult {
         missing: BTreeSet<NodeId>,
     ) -> Self {
         let required = target.replicas.max().saturating_sub(progress.succeeded);
-        Self::TargetWarning(TargetMissed {
-            progress,
+        Self::MinimumReached(TargetMissed {
             target,
             results,
             missed_nodes: missing,
@@ -423,8 +383,7 @@ impl FetcherResult {
         missing: BTreeSet<NodeId>,
     ) -> Self {
         let required = target.replicas.max().saturating_sub(progress.succeeded);
-        Self::TargetError(TargetMissed {
-            progress,
+        Self::Failed(TargetMissed {
             target,
             results,
             missed_nodes: missing,
@@ -506,6 +465,10 @@ impl FetcherConfig {
         self.candidates
             .extend(extra.into_iter().filter(|c| c.nid() != self.local_node));
         self
+    }
+
+    pub fn candidates(&self) -> usize {
+        self.candidates.len()
     }
 }
 

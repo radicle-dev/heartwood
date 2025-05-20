@@ -249,9 +249,9 @@ pub fn clone(
     let result = sync::fetch(id, settings, node, profile)?;
     // FIXME: handle the two cases
     let fetch_results = match &result {
-        node::sync::FetcherResult::TargetReached(success) => success.fetch_results(),
-        node::sync::FetcherResult::TargetWarning(failed)
-        | node::sync::FetcherResult::TargetError(failed) => failed.fetch_results(),
+        node::sync::FetcherResult::MaximumReached(success) => success.fetch_results(),
+        node::sync::FetcherResult::MinimumReached(failed)
+        | node::sync::FetcherResult::Failed(failed) => failed.fetch_results(),
     };
     let Ok(repository) = profile.storage.repository(id) else {
         // If we don't have the repository locally, even after attempting to fetch,
@@ -274,8 +274,8 @@ pub fn clone(
         }
     }
 
-    if fetch_results.success().next().is_none() {
-        if fetch_results.failed().next().is_some() {
+    if fetch_results.iter_successes().next().is_none() {
+        if fetch_results.iter_failures().next().is_some() {
             term::warning("Fetching failed, local copy is potentially stale");
         } else {
             term::warning("No seeds found, local copy is potentially stale");
