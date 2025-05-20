@@ -237,6 +237,50 @@ pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
         table.print();
     }
 
+    if profile.hints() {
+        const COLUMN_WIDTH: usize = 12;
+        let status = format!(
+            "\n{:>4} … {}\n       {}   {}\n       {}   {}",
+            state_label().fg(radicle_term::Color::White),
+            term::format::dim("Status:"),
+            format_args!(
+                "{} {:width$}",
+                state_connected(),
+                term::format::dim("… connected"),
+                width = COLUMN_WIDTH,
+            ),
+            format_args!(
+                "{} {}",
+                state_disconnected(),
+                term::format::dim("… disconnected")
+            ),
+            format_args!(
+                "{} {:width$}",
+                state_attempted(),
+                term::format::dim("… attempted"),
+                width = COLUMN_WIDTH,
+            ),
+            format_args!("{} {}", state_initial(), term::format::dim("… initial")),
+        );
+        let link_direction = format!(
+            "\n{:>4} … {}\n       {}   {}",
+            link_direction_label(),
+            term::format::dim("Link Direction:"),
+            format_args!(
+                "{} {:width$}",
+                link_direction_inbound(),
+                term::format::dim("… inbound"),
+                width = COLUMN_WIDTH,
+            ),
+            format_args!(
+                "{} {}",
+                link_direction_outbound(),
+                term::format::dim("… outbound")
+            ),
+        );
+        term::hint(status + &link_direction);
+    }
+
     if profile.home.node().join("node.log").exists() {
         term::blank();
         // If we're running the node via `systemd` for example, there won't be a log file
@@ -246,7 +290,7 @@ pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn sessions(node: &Node) -> Result<Option<term::Table<4, term::Label>>, node::Error> {
+pub fn sessions(node: &Node) -> Result<Option<term::Table<5, term::Label>>, node::Error> {
     let sessions = node.sessions()?;
     if sessions.is_empty() {
         return Ok(None);
@@ -255,38 +299,43 @@ pub fn sessions(node: &Node) -> Result<Option<term::Table<4, term::Label>>, node
     let now = LocalTime::now();
 
     table.header([
-        term::format::bold("Peer").into(),
+        term::format::bold("Node ID").into(),
         term::format::bold("Address").into(),
-        term::format::bold("State").into(),
+        state_label().into(),
+        link_direction_label().bold().into(),
         term::format::bold("Since").into(),
     ]);
     table.divider();
 
     for sess in sessions {
-        let nid = term::format::tertiary(sess.nid).into();
+        let nid = term::format::tertiary(term::format::node(&sess.nid)).into();
         let (addr, state, time) = match sess.state {
             node::State::Initial => (
                 term::Label::blank(),
-                term::Label::from(term::format::dim("initial")),
+                term::Label::from(state_initial()),
                 term::Label::blank(),
             ),
             node::State::Attempted => (
                 sess.addr.to_string().into(),
-                term::Label::from(term::format::tertiary("attempted")),
+                term::Label::from(state_attempted()),
                 term::Label::blank(),
             ),
             node::State::Connected { since, .. } => (
                 sess.addr.to_string().into(),
-                term::Label::from(term::format::positive("connected")),
+                term::Label::from(state_connected()),
                 term::format::dim(now - since).into(),
             ),
             node::State::Disconnected { since, .. } => (
                 sess.addr.to_string().into(),
-                term::Label::from(term::format::negative("disconnected")),
+                term::Label::from(state_disconnected()),
                 term::format::dim(now - since).into(),
             ),
         };
-        table.push([nid, addr, state, time]);
+        let direction = match sess.link {
+            node::Link::Inbound => term::Label::from(link_direction_inbound()),
+            node::Link::Outbound => term::Label::from(link_direction_outbound()),
+        };
+        table.push([nid, addr, state, direction, time]);
     }
     Ok(Some(table))
 }
@@ -314,4 +363,36 @@ fn log_rotate(profile: &Profile) -> io::Result<File> {
         .open(base.join(NODE_LOG))?;
 
     Ok(log)
+}
+
+fn state_label() -> term::Paint<String> {
+    term::Paint::from("?".to_string())
+}
+
+fn state_initial() -> term::Paint<String> {
+    term::format::dim("•".to_string())
+}
+
+fn state_attempted() -> term::Paint<String> {
+    term::format::yellow("!".to_string())
+}
+
+fn state_connected() -> term::Paint<String> {
+    term::format::positive("✓".to_string())
+}
+
+fn state_disconnected() -> term::Paint<String> {
+    term::format::negative("✗".to_string())
+}
+
+fn link_direction_label() -> term::Paint<String> {
+    term::Paint::from("⤭".to_string())
+}
+
+fn link_direction_inbound() -> term::Paint<String> {
+    term::format::yellow("🡦".to_string())
+}
+
+fn link_direction_outbound() -> term::Paint<String> {
+    term::format::dim("🡥".to_string())
 }
