@@ -166,7 +166,7 @@ impl Args for Options {
         let mut announce = false;
         let mut inventory = false;
         let mut debug = false;
-        let mut replicas = None;
+        let mut max_replicas = None;
         let mut min_replicas = None;
         let mut seeds = BTreeSet::new();
         let mut sort_by = SortBy::default();
@@ -184,17 +184,26 @@ impl Args for Options {
                     fetch = true;
                 }
                 Long("replicas") | Short('r') => {
-                    let val = parser.value()?;
-                    let count = term::args::number(&val)?;
+                    let count = parser.value()?;
+                    let count = term::args::number(&count)?;
 
                     if count == 0 {
                         anyhow::bail!("value for `--replicas` must be greater than zero");
                     }
-                    replicas = Some(count);
+                    min_replicas = Some(count);
+                    max_replicas = Some(count);
                 }
-                Long("min-replicas") => {
-                    let val = parser.value()?;
-                    min_replicas = Some(term::args::number(&val)?);
+                Long("max") => {
+                    let max = parser.value()?;
+                    let max = term::args::number(&max)?;
+                    if max == 0 {
+                        anyhow::bail!("value for `--max` must be greater than zero");
+                    }
+                    max_replicas = Some(max);
+                }
+                Long("min") => {
+                    let min = parser.value()?;
+                    min_replicas = Some(term::args::number(&min)?);
                 }
                 Long("seed") => {
                     let val = parser.value()?;
@@ -247,7 +256,7 @@ impl Args for Options {
             };
             let mut settings = SyncSettings::default().timeout(timeout);
 
-            let replicas = match (min_replicas, replicas) {
+            let replicas = match (min_replicas, max_replicas) {
                 (None, None) => sync::Replicas::default(),
                 (None, Some(max)) => sync::Replicas::new(max, max),
                 (Some(min), Some(max)) => sync::Replicas::new(min, max),
