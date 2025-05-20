@@ -1,3 +1,7 @@
+//! A sans-IO fetching state machine for driving fetch processes.
+//!
+//! See the documentation of [`Fetcher`] for more details.
+
 use std::collections::{BTreeSet, VecDeque};
 use std::ops::ControlFlow;
 

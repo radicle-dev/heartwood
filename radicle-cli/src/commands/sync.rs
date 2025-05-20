@@ -623,7 +623,7 @@ impl FetcherSpinner {
         let preferred_seeds = target.preferred_seeds().len();
         let replicas = target.replicas();
         let spinner = term::spinner(format!(
-            "Fetching... Progress: {} of {} preferred seeds, and {} of at least {} replicas.",
+            "{} of {} preferred seeds, and {} of at least {} replicas.",
             term::format::secondary(progress.preferred()),
             term::format::secondary(preferred_seeds),
             term::format::secondary(progress.succeeded()),
@@ -638,7 +638,7 @@ impl FetcherSpinner {
 
     fn emit_progress(&mut self, progress: &sync::fetch::Progress) {
         self.spinner.message(format!(
-            "Fetching... Progress: {} of {} preferred seeds, and {} of at least {} replicas.",
+            "{} of {} preferred seeds, and {} of at least {} replicas.",
             term::format::secondary(progress.preferred()),
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
@@ -653,7 +653,7 @@ impl FetcherSpinner {
         progress: &sync::fetch::Progress,
     ) {
         self.spinner.message(format!(
-            "Fetching... Progress: {} of {} preferred seeds, and {} of at least {} replicas… [fetch {}@{}]",
+            "{} of {} preferred seeds, and {} of at least {} replicas… [fetch {}@{}]",
             term::format::secondary(progress.preferred()),
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
@@ -670,7 +670,7 @@ impl FetcherSpinner {
         progress: &sync::fetch::Progress,
     ) {
         self.spinner.message(format!(
-            "Fetching... Progress: {} of {} preferred seeds, and {} of at least {} replicas… [dial {}@{}]",
+            "{} of {} preferred seeds, and {} of at least {} replicas… [dial {}@{}]",
             term::format::secondary(progress.preferred()),
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
@@ -684,14 +684,14 @@ impl FetcherSpinner {
         match outcome {
             SuccessfulOutcome::PreferredNodes => {
                 self.spinner.message(format!(
-                    "Finished fetch. Target met: {} of {} preferred seeds.",
+                    "Target met: {} of {} preferred seeds.",
                     term::format::secondary(progress.preferred()),
                     term::format::secondary(self.preferred_seeds),
                 ));
             }
             SuccessfulOutcome::Replicas => {
                 self.spinner.message(format!(
-                    "Fetched fetch. Target met: {} of at least {} replicas.",
+                    "Target met: {} of at least {} replicas.",
                     term::format::secondary(progress.succeeded()),
                     term::format::secondary(self.replicas.max()),
                 ));
@@ -701,7 +701,7 @@ impl FetcherSpinner {
     }
 
     fn warn(mut self, missed: &sync::fetch::TargetMissed) {
-        let mut message = "Finished fetch. Target not met: ".to_string();
+        let mut message = "Target not met: ".to_string();
         let missing_preferred_seeds = missed
             .missed_nodes()
             .iter()
@@ -723,7 +723,7 @@ impl FetcherSpinner {
     }
 
     fn failed(mut self, missed: &sync::fetch::TargetMissed) {
-        let mut message = "Finished fetch. Target not met: ".to_string();
+        let mut message = "Target not met: ".to_string();
         let missing_preferred_seeds = missed
             .missed_nodes()
             .iter()
