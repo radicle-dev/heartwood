@@ -45,6 +45,15 @@ impl Color {
         Style::new(self)
     }
 
+    pub fn complimentary(&self) -> Option<Color> {
+        match *self {
+            Color::Unset => Some(Color::Unset),
+            Color::White => Some(Color::Black),
+            Color::RGB(r, g, b) => Some(Color::RGB(u8::MAX - r, u8::MAX - g, u8::MAX - b)),
+            _ => None,
+        }
+    }
+
     pub(crate) fn ansi_fmt(&self, f: &mut dyn fmt::Write) -> fmt::Result {
         match *self {
             Color::Unset => Ok(()),

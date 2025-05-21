@@ -18,9 +18,34 @@ use crate::terminal as term;
 
 /// Format a node id to be more compact.
 pub fn node(node: &NodeId) -> Paint<String> {
+    const CHARS_PER_BLOCK: usize = 7;
+    const BYTES_PER_CHAR: usize = 3;
+
+    let pk = node.0;
     let node = node.to_human();
-    let start = node.chars().take(7).collect::<String>();
-    let end = node.chars().skip(node.len() - 7).collect::<String>();
+
+    fn colored_char(r: u8, g: u8, b: u8, c: char) -> String {
+        let fg = term::Color::RGB(r, g, b);
+        format!(
+            "{}",
+            Paint::from(c).fg(fg).bg(fg
+                .complimentary()
+                .expect("RGB color has complimentary color"))
+        )
+    }
+
+    let start = pk
+        .windows(BYTES_PER_CHAR)
+        .zip(node.chars().take(CHARS_PER_BLOCK))
+        .map(|(b, c)| colored_char(b[0], b[1], b[2], c))
+        .collect::<String>();
+
+    let end = pk
+        .windows(BYTES_PER_CHAR)
+        .rev()
+        .zip(node.chars().skip(node.len() - CHARS_PER_BLOCK))
+        .map(|(b, c)| colored_char(b[0], b[1], b[2], c))
+        .collect::<String>();
 
     Paint::new(format!("{start}…{end}"))
 }
