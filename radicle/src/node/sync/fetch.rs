@@ -5,11 +5,9 @@
 use std::collections::{BTreeSet, VecDeque};
 use std::ops::ControlFlow;
 
-use crate::identity::Visibility;
 use crate::node::{Address, FetchResult, FetchResults, NodeId};
-use crate::prelude::Doc;
 
-use super::ReplicationFactor;
+use super::{PrivateNetwork, ReplicationFactor};
 
 /// A [`Fetcher`] describes a machine for driving a fetching process.
 ///
@@ -233,31 +231,6 @@ impl Fetcher {
                 }
                 (preferred, succeeded)
             })
-    }
-}
-
-/// A set of nodes that form a private network for fetching from.
-///
-/// This could be the set of allowed nodes for a private repository, using
-/// [`PrivateNetwork::private_repo`]
-pub struct PrivateNetwork {
-    allowed: BTreeSet<NodeId>,
-}
-
-impl PrivateNetwork {
-    pub fn private_repo(doc: &Doc) -> Option<Self> {
-        match doc.visibility() {
-            Visibility::Public => None,
-            Visibility::Private { allow } => {
-                let allowed = doc
-                    .delegates()
-                    .iter()
-                    .chain(allow.iter())
-                    .map(|did| *did.as_key())
-                    .collect();
-                Some(Self { allowed })
-            }
-        }
     }
 }
 

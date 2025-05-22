@@ -1,6 +1,51 @@
 pub mod fetch;
-
 pub use fetch::{Fetcher, FetcherConfig, FetcherError, FetcherResult};
+
+use std::collections::BTreeSet;
+
+use crate::identity::Visibility;
+use crate::prelude::Doc;
+
+use super::NodeId;
+
+/// A set of nodes that form a private network for fetching from.
+///
+/// This could be the set of allowed nodes for a private repository, using
+/// [`PrivateNetwork::private_repo`]
+pub struct PrivateNetwork {
+    allowed: BTreeSet<NodeId>,
+}
+
+impl PrivateNetwork {
+    pub fn private_repo(doc: &Doc) -> Option<Self> {
+        match doc.visibility() {
+            Visibility::Public => None,
+            Visibility::Private { allow } => {
+                let allowed = doc
+                    .delegates()
+                    .iter()
+                    .chain(allow.iter())
+                    .map(|did| *did.as_key())
+                    .collect();
+                Some(Self { allowed })
+            }
+        }
+    }
+
+    /// Restrict the set of allowed nodes based on the `predicate`, where `true`
+    /// keeps the `NodeId` in the allowed set.
+    ///
+    /// For example, this can be useful to restrict the set to only connected
+    /// nodes.
+    pub fn restrict<P>(self, predicate: P) -> Self
+    where
+        P: FnMut(&NodeId) -> bool,
+    {
+        Self {
+            allowed: self.allowed.into_iter().filter(predicate).collect(),
+        }
+    }
+}
 
 /// The replication factor of a syncing operation.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
