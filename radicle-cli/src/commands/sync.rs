@@ -483,7 +483,7 @@ pub fn fetch(
     let local = profile.id();
     let is_private = profile.storage.repository(rid).ok().and_then(|repo| {
         let doc = repo.identity_doc().ok()?.doc;
-        sync::fetch::PrivateNetwork::private_repo(&doc)
+        sync::PrivateNetwork::private_repo(&doc)
     });
     let config = match is_private {
         Some(private) => sync::FetcherConfig::private(private, settings.replicas, *local),
