@@ -22,7 +22,7 @@ $ git commit --amend -m "Neue Änderungen" --allow-empty -q
 ``` ~alice (stderr)
 $ git push rad master -f
 ✓ Canonical head updated to 9170c8795d3a78f0381a0ffafb20ea69fb0f5b6b
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + fb25886...9170c87 master -> master (forced update)
 ```

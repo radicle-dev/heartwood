@@ -14,7 +14,7 @@ $ git commit -v -m "Define power requirements"
 ``` ~alice (stderr)
 $ git push rad -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
 ✓ Patch aa45913e757cacd46972733bddee5472c78fa32a opened
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -51,7 +51,7 @@ To compare against your previous revision aa45913, run:
 
    git range-diff f2de534[..] 3e674d1[..] 27857ec[..]
 
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    3e674d1..27857ec  flux-capacitor-power -> patches/aa45913e757cacd46972733bddee5472c78fa32a
 ```
