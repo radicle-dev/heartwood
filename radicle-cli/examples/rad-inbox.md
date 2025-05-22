@@ -7,7 +7,7 @@ Your inbox is empty.
 ``` ~bob
 $ cd heartwood
 $ rad issue open --title "No license file" --description "..." -q
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 $ git commit -m "Change copyright" --allow-empty -q
 $ git push rad HEAD:bob/copy
 $ cd ..
@@ -113,7 +113,7 @@ Now let's do an identity update.
 $ rad id update --title "Modify description" --description "Use website" --payload xyz.radicle.project description '"https://radicle.xyz"' -q
 [..]
 $ rad sync -a
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 ```
 
 ``` ~bob

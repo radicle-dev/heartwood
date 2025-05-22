@@ -59,7 +59,7 @@ f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
 
 ```
 $ rad sync --announce
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 ```
 
 Note that it is forbidden to delete the default/canonical branch:
