@@ -553,8 +553,8 @@ fn rad_id_threshold() {
         .follow(seed.id, Some(Alias::new("seed")))
         .unwrap();
 
-    alice.connect(&seed);
-    bob.connect(&seed).connect(&alice);
+    alice.connect(&seed).connect(&bob);
+    bob.connect(&seed);
     alice.routes_to(&[(acme, seed.id)]);
     seed.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
 

@@ -11,7 +11,7 @@ $ git commit -m "Introduce license"
 ``` ~alice (stderr)
 $ git push rad -o patch.draft -o patch.message="Define LICENSE for project" HEAD:refs/patches
 ✓ Patch 6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b drafted
-✓ Synced with 2 node(s)
+✓ Synced with 2 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -28,7 +28,7 @@ $ rad patch comment 6c61ef1 -m "I think we should use MIT"
 │ bob (you) now 833db19     │
 │ I think we should use MIT │
 ╰───────────────────────────╯
-✓ Synced with 2 node(s)
+✓ Synced with 2 seed(s)
 ```
 
 ``` ~alice
@@ -55,7 +55,7 @@ $ rad patch comment 6c61ef1 --reply-to 833db19 -m "Thanks, I'll add it!"
 │ alice (you) now 1803a38 │
 │ Thanks, I'll add it!    │
 ╰─────────────────────────╯
-✓ Synced with 2 node(s)
+✓ Synced with 2 seed(s)
 ```
 
 ``` ~alice
@@ -75,7 +75,7 @@ To compare against your previous revision 6c61ef1, run:
 
    git range-diff f2de534[..] 717c900[..] 1cc8cd9[..]
 
-✓ Synced with 2 node(s)
+✓ Synced with 2 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    717c900..1cc8cd9  prepare-license -> patches/6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b
 ```
@@ -83,7 +83,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 ``` ~bob
 $ rad patch review 6c61ef1 --accept -m "LGTM!"
 ✓ Patch 6c61ef1 accepted
-✓ Synced with 2 node(s)
+✓ Synced with 2 seed(s)
 $ rad patch show 6c61ef1 -v
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title    Define LICENSE for project                                 │
@@ -105,7 +105,7 @@ $ rad patch show 6c61ef1 -v
 
 ``` ~bob
 $ rad patch delete 6c61ef1
-✓ Synced with 2 node(s)
+✓ Synced with 2 seed(s)
 ```
 
 ``` ~alice
@@ -133,7 +133,7 @@ Alice should no longer have the patch:
 
 ``` ~alice
 $ rad patch delete 6c61ef1
-✓ Synced with 2 node(s)
+✓ Synced with 2 seed(s)
 ```
 
 ``` ~seed (fails)

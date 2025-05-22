@@ -14,14 +14,14 @@ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from the network, found 1 potential s
 ✗ Error: no seeds found for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu
 ```
 
-She allows Bob to view the repository. And when she syncs, one node (Bob) gets
+She allows Bob to view the repository. And when she syncs, one seed (Bob) gets
 the refs.
 
 ``` ~alice
 $ rad id update --title "Allow Bob" --description "" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
 ...
 $ rad sync --announce --timeout 3
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 ```
 
 Bob can now fetch the private repo without specifying a seed, because he knows
