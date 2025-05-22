@@ -817,37 +817,6 @@ impl From<Vec<Seed>> for Seeds {
     }
 }
 
-/// Announcement result returned by [`Node::announce`].
-#[derive(Debug, Default)]
-pub struct AnnounceResult {
-    /// Nodes that timed out.
-    pub timed_out: Vec<NodeId>,
-    /// Nodes that synced.
-    pub synced: Vec<(NodeId, time::Duration)>,
-}
-
-impl AnnounceResult {
-    /// Check if a node synced successfully.
-    pub fn synced(&self, nid: &NodeId) -> Option<time::Duration> {
-        self.synced
-            .iter()
-            .find(|(id, _)| id == nid)
-            .map(|(_, time)| *time)
-    }
-}
-
-/// A sync event, emitted by [`Node::announce`].
-#[derive(Debug)]
-pub enum AnnounceEvent {
-    /// Refs were synced with the given node.
-    RefsSynced {
-        remote: NodeId,
-        time: time::Duration,
-    },
-    /// Refs were announced to all given nodes.
-    Announced,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "camelCase")]
 pub enum FetchResult {
@@ -1161,25 +1130,24 @@ impl Node {
     pub fn announce(
         &mut self,
         rid: RepoId,
-        seeds: impl IntoIterator<Item = NodeId>,
         timeout: time::Duration,
-        mut callback: impl FnMut(AnnounceEvent, &HashMap<PublicKey, time::Duration>) -> ControlFlow<()>,
-    ) -> Result<AnnounceResult, Error> {
-        let events = self.subscribe(timeout)?;
+        mut announcer: sync::Announcer,
+        mut report: impl FnMut(&NodeId, sync::announce::Progress),
+    ) -> Result<sync::AnnouncerResult, Error> {
+        let mut events = self.subscribe(timeout)?;
         let refs = self.announce_refs(rid)?;
 
-        let mut unsynced = seeds.into_iter().collect::<BTreeSet<_>>();
-        let mut synced = HashMap::new();
-        let mut timed_out: Vec<NodeId> = Vec::new();
         let started = time::Instant::now();
 
-        callback(AnnounceEvent::Announced, &synced);
-
-        for e in events {
+        loop {
+            let Some(e) = events.next() else {
+                // Consider the announcement as timed out if there are no more
+                // events
+                return Ok(announcer.timed_out());
+            };
             let elapsed = started.elapsed();
             if elapsed >= timeout {
-                timed_out.extend(unsynced.iter());
-                break;
+                return Ok(announcer.timed_out());
             }
             match e {
                 Ok(Event::RefsSynced {
@@ -1188,37 +1156,29 @@ impl Node {
                     at,
                 }) if rid == rid_ && refs.at == at => {
                     log::debug!(target: "radicle", "Received {e:?}");
-
-                    unsynced.remove(&remote);
-                    // We can receive synced events from nodes we didn't directly announce to,
-                    // and it's possible to receive duplicates as well.
-                    if synced.insert(remote, elapsed).is_none() {
-                        let event = AnnounceEvent::RefsSynced {
-                            remote,
-                            time: elapsed,
-                        };
-                        if callback(event, &synced).is_break() {
-                            break;
+                    match announcer.synced_with(remote, elapsed) {
+                        ControlFlow::Continue(progress) => {
+                            report(&remote, progress);
+                        }
+                        ControlFlow::Break(finished) => {
+                            return Ok(finished.into());
                         }
                     }
                 }
                 Ok(_) => {}
 
                 Err(Error::TimedOut) => {
-                    timed_out.extend(unsynced.iter());
-                    break;
+                    return Ok(announcer.timed_out());
                 }
                 Err(e) => return Err(e),
             }
-            if unsynced.is_empty() {
-                break;
-            }
+            // Ensure that the announcer is still waiting for nodes to be
+            // in-sync with
+            announcer = match announcer.can_continue() {
+                ControlFlow::Continue(cont) => cont,
+                ControlFlow::Break(finished) => return Ok(finished.into()),
+            };
         }
-
-        Ok(AnnounceResult {
-            timed_out,
-            synced: synced.into_iter().collect(),
-        })
     }
 }
 

@@ -43,7 +43,7 @@ our fork:
 ``` ~bob (stderr)
 $ cd heartwood
 $ git push rad master
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 To rad://zhbMU4DUXrzB8xT6qAJh6yZ7bFMK/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new branch]      master -> master
 ```
@@ -55,7 +55,7 @@ $ git checkout -b bob/feature -q
 $ git commit --allow-empty -m "Bob's commit #1" -q
 $ git push rad -o sync -o patch.message="Bob's patch" HEAD:refs/patches
 ✓ Patch 55b9721ed7f6bfec38f43729e9b6631c5dc812fb opened
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 To rad://zhbMU4DUXrzB8xT6qAJh6yZ7bFMK/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new reference]   HEAD -> refs/patches
 ```
@@ -88,7 +88,7 @@ To compare against your previous revision 55b9721, run:
 
    git range-diff f2de534[..] bdcdb30[..] cad2666[..]
 
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 To rad://zhbMU4DUXrzB8xT6qAJh6yZ7bFMK/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
    bdcdb30..cad2666  bob/feature -> patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb
 ```

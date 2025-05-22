@@ -71,7 +71,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 
 ``` ~alice
 $ rad sync -a
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 ```
 
 ``` ~alice

@@ -77,7 +77,7 @@ Great, all fixed up, lets accept and merge the code.
 ```
 $ rad patch review e4934b6 --revision 9d62420 --accept
 ✓ Patch e4934b6 accepted
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 $ git checkout master
 Your branch is up to date with 'rad/master'.
 $ git merge patch/e4934b6
@@ -93,7 +93,7 @@ Fast-forward
 $ git push rad master
 ✓ Patch e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46 merged at revision 9d62420
 ✓ Canonical head updated to f567f695d25b4e8fb63b5f5ad2a584529826e908
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..f567f69  master -> master
 ```
@@ -135,5 +135,5 @@ patch, marking it as solved:
 ```
 $ rad issue state 9037b7a --solved
 ✓ Issue 9037b7a is now solved
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 ```
