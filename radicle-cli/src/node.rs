@@ -2,13 +2,11 @@ use core::time;
 use std::collections::BTreeSet;
 use std::io;
 use std::io::Write;
-use std::ops::ControlFlow;
 
-use radicle::node::{self, sync, AnnounceResult};
+use radicle::node::sync;
 use radicle::node::{Handle as _, NodeId};
 use radicle::storage::{ReadRepository, RepositoryError};
 use radicle::{Node, Profile};
-use radicle_term::format;
 
 use crate::terminal as term;
 
@@ -82,6 +80,8 @@ pub enum SyncError {
     Node(#[from] radicle::node::Error),
     #[error("all seeds timed out")]
     AllSeedsTimedOut,
+    #[error(transparent)]
+    Target(#[from] sync::announce::TargetError),
 }
 
 impl SyncError {
@@ -159,137 +159,107 @@ pub fn announce<R: ReadRepository>(
     reporting: SyncReporting,
     node: &mut Node,
     profile: &Profile,
-) -> Result<AnnounceResult, SyncError> {
+) -> Result<Option<sync::AnnouncerResult>, SyncError> {
     match announce_(repo, settings, reporting, node, profile) {
         Ok(result) => Ok(result),
         Err(e) if e.is_connection_err() => {
             term::hint("Node is stopped. To announce changes to the network, start it with `rad node start`.");
-            Ok(AnnounceResult::default())
+            Ok(None)
         }
         Err(e) => Err(e),
     }
 }
 
-fn announce_<R: ReadRepository>(
+fn announce_<R>(
     repo: &R,
     settings: SyncSettings,
     mut reporting: SyncReporting,
     node: &mut Node,
     profile: &Profile,
-) -> Result<AnnounceResult, SyncError> {
+) -> Result<Option<sync::AnnouncerResult>, SyncError>
+where
+    R: ReadRepository,
+{
+    let me = profile.id();
     let rid = repo.id();
     let doc = repo.identity_doc()?;
-    let mut settings = settings.with_profile(profile);
-    let unsynced: Vec<_> = if doc.is_public() {
-        // All seeds.
-        let all = node.seeds(rid)?;
-        if all.is_empty() {
-            term::info!(&mut reporting.completion; "No seeds found for {rid}.");
-            return Ok(AnnounceResult::default());
-        }
-        // Seeds in sync with us.
-        let synced = all
-            .iter()
-            .filter(|s| s.is_synced())
-            .map(|s| s.nid)
-            .collect::<BTreeSet<_>>();
-        // Replicas not counting our local replica.
-        let replicas = synced.iter().filter(|nid| *nid != profile.id()).count();
-        // Maximum replication factor we can achieve.
-        let max_replicas = all.iter().filter(|s| &s.nid != profile.id()).count();
-        // If the seeds we specified in the sync settings are all synced.
-        let is_seeds_synced = settings.seeds.iter().all(|s| synced.contains(s));
-        // If we met our desired replica count. Note that this can never exceed the maximum count.
-        let is_replicas_synced = replicas >= settings.replicas.lower_bound().min(max_replicas);
 
-        // Nothing to do if we've met our sync state.
-        if is_seeds_synced && is_replicas_synced {
-            term::success!(
-                &mut reporting.completion;
-                "Nothing to announce, already in sync with {replicas} node(s) (see `rad sync status`)"
+    let settings = settings.with_profile(profile);
+    let n_preferred_seeds = settings.seeds.len();
+
+    let config = match sync::PrivateNetwork::private_repo(&doc) {
+        None => {
+            let (synced, unsynced) = node.seeds(rid)?.iter().fold(
+                (BTreeSet::new(), BTreeSet::new()),
+                |(mut synced, mut unsynced), seed| {
+                    if seed.is_synced() {
+                        synced.insert(seed.nid);
+                    } else {
+                        unsynced.insert(seed.nid);
+                    }
+                    (synced, unsynced)
+                },
             );
-            return Ok(AnnounceResult::default());
+            sync::AnnouncerConfig::public(*me, settings.replicas, settings.seeds, synced, unsynced)
         }
-        // Return nodes we can announce to. They don't have to be connected directly.
-        all.iter()
-            .filter(|s| !s.is_synced() && &s.nid != profile.id())
-            .map(|s| s.nid)
-            .collect()
-    } else {
-        node.sessions()?
-            .into_iter()
-            .filter(|s| s.state.is_connected() && doc.is_visible_to(&s.nid.into()))
-            .map(|s| s.nid)
-            .collect()
+        Some(network) => {
+            let sessions = node.sessions()?;
+            let network =
+                network.restrict(|nid| sessions.iter().any(|s| s.nid == *nid && s.is_connected()));
+            sync::AnnouncerConfig::private(*me, settings.replicas, network)
+        }
     };
-
-    if unsynced.is_empty() {
-        term::info!(&mut reporting.completion; "No seeds to announce to for {rid}. (see `rad sync status`)");
-        return Ok(AnnounceResult::default());
-    }
-    // Cap the replicas to the maximum achievable.
-    // Nb. It's impossible to know if a replica follows our node. This means that if we announce
-    // only our refs, and the replica doesn't follow us, it won't fetch from us.
-    settings.replicas = settings.replicas.min(unsynced.len());
-
+    let announcer = match sync::Announcer::new(config) {
+        Ok(announcer) => announcer,
+        Err(err) => match err {
+            sync::AnnouncerError::AlreadySynced(result) => {
+                term::success!(
+                    &mut reporting.completion;
+                    "Nothing to announce, already in sync with {} seed(s) (see `rad sync status`)",
+                    term::format::positive(result.synced()),
+                );
+                return Ok(None);
+            }
+            sync::AnnouncerError::NoSeeds => {
+                term::info!(
+                    &mut reporting.completion;
+                    "{}",
+                    term::format::yellow("No seeds found for {rid}.")
+                );
+                return Ok(None);
+            }
+            sync::AnnouncerError::Target(err) => return Err(err.into()),
+        },
+    };
+    let target = announcer.target();
+    let min_replicas = target.replicas().lower_bound();
     let mut spinner = term::spinner_to(
-        format!("Found {} seed(s)..", unsynced.len()),
+        format!("Found {} seed(s)..", announcer.progress().unsynced()),
         reporting.completion.clone(),
         reporting.progress.clone(),
     );
-    let result = node.announce(
-        rid,
-        unsynced,
-        settings.timeout,
-        |event, replicas| match event {
-            node::AnnounceEvent::Announced => ControlFlow::Continue(()),
-            node::AnnounceEvent::RefsSynced { remote, time } => {
-                spinner.message(format!(
-                    "Synced with {} in {}..",
-                    format::dim(remote),
-                    format::dim(format!("{time:?}"))
-                ));
 
-                // We're done syncing when both of these conditions are met:
-                //
-                // 1. We've matched or exceeded our target replica count.
-                // 2. We've synced with one of the seeds specified manually.
-                if replicas.len() >= settings.replicas.lower_bound()
-                    && (settings.seeds.is_empty()
-                        || settings.seeds.iter().any(|s| replicas.contains_key(s)))
-                {
-                    ControlFlow::Break(())
-                } else {
-                    ControlFlow::Continue(())
-                }
-            }
-        },
-    )?;
-
-    if result.synced.is_empty() {
-        spinner.failed();
-    } else {
-        spinner.message(format!("Synced with {} node(s)", result.synced.len()));
-        spinner.finish();
-
-        if reporting.debug {
-            for (seed, time) in &result.synced {
-                writeln!(
-                    &mut reporting.completion,
-                    "  {}",
-                    term::format::dim(format!("Synced with {seed} in {time:?}")),
-                )
-                .ok();
-            }
+    match node.announce(rid, settings.timeout, announcer, |node, progress| {
+        spinner.message(format!(
+            "Synced with {}, {} of {} preferred seeds, and {} of at least {} replica(s).",
+            term::format::node(node),
+            term::format::secondary(progress.preferred()),
+            term::format::secondary(n_preferred_seeds),
+            term::format::secondary(progress.synced()),
+            term::format::secondary(min_replicas),
+        ));
+    }) {
+        Ok(result) => {
+            spinner.message(format!(
+                "Synced with {} seed(s)",
+                term::format::positive(result.synced().len())
+            ));
+            spinner.finish();
+            Ok(Some(result))
+        }
+        Err(err) => {
+            spinner.error("Sync failed: {err}");
+            Err(err.into())
         }
     }
-    for seed in &result.timed_out {
-        if settings.seeds.contains(seed) {
-            term::notice!(&mut reporting.completion; "Seed {seed} timed out..");
-        }
-    }
-    if result.synced.is_empty() {
-        return Err(SyncError::AllSeedsTimedOut);
-    }
-    Ok(result)
 }

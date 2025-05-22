@@ -1,3 +1,6 @@
+pub mod announce;
+pub use announce::{Announcer, AnnouncerConfig, AnnouncerError, AnnouncerResult};
+
 pub mod fetch;
 pub use fetch::{Fetcher, FetcherConfig, FetcherError, FetcherResult};
 

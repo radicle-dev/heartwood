@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::ffi::OsString;
@@ -289,7 +290,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         );
     }
 
-    match options.op {
+    match &options.op {
         Operation::Status => {
             let rid = match options.rid {
                 Some(rid) => rid,
@@ -315,15 +316,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             };
             let settings = settings.clone().with_profile(&profile);
 
-            if [SyncDirection::Fetch, SyncDirection::Both].contains(&direction) {
+            if [SyncDirection::Fetch, SyncDirection::Both].contains(direction) {
                 if !profile.policies()?.is_seeding(&rid)? {
                     anyhow::bail!("repository {rid} is not seeded");
                 }
                 let result = fetch(rid, settings.clone(), &mut node, &profile)?;
                 display_fetch_result(&result, options.verbose)
             }
-            if [SyncDirection::Announce, SyncDirection::Both].contains(&direction) {
-                announce_refs(rid, settings, options.debug, &mut node, &profile)?;
+            if [SyncDirection::Announce, SyncDirection::Both].contains(direction) {
+                announce_refs(rid, settings, &mut node, &profile, &options)?;
             }
         }
         Operation::Synchronize(SyncMode::Inventory) => {
@@ -417,9 +418,9 @@ fn sync_status(
 fn announce_refs(
     rid: RepoId,
     settings: SyncSettings,
-    debug: bool,
     node: &mut Node,
     profile: &Profile,
+    options: &Options,
 ) -> anyhow::Result<()> {
     let Ok(repo) = profile.storage.repository(rid) else {
         return Err(anyhow!(
@@ -437,16 +438,19 @@ fn announce_refs(
         }
     }
 
-    crate::node::announce(
+    let result = crate::node::announce(
         &repo,
         settings,
         SyncReporting {
-            debug,
+            debug: options.debug,
             ..SyncReporting::default()
         },
         node,
         profile,
     )?;
+    if let Some(result) = result {
+        print_announcer_result(&result, options.verbose)
+    }
 
     Ok(())
 }
@@ -814,5 +818,74 @@ fn display_success<'a>(
                 }
             }
         }
+    }
+}
+
+fn print_announcer_result(result: &sync::AnnouncerResult, verbose: bool) {
+    match result {
+        sync::AnnouncerResult::Success(success) if verbose => {
+            // N.b. Printing how many seeds were synced with is printed
+            // elsewhere
+            match success.outcome() {
+                sync::announce::SuccessfulOutcome::MinReplicationFactor { preferred, synced }
+                | sync::announce::SuccessfulOutcome::MaxReplicationFactor { preferred, synced } => {
+                    if preferred == 0 {
+                        term::success!("Synced {} seed(s)", term::format::positive(synced));
+                    } else {
+                        term::success!(
+                            "Synced {} preferred seed(s) and {} total seed(s)",
+                            term::format::positive(preferred),
+                            term::format::positive(synced)
+                        );
+                    }
+                }
+            }
+            print_synced(success.synced());
+        }
+        sync::AnnouncerResult::Success(_) => {
+            // Successes are ignored when `!verbose`.
+        }
+        sync::AnnouncerResult::TimedOut(result) => {
+            if result.synced().is_empty() {
+                term::error("All seeds timed out, use `rad sync -v` to see the list of seeds");
+                return;
+            }
+            let timed_out = result.timed_out();
+            term::warning(format!(
+                "{} seed(s) timed out, use `rad sync -v` to see the list of seeds",
+                timed_out.len(),
+            ));
+            if verbose {
+                print_synced(result.synced());
+                for node in timed_out {
+                    term::warning(format!("{} timed out", term::format::node(node)));
+                }
+            }
+        }
+        sync::AnnouncerResult::NoNodes(result) => {
+            term::info!("Announcement could not sync with anymore seeds.");
+            if verbose {
+                print_synced(result.synced())
+            }
+        }
+    }
+}
+
+fn print_synced(synced: &BTreeMap<NodeId, sync::announce::SyncStatus>) {
+    for (node, status) in synced.iter() {
+        let mut message = format!("🌱 Synced with {}", term::format::node(node));
+
+        match status {
+            sync::announce::SyncStatus::AlreadySynced => {
+                message.push_str(&format!("{}", term::format::dim(" (already in sync)")));
+            }
+            sync::announce::SyncStatus::Synced { duration } => {
+                message.push_str(&format!(
+                    "{}",
+                    term::format::dim(format!("in {}s", duration.as_secs()))
+                ));
+            }
+        }
+        term::info!("{}", message);
     }
 }

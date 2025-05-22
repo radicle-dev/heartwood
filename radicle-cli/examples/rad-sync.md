@@ -26,7 +26,7 @@ wait for nodes to announce that they have fetched those refs.
 
 ```
 $ rad sync --announce
-✓ Synced with 2 node(s)
+✓ Synced with 2 seed(s)
 ```
 
 Now, when we run `rad sync status` again, we can see that `bob` and
@@ -48,7 +48,7 @@ be up to date.
 
 ```
 $ rad sync --announce
-✓ Nothing to announce, already in sync with 2 node(s) (see `rad sync status`)
+✓ Nothing to announce, already in sync with 2 seed(s) (see `rad sync status`)
 ```
 
 We can also use the `--fetch` option to only fetch objects:
@@ -69,7 +69,7 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential s
 ✓ Target met: 2 seed(s)
 🌱 Fetched from z6Mkux1…nVhib7Z
 🌱 Fetched from z6Mkt67…v4N1tRk
-✓ Nothing to announce, already in sync with 2 node(s) (see `rad sync status`)
+✓ Nothing to announce, already in sync with 2 seed(s) (see `rad sync status`)
 ```
 
 It's also possible to use the `--seed` flag to only sync with a specific node:
@@ -93,7 +93,7 @@ $ rad sync --replicas 1
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6Mkux1…nVhib7Z
-✓ Synced with 1 node(s)
+✓ Synced with 1 seed(s)
 ```
 
 Note that we see `✓ Fetched repository from 1 seed(s)` and `✓ Synced
