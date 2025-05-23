@@ -18,8 +18,8 @@ pub enum ReplicationFactor {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct ReplicationRange {
-    min: usize,
-    max: usize,
+    lower: usize,
+    upper: usize,
 }
 
 impl Default for ReplicationFactor {
@@ -29,48 +29,57 @@ impl Default for ReplicationFactor {
 }
 
 impl ReplicationFactor {
-    /// Construct a replication factor with the `min` and `max` bounds.
+    /// Construct a replication factor with the `lower` and `upper` bounds.
     ///
-    /// If `min >= max`, then [`ReplicationFactor::MustReach`] is constructed instead of
+    /// If `lower >= upper`, then [`ReplicationFactor::MustReach`] is constructed instead of
     /// `ReplicationFactor::Range`.
-    pub fn range(min: usize, max: usize) -> Self {
-        if min >= max {
-            Self::MustReach(min)
+    pub fn range(lower: usize, upper: usize) -> Self {
+        if lower >= upper {
+            Self::MustReach(lower)
         } else {
-            Self::Range(ReplicationRange { min, max })
+            Self::Range(ReplicationRange { lower, upper })
         }
     }
 
-    /// Construct a replication factor where the `min` must be reached.
-    pub fn must_reach(min: usize) -> Self {
-        Self::MustReach(min)
+    /// Construct a replication factor where the `factor` must be reached.
+    pub fn must_reach(factor: usize) -> Self {
+        Self::MustReach(factor)
     }
 
-    /// Get the minimum value of the replication factor.
-    pub fn min(&self) -> usize {
+    /// Get the lower bound of the replication factor.
+    pub fn lower_bound(&self) -> usize {
         match self {
-            Self::MustReach(min) => *min,
-            Self::Range(ReplicationRange { min, .. }) => *min,
+            Self::MustReach(lower) => *lower,
+            Self::Range(ReplicationRange { lower: min, .. }) => *min,
         }
     }
 
-    /// Get the maximum of the replication factor, if the replication factor is
-    /// a range.
-    pub fn max(&self) -> Option<usize> {
+    /// Get the upper bound of the replication factor, if the replication factor
+    /// is a range.
+    pub fn upper_bound(&self) -> Option<usize> {
         match self {
             Self::MustReach(_) => None,
-            Self::Range(ReplicationRange { max, .. }) => Some(*max),
+            Self::Range(ReplicationRange { upper: max, .. }) => Some(*max),
         }
     }
 
-    /// Constrain the `Replicas` to a new value.
+    /// Set the minimum target of the [`ReplicationFactor`] to a new value.
+    ///
+    /// If the original value is smaller than the new value, then the original
+    /// is kept.
+    ///
+    /// If the [`ReplicationFactor`] is a range, it performs `min` on the upper
+    /// bound of the range.
     ///
     /// If `self` was originally a [`ReplicationFactor::Range`], and `min >= max`, then
     /// the returned value will be [`ReplicationFactor::MustReach`].
-    pub fn constrain_to(self, new: usize) -> Self {
+    pub fn min(self, new: usize) -> Self {
         match self {
             Self::MustReach(min) => Self::MustReach(min.min(new)),
-            Self::Range(ReplicationRange { min, max }) => Self::range(min, max.min(new)),
+            Self::Range(ReplicationRange {
+                lower: min,
+                upper: max,
+            }) => Self::range(min, max.min(new)),
         }
     }
 }
@@ -82,33 +91,38 @@ mod test {
     #[test]
     fn ensure_replicas_construction() {
         let replicas = ReplicationFactor::range(1, 3);
-        assert!(replicas.min() <= replicas.max().expect("replicas should have max value"));
+        assert!(
+            replicas.lower_bound()
+                <= replicas
+                    .upper_bound()
+                    .expect("replicas should have max value")
+        );
         let replicas = ReplicationFactor::range(1, 1);
-        assert!(replicas.max().is_none());
+        assert!(replicas.upper_bound().is_none());
         let replicas = ReplicationFactor::range(3, 1);
-        assert!(replicas.max().is_none());
+        assert!(replicas.upper_bound().is_none());
     }
 
     #[test]
     fn replicas_constrain_to() {
-        let replicas = ReplicationFactor::must_reach(3).constrain_to(1);
+        let replicas = ReplicationFactor::must_reach(3).min(1);
         assert_eq!(replicas, ReplicationFactor::MustReach(1));
-        let replicas = ReplicationFactor::must_reach(3).constrain_to(3);
+        let replicas = ReplicationFactor::must_reach(3).min(3);
         assert_eq!(replicas, ReplicationFactor::MustReach(3));
-        let replicas = ReplicationFactor::must_reach(3).constrain_to(10);
+        let replicas = ReplicationFactor::must_reach(3).min(10);
         assert_eq!(replicas, ReplicationFactor::MustReach(3));
 
-        let replicas = ReplicationFactor::range(1, 3).constrain_to(1);
+        let replicas = ReplicationFactor::range(1, 3).min(1);
         assert_eq!(replicas, ReplicationFactor::MustReach(1));
-        let replicas = ReplicationFactor::range(1, 3).constrain_to(3);
+        let replicas = ReplicationFactor::range(1, 3).min(3);
         assert_eq!(
             replicas,
-            ReplicationFactor::Range(ReplicationRange { min: 1, max: 3 })
+            ReplicationFactor::Range(ReplicationRange { lower: 1, upper: 3 })
         );
-        let replicas = ReplicationFactor::range(1, 3).constrain_to(10);
+        let replicas = ReplicationFactor::range(1, 3).min(10);
         assert_eq!(
             replicas,
-            ReplicationFactor::Range(ReplicationRange { min: 1, max: 3 })
+            ReplicationFactor::Range(ReplicationRange { lower: 1, upper: 3 })
         );
     }
 }

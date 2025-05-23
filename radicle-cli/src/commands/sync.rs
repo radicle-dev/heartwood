@@ -639,7 +639,7 @@ impl FetcherSpinner {
             term::format::secondary(progress.preferred()),
             term::format::secondary(preferred_seeds),
             term::format::secondary(progress.succeeded()),
-            term::format::secondary(replicas.min())
+            term::format::secondary(replicas.lower_bound())
         ));
         Self {
             preferred_seeds: target.preferred_seeds().len(),
@@ -654,7 +654,7 @@ impl FetcherSpinner {
             term::format::secondary(progress.preferred()),
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
-            term::format::secondary(self.replicas.min()),
+            term::format::secondary(self.replicas.lower_bound()),
         ))
     }
 
@@ -669,7 +669,7 @@ impl FetcherSpinner {
             term::format::secondary(progress.preferred()),
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
-            term::format::secondary(self.replicas.min()),
+            term::format::secondary(self.replicas.lower_bound()),
             term::format::tertiary(term::format::node(node)),
             term::format::tertiary(addr),
         ))
@@ -686,7 +686,7 @@ impl FetcherSpinner {
             term::format::secondary(progress.preferred()),
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
-            term::format::secondary(self.replicas.min()),
+            term::format::secondary(self.replicas.lower_bound()),
             term::format::tertiary(term::format::node(node)),
             term::format::tertiary(addr),
         ))
@@ -771,7 +771,7 @@ fn display_fetch_result(result: &sync::FetcherResult, verbose: bool) {
             term::error(format!(
                 "Fetched from {} preferred seed(s), could not reach {} seed(s)",
                 succeeded,
-                target.replicas().min(),
+                target.replicas().lower_bound(),
             ));
             term::error(format!(
                 "Could not replicate from {} preferred seed(s)",

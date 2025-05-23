@@ -200,7 +200,7 @@ fn announce_<R: ReadRepository>(
         // If the seeds we specified in the sync settings are all synced.
         let is_seeds_synced = settings.seeds.iter().all(|s| synced.contains(s));
         // If we met our desired replica count. Note that this can never exceed the maximum count.
-        let is_replicas_synced = replicas >= settings.replicas.min().min(max_replicas);
+        let is_replicas_synced = replicas >= settings.replicas.lower_bound().min(max_replicas);
 
         // Nothing to do if we've met our sync state.
         if is_seeds_synced && is_replicas_synced {
@@ -230,7 +230,7 @@ fn announce_<R: ReadRepository>(
     // Cap the replicas to the maximum achievable.
     // Nb. It's impossible to know if a replica follows our node. This means that if we announce
     // only our refs, and the replica doesn't follow us, it won't fetch from us.
-    settings.replicas = settings.replicas.constrain_to(unsynced.len());
+    settings.replicas = settings.replicas.min(unsynced.len());
 
     let mut spinner = term::spinner_to(
         format!("Found {} seed(s)..", unsynced.len()),
@@ -254,7 +254,7 @@ fn announce_<R: ReadRepository>(
                 //
                 // 1. We've matched or exceeded our target replica count.
                 // 2. We've synced with one of the seeds specified manually.
-                if replicas.len() >= settings.replicas.min()
+                if replicas.len() >= settings.replicas.lower_bound()
                     && (settings.seeds.is_empty()
                         || settings.seeds.iter().any(|s| replicas.contains_key(s)))
                 {

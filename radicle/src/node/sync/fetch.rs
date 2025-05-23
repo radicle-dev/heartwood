@@ -75,7 +75,7 @@ impl Fetcher {
             return Err(FetcherError::NoCandidates);
         }
         // N.b. ensure that we can reach the replicas count
-        let replicas = config.replicas.constrain_to(config.candidates.len());
+        let replicas = config.replicas.min(config.candidates.len());
         Ok(Self {
             target: Target::new(config.seeds, replicas)?,
             fetch_from: VecDeque::new(),
@@ -192,8 +192,8 @@ impl Fetcher {
             })
         } else {
             let replicas = self.target.replicas();
-            let min = replicas.min();
-            match replicas.max() {
+            let min = replicas.lower_bound();
+            match replicas.upper_bound() {
                 None => (succeeded >= min).then_some(SuccessfulOutcome::MinReplicas { succeeded }),
                 Some(max) => (succeeded >= max).then_some(SuccessfulOutcome::MaxReplicas {
                     succeeded,
@@ -309,7 +309,7 @@ pub struct TargetError;
 
 impl Target {
     pub fn new(seeds: BTreeSet<NodeId>, replicas: ReplicationFactor) -> Result<Self, TargetError> {
-        if replicas.min() == 0 && seeds.is_empty() {
+        if replicas.lower_bound() == 0 && seeds.is_empty() {
             Err(TargetError)
         } else {
             Ok(Self { seeds, replicas })
@@ -444,7 +444,10 @@ impl FetcherResult {
         results: FetchResults,
         missing: BTreeSet<NodeId>,
     ) -> Self {
-        let required = target.replicas.min().saturating_sub(progress.succeeded);
+        let required = target
+            .replicas
+            .lower_bound()
+            .saturating_sub(progress.succeeded);
         Self::TargetError(TargetMissed {
             progress,
             target,
@@ -709,7 +712,7 @@ mod test {
         let expected = extra_candidates
             .clone()
             .into_iter()
-            .take(replicas.min())
+            .take(replicas.lower_bound())
             .collect::<Vec<_>>();
 
         while let Some(node) = fetcher.next_node() {
@@ -758,7 +761,7 @@ mod test {
         let expected = extra_candidates
             .clone()
             .into_iter()
-            .take(replicas.max().expect("replicas must have max"))
+            .take(replicas.upper_bound().expect("replicas must have max"))
             .collect::<Vec<_>>();
 
         while let Some(node) = fetcher.next_node() {
