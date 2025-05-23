@@ -14,7 +14,7 @@ Then, as Bob, we commit some code on top of the canonical head:
 ``` ~bob
 $ rad sync --fetch
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
-✓ Target met: 1 replica(s)
+✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSL…StBU8Vi
 $ rad inspect --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)

@@ -51,5 +51,5 @@ We can also use `rad seed` to seed and fetch without creating a checkout.
 $ rad seed rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --timeout 1
 ✓ Seeding policy exists for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'all'
 Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from the network, found 1 potential seed(s).
-✓ Target met: 1 replica(s)
+✓ Target met: 1 seed(s)
 ```

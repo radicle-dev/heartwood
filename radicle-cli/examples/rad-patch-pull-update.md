@@ -24,7 +24,7 @@ To push changes, run `git push`.
 $ rad clone rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK
 ✓ Seeding policy updated for rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK with scope 'all'
 Fetching rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK from the network, found 1 potential seed(s).
-✓ Target met: 1 replica(s)
+✓ Target met: 1 seed(s)
 ✓ Creating checkout in ./heartwood..
 ✓ Remote alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi added
 ✓ Remote-tracking branch alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi

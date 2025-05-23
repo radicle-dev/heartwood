@@ -97,7 +97,7 @@ errors:
 ``` ~seed
 $ rad sync rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji -f
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
-✓ Target met: 1 replica(s)
+✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSL…StBU8Vi
 ```
 
@@ -172,7 +172,7 @@ sync` and fetch his references:
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential seed(s).
-✓ Target met: 2 replica(s)
+✓ Target met: 2 seed(s)
 ✓ Creating checkout in ./heartwood..
 ✓ Remote alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi added
 ✓ Remote-tracking branch alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi
@@ -194,7 +194,7 @@ $ rad fork
 ``` ~alice
 $ rad sync -f
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential seed(s).
-✓ Target met: 2 replica(s)
+✓ Target met: 2 seed(s)
 🌱 Fetched from z6Mkux1…nVhib7Z
 🌱 Fetched from z6Mkt67…v4N1tRk
 $ rad inspect --sigrefs

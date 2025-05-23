@@ -38,7 +38,7 @@ $ cd heartwood
 $ rad remote add z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --name alice
 ✓ Follow policy updated for z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
-✓ Target met: 1 replica(s)
+✓ Target met: 1 seed(s)
 ✓ Remote alice added
 ✓ Remote-tracking branch alice/master created for z6MknSL…StBU8Vi
 ```
@@ -75,7 +75,7 @@ update of the tag:
 ``` ~bob
 $ rad sync -f
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
-✓ Target met: 1 replica(s)
+✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSL…StBU8Vi
 ```
 

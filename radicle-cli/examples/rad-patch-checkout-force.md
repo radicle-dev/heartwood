@@ -25,7 +25,7 @@ On the other end, Bob uses `rad patch checkout` to view the patch:
 $ cd heartwood
 $ rad sync -f
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
-✓ Target met: 1 replica(s)
+✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSL…StBU8Vi
 $ rad patch checkout aa45913 --name alice-init
 ✓ Switched to branch alice-init at revision aa45913

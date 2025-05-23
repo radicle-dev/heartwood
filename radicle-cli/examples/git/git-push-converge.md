@@ -15,7 +15,7 @@ responsibilities:
 ``` ~bob
 $ rad sync --fetch
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential seed(s).
-✓ Target met: 2 replica(s)
+✓ Target met: 2 seed(s)
 🌱 Fetched from z6Mkux1…nVhib7Z
 🌱 Fetched from z6MknSL…StBU8Vi
 ```
@@ -23,7 +23,7 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential s
 ``` ~eve
 $ rad sync --fetch
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential seed(s).
-✓ Target met: 2 replica(s)
+✓ Target met: 2 seed(s)
 🌱 Fetched from z6Mkt67…v4N1tRk
 🌱 Fetched from z6MknSL…StBU8Vi
 ```
@@ -61,13 +61,13 @@ found` error is showing up:
 $ rad remote add did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob
 ✓ Follow policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential seed(s).
-✓ Target met: 2 replica(s)
+✓ Target met: 2 seed(s)
 ✓ Remote bob added
 ✓ Remote-tracking branch bob/master created for z6Mkt67…v4N1tRk
 $ rad remote add did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --name eve
 ✓ Follow policy updated for z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z (eve)
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential seed(s).
-✓ Target met: 2 replica(s)
+✓ Target met: 2 seed(s)
 ✓ Remote eve added
 ✓ Remote-tracking branch eve/master created for z6Mkux1…nVhib7Z
 ```
@@ -103,7 +103,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 $ rad remote add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --name alice
 ✓ Follow policy updated for z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential seed(s).
-✓ Target met: 2 replica(s)
+✓ Target met: 2 seed(s)
 ✓ Remote alice added
 ✓ Remote-tracking branch alice/master created for z6MknSL…StBU8Vi
 $ git reset --hard alice/master
@@ -129,7 +129,7 @@ Once Eve also resets to the merge commits, the canonical `master` is set to this
 $ rad remote add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --name alice
 ✓ Follow policy updated for z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential seed(s).
-✓ Target met: 2 replica(s)
+✓ Target met: 2 seed(s)
 ✓ Remote alice added
 ✓ Remote-tracking branch alice/master created for z6MknSL…StBU8Vi
 $ git reset --hard alice/master

@@ -6,7 +6,7 @@ c036c0d89ce26aef3ad7da402157dba16b5163b4
 ``` ~bob
 $ rad sync --fetch
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
-✓ Target met: 1 replica(s)
+✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSL…StBU8Vi
 ```
 
