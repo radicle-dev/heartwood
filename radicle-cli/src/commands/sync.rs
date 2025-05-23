@@ -588,7 +588,7 @@ fn connect(
                 continue;
             }
             Err(e) => {
-                log::warn!(target: "cli", "Failed to connect to {nid}: {e}");
+                log::warn!(target: "cli", "Failed to connect to {nid}@{addr}: {e}");
                 continue;
             }
         }
@@ -635,7 +635,7 @@ impl FetcherSpinner {
         let preferred_seeds = target.preferred_seeds().len();
         let replicas = target.replicas();
         let spinner = term::spinner(format!(
-            "{} of {} preferred seeds, and {} of at least {} replicas.",
+            "{} of {} preferred seeds, and {} of at least {} total seeds.",
             term::format::secondary(progress.preferred()),
             term::format::secondary(preferred_seeds),
             term::format::secondary(progress.succeeded()),
@@ -650,7 +650,7 @@ impl FetcherSpinner {
 
     fn emit_progress(&mut self, progress: &sync::fetch::Progress) {
         self.spinner.message(format!(
-            "{} of {} preferred seeds, and {} of at least {} replicas.",
+            "{} of {} preferred seeds, and {} of at least {} total seeds.",
             term::format::secondary(progress.preferred()),
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
@@ -665,7 +665,7 @@ impl FetcherSpinner {
         progress: &sync::fetch::Progress,
     ) {
         self.spinner.message(format!(
-            "{} of {} preferred seeds, and {} of at least {} replicas… [fetch {}@{}]",
+            "{} of {} preferred seeds, and {} of at least {} total seeds… [fetch {}@{}]",
             term::format::secondary(progress.preferred()),
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
@@ -682,7 +682,7 @@ impl FetcherSpinner {
         progress: &sync::fetch::Progress,
     ) {
         self.spinner.message(format!(
-            "{} of {} preferred seeds, and {} of at least {} replicas… [dial {}@{}]",
+            "{} of {} preferred seeds, and {} of at least {} total seeds… [dial {}@{}]",
             term::format::secondary(progress.preferred()),
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
@@ -702,7 +702,7 @@ impl FetcherSpinner {
             }
             SuccessfulOutcome::MinReplicas { succeeded, .. } => {
                 self.spinner.message(format!(
-                    "Target met: {} replica(s)",
+                    "Target met: {} seed(s)",
                     term::format::positive(succeeded)
                 ));
             }
@@ -712,7 +712,7 @@ impl FetcherSpinner {
                 max,
             } => {
                 self.spinner.message(format!(
-                    "Target met: {} of {} minimum and {} maximum replica(s)",
+                    "Target met: {} of {} min and {} max seed(s)",
                     succeeded,
                     term::format::secondary(min),
                     term::format::secondary(max)
@@ -732,12 +732,12 @@ impl FetcherSpinner {
         let required = missed.required_nodes();
         if !missing_preferred_seeds.is_empty() {
             message.push_str(&format!(
-                "could not fetch from [{}], and required {} more replica(s)",
+                "could not fetch from [{}], and required {} more seed(s)",
                 missing_preferred_seeds.join(", "),
                 required
             ));
         } else {
-            message.push_str(&format!("required {} more replica(s)", required));
+            message.push_str(&format!("required {} more seed(s)", required));
         }
         self.spinner.message(message);
         self.spinner.failed();
@@ -769,11 +769,14 @@ fn display_fetch_result(result: &sync::FetcherResult, verbose: bool) {
             let succeeded = progress.succeeded();
             let missed = failed.missed_nodes();
             term::error(format!(
-                "Fetched from {} seed(s), could not reach {} replicas",
+                "Fetched from {} preferred seed(s), could not reach {} seed(s)",
                 succeeded,
                 target.replicas().min(),
             ));
-            term::error(format!("Could not replicate from {} seed(s)", missed.len()));
+            term::error(format!(
+                "Could not replicate from {} preferred seed(s)",
+                missed.len()
+            ));
             for (node, reason) in results.failed() {
                 term::error(format!(
                     "{}: {}",
@@ -782,7 +785,7 @@ fn display_fetch_result(result: &sync::FetcherResult, verbose: bool) {
                 ))
             }
             if succeeded > 0 {
-                term::info!("Successfully fetched from the following nodes:");
+                term::info!("Successfully fetched from the following seeds:");
                 display_success(results.success(), verbose)
             }
         }
