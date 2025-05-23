@@ -19,7 +19,7 @@ pub const DEFAULT_SYNC_TIMEOUT: time::Duration = time::Duration::from_secs(9);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncSettings {
     /// Sync with at least N replicas.
-    pub replicas: sync::Replicas,
+    pub replicas: sync::ReplicationFactor,
     /// Sync with the given list of seeds.
     pub seeds: BTreeSet<NodeId>,
     /// How long to wait for syncing to complete.
@@ -34,7 +34,7 @@ impl SyncSettings {
     }
 
     /// Set replicas.
-    pub fn replicas(mut self, replicas: sync::Replicas) -> Self {
+    pub fn replicas(mut self, replicas: sync::ReplicationFactor) -> Self {
         self.replicas = replicas;
         self
     }
@@ -66,7 +66,7 @@ impl SyncSettings {
 impl Default for SyncSettings {
     fn default() -> Self {
         Self {
-            replicas: sync::Replicas::default(),
+            replicas: sync::ReplicationFactor::default(),
             seeds: BTreeSet::new(),
             timeout: DEFAULT_SYNC_TIMEOUT,
         }

@@ -9,7 +9,7 @@ use crate::identity::Visibility;
 use crate::node::{Address, FetchResult, FetchResults, NodeId};
 use crate::prelude::Doc;
 
-use super::Replicas;
+use super::ReplicationFactor;
 
 /// A [`Fetcher`] describes a machine for driving a fetching process.
 ///
@@ -299,7 +299,7 @@ impl Progress {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Target {
     seeds: BTreeSet<NodeId>,
-    replicas: Replicas,
+    replicas: ReplicationFactor,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -308,7 +308,7 @@ pub struct Target {
 pub struct TargetError;
 
 impl Target {
-    pub fn new(seeds: BTreeSet<NodeId>, replicas: Replicas) -> Result<Self, TargetError> {
+    pub fn new(seeds: BTreeSet<NodeId>, replicas: ReplicationFactor) -> Result<Self, TargetError> {
         if replicas.min() == 0 && seeds.is_empty() {
             Err(TargetError)
         } else {
@@ -322,7 +322,7 @@ impl Target {
     }
 
     /// Get the number of replicas that is trying to be reached.
-    pub fn replicas(&self) -> &Replicas {
+    pub fn replicas(&self) -> &ReplicationFactor {
         &self.replicas
     }
 }
@@ -461,7 +461,7 @@ pub struct FetcherConfig {
     seeds: BTreeSet<NodeId>,
 
     /// The number of replicas to reach for the [`Fetcher`].
-    replicas: Replicas,
+    replicas: ReplicationFactor,
 
     /// The candidate nodes that the node will attempt to fetch from.
     candidates: VecDeque<Candidate>,
@@ -483,7 +483,11 @@ impl FetcherConfig {
     ///
     /// `local_node` is the [`NodeId`] of the local node, to ensure it is
     /// excluded from the [`Fetcher`] process.
-    pub fn private(private: PrivateNetwork, replicas: Replicas, local_node: NodeId) -> Self {
+    pub fn private(
+        private: PrivateNetwork,
+        replicas: ReplicationFactor,
+        local_node: NodeId,
+    ) -> Self {
         let candidates = private
             .allowed
             .clone()
@@ -508,7 +512,11 @@ impl FetcherConfig {
     ///
     /// `local_node` is the [`NodeId`] of the local node, to ensure it is
     /// excluded from the [`Fetcher`] process.
-    pub fn public(seeds: BTreeSet<NodeId>, replicas: Replicas, local_node: NodeId) -> Self {
+    pub fn public(
+        seeds: BTreeSet<NodeId>,
+        replicas: ReplicationFactor,
+        local_node: NodeId,
+    ) -> Self {
         let candidates = seeds
             .clone()
             .into_iter()
@@ -565,7 +573,7 @@ mod test {
     #[test]
     fn all_nodes_are_candidates() {
         let local = arbitrary::gen::<NodeId>(0);
-        let replicas = Replicas::default();
+        let replicas = ReplicationFactor::default();
         let seeds = arbitrary::set::<NodeId>(3..=6)
             .into_iter()
             .collect::<BTreeSet<_>>();
@@ -594,7 +602,7 @@ mod test {
     #[test]
     fn ignores_duplicates_and_local_node() {
         let local = arbitrary::gen::<NodeId>(0);
-        let replicas = Replicas::default();
+        let replicas = ReplicationFactor::default();
         let bob = arbitrary::gen::<NodeId>(1);
         let eve = arbitrary::gen::<NodeId>(2);
         let seeds = [bob].into_iter().collect::<BTreeSet<_>>();
@@ -617,7 +625,7 @@ mod test {
     #[test]
     fn all_nodes_are_fetchable() {
         let local = arbitrary::gen::<NodeId>(0);
-        let replicas = Replicas::default();
+        let replicas = ReplicationFactor::default();
         let seeds = arbitrary::set::<NodeId>(3..=6)
             .into_iter()
             .collect::<BTreeSet<_>>();
@@ -646,7 +654,7 @@ mod test {
     #[test]
     fn reaches_target_of_preferred_seeds() {
         let local = arbitrary::gen::<NodeId>(0);
-        let replicas = Replicas::default();
+        let replicas = ReplicationFactor::default();
         let seeds = arbitrary::set::<NodeId>(3..=3)
             .into_iter()
             .collect::<BTreeSet<_>>();
@@ -688,7 +696,7 @@ mod test {
     #[test]
     fn reaches_target_of_replicas() {
         let local = arbitrary::gen::<NodeId>(0);
-        let replicas = Replicas::must_reach(3);
+        let replicas = ReplicationFactor::must_reach(3);
         let seeds = arbitrary::set::<NodeId>(3..=3)
             .into_iter()
             .collect::<BTreeSet<_>>();
@@ -738,7 +746,7 @@ mod test {
     #[test]
     fn reaches_target_of_max_replicas() {
         let local = arbitrary::gen::<NodeId>(0);
-        let replicas = Replicas::range(1, 3);
+        let replicas = ReplicationFactor::range(1, 3);
         let candidates = arbitrary::set::<NodeId>(3..=3);
         let seeds = candidates.iter().take(3).copied().collect::<BTreeSet<_>>();
         let extra_candidates = candidates.into_iter().skip(3).collect::<Vec<_>>();
@@ -797,7 +805,7 @@ mod test {
     #[test]
     fn preferred_seeds_target_returned_over_replicas() {
         let local = arbitrary::gen::<NodeId>(0);
-        let replicas = Replicas::range(1, 3);
+        let replicas = ReplicationFactor::range(1, 3);
         let candidates = arbitrary::set::<NodeId>(3..=3);
         let seeds = candidates.into_iter().collect::<BTreeSet<_>>();
         let config = FetcherConfig::public(seeds.clone(), replicas, local);
@@ -835,7 +843,7 @@ mod test {
     #[test]
     fn could_not_reach_target() {
         let local = arbitrary::gen::<NodeId>(0);
-        let replicas = Replicas::must_reach(4);
+        let replicas = ReplicationFactor::must_reach(4);
         let candidates = arbitrary::set::<NodeId>(3..=3);
         let seeds = candidates.into_iter().collect::<BTreeSet<_>>();
         let config = FetcherConfig::public(seeds.clone(), replicas, local);

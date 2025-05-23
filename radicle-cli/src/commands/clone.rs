@@ -83,7 +83,7 @@ impl Args for Options {
 
                     sync.seeds.insert(value);
                     let n = sync.seeds.len();
-                    sync.replicas = node::sync::Replicas::must_reach(n);
+                    sync.replicas = node::sync::ReplicationFactor::must_reach(n);
                 }
                 Long("scope") => {
                     let value = parser.value()?;

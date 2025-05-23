@@ -252,10 +252,10 @@ impl Args for Options {
             let mut settings = SyncSettings::default().timeout(timeout);
 
             let replicas = match (replicas, max_replicas) {
-                (None, None) => sync::Replicas::default(),
-                (None, Some(min)) => sync::Replicas::must_reach(min),
-                (Some(min), None) => sync::Replicas::must_reach(min),
-                (Some(min), Some(max)) => sync::Replicas::range(min, max),
+                (None, None) => sync::ReplicationFactor::default(),
+                (None, Some(min)) => sync::ReplicationFactor::must_reach(min),
+                (Some(min), None) => sync::ReplicationFactor::must_reach(min),
+                (Some(min), Some(max)) => sync::ReplicationFactor::range(min, max),
             };
             settings.replicas = replicas;
             if !seeds.is_empty() {
@@ -626,7 +626,7 @@ fn sort_seeds_by(local: NodeId, seeds: &mut [Seed], aliases: &impl AliasStore, s
 
 struct FetcherSpinner {
     preferred_seeds: usize,
-    replicas: sync::Replicas,
+    replicas: sync::ReplicationFactor,
     spinner: term::Spinner,
 }
 
