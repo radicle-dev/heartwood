@@ -83,7 +83,7 @@ Options
         --timeout       <secs>    How many seconds to wait while syncing
         --seed          <nid>     Sync with the given node (may be specified multiple times)
     -r, --replicas      <count>   Sync with a specific number of seeds
-        --max-replicas  <count>   Sync with an upper bound number of seeds
+        --replicas-max  <count>   Sync with an upper bound number of seeds
     -v, --verbose                 Verbose output
         --debug                   Print debug information afer sync
         --help                    Print help
@@ -191,12 +191,12 @@ impl Args for Options {
                     }
                     replicas = Some(count);
                 }
-                Long("max-replicas") => {
+                Long("replicas-max") => {
                     let val = parser.value()?;
                     let count = term::args::number(&val)?;
 
                     if count == 0 {
-                        anyhow::bail!("value for `--max-replicas` must be greater than zero");
+                        anyhow::bail!("value for `--replicas-max` must be greater than zero");
                     }
                     max_replicas = Some(count);
                 }
