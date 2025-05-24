@@ -1,0 +1,23 @@
+# When running radicle-node on a server, it should be run as a separate user.
+# If your Radicle key is passphrase-protected, you will have to set the
+# `RAD_PASSPHRASE` environment variable to the passphrase supplied during
+# `rad auth`.
+# Use `systemctl --user edit radicle-node.service` to add
+#
+#   [Service]
+#   Environment=RAD_PASSPHRASE=snickerdoodle
+
+[Unit]
+Description=Radicle Node
+After=network.target network-online.target
+Requires=network-online.target
+
+[Service]
+ExecStart=/usr/bin/radicle-node --listen 0.0.0.0:8776 --force
+Environment=RUST_LOG=info
+KillMode=process
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
