@@ -298,7 +298,7 @@ impl Default for RateLimits {
 )]
 pub struct ConnectAddress(
     #[serde(with = "crate::serde_ext::string")]
-    #[schemars(
+    #[cfg_attr(feature = "schemars", schemars(
         with = "String",
         regex(pattern = r"^.+@.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$"),
         extend("examples" = [
@@ -307,7 +307,7 @@ pub struct ConnectAddress(
             "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi@seed.example.com:8776",
             "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5@192.0.2.0:31337",
         ]),
-    )]
+    ))]
     PeerAddr<NodeId, Address>,
 );
 
