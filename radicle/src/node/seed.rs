@@ -11,11 +11,17 @@ use crate::storage::{refs::RefsAt, ReadRepository, RemoteId};
 /// Holds an oid and timestamp.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct SyncedAt {
     /// Head of `rad/sigrefs`.
+    #[cfg_attr(feature = "schemars", schemars(with = "crate::schemars_ext::git::Oid"))]
     pub oid: git_ext::Oid,
     /// When these refs were synced.
     #[serde(with = "crate::serde_ext::localtime::time")]
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "crate::schemars_ext::localtime::LocalDurationInSeconds")
+    )]
     pub timestamp: LocalTime,
 }
 
