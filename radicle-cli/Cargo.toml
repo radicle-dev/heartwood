@@ -46,7 +46,7 @@ tree-sitter-bash = { version = "0.23.3" }
 tree-sitter-go = { version = "0.23.4" }
 tree-sitter-md = { version = "0.3.2" }
 zeroize = { version = "1.1" }
-schemars = { version = "1.0.0-alpha.17" }
+schemars = { workspace = true }
 
 [dependencies.radicle]
 version = "0"
