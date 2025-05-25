@@ -42,6 +42,9 @@ version = "0.9.0"
 # for the day it makes a difference…
 rust-version = "1.81.0"
 
+[workspace.dependencies]
+schemars = { version = "1.0.0-alpha.17" }
+
 [workspace.lints]
 clippy.type_complexity = "allow"
 clippy.enum_variant_names = "allow"
