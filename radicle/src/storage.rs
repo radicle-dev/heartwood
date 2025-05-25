@@ -191,11 +191,43 @@ pub type RemoteId = PublicKey;
 /// An update to a reference.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum RefUpdate {
-    Updated { name: RefString, old: Oid, new: Oid },
-    Created { name: RefString, oid: Oid },
-    Deleted { name: RefString, oid: Oid },
-    Skipped { name: RefString, oid: Oid },
+    Updated {
+        #[cfg_attr(
+            feature = "schemars",
+            schemars(with = "crate::schemars_ext::git::RefString")
+        )]
+        name: RefString,
+        #[cfg_attr(feature = "schemars", schemars(with = "crate::schemars_ext::git::Oid"))]
+        old: Oid,
+        #[cfg_attr(feature = "schemars", schemars(with = "crate::schemars_ext::git::Oid"))]
+        new: Oid,
+    },
+    Created {
+        #[cfg_attr(
+            feature = "schemars",
+            schemars(with = "crate::schemars_ext::git::RefString")
+        )]
+        name: RefString,
+        #[cfg_attr(feature = "schemars", schemars(with = "crate::schemars_ext::git::Oid"))]
+        oid: Oid,
+    },
+    Deleted {
+        #[cfg_attr(
+            feature = "schemars",
+            schemars(with = "crate::schemars_ext::git::RefString")
+        )]
+        name: RefString,
+        #[cfg_attr(feature = "schemars", schemars(with = "crate::schemars_ext::git::Oid"))]
+        oid: Oid,
+    },
+    Skipped {
+        #[cfg_attr(feature = "schemars", schemars(with = "String"))]
+        name: RefString,
+        #[cfg_attr(feature = "schemars", schemars(with = "crate::schemars_ext::git::Oid"))]
+        oid: Oid,
+    },
 }
 
 impl RefUpdate {

@@ -96,6 +96,7 @@ pub enum PingState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum State {
     /// Initial state for outgoing connections.
     Initial,
@@ -106,6 +107,10 @@ pub enum State {
     Connected {
         /// Connected since this time.
         #[serde(with = "crate::serde_ext::localtime::time")]
+        #[cfg_attr(
+            feature = "schemars",
+            schemars(with = "crate::schemars_ext::localtime::LocalDurationInSeconds")
+        )]
         since: LocalTime,
         /// Ping state.
         #[serde(skip)]
@@ -124,9 +129,17 @@ pub enum State {
     Disconnected {
         /// Since when has this peer been disconnected.
         #[serde(with = "crate::serde_ext::localtime::time")]
+        #[cfg_attr(
+            feature = "schemars",
+            schemars(with = "crate::schemars_ext::localtime::LocalDurationInSeconds")
+        )]
         since: LocalTime,
         /// When to retry the connection.
         #[serde(with = "crate::serde_ext::localtime::time")]
+        #[cfg_attr(
+            feature = "schemars",
+            schemars(with = "crate::schemars_ext::localtime::LocalDurationInSeconds")
+        )]
         retry_at: LocalTime,
     },
 }
@@ -185,6 +198,7 @@ impl Penalty {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(tag = "status")]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum SyncStatus {
     /// We're in sync.
     #[serde(rename_all = "camelCase")]
@@ -428,6 +442,7 @@ impl TryFrom<&sqlite::Value> for Alias {
 
 /// Options passed to the "connect" node command.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct ConnectOptions {
     /// Establish a persistent connection.
     pub persistent: bool,
@@ -480,6 +495,7 @@ impl From<Event> for CommandResult<Event> {
 
 /// A success response.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Success {
     /// Whether something was updated.
     #[serde(default, skip_serializing_if = "crate::serde_ext::is_default")]
@@ -589,6 +605,7 @@ impl From<Address> for HostName {
 /// Command name.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "command")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum Command {
     /// Announce repository references for given repository to peers.
     #[serde(rename_all = "camelCase")]
@@ -616,7 +633,13 @@ pub enum Command {
 
     /// Disconnect from a node.
     #[serde(rename_all = "camelCase")]
-    Disconnect { nid: NodeId },
+    Disconnect {
+        #[cfg_attr(
+            feature = "schemars",
+            schemars(with = "crate::schemars_ext::crypto::PublicKey")
+        )]
+        nid: NodeId,
+    },
 
     /// Lookup seeds for the given repository in the routing table.
     #[serde(rename_all = "camelCase")]
@@ -626,12 +649,22 @@ pub enum Command {
     Sessions,
 
     /// Get a specific peer session.
-    Session { nid: NodeId },
+    Session {
+        #[cfg_attr(
+            feature = "schemars",
+            schemars(with = "crate::schemars_ext::crypto::PublicKey")
+        )]
+        nid: NodeId,
+    },
 
     /// Fetch the given repository from the network.
     #[serde(rename_all = "camelCase")]
     Fetch {
         rid: RepoId,
+        #[cfg_attr(
+            feature = "schemars",
+            schemars(with = "crate::schemars_ext::crypto::PublicKey")
+        )]
         nid: NodeId,
         timeout: time::Duration,
     },
@@ -646,11 +679,24 @@ pub enum Command {
 
     /// Follow the given node.
     #[serde(rename_all = "camelCase")]
-    Follow { nid: NodeId, alias: Option<Alias> },
+    Follow {
+        #[cfg_attr(
+            feature = "schemars",
+            schemars(with = "crate::schemars_ext::crypto::PublicKey")
+        )]
+        nid: NodeId,
+        alias: Option<Alias>,
+    },
 
     /// Unfollow the given node.
     #[serde(rename_all = "camelCase")]
-    Unfollow { nid: NodeId },
+    Unfollow {
+        #[cfg_attr(
+            feature = "schemars",
+            schemars(with = "crate::schemars_ext::crypto::PublicKey")
+        )]
+        nid: NodeId,
+    },
 
     /// Get the node's status.
     Status,
@@ -679,6 +725,7 @@ impl Command {
 /// Connection link direction.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum Link {
     /// Outgoing connection.
     Outbound,
@@ -688,7 +735,12 @@ pub enum Link {
 
 /// An established network connection with a peer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Session {
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "crate::schemars_ext::crypto::PublicKey")
+    )]
     pub nid: NodeId,
     pub link: Link,
     pub addr: Address,
@@ -705,8 +757,14 @@ impl Session {
 /// A seed for some repository, with metadata about its status.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+
 pub struct Seed {
     /// The Node ID.
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "crate::schemars_ext::crypto::PublicKey")
+    )]
     pub nid: NodeId,
     /// Known addresses for this seed.
     pub addrs: Vec<KnownAddress>,
@@ -748,7 +806,11 @@ impl Seed {
 /// Represents a set of seeds with associated metadata. Uses an RNG
 /// underneath, so every iteration returns a different ordering.
 #[serde(into = "Vec<Seed>", from = "Vec<Seed>")]
-pub struct Seeds(address::AddressBook<NodeId, Seed>);
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+pub struct Seeds(
+    #[cfg_attr(feature = "schemars", schemars(with = "Vec<Seed>"))]
+    address::AddressBook<NodeId, Seed>,
+);
 
 impl Seeds {
     /// Create a new seeds list from an RNG.
@@ -819,9 +881,14 @@ impl From<Vec<Seed>> for Seeds {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum FetchResult {
     Success {
         updated: Vec<RefUpdate>,
+        #[cfg_attr(
+            feature = "schemars",
+            schemars(with = "HashSet<crate::schemars_ext::crypto::PublicKey>")
+        )]
         namespaces: HashSet<NodeId>,
         clone: bool,
     },
@@ -978,6 +1045,7 @@ impl Error {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum ConnectResult {
     Connected,
     Disconnected { reason: String },

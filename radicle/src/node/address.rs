@@ -143,6 +143,7 @@ pub struct Node {
 /// A known address.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct KnownAddress {
     /// Network address.
     pub addr: Address,
@@ -150,9 +151,17 @@ pub struct KnownAddress {
     pub source: Source,
     /// Last time this address was used to successfully connect to a peer.
     #[serde(with = "crate::serde_ext::localtime::option::time")]
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "Option<crate::schemars_ext::localtime::LocalDurationInSeconds>")
+    )]
     pub last_success: Option<LocalTime>,
     /// Last time this address was tried.
     #[serde(with = "crate::serde_ext::localtime::option::time")]
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "Option<crate::schemars_ext::localtime::LocalDurationInSeconds>")
+    )]
     pub last_attempt: Option<LocalTime>,
     /// Whether this address has been banned.
     pub banned: bool,
@@ -174,6 +183,7 @@ impl KnownAddress {
 /// Address source. Specifies where an address originated from.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum Source {
     /// An address that was shared by another peer.
     Peer,
