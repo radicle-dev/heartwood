@@ -377,10 +377,16 @@ impl<V> Deref for SignedRefs<V> {
 /// references to other nodes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct RefsAt {
     /// The remote namespace of the `rad/sigrefs`.
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "crate::schemars_ext::crypto::PublicKey")
+    )]
     pub remote: RemoteId,
     /// The commit SHA that `rad/sigrefs` points to.
+    #[cfg_attr(feature = "schemars", schemars(with = "crate::schemars_ext::git::Oid"))]
     pub at: Oid,
 }
 
