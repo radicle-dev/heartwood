@@ -1,0 +1,24 @@
+[package]
+name = "radicle-schemars"
+description = "Utility to print JSON Schemas from the `radicle` crate"
+homepage = "https://radicle.xyz"
+repository = "https://app.radicle.xyz/seeds/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
+license = "MIT OR Apache-2.0"
+edition = "2021"
+version = "0.1.0"
+rust-version.workspace = true
+
+[[bin]]
+name = "radicle-schemars"
+path = "src/main.rs"
+
+[dependencies]
+once_cell = { version = "1.13" }
+schemars = { workspace = true }
+serde = { version = "1.0" }
+serde_json = { version = "1" }
+
+[dependencies.radicle]
+version = "0"
+path = "../radicle"
+features = ["schemars"]
