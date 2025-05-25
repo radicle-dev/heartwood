@@ -12,6 +12,7 @@ members = [
   "radicle-remote-helper",
   "radicle-ssh",
   "radicle-tools",
+  "radicle-schemars",
   "radicle-signals",
   "radicle-systemd",
 ]

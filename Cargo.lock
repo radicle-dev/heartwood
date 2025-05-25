@@ -2822,6 +2822,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "radicle-schemars"
+version = "0.1.0"
+dependencies = [
+ "radicle",
+ "schemars",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "radicle-signals"
 version = "0.11.0"
 dependencies = [
