@@ -25,14 +25,28 @@ main() {
 
   while IFS= read -r target
   do
-    archive=$destination/radicle-$version-$target.tar.xz
-    symlink=$destination/radicle-$target.tar.xz
+      archive=$destination/radicle-$version-$target.tar.xz
+      symlink=$destination/radicle-$target.tar.xz
 
-    echo "Creating symlinks for $target.."
+      echo "Creating symlinks for $target.."
 
-    ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf "$archive" "$symlink"
-    ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf "$archive.sig" "$symlink.sig"
-    ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf "$archive.sha256" "$symlink.sha256"
+      if ssh -n -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf "$archive" "$symlink"; then
+          echo "✓ Created symlink: $symlink"
+      else
+          echo "✗ Failed to create symlink: $symlink"
+      fi
+
+      if ssh -n -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf "$archive.sig" "$symlink.sig"; then
+          echo "✓ Created symlink: $symlink.sig"
+      else
+          echo "✗ Failed to create symlink: $symlink.sig"
+      fi
+
+      if ssh -n -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf "$archive.sha256" "$symlink.sha256"; then
+          echo "✓ Created symlink: $symlink.sha256"
+      else
+          echo "✗ Failed to create symlink: $symlink.sha256"
+      fi
   done < build/TARGETS
 
   # TODO(cloudhead): Don't pass `--tags` when we have canonical refs.
