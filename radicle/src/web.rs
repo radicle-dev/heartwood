@@ -1,5 +1,4 @@
 use crate::prelude::RepoId;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -30,7 +29,8 @@ pub struct Config {
 
 /// Pinned content. This can be used to pin certain content when
 /// listing, e.g. pin repositories on a web client.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct Pinned {
     /// Pinned repositories.
