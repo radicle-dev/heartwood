@@ -7,6 +7,9 @@ SSH_KEY="$(rad path)/keys/radicle"
 
 main() {
   version="$(build/version)"
+  nid="$(rad self --nid)"
+  rad_url="$(rad . | sed s/rad:/rad:\\/\\//)"
+  rad_remote="$rad_url/$nid"
 
   echo "Uploading Radicle $version..."
 
@@ -50,8 +53,12 @@ main() {
   done < build/TARGETS
 
   # TODO(cloudhead): Don't pass `--tags` when we have canonical refs.
-  echo "Pushing tags.."
-  git push rad --tags
+  # Pushes tags without assuming the remote the user is using. It does this by
+  # using the pushurl directly, i.e.
+  # `rad://z3gqcJUoA1n9HaHKufZs5FCSGazv5/<nid>`, where `<nid>` is the local Node
+  # ID.
+  echo "Pushing tags to ${rad_remote}.."
+  git push "${rad_remote}" --tags
 
   echo "Done."
 }
