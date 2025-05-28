@@ -99,6 +99,7 @@ fn test<'a>(
 
     formula(cwd.as_ref(), test)?
         .env("RAD_HOME", home.to_string_lossy())
+        .env("JJ_CONFIG", home.join(".jjconfig.toml").to_string_lossy())
         .envs(envs)
         .run()?;
 
@@ -116,6 +117,11 @@ fn formula(root: &Path, test: impl AsRef<Path>) -> Result<TestFormula, Box<dyn s
         .env("GIT_COMMITTER_DATE", "1671125284")
         .env("GIT_COMMITTER_EMAIL", "radicle@localhost")
         .env("GIT_COMMITTER_NAME", "radicle")
+        .env("JJ_USER", "Test User")
+        .env("JJ_EMAIL", "test.user@example.com")
+        .env("JJ_OP_HOSTNAME", "host.example.com")
+        .env("JJ_OP_USERNAME", "test-username")
+        .env("JJ_TZ_OFFSET_MINS", "660")
         .env("EDITOR", "true")
         .env("TZ", "UTC")
         .env("LANG", "C")

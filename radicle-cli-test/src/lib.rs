@@ -107,6 +107,9 @@ pub struct TestRunner<'a> {
     cwd: Option<PathBuf>,
     homes: HashMap<String, Home>,
     formula: &'a TestFormula,
+
+    /// For seeding randomness in Jujutsu.
+    jj_seed: usize,
 }
 
 impl<'a> TestRunner<'a> {
@@ -115,6 +118,7 @@ impl<'a> TestRunner<'a> {
             cwd: None,
             homes: formula.homes.clone(),
             formula,
+            jj_seed: 0,
         }
     }
 
@@ -124,6 +128,7 @@ impl<'a> TestRunner<'a> {
 
         if let Some(ref h) = test.home {
             if let Some(home) = self.homes.get(h) {
+                env.insert("USER".to_owned(), h.to_owned());
                 return TestRun {
                     home: home.clone(),
                     env,
@@ -460,6 +465,17 @@ impl TestFormula {
                     fs::create_dir_all(run.path())?;
                 }
 
+                let jj_envs = if assertion.command == "jj" {
+                    runner.jj_seed += 1;
+                    vec![
+                        ("JJ_RANDOMNESS_SEED", runner.jj_seed.to_string()),
+                        ("JJ_TIMESTAMP", "2001-02-03T04:05:06+07:00".to_string()),
+                        ("JJ_OP_TIMESTAMP", "2001-02-03T04:05:06+07:00".to_string()),
+                    ]
+                } else {
+                    vec![]
+                };
+
                 let bins = self
                     .bins
                     .iter()
@@ -471,6 +487,7 @@ impl TestFormula {
                     .env("PATH", &bins)
                     .env("RUST_BACKTRACE", "1")
                     .envs(run.envs())
+                    .envs(jj_envs)
                     .current_dir(run.path())
                     .args(args)
                     .with_assert(assert.clone())
