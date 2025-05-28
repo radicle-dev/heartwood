@@ -115,6 +115,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
+        change_id: Option<String>,
         labels: &[Label],
         signer: &Device<G>,
     ) -> Result<PatchMut<'a, 'g, R, C>, super::Error>
@@ -129,6 +130,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
             target,
             base,
             oid,
+            change_id,
             labels,
             &mut self.cache,
             signer,
@@ -145,6 +147,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
+        change_id: Option<String>,
         labels: &[Label],
         signer: &Device<G>,
     ) -> Result<PatchMut<'a, 'g, R, C>, super::Error>
@@ -159,6 +162,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
             target,
             base,
             oid,
+            change_id,
             labels,
             &mut self.cache,
             signer,

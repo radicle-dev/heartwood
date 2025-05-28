@@ -2619,6 +2619,7 @@ where
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
+        change_id: Option<String>,
         labels: &[Label],
         cache: &'g mut C,
         signer: &Device<G>,
@@ -2633,6 +2634,7 @@ where
             target,
             base,
             oid,
+            change_id,
             labels,
             Lifecycle::default(),
             cache,
@@ -2648,6 +2650,7 @@ where
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
+        change_id: Option<String>,
         labels: &[Label],
         cache: &'g mut C,
         signer: &Device<G>,
@@ -2662,6 +2665,7 @@ where
             target,
             base,
             oid,
+            change_id,
             labels,
             Lifecycle::Draft,
             cache,
@@ -2696,6 +2700,7 @@ where
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
+        change_id: Option<String>,
         labels: &[Label],
         state: Lifecycle,
         cache: &'g mut C,
@@ -2714,6 +2719,9 @@ where
             }
             if state != Lifecycle::default() {
                 tx.lifecycle(state)?;
+            }
+            if let Some(change_id) = change_id {
+                tx.link_change_id(change_id)?;
             }
             Ok(())
         })?;
@@ -3001,6 +3009,7 @@ mod test {
                 target,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3041,6 +3050,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3074,6 +3084,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3105,6 +3116,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3157,6 +3169,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3345,6 +3358,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3389,6 +3403,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3420,6 +3435,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3464,6 +3480,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3511,6 +3528,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3559,6 +3577,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )
@@ -3608,6 +3627,7 @@ mod test {
                 MergeTarget::Delegates,
                 branch.base,
                 branch.oid,
+                None,
                 &[],
                 &alice.signer,
             )

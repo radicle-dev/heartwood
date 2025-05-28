@@ -409,6 +409,12 @@ where
 {
     let reference = working.find_reference(src.as_str())?;
     let commit = reference.peel_to_commit()?;
+
+    let change_id = commit
+        .header_field_bytes("change-id")
+        .ok()
+        .and_then(|buf| buf.as_str().map(String::from));
+
     let dst = git::refs::storage::staging::patch(nid, commit.id());
 
     // Before creating the patch, we must push the associated git objects to storage.
@@ -440,6 +446,7 @@ where
             patch::MergeTarget::default(),
             base,
             commit.id(),
+            change_id,
             &[],
             signer,
         )
@@ -450,6 +457,7 @@ where
             patch::MergeTarget::default(),
             base,
             commit.id(),
+            change_id,
             &[],
             signer,
         )
@@ -461,19 +469,27 @@ where
             } else {
                 "opened"
             };
-            let patch = patch.id;
+            let patch_id = patch.id;
 
             eprintln!(
                 "{} Patch {} {action}",
                 term::format::positive("✓"),
-                term::format::tertiary(patch),
+                term::format::tertiary(patch_id),
             );
+
+            if let Some(change_id) = patch.change_id() {
+                eprintln!(
+                    "{} Change ID {} detected and linked",
+                    term::format::positive("✓"),
+                    term::format::tertiary(change_id),
+                );
+            }
 
             // Create long-lived patch head reference, now that we know the Patch ID.
             //
             //  refs/namespaces/<nid>/refs/heads/patches/<patch-id>
             //
-            let refname = git::refs::patch(&patch).with_namespace(nid.into());
+            let refname = git::refs::patch(&patch_id).with_namespace(nid.into());
             let _ = stored.raw().reference(
                 refname.as_str(),
                 commit.id(),
@@ -483,7 +499,7 @@ where
 
             // Setup current branch so that pushing updates the patch.
             if let Some(branch) =
-                rad::setup_patch_upstream(&patch, commit.id().into(), working, upstream, false)?
+                rad::setup_patch_upstream(&patch_id, commit.id().into(), working, upstream, false)?
             {
                 if let Some(name) = branch.name()? {
                     if profile.hints() {
@@ -496,7 +512,7 @@ where
                     }
                 }
             }
-            Ok(Some(ExplorerResource::Patch { id: patch }))
+            Ok(Some(ExplorerResource::Patch { id: patch_id }))
         }
         Err(e) => Err(e),
     };
