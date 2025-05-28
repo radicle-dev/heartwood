@@ -372,6 +372,18 @@ pub fn remove_remote(repo: &git2::Repository) -> Result<(), RemoteError> {
     Ok(())
 }
 
+#[derive(Error, Debug)]
+pub enum CwdError {
+    #[error(transparent)]
+    Remote(#[from] RemoteError),
+
+    #[error("Detection failed (git: '{git}', jj: '{jj}')")]
+    Detection {
+        git: git2::Error,
+        jj: JujutsuGitRootError,
+    },
+}
+
 /// Get the RID of the repository in current working directory
 ///
 /// It will atempt to search parent directories if `path` did not find
@@ -382,10 +394,11 @@ pub fn remove_remote(repo: &git2::Repository) -> Result<(), RemoteError> {
 /// This function should only perform read operations since we do not
 /// want to modify the wrong repository in the case that it found a
 /// Git repository that is not a Radicle repository.
-pub fn cwd() -> Result<(git2::Repository, RepoId), RemoteError> {
-    let repo = repo()?;
-    let (_, id) = remote(&repo)?;
+pub fn cwd() -> Result<(git2::Repository, RepoId), CwdError> {
+    let repo =
+        repo().or_else(|git| repo_jj_git_root().map_err(|jj| CwdError::Detection { git, jj }))?;
 
+    let (_, id) = remote(&repo)?;
     Ok((repo, id))
 }
 
@@ -409,6 +422,34 @@ pub fn repo() -> Result<git2::Repository, git2::Error> {
     let repo = git2::Repository::open_ext(Path::new("."), flags, ceilings)?;
 
     Ok(repo)
+}
+
+#[derive(Error, Debug)]
+pub enum JujutsuGitRootError {
+    #[error("git: {0}")]
+    Git(#[from] git2::Error),
+
+    #[error("i/o: {0}")]
+    Io(#[from] io::Error),
+
+    #[error("exited with status {status}")]
+    CommandFailure { status: std::process::ExitStatus },
+}
+
+/// Get the Git repo underlying the current Jujutsu repository.
+pub fn repo_jj_git_root() -> Result<git2::Repository, JujutsuGitRootError> {
+    let output = std::process::Command::new("jj")
+        .args(["git", "root"])
+        .output()?;
+
+    if !output.status.success() {
+        return Err(JujutsuGitRootError::CommandFailure {
+            status: output.status,
+        });
+    }
+
+    let path = std::path::PathBuf::from(String::from_utf8_lossy(&output.stdout).to_string().trim());
+    Ok(git2::Repository::open(path)?)
 }
 
 /// Setup patch upstream branch such that `git push` updates the patch.
