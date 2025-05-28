@@ -845,6 +845,17 @@ fn rad_patch() {
 }
 
 #[test]
+fn rad_jj_colocated_patch() {
+    // We test whether `jj` is installed, and have this test succeed if it is not.
+    // Programmatic skipping of tests is not supported as of 2024-08.
+    if !program_reports_version("jj") {
+        return;
+    }
+
+    Environment::alice(["rad-init", "jj-config", "jj-init-colocate", "rad-patch-jj"])
+}
+
+#[test]
 fn rad_patch_diff() {
     Environment::alice(["rad-init", "rad-patch-diff"]);
 }
