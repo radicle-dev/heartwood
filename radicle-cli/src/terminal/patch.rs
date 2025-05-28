@@ -388,6 +388,17 @@ pub fn show(
             term::format::secondary(labels.join(", ")).into(),
         ]);
     }
+    if let Some(change_id) = patch.change_id() {
+        attrs.push([
+            term::format::tertiary("Change ID".to_owned()).into(),
+            term::format::secondary(change_id).into(),
+        ]);
+    } else if verbose {
+        attrs.push([
+            term::format::tertiary("Change ID".to_owned()).into(),
+            term::format::dim("None".to_owned()).into(),
+        ]);
+    }
     attrs.push([
         term::format::tertiary("Head".to_owned()).into(),
         term::format::secondary(revision.head().to_string()).into(),
