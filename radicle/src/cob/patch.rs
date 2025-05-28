@@ -173,6 +173,8 @@ pub enum Action {
         revision: RevisionId,
         commit: git::Oid,
     },
+    #[serde(rename = "linkChangeId")]
+    LinkChangeId { change_id: String },
 
     //
     // Review actions
@@ -434,6 +436,8 @@ pub struct Patch {
     pub(super) timeline: Vec<EntryId>,
     /// Reviews index. Keeps track of reviews for better performance.
     pub(super) reviews: BTreeMap<ReviewId, Option<(RevisionId, ActorId)>>,
+    /// Change ID associated with the patch. This is emitted by tools like Jujutsu.
+    pub(super) change_id: Option<String>,
 }
 
 impl Patch {
@@ -450,6 +454,7 @@ impl Patch {
             assignees: BTreeSet::default(),
             timeline: vec![id.into_inner()],
             reviews: BTreeMap::default(),
+            change_id: None,
         }
     }
 
@@ -497,6 +502,11 @@ impl Patch {
     /// Author of the first revision of the patch.
     pub fn author(&self) -> &Author {
         &self.author
+    }
+
+    /// Change ID linked to the patch.
+    pub fn change_id(&self) -> &Option<String> {
+        &self.change_id
     }
 
     /// All revision authors.
@@ -672,6 +682,7 @@ impl Patch {
             Action::Merge { .. } => match self.target() {
                 MergeTarget::Delegates => Authorization::Deny,
             },
+            Action::LinkChangeId { .. } => Authorization::from(actor == author),
             // Anyone can submit a review.
             Action::Review { .. } => Authorization::Allow,
             Action::ReviewRedact { review, .. } | Action::ReviewEdit { review, .. } => {
@@ -817,6 +828,9 @@ impl Patch {
             }
             Action::Assign { assignees } => {
                 self.assignees = BTreeSet::from_iter(assignees.into_iter().map(ActorId::from));
+            }
+            Action::LinkChangeId { change_id } => {
+                self.change_id = Some(change_id);
             }
             Action::RevisionEdit {
                 revision,
@@ -1962,6 +1976,11 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         self.push(Action::Label {
             labels: labels.into_iter().collect(),
         })
+    }
+
+    /// Links this patch to a Change ID.
+    pub fn link_change_id(&mut self, change_id: String) -> Result<(), store::Error> {
+        self.push(Action::LinkChangeId { change_id })
     }
 }
 
