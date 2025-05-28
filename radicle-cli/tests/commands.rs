@@ -998,6 +998,38 @@ fn rad_patch() {
 }
 
 #[test]
+fn rad_patch_jj() {
+    let mut environment = Environment::new();
+    let profile = environment.profile(config::profile("alice"));
+    let working = tempfile::tempdir().unwrap();
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+
+    test(
+        "examples/rad-init.md",
+        working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
+    test(
+        "examples/jj-init.md",
+        working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
+    test(
+        "examples/rad-patch-jj.md",
+        working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_patch_diff() {
     let mut environment = Environment::new();
     let profile = environment.profile(config::profile("alice"));
