@@ -124,6 +124,7 @@ impl<'a> TestRunner<'a> {
 
         if let Some(ref h) = test.home {
             if let Some(home) = self.homes.get(h) {
+                env.insert("USER".to_owned(), h.to_owned());
                 return TestRun {
                     home: home.clone(),
                     env,
@@ -420,7 +421,7 @@ impl TestFormula {
             let mut run = runner.run(test);
 
             // For each command.
-            for assertion in &test.assertions {
+            for (i, assertion) in test.assertions.iter().enumerate() {
                 // Expand environment variables.
                 let mut args = assertion.args.clone();
                 for arg in &mut args {
@@ -464,6 +465,16 @@ impl TestFormula {
                     fs::create_dir_all(run.path())?;
                 }
 
+                let jj_envs = if assertion.command == "jj" {
+                    vec![
+                        ("JJ_RANDOMNESS_SEED", i.to_string()),
+                        ("JJ_TIMESTAMP", "2001-02-03T04:05:06+07:00".to_string()),
+                        ("JJ_OP_TIMESTAMP", "2001-02-03T04:05:06+07:00".to_string()),
+                    ]
+                } else {
+                    vec![]
+                };
+
                 let bins = self
                     .bins
                     .iter()
@@ -474,6 +485,7 @@ impl TestFormula {
                     .env_clear()
                     .env("PATH", &bins)
                     .env("RUST_BACKTRACE", "1")
+                    .envs(jj_envs)
                     .envs(run.envs())
                     .current_dir(run.path())
                     .args(args)

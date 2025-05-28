@@ -246,6 +246,17 @@ impl Environment {
             "RAD_HOME",
             subject.home().path().to_path_buf().to_string_lossy(),
         )
+        .env(
+            "JJ_CONFIG",
+            subject
+                .home()
+                .path()
+                .parent()
+                .unwrap()
+                .to_path_buf()
+                .join(".jjconfig.toml")
+                .to_string_lossy(),
+        )
         .run()?;
 
         Ok(())

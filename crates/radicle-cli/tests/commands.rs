@@ -37,14 +37,23 @@ pub(crate) fn test<'a>(
     envs: impl IntoIterator<Item = (&'a str, &'a str)>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let tmp = tempfile::tempdir().unwrap();
-    let home = if let Some(home) = home {
-        home.path().to_path_buf()
+
+    let (unix_home, rad_home) = if let Some(home) = home {
+        let unix_home = home.path().to_path_buf();
+        let unix_home = unix_home.parent().unwrap().to_path_buf();
+        (unix_home, home.path().to_path_buf())
     } else {
-        tmp.path().to_path_buf()
+        let mut rad_home = tmp.path().to_path_buf();
+        rad_home.push(".radicle");
+        (tmp.path().to_path_buf(), rad_home)
     };
 
     formula(cwd.as_ref(), test)?
-        .env("RAD_HOME", home.to_string_lossy())
+        .env("RAD_HOME", rad_home.to_string_lossy())
+        .env(
+            "JJ_CONFIG",
+            unix_home.join(".jjconfig.toml").to_string_lossy(),
+        )
         .envs(envs)
         .run()?;
 
