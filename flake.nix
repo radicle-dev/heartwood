@@ -102,6 +102,7 @@
           ]);
           nativeCheckInputs = with pkgs; [
             jq
+            jujutsu
           ];
 
           env =
