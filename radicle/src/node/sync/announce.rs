@@ -51,6 +51,12 @@ impl Announcer {
             .into());
         }
 
+        // N.b extend the unsynced set with any preferred seeds that are not yet
+        // synced
+        config
+            .unsynced
+            .extend(config.preferred_seeds.difference(&config.synced).copied());
+
         let replicas = config.replicas.min(config.unsynced.len());
         let announcer = Self {
             local_node: config.local_node,
