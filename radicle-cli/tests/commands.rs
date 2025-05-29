@@ -140,6 +140,24 @@ fn formula(root: &Path, test: impl AsRef<Path>) -> Result<TestFormula, Box<dyn s
     Ok(formula)
 }
 
+fn program_reports_version(program: &str) -> bool {
+    use std::io::ErrorKind;
+    use std::process::{Command, Stdio};
+
+    match Command::new(program)
+        .arg("--version")
+        .stdout(Stdio::null())
+        .status()
+    {
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            log::warn!(target: "test", "`{program}` not found.");
+            false
+        }
+        Err(e) => panic!("while checking for program {program}: {}", e),
+        Ok(_) => true,
+    }
+}
+
 #[test]
 fn rad_auth() {
     test("examples/rad-auth.md", Path::new("."), None, []).unwrap();
@@ -210,21 +228,11 @@ fn rad_cob_update_identity() {
 
 #[test]
 fn rad_cob_multiset() {
-    {
-        // `rad-cob-multiset` is a `jq` script, which requires `jq` to be installed.
-        // We test whether `jq` is installed, and have this test succeed if it is not.
-        // Programmatic skipping of tests is not supported as of 2024-08.
-        use std::io::ErrorKind;
-        use std::process::{Command, Stdio};
-
-        match Command::new("jq").arg("-V").stdout(Stdio::null()).status() {
-            Err(e) if e.kind() == ErrorKind::NotFound => {
-                log::warn!(target: "test", "`jq` not found. Succeeding prematurely.");
-                return;
-            }
-            Err(e) => panic!("while checking for jq: {}", e),
-            Ok(_) => {}
-        }
+    // `rad-cob-multiset` is a `jq` script, which requires `jq` to be installed.
+    // We test whether `jq` is installed, and have this test succeed if it is not.
+    // Programmatic skipping of tests is not supported as of 2024-08.
+    if !program_reports_version("jq") {
+        return;
     }
 
     let mut environment = Environment::new();
@@ -999,6 +1007,12 @@ fn rad_patch() {
 
 #[test]
 fn rad_patch_jj() {
+    // We test whether `jj` is installed, and have this test succeed if it is not.
+    // Programmatic skipping of tests is not supported as of 2024-08.
+    if !program_reports_version("jj") {
+        return;
+    }
+
     let mut environment = Environment::new();
     let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
