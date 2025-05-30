@@ -365,6 +365,7 @@ impl From<String> for ConfigPath {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
+    #[cfg(feature = "schemars")]
     #[test]
     fn schema() {
         use super::Config;
