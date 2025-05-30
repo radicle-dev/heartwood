@@ -882,7 +882,7 @@ fn print_synced(synced: &BTreeMap<NodeId, sync::announce::SyncStatus>) {
             sync::announce::SyncStatus::Synced { duration } => {
                 message.push_str(&format!(
                     "{}",
-                    term::format::dim(format!("in {}s", duration.as_secs()))
+                    term::format::dim(format!(" in {}s", duration.as_secs()))
                 ));
             }
         }

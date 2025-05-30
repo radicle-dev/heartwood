@@ -224,7 +224,7 @@ where
                 term::info!(
                     &mut reporting.completion;
                     "{}",
-                    term::format::yellow("No seeds found for {rid}.")
+                    term::format::yellow(format!("No seeds found for {rid}."))
                 );
                 return Ok(None);
             }
