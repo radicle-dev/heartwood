@@ -246,7 +246,9 @@ where
             term::format::secondary(progress.preferred()),
             term::format::secondary(n_preferred_seeds),
             term::format::secondary(progress.synced()),
-            term::format::secondary(min_replicas),
+            // N.b. the number of replicas could exceed the target if we're
+            // waiting for preferred seeds
+            term::format::secondary(min_replicas.max(progress.synced())),
         ));
     }) {
         Ok(result) => {
