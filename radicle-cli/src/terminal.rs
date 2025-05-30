@@ -2,7 +2,6 @@ pub mod args;
 pub use args::{Args, Error, Help};
 pub mod format;
 pub mod io;
-pub mod job;
 pub use io::signer;
 pub mod cob;
 pub mod comment;

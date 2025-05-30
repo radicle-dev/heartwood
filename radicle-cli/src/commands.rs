@@ -32,8 +32,6 @@ pub mod rad_init;
 pub mod rad_inspect;
 #[path = "commands/issue.rs"]
 pub mod rad_issue;
-#[path = "commands/job.rs"]
-pub mod rad_job;
 #[path = "commands/ls.rs"]
 pub mod rad_ls;
 #[path = "commands/node.rs"]

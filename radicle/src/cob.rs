@@ -4,7 +4,6 @@ pub mod common;
 pub mod external;
 pub mod identity;
 pub mod issue;
-pub mod job;
 pub mod op;
 pub mod patch;
 pub mod store;
