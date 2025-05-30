@@ -153,7 +153,7 @@ impl Announcer {
 
     /// Get the [`Progress`] of the [`Announcer`].
     pub fn progress(&self) -> Progress {
-        let (synced, preferred) = self.success_counts();
+        let SuccessCounts { preferred, synced } = self.success_counts();
         let unsynced = self.to_sync.len().saturating_sub(synced);
         Progress {
             preferred,
@@ -174,7 +174,7 @@ impl Announcer {
     }
 
     fn is_target_reached(&self) -> Option<SuccessfulOutcome> {
-        let (preferred, synced) = self.success_counts();
+        let SuccessCounts { preferred, synced } = self.success_counts();
         let reached_preferred = self.target.preferred_seeds.is_empty()
             || preferred >= self.target.preferred_seeds.len();
 
@@ -188,16 +188,38 @@ impl Announcer {
         }
     }
 
-    fn success_counts(&self) -> (usize, usize) {
+    fn success_counts(&self) -> SuccessCounts {
         self.synced
             .keys()
-            .fold((0, 0), |(mut preferred, mut succeeded), nid| {
-                succeeded += 1;
+            .fold(SuccessCounts::default(), |counts, nid| {
                 if self.target.preferred_seeds.contains(nid) {
-                    preferred += 1;
+                    counts.preferred().synced()
+                } else {
+                    counts.synced()
                 }
-                (preferred, succeeded)
             })
+    }
+}
+
+#[derive(Default)]
+struct SuccessCounts {
+    preferred: usize,
+    synced: usize,
+}
+
+impl SuccessCounts {
+    fn synced(self) -> Self {
+        Self {
+            synced: self.synced + 1,
+            ..self
+        }
+    }
+
+    fn preferred(self) -> Self {
+        Self {
+            preferred: self.preferred + 1,
+            ..self
+        }
     }
 }
 
