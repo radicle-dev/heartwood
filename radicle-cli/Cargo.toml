@@ -54,7 +54,7 @@ path = "../radicle"
 features = ["logger", "schemars"]
 
 [dependencies.radicle-cob]
-version = "0.13"
+version = "0.14"
 path = "../radicle-cob"
 
 [dependencies.radicle-crypto]

@@ -2675,7 +2675,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cob"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "fastrand",
  "git2",
