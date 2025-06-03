@@ -259,7 +259,9 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     let project = doc.project()?;
 
     let mut opts = git2::RepositoryInitOptions::new();
-    opts.no_reinit(true).description(project.description());
+    opts.no_reinit(true)
+        .external_template(false)
+        .description(project.description());
 
     let repo = git2::Repository::init_opts(path.as_ref(), &opts)?;
     let url = git::Url::from(proj);
