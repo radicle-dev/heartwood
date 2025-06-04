@@ -109,9 +109,9 @@ the logs will go to the system journal. These can be viewed with **journalctl**(
     $ journalctl -u radicle-node -S today
 
 To connect to a specific peer, the *connect* sub-command can be used:
-For example, to connect to the *radicle.garden* community node, you can run:
+For example, to connect to a community node, you can run:
 
-    $ rad node connect z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776
+    $ rad node connect z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@iris.radicle.xyz:8776
 
 The argument given to *connect* is called a node _address_. It is composed of
 a Node ID (NID), followed by an *@* symbol, and the _host_ name and _port_.

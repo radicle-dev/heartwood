@@ -728,8 +728,8 @@ mod test {
             "listen": [],
             "peers": { "type": "dynamic", "target": 8 },
             "connect": [
-              "z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo@ash.radicle.garden:8776",
-              "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776"
+              "z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo@rosa.radicle.xyz:8776",
+              "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@iris.radicle.xyz:8776"
             ],
             "externalAddresses": [ "seed.radicle.xyz:8776" ],
             "db": { "journalMode": "wal" },
