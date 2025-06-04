@@ -25,30 +25,26 @@ pub mod seeds {
     use super::{ConnectAddress, PeerAddr};
     use once_cell::sync::Lazy;
 
-    /// The radicle public community seed node.
-    pub static RADICLE_COMMUNITY_NODE: Lazy<ConnectAddress> = Lazy::new(|| {
+    /// A public Radicle seed node for the community.
+    pub static RADICLE_NODE_BOOTSTRAP_IRIS: Lazy<ConnectAddress> = Lazy::new(|| {
         // SAFETY: `ConnectAddress` is known at compile time.
         #[allow(clippy::unwrap_used)]
-        PeerAddr::from_str(
-            "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776",
-        )
-        .unwrap()
-        .into()
+        PeerAddr::from_str("z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@iris.radicle.xyz:8776")
+            .unwrap()
+            .into()
     });
 
-    /// The radicle public `ash` seed node.
-    pub static RADICLE_ASH_NODE: Lazy<ConnectAddress> = Lazy::new(|| {
+    /// A public Radicle seed node for the community.
+    pub static RADICLE_NODE_BOOTSTRAP_ROSA: Lazy<ConnectAddress> = Lazy::new(|| {
         // SAFETY: `ConnectAddress` is known at compile time.
         #[allow(clippy::unwrap_used)]
-        PeerAddr::from_str(
-            "z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo@ash.radicle.garden:8776",
-        )
-        .unwrap()
-        .into()
+        PeerAddr::from_str("z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo@rosa.radicle.xyz:8776")
+            .unwrap()
+            .into()
     });
 
-    /// The radicle team node.
-    pub static RADICLE_TEAM_NODE: Lazy<ConnectAddress> = Lazy::new(|| {
+    /// The Radicle seed node that the Radicle team uses.
+    pub static RADICLE_NODE_TEAM: Lazy<ConnectAddress> = Lazy::new(|| {
         // SAFETY: `ConnectAddress` is known at compile time.
         #[allow(clippy::unwrap_used)]
         PeerAddr::from_str("z6MksmpU5b1dS7oaqF2bHXhQi1DWy2hB7Mh9CuN7y1DN6QSz@seed.radicle.xyz:8776")
@@ -72,8 +68,11 @@ impl Network {
     pub fn bootstrap(&self) -> Vec<(Alias, ProtocolVersion, ConnectAddress)> {
         match self {
             Self::Main => [
-                ("seed.radicle.garden", seeds::RADICLE_COMMUNITY_NODE.clone()),
-                ("seed.radicle.xyz", seeds::RADICLE_TEAM_NODE.clone()),
+                (
+                    "iris.radicle.xyz",
+                    seeds::RADICLE_NODE_BOOTSTRAP_IRIS.clone(),
+                ),
+                ("seed.radicle.xyz", seeds::RADICLE_NODE_TEAM.clone()),
             ]
             .into_iter()
             .map(|(a, s)| (Alias::new(a), 1, s))
@@ -87,8 +86,8 @@ impl Network {
     pub fn public_seeds(&self) -> Vec<ConnectAddress> {
         match self {
             Self::Main => vec![
-                seeds::RADICLE_COMMUNITY_NODE.clone(),
-                seeds::RADICLE_ASH_NODE.clone(),
+                seeds::RADICLE_NODE_BOOTSTRAP_IRIS.clone(),
+                seeds::RADICLE_NODE_BOOTSTRAP_ROSA.clone(),
             ],
             Self::Test => vec![],
         }
@@ -302,7 +301,7 @@ pub struct ConnectAddress(
         with = "String",
         regex(pattern = r"^.+@.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$"),
         extend("examples" = [
-            "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776",
+            "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@rosa.radicle.xyz:8776",
             "z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C@xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
             "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi@seed.example.com:8776",
             "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5@192.0.2.0:31337",

@@ -5,7 +5,7 @@ use std::{net, thread, time};
 use radicle::git;
 use radicle::node;
 use radicle::node::address::Store as _;
-use radicle::node::config::seeds::{RADICLE_COMMUNITY_NODE, RADICLE_TEAM_NODE};
+use radicle::node::config::seeds::{RADICLE_NODE_BOOTSTRAP_IRIS, RADICLE_NODE_TEAM};
 use radicle::node::config::DefaultSeedingPolicy;
 use radicle::node::routing::Store as _;
 use radicle::node::Handle as _;
@@ -414,7 +414,10 @@ fn rad_config() {
     let mut environment = Environment::new();
     let alias = Alias::new("alice");
     let profile = environment.profile(profile::Config {
-        preferred_seeds: vec![RADICLE_COMMUNITY_NODE.clone(), RADICLE_TEAM_NODE.clone()],
+        preferred_seeds: vec![
+            RADICLE_NODE_BOOTSTRAP_IRIS.clone(),
+            RADICLE_NODE_TEAM.clone(),
+        ],
         ..profile::Config::new(alias)
     });
     let working = tempfile::tempdir().unwrap();

@@ -279,13 +279,9 @@ impl Arbitrary for Address {
                 cyphernet::addr::HostName::Ip(net::IpAddr::V6(net::Ipv6Addr::from(octets)))
             }
             AddressType::Dns => cyphernet::addr::HostName::Dns(
-                g.choose(&[
-                    "seed.radicle.xyz",
-                    "seed.radicle.garden",
-                    "seed.radicle.cloudhead.io",
-                ])
-                .unwrap()
-                .to_string(),
+                g.choose(&["seed.radicle.xyz", "iris.radicle.xyz", "rosa.radicle.xyz"])
+                    .unwrap()
+                    .to_string(),
             ),
             AddressType::Onion => {
                 let pk = PublicKey::arbitrary(g);
