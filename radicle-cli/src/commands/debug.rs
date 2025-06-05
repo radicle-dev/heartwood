@@ -1,5 +1,5 @@
 #![allow(clippy::or_fun_call)]
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::env;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -57,7 +57,7 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 // Collect information about the local Radicle installation and write
 // it out.
 fn debug(profile: Option<&Profile>) -> anyhow::Result<()> {
-    let env = HashMap::from_iter(env::vars().filter_map(|(k, v)| {
+    let env = BTreeMap::from_iter(env::vars().filter_map(|(k, v)| {
         if k == "RAD_PASSPHRASE" {
             Some((k, "<REDACTED>".into()))
         } else if k.starts_with("RAD_") || k.starts_with("SSH_") || k == "PATH" || k == "SHELL" {
@@ -108,7 +108,7 @@ struct DebugInfo {
     old_log: Option<LogFile>,
     operating_system: &'static str,
     arch: &'static str,
-    env: HashMap<String, String>,
+    env: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Serialize)]
