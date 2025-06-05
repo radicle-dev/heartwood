@@ -86,6 +86,7 @@ fn debug(profile: Option<&Profile>) -> anyhow::Result<()> {
         operating_system: std::env::consts::OS,
         arch: std::env::consts::ARCH,
         env,
+        warnings: collect_warnings(profile),
     };
 
     println!("{}", serde_json::to_string_pretty(&debug).unwrap());
@@ -109,6 +110,9 @@ struct DebugInfo {
     operating_system: &'static str,
     arch: &'static str,
     env: BTreeMap<String, String>,
+
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    warnings: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -152,4 +156,11 @@ fn stdout_of(bin: &str, args: &[&str]) -> anyhow::Result<String> {
 fn stderr_of(bin: &str, args: &[&str]) -> anyhow::Result<String> {
     let (_, stderr) = output_of(bin, args)?;
     Ok(stderr)
+}
+
+fn collect_warnings(profile: Option<&Profile>) -> Vec<String> {
+    match profile {
+        Some(profile) => crate::warning::nodes_renamed(&profile.config),
+        None => vec!["No Radicle profile found.".to_string()],
+    }
 }

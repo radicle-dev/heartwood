@@ -206,6 +206,10 @@ pub fn connect(
 }
 
 pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
+    for warning in crate::warning::nodes_renamed(&profile.config) {
+        term::warning(warning);
+    }
+
     if node.is_running() {
         let listen = node
             .listen_addrs()?

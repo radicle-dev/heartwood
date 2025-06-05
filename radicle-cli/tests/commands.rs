@@ -432,6 +432,21 @@ fn rad_config() {
 }
 
 #[test]
+fn rad_warn_old_nodes() {
+    let mut environment = Environment::new();
+    let profile = environment.profile(config::profile("alice"));
+    let working = tempfile::tempdir().unwrap();
+
+    test(
+        "examples/rad-warn-old-nodes.md",
+        working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_checkout() {
     let mut environment = Environment::new();
     let profile = environment.profile(config::profile("alice"));
