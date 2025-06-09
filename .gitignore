@@ -1,5 +1,5 @@
 /target
-/radicle-cli/target
+/crates/*/target
 /build/artifacts
 /build/*.tar.gz
 /.pre-commit-config.yaml

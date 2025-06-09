@@ -1,34 +1,5 @@
 [workspace]
-members = [
-  "radicle",
-  "radicle-cob",
-  "radicle-cli",
-  "radicle-cli-test",
-  "radicle-crdt",
-  "radicle-crypto",
-  "radicle-dag",
-  "radicle-fetch",
-  "radicle-node",
-  "radicle-remote-helper",
-  "radicle-ssh",
-  "radicle-tools",
-  "radicle-schemars",
-  "radicle-signals",
-  "radicle-systemd",
-]
-default-members = [
-  "radicle",
-  "radicle-cli",
-  "radicle-cob",
-  "radicle-crdt",
-  "radicle-crypto",
-  "radicle-node",
-  "radicle-ssh",
-  "radicle-remote-helper",
-  "radicle-term",
-  "radicle-signals",
-  "radicle-systemd",
-]
+members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
@@ -67,19 +38,19 @@ nonempty = "0.9.0"
 pretty_assertions = "1.3.0"
 qcheck = { version = "1", default-features = false }
 qcheck-macros = { version = "1", default-features = false }
-radicle = { path = "radicle" }
-radicle-cli = { path = "radicle-cli" }
-radicle-cli-test = { path = "radicle-cli-test" }
-radicle-cob = { path = "radicle-cob" }
-radicle-crypto = { path = "radicle-crypto" }
-radicle-dag = { path = "radicle-dag" }
-radicle-fetch = { path = "radicle-fetch" }
+radicle = { path = "crates/radicle" }
+radicle-cli = { path = "crates/radicle-cli" }
+radicle-cli-test = { path = "crates/radicle-cli-test" }
+radicle-cob = { path = "crates/radicle-cob" }
+radicle-crypto = { path = "crates/radicle-crypto" }
+radicle-dag = { path = "crates/radicle-dag" }
+radicle-fetch = { path = "crates/radicle-fetch" }
 radicle-git-ext = { version = "0.8.0", default-features = false }
-radicle-node = { path = "radicle-node" }
-radicle-signals = { path = "radicle-signals" }
-radicle-ssh = { path = "radicle-ssh", default-features = false }
-radicle-systemd = { path = "radicle-systemd" }
-radicle-term = { path = "radicle-term" }
+radicle-node = { path = "crates/radicle-node" }
+radicle-signals = { path = "crates/radicle-signals" }
+radicle-ssh = { path = "crates/radicle-ssh", default-features = false }
+radicle-systemd = { path = "crates/radicle-systemd" }
+radicle-term = { path = "crates/radicle-term" }
 schemars = { version = "1.0.0-alpha.17" }
 serde = "1.0"
 serde_json = "1.0"
