@@ -1,11 +1,11 @@
 [package]
 name = "radicle-cli"
 description = "Radicle CLI"
-homepage = "https://radicle.xyz"
-license = "MIT OR Apache-2.0"
+homepage.workspace = true
+license.workspace = true
 version = "0.13.0"
 authors = ["cloudhead <cloudhead@radicle.xyz>"]
-edition = "2021"
+edition.workspace = true
 build = "build.rs"
 rust-version.workspace = true
 

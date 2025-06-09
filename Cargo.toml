@@ -32,6 +32,10 @@ default-members = [
 resolver = "2"
 
 [workspace.package]
+edition = "2021"
+homepage = "https://radicle.xyz"
+license = "MIT OR Apache-2.0"
+repository = "https://app.radicle.xyz/seeds/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
 version = "0.9.0"
 
 # Even though some crates in this workspace may build fine

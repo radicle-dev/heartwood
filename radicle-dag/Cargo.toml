@@ -1,12 +1,12 @@
 [package]
 name = "radicle-dag"
 description = "Radicle DAG implementation"
-homepage = "https://radicle.xyz"
-repository = "https://app.radicle.xyz/seeds/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
-license = "MIT OR Apache-2.0"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
 authors = ["cloudhead <cloudhead@radicle.xyz>"]
 version = "0.10.0"
-edition = "2021"
+edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
