@@ -3,12 +3,12 @@
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
 use git_ext::author::Author;
 use git_ext::commit::{headers::Headers, Commit};
 use git_ext::Oid;
 use nonempty::NonEmpty;
-use once_cell::sync::Lazy;
 use radicle_git_ext::commit::trailers::OwnedTrailer;
 
 use crate::change::store::Version;
@@ -24,7 +24,7 @@ use crate::{
 /// Name of the COB manifest file.
 pub const MANIFEST_BLOB_NAME: &str = "manifest";
 /// Path under which COB embeds are kept.
-pub static EMBEDS_PATH: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("embeds"));
+pub static EMBEDS_PATH: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("embeds"));
 
 pub mod error {
     use std::str::Utf8Error;

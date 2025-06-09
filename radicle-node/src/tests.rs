@@ -5,11 +5,11 @@ use std::default::*;
 use std::env;
 use std::io;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time;
 
 use crossbeam_channel as chan;
 use netservices::Direction as Link;
-use once_cell::sync::Lazy;
 use radicle::identity::Visibility;
 use radicle::node::address::Store as _;
 use radicle::node::device::Device;
@@ -57,7 +57,7 @@ use crate::{git, identity, rad, runtime, service, test};
 /// Default number of tests to run when testing things with high variance.
 pub const DEFAULT_TEST_CASES: usize = 10;
 /// Test cases to run when testing things with high variance.
-pub static TEST_CASES: Lazy<usize> = Lazy::new(|| {
+pub static TEST_CASES: LazyLock<usize> = LazyLock::new(|| {
     env::var("RAD_TEST_CASES")
         .ok()
         .and_then(|s| s.parse::<usize>().ok())

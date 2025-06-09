@@ -31,7 +31,6 @@ log = { version = "0.4.17", features = ["std"] }
 localtime = { version = "1.2.0" }
 netservices = { version = "0.8.0", features = ["io-reactor", "socket2"] }
 nonempty = { version = "0.9.0", features = ["serialize"] }
-once_cell = { version = "1.13" }
 qcheck = { version = "1", default-features = false, optional = true }
 # N.b. this is required to use macros, even though it's re-exported
 # through radicle

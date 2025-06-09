@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
+use std::sync::LazyLock;
 
-use once_cell::sync::Lazy;
 use serde::{ser::SerializeStruct, Deserialize, Serialize};
 use thiserror::Error;
 
@@ -15,8 +15,8 @@ use crate::prelude::ReadRepository;
 
 /// Type name of a thread, as well as the domain for all thread operations.
 /// Note that threads are not usually used standalone. They are embeded into other COBs.
-pub static TYPENAME: Lazy<cob::TypeName> =
-    Lazy::new(|| FromStr::from_str("xyz.radicle.thread").expect("type name is valid"));
+pub static TYPENAME: LazyLock<cob::TypeName> =
+    LazyLock::new(|| FromStr::from_str("xyz.radicle.thread").expect("type name is valid"));
 
 /// Error applying an operation onto a state.
 #[derive(Error, Debug)]

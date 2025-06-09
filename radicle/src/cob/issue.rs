@@ -3,8 +3,8 @@ pub mod cache;
 use std::collections::BTreeSet;
 use std::ops::Deref;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -27,8 +27,8 @@ pub use cache::Cache;
 pub type Op = cob::Op<Action>;
 
 /// Type name of an issue.
-pub static TYPENAME: Lazy<TypeName> =
-    Lazy::new(|| FromStr::from_str("xyz.radicle.issue").expect("type name is valid"));
+pub static TYPENAME: LazyLock<TypeName> =
+    LazyLock::new(|| FromStr::from_str("xyz.radicle.issue").expect("type name is valid"));
 
 /// Identifier for an issue.
 pub type IssueId = ObjectId;

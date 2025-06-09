@@ -5,10 +5,10 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use amplify::Wrapper;
 use nonempty::NonEmpty;
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use storage::{HasRepoId, RepositoryError};
 use thiserror::Error;
@@ -32,8 +32,8 @@ use crate::storage;
 pub use cache::Cache;
 
 /// Type name of a patch.
-pub static TYPENAME: Lazy<TypeName> =
-    Lazy::new(|| FromStr::from_str("xyz.radicle.patch").expect("type name is valid"));
+pub static TYPENAME: LazyLock<TypeName> =
+    LazyLock::new(|| FromStr::from_str("xyz.radicle.patch").expect("type name is valid"));
 
 /// Patch operation.
 pub type Op = cob::Op<Action>;

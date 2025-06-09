@@ -6,9 +6,9 @@ use std::num::{NonZeroU32, NonZeroUsize};
 use std::ops::{Deref, Not};
 use std::path::Path;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use nonempty::NonEmpty;
-use once_cell::sync::Lazy;
 use radicle_cob::type_name::{TypeName, TypeNameParse};
 use radicle_git_ext::Oid;
 use serde::{de, Deserialize, Serialize};
@@ -28,7 +28,7 @@ pub use crypto::PublicKey;
 pub use id::*;
 
 /// Path to the identity document in the identity branch.
-pub static PATH: Lazy<&Path> = Lazy::new(|| Path::new("radicle.json"));
+pub static PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("radicle.json"));
 /// Maximum length of a string in the identity document.
 pub const MAX_STRING_LENGTH: usize = 255;
 /// Maximum number of a delegates in the identity document.

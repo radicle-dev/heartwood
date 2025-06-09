@@ -5,10 +5,10 @@ pub mod transport;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use std::{fs, io};
 
 use crypto::Verified;
-use once_cell::sync::Lazy;
 use tempfile::TempDir;
 
 use crate::git::canonical::Canonical;
@@ -33,11 +33,11 @@ pub use crate::storage::{Error, RepositoryError};
 use super::refs::RefsAt;
 use super::{RemoteId, RemoteRepository, ValidateRepository};
 
-pub static NAMESPACES_GLOB: Lazy<git::refspec::PatternString> =
-    Lazy::new(|| git::refspec::pattern!("refs/namespaces/*"));
-pub static SIGREFS_GLOB: Lazy<refspec::PatternString> =
-    Lazy::new(|| git::refspec::pattern!("refs/namespaces/*/rad/sigrefs"));
-pub static CANONICAL_IDENTITY: Lazy<git::Qualified> = Lazy::new(|| {
+pub static NAMESPACES_GLOB: LazyLock<git::refspec::PatternString> =
+    LazyLock::new(|| git::refspec::pattern!("refs/namespaces/*"));
+pub static SIGREFS_GLOB: LazyLock<refspec::PatternString> =
+    LazyLock::new(|| git::refspec::pattern!("refs/namespaces/*/rad/sigrefs"));
+pub static CANONICAL_IDENTITY: LazyLock<git::Qualified> = LazyLock::new(|| {
     git::Qualified::from_components(
         git::name::component!("rad"),
         git::name::component!("id"),

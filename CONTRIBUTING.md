@@ -100,7 +100,7 @@ Imports are organized in groups, from least specific to more specific:
     use std::time;
 
     use git_ref_format as format;    // Then, external dependencies.
-    use once_cell::sync::Lazy;
+    use serde_json::Value;
 
     use crate::crypto::PublicKey;    // Finally, local crate imports.
     use crate::storage::refs::Refs;

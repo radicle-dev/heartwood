@@ -4,9 +4,9 @@ use std::io;
 use std::path::Path;
 use std::process::Command;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use git_ext::ref_format as format;
-use once_cell::sync::Lazy;
 
 use crate::collections::RandomMap;
 use crate::crypto::PublicKey;
@@ -188,7 +188,7 @@ pub mod refs {
         ///
         /// `refs/rad/id`
         ///
-        pub static IDENTITY_BRANCH: Lazy<Qualified> = Lazy::new(|| {
+        pub static IDENTITY_BRANCH: LazyLock<Qualified> = LazyLock::new(|| {
             Qualified::from_components(name::component!("rad"), name::component!("id"), None)
         });
 
@@ -196,7 +196,7 @@ pub mod refs {
         ///
         /// `refs/rad/root`
         ///
-        pub static IDENTITY_ROOT: Lazy<Qualified> = Lazy::new(|| {
+        pub static IDENTITY_ROOT: LazyLock<Qualified> = LazyLock::new(|| {
             Qualified::from_components(name::component!("rad"), name::component!("root"), None)
         });
 
@@ -204,7 +204,7 @@ pub mod refs {
         ///
         /// `refs/rad/sigrefs`
         ///
-        pub static SIGREFS_BRANCH: Lazy<Qualified> = Lazy::new(|| {
+        pub static SIGREFS_BRANCH: LazyLock<Qualified> = LazyLock::new(|| {
             Qualified::from_components(name::component!("rad"), name::component!("sigrefs"), None)
         });
 

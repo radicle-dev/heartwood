@@ -1,9 +1,8 @@
 use std::io::IsTerminal as _;
 use std::os::fd::{AsRawFd, BorrowedFd};
 use std::sync::atomic::{AtomicBool, AtomicI32};
+use std::sync::LazyLock;
 use std::{fmt, sync};
-
-use once_cell::sync::Lazy;
 
 use super::color::Color;
 use super::style::{Property, Style};
@@ -277,7 +276,7 @@ impl Paint<()> {
 
     /// Check 24-bit RGB color support.
     pub fn truecolor() -> bool {
-        static TRUECOLOR: Lazy<bool> = Lazy::new(anstyle_query::term_supports_color);
+        static TRUECOLOR: LazyLock<bool> = LazyLock::new(anstyle_query::term_supports_color);
         *TRUECOLOR
     }
 

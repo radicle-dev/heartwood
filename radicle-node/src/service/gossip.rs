@@ -1,16 +1,16 @@
 pub mod store;
 
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use super::*;
 use crate::{PROTOCOL_VERSION, VERSION};
-use once_cell::sync::Lazy;
 use radicle::node::UserAgent;
 
 pub use store::{AnnouncementId, Error, RelayStatus, Store};
 
 /// This node's user agent string.
-pub static USER_AGENT: Lazy<UserAgent> = Lazy::new(|| {
+pub static USER_AGENT: LazyLock<UserAgent> = LazyLock::new(|| {
     FromStr::from_str(format!("/radicle:{}/", VERSION.version).as_str())
         .expect("user agent is valid")
 });

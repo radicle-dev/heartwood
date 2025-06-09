@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
+use std::sync::LazyLock;
 use std::{fmt, ops::Deref, str::FromStr};
 
 use crypto::{PublicKey, Signature};
-use once_cell::sync::Lazy;
 use radicle_cob::{Embed, ObjectId, TypeName};
 use radicle_git_ext as git_ext;
 use radicle_git_ext::Oid;
@@ -29,8 +29,8 @@ use crate::{
 use super::{Author, EntryId};
 
 /// Type name of an identity proposal.
-pub static TYPENAME: Lazy<TypeName> =
-    Lazy::new(|| FromStr::from_str("xyz.radicle.id").expect("type name is valid"));
+pub static TYPENAME: LazyLock<TypeName> =
+    LazyLock::new(|| FromStr::from_str("xyz.radicle.id").expect("type name is valid"));
 
 /// Identity operation.
 pub type Op = cob::Op<Action>;

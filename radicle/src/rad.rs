@@ -2,8 +2,8 @@
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::LazyLock;
 
-use once_cell::sync::Lazy;
 use thiserror::Error;
 
 use crate::cob::ObjectId;
@@ -22,11 +22,13 @@ use crate::storage::{WriteRepository, WriteStorage};
 use crate::{identity, storage};
 
 /// Name of the radicle storage remote.
-pub static REMOTE_NAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("rad"));
+pub static REMOTE_NAME: LazyLock<git::RefString> = LazyLock::new(|| git::refname!("rad"));
 /// Name of the radicle storage remote.
-pub static REMOTE_COMPONENT: Lazy<git::Component> = Lazy::new(|| git::fmt::name::component!("rad"));
+pub static REMOTE_COMPONENT: LazyLock<git::Component> =
+    LazyLock::new(|| git::fmt::name::component!("rad"));
 /// Refname used for pushing patches.
-pub static PATCHES_REFNAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("refs/patches"));
+pub static PATCHES_REFNAME: LazyLock<git::RefString> =
+    LazyLock::new(|| git::refname!("refs/patches"));
 
 #[derive(Error, Debug)]
 pub enum InitError {

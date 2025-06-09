@@ -1,7 +1,7 @@
 use std::io;
 use std::net;
+use std::sync::LazyLock;
 
-use once_cell::sync::Lazy;
 use schemars::{generate::*, *};
 
 const SCHEMA_COMMAND: &str = "radicle::node::Command";
@@ -10,7 +10,7 @@ const SCHEMA_PROFILE_CONFIG: &str = "radicle::profile::Config";
 
 const SCHEMAS: &[&str] = &[SCHEMA_COMMAND, SCHEMA_COMMAND_RESULT, SCHEMA_PROFILE_CONFIG];
 
-pub static ERROR_MSG: Lazy<String> = Lazy::new(|| {
+pub static ERROR_MSG: LazyLock<String> = LazyLock::new(|| {
     let schemas = SCHEMAS.to_vec().join("\", \"");
     format!("Expected exactly one of the following schema names: [\"{schemas}\"].")
 });

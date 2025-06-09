@@ -2598,7 +2598,6 @@ dependencies = [
  "log",
  "multibase",
  "nonempty 0.9.0",
- "once_cell",
  "pretty_assertions",
  "qcheck",
  "qcheck-macros",
@@ -2681,7 +2680,6 @@ dependencies = [
  "git2",
  "log",
  "nonempty 0.9.0",
- "once_cell",
  "qcheck",
  "qcheck-macros",
  "radicle-crypto",
@@ -2790,7 +2788,6 @@ dependencies = [
  "log",
  "netservices",
  "nonempty 0.9.0",
- "once_cell",
  "qcheck",
  "qcheck-macros",
  "radicle",
@@ -2825,7 +2822,6 @@ dependencies = [
 name = "radicle-schemars"
 version = "0.1.0"
 dependencies = [
- "once_cell",
  "radicle",
  "schemars",
  "serde",
@@ -2890,7 +2886,6 @@ dependencies = [
  "git2",
  "inquire",
  "libc",
- "once_cell",
  "pretty_assertions",
  "radicle-signals",
  "shlex",

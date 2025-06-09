@@ -23,10 +23,10 @@ pub mod seeds {
     use std::str::FromStr;
 
     use super::{ConnectAddress, PeerAddr};
-    use once_cell::sync::Lazy;
+    use std::sync::LazyLock;
 
     /// A public Radicle seed node for the community.
-    pub static RADICLE_NODE_BOOTSTRAP_IRIS: Lazy<ConnectAddress> = Lazy::new(|| {
+    pub static RADICLE_NODE_BOOTSTRAP_IRIS: LazyLock<ConnectAddress> = LazyLock::new(|| {
         // SAFETY: `ConnectAddress` is known at compile time.
         #[allow(clippy::unwrap_used)]
         PeerAddr::from_str("z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@iris.radicle.xyz:8776")
@@ -35,7 +35,7 @@ pub mod seeds {
     });
 
     /// A public Radicle seed node for the community.
-    pub static RADICLE_NODE_BOOTSTRAP_ROSA: Lazy<ConnectAddress> = Lazy::new(|| {
+    pub static RADICLE_NODE_BOOTSTRAP_ROSA: LazyLock<ConnectAddress> = LazyLock::new(|| {
         // SAFETY: `ConnectAddress` is known at compile time.
         #[allow(clippy::unwrap_used)]
         PeerAddr::from_str("z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo@rosa.radicle.xyz:8776")
@@ -44,7 +44,7 @@ pub mod seeds {
     });
 
     /// The Radicle seed node that the Radicle team uses.
-    pub static RADICLE_NODE_TEAM: Lazy<ConnectAddress> = Lazy::new(|| {
+    pub static RADICLE_NODE_TEAM: LazyLock<ConnectAddress> = LazyLock::new(|| {
         // SAFETY: `ConnectAddress` is known at compile time.
         #[allow(clippy::unwrap_used)]
         PeerAddr::from_str("z6MksmpU5b1dS7oaqF2bHXhQi1DWy2hB7Mh9CuN7y1DN6QSz@seed.radicle.xyz:8776")

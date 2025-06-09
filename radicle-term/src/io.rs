@@ -1,13 +1,13 @@
 use std::ffi::OsStr;
 use std::fmt::Write;
 use std::process::Stdio;
+use std::sync::LazyLock;
 use std::{env, fmt, io, process};
 
 use inquire::ui::{ErrorMessageRenderConfig, StyleSheet, Styled};
 use inquire::validator;
 use inquire::InquireError;
 use inquire::{ui::Color, ui::RenderConfig, Confirm, CustomType, Password};
-use once_cell::sync::Lazy;
 use zeroize::Zeroizing;
 
 use crate::command;
@@ -26,7 +26,7 @@ pub const TAB: &str = "    ";
 pub type Passphrase = Zeroizing<String>;
 
 /// Render configuration.
-pub static CONFIG: Lazy<RenderConfig> = Lazy::new(|| RenderConfig {
+pub static CONFIG: LazyLock<RenderConfig> = LazyLock::new(|| RenderConfig {
     prompt: StyleSheet::new().with_fg(Color::LightCyan),
     prompt_prefix: Styled::new("?").with_fg(Color::LightBlue),
     answered_prompt_prefix: Styled::new("✓").with_fg(Color::LightGreen),

@@ -2,19 +2,18 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::LazyLock;
 use std::sync::{Mutex, Once};
 use std::thread::ThreadId;
 use std::{process, thread};
-
-use once_cell::sync::Lazy;
 
 use super::Url;
 use crate::storage::git::transport::ChildStream;
 use crate::storage::RemoteId;
 
 /// Nodes registered with the mock transport.
-static NODES: Lazy<Mutex<HashMap<(ThreadId, RemoteId), PathBuf>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static NODES: LazyLock<Mutex<HashMap<(ThreadId, RemoteId), PathBuf>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// The mock transport.
 #[derive(Default)]
