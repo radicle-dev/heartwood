@@ -6,24 +6,6 @@ authors = ["Alexis Sellier <alexis@radicle.xyz>"]
 edition = "2021"
 rust-version.workspace = true
 
-[dependencies]
-anyhow = { version = "1" }
-# N.b. this is required to use macros, even though it's re-exported
-# through radicle
-radicle-git-ext = { version = "0.8.0", features = ["serde"] }
-
-[dependencies.radicle]
-version = "0"
-path = "../radicle"
-
-[dependencies.radicle-cli]
-version = "0"
-path = "../radicle-cli"
-
-[dependencies.radicle-term]
-version = "0"
-path = "../radicle-term"
-
 [[bin]]
 name = "rad-init"
 path = "src/rad-init.rs"
@@ -51,3 +33,12 @@ path = "src/rad-agent.rs"
 [[bin]]
 name = "rad-cli-demo"
 path = "src/rad-cli-demo.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+radicle = { workspace = true }
+radicle-cli = { workspace = true }
+# N.b. this is required to use macros, even though it's re-exported
+# through radicle
+radicle-git-ext = { workspace = true, features = ["serde"] }
+radicle-term = { workspace = true }

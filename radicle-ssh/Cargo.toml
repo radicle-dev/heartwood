@@ -14,7 +14,7 @@ edition = "2021"
 rust-version.workspace = true
 
 [dependencies]
-byteorder = "1.4"
-log = "0.4"
-thiserror = "1.0"
-zeroize = "1.5.7"
+byteorder = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
+zeroize = { workspace = true }

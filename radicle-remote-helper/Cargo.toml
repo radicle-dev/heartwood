@@ -9,23 +9,13 @@ edition = "2021"
 build = "build.rs"
 rust-version.workspace = true
 
-[dependencies]
-thiserror = { version = "1" }
-log = { version = "0.4.17" }
-radicle-git-ext = { version = "0.8.0" }
-
-[dependencies.radicle]
-path = "../radicle"
-version = "0.15"
-
-[dependencies.radicle-crypto]
-path = "../radicle-crypto"
-version = "0.12"
-
-[dependencies.radicle-cli]
-path = "../radicle-cli"
-version = "0.13"
-
 [[bin]]
 name = "git-remote-rad"
 path = "src/git-remote-rad.rs"
+
+[dependencies]
+radicle = { workspace = true }
+radicle-cli = { workspace = true }
+radicle-crypto = { workspace = true }
+radicle-git-ext = { workspace = true }
+thiserror = { workspace = true }

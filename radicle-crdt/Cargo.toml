@@ -9,20 +9,16 @@ rust-version.workspace = true
 test = ["fastrand", "qcheck"]
 
 [dependencies]
-fastrand = { version = "2.0.0", optional = true }
+fastrand = { workspace = true, optional = true }
 num-traits = { version = "0.2.15", default-features = false, features = ["std"] }
-qcheck = { version = "1", optional = true }
-serde = { version = "1" }
-thiserror = { version = "1" }
-
-[dependencies.radicle-crypto]
-path = "../radicle-crypto"
-version = "0"
-features = []
+qcheck = { workspace = true, optional = true }
+radicle-crypto = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
-fastrand = { version = "2.0.0" }
-qcheck = { version = "1" }
-qcheck-macros = { version = "1" }
-radicle-crypto = { path = "../radicle-crypto", features = ["test"] }
-tempfile = { version = "3" }
+fastrand = { workspace = true }
+qcheck = { workspace = true }
+qcheck-macros = { workspace = true }
+radicle-crypto = { workspace = true, features = ["test"] }
+tempfile = { workspace = true }

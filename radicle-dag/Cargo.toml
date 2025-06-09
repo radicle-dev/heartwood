@@ -10,4 +10,4 @@ edition = "2021"
 rust-version.workspace = true
 
 [dependencies]
-fastrand = { version = "2.0.0" }
+fastrand = { workspace = true }

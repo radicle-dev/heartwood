@@ -19,39 +19,21 @@ default = []
 stable-commit-ids = []
 
 [dependencies]
-fastrand = { version = "2.0.0" }
-log = { version = "0.4.17" }
-nonempty = { version = "0.9.0", features = ["serialize"] }
-radicle-git-ext = { version = "0.8.0", features = ["serde"] }
-serde_json = { version = "1.0" }
-signature = { version = "2.2" }
-thiserror = { version = "1.0" }
-
-[dependencies.git2]
-version = "0.19.0"
-default-features = false
-features = ["vendored-libgit2"]
-
-[dependencies.radicle-crypto]
-path = "../radicle-crypto"
-version = "0.12"
-features = ["ssh"]
-
-[dependencies.radicle-dag]
-path = "../radicle-dag"
-version = "0.10"
-
-[dependencies.serde]
-version = "1.0"
-features = ["derive"]
+fastrand = { workspace = true }
+git2 = { workspace = true, features = ["vendored-libgit2"] }
+log = { workspace = true }
+nonempty = { workspace = true, features = ["serialize"] }
+radicle-crypto = { workspace = true, features = ["ssh"] }
+radicle-dag = { workspace = true }
+radicle-git-ext = { workspace = true, features = ["serde"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+signature = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
-fastrand = { version = "2.0.0", default-features = false }
-tempfile = { version = "3" }
-qcheck = { version = "1", default-features = false }
-qcheck-macros = { version = "1", default-features = false }
-
-[dev-dependencies.radicle-crypto]
-path = "../radicle-crypto"
-version = "0"
-features = ["test", "radicle-git-ext"]
+fastrand = { workspace = true }
+qcheck = { workspace = true }
+qcheck-macros = { workspace = true }
+radicle-crypto = { workspace = true, features = ["test", "radicle-git-ext"] }
+tempfile = { workspace = true }

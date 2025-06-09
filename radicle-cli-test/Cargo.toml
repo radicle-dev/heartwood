@@ -12,14 +12,10 @@ readme = "README.md"
 rust-version.workspace = true
 
 [dependencies]
-escargot = { version = "0.5.7" }
-log = { version = "0.4", features = ["std"] }
-pretty_assertions = { version = "1.3.0" }
-shlex = { version = "1.1.0" }
-snapbox = { version = "0.4.3" }
-thiserror = { version = "1" }
-
-[dependencies.radicle]
-path = "../radicle"
-version = "0"
-features = ["logger", "test"]
+escargot = "0.5.7"
+log = { workspace = true, features = ["std"] }
+pretty_assertions = { workspace = true }
+radicle = { workspace = true, features = ["logger", "test"]}
+shlex = { workspace = true }
+snapbox = { workspace = true }
+thiserror = { workspace = true }

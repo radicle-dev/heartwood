@@ -13,11 +13,7 @@ name = "radicle-schemars"
 path = "src/main.rs"
 
 [dependencies]
+radicle = { workspace = true, features = ["schemars"]}
 schemars = { workspace = true }
-serde = { version = "1.0" }
-serde_json = { version = "1" }
-
-[dependencies.radicle]
-version = "0"
-path = "../radicle"
-features = ["schemars"]
+serde = { workspace = true }
+serde_json = { workspace = true }

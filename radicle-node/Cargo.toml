@@ -15,56 +15,42 @@ systemd = ["dep:radicle-systemd"]
 test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "qcheck", "snapbox"]
 
 [dependencies]
-amplify = { version = "4.0.0" }
-anyhow = { version = "1" }
-bloomy = { version = "1.2" }
-byteorder = { version = "1" }
-chrono = { version = "0.4.0", default-features = false, features = ["clock"] }
-colored = { version = "2.1.0" }
-crossbeam-channel = { version = "0.5.6" }
-cyphernet = { version = "0.5.2", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
-fastrand = { version = "2.0.0" }
+amplify = { workspace = true }
+anyhow = { workspace = true }
+bloomy = "1.2"
+byteorder = { workspace = true }
+chrono = { workspace = true, features = ["clock"] }
+colored = { workspace = true }
+crossbeam-channel = { workspace = true }
+cyphernet = { workspace = true, features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
+fastrand = { workspace = true }
 io-reactor = { version = "0.5.1", features = ["popol"] }
-lexopt = { version = "0.3.0" }
-libc = { version = "0.2.137" }
-log = { version = "0.4.17", features = ["std"] }
-localtime = { version = "1.2.0" }
+lexopt = { workspace = true }
+libc = { workspace = true }
+log = { workspace = true, features = ["std"] }
+localtime = { workspace = true }
 netservices = { version = "0.8.0", features = ["io-reactor", "socket2"] }
-nonempty = { version = "0.9.0", features = ["serialize"] }
-qcheck = { version = "1", default-features = false, optional = true }
+nonempty = { workspace = true, features = ["serialize"] }
+qcheck = { workspace = true, optional = true }
+radicle = { workspace = true, features = ["logger"] }
+radicle-fetch = { workspace = true }
 # N.b. this is required to use macros, even though it's re-exported
 # through radicle
-radicle-git-ext = { version = "0.8.0", features = ["serde"] }
-sqlite = { version = "0.32.0", features = ["bundled"] }
+radicle-git-ext = { workspace = true, features = ["serde"] }
+radicle-signals = { workspace = true }
+radicle-systemd = { workspace = true, optional = true }
+sqlite = { workspace = true, features = ["bundled"] }
 scrypt = { version = "0.11.0", default-features = false }
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
-snapbox = { version = "0.4.3", optional = true }
-socket2 = { version = "0.5.7" }
-tempfile = { version = "3.3.0" }
-thiserror = { version = "1" }
-
-[dependencies.radicle]
-path = "../radicle"
-version = "0.15"
-features = ["logger"]
-
-[dependencies.radicle-fetch]
-path = "../radicle-fetch"
-version = "0.11"
-
-[dependencies.radicle-signals]
-path = "../radicle-signals"
-version = "0.11"
-
-[dependencies.radicle-systemd]
-path = "../radicle-systemd"
-version = "0.9.0"
-optional = true
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["preserve_order"] }
+snapbox = { workspace = true, optional = true }
+socket2 = "0.5.7"
+tempfile = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
-radicle = { path = "../radicle", version = "0", features = ["test"] }
-radicle-crypto = { path = "../radicle-crypto", version = "0", features = ["test", "cyphernet"] }
-qcheck = { version = "1", default-features = false }
-qcheck-macros = { version = "1", default-features = false }
-snapbox = { version = "0.4.3" }
+qcheck = { workspace = true }
+qcheck-macros = { workspace = true }
+radicle = { workspace = true, features = ["test"] }
+radicle-crypto = { workspace = true, features = ["test", "cyphernet"] }
+snapbox = { workspace = true }

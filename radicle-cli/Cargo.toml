@@ -14,65 +14,49 @@ name = "rad"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = { version = "1" }
-chrono = { version = "0.4.26", default-features = false, features = ["clock", "std"] }
+anyhow = { workspace = true }
+chrono = { workspace = true, features = ["clock", "std"] }
 git-ref-format = { version = "0.3.0", features = ["macro"] }
-lexopt = { version = "0.3.0" }
-localtime = { version = "1.2.0" }
-log = { version = "0.4", features = ["std"] }
-nonempty = { version = "0.9.0" }
+lexopt = { workspace = true }
+localtime = { workspace = true }
+log = { workspace = true, features = ["std"] }
+nonempty = { workspace = true }
+radicle = { workspace = true, features = ["logger", "schemars"] }
+radicle-cob = { workspace = true }
+radicle-crypto = { workspace = true }
 # N.b. this is required to use macros, even though it's re-exported
 # through radicle
-radicle-git-ext = { version = "0.8.0", features = ["serde"] }
-radicle-surf = { version = "0.22.0" }
-serde = { version = "1.0" }
-serde_json = { version = "1" }
-shlex = { version = "1.1.0" }
-tempfile = { version = "3.3.0" }
-thiserror = { version = "1" }
-timeago = { version = "0.4.2", default-features = false }
-tree-sitter = { version = "0.24.4" }
-tree-sitter-highlight = { version = "0.24.4" }
-tree-sitter-json = { version = "0.24.8" }
-tree-sitter-rust = { version = "0.23.2" }
-tree-sitter-typescript = { version = "0.23.2" }
-tree-sitter-html = { version = "0.23.2" }
-tree-sitter-css = { version = "0.23.1" }
-tree-sitter-toml-ng = { version = "0.6.0" }
-tree-sitter-c = { version = "0.23.2" }
-tree-sitter-python = { version = "0.23.4" }
-tree-sitter-ruby = { version = "0.23.1" }
-tree-sitter-bash = { version = "0.23.3" }
-tree-sitter-go = { version = "0.23.4" }
-tree-sitter-md = { version = "0.3.2" }
-zeroize = { version = "1.1" }
+radicle-git-ext = { workspace = true, features = ["serde"] }
+radicle-surf = "0.22.0"
+radicle-term = { workspace = true }
 schemars = { workspace = true }
-
-[dependencies.radicle]
-version = "0.15"
-path = "../radicle"
-features = ["logger", "schemars"]
-
-[dependencies.radicle-cob]
-version = "0.14"
-path = "../radicle-cob"
-
-[dependencies.radicle-crypto]
-version = "0.12"
-path = "../radicle-crypto"
-
-[dependencies.radicle-term]
-version = "0.12"
-path = "../radicle-term"
+serde = { workspace = true }
+serde_json = { workspace = true }
+shlex = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
+timeago = { version = "0.4.2", default-features = false }
+tree-sitter = "0.24.4"
+tree-sitter-bash = "0.23.3"
+tree-sitter-c = "0.23.2"
+tree-sitter-css = "0.23.1"
+tree-sitter-go = "0.23.4"
+tree-sitter-highlight = "0.24.4"
+tree-sitter-html = "0.23.2"
+tree-sitter-json = "0.24.8"
+tree-sitter-md = "0.3.2"
+tree-sitter-python = "0.23.4"
+tree-sitter-ruby = "0.23.1"
+tree-sitter-rust = "0.23.2"
+tree-sitter-toml-ng = "0.6.0"
+tree-sitter-typescript = "0.23.2"
+zeroize = { workspace = true }
 
 [dev-dependencies]
-pretty_assertions = { version = "1.3.0" }
-radicle = { version = "0", path = "../radicle", features = ["test"] }
-radicle-node = { path = "../radicle-node", features = ["test"] }
-
-[dev-dependencies.radicle-cli-test]
-version = "0"
-path = "../radicle-cli-test"
+pretty_assertions = { workspace = true }
+radicle = { workspace = true, features = ["test"] }
+radicle-cli-test = { workspace = true }
+radicle-node = { workspace = true, features = ["test"] }
 
 [lints]
 workspace = true

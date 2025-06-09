@@ -17,41 +17,23 @@ test = ["fastrand", "qcheck"]
 ssh = ["radicle-ssh", "ssh-key"]
 
 [dependencies]
-amplify = { version = "4.0.0" }
-cyphernet = { version = "0.5.0", optional = true, features = ["ed25519"] }
-fastrand = { version = "2.0.0", default-features = false, optional = true }
-multibase = { version = "0.9.1" }
-ec25519 = { version = "0.1.0", features = [] }
-serde = { version = "1", features = ["derive"] }
-signature = { version = "2.2"  }
-sqlite = { version = "0.32.0", optional = true, features = ["bundled"] }
-thiserror = { version = "1" }
-zeroize = { version = "1.5.7" }
-
-[dependencies.radicle-git-ext]
-version = "0.8.0"
-default-features = false
-optional = true
-
-[dependencies.ssh-key]
-version = "0.6.3"
-default-features = false
-features = ["std", "encryption", "getrandom"]
-optional = true
-
-[dependencies.qcheck]
-version = "1"
-default-features = false
-optional = true
-
-[dependencies.radicle-ssh]
-path = "../radicle-ssh"
-version = "0.9"
-default-features = false
-optional = true
+amplify = { workspace = true }
+cyphernet = { workspace = true, features = ["ed25519"], optional = true }
+ec25519 = "0.1.0"
+fastrand = { workspace = true, optional = true }
+multibase = { workspace = true }
+qcheck = { workspace = true, optional = true }
+radicle-git-ext = { workspace = true, optional = true }
+radicle-ssh = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"] }
+signature = { workspace = true }
+sqlite = { workspace = true, features = ["bundled"], optional = true }
+ssh-key = { workspace = true, features = ["std", "encryption", "getrandom"], optional = true }
+thiserror = { workspace = true }
+zeroize = { workspace = true }
 
 [dev-dependencies]
-fastrand = { version = "2.0.0", default-features = false }
-qcheck-macros = { version = "1", default-features = false }
-qcheck = { version = "1", default-features = false }
-tempfile = { version = "3.3.0" }
+fastrand = { workspace = true }
+qcheck = { workspace = true }
+qcheck-macros = { workspace = true }
+tempfile = { workspace = true }

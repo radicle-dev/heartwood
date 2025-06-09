@@ -13,28 +13,20 @@ rust-version.workspace = true
 default = ["git2"]
 
 [dependencies]
-anyhow = { version = "1" }
-anstyle-query = { version = "1.0.0" }
-crossbeam-channel = { version = "0.5.6" }
+anyhow = { workspace = true }
+anstyle-query = "1.0.0"
+crossbeam-channel = { workspace = true }
 inquire = { version = "0.7.4", default-features = false, features = ["termion", "editor"] }
-libc = { version = "0.2" }
-shlex = { version = "1.1" }
-termion = { version = "3" }
-thiserror = { version = "1" }
-unicode-display-width = { version = "0.3.0" }
-unicode-segmentation = { version = "1.7.1" }
-zeroize = { version = "1.1" }
-
-[dependencies.git2]
-version = "0.19.0"
-default-features = false
-features = ["vendored-libgit2"]
-optional = true
-
-[dependencies.radicle-signals]
-path = "../radicle-signals"
-version = "0.11"
+libc = { workspace = true }
+shlex = { workspace = true }
+termion = "3"
+thiserror = { workspace = true }
+unicode-display-width = "0.3.0"
+unicode-segmentation = "1.7.1"
+zeroize = { workspace = true }
+git2 = { workspace = true, features = ["vendored-libgit2"], optional = true }
+radicle-signals = { workspace = true }
 
 [dev-dependencies]
-pretty_assertions = { version = "1.3.0" }
-tempfile = { version = "3.3.0" }
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }
