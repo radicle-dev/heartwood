@@ -10,9 +10,9 @@ override_dh_auto_build:
 
 override_dh_auto_install:
 	mkdir -p debian/radicle/usr
-	cargo install --offline --locked --path=radicle-cli --root=debian/radicle/usr
-	cargo install --offline --locked --path=radicle-node --root=debian/radicle/usr
-	cargo install --offline --locked --path=radicle-remote-helper --root=debian/radicle/usr
+	cargo install --offline --locked --path=crates/radicle-cli --root=debian/radicle/usr
+	cargo install --offline --locked --path=crates/radicle-node --root=debian/radicle/usr
+	cargo install --offline --locked --path=crates/radicle-remote-helper --root=debian/radicle/usr
 	find debian/radicle -name '.crates*' -delete
 
 override_dh_auto_test:
