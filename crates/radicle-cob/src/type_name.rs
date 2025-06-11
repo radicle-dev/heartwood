@@ -16,7 +16,17 @@ use thiserror::Error;
 /// * `xyz.rad.issues`
 /// * `xyz.rad.patches.releases`
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct TypeName(String);
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "schemars", schemars(
+    description = "\
+        The typename of an object. Valid typenames MUST be sequences of \
+        alphanumeric characters separated by a period. The name must start \
+        and end with an alphanumeric character.",
+    extend("examples" = ["abc.def", "xyz.rad.issues", "xyz.rad.patches.releases"]),
+))]
+pub struct TypeName(
+    #[cfg_attr(feature = "schemars", schemars(regex(pattern = r"^\w+(\.\w+)*$")))] String,
+);
 
 impl TypeName {
     pub fn as_str(&self) -> &str {
