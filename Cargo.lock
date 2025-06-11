@@ -2448,6 +2448,7 @@ dependencies = [
  "radicle-crypto",
  "radicle-dag",
  "radicle-git-ext",
+ "schemars",
  "serde",
  "serde_json",
  "signature 2.2.0",

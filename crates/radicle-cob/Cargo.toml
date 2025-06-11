@@ -26,6 +26,7 @@ nonempty = { workspace = true, features = ["serialize"] }
 radicle-crypto = { workspace = true, features = ["ssh"] }
 radicle-dag = { workspace = true }
 radicle-git-ext = { workspace = true, features = ["serde"] }
+schemars = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 signature = { workspace = true }
