@@ -80,6 +80,7 @@ impl DocError {
 /// If an invalid version is found – either the `0` version, or an unrecognized
 /// future version – the parsing of a version will fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Version(NonZeroU32);
 
 impl Version {
@@ -230,6 +231,7 @@ pub enum PayloadError {
 /// The payload is identified in the [`Doc`] by its corresponding [`PayloadId`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Payload {
     value: serde_json::Value,
 }
@@ -291,6 +293,7 @@ impl AsRef<Doc> for DocAt {
 /// Repository visibility.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum Visibility {
     /// Anyone and everyone.
     #[default]
@@ -469,7 +472,10 @@ impl RawDoc {
 /// It can only be constructed via [`Delegates::new`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "Vec<Did>")]
-pub struct Delegates(NonEmpty<Did>);
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+pub struct Delegates(
+    #[cfg_attr(feature = "schemars", schemars(with = "Vec<Did>", length(min = 1)))] NonEmpty<Did>,
+);
 
 impl AsRef<NonEmpty<Did>> for Delegates {
     fn as_ref(&self) -> &NonEmpty<Did> {
@@ -564,6 +570,7 @@ impl From<Delegates> for Vec<Did> {
 /// It can only be constructed via [`Threshold::new`] or [`Threshold::MIN`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(transparent)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Threshold(NonZeroUsize);
 
 impl From<Threshold> for usize {
@@ -624,6 +631,8 @@ impl Threshold {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(try_from = "RawDoc")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "schemars", schemars(rename = "xyz.radicle.id",))]
 pub struct Doc {
     #[serde(skip_serializing_if = "Version::skip_serializing")]
     version: Version,

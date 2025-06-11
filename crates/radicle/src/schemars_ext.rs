@@ -24,7 +24,12 @@ pub mod crypto {
         "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5",
     ]),
 )]
-    pub struct PublicKey(String);
+    pub struct PublicKey(
+        #[schemars(regex(
+            pattern = r"^z6Mk[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$",
+        ))]
+        String,
+    );
 }
 
 pub(crate) mod log {

@@ -16,7 +16,17 @@ pub enum DidError {
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 #[serde(into = "String", try_from = "String")]
-pub struct Did(crypto::PublicKey);
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+pub struct Did(
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(
+            with = "String",
+            regex(pattern = r"^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]+$"),
+        )
+    )]
+    crypto::PublicKey,
+);
 
 impl Did {
     /// We use the format specified by the DID `key` method, which is described as:
