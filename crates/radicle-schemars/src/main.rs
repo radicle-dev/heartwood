@@ -7,8 +7,14 @@ use schemars::{generate::*, *};
 const SCHEMA_COMMAND: &str = "radicle::node::Command";
 const SCHEMA_COMMAND_RESULT: &str = "radicle::node::CommandResult";
 const SCHEMA_PROFILE_CONFIG: &str = "radicle::profile::Config";
+const SCHEMA_IDENTITY_DOC: &str = "radicle::identity::doc::Doc";
 
-const SCHEMAS: &[&str] = &[SCHEMA_COMMAND, SCHEMA_COMMAND_RESULT, SCHEMA_PROFILE_CONFIG];
+const SCHEMAS: &[&str] = &[
+    SCHEMA_COMMAND,
+    SCHEMA_COMMAND_RESULT,
+    SCHEMA_PROFILE_CONFIG,
+    SCHEMA_IDENTITY_DOC,
+];
 
 pub static ERROR_MSG: LazyLock<String> = LazyLock::new(|| {
     let schemas = SCHEMAS.to_vec().join("\", \"");
@@ -19,6 +25,7 @@ enum Schema {
     Command,
     CommandResult,
     ProfileConfig,
+    IdentityDoc,
 }
 
 impl std::str::FromStr for Schema {
@@ -29,6 +36,7 @@ impl std::str::FromStr for Schema {
             SCHEMA_COMMAND => Ok(Self::Command),
             SCHEMA_COMMAND_RESULT => Ok(Self::CommandResult),
             SCHEMA_PROFILE_CONFIG => Ok(Self::ProfileConfig),
+            SCHEMA_IDENTITY_DOC => Ok(Self::IdentityDoc),
             schema => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("{schema}: {}", *ERROR_MSG),
@@ -67,6 +75,12 @@ fn print_schema() -> io::Result<()> {
             let generator = settings.into_generator();
 
             generator.into_root_schema_for::<radicle::node::Command>()
+        }
+        Schema::IdentityDoc => {
+            let settings = SchemaSettings::default().for_serialize();
+            let generator = settings.into_generator();
+
+            generator.into_root_schema_for::<radicle::identity::doc::Doc>()
         }
         Schema::CommandResult => {
             #[derive(JsonSchema)]
