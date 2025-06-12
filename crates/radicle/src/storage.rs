@@ -18,7 +18,7 @@ use crate::cob;
 use crate::collections::RandomMap;
 use crate::git::{canonical, ext as git_ext};
 use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefStr, RefString};
-use crate::identity::{Did, PayloadError};
+use crate::identity::{doc, Did, PayloadError};
 use crate::identity::{Doc, DocAt, DocError};
 use crate::identity::{Identity, RepoId};
 use crate::node::device::Device;
@@ -120,6 +120,10 @@ pub enum RepositoryError {
     Quorum(#[from] canonical::QuorumError),
     #[error(transparent)]
     Refs(#[from] refs::Error),
+    #[error("missing canonical reference rule for default branch")]
+    MissingBranchRule,
+    #[error("could not get the default branch rule: {0}")]
+    DefaultBranchRule(#[from] doc::DefaultBranchRuleError),
 }
 
 impl RepositoryError {

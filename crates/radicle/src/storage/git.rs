@@ -11,9 +11,9 @@ use std::{fs, io};
 use crypto::Verified;
 use tempfile::TempDir;
 
-use crate::git::canonical::Canonical;
+use crate::identity::crefs::GetCanonicalRefs as _;
 use crate::identity::doc::DocError;
-use crate::identity::{Doc, DocAt, RepoId};
+use crate::identity::{CanonicalRefs, Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
 use crate::node::device::Device;
 use crate::node::SyncedAt;
@@ -749,13 +749,18 @@ impl ReadRepository for Repository {
 
     fn canonical_head(&self) -> Result<(Qualified, Oid), RepositoryError> {
         let doc = self.identity_doc()?;
-        let project = doc.project()?;
-        let branch_ref = git::refs::branch(project.default_branch());
-        let raw = self.raw();
-        let oid =
-            Canonical::default_branch(self, &project, doc.delegates().into(), doc.threshold())?
-                .quorum(raw)?;
-        Ok((branch_ref, oid))
+        let refname = git::refs::branch(doc.project()?.default_branch());
+        let crefs = match doc.canonical_refs()? {
+            Some(crefs) => crefs,
+            // Fallback to constructing the default branch via the project
+            // payload
+            None => CanonicalRefs::from_iter([doc.default_branch_rule()?]),
+        };
+        Ok(crefs
+            .rules()
+            .canonical(refname, self)?
+            .ok_or(RepositoryError::MissingBranchRule)?
+            .quorum(self.raw())?)
     }
 
     fn identity_head(&self) -> Result<Oid, RepositoryError> {
