@@ -45,7 +45,7 @@ radicle-cob = { path = "crates/radicle-cob" }
 radicle-crypto = { path = "crates/radicle-crypto" }
 radicle-dag = { path = "crates/radicle-dag" }
 radicle-fetch = { path = "crates/radicle-fetch" }
-radicle-git-ext = { version = "0.8.0", default-features = false }
+radicle-git-ext = { version = "0.8", default-features = false }
 radicle-node = { path = "crates/radicle-node" }
 radicle-signals = { path = "crates/radicle-signals" }
 radicle-ssh = { path = "crates/radicle-ssh", default-features = false }
