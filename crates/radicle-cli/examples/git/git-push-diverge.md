@@ -44,7 +44,7 @@ integrate Bob's changes before pushing ours:
 
 ``` ~alice (stderr) (fail) RAD_HINT=1
 $ git push rad
-hint: you are attempting to push a commit that would cause your upstream to diverge from the canonical head
+hint: you are attempting to push a commit that would cause your upstream to diverge from the canonical reference refs/heads/master
 hint: to integrate the remote changes, run `git pull --rebase` and try again
 error: refusing to update branch to commit that is not a descendant of canonical head
 error: failed to push some refs to 'rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi'
@@ -62,7 +62,7 @@ f2de534 Second commit
 ```
 ``` ~alice RAD_SOCKET=/dev/null (stderr)
 $ git push rad
-✓ Canonical head updated to f6cff86594495e9beccfeda7c20173e55c1dd9fc
+✓ Canonical head for refs/heads/master updated to f6cff86594495e9beccfeda7c20173e55c1dd9fc
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..f6cff86  master -> master
 ```
@@ -75,7 +75,7 @@ $ git reset --hard HEAD^ -q
 ```
 ``` ~alice RAD_SOCKET=/dev/null (stderr)
 $ git push -f
-✓ Canonical head updated to 319a7dc3b195368ded4b099f8c90bbb80addccd3
+✓ Canonical head for refs/heads/master updated to 319a7dc3b195368ded4b099f8c90bbb80addccd3
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + f6cff86...319a7dc master -> master (forced update)
 ```

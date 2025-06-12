@@ -7,15 +7,18 @@ use localtime::LocalTime;
 
 use radicle::cob::TypedId;
 use radicle::crypto::PublicKey;
+use radicle::identity::crefs::GetCanonicalRefs as _;
 use radicle::identity::DocAt;
 use radicle::prelude::NodeId;
 use radicle::prelude::RepoId;
+use radicle::storage::git::Repository;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{
     ReadRepository, ReadStorage as _, RefUpdate, RemoteRepository, RepositoryError,
     WriteRepository as _,
 };
 use radicle::{cob, git, node, Storage};
+use radicle_fetch::git::refs::Applied;
 use radicle_fetch::{Allowed, BlockList, FetchLimit};
 
 use super::channels::ChannelsFlush;
@@ -89,8 +92,6 @@ impl Handle {
         remote: PublicKey,
         refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Fetch> {
-        use git::canonical::QuorumError::{Diverging, NoCandidates};
-
         let (result, clone, notifs) = match self {
             Self::Clone { mut handle, tmp } => {
                 log::debug!(target: "worker", "{} cloning from {remote}", handle.local());
@@ -145,13 +146,17 @@ impl Handle {
                             log::trace!(target: "worker", "Set HEAD to {}", head.new);
                         }
                     }
-                    Err(RepositoryError::Quorum(Diverging(e))) => {
-                        log::warn!(target: "worker", "Fetch could not set HEAD: {e}")
+                    Err(RepositoryError::Quorum(radicle::git::canonical::QuorumError::Git(e))) => {
+                        return Err(e.into())
                     }
-                    Err(RepositoryError::Quorum(NoCandidates(e))) => {
+                    Err(RepositoryError::Quorum(e)) => {
                         log::warn!(target: "worker", "Fetch could not set HEAD: {e}")
                     }
                     Err(e) => return Err(e.into()),
+                }
+
+                if let Err(e) = set_canonical_refs(&repo, &applied) {
+                    log::warn!(target: "worker", "Failed to set canonical references: {e}");
                 }
 
                 // Notifications are only posted for pulls, not clones.
@@ -375,5 +380,73 @@ where
             err: Box::new(e),
         })?;
 
+    Ok(())
+}
+
+fn set_canonical_refs(repo: &Repository, applied: &Applied) -> Result<(), error::Canonical> {
+    let identity = repo.identity()?;
+    let rules = match identity
+        .canonical_refs()?
+        .map(|crefs| crefs.rules().clone())
+        .filter(|rules| !rules.is_empty())
+    {
+        None => return Ok(()),
+        Some(rules) => rules,
+    };
+
+    for update in applied.updated.iter() {
+        let name = match update {
+            RefUpdate::Updated { name, .. } | RefUpdate::Created { name, .. } => name,
+            _ => {
+                log::trace!(target: "worker", "Skipping update {update}");
+                continue;
+            }
+        };
+        let Some(name) = name.clone().into_qualified() else {
+            log::warn!(target: "worker", "Skipping update for canonical reference '{name}' because it is not qualified.");
+            continue;
+        };
+        let Some(name) = name.to_namespaced() else {
+            log::warn!(target: "worker", "Skipping update for canonical reference '{name}' because it is not namespaced.");
+            continue;
+        };
+
+        let name = name.strip_namespace();
+
+        let canonical = match rules.canonical(name.clone(), repo) {
+            Ok(Some(canonical)) => canonical,
+            Ok(None) => continue,
+            Err(e) => {
+                log::warn!(target: "worker", "Failed to get canonical reference rule for {name}: {e}");
+                continue;
+            }
+        };
+
+        match canonical.quorum(&repo.backend) {
+            Err(err) => {
+                log::warn!(
+                    target: "worker",
+                    "Failed to calculate canonical reference: {}",
+                    err,
+                );
+                continue;
+            }
+            Ok((refname, oid)) => {
+                if let Err(e) = repo.backend.reference(
+                    refname.clone().as_str(),
+                    *oid,
+                    true,
+                    "set-canonical-reference from fetch (radicle)",
+                ) {
+                    log::warn!(
+                        target: "worker",
+                        "Failed to set canonical reference {}->{}: {e}",
+                        refname,
+                        oid
+                    );
+                }
+            }
+        }
+    }
     Ok(())
 }

@@ -19,6 +19,7 @@ use crate::cob::identity;
 use crate::crypto;
 use crate::crypto::Signature;
 use crate::git;
+use crate::git::canonical::rules;
 use crate::identity::{project::Project, Did};
 use crate::node::device::Device;
 use crate::storage;
@@ -26,6 +27,9 @@ use crate::storage::{ReadRepository, RepositoryError};
 
 pub use crypto::PublicKey;
 pub use id::*;
+
+use super::crefs::{self, RawCanonicalRefs};
+use super::CanonicalRefs;
 
 /// Path to the identity document in the identity branch.
 pub static PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("radicle.json"));
@@ -71,6 +75,14 @@ impl DocError {
             _ => false,
         }
     }
+}
+
+#[derive(Debug, Error)]
+pub enum DefaultBranchRuleError {
+    #[error("could not create rule due to the reference name being invalid: {0}")]
+    Pattern(#[from] rules::PatternError),
+    #[error("could not load `xyz.radicle.project` to get default branch name: {0}")]
+    Payload(#[from] PayloadError),
 }
 
 /// The version number of the identity document.
@@ -215,10 +227,20 @@ impl PayloadId {
                 .expect("PayloadId::project: type name is valid"),
         )
     }
+
+    pub fn canonical_refs() -> Self {
+        Self(
+            // SAFETY: We know this is valid.
+            TypeName::from_str("xyz.radicle.crefs")
+                .expect("PayloadId::canonical_refs: type name is valid"),
+        )
+    }
 }
 
 #[derive(Debug, Error)]
 pub enum PayloadError {
+    #[error(transparent)]
+    CanonicalRefs(#[from] rules::ValidationError),
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
     #[error("payload '{0}' not found in identity document")]
@@ -536,6 +558,11 @@ impl Delegates {
         self.0.contains(did)
     }
 
+    /// Check if the `did` is the only delegate of the repository.
+    pub fn is_only(&self, did: &Did) -> bool {
+        self.0.tail.is_empty() && &self.0.head == did
+    }
+
     /// Get the number of delegates in the set.
     pub fn len(&self) -> usize {
         self.0.len()
@@ -715,6 +742,19 @@ impl Doc {
         Ok(proj)
     }
 
+    pub fn default_branch_rule(
+        &self,
+    ) -> Result<(rules::Pattern, rules::ValidRule), DefaultBranchRuleError> {
+        let proj = self.project()?;
+        let refname = proj.default_branch();
+        let pattern = rules::Pattern::try_from(git::refs::branch(refname).to_owned())?;
+        let rule = rules::Rule::new(
+            rules::ResolvedDelegates::Delegates(self.delegates.clone()),
+            self.threshold,
+        );
+        Ok((pattern, rule))
+    }
+
     /// Return the associated [`Visibility`] of this document.
     pub fn visibility(&self) -> &Visibility {
         &self.visibility
@@ -869,6 +909,28 @@ impl Doc {
         )?;
 
         Ok(*cob.id)
+    }
+}
+
+impl crefs::GetCanonicalRefs for Doc {
+    type Error = PayloadError;
+
+    fn canonical_refs(&self) -> Result<Option<CanonicalRefs>, Self::Error> {
+        self.raw_canonical_refs().and_then(|raw| {
+            raw.map(|raw| {
+                raw.try_into_canonical_refs(&mut || self.delegates.clone())
+                    .map_err(PayloadError::from)
+            })
+            .transpose()
+        })
+    }
+
+    fn raw_canonical_refs(&self) -> Result<Option<RawCanonicalRefs>, Self::Error> {
+        let value = self.payload.get(&PayloadId::canonical_refs());
+        let crefs = value
+            .map(|value| serde_json::from_value((**value).clone()).map_err(PayloadError::from))
+            .transpose()?;
+        Ok(crefs)
     }
 }
 

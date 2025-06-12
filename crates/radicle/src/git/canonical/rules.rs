@@ -526,16 +526,6 @@ impl MatchedRule<'_> {
     pub fn threshold(&self) -> &doc::Threshold {
         self.rule().threshold()
     }
-
-    /// Return the [`Canonical`] representation for the matched rule.
-    pub fn canonical(&self, repo: &Repository) -> Result<Canonical, git::raw::Error> {
-        Canonical::reference(
-            repo,
-            &self.refname,
-            self.rule.allow.as_ref(),
-            self.rule.threshold.into(),
-        )
-    }
 }
 
 /// A set of valid [`Rule`]s, where the set of DIDs and threshold are fully
@@ -577,6 +567,12 @@ impl IntoIterator for Rules {
     }
 }
 
+impl Extend<(Pattern, ValidRule)> for Rules {
+    fn extend<T: IntoIterator<Item = (Pattern, ValidRule)>>(&mut self, iter: T) {
+        self.rules.extend(iter)
+    }
+}
+
 impl From<Rules> for RawRules {
     fn from(Rules { rules }: Rules) -> Self {
         Self {
@@ -615,18 +611,32 @@ impl Rules {
         Ok(Self { rules: valid })
     }
 
-    /// Return the first matching rule for the given `refname`, if there is any.
+    /// Return the matching rules for the given `refname`.
+    pub fn matches<'a>(
+        &self,
+        refname: &Qualified<'a>,
+    ) -> impl Iterator<Item = (&Pattern, &ValidRule)> + use<'a, '_> {
+        let refname_cloned = refname.clone();
+        self.rules
+            .iter()
+            .filter(move |(pattern, _)| pattern.matches(&refname_cloned))
+    }
+
+    /// Match given refname, take the most specific rule, and prepare evaluation
+    /// as [`Canonical`]
     ///
     /// N.b. it will find the first rule that is most specific for the given
     /// `refname`.
-    pub fn matches<'a>(&self, refname: Qualified<'a>) -> Option<MatchedRule<'a>> {
-        self.rules
-            .iter()
-            .find(|(pattern, _)| pattern.matches(&refname))
-            .map(|(_, rule)| MatchedRule {
-                refname,
-                rule: rule.clone(),
-            })
+    pub fn canonical<'a, 'b>(
+        &'a self,
+        refname: Qualified<'b>,
+        repo: &Repository,
+    ) -> Result<Option<Canonical<'b, 'a>>, git::raw::Error> {
+        if let Some((_, rule)) = self.matches(&refname).next() {
+            Ok(Some(Canonical::new(repo, refname, rule)?))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -1179,19 +1189,21 @@ mod tests {
         // candidates tag.
         let stored = storage.repository(rid).unwrap();
         let failing = git::Qualified::from(git::lit::refs_tags(failing_tag));
-        for (refname, oid) in tags.iter() {
-            let matched = rules.matches(refname.clone()).unwrap_or_else(|| {
-                panic!("there should be a matching rule for {refname}, rules: {rules:#?}")
-            });
-            let canonical = matched.canonical(&stored).unwrap();
-            if *refname == failing {
+        for (refname, oid) in tags.into_iter() {
+            let canonical = rules
+                .canonical(refname.clone(), &stored)
+                .unwrap()
+                .unwrap_or_else(|| {
+                    panic!("there should be a matching rule for {refname}, rules: {rules:#?}")
+                });
+            if refname == failing {
                 assert!(canonical.quorum(&repo).is_err());
             } else {
                 assert_eq!(
                     canonical
                         .quorum(&repo)
                         .unwrap_or_else(|e| panic!("quorum error for {refname}: {e}")),
-                    *oid,
+                    (refname, oid),
                 )
             }
         }

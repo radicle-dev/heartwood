@@ -1,8 +1,10 @@
 #![warn(clippy::unwrap_used)]
+pub mod crefs;
 pub mod did;
 pub mod doc;
 pub mod project;
 
+pub use crefs::CanonicalRefs;
 pub use crypto::PublicKey;
 pub use did::Did;
 pub use doc::{Doc, DocAt, DocError, IdError, PayloadError, RawDoc, RepoId, Visibility};
