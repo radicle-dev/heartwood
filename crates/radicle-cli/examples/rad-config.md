@@ -107,7 +107,7 @@ $ rad config unset web.name
 
 ``` (fail)
 $ rad config get web.name
-✗ Error: configuration error: web.name does not exist
+✗ Error: web.name does not exist in configuration found at "[..]/.radicle/config.json"
 ```
 
 Values along the path will be created if necessary.
@@ -131,19 +131,19 @@ Values that are required for a valid config can't be deleted.
 
 ``` (fail)
 $ rad config unset node.alias
-✗ Error: configuration JSON error: missing field `alias`
+✗ Error: writing configuration to "[..]/.radicle/config.json" failed: validation failure due to missing field `alias`
 ```
 
 Values for changes are being validated.
 
 ``` (fail)
 $ rad config set web.pinned.repositories 5
-✗ Error: configuration JSON error: invalid type: integer `5`, expected a sequence
+✗ Error: writing configuration to "[..]/.radicle/config.json" failed: validation failure due to invalid type: integer `5`, expected a sequence
 ```
 
 The type of the operation is validated.
 
 ``` (fail)
 $ rad config push node.alias eve
-✗ Error: the element at the path 'node.alias' is not a JSON array
+✗ Error: failed to modify configuration found at "[..]/.radicle/config.json" due to the element at the path 'node.alias' is not a JSON array
 ```

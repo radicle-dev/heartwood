@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{fmt, fs, io};
 
 use serde::Serialize as _;
@@ -13,13 +13,117 @@ use crate::node::Alias;
 use crate::{cli, node, web};
 
 #[derive(Debug, Error)]
-pub enum ConfigError {
-    #[error("configuration I/O error: {0}")]
-    Io(#[from] io::Error),
-    #[error("configuration JSON error: {0}")]
-    Json(#[from] json::Error),
-    #[error("configuration error: {0}")]
-    Custom(String),
+#[error("writing configuration to {path:?} failed: {kind}")]
+pub struct WriteError {
+    path: PathBuf,
+    kind: WriteErrorKind,
+}
+
+impl WriteError {
+    fn open_file<P>(path: P, err: io::Error) -> Self
+    where
+        P: AsRef<Path>,
+    {
+        Self {
+            path: path.as_ref().to_path_buf(),
+            kind: WriteErrorKind::OpenFile { err },
+        }
+    }
+
+    fn to_json<P>(path: P, err: serde_json::Error) -> Self
+    where
+        P: AsRef<Path>,
+    {
+        Self {
+            path: path.as_ref().to_path_buf(),
+            kind: WriteErrorKind::ToJson { err },
+        }
+    }
+
+    fn write_file<P>(path: P, err: io::Error) -> Self
+    where
+        P: AsRef<Path>,
+    {
+        Self {
+            path: path.as_ref().to_path_buf(),
+            kind: WriteErrorKind::WriteFile { err },
+        }
+    }
+
+    fn validate<P>(path: P, err: serde_json::Error) -> Self
+    where
+        P: AsRef<Path>,
+    {
+        Self {
+            path: path.as_ref().to_path_buf(),
+            kind: WriteErrorKind::Validate { err },
+        }
+    }
+
+    fn serialize_json<P>(path: P, err: serde_json::Error) -> Self
+    where
+        P: AsRef<Path>,
+    {
+        Self {
+            path: path.as_ref().to_path_buf(),
+            kind: WriteErrorKind::SerializeJson { err },
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum WriteErrorKind {
+    #[error("could not open due to {err}")]
+    OpenFile {
+        #[source]
+        err: io::Error,
+    },
+    #[error("could not convert to JSON due to {err}")]
+    ToJson {
+        #[source]
+        err: json::Error,
+    },
+    #[error("could not write to file due to {err}")]
+    WriteFile {
+        #[source]
+        err: io::Error,
+    },
+    #[error("validation failure due to {err}")]
+    Validate {
+        #[source]
+        err: serde_json::Error,
+    },
+    #[error("could not serialize due to {err}")]
+    SerializeJson {
+        #[source]
+        err: serde_json::Error,
+    },
+}
+
+#[derive(Debug, Error)]
+pub enum InitError {
+    #[error("failed to initialize configuration file {path:?}: {err}")]
+    Write {
+        path: PathBuf,
+        #[source]
+        err: WriteError,
+    },
+}
+
+#[derive(Debug, Error)]
+pub enum LoadError {
+    #[error("failed to open configuration file {path:?}: {err}, perhaps you need to initialise one `rad config init --alias <alias>`")]
+    File {
+        path: PathBuf,
+        #[source]
+        err: io::Error,
+    },
+    #[error("failed to parse JSON of configuration file {path:?}: {err}")]
+    Json {
+        path: PathBuf,
+        #[source]
+        err: serde_json::Error,
+    },
 }
 
 /// Local radicle configuration.
@@ -59,15 +163,25 @@ impl Config {
     }
 
     /// Initialize a new configuration. Fails if the path already exists.
-    pub fn init(alias: Alias, path: &Path) -> Result<Self, ConfigError> {
+    pub fn init(alias: Alias, path: &Path) -> Result<Self, InitError> {
         let cfg = Config::new(alias);
-        cfg.write(path)?;
+        cfg.write(path).map_err(|err| InitError::Write {
+            path: path.to_path_buf(),
+            err,
+        })?;
         Ok(cfg)
     }
 
     /// Load a configuration from the given path.
-    pub fn load(path: &Path) -> Result<Self, ConfigError> {
-        let mut cfg: Self = json::from_reader(fs::File::open(path)?)?;
+    pub fn load(path: &Path) -> Result<Self, LoadError> {
+        let file = fs::File::open(path).map_err(|err| LoadError::File {
+            path: path.to_path_buf(),
+            err,
+        })?;
+        let mut cfg: Self = json::from_reader(file).map_err(|err| LoadError::Json {
+            path: path.to_path_buf(),
+            err,
+        })?;
 
         // Handle deprecated policy configuration.
         // Nb. This will override "seedingPolicy" if set! This code should be removed after 1.0.
@@ -87,15 +201,16 @@ impl Config {
     }
 
     /// Write configuration to disk.
-    pub fn write(&self, path: &Path) -> Result<(), ConfigError> {
-        let value = json::to_value(self)?;
+    pub fn write(&self, path: &Path) -> Result<(), WriteError> {
+        let value = json::to_value(self).map_err(|err| WriteError::to_json(path, err))?;
         let tmp = RawConfig(value);
         let file = fs::OpenOptions::new()
             .create_new(true)
             .write(true)
-            .open(path)?;
+            .open(path)
+            .map_err(|err| WriteError::open_file(path, err))?;
 
-        tmp.write_file(file)
+        tmp.write_file(path, file)
     }
 
     /// Get the user alias.
@@ -124,9 +239,9 @@ pub enum ModifyError {
 
 impl RawConfig {
     /// Creates a temporary configuration, by reading a configuration file from disk.
-    pub fn from_file(path: &Path) -> Result<Self, ConfigError> {
-        let file = fs::File::open(path)?;
-        let config = json::from_reader(file)?;
+    pub fn from_file(path: &Path) -> Result<Self, WriteError> {
+        let file = fs::File::open(path).map_err(|err| WriteError::open_file(path, err))?;
+        let config = json::from_reader(file).map_err(|err| WriteError::to_json(path, err))?;
         Ok(RawConfig(config))
     }
 
@@ -219,26 +334,37 @@ impl RawConfig {
 
     /// Writes the configuration, including extra values, to disk. Errors if the config is not
     /// valid.
-    pub fn write(&self, path: &Path) -> Result<(), ConfigError> {
-        let _valid_config: Config = self.clone().try_into()?;
+    pub fn write(&self, path: &Path) -> Result<(), WriteError> {
+        let _valid_config: Config = self
+            .clone()
+            .try_into()
+            .map_err(|err| WriteError::validate(path, err))?;
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
-            .open(path)?;
+            .open(path)
+            .map_err(|err| WriteError::open_file(path, err))?;
 
-        self.write_file(file)
+        self.write_file(path, file)
     }
 
     /// Write to an open file.
-    fn write_file(&self, mut file: fs::File) -> Result<(), ConfigError> {
-        let _valid_config: Config = self.clone().try_into()?;
+    fn write_file(&self, path: &Path, mut file: fs::File) -> Result<(), WriteError> {
+        let _valid_config: Config = self
+            .clone()
+            .try_into()
+            .map_err(|err| WriteError::validate(path, err))?;
         let formatter = json::ser::PrettyFormatter::with_indent(b"  ");
         let mut serializer = json::Serializer::with_formatter(&file, formatter);
 
-        self.0.serialize(&mut serializer)?;
-        file.write_all(b"\n")?;
-        file.sync_all()?;
+        self.0
+            .serialize(&mut serializer)
+            .map_err(|err| WriteError::serialize_json(path, err))?;
+        file.write_all(b"\n")
+            .map_err(|err| WriteError::write_file(path, err))?;
+        file.sync_all()
+            .map_err(|err| WriteError::write_file(path, err))?;
 
         Ok(())
     }
@@ -268,11 +394,11 @@ impl RawConfig {
     }
 }
 
-impl TryInto<Config> for RawConfig {
+impl TryFrom<RawConfig> for Config {
     type Error = json::Error;
 
-    fn try_into(self) -> Result<Config, Self::Error> {
-        json::from_value(self.0)
+    fn try_from(raw: RawConfig) -> Result<Config, Self::Error> {
+        json::from_value(raw.0)
     }
 }
 

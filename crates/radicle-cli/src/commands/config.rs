@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use radicle::node::Alias;
-use radicle::profile::{Config, ConfigError, ConfigPath, RawConfig};
+use radicle::profile::{config, Config, ConfigPath, RawConfig};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -149,33 +149,25 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Get(key) => {
             let mut temp_config = RawConfig::from_file(&path)?;
             let key: ConfigPath = key.into();
-            let value = temp_config
-                .get_mut(&key)
-                .ok_or_else(|| ConfigError::Custom(format!("{key} does not exist")))?;
+            let value = temp_config.get_mut(&key).ok_or_else(|| {
+                anyhow::anyhow!("{key} does not exist in configuration found at {path:?}")
+            })?;
             print_value(value)?;
         }
         Operation::Set(key, value) => {
-            let mut temp_config = RawConfig::from_file(&path)?;
-            let value = temp_config.set(&key.into(), value.into())?;
-            temp_config.write(&path)?;
+            let value = modify(path, |tmp| tmp.set(&key.into(), value.into()))?;
             print_value(&value)?;
         }
         Operation::Push(key, value) => {
-            let mut temp_config = RawConfig::from_file(&path)?;
-            let value = temp_config.push(&key.into(), value.into())?;
-            temp_config.write(&path)?;
+            let value = modify(path, |tmp| tmp.push(&key.into(), value.into()))?;
             print_value(&value)?;
         }
         Operation::Remove(key, value) => {
-            let mut temp_config = RawConfig::from_file(&path)?;
-            let value = temp_config.remove(&key.into(), value.into())?;
-            temp_config.write(&path)?;
+            let value = modify(path, |tmp| tmp.remove(&key.into(), value.into()))?;
             print_value(&value)?;
         }
         Operation::Unset(key) => {
-            let mut temp_config = RawConfig::from_file(&path)?;
-            let value = temp_config.unset(&key.into())?;
-            temp_config.write(&path)?;
+            let value = modify(path, |tmp| tmp.unset(&key.into()))?;
             print_value(&value)?;
         }
         Operation::Init => {
@@ -202,6 +194,20 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn modify<P, M>(path: P, modification: M) -> anyhow::Result<serde_json::Value>
+where
+    P: AsRef<Path>,
+    M: FnOnce(&mut RawConfig) -> Result<serde_json::Value, config::ModifyError>,
+{
+    let path = path.as_ref();
+    let mut temp_config = RawConfig::from_file(path)?;
+    let value = modification(&mut temp_config).map_err(|err| {
+        anyhow::anyhow!("failed to modify configuration found at {path:?} due to {err}")
+    })?;
+    temp_config.write(path)?;
+    Ok(value)
 }
 
 /// Print a JSON Value.

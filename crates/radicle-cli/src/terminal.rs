@@ -137,7 +137,7 @@ impl Context for DefaultContext {
                 hint: "To setup your radicle profile, run `rad auth`.",
             }
             .into()),
-            Err(radicle::profile::Error::Config(e)) => Err(e.into()),
+            Err(radicle::profile::Error::LoadConfig(e)) => Err(e.into()),
             Err(e) => Err(anyhow::anyhow!("Could not load radicle profile: {e}")),
         }
     }

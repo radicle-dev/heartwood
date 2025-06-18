@@ -12,7 +12,7 @@
 //!
 
 pub mod config;
-pub use config::{Config, ConfigError, ConfigPath, RawConfig};
+pub use config::{Config, ConfigPath, RawConfig, WriteError};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -163,7 +163,9 @@ pub enum Error {
     #[error(transparent)]
     Io(#[from] io::Error),
     #[error(transparent)]
-    Config(#[from] ConfigError),
+    InitConfig(#[from] config::InitError),
+    #[error(transparent)]
+    LoadConfig(#[from] config::LoadError),
     #[error(transparent)]
     Node(#[from] node::Error),
     #[error(transparent)]
