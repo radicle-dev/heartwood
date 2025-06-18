@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Introduce canonical reference rules via a payload entry in the identity
+  document. The payload is identified by `xyz.radicle.crefs`, and the payload
+  currently contains one key `rules`, which is followed by the set of rules. For
+  each rule, there is a reference pattern string to identify the rule, which in
+  turn is composed of the `allow` and `threshold` values. The canonical
+  reference rules are now used to check for canonical updates. However, if none
+  are available, then the `threshold`, `delegates`, and the project
+  `defaultBranch` are used to construct a single rule for the default branch as
+  a fallback. **Note that if the rules are present, and there is no default
+  branch rule then the canonical reference for the default branch will not be
+  computed**.
+
 ## Release Highlights
 
 ## Deprecations
