@@ -18,7 +18,7 @@ rad-id - Manage changes to a Radicle repository's identity.
 *rad id* _edit_ <revision-id> [--title <string>] [--description <string>] [<option>...] +
 *rad id* _show_ <revision-id> [<option>...] +
 *rad id* _accept_ | _reject_ <revision-id> [<option>...] +
-*rad id* _redact_ <revision-id> [<option>...]
+*rad id* _redact_ <revision-id> [<option>...] +
 
 == Description
 
@@ -176,3 +176,49 @@ To remove a delegate and update the threshold, use the *--rescind* option:
 As with adding a delegate, this change will require approval from the remaining
 delegates. Make sure you set an appropriate new threshold when removing
 delegates!
+
+=== Adding Canonical References Rules
+
+To update the canonical reference rules of the project, use the `--payload
+xyz.radicle.crefs` option while updating, `rules` as the key, and the rules
+object as the value. Here is an example below:
+
+    $ rad id update --title "Update canonical reference rules" \
+        --payload xyz.radicle.crefs rules '{
+              "refs/heads/master": { "threshold": 1, "allow": "delegates" },
+              "refs/tags/*": { "threshold": 2, "allow": "delegates" },
+              "refs/tags/qa/*": { "threshold": 1, "allow": "delegates" }
+          }'
+
+Alternatively, you can use the `--edit` option for the `update` command and edit
+the payload directly. Here is an example of what that may look like:
+
+    {
+      "payload": {
+        "xyz.radicle.crefs": {
+          "rules": {
+            "refs/heads/master": {
+              "allow": "delegates",
+              "threshold": 1
+            },
+            "refs/tags/*": {
+              "allow": "delegates",
+              "threshold": 1
+            },
+            "refs/tags/qa/*": {
+              "allow": "delegates",
+              "threshold": 1
+            }
+          }
+        },
+        "xyz.radicle.project": {
+          "defaultBranch": "master",
+          "description": "Radicle Heartwood Protocol & Stack",
+          "name": "heartwood"
+        }
+      },
+      "delegates": [
+        "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+      ],
+      "threshold": 1
+    }

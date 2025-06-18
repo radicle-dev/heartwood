@@ -3101,6 +3101,48 @@ fn git_tag() {
 }
 
 #[test]
+fn git_push_canonical_tags() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let working = environment.tmp().join("working");
+
+    let rid = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    bob.connect(&alice).converge([&alice]);
+    bob.clone(rid, working.join("bob")).unwrap();
+    formula(
+        &environment.tmp(),
+        "examples/git/git-push-canonical-tags.md",
+    )
+    .unwrap()
+    .home(
+        "alice",
+        working.join("alice"),
+        [("RAD_HOME", alice.home.path().display())],
+    )
+    .home(
+        "bob",
+        working.join("bob"),
+        [("RAD_HOME", bob.home.path().display())],
+    )
+    .run()
+    .unwrap();
+}
+
+#[test]
 fn rad_workflow() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));

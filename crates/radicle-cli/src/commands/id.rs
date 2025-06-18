@@ -5,6 +5,7 @@ use std::{ffi::OsString, io};
 use anyhow::{anyhow, Context};
 
 use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
+use radicle::identity::crefs::GetCanonicalRefs as _;
 use radicle::identity::{doc, Doc, Identity, PayloadError, RawDoc, Visibility};
 use radicle::node::device::Device;
 use radicle::node::NodeId;
@@ -464,7 +465,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                             anyhow::bail!("payload `{id}` is not a map");
                         }
                     } else {
-                        anyhow::bail!("payload `{id}` not found in identity document");
+                        proposal
+                            .payload
+                            .insert(id, serde_json::json!({ key: val }).into());
                     }
                 }
                 proposal
@@ -494,6 +497,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 anyhow::bail!("failed to verify `xyz.radicle.project`, {e}");
             }
             let proposal = proposal.verified()?;
+            if let Err(PayloadError::Json(e)) = proposal.canonical_refs() {
+                anyhow::bail!("failed to verify `xyz.radicle.crefs`, {e}");
+            }
             if proposal == current.doc {
                 if !options.quiet {
                     term::print(term::format::italic(
