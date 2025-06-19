@@ -79,7 +79,8 @@ then the command will fail since there is no longer an allow list to work with:
 
 ``` (fails)
 $ rad id update --visibility public --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-✗ Error: `--allow` and `--disallow` cannot be used with `--visibility public`
+✗ Error: `--allow` and `--disallow` should only be used for private repositories
+✗ Hint: use `--visibility private` to make the repository private, or perhaps you meant to use `--delegate`/`--rescind`
 ```
 
 Let's change the repository to `public`:

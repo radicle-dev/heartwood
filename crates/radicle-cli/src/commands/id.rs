@@ -1,16 +1,16 @@
 use std::collections::BTreeSet;
-use std::str::FromStr;
 use std::{ffi::OsString, io};
 
 use anyhow::{anyhow, Context};
 
 use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
-use radicle::identity::{doc, Doc, Identity, PayloadError, RawDoc, Visibility};
+use radicle::identity::doc::update;
+use radicle::identity::doc::update::EditVisibility;
+use radicle::identity::{doc, Doc, Identity, RawDoc};
 use radicle::node::device::Device;
 use radicle::node::NodeId;
 use radicle::prelude::{Did, RepoId};
-use radicle::storage::refs;
-use radicle::storage::{ReadRepository, ReadStorage as _, WriteRepository};
+use radicle::storage::{ReadStorage as _, WriteRepository};
 use radicle::{cob, crypto, Profile};
 use radicle_surf::diff::Diff;
 use radicle_term::Element;
@@ -86,29 +86,6 @@ pub enum Operation {
     },
     #[default]
     ListRevisions,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum EditVisibility {
-    #[default]
-    Public,
-    Private,
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("'{0}' is not a valid visibility type")]
-pub struct EditVisibilityParseError(String);
-
-impl FromStr for EditVisibility {
-    type Err = EditVisibilityParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "public" => Ok(EditVisibility::Public),
-            "private" => Ok(EditVisibility::Private),
-            _ => Err(EditVisibilityParseError(s.to_owned())),
-        }
-    }
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -398,76 +375,38 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 let mut proposal = current.doc.clone().edit();
                 proposal.threshold = threshold.unwrap_or(proposal.threshold);
 
-                if !allow.is_disjoint(&disallow) {
-                    let overlap = allow
-                        .intersection(&disallow)
-                        .map(Did::to_string)
-                        .collect::<Vec<_>>();
-                    anyhow::bail!("`--allow` and `--disallow` must not overlap: {overlap:?}")
-                }
-
-                match (&mut proposal.visibility, visibility) {
-                    (Visibility::Public, None | Some(EditVisibility::Public)) if !allow.is_empty() || !disallow.is_empty() => {
-                        return Err(Error::WithHint {
+                let proposal = match visibility {
+                    Some(edit) => update::visibility(proposal, edit),
+                    None => proposal,
+                };
+                let proposal = match update::privacy_allow_list(proposal, allow, disallow) {
+                    Ok(proposal) => proposal,
+                    Err(e) => match e {
+                        update::error::PrivacyAllowList::Overlapping(overlap) =>                     anyhow::bail!("`--allow` and `--disallow` must not overlap: {overlap:?}"),
+                        update::error::PrivacyAllowList::PublicVisibility =>                         return Err(Error::WithHint {
                             err:
                             anyhow!("`--allow` and `--disallow` should only be used for private repositories"),
                             hint: "use `--visibility private` to make the repository private, or perhaps you meant to use `--delegate`/`--rescind`",
                         }.into())
                     }
-                    (Visibility::Public, None | Some(EditVisibility::Public)) => { /* no-op */ },
-                    (Visibility::Private { allow: existing }, None | Some(EditVisibility::Private)) => {
-                        for did in allow {
-                            existing.insert(did);
+                };
+                let threshold = proposal.threshold;
+                let proposal = match update::delegates(proposal, delegates, rescind, &repo)? {
+                    Ok(proposal) => proposal,
+                    Err(errs) => {
+                        term::error(format!("failed to verify delegates for {rid}"));
+                        term::error(format!(
+                            "the threshold of {} delegates cannot be met..",
+                            threshold
+                        ));
+                        for e in errs {
+                            print_delegate_verification_error(&e);
                         }
-                        for did in disallow {
-                            existing.remove(&did);
-                        }
+                        anyhow::bail!("fatal: refusing to update identity document");
                     }
-                    (Visibility::Public, Some(EditVisibility::Private)) => {
-                        // We ignore disallow since only allowing matters and the sets are disjoint.
-                        proposal.visibility = Visibility::Private { allow };
-                    }
-                    (Visibility::Private { .. }, Some(EditVisibility::Public)) if !allow.is_empty() || !disallow.is_empty() => {
-                        anyhow::bail!("`--allow` and `--disallow` cannot be used with `--visibility public`")
-                    }
-                    (Visibility::Private { .. }, Some(EditVisibility::Public)) => {
-                        proposal.visibility = Visibility::Public;
-                    }
-                }
-                proposal.delegates = proposal
-                    .delegates
-                    .into_iter()
-                    .chain(delegates)
-                    .filter(|d| !rescind.contains(d))
-                    .collect::<Vec<_>>();
-                if let Some(errs) = verify_delegates(&proposal, &repo)? {
-                    term::error(format!("failed to verify delegates for {rid}"));
-                    term::error(format!(
-                        "the threshold of {} delegates cannot be met..",
-                        proposal.threshold
-                    ));
-                    for e in errs {
-                        e.print();
-                    }
-                    anyhow::bail!("fatal: refusing to update identity document");
-                }
+                };
 
-                for (id, key, val) in payload {
-                    if let Some(ref mut payload) = proposal.payload.get_mut(&id) {
-                        if let Some(obj) = payload.as_object_mut() {
-                            if val.is_null() {
-                                obj.remove(&key);
-                            } else {
-                                obj.insert(key, val);
-                            }
-                        } else {
-                            anyhow::bail!("payload `{id}` is not a map");
-                        }
-                    } else {
-                        anyhow::bail!("payload `{id}` not found in identity document");
-                    }
-                }
-                proposal
+                update::payload(proposal, payload)?
             };
 
             // If `--edit` is specified, the document can also be edited via a text edit.
@@ -489,11 +428,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 proposal
             };
 
-            // Verify that the project payload can still be parsed into the `Project` type.
-            if let Err(PayloadError::Json(e)) = proposal.project() {
-                anyhow::bail!("failed to verify `xyz.radicle.project`, {e}");
-            }
-            let proposal = proposal.verified()?;
+            let proposal = update::verify(proposal)?;
             if proposal == current.doc {
                 if !options.quiet {
                     term::print(term::format::italic(
@@ -793,62 +728,19 @@ fn print_diff(
     Ok(())
 }
 
-#[derive(Clone)]
-enum VerificationError {
-    MissingDefaultBranch {
-        branch: radicle::git::RefString,
-        did: Did,
-    },
-    MissingDelegate {
-        did: Did,
-    },
-}
-
-impl VerificationError {
-    fn print(&self) {
-        match self {
-            VerificationError::MissingDefaultBranch { branch, did } => term::error(format!(
-                "missing {} for {} in local storage",
-                term::format::secondary(branch),
-                term::format::did(did)
-            )),
-            VerificationError::MissingDelegate { did } => {
-                term::error(format!("the delegate {did} is missing"));
-                term::hint(format!(
-                    "run `rad follow {did}` to follow this missing peer"
-                ));
-            }
+fn print_delegate_verification_error(err: &update::error::DelegateVerification) {
+    use update::error::DelegateVerification::*;
+    match err {
+        MissingDefaultBranch { branch, did } => term::error(format!(
+            "missing {} for {} in local storage",
+            term::format::secondary(branch),
+            term::format::did(did)
+        )),
+        MissingDelegate { did } => {
+            term::error(format!("the delegate {did} is missing"));
+            term::hint(format!(
+                "run `rad follow {did}` to follow this missing peer"
+            ));
         }
     }
-}
-
-fn verify_delegates<S>(
-    proposal: &RawDoc,
-    repo: &S,
-) -> anyhow::Result<Option<Vec<VerificationError>>>
-where
-    S: ReadRepository,
-{
-    let dids = &proposal.delegates;
-    let threshold = proposal.threshold;
-    let (canonical, _) = repo.canonical_head()?;
-    let mut missing = Vec::with_capacity(dids.len());
-
-    for did in dids {
-        match refs::SignedRefsAt::load((*did).into(), repo)? {
-            None => {
-                missing.push(VerificationError::MissingDelegate { did: *did });
-            }
-            Some(refs::SignedRefsAt { sigrefs, .. }) => {
-                if sigrefs.get(&canonical).is_none() {
-                    missing.push(VerificationError::MissingDefaultBranch {
-                        branch: canonical.to_ref_string(),
-                        did: *did,
-                    });
-                }
-            }
-        }
-    }
-
-    Ok((dids.len() - missing.len() < threshold).then_some(missing))
 }
