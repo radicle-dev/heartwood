@@ -5,12 +5,13 @@ use std::{collections::BTreeSet, str::FromStr};
 use serde_json as json;
 
 use crate::{
+    git,
     identity::crefs::GetCanonicalRefs as _,
     prelude::Did,
     storage::{refs, ReadRepository, RepositoryError},
 };
 
-use super::{Doc, PayloadId, RawDoc, Visibility};
+use super::{Doc, PayloadError, PayloadId, RawDoc, Visibility};
 
 /// [`EditVisibility`] allows the visibility of a [`RawDoc`] to be edited using
 /// the [`visibility`] function.
@@ -186,18 +187,44 @@ pub fn payload(
 /// [`Project`]: crate::identity::Project
 /// [`CanonicalRefs`]: crate::identity::CanonicalRefs
 pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
-    let proposal = raw.verified()?;
-    // Verify that the payloads can still be parsed into the correct types.
-    if let Err(super::PayloadError::Json(e)) = proposal.project() {
-        return Err(error::DocVerification::PayloadJson {
-            id: PayloadId::project(),
-            err: e,
-        });
+    let proposal = raw.clone().verified()?;
+    // Verify that the project payload is valid
+    // TODO(finto): perhaps this should be handled by JSON Schemas instead
+    let project = match proposal.project() {
+        Ok(project) => Some(project),
+        Err(PayloadError::NotFound(_)) => None,
+        Err(PayloadError::Json(e)) => {
+            return Err(error::DocVerification::PayloadError {
+                id: PayloadId::project(),
+                err: e.to_string(),
+            })
+        }
+    };
+    // Ensure that if we have canonical reference rules and a project, that no
+    // rule exists for the default branch. This rule must be synthesized when
+    // constructing the canonical reference rules.
+    match raw
+        .raw_canonical_refs()
+        .map(|rcrefs| rcrefs.and_then(|c| project.map(|p| (c, p))))
+    {
+        Ok(Some((crefs, project))) => {
+            let default = git::Qualified::from(git::lit::refs_heads(project.default_branch()));
+            let matches = crefs
+                .raw_rules()
+                .matches(&default)
+                .map(|(pattern, _)| pattern.to_string())
+                .collect::<Vec<_>>();
+            if !matches.is_empty() {
+                return Err(error::DocVerification::DisallowDefault { matches, default });
+            }
+        }
+        _ => { /* we validate below */ }
     }
-    if let Err(super::PayloadError::Json(e)) = proposal.canonical_refs() {
-        return Err(error::DocVerification::PayloadJson {
+    // Verify that the canonical references payload is valid
+    if let Err(e) = proposal.canonical_refs() {
+        return Err(error::DocVerification::PayloadError {
             id: PayloadId::canonical_refs(),
-            err: e,
+            err: e.to_string(),
         });
     }
     Ok(proposal)
@@ -232,4 +259,102 @@ where
     }
 
     Ok((dids.len() - missing.len() < threshold).then_some(missing))
+}
+
+#[allow(clippy::unwrap_used)]
+#[cfg(test)]
+mod test {
+    use serde_json::json;
+
+    use crate::{
+        git,
+        identity::{
+            crefs::GetCanonicalRefs,
+            doc::{update::error, PayloadId},
+        },
+        prelude::RawDoc,
+        test::arbitrary,
+    };
+
+    #[test]
+    fn test_can_update_crefs() {
+        let raw = arbitrary::gen::<RawDoc>(1);
+        let raw = super::payload(
+            raw,
+            vec![(
+                PayloadId::canonical_refs(),
+                "rules".to_string(),
+                json!({
+                    "refs/tags/*": {
+                        "threshold": 1,
+                        "allow": "delegates"
+                    }
+                }),
+            )],
+        )
+        .unwrap();
+        let verified = super::verify(raw);
+        assert!(verified.is_ok(), "Unexpected error {:?}", verified);
+    }
+
+    #[test]
+    fn test_cannot_include_default_branch_rule() {
+        let raw = arbitrary::gen::<RawDoc>(1);
+        let branch = git::Qualified::from(git::lit::refs_heads(
+            raw.project().unwrap().default_branch(),
+        ));
+        let raw = super::payload(
+            raw,
+            vec![(
+                PayloadId::canonical_refs(),
+                "rules".to_string(),
+                json!({
+                    "refs/tags/*": {
+                        "threshold": 1,
+                        "allow": "delegates"
+                    },
+                    branch.as_str(): {
+                        "threshold": 1,
+                        "allow": "delegates",
+                    }
+                }),
+            )],
+        )
+        .unwrap();
+        assert!(
+            matches!(
+                super::verify(raw),
+                Err(error::DocVerification::DisallowDefault { .. })
+            ),
+            "Verification should be rejected for including default branch rule"
+        )
+    }
+
+    #[test]
+    fn test_default_branch_rule_exists_after_verification() {
+        let raw = arbitrary::gen::<RawDoc>(1);
+        let branch = git::Qualified::from(git::lit::refs_heads(
+            raw.project().unwrap().default_branch(),
+        ));
+        let raw = super::payload(
+            raw,
+            vec![(
+                PayloadId::canonical_refs(),
+                "rules".to_string(),
+                json!({
+                    "refs/tags/*": {
+                        "threshold": 1,
+                        "allow": "delegates"
+                    }
+                }),
+            )],
+        )
+        .unwrap();
+        let verified = super::verify(raw).unwrap();
+        let crefs = verified.canonical_refs().unwrap().unwrap();
+        assert!(
+            crefs.rules().matches(&branch).next().is_some(),
+            "Default branch rule is missing!"
+        );
+    }
 }

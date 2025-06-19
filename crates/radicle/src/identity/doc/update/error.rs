@@ -1,6 +1,6 @@
-use serde_json as json;
 use thiserror::Error;
 
+use crate::git;
 use crate::git::RefString;
 use crate::identity::{doc::PayloadId, Did, DocError};
 
@@ -25,9 +25,14 @@ pub enum PayloadError {
 #[derive(Debug, Error)]
 pub enum DocVerification {
     #[error("failed to verify `{id}`, {err}")]
-    PayloadJson { id: PayloadId, err: json::Error },
+    PayloadError { id: PayloadId, err: String },
     #[error(transparent)]
     Doc(#[from] DocError),
+    #[error("incompatible payloads: The rule(s) xyz.radicle.crefs.rules.{matches:?} matches the value of xyz.radicle.project.defaultBranch ('{default}'). Possible resolutions: Change the name of the default branch or remove the rule(s).")]
+    DisallowDefault {
+        matches: Vec<String>,
+        default: git::Qualified<'static>,
+    },
 }
 
 #[derive(Clone, Debug)]

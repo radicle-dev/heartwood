@@ -6,7 +6,7 @@ use std::str::FromStr;
 use std::{assert_eq, io};
 
 use radicle::identity::crefs::GetCanonicalRefs as _;
-use radicle::identity::doc::DefaultBranchRuleError;
+use radicle::identity::doc::CanonicalRefsError;
 use radicle::node::device::Device;
 use thiserror::Error;
 
@@ -118,7 +118,7 @@ pub enum Error {
     #[error(transparent)]
     Quorum(#[from] radicle::git::canonical::QuorumError),
     #[error(transparent)]
-    DefaultBranchRule(#[from] radicle::identity::doc::DefaultBranchRuleError),
+    CanonicalRefs(#[from] radicle::identity::doc::CanonicalRefsError),
 }
 
 /// Push command.
@@ -271,7 +271,7 @@ pub fn run(
                         let identity = stored.identity()?;
                         let crefs = identity.canonical_refs_or_default(|| {
                             let rule = identity.doc().default_branch_rule()?;
-                            Ok::<_, DefaultBranchRuleError>(CanonicalRefs::from_iter([rule]))
+                            Ok::<_, CanonicalRefsError>(CanonicalRefs::from_iter([rule]))
                         })?;
                         let rules = crefs.rules();
                         let me = Did::from(nid);

@@ -71,5 +71,5 @@ pub enum Canonical {
     #[error(transparent)]
     Identity(#[from] radicle::storage::RepositoryError),
     #[error(transparent)]
-    Payload(#[from] radicle::identity::PayloadError),
+    CanonicalRefs(#[from] radicle::identity::doc::CanonicalRefsError),
 }

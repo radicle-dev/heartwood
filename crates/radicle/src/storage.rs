@@ -124,6 +124,8 @@ pub enum RepositoryError {
     MissingBranchRule,
     #[error("could not get the default branch rule: {0}")]
     DefaultBranchRule(#[from] doc::DefaultBranchRuleError),
+    #[error("failed to get canonical reference rules: {0}")]
+    CanonicalRefs(#[from] doc::CanonicalRefsError),
 }
 
 impl RepositoryError {

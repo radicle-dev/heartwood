@@ -69,7 +69,7 @@ impl RawCanonicalRefs {
         R: Fn() -> Delegates,
     {
         let rules = Rules::from_raw(self.rules, resolve)?;
-        Ok(CanonicalRefs { rules })
+        Ok(CanonicalRefs::new(rules))
     }
 }
 
