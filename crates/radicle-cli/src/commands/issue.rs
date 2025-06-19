@@ -9,9 +9,12 @@ use anyhow::{anyhow, Context as _};
 
 use radicle::cob::common::{Label, Reaction};
 use radicle::cob::issue::{CloseReason, State};
+use radicle::cob::thread::CommentId;
 use radicle::cob::{issue, thread};
 use radicle::crypto;
+use radicle::git::Oid;
 use radicle::issue::cache::Issues as _;
+use radicle::issue::IssueId;
 use radicle::node::device::Device;
 use radicle::node::NodeId;
 use radicle::prelude::{Did, RepoId};
@@ -521,11 +524,18 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             message,
             reply_to,
         } => {
+            let reply_to = reply_to
+                .map(|rev| rev.resolve::<radicle::git::Oid>(repo.raw()))
+                .transpose()?;
+
             let signer = term::signer(&profile)?;
             let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
             let mut issue = issues.get_mut(&issue_id)?;
-            let (body, reply_to) = prompt_comment(message, reply_to, &issue, &repo)?;
-            let comment_id = issue.comment(body, reply_to, vec![], &signer)?;
+
+            let (root_comment_id, _) = issue.root();
+            let body = prompt_comment(message, issue_id, issue.thread(), reply_to, None)?;
+            let comment_id =
+                issue.comment(body, reply_to.unwrap_or(*root_comment_id), vec![], &signer)?;
 
             if options.quiet {
                 term::print(comment_id);
@@ -543,7 +553,19 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
             let comment_id = comment_id.resolve(&repo.backend)?;
             let mut issue = issues.get_mut(&issue_id)?;
-            let (body, _) = prompt_comment(message, None, &issue, &repo)?;
+
+            let comment = issue
+                .thread()
+                .comment(&comment_id)
+                .ok_or(anyhow::anyhow!("comment '{comment_id}' not found"))?;
+
+            let body = prompt_comment(
+                message,
+                issue_id,
+                issue.thread(),
+                comment.reply_to(),
+                Some((comment_id, comment.body())),
+            )?;
             issue.edit_comment(comment_id, body, vec![], &signer)?;
 
             if options.quiet {
@@ -892,29 +914,129 @@ where
 }
 
 /// Get a comment from the user, by prompting.
-pub fn prompt_comment<R: WriteRepository + radicle::cob::Store<Namespace = NodeId>>(
+pub fn prompt_comment(
     message: Message,
-    reply_to: Option<Rev>,
-    issue: &issue::Issue,
-    repo: &R,
-) -> anyhow::Result<(String, thread::CommentId)> {
-    let (root, r) = issue.root();
-    let (reply_to, help) = if let Some(rev) = reply_to {
-        let id = rev.resolve::<radicle::git::Oid>(repo.raw())?;
-        let parent = issue
-            .thread()
-            .comment(&id)
-            .ok_or(anyhow::anyhow!("comment '{rev}' not found"))?;
+    issue_id: IssueId,
+    thread: &thread::Thread,
+    reply_to: Option<CommentId>,
+    edit: Option<(CommentId, &str)>,
+) -> anyhow::Result<String> {
+    let (chase, missing) = {
+        let mut chase = Vec::with_capacity(thread.len());
+        let mut reply_to = reply_to;
+        let mut missing = None;
 
-        (id, parent.body().trim())
-    } else {
-        (*root, r.body().trim())
+        while let Some(id) = reply_to {
+            if let Some(comment) = thread.comment(&id) {
+                chase.push((id, comment));
+                reply_to = comment.reply_to();
+            } else {
+                missing = reply_to;
+                break;
+            }
+        }
+
+        (chase, missing)
     };
-    let help = format!("\n{}\n", term::format::html::commented(help));
-    let body = message.get(&help)?;
+
+    let mut buffer = String::with_capacity(1024);
+
+    const HTML_COMMENT_BEGIN: &str = "<!--";
+    const HTML_COMMENT_END: &str = "-->";
+    {
+        let context_hint = match (reply_to, edit) {
+            (_, Some((id, _))) if cob::ObjectId::from(id) == issue_id => {
+                format!("You are editing issue {issue_id}.")
+            }
+            (Some(reply_to), None) if cob::ObjectId::from(reply_to) == issue_id => {
+                format!("You are commenting on issue {issue_id}.")
+            }
+            (Some(reply_to), Some((id, _))) if cob::ObjectId::from(reply_to) == issue_id => {
+                format!("You are editing comment {id} on issue {issue_id}.")
+            }
+            (Some(reply_to), None) => {
+                format!("You are commenting (in reply to comment {reply_to}) on issue {issue_id}.")
+            }
+            (Some(reply_to), Some((id, _))) => format!(
+                "You are editing comment {id} (in reply to comment {reply_to}) on issue {issue_id}."
+            ),
+            (None, None) => format!("You are commenting on issue {issue_id}."),
+            (None, Some((id, _))) => format!("You are editing comment {id} on issue {issue_id}."),
+        };
+
+        const INDENT: &str = "  ";
+        buffer += HTML_COMMENT_BEGIN;
+        buffer += "\n";
+        buffer += INDENT;
+        buffer += context_hint.as_str();
+        buffer += "\n";
+        buffer += INDENT;
+        buffer += "HTML comments, such as this one, are deleted before posting.\n";
+        buffer += INDENT;
+        buffer += "Saving an empty file aborts the operation.\n";
+        if !chase.is_empty() {
+            buffer += format!(
+                "{INDENT}This comment is in reply to {} others (transitively), quoted below.\n",
+                chase.len()
+            )
+            .as_str();
+            buffer += format!("{INDENT}Quotes (lines starting with '>') will be preserved. Please remove those that you do not intend to keep.\n").as_str();
+        }
+        buffer += HTML_COMMENT_END;
+        buffer += "\n";
+    }
+
+    for (id, comment) in chase.iter().rev() {
+        buffer.reserve_exact(2);
+        buffer.push('\n');
+        comment_quoted(*id, comment, &mut buffer);
+    }
+
+    if let Some(id) = missing {
+        buffer.push_str(
+            format!(
+                "\n{HTML_COMMENT_BEGIN} The comment {id} could not be found. {HTML_COMMENT_END}\n"
+            )
+            .as_str(),
+        );
+    }
+
+    if let Some((id, edit)) = edit {
+        if !chase.is_empty() {
+            buffer.push_str(format!("\n{HTML_COMMENT_BEGIN} The contents of comment {id}, which you are editing, follow below this line. {HTML_COMMENT_END}\n").as_str());
+        }
+        buffer.reserve_exact(1 + edit.len());
+        buffer.push('\n');
+        buffer.push_str(edit);
+    }
+
+    let body = message.get(&buffer)?;
 
     if body.is_empty() {
         anyhow::bail!("aborting operation due to empty comment");
     }
-    Ok((body, reply_to))
+    Ok(body)
+}
+
+fn comment_quoted(id: Oid, comment: &thread::Comment, buffer: &mut String) {
+    let body = comment.body();
+    let lines = body.lines();
+
+    let hint = {
+        let (lower, upper) = lines.size_hint();
+        upper.unwrap_or(lower)
+    };
+
+    let author = Did::from(comment.author());
+    buffer.push_str(format!("In comment {id}, {author} wrote:\n").as_str());
+    buffer.reserve(body.len() + hint * 2);
+
+    for line in lines {
+        buffer.push('>');
+        if !line.is_empty() {
+            buffer.push(' ');
+        }
+        buffer.push_str(line);
+        buffer.push('\n');
+    }
 }
