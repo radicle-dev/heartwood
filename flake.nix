@@ -248,30 +248,6 @@
           };
         };
 
-      apps.default = flake-utils.lib.mkApp {
-        drv = self.packages.${system}.radicle;
-      };
-
-      apps.radicle-full = flake-utils.lib.mkApp {
-        name = "rad";
-        drv = self.packages.${system}.radicle-full;
-      };
-
-      apps.rad = flake-utils.lib.mkApp {
-        name = "rad";
-        drv = self.packages.${system}.radicle-cli;
-      };
-
-      apps.git-remote-rad = flake-utils.lib.mkApp {
-        name = "git-remote-rad";
-        drv = self.packages.${system}.radicle-remote-helper;
-      };
-
-      apps.radicle-node = flake-utils.lib.mkApp {
-        name = "radicle-node";
-        drv = self.packages.${system}.radicle-node;
-      };
-
       devShells.default = rustup.craneLib.devShell {
         inherit (self.checks.${system}.pre-commit-check) shellHook;
         buildInputs = self.checks.${system}.pre-commit-check.enabledPackages;
