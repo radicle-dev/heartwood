@@ -826,9 +826,7 @@ fn push_ref(
     // Nb. The *force* indicator (`+`) is processed by Git tooling before we even reach this code.
     // This happens during the `list for-push` phase.
     let refspec = git::Refspec { src, dst, force };
-    let repo = working.workdir().ok_or(Error::BareRepository {
-        path: working.path().to_path_buf(),
-    })?;
+    let repo = working.workdir().unwrap_or_else(|| working.path());
 
     radicle::git::run::<_, _, &str, &str>(
         repo,
