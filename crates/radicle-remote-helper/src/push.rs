@@ -118,32 +118,98 @@ pub enum Error {
     Quorum(#[from] radicle::git::canonical::QuorumError),
 }
 
+/// A resolved Git revision.
+///
+/// The revision [`git::Oid`] is either a Git tag or a Git commit.
+struct Revision(git::Oid);
+
+impl Revision {
+    /// Return the [`git::Oid`]
+    fn id(&self) -> git::Oid {
+        self.0
+    }
+
+    /// Parse the revision string to a single Git object, and peel it to a Git
+    /// tag or Git commit.
+    fn parse(rev: &str, repo: &git::raw::Repository) -> Result<Self, RevisionError> {
+        let obj = repo
+            .revparse_single(rev)
+            .map_err(|err| RevisionError::Revparse {
+                src: rev.to_string(),
+                err,
+            })?;
+        obj.peel_to_tag()
+            .map(|tag| tag.id())
+            .or(obj.peel_to_commit().map(|commit| commit.id()))
+            .map(|id| Self(id.into()))
+            .map_err(|err| RevisionError::Object {
+                src: rev.to_string(),
+                err,
+            })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum RevisionError {
+    #[error("failed to resolve {src} to a Git object: {err}")]
+    Object {
+        src: String,
+        #[source]
+        err: git::raw::Error,
+    },
+    #[error("failed to parse {src} as a Git revision: {err}")]
+    Revparse {
+        src: String,
+        #[source]
+        err: git::raw::Error,
+    },
+}
+
 /// Push command.
 enum Command {
     /// Update ref.
-    Push(git::Refspec<git::RefString, git::RefString>),
+    Push(git::Refspec<Revision, git::RefString>),
     /// Delete ref.
     Delete(git::RefString),
 }
 
-impl Command {
-    /// Return the destination refname.
-    fn dst(&self) -> &git::RefStr {
-        match self {
-            Self::Push(rs) => rs.dst.as_refstr(),
-            Self::Delete(rs) => rs,
-        }
-    }
+#[derive(Debug, thiserror::Error)]
+enum CommandError {
+    #[error("expected refspec of the form `[<src>]:<dst>`, got {rev}")]
+    Empty { rev: String },
+    #[error("failed to parse destination reference ({rev}): {err}")]
+    Delete {
+        rev: String,
+        #[source]
+        err: git::fmt::Error,
+    },
+    #[error("failed to parse source revision ({rev}) due to {err}")]
+    Revision {
+        rev: String,
+        #[source]
+        err: RevisionError,
+    },
 }
 
-impl FromStr for Command {
-    type Err = git::ext::ref_format::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+impl Command {
+    /// Parse a `Command` given the input string, expected to be of the form
+    /// `[src]:dst`.
+    ///
+    /// If `src` is not provided, then the `Command` is deleting the `dst`
+    /// reference.
+    ///
+    /// If the `src` is provided, which can be any Git [revision], then `dst` is
+    /// being updating with the `src` value.
+    ///
+    /// [revision]: https://git-scm.com/docs/revisions
+    fn parse(s: &str, repo: &git::raw::Repository) -> Result<Self, CommandError> {
         let Some((src, dst)) = s.split_once(':') else {
-            return Err(git::ext::ref_format::Error::Empty);
+            return Err(CommandError::Empty { rev: s.to_string() });
         };
-        let dst = git::RefString::try_from(dst)?;
+        let dst = git::RefString::try_from(dst).map_err(|err| CommandError::Delete {
+            rev: dst.to_string(),
+            err,
+        })?;
 
         if src.is_empty() {
             Ok(Self::Delete(dst))
@@ -153,9 +219,20 @@ impl FromStr for Command {
             } else {
                 (src, false)
             };
-            let src = git::RefString::try_from(src)?;
+            let src = Revision::parse(src, repo).map_err(|err| CommandError::Revision {
+                rev: src.to_string(),
+                err,
+            })?;
 
             Ok(Self::Push(git::Refspec { src, dst, force }))
+        }
+    }
+
+    /// Return the destination refname.
+    fn dst(&self) -> &git::RefStr {
+        match self {
+            Self::Push(rs) => rs.dst.as_refstr(),
+            Self::Delete(rs) => rs,
         }
     }
 }
@@ -203,10 +280,11 @@ pub fn run(
         }
     }
     let delegates = stored.delegates()?;
+    let working = git::raw::Repository::open(working)?;
 
     // For each refspec, push a ref or delete a ref.
     for spec in specs {
-        let Ok(cmd) = Command::from_str(&spec) else {
+        let Ok(cmd) = Command::parse(&spec, &working) else {
             return Err(Error::InvalidCommand(format!("push {spec}")));
         };
         let result = match &cmd {
@@ -226,7 +304,6 @@ pub fn run(
                     .map_err(Error::from)
             }
             Command::Push(git::Refspec { src, dst, force }) => {
-                let working = git::raw::Repository::open(working)?;
                 let patches = crate::patches_mut(profile, stored)?;
 
                 if dst == &*rad::PATCHES_REFNAME {
@@ -273,9 +350,7 @@ pub fn run(
                         // Note that we *do* allow rolling back to a previous commit on the
                         // canonical branch.
                         if dst == canonical_ref && delegates.contains(&me) && delegates.len() > 1 {
-                            let head = working.find_reference(src.as_str())?;
-                            let head = head.peel_to_commit()?.id();
-
+                            let head = src.id();
                             let mut canonical = Canonical::default_branch(
                                 stored,
                                 &project,
@@ -286,18 +361,18 @@ pub fn run(
                                 canonical
                                     .tips()
                                     .filter_map(|(did, tip)| (*did != me).then_some(tip)),
-                                head.into(),
+                                head,
                                 &working,
                             )?;
                             if converges {
-                                canonical.modify_vote(me, head.into());
+                                canonical.modify_vote(me, head);
                             }
 
                             match canonical.quorum(&working) {
                                 Ok(canonical_oid) => {
                                     // Canonical head is an ancestor of head.
-                                    let is_ff = head == *canonical_oid
-                                        || working.graph_descendant_of(head, *canonical_oid)?;
+                                    let is_ff = *head == *canonical_oid
+                                        || working.graph_descendant_of(*head, *canonical_oid)?;
 
                                     if !is_ff && !converges {
                                         if hints {
@@ -310,10 +385,7 @@ pub fn run(
                                                  and try again",
                                             );
                                         }
-                                        return Err(Error::HeadsDiverge(
-                                            head.into(),
-                                            canonical_oid,
-                                        ));
+                                        return Err(Error::HeadsDiverge(head, canonical_oid));
                                     }
                                 }
                                 Err(canonical::QuorumError::Diverging(e)) => {
@@ -392,7 +464,7 @@ pub fn run(
 
 /// Open a new patch.
 fn patch_open<G>(
-    src: &git::RefStr,
+    src: &Revision,
     upstream: &git::RefString,
     nid: &NodeId,
     working: &git::raw::Repository,
@@ -408,9 +480,8 @@ fn patch_open<G>(
 where
     G: crypto::signature::Signer<crypto::Signature>,
 {
-    let reference = working.find_reference(src.as_str())?;
-    let commit = reference.peel_to_commit()?;
-    let dst = git::refs::storage::staging::patch(nid, commit.id());
+    let head = src.id();
+    let dst = git::refs::storage::staging::patch(nid, head);
 
     // Before creating the patch, we must push the associated git objects to storage.
     // Unfortunately, we don't have an easy way to transfer the missing objects without
@@ -422,7 +493,6 @@ where
     push_ref(src, &dst, false, working, stored.raw())?;
 
     let (_, target) = stored.canonical_head()?;
-    let head = commit.id().into();
     let base = if let Some(base) = opts.base {
         base.resolve(working)?
     } else {
@@ -440,7 +510,7 @@ where
             &description,
             patch::MergeTarget::default(),
             base,
-            commit.id(),
+            head,
             &[],
             signer,
         )
@@ -450,7 +520,7 @@ where
             &description,
             patch::MergeTarget::default(),
             base,
-            commit.id(),
+            head,
             &[],
             signer,
         )
@@ -477,14 +547,13 @@ where
             let refname = git::refs::patch(&patch).with_namespace(nid.into());
             let _ = stored.raw().reference(
                 refname.as_str(),
-                commit.id(),
+                *head,
                 true,
                 "Create reference for patch head",
             )?;
 
             // Setup current branch so that pushing updates the patch.
-            if let Some(branch) =
-                rad::setup_patch_upstream(&patch, commit.id().into(), working, upstream, false)?
+            if let Some(branch) = rad::setup_patch_upstream(&patch, head, working, upstream, false)?
             {
                 if let Some(name) = branch.name()? {
                     if profile.hints() {
@@ -515,7 +584,7 @@ where
 /// Update an existing patch.
 #[allow(clippy::too_many_arguments)]
 fn patch_update<G>(
-    src: &git::RefStr,
+    src: &Revision,
     dst: &git::Qualified,
     force: bool,
     oid: &git::Oid,
@@ -532,8 +601,7 @@ fn patch_update<G>(
 where
     G: crypto::signature::Signer<crypto::Signature>,
 {
-    let reference = working.find_reference(src.as_str())?;
-    let commit = reference.peel_to_commit()?;
+    let commit = src.id();
     let patch_id = radicle::cob::ObjectId::from(oid);
     let dst = dst.with_namespace(nid.into());
 
@@ -544,22 +612,17 @@ where
     };
 
     // Don't update patch if it already has a revision matching this commit.
-    if patch.revisions().any(|(_, r)| *r.head() == commit.id()) {
+    if patch.revisions().any(|(_, r)| *r.head() == *commit) {
         return Ok(None);
     }
 
     let (latest_id, latest) = patch.latest();
     let latest = latest.clone();
 
-    let message = term::patch::get_update_message(
-        opts.message,
-        &stored.backend,
-        &latest,
-        &commit.id().into(),
-    )?;
+    let message = term::patch::get_update_message(opts.message, &stored.backend, &latest, &commit)?;
 
     let (_, target) = stored.canonical_head()?;
-    let head: git::Oid = commit.id().into();
+    let head: git::Oid = commit;
     let base = if let Some(base) = opts.base {
         base.resolve(working)?
     } else {
@@ -601,7 +664,7 @@ where
 }
 
 fn push<G>(
-    src: &git::RefStr,
+    src: &Revision,
     dst: &git::Qualified,
     force: bool,
     nid: &NodeId,
@@ -616,18 +679,7 @@ fn push<G>(
 where
     G: crypto::signature::Signer<crypto::Signature>,
 {
-    let head = match working.find_reference(src.as_str()) {
-        Ok(obj) => obj.peel_to_commit()?,
-        Err(e) => {
-            if let Ok(oid) = git::Oid::from_str(src.as_str()) {
-                working.find_commit(oid.into())?
-            } else {
-                return Err(e.into());
-            }
-        }
-    }
-    .id();
-
+    let head = src.id();
     let dst = dst.with_namespace(nid.into());
     // It's ok for the destination reference to be unknown, eg. when pushing a new branch.
     let old = stored.backend.find_reference(dst.as_str()).ok();
@@ -644,18 +696,12 @@ where
             let old = old.peel_to_commit()?.id();
             // Only delegates affect the merge state of the COB.
             if stored.delegates()?.contains(&nid.into()) {
-                patch_revert_all(
-                    old.into(),
-                    head.into(),
-                    &stored.backend,
-                    &mut patches,
-                    signer,
-                )?;
-                patch_merge_all(old.into(), head.into(), working, &mut patches, signer)?;
+                patch_revert_all(old.into(), head, &stored.backend, &mut patches, signer)?;
+                patch_merge_all(old.into(), head, working, &mut patches, signer)?;
             }
         }
     }
-    Ok(Some(ExplorerResource::Tree { oid: head.into() }))
+    Ok(Some(ExplorerResource::Tree { oid: head }))
 }
 
 /// Revert all patches that are no longer included in the base branch.
@@ -816,7 +862,7 @@ where
 
 /// Push a single reference to storage.
 fn push_ref(
-    src: &git::RefStr,
+    src: &Revision,
     dst: &git::Namespaced,
     force: bool,
     working: &git::raw::Repository,
@@ -825,7 +871,11 @@ fn push_ref(
     let url = git::url::File::new(stored.path()).to_string();
     // Nb. The *force* indicator (`+`) is processed by Git tooling before we even reach this code.
     // This happens during the `list for-push` phase.
-    let refspec = git::Refspec { src, dst, force };
+    let refspec = git::Refspec {
+        src: src.id(),
+        dst,
+        force,
+    };
     let repo = working.workdir().unwrap_or_else(|| working.path());
 
     radicle::git::run::<_, _, &str, &str>(
