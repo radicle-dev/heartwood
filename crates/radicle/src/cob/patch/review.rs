@@ -253,9 +253,9 @@ impl<EC> Draft<EC> {
 }
 
 impl Draft<Embed<Uri>> {
-    pub fn publish<'a, 'g, R, C, G>(
+    pub fn publish<R, C, G>(
         self,
-        patch: &mut PatchMut<'a, 'g, R, C>,
+        patch: &mut PatchMut<R, C>,
         revision: RevisionId,
         signer: &Device<G>,
     ) -> Result<Published, PatchError>
@@ -310,22 +310,22 @@ impl<E, A> Annotated<E, A> {
     }
 }
 
-fn resolve<E, S>(draft: Draft<E>) -> Draft<Resolving<E, S::Error>>
-where
-    S: EmbedStore<E>,
-{
-    todo!()
-}
+// fn resolve<E, S>(draft: Draft<E>) -> Draft<Resolving<E, S::Error>>
+// where
+//     S: EmbedStore<E>,
+// {
+//     todo!()
+// }
 
-fn ready<E, A>(draft: Draft<Resolving<E, A>>) -> Option<Draft<Embed<Uri>>> {
-    let comments = draft.comments.into_iter().map(|(ix, c)| todo!()).collect();
-    Some(Draft {
-        verdict: draft.verdict,
-        summary: draft.summary,
-        labels: draft.labels,
-        comments,
-    })
-}
+// fn ready<E, A>(draft: Draft<Resolving<E, A>>) -> Option<Draft<Embed<Uri>>> {
+//     let comments = draft.comments.into_iter().map(|(ix, c)| todo!()).collect();
+//     Some(Draft {
+//         verdict: draft.verdict,
+//         summary: draft.summary,
+//         labels: draft.labels,
+//         comments,
+//     })
+// }
 
 /// The result of calling [`Draft::resolve_embeds`].
 pub enum Ready<E>
@@ -378,6 +378,7 @@ impl EmbedStore<Embed<Uri>> for Resolved {
     }
 }
 
+#[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod test {
     use std::io;
@@ -410,7 +411,7 @@ mod test {
         {
             let file_path = self.dir.path().join(name);
             let mut file = std::fs::File::create(&file_path)?;
-            file.write(bytes)?;
+            file.write_all(bytes)?;
             Ok(file_path)
         }
 
@@ -493,7 +494,7 @@ mod test {
             None,
             vec![embed],
         ));
-        draft.with_labels([Label::new("todo").unwrap()].into_iter());
+        draft.with_labels([Label::new("todo").unwrap()]);
         let ready = match draft.resolve_embeds(&media_store, &alice.repo.backend) {
             Ready::Draft(draft) => draft,
             Ready::Resolving { unresolved, .. } => {
