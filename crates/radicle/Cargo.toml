@@ -37,6 +37,7 @@ radicle-ssh = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["preserve_order"] }
+serde-untagged = "0.1.7"
 siphasher = "1.0.0"
 sqlite = { workspace = true, features = ["bundled"] }
 tempfile = { workspace = true }

@@ -1,5 +1,10 @@
 pub mod cache;
 
+mod actions;
+pub use actions::ReviewEdit;
+
+mod encoding;
+
 use std::collections::btree_map;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
@@ -187,16 +192,6 @@ pub enum Action {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         labels: Vec<Label>,
     },
-    #[serde(rename = "review.edit")]
-    ReviewEdit {
-        review: ReviewId,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        summary: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        verdict: Option<Verdict>,
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        labels: Vec<Label>,
-    },
     #[serde(rename = "review.redact")]
     ReviewRedact { review: ReviewId },
     #[serde(rename = "review.comment")]
@@ -234,6 +229,13 @@ pub enum Action {
     ReviewCommentResolve { review: ReviewId, comment: EntryId },
     #[serde(rename = "review.comment.unresolve")]
     ReviewCommentUnresolve { review: ReviewId, comment: EntryId },
+    /// React to the review.
+    #[serde(rename = "review.react")]
+    ReviewReact {
+        review: ReviewId,
+        reaction: Reaction,
+        active: bool,
+    },
 
     //
     // Revision actions
@@ -307,6 +309,12 @@ pub enum Action {
         reaction: Reaction,
         active: bool,
     },
+    /// Edit a review's summary, verdict, labels, and embeds.
+    // Note that the tags live on `actions::ReviewEdit`, and according to the
+    // serde.rs docs, it must come after the other variants due to the
+    // `untagged` declaration.
+    #[serde(untagged)]
+    ReviewEdit(actions::ReviewEdit),
 }
 
 impl CobAction for Action {
@@ -674,8 +682,16 @@ impl Patch {
             },
             // Anyone can submit a review.
             Action::Review { .. } => Authorization::Allow,
-            Action::ReviewRedact { review, .. } | Action::ReviewEdit { review, .. } => {
+            Action::ReviewRedact { review, .. } => {
                 if let Some((_, review)) = lookup::review(self, review)? {
+                    Authorization::from(actor == review.author.public_key())
+                } else {
+                    // Redacted.
+                    Authorization::Unknown
+                }
+            }
+            Action::ReviewEdit(edit) => {
+                if let Some((_, review)) = lookup::review(self, edit.review_id())? {
                     Authorization::from(actor == review.author.public_key())
                 } else {
                     // Redacted.
@@ -714,6 +730,7 @@ impl Patch {
                 // Redacted.
                 Authorization::Unknown
             }
+            Action::ReviewReact { .. } => Authorization::Allow,
             // Anyone can propose revisions.
             Action::Revision { .. } => Authorization::Allow,
             // Only the revision author can edit or redact their revision.
@@ -896,7 +913,7 @@ impl Patch {
             }
             Action::Review {
                 revision,
-                ref summary,
+                summary,
                 verdict,
                 labels,
             } => {
@@ -914,8 +931,9 @@ impl Patch {
                             id,
                             Author::new(author),
                             verdict,
-                            summary.to_owned(),
+                            summary.unwrap_or_default(),
                             labels,
+                            vec![],
                             timestamp,
                         ));
                         // Update reviews index.
@@ -928,22 +946,7 @@ impl Patch {
                     }
                 }
             }
-            Action::ReviewEdit {
-                review,
-                summary,
-                verdict,
-                labels,
-            } => {
-                if summary.is_none() && verdict.is_none() {
-                    return Err(Error::EmptyReview);
-                }
-                let Some(review) = lookup::review_mut(self, &review)? else {
-                    return Ok(());
-                };
-                review.verdict = verdict;
-                review.summary = summary;
-                review.labels = labels;
-            }
+            Action::ReviewEdit(edit) => edit.run(author, timestamp, self)?,
             Action::ReviewCommentReact {
                 review,
                 comment,
@@ -1041,6 +1044,19 @@ impl Patch {
                 }
                 // Set the review locator in the review index to redacted.
                 *locator = None;
+            }
+            Action::ReviewReact {
+                review,
+                reaction,
+                active,
+            } => {
+                if let Some(review) = lookup::review_mut(self, &review)? {
+                    if active {
+                        review.reactions.insert((author, reaction));
+                    } else {
+                        review.reactions.remove(&(author, reaction));
+                    }
+                }
             }
             Action::Merge { revision, commit } => {
                 // If the revision was redacted before the merge, ignore the merge.
@@ -1613,6 +1629,7 @@ impl fmt::Display for Verdict {
 /// A patch review on a revision.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(from = "encoding::review::Review")]
 pub struct Review {
     /// Review identifier.
     pub(super) id: ReviewId,
@@ -1624,13 +1641,19 @@ pub struct Review {
     pub(super) verdict: Option<Verdict>,
     /// Review summary.
     ///
-    /// Can be edited or set to `None`.
-    pub(super) summary: Option<String>,
+    /// Can be empty, given there is a [`Verdict`].
+    ///
+    /// If not empty, then the last [`Edit`] in the `Vec` will be the latest
+    /// edit of the summary.
+    pub(super) summary: NonEmpty<Edit>,
     /// Review comments.
     pub(super) comments: Thread<Comment<CodeLocation>>,
     /// Labels qualifying the review. For example if this review only looks at the
     /// concept or intention of the patch, it could have a "concept" label.
     pub(super) labels: Vec<Label>,
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    /// Reactions to the review.
+    pub(super) reactions: Reactions,
     /// Review timestamp.
     pub(super) timestamp: Timestamp,
 }
@@ -1640,16 +1663,19 @@ impl Review {
         id: ReviewId,
         author: Author,
         verdict: Option<Verdict>,
-        summary: Option<String>,
+        summary: String,
         labels: Vec<Label>,
+        embeds: Vec<Embed<Uri>>,
         timestamp: Timestamp,
     ) -> Self {
+        let summary = NonEmpty::new(Edit::new(*author.public_key(), summary, timestamp, embeds));
         Self {
             id,
             author,
             verdict,
             summary,
             comments: Thread::default(),
+            reactions: BTreeSet::new(),
             labels,
             timestamp,
         }
@@ -1681,8 +1707,23 @@ impl Review {
     }
 
     /// Review general comment.
-    pub fn summary(&self) -> Option<&str> {
-        self.summary.as_deref()
+    pub fn summary(&self) -> &str {
+        self.summary.last().body.as_str()
+    }
+
+    /// Review embeds.
+    pub fn embeds(&self) -> &[Embed<Uri>] {
+        &self.summary.last().embeds
+    }
+
+    /// Review reactions.
+    pub fn reactions(&self) -> &Reactions {
+        &self.reactions
+    }
+
+    /// Get the review summary edits.
+    pub fn edits(&self) -> impl Iterator<Item = &Edit> {
+        self.summary.iter()
     }
 
     /// Review timestamp.
@@ -1911,15 +1952,17 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         &mut self,
         review: ReviewId,
         verdict: Option<Verdict>,
-        summary: Option<String>,
+        summary: String,
         labels: Vec<Label>,
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
     ) -> Result<(), store::Error> {
-        self.push(Action::ReviewEdit {
+        self.push(Action::ReviewEdit(actions::ReviewEdit::new(
             review,
             summary,
             verdict,
             labels,
-        })
+            embeds.into_iter().collect(),
+        )))
     }
 
     /// Redact a patch review.
@@ -2272,15 +2315,16 @@ where
         &mut self,
         review: ReviewId,
         verdict: Option<Verdict>,
-        summary: Option<String>,
+        summary: String,
         labels: Vec<Label>,
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
         signer: &Device<G>,
     ) -> Result<EntryId, Error>
     where
         G: crypto::signature::Signer<crypto::Signature>,
     {
         self.transaction("Edit review", signer, |tx| {
-            tx.review_edit(review, verdict, summary, labels)
+            tx.review_edit(review, verdict, summary, labels, embeds)
         })
     }
 
@@ -3109,7 +3153,7 @@ mod test {
 
         let review = revision.review_by(alice.signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Accept));
-        assert_eq!(review.summary(), Some("LGTM"));
+        assert_eq!(review.summary(), "LGTM");
 
         patch.redact_review(review_id, &alice.signer).unwrap();
         patch.reload().unwrap();
@@ -3345,7 +3389,8 @@ mod test {
             .review_edit(
                 review,
                 Some(Verdict::Reject),
-                Some("Whoops!".to_owned()),
+                "Whoops!".to_owned(),
+                vec![],
                 vec![],
                 &alice.signer,
             )
@@ -3354,7 +3399,7 @@ mod test {
         let (_, revision) = patch.latest();
         let review = revision.review_by(alice.signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Reject));
-        assert_eq!(review.summary(), Some("Whoops!"));
+        assert_eq!(review.summary(), "Whoops!");
     }
 
     #[test]
@@ -3415,7 +3460,14 @@ mod test {
             .unwrap();
 
         let _review = patch
-            .review_edit(review, Some(Verdict::Reject), None, vec![], &alice.signer)
+            .review_edit(
+                review,
+                Some(Verdict::Reject),
+                "".to_string(),
+                vec![],
+                vec![],
+                &alice.signer,
+            )
             .unwrap();
         patch
             .review_comment(review, "Second comment!", None, None, [], &alice.signer)
@@ -3508,7 +3560,14 @@ mod test {
             )
             .unwrap();
         patch
-            .review_edit(review, Some(Verdict::Accept), None, vec![], &alice.signer)
+            .review_edit(
+                review,
+                Some(Verdict::Accept),
+                "".to_string(),
+                vec![],
+                vec![],
+                &alice.signer,
+            )
             .unwrap();
 
         let id = patch.id;
@@ -3517,7 +3576,7 @@ mod test {
         let review = revision.review_by(alice.signer.public_key()).unwrap();
 
         assert_eq!(review.verdict(), Some(Verdict::Accept));
-        assert_eq!(review.summary(), None);
+        assert_eq!(review.summary(), "");
     }
 
     #[test]
