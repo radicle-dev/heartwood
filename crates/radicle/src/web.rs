@@ -1,6 +1,7 @@
-use crate::prelude::RepoId;
+use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+
+use crate::prelude::RepoId;
 
 /// Web configuration.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -34,5 +35,9 @@ pub struct Config {
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Pinned {
     /// Pinned repositories.
-    pub repositories: HashSet<RepoId>,
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "std::collections::HashSet<RepoId>")
+    )]
+    pub repositories: IndexSet<RepoId>,
 }

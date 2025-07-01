@@ -136,7 +136,7 @@ Values for changes are being validated.
 
 ``` (fail)
 $ rad config set web.pinned.repositories 5
-✗ Error: configuration JSON error: invalid type: integer `5`, expected a sequence
+✗ Error: configuration JSON error: invalid type: integer `5`, expected a set
 ```
 
 The type of the operation is validated.
