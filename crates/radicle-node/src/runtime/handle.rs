@@ -293,8 +293,8 @@ impl radicle::node::Handle for Handle {
         let query: Arc<QueryState> = Arc::new(move |state| {
             let sessions = state
                 .sessions()
-                .values()
-                .map(radicle::node::Session::from)
+                .iter()
+                .map(|(_, s)| radicle::node::Session::from(s))
                 .collect();
             sender.send(sessions).ok();
 
@@ -312,7 +312,10 @@ impl radicle::node::Handle for Handle {
     fn session(&self, nid: NodeId) -> Result<Option<radicle::node::Session>, Self::Error> {
         let (sender, receiver) = chan::bounded(1);
         let query: Arc<QueryState> = Arc::new(move |state| {
-            let session = state.sessions().get(&nid).map(radicle::node::Session::from);
+            let session = state
+                .sessions()
+                .get_session(&nid)
+                .map(radicle::node::Session::from);
             sender.send(session).ok();
 
             Ok(())
