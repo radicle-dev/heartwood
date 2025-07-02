@@ -1,5 +1,12 @@
 use std::collections::VecDeque;
 
+use super::message::{Announcement, AnnouncementMessage};
+use crate::connections::session;
+use crate::connections::session::Session;
+use crate::fetcher;
+use crate::service::DisconnectReason;
+use crate::service::Link;
+use crate::service::message::Message;
 use localtime::LocalDuration;
 use log::*;
 use radicle::identity::RepoId;
@@ -7,15 +14,6 @@ use radicle::node::Address;
 use radicle::node::NodeId;
 use radicle::node::config::FetchPackSizeLimit;
 use radicle::storage::refs::RefsAt;
-
-use crate::fetcher;
-use crate::service::DisconnectReason;
-use crate::service::Link;
-use crate::service::message::Message;
-use crate::service::session::Session;
-
-use super::gossip;
-use super::message::{Announcement, AnnouncementMessage};
 
 /// I/O operation to execute at the network/wire level.
 #[derive(Debug)]
@@ -62,46 +60,35 @@ impl Outbox {
         self.io.push_back(Io::Disconnect(id, reason));
     }
 
-    pub fn write(&mut self, remote: &Session, msg: Message) {
+    // TODO(finto): use a `ConnectedNode` token that is a smart constructed
+    // `NodeId`. We can take that instead of `Session<session::Connected>`,
+    // which can relax the borrow-checker.
+    pub fn write(&mut self, remote: &Session<session::Connected>, msg: Message) {
         let level = match &msg {
             Message::Ping(_) | Message::Pong { .. } => log::Level::Trace,
             _ => log::Level::Debug,
         };
-        msg.log(level, &remote.id, Link::Outbound);
+        msg.log(level, &remote.node(), Link::Outbound);
         trace!(target: "service", "Write {:?} to {}", &msg, remote);
 
-        self.io.push_back(Io::Write(remote.id, vec![msg]));
+        self.io.push_back(Io::Write(remote.node(), vec![msg]));
     }
 
     /// Announce something to a peer. This is meant for our own announcement messages.
     pub fn announce<'a>(
         &mut self,
         ann: Announcement,
-        peers: impl Iterator<Item = &'a Session>,
-        gossip: &mut impl gossip::Store,
+        peers: impl Iterator<Item = &'a Session<session::Connected>>,
     ) {
-        // Store our announcement so that it can be retrieved from us later, just like
-        // announcements we receive from peers.
-        if let Err(e) = gossip.announced(&ann.node, &ann) {
-            warn!(target: "service", "Failed to update gossip store with announced message: {e}");
-        }
-
         for peer in peers {
             if let AnnouncementMessage::Refs(refs) = &ann.message {
-                if let Some(subscribe) = &peer.subscribe {
-                    if subscribe.filter.contains(&refs.rid) {
-                        self.write(peer, ann.clone().into());
-                    } else {
-                        debug!(
-                            target: "service",
-                            "Skipping refs announcement relay to {peer}: peer isn't subscribed to {}",
-                            refs.rid
-                        );
-                    }
+                if peer.is_subscribed_to(&refs.rid) {
+                    self.write(peer, ann.clone().into());
                 } else {
                     debug!(
                         target: "service",
-                        "Skipping refs announcement relay to {peer}: peer didn't send a subscription filter"
+                        "Skipping refs announcement relay to {peer}: peer isn't subscribed to {}",
+                        refs.rid
                     );
                 }
             } else {
@@ -110,7 +97,7 @@ impl Outbox {
         }
     }
 
-    pub fn write_all(&mut self, remote: &Session, msgs: impl IntoIterator<Item = Message>) {
+    pub fn write_all(&mut self, remote: NodeId, msgs: impl IntoIterator<Item = Message>) {
         let msgs = msgs.into_iter().collect::<Vec<_>>();
 
         for (ix, msg) in msgs.iter().enumerate() {
@@ -122,18 +109,21 @@ impl Outbox {
                 ix + 1,
                 msgs.len()
             );
-            msg.log(log::Level::Trace, &remote.id, Link::Outbound);
+            msg.log(log::Level::Trace, &remote, Link::Outbound);
         }
-        self.io.push_back(Io::Write(remote.id, msgs));
+        self.io.push_back(Io::Write(remote, msgs));
     }
 
     pub fn wakeup(&mut self, after: LocalDuration) {
         self.io.push_back(Io::Wakeup(after));
     }
 
+    // TODO(finto): use a `ConnectedNode` token that is a smart constructed
+    // `NodeId`. We can take that instead of `Session<session::Connected>`,
+    // which can relax the borrow-checker.
     pub fn fetch(
         &mut self,
-        peer: &mut Session,
+        peer: &Session<session::Connected>,
         rid: RepoId,
         refs_at: Vec<RefsAt>,
         reader_limit: FetchPackSizeLimit,
@@ -153,7 +143,7 @@ impl Outbox {
         self.io.push_back(Io::Fetch {
             rid,
             refs_at,
-            remote: peer.id,
+            remote: peer.node(),
             reader_limit,
             config,
         });
@@ -163,7 +153,7 @@ impl Outbox {
     pub fn broadcast<'a>(
         &mut self,
         msg: impl Into<Message>,
-        peers: impl IntoIterator<Item = &'a Session>,
+        peers: impl IntoIterator<Item = &'a Session<session::Connected>>,
     ) {
         let msg = msg.into();
         for peer in peers {
@@ -172,18 +162,14 @@ impl Outbox {
     }
 
     /// Relay a message to interested peers.
-    pub fn relay<'a>(&mut self, ann: Announcement, peers: impl IntoIterator<Item = &'a Session>) {
+    pub fn relay<'a>(
+        &mut self,
+        ann: Announcement,
+        peers: impl IntoIterator<Item = &'a Session<session::Connected>>,
+    ) {
         if let AnnouncementMessage::Refs(msg) = &ann.message {
             let id = msg.rid;
-            let peers = peers.into_iter().filter(|p| {
-                if let Some(subscribe) = &p.subscribe {
-                    subscribe.filter.contains(&id)
-                } else {
-                    // If the peer did not send us a `subscribe` message, we don't
-                    // relay any messages to them.
-                    false
-                }
-            });
+            let peers = peers.into_iter().filter(|p| p.is_subscribed_to(&id));
             self.broadcast(ann, peers);
         } else {
             self.broadcast(ann, peers);

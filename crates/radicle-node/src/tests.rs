@@ -25,6 +25,8 @@ use radicle::storage::refs::RefsAt;
 use radicle::test::arbitrary::r#gen;
 use radicle::test::storage::MockRepository;
 use radicle_protocol::bounded::BoundedVec;
+use radicle_protocol::connections::config::KEEP_ALIVE_DELTA;
+use radicle_protocol::connections::config::STALE_CONNECTION_TIMEOUT;
 
 use crate::collections::{RandomMap, RandomSet};
 use crate::identity::RepoId;
@@ -131,7 +133,7 @@ fn test_disconnecting_unresponsive_peer() {
     let bob = Peer::new("bob", [198, 18, 0, 9]);
 
     alice.connect_to(&bob);
-    assert_eq!(1, alice.sessions().connected().count(), "bob connects");
+    assert_eq!(1, alice.sessions().connected().len(), "bob connects");
     alice.elapse(STALE_CONNECTION_TIMEOUT + LocalDuration::from_secs(1));
     alice
         .outbox()
@@ -175,7 +177,7 @@ fn test_connection_kept_alive() {
         ConnectOptions::default(),
     ));
     sim.run_while([&mut alice, &mut bob], |s| !s.is_settled());
-    assert_eq!(1, alice.sessions().connected().count(), "bob connects");
+    assert_eq!(1, alice.sessions().connected().len(), "bob connects");
 
     let mut elapsed: LocalDuration = LocalDuration::from_secs(0);
     let step: LocalDuration = STALE_CONNECTION_TIMEOUT / 10;
@@ -187,8 +189,16 @@ fn test_connection_kept_alive() {
         elapsed = elapsed + step;
     }
 
-    assert_eq!(1, alice.sessions().len(), "alice remains connected to Bob");
-    assert_eq!(1, bob.sessions().len(), "bob remains connected to Alice");
+    assert_eq!(
+        1,
+        alice.sessions().connected().len(),
+        "alice remains connected to Bob"
+    );
+    assert_eq!(
+        1,
+        bob.sessions().connected().len(),
+        "bob remains connected to Alice"
+    );
 }
 
 #[test]
@@ -204,7 +214,8 @@ fn test_outbound_connection() {
         .service
         .sessions()
         .connected()
-        .map(|(id, _)| *id)
+        .node_ids()
+        .copied()
         .collect::<Vec<_>>();
 
     assert!(peers.contains(&eve.id()));
@@ -224,7 +235,8 @@ fn test_inbound_connection() {
         .service
         .sessions()
         .connected()
-        .map(|(id, _)| *id)
+        .node_ids()
+        .copied()
         .collect::<Vec<_>>();
 
     assert!(peers.contains(&eve.id()));
@@ -1219,7 +1231,8 @@ fn test_persistent_peer_reconnect_attempt() {
     let ips = alice
         .sessions()
         .connected()
-        .map(|(id, _)| *id)
+        .node_ids()
+        .copied()
         .collect::<Vec<_>>();
     assert!(ips.contains(&bob.id()));
     assert!(ips.contains(&eve.id()));
@@ -1308,7 +1321,7 @@ fn test_maintain_connections() {
     }
     assert_eq!(
         connected.len(),
-        alice.sessions().len(),
+        alice.sessions().connected().len(),
         "alice should be connected to the first set of peers"
     );
     // We now import the other addresses.
@@ -2106,19 +2119,19 @@ fn test_announcement_message_amplification() {
         });
 
         // Ensure nodes are all connected; otherwise, skip this test run.
-        if alice.sessions().connected().count() != 4 {
+        if alice.sessions().connected().len() != 4 {
             continue;
         }
-        if bob.sessions().connected().count() != 4 {
+        if bob.sessions().connected().len() != 4 {
             continue;
         }
-        if eve.sessions().connected().count() != 4 {
+        if eve.sessions().connected().len() != 4 {
             continue;
         }
-        if zod.sessions().connected().count() != 4 {
+        if zod.sessions().connected().len() != 4 {
             continue;
         }
-        if tom.sessions().connected().count() != 4 {
+        if tom.sessions().connected().len() != 4 {
             continue;
         }
 
