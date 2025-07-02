@@ -36,7 +36,7 @@ use localtime::{LocalDuration, LocalTime};
 use radicle::node::{Address, Link, NodeId, PingState};
 use radicle::prelude::RepoId;
 
-use crate::service::{message, ZeroBytes, MAX_LATENCIES};
+use crate::service::{MAX_LATENCIES, ZeroBytes, message};
 
 /// Enumeration of the various session states.
 #[derive(Clone, Debug, PartialEq, Eq)]
