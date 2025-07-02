@@ -1,4 +1,5 @@
 pub mod bounded;
+pub mod connections;
 pub mod deserializer;
 pub mod fetcher;
 pub mod service;
