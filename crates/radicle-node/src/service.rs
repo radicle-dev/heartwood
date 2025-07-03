@@ -205,6 +205,16 @@ pub enum Error {
     Namespaces(#[from] NamespacesError),
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum ConnectError {
+    #[error("attempted connection to peer {nid} which already has a session")]
+    SessionExists { nid: NodeId },
+    #[error("attempted connection to self")]
+    SelfConnection,
+    #[error("outbound connection limit reached when attempting {nid} ({addr})")]
+    LimitReached { nid: NodeId, addr: Address },
+}
+
 /// A store for all node data.
 pub trait Store:
     address::Store + gossip::Store + routing::Store + seed::Store + node::refs::Store
@@ -732,7 +742,9 @@ where
         // Connect to configured peers.
         let addrs = self.config.connect.clone();
         for (id, addr) in addrs.into_iter().map(|ca| ca.into()) {
-            self.connect(id, addr);
+            if let Err(e) = self.connect(id, addr) {
+                error!(target: "service", "Service::initialization connection error: {e}");
+            }
         }
         // Try to establish some connections.
         self.maintain_connections();
@@ -838,8 +850,19 @@ where
                 if opts.persistent {
                     self.config.connect.insert((nid, addr.clone()).into());
                 }
-                if !self.connect(nid, addr) {
-                    // TODO: Return error to command.
+                if let Err(e) = self.connect(nid, addr) {
+                    match e {
+                        ConnectError::SessionExists { nid } => {
+                            self.emitter.emit(Event::PeerConnected { nid });
+                        }
+                        e => {
+                            // N.b. using the fact that the call to connect waits for an event
+                            self.emitter.emit(Event::PeerDisconnected {
+                                nid,
+                                reason: e.to_string(),
+                            });
+                        }
+                    }
                 }
             }
             Command::Disconnect(nid) => {
@@ -2213,20 +2236,17 @@ where
         false
     }
 
-    fn connect(&mut self, nid: NodeId, addr: Address) -> bool {
+    fn connect(&mut self, nid: NodeId, addr: Address) -> Result<(), ConnectError> {
         debug!(target: "service", "Connecting to {nid} ({addr})..");
 
-        if self.sessions.contains_key(&nid) {
-            warn!(target: "service", "Attempted connection to peer {nid} which already has a session");
-            return false;
-        }
         if nid == self.node_id() {
-            error!(target: "service", "Attempted connection to self");
-            return false;
+            return Err(ConnectError::SelfConnection);
+        }
+        if self.sessions.contains_key(&nid) {
+            return Err(ConnectError::SessionExists { nid });
         }
         if self.sessions.outbound().count() >= self.config.limits.connection.outbound {
-            error!(target: "service", "Outbound connection limit reached when attempting {nid} ({addr})");
-            return false;
+            return Err(ConnectError::LimitReached { nid, addr });
         }
         let persistent = self.config.is_persistent(&nid);
         let timestamp: Timestamp = self.clock.into();
@@ -2246,7 +2266,7 @@ where
         );
         self.outbox.connect(nid, addr);
 
-        true
+        Ok(())
     }
 
     fn seeds(&self, rid: &RepoId) -> Result<Seeds, Error> {
@@ -2594,7 +2614,9 @@ where
             );
         }
         for (id, ka) in connect {
-            self.connect(id, ka.addr.clone());
+            if let Err(e) = self.connect(id, ka.addr.clone()) {
+                error!(target: "service", "Service::maintain_connections connection error: {e}");
+            }
         }
     }
 
