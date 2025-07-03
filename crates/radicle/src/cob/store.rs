@@ -17,7 +17,7 @@ use crate::storage::git as storage;
 use crate::storage::SignRepository;
 use crate::{cob, identity};
 
-pub trait CobAction: Debug {
+pub trait CobAction {
     /// Parent objects this action depends on. For example, patch revisions
     /// have the commit objects as their parent.
     fn parents(&self) -> Vec<git::Oid> {
@@ -43,7 +43,7 @@ pub trait CobAction: Debug {
 }
 
 /// A collaborative object. Can be materialized from an operation history.
-pub trait Cob: Sized + PartialEq + Debug {
+pub trait Cob: Sized {
     /// The underlying action composing each operation.
     type Action: CobAction + for<'de> Deserialize<'de> + Serialize;
     /// Error returned by `apply` function.
@@ -331,7 +331,7 @@ where
 impl<'a, T, R> Store<'a, T, R>
 where
     R: ReadRepository + cob::Store,
-    T: Cob + cob::Evaluate<R>,
+    T: Cob + cob::Evaluate<R> + 'a,
     T::Action: Serialize,
 {
     /// Get an object.

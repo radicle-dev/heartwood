@@ -63,7 +63,7 @@ impl<T> CollaborativeObject<T> {
 }
 
 /// An object that can be built by evaluating a history.
-pub trait Evaluate<R>: Sized + Debug + 'static {
+pub trait Evaluate<R>: Sized {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Initialize the object with the first (root) history entry.
