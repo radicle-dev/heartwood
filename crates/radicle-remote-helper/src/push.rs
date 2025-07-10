@@ -1,4 +1,7 @@
 #![allow(clippy::too_many_arguments)]
+
+mod error;
+
 use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
@@ -65,9 +68,6 @@ pub enum Error {
     /// Invalid reference name.
     #[error("invalid ref: {0}")]
     InvalidRef(#[from] radicle::git::fmt::Error),
-    /// Invalid reference name.
-    #[error("invalid qualified ref: {0}")]
-    InvalidQualifiedRef(git::RefString),
     /// Git error.
     #[error("git: {0}")]
     Git(#[from] git::raw::Error),
@@ -116,6 +116,8 @@ pub enum Error {
     /// Quorum error.
     #[error(transparent)]
     Quorum(#[from] radicle::git::canonical::QuorumError),
+    #[error(transparent)]
+    PushAction(#[from] error::PushAction),
 }
 
 /// Push command.
@@ -156,6 +158,43 @@ impl FromStr for Command {
             let src = git::RefString::try_from(src)?;
 
             Ok(Self::Push(git::Refspec { src, dst, force }))
+        }
+    }
+}
+
+enum PushAction {
+    OpenPatch,
+    UpdatePatch {
+        dst: git::Qualified<'static>,
+        patch: patch::PatchId,
+    },
+    PushRef {
+        dst: git::Qualified<'static>,
+    },
+}
+
+impl PushAction {
+    fn new(dst: &git::RefString) -> Result<Self, error::PushAction> {
+        if dst == &*rad::PATCHES_REFNAME {
+            Ok(Self::OpenPatch)
+        } else {
+            let dst = git::Qualified::from_refstr(dst)
+                .ok_or_else(|| error::PushAction::InvalidRef {
+                    refname: dst.clone(),
+                })?
+                .to_owned();
+
+            if let Some(oid) = dst.strip_prefix(git::refname!("refs/heads/patches")) {
+                let patch = git::Oid::from_str(oid)
+                    .map_err(|err| error::PushAction::InvalidPatchId {
+                        suffix: oid.to_string(),
+                        err,
+                    })
+                    .map(patch::PatchId::from)?;
+                Ok(Self::UpdatePatch { dst, patch })
+            } else {
+                Ok(Self::PushRef { dst })
+            }
         }
     }
 }
@@ -228,9 +267,10 @@ pub fn run(
             Command::Push(git::Refspec { src, dst, force }) => {
                 let working = git::raw::Repository::open(working)?;
                 let patches = crate::patches_mut(profile, stored)?;
+                let action = PushAction::new(dst)?;
 
-                if dst == &*rad::PATCHES_REFNAME {
-                    patch_open(
+                match action {
+                    PushAction::OpenPatch => patch_open(
                         src,
                         &remote,
                         &nid,
@@ -240,27 +280,20 @@ pub fn run(
                         &signer,
                         profile,
                         opts.clone(),
-                    )
-                } else {
-                    let dst = git::Qualified::from_refstr(dst)
-                        .ok_or_else(|| Error::InvalidQualifiedRef(dst.clone()))?;
-
-                    if let Some(oid) = dst.strip_prefix(git::refname!("refs/heads/patches")) {
-                        let oid = git::Oid::from_str(oid)?;
-
-                        patch_update(
-                            src,
-                            &dst,
-                            *force,
-                            &oid,
-                            &nid,
-                            &working,
-                            stored,
-                            patches,
-                            &signer,
-                            opts.clone(),
-                        )
-                    } else {
+                    ),
+                    PushAction::UpdatePatch { dst, patch } => patch_update(
+                        src,
+                        &dst,
+                        *force,
+                        patch,
+                        &nid,
+                        &working,
+                        stored,
+                        patches,
+                        &signer,
+                        opts.clone(),
+                    ),
+                    PushAction::PushRef { dst } => {
                         let identity = stored.identity()?;
                         let project = identity.project()?;
                         let canonical_ref = git::refs::branch(project.default_branch());
@@ -518,7 +551,7 @@ fn patch_update<G>(
     src: &git::RefStr,
     dst: &git::Qualified,
     force: bool,
-    oid: &git::Oid,
+    patch_id: patch::PatchId,
     nid: &NodeId,
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
@@ -534,7 +567,6 @@ where
 {
     let reference = working.find_reference(src.as_str())?;
     let commit = reference.peel_to_commit()?;
-    let patch_id = radicle::cob::ObjectId::from(oid);
     let dst = dst.with_namespace(nid.into());
 
     push_ref(src, &dst, force, working, stored.raw())?;
