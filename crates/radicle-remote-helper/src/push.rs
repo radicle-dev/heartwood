@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
+mod canonical;
 mod error;
 
 use std::collections::HashMap;
@@ -17,7 +18,6 @@ use radicle::cob::patch;
 use radicle::cob::patch::cache::Patches as _;
 use radicle::crypto;
 use radicle::explorer::ExplorerResource;
-use radicle::git::canonical;
 use radicle::git::canonical::Canonical;
 use radicle::identity::Did;
 use radicle::node;
@@ -30,7 +30,7 @@ use radicle::{git, rad};
 use radicle_cli as cli;
 use radicle_cli::terminal as term;
 
-use crate::{hint, read_line, warn, Options};
+use crate::{hint, read_line, Options};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -44,9 +44,6 @@ pub enum Error {
     /// No public key is given
     #[error("no public key given as a remote namespace, perhaps you are attempting to push to restricted refs")]
     NoKey,
-    /// Head being pushed diverges from canonical head.
-    #[error("refusing to update branch to commit that is not a descendant of canonical head")]
-    HeadsDiverge(git::Oid, git::Oid),
     /// User tried to delete the canonical branch.
     #[error("refusing to delete default branch ref '{0}'")]
     DeleteForbidden(git::RefString),
@@ -118,6 +115,8 @@ pub enum Error {
     Quorum(#[from] radicle::git::canonical::QuorumError),
     #[error(transparent)]
     PushAction(#[from] error::PushAction),
+    #[error(transparent)]
+    Canonical(#[from] error::CanonicalUnrecoverable),
 }
 
 /// Push command.
@@ -308,63 +307,16 @@ pub fn run(
                         if dst == canonical_ref && delegates.contains(&me) && delegates.len() > 1 {
                             let head = working.find_reference(src.as_str())?;
                             let head = head.peel_to_commit()?.id();
-
-                            let mut canonical = Canonical::default_branch(
+                            let canonical = Canonical::default_branch(
                                 stored,
                                 &project,
                                 identity.delegates().as_ref(),
                                 identity.threshold(),
                             )?;
-                            let converges = canonical::converges(
-                                canonical
-                                    .tips()
-                                    .filter_map(|(did, tip)| (*did != me).then_some(tip)),
-                                head.into(),
-                                &working,
-                            )?;
-                            if converges {
-                                canonical.modify_vote(me, head.into());
+                            let canonical = canonical::Canonical::new(me, head.into(), canonical);
+                            if let Err(e) = canonical.quorum(&working) {
+                                canonical::io::handle_error(e, canonical_ref, hints)?;
                             }
-
-                            match canonical.quorum(&working) {
-                                Ok(canonical_oid) => {
-                                    // Canonical head is an ancestor of head.
-                                    let is_ff = head == *canonical_oid
-                                        || working.graph_descendant_of(head, *canonical_oid)?;
-
-                                    if !is_ff && !converges {
-                                        if hints {
-                                            hint(
-                                                "you are attempting to push a commit that would cause \
-                                                 your upstream to diverge from the canonical head",
-                                            );
-                                            hint(
-                                                "to integrate the remote changes, run `git pull --rebase` \
-                                                 and try again",
-                                            );
-                                        }
-                                        return Err(Error::HeadsDiverge(
-                                            head.into(),
-                                            canonical_oid,
-                                        ));
-                                    }
-                                }
-                                Err(canonical::QuorumError::Diverging(e)) => {
-                                    warn(format!(
-                                        "could not determine canonical tip for `{canonical_ref}`"
-                                    ));
-                                    warn(e.to_string());
-                                    warn("it is recommended to find a commit to agree upon");
-                                }
-                                Err(canonical::QuorumError::NoCandidates(e)) => {
-                                    warn(format!(
-                                        "could not determine canonical tip for `{canonical_ref}`"
-                                    ));
-                                    warn(e.to_string());
-                                    warn("it is recommended to find a commit to agree upon");
-                                }
-                                Err(e) => return Err(e.into()),
-                            };
                         }
                         push(src, &dst, *force, &nid, &working, stored, patches, &signer)
                     }
