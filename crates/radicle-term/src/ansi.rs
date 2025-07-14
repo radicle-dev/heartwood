@@ -13,4 +13,5 @@ pub use color::Color;
 pub use paint::paint;
 pub use paint::Filled;
 pub use paint::Paint;
+pub use paint::TerminalFile;
 pub use style::Style;

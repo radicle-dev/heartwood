@@ -1,5 +1,4 @@
 use std::io::IsTerminal as _;
-use std::os::fd::{AsRawFd, BorrowedFd};
 use std::sync::atomic::{AtomicBool, AtomicI32};
 use std::sync::LazyLock;
 use std::{fmt, sync};
@@ -7,8 +6,36 @@ use std::{fmt, sync};
 use super::color::Color;
 use super::style::{Property, Style};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(i32)]
+pub enum TerminalFile {
+    Stdout = 1,
+    Stderr = 2,
+}
+
+impl TryFrom<i32> for TerminalFile {
+    type Error = ();
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(TerminalFile::Stdout),
+            2 => Ok(TerminalFile::Stderr),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TerminalFile {
+    fn is_terminal(&self) -> bool {
+        match self {
+            TerminalFile::Stdout => std::io::stdout().is_terminal(),
+            TerminalFile::Stderr => std::io::stderr().is_terminal(),
+        }
+    }
+}
+
 /// What file is used for text output.
-static TERMINAL: AtomicI32 = AtomicI32::new(libc::STDOUT_FILENO);
+static TERMINAL: AtomicI32 = AtomicI32::new(TerminalFile::Stdout as i32);
 /// Whether paint styling is enabled or not.
 static ENABLED: AtomicBool = AtomicBool::new(true);
 /// Whether paint styling should be forced.
@@ -263,7 +290,7 @@ impl Paint<()> {
         let clicolor_enabled = clicolor.unwrap_or(false);
         let clicolor_disabled = !clicolor.unwrap_or(true);
         let terminal = TERMINAL.load(sync::atomic::Ordering::SeqCst);
-        let is_terminal = unsafe { BorrowedFd::borrow_raw(terminal).is_terminal() };
+        let is_terminal = TerminalFile::try_from(terminal).is_ok_and(|tf| tf.is_terminal());
         let is_enabled = ENABLED.load(sync::atomic::Ordering::SeqCst);
 
         is_terminal
@@ -287,8 +314,8 @@ impl Paint<()> {
 
     /// Set the terminal we are writing to. This influences the logic that checks whether or not to
     /// include colors.
-    pub fn set_terminal(fd: impl AsRawFd) {
-        TERMINAL.store(fd.as_raw_fd(), sync::atomic::Ordering::SeqCst);
+    pub fn set_terminal(tf: TerminalFile) {
+        TERMINAL.store(tf as i32, sync::atomic::Ordering::SeqCst);
     }
 
     /// Force paint styling.

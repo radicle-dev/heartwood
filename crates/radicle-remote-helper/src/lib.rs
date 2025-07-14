@@ -90,7 +90,7 @@ pub struct Options {
 pub fn run(profile: radicle::Profile) -> Result<(), Error> {
     // Since we're going to be writing user output to `stderr`, make sure the paint
     // module is aware of that.
-    cli::Paint::set_terminal(io::stderr());
+    cli::Paint::set_terminal(cli::TerminalFile::Stderr);
 
     let (remote, url): (Option<git::RefString>, Url) = {
         let args = env::args().skip(1).take(2).collect::<Vec<_>>();
