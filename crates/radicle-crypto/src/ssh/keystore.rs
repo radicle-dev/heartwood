@@ -1,5 +1,4 @@
 use std::ops::Deref;
-use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
@@ -94,10 +93,18 @@ impl Keystore {
             return Err(Error::AlreadyInitialized);
         }
 
-        fs::DirBuilder::new()
-            .recursive(true)
-            .mode(0o700)
-            .create(&self.path)?;
+        {
+            let mut builder = fs::DirBuilder::new();
+            builder.recursive(true);
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::DirBuilderExt as _;
+                builder.mode(0o700);
+            }
+
+            builder.create(&self.path)?;
+        }
 
         secret.write_openssh_file(&path, ssh_key::LineEnding::default())?;
         public.write_openssh_file(&path.with_extension("pub"))?;
