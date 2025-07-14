@@ -146,7 +146,9 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
     let ssh_agent = match ssh::agent::Agent::connect() {
         Ok(c) => term::format::positive(format!(
             "running ({})",
-            c.pid().map(|p| p.to_string()).unwrap_or(String::from("?"))
+            c.path()
+                .map(|p| p.display().to_string())
+                .unwrap_or(String::from("?"))
         )),
         Err(e) if e.is_not_running() => term::format::yellow(String::from("not running")),
         Err(e) => term::format::negative(format!("error: {e}")),

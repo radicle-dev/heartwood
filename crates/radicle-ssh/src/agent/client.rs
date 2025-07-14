@@ -1,11 +1,15 @@
 use std::fmt;
 use std::io::{Read, Write};
 use std::ops::DerefMut;
-use std::os::unix::net::UnixStream;
-use std::path::Path;
-use std::str::FromStr;
+use std::path::{Path, PathBuf};
 
-use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
+#[cfg(unix)]
+pub use std::os::unix::net::UnixStream as Stream;
+
+#[cfg(windows)]
+pub use winpipe::WinStream as Stream;
+
+use byteorder::{BigEndian, ByteOrder as _, WriteBytesExt};
 use log::*;
 use thiserror::Error;
 use zeroize::Zeroize as _;
@@ -21,74 +25,103 @@ pub type Signature = [u8; 64];
 #[derive(Debug, Error)]
 pub enum Error {
     /// Agent protocol error.
-    #[error("Agent protocol error")]
+    #[error("SSH agent replied with unexpected data, violating the SSH agent protocol.")]
     AgentProtocolError,
-    #[error("Agent failure")]
+    #[error(
+        "SSH agent replied with failure (protocol message number 5), which could not be handled."
+    )]
     AgentFailure,
-    #[error("Unable to connect to ssh-agent. The environment variable `SSH_AUTH_SOCK` was set, but it points to a nonexistent file or directory.")]
-    BadAuthSock,
-    #[error(transparent)]
+    #[error("Unable to connect to SSH agent because '{path}' was not found: {source}")]
+    BadAuthSock {
+        path: String,
+        source: std::io::Error,
+    },
+    #[error("Encoding error while communicating with SSH agent: {0}")]
     Encoding(#[from] encoding::Error),
-    #[error("Environment variable `{0}` not found")]
-    EnvVar(&'static str),
-    #[error(transparent)]
+    #[error("Unable to read environment variable '{var}': {source}")]
+    EnvVar {
+        var: String,
+        source: std::env::VarError,
+    },
+    #[error("I/O error while communicating with SSH agent: {0}")]
     Io(#[from] std::io::Error),
-    #[error(transparent)]
-    Private(Box<dyn std::error::Error + Send + Sync + 'static>),
-    #[error(transparent)]
-    Public(Box<dyn std::error::Error + Send + Sync + 'static>),
-    #[error(transparent)]
-    Signature(Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
 impl Error {
     pub fn is_not_running(&self) -> bool {
-        matches!(self, Self::EnvVar("SSH_AUTH_SOCK"))
+        matches!(self, Self::EnvVar { .. } | Self::BadAuthSock { .. })
     }
 }
 
 /// SSH agent client.
-pub struct AgentClient<S> {
+pub struct AgentClient<S = Stream> {
+    /// The path that was originally used to connect to the agent.
+    path: Option<PathBuf>,
+
+    /// The underlying stream to the SSH agent.
     stream: S,
 }
 
 impl<S> AgentClient<S> {
-    /// Connect to an SSH agent via the provided stream (on Unix, usually a Unix-domain socket).
-    pub fn connect(stream: S) -> Self {
-        AgentClient { stream }
-    }
-
-    /// Get the agent PID.
-    pub fn pid(&self) -> Option<u32> {
-        std::env::var("SSH_AGENT_PID")
-            .ok()
-            .and_then(|v| u32::from_str(&v).ok())
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_deref()
     }
 }
 
-pub trait ClientStream: Sized + Send + Sync {
-    /// Send an agent request through the stream and read the response.
-    fn request(&mut self, req: &[u8]) -> Result<Buffer, Error>;
-
-    /// How to connect the streaming socket
-    fn connect<P>(path: P) -> Result<AgentClient<Self>, Error>
+impl AgentClient<Stream> {
+    /// Connect to an SSH agent at the provided path.
+    pub fn connect<P>(path: P) -> Result<Self, Error>
     where
-        P: AsRef<Path> + Send;
+        P: AsRef<Path>,
+    {
+        let path = path.as_ref().to_owned();
 
-    fn connect_env() -> Result<AgentClient<Self>, Error> {
-        let Ok(var) = std::env::var("SSH_AUTH_SOCK") else {
-            return Err(Error::EnvVar("SSH_AUTH_SOCK"));
-        };
-        match Self::connect(var) {
-            Err(Error::Io(io_err)) if io_err.kind() == std::io::ErrorKind::NotFound => {
-                Err(Error::BadAuthSock)
+        let stream = match Stream::connect(&path) {
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                return Err(Error::BadAuthSock {
+                    path: path.display().to_string(),
+                    source: err,
+                })
             }
-            other => other,
-        }
+            Err(err) => return Err(Error::Io(err)),
+            Ok(stream) => stream,
+        };
+
+        Ok(Self {
+            path: Some(path),
+            stream,
+        })
+    }
+
+    pub fn connect_env() -> Result<Self, Error> {
+        const SSH_AUTH_SOCK: &str = "SSH_AUTH_SOCK";
+
+        let path = match std::env::var(SSH_AUTH_SOCK) {
+            Ok(var) => var,
+            Err(err) => {
+                if cfg!(windows) {
+                    // Windows uses a named pipe for the SSH agent, which
+                    // we fall back to in case reading the environment
+                    // variable fails.
+                    "\\\\.\\pipe\\openssh-ssh-agent".to_string()
+                } else {
+                    return Err(Error::EnvVar {
+                        var: SSH_AUTH_SOCK.to_string(),
+                        source: err,
+                    });
+                }
+            }
+        };
+
+        Self::connect(path)
     }
 }
 
-impl<S: ClientStream> AgentClient<S> {
+impl<Stream: ClientStream> AgentClient<Stream> {
+    pub fn new(path: Option<PathBuf>, stream: Stream) -> Self {
+        Self { path, stream }
+    }
+
     /// Send a key to the agent, with a (possibly empty) slice of constraints
     /// to apply when using the key to sign.
     pub fn add_identity<K>(&mut self, key: &K, constraints: &[Constraint]) -> Result<(), Error>
@@ -372,35 +405,11 @@ impl<S: ClientStream> AgentClient<S> {
     }
 }
 
-#[cfg(not(unix))]
-impl ClientStream for TcpStream {
-    fn connect_uds<P>(_: P) -> Result<AgentClient<Self>, Error>
-    where
-        P: AsRef<Path> + Send,
-    {
-        Err(Error::AgentFailure)
-    }
-
-    fn read_response(&mut self, _: &mut Buffer) -> Result<(), Error> {
-        Err(Error::AgentFailure)
-    }
-
-    fn connect_env() -> Result<AgentClient<Self>, Error> {
-        Err(Error::AgentFailure)
-    }
+pub trait ClientStream: Sized + Send + Sync {
+    fn request(&mut self, msg: &[u8]) -> Result<Buffer, Error>;
 }
 
-#[cfg(unix)]
-impl ClientStream for UnixStream {
-    fn connect<P>(path: P) -> Result<AgentClient<Self>, Error>
-    where
-        P: AsRef<Path> + Send,
-    {
-        let stream = UnixStream::connect(path)?;
-
-        Ok(AgentClient { stream })
-    }
-
+impl<S: Read + Write + Sized + Send + Sync> ClientStream for S {
     fn request(&mut self, msg: &[u8]) -> Result<Buffer, Error> {
         let mut resp = Buffer::default();
 

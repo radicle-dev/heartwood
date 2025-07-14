@@ -261,13 +261,6 @@ mod test {
     }
 
     impl ClientStream for DummyStream {
-        fn connect<P>(_path: P) -> Result<AgentClient<Self>, Error>
-        where
-            P: AsRef<std::path::Path> + Send,
-        {
-            panic!("This function should never be called!")
-        }
-
         fn request(&mut self, buf: &[u8]) -> Result<Buffer, Error> {
             *self.incoming.lock().unwrap() = buf.to_vec();
 
@@ -304,7 +297,7 @@ mod test {
         ];
 
         let stream = DummyStream::default();
-        let mut agent = AgentClient::connect(stream.clone());
+        let mut agent = AgentClient::new(None, stream.clone());
 
         agent.remove_identity(&pk).unwrap();
 
@@ -334,7 +327,7 @@ mod test {
         ];
 
         let stream = DummyStream::default();
-        let mut agent = AgentClient::connect(stream.clone());
+        let mut agent = AgentClient::new(None, stream.clone());
         let data: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
 
         agent.sign(&pk, &data).ok();

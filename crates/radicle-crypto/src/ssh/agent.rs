@@ -1,26 +1,23 @@
 use std::cell::RefCell;
+use std::path::Path;
 
-pub use radicle_ssh::agent::client::AgentClient;
-pub use radicle_ssh::agent::client::Error;
-pub use radicle_ssh::{self as ssh, agent::client::ClientStream};
+pub use radicle_ssh as ssh;
+pub use ssh::agent::client::{AgentClient, Error};
 
 use crate::{PublicKey, SecretKey, Signature, Signer, SignerError};
-
-#[cfg(not(unix))]
-pub use std::net::TcpStream as Stream;
-#[cfg(unix)]
-pub use std::os::unix::net::UnixStream as Stream;
 
 use super::ExtendedSignature;
 
 pub struct Agent {
-    client: AgentClient<Stream>,
+    client: AgentClient,
 }
 
 impl Agent {
     /// Connect to a running SSH agent.
-    pub fn connect() -> Result<Self, ssh::agent::client::Error> {
-        Stream::connect_env().map(|client| Self { client })
+    pub fn connect() -> Result<Self, Error> {
+        Ok(Self {
+            client: AgentClient::connect_env()?,
+        })
     }
 
     /// Register a key with the agent.
@@ -45,8 +42,8 @@ impl Agent {
         AgentSigner::new(self, key)
     }
 
-    pub fn pid(&self) -> Option<u32> {
-        self.client.pid()
+    pub fn path(&self) -> Option<&Path> {
+        self.client.path()
     }
 
     pub fn request_identities(&mut self) -> Result<Vec<PublicKey>, ssh::agent::client::Error> {
