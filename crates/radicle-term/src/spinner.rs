@@ -3,11 +3,6 @@ use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 use std::{fmt, io, thread, time};
 
-use crossbeam_channel as chan;
-
-use radicle_signals as signals;
-use signals::Signal;
-
 use crate::io::{ERROR_PREFIX, WARNING_PREFIX};
 use crate::Paint;
 
@@ -136,8 +131,13 @@ pub fn spinner_to(
 ) -> Spinner {
     let message = message.to_string();
     let progress = Arc::new(Mutex::new(Progress::new(Paint::new(message))));
-    let (sig_tx, sig_rx) = chan::unbounded();
-    let sig_result = signals::install(sig_tx);
+
+    #[cfg(unix)]
+    let (sig_tx, sig_rx) = crossbeam_channel::unbounded();
+
+    #[cfg(unix)]
+    let sig_result = radicle_signals::install(sig_tx);
+
     let handle = thread::Builder::new()
         .name(String::from("spinner"))
         .spawn({
@@ -151,9 +151,13 @@ pub fn spinner_to(
                         break;
                     };
                     // If were unable to install handles, skip signal processing entirely.
+                    #[cfg(unix)]
                     if sig_result.is_ok() {
                         match sig_rx.try_recv() {
-                            Ok(sig) if sig == Signal::Interrupt || sig == Signal::Terminate => {
+                            Ok(sig)
+                                if sig == radicle_signals::Signal::Interrupt
+                                    || sig == radicle_signals::Signal::Terminate =>
+                            {
                                 write!(animation, "\r{CLEAR_UNTIL_NEWLINE}").ok();
                                 writeln!(
                                     completion,
@@ -225,8 +229,9 @@ pub fn spinner_to(
 
                 write!(animation, "{}", crossterm::cursor::Show).ok();
 
+                #[cfg(unix)]
                 if sig_result.is_ok() {
-                    let _ = signals::uninstall();
+                    let _ = radicle_signals::uninstall();
                 }
             }
         })
