@@ -62,6 +62,7 @@ sqlite = "0.32.0"
 ssh-key = { version = "0.6.3", default-features = false }
 tempfile = "3.3.0"
 thiserror = "1.0"
+winpipe = "0.1.1"
 zeroize = "1.5.7"
 
 [workspace.lints]

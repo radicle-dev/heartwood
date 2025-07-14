@@ -19,10 +19,14 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::io::{BufRead, BufReader};
 use std::marker::PhantomData;
 use std::ops::{ControlFlow, Deref};
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{fmt, io, net, thread, time};
+
+#[cfg(unix)]
+use std::os::unix::net::UnixStream as Stream;
+#[cfg(windows)]
+use winpipe::WinStream as Stream;
 
 use amplify::WrapperMut;
 use cyphernet::addr::NetAddr;
@@ -1130,7 +1134,7 @@ pub trait Handle: Clone + Sync + Send {
 /// The iterator blocks for a `timeout` duration, returning [`Error::TimedOut`]
 /// if the duration is reached.
 pub struct LineIter<T> {
-    stream: BufReader<UnixStream>,
+    stream: BufReader<Stream>,
     timeout: time::Duration,
     witness: PhantomData<T>,
 }
@@ -1194,9 +1198,9 @@ impl Node {
         cmd: Command,
         timeout: time::Duration,
     ) -> Result<LineIter<T>, Error> {
-        let stream = UnixStream::connect(&self.socket)
+        let mut stream = Stream::connect(&self.socket)
             .map_err(|e| Error::Connect(self.socket.clone(), e.kind()))?;
-        cmd.to_writer(&stream)?;
+        cmd.to_writer(&mut stream)?;
         Ok(LineIter {
             stream: BufReader::new(stream),
             timeout,

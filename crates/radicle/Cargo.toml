@@ -47,6 +47,9 @@ unicode-normalization = { version = "0.1" }
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+winpipe = { workspace = true }
+
 [dev-dependencies]
 emojis = "0.6"
 jsonschema = { version = "0.30", default-features = false }
