@@ -1,14 +1,25 @@
-use std::fmt;
 use std::io;
 
+#[cfg(unix)]
 use libc::{getrlimit, rlim_t, rlimit, setrlimit, RLIMIT_NOFILE};
 
+#[cfg(unix)]
 type Int = rlim_t;
 
+#[cfg(not(unix))]
+#[inline]
+pub fn set_file_limit<T>(_: T) -> io::Result<()> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "setting file limits is not supported on this platform",
+    ))
+}
+
 /// Sets the open file limit to the given value, or the maximum allowed value.
+#[cfg(unix)]
 pub fn set_file_limit<N>(n: N) -> io::Result<Int>
 where
-    N: Copy + fmt::Display,
+    N: Copy + std::fmt::Display,
     Int: TryFrom<N>,
 {
     let Ok(n) = Int::try_from(n) else {
