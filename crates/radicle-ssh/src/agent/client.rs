@@ -8,7 +8,6 @@ pub use std::os::unix::net::UnixStream as Stream;
 #[cfg(windows)]
 pub use winpipe::WinStream as Stream;
 
-use log::*;
 use thiserror::Error;
 use zeroize::Zeroize as _;
 
