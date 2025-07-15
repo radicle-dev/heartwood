@@ -8,7 +8,6 @@ mod paint;
 mod style;
 #[cfg(test)]
 mod tests;
-mod windows;
 
 pub use color::Color;
 pub use paint::paint;
