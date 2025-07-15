@@ -1,6 +1,5 @@
 use std::fmt;
 use std::io::{Read, Write};
-use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
@@ -9,7 +8,6 @@ pub use std::os::unix::net::UnixStream as Stream;
 #[cfg(windows)]
 pub use winpipe::WinStream as Stream;
 
-use byteorder::{BigEndian, ByteOrder as _, WriteBytesExt};
 use log::*;
 use thiserror::Error;
 use zeroize::Zeroize as _;
@@ -145,7 +143,7 @@ impl<Stream: ClientStream> AgentClient<Stream> {
                 match *cons {
                     Constraint::KeyLifetime { seconds } => {
                         buf.push(msg::CONSTRAIN_LIFETIME);
-                        buf.deref_mut().write_u32::<BigEndian>(seconds)?
+                        buf.extend_u32(seconds);
                     }
                     Constraint::Confirm => buf.push(msg::CONSTRAIN_CONFIRM),
                     Constraint::Extensions {
@@ -186,13 +184,12 @@ impl<Stream: ClientStream> AgentClient<Stream> {
         buf.extend_ssh_string(pin);
 
         if !constraints.is_empty() {
-            buf.deref_mut()
-                .write_u32::<BigEndian>(constraints.len() as u32)?;
+            buf.extend_usize(constraints.len());
             for cons in constraints {
                 match *cons {
                     Constraint::KeyLifetime { seconds } => {
                         buf.push(msg::CONSTRAIN_LIFETIME);
-                        buf.deref_mut().write_u32::<BigEndian>(seconds)?;
+                        buf.extend_u32(seconds);
                     }
                     Constraint::Confirm => buf.push(msg::CONSTRAIN_CONFIRM),
                     Constraint::Extensions {
@@ -304,14 +301,13 @@ impl<Stream: ClientStream> AgentClient<Stream> {
         let total = 1 + pk.len() + 4 + data.len() + 4;
 
         let mut buf = Buffer::default();
-        buf.write_u32::<BigEndian>(total as u32)
-            .expect("Writing to a vector never fails");
+        buf.extend_usize(total);
         buf.push(msg::SIGN_REQUEST);
         buf.extend_from_slice(&pk);
         buf.extend_ssh_string(data);
 
         // Signature flags should be zero for ed25519.
-        buf.write_u32::<BigEndian>(0).unwrap();
+        buf.extend_u32(0);
         buf
     }
 
@@ -338,7 +334,7 @@ impl<Stream: ClientStream> AgentClient<Stream> {
         let total = 1 + pk.len();
 
         let mut buf = Buffer::default();
-        buf.write_u32::<BigEndian>(total as u32)?;
+        buf.extend_usize(total);
         buf.push(msg::REMOVE_IDENTITY);
         buf.extend_from_slice(&pk);
 
@@ -422,7 +418,8 @@ impl<S: Read + Write + Sized + Send + Sync> ClientStream for S {
         self.read_exact(&mut resp)?;
 
         // Read the rest of the buffer
-        let len = BigEndian::read_u32(&resp) as usize;
+        let len = u32::from_be_bytes(resp.as_slice().try_into().unwrap()) as usize;
+
         resp.zeroize();
         resp.resize(len, 0);
         self.read_exact(&mut resp)?;

@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-use std::ops::DerefMut;
+use std::ops::DerefMut as _;
 
-use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use thiserror::Error;
 use zeroize::Zeroizing;
 
@@ -53,6 +52,16 @@ pub trait Encoding {
     fn write_empty_list(&mut self);
     /// Write the buffer length at the beginning of the buffer.
     fn write_len(&mut self);
+    /// Push a [`usize`] as an SSH-encoded unsiged 32-bit integer.
+    /// May panic if the argument is greater than [`u32::MAX`].
+    /// This is a convience method, to spare callers casting or converting
+    /// [`usize`] to [`u32`]. If callers end up in a situation where they
+    /// need to push a 32-bit unisgned integer, but the value they would
+    /// like to push does not fit 32 bits, then the implementation will not
+    /// comply with the SSH format anyway.
+    fn extend_usize(&mut self, u: usize) {
+        self.extend_u32(u.try_into().unwrap())
+    }
 }
 
 /// Encoding length of the given mpint.
@@ -66,12 +75,12 @@ pub fn mpint_len(s: &[u8]) -> usize {
 
 impl Encoding for Vec<u8> {
     fn extend_ssh_string(&mut self, s: &[u8]) {
-        self.write_u32::<BigEndian>(s.len() as u32).unwrap();
+        self.extend_usize(s.len());
         self.extend(s);
     }
 
     fn extend_ssh_string_blank(&mut self, len: usize) -> &mut [u8] {
-        self.write_u32::<BigEndian>(len as u32).unwrap();
+        self.extend_usize(len);
         let current = self.len();
         self.resize(current + len, 0u8);
 
@@ -86,24 +95,20 @@ impl Encoding for Vec<u8> {
         }
         // If the first non-zero is >= 128, write its length (u32, BE), followed by 0.
         if s[i] & 0x80 != 0 {
-            self.write_u32::<BigEndian>((s.len() - i + 1) as u32)
-                .unwrap();
+            self.extend_usize(s.len() - i + 1);
             self.push(0)
         } else {
-            self.write_u32::<BigEndian>((s.len() - i) as u32).unwrap();
+            self.extend_usize(s.len() - i);
         }
         self.extend(&s[i..]);
     }
 
     fn extend_u32(&mut self, s: u32) {
-        let mut buf = [0x0; 4];
-        BigEndian::write_u32(&mut buf, s);
-        self.extend(buf);
+        self.extend(s.to_be_bytes());
     }
 
     fn extend_list<'a, I: Iterator<Item = &'a [u8]>>(&mut self, list: I) {
         let len0 = self.len();
-        self.extend([0, 0, 0, 0]);
 
         let mut first = true;
         for i in list {
@@ -116,7 +121,7 @@ impl Encoding for Vec<u8> {
         }
         let len = (self.len() - len0 - 4) as u32;
 
-        BigEndian::write_u32(&mut self[len0..], len);
+        self.splice(len0..len0, len.to_be_bytes());
     }
 
     fn write_empty_list(&mut self) {
@@ -125,7 +130,7 @@ impl Encoding for Vec<u8> {
 
     fn write_len(&mut self) {
         let len = self.len() - 4;
-        BigEndian::write_u32(&mut self[..], len as u32);
+        self[..4].copy_from_slice((len as u32).to_be_bytes().as_slice());
     }
 }
 
@@ -207,7 +212,8 @@ impl<'a> Cursor<'a> {
     /// Read a `u32` from this reader.
     pub fn read_u32(&mut self) -> Result<u32, Error> {
         if self.position + 4 <= self.s.len() {
-            let u = BigEndian::read_u32(&self.s[self.position..]);
+            let u =
+                u32::from_be_bytes(self.s[self.position..self.position + 4].try_into().unwrap());
             self.position += 4;
             Ok(u)
         } else {
