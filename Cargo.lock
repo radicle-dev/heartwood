@@ -2795,7 +2795,6 @@ dependencies = [
  "inquire",
  "pretty_assertions",
  "radicle-signals",
- "shlex",
  "tempfile",
  "thiserror 1.0.69",
  "unicode-display-width",

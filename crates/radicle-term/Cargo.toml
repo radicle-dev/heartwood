@@ -17,7 +17,6 @@ anyhow = { workspace = true }
 anstyle-query = "1.0.0"
 crossterm = "0.29.0"
 inquire = { version = "0.7.4", default-features = false, features = ["crossterm", "editor"] }
-shlex = { workspace = true }
 thiserror = { workspace = true }
 unicode-display-width = "0.3.0"
 unicode-segmentation = "1.7.1"
