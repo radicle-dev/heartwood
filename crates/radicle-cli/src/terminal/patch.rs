@@ -31,6 +31,10 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error("invalid utf-8 string")]
     InvalidUtf8,
+    #[error("editor error: {0}")]
+    Editor(#[from] term::editor::Error),
+    #[error("a patch title must be provided")]
+    PatchTitleMissing,
 }
 
 /// The user supplied `Patch` description.
@@ -47,13 +51,14 @@ pub enum Message {
 
 impl Message {
     /// Get the `Message` as a string according to the method.
-    pub fn get(self, help: &str) -> std::io::Result<String> {
+    pub fn get(self, help: &str) -> Result<String, term::editor::Error> {
         let comment = match self {
             Message::Edit => {
                 if io::stderr().is_terminal() {
                     term::Editor::comment()
-                        .extension("markdown")
-                        .initial(help)?
+                        .editor(term::editor::default_editor_command().as_ref())
+                        .extension(".md")
+                        .initial(help)
                         .edit()?
                 } else {
                     Some(help.to_owned())
@@ -75,7 +80,7 @@ impl Message {
         title: Option<String>,
         description: Option<String>,
         help: &str,
-    ) -> std::io::Result<Option<(String, String)>> {
+    ) -> Result<Option<(String, String)>, Error> {
         let mut placeholder = String::new();
 
         if let Some(title) = title {
@@ -228,11 +233,7 @@ pub fn get_create_message(
     let (title, description) = (title.trim().to_string(), description.trim().to_string());
 
     if title.is_empty() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "a patch title must be provided",
-        )
-        .into());
+        return Err(Error::PatchTitleMissing);
     }
 
     Ok((title, description))
@@ -249,7 +250,7 @@ fn edit_display_message(title: &str, description: &str) -> String {
 pub fn get_edit_message(
     patch_message: term::patch::Message,
     patch: &cob::patch::Patch,
-) -> io::Result<(String, String)> {
+) -> Result<(String, String), Error> {
     let display_msg = edit_display_message(patch.title(), patch.description());
     let patch_message = patch_message.get(&display_msg)?;
     let patch_message = patch_message.replace(PATCH_MSG.trim(), ""); // Delete help message.
@@ -260,10 +261,7 @@ pub fn get_edit_message(
     let (title, description) = (title.trim().to_string(), description.trim().to_string());
 
     if title.is_empty() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "a patch title must be provided",
-        ));
+        return Err(Error::PatchTitleMissing);
     }
 
     Ok((title, description))

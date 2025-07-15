@@ -412,8 +412,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             // If `--edit` is specified, the document can also be edited via a text edit.
             let proposal = if edit {
                 match term::editor::Editor::comment()
-                    .extension("json")
-                    .initial(serde_json::to_string_pretty(&current.doc)?)?
+                    .editor(term::editor::default_editor_command().as_ref())
+                    .extension(".json")
+                    .initial(&serde_json::to_string_pretty(&current.doc)?)
                     .edit()?
                 {
                     Some(proposal) => serde_json::from_str::<RawDoc>(&proposal)?,

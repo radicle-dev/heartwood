@@ -1,5 +1,3 @@
-use std::io;
-
 use radicle_term::table::TableOptions;
 use radicle_term::{Table, VStack};
 
@@ -34,7 +32,7 @@ pub enum Format {
 pub fn get_title_description(
     title: Option<String>,
     description: Option<String>,
-) -> io::Result<Option<(String, String)>> {
+) -> Result<Option<(String, String)>, term::patch::Error> {
     term::patch::Message::edit_title_description(title, description, OPEN_MSG)
 }
 

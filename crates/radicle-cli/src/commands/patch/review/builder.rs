@@ -836,6 +836,8 @@ enum Error {
     Format(#[from] std::fmt::Error),
     #[error(transparent)]
     Git(#[from] git::raw::Error),
+    #[error("editor error: {0}")]
+    Editor(#[from] term::editor::Error),
 }
 
 #[derive(Debug)]
@@ -860,8 +862,9 @@ impl CommentBuilder {
             writeln!(&mut input, "> {line}")?;
         }
         let output = term::Editor::comment()
-            .extension("diff")
-            .initial(input)?
+            .editor(term::editor::default_editor_command().as_ref())
+            .extension(".diff")
+            .initial(&input)
             .edit()?;
 
         if let Some(output) = output {
