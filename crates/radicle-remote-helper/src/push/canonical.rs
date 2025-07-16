@@ -5,18 +5,24 @@ use radicle::prelude::Did;
 
 use super::error;
 
-/// Compute the canonical commit for a Radicle repository.
-pub struct Canonical {
-    me: Did,
-    head: git::Oid,
+pub(crate) struct Vote {
+    did: Did,
+    commit: git::Oid,
+}
+
+/// Validates a vote to update a canonical reference during push.
+pub(crate) struct Canonical {
+    vote: Vote,
     canonical: git::canonical::Canonical,
 }
 
 impl Canonical {
     pub fn new(me: Did, head: git::Oid, canonical: git::canonical::Canonical) -> Self {
         Self {
-            me,
-            head,
+            vote: Vote {
+                did: me,
+                commit: head,
+            },
             canonical,
         }
     }
@@ -44,33 +50,37 @@ impl Canonical {
             heads.try_fold(
                 Vec::with_capacity(heads.size_hint().0),
                 |mut heads, (did, head)| {
-                    if *did != self.me {
+                    if *did != self.vote.did {
                         heads.push(Self::ensure_commit(*did, *head, working)?)
                     }
                     Ok::<_, error::Canonical>(heads)
                 },
             )?
         };
-        let converges = converges(heads.iter(), self.head, working)
-            .map_err(|err| error::Canonical::converges(self.head, err))?;
+
+        let converges = converges(heads.iter(), self.vote.commit, working)
+            .map_err(|err| error::Canonical::converges(self.vote.commit, err))?;
         if converges {
-            self.canonical.modify_vote(self.me, self.head);
+            self.canonical.modify_vote(self.vote.did, self.vote.commit);
         }
 
         match self.canonical.quorum(working) {
-            Ok(canonical_oid) => {
+            Ok(quorum_head) => {
                 // Canonical head is an ancestor of head.
-                let is_ff = self.head == canonical_oid
+                let is_ff = self.vote.commit == quorum_head
                     || working
-                        .graph_descendant_of(*self.head, *canonical_oid)
+                        .graph_descendant_of(*self.vote.commit, *quorum_head)
                         .map_err(|err| {
-                            error::Canonical::graph_descendant(self.head, canonical_oid, err)
+                            error::Canonical::graph_descendant(self.vote.commit, quorum_head, err)
                         })?;
 
                 if !is_ff && !converges {
-                    Err(error::Canonical::heads_diverge(self.head, canonical_oid))
+                    Err(error::Canonical::heads_diverge(
+                        self.vote.commit,
+                        quorum_head,
+                    ))
                 } else {
-                    Ok(canonical_oid)
+                    Ok(quorum_head)
                 }
             }
             Err(err) => Err(err.into()),
@@ -97,7 +107,7 @@ impl Canonical {
     }
 }
 
-pub mod io {
+pub(crate) mod io {
     use radicle::git::{self, canonical};
 
     use crate::push::error;
