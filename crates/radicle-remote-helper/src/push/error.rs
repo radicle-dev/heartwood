@@ -17,11 +17,8 @@ pub enum CanonicalUnrecoverable {
     MissingCommit(#[from] MissingCommit),
     #[error(transparent)]
     InvalidCommit(#[from] InvalidCommit),
-    #[error("failure while computing canonical reference: {err}")]
-    Git {
-        #[source]
-        err: git::raw::Error,
-    },
+    #[error("failure while computing canonical reference: {source}")]
+    Git { source: git::raw::Error },
 }
 
 #[derive(Debug, Error)]
@@ -41,15 +38,15 @@ pub enum Canonical {
 }
 
 impl Canonical {
-    pub fn converges(head: git::Oid, err: git::raw::Error) -> Self {
-        Self::Converges(Converges { head, err })
+    pub fn converges(head: git::Oid, source: git::raw::Error) -> Self {
+        Self::Converges(Converges { head, source })
     }
 
-    pub fn graph_descendant(head: git::Oid, canonical: git::Oid, err: git::raw::Error) -> Self {
+    pub fn graph_descendant(head: git::Oid, canonical: git::Oid, source: git::raw::Error) -> Self {
         Self::GraphDescendant(GraphDescendant {
             head,
             canonical,
-            err,
+            source,
         })
     }
 
@@ -57,21 +54,21 @@ impl Canonical {
         Self::HeadsDiverge(HeadsDiverge { head, canonical })
     }
 
-    pub fn missing_commit(repo: PathBuf, did: Did, oid: git::Oid, err: git::raw::Error) -> Self {
+    pub fn missing_commit(repo: PathBuf, did: Did, oid: git::Oid, source: git::raw::Error) -> Self {
         Self::MissingCommit(MissingCommit {
             repo,
             did,
             oid,
-            err,
+            source,
         })
     }
 
-    pub fn invalid_commit(repo: PathBuf, did: Did, oid: git::Oid, err: git::raw::Error) -> Self {
+    pub fn invalid_commit(repo: PathBuf, did: Did, oid: git::Oid, source: git::raw::Error) -> Self {
         Self::InvalidCommit(InvalidCommit {
             repo,
             did,
             oid,
-            err,
+            source,
         })
     }
 }
@@ -82,8 +79,7 @@ pub struct MissingCommit {
     repo: PathBuf,
     did: Did,
     oid: git::Oid,
-    #[source]
-    err: git::raw::Error,
+    source: git::raw::Error,
 }
 
 #[derive(Debug, Error)]
@@ -92,25 +88,22 @@ pub struct InvalidCommit {
     repo: PathBuf,
     did: Did,
     oid: git::Oid,
-    #[source]
-    err: git::raw::Error,
+    source: git::raw::Error,
 }
 
 #[derive(Debug, Error)]
-#[error("failed to check if {head} is an ancestor of {canonical} due to: {err}")]
+#[error("failed to check if {head} is an ancestor of {canonical} due to: {source}")]
 pub struct GraphDescendant {
     head: git::Oid,
     canonical: git::Oid,
-    #[source]
-    err: git::raw::Error,
+    source: git::raw::Error,
 }
 
 #[derive(Debug, Error)]
-#[error("failed to see if {head} converges with other commits due to: {err}")]
+#[error("failed to see if {head} converges with other commits due to: {source}")]
 pub struct Converges {
     head: git::Oid,
-    #[source]
-    err: git::raw::Error,
+    source: git::raw::Error,
 }
 
 #[derive(Debug, Error)]
@@ -128,7 +121,6 @@ pub enum PushAction {
     #[error("found refs/heads/patches/{suffix} where {suffix} was an invalid Patch ID")]
     InvalidPatchId {
         suffix: String,
-        #[source]
-        err: git::raw::Error,
+        source: git::raw::Error,
     },
 }

@@ -187,7 +187,7 @@ impl PushAction {
                 let patch = git::Oid::from_str(oid)
                     .map_err(|err| error::PushAction::InvalidPatchId {
                         suffix: oid.to_string(),
-                        err,
+                        source: err,
                     })
                     .map(patch::PatchId::from)?;
                 Ok(Self::UpdatePatch { dst, patch })

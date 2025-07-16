@@ -146,7 +146,9 @@ pub mod io {
                     warn("it is recommended to find a commit to agree upon");
                     Ok(())
                 }
-                canonical::QuorumError::Git(err) => Err(error::CanonicalUnrecoverable::Git { err }),
+                canonical::QuorumError::Git(err) => {
+                    Err(error::CanonicalUnrecoverable::Git { source: err })
+                }
             },
         }
     }
