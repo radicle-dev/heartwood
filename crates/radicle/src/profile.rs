@@ -450,15 +450,62 @@ impl AliasStore for Aliases {
 
 /// Get the path to the radicle home folder.
 pub fn home() -> Result<Home, io::Error> {
-    if let Some(home) = env::var_os(env::RAD_HOME) {
-        Ok(Home::new(PathBuf::from(home))?)
-    } else if let Some(home) = env::var_os("HOME") {
-        Ok(Home::new(PathBuf::from(home).join(".radicle"))?)
-    } else {
-        Err(io::Error::new(
+    #[cfg(unix)]
+    const ERROR_MESSAGE_UNSET: &str =
+        "Environment variables `RAD_HOME` and `HOME` are both unset or not valid Unicode.";
+
+    #[cfg(windows)]
+    const ERROR_MESSAGE_UNSET: &str =
+        "Environment variables `RAD_HOME`, `HOME`, and `USERPROFILE` are all unset or not valid Unicode.";
+
+    struct DetectedHome {
+        path: String,
+
+        /// Depending on the detection method, we may need to join `.radicle` to the detected path.
+        join_dot_radicle: bool,
+    }
+
+    let detected = {
+        match env::var(env::RAD_HOME).ok() {
+            Some(path) => Some(DetectedHome {
+                path,
+                join_dot_radicle: false,
+            }),
+            None => env::var("HOME")
+                .ok()
+                .or_else(|| {
+                    cfg!(windows)
+                        .then(|| env::var("USERPROFILE").ok())
+                        .flatten()
+                })
+                .map(|path| DetectedHome {
+                    path,
+                    join_dot_radicle: true,
+                }),
+        }
+    };
+
+    match detected {
+        Some(DetectedHome {
+            path,
+            join_dot_radicle,
+        }) => {
+            let home = {
+                let path = PathBuf::from(path);
+
+                if join_dot_radicle {
+                    path.join(".radicle")
+                } else {
+                    path
+                }
+            };
+
+            Ok(Home::new(home)?)
+        }
+        None => Err(io::Error::new(
             io::ErrorKind::NotFound,
-            "Neither `RAD_HOME` nor `HOME` are set",
-        ))
+            ERROR_MESSAGE_UNSET.to_string(),
+        )),
     }
 }
 
