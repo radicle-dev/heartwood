@@ -118,57 +118,10 @@ pub enum Error {
     Quorum(#[from] radicle::git::canonical::QuorumError),
 }
 
-/// A resolved Git revision.
-///
-/// The revision [`git::Oid`] is either a Git tag or a Git commit.
-struct Revision(git::Oid);
-
-impl Revision {
-    /// Return the [`git::Oid`]
-    fn id(&self) -> git::Oid {
-        self.0
-    }
-
-    /// Parse the revision string to a single Git object, and peel it to a Git
-    /// tag or Git commit.
-    fn parse(rev: &str, repo: &git::raw::Repository) -> Result<Self, RevisionError> {
-        let obj = repo
-            .revparse_single(rev)
-            .map_err(|err| RevisionError::Revparse {
-                src: rev.to_string(),
-                err,
-            })?;
-        obj.peel_to_tag()
-            .map(|tag| tag.id())
-            .or(obj.peel_to_commit().map(|commit| commit.id()))
-            .map(|id| Self(id.into()))
-            .map_err(|err| RevisionError::Object {
-                src: rev.to_string(),
-                err,
-            })
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum RevisionError {
-    #[error("failed to resolve {src} to a Git object: {err}")]
-    Object {
-        src: String,
-        #[source]
-        err: git::raw::Error,
-    },
-    #[error("failed to parse {src} as a Git revision: {err}")]
-    Revparse {
-        src: String,
-        #[source]
-        err: git::raw::Error,
-    },
-}
-
 /// Push command.
 enum Command {
     /// Update ref.
-    Push(git::Refspec<Revision, git::RefString>),
+    Push(git::Refspec<git::Oid, git::RefString>),
     /// Delete ref.
     Delete(git::RefString),
 }
@@ -183,11 +136,10 @@ enum CommandError {
         #[source]
         err: git::fmt::Error,
     },
-    #[error("failed to parse source revision ({rev}) due to {err}")]
+    #[error("failed to parse source revision ({rev}): {source}")]
     Revision {
         rev: String,
-        #[source]
-        err: RevisionError,
+        source: git::raw::Error,
     },
 }
 
@@ -219,10 +171,14 @@ impl Command {
             } else {
                 (src, false)
             };
-            let src = Revision::parse(src, repo).map_err(|err| CommandError::Revision {
-                rev: src.to_string(),
-                err,
-            })?;
+            let src = repo
+                .revparse_single(src)
+                .map_err(|err| CommandError::Revision {
+                    rev: src.to_string(),
+                    source: err,
+                })?
+                .id()
+                .into();
 
             Ok(Self::Push(git::Refspec { src, dst, force }))
         }
@@ -350,7 +306,7 @@ pub fn run(
                         // Note that we *do* allow rolling back to a previous commit on the
                         // canonical branch.
                         if dst == canonical_ref && delegates.contains(&me) && delegates.len() > 1 {
-                            let head = src.id();
+                            let head = *src;
                             let mut canonical = Canonical::default_branch(
                                 stored,
                                 &project,
@@ -371,7 +327,7 @@ pub fn run(
                             match canonical.quorum(&working) {
                                 Ok(canonical_oid) => {
                                     // Canonical head is an ancestor of head.
-                                    let is_ff = *head == *canonical_oid
+                                    let is_ff = head == canonical_oid
                                         || working.graph_descendant_of(*head, *canonical_oid)?;
 
                                     if !is_ff && !converges {
@@ -464,7 +420,7 @@ pub fn run(
 
 /// Open a new patch.
 fn patch_open<G>(
-    src: &Revision,
+    src: &git::Oid,
     upstream: &git::RefString,
     nid: &NodeId,
     working: &git::raw::Repository,
@@ -480,7 +436,7 @@ fn patch_open<G>(
 where
     G: crypto::signature::Signer<crypto::Signature>,
 {
-    let head = src.id();
+    let head = *src;
     let dst = git::refs::storage::staging::patch(nid, head);
 
     // Before creating the patch, we must push the associated git objects to storage.
@@ -584,7 +540,7 @@ where
 /// Update an existing patch.
 #[allow(clippy::too_many_arguments)]
 fn patch_update<G>(
-    src: &Revision,
+    src: &git::Oid,
     dst: &git::Qualified,
     force: bool,
     oid: &git::Oid,
@@ -601,7 +557,7 @@ fn patch_update<G>(
 where
     G: crypto::signature::Signer<crypto::Signature>,
 {
-    let commit = src.id();
+    let commit = *src;
     let patch_id = radicle::cob::ObjectId::from(oid);
     let dst = dst.with_namespace(nid.into());
 
@@ -612,7 +568,7 @@ where
     };
 
     // Don't update patch if it already has a revision matching this commit.
-    if patch.revisions().any(|(_, r)| *r.head() == *commit) {
+    if patch.revisions().any(|(_, r)| r.head() == commit) {
         return Ok(None);
     }
 
@@ -664,7 +620,7 @@ where
 }
 
 fn push<G>(
-    src: &Revision,
+    src: &git::Oid,
     dst: &git::Qualified,
     force: bool,
     nid: &NodeId,
@@ -679,7 +635,7 @@ fn push<G>(
 where
     G: crypto::signature::Signer<crypto::Signature>,
 {
-    let head = src.id();
+    let head = *src;
     let dst = dst.with_namespace(nid.into());
     // It's ok for the destination reference to be unknown, eg. when pushing a new branch.
     let old = stored.backend.find_reference(dst.as_str()).ok();
@@ -862,7 +818,7 @@ where
 
 /// Push a single reference to storage.
 fn push_ref(
-    src: &Revision,
+    src: &git::Oid,
     dst: &git::Namespaced,
     force: bool,
     working: &git::raw::Repository,
@@ -871,11 +827,7 @@ fn push_ref(
     let url = git::url::File::new(stored.path()).to_string();
     // Nb. The *force* indicator (`+`) is processed by Git tooling before we even reach this code.
     // This happens during the `list for-push` phase.
-    let refspec = git::Refspec {
-        src: src.id(),
-        dst,
-        force,
-    };
+    let refspec = git::Refspec { src, dst, force };
     let repo = working.workdir().unwrap_or_else(|| working.path());
 
     radicle::git::run::<_, _, &str, &str>(
