@@ -93,7 +93,7 @@ pub struct MissingCommit {
 }
 
 #[derive(Debug, Error)]
-#[error("could not determine the commit {commit} for {did} is part of the repository {repo:?}")]
+#[error("could not determine whether the commit {commit} for {did} is part of the repository {repo:?} due to: {source}")]
 pub struct InvalidCommit {
     repo: PathBuf,
     did: Did,
