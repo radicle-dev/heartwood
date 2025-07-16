@@ -54,40 +54,50 @@ impl Canonical {
         Self::HeadsDiverge(HeadsDiverge { head, canonical })
     }
 
-    pub fn missing_commit(repo: PathBuf, did: Did, oid: git::Oid, source: git::raw::Error) -> Self {
+    pub fn missing_commit(
+        repo: PathBuf,
+        did: Did,
+        commit: git::Oid,
+        source: git::raw::Error,
+    ) -> Self {
         Self::MissingCommit(MissingCommit {
             repo,
             did,
-            oid,
+            commit,
             source,
         })
     }
 
-    pub fn invalid_commit(repo: PathBuf, did: Did, oid: git::Oid, source: git::raw::Error) -> Self {
+    pub fn invalid_commit(
+        repo: PathBuf,
+        did: Did,
+        commit: git::Oid,
+        source: git::raw::Error,
+    ) -> Self {
         Self::InvalidCommit(InvalidCommit {
             repo,
             did,
-            oid,
+            commit,
             source,
         })
     }
 }
 
 #[derive(Debug, Error)]
-#[error("the commit {oid} for {did} is missing from the repository {repo:?}")]
+#[error("the commit {commit} for {did} is missing from the repository {repo:?}")]
 pub struct MissingCommit {
     repo: PathBuf,
     did: Did,
-    oid: git::Oid,
+    commit: git::Oid,
     source: git::raw::Error,
 }
 
 #[derive(Debug, Error)]
-#[error("could not determine the commit {oid} for {did} is part of the repository {repo:?}")]
+#[error("could not determine the commit {commit} for {did} is part of the repository {repo:?}")]
 pub struct InvalidCommit {
     repo: PathBuf,
     did: Did,
-    oid: git::Oid,
+    commit: git::Oid,
     source: git::raw::Error,
 }
 
