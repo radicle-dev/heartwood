@@ -8,7 +8,7 @@ pub use radicle_term::{style, Paint};
 use radicle::cob::ObjectId;
 use radicle::identity::Visibility;
 use radicle::node::policy::Policy;
-use radicle::node::{Alias, AliasStore, NodeId};
+use radicle::node::{Address, Alias, AliasStore, HostName, NodeId};
 use radicle::prelude::Did;
 use radicle::profile::{env, Profile};
 use radicle::storage::RefUpdate;
@@ -16,13 +16,40 @@ use radicle_term::element::Line;
 
 use crate::terminal as term;
 
-/// Format a node id to be more compact.
-pub fn node(node: &NodeId) -> Paint<String> {
+/// Format a Node ID in its short form, removing the middle part.
+pub fn node_short(node: &NodeId) -> Paint<String> {
     let node = node.to_human();
     let start = node.chars().take(7).collect::<String>();
     let end = node.chars().skip(node.len() - 7).collect::<String>();
 
     Paint::new(format!("{start}…{end}"))
+}
+
+/// Format a Node ID.
+pub fn node(node: &NodeId) -> Paint<String> {
+    Paint::new(node.to_human())
+}
+
+/// Format an Address in a short form, removing the middle part of the host if it's a Tor address.
+pub fn addr_short(address: &Address) -> Paint<String> {
+    let host = match address.host() {
+        HostName::Ip(ip) => ip.to_string(),
+        HostName::Dns(dns) => dns.clone(),
+        HostName::Tor(onion) => {
+            let onion = onion.to_string();
+            let start = onion.chars().take(8).collect::<String>();
+            let end = onion
+                .chars()
+                .skip(onion.len() - 8 - ".onion".len())
+                .collect::<String>();
+            format!("{start}…{end}")
+        }
+        _ => unreachable!(),
+    };
+
+    let port = address.port().to_string();
+
+    Paint::new(format!("{host}:{port}"))
 }
 
 /// Format a git Oid.
@@ -173,7 +200,7 @@ impl fmt::Display for Identity<'_> {
         let nid = self.profile.id();
         let alias = self.profile.aliases().alias(nid);
         let node_id = match self.short {
-            true => self::node(nid).to_string(),
+            true => self::node_short(nid).to_string(),
             false => nid.to_human(),
         };
 
@@ -231,13 +258,13 @@ impl<'a> Author<'a> {
     pub fn labels(self) -> (term::Label, term::Label) {
         let alias = match self.alias.as_ref() {
             Some(alias) => term::format::primary(alias).into(),
-            None if self.you => term::format::primary(term::format::node(self.nid))
+            None if self.you => term::format::primary(term::format::node_short(self.nid))
                 .dim()
                 .into(),
             None => term::Label::blank(),
         };
         let author = self.you().unwrap_or_else(|| {
-            term::format::primary(term::format::node(self.nid))
+            term::format::primary(term::format::node_short(self.nid))
                 .dim()
                 .into()
         });

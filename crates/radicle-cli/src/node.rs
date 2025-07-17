@@ -242,7 +242,7 @@ where
     match node.announce(rid, settings.timeout, announcer, |node, progress| {
         spinner.message(format!(
             "Synced with {}, {} of {} preferred seeds, and {} of at least {} replica(s).",
-            term::format::node(node),
+            term::format::node_short(node),
             term::format::secondary(progress.preferred()),
             term::format::secondary(n_preferred_seeds),
             term::format::secondary(progress.synced()),

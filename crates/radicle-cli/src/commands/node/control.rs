@@ -189,7 +189,7 @@ pub fn connect(
 ) -> anyhow::Result<()> {
     let spinner = term::spinner(format!(
         "Connecting to {}@{addr}...",
-        term::format::node(&nid)
+        term::format::node_short(&nid)
     ));
     match node.connect(
         nid,
@@ -217,7 +217,7 @@ pub fn connect_many(
     for addr in addrs {
         spinner.message(format!(
             "Connecting to {}@{addr}...",
-            term::format::node(&nid)
+            term::format::node_short(&nid)
         ));
         match node.connect(
             nid,
@@ -361,17 +361,17 @@ pub fn sessions(node: &Node) -> Result<Option<term::Table<5, term::Label>>, node
                 term::Label::blank(),
             ),
             node::State::Attempted => (
-                sess.addr.to_string().into(),
+                term::format::addr_short(&sess.addr).into(),
                 term::Label::from(state_attempted()),
                 term::Label::blank(),
             ),
             node::State::Connected { since, .. } => (
-                sess.addr.to_string().into(),
+                term::format::addr_short(&sess.addr).into(),
                 term::Label::from(state_connected()),
                 term::format::dim(now - since).into(),
             ),
             node::State::Disconnected { since, .. } => (
-                sess.addr.to_string().into(),
+                term::format::addr_short(&sess.addr).into(),
                 term::Label::from(state_disconnected()),
                 term::format::dim(now - since).into(),
             ),

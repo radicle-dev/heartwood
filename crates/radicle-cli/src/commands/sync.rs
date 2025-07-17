@@ -674,8 +674,8 @@ impl FetcherSpinner {
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
             term::format::secondary(self.replicas.lower_bound()),
-            term::format::tertiary(term::format::node(node)),
-            term::format::tertiary(addr),
+            term::format::tertiary(term::format::node_short(node)),
+            term::format::tertiary(term::format::addr_short(addr)),
         ))
     }
 
@@ -691,8 +691,8 @@ impl FetcherSpinner {
             term::format::secondary(self.preferred_seeds),
             term::format::secondary(progress.succeeded()),
             term::format::secondary(self.replicas.lower_bound()),
-            term::format::tertiary(term::format::node(node)),
-            term::format::tertiary(addr),
+            term::format::tertiary(term::format::node_short(node)),
+            term::format::tertiary(term::format::addr_short(addr)),
         ))
     }
 

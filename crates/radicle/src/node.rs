@@ -573,6 +573,14 @@ impl Address {
             _ => true,
         }
     }
+
+    pub fn host(&self) -> &HostName {
+        &self.0.host
+    }
+
+    pub fn port(&self) -> u16 {
+        self.0.port
+    }
 }
 
 impl cyphernet::addr::Host for Address {
