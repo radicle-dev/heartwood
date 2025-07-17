@@ -59,7 +59,6 @@ shlex = "1.1.0"
 signature = "2.2"
 snapbox = "0.4.3"
 sqlite = "0.32.0"
-ssh-key = { version = "0.6.3", default-features = false }
 tempfile = "3.3.0"
 thiserror = "1.0"
 zeroize = "1.5.7"
