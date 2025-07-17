@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
+use std::path::PathBuf;
 use std::{fs, io, path::Path, process, thread, time};
 
 use anyhow::{anyhow, Context};
@@ -20,7 +21,7 @@ pub const NODE_START_TIMEOUT: time::Duration = time::Duration::from_secs(6);
 /// Node log file name.
 pub const NODE_LOG: &str = "node.log";
 /// Node log old file name, after rotation.
-pub const NODE_LOG_OLD: &str = "node.log.old";
+pub const NODE_LOG_OLD_PREFIX: &str = "node.log.";
 
 pub fn start(
     node: Node,
@@ -55,14 +56,16 @@ pub fn start(
     if !options.contains(&OsString::from("--force")) {
         options.push(OsString::from("--force"));
     }
+
+    let (log_path, log_file) = log_rotate(profile)?;
+
     if daemon {
-        let log = log_rotate(profile)?;
         let child = process::Command::new(cmd)
             .args(options)
             .envs(envs)
             .stdin(process::Stdio::null())
-            .stdout(process::Stdio::from(log.try_clone()?))
-            .stderr(process::Stdio::from(log))
+            .stdout(process::Stdio::from(log_file.try_clone()?))
+            .stderr(process::Stdio::from(log_file))
             .spawn()
             .map_err(|e| anyhow!("failed to start node process {cmd:?}: {e}"))?;
         let pid = term::format::parens(term::format::dim(child.id()));
@@ -98,6 +101,10 @@ pub fn start(
             }
         }
     } else {
+        // Write a hint to the log file, but swallow any errors.
+        let mut log_file = log_file;
+        let _ = log_file.write_all(format!("radicle-node started in foreground, no futher log messages are written to '{}' (this file).\n", log_path.display()).as_bytes());
+
         let mut child = process::Command::new(cmd)
             .args(options)
             .envs(envs)
@@ -110,7 +117,7 @@ pub fn start(
     Ok(())
 }
 
-pub fn stop(node: Node) -> anyhow::Result<()> {
+pub fn stop(node: Node, profile: &Profile) {
     let mut spinner = term::spinner("Stopping node...");
     if node.shutdown().is_err() {
         spinner.error("node is not running");
@@ -118,7 +125,7 @@ pub fn stop(node: Node) -> anyhow::Result<()> {
         spinner.message("Node stopped");
         spinner.finish();
     }
-    Ok(())
+    let _ = log_remove(profile);
 }
 
 pub fn debug(node: &mut Node) -> anyhow::Result<()> {
@@ -394,20 +401,53 @@ pub fn config(node: &Node) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn log_rotate(profile: &Profile) -> io::Result<File> {
+fn log_path(profile: &Profile) -> PathBuf {
+    profile.home.node().join(NODE_LOG)
+}
+
+fn log_rotate(profile: &Profile) -> io::Result<(PathBuf, File)> {
+    let _ = log_remove(profile);
+
     let base = profile.home.node();
-    if base.join(NODE_LOG).exists() {
-        // Let this fail, eg. if the file doesn't exist.
-        fs::remove_file(base.join(NODE_LOG_OLD)).ok();
-        fs::rename(base.join(NODE_LOG), base.join(NODE_LOG_OLD))?;
-    }
+
+    let next = base
+        .read_dir()
+        .ok()
+        .map(|read_dir| {
+            read_dir
+                .filter_map(Result::ok)
+                .filter_map(|dir_entry| dir_entry.file_name().into_string().ok())
+                .filter_map(|filename| {
+                    filename
+                        .strip_prefix(NODE_LOG_OLD_PREFIX)
+                        .and_then(|suffix| suffix.parse::<u16>().ok())
+                })
+                .max()
+                .unwrap_or_default()
+                + 1
+        })
+        .unwrap_or(1u16);
+
+    let path = base.join(NODE_LOG_OLD_PREFIX.to_owned() + &next.to_string());
 
     let log = OpenOptions::new()
         .write(true)
         .create_new(true)
-        .open(base.join(NODE_LOG))?;
+        .open(&path)?;
 
-    Ok(log)
+    fs::hard_link(&path, log_path(profile))?;
+
+    Ok((path, log))
+}
+
+fn log_remove(profile: &Profile) -> io::Result<()> {
+    let path = log_path(profile);
+
+    if path.exists() {
+        fs::remove_file(path)
+    } else {
+        Ok(())
+    }
 }
 
 fn state_label() -> term::Paint<String> {

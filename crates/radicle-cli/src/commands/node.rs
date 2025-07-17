@@ -340,7 +340,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             control::status(&node, &profile)?;
         }
         Operation::Stop => {
-            control::stop(node)?;
+            control::stop(node, &profile);
         }
     }
 
