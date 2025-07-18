@@ -40,6 +40,12 @@ pub enum Error {
         var: String,
         source: std::env::VarError,
     },
+    #[error("Unable to connect SSH agent using the path '{path}': {source}")]
+    Connect {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
     #[error("I/O error while communicating with SSH agent: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -80,7 +86,12 @@ impl AgentClient<Stream> {
                     source: err,
                 })
             }
-            Err(err) => return Err(Error::Io(err)),
+            Err(err) => {
+                return Err(Error::Connect {
+                    path: path.display().to_string(),
+                    source: err,
+                })
+            }
             Ok(stream) => stream,
         };
 
