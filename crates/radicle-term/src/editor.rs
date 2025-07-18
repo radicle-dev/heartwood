@@ -12,10 +12,12 @@ pub struct Editor<'a>(pub inquire::Editor<'a>);
 #[error(transparent)]
 pub struct Error(#[from] InquireError);
 
-impl Editor<'_> {
+impl<'a> Editor<'a> {
+    pub const HELP: &'a str = "(e) to edit. (enter) to save and exit. (esc) to cancel and quit.";
+
     /// Create a new editor for editing a comment.
     pub fn comment() -> Self {
-        Self::new("Enter comment.", "You may enter your comment using your editor. Pressing (e) will open the editor. Save the file and exit the editor to submit your comment.")
+        Self::new("Enter comment.", Self::HELP)
     }
 
     /// Open the editor and return the edited text.
