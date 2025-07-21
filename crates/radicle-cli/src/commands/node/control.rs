@@ -1,9 +1,11 @@
+mod logs;
+use logs::{LogRotatorFileSystem, Rotated};
+
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
-use std::path::PathBuf;
-use std::{fs, io, path::Path, process, thread, time};
+use std::{path::Path, process, thread, time};
 
 use anyhow::{anyhow, Context};
 use localtime::LocalTime;
@@ -18,10 +20,6 @@ use crate::terminal::Element as _;
 
 /// How long to wait for the node to start before returning an error.
 pub const NODE_START_TIMEOUT: time::Duration = time::Duration::from_secs(6);
-/// Node log file name.
-pub const NODE_LOG: &str = "node.log";
-/// Node log old file name, after rotation.
-pub const NODE_LOG_OLD_PREFIX: &str = "node.log.";
 
 pub fn start(
     node: Node,
@@ -57,7 +55,10 @@ pub fn start(
         options.push(OsString::from("--force"));
     }
 
-    let (log_path, log_file) = log_rotate(profile)?;
+    let Rotated {
+        path: log_path,
+        log: log_file,
+    } = LogRotatorFileSystem::from_profile(profile).rotate()?;
 
     if daemon {
         let child = process::Command::new(cmd)
@@ -125,7 +126,8 @@ pub fn stop(node: Node, profile: &Profile) {
         spinner.message("Node stopped");
         spinner.finish();
     }
-    let _ = log_remove(profile);
+    let rotator = LogRotatorFileSystem::from_profile(profile);
+    rotator.remove().ok();
 }
 
 pub fn debug(node: &mut Node) -> anyhow::Result<()> {
@@ -399,55 +401,6 @@ pub fn config(node: &Node) -> anyhow::Result<()> {
     println!("{cfg}");
 
     Ok(())
-}
-
-fn log_path(profile: &Profile) -> PathBuf {
-    profile.home.node().join(NODE_LOG)
-}
-
-fn log_rotate(profile: &Profile) -> io::Result<(PathBuf, File)> {
-    let _ = log_remove(profile);
-
-    let base = profile.home.node();
-
-    let next = base
-        .read_dir()
-        .ok()
-        .map(|read_dir| {
-            read_dir
-                .filter_map(Result::ok)
-                .filter_map(|dir_entry| dir_entry.file_name().into_string().ok())
-                .filter_map(|filename| {
-                    filename
-                        .strip_prefix(NODE_LOG_OLD_PREFIX)
-                        .and_then(|suffix| suffix.parse::<u16>().ok())
-                })
-                .max()
-                .unwrap_or_default()
-                + 1
-        })
-        .unwrap_or(1u16);
-
-    let path = base.join(NODE_LOG_OLD_PREFIX.to_owned() + &next.to_string());
-
-    let log = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&path)?;
-
-    fs::hard_link(&path, log_path(profile))?;
-
-    Ok((path, log))
-}
-
-fn log_remove(profile: &Profile) -> io::Result<()> {
-    let path = log_path(profile);
-
-    if path.exists() {
-        fs::remove_file(path)
-    } else {
-        Ok(())
-    }
 }
 
 fn state_label() -> term::Paint<String> {
