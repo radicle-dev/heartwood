@@ -7,17 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Introduce canonical reference rules via a payload entry in the identity
-  document. The payload is identified by `xyz.radicle.crefs`, and the payload
-  currently contains one key `rules`, which is followed by the set of rules. For
-  each rule, there is a reference pattern string to identify the rule, which in
-  turn is composed of the `allow` and `threshold` values. The canonical
-  reference rules are now used to check for canonical updates. The rule for the
-  `defaultBranch` of an `xyz.radicle.project` is synthesized from the identity
-  document fields: `threshold` and `delegates`. This means that a rule for that
-  reference is not allowed within the rule set. This checked when performing a
-  `rad id update`.
-
 ## Release Highlights
 
 ## Deprecations
@@ -25,6 +14,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## New Features
 
 ## Fixed Bugs
+
+## 1.3.0 - 2025-08-12
+
+## Release Highlights
+
+### Canonical References
+
+Introduce canonical reference rules via a payload entry in the identity
+document. The payload is identified by `xyz.radicle.crefs`, and the payload
+currently contains one key `rules`, which is followed by the set of rules. For
+each rule, there is a reference pattern string to identify the rule, which in
+turn is composed of the `allow` and `threshold` values. The canonical reference
+rules are now used to check for canonical updates. The rule for the
+`defaultBranch` of an `xyz.radicle.project` is synthesized from the identity
+document fields: `threshold` and `delegates`. This means that a rule for that
+reference is not allowed within the rule set. This checked when performing a
+`rad id update`.
+
+### Introducing `radicle-protocol`
+
+This set of changes is mostly cosmetic for the time being. A new crate,
+`radicle-protocol`, was introduced to provide a home for a sans I/O
+implementation of the Radicle protocol. The crate currently defines the inner
+workings of the protocol, and `radicle-node` depends on this.
+
+Note here that we switched to use the `bytes` crate, and we witnessed a panic
+from this crate while using a pre-release. It has not showed up again, but we
+introduced the use of backtraces to help identify the issue further. So, please
+report a backtrace if the `radicle-node` stops due to this issue.
+
+### Path to Windows
+
+We made an effort to start paving some of the way to being able to use Radicle
+on Windows. The first step was taken for this, and you can now use the `rad` CLI
+on a Windows machine – without WSL.
+
+Currently, `radicle-node` is still not compatible with Windows.
+However, the sans I/O approach mentioned above will provide a way
+forward for implementing a `radicle-node` that works on Windows, and we will
+continue to look into other fixes required for getting full Windows support.
+
+### Display Full Node IDs
+
+Node IDs and and node addresses have improved formatting. The CLI will output
+shortened forms of NIDs and addresses when the output is transient, and the full
+form where it is presented to the user. This will allow you to be able to copy
+and paste these identifiers.
+
+## New Features
+
+- Canonical reference rule in the identity payload, identified by
+  `xyz.radicle.crefs`.
+- The `git-remote-rad` executable can now be called from bare repositories and
+  can push any kind of Git revision, greatly improving the experience for users
+  of `jj`.
+- The pinned repositories now maintain their insertion order.
+- Improved error reporting during canonical reference calculations. This will
+  provide users with more information on error cases that can occur when
+  computing canonical references.
+- When running `rad init` the default value for the `defaultBranch` of the
+  repository is now by provided the branch you are on or the Git configuration
+  option `init.defaultBranch`.
+
+## Fixed Bugs
+
+- Connection attempts will now return an error if they fail. Before the change,
+  the connection attempts would timeout.
 
 ## 1.2.0 - 2025-06-02
 
