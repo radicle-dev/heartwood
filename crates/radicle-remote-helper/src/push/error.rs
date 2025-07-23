@@ -9,6 +9,10 @@ pub enum CanonicalUnrecoverable {
     #[error(transparent)]
     Converges(#[from] canonical::error::ConvergesError),
     #[error(transparent)]
+    MergeBase(#[from] canonical::error::MergeBaseError),
+    #[error(transparent)]
+    FindObjects(#[from] canonical::error::FindObjectsError),
+    #[error(transparent)]
     HeadsDiverge(#[from] HeadsDiverge),
     #[error("failure while computing canonical reference: {source}")]
     Git { source: git::raw::Error },
@@ -18,8 +22,6 @@ pub enum CanonicalUnrecoverable {
 pub enum Canonical {
     #[error(transparent)]
     GraphDescendant(GraphDescendant),
-    #[error(transparent)]
-    Converges(#[from] canonical::error::ConvergesError),
     #[error(transparent)]
     HeadsDiverge(HeadsDiverge),
     #[error(transparent)]

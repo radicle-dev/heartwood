@@ -462,47 +462,6 @@ fn rad_id_threshold_soft_fork() {
 }
 
 #[test]
-fn rad_id_missing_commits() {
-    let mut environment = Environment::new();
-    let alice = environment.node("alice");
-    let bob = environment.node("bob");
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
-
-    environment.repository(&alice);
-
-    test(
-        "examples/rad-init.md",
-        environment.work(&alice),
-        Some(&alice.home),
-        [],
-    )
-    .unwrap();
-
-    let mut alice = alice.spawn();
-    let mut bob = bob.spawn();
-
-    bob.handle.seed(acme, Scope::All).unwrap();
-    alice.connect(&bob).converge([&bob]);
-
-    bob.fork(acme, environment.work(&bob)).unwrap();
-
-    formula(&environment.tempdir(), "examples/rad-id-missing-commits.md")
-        .unwrap()
-        .home(
-            "alice",
-            environment.work(&alice),
-            [("RAD_HOME", alice.home.path().display())],
-        )
-        .home(
-            "bob",
-            environment.work(&bob).join("heartwood"),
-            [("RAD_HOME", bob.home.path().display())],
-        )
-        .run()
-        .unwrap();
-}
-
-#[test]
 fn rad_id_update_delete_field() {
     Environment::alice(["rad-init", "rad-id-update-delete-field"]);
 }

@@ -120,10 +120,10 @@ pub enum Error {
     PushAction(#[from] error::PushAction),
     #[error(transparent)]
     Canonical(#[from] error::CanonicalUnrecoverable),
-    #[error(transparent)]
-    CanonicalInit(#[from] radicle::git::canonical::error::CanonicalError),
     #[error("could not determine object type for {oid}")]
     UnknownObjectType { oid: git::Oid },
+    #[error(transparent)]
+    FindObjects(#[from] git::canonical::error::FindObjectsError),
 }
 
 /// Push command.
@@ -284,7 +284,7 @@ pub fn run(
     let identity = stored.identity()?;
     let project = identity.project()?;
     let canonical_ref = git::refs::branch(project.default_branch());
-    let mut set_canonical_refs: Vec<(git::Qualified, git::raw::ObjectType, git::Oid)> =
+    let mut set_canonical_refs: Vec<(git::Qualified, git::canonical::Object)> =
         Vec::with_capacity(specs.len());
     let working = git::raw::Repository::open(working)?;
 
@@ -346,26 +346,27 @@ pub fn run(
                         let rules = crefs.rules();
                         let me = Did::from(nid);
 
+                        let explorer =
+                            push(src, &dst, *force, &nid, &working, stored, patches, &signer)?;
                         // If we're trying to update the canonical head, make sure
                         // we don't diverge from the current head. This only applies
                         // to repos with more than one delegate.
                         //
                         // Note that we *do* allow rolling back to a previous commit on the
                         // canonical branch.
-                        if let Some(canonical) = rules.canonical(dst.clone(), stored)? {
-                            let kind = working
-                                .find_object(**src, None)?
-                                .kind()
-                                .and_then(git::canonical::CanonicalObjectType::new)
+                        if let Some(canonical) = rules.canonical(dst.clone(), stored) {
+                            let object = working
+                                .find_object(**src, None)
+                                .map(|obj| git::canonical::Object::new(&obj))?
                                 .ok_or(Error::UnknownObjectType { oid: *src })?;
 
-                            let canonical = canonical::Canonical::new(me, *src, kind, canonical);
+                            let canonical = canonical::Canonical::new(me, object, canonical)?;
                             match canonical.quorum(&working) {
                                 Ok(quorum) => set_canonical_refs.push(quorum),
                                 Err(e) => canonical::io::handle_error(e, &dst, hints)?,
                             }
                         }
-                        push(src, &dst, *force, &nid, &working, stored, patches, &signer)
+                        Ok(explorer)
                     }
                 }
             }
@@ -386,7 +387,9 @@ pub fn run(
     if !ok.is_empty() {
         let _ = stored.sign_refs(&signer)?;
 
-        for (refname, kind, oid) in &set_canonical_refs {
+        for (refname, object) in &set_canonical_refs {
+            let oid = object.id();
+            let kind = object.object_type();
             let print_update = || {
                 eprintln!(
                     "{} Canonical reference {} updated to target {kind} {}",
@@ -409,10 +412,10 @@ pub fn run(
             }
 
             match stored.backend.refname_to_id(refname.as_str()) {
-                Ok(new) if new != **oid => {
+                Ok(new) if new != *oid => {
                     stored.backend.reference(
                         refname.as_str(),
-                        **oid,
+                        *oid,
                         true,
                         "set-canonical-reference from git-push (radicle)",
                     )?;
@@ -421,7 +424,7 @@ pub fn run(
                 Err(e) if e.code() == git::raw::ErrorCode::NotFound => {
                     stored.backend.reference(
                         refname.as_str(),
-                        **oid,
+                        *oid,
                         true,
                         "set-canonical-reference from git-push (radicle)",
                     )?;

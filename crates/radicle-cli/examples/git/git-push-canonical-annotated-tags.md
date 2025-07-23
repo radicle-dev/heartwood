@@ -93,6 +93,8 @@ Now, Alice will create an annotated tag and push it:
 $ git tag -a -m "Hotfix for release 1" v1.0-hotfix
 $ git cat-file -t v1.0-hotfix
 tag
+$ git cat-file -t ac51a0746a5e8311829bc481202909a1e3acc0c2
+tag
 ```
 
 ``` ~alice (stderr)

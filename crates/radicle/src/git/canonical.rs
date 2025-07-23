@@ -1,564 +1,500 @@
 pub mod error;
 use error::*;
 
+mod convergence;
+use convergence::Convergence;
+
+mod quorum;
+use quorum::{CommitQuorum, CommitQuorumFailure, TagQuorum, TagQuorumFailure};
+
+mod voting;
+
+pub mod effects;
 pub mod rules;
 
-use nonempty::NonEmpty;
 pub use rules::{MatchedRule, RawRule, Rules, ValidRule};
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::marker::PhantomData;
+use std::ops::ControlFlow;
 
-use raw::ObjectType;
-use raw::Repository;
+use git_ext::ref_format::Namespaced;
 
 use crate::prelude::Did;
-use crate::storage::git;
 
-use super::raw;
 use super::{Oid, Qualified};
 
-/// A collection of [`Did`]s and their [`Oid`]s that is the tip for a given
-/// reference for that [`Did`].
+/// A marker for the initial state of [`Canonical`], after construction using
+/// [`Canonical::new`].
+pub struct Initial;
+
+/// A marker for the state of [`Canonical`] once it has found objects for the
+/// calculation, using [`Canonical::find_objects`].
+pub struct ObjectsFound;
+
+/// [`Canonical`] captures the state for finding the quorum between a set of
+/// [`Did`]s and their references, attempting to agree on a Git commit or tag.
 ///
-/// The general construction of `Canonical` is by using the [`Canonical::new`]
-/// constructor.
+/// Construction happens through [`Canonical::new`], at which point you must use
+/// [`Canonical::find_objects`] so that the state has the set of [`Object`]s it
+/// must use for the quorum calculation.
 ///
-/// `Canonical` can then be used for performing calculations about the
-/// canonicity of the reference, most importantly the [`Canonical::quorum`].
-///
-/// References to the refname and the matched rule are kept, as they
-/// are very handy for generating error messages.
-#[derive(Debug)]
-pub struct Canonical<'a, 'b> {
+/// At this point, the caller can either call [`Canonical::quorum`] to find the
+/// quorum, or modify the calculation by produce a [`CanonicalWithConvergence`]
+/// using [`Canonical::with_convergence`], and then using
+/// [`CanonicalWithConvergence::quorum`].
+pub struct Canonical<'a, 'b, 'r, R, T> {
     refname: Qualified<'a>,
     rule: &'b ValidRule,
-    tips: BTreeMap<Did, (Oid, CanonicalObjectType)>,
+    repo: &'r R,
+    objects: BTreeMap<Did, Object>,
+    missing: Missing,
+    _marker: PhantomData<T>,
 }
 
-/// Supported Git object types for canonical computation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CanonicalObjectType {
-    /// The Git object is a commit.
-    Commit,
-    /// The Git object is a tag.
-    Tag,
-}
-
-impl fmt::Display for CanonicalObjectType {
+impl<'a, 'b, 'r, R, T> fmt::Debug for Canonical<'a, 'b, 'r, R, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CanonicalObjectType::Commit => f.write_str("commit"),
-            CanonicalObjectType::Tag => f.write_str("tag"),
-        }
+        f.debug_struct("Canonical")
+            .field("refname", &self.refname)
+            .field("rule", &self.rule)
+            .field("objects", &self.objects)
+            .field("missing", &self.missing)
+            .finish()
     }
 }
 
-impl CanonicalObjectType {
-    /// Construct the [`CanonicalObjectType`] from a [`git2::ObjectType`].
-    pub fn new(kind: git::raw::ObjectType) -> Option<Self> {
-        match kind {
-            ObjectType::Commit => Some(Self::Commit),
-            ObjectType::Tag => Some(Self::Tag),
-            _ => None,
-        }
+/// Similar to [`Canonical`], however it checks that a new vote of a single
+/// [`Did`] converges with any other [`Did`], to then see if that provides a
+/// different quorum result.
+pub struct CanonicalWithConvergence<'a, 'b, 'r, R> {
+    canonical: Canonical<'a, 'b, 'r, R, ObjectsFound>,
+    convergence: Convergence<'r, R>,
+}
+
+impl<'a, 'b, 'r, R> fmt::Debug for CanonicalWithConvergence<'a, 'b, 'r, R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CanonicalWithConvergence")
+            .field("canonical", &self.canonical)
+            .field("convergence", &self.convergence)
+            .finish()
     }
 }
 
-impl<'a, 'b> Canonical<'a, 'b> {
-    /// Construct the set of canonical tips given for the given `rule` and
-    /// the reference `refname`.
-    pub fn new(
-        repo: &Repository,
-        refname: Qualified<'a>,
-        rule: &'b ValidRule,
-    ) -> Result<Self, CanonicalError> {
-        let mut tips = BTreeMap::new();
-        for delegate in rule.allowed().iter() {
-            let name = &refname.with_namespace(delegate.as_key().into());
+impl<'a, 'b, 'r, R> AsRef<Canonical<'a, 'b, 'r, R, ObjectsFound>>
+    for CanonicalWithConvergence<'a, 'b, 'r, R>
+{
+    fn as_ref(&self) -> &Canonical<'a, 'b, 'r, R, ObjectsFound> {
+        &self.canonical
+    }
+}
 
-            let reference = match repo.find_reference(name) {
-                Ok(reference) => reference,
-                Err(e) if super::ext::is_not_found_err(&e) => {
-                    log::warn!(
-                        target: "radicle",
-                        "Missing `{name}` while calculating the canonical reference",
-                    );
-                    continue;
-                }
-                Err(e) => return Err(CanonicalError::find_reference(name, e)),
-            };
-
-            let Some(oid) = reference.target() else {
-                log::warn!(target: "radicle", "Missing target for reference `{name}`");
-                continue;
-            };
-
-            let kind = Self::find_object_for(delegate, oid.into(), repo)?;
-
-            tips.insert(*delegate, (oid.into(), kind));
-        }
-        Ok(Canonical {
+impl<'a, 'b, 'r, R> Canonical<'a, 'b, 'r, R, Initial>
+where
+    R: effects::Ancestry + effects::FindMergeBase + effects::FindObjects,
+{
+    /// Construct a new [`Canonical`] with the given [`Qualified`] reference, a
+    /// canonical reference [`ValidRule`] for that reference, and the Git
+    /// repository to load and check the Git data.
+    pub fn new(refname: Qualified<'a>, rule: &'b ValidRule, repo: &'r R) -> Self {
+        Self {
             refname,
-            tips,
             rule,
+            repo,
+            missing: Missing::default(),
+            objects: BTreeMap::new(),
+            _marker: PhantomData,
+        }
+    }
+
+    /// Find the objects for the [`Canonical`] computation, and prepare it to
+    /// find the quorum.
+    pub fn find_objects(
+        self,
+    ) -> Result<Canonical<'a, 'b, 'r, R, ObjectsFound>, effects::FindObjectsError> {
+        let FoundObjects {
+            objects,
+            missing_refs,
+            missing_objects,
+        } = self
+            .repo
+            .find_objects(&self.refname, self.rule.allowed().iter())?;
+        let missing = Missing {
+            refs: missing_refs,
+            objects: missing_objects,
+        };
+        Ok(Canonical {
+            refname: self.refname,
+            rule: self.rule,
+            repo: self.repo,
+            missing,
+            objects,
+            _marker: PhantomData,
+        })
+    }
+}
+
+impl<'a, 'b, 'r, R> Canonical<'a, 'b, 'r, R, ObjectsFound>
+where
+    R: effects::Ancestry + effects::FindMergeBase + effects::FindObjects,
+{
+    /// Adds the check for convergence before finding the quorum.
+    pub fn with_convergence(
+        self,
+        candidate: Did,
+        object: Object,
+    ) -> CanonicalWithConvergence<'a, 'b, 'r, R> {
+        let convergence = Convergence::new(self.repo, candidate, object);
+        CanonicalWithConvergence {
+            canonical: self,
+            convergence,
+        }
+    }
+
+    /// Find the [`Quorum`] for the canonical computation.
+    pub fn quorum(self) -> Result<Quorum<'a>, QuorumError> {
+        let mut finder = QuorumFinder::new(self.refname, self.rule, self.objects.values());
+        while let ControlFlow::Continue(pairs) = finder.find_merge_bases() {
+            let mut bases = Vec::with_capacity(pairs.size_hint().0);
+            for (a, b) in pairs {
+                bases.push(self.repo.merge_base(a, b)?);
+            }
+            finder.found_merge_bases(bases.into_iter());
+        }
+        let refname = finder.refname.clone();
+        let threshold = (*finder.rule.threshold()).into();
+        let results = finder.find_quorum();
+        match results {
+            (Ok(commit), Err(_)) => Ok(commit),
+            (Err(_), Ok(tag)) => Ok(tag),
+            (Ok(_), Ok(_)) => Err(QuorumError::DifferentTypes {
+                refname: refname.to_string(),
+            }),
+            (Err(ec), Err(eq)) => Err(Self::convert_failures(
+                ec,
+                eq,
+                refname.to_string(),
+                threshold,
+            )),
+        }
+    }
+
+    /// If there are [`Missing`] objects, these may be reported by the caller,
+    /// and if further objects are found, then these can be marked using
+    /// [`Canonical::found_objects`].
+    pub fn missing(&self) -> &Missing {
+        &self.missing
+    }
+
+    /// Mark the `objects` provided as found, removing them from the [`Missing`]
+    /// set.
+    pub fn found_objects(&mut self, objects: impl IntoIterator<Item = (Did, Object)>) {
+        let objects = objects.into_iter();
+        for (did, object) in objects {
+            self.missing.found(&did, &self.refname);
+            self.objects.insert(did, object);
+        }
+    }
+
+    fn convert_failures(
+        commit: CommitQuorumFailure,
+        tag: TagQuorumFailure,
+        refname: String,
+        threshold: usize,
+    ) -> QuorumError {
+        match (commit, tag) {
+            (CommitQuorumFailure::NoCandidates, TagQuorumFailure::NoCandidates) => {
+                QuorumError::NoCandidates { refname, threshold }
+            }
+            (CommitQuorumFailure::NoCandidates, TagQuorumFailure::DivergingTags { candidates }) => {
+                QuorumError::DivergingTags {
+                    refname,
+                    threshold,
+                    candidates,
+                }
+            }
+            (
+                CommitQuorumFailure::DivergingCommits {
+                    base,
+                    longest,
+                    candidate,
+                },
+                _,
+            ) => QuorumError::DivergingCommits {
+                refname,
+                threshold,
+                base,
+                longest,
+                head: candidate,
+            },
+            (CommitQuorumFailure::NoMergeBase { a, b }, _) => {
+                #[derive(thiserror::Error, Debug)]
+                #[error("no existing merge base found for commit quorum")]
+                struct NoMergeBase;
+
+                effects::MergeBaseError::new(a, b, NoMergeBase).into()
+            }
+        }
+    }
+}
+
+impl<'a, 'b, 'r, R> CanonicalWithConvergence<'a, 'b, 'r, R>
+where
+    R: effects::Ancestry + effects::FindMergeBase + effects::FindObjects,
+{
+    /// Find the [`QuorumWithConvergence`] for the canonical computation.
+    pub fn quorum(mut self) -> Result<QuorumWithConvergence<'a>, QuorumError> {
+        let converges = match self.convergence.check(self.canonical.objects.iter())? {
+            Some((candidate, object)) => {
+                if self.canonical.objects.is_empty()
+                    || self.canonical.rule.allowed().is_only(&candidate)
+                {
+                    self.canonical.objects.insert(candidate, object);
+                }
+                true
+            }
+            None => false,
+        };
+        let quorum = self.canonical.quorum()?;
+        Ok(QuorumWithConvergence { quorum, converges })
+    }
+}
+
+/// The result of finding a quorum.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Quorum<'a> {
+    /// The reference the quorum has been found for.
+    pub refname: Qualified<'a>,
+    /// The object the reference should be updated to.
+    pub object: Object,
+}
+
+/// Similar to [`Quorum`], but also reports whether the candidate converged with
+/// one of the other voters.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QuorumWithConvergence<'a> {
+    pub quorum: Quorum<'a>,
+    pub converges: bool,
+}
+
+/// Helper to perform the quorum check for both a [`TagQuorum`] and
+/// [`CommitQuorum`].
+#[derive(Debug)]
+struct QuorumFinder<'a, 'b> {
+    refname: Qualified<'a>,
+    rule: &'b ValidRule,
+    tag_quorum: TagQuorum,
+    commit_quorum: CommitQuorum,
+}
+
+impl<'a, 'b> QuorumFinder<'a, 'b> {
+    fn new<'c, I>(refname: Qualified<'a>, rule: &'b ValidRule, objects: I) -> Self
+    where
+        I: Iterator<Item = &'c Object> + Clone,
+    {
+        let threshold = *rule.threshold();
+        let tag_quorum = TagQuorum::new(objects.clone(), threshold.into());
+        let commit_quorum = CommitQuorum::new(objects, threshold.into());
+        Self {
+            refname,
+            rule,
+            tag_quorum,
+            commit_quorum,
+        }
+    }
+
+    fn find_merge_bases(&mut self) -> ControlFlow<(), impl Iterator<Item = (Oid, Oid)>> {
+        match self.commit_quorum.next_candidate() {
+            Some(candidate) => ControlFlow::Continue(candidate),
+            None => ControlFlow::Break(()),
+        }
+    }
+
+    fn found_merge_bases<I>(&mut self, bases: I)
+    where
+        I: Iterator<Item = MergeBase>,
+    {
+        self.commit_quorum.found_merge_bases(bases);
+    }
+
+    fn find_quorum(
+        self,
+    ) -> (
+        Result<Quorum<'a>, quorum::CommitQuorumFailure>,
+        Result<Quorum<'a>, quorum::TagQuorumFailure>,
+    ) {
+        let commit = self.commit_quorum.find_quorum().map(|id| Quorum {
+            refname: self.refname.clone(),
+            object: Object::Commit { id },
+        });
+        let tag = self.tag_quorum.find_quorum().map(|id| Quorum {
+            refname: self.refname.clone(),
+            object: Object::Tag { id },
+        });
+        (commit, tag)
+    }
+}
+
+/// Record a merge base between `a` and `b`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MergeBase {
+    /// The first commit for the merge base.
+    pub a: Oid,
+    /// The second commit that is being compared against for the merge base.
+    pub b: Oid,
+    /// The computed merge base commit.
+    pub base: Oid,
+}
+
+impl MergeBase {
+    /// The merge base of the same commit is the commit itself.
+    #[cfg(test)]
+    pub fn trivial(oid: Oid) -> Self {
+        Self {
+            a: oid,
+            b: oid,
+            base: oid,
+        }
+    }
+
+    /// The result of a merge base computation is trivial.
+    pub fn is_trivial(&self) -> bool {
+        if self.a == self.b {
+            // By definition, the merge base of a commit and itself is itself.
+            // These asserts will catch our fall in case we set an invalid
+            // base in this case.
+            debug_assert_eq!(self.a, self.base);
+            debug_assert_eq!(self.b, self.base);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Collapses a non-trivial and linear result of a merge base computation
+    /// into a single commit, if possible.
+    pub fn linear(self) -> Option<Oid> {
+        if self.is_trivial() || (self.a != self.base && self.b != self.base) {
+            None
+        } else {
+            Some(self.base)
+        }
+    }
+}
+
+/// The supported type of Git object and its [`Oid`], for canonical computation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Object {
+    Commit { id: Oid },
+    Tag { id: Oid },
+}
+
+impl Object {
+    pub fn new(obj: &crate::git::raw::Object) -> Option<Self> {
+        obj.kind().and_then(|kind| match kind {
+            crate::git::raw::ObjectType::Commit => Some(Self::Commit {
+                id: obj.id().into(),
+            }),
+            crate::git::raw::ObjectType::Tag => Some(Self::Tag {
+                id: obj.id().into(),
+            }),
+            _ => None,
         })
     }
 
-    pub fn find_object_for(
-        did: &Did,
-        oid: Oid,
-        repo: &raw::Repository,
-    ) -> Result<CanonicalObjectType, CanonicalError> {
-        match repo.find_object(*oid, None) {
-            Ok(object) => object
-                .kind()
-                .and_then(CanonicalObjectType::new)
-                .ok_or_else(|| {
-                    CanonicalError::invalid_object_type(
-                        repo.path().to_path_buf(),
-                        *did,
-                        oid,
-                        object.kind(),
-                    )
-                }),
-            Err(err) if super::ext::is_not_found_err(&err) => Err(CanonicalError::missing_object(
-                repo.path().to_path_buf(),
-                *did,
-                oid,
-                err,
-            )),
-            Err(err) => Err(CanonicalError::find_object(oid, err)),
+    /// The [`Oid`] of the [`Object`]
+    pub fn id(&self) -> Oid {
+        match self {
+            Object::Commit { id } => *id,
+            Object::Tag { id } => *id,
         }
     }
 
-    /// Returns `true` if there were no tips found for any of the DIDs for
-    /// the given reference.
+    /// Checks if the object is a Git commit.
+    pub fn is_commit(&self) -> bool {
+        matches!(self, Self::Commit { .. })
+    }
+
+    /// Checks if the object is a Git tag.
+    pub fn is_tag(&self) -> bool {
+        matches!(self, Self::Commit { .. })
+    }
+
+    /// Returns the [`ObjectType`] of the [`Object`].
+    pub fn object_type(&self) -> ObjectType {
+        match self {
+            Object::Commit { .. } => ObjectType::Commit,
+            Object::Tag { .. } => ObjectType::Tag,
+        }
+    }
+}
+
+/// Supported Git object types for canonical computation
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ObjectType {
+    /// The Git object corresponds to a commit.
+    Commit,
+    /// The Git object corresponds to a tag.
+    Tag,
+}
+
+impl fmt::Display for ObjectType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ObjectType::Commit => f.write_str("commit"),
+            ObjectType::Tag => f.write_str("tag"),
+        }
+    }
+}
+
+/// The result of checking the relationship between two commits in the commit graph.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct GraphAheadBehind {
+    /// The number of commits the given commit is ahead of the other.
+    pub ahead: usize,
+    /// The number of commits the given commit is behind the other.
+    pub behind: usize,
+}
+
+impl GraphAheadBehind {
+    /// Whether self represents a linear history between two commits.
     ///
-    /// N.b. this may be the case when a new reference is being created.
-    pub fn has_no_tips(&self) -> bool {
-        self.tips.is_empty()
-    }
-
-    pub fn refname(&self) -> &Qualified {
-        &self.refname
-    }
-
-    /// In some cases, we allow the vote to be modified. For example, when the
-    /// `did` is pushing a new commit, we may want to see if the new commit will
-    /// reach a quorum.
-    pub fn modify_vote(&mut self, did: Did, oid: Oid, kind: CanonicalObjectType) {
-        self.tips.insert(did, (oid, kind));
-    }
-
-    /// Check that the provided `did` is part of the set of allowed
-    /// DIDs of the matching rule.
-    pub fn is_allowed(&self, did: &Did) -> bool {
-        self.rule.allowed().contains(did)
-    }
-
-    /// Check that the provided `did` is the only DID in the set of allowed
-    /// DIDs of the matching rule.
-    pub fn is_only(&self, did: &Did) -> bool {
-        self.rule.allowed().is_only(did)
-    }
-
-    /// Checks that setting the given candidate tip would converge with at least
-    /// one other known tip.
-    ///
-    /// It converges if the candidate Oid is either equal to, ahead of, or behind any of
-    /// the tips.
-    pub fn converges(
-        &self,
-        repo: &Repository,
-        (candidate, commit): (&Did, &Oid),
-    ) -> Result<bool, ConvergesError> {
-        /// Ensures [`Oid`]s are of the same object type
-        enum Objects {
-            Commits(NonEmpty<Oid>),
-            Tags(NonEmpty<Oid>),
-        }
-
-        impl Objects {
-            fn new(oid: Oid, kind: CanonicalObjectType) -> Self {
-                match kind {
-                    CanonicalObjectType::Commit => Self::Commits(NonEmpty::new(oid)),
-                    CanonicalObjectType::Tag => Self::Tags(NonEmpty::new(oid)),
-                }
-            }
-
-            fn insert(
-                mut self,
-                oid: Oid,
-                kind: CanonicalObjectType,
-            ) -> Result<Self, CanonicalObjectType> {
-                match self {
-                    Objects::Commits(ref mut commits) => match kind {
-                        CanonicalObjectType::Commit => {
-                            commits.push(oid);
-                            Ok(self)
-                        }
-                        CanonicalObjectType::Tag => Err(CanonicalObjectType::Tag),
-                    },
-                    Objects::Tags(ref mut tags) => match kind {
-                        CanonicalObjectType::Commit => {
-                            tags.push(oid);
-                            Ok(self)
-                        }
-                        CanonicalObjectType::Tag => Err(CanonicalObjectType::Commit),
-                    },
-                }
-            }
-        }
-
-        let heads = {
-            let heads = self
-                .tips
-                .iter()
-                .filter_map(|(did, tip)| (did != candidate).then_some((did, tip)));
-
-            let mut objects = None;
-
-            for (did, (oid, _)) in heads {
-                let kind = find_object_for(did, *oid, repo)?;
-                let oid = *oid;
-                match objects {
-                    None => objects = Some(Objects::new(oid, kind)),
-                    Some(objs) => {
-                        objects = Some(objs.insert(oid, kind).map_err(|expected| {
-                            ConvergesError::mismatched_object(
-                                repo.path().to_path_buf(),
-                                oid,
-                                kind,
-                                expected,
-                            )
-                        })?)
-                    }
-                }
-            }
-
-            objects
-        };
-
-        match heads {
-            None => Ok(true),
-            Some(Objects::Tags(_)) => Ok(true),
-            Some(Objects::Commits(heads)) => {
-                for head in heads {
-                    let (ahead, behind) = repo
-                        .graph_ahead_behind(**commit, *head)
-                        .map_err(|err| ConvergesError::graph_descendant(*commit, head, err))?;
-                    if ahead * behind == 0 {
-                        return Ok(true);
-                    }
-                }
-                Ok(false)
-            }
-        }
-    }
-
-    fn quorum_tag(&self) -> Result<Oid, QuorumError> {
-        let voting =
-            TagVoting::from_targets(self.tips.values().filter_map(|(commit, kind)| {
-                (*kind == CanonicalObjectType::Tag).then_some(*commit)
-            }));
-        let mut votes = voting.votes();
-
-        // Keep tags which pass the threshold.
-        votes.votes_past_threshold(self.threshold());
-
-        if votes.number_of_candidates() > 1 {
-            return Err(QuorumError::DivergingTags {
-                refname: self.refname.to_string(),
-                threshold: self.threshold(),
-                candidates: votes.candidates().cloned().collect(),
-            });
-        }
-
-        let tag = votes
-            .pop_first_candidate()
-            .ok_or(QuorumError::NoCandidates {
-                refname: self.refname.to_string(),
-                threshold: self.threshold(),
-            })?;
-
-        Ok((*tag).into())
-    }
-
-    /// Computes the quorum or "canonical" tip based on the tips, of `Canonical`,
-    /// and the threshold. This can be described as the latest commit that is
-    /// included in at least `threshold` histories. In case there are multiple tips
-    /// passing the threshold, and they are divergent, an error is returned.
-    ///
-    /// Also returns an error if `heads` is empty or `threshold` cannot be
-    /// satisified with the number of heads given.
-    fn quorum_commit(&self, repo: &raw::Repository) -> Result<Oid, QuorumError> {
-        let mut voting =
-            CommitVoting::from_targets(self.tips.values().filter_map(|(commit, kind)| {
-                (*kind == CanonicalObjectType::Commit).then_some(*commit)
-            }));
-        while let Some(targets) = voting.next_candidate() {
-            for (candidate, other) in targets {
-                let base = Oid::from(repo.merge_base(*candidate, *other)?);
-                voting.found_merge_base(MergeBase {
-                    candidate,
-                    other,
-                    base,
-                });
-            }
-        }
-        let mut votes = voting.votes();
-
-        // Keep commits which pass the threshold.
-        votes.votes_past_threshold(self.threshold());
-
-        let mut longest = votes
-            .pop_first_candidate()
-            .ok_or(QuorumError::NoCandidates {
-                refname: self.refname.to_string(),
-                threshold: self.threshold(),
-            })?;
-
-        // Now that all scores are calculated, figure out what is the longest branch
-        // that passes the threshold. In case of divergence, return an error.
-        for head in votes.candidates() {
-            let base = repo.merge_base(**head, *longest)?;
-
-            if base == *longest {
-                // `head` is a successor of `longest`. Update `longest`.
-                //
-                //   o head
-                //   |
-                //   o longest (base)
-                //   |
-                //
-                longest = *head;
-            } else if base == **head || *head == longest {
-                // `head` is an ancestor of `longest`, or equal to it. Do nothing.
-                //
-                //   o longest             o longest, head (base)
-                //   |                     |
-                //   o head (base)   OR    o
-                //   |                     |
-                //
-            } else {
-                // The merge base between `head` and `longest` (`base`)
-                // is neither `head` nor `longest`. Therefore, the branches have
-                // diverged.
-                //
-                //    longest   head
-                //           \ /
-                //            o (base)
-                //            |
-                //
-                return Err(QuorumError::DivergingCommits {
-                    refname: self.refname.to_string(),
-                    threshold: self.threshold(),
-                    base: base.into(),
-                    longest,
-                    head: *head,
-                });
-            }
-        }
-
-        Ok((*longest).into())
-    }
-
-    /// Computes the quorum or "canonical" tip based on the tips, of `Canonical`,
-    /// and the threshold. This can be described as the latest commit that is
-    /// included in at least `threshold` histories. In case there are multiple tips
-    /// passing the threshold, and they are divergent, an error is returned.
-    ///
-    /// Also returns an error if `heads` is empty or `threshold` cannot be
-    /// satisified with the number of heads given.
-    pub fn quorum(
-        self,
-        repo: &raw::Repository,
-    ) -> Result<(Qualified<'a>, ObjectType, Oid), QuorumError> {
-        let (oid, kind) = match (self.quorum_commit(repo), self.quorum_tag()) {
-            (Ok(commit), Err(_)) => Ok((commit, ObjectType::Commit)),
-            (Err(_), Ok(tag)) => Ok((tag, ObjectType::Tag)),
-            (Ok(_), Ok(_)) => Err(QuorumError::DifferentTypes {
-                refname: self.refname.clone().to_string(),
-            }),
-            (Err(commit), Err(QuorumError::NoCandidates { .. })) => Err(commit),
-            (Err(QuorumError::NoCandidates { .. }), Err(tag)) => Err(tag),
-            (Err(err), _) => Err(err),
-        }?;
-
-        Ok((self.refname, kind, oid))
-    }
-
-    fn threshold(&self) -> usize {
-        (*self.rule.threshold()).into()
+    /// The following three conditions are equivalent characterizations of
+    /// a linear history:
+    ///  1. One commit is ahead and not behind of the other.
+    ///  2. One commit is behind and not ahead of the other.
+    ///  3. One commit can be "fast-forwarded" to the other.
+    pub fn is_linear(&self) -> bool {
+        self.ahead * self.behind == 0
     }
 }
 
-/// Keep track of [`Votes`] for quorums involving tag objects.
-struct TagVoting {
-    votes: Votes,
+/// The result of finding a set of objects in a Git repository.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FoundObjects {
+    /// The found objects, and under which [`Did`] they were found.
+    pub objects: BTreeMap<Did, Object>,
+    /// Any missing references while attempting to find the objects.
+    pub missing_refs: BTreeSet<Namespaced<'static>>,
+    // TODO(finto): I think this doesn't make sense now that we use only one
+    // repository.
+    /// Any missing objects, where the reference was found, but the object was
+    /// missing.
+    pub missing_objects: BTreeMap<Did, Oid>,
 }
 
-impl TagVoting {
-    fn from_targets(targets: impl Iterator<Item = Oid>) -> Self {
-        let votes = targets.fold(Votes::default(), |mut votes, oid| {
-            votes.vote(oid);
-            votes
-        });
-        Self { votes }
-    }
-
-    fn votes(self) -> Votes {
-        self.votes
-    }
+/// [`Missing`] marks whether there were any missing references or objects.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Missing {
+    pub refs: BTreeSet<Namespaced<'static>>,
+    pub objects: BTreeMap<Did, Oid>,
 }
 
-/// Keep track of [`Votes`] for quorums involving commit objects.
-///
-/// Build a list of candidate commits and count how many "votes" each of them
-/// has. Commits get a point for each direct vote, as well as for being part of
-/// the ancestry of a commit given to this function.
-#[derive(Debug)]
-struct CommitVoting {
-    candidates: Vec<(Oid, Vec<Oid>)>,
-    votes: Votes,
-}
-
-impl CommitVoting {
-    /// Build the initial set voting.
-    fn from_targets(targets: impl Iterator<Item = Oid> + Clone) -> Self {
-        let ts = targets.clone();
-        let (candidates, votes) = targets.enumerate().fold(
-            (Vec::new(), Votes::default()),
-            |(mut candidates, mut votes), (i, oid)| {
-                candidates.push((oid, ts.clone().skip(i + 1).collect()));
-                votes.vote(oid);
-                (candidates, votes)
-            },
-        );
-        Self { candidates, votes }
-    }
-
-    /// Get the next candidate to be considered for ancestry votes.
-    ///
-    /// The first of each pair will be the candidate commit, which should be
-    /// compared to the other commit to see what their common merge base is. The
-    /// merge base is then recorded using [`MergeBase`] and is recorded using
-    /// [`CommitVoting::found_merge_base`].
-    fn next_candidate(&mut self) -> Option<impl Iterator<Item = (Oid, Oid)>> {
-        self.candidates
-            .pop()
-            .map(|(oid, others)| others.into_iter().map(move |other| (oid, other)))
-    }
-
-    /// Record a merge base, and add to the vote if necessary.
-    fn found_merge_base(
-        &mut self,
-        MergeBase {
-            candidate,
-            other,
-            base,
-        }: MergeBase,
-    ) {
-        // Avoid double counting the same commits
-        let is_same = candidate == other;
-        if !is_same && (base == candidate || base == other) {
-            self.votes.vote(base);
-        }
-    }
-
-    /// Finish the voting process and get the [`Votes`] from the
-    /// [`CommitVoting`].
-    fn votes(self) -> Votes {
-        self.votes
-    }
-}
-
-/// Record a merge base between `candidate` and `other`.
-struct MergeBase {
-    /// The candidate commit for the merge base.
-    candidate: Oid,
-    /// The commit that is being compared against for the merge base.
-    other: Oid,
-    /// The computed merge base commit.
-    base: Oid,
-}
-
-/// Count the number of votes per [`Oid`].
-///
-/// Note that the count cannot exceed 255, since that is the maximum number the
-/// `threshold` value can be.
-#[derive(Debug, Default, PartialEq, Eq)]
-struct Votes {
-    inner: BTreeMap<Oid, u8>,
-}
-
-impl Votes {
-    /// Increase the vote count for `oid`.
-    ///
-    /// If `oid` does not exist in the set of [`Votes`] yet, then no vote will
-    /// be added.
-    #[inline]
-    fn vote(&mut self, oid: Oid) {
-        self.safe_inc(oid, 1);
-    }
-
-    /// Filter the candidates by the ones that have a number of votes that pass
-    /// the `threshold`.
-    #[inline]
-    fn votes_past_threshold(&mut self, threshold: usize) {
-        self.inner.retain(|_, votes| *votes as usize >= threshold);
-    }
-
-    /// Get the number of candidates this set of votes has.
-    #[inline]
-    fn number_of_candidates(&self) -> usize {
-        self.inner.len()
-    }
-
-    /// Get the set candidates.
-    #[inline]
-    fn candidates(&self) -> impl Iterator<Item = &Oid> {
-        self.inner.keys()
-    }
-
-    /// Pop off the first candidate from the set of votes.
-    #[inline]
-    fn pop_first_candidate(&mut self) -> Option<Oid> {
-        self.inner.pop_first().map(|(oid, _)| oid)
-    }
-
-    #[inline]
-    fn safe_inc(&mut self, oid: Oid, n: u8) {
-        let votes = self.inner.entry(oid).or_default();
-        *votes = votes.saturating_add(n);
-    }
-}
-
-fn find_object_for(
-    did: &Did,
-    oid: Oid,
-    repo: &raw::Repository,
-) -> Result<CanonicalObjectType, FindObjectError> {
-    match repo.find_object(*oid, None) {
-        Ok(object) => object
-            .kind()
-            .and_then(CanonicalObjectType::new)
-            .ok_or_else(|| {
-                FindObjectError::invalid_object_type(
-                    repo.path().to_path_buf(),
-                    *did,
-                    oid,
-                    object.kind(),
-                )
-            }),
-        Err(err) if super::ext::is_not_found_err(&err) => Err(FindObjectError::missing_object(
-            repo.path().to_path_buf(),
-            *did,
-            oid,
-            err,
-        )),
-        Err(err) => Err(FindObjectError::find_object(oid, err)),
+impl Missing {
+    fn found<'a>(&mut self, did: &Did, refname: &Qualified<'a>) {
+        self.objects.remove(did);
+        self.refs
+            .remove(&refname.with_namespace((did.as_key()).into()).to_owned());
     }
 }
 
@@ -578,39 +514,43 @@ mod tests {
         threshold: usize,
         repo: &git::raw::Repository,
     ) -> Result<Oid, QuorumError> {
-        let tips: BTreeMap<Did, (Oid, CanonicalObjectType)> = heads
-            .iter()
-            .enumerate()
-            .map(|(i, head)| {
-                let signer = Device::mock_from_seed([(i + 1) as u8; 32]);
-                let did = Did::from(signer.public_key());
-                let kind = repo
-                    .find_object(*head, None)
-                    .unwrap()
-                    .kind()
-                    .and_then(CanonicalObjectType::new)
-                    .unwrap();
-                (did, ((*head).into(), kind))
-            })
-            .collect();
-
         let refname =
             git::refs::branch(git_ext::ref_format::RefStr::try_from_str("master").unwrap());
+
+        let mut delegates = Vec::new();
+        for (i, head) in heads.iter().enumerate() {
+            let signer = Device::mock_from_seed([(i + 1) as u8; 32]);
+            let did = Did::from(signer.public_key());
+            delegates.push(did);
+            let ns = git::Component::from(signer.public_key());
+            repo.reference(refname.with_namespace(ns).as_str(), *head, true, "")
+                .unwrap();
+        }
 
         let rule: RawRule = crate::git::canonical::rules::Rule::new(
             crate::git::canonical::rules::Allowed::Delegates,
             threshold,
         );
-        let delegates = crate::identity::doc::Delegates::new(tips.keys().cloned()).unwrap();
+        let delegates = crate::identity::doc::Delegates::new(delegates).unwrap();
         let rule = rule.validate(&mut || delegates.clone()).unwrap();
 
-        Canonical {
-            refname,
-            tips,
-            rule: &rule,
+        Canonical::new(refname, &rule, repo)
+            .find_objects()
+            .unwrap()
+            .quorum()
+            .map(|Quorum { object, .. }| object.id())
+    }
+
+    fn commit(id: &str) -> Object {
+        Object::Commit {
+            id: id.parse().unwrap(),
         }
-        .quorum(repo)
-        .map(|(_, _, oid)| oid)
+    }
+
+    fn tag(id: &str) -> Object {
+        Object::Tag {
+            id: id.parse().unwrap(),
+        }
     }
 
     #[test]
@@ -648,202 +588,625 @@ mod tests {
     }
 
     #[test]
-    fn test_quorum_groups() {
+    fn test_quorum_different_types() {
         let tmp = tempfile::tempdir().unwrap();
         let (repo, c0) = fixtures::repository(tmp.path());
         let c0: git::Oid = c0.into();
-        let c1 = fixtures::commit("C1", &[*c0], &repo);
-        let c2 = fixtures::commit("C2", &[*c0], &repo);
-
-        eprintln!("C0: {c0}");
-        eprintln!("C1: {c1}");
-        eprintln!("C2: {c2}");
+        let t0 = fixtures::tag("v1", "", *c0, &repo);
 
         assert_matches!(
-            quorum(&[*c1, *c2, *c1, *c2], 2, &repo),
-            Err(QuorumError::DivergingCommits { .. })
-        );
-
-        assert_matches!(
-            quorum(&[*c1, *c2], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
-        );
-    }
-
-    #[test]
-    fn test_quorum_tag() {
-        let tmp = tempfile::tempdir().unwrap();
-        let (repo, c0) = fixtures::repository(tmp.path());
-        let c0: git::Oid = c0.into();
-        let c1 = fixtures::commit("C1", &[*c0], &repo);
-        let t1 = fixtures::tag("v1", "T1", *c1, &repo);
-        let t2 = fixtures::tag("v2", "T2", *c1, &repo);
-
-        eprintln!("C0: {c0}");
-        eprintln!("C1: {c1}");
-        eprintln!("T1: {t1}");
-        eprintln!("T2: {t2}");
-
-        assert_eq!(quorum(&[*t1], 1, &repo).unwrap(), t1);
-        assert_eq!(quorum(&[*t1, *t1], 2, &repo).unwrap(), t1);
-
-        assert_matches!(
-            quorum(&[*t1, *t2], 2, &repo),
-            Err(QuorumError::NoCandidates { .. })
-        );
-
-        assert_matches!(
-            quorum(&[*t1, *c1], 1, &repo),
+            quorum(&[*c0, *t0], 1, &repo),
             Err(QuorumError::DifferentTypes { .. })
         );
+    }
 
+    #[test]
+    fn test_commit_quorum_groups() {
+        let c0 = commit("f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354");
+        let c1 = commit("bfb1a513e420eade90b0e6be64117b861b16ecb5");
+        let c2 = commit("8fc5160702365f231c77732a8fa162379e54f57a");
+
+        //   C1  C2
+        //    \ /
+        //     C0
+
+        let mut cq = CommitQuorum::new([c1, c2, c1, c2].iter(), 2);
+        cq.found_merge_bases([MergeBase {
+            a: c1.id(),
+            b: c2.id(),
+            base: c0.id(),
+        }]);
         assert_matches!(
-            quorum(&[*t1, *t2], 1, &repo),
-            Err(QuorumError::DivergingTags { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
+        );
+
+        let mut cq = CommitQuorum::new([c1, c2].iter(), 1);
+        cq.found_merge_bases([MergeBase {
+            a: c1.id(),
+            b: c2.id(),
+            base: c0.id(),
+        }]);
+        assert_matches!(
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
     }
 
     #[test]
-    fn test_quorum() {
-        let tmp = tempfile::tempdir().unwrap();
-        let (repo, c0) = fixtures::repository(tmp.path());
-        let c0: git::Oid = c0.into();
-        let c1 = fixtures::commit("C1", &[*c0], &repo);
-        let c2 = fixtures::commit("C2", &[*c1], &repo);
-        let c3 = fixtures::commit("C3", &[*c1], &repo);
-        let b2 = fixtures::commit("B2", &[*c1], &repo);
-        let a1 = fixtures::commit("A1", &[*c0], &repo);
-        let m1 = fixtures::commit("M1", &[*c2, *b2], &repo);
-        let m2 = fixtures::commit("M2", &[*a1, *b2], &repo);
+    fn test_tag_quorum() {
+        let t1 = tag("0480391dd7312d35c79a455ec5d004657260b358");
+        let t2 = tag("a2eec713ec5c287ecdf13a0180f68acfef7962d0");
 
-        eprintln!("C0: {c0}");
-        eprintln!("C1: {c1}");
-        eprintln!("C2: {c2}");
-        eprintln!("C3: {c3}");
-        eprintln!("B2: {b2}");
-        eprintln!("A1: {a1}");
-        eprintln!("M1: {m1}");
-        eprintln!("M2: {m2}");
+        assert_eq!(
+            TagQuorum::new([t1].iter(), 1).find_quorum().unwrap(),
+            t1.id()
+        );
+        assert_eq!(
+            TagQuorum::new([t1, t1].iter(), 2).find_quorum().unwrap(),
+            t1.id()
+        );
+        assert_matches!(
+            TagQuorum::new([t1, t2].iter(), 1).find_quorum(),
+            Err(TagQuorumFailure::DivergingTags { .. })
+        );
+    }
 
-        assert_eq!(quorum(&[*c0], 1, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*c1], 1, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*c2], 1, &repo).unwrap(), c2);
+    #[test]
+    fn test_commit_quorum_single() {
+        let c0 = commit("f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354");
+        let c1 = commit("bfb1a513e420eade90b0e6be64117b861b16ecb5");
+        let c2 = commit("8fc5160702365f231c77732a8fa162379e54f57a");
+        assert_eq!(
+            CommitQuorum::new([c0].iter(), 1).find_quorum().unwrap(),
+            c0.id()
+        );
+        assert_eq!(
+            CommitQuorum::new([c1].iter(), 1).find_quorum().unwrap(),
+            c1.id()
+        );
+        assert_eq!(
+            CommitQuorum::new([c2].iter(), 1).find_quorum().unwrap(),
+            c2.id()
+        );
+    }
 
-        //  C1
-        //  |
-        // C0
-        assert_eq!(quorum(&[*c1], 1, &repo).unwrap(), c1);
-
+    #[test]
+    fn test_commit_quorum_linear() {
+        let c0 = commit("f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354");
+        let c1 = commit("bfb1a513e420eade90b0e6be64117b861b16ecb5");
+        let c2 = commit("8fc5160702365f231c77732a8fa162379e54f57a");
         //   C2
         //   |
         //  C1
         //  |
         // C0
-        assert_eq!(quorum(&[*c1, *c2], 1, &repo).unwrap(), c2);
-        assert_eq!(quorum(&[*c1, *c2], 2, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*c0, *c1, *c2], 3, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*c1, *c1, *c2], 2, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*c1, *c1, *c2], 1, &repo).unwrap(), c2);
-        assert_eq!(quorum(&[*c2, *c2, *c1], 1, &repo).unwrap(), c2);
+        let merge_bases = [
+            MergeBase {
+                a: c2.id(),
+                b: c1.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: c0.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: c1.id(),
+                b: c0.id(),
+                base: c0.id(),
+            },
+            MergeBase::trivial(c2.id()),
+            MergeBase::trivial(c1.id()),
+            MergeBase::trivial(c0.id()),
+        ];
+
+        let mut cq = CommitQuorum::new([c1, c2].iter(), 1);
+        cq.found_merge_bases(merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), c2.id());
+
+        let mut cq = CommitQuorum::new([c1, c2].iter(), 2);
+        cq.found_merge_bases(merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), c1.id());
+
+        let mut cq = CommitQuorum::new([c0, c1, c2].iter(), 3);
+        cq.found_merge_bases(merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), c0.id());
+
+        let mut cq = CommitQuorum::new([c1, c1, c2].iter(), 2);
+        cq.found_merge_bases(merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), c1.id());
+
+        let mut cq = CommitQuorum::new([c1, c1, c2].iter(), 1);
+        cq.found_merge_bases(merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), c2.id());
+
+        let mut cq = CommitQuorum::new([c2, c2, c1].iter(), 1);
+        cq.found_merge_bases(merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), c2.id());
+    }
+
+    #[test]
+    fn test_commit_quorum_two_way_fork() {
+        let c0 = commit("f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354");
+        let c1 = commit("bfb1a513e420eade90b0e6be64117b861b16ecb5");
+        let c2 = commit("8fc5160702365f231c77732a8fa162379e54f57a");
+        let b2 = commit("037a148170e3d41524b7c482a4798e5c2daeaa00");
+
+        eprintln!("C0: {}", c0.id());
+        eprintln!("C1: {}", c1.id());
+        eprintln!("C2: {}", c2.id());
+        eprintln!("B2: {}", b2.id());
 
         // B2 C2
         //   \|
         //   C1
         //   |
         //  C0
+        let merge_bases = [
+            MergeBase {
+                a: b2.id(),
+                b: c2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: c1.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: b2.id(),
+                b: c1.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c1.id(),
+                b: c0.id(),
+                base: c0.id(),
+            },
+            MergeBase::trivial(b2.id()),
+            MergeBase::trivial(c2.id()),
+            MergeBase::trivial(c1.id()),
+            MergeBase::trivial(c0.id()),
+        ];
+
+        let mut cq = CommitQuorum::new([c1, c2, b2].iter(), 1);
+        cq.found_merge_bases(merge_bases);
         assert_matches!(
-            quorum(&[*c1, *c2, *b2], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
+
+        let mut cq = CommitQuorum::new([c2, b2].iter(), 1);
+        cq.found_merge_bases(merge_bases);
         assert_matches!(
-            quorum(&[*c2, *b2], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
+
+        let mut cq = CommitQuorum::new([b2, c2].iter(), 1);
+        cq.found_merge_bases(merge_bases);
         assert_matches!(
-            quorum(&[*b2, *c2], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
+
+        // Note for the next two cases we only give enough merge base
+        // information so that the quorum fails. If we provided all
+        // `merge_bases`, it would mean that c0 could be chosen as the quourum.
+        let mut cq = CommitQuorum::new([c2, b2].iter(), 2);
+        cq.found_merge_bases([MergeBase {
+            a: b2.id(),
+            b: c2.id(),
+            base: c1.id(),
+        }]);
+        assert_matches!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
+
+        let mut cq = CommitQuorum::new([b2, c2].iter(), 2);
+        cq.found_merge_bases([MergeBase {
+            a: b2.id(),
+            b: c2.id(),
+            base: c1.id(),
+        }]);
+        assert_matches!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
+
+        let mut cq = CommitQuorum::new([c1, c2, b2].iter(), 2);
+        cq.found_merge_bases(merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), c1.id());
+
+        let mut cq = CommitQuorum::new([c1, c2, b2].iter(), 3);
+        cq.found_merge_bases(merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), c1.id());
+
+        let mut cq = CommitQuorum::new([b2, b2, c2].iter(), 2);
+        cq.found_merge_bases(merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), b2.id());
+
+        let mut cq = CommitQuorum::new([b2, c2, c2].iter(), 2);
+        cq.found_merge_bases(merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), c2.id());
+
+        let mut cq = CommitQuorum::new([b2, b2, c2, c2].iter(), 2);
+        cq.found_merge_bases(merge_bases);
         assert_matches!(
-            quorum(&[*c2, *b2], 2, &repo),
-            Err(QuorumError::NoCandidates { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
-        assert_matches!(
-            quorum(&[*b2, *c2], 2, &repo),
-            Err(QuorumError::NoCandidates { .. })
-        );
-        assert_eq!(quorum(&[*c1, *c2, *b2], 2, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*c1, *c2, *b2], 3, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*b2, *b2, *c2], 2, &repo).unwrap(), b2);
-        assert_eq!(quorum(&[*b2, *c2, *c2], 2, &repo).unwrap(), c2);
-        assert_matches!(
-            quorum(&[*b2, *b2, *c2, *c2], 2, &repo),
-            Err(QuorumError::DivergingCommits { .. })
-        );
+    }
+
+    #[test]
+    fn test_commit_quorum_three_way_fork() {
+        let c1 = commit("bfb1a513e420eade90b0e6be64117b861b16ecb5");
+        let c2 = commit("8fc5160702365f231c77732a8fa162379e54f57a");
+        let c3 = commit("07c2a0f856e0d6b08115f98a265df88c4e507fa0");
+        let b2 = commit("037a148170e3d41524b7c482a4798e5c2daeaa00");
 
         // B2 C2 C3
         //  \ | /
         //    C1
         //    |
         //    C0
-        assert_eq!(quorum(&[*b2, *c2, *c2], 2, &repo).unwrap(), c2);
-        assert_matches!(
-            quorum(&[*b2, *c2, *c2], 3, &repo),
-            Err(QuorumError::NoCandidates { .. })
-        );
-        assert_matches!(
-            quorum(&[*b2, *c2, *b2, *c2], 3, &repo),
-            Err(QuorumError::NoCandidates { .. })
-        );
-        assert_matches!(
-            quorum(&[*c3, *b2, *c2, *b2, *c2, *c3], 3, &repo),
-            Err(QuorumError::NoCandidates { .. })
-        );
+        let mut cq = CommitQuorum::new([b2, c2, c2].iter(), 2);
+        cq.found_merge_bases([
+            MergeBase {
+                a: b2.id(),
+                b: c2.id(),
+                base: c1.id(),
+            },
+            MergeBase::trivial(b2.id()),
+        ]);
+        assert_eq!(cq.find_quorum().unwrap(), c2.id());
+
+        let mut cq = CommitQuorum::new([b2, c2, c2].iter(), 3);
+        cq.found_merge_bases([
+            MergeBase {
+                a: b2.id(),
+                b: c2.id(),
+                base: c1.id(),
+            },
+            MergeBase::trivial(c2.id()),
+        ]);
+        assert_eq!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
+
+        let mut cq = CommitQuorum::new([b2, c2, b2, c2].iter(), 3);
+        cq.found_merge_bases([
+            MergeBase {
+                a: b2.id(),
+                b: c2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: b2.id(),
+                base: c1.id(),
+            },
+            MergeBase::trivial(b2.id()),
+            MergeBase::trivial(c2.id()),
+        ]);
+        assert_eq!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
+
+        let mut cq = CommitQuorum::new([c3, b2, c2, b2, c2, c3].iter(), 3);
+        cq.found_merge_bases([
+            MergeBase {
+                a: c3.id(),
+                b: b2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c3.id(),
+                b: c2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: b2.id(),
+                b: c2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: b2.id(),
+                base: c1.id(),
+            },
+            MergeBase::trivial(b2.id()),
+            MergeBase::trivial(c2.id()),
+            MergeBase::trivial(c3.id()),
+        ]);
+        assert_eq!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
+    }
+
+    #[test]
+    fn test_commit_quorum_fork_of_a_fork() {
+        let c0 = commit("f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354");
+        let c1 = commit("bfb1a513e420eade90b0e6be64117b861b16ecb5");
+        let c2 = commit("8fc5160702365f231c77732a8fa162379e54f57a");
+        let b2 = commit("037a148170e3d41524b7c482a4798e5c2daeaa00");
+        let a1 = commit("2224468e22b30359611d880ccf0850d023f86f9b");
 
         //  B2 C2
         //    \|
         // A1 C1
         //   \|
         //   C0
+        let mut cq = CommitQuorum::new([c2, b2, a1].iter(), 1);
+        cq.found_merge_bases([
+            MergeBase {
+                a: c2.id(),
+                b: b2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: b2.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+        ]);
         assert_matches!(
-            quorum(&[*c2, *b2, *a1], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
+        let mut cq = CommitQuorum::new([c2, b2, a1].iter(), 2);
+        cq.found_merge_bases([
+            MergeBase {
+                a: c2.id(),
+                b: b2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: b2.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+        ]);
+        assert_eq!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
+
+        let mut cq = CommitQuorum::new([c2, b2, a1].iter(), 3);
+        cq.found_merge_bases([
+            MergeBase {
+                a: c2.id(),
+                b: b2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: b2.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+        ]);
+        assert_eq!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
+
+        let mut cq = CommitQuorum::new([c1, c2, b2, a1].iter(), 4);
+        cq.found_merge_bases([
+            MergeBase {
+                a: c1.id(),
+                b: c2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c1.id(),
+                b: b2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c1.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: b2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: b2.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+        ]);
+        assert_eq!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
+
+        let all_merge_bases = [
+            MergeBase {
+                a: c0.id(),
+                b: c1.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: c0.id(),
+                b: c2.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: c0.id(),
+                b: b2.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: c0.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: c1.id(),
+                b: c2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c1.id(),
+                b: b2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c1.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: b2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: b2.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+        ];
+        let mut cq = CommitQuorum::new([c0, c1, c2, b2, a1].iter(), 2);
+        cq.found_merge_bases(all_merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), c1.id());
+
+        let mut cq = CommitQuorum::new([c0, c1, c2, b2, a1].iter(), 3);
+        cq.found_merge_bases(all_merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), c1.id());
+
+        let mut cq = CommitQuorum::new([c0, c2, b2, a1].iter(), 3);
+        cq.found_merge_bases(all_merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), c0.id());
+
+        let mut cq = CommitQuorum::new([c0, c1, c2, b2, a1].iter(), 4);
+        cq.found_merge_bases(all_merge_bases);
+        assert_eq!(cq.find_quorum().unwrap(), c0.id());
+
+        let mut cq = CommitQuorum::new([a1, a1, c2, c2, c1].iter(), 2);
+        cq.found_merge_bases([
+            MergeBase::trivial(a1.id()),
+            MergeBase::trivial(c2.id()),
+            MergeBase {
+                a: a1.id(),
+                b: c2.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: a1.id(),
+                b: c1.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: c1.id(),
+                base: c0.id(),
+            },
+        ]);
         assert_matches!(
-            quorum(&[*c2, *b2, *a1], 2, &repo),
-            Err(QuorumError::NoCandidates { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
+
+        let mut cq = CommitQuorum::new([a1, a1, c2, c2, c1].iter(), 1);
+        cq.found_merge_bases([
+            MergeBase::trivial(a1.id()),
+            MergeBase::trivial(c2.id()),
+            MergeBase {
+                a: a1.id(),
+                b: c2.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: a1.id(),
+                b: c1.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: c1.id(),
+                base: c0.id(),
+            },
+        ]);
         assert_matches!(
-            quorum(&[*c2, *b2, *a1], 3, &repo),
-            Err(QuorumError::NoCandidates { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
+
+        let mut cq = CommitQuorum::new([a1, a1, c2, c2, c1].iter(), 1);
+        cq.found_merge_bases([
+            MergeBase::trivial(a1.id()),
+            MergeBase {
+                a: a1.id(),
+                b: c2.id(),
+                base: c0.id(),
+            },
+        ]);
         assert_matches!(
-            quorum(&[*c1, *c2, *b2, *a1], 4, &repo),
-            Err(QuorumError::NoCandidates { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
-        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 2, &repo).unwrap(), c1,);
-        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 3, &repo).unwrap(), c1,);
-        assert_eq!(quorum(&[*c0, *c2, *b2, *a1], 3, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 4, &repo).unwrap(), c0,);
+
+        let mut cq = CommitQuorum::new([b2, b2, c2, c2].iter(), 1);
+        cq.found_merge_bases([
+            MergeBase::trivial(b2.id()),
+            MergeBase::trivial(c2.id()),
+            MergeBase {
+                a: b2.id(),
+                b: c2.id(),
+                base: c1.id(),
+            },
+        ]);
         assert_matches!(
-            quorum(&[*a1, *a1, *c2, *c2, *c1], 2, &repo),
-            Err(QuorumError::DivergingCommits { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
+
+        let mut cq = CommitQuorum::new([b2, b2, c2, c2, a1].iter(), 1);
+        cq.found_merge_bases([
+            MergeBase::trivial(b2.id()),
+            MergeBase::trivial(c2.id()),
+            MergeBase {
+                a: b2.id(),
+                b: c2.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: b2.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: c2.id(),
+                b: a1.id(),
+                base: c0.id(),
+            },
+        ]);
         assert_matches!(
-            quorum(&[*a1, *a1, *c2, *c2, *c1], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
-        assert_matches!(
-            quorum(&[*a1, *a1, *c2], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
-        );
-        assert_matches!(
-            quorum(&[*b2, *b2, *c2, *c2], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
-        );
-        assert_matches!(
-            quorum(&[*b2, *b2, *c2, *c2, *a1], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
-        );
+    }
+
+    #[test]
+    fn test_commit_quorum_forked_merge_commits() {
+        let c0 = commit("f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354");
+        let c1 = commit("bfb1a513e420eade90b0e6be64117b861b16ecb5");
+        let c2 = commit("8fc5160702365f231c77732a8fa162379e54f57a");
+        let b2 = commit("037a148170e3d41524b7c482a4798e5c2daeaa00");
+        let a1 = commit("2224468e22b30359611d880ccf0850d023f86f9b");
+        let m1 = commit("dd7ee5bca2fc7288a6efcb4303278e26a2dbaa45");
+        let m2 = commit("d54e505e3fb5c0c7e4b9a4b8a1cdeefb3fc9ef18");
 
         //    M2  M1
         //    /\  /\
@@ -852,105 +1215,347 @@ mod tests {
         //     A1 C1
         //       \|
         //       C0
-        assert_eq!(quorum(&[*m1], 1, &repo).unwrap(), m1);
+        let cq = CommitQuorum::new([m1].iter(), 1);
+        assert_eq!(cq.find_quorum().unwrap(), m1.id());
+
+        let mut cq = CommitQuorum::new([m1, m2].iter(), 1);
+        cq.found_merge_bases([MergeBase {
+            a: m1.id(),
+            b: m2.id(),
+            base: b2.id(),
+        }]);
         assert_matches!(
-            quorum(&[*m1, *m2], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
+
+        let mut cq = CommitQuorum::new([m2, m1].iter(), 1);
+        cq.found_merge_bases([MergeBase {
+            a: m2.id(),
+            b: m1.id(),
+            base: b2.id(),
+        }]);
         assert_matches!(
-            quorum(&[*m2, *m1], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
+
+        let mut cq = CommitQuorum::new([m1, m2].iter(), 2);
+        cq.found_merge_bases([MergeBase {
+            a: m1.id(),
+            b: m2.id(),
+            base: b2.id(),
+        }]);
+        assert_eq!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
+
+        let mut cq = CommitQuorum::new([m1, m2, c2].iter(), 1);
+        cq.found_merge_bases([
+            MergeBase {
+                a: m1.id(),
+                b: m2.id(),
+                base: b2.id(),
+            },
+            MergeBase {
+                a: m1.id(),
+                b: c2.id(),
+                base: c2.id(),
+            },
+            MergeBase {
+                a: m2.id(),
+                b: c2.id(),
+                base: c0.id(),
+            },
+        ]);
         assert_matches!(
-            quorum(&[*m1, *m2], 2, &repo),
-            Err(QuorumError::NoCandidates { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
+
+        let mut cq = CommitQuorum::new([m1, a1].iter(), 1);
+        cq.found_merge_bases([MergeBase {
+            a: m1.id(),
+            b: a1.id(),
+            base: c0.id(),
+        }]);
         assert_matches!(
-            quorum(&[*m1, *m2, *c2], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
-        assert_matches!(
-            quorum(&[*m1, *a1], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
-        );
-        assert_matches!(
-            quorum(&[*m1, *a1], 2, &repo),
-            Err(QuorumError::NoCandidates { .. })
-        );
-        assert_eq!(quorum(&[*m1, *m2, *b2, *c1], 4, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*m1, *m1, *b2], 2, &repo).unwrap(), m1);
-        assert_eq!(quorum(&[*m1, *m1, *c2], 2, &repo).unwrap(), m1);
-        assert_eq!(quorum(&[*m2, *m2, *b2], 2, &repo).unwrap(), m2);
-        assert_eq!(quorum(&[*m2, *m2, *a1], 2, &repo).unwrap(), m2);
-        assert_eq!(quorum(&[*m1, *m1, *b2, *b2], 2, &repo).unwrap(), m1);
-        assert_eq!(quorum(&[*m1, *m1, *c2, *c2], 2, &repo).unwrap(), m1);
-        assert_eq!(quorum(&[*m1, *b2, *c1, *c0], 3, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*m1, *b2, *c1, *c0], 4, &repo).unwrap(), c0);
+
+        let mut cq = CommitQuorum::new([m1, a1].iter(), 2);
+        cq.found_merge_bases([MergeBase {
+            a: m1.id(),
+            b: a1.id(),
+            base: c0.id(),
+        }]);
+        assert_eq!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
+
+        let mut cq = CommitQuorum::new([m1, m2, b2, c1].iter(), 4);
+        cq.found_merge_bases([
+            MergeBase {
+                a: m1.id(),
+                b: m2.id(),
+                base: b2.id(),
+            },
+            MergeBase {
+                a: m1.id(),
+                b: b2.id(),
+                base: b2.id(),
+            },
+            MergeBase {
+                a: m1.id(),
+                b: c1.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: m2.id(),
+                b: b2.id(),
+                base: b2.id(),
+            },
+            MergeBase {
+                a: m2.id(),
+                b: c1.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: b2.id(),
+                b: c1.id(),
+                base: c1.id(),
+            },
+        ]);
+        assert_eq!(cq.find_quorum().unwrap(), c1.id());
+
+        let mut cq = CommitQuorum::new([m1, m1, b2].iter(), 2);
+        cq.found_merge_bases([
+            MergeBase::trivial(m1.id()),
+            MergeBase {
+                a: m1.id(),
+                b: b2.id(),
+                base: b2.id(),
+            },
+        ]);
+        assert_eq!(cq.find_quorum().unwrap(), m1.id());
+
+        let mut cq = CommitQuorum::new([m1, m1, c2].iter(), 2);
+        cq.found_merge_bases([
+            MergeBase::trivial(m1.id()),
+            MergeBase {
+                a: m1.id(),
+                b: c2.id(),
+                base: c2.id(),
+            },
+        ]);
+        assert_eq!(cq.find_quorum().unwrap(), m1.id());
+
+        let mut cq = CommitQuorum::new([m2, m2, b2].iter(), 2);
+        cq.found_merge_bases([
+            MergeBase::trivial(m2.id()),
+            MergeBase {
+                a: m2.id(),
+                b: b2.id(),
+                base: b2.id(),
+            },
+        ]);
+        assert_eq!(cq.find_quorum().unwrap(), m2.id());
+
+        let mut cq = CommitQuorum::new([m2, m2, a1].iter(), 2);
+        cq.found_merge_bases([
+            MergeBase::trivial(m2.id()),
+            MergeBase {
+                a: m2.id(),
+                b: a1.id(),
+                base: a1.id(),
+            },
+        ]);
+        assert_eq!(cq.find_quorum().unwrap(), m2.id());
+
+        let mut cq = CommitQuorum::new([m1, m1, b2, b2].iter(), 2);
+        cq.found_merge_bases([
+            MergeBase::trivial(m1.id()),
+            MergeBase::trivial(b2.id()),
+            MergeBase {
+                a: m1.id(),
+                b: b2.id(),
+                base: b2.id(),
+            },
+        ]);
+        assert_eq!(cq.find_quorum().unwrap(), m1.id());
+
+        let mut cq = CommitQuorum::new([m1, m1, c2, c2].iter(), 2);
+        cq.found_merge_bases([
+            MergeBase::trivial(m1.id()),
+            MergeBase::trivial(c2.id()),
+            MergeBase {
+                a: m1.id(),
+                b: c2.id(),
+                base: c2.id(),
+            },
+        ]);
+        assert_eq!(cq.find_quorum().unwrap(), m1.id());
+
+        let mut cq = CommitQuorum::new([m1, b2, c1, c0].iter(), 3);
+        cq.found_merge_bases([
+            MergeBase {
+                a: m1.id(),
+                b: b2.id(),
+                base: b2.id(),
+            },
+            MergeBase {
+                a: m1.id(),
+                b: c1.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: m1.id(),
+                b: c0.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: b2.id(),
+                b: c1.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: b2.id(),
+                b: c0.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: c1.id(),
+                b: c0.id(),
+                base: c0.id(),
+            },
+        ]);
+        assert_eq!(cq.find_quorum().unwrap(), c1.id());
+
+        let mut cq = CommitQuorum::new([m1, b2, c1, c0].iter(), 4);
+        cq.found_merge_bases([
+            MergeBase {
+                a: m1.id(),
+                b: b2.id(),
+                base: b2.id(),
+            },
+            MergeBase {
+                a: m1.id(),
+                b: c1.id(),
+                base: c1.id(),
+            },
+            MergeBase {
+                a: m1.id(),
+                b: c0.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: b2.id(),
+                b: c1.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: b2.id(),
+                b: c0.id(),
+                base: c0.id(),
+            },
+            MergeBase {
+                a: c1.id(),
+                b: c0.id(),
+                base: c0.id(),
+            },
+        ]);
+        assert_eq!(cq.find_quorum().unwrap(), c0.id());
     }
 
     #[test]
-    fn test_quorum_merges() {
-        let tmp = tempfile::tempdir().unwrap();
-        let (repo, c0) = fixtures::repository(tmp.path());
-        let c0: git::Oid = c0.into();
-        let c1 = fixtures::commit("C1", &[*c0], &repo);
-        let c2 = fixtures::commit("C2", &[*c0], &repo);
-        let c3 = fixtures::commit("C3", &[*c0], &repo);
-
-        let m1 = fixtures::commit("M1", &[*c1, *c2], &repo);
-        let m2 = fixtures::commit("M2", &[*c2, *c3], &repo);
-
-        eprintln!("C0: {c0}");
-        eprintln!("C1: {c1}");
-        eprintln!("C2: {c2}");
-        eprintln!("C3: {c3}");
-        eprintln!("M1: {m1}");
-        eprintln!("M2: {m2}");
+    fn test_commit_quorum_merges() {
+        let c2 = commit("8fc5160702365f231c77732a8fa162379e54f57a");
+        let m1 = commit("dd7ee5bca2fc7288a6efcb4303278e26a2dbaa45");
+        let m2 = commit("d54e505e3fb5c0c7e4b9a4b8a1cdeefb3fc9ef18");
+        let m3 = commit("2224468e22b30359611d880ccf0850d023f86f9b");
 
         //    M2  M1
         //    /\  /\
         //   C1 C2 C3
         //     \| /
         //      C0
+
+        let mut cq = CommitQuorum::new([m1, m2].iter(), 1);
+        cq.found_merge_bases([MergeBase {
+            a: m1.id(),
+            b: m2.id(),
+            base: c2.id(),
+        }]);
         assert_matches!(
-            quorum(&[*m1, *m2], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
-        );
-        assert_matches!(
-            quorum(&[*m1, *m2], 2, &repo),
-            Err(QuorumError::NoCandidates { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
 
-        let m3 = fixtures::commit("M3", &[*c2, *c1], &repo);
+        let mut cq = CommitQuorum::new([m1, m2].iter(), 2);
+        cq.found_merge_bases([MergeBase {
+            a: m1.id(),
+            b: m2.id(),
+            base: c2.id(),
+        }]);
+        assert_eq!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
 
         //   M3/M2 M1
         //    /\  /\
         //   C1 C2 C3
         //     \| /
         //      C0
+        let mut cq = CommitQuorum::new([m1, m3].iter(), 1);
+        cq.found_merge_bases([MergeBase {
+            a: m1.id(),
+            b: m3.id(),
+            base: c2.id(),
+        }]);
         assert_matches!(
-            quorum(&[*m1, *m3], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
+
+        let mut cq = CommitQuorum::new([m1, m3].iter(), 2);
+        cq.found_merge_bases([MergeBase {
+            a: m1.id(),
+            b: m3.id(),
+            base: c2.id(),
+        }]);
+        assert_eq!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
+
+        let mut cq = CommitQuorum::new([m3, m1].iter(), 1);
+        cq.found_merge_bases([MergeBase {
+            a: m3.id(),
+            b: m1.id(),
+            base: c2.id(),
+        }]);
         assert_matches!(
-            quorum(&[*m1, *m3], 2, &repo),
-            Err(QuorumError::NoCandidates { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
+
+        let mut cq = CommitQuorum::new([m3, m1].iter(), 2);
+        cq.found_merge_bases([MergeBase {
+            a: m3.id(),
+            b: m1.id(),
+            base: c2.id(),
+        }]);
+        assert_eq!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
+
+        let mut cq = CommitQuorum::new([m3, m2].iter(), 1);
+        cq.found_merge_bases([MergeBase {
+            a: m3.id(),
+            b: m2.id(),
+            base: c2.id(),
+        }]);
         assert_matches!(
-            quorum(&[*m3, *m1], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
+            cq.find_quorum(),
+            Err(CommitQuorumFailure::DivergingCommits { .. })
         );
-        assert_matches!(
-            quorum(&[*m3, *m1], 2, &repo),
-            Err(QuorumError::NoCandidates { .. })
-        );
-        assert_matches!(
-            quorum(&[*m3, *m2], 1, &repo),
-            Err(QuorumError::DivergingCommits { .. })
-        );
-        assert_matches!(
-            quorum(&[*m3, *m2], 2, &repo),
-            Err(QuorumError::NoCandidates { .. })
-        );
+
+        let mut cq = CommitQuorum::new([m3, m2].iter(), 2);
+        cq.found_merge_bases([MergeBase {
+            a: m3.id(),
+            b: m2.id(),
+            base: c2.id(),
+        }]);
+        assert_eq!(cq.find_quorum(), Err(CommitQuorumFailure::NoCandidates));
     }
 }

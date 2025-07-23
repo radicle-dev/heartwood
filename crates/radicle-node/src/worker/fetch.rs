@@ -122,9 +122,6 @@ impl Handle {
                             log::trace!(target: "worker", "Set HEAD to {}", head.new);
                         }
                     }
-                    Err(RepositoryError::Quorum(
-                        radicle::git::canonical::error::QuorumError::Git(e),
-                    )) => return Err(e.into()),
                     Err(RepositoryError::Quorum(e)) => {
                         log::warn!(target: "worker", "Fetch could not set HEAD: {e}")
                     }
@@ -390,15 +387,19 @@ fn set_canonical_refs(repo: &Repository, applied: &Applied) -> Result<(), error:
         let name = name.strip_namespace();
 
         let canonical = match rules.canonical(name.clone(), repo) {
-            Ok(Some(canonical)) => canonical,
-            Ok(None) => continue,
-            Err(e) => {
-                log::warn!(target: "worker", "Failed to get canonical reference rule for {name}: {e}");
-                continue;
-            }
+            Some(canonical) => canonical,
+            None => continue,
         };
 
-        match canonical.quorum(&repo.backend) {
+        let canonical = match canonical.find_objects() {
+            Err(err) => {
+                log::warn!(target: "worker", "Failed to find objects for canonical computation: {err}");
+                continue;
+            }
+            Ok(canonical) => canonical,
+        };
+
+        match canonical.quorum() {
             Err(err) => {
                 log::warn!(
                     target: "worker",
@@ -406,7 +407,10 @@ fn set_canonical_refs(repo: &Repository, applied: &Applied) -> Result<(), error:
                 );
                 continue;
             }
-            Ok((refname, _, oid)) => {
+            Ok(git::canonical::Quorum {
+                refname, object, ..
+            }) => {
+                let oid = object.id();
                 if let Err(e) = repo.backend.reference(
                     refname.clone().as_str(),
                     *oid,

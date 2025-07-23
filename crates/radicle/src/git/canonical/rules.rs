@@ -26,7 +26,6 @@ use crate::git::fmt::{refname, RefString};
 use crate::git::refspec::QualifiedPattern;
 use crate::git::Qualified;
 use crate::identity::{doc, Did};
-use crate::storage::git::Repository;
 
 const ASTERISK: char = '*';
 
@@ -631,16 +630,19 @@ impl Rules {
     ///
     /// N.b. it will find the first rule that is most specific for the given
     /// `refname`.
-    pub fn canonical<'a, 'b>(
+    pub fn canonical<'a, 'b, 'r, R>(
         &'a self,
         refname: Qualified<'b>,
-        repo: &Repository,
-    ) -> Result<Option<Canonical<'b, 'a>>, canonical::error::CanonicalError> {
-        if let Some((_, rule)) = self.matches(&refname).next() {
-            Ok(Some(Canonical::new(&repo.backend, refname, rule)?))
-        } else {
-            Ok(None)
-        }
+        repo: &'r R,
+    ) -> Option<Canonical<'b, 'a, 'r, R, canonical::Initial>>
+    where
+        R: canonical::effects::Ancestry
+            + canonical::effects::FindMergeBase
+            + canonical::effects::FindObjects,
+    {
+        self.matches(&refname)
+            .next()
+            .map(|(_, rule)| Canonical::new(refname, rule, repo))
     }
 }
 
@@ -1196,18 +1198,22 @@ mod tests {
         for (refname, oid) in tags.into_iter() {
             let canonical = rules
                 .canonical(refname.clone(), &stored)
-                .unwrap()
                 .unwrap_or_else(|| {
                     panic!("there should be a matching rule for {refname}, rules: {rules:#?}")
                 });
             if refname == failing {
-                assert!(canonical.quorum(&repo).is_err());
+                assert!(canonical.find_objects().unwrap().quorum().is_err());
             } else {
                 assert_eq!(
                     canonical
-                        .quorum(&repo)
+                        .find_objects()
+                        .unwrap()
+                        .quorum()
                         .unwrap_or_else(|e| panic!("quorum error for {refname}: {e}")),
-                    (refname, git::raw::ObjectType::Tag, oid),
+                    canonical::Quorum {
+                        refname,
+                        object: canonical::Object::Tag { id: oid },
+                    }
                 )
             }
         }

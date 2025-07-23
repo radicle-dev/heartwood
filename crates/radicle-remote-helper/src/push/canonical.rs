@@ -1,36 +1,41 @@
 use radicle::git;
+use radicle::git::canonical;
+use radicle::git::canonical::effects;
 use radicle::git::raw::Repository;
 use radicle::prelude::Did;
 
 use super::error;
 
 pub(crate) struct Vote {
-    did: Did,
-    oid: git::Oid,
-    kind: git::canonical::CanonicalObjectType,
+    object: canonical::Object,
+}
+
+impl Vote {
+    pub(crate) fn id(&self) -> git::Oid {
+        self.object.id()
+    }
 }
 
 /// Validates a vote to update a canonical reference during push.
-pub(crate) struct Canonical<'a, 'b> {
+pub(crate) struct Canonical<'a, 'b, 'r, R> {
     vote: Vote,
-    canonical: git::canonical::Canonical<'a, 'b>,
+    canonical: canonical::CanonicalWithConvergence<'a, 'b, 'r, R>,
 }
 
-impl<'a, 'b> Canonical<'a, 'b> {
+impl<'a, 'b, 'r, R> Canonical<'a, 'b, 'r, R>
+where
+    R: effects::Ancestry + effects::FindMergeBase + effects::FindObjects,
+{
     pub fn new(
         me: Did,
-        head: git::Oid,
-        kind: git::canonical::CanonicalObjectType,
-        canonical: git::canonical::Canonical<'a, 'b>,
-    ) -> Self {
-        Self {
-            vote: Vote {
-                did: me,
-                oid: head,
-                kind,
-            },
-            canonical,
-        }
+        object: canonical::Object,
+        canonical: canonical::Canonical<'a, 'b, 'r, R, canonical::Initial>,
+    ) -> Result<Self, canonical::error::FindObjectsError> {
+        let canonical = canonical.find_objects()?;
+        Ok(Self {
+            vote: Vote { object },
+            canonical: canonical.with_convergence(me, object),
+        })
     }
 
     /// Calculates the quorum of the [`git::canonical::Canonical`] provided.
@@ -51,31 +56,26 @@ impl<'a, 'b> Canonical<'a, 'b> {
     ///
     /// [`head`]: crate::push::canonical::Canonical::head
     pub fn quorum(
-        mut self,
+        self,
         working: &Repository,
-    ) -> Result<(git::Qualified<'a>, git::raw::ObjectType, git::Oid), error::Canonical> {
-        let converges = self
-            .canonical
-            .converges(working, (&self.vote.did, &self.vote.oid))?;
-        if converges || self.canonical.has_no_tips() || self.canonical.is_only(&self.vote.did) {
-            self.canonical
-                .modify_vote(self.vote.did, self.vote.oid, self.vote.kind);
-        }
-
-        match self.canonical.quorum(working) {
-            Ok((cref, quorum_type, quorum_head)) => {
+    ) -> Result<(git::Qualified<'a>, canonical::Object), error::Canonical> {
+        match self.canonical.quorum() {
+            Ok(result) => {
+                let canonical::QuorumWithConvergence { quorum, converges } = result;
+                let canonical::Quorum { refname, object } = quorum;
+                let quorum_head = object.id();
                 // Canonical head is an ancestor of head.
-                let is_ff = self.vote.oid == quorum_head
+                let is_ff = self.vote.id() == quorum_head
                     || working
-                        .graph_descendant_of(*self.vote.oid, *quorum_head)
+                        .graph_descendant_of(*self.vote.id(), *quorum_head)
                         .map_err(|err| {
-                            error::Canonical::graph_descendant(self.vote.oid, quorum_head, err)
+                            error::Canonical::graph_descendant(self.vote.id(), quorum_head, err)
                         })?;
 
                 if !is_ff && !converges {
-                    Err(error::Canonical::heads_diverge(self.vote.oid, quorum_head))
+                    Err(error::Canonical::heads_diverge(self.vote.id(), quorum_head))
                 } else {
-                    Ok((cref, quorum_type, quorum_head))
+                    Ok((refname, object))
                 }
             }
             Err(err) => Err(err.into()),
@@ -100,7 +100,6 @@ pub(crate) mod io {
     ) -> Result<(), error::CanonicalUnrecoverable> {
         match e {
             error::Canonical::GraphDescendant(e) => Err(e.into()),
-            error::Canonical::Converges(e) => Err(e.into()),
             error::Canonical::HeadsDiverge(e) => {
                 if hints {
                     hint(
@@ -114,31 +113,32 @@ pub(crate) mod io {
                 }
                 Err(e.into())
             }
-            error::Canonical::Quorum(e) => match e {
-                e @ QuorumError::DivergingCommits { .. } => {
-                    warn(e.to_string());
-                    warn("it is recommended to find a commit to agree upon");
-                    Ok(())
+            error::Canonical::Quorum(e) => {
+                match e {
+                    QuorumError::Convergence(err) => Err(err.into()),
+                    QuorumError::MergeBase(err) => Err(err.into()),
+                    e @ QuorumError::DivergingCommits { .. } => {
+                        warn(e.to_string());
+                        warn("it is recommended to find a commit to agree upon");
+                        Ok(())
+                    }
+                    e @ QuorumError::DivergingTags { .. } => {
+                        warn(e.to_string());
+                        warn("it is recommended to find a tag to agree upon");
+                        Ok(())
+                    }
+                    e @ QuorumError::DifferentTypes { .. } => {
+                        warn(e.to_string());
+                        warn("it is recommended to find an object type (either commit or tag) to agree upon");
+                        Ok(())
+                    }
+                    e @ QuorumError::NoCandidates { .. } => {
+                        warn(e.to_string());
+                        warn("it is recommended to find an object (either commit or tag) to agree upon");
+                        Ok(())
+                    }
                 }
-                e @ QuorumError::DivergingTags { .. } => {
-                    warn(e.to_string());
-                    warn("it is recommended to find a tag to agree upon");
-                    Ok(())
-                }
-                e @ QuorumError::DifferentTypes { .. } => {
-                    warn(e.to_string());
-                    warn("it is recommended to find an object type (either commit or tag) to agree upon");
-                    Ok(())
-                }
-                e @ QuorumError::NoCandidates { .. } => {
-                    warn(e.to_string());
-                    warn(
-                        "it is recommended to find an object (either commit or tag) to agree upon",
-                    );
-                    Ok(())
-                }
-                QuorumError::Git(err) => Err(error::CanonicalUnrecoverable::Git { source: err }),
-            },
+            }
         }
     }
 }

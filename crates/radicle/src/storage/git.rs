@@ -11,6 +11,7 @@ use std::{fs, io};
 use crypto::Verified;
 use tempfile::TempDir;
 
+use crate::git::canonical::Quorum;
 use crate::identity::crefs::GetCanonicalRefs as _;
 use crate::identity::doc::DocError;
 use crate::identity::{CanonicalRefs, Doc, DocAt, RepoId};
@@ -282,6 +283,39 @@ pub struct Repository {
     pub id: RepoId,
     /// The backing Git repository.
     pub backend: git2::Repository,
+}
+
+impl git::canonical::effects::Ancestry for Repository {
+    fn graph_ahead_behind(
+        &self,
+        commit: Oid,
+        upstream: Oid,
+    ) -> Result<git::canonical::GraphAheadBehind, git::canonical::effects::GraphDescendant> {
+        git::canonical::effects::Ancestry::graph_ahead_behind(&self.backend, commit, upstream)
+    }
+}
+
+impl git::canonical::effects::FindMergeBase for Repository {
+    fn merge_base(
+        &self,
+        a: Oid,
+        b: Oid,
+    ) -> Result<git::canonical::MergeBase, git::canonical::effects::MergeBaseError> {
+        git::canonical::effects::FindMergeBase::merge_base(&self.backend, a, b)
+    }
+}
+
+impl git::canonical::effects::FindObjects for Repository {
+    fn find_objects<'a, 'b, I>(
+        &self,
+        refname: &Qualified<'a>,
+        dids: I,
+    ) -> Result<git::canonical::FoundObjects, git::canonical::effects::FindObjectsError>
+    where
+        I: Iterator<Item = &'b crate::prelude::Did>,
+    {
+        git::canonical::effects::FindObjects::find_objects(&self.backend, refname, dids)
+    }
 }
 
 /// A set of [`Validation`] errors that a caller **must use**.
@@ -761,10 +795,15 @@ impl ReadRepository for Repository {
         };
         Ok(crefs
             .rules()
-            .canonical(refname, self)?
+            .canonical(refname, self)
             .ok_or(RepositoryError::MissingBranchRule)?
-            .quorum(self.raw())?)
-        .map(|(refname, _, oid)| (refname, oid))
+            .find_objects()?
+            .quorum()?)
+        .map(
+            |Quorum {
+                 refname, object, ..
+             }| (refname, object.id()),
+        )
     }
 
     fn identity_head(&self) -> Result<Oid, RepositoryError> {
