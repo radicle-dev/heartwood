@@ -12,7 +12,7 @@ Switched to branch 'master'
 $ git merge feature/1
 $ git push rad master
 ✓ Patch 696ec5508494692899337afe6713fe1796d0315c merged
-✓ Canonical reference refs/heads/master updated to 20aa5dde6210796c3a2f04079b42316a31d02689
+✓ Canonical reference refs/heads/master updated to target commit 20aa5dde6210796c3a2f04079b42316a31d02689
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..20aa5dd  master -> master
 ```
@@ -50,7 +50,7 @@ When pushing, notice that we're told our patch is reverted.
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad master --force
 ! Patch 696ec5508494692899337afe6713fe1796d0315c reverted at revision 696ec55
-✓ Canonical reference refs/heads/master updated to f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+✓ Canonical reference refs/heads/master updated to target commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + 20aa5dd...f2de534 master -> master (forced update)
 ```

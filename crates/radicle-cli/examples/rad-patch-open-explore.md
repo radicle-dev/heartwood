@@ -38,7 +38,7 @@ $ git checkout master -q
 $ git merge changes -q
 $ git push rad master
 ✓ Patch acab0ec777a97d013f30be5d5d1aec32562ecb02 merged
-✓ Canonical reference refs/heads/master updated to b2b6432af93f8fe188e32d400263021b602cfec8
+✓ Canonical reference refs/heads/master updated to target commit b2b6432af93f8fe188e32d400263021b602cfec8
 ✓ Synced with 1 seed(s)
 
   https://app.radicle.xyz/nodes/[..]/rad:z3yXbb1sR6UG6ixxV2YF9jUP7ABra/tree/b2b6432af93f8fe188e32d400263021b602cfec8

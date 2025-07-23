@@ -35,7 +35,7 @@ Fast-forward
 
 ``` ~alice (stderr)
 $ git push rad
-✓ Canonical reference refs/heads/master updated to 319a7dc3b195368ded4b099f8c90bbb80addccd3
+✓ Canonical reference refs/heads/master updated to target commit 319a7dc3b195368ded4b099f8c90bbb80addccd3
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..319a7dc  master -> master
@@ -54,7 +54,7 @@ push and the new canonical head becomes the previous commit again:
 
 ``` ~alice (stderr)
 $ git push rad -f
-✓ Canonical reference refs/heads/master updated to f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+✓ Canonical reference refs/heads/master updated to target commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + 319a7dc...f2de534 master -> master (forced update)

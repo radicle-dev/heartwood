@@ -70,7 +70,7 @@ When we push to `rad/master`, we automatically merge the patches:
 $ git push rad master
 ✓ Patch 356f73863a8920455ff6e77cd9c805d68910551b merged
 ✓ Patch 696ec5508494692899337afe6713fe1796d0315c merged
-✓ Canonical reference refs/heads/master updated to d6399c71702b40bae00825b3c444478d06b4e91c
+✓ Canonical reference refs/heads/master updated to target commit d6399c71702b40bae00825b3c444478d06b4e91c
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..d6399c7  master -> master
 ```
@@ -148,7 +148,7 @@ the first patch, even though they were pushed together.
 $ git reset --hard HEAD^
 $ git push -f rad
 ! Patch 356f73863a8920455ff6e77cd9c805d68910551b reverted at revision 356f738
-✓ Canonical reference refs/heads/master updated to 20aa5dde6210796c3a2f04079b42316a31d02689
+✓ Canonical reference refs/heads/master updated to target commit 20aa5dde6210796c3a2f04079b42316a31d02689
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + d6399c7...20aa5dd master -> master (forced update)
 ```

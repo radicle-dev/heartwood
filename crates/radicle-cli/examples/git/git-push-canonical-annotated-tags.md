@@ -1,5 +1,5 @@
 In this example, we will show how we can make other references become canonical.
-To illustrate, we will use Git tags as an example. The storage of the repository
+To illustrate, we will use annotated Git tags as an example. The storage of the repository
 should look something like this by the end of the example:
 
 ~~~
@@ -90,12 +90,16 @@ $ rad id update --title "Add canonical reference rules" --payload xyz.radicle.cr
 Now, Alice will create a tag and push it:
 
 ``` ~alice
-$ git tag v1.0-hotfix
+$ git tag -a -m "Hotfix for release 1" v1.0-hotfix
+$ git cat-file -t v1.0-hotfix
+tag
+$ git cat-file -t ac51a0746a5e8311829bc481202909a1e3acc0c2
+tag
 ```
 
 ``` ~alice (stderr)
 $ git push rad --tags
-✓ Canonical reference refs/tags/v1.0-hotfix updated to f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+✓ Canonical reference refs/tags/v1.0-hotfix updated to target tag ac51a0746a5e8311829bc481202909a1e3acc0c2
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new tag]         v1.0-hotfix -> v1.0-hotfix
@@ -105,7 +109,7 @@ Notice that the output included a message about a canonical reference being
 updated:
 
 ~~~
-✓ Canonical reference refs/tags/v1.0-hotfix updated to f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+✓ Canonical reference refs/tags/v1.0-hotfix updated to target tag ac51a0746a5e8311829bc481202909a1e3acc0c2
 ~~~
 
 On the other side, Bob performs a fetch and now has the tags locally:
@@ -116,6 +120,13 @@ $ git fetch rad
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
  * [new tag]         v1.0-hotfix -> rad/tags/v1.0-hotfix
  * [new tag]         v1.0-hotfix -> v1.0-hotfix
+```
+
+Since Alice crated an annotated tag, resolving the reference on Bob's end yields an object of type 'tag'.
+
+``` ~bob
+$ git cat-file -t v1.0-hotfix
+tag
 ```
 
 In the next portion of this example, we want to show that using a `threshold` of
@@ -161,10 +172,17 @@ $ rad id accept dace164ba43fa51802697ec28d0b1965a9d7808b -q
 When Bob creates a new tag and pushes it, we see that there's a warning that
 no quorum was found for the new tag:
 
+``` ~bob
+$ git tag -l
+v1.0-hotfix
+$ git rev-parse v1.0-hotfix
+ac51a0746a5e8311829bc481202909a1e3acc0c2
+```
+
 ``` ~bob (stderr)
-$ git tag v2.0
+$ git tag -a -m "Release 2" v2.0
 $ git push rad --tags
-warn: could not determine commit for canonical reference 'refs/tags/v2.0', no commit with at least 2 vote(s) found (threshold not met)
+warn: could not determine target for canonical reference 'refs/tags/v2.0', no object with at least 2 vote(s) found (threshold not met)
 warn: it is recommended to find a commit to agree upon
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
@@ -182,14 +200,16 @@ From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WR
  * [new tag]         v2.0        -> bob/tags/v2.0
 ```
 
+At this point Alice might check out `v2.0` and consider whether she agrees with Bob.
+Let's say that Alice agrees, so she copies the tag to her repository using `git tag`:
+
 ``` ~alice
-$ git checkout bob/tags/v2.0
-$ git tag v2.0
+$ git tag v2.0 bob/tags/v2.0
 ```
 
 ``` ~alice (stderr)
 $ git push rad --tags
-✓ Canonical reference refs/tags/v2.0 updated to f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+✓ Canonical reference refs/tags/v2.0 updated to target tag 89f935f27a16f8ed97915ade4accab8fe48057aa
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new tag]         v2.0 -> v2.0
@@ -200,13 +220,13 @@ canonical.
 
 For the final portion of the example, we will show that both delegates aren't
 required for pushing tags that match the rule `refs/tags/qa/*`. To show this,
-Bob will create a tag and push it, and we should see that the canonical
+Bob will create a lightweight tag and push it, and we should see that the canonical
 reference is created:
 
 ``` ~bob (stderr)
 $ git tag qa/v2.1
 $ git push rad --tags
-✓ Canonical reference refs/tags/qa/v2.1 updated to f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+✓ Canonical reference refs/tags/qa/v2.1 updated to target commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new tag]         qa/v2.1 -> qa/v2.1

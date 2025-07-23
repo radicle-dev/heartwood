@@ -6,7 +6,8 @@ use super::error;
 
 pub(crate) struct Vote {
     did: Did,
-    commit: git::Oid,
+    oid: git::Oid,
+    kind: git::raw::ObjectType,
 }
 
 /// Validates a vote to update a canonical reference during push.
@@ -16,11 +17,17 @@ pub(crate) struct Canonical<'a, 'b> {
 }
 
 impl<'a, 'b> Canonical<'a, 'b> {
-    pub fn new(me: Did, head: git::Oid, canonical: git::canonical::Canonical<'a, 'b>) -> Self {
+    pub fn new(
+        me: Did,
+        head: git::Oid,
+        kind: git::raw::ObjectType,
+        canonical: git::canonical::Canonical<'a, 'b>,
+    ) -> Self {
         Self {
             vote: Vote {
                 did: me,
-                commit: head,
+                oid: head,
+                kind,
             },
             canonical,
         }
@@ -46,31 +53,29 @@ impl<'a, 'b> Canonical<'a, 'b> {
     pub fn quorum(
         mut self,
         working: &Repository,
-    ) -> Result<(git::Qualified<'a>, git::Oid), error::Canonical> {
+    ) -> Result<(git::Qualified<'a>, git::raw::ObjectType, git::Oid), error::Canonical> {
         let converges = self
             .canonical
-            .converges(working, (&self.vote.did, &self.vote.commit))?;
+            .converges(working, (&self.vote.did, &self.vote.oid))?;
         if converges || self.canonical.has_no_tips() || self.canonical.is_only(&self.vote.did) {
-            self.canonical.modify_vote(self.vote.did, self.vote.commit);
+            self.canonical
+                .modify_vote(self.vote.did, (self.vote.oid, self.vote.kind));
         }
 
         match self.canonical.quorum(working) {
-            Ok((cref, quorum_head)) => {
+            Ok((cref, quorum_type, quorum_head)) => {
                 // Canonical head is an ancestor of head.
-                let is_ff = self.vote.commit == quorum_head
+                let is_ff = self.vote.oid == quorum_head
                     || working
-                        .graph_descendant_of(*self.vote.commit, *quorum_head)
+                        .graph_descendant_of(*self.vote.oid, *quorum_head)
                         .map_err(|err| {
-                            error::Canonical::graph_descendant(self.vote.commit, quorum_head, err)
+                            error::Canonical::graph_descendant(self.vote.oid, quorum_head, err)
                         })?;
 
                 if !is_ff && !converges {
-                    Err(error::Canonical::heads_diverge(
-                        self.vote.commit,
-                        quorum_head,
-                    ))
+                    Err(error::Canonical::heads_diverge(self.vote.oid, quorum_head))
                 } else {
-                    Ok((cref, quorum_head))
+                    Ok((cref, quorum_type, quorum_head))
                 }
             }
             Err(err) => Err(err.into()),
@@ -110,9 +115,19 @@ pub(crate) mod io {
                 Err(e.into())
             }
             error::Canonical::Quorum(e) => match e {
-                e @ canonical::QuorumError::Diverging { .. } => {
+                e @ canonical::QuorumError::DivergingCommits { .. } => {
                     warn(e.to_string());
                     warn("it is recommended to find a commit to agree upon");
+                    Ok(())
+                }
+                e @ canonical::QuorumError::DivergingTags { .. } => {
+                    warn(e.to_string());
+                    warn("it is recommended to find a tag to agree upon");
+                    Ok(())
+                }
+                e @ canonical::QuorumError::DifferentTypes { .. } => {
+                    warn(e.to_string());
+                    warn("it is recommended to find an object type (either commit or tag) to agree upon");
                     Ok(())
                 }
                 e @ canonical::QuorumError::NoCandidates { .. } => {

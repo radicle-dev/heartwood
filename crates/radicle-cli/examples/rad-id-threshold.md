@@ -64,7 +64,7 @@ $ git commit -v -m "Define power requirements"
 
 ``` ~alice (stderr) RAD_SOCKET=/dev/null
 $ git push rad master
-✓ Canonical reference refs/heads/master updated to f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+✓ Canonical reference refs/heads/master updated to target commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..3e674d1  master -> master
 ```

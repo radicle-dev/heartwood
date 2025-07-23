@@ -280,7 +280,8 @@ pub fn run(
     let identity = stored.identity()?;
     let project = identity.project()?;
     let canonical_ref = git::refs::branch(project.default_branch());
-    let mut set_canonical_refs: Vec<(git::Qualified, git::Oid)> = Vec::with_capacity(specs.len());
+    let mut set_canonical_refs: Vec<(git::Qualified, git::raw::ObjectType, git::Oid)> =
+        Vec::with_capacity(specs.len());
     let working = git::raw::Repository::open(working)?;
 
     // For each refspec, push a ref or delete a ref.
@@ -348,7 +349,9 @@ pub fn run(
                         // Note that we *do* allow rolling back to a previous commit on the
                         // canonical branch.
                         if let Some(canonical) = rules.canonical(dst.clone(), stored)? {
-                            let canonical = canonical::Canonical::new(me, *src, canonical);
+                            let kind = working.find_object(**src, None)?.kind();
+                            let canonical =
+                                canonical::Canonical::new(me, *src, kind.unwrap(), canonical);
                             match canonical.quorum(&working) {
                                 Ok(quorum) => set_canonical_refs.push(quorum),
                                 Err(e) => canonical::io::handle_error(e, &dst, hints)?,
@@ -375,10 +378,10 @@ pub fn run(
     if !ok.is_empty() {
         let _ = stored.sign_refs(&signer)?;
 
-        for (refname, oid) in &set_canonical_refs {
+        for (refname, kind, oid) in &set_canonical_refs {
             let print_update = || {
                 eprintln!(
-                    "{} Canonical reference {} updated to {}",
+                    "{} Canonical reference {} updated to target {kind} {}",
                     term::format::positive("✓"),
                     term::format::secondary(refname),
                     term::format::secondary(oid),

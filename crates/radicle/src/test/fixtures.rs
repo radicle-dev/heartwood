@@ -148,6 +148,22 @@ pub fn commit(msg: &str, parents: &[git2::Oid], repo: &git2::Repository) -> git:
         .into()
 }
 
+/// Create an (annotated) tag of the given commit.
+pub fn tag(name: &str, message: &str, commit: git2::Oid, repo: &git2::Repository) -> git::Oid {
+    let target = repo
+        .find_object(commit, Some(git2::ObjectType::Commit))
+        .unwrap();
+    let tagger = git2::Signature::new(
+        "anonymous",
+        "anonymous@radicle.xyz",
+        &git2::Time::new(RADICLE_EPOCH, 0),
+    )
+    .unwrap();
+    repo.tag(name, &target, &tagger, message, false)
+        .unwrap()
+        .into()
+}
+
 /// Populate a repository with commits, branches and blobs.
 pub fn populate(repo: &git2::Repository, scale: usize) -> Vec<git::Qualified> {
     assert!(

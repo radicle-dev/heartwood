@@ -406,7 +406,7 @@ fn set_canonical_refs(repo: &Repository, applied: &Applied) -> Result<(), error:
                 );
                 continue;
             }
-            Ok((refname, oid)) => {
+            Ok((refname, _, oid)) => {
                 if let Err(e) = repo.backend.reference(
                     refname.clone().as_str(),
                     *oid,

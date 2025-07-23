@@ -14,7 +14,7 @@ $ git checkout master -q
 $ git merge feature/1
 $ git push rad master
 ✓ Patch 8dfb4dcafc4346158c8160410dd3f2b0616ad4fe merged
-✓ Canonical reference refs/heads/master updated to 20aa5dde6210796c3a2f04079b42316a31d02689
+✓ Canonical reference refs/heads/master updated to target commit 20aa5dde6210796c3a2f04079b42316a31d02689
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..20aa5dd  master -> master
 ```

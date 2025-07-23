@@ -720,14 +720,17 @@ impl ReadRepository for Repository {
 
         for r in self.backend.references_glob(pattern)? {
             let r = r?;
-            let c = r.peel_to_commit()?;
+
+            let Some(oid) = r.resolve()?.target() else {
+                continue;
+            };
 
             if let Some(name) = r
                 .name()
                 .and_then(|n| git::RefStr::try_from_str(n).ok())
                 .and_then(git::Qualified::from_refstr)
             {
-                refs.push((name.to_owned(), c.id().into()));
+                refs.push((name.to_owned(), oid.into()));
             }
         }
         Ok(refs)
@@ -761,6 +764,7 @@ impl ReadRepository for Repository {
             .canonical(refname, self)?
             .ok_or(RepositoryError::MissingBranchRule)?
             .quorum(self.raw())?)
+        .map(|(refname, _, oid)| (refname, oid))
     }
 
     fn identity_head(&self) -> Result<Oid, RepositoryError> {

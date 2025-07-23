@@ -92,7 +92,7 @@ Fast-forward
 ``` (stderr)
 $ git push rad master
 ✓ Patch e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46 merged at revision 9d62420
-✓ Canonical reference refs/heads/master updated to f567f695d25b4e8fb63b5f5ad2a584529826e908
+✓ Canonical reference refs/heads/master updated to target commit f567f695d25b4e8fb63b5f5ad2a584529826e908
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..f567f69  master -> master

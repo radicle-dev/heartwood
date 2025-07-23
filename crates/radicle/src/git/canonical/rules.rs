@@ -636,7 +636,7 @@ impl Rules {
         repo: &Repository,
     ) -> Result<Option<Canonical<'b, 'a>>, git::raw::Error> {
         if let Some((_, rule)) = self.matches(&refname).next() {
-            Ok(Some(Canonical::new(repo, refname, rule)?))
+            Ok(Some(Canonical::new(&repo.backend, refname, rule)?))
         } else {
             Ok(None)
         }
@@ -1206,7 +1206,7 @@ mod tests {
                     canonical
                         .quorum(&repo)
                         .unwrap_or_else(|e| panic!("quorum error for {refname}: {e}")),
-                    (refname, oid),
+                    (refname, git::raw::ObjectType::Tag, oid),
                 )
             }
         }
