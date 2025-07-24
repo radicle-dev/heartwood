@@ -4,5 +4,7 @@ pub mod service;
 pub mod wire;
 pub mod worker;
 
+pub mod tasks;
+
 /// Peer-to-peer protocol version.
 pub const PROTOCOL_VERSION: u8 = 1;
