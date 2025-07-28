@@ -441,8 +441,8 @@ impl<'a, 'b> Canonical<'a, 'b> {
     ) -> Result<(Oid, ObjectType), ConvergesError> {
         match working.find_object(*commit_or_tag, None) {
             Ok(object) => match object.kind() {
-                Some(ObjectType::Commit) | Some(ObjectType::Tag) => {
-                    Ok((object.id().into(), object.kind().unwrap()))
+                Some(kind @ ObjectType::Commit) | Some(kind @ ObjectType::Tag) => {
+                    Ok((object.id().into(), kind))
                 }
                 kind => Err(ConvergesError::invalid_object_kind(
                     working.path().to_path_buf(),
