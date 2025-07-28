@@ -88,7 +88,7 @@ $ rad patch show 6c61ef1 -v
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Title    Define LICENSE for project                                 │
 │ Patch    6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b                   │
-│ Author   alice z6MknSL…StBU8Vi                                      │
+│ Author   alice z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi     │
 │ Head     1cc8cd9de8ccc44b4fe3876f2dbd2cd1cf9ddc0e                   │
 │ Base     f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                   │
 │ Commits  ahead 2, behind 0                                          │

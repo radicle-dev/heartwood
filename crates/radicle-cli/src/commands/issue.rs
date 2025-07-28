@@ -67,7 +67,7 @@ Label options
 
 Show options
 
-        --debug                Show the issue as Rust debug output
+    -v, --verbose          Show additional information about the issue
 
 Options
 
@@ -119,7 +119,7 @@ pub enum Operation {
     Show {
         id: Rev,
         format: Format,
-        debug: bool,
+        verbose: bool,
     },
     CommentEdit {
         id: Rev,
@@ -202,7 +202,7 @@ impl Args for Options {
         let mut edit_comment = None;
         let mut announce = true;
         let mut quiet = false;
-        let mut debug = false;
+        let mut verbose = false;
         let mut assign_opts = AssignOptions::default();
         let mut label_opts = LabelOptions::default();
         let mut repo = None;
@@ -295,8 +295,8 @@ impl Args for Options {
                         _ => anyhow::bail!("unknown format '{val}'"),
                     }
                 }
-                Long("debug") if op == Some(OperationName::Show) => {
-                    debug = true;
+                Long("verbose") | Short('v') if op == Some(OperationName::Show) => {
+                    verbose = true;
                 }
 
                 // Comment options.
@@ -430,7 +430,7 @@ impl Args for Options {
             OperationName::Show => Operation::Show {
                 id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
                 format,
-                debug,
+                verbose,
             },
             OperationName::State => Operation::State {
                 id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
@@ -502,7 +502,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let signer = term::signer(&profile)?;
             let issue = edit(&mut issues, &repo, id, title, description, &signer)?;
             if !options.quiet {
-                term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
+                term::issue::show(&issue, issue.id(), Format::Header, false, &profile)?;
             }
         }
         Operation::Open {
@@ -514,7 +514,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let signer = term::signer(&profile)?;
             let issue = issues.create(title, description, &labels, &assignees, [], &signer)?;
             if !options.quiet {
-                term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
+                term::issue::show(&issue, issue.id(), Format::Header, false, &profile)?;
             }
         }
         Operation::Comment {
@@ -572,7 +572,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 term::comment::widget(&comment_id, comment, &profile).print();
             }
         }
-        Operation::Show { id, format, debug } => {
+        Operation::Show {
+            id,
+            format,
+            verbose,
+        } => {
             let id = id.resolve(&repo.backend)?;
             let issue = issues
                 .get(&id)
@@ -581,11 +585,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     hint: "reset the cache with `rad issue cache` and try again",
                 })?
                 .context("No issue with the given ID exists")?;
-            if debug {
-                println!("{issue:#?}");
-            } else {
-                term::issue::show(&issue, &id, format, &profile)?;
-            }
+            term::issue::show(&issue, &id, format, verbose, &profile)?;
         }
         Operation::State { id, state } => {
             let signer = term::signer(&profile)?;
@@ -783,7 +783,7 @@ where
         let assigned: String = issue
             .assignees()
             .map(|did| {
-                let (alias, _) = Author::new(did.as_key(), profile).labels();
+                let (alias, _) = Author::new(did.as_key(), profile, false).labels();
 
                 alias.content().to_owned()
             })
@@ -794,7 +794,7 @@ where
         labels.sort();
 
         let author = issue.author().id;
-        let (alias, did) = Author::new(&author, profile).labels();
+        let (alias, did) = Author::new(&author, profile, false).labels();
 
         table.push([
             match issue.state() {
@@ -855,7 +855,7 @@ where
     )?;
 
     if !options.quiet {
-        term::issue::show(&issue, issue.id(), Format::Header, profile)?;
+        term::issue::show(&issue, issue.id(), Format::Header, false, profile)?;
     }
     Ok(())
 }

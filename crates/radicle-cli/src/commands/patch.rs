@@ -83,7 +83,6 @@ Show options
 
     -p, --patch                Show the actual patch diff
     -v, --verbose              Show additional information about the patch
-        --debug                Show the patch as Rust debug output
 
 Diff options
 
@@ -231,7 +230,7 @@ pub enum Operation {
     Show {
         patch_id: Rev,
         diff: bool,
-        debug: bool,
+        verbose: bool,
     },
     Diff {
         patch_id: Rev,
@@ -356,7 +355,6 @@ pub struct Options {
     pub op: Operation,
     pub repo: Option<RepoId>,
     pub announce: bool,
-    pub verbose: bool,
     pub quiet: bool,
     pub authored: bool,
     pub authors: Vec<Did>,
@@ -380,7 +378,6 @@ impl Args for Options {
         let mut message = Message::default();
         let mut filter = Some(patch::Status::Open);
         let mut diff = false;
-        let mut debug = false;
         let mut undo = false;
         let mut reaction: Option<Reaction> = None;
         let mut reply_to: Option<Rev> = None;
@@ -418,8 +415,8 @@ impl Args for Options {
                 Long("patch") | Short('p') if op == Some(OperationName::Show) => {
                     diff = true;
                 }
-                Long("debug") if op == Some(OperationName::Show) => {
-                    debug = true;
+                Long("verbose") | Short('v') if op == Some(OperationName::Show) => {
+                    verbose = true;
                 }
 
                 // Ready options.
@@ -666,9 +663,6 @@ impl Args for Options {
                 }
 
                 // Common.
-                Long("verbose") | Short('v') => {
-                    verbose = true;
-                }
                 Long("quiet") | Short('q') => {
                     quiet = true;
                 }
@@ -742,7 +736,7 @@ impl Args for Options {
             OperationName::Show => Operation::Show {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
                 diff,
-                debug,
+                verbose,
             },
             OperationName::Diff => Operation::Diff {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
@@ -848,7 +842,6 @@ impl Args for Options {
             Options {
                 op,
                 repo,
-                verbose,
                 quiet,
                 announce,
                 authored,
@@ -885,14 +878,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Show {
             patch_id,
             diff,
-            debug,
+            verbose,
         } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
             show::run(
                 &patch_id,
                 diff,
-                debug,
-                options.verbose,
+                verbose,
                 &profile,
                 &repository,
                 workdir.as_ref(),

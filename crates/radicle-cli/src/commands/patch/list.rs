@@ -109,7 +109,7 @@ pub fn row(
     let (from, to) = revision.range();
     let stats = common::diff_stats(repository.raw(), &from, &to)?;
     let author = patch.author().id;
-    let (alias, did) = Author::new(&author, profile).labels();
+    let (alias, did) = Author::new(&author, profile, false).labels();
     let mut delegates = repository
         .delegates()?
         .into_iter()

@@ -480,7 +480,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 let id = term::format::oid(r.id).into();
                 let title = term::label(r.title.to_string());
                 let (alias, author) =
-                    term::format::Author::new(r.author.public_key(), &profile).labels();
+                    term::format::Author::new(r.author.public_key(), &profile, true).labels();
                 let timestamp = term::format::timestamp(r.timestamp).into();
 
                 revisions.push([icon, id, title, alias, author, state, timestamp]);
@@ -586,7 +586,7 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
     let mut signatures = term::Table::<4, _>::default();
 
     for id in accepted {
-        let author = term::format::Author::new(&id, profile);
+        let author = term::format::Author::new(&id, profile, true);
         signatures.push([
             term::format::positive("✓").into(),
             id.to_string().into(),
@@ -595,7 +595,7 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
         ]);
     }
     for id in rejected {
-        let author = term::format::Author::new(&id, profile);
+        let author = term::format::Author::new(&id, profile, true);
         signatures.push([
             term::format::negative("✗").into(),
             id.to_string().into(),
@@ -604,7 +604,7 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
         ]);
     }
     for id in unknown {
-        let author = term::format::Author::new(id, profile);
+        let author = term::format::Author::new(id, profile, true);
         signatures.push([
             term::format::dim("?").into(),
             id.to_string().into(),

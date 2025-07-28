@@ -10,12 +10,12 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential s
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 $ rad id --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-╭────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title              Author                     Status     Created │
-├────────────────────────────────────────────────────────────────────────────────┤
-│ ●   069e7d5   Add Bob            alice    z6MknSL…StBU8Vi   accepted   now     │
-│ ●   0656c21   Initial revision   alice    z6MknSL…StBU8Vi   accepted   now     │
-╰────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title              Author                                                      Status     Created │
+├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   069e7d5   Add Bob            alice    z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   accepted   now     │
+│ ●   0656c21   Initial revision   alice    z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   accepted   now     │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 $ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi [..]
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [..]
@@ -93,14 +93,14 @@ We can list all revisions:
 
 ``` ~alice
 $ rad id list
-╭────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title              Author                     Status     Created │
-├────────────────────────────────────────────────────────────────────────────────┤
-│ ●   e6bf105   Make private       alice    (you)             active     now     │
-│ ●   3cd3c7f   Add Eve            bob      z6Mkt67…v4N1tRk   accepted   now     │
-│ ●   069e7d5   Add Bob            alice    (you)             accepted   now     │
-│ ●   0656c21   Initial revision   alice    (you)             accepted   now     │
-╰────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title              Author                                                      Status     Created │
+├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   e6bf105   Make private       alice    (you)                                              active     now     │
+│ ●   3cd3c7f   Add Eve            bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   accepted   now     │
+│ ●   069e7d5   Add Bob            alice    (you)                                              accepted   now     │
+│ ●   0656c21   Initial revision   alice    (you)                                              accepted   now     │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Despite being a delegate, Bob can't edit or redact Alice's revision:

@@ -398,7 +398,7 @@ fn sync_status(
             .map(|a| a.addr.to_string())
             .unwrap_or_default()
             .into();
-        let (alias, nid) = Author::new(&seed.nid, profile).labels();
+        let (alias, nid) = Author::new(&seed.nid, profile, options.verbose).labels();
 
         table.push([
             icon.into(),

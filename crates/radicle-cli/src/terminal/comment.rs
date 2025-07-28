@@ -11,7 +11,7 @@ pub fn header<T>(
     profile: &Profile,
 ) -> term::hstack::HStack<'static> {
     let author = comment.author();
-    let author = Author::new(&author, profile);
+    let author = Author::new(&author, profile, false);
     let (alias, nid) = author.labels();
 
     term::hstack::HStack::default()

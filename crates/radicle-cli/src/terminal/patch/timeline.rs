@@ -86,7 +86,7 @@ impl<'a> Opened<'a> {
                 Some((
                     merge.timestamp,
                     Update::Merged {
-                        author: Author::new(nid, profile),
+                        author: Author::new(nid, profile, false),
                         merge: merge.clone(),
                     },
                 ))
@@ -96,7 +96,7 @@ impl<'a> Opened<'a> {
         }));
         updates.sort_by_key(|(t, _)| *t);
         Opened {
-            author: Author::new(&patch.author().id, profile),
+            author: Author::new(&patch.author().id, profile, false),
             timestamp: patch.timestamp(),
             head: revision.head(),
             updates: updates.into_iter().map(|(_, up)| up).collect(),
@@ -176,7 +176,7 @@ impl<'a> RevisionEntry<'a> {
                 Some((
                     merge.timestamp,
                     Update::Merged {
-                        author: Author::new(nid, profile),
+                        author: Author::new(nid, profile, false),
                         merge: merge.clone(),
                     },
                 ))
@@ -195,7 +195,7 @@ impl<'a> RevisionEntry<'a> {
             }
         } else {
             RevisionEntry::Revised {
-                author: Author::new(&revision.author().id, profile),
+                author: Author::new(&revision.author().id, profile, false),
                 timestamp: revision.timestamp(),
                 id,
                 head: revision.head(),
@@ -305,7 +305,7 @@ impl Update<'_> {
                     term::format::default("by").into(),
                 ])
                 .space()
-                .extend(Author::new(&review.author().id.into(), profile).line())
+                .extend(Author::new(&review.author().id.into(), profile, false).line())
             }
             Update::Merged { author, merge } => {
                 let (alias, nid) = author.labels();

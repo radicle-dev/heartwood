@@ -363,7 +363,7 @@ pub fn show(
         *patch.target().head(stored)?,
     )?;
     let author = patch.author();
-    let author = term::format::Author::new(author.id(), profile);
+    let author = term::format::Author::new(author.id(), profile, verbose);
     let labels = patch.labels().map(|l| l.to_string()).collect::<Vec<_>>();
 
     let mut attrs = term::Table::<2, term::Line>::new(term::TableOptions {

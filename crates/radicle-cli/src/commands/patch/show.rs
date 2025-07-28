@@ -26,7 +26,6 @@ fn show_patch_diff(patch: &patch::Patch, stored: &Repository) -> anyhow::Result<
 pub fn run(
     patch_id: &PatchId,
     diff: bool,
-    debug: bool,
     verbose: bool,
     profile: &Profile,
     stored: &Repository,
@@ -41,10 +40,6 @@ pub fn run(
         anyhow::bail!("Patch `{patch_id}` not found");
     };
 
-    if debug {
-        println!("{patch:#?}");
-        return Ok(());
-    }
     term::patch::show(&patch, patch_id, verbose, stored, workdir, profile)?;
 
     if diff {

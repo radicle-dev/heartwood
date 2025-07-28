@@ -223,16 +223,18 @@ pub struct Author<'a> {
     nid: &'a NodeId,
     alias: Option<Alias>,
     you: bool,
+    verbose: bool,
 }
 
 impl<'a> Author<'a> {
-    pub fn new(nid: &'a NodeId, profile: &Profile) -> Author<'a> {
+    pub fn new(nid: &'a NodeId, profile: &Profile, verbose: bool) -> Author<'a> {
         let alias = profile.alias(nid);
 
         Self {
             nid,
             alias,
             you: nid == profile.id(),
+            verbose,
         }
     }
 
@@ -255,20 +257,20 @@ impl<'a> Author<'a> {
     ///   * `(<alias>, <did>)` -- the `Author` is another peer and has an alias
     ///   * `(<blank>, <did>)` -- the `Author` is another peer and has no alias
     pub fn labels(self) -> (term::Label, term::Label) {
+        let node_id = if self.verbose {
+            term::format::node_id_human(self.nid)
+        } else {
+            term::format::node_id_human_compact(self.nid)
+        };
+
         let alias = match self.alias.as_ref() {
             Some(alias) => term::format::primary(alias).into(),
-            None if self.you => {
-                term::format::primary(term::format::node_id_human_compact(self.nid))
-                    .dim()
-                    .into()
-            }
+            None if self.you => term::format::primary(node_id.clone()).dim().into(),
             None => term::Label::blank(),
         };
-        let author = self.you().unwrap_or_else(|| {
-            term::format::primary(term::format::node_id_human_compact(self.nid))
-                .dim()
-                .into()
-        });
+        let author = self
+            .you()
+            .unwrap_or_else(move || term::format::primary(node_id).dim().into());
         (alias, author)
     }
 

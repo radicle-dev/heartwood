@@ -42,6 +42,7 @@ pub fn show(
     issue: &issue::Issue,
     id: &cob::ObjectId,
     format: Format,
+    verbose: bool,
     profile: &Profile,
 ) -> anyhow::Result<()> {
     let labels: Vec<String> = issue.labels().cloned().map(|t| t.into()).collect();
@@ -51,7 +52,7 @@ pub fn show(
         .collect();
     let author = issue.author();
     let did = author.id();
-    let author = Author::new(did, profile);
+    let author = Author::new(did, profile, verbose);
 
     let mut attrs = Table::<2, term::Line>::new(TableOptions {
         spacing: 2,

@@ -291,7 +291,7 @@ where
         let author = n
             .remote
             .map(|r| {
-                let (alias, _) = term::format::Author::new(&r, profile).labels();
+                let (alias, _) = term::format::Author::new(&r, profile, false).labels();
                 alias
             })
             .unwrap_or_default();
@@ -542,6 +542,7 @@ fn show(
                 &issue,
                 &typed_id.id,
                 term::issue::Format::default(),
+                false,
                 profile,
             )?;
         }

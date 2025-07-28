@@ -33,14 +33,14 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential s
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 $ rad id list
-╭─────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title               Author                     Status     Created │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│ ●   89b2623   Edit project name   bob      z6Mkt67…v4N1tRk   active     now     │
-│ ●   12d7300   Edit project name   alice    (you)             active     now     │
-│ ●   0ca42d3   Add Bob             alice    (you)             accepted   now     │
-│ ●   0656c21   Initial revision    alice    (you)             accepted   now     │
-╰─────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title               Author                                                      Status     Created │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   89b2623   Edit project name   bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   active     now     │
+│ ●   12d7300   Edit project name   alice    (you)                                              active     now     │
+│ ●   0ca42d3   Add Bob             alice    (you)                                              accepted   now     │
+│ ●   0656c21   Initial revision    alice    (you)                                              accepted   now     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 This isn't a problem as long as we don't try to accept both. So let's accept
@@ -49,14 +49,14 @@ Bob's:
 ``` ~alice
 $ rad id accept 89b2623 -q
 $ rad id list
-╭─────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title               Author                     Status     Created │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│ ●   89b2623   Edit project name   bob      z6Mkt67…v4N1tRk   accepted   now     │
-│ ●   12d7300   Edit project name   alice    (you)             stale      now     │
-│ ●   0ca42d3   Add Bob             alice    (you)             accepted   now     │
-│ ●   0656c21   Initial revision    alice    (you)             accepted   now     │
-╰─────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title               Author                                                      Status     Created │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   89b2623   Edit project name   bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   accepted   now     │
+│ ●   12d7300   Edit project name   alice    (you)                                              stale      now     │
+│ ●   0ca42d3   Add Bob             alice    (you)                                              accepted   now     │
+│ ●   0656c21   Initial revision    alice    (you)                                              accepted   now     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Doing so voided the other conflicting revision, and it can no longer be
