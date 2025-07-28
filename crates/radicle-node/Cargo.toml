@@ -10,12 +10,13 @@ build = "build.rs"
 rust-version.workspace = true
 
 [features]
-default = ["systemd", "structured-logger"]
+default = ["backtrace", "systemd", "structured-logger"]
 systemd = ["dep:radicle-systemd"]
 test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "radicle-protocol/test", "qcheck", "snapbox"]
 
 [dependencies]
 amplify = { workspace = true }
+backtrace = { version = "0.3.75", optional = true }
 bloomy = "1.2"
 bytes = { workspace = true }
 chrono = { workspace = true, features = ["clock"] }

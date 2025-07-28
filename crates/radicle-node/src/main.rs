@@ -300,15 +300,41 @@ fn initialize_logging(options: &LogOptions) -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
-fn main() {
-    // If `RUST_BACKTRACE` does not have a value, then we set it to capture
-    // backtraces for better debugging, otherwise we keep the environments
-    // value.
-    const RUST_BACKTRACE: &str = "RUST_BACKTRACE";
-    if std::env::var_os(RUST_BACKTRACE).is_none() {
-        std::env::set_var(RUST_BACKTRACE, "1");
+fn panic_hook(info: &std::panic::PanicHookInfo) {
+    #[cfg(feature = "backtrace")]
+    let backtrace = format!("{:?}", backtrace::Backtrace::new());
+
+    #[cfg(not(feature = "backtrace"))]
+    let backtrace = " (no backtrace available)";
+
+    let thread = std::thread::current();
+    let thread = thread.name().unwrap_or("<unnamed>");
+
+    let msg = match info.payload().downcast_ref::<&'static str>() {
+        Some(s) => *s,
+        None => match info.payload().downcast_ref::<String>() {
+            Some(s) => &**s,
+            None => "Box<Any>",
+        },
+    };
+
+    match info.location() {
+        Some(location) => {
+            log::error!(
+                target: "panic", "thread '{thread}' panicked at '{msg}': {}:{}{backtrace}",
+                location.file(),
+                location.line(),
+            );
+        }
+        None => log::error!(
+            target: "panic", "thread '{thread}' panicked at '{msg}'{backtrace}",
+        ),
     }
 
+    log::logger().flush();
+}
+
+fn main() {
     let options = parse_options().unwrap_or_else(|err| {
         // The lexopt errors read nicely with a comma.
         eprintln!("Failed to parse options, {err:#}");
@@ -319,6 +345,8 @@ fn main() {
         eprintln!("Failed to initialize logging: {err:#}");
         exit(3);
     });
+
+    std::panic::set_hook(Box::new(panic_hook));
 
     if let Err(err) = execute(options) {
         log::error!(target: "node", "{err:#}");
