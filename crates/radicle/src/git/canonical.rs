@@ -190,11 +190,6 @@ impl<'a, 'b> Canonical<'a, 'b> {
         })
     }
 
-    /// Return the set of [`Did`]s and their [`Oid`] tip.
-    pub fn tips(&self) -> impl Iterator<Item = (&Did, &(Oid, git2::ObjectType))> {
-        self.tips.iter()
-    }
-
     /// Returns `true` if there were no tips found for any of the DIDs for
     /// the given reference.
     ///
