@@ -7,7 +7,7 @@ use super::error;
 pub(crate) struct Vote {
     did: Did,
     oid: git::Oid,
-    kind: git::raw::ObjectType,
+    kind: git::canonical::CanonicalObject,
 }
 
 /// Validates a vote to update a canonical reference during push.
@@ -20,7 +20,7 @@ impl<'a, 'b> Canonical<'a, 'b> {
     pub fn new(
         me: Did,
         head: git::Oid,
-        kind: git::raw::ObjectType,
+        kind: git::canonical::CanonicalObject,
         canonical: git::canonical::Canonical<'a, 'b>,
     ) -> Self {
         Self {
@@ -59,7 +59,7 @@ impl<'a, 'b> Canonical<'a, 'b> {
             .converges(working, (&self.vote.did, &self.vote.oid))?;
         if converges || self.canonical.has_no_tips() || self.canonical.is_only(&self.vote.did) {
             self.canonical
-                .modify_vote(self.vote.did, (self.vote.oid, self.vote.kind));
+                .modify_vote(self.vote.did, self.vote.oid, self.vote.kind);
         }
 
         match self.canonical.quorum(working) {

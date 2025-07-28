@@ -4,6 +4,8 @@ use thiserror::Error;
 
 use crate::{git::raw, git::Oid, prelude::Did};
 
+use super::CanonicalObject;
+
 /// Error that can occur when calculation the [`Canonical::quorum`].
 #[derive(Debug, Error)]
 pub enum QuorumError {
@@ -68,15 +70,113 @@ pub struct InvalidObjectType {
 }
 
 #[derive(Debug, Error)]
+#[error("the object {oid} in the repository {repo:?} is of unexpected type {found} and was expected to be {expected}")]
+pub struct MismatchedObject {
+    repo: PathBuf,
+    oid: Oid,
+    found: CanonicalObject,
+    expected: CanonicalObject,
+}
+
+#[derive(Debug, Error)]
+pub enum CanonicalError {
+    #[error(transparent)]
+    InvalidObjectType(#[from] InvalidObjectType),
+    #[error(transparent)]
+    MissingObject(#[from] MissingObject),
+    #[error("failed to find object {oid} due to: {source}")]
+    FindObject { oid: Oid, source: git2::Error },
+    #[error("failed to find reference {name} due to: {source}")]
+    FindReference { name: String, source: git2::Error },
+}
+
+impl CanonicalError {
+    pub(super) fn invalid_object_type(
+        repo: PathBuf,
+        did: Did,
+        oid: Oid,
+        kind: Option<git2::ObjectType>,
+    ) -> Self {
+        InvalidObjectType {
+            repo,
+            did,
+            oid,
+            kind,
+        }
+        .into()
+    }
+
+    pub(super) fn missing_object(repo: PathBuf, did: Did, oid: Oid, err: git2::Error) -> Self {
+        MissingObject {
+            repo,
+            did,
+            commit: oid,
+            source: err,
+        }
+        .into()
+    }
+
+    pub(super) fn find_object(oid: Oid, err: git2::Error) -> Self {
+        Self::FindObject { oid, source: err }
+    }
+
+    pub(crate) fn find_reference(name: &str, e: git2::Error) -> CanonicalError {
+        Self::FindReference {
+            name: name.to_string(),
+            source: e,
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum FindObjectError {
+    #[error(transparent)]
+    InvalidObjectType(#[from] InvalidObjectType),
+    #[error(transparent)]
+    MissingObject(#[from] MissingObject),
+    #[error("failed to find object {oid} due to: {source}")]
+    FindObject { oid: Oid, source: git2::Error },
+}
+
+impl FindObjectError {
+    pub(super) fn find_object(oid: Oid, err: git2::Error) -> Self {
+        Self::FindObject { oid, source: err }
+    }
+
+    pub(super) fn missing_object(repo: PathBuf, did: Did, oid: Oid, err: git2::Error) -> Self {
+        MissingObject {
+            repo,
+            did,
+            commit: oid,
+            source: err,
+        }
+        .into()
+    }
+
+    pub(super) fn invalid_object_type(
+        repo: PathBuf,
+        did: Did,
+        oid: Oid,
+        kind: Option<git2::ObjectType>,
+    ) -> Self {
+        InvalidObjectType {
+            repo,
+            did,
+            oid,
+            kind,
+        }
+        .into()
+    }
+}
+
+#[derive(Debug, Error)]
 pub enum ConvergesError {
     #[error(transparent)]
     GraphDescendant(#[from] GraphDescendant),
     #[error(transparent)]
-    MissingObject(#[from] MissingObject),
+    MismatchedObject(#[from] MismatchedObject),
     #[error(transparent)]
-    InvalidObject(#[from] InvalidObject),
-    #[error(transparent)]
-    InvalidObjectType(#[from] InvalidObjectType),
+    FindObjectError(#[from] FindObjectError),
 }
 
 impl ConvergesError {
@@ -88,35 +188,17 @@ impl ConvergesError {
         })
     }
 
-    pub(super) fn missing_object(repo: PathBuf, did: Did, commit: Oid, err: raw::Error) -> Self {
-        Self::MissingObject(MissingObject {
-            repo,
-            did,
-            commit,
-            source: err,
-        })
-    }
-
-    pub(super) fn invalid_object(repo: PathBuf, did: Did, commit: Oid, err: raw::Error) -> Self {
-        Self::InvalidObject(InvalidObject {
-            repo,
-            did,
-            commit,
-            source: err,
-        })
-    }
-
-    pub(super) fn invalid_object_kind(
+    pub(super) fn mismatched_object(
         repo: PathBuf,
-        did: Did,
         oid: Oid,
-        kind: Option<git2::ObjectType>,
+        found: CanonicalObject,
+        expected: CanonicalObject,
     ) -> Self {
-        Self::InvalidObjectType(InvalidObjectType {
+        Self::MismatchedObject(MismatchedObject {
             repo,
-            did,
             oid,
-            kind,
+            found,
+            expected,
         })
     }
 }

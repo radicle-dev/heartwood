@@ -120,6 +120,10 @@ pub enum Error {
     PushAction(#[from] error::PushAction),
     #[error(transparent)]
     Canonical(#[from] error::CanonicalUnrecoverable),
+    #[error(transparent)]
+    CanonicalInit(#[from] radicle::git::canonical::error::CanonicalError),
+    #[error("could not determine object type for {oid}")]
+    UnknownObjectType { oid: git::Oid },
 }
 
 /// Push command.
@@ -349,9 +353,13 @@ pub fn run(
                         // Note that we *do* allow rolling back to a previous commit on the
                         // canonical branch.
                         if let Some(canonical) = rules.canonical(dst.clone(), stored)? {
-                            let kind = working.find_object(**src, None)?.kind();
-                            let canonical =
-                                canonical::Canonical::new(me, *src, kind.unwrap(), canonical);
+                            let kind = working
+                                .find_object(**src, None)?
+                                .kind()
+                                .and_then(git::canonical::CanonicalObject::new)
+                                .ok_or(Error::UnknownObjectType { oid: *src })?;
+
+                            let canonical = canonical::Canonical::new(me, *src, kind, canonical);
                             match canonical.quorum(&working) {
                                 Ok(quorum) => set_canonical_refs.push(quorum),
                                 Err(e) => canonical::io::handle_error(e, &dst, hints)?,

@@ -20,6 +20,7 @@ use serde_json as json;
 use thiserror::Error;
 
 use crate::git;
+use crate::git::canonical;
 use crate::git::canonical::Canonical;
 use crate::git::fmt::{refname, RefString};
 use crate::git::refspec::QualifiedPattern;
@@ -634,7 +635,7 @@ impl Rules {
         &'a self,
         refname: Qualified<'b>,
         repo: &Repository,
-    ) -> Result<Option<Canonical<'b, 'a>>, git::raw::Error> {
+    ) -> Result<Option<Canonical<'b, 'a>>, canonical::error::CanonicalError> {
         if let Some((_, rule)) = self.matches(&refname).next() {
             Ok(Some(Canonical::new(&repo.backend, refname, rule)?))
         } else {
