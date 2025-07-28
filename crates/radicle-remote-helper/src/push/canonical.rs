@@ -85,7 +85,7 @@ impl<'a, 'b> Canonical<'a, 'b> {
 
 pub(crate) mod io {
     use radicle::git;
-    use radicle::git::canonical;
+    use radicle::git::canonical::error::QuorumError;
 
     use crate::push::error;
     use crate::{hint, warn};
@@ -115,29 +115,27 @@ pub(crate) mod io {
                 Err(e.into())
             }
             error::Canonical::Quorum(e) => match e {
-                e @ canonical::QuorumError::DivergingCommits { .. } => {
+                e @ QuorumError::DivergingCommits { .. } => {
                     warn(e.to_string());
                     warn("it is recommended to find a commit to agree upon");
                     Ok(())
                 }
-                e @ canonical::QuorumError::DivergingTags { .. } => {
+                e @ QuorumError::DivergingTags { .. } => {
                     warn(e.to_string());
                     warn("it is recommended to find a tag to agree upon");
                     Ok(())
                 }
-                e @ canonical::QuorumError::DifferentTypes { .. } => {
+                e @ QuorumError::DifferentTypes { .. } => {
                     warn(e.to_string());
                     warn("it is recommended to find an object type (either commit or tag) to agree upon");
                     Ok(())
                 }
-                e @ canonical::QuorumError::NoCandidates { .. } => {
+                e @ QuorumError::NoCandidates { .. } => {
                     warn(e.to_string());
                     warn("it is recommended to find a commit to agree upon");
                     Ok(())
                 }
-                canonical::QuorumError::Git(err) => {
-                    Err(error::CanonicalUnrecoverable::Git { source: err })
-                }
+                QuorumError::Git(err) => Err(error::CanonicalUnrecoverable::Git { source: err }),
             },
         }
     }

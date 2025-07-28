@@ -122,9 +122,9 @@ impl Handle {
                             log::trace!(target: "worker", "Set HEAD to {}", head.new);
                         }
                     }
-                    Err(RepositoryError::Quorum(radicle::git::canonical::QuorumError::Git(e))) => {
-                        return Err(e.into())
-                    }
+                    Err(RepositoryError::Quorum(
+                        radicle::git::canonical::error::QuorumError::Git(e),
+                    )) => return Err(e.into()),
                     Err(RepositoryError::Quorum(e)) => {
                         log::warn!(target: "worker", "Fetch could not set HEAD: {e}")
                     }

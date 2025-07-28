@@ -113,7 +113,7 @@ pub enum Error {
     Repository(#[from] radicle::storage::RepositoryError),
     /// Quorum error.
     #[error(transparent)]
-    Quorum(#[from] radicle::git::canonical::QuorumError),
+    Quorum(#[from] radicle::git::canonical::error::QuorumError),
     #[error(transparent)]
     CanonicalRefs(#[from] radicle::identity::doc::CanonicalRefsError),
     #[error(transparent)]

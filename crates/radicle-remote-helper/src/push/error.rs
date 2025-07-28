@@ -7,7 +7,7 @@ pub enum CanonicalUnrecoverable {
     #[error(transparent)]
     GraphDescendant(#[from] GraphDescendant),
     #[error(transparent)]
-    Converges(#[from] canonical::ConvergesError),
+    Converges(#[from] canonical::error::ConvergesError),
     #[error(transparent)]
     HeadsDiverge(#[from] HeadsDiverge),
     #[error("failure while computing canonical reference: {source}")]
@@ -19,11 +19,11 @@ pub enum Canonical {
     #[error(transparent)]
     GraphDescendant(GraphDescendant),
     #[error(transparent)]
-    Converges(#[from] canonical::ConvergesError),
+    Converges(#[from] canonical::error::ConvergesError),
     #[error(transparent)]
     HeadsDiverge(HeadsDiverge),
     #[error(transparent)]
-    Quorum(#[from] canonical::QuorumError),
+    Quorum(#[from] canonical::error::QuorumError),
 }
 
 impl Canonical {
