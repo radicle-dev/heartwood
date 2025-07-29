@@ -17,6 +17,12 @@ pub struct Logger {
     level: Level,
 }
 
+impl Logger {
+    pub fn new(level: Level) -> Self {
+        Self { level }
+    }
+}
+
 impl Log for Logger {
     fn enabled(&self, metadata: &Metadata) -> bool {
         metadata.level() <= self.level

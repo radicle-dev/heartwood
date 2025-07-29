@@ -4,7 +4,6 @@ use std::{env, fs, net, path::PathBuf, process};
 use anyhow::Context;
 use crossbeam_channel as chan;
 
-use radicle::logger;
 use radicle::node::device::Device;
 use radicle::profile;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
@@ -91,7 +90,24 @@ fn execute() -> anyhow::Result<()> {
     let config = options.config.unwrap_or_else(|| home.config());
     let mut config = profile::Config::load(&config)?;
 
-    logger::init(options.log.unwrap_or(config.node.log))?;
+    let level = options.log.unwrap_or(config.node.log);
+
+    let logger = {
+        let journal = if cfg!(all(feature = "systemd", target_family = "unix")) {
+            radicle_systemd::journal::logger::<&str, &str, _>("radicle-node".to_string(), [])?
+        } else {
+            None
+        };
+
+        if let Some(logger) = journal {
+            logger
+        } else {
+            Box::new(radicle::logger::Logger::new(level))
+        }
+    };
+
+    log::set_boxed_logger(logger)?;
+    log::set_max_level(level.to_level_filter());
 
     log::info!(target: "node", "Starting node..");
     log::info!(target: "node", "Version {} ({})", env!("RADICLE_VERSION"), env!("GIT_HEAD"));
