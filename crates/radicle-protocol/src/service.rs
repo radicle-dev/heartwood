@@ -206,7 +206,13 @@ pub enum Error {
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
     #[error("namespaces error: {0}")]
-    Namespaces(#[from] NamespacesError),
+    Namespaces(Box<NamespacesError>),
+}
+
+impl From<NamespacesError> for Error {
+    fn from(e: NamespacesError) -> Self {
+        Self::Namespaces(Box::new(e))
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -304,7 +310,13 @@ enum TryFetchError<'a> {
     #[error("peer fetch capacity reached; cannot initiate fetch")]
     SessionCapacityReached,
     #[error(transparent)]
-    Namespaces(#[from] NamespacesError),
+    Namespaces(Box<NamespacesError>),
+}
+
+impl From<NamespacesError> for TryFetchError<'_> {
+    fn from(e: NamespacesError) -> Self {
+        Self::Namespaces(Box::new(e))
+    }
 }
 
 /// Fetch state for an ongoing fetch.

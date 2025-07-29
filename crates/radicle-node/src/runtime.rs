@@ -73,7 +73,7 @@ pub enum Error {
     Address(#[from] address::Error),
     /// A service error.
     #[error("service error: {0}")]
-    Service(#[from] service::Error),
+    Service(Box<service::Error>),
     /// An I/O error.
     #[error("i/o error: {0}")]
     Io(#[from] io::Error),
@@ -90,6 +90,12 @@ pub enum Error {
     /// A git version error.
     #[error("git version error: {0}")]
     GitVersion(#[from] git::VersionError),
+}
+
+impl From<service::Error> for Error {
+    fn from(e: service::Error) -> Self {
+        Self::Service(Box::new(e))
+    }
 }
 
 /// Wraps a [`UnixListener`] but tracks its origin.
