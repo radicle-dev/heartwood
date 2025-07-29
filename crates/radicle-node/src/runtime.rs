@@ -341,7 +341,7 @@ impl Runtime {
     #[cfg(all(feature = "systemd", target_family = "unix"))]
     fn receive_listener() -> Option<UnixListener> {
         use std::os::fd::FromRawFd;
-        match radicle_systemd::listen_fd("control") {
+        match radicle_systemd::listen::fd("control") {
             Ok(Some(fd)) => {
                 // NOTE: Here, we should make a call to [`fstat(2)`](man:fstat(2))
                 // and make sure that the file descriptor we received actually

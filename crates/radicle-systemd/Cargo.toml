@@ -7,3 +7,7 @@ license.workspace = true
 edition.workspace = true
 version = "0.9.0"
 rust-version.workspace = true
+
+[features]
+default = ["listen"]
+listen = []
