@@ -919,10 +919,8 @@ impl CommentBuilder {
             // Skip the hunk header
             .filter(|l| !l.starts_with("> @@"));
         let mut comment = String::new();
-        // Keeps track of where the next range will start from
-        let mut range_start = 0;
         // Keeps track of the line index within the hunk itself
-        let mut line_ix = 0;
+        let mut line_ix = 0_usize;
         // Keeps track of whether the first comment is at the top-level
         let mut top_level = true;
 
@@ -933,9 +931,11 @@ impl CommentBuilder {
                         // Top-level comment
                         self.add_comment(hunk.as_index(None), &comment);
                     } else {
-                        self.add_comment(hunk.as_index(Some(range_start..line_ix)), &comment);
+                        self.add_comment(
+                            hunk.as_index(Some(line_ix.saturating_sub(1)..line_ix)),
+                            &comment,
+                        );
                     }
-                    range_start = line_ix;
                     comment.clear();
                 }
                 line_ix += 1;
@@ -947,7 +947,10 @@ impl CommentBuilder {
             }
         }
         if !comment.is_empty() {
-            self.add_comment(hunk.as_index(Some(range_start..line_ix)), &comment);
+            self.add_comment(
+                hunk.as_index(Some(line_ix.saturating_sub(1)..line_ix)),
+                &comment,
+            );
         }
         self
     }
@@ -1034,7 +1037,7 @@ Comment #5.
                     base,
                     commit,
                     path.clone(),
-                    HunkIndex::new(0, CodeRange::lines(0..6)),
+                    HunkIndex::new(0, CodeRange::lines(5..6)),
                 ),
                 body: "Comment #1.".to_owned(),
             }),
@@ -1043,7 +1046,7 @@ Comment #5.
                     base,
                     commit,
                     path.clone(),
-                    HunkIndex::new(0, CodeRange::lines(6..12)),
+                    HunkIndex::new(0, CodeRange::lines(11..12)),
                 ),
                 body: "Comment #2.".to_owned(),
             }),
@@ -1052,7 +1055,7 @@ Comment #5.
                     base,
                     commit,
                     path.clone(),
-                    HunkIndex::new(0, CodeRange::lines(12..17)),
+                    HunkIndex::new(0, CodeRange::lines(16..17)),
                 ),
                 body: "Comment #3.".to_owned(),
             }),
@@ -1070,7 +1073,7 @@ Comment #5.
                     base,
                     commit,
                     path.clone(),
-                    HunkIndex::new(0, CodeRange::lines(18..26)),
+                    HunkIndex::new(0, CodeRange::lines(25..26)),
                 ),
                 body: "Comment #5.".to_owned(),
             }),
@@ -1146,7 +1149,7 @@ Woof.
                     base,
                     commit,
                     path.clone(),
-                    HunkIndex::new(0, CodeRange::lines(0..6)),
+                    HunkIndex::new(0, CodeRange::lines(5..6)),
                 ),
                 body: r#"
 Blah blah blah blah blah blah blah.
@@ -1165,7 +1168,7 @@ Blaaah blaaah blaaah.
                     base,
                     commit,
                     path.clone(),
-                    HunkIndex::new(0, CodeRange::lines(6..12)),
+                    HunkIndex::new(0, CodeRange::lines(11..12)),
                 ),
                 body: r#"
 Woof woof.
@@ -1285,7 +1288,7 @@ Comment on a split hunk.
                 base,
                 commit,
                 path.clone(),
-                HunkIndex::new(0, CodeRange::lines(5..7)),
+                HunkIndex::new(0, CodeRange::lines(6..7)),
             ),
             body: "Comment on a split hunk.".to_owned(),
         })];
