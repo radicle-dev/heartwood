@@ -744,7 +744,6 @@ fn rad_node_connect() {
 
 #[test]
 fn rad_node_connect_without_address() {
-    logger::init(log::Level::Debug);
     let mut environment = Environment::new();
     let mut alice = environment.node("alice");
     let bob = environment.node("bob");
@@ -922,7 +921,6 @@ fn rad_patch_ahead_behind() {
 
 #[test]
 fn rad_patch_change_base() {
-    logger::init(log::Level::Debug);
     Environment::alice(["rad-init", "rad-patch-change-base"]);
 }
 
@@ -1228,8 +1226,6 @@ fn rad_clone_partial_fail() {
     let bob = environment.node("bob");
     let mut eve = environment.node("eve");
     let carol = NodeId::from_str("z6MksFqXN3Yhqk8pTJdUGLwBTkRfQvwZXPqR2qMEhbS9wzpT").unwrap();
-
-    logger::init(log::Level::Debug);
 
     // Setup a test project.
     let acme = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
@@ -1990,8 +1986,6 @@ fn rad_patch_pull_update() {
 
 #[test]
 fn rad_patch_open_explore() {
-    logger::init(log::Level::Debug);
-
     let mut environment = Environment::new();
     let seed = environment
         .node_with(Config {

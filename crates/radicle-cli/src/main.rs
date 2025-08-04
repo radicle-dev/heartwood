@@ -30,7 +30,9 @@ enum Command {
 
 fn main() {
     if let Some(lvl) = radicle::logger::env_level() {
-        radicle::logger::init(lvl).ok();
+        let logger = Box::new(radicle::logger::Logger::new(lvl));
+        log::set_boxed_logger(logger).expect("no other logger should have been set already");
+        log::set_max_level(lvl.to_level_filter());
     }
     if let Err(e) = radicle::io::set_file_limit(4096) {
         log::warn!(target: "cli", "Unable to set open file limit: {e}");

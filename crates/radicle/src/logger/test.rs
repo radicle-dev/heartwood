@@ -1,8 +1,14 @@
 use localtime::LocalTime;
 use log::*;
 
-struct Logger {
+pub struct Logger {
     level: Level,
+}
+
+impl Logger {
+    pub fn new(level: Level) -> Self {
+        Self { level }
+    }
 }
 
 impl Log for Logger {
@@ -56,12 +62,4 @@ impl Log for Logger {
     }
 
     fn flush(&self) {}
-}
-
-#[allow(dead_code)]
-pub fn init(level: Level) {
-    let logger = Logger { level };
-
-    log::set_boxed_logger(Box::new(logger)).ok();
-    log::set_max_level(level.to_level_filter());
 }

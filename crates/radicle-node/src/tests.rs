@@ -846,8 +846,6 @@ fn test_refs_announcement_relay_private() {
 /// Even if Alice is not tracking Bob, Alice will fetch Bob's refs for a repo she doesn't have.
 #[test]
 fn test_refs_announcement_fetch_trusted_no_inventory() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Peer::with_storage(
         "alice",
@@ -892,8 +890,6 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
 /// Later Alice follows Bob, and will be able to fetch Bob's refs.
 #[test]
 fn test_refs_announcement_followed() {
-    logger::init(log::Level::Debug);
-
     // Create MockStorage for Alice and Bob. Both will have repo with `rid`.
     let storage_alice = arbitrary::nonempty_storage(1);
     let rid = *storage_alice.repos.keys().next().unwrap();
@@ -1068,8 +1064,6 @@ fn test_refs_announcement_offline() {
 
 #[test]
 fn test_inventory_relay() {
-    logger::init(log::Level::Debug);
-
     // Topology is eve <-> alice <-> bob
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
@@ -1486,8 +1480,6 @@ fn test_queued_fetch_max_capacity() {
     let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
 
-    logger::init(log::Level::Debug);
-
     alice.connect_to(&bob);
 
     // Send the first fetch.
@@ -1607,8 +1599,6 @@ fn test_queued_fetch_from_command_same_rid() {
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let eve = Peer::new("eve", [9, 9, 9, 9]);
     let carol = Peer::new("carol", [10, 10, 10, 10]);
-
-    logger::init(log::Level::Debug);
 
     alice.connect_to(&bob);
     alice.connect_to(&eve);

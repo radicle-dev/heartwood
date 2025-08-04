@@ -55,3 +55,4 @@ qcheck-macros = { workspace = true }
 radicle = { workspace = true, features = ["test"] }
 radicle-crypto = { workspace = true, features = ["test", "cyphernet"] }
 snapbox = { workspace = true }
+test-log = "0.2.18"

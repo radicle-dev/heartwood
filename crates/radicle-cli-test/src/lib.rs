@@ -207,9 +207,13 @@ impl TestFormula {
         BUILD.call_once(|| {
             use escargot::format::Message;
             use radicle::logger::env_level;
-            use radicle::logger::test as logger;
+            use radicle::logger::test::Logger;
 
-            logger::init(env_level().unwrap_or(log::Level::Debug));
+            let level = env_level().unwrap_or(log::Level::Debug);
+            let logger = Box::new(Logger::new(level));
+
+            log::set_boxed_logger(logger).expect("no other logger should have been set already");
+            log::set_max_level(level.to_level_filter());
 
             for (package, binary) in binaries {
                 log::debug!(target: "test", "Building binaries for package `{package}`..");

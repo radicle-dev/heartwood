@@ -106,7 +106,7 @@ fn execute() -> anyhow::Result<()> {
         }
     };
 
-    log::set_boxed_logger(logger)?;
+    log::set_boxed_logger(logger).expect("no other logger should have been set already");
     log::set_max_level(level.to_level_filter());
 
     log::info!(target: "node", "Starting node..");

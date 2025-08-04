@@ -1,5 +1,7 @@
 use std::{collections::HashSet, thread, time};
 
+use test_log::test;
+
 use radicle::node::device::Device;
 use radicle::node::policy::Scope;
 use radicle::node::Event;
@@ -16,7 +18,6 @@ use crate::node::config::Limits;
 use crate::node::{Config, ConnectOptions};
 use crate::service;
 use crate::storage::git::transport;
-use crate::test::logger;
 use crate::test::node::{converge, Node};
 
 mod config {
@@ -48,8 +49,6 @@ mod config {
 //     alice -- bob
 //
 fn test_inventory_sync_basic() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
@@ -72,8 +71,6 @@ fn test_inventory_sync_basic() {
 //     alice -- bob -- eve
 //
 fn test_inventory_sync_bridge() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
@@ -102,8 +99,6 @@ fn test_inventory_sync_bridge() {
 //     carol -- eve
 //
 fn test_inventory_sync_ring() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
@@ -139,8 +134,6 @@ fn test_inventory_sync_ring() {
 //            carol
 //
 fn test_inventory_sync_star() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
@@ -172,8 +165,6 @@ fn test_inventory_sync_star() {
 
 #[test]
 fn test_replication() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"));
     let mut bob = Node::init(tmp.path(), config::relay("bob"));
@@ -247,8 +238,6 @@ fn test_replication() {
 
 #[test]
 fn test_replication_ref_in_sigrefs() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"));
     let mut bob = Node::init(tmp.path(), config::relay("bob"));
@@ -341,8 +330,6 @@ fn test_replication_invalid() {
 
 #[test]
 fn test_migrated_clone() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
     let bob = Node::init(tmp.path(), config::relay("bob"));
@@ -394,8 +381,6 @@ fn test_migrated_clone() {
 
 #[test]
 fn test_dont_fetch_owned_refs() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
     let bob = Node::init(tmp.path(), config::relay("bob"));
@@ -421,8 +406,6 @@ fn test_dont_fetch_owned_refs() {
 
 #[test]
 fn test_fetch_followed_remotes() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
     let bob = Node::init(tmp.path(), config::relay("bob"));
@@ -476,8 +459,6 @@ fn test_fetch_followed_remotes() {
 
 #[test]
 fn test_missing_remote() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
     let bob = Node::init(tmp.path(), config::relay("bob"));
@@ -505,8 +486,6 @@ fn test_missing_remote() {
 
 #[test]
 fn test_fetch_preserve_owned_refs() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
     let bob = Node::init(tmp.path(), config::relay("bob"));
@@ -551,8 +530,6 @@ fn test_fetch_preserve_owned_refs() {
 
 #[test]
 fn test_clone() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"));
     let mut bob = Node::init(tmp.path(), config::relay("bob"));
@@ -609,8 +586,6 @@ fn test_clone() {
 
 #[test]
 fn test_fetch_up_to_date() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"));
     let mut bob = Node::init(tmp.path(), config::relay("bob"));
@@ -638,8 +613,6 @@ fn test_fetch_up_to_date() {
 
 #[test]
 fn test_fetch_unseeded() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"));
     let mut bob = Node::init(tmp.path(), config::relay("bob"));
@@ -667,8 +640,6 @@ fn test_fetch_unseeded() {
 
 #[test]
 fn test_large_fetch() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let scale = config::scale();
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
@@ -703,8 +674,6 @@ fn test_large_fetch() {
 
 #[test]
 fn test_concurrent_fetches() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let scale = config::scale();
     let repos = scale.max(4);
@@ -810,8 +779,6 @@ fn test_concurrent_fetches() {
 
 #[test]
 fn test_connection_crossing() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"));
     let bob = Node::init(tmp.path(), config::relay("bob"));
@@ -877,8 +844,6 @@ fn test_connection_crossing() {
 /// Alice is going to try to fetch outdated refs of Bob, from Eve. This is a non-fastfoward fetch
 /// on the sigrefs branch.
 fn test_non_fastforward_sigrefs() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
 
     let alice = Node::init(tmp.path(), config::relay("alice"));
@@ -985,8 +950,6 @@ fn test_non_fastforward_sigrefs() {
 
 #[test]
 fn test_outdated_sigrefs() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
@@ -1081,8 +1044,6 @@ fn test_outdated_sigrefs() {
 
 #[test]
 fn test_outdated_delegate_sigrefs() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
@@ -1169,8 +1130,6 @@ fn test_outdated_delegate_sigrefs() {
 
 #[test]
 fn missing_default_branch() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
@@ -1227,9 +1186,6 @@ fn missing_delegate_default_branch() {
     use radicle::git::raw;
     use radicle::identity::Identity;
     use radicle::storage::git::Repository;
-
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
@@ -1350,8 +1306,6 @@ fn missing_delegate_default_branch() {
 
 #[test]
 fn test_background_foreground_fetch() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
@@ -1439,8 +1393,6 @@ fn test_background_foreground_fetch() {
 /// Alice is offline while Bob pushes some changes to the repo. When Alice reconnects,
 /// she is made aware of the changes via the `subscribe` message, and fetches from the seed.
 fn test_catchup_on_refs_announcements() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
     let bob = Node::init(tmp.path(), config::relay("bob"));
@@ -1477,8 +1429,6 @@ fn test_catchup_on_refs_announcements() {
 
 #[test]
 fn test_multiple_offline_inits() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
@@ -1505,8 +1455,6 @@ fn test_multiple_offline_inits() {
 
 #[test]
 fn test_channel_reader_limit() {
-    logger::init(log::Level::Debug);
-
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"));
     let limits = radicle::node::config::Limits {

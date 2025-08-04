@@ -10,7 +10,7 @@ use std::io::Write;
 
 use chrono::prelude::*;
 use colored::*;
-use log::{Level, Log, Metadata, Record, SetLoggerError};
+use log::{Level, Log, Metadata, Record};
 
 /// A logger that logs to `stdout`.
 pub struct Logger {
@@ -88,19 +88,6 @@ impl Log for StderrLogger {
     }
 
     fn flush(&self) {}
-}
-
-/// Initialize a new logger.
-pub fn init(level: Level) -> Result<(), SetLoggerError> {
-    set(Logger { level }, level)
-}
-
-/// Set a logger.
-pub fn set(logger: impl Log + 'static, level: Level) -> Result<(), SetLoggerError> {
-    log::set_boxed_logger(Box::new(logger))?;
-    log::set_max_level(level.to_level_filter());
-
-    Ok(())
 }
 
 /// Get the level set by the environment variable `RUST_LOG`, if

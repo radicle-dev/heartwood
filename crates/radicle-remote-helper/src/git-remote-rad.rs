@@ -14,7 +14,10 @@ fn main() {
     let mut args = env::args();
 
     if let Some(lvl) = radicle::logger::env_level() {
-        radicle::logger::set(radicle::logger::StderrLogger::new(lvl), lvl).ok();
+        let logger = radicle::logger::StderrLogger::new(lvl);
+        log::set_boxed_logger(Box::new(logger))
+            .expect("no other logger should have been set already");
+        log::set_max_level(lvl.to_level_filter());
     }
     if args.nth(1).as_deref() == Some("--version") {
         if let Err(e) = VERSION.write(std::io::stdout()) {

@@ -14,6 +14,7 @@ name = "git-remote-rad"
 path = "src/git-remote-rad.rs"
 
 [dependencies]
+log = { workspace = true }
 radicle = { workspace = true }
 radicle-cli = { workspace = true }
 radicle-crypto = { workspace = true }
