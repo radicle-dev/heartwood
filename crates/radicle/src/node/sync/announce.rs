@@ -993,6 +993,50 @@ mod test {
     }
 
     #[test]
+    fn announcer_synced_with_unknown_node() {
+        let local = arbitrary::gen::<NodeId>(0);
+        let seeds = arbitrary::set::<NodeId>(5..=5);
+
+        let unsynced = seeds.iter().take(3).copied().collect::<BTreeSet<_>>();
+        let unknown_node = arbitrary::gen::<NodeId>(100); // Node not in any set
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(1),
+            BTreeSet::new(),
+            BTreeSet::new(),
+            unsynced.clone(),
+        );
+
+        let mut announcer = Announcer::new(config).unwrap();
+
+        // Try to sync with an unknown node
+        let duration = time::Duration::from_secs(1);
+        let mut target_reached = false;
+        match announcer.synced_with(unknown_node, duration) {
+            ControlFlow::Continue(_) => {}
+            ControlFlow::Break(success) => {
+                target_reached = true;
+                assert_eq!(
+                    success.outcome(),
+                    SuccessfulOutcome::MinReplicationFactor {
+                        preferred: 0,
+                        synced: 1
+                    },
+                    "Should be able to reach target with unknown node"
+                );
+            }
+        }
+
+        assert!(target_reached);
+        // Verify the unknown node is now in the synced map
+        assert!(
+            announcer.synced.contains_key(&unknown_node),
+            "Unknown node should be added to synced map"
+        );
+    }
+
+    #[test]
     fn cannot_construct_announcer() {
         let local = arbitrary::gen::<NodeId>(0);
         let seeds = arbitrary::set::<NodeId>(10..=10);
