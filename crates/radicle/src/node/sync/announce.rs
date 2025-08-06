@@ -182,14 +182,21 @@ impl Announcer {
     }
 
     fn is_target_reached(&self) -> Option<SuccessfulOutcome> {
+        // It should not be possible to construct a target that has no preferred
+        // seeds and set the target to 0
+        debug_assert!(self.target.has_preferred_seeds() || self.target.has_replication_factor());
+
         let SuccessCounts { preferred, synced } = self.success_counts();
-        if !self.target.preferred_seeds.is_empty() && preferred >= self.target.preferred_seeds.len()
-        {
+        if self.target.has_preferred_seeds() && preferred >= self.target.preferred_seeds.len() {
             Some(SuccessfulOutcome::PreferredNodes {
                 preferred: self.target.preferred_seeds.len(),
                 total_nodes_synced: synced,
             })
         } else {
+            // The only target to hit is preferred seeds
+            if !self.target.has_replication_factor() {
+                return None;
+            }
             let replicas = self.target.replicas();
             let min = replicas.lower_bound();
             match replicas.upper_bound() {
@@ -525,6 +532,16 @@ impl Target {
     /// Get the number of replicas that is trying to be reached.
     pub fn replicas(&self) -> &ReplicationFactor {
         &self.replicas
+    }
+
+    /// Check if the target has preferred seeds
+    pub fn has_preferred_seeds(&self) -> bool {
+        !self.preferred_seeds.is_empty()
+    }
+
+    /// Check that lower bound of the replication is greater than `0`
+    pub fn has_replication_factor(&self) -> bool {
+        self.replicas.lower_bound() != 0
     }
 }
 
@@ -910,6 +927,48 @@ mod test {
             }
             unexpected => panic!("Expected AnnouncerResult::TimedOut, found: {unexpected:#?}"),
         }
+    }
+
+    #[test]
+    fn announcer_with_replication_factor_zero_and_preferred_seeds() {
+        let local = arbitrary::gen::<NodeId>(0);
+        let seeds = arbitrary::set::<NodeId>(5..=5);
+
+        let preferred_seeds = seeds.iter().take(2).copied().collect::<BTreeSet<_>>();
+        let unsynced = seeds.iter().skip(2).copied().collect::<BTreeSet<_>>();
+
+        // Zero replication factor but with preferred seeds should work
+        let config = AnnouncerConfig::public(
+            local,
+            // Zero replication factor
+            ReplicationFactor::must_reach(0),
+            preferred_seeds.clone(),
+            BTreeSet::new(),
+            unsynced,
+        );
+
+        let mut announcer = Announcer::new(config).unwrap();
+
+        // Should succeed immediately when we sync with all preferred seeds
+        for &node in &preferred_seeds {
+            let duration = time::Duration::from_secs(1);
+            match announcer.synced_with(node, duration) {
+                ControlFlow::Continue(_) => {} // Continue until all preferred are synced
+                ControlFlow::Break(success) => {
+                    assert_eq!(
+                        success.outcome(),
+                        SuccessfulOutcome::PreferredNodes {
+                            preferred: preferred_seeds.len(),
+                            total_nodes_synced: preferred_seeds.len()
+                        },
+                        "Should succeed with preferred seeds even with zero replication factor"
+                    );
+                    return;
+                }
+            }
+        }
+
+        panic!("Should have succeeded with preferred seeds");
     }
 
     #[test]
