@@ -183,7 +183,6 @@ impl Announcer {
 
     fn is_target_reached(&self) -> Option<SuccessfulOutcome> {
         let SuccessCounts { preferred, synced } = self.success_counts();
-
         if !self.target.preferred_seeds.is_empty() && preferred >= self.target.preferred_seeds.len()
         {
             Some(SuccessfulOutcome::PreferredNodes {
@@ -604,6 +603,32 @@ mod test {
                 total_nodes_synced: preferred_seeds.len()
             },
             "Should succeed with PreferredNodes outcome"
+        );
+    }
+
+    #[test]
+    fn preferred_seeds_already_synced() {
+        let local = arbitrary::gen::<NodeId>(0);
+        let seeds = arbitrary::set::<NodeId>(6..=6);
+
+        let preferred_seeds = seeds.iter().take(2).copied().collect::<BTreeSet<_>>();
+        let already_synced = preferred_seeds.clone(); // Preferred seeds already synced
+        let regular_unsynced = seeds.iter().skip(2).copied().collect::<BTreeSet<_>>();
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(4),
+            preferred_seeds.clone(),
+            already_synced.clone(),
+            regular_unsynced.clone(),
+        );
+
+        assert_eq!(
+            Announcer::new(config).err(),
+            Some(AnnouncerError::AlreadySynced(AlreadySynced {
+                preferred: 2,
+                synced: 2
+            }))
         );
     }
 
