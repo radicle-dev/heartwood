@@ -74,12 +74,6 @@ pub const NODE_DB_FILE: &str = "node.db";
 pub const POLICIES_DB_FILE: &str = "policies.db";
 /// Filename of notifications database under the node directory.
 pub const NOTIFICATIONS_DB_FILE: &str = "notifications.db";
-/// Filename of last node announcement, when running in debug mode.
-#[cfg(debug_assertions)]
-pub const NODE_ANNOUNCEMENT_FILE: &str = "announcement.wire.debug";
-/// Filename of last node announcement.
-#[cfg(not(debug_assertions))]
-pub const NODE_ANNOUNCEMENT_FILE: &str = "announcement.wire";
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 pub enum PingState {

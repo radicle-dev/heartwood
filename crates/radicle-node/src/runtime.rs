@@ -30,10 +30,9 @@ use radicle::{cob, git, storage, Storage};
 
 use crate::control;
 use crate::node::{routing, NodeId};
-use crate::service::message::NodeAnnouncement;
-use crate::service::{gossip, INITIAL_SUBSCRIBE_BACKLOG_DELTA};
+use crate::service::gossip;
 use crate::wire;
-use crate::wire::{Decode, Wire};
+use crate::wire::Wire;
 use crate::worker;
 use crate::{service, LocalTime};
 
@@ -135,7 +134,6 @@ impl Runtime {
     {
         let id = *signer.public_key();
         let alias = config.alias.clone();
-        let node_dir = home.node();
         let network = config.network;
         let rng = fastrand::Rng::new();
         let clock = LocalTime::now();
@@ -166,41 +164,9 @@ impl Runtime {
         log::info!(target: "node", "Default seeding policy set to '{}'", &policy);
         log::info!(target: "node", "Initializing service ({network:?})..");
 
-        let announcement = if let Some(ann) = fs::read(node_dir.join(node::NODE_ANNOUNCEMENT_FILE))
-            .ok()
-            .and_then(|ann| NodeAnnouncement::decode(&mut ann.as_slice()).ok())
-            .and_then(|ann| {
-                // If our announcement was made some time ago, the timestamp on it will be old,
-                // and it might not get gossiped to new nodes since it will be purged from caches.
-                // Therefore, we make sure it's never too old.
-                if clock - ann.timestamp.to_local_time() <= INITIAL_SUBSCRIBE_BACKLOG_DELTA {
-                    Some(ann)
-                } else {
-                    None
-                }
-            })
-            .and_then(|ann| {
-                if config.features() == ann.features
-                    && config.alias == ann.alias
-                    && config.external_addresses == ann.addresses.as_ref()
-                {
-                    Some(ann)
-                } else {
-                    None
-                }
-            }) {
-            log::info!(
-                target: "node",
-                "Loaded existing node announcement from file (timestamp={}, work={})",
-                ann.timestamp,
-                ann.work(),
-            );
-            ann
-        } else {
-            service::gossip::node(&config, timestamp)
-                .solve(Default::default())
-                .expect("Runtime::init: unable to solve proof-of-work puzzle")
-        };
+        let announcement = service::gossip::node(&config, timestamp)
+            .solve(Default::default())
+            .expect("Runtime::init: unable to solve proof-of-work puzzle");
 
         log::info!(target: "node", "Opening node database..");
         let db = home
