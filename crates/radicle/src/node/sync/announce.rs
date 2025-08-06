@@ -579,7 +579,8 @@ mod test {
 
         let config = AnnouncerConfig::public(
             local,
-            ReplicationFactor::must_reach(5), // High target that we won't reach with preferred alone
+            // High target that we won't reach with preferred alone
+            ReplicationFactor::must_reach(5),
             preferred_seeds.clone(),
             BTreeSet::new(),
             unsynced,
@@ -927,6 +928,26 @@ mod test {
             }
             unexpected => panic!("Expected AnnouncerResult::TimedOut, found: {unexpected:#?}"),
         }
+    }
+
+    #[test]
+    fn announcer_adapts_target_to_reach() {
+        let local = arbitrary::gen::<NodeId>(0);
+        // Only 3 nodes available
+        let unsynced = arbitrary::set::<NodeId>(3..=3)
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(5), // Want 5 but only have 3
+            BTreeSet::new(),
+            BTreeSet::new(),
+            unsynced.clone(),
+        );
+
+        let announcer = Announcer::new(config).unwrap();
+        assert_eq!(announcer.target().replicas().lower_bound(), 3);
     }
 
     #[test]
