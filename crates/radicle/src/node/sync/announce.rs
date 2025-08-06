@@ -1105,6 +1105,52 @@ mod test {
     }
 
     #[test]
+    fn timed_out_after_reaching_success() {
+        let local = arbitrary::gen::<NodeId>(0);
+        let unsynced = arbitrary::set::<NodeId>(3..=3)
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(2),
+            BTreeSet::new(),
+            BTreeSet::new(),
+            unsynced.clone(),
+        );
+
+        let mut announcer = Announcer::new(config).unwrap();
+
+        // Sync with enough nodes to reach the target
+        let mut synced_nodes = BTreeMap::new();
+        for node in unsynced {
+            let duration = time::Duration::from_secs(1);
+            synced_nodes.insert(node, SyncStatus::Synced { duration });
+
+            match announcer.synced_with(node, duration) {
+                ControlFlow::Continue(_) => continue,
+                ControlFlow::Break(_) => break, // Reached target
+            }
+        }
+
+        // Now call timed_out even though we reached success
+        match announcer.timed_out() {
+            AnnouncerResult::Success(success) => {
+                // Should return Success since target was reached
+                assert_eq!(
+                    success.outcome(),
+                    SuccessfulOutcome::MinReplicationFactor {
+                        preferred: 0,
+                        synced: 2
+                    },
+                    "Should return success outcome even when called via timed_out"
+                );
+            }
+            other => panic!("Expected Success via timed_out, got: {other:?}"),
+        }
+    }
+
+    #[test]
     fn cannot_construct_announcer() {
         let local = arbitrary::gen::<NodeId>(0);
         let seeds = arbitrary::set::<NodeId>(10..=10);
