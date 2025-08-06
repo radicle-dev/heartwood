@@ -1037,6 +1037,74 @@ mod test {
     }
 
     #[test]
+    fn synced_with_same_node_multiple_times() {
+        let local = arbitrary::gen::<NodeId>(0);
+        let unsynced = arbitrary::set::<NodeId>(3..=3)
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(2),
+            BTreeSet::new(),
+            BTreeSet::new(),
+            unsynced.clone(),
+        );
+
+        let mut announcer = Announcer::new(config).unwrap();
+        let target_node = *unsynced.iter().next().unwrap();
+
+        // First sync with the node
+        let duration1 = time::Duration::from_secs(1);
+        match announcer.synced_with(target_node, duration1) {
+            ControlFlow::Continue(progress) => {
+                assert_eq!(progress.synced(), 1, "First sync should count");
+                assert_eq!(
+                    progress.unsynced(),
+                    unsynced.len() - 1,
+                    "Should decrease unsynced"
+                );
+            }
+            ControlFlow::Break(_) => panic!("Should not reach target yet"),
+        }
+
+        // Sync with the SAME node again with different duration
+        let duration2 = time::Duration::from_secs(5);
+        let progress_before_duplicate = announcer.progress();
+        match announcer.synced_with(target_node, duration2) {
+            ControlFlow::Continue(progress) => {
+                // Progress should be UNCHANGED since we already synced with this node
+                assert_eq!(
+                    progress.synced(),
+                    progress_before_duplicate.synced(),
+                    "Duplicate sync should not change synced count"
+                );
+                assert_eq!(
+                    progress.unsynced(),
+                    progress_before_duplicate.unsynced(),
+                    "Duplicate sync should not change unsynced count"
+                );
+            }
+            ControlFlow::Break(_) => panic!("Should not reach target with duplicate sync"),
+        }
+
+        // Check that the duration was updated to the latest one
+        assert_eq!(
+            announcer.synced[&target_node],
+            SyncStatus::Synced {
+                duration: duration2
+            },
+            "Duplicate sync should update the duration"
+        );
+
+        // Verify the node is no longer in to_sync (should have been removed on first sync)
+        assert!(
+            !announcer.to_sync.contains(&target_node),
+            "Node should not be in to_sync after first sync"
+        );
+    }
+
+    #[test]
     fn cannot_construct_announcer() {
         let local = arbitrary::gen::<NodeId>(0);
         let seeds = arbitrary::set::<NodeId>(10..=10);
