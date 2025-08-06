@@ -553,6 +553,61 @@ mod test {
     use super::*;
 
     #[test]
+    fn all_synced_nodes_are_preferred_seeds() {
+        let local = arbitrary::gen::<NodeId>(0);
+        let seeds = arbitrary::set::<NodeId>(5..=5);
+
+        // All preferred seeds, no regular seeds in unsynced
+        let preferred_seeds = seeds.iter().take(3).copied().collect::<BTreeSet<_>>();
+        let unsynced = preferred_seeds.clone(); // Only preferred seeds to sync with
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(5), // High target that we won't reach with preferred alone
+            preferred_seeds.clone(),
+            BTreeSet::new(),
+            unsynced,
+        );
+
+        let mut announcer = Announcer::new(config).unwrap();
+
+        // Sync with all preferred seeds
+        let mut synced_count = 0;
+        let mut result = None;
+        for &node in &preferred_seeds {
+            let duration = time::Duration::from_secs(1);
+            synced_count += 1;
+
+            match announcer.synced_with(node, duration) {
+                ControlFlow::Continue(progress) => {
+                    assert_eq!(
+                        progress.preferred(),
+                        synced_count,
+                        "Preferred count should increment for each preferred seed"
+                    );
+                    assert_eq!(
+                        progress.synced(),
+                        synced_count,
+                        "Total synced should equal preferred since all are preferred"
+                    );
+                }
+                ControlFlow::Break(success) => {
+                    result = Some(success);
+                    break;
+                }
+            }
+        }
+        assert_eq!(
+            result.unwrap().outcome(),
+            SuccessfulOutcome::PreferredNodes {
+                preferred: preferred_seeds.len(),
+                total_nodes_synced: preferred_seeds.len()
+            },
+            "Should succeed with PreferredNodes outcome"
+        );
+    }
+
+    #[test]
     fn announcer_reached_min_replication_target() {
         let local = arbitrary::gen::<NodeId>(0);
         let seeds = arbitrary::set::<NodeId>(10..=10);
