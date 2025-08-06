@@ -822,13 +822,18 @@ fn display_success<'a>(
 }
 
 fn print_announcer_result(result: &sync::AnnouncerResult, verbose: bool) {
+    use sync::announce::SuccessfulOutcome::*;
     match result {
         sync::AnnouncerResult::Success(success) if verbose => {
             // N.b. Printing how many seeds were synced with is printed
             // elsewhere
             match success.outcome() {
-                sync::announce::SuccessfulOutcome::MinReplicationFactor { preferred, synced }
-                | sync::announce::SuccessfulOutcome::MaxReplicationFactor { preferred, synced } => {
+                MinReplicationFactor { preferred, synced }
+                | MaxReplicationFactor { preferred, synced }
+                | PreferredNodes {
+                    preferred,
+                    total_nodes_synced: synced,
+                } => {
                     if preferred == 0 {
                         term::success!("Synced {} seed(s)", term::format::positive(synced));
                     } else {
