@@ -399,7 +399,7 @@ impl Success {
 }
 
 /// Error in constructing the [`Announcer`].
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum AnnouncerError {
     /// Both sets of already synchronized and un-synchronized nodes were empty
     /// of nodes were empty.
@@ -433,7 +433,7 @@ impl From<AlreadySynced> for AnnouncerError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct AlreadySynced {
     /// The number of preferred nodes that are synchronized.
     preferred: usize,
@@ -491,7 +491,7 @@ impl Progress {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
 #[non_exhaustive]
 #[error("a minimum number of replicas or set of preferred seeds must be provided")]
 pub struct TargetError;
@@ -548,7 +548,7 @@ pub enum SuccessfulOutcome {
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod test {
-    use crate::test::arbitrary;
+    use crate::{assert_matches, test::arbitrary};
 
     use super::*;
 
@@ -975,5 +975,247 @@ mod test {
             actual_total, expected_total,
             "synced + unsynced should equal the total nodes we started with"
         );
+    }
+
+    #[test]
+    fn local_node_in_preferred_seeds() {
+        let local = arbitrary::gen::<NodeId>(0);
+        let other_seeds = arbitrary::set::<NodeId>(5..=5);
+
+        // Include local node in preferred seeds
+        let mut preferred_seeds = other_seeds.iter().take(2).copied().collect::<BTreeSet<_>>();
+        preferred_seeds.insert(local);
+
+        let unsynced = other_seeds.iter().skip(2).copied().collect::<BTreeSet<_>>();
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(3),
+            preferred_seeds.clone(),
+            BTreeSet::new(),
+            unsynced.clone(),
+        );
+
+        let announcer = Announcer::new(config).unwrap();
+
+        // Verify local node was removed from target's preferred seeds
+        assert!(
+            !announcer.target().preferred_seeds().contains(&local),
+            "Local node should be removed from preferred seeds in target"
+        );
+
+        // Verify local node is not in to_sync
+        assert!(
+            !announcer.to_sync().contains(&local),
+            "Local node should not be in to_sync set"
+        );
+
+        // The preferred seeds in the target should be one less than what we passed in
+        assert_eq!(
+            announcer.target().preferred_seeds().len(),
+            preferred_seeds.len() - 1,
+            "Target should have local node removed from preferred seeds"
+        );
+    }
+
+    #[test]
+    fn local_node_in_synced_set() {
+        let local = arbitrary::gen::<NodeId>(0);
+        let other_seeds = arbitrary::set::<NodeId>(5..=5);
+
+        // Include local node in synced set
+        let mut synced = other_seeds.iter().take(2).copied().collect::<BTreeSet<_>>();
+        synced.insert(local);
+
+        let unsynced = other_seeds.iter().skip(2).copied().collect::<BTreeSet<_>>();
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(4),
+            BTreeSet::new(),
+            synced.clone(),
+            unsynced.clone(),
+        );
+
+        let announcer = Announcer::new(config).unwrap();
+
+        // Verify local node is not counted in synced nodes
+        assert!(
+            !announcer.synced.contains_key(&local),
+            "Local node should not be in internal synced map"
+        );
+
+        // Progress should reflect only the non-local synced nodes
+        assert_eq!(
+            announcer.progress().synced(),
+            synced.len() - 1,
+            "Progress should not count local node as synced"
+        );
+    }
+
+    #[test]
+    fn local_node_in_unsynced_set() {
+        let local = arbitrary::gen::<NodeId>(0);
+        let other_seeds = arbitrary::set::<NodeId>(5..=5);
+
+        let synced = other_seeds.iter().take(2).copied().collect::<BTreeSet<_>>();
+
+        // Include local node in unsynced set
+        let mut unsynced = other_seeds.iter().skip(2).copied().collect::<BTreeSet<_>>();
+        unsynced.insert(local);
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(4),
+            BTreeSet::new(),
+            synced.clone(),
+            unsynced.clone(),
+        );
+
+        let announcer = Announcer::new(config).unwrap();
+
+        // Verify local node is not in to_sync
+        assert!(
+            !announcer.to_sync().contains(&local),
+            "Local node should not be in to_sync set"
+        );
+
+        // The internal to_sync should not contain local node
+        assert!(
+            !announcer.to_sync.contains(&local),
+            "Internal to_sync should not contain local node"
+        );
+
+        // Progress unsynced count should not include local node
+        assert_eq!(
+            announcer.progress().unsynced(),
+            unsynced.len() - 1,
+            "Progress unsynced should not count local node"
+        );
+    }
+
+    #[test]
+    fn local_node_in_multiple_sets() {
+        let local = arbitrary::gen::<NodeId>(0);
+        let other_seeds = arbitrary::set::<NodeId>(5..=5);
+
+        // Include local node in ALL sets
+        let mut preferred_seeds = other_seeds.iter().take(2).copied().collect::<BTreeSet<_>>();
+        preferred_seeds.insert(local);
+
+        let mut synced = other_seeds
+            .iter()
+            .skip(2)
+            .take(1)
+            .copied()
+            .collect::<BTreeSet<_>>();
+        synced.insert(local);
+
+        let mut unsynced = other_seeds.iter().skip(3).copied().collect::<BTreeSet<_>>();
+        unsynced.insert(local);
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(3),
+            preferred_seeds.clone(),
+            synced.clone(),
+            unsynced.clone(),
+        );
+
+        let announcer = Announcer::new(config).unwrap();
+
+        // Verify local node is completely absent from all internal structures
+        assert!(
+            !announcer.target().preferred_seeds().contains(&local),
+            "Local node should be removed from preferred seeds"
+        );
+        assert!(
+            !announcer.synced.contains_key(&local),
+            "Local node should not be in synced map"
+        );
+        assert!(
+            !announcer.to_sync().contains(&local),
+            "Local node should not be in to_sync"
+        );
+        assert!(
+            !announcer.to_sync.contains(&local),
+            "Local node should not be in internal to_sync"
+        );
+
+        // Verify counts are correct (excluding local node from all)
+        assert_eq!(
+            announcer.target().preferred_seeds().len(),
+            preferred_seeds.len() - 1
+        );
+        assert_eq!(announcer.progress().synced(), synced.len() - 1);
+        // The unsynced nodes includes the preferred seeds, since they are not
+        // in the synced set, and `- 1` from each for the local node
+        assert_eq!(
+            announcer.progress().unsynced(),
+            (unsynced.len() - 1) + (preferred_seeds.len() - 1)
+        );
+    }
+
+    #[test]
+    fn synced_with_local_node_is_ignored() {
+        let local = arbitrary::gen::<NodeId>(0);
+        let unsynced = arbitrary::set::<NodeId>(3..=3).into_iter().collect();
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(2),
+            BTreeSet::new(),
+            BTreeSet::new(),
+            unsynced,
+        );
+
+        let mut announcer = Announcer::new(config).unwrap();
+        let initial_progress = announcer.progress();
+
+        // Try to sync with the local node - this should be ignored
+        let duration = time::Duration::from_secs(1);
+        match announcer.synced_with(local, duration) {
+            ControlFlow::Continue(progress) => {
+                // Progress should be unchanged
+                assert_eq!(
+                    progress.synced(),
+                    initial_progress.synced(),
+                    "Syncing with local node should not change synced count"
+                );
+                assert_eq!(
+                    progress.unsynced(),
+                    initial_progress.unsynced(),
+                    "Syncing with local node should not change unsynced count"
+                );
+            }
+            ControlFlow::Break(_) => panic!("Should not reach target by syncing with local node"),
+        }
+
+        // Verify local node is still not in synced map
+        assert!(
+            !announcer.synced.contains_key(&local),
+            "Local node should not be added to synced map"
+        );
+    }
+
+    #[test]
+    fn local_node_only_in_all_sets_results_in_no_seeds_error() {
+        let local = arbitrary::gen::<NodeId>(0);
+
+        // Create sets that contain ONLY the local node
+        let preferred_seeds = [local].iter().copied().collect::<BTreeSet<_>>();
+        let synced = [local].iter().copied().collect::<BTreeSet<_>>();
+        let unsynced = [local].iter().copied().collect::<BTreeSet<_>>();
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(1),
+            preferred_seeds,
+            synced,
+            unsynced,
+        );
+
+        // After removing local node from all sets, we should get NoSeeds error
+        assert_matches!(Announcer::new(config), Err(AnnouncerError::NoSeeds));
     }
 }
