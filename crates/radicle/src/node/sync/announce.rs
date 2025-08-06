@@ -38,11 +38,28 @@ impl Announcer {
         config.synced.remove(&config.local_node);
         config.unsynced.remove(&config.local_node);
 
-        if config.synced.is_empty() && config.unsynced.is_empty() {
+        // N.b extend the unsynced set with any preferred seeds that are not yet
+        // synced
+        let unsynced_preferred = config
+            .preferred_seeds
+            .difference(&config.synced)
+            .copied()
+            .collect::<BTreeSet<_>>();
+        config.unsynced.extend(unsynced_preferred);
+
+        // Ensure that the unsynced set does not contain any of the synced set –
+        // we trust that the synced nodes are already synced with
+        let to_sync = config
+            .unsynced
+            .difference(&config.synced)
+            .copied()
+            .collect::<BTreeSet<_>>();
+
+        if config.synced.is_empty() && to_sync.is_empty() {
             return Err(AnnouncerError::NoSeeds);
         }
 
-        if config.unsynced.is_empty() {
+        if to_sync.is_empty() {
             let preferred = config.synced.intersection(&config.preferred_seeds).count();
             return Err(AlreadySynced {
                 preferred,
@@ -51,13 +68,7 @@ impl Announcer {
             .into());
         }
 
-        // N.b extend the unsynced set with any preferred seeds that are not yet
-        // synced
-        config
-            .unsynced
-            .extend(config.preferred_seeds.difference(&config.synced).copied());
-
-        let replicas = config.replicas.min(config.unsynced.len());
+        let replicas = config.replicas.min(to_sync.len());
         let announcer = Self {
             local_node: config.local_node,
             target: Target::new(config.preferred_seeds, replicas)
@@ -67,7 +78,7 @@ impl Announcer {
                 .into_iter()
                 .map(|nid| (nid, SyncStatus::AlreadySynced))
                 .collect(),
-            to_sync: config.unsynced,
+            to_sync,
         };
         match announcer.is_target_reached() {
             None => Ok(announcer),
@@ -1153,6 +1164,68 @@ mod test {
             }
             other => panic!("Expected Success via timed_out, got: {other:?}"),
         }
+    }
+
+    #[test]
+    fn construct_only_preferred_seeds_provided() {
+        // Test: preferred_seeds non-empty, synced and unsynced empty
+        // Expected: preferred seeds should be moved to to_sync, constructor succeeds
+        let local = arbitrary::gen::<NodeId>(0);
+        let preferred_seeds = arbitrary::set::<NodeId>(2..=2)
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(1),
+            preferred_seeds.clone(),
+            BTreeSet::new(),
+            BTreeSet::new(),
+        );
+
+        let announcer = Announcer::new(config).unwrap();
+
+        // Constructor should move unsynced preferred seeds to to_sync
+        assert_eq!(announcer.to_sync, preferred_seeds);
+        assert_eq!(announcer.target().preferred_seeds(), &preferred_seeds);
+        assert!(announcer.synced.is_empty());
+    }
+
+    #[test]
+    fn construct_node_appears_in_multiple_input_sets() {
+        let local = arbitrary::gen::<NodeId>(0);
+        let alice = arbitrary::gen::<NodeId>(1);
+        let bob = arbitrary::gen::<NodeId>(2);
+        let eve = arbitrary::gen::<NodeId>(3);
+
+        // alice will appear in synced and unsynced
+        let synced = [alice].iter().copied().collect::<BTreeSet<_>>();
+        let unsynced = [alice, bob, eve].iter().copied().collect::<BTreeSet<_>>();
+
+        let config = AnnouncerConfig::public(
+            local,
+            ReplicationFactor::must_reach(2),
+            BTreeSet::new(),
+            synced,
+            unsynced,
+        );
+
+        let announcer = Announcer::new(config).unwrap();
+
+        // synced takes precedence over to_sync when constructing
+        assert!(
+            announcer.synced.contains_key(&alice),
+            "alice should be synced"
+        );
+        assert!(
+            !announcer.to_sync.contains(&alice),
+            "alice should not appear in to_sync"
+        );
+        // bob and eve should appear in to_sync
+        assert!(
+            announcer.to_sync.contains(&bob) && announcer.to_sync.contains(&eve),
+            "Other node should be in to_sync"
+        );
     }
 
     #[test]
