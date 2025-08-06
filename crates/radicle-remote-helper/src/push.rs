@@ -361,9 +361,9 @@ pub fn run(
                                 .ok_or(Error::UnknownObjectType { oid: *src })?;
 
                             let canonical = canonical::Canonical::new(me, object, canonical)?;
-                            match canonical.quorum(&working) {
+                            match canonical.quorum() {
                                 Ok(quorum) => set_canonical_refs.push(quorum),
-                                Err(e) => canonical::io::handle_error(e, &dst, hints)?,
+                                Err(e) => canonical::io::handle_error(e)?,
                             }
                         }
                         Ok(explorer)

@@ -19,30 +19,6 @@ pub enum CanonicalUnrecoverable {
 }
 
 #[derive(Debug, Error)]
-pub enum Canonical {
-    #[error(transparent)]
-    GraphDescendant(GraphDescendant),
-    #[error(transparent)]
-    HeadsDiverge(HeadsDiverge),
-    #[error(transparent)]
-    Quorum(#[from] canonical::error::QuorumError),
-}
-
-impl Canonical {
-    pub fn graph_descendant(head: git::Oid, canonical: git::Oid, source: git::raw::Error) -> Self {
-        Self::GraphDescendant(GraphDescendant {
-            head,
-            canonical,
-            source,
-        })
-    }
-
-    pub fn heads_diverge(head: git::Oid, canonical: git::Oid) -> Self {
-        Self::HeadsDiverge(HeadsDiverge { head, canonical })
-    }
-}
-
-#[derive(Debug, Error)]
 #[error("failed to check if {head} is an ancestor of {canonical} due to: {source}")]
 pub struct GraphDescendant {
     head: git::Oid,
