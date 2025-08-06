@@ -135,6 +135,11 @@ impl Announcer {
     /// If there are no more nodes, then [`NoNodes`] is returned in the
     /// [`ControlFlow::Break`], otherwise the [`Announcer`] is returned as-is in
     /// the [`ControlFlow::Continue`].
+    // TODO(finto): I'm not sure this is needed with the change to the target
+    // logic. Since we can reach the replication factor OR the preferred seeds,
+    // AND the replication factor is always capped to the maximum number of
+    // seeds to sync with, I don't think we can ever reach a case where
+    // `can_continue` hits the `Break`.
     pub fn can_continue(self) -> ControlFlow<NoNodes, Self> {
         if self.to_sync.is_empty() {
             ControlFlow::Break(NoNodes {
