@@ -3098,6 +3098,7 @@ dependencies = [
  "qcheck",
  "qcheck-macros",
  "radicle",
+ "radicle-core",
  "radicle-crypto",
  "radicle-fetch",
  "radicle-localtime",

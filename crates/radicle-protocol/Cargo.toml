@@ -21,6 +21,7 @@ log = { workspace = true, features = ["std"] }
 nonempty = { workspace = true, features = ["serialize"] }
 qcheck = { workspace = true, optional = true }
 radicle = { workspace = true, features = ["logger"] }
+radicle-core = { workspace = true }
 radicle-fetch = { workspace = true }
 radicle-localtime = { workspace = true }
 sqlite = { workspace = true, features = ["bundled"] }
