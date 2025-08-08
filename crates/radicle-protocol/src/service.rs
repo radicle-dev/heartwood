@@ -38,6 +38,9 @@ use radicle::storage::refs::SIGREFS_BRANCH;
 use radicle::storage::RepositoryError;
 use radicle_fetch::policy::SeedingPolicy;
 
+use crate::fetcher;
+use crate::fetcher::service::FetcherService;
+use crate::fetcher::FetcherState;
 use crate::service::gossip::Store as _;
 use crate::service::message::{
     Announcement, AnnouncementMessage, Info, NodeAnnouncement, Ping, RefsAnnouncement, RefsStatus,
@@ -221,7 +224,9 @@ pub enum ConnectError {
     SelfConnection,
     #[error("outbound connection limit reached when attempting {nid} ({addr})")]
     LimitReached { nid: NodeId, addr: Address },
-    #[error("attempted connection to {nid}, via {addr} but addresses of this kind are not supported")]
+    #[error(
+        "attempted connection to {nid}, via {addr} but addresses of this kind are not supported"
+    )]
     UnsupportedAddress { nid: NodeId, addr: Address },
 }
 
@@ -301,25 +306,6 @@ pub enum CommandError {
     Policy(#[from] policy::Error),
 }
 
-/// Error returned by [`Service::try_fetch`].
-#[derive(thiserror::Error, Debug)]
-enum TryFetchError<'a> {
-    #[error("ongoing fetch for repository exists")]
-    AlreadyFetching(&'a mut FetchState),
-    #[error("peer is not connected; cannot initiate fetch")]
-    SessionNotConnected,
-    #[error("peer fetch capacity reached; cannot initiate fetch")]
-    SessionCapacityReached,
-    #[error(transparent)]
-    Namespaces(Box<NamespacesError>),
-}
-
-impl From<NamespacesError> for TryFetchError<'_> {
-    fn from(e: NamespacesError) -> Self {
-        Self::Namespaces(Box::new(e))
-    }
-}
-
 /// Fetch state for an ongoing fetch.
 #[derive(Debug)]
 pub struct FetchState {
@@ -329,15 +315,6 @@ pub struct FetchState {
     pub refs_at: Vec<RefsAt>,
     /// Channels waiting for fetch results.
     pub subscribers: Vec<chan::Sender<FetchResult>>,
-}
-
-impl FetchState {
-    /// Add a subscriber to this fetch.
-    fn subscribe(&mut self, c: chan::Sender<FetchResult>) {
-        if !self.subscribers.iter().any(|s| s.same_channel(&c)) {
-            self.subscribers.push(c);
-        }
-    }
 }
 
 /// Holds all node stores.
@@ -439,8 +416,7 @@ pub struct Service<D, S, G> {
     inventory: InventoryAnnouncement,
     /// Source of entropy.
     rng: Rng,
-    /// Ongoing fetches.
-    fetching: HashMap<RepoId, FetchState>,
+    fetcher: FetcherService<chan::Sender<FetchResult>>,
     /// Request/connection rate limiter.
     limiter: RateLimiter,
     /// Current seeded repositories bloom filter.
@@ -508,7 +484,15 @@ where
         let last_timestamp = node.timestamp;
         let clock = LocalTime::default(); // Updated on initialize.
         let inventory = gossip::inventory(clock.into(), []); // Updated on initialize.
-
+        let fetcher = {
+            let config = fetcher::Config::new()
+                .with_max_concurrency(
+                    std::num::NonZeroUsize::new(config.limits.fetch_concurrency.into())
+                        .expect("fetch concurrency was zero, must be at least 1"),
+                )
+                .with_max_capacity(fetcher::MaxQueueSize::default());
+            FetcherService::new(config)
+        };
         Self {
             config,
             storage,
@@ -522,7 +506,7 @@ where
             outbox: Outbox::default(),
             limiter,
             sessions,
-            fetching: HashMap::new(),
+            fetcher,
             filter: Filter::empty(),
             relayed_by: HashMap::default(),
             last_idle: LocalTime::default(),
@@ -621,6 +605,10 @@ where
     /// Subscriber to inner `Emitter` events.
     pub fn events(&mut self) -> Events {
         Events::from(self.emitter.subscribe())
+    }
+
+    pub fn fetcher(&self) -> &FetcherState {
+        self.fetcher.state()
     }
 
     /// Get I/O outbox.
@@ -898,7 +886,7 @@ where
                 }
             },
             Command::Fetch(rid, seed, timeout, resp) => {
-                self.fetch(rid, seed, timeout, Some(resp));
+                self.fetch(rid, seed, vec![], timeout, Some(resp));
             }
             Command::Seed(rid, scope, resp) => {
                 // Update our seeding policy.
@@ -990,7 +978,8 @@ where
                 if status.want.is_empty() {
                     debug!(target: "service", "Skipping fetch for {rid}, all refs are already in storage");
                 } else {
-                    return self._fetch(rid, from, status.want, timeout, channel);
+                    self.fetch(rid, from, status.want, timeout, channel);
+                    return true;
                 }
             }
             Err(e) => {
@@ -1001,247 +990,176 @@ where
         false
     }
 
-    /// Initiate an outgoing fetch for some repository.
     fn fetch(
         &mut self,
         rid: RepoId,
         from: NodeId,
-        timeout: time::Duration,
-        channel: Option<chan::Sender<FetchResult>>,
-    ) -> bool {
-        self._fetch(rid, from, vec![], timeout, channel)
-    }
-
-    fn _fetch(
-        &mut self,
-        rid: RepoId,
-        from: NodeId,
         refs_at: Vec<RefsAt>,
         timeout: time::Duration,
         channel: Option<chan::Sender<FetchResult>>,
-    ) -> bool {
-        match self.try_fetch(rid, &from, refs_at.clone(), timeout) {
-            Ok(fetching) => {
+    ) {
+        let session = {
+            let reason = format!("peer {from} is not connected; cannot initiate fetch");
+            let Some(session) = self.sessions.get_mut(&from) else {
                 if let Some(c) = channel {
-                    fetching.subscribe(c);
+                    c.send(FetchResult::Failed { reason }).ok();
                 }
-                return true;
-            }
-            Err(TryFetchError::AlreadyFetching(fetching)) => {
-                // If we're already fetching the same refs from the requested peer, there's nothing
-                // to do, we simply add the supplied channel to the list of subscribers so that it
-                // is notified on completion. Otherwise, we queue a fetch with the requested peer.
-                if fetching.from == from && fetching.refs_at == refs_at {
-                    debug!(target: "service", "Ignoring redundant fetch of {rid} from {from}");
-
-                    if let Some(c) = channel {
-                        fetching.subscribe(c);
-                    }
-                } else {
-                    let fetch = QueuedFetch {
-                        rid,
-                        refs_at,
-                        from,
-                        timeout,
-                        channel,
-                    };
-                    debug!(target: "service", "Queueing fetch for {rid} with {from} (already fetching)..");
-
-                    self.queue_fetch(fetch);
-                }
-            }
-            Err(TryFetchError::SessionCapacityReached) => {
-                debug!(target: "service", "Fetch capacity reached for {from}, queueing {rid}..");
-                self.queue_fetch(QueuedFetch {
-                    rid,
-                    refs_at,
-                    from,
-                    timeout,
-                    channel,
-                });
-            }
-            Err(e) => {
+                return;
+            };
+            if !session.is_connected() {
                 if let Some(c) = channel {
-                    c.send(FetchResult::Failed {
-                        reason: e.to_string(),
-                    })
-                    .ok();
+                    c.send(FetchResult::Failed { reason }).ok();
                 }
+                return;
             }
-        }
-        false
-    }
-
-    fn queue_fetch(&mut self, fetch: QueuedFetch) {
-        let Some(s) = self.sessions.get_mut(&fetch.from) else {
-            log::debug!(target: "service", "Cannot queue fetch for unknown session {}", fetch.from);
-            return;
+            session
         };
-        if let Err(e) = s.queue_fetch(fetch) {
-            let fetch = e.inner();
-            log::debug!(target: "service", "Unable to queue fetch for {} with {}: {e}", &fetch.rid, &fetch.from);
-        }
-    }
 
-    // TODO: Buffer/throttle fetches.
-    fn try_fetch(
-        &mut self,
-        rid: RepoId,
-        from: &NodeId,
-        refs_at: Vec<RefsAt>,
-        timeout: time::Duration,
-    ) -> Result<&mut FetchState, TryFetchError<'_>> {
-        let from = *from;
-        let Some(session) = self.sessions.get_mut(&from) else {
-            return Err(TryFetchError::SessionNotConnected);
-        };
-        let fetching = self.fetching.entry(rid);
-
-        trace!(target: "service", "Trying to fetch {refs_at:?} for {rid}..");
-
-        let fetching = match fetching {
-            Entry::Vacant(fetching) => fetching,
-            Entry::Occupied(fetching) => {
-                // We're already fetching this repo from some peer.
-                return Err(TryFetchError::AlreadyFetching(fetching.into_mut()));
-            }
-        };
-        // Sanity check: We shouldn't be fetching from this session, since we return above if we're
-        // fetching from any session.
-        debug_assert!(!session.is_fetching(&rid));
-
-        if !session.is_connected() {
-            // This can happen if a session disconnects in the time between asking for seeds to
-            // fetch from, and initiating the fetch from one of those seeds.
-            return Err(TryFetchError::SessionNotConnected);
-        }
-        if session.is_at_capacity() {
-            // If we're already fetching multiple repos from this peer.
-            return Err(TryFetchError::SessionCapacityReached);
-        }
-
-        let fetching = fetching.insert(FetchState {
+        let cmd = fetcher::state::command::Fetch {
             from,
-            refs_at: refs_at.clone(),
-            subscribers: vec![],
-        });
-        self.outbox.fetch(
-            session,
             rid,
             refs_at,
             timeout,
-            self.config.limits.fetch_pack_receive,
-        );
+        };
+        let fetcher::service::FetchInitiated { event, rejected } = self.fetcher.fetch(cmd, channel);
 
-        Ok(fetching)
+        if let Some(c) = rejected {
+            c.send(FetchResult::Failed {
+                reason: "fetch queue at capacity".to_string(),
+            })
+            .ok();
+        }
+
+        match event {
+            fetcher::state::event::Fetch::Started {
+                rid,
+                from,
+                refs_at,
+                timeout,
+            } => {
+                debug!(target: "service", "Starting fetch for {rid} from {from}");
+                self.outbox.fetch(
+                    session,
+                    rid,
+                    refs_at,
+                    timeout,
+                    self.config.limits.fetch_pack_receive,
+                );
+            }
+            fetcher::state::event::Fetch::Queued { rid, from } => {
+                debug!(target: "service", "Queued fetch for {rid} from {from}");
+            }
+            fetcher::state::event::Fetch::AlreadyFetching { rid, from } => {
+                debug!(target: "service", "Already fetching {rid} from {from}");
+            }
+            fetcher::state::event::Fetch::QueueAtCapacity { rid, from, .. } => {
+                debug!(target: "service", "Queue at capacity for {from}, rejected {rid}");
+            }
+        }
     }
 
     pub fn fetched(
         &mut self,
         rid: RepoId,
-        remote: NodeId,
+        from: NodeId,
         result: Result<crate::worker::fetch::FetchResult, crate::worker::FetchError>,
     ) {
-        let Some(fetching) = self.fetching.remove(&rid) else {
-            debug!(target: "service", "Received unexpected fetch result for {rid}, from {remote}");
-            return;
-        };
-        debug_assert_eq!(fetching.from, remote);
+        let cmd = fetcher::state::command::Fetched { from, rid };
+        let fetcher::service::FetchCompleted { event, subscribers } = self.fetcher.fetched(cmd);
 
-        if let Some(s) = self.sessions.get_mut(&remote) {
-            // Mark this RID as fetched for this session.
-            s.fetched(rid);
-        }
-
-        // Notify all fetch subscribers of the fetch result. This is used when the user requests
-        // a fetch via the CLI, for example.
-        for sub in &fetching.subscribers {
-            debug!(target: "service", "Found existing fetch request from {remote}, sending result..");
-
-            let result = match &result {
-                Ok(success) => FetchResult::Success {
-                    updated: success.updated.clone(),
-                    namespaces: success.namespaces.clone(),
-                    clone: success.clone,
-                },
-                Err(e) => FetchResult::Failed {
-                    reason: e.to_string(),
-                },
-            };
-            if sub.send(result).is_err() {
-                debug!(target: "service", "Failed to send fetch result for {rid} from {remote}..");
-            } else {
-                debug!(target: "service", "Sent fetch result for {rid} from {remote}..");
-            }
-        }
-
-        match result {
-            Ok(crate::worker::fetch::FetchResult {
-                updated,
-                canonical,
-                namespaces,
-                clone,
-                doc,
-            }) => {
-                info!(target: "service", "Fetched {rid} from {remote} successfully");
-                // Update our routing table in case this fetch was user-initiated and doesn't
-                // come from an announcement.
-                self.seed_discovered(rid, remote, self.clock.into());
-
-                for update in &updated {
-                    if update.is_skipped() {
-                        trace!(target: "service", "Ref skipped: {update} for {rid}");
-                    } else {
-                        debug!(target: "service", "Ref updated: {update} for {rid}");
-                    }
-                }
-                self.emitter.emit(Event::RefsFetched {
-                    remote,
-                    rid,
-                    updated: updated.clone(),
-                });
-                self.emitter
-                    .emit_all(canonical.into_iter().map(|(refname, target)| {
-                        Event::CanonicalRefUpdated {
-                            rid,
-                            refname,
-                            target,
-                        }
-                    }));
-
-                // Announce our new inventory if this fetch was a full clone.
-                // Only update and announce inventory for public repositories.
-                if clone && doc.is_public() {
-                    debug!(target: "service", "Updating and announcing inventory for cloned repository {rid}..");
-
-                    if let Err(e) = self.add_inventory(rid) {
-                        warn!(target: "service", "Failed to announce inventory for {rid}: {e}");
-                    }
-                }
-
-                // It's possible for a fetch to succeed but nothing was updated.
-                if updated.is_empty() || updated.iter().all(|u| u.is_skipped()) {
-                    debug!(target: "service", "Nothing to announce, no refs were updated..");
-                } else {
-                    // Finally, announce the refs. This is useful for nodes to know what we've synced,
-                    // beyond just knowing that we have added an item to our inventory.
-                    if let Err(e) = self.announce_refs(rid, doc.into(), namespaces, false) {
-                        warn!(target: "service", "Failed to announce new refs: {e}");
-                    }
-                }
-            }
-            Err(err) => {
-                warn!(target: "service", "Fetch failed for {rid} from {remote}: {err}");
-
-                // For now, we only disconnect the remote in case of timeout. In the future,
-                // there may be other reasons to disconnect.
-                if err.is_timeout() {
-                    self.outbox.disconnect(remote, DisconnectReason::Fetch(err));
-                }
-            }
-        }
-        // We can now try to dequeue more fetches.
+        // Dequeue next fetches
         self.dequeue_fetches();
+
+        match event {
+            fetcher::state::event::Fetched::NotFound { from, rid } => {
+                debug!(target: "service", "Unexpected fetch result for {rid} from {from}");
+            }
+            fetcher::state::event::Fetched::Completed {
+                from,
+                rid,
+                refs_at: _,
+            } => {
+                // Notify responders
+                let fetch_result = match &result {
+                    Ok(success) => FetchResult::Success {
+                        updated: success.updated.clone(),
+                        namespaces: success.namespaces.clone(),
+                        clone: success.clone,
+                    },
+                    Err(e) => FetchResult::Failed {
+                        reason: e.to_string(),
+                    },
+                };
+                for responder in subscribers {
+                    responder.send(fetch_result.clone()).ok();
+                }
+                match result {
+                    Ok(crate::worker::fetch::FetchResult {
+                        updated,
+                        canonical,
+                        namespaces,
+                        clone,
+                        doc,
+                    }) => {
+                        info!(target: "service", "Fetched {rid} from {from} successfully");
+                        // Update our routing table in case this fetch was user-initiated and doesn't
+                        // come from an announcement.
+                        self.seed_discovered(rid, from, self.clock.into());
+
+                        for update in &updated {
+                            if update.is_skipped() {
+                                trace!(target: "service", "Ref skipped: {update} for {rid}");
+                            } else {
+                                debug!(target: "service", "Ref updated: {update} for {rid}");
+                            }
+                        }
+                        self.emitter.emit(Event::RefsFetched {
+                            remote: from,
+                            rid,
+                            updated: updated.clone(),
+                        });
+                        self.emitter
+                            .emit_all(canonical.into_iter().map(|(refname, target)| {
+                                Event::CanonicalRefUpdated {
+                                    rid,
+                                    refname,
+                                    target,
+                                }
+                            }));
+
+                        // Announce our new inventory if this fetch was a full clone.
+                        // Only update and announce inventory for public repositories.
+                        if clone && doc.is_public() {
+                            debug!(target: "service", "Updating and announcing inventory for cloned repository {rid}..");
+
+                            if let Err(e) = self.add_inventory(rid) {
+                                warn!(target: "service", "Failed to announce inventory for {rid}: {e}");
+                            }
+                        }
+
+                        // It's possible for a fetch to succeed but nothing was updated.
+                        if updated.is_empty() || updated.iter().all(|u| u.is_skipped()) {
+                            debug!(target: "service", "Nothing to announce, no refs were updated..");
+                        } else {
+                            // Finally, announce the refs. This is useful for nodes to know what we've synced,
+                            // beyond just knowing that we have added an item to our inventory.
+                            if let Err(e) = self.announce_refs(rid, doc.into(), namespaces, false) {
+                                warn!(target: "service", "Failed to announce new refs: {e}");
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        warn!(target: "service", "Fetch failed for {rid} from {from}: {err}");
+
+                        // For now, we only disconnect the from in case of timeout. In the future,
+                        // there may be other reasons to disconnect.
+                        if err.is_timeout() {
+                            self.outbox.disconnect(from, DisconnectReason::Fetch(err));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Attempt to dequeue fetches from all peers.
@@ -1258,38 +1176,42 @@ where
             .map(|(k, _)| *k)
             .collect::<Vec<_>>();
 
-        // Try to dequeue once per session.
         for nid in sessions {
-            // SAFETY: All the keys we are iterating on exist.
             #[allow(clippy::unwrap_used)]
             let sess = self.sessions.get_mut(&nid).unwrap();
-            if !sess.is_connected() || sess.is_at_capacity() {
+            if !sess.is_connected() {
                 continue;
             }
 
-            if let Some(QueuedFetch {
+            let Some(fetcher::QueuedFetch {
                 rid,
                 from,
                 refs_at,
                 timeout,
-                channel,
-            }) = sess.dequeue_fetch()
-            {
-                debug!(target: "service", "Dequeued fetch for {rid} from session {from}..");
+            }) = self.fetcher.dequeue(&nid)
+            else {
+                continue;
+            };
 
-                if let Some(refs) = NonEmpty::from_vec(refs_at) {
-                    let repo_entry = self.policies.seed_policy(&rid).expect(
-                        "Service::dequeue_fetch: error accessing repo seeding configuration",
-                    );
-                    let SeedingPolicy::Allow { scope } = repo_entry.policy else {
-                        debug!(target: "service", "Repository {rid} is no longer seeded, skipping..");
-                        continue;
-                    };
-                    self.fetch_refs_at(rid, from, refs, scope, timeout, channel);
-                } else {
-                    // If no refs are specified, always do a full fetch.
-                    self.fetch(rid, from, timeout, channel);
-                }
+            // Check seeding policy
+            let repo_entry = self
+                .policies
+                .seed_policy(&rid)
+                .expect("error accessing repo seeding configuration");
+
+            let SeedingPolicy::Allow { scope } = repo_entry.policy else {
+                debug!(target: "service", "Repository {} no longer seeded, skipping", rid);
+                continue;
+            };
+
+            debug!(target: "service", "Dequeued fetch for {} from {}", rid, from);
+
+            // Channel is `None` in both cases since they will already be
+            // registered with the fetcher service.
+            if let Some(refs) = NonEmpty::from_vec(refs_at.clone()) {
+                self.fetch_refs_at(rid, from, refs, scope, timeout, None);
+            } else {
+                self.fetch(rid, from, refs_at, timeout, None);
             }
         }
     }
@@ -1391,7 +1313,6 @@ where
                         self.config.is_persistent(&remote),
                         self.rng.clone(),
                         self.clock,
-                        self.config.limits.clone(),
                     ));
                     self.outbox.write_all(peer, msgs);
                 }
@@ -1422,19 +1343,30 @@ where
         let link = session.link;
         let addr = session.addr.clone();
 
-        self.fetching.retain(|_, fetching| {
-            if fetching.from != remote {
-                return true;
+        let cmd = fetcher::state::command::Cancel { from: remote };
+        let fetcher::service::FetchesCancelled { event, orphaned } = self.fetcher.cancel(cmd);
+
+        match event {
+            fetcher::state::event::Cancel::Unexpected { from } => {
+                debug!(target: "service", "No fetches to cancel for {from}");
             }
-            // Remove and fail any pending fetches from this remote node.
-            for resp in &fetching.subscribers {
-                resp.send(FetchResult::Failed {
-                    reason: format!("disconnected: {reason}"),
+            fetcher::state::event::Cancel::Canceled {
+                from,
+                active,
+                queued,
+            } => {
+                debug!(target: "service", "Cancelled {} ongoing, {} queued for {from}", active.len(), queued.len());
+            }
+        }
+
+        // Notify orphaned responders
+        for (rid, responder) in orphaned {
+            responder
+                .send(FetchResult::Failed {
+                    reason: format!("failed fetch to {rid}, peer disconnected: {reason}"),
                 })
                 .ok();
-            }
-            false
-        });
+        }
 
         // Attempt to re-connect to persistent peers.
         if self.config.is_persistent(&remote) {
@@ -1651,7 +1583,7 @@ where
 
                 for rid in missing {
                     debug!(target: "service", "Missing seeded inventory {rid}; initiating fetch..");
-                    self.fetch(rid, *announcer, FETCH_TIMEOUT, None);
+                    self.fetch(rid, *announcer, vec![], FETCH_TIMEOUT, None);
                 }
                 return Ok(relay);
             }
@@ -2284,13 +2216,7 @@ where
         }
         self.sessions.insert(
             nid,
-            Session::outbound(
-                nid,
-                addr.clone(),
-                persistent,
-                self.rng.clone(),
-                self.config.limits.clone(),
-            ),
+            Session::outbound(nid, addr.clone(), persistent, self.rng.clone()),
         );
         self.outbox.connect(nid, addr);
 
@@ -2563,7 +2489,7 @@ where
                 Ok(seeds) => {
                     if let Some(connected) = NonEmpty::from_vec(seeds.connected().collect()) {
                         for seed in connected {
-                            self.fetch(rid, seed.nid, FETCH_TIMEOUT, None);
+                            self.fetch(rid, seed.nid, vec![], FETCH_TIMEOUT, None);
                         }
                     } else {
                         // TODO: We should make sure that this fetch is retried later, either
@@ -2717,7 +2643,7 @@ pub trait ServiceState {
     /// Get the existing sessions.
     fn sessions(&self) -> &Sessions;
     /// Get fetch state.
-    fn fetching(&self) -> &HashMap<RepoId, FetchState>;
+    fn fetching(&self) -> &FetcherState;
     /// Get outbox.
     fn outbox(&self) -> &Outbox;
     /// Get rate limiter.
@@ -2750,8 +2676,8 @@ where
         &self.sessions
     }
 
-    fn fetching(&self) -> &HashMap<RepoId, FetchState> {
-        &self.fetching
+    fn fetching(&self) -> &FetcherState {
+        self.fetcher.state()
     }
 
     fn outbox(&self) -> &Outbox {

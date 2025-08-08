@@ -138,8 +138,6 @@ impl Outbox {
         timeout: time::Duration,
         reader_limit: FetchPackSizeLimit,
     ) {
-        peer.fetching(rid);
-
         let refs_at = (!refs_at.is_empty()).then_some(refs_at);
 
         if let Some(refs_at) = &refs_at {

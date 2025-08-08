@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pushed the default branch to the local user's namespace. The command is now
   deprecated, and the user should use `git push` instead.
 
+## Breaking Changes
+
+- The `Connected` state of a peer no longer contains fetching information. This
+  information was returned when requesting for `Seeds` on the control socket.
+  Callers should no longer expect the `fetching` inside that JSON result.
+- The `rad debug` information for ongoing fetches contained the number of
+  subscribers awaiting for results, this was removed.
+
 ## 1.6.1
 
 ## Fixed Bugs

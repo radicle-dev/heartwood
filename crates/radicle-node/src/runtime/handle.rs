@@ -350,20 +350,22 @@ impl radicle::node::Handle for Handle {
     fn debug(&self) -> Result<serde_json::Value, Self::Error> {
         let (sender, receiver) = chan::bounded(1);
         let query: Arc<QueryState> = Arc::new(move |state| {
+            let fetcher_state = state.fetching();
             let debug = serde_json::json!({
                 "outboxSize": state.outbox().len(),
-                "fetching": state.fetching().iter().map(|(rid, state)| {
+                "fetching": fetcher_state.active_fetches()
+                    .iter()
+                    .map(|(rid, active)| {
+                        json!({
+                            "rid": rid,
+                            "from": active.from(),
+                            "refsAt": active.refs_at(),
+                        })
+                    }).collect::<Vec<_>>(),
+                "queue": fetcher_state.queued_fetches().iter().map(|(node, queue)| {
                     json!({
-                        "rid": rid,
-                        "from": state.from,
-                        "refsAt": state.refs_at,
-                        "subscribers": state.subscribers.len(),
-                    })
-                }).collect::<Vec<_>>(),
-                "queue": state.sessions().values().map(|sess| {
-                    json!({
-                        "nid": sess.id,
-                        "queue": sess.queue.iter().map(|fetch| {
+                        "nid": node,
+                        "queue": queue.iter().map(|fetch| {
                             json!({
                                 "rid": fetch.rid,
                                 "from": fetch.from,

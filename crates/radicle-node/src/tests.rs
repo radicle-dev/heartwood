@@ -1512,6 +1512,7 @@ fn test_queued_fetch_max_capacity() {
 
     // Finish the 1st fetch.
     alice.fetched(rid1, bob.id, Ok(fetch::FetchResult::new(doc.clone())));
+
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, _)) if rid == rid2);
     // ... but not the third.

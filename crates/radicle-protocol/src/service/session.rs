@@ -1,8 +1,7 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 use std::{fmt, time};
 
 use crossbeam_channel as chan;
-use radicle::node::config::Limits;
 use radicle::node::{FetchResult, Severity};
 use radicle::node::{Link, Timestamp};
 pub use radicle::node::{PingState, State};
@@ -111,8 +110,6 @@ pub struct Session {
     pub subscribe: Option<message::Subscribe>,
     /// Last time a message was received from the peer.
     pub last_active: LocalTime,
-    /// Fetch queue.
-    pub queue: VecDeque<QueuedFetch>,
 
     /// Connection attempts. For persistent peers, Tracks
     /// how many times we've attempted to connect. We reset this to zero
@@ -120,8 +117,6 @@ pub struct Session {
     attempts: usize,
     /// Source of entropy.
     rng: Rng,
-    /// Protocol limits.
-    limits: Limits,
 }
 
 impl fmt::Display for Session {
@@ -159,7 +154,7 @@ impl From<&Session> for radicle::node::Session {
 }
 
 impl Session {
-    pub fn outbound(id: NodeId, addr: Address, persistent: bool, rng: Rng, limits: Limits) -> Self {
+    pub fn outbound(id: NodeId, addr: Address, persistent: bool, rng: Rng) -> Self {
         Self {
             id,
             addr,
@@ -168,28 +163,18 @@ impl Session {
             subscribe: None,
             persistent,
             last_active: LocalTime::default(),
-            queue: VecDeque::with_capacity(MAX_FETCH_QUEUE_SIZE),
             attempts: 1,
             rng,
-            limits,
         }
     }
 
-    pub fn inbound(
-        id: NodeId,
-        addr: Address,
-        persistent: bool,
-        rng: Rng,
-        time: LocalTime,
-        limits: Limits,
-    ) -> Self {
+    pub fn inbound(id: NodeId, addr: Address, persistent: bool, rng: Rng, time: LocalTime) -> Self {
         Self {
             id,
             addr,
             state: State::Connected {
                 since: time,
                 ping: PingState::default(),
-                fetching: HashSet::default(),
                 latencies: VecDeque::default(),
                 stable: false,
             },
@@ -197,10 +182,8 @@ impl Session {
             subscribe: None,
             persistent,
             last_active: time,
-            queue: VecDeque::new(),
             attempts: 0,
             rng,
-            limits,
         }
     }
 
@@ -224,41 +207,6 @@ impl Session {
         matches!(self.state, State::Initial)
     }
 
-    pub fn is_at_capacity(&self) -> bool {
-        if let State::Connected { fetching, .. } = &self.state {
-            if fetching.len() >= self.limits.fetch_concurrency.into() {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub fn is_fetching(&self, rid: &RepoId) -> bool {
-        if let State::Connected { fetching, .. } = &self.state {
-            return fetching.contains(rid);
-        }
-        false
-    }
-
-    /// Queue a fetch. Returns `true` if it was added to the queue, and `false` if
-    /// it already was present in the queue.
-    pub fn queue_fetch(&mut self, fetch: QueuedFetch) -> Result<(), QueueError> {
-        assert_eq!(fetch.from, self.id);
-
-        if self.queue.len() >= MAX_FETCH_QUEUE_SIZE {
-            return Err(QueueError::CapacityReached(fetch));
-        } else if self.queue.contains(&fetch) {
-            return Err(QueueError::Duplicate(fetch));
-        }
-        self.queue.push_back(fetch);
-
-        Ok(())
-    }
-
-    pub fn dequeue_fetch(&mut self) -> Option<QueuedFetch> {
-        self.queue.pop_front()
-    }
-
     pub fn attempts(&self) -> usize {
         self.attempts
     }
@@ -275,33 +223,6 @@ impl Session {
                 *stable = true;
                 // Reset number of attempts for stable connections.
                 self.attempts = 0;
-            }
-        }
-    }
-
-    /// Mark this session as fetching the given RID.
-    ///
-    /// # Panics
-    ///
-    /// If it is already fetching that RID, or the session is disconnected.
-    pub fn fetching(&mut self, rid: RepoId) {
-        if let State::Connected { fetching, .. } = &mut self.state {
-            assert!(
-                fetching.insert(rid),
-                "Session must not already be fetching {rid}"
-            );
-        } else {
-            panic!(
-                "Attempting to fetch {rid} from disconnected session {}",
-                self.id
-            );
-        }
-    }
-
-    pub fn fetched(&mut self, rid: RepoId) {
-        if let State::Connected { fetching, .. } = &mut self.state {
-            if !fetching.remove(&rid) {
-                log::debug!(target: "service", "Fetched unknown repository {rid}");
             }
         }
     }
@@ -324,7 +245,6 @@ impl Session {
         self.state = State::Connected {
             since,
             ping: PingState::default(),
-            fetching: HashSet::default(),
             latencies: VecDeque::default(),
             stable: false,
         };
