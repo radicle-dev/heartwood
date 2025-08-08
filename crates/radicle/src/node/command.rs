@@ -313,7 +313,6 @@ mod test {
             &serde_json::to_string(&CommandResult::Okay(State::Connected {
                 since: LocalTime::now(),
                 ping: Default::default(),
-                fetching: Default::default(),
                 latencies: VecDeque::default(),
                 stable: false,
             }))
@@ -329,7 +328,7 @@ mod test {
         );
         assert_matches!(
             json::from_str::<CommandResult<Seeds>>(
-                r#"[{"nid":"z6MksmpU5b1dS7oaqF2bHXhQi1DWy2hB7Mh9CuN7y1DN6QSz","addrs":[{"addr":"seed.radicle.example.com:8776","source":"peer","lastSuccess":1699983994234,"lastAttempt":1699983994000,"banned":false}],"state":{"connected":{"since":1699983994,"fetching":[]}}}]"#
+                r#"[{"nid":"z6MksmpU5b1dS7oaqF2bHXhQi1DWy2hB7Mh9CuN7y1DN6QSz","addrs":[{"addr":"seed.radicle.example.com:8776","source":"peer","lastSuccess":1699983994234,"lastAttempt":1699983994000,"banned":false}],"state":{"connected":{"since":1699983994}}}]"#
             ),
             Ok(CommandResult::Okay(_))
         );

@@ -280,8 +280,8 @@ impl Default for Config {
 /// An active fetch represents a repository being fetched by a particular node.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActiveFetch {
-    pub(super) from: NodeId,
-    pub(super) refs_at: Vec<RefsAt>,
+    pub from: NodeId,
+    pub refs_at: Vec<RefsAt>,
 }
 
 impl ActiveFetch {

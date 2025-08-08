@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- The data returned by `Seeds` contains `state`, which in turn contained the
+  field `fetching` for ongoing fetches of that node, if in the `Connected`
+  state. `Connected` no longer contains that field.
+
 ### Security
 
 ## 0.20.0
