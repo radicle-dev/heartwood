@@ -5,6 +5,7 @@ pub mod wire;
 pub mod worker;
 
 pub mod connections;
+pub mod fetcher;
 pub mod tasks;
 
 /// Peer-to-peer protocol version.
