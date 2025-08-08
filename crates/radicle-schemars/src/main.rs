@@ -87,7 +87,7 @@ fn print_schema() -> io::Result<()> {
                     #[schemars(with = "radicle::schemars_ext::crypto::PublicKey")]
                     radicle::node::NodeId,
                 ),
-                Config(radicle::node::Config),
+                Config(Box<radicle::node::Config>),
                 ListenAddrs(ListenAddrs),
                 ConnectResult(radicle::node::ConnectResult),
                 Success(radicle::node::Success),
