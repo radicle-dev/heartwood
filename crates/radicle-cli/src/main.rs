@@ -3,16 +3,22 @@ use std::io::{self, Write};
 use std::{io::ErrorKind, iter, process};
 
 use anyhow::anyhow;
+use clap::builder::styling::AnsiColor;
+use clap::builder::Styles;
+use clap::{Parser, Subcommand};
 
 use radicle::version::Version;
 use radicle_cli::commands::*;
 use radicle_cli::terminal as term;
 
 pub const NAME: &str = "rad";
+pub const GIT_HEAD: &str = env!("GIT_HEAD");
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const RADICLE_VERSION: &str = env!("RADICLE_VERSION");
+pub const RADICLE_VERSION_LONG: &str =
+    concat!(env!("RADICLE_VERSION"), " (", env!("GIT_HEAD"), ")");
 pub const DESCRIPTION: &str = "Radicle command line interface";
-pub const GIT_HEAD: &str = env!("GIT_HEAD");
+pub const LONG_DESCRIPTION: &str = "Radicle is a sovereign code forge built on Git.";
 pub const TIMESTAMP: &str = env!("SOURCE_DATE_EPOCH");
 pub const VERSION: Version = Version {
     name: NAME,
@@ -20,6 +26,29 @@ pub const VERSION: Version = Version {
     commit: GIT_HEAD,
     timestamp: TIMESTAMP,
 };
+const STYLES: Styles = Styles::styled()
+    .header(AnsiColor::Yellow.on_default().bold())
+    .usage(AnsiColor::Yellow.on_default().bold())
+    .literal(AnsiColor::Cyan.on_default().bold())
+    .placeholder(AnsiColor::Cyan.on_default());
+
+/// Radicle command line interface
+#[derive(Parser, Debug)]
+#[command(name = NAME)]
+#[command(version = RADICLE_VERSION)]
+#[command(long_version = RADICLE_VERSION_LONG)]
+#[command(propagate_version = true)]
+#[command(styles = STYLES)]
+struct CliArgs {
+    #[command(subcommand)]
+    pub command: Option<Commands>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Manage issues by using operations to list, create or edit them.
+    Issue(issue::Args),
+}
 
 #[derive(Debug)]
 enum Command {
@@ -133,6 +162,13 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
     Ok(())
 }
 
+/// Runs a `rad` command. `exe` expects the command's name, e.g. `issue`,
+/// `args` expects all other arguments.
+///
+/// For commands that are already migrated to `clap`, we need to parse the
+/// arguments again. This needs to be done for each migrated command
+/// individually, otherwise `clap` would fail to parse on an non-migrated and
+/// therefor unknown command.
 fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
     match exe {
         "auth" => {
@@ -189,7 +225,9 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             );
         }
         "issue" => {
-            term::run_command_args::<issue::Options, _>(issue::HELP, issue::run, args.to_vec());
+            if let Some(Commands::Issue(args)) = CliArgs::parse().command {
+                term::run_command_fn(issue::run, args);
+            }
         }
         "ls" => {
             term::run_command_args::<ls::Options, _>(ls::HELP, ls::run, args.to_vec());

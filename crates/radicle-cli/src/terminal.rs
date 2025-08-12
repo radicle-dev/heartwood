@@ -14,6 +14,8 @@ pub mod upload_pack;
 use std::ffi::OsString;
 use std::process;
 
+use clap::Parser;
+
 pub use radicle_term::*;
 
 use radicle::profile::{Home, Profile};
@@ -50,6 +52,22 @@ where
 {
     fn run(self, args: A, context: C) -> anyhow::Result<()> {
         self(args, context)
+    }
+}
+
+/// Execute a function `cmd` that runs a command with parsed the `args`
+/// and a default context.
+pub fn run_command_fn<F, P: Parser>(cmd: F, args: P) -> !
+where
+    F: FnOnce(P, DefaultContext) -> anyhow::Result<()>,
+{
+    match cmd(args, DefaultContext) {
+        Ok(()) => process::exit(0),
+        Err(err) => {
+            // First parameter is not used and can just be empty.
+            fail("", &err);
+            process::exit(1);
+        }
     }
 }
 

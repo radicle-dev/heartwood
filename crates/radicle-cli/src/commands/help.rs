@@ -22,7 +22,6 @@ const COMMANDS: &[Help] = &[
     crate::commands::init::HELP,
     crate::commands::inbox::HELP,
     crate::commands::inspect::HELP,
-    crate::commands::issue::HELP,
     crate::commands::ls::HELP,
     crate::commands::node::HELP,
     crate::commands::patch::HELP,

@@ -1,526 +1,99 @@
+mod args;
 mod cache;
 
-use std::collections::BTreeSet;
-use std::ffi::OsString;
-use std::str::FromStr;
+use anyhow::Context as _;
 
-use anyhow::{anyhow, Context as _};
-
-use radicle::cob::common::{Label, Reaction};
+use radicle::cob::common::Label;
 use radicle::cob::issue::{CloseReason, State};
 use radicle::cob::{issue, thread, Title};
+
 use radicle::crypto;
 use radicle::git::Oid;
 use radicle::issue::cache::Issues as _;
 use radicle::node::device::Device;
 use radicle::node::NodeId;
-use radicle::prelude::{Did, RepoId};
+use radicle::prelude::Did;
 use radicle::profile;
 use radicle::storage;
-use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
+use radicle::storage::{WriteRepository, WriteStorage};
 use radicle::Profile;
 use radicle::{cob, Node};
+
+pub use args::Args;
+use args::{Assigned, Command, StateArg};
 
 use crate::git::Rev;
 use crate::node;
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::args::Error;
 use crate::terminal::format::Author;
 use crate::terminal::issue::Format;
 use crate::terminal::patch::Message;
 use crate::terminal::Element;
 
-pub const HELP: Help = Help {
-    name: "issue",
-    description: "Manage issues",
-    version: env!("RADICLE_VERSION"),
-    usage: r#"
-Usage
-
-    rad issue [<option>...]
-    rad issue delete <issue-id> [<option>...]
-    rad issue edit <issue-id> [--title <title>] [--description <text>] [<option>...]
-    rad issue list [--assigned <did>] [--all | --closed | --open | --solved] [<option>...]
-    rad issue open [--title <title>] [--description <text>] [--label <label>] [<option>...]
-    rad issue react <issue-id> [--emoji <char>] [--to <comment>] [<option>...]
-    rad issue assign <issue-id> [--add <did>] [--delete <did>] [<option>...]
-    rad issue label <issue-id> [--add <label>] [--delete <label>] [<option>...]
-    rad issue comment <issue-id> [--message <message>] [--reply-to <comment-id>] [--edit <comment-id>] [<option>...]
-    rad issue show <issue-id> [<option>...]
-    rad issue state <issue-id> [--closed | --open | --solved] [<option>...]
-    rad issue cache [<issue-id>] [--storage] [<option>...]
-
-Assign options
-
-    -a, --add    <did>     Add an assignee to the issue (may be specified multiple times).
-    -d, --delete <did>     Delete an assignee from the issue (may be specified multiple times).
-
-    Note: --add takes precedence over --delete
-
-Label options
-
-    -a, --add    <label>   Add a label to the issue (may be specified multiple times).
-    -d, --delete <label>   Delete a label from the issue (may be specified multiple times).
-
-    Note: --add takes precedence over --delete
-
-Show options
-
-    -v, --verbose          Show additional information about the issue
-
-Options
-
-        --repo <rid>       Operate on the given repository (default: cwd)
-        --no-announce      Don't announce issue to peers
-        --header           Show only the issue header, hiding the comments
-    -q, --quiet            Don't print anything
-        --help             Print help
-"#,
-};
-
-#[derive(Default, Debug, PartialEq, Eq)]
-pub enum OperationName {
-    Assign,
-    Edit,
-    Open,
-    Comment,
-    Delete,
-    Label,
-    #[default]
-    List,
-    React,
-    Show,
-    State,
-    Cache,
-}
-
-/// Command line Peer argument.
-#[derive(Default, Debug, PartialEq, Eq)]
-pub enum Assigned {
-    #[default]
-    Me,
-    Peer(Did),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum Operation {
-    Edit {
-        id: Rev,
-        title: Option<Title>,
-        description: Option<String>,
-    },
-    Open {
-        title: Option<Title>,
-        description: Option<String>,
-        labels: Vec<Label>,
-        assignees: Vec<Did>,
-    },
-    Show {
-        id: Rev,
-        format: Format,
-        verbose: bool,
-    },
-    CommentEdit {
-        id: Rev,
-        comment_id: Rev,
-        message: Message,
-    },
-    Comment {
-        id: Rev,
-        message: Message,
-        reply_to: Option<Rev>,
-    },
-    State {
-        id: Rev,
-        state: State,
-    },
-    Delete {
-        id: Rev,
-    },
-    React {
-        id: Rev,
-        reaction: Option<Reaction>,
-        comment_id: Option<thread::CommentId>,
-    },
-    Assign {
-        id: Rev,
-        opts: AssignOptions,
-    },
-    Label {
-        id: Rev,
-        opts: LabelOptions,
-    },
-    List {
-        assigned: Option<Assigned>,
-        state: Option<State>,
-    },
-    Cache {
-        id: Option<Rev>,
-        storage: bool,
-    },
-}
-
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct AssignOptions {
-    pub add: BTreeSet<Did>,
-    pub delete: BTreeSet<Did>,
-}
-
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct LabelOptions {
-    pub add: BTreeSet<Label>,
-    pub delete: BTreeSet<Label>,
-}
-
-#[derive(Debug)]
-pub struct Options {
-    pub op: Operation,
-    pub repo: Option<RepoId>,
-    pub announce: bool,
-    pub quiet: bool,
-}
-
-impl Args for Options {
-    fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
-        use lexopt::prelude::*;
-
-        let mut parser = lexopt::Parser::from_args(args);
-        let mut op: Option<OperationName> = None;
-        let mut id: Option<Rev> = None;
-        let mut assigned: Option<Assigned> = None;
-        let mut title: Option<Title> = None;
-        let mut reaction: Option<Reaction> = None;
-        let mut comment_id: Option<thread::CommentId> = None;
-        let mut description: Option<String> = None;
-        let mut state: Option<State> = Some(State::Open);
-        let mut labels = Vec::new();
-        let mut assignees = Vec::new();
-        let mut format = Format::default();
-        let mut message = Message::default();
-        let mut reply_to = None;
-        let mut edit_comment = None;
-        let mut announce = true;
-        let mut quiet = false;
-        let mut verbose = false;
-        let mut assign_opts = AssignOptions::default();
-        let mut label_opts = LabelOptions::default();
-        let mut repo = None;
-        let mut cache_storage = false;
-
-        while let Some(arg) = parser.next()? {
-            match arg {
-                Long("help") | Short('h') => {
-                    return Err(Error::Help.into());
-                }
-
-                // List options.
-                Long("all") if op.is_none() || op == Some(OperationName::List) => {
-                    state = None;
-                }
-                Long("closed") if op.is_none() || op == Some(OperationName::List) => {
-                    state = Some(State::Closed {
-                        reason: CloseReason::Other,
-                    });
-                }
-                Long("open") if op.is_none() || op == Some(OperationName::List) => {
-                    state = Some(State::Open);
-                }
-                Long("solved") if op.is_none() || op == Some(OperationName::List) => {
-                    state = Some(State::Closed {
-                        reason: CloseReason::Solved,
-                    });
-                }
-
-                // Open/Edit options.
-                Long("title")
-                    if op == Some(OperationName::Open) || op == Some(OperationName::Edit) =>
-                {
-                    let val = parser.value()?;
-                    title = Some(term::args::string(&val).try_into()?);
-                }
-                Long("description")
-                    if op == Some(OperationName::Open) || op == Some(OperationName::Edit) =>
-                {
-                    description = Some(parser.value()?.to_string_lossy().into());
-                }
-                Short('l') | Long("label") if matches!(op, Some(OperationName::Open)) => {
-                    let val = parser.value()?;
-                    let name = term::args::string(&val);
-                    let label = Label::new(name)?;
-
-                    labels.push(label);
-                }
-                Long("assign") if op == Some(OperationName::Open) => {
-                    let val = parser.value()?;
-                    let did = term::args::did(&val)?;
-
-                    assignees.push(did);
-                }
-
-                // State options.
-                Long("closed") if op == Some(OperationName::State) => {
-                    state = Some(State::Closed {
-                        reason: CloseReason::Other,
-                    });
-                }
-                Long("open") if op == Some(OperationName::State) => {
-                    state = Some(State::Open);
-                }
-                Long("solved") if op == Some(OperationName::State) => {
-                    state = Some(State::Closed {
-                        reason: CloseReason::Solved,
-                    });
-                }
-
-                // React options.
-                Long("emoji") if op == Some(OperationName::React) => {
-                    if let Some(emoji) = parser.value()?.to_str() {
-                        reaction =
-                            Some(Reaction::from_str(emoji).map_err(|_| anyhow!("invalid emoji"))?);
-                    }
-                }
-                Long("to") if op == Some(OperationName::React) => {
-                    let oid: String = parser.value()?.to_string_lossy().into();
-                    comment_id = Some(oid.parse()?);
-                }
-
-                // Show options.
-                Long("format") if op == Some(OperationName::Show) => {
-                    let val = parser.value()?;
-                    let val = term::args::string(&val);
-
-                    match val.as_str() {
-                        "header" => format = Format::Header,
-                        "full" => format = Format::Full,
-                        _ => anyhow::bail!("unknown format '{val}'"),
-                    }
-                }
-                Long("verbose") | Short('v') if op == Some(OperationName::Show) => {
-                    verbose = true;
-                }
-
-                // Comment options.
-                Long("message") | Short('m') if op == Some(OperationName::Comment) => {
-                    let val = parser.value()?;
-                    let txt = term::args::string(&val);
-
-                    message.append(&txt);
-                }
-                Long("reply-to") if op == Some(OperationName::Comment) => {
-                    let val = parser.value()?;
-                    let rev = term::args::rev(&val)?;
-
-                    reply_to = Some(rev);
-                }
-                Long("edit") if op == Some(OperationName::Comment) => {
-                    let val = parser.value()?;
-                    let rev = term::args::rev(&val)?;
-
-                    edit_comment = Some(rev);
-                }
-
-                // Assign options
-                Short('a') | Long("add") if op == Some(OperationName::Assign) => {
-                    assign_opts.add.insert(term::args::did(&parser.value()?)?);
-                }
-                Short('d') | Long("delete") if op == Some(OperationName::Assign) => {
-                    assign_opts
-                        .delete
-                        .insert(term::args::did(&parser.value()?)?);
-                }
-                Long("assigned") | Short('a') if assigned.is_none() => {
-                    if let Ok(val) = parser.value() {
-                        let peer = term::args::did(&val)?;
-                        assigned = Some(Assigned::Peer(peer));
-                    } else {
-                        assigned = Some(Assigned::Me);
-                    }
-                }
-
-                // Label options
-                Short('a') | Long("add") if matches!(op, Some(OperationName::Label)) => {
-                    let val = parser.value()?;
-                    let name = term::args::string(&val);
-                    let label = Label::new(name)?;
-
-                    label_opts.add.insert(label);
-                }
-                Short('d') | Long("delete") if matches!(op, Some(OperationName::Label)) => {
-                    let val = parser.value()?;
-                    let name = term::args::string(&val);
-                    let label = Label::new(name)?;
-
-                    label_opts.delete.insert(label);
-                }
-
-                // Cache options.
-                Long("storage") if matches!(op, Some(OperationName::Cache)) => {
-                    cache_storage = true;
-                }
-
-                // Options.
-                Long("no-announce") => {
-                    announce = false;
-                }
-                Long("quiet") | Short('q') => {
-                    quiet = true;
-                }
-                Long("repo") => {
-                    let val = parser.value()?;
-                    let rid = term::args::rid(&val)?;
-
-                    repo = Some(rid);
-                }
-
-                Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "c" | "comment" => op = Some(OperationName::Comment),
-                    "w" | "show" => op = Some(OperationName::Show),
-                    "d" | "delete" => op = Some(OperationName::Delete),
-                    "e" | "edit" => op = Some(OperationName::Edit),
-                    "l" | "list" => op = Some(OperationName::List),
-                    "o" | "open" => op = Some(OperationName::Open),
-                    "r" | "react" => op = Some(OperationName::React),
-                    "s" | "state" => op = Some(OperationName::State),
-                    "assign" => op = Some(OperationName::Assign),
-                    "label" => op = Some(OperationName::Label),
-                    "cache" => op = Some(OperationName::Cache),
-
-                    unknown => anyhow::bail!("unknown operation '{}'", unknown),
-                },
-                Value(val) if op.is_some() => {
-                    let val = term::args::rev(&val)?;
-                    id = Some(val);
-                }
-                _ => {
-                    return Err(anyhow!(arg.unexpected()));
-                }
-            }
-        }
-
-        let op = match op.unwrap_or_default() {
-            OperationName::Edit => Operation::Edit {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                title,
-                description,
-            },
-            OperationName::Open => Operation::Open {
-                title,
-                description,
-                labels,
-                assignees,
-            },
-            OperationName::Comment => match (reply_to, edit_comment) {
-                (None, None) => Operation::Comment {
-                    id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                    message,
-                    reply_to: None,
-                },
-                (None, Some(comment_id)) => Operation::CommentEdit {
-                    id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                    comment_id,
-                    message,
-                },
-                (reply_to @ Some(_), None) => Operation::Comment {
-                    id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                    message,
-                    reply_to,
-                },
-                (Some(_), Some(_)) => anyhow::bail!("you cannot use --reply-to with --edit"),
-            },
-            OperationName::Show => Operation::Show {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                format,
-                verbose,
-            },
-            OperationName::State => Operation::State {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                state: state.ok_or_else(|| anyhow!("a state operation must be provided"))?,
-            },
-            OperationName::React => Operation::React {
-                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
-                reaction,
-                comment_id,
-            },
-            OperationName::Delete => Operation::Delete {
-                id: id.ok_or_else(|| anyhow!("an issue to remove must be provided"))?,
-            },
-            OperationName::Assign => Operation::Assign {
-                id: id.ok_or_else(|| anyhow!("an issue to label must be provided"))?,
-                opts: assign_opts,
-            },
-            OperationName::Label => Operation::Label {
-                id: id.ok_or_else(|| anyhow!("an issue to label must be provided"))?,
-                opts: label_opts,
-            },
-            OperationName::List => Operation::List { assigned, state },
-            OperationName::Cache => Operation::Cache {
-                id,
-                storage: cache_storage,
-            },
-        };
-
-        Ok((
-            Options {
-                op,
-                repo,
-                announce,
-                quiet,
-            },
-            vec![],
-        ))
-    }
-}
-
-pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let rid = if let Some(rid) = options.repo {
+    let rid = if let Some(rid) = args.repo {
         rid
     } else {
         radicle::rad::cwd().map(|(_, rid)| rid)?
     };
     let repo = profile.storage.repository_mut(rid)?;
-    let announce = options.announce
+
+    let command = args.command.unwrap_or_default();
+    let announce = !args.no_announce
         && matches!(
-            &options.op,
-            Operation::Open { .. }
-                | Operation::React { .. }
-                | Operation::State { .. }
-                | Operation::Delete { .. }
-                | Operation::Assign { .. }
-                | Operation::Label { .. }
-                | Operation::Edit { .. }
-                | Operation::Comment { .. }
+            &command,
+            Command::Open { .. }
+                | Command::React { .. }
+                | Command::State { .. }
+                | Command::Delete { .. }
+                | Command::Assign { .. }
+                | Command::Label { .. }
+                | Command::Edit { .. }
+                // TODO(erikli): Remove special handling for `--edit` and
+                // make it also announce.
+                | Command::Comment { edit: None, .. }
         );
+
     let mut issues = term::cob::issues_mut(&profile, &repo)?;
 
-    match options.op {
-        Operation::Edit {
+    match command {
+        Command::Edit {
             id,
             title,
             description,
         } => {
             let signer = term::signer(&profile)?;
             let issue = edit(&mut issues, &repo, id, title, description, &signer)?;
-            if !options.quiet {
-                term::issue::show(&issue, issue.id(), Format::Header, false, &profile)?;
+            if !args.quiet {
+                term::issue::show(&issue, issue.id(), Format::Header, args.verbose, &profile)?;
             }
         }
-        Operation::Open {
-            title: Some(title),
-            description: Some(description),
-            labels,
-            assignees,
+        Command::Open {
+            ref title,
+            ref description,
+            ref labels,
+            ref assignees,
         } => {
             let signer = term::signer(&profile)?;
-            let issue = issues.create(title, description, &labels, &assignees, [], &signer)?;
-            if !options.quiet {
-                term::issue::show(&issue, issue.id(), Format::Header, false, &profile)?;
-            }
+            open(
+                title.clone(),
+                description.clone(),
+                labels.to_vec(),
+                assignees.to_vec(),
+                args.verbose,
+                args.quiet,
+                &mut issues,
+                &signer,
+                &profile,
+            )?;
         }
-        Operation::Comment {
+        Command::Comment {
             id,
             message,
             reply_to,
+            edit: None,
         } => {
             let reply_to = reply_to
                 .map(|rev| rev.resolve::<radicle::git::Oid>(repo.raw()))
@@ -529,23 +102,23 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let signer = term::signer(&profile)?;
             let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
             let mut issue = issues.get_mut(&issue_id)?;
-
             let (root_comment_id, _) = issue.root();
             let body = prompt_comment(message, issue.thread(), reply_to, None)?;
             let comment_id =
                 issue.comment(body, reply_to.unwrap_or(*root_comment_id), vec![], &signer)?;
 
-            if options.quiet {
+            if args.quiet {
                 term::print(comment_id);
             } else {
                 let comment = issue.thread().comment(&comment_id).unwrap();
                 term::comment::widget(&comment_id, comment, &profile).print();
             }
         }
-        Operation::CommentEdit {
+        Command::Comment {
             id,
-            comment_id,
             message,
+            reply_to: None,
+            edit: Some(comment_id),
         } => {
             let signer = term::signer(&profile)?;
             let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
@@ -563,20 +136,26 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 comment.reply_to(),
                 Some(comment.body()),
             )?;
+
             issue.edit_comment(comment_id, body, vec![], &signer)?;
 
-            if options.quiet {
+            if args.quiet {
                 term::print(comment_id);
             } else {
                 let comment = issue.thread().comment(&comment_id).unwrap();
                 term::comment::widget(&comment_id, comment, &profile).print();
             }
         }
-        Operation::Show {
-            id,
-            format,
-            verbose,
-        } => {
+        Command::Comment { .. } => {
+            unreachable!("the argument '--reply-to' cannot be used with '--edit'");
+        }
+        Command::Show { id } => {
+            let format = if args.header {
+                term::issue::Format::Header
+            } else {
+                term::issue::Format::Full
+            };
+
             let id = id.resolve(&repo.backend)?;
             let issue = issues
                 .get(&id)
@@ -585,14 +164,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     hint: "reset the cache with `rad issue cache` and try again",
                 })?
                 .context("No issue with the given ID exists")?;
-            term::issue::show(&issue, &id, format, verbose, &profile)?;
+            term::issue::show(&issue, &id, format, args.verbose, &profile)?;
         }
-        Operation::State { id, state } => {
-            let signer = term::signer(&profile)?;
+        Command::State { id, target_state } => {
+            let to: StateArg = target_state.into();
             let id = id.resolve(&repo.backend)?;
+            let signer = term::signer(&profile)?;
             let mut issue = issues.get_mut(&id)?;
+            let state = to.into();
             issue.lifecycle(state, &signer)?;
-            if !options.quiet {
+
+            if !args.quiet {
                 let success =
                     |status| term::success!("Issue {} is now {status}", term::format::cob(&id));
                 match state {
@@ -604,7 +186,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 };
             }
         }
-        Operation::React {
+        Command::React {
             id,
             reaction,
             comment_id,
@@ -613,7 +195,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             if let Ok(mut issue) = issues.get_mut(&id) {
                 let signer = term::signer(&profile)?;
                 let comment_id = match comment_id {
-                    Some(cid) => cid,
+                    Some(cid) => cid.resolve(&repo.backend)?,
                     None => *term::io::comment_select(&issue).map(|(cid, _)| cid)?,
                 };
                 let reaction = match reaction {
@@ -624,28 +206,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 issue.react(comment_id, reaction, true, &signer)?;
             }
         }
-        Operation::Open {
-            ref title,
-            ref description,
-            ref labels,
-            ref assignees,
-        } => {
-            let signer = term::signer(&profile)?;
-            open(
-                title.clone(),
-                description.clone(),
-                labels.to_vec(),
-                assignees.to_vec(),
-                &options,
-                &mut issues,
-                &signer,
-                &profile,
-            )?;
-        }
-        Operation::Assign {
-            id,
-            opts: AssignOptions { add, delete },
-        } => {
+        Command::Assign { id, add, delete } => {
             let signer = term::signer(&profile)?;
             let id = id.resolve(&repo.backend)?;
             let Ok(mut issue) = issues.get_mut(&id) else {
@@ -659,11 +220,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .collect::<Vec<_>>();
             issue.assign(assignees, &signer)?;
         }
-        Operation::Label {
-            id,
-            opts: LabelOptions { add, delete },
-        } => {
-            let signer = term::signer(&profile)?;
+        Command::Label { id, add, delete } => {
             let id = id.resolve(&repo.backend)?;
             let Ok(mut issue) = issues.get_mut(&id) else {
                 anyhow::bail!("Issue `{id}` not found");
@@ -674,17 +231,19 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .chain(add.iter())
                 .cloned()
                 .collect::<Vec<_>>();
+            let signer = term::signer(&profile)?;
             issue.label(labels, &signer)?;
         }
-        Operation::List { assigned, state } => {
-            list(issues, &assigned, &state, &profile)?;
+        Command::List(list_args) => {
+            let assigned = list_args.assigned.clone();
+            list(issues, &assigned, &list_args.into(), &profile, args.verbose)?;
         }
-        Operation::Delete { id } => {
-            let signer = term::signer(&profile)?;
+        Command::Delete { id } => {
             let id = id.resolve(&repo.backend)?;
+            let signer = term::signer(&profile)?;
             issues.remove(&id, &signer)?;
         }
-        Operation::Cache { id, storage } => {
+        Command::Cache { id, storage } => {
             let mode = if storage {
                 cache::CacheMode::Storage
             } else {
@@ -719,6 +278,7 @@ fn list<C>(
     assigned: &Option<Assigned>,
     state: &Option<State>,
     profile: &profile::Profile,
+    verbose: bool,
 ) -> anyhow::Result<()>
 where
     C: issue::cache::Issues,
@@ -786,7 +346,7 @@ where
         let assigned: String = issue
             .assignees()
             .map(|did| {
-                let (alias, _) = Author::new(did.as_key(), profile, false).labels();
+                let (alias, _) = Author::new(did.as_key(), profile, verbose).labels();
 
                 alias.content().to_owned()
             })
@@ -797,7 +357,7 @@ where
         labels.sort();
 
         let author = issue.author().id;
-        let (alias, did) = Author::new(&author, profile, false).labels();
+        let (alias, did) = Author::new(&author, profile, verbose).labels();
 
         mk_issue_row(id, issue, assigned, labels, alias, did)
     }));
@@ -844,13 +404,14 @@ fn open<R, G>(
     description: Option<String>,
     labels: Vec<Label>,
     assignees: Vec<Did>,
-    options: &Options,
+    verbose: bool,
+    quiet: bool,
     cache: &mut issue::Cache<issue::Issues<'_, R>, cob::cache::StoreWriter>,
     signer: &Device<G>,
     profile: &Profile,
 ) -> anyhow::Result<()>
 where
-    R: ReadRepository + WriteRepository + cob::Store<Namespace = NodeId>,
+    R: WriteRepository + cob::Store<Namespace = NodeId>,
     G: crypto::signature::Signer<crypto::Signature>,
 {
     let (title, description) = if let (Some(t), Some(d)) = (title.as_ref(), description.as_ref()) {
@@ -869,8 +430,8 @@ where
         signer,
     )?;
 
-    if !options.quiet {
-        term::issue::show(&issue, issue.id(), Format::Header, false, profile)?;
+    if !quiet {
+        term::issue::show(&issue, issue.id(), Format::Header, verbose, profile)?;
     }
     Ok(())
 }
@@ -884,7 +445,7 @@ fn edit<'a, 'g, R, G>(
     signer: &Device<G>,
 ) -> anyhow::Result<issue::IssueMut<'a, 'g, R, cob::cache::StoreWriter>>
 where
-    R: WriteRepository + ReadRepository + cob::Store<Namespace = NodeId>,
+    R: WriteRepository + cob::Store<Namespace = NodeId>,
     G: crypto::signature::Signer<crypto::Signature>,
 {
     let id = id.resolve(&repo.backend)?;
@@ -935,7 +496,6 @@ pub fn prompt_comment(
     let (chase, missing) = {
         let mut chase = Vec::with_capacity(thread.len());
         let mut missing = None;
-
         while let Some(id) = reply_to {
             if let Some(comment) = thread.comment(&id) {
                 chase.push(comment);
@@ -981,23 +541,23 @@ pub fn prompt_comment(
                 "\n<!-- The contents of the comment you are editing follow below this line. -->\n",
             );
         }
+
         buffer.reserve(2 + edit.len());
         buffer.push('\n');
         buffer.push_str(edit);
     }
 
     let body = message.get(&buffer)?;
-
     if body.is_empty() {
         anyhow::bail!("aborting operation due to empty comment");
     }
+
     Ok(body)
 }
 
 fn comment_quoted(comment: &thread::Comment, buffer: &mut String) {
     let body = comment.body();
     let lines = body.lines();
-
     let hint = {
         let (lower, upper) = lines.size_hint();
         upper.unwrap_or(lower)
@@ -1011,6 +571,7 @@ fn comment_quoted(comment: &thread::Comment, buffer: &mut String) {
         if !line.is_empty() {
             buffer.push(' ');
         }
+
         buffer.push_str(line);
         buffer.push('\n');
     }
