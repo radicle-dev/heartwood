@@ -10,6 +10,7 @@ pub mod diff;
 pub mod follow;
 pub mod fork;
 pub mod help;
+pub mod hints;
 pub mod id;
 pub mod inbox;
 pub mod init;

@@ -3,8 +3,13 @@ use std::io::{self, Write};
 use std::{io::ErrorKind, iter, process};
 
 use anyhow::anyhow;
+use clap::builder::styling::Style;
+use clap::builder::Styles;
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::Shell;
 
 use radicle::version::Version;
+use radicle_cli::commands::rad_issue;
 use radicle_cli::commands::*;
 use radicle_cli::terminal as term;
 
@@ -12,6 +17,7 @@ pub const NAME: &str = "rad";
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const RADICLE_VERSION: &str = env!("RADICLE_VERSION");
 pub const DESCRIPTION: &str = "Radicle command line interface";
+pub const LONG_DESCRIPTION: &str = "Radicle is a sovereign code forge built on Git.";
 pub const GIT_HEAD: &str = env!("GIT_HEAD");
 pub const TIMESTAMP: &str = env!("SOURCE_DATE_EPOCH");
 pub const VERSION: Version = Version {
@@ -20,6 +26,40 @@ pub const VERSION: Version = Version {
     commit: GIT_HEAD,
     timestamp: TIMESTAMP,
 };
+pub const LONG_VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HEAD"), ")");
+pub const HELP_TEMPLATE: &str = r#"
+{before-help}{bin} {version}
+{about-with-newline}
+Usage: {usage}
+
+{all-args}
+{after-help}
+"#;
+
+/// Radicle command line interface
+#[derive(Parser, Debug)]
+#[command(name = NAME)]
+#[command(version = PKG_VERSION)]
+#[command(long_version = LONG_VERSION)]
+#[command(help_template = HELP_TEMPLATE)]
+#[command(propagate_version = true)]
+#[command(styles = Styles::plain().literal(Style::new().bold()))]
+struct CliArgs {
+    #[command(subcommand)]
+    pub command: Option<Commands>,
+
+    #[arg(long = "generate")]
+    #[clap(global = true)]
+    pub(crate) generator: Option<clap_complete::Shell>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Commands to create, view, and edit Radicle issues
+    ///
+    /// With issues you can organize your project and use it to discuss bugs and improvements.
+    Issue(rad_issue::Args),
+}
 
 #[derive(Debug)]
 enum Command {
@@ -189,7 +229,31 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             );
         }
         "issue" => {
-            term::run_command_args::<issue::Options, _>(issue::HELP, issue::run, args.to_vec());
+            // Use clap instead to parse all CLI args and ignore `args` passed
+            // to `run_other`.
+            let args_ = CliArgs::parse();
+            if let Some(command) = args_.command {
+                match command {
+                    Commands::Issue(args_) => {
+                        if let Err(err) =
+                            issue::run(args_, radicle::Profile::load().map_err(|e| anyhow!(e))?)
+                        {
+                            radicle_cli::terminal::fail("", &err);
+                            process::exit(1);
+                        }
+                    }
+                }
+            }
+        }
+        // Used for dynamic shell completion (not user facing)
+        "complete" => {
+            println!("parsing args");
+            let args_ = CliArgs::parse_from(args);
+            println!("have args");
+            let generator = args_.generator.unwrap_or(Shell::Fish);
+            let mut cmd = CliArgs::command();
+            let bin_name = cmd.get_name().to_string();
+            clap_complete::generate(generator, &mut cmd, bin_name, &mut io::stdout());
         }
         "ls" => {
             term::run_command_args::<ls::Options, _>(ls::HELP, ls::run, args.to_vec());
