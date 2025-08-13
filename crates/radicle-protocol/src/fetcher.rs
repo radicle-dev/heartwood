@@ -2,6 +2,7 @@ pub mod commands;
 pub use commands::Command;
 pub mod effects;
 pub mod events;
+pub mod fetch_announced;
 
 use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::time;
