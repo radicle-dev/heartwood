@@ -290,8 +290,8 @@ impl Update<'_> {
             Update::Reviewed { review } => {
                 let verdict = review.verdict();
                 let verdict_symbol = match verdict {
-                    Some(Verdict::Accept) => term::format::positive("✓"),
-                    Some(Verdict::Reject) => term::format::negative("✗"),
+                    Some(Verdict::Accept) => term::PREFIX_SUCCESS,
+                    Some(Verdict::Reject) => term::PREFIX_ERROR,
                     None => term::format::dim("⋄"),
                 };
                 let verdict_verb = match verdict {
@@ -310,7 +310,7 @@ impl Update<'_> {
             Update::Merged { author, merge } => {
                 let (alias, nid) = author.labels();
                 term::Line::spaced([
-                    term::format::primary("✓").bold().into(),
+                    term::PREFIX_SUCCESS.bold().into(),
                     term::format::default("merged by").into(),
                     alias,
                     nid,

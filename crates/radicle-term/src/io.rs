@@ -17,9 +17,14 @@ use crate::{style, Paint, Size};
 pub use inquire;
 pub use inquire::Select;
 
-pub const ERROR_PREFIX: Paint<&str> = Paint::red("✗");
-pub const ERROR_HINT_PREFIX: Paint<&str> = Paint::yellow("✗ Hint:");
-pub const WARNING_PREFIX: Paint<&str> = Paint::yellow("!");
+pub(crate) const SYMBOL_ERROR: &str = "✗";
+pub(crate) const SYMBOL_SUCCESS: &str = "✓";
+pub(crate) const SYMBOL_WARNING: &str = "!";
+
+pub const PREFIX_ERROR: Paint<&str> = Paint::red(SYMBOL_ERROR);
+pub const PREFIX_SUCCESS: Paint<&str> = Paint::green(SYMBOL_SUCCESS);
+pub const PREFIX_WARNING: Paint<&str> = Paint::yellow(SYMBOL_WARNING);
+
 pub const TAB: &str = "    ";
 
 /// Passphrase input.
@@ -29,15 +34,15 @@ pub type Passphrase = Zeroizing<String>;
 pub static CONFIG: LazyLock<RenderConfig> = LazyLock::new(|| RenderConfig {
     prompt: StyleSheet::new().with_fg(Color::LightCyan),
     prompt_prefix: Styled::new("?").with_fg(Color::LightBlue),
-    answered_prompt_prefix: Styled::new("✓").with_fg(Color::LightGreen),
+    answered_prompt_prefix: Styled::new(SYMBOL_SUCCESS).with_fg(Color::LightGreen),
     answer: StyleSheet::new(),
-    highlighted_option_prefix: Styled::new("✓").with_fg(Color::LightYellow),
+    highlighted_option_prefix: Styled::new(SYMBOL_SUCCESS).with_fg(Color::LightYellow),
     selected_option: Some(StyleSheet::new().with_fg(Color::LightYellow)),
     option: StyleSheet::new(),
     help_message: StyleSheet::new().with_fg(Color::DarkGrey),
     default_value: StyleSheet::new().with_fg(Color::LightBlue),
     error_message: ErrorMessageRenderConfig::default_colored()
-        .with_prefix(Styled::new("✗").with_fg(Color::LightRed)),
+        .with_prefix(Styled::new(SYMBOL_ERROR).with_fg(Color::LightRed)),
     ..RenderConfig::default_colored()
 });
 
@@ -87,7 +92,7 @@ pub use success;
 pub use tip;
 
 pub fn success_args<W: io::Write>(w: &mut W, args: fmt::Arguments) {
-    writeln!(w, "{} {args}", Paint::green("✓")).ok();
+    writeln!(w, "{PREFIX_SUCCESS} {args}").ok();
 }
 
 pub fn tip_args(args: fmt::Arguments) {
@@ -99,7 +104,7 @@ pub fn tip_args(args: fmt::Arguments) {
 }
 
 pub fn notice_args<W: io::Write>(w: &mut W, args: fmt::Arguments) {
-    writeln!(w, "{} {args}", Paint::new("!").dim()).ok();
+    writeln!(w, "{} {args}", Paint::new(SYMBOL_WARNING).dim()).ok();
 }
 
 pub fn columns() -> Option<usize> {
@@ -167,7 +172,7 @@ pub fn manual(name: &str) -> io::Result<process::ExitStatus> {
 pub fn usage(name: &str, usage: &str) {
     println!(
         "{} {}\n{}",
-        ERROR_PREFIX,
+        PREFIX_ERROR,
         Paint::red(format!("Error: rad-{name}: invalid usage")),
         Paint::red(prefixed(TAB, usage)).dim()
     );
@@ -188,17 +193,17 @@ pub fn subcommand(msg: impl fmt::Display) {
 pub fn warning(warning: impl fmt::Display) {
     println!(
         "{} {} {warning}",
-        WARNING_PREFIX,
+        PREFIX_WARNING,
         Paint::yellow("Warning:").bold(),
     );
 }
 
 pub fn error(error: impl fmt::Display) {
-    println!("{ERROR_PREFIX} {} {error}", Paint::red("Error:"));
+    println!("{PREFIX_ERROR} {} {error}", Paint::red("Error:"));
 }
 
 pub fn hint(hint: impl fmt::Display) {
-    println!("{ERROR_HINT_PREFIX} {}", format::hint(hint));
+    println!("{}", format::hint(format!("{SYMBOL_ERROR} Hint: {hint}")));
 }
 
 pub fn ask<D: fmt::Display>(prompt: D, default: bool) -> bool {

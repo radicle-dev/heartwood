@@ -79,8 +79,8 @@ $ rad patch --merged
 ╭─────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title          Author         Reviews  Head     +   -   Updated │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ ✔  [ ... ]  Second change  alice   (you)  -        daf349f  +0  -0  now     │
-│ ✔  [ ... ]  First change   alice   (you)  -        20aa5dd  +0  -0  now     │
+│ ✓  [ ... ]  Second change  alice   (you)  -        daf349f  +0  -0  now     │
+│ ✓  [ ... ]  First change   alice   (you)  -        20aa5dd  +0  -0  now     │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 $ rad patch show 696ec5508494692899337afe6713fe1796d0315c
 ╭────────────────────────────────────────────────────────────────╮
@@ -158,6 +158,6 @@ $ rad patch --all
 │ ●  ID       Title          Author         Reviews  Head     +   -   Updated │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ ●  356f738  Second change  alice   (you)  -        daf349f  +0  -0  now     │
-│ ✔  696ec55  First change   alice   (you)  -        20aa5dd  +0  -0  now     │
+│ ✓  696ec55  First change   alice   (you)  -        20aa5dd  +0  -0  now     │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 ```

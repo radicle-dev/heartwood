@@ -390,7 +390,7 @@ pub fn run(
             let print_update = || {
                 eprintln!(
                     "{} Canonical reference {} updated to target {kind} {}",
-                    term::format::positive("✓"),
+                    term::PREFIX_SUCCESS,
                     term::format::secondary(refname),
                     term::format::secondary(oid),
                 )
@@ -530,7 +530,7 @@ where
 
             eprintln!(
                 "{} Patch {} {action}",
-                term::format::positive("✓"),
+                term::PREFIX_SUCCESS,
                 term::format::tertiary(patch),
             );
 
@@ -630,7 +630,7 @@ where
 
     eprintln!(
         "{} Patch {} updated to revision {}",
-        term::format::positive("✓"),
+        term::PREFIX_SUCCESS,
         term::format::tertiary(term::format::cob(&patch_id)),
         term::format::dim(revision.id())
     );
@@ -745,13 +745,13 @@ where
                     Ok(()) => {
                         eprintln!(
                             "{} Patch {} reverted at revision {}",
-                            term::format::yellow("!"),
+                            term::PREFIX_WARNING,
                             term::format::tertiary(&id),
                             term::format::dim(term::format::oid(*revision_id)),
                         );
                     }
                     Err(e) => {
-                        eprintln!("{} Error reverting patch {id}: {e}", term::ERROR_PREFIX);
+                        eprintln!("{} Error reverting patch {id}: {e}", term::PREFIX_ERROR);
                     }
                 }
                 break;
@@ -833,13 +833,13 @@ where
     if revision == latest {
         eprintln!(
             "{} Patch {} merged",
-            term::format::positive("✓"),
+            term::PREFIX_SUCCESS,
             term::format::tertiary(merged.patch)
         );
     } else {
         eprintln!(
             "{} Patch {} merged at revision {}",
-            term::format::positive("✓"),
+            term::PREFIX_SUCCESS,
             term::format::tertiary(merged.patch),
             term::format::dim(term::format::oid(revision)),
         );

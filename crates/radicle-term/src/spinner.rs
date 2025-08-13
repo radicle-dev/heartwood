@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 use std::{fmt, io, thread, time};
 
-use crate::io::{ERROR_PREFIX, WARNING_PREFIX};
+use crate::io::{PREFIX_ERROR, PREFIX_WARNING};
 use crate::Paint;
 
 /// How much time to wait between spinner animation updates.
@@ -161,7 +161,7 @@ pub fn spinner_to(
                                 write!(animation, "\r{CLEAR_UNTIL_NEWLINE}").ok();
                                 writeln!(
                                     completion,
-                                    "{ERROR_PREFIX} {} {}",
+                                    "{PREFIX_ERROR} {} {}",
                                     &progress.message,
                                     Paint::red("<canceled>")
                                 )
@@ -190,7 +190,7 @@ pub fn spinner_to(
                             message,
                         } => {
                             write!(animation, "\r{CLEAR_UNTIL_NEWLINE}").ok();
-                            writeln!(completion, "{} {message}", Paint::green("✓")).ok();
+                            writeln!(completion, "{} {message}", super::PREFIX_SUCCESS).ok();
                             break;
                         }
                         Progress {
@@ -200,7 +200,7 @@ pub fn spinner_to(
                             write!(animation, "\r{CLEAR_UNTIL_NEWLINE}").ok();
                             writeln!(
                                 completion,
-                                "{ERROR_PREFIX} {message} {}",
+                                "{PREFIX_ERROR} {message} {}",
                                 Paint::red("<canceled>")
                             )
                             .ok();
@@ -211,7 +211,7 @@ pub fn spinner_to(
                             message,
                         } => {
                             write!(animation, "\r{CLEAR_UNTIL_NEWLINE}").ok();
-                            writeln!(completion, "{WARNING_PREFIX} {message}").ok();
+                            writeln!(completion, "{PREFIX_WARNING} {message}").ok();
                             break;
                         }
                         Progress {
@@ -219,7 +219,7 @@ pub fn spinner_to(
                             message,
                         } => {
                             write!(animation, "\r{CLEAR_UNTIL_NEWLINE}").ok();
-                            writeln!(completion, "{ERROR_PREFIX} {message}").ok();
+                            writeln!(completion, "{PREFIX_ERROR} {message}").ok();
                             break;
                         }
                     }

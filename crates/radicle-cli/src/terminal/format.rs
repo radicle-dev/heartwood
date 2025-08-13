@@ -341,8 +341,8 @@ pub mod patch {
 
     pub fn verdict(v: Option<Verdict>) -> term::Paint<String> {
         match v {
-            Some(Verdict::Accept) => term::format::positive("✔".to_string()),
-            Some(Verdict::Reject) => term::format::negative("✗".to_string()),
+            Some(Verdict::Accept) => term::PREFIX_SUCCESS.into(),
+            Some(Verdict::Reject) => term::PREFIX_ERROR.into(),
             None => term::format::dim("-".to_string()),
         }
     }

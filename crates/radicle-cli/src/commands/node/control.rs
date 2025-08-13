@@ -412,15 +412,15 @@ fn state_initial() -> term::Paint<String> {
 }
 
 fn state_attempted() -> term::Paint<String> {
-    term::format::yellow("!".to_string())
+    term::PREFIX_WARNING.into()
 }
 
 fn state_connected() -> term::Paint<String> {
-    term::format::positive("✓".to_string())
+    term::PREFIX_SUCCESS.into()
 }
 
 fn state_disconnected() -> term::Paint<String> {
-    term::format::negative("✗".to_string())
+    term::PREFIX_ERROR.into()
 }
 
 fn link_direction_label() -> term::Paint<String> {

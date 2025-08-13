@@ -588,7 +588,7 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
     for id in accepted {
         let author = term::format::Author::new(&id, profile);
         signatures.push([
-            term::format::positive("✓").into(),
+            term::PREFIX_SUCCESS.into(),
             id.to_string().into(),
             author.alias().unwrap_or_default(),
             author.you().unwrap_or_default(),
@@ -597,7 +597,7 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
     for id in rejected {
         let author = term::format::Author::new(&id, profile);
         signatures.push([
-            term::format::negative("✗").into(),
+            term::PREFIX_ERROR.into(),
             id.to_string().into(),
             author.alias().unwrap_or_default(),
             author.you().unwrap_or_default(),
