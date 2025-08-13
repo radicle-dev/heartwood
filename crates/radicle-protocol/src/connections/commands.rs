@@ -6,12 +6,15 @@ use radicle::{
 
 use crate::service::message;
 
+use super::session;
+
 pub enum Command {
     Attempt(Attempt),
     Connect(Connect),
     Disconnect(Disconnect),
     Subscribe(Subscribe),
     SubscribeTo(SubscribeTo),
+    Pong(Pong),
 }
 
 impl From<Attempt> for Command {
@@ -41,6 +44,12 @@ impl From<Subscribe> for Command {
 impl From<SubscribeTo> for Command {
     fn from(v: SubscribeTo) -> Self {
         Self::SubscribeTo(v)
+    }
+}
+
+impl From<Pong> for Command {
+    fn from(v: Pong) -> Self {
+        Self::Pong(v)
     }
 }
 
@@ -74,4 +83,10 @@ pub struct Subscribe {
 pub struct SubscribeTo {
     pub node: NodeId,
     pub rid: RepoId,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Pong {
+    pub node: NodeId,
+    pub pong: session::Pong,
 }

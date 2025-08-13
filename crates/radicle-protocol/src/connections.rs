@@ -8,7 +8,7 @@ pub mod events;
 
 use radicle::node::config::RateLimits;
 use radicle::prelude::RepoId;
-use session::{HasAttempts as _, Session, Sessions};
+use session::{HasAttempts as _, Pinged, Session, Sessions};
 mod session;
 
 use std::collections::HashSet;
@@ -80,6 +80,10 @@ pub enum CommandEvent {
         node: NodeId,
         rid: RepoId,
     },
+    Pinged {
+        node: NodeId,
+        pinged: Option<Pinged>,
+    },
 }
 
 impl Connections {
@@ -90,6 +94,7 @@ impl Connections {
             commands::Command::Disconnect(disconnect) => self.disconnected(disconnect),
             commands::Command::Subscribe(subscribe) => self.subscribed(subscribe),
             commands::Command::SubscribeTo(subscribe) => self.subscribed_to(subscribe),
+            commands::Command::Pong(pong) => self.pinged(pong),
         }
     }
 
@@ -149,6 +154,13 @@ impl Connections {
         } else {
             CommandEvent::MissingSession { node }
         }
+    }
+
+    fn pinged(&mut self, commands::Pong { node, pong }: commands::Pong) -> CommandEvent {
+        self.sessions.pinged(&node, pong).map_or_else(
+            |session::Missing| CommandEvent::MissingSession { node },
+            |pinged| CommandEvent::Pinged { node, pinged },
+        )
     }
 }
 

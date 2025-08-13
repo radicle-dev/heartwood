@@ -6,7 +6,7 @@ use radicle::{
     prelude::RepoId,
 };
 
-use crate::service::message;
+use crate::service::{message, ZeroBytes, MAX_LATENCIES};
 
 /// Time after which a connection is considered stable.
 #[allow(unused)]
@@ -54,6 +54,9 @@ impl HasAttempts for State {
         }
     }
 }
+
+/// Marker type for when a [`NodeId`] is missing from [`Sessions`].
+pub struct Missing;
 
 pub struct Sessions {
     initial: HashMap<NodeId, Session<Initial>>,
@@ -249,6 +252,11 @@ impl Sessions {
         }
 
         false
+    }
+
+    pub fn pinged(&mut self, node: &NodeId, pong: Pong) -> Result<Option<Pinged>, Missing> {
+        let session = self.connected.get_mut(node).ok_or(Missing)?;
+        Ok(session.pinged(pong))
     }
 
     fn remove_session(&mut self, node: &NodeId) -> Option<Session<State>> {
@@ -537,9 +545,21 @@ impl Connected {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Ping {
-    since: LocalTime,
-    rng: fastrand::Rng,
+    pub since: LocalTime,
+    pub rng: fastrand::Rng,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Pong {
+    pub now: LocalTime,
+    pub zeroes: ZeroBytes,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Pinged {
+    pub latency: LocalDuration,
 }
 
 impl Session<Connected> {
@@ -568,6 +588,27 @@ impl Session<Connected> {
             since: ping.since,
         };
         msg
+    }
+
+    pub fn pinged(&mut self, Pong { zeroes, now }: Pong) -> Option<Pinged> {
+        if let PingState::AwaitingResponse {
+            len: ponglen,
+            since,
+        } = self.state.ping
+        {
+            if (ponglen as usize) == zeroes.len() {
+                self.state.ping = PingState::Ok;
+                let latency = now - since;
+                self.state.latencies.push_back(latency);
+                // TODO(finto): MAX_LATENCIES should likely be configured
+                // somewhere else
+                if self.state.latencies.len() > MAX_LATENCIES {
+                    self.state.latencies.pop_front();
+                }
+                return Some(Pinged { latency });
+            }
+        }
+        None
     }
 
     pub fn idle(&mut self, now: LocalTime, stable_threshold: LocalDuration) {
