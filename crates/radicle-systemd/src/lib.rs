@@ -1,7 +1,7 @@
 //! Library for interaction with systemd, specialized for Radicle.
 
-#[cfg(feature = "journal")]
+#[cfg(all(feature = "journal", target_os = "linux"))]
 pub mod journal;
 
-#[cfg(feature = "listen")]
+#[cfg(all(feature = "listen", target_os = "linux"))]
 pub mod listen;
