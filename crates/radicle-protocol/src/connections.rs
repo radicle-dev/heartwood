@@ -7,6 +7,7 @@ pub mod effects;
 pub mod events;
 
 use radicle::node::config::RateLimits;
+use radicle::prelude::RepoId;
 use session::{HasAttempts as _, Session, Sessions};
 mod session;
 
@@ -18,7 +19,7 @@ use radicle::node::address;
 use radicle::node::{Address, HostName, Link, NodeId, Severity};
 
 use crate::service::limiter::RateLimiter;
-use crate::service::DisconnectReason;
+use crate::service::{message, DisconnectReason};
 
 /// Minimum amount of time to wait before reconnecting to a peer.
 pub const MIN_RECONNECTION_DELTA: LocalDuration = LocalDuration::from_secs(3);
@@ -65,10 +66,20 @@ impl Default for ReconnectionDelay {
 }
 
 pub enum CommandEvent {
-    MissingSession { node: NodeId },
+    MissingSession {
+        node: NodeId,
+    },
     Attempted(Session<session::Attempted>),
     Connected(Session<session::Connected>),
     Disconnected(Session<session::Disconnected>),
+    Subscribed {
+        node: NodeId,
+        subscription: message::Subscribe,
+    },
+    SubscribedTo {
+        node: NodeId,
+        rid: RepoId,
+    },
 }
 
 impl Connections {
@@ -77,6 +88,8 @@ impl Connections {
             commands::Command::Attempt(attempt) => self.attempted(attempt),
             commands::Command::Connect(connect) => self.connected(connect),
             commands::Command::Disconnect(disconnect) => self.disconnected(disconnect),
+            commands::Command::Subscribe(subscribe) => self.subscribed(subscribe),
+            commands::Command::SubscribeTo(subscribe) => self.subscribed_to(subscribe),
         }
     }
 
@@ -114,6 +127,28 @@ impl Connections {
             .session_to_disconnected(&node, since, retry_at)
             .map(CommandEvent::Disconnected)
             .unwrap_or(CommandEvent::MissingSession { node })
+    }
+
+    fn subscribed(
+        &mut self,
+        commands::Subscribe { node, subscription }: commands::Subscribe,
+    ) -> CommandEvent {
+        if self.sessions.subscribe(&node, subscription.clone()) {
+            CommandEvent::Subscribed { node, subscription }
+        } else {
+            CommandEvent::MissingSession { node }
+        }
+    }
+
+    fn subscribed_to(
+        &mut self,
+        commands::SubscribeTo { node, rid }: commands::SubscribeTo,
+    ) -> CommandEvent {
+        if self.sessions.subscribe_to(&node, &rid) {
+            CommandEvent::SubscribedTo { node, rid }
+        } else {
+            CommandEvent::MissingSession { node }
+        }
     }
 }
 

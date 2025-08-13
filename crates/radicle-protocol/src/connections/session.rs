@@ -203,6 +203,54 @@ impl Sessions {
             })
     }
 
+    pub fn subscribe(&mut self, node: &NodeId, subscription: message::Subscribe) -> bool {
+        if let Some(session) = self.connected.get_mut(node) {
+            session.set_subscription(subscription);
+            return true;
+        }
+
+        if let Some(session) = self.disconnected.get_mut(node) {
+            session.set_subscription(subscription);
+            return true;
+        }
+
+        if let Some(session) = self.attempted.get_mut(node) {
+            session.set_subscription(subscription);
+            return true;
+        }
+
+        if let Some(session) = self.initial.get_mut(node) {
+            session.set_subscription(subscription);
+            return true;
+        }
+
+        false
+    }
+
+    pub fn subscribe_to(&mut self, node: &NodeId, rid: &RepoId) -> bool {
+        if let Some(session) = self.connected.get_mut(node) {
+            session.subscribe_to(rid);
+            return true;
+        }
+
+        if let Some(session) = self.disconnected.get_mut(node) {
+            session.subscribe_to(rid);
+            return true;
+        }
+
+        if let Some(session) = self.attempted.get_mut(node) {
+            session.subscribe_to(rid);
+            return true;
+        }
+
+        if let Some(session) = self.initial.get_mut(node) {
+            session.subscribe_to(rid);
+            return true;
+        }
+
+        false
+    }
+
     fn remove_session(&mut self, node: &NodeId) -> Option<Session<State>> {
         self.initial
             .remove(node)
