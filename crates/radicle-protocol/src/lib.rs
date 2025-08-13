@@ -7,6 +7,7 @@ pub mod worker;
 pub mod connections;
 pub mod fetcher;
 pub mod node;
+pub mod routing;
 pub mod tasks;
 
 /// Peer-to-peer protocol version.
