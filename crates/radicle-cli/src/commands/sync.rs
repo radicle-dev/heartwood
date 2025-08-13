@@ -12,6 +12,7 @@ use radicle::node;
 use radicle::node::address::Store;
 use radicle::node::sync;
 use radicle::node::sync::fetch::SuccessfulOutcome;
+use radicle::node::SyncedAt;
 use radicle::node::{AliasStore, Handle as _, Node, Seed, SyncStatus};
 use radicle::prelude::{NodeId, Profile, RepoId};
 use radicle::storage::ReadRepository;
@@ -340,77 +341,101 @@ fn sync_status(
     profile: &Profile,
     options: &Options,
 ) -> anyhow::Result<()> {
-    let mut table = Table::<7, term::Label>::new(TableOptions::bordered());
+    const SYMBOL_STATE: &str = "?";
+    const SYMBOL_STATE_UNKNOWN: &str = "•";
+
+    let mut table = Table::<5, term::Label>::new(TableOptions::bordered());
     let mut seeds: Vec<_> = node.seeds(rid)?.into();
     let local_nid = node.nid()?;
     let aliases = profile.aliases();
 
     table.header([
-        term::format::dim(String::from("●")).into(),
-        term::format::bold(String::from("Node")).into(),
-        term::Label::blank(),
-        term::format::bold(String::from("Address")).into(),
-        term::format::bold(String::from("Status")).into(),
-        term::format::bold(String::from("Tip")).into(),
-        term::format::bold(String::from("Timestamp")).into(),
+        term::format::bold("Node ID").into(),
+        term::format::bold("Alias").into(),
+        term::format::bold(SYMBOL_STATE).into(),
+        term::format::bold("SigRefs").into(),
+        term::format::bold("Timestamp").into(),
     ]);
     table.divider();
 
     sort_seeds_by(local_nid, &mut seeds, &aliases, &options.sort_by);
 
     for seed in seeds {
-        let (icon, status, head, time) = match seed.sync {
-            Some(SyncStatus::Synced { at }) => (
-                term::format::positive("●"),
-                term::format::positive(if seed.nid != local_nid { "synced" } else { "" }),
-                term::format::oid(at.oid),
-                term::format::timestamp(at.timestamp),
+        let (status, head, time) = match seed.sync {
+            Some(SyncStatus::Synced {
+                at: SyncedAt { oid, timestamp },
+            }) => (
+                term::PREFIX_SUCCESS,
+                term::format::oid(oid),
+                term::format::timestamp(timestamp),
             ),
-            Some(SyncStatus::OutOfSync { remote, local, .. }) => (
-                if seed.nid != local_nid {
-                    term::format::negative("●")
-                } else {
-                    term::format::yellow("●")
-                },
-                if seed.nid != local_nid {
-                    term::format::negative("out-of-sync")
-                } else {
-                    term::format::yellow("unannounced")
-                },
-                term::format::oid(if seed.nid != local_nid {
-                    remote.oid
-                } else {
-                    local.oid
-                }),
-                term::format::timestamp(remote.timestamp),
+            Some(SyncStatus::OutOfSync {
+                remote: SyncedAt { timestamp, .. },
+                local,
+                ..
+            }) if seed.nid == local_nid => (
+                term::PREFIX_WARNING,
+                term::format::oid(local.oid),
+                term::format::timestamp(timestamp),
+            ),
+            Some(SyncStatus::OutOfSync {
+                remote: SyncedAt { oid, timestamp },
+                ..
+            }) => (
+                term::PREFIX_ERROR,
+                term::format::oid(oid),
+                term::format::timestamp(timestamp),
             ),
             None if options.verbose => (
-                term::format::dim("●"),
-                term::format::dim("unknown"),
+                term::format::dim(SYMBOL_STATE_UNKNOWN),
                 term::paint(String::new()),
                 term::paint(String::new()),
             ),
             None => continue,
         };
-        let addr = seed
-            .addrs
-            .first()
-            .map(|a| a.addr.to_string())
-            .unwrap_or_default()
-            .into();
         let (alias, nid) = Author::new(&seed.nid, profile).labels();
 
         table.push([
-            icon.into(),
-            alias,
             nid,
-            addr,
+            alias,
             status.into(),
             term::format::secondary(head).into(),
             time.dim().italic().into(),
         ]);
     }
     table.print();
+
+    if profile.hints() {
+        const COLUMN_WIDTH: usize = 16;
+        let status = format!(
+            "\n{:>4} … {}\n       {}   {}\n       {}   {}",
+            term::Paint::from(SYMBOL_STATE.to_string()).fg(radicle_term::Color::White),
+            term::format::dim("Status:"),
+            format_args!(
+                "{} {:width$}",
+                term::PREFIX_SUCCESS,
+                term::format::dim("… in sync"),
+                width = COLUMN_WIDTH,
+            ),
+            format_args!(
+                "{} {}",
+                term::PREFIX_ERROR,
+                term::format::dim("… out of sync")
+            ),
+            format_args!(
+                "{} {:width$}",
+                term::PREFIX_WARNING,
+                term::format::dim("… not announced"),
+                width = COLUMN_WIDTH,
+            ),
+            format_args!(
+                "{} {}",
+                term::format::dim(SYMBOL_STATE_UNKNOWN),
+                term::format::dim("… unknown")
+            ),
+        );
+        term::hint(status);
+    }
 
     Ok(())
 }

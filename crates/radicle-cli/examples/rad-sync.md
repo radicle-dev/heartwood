@@ -12,13 +12,13 @@ change has not yet been announced.
 
 ```
 $ rad sync status --sort-by alias
-╭──────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   Node                      Address                      Status        Tip       Timestamp │
-├──────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   alice   (you)             alice.radicle.example:8776   unannounced   056b1db   [  ...  ] │
-│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.example:8776     out-of-sync   99c5497   [  ...  ] │
-│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.example:8776     out-of-sync   99c5497   [  ...  ] │
-╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────╮
+│ Node ID           Alias   ?   SigRefs   Timestamp │
+├───────────────────────────────────────────────────┤
+│ (you)             alice   !   056b1db   [..]      │
+│ z6Mkt67…v4N1tRk   bob     ✗   99c5497   [..]      │
+│ z6Mkux1…nVhib7Z   eve     ✗   99c5497   [..]      │
+╰───────────────────────────────────────────────────╯
 ```
 
 Now let's run `rad sync`. This will announce the issue refs to the network and
@@ -34,13 +34,13 @@ Now, when we run `rad sync status` again, we can see that `bob` and
 
 ```
 $ rad sync status --sort-by alias
-╭─────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   Node                      Address                      Status   Tip       Timestamp │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   alice   (you)             alice.radicle.example:8776            056b1db   [  ...  ] │
-│ ●   bob     z6Mkt67…v4N1tRk   bob.radicle.example:8776     synced   056b1db   [  ...  ] │
-│ ●   eve     z6Mkux1…nVhib7Z   eve.radicle.example:8776     synced   056b1db   [  ...  ] │
-╰─────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────╮
+│ Node ID           Alias   ?   SigRefs   Timestamp │
+├───────────────────────────────────────────────────┤
+│ (you)             alice   ✓   056b1db   [..]      │
+│ z6Mkt67…v4N1tRk   bob     ✓   056b1db   [..]      │
+│ z6Mkux1…nVhib7Z   eve     ✓   056b1db   [..]      │
+╰───────────────────────────────────────────────────╯
 ```
 
 If we try to sync again after the nodes have synced, we will already
