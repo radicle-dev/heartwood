@@ -153,11 +153,21 @@ impl Rotate {
                 log::warn!(target: "cli", "Failed to remove current log file: {err}");
             }
         }
+
         let log = OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&self.next)?;
-        fs::hard_link(&self.next, &self.link)?;
+
+        if let Err(err) = fs::hard_link(&self.next, &self.link) {
+            log::warn!(
+                target: "cli",
+                "Failed to create hard link from {} to {}: {err}",
+                self.next.display(),
+                self.link.display()
+            );
+        }
+
         Ok(Rotated {
             path: self.next,
             log,
