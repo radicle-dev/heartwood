@@ -2,6 +2,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::{net, thread, time};
 
+use radicle::cob;
 use radicle::git;
 use radicle::node;
 use radicle::node::address::Store as _;
@@ -1654,7 +1655,7 @@ fn test_cob_replication() {
     let mut bob_cache = radicle::cob::cache::InMemory::default();
     let issue = bob_issues
         .create(
-            "Something's fishy",
+            cob::Title::new("Something's fishy").unwrap(),
             "I don't know what it is",
             &[],
             &[],
@@ -1705,7 +1706,7 @@ fn test_cob_deletion() {
     let mut alice_issues = radicle::cob::issue::Cache::no_cache(&alice_repo).unwrap();
     let issue = alice_issues
         .create(
-            "Something's fishy",
+            cob::Title::new("Something's fishy").unwrap(),
             "I don't know what it is",
             &[],
             &[],

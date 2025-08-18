@@ -4,6 +4,7 @@ use std::{ffi::OsString, io};
 use anyhow::{anyhow, Context};
 
 use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
+use radicle::cob::Title;
 use radicle::identity::doc::update;
 use radicle::identity::doc::update::EditVisibility;
 use radicle::identity::{doc, Doc, Identity, RawDoc};
@@ -56,7 +57,7 @@ Options
 #[derive(Clone, Debug, Default)]
 pub enum Operation {
     Update {
-        title: Option<String>,
+        title: Option<Title>,
         description: Option<String>,
         delegate: Vec<Did>,
         rescind: Vec<Did>,
@@ -75,7 +76,7 @@ pub enum Operation {
     },
     EditRevision {
         revision: Rev,
-        title: Option<String>,
+        title: Option<Title>,
         description: Option<String>,
     },
     RedactRevision {
@@ -115,7 +116,7 @@ impl Args for Options {
         let mut op: Option<OperationName> = None;
         let mut revision: Option<Rev> = None;
         let mut rid: Option<RepoId> = None;
-        let mut title: Option<String> = None;
+        let mut title: Option<Title> = None;
         let mut description: Option<String> = None;
         let mut delegate: Vec<Did> = Vec::new();
         let mut rescind: Vec<Did> = Vec::new();
@@ -139,7 +140,8 @@ impl Args for Options {
                 Long("title")
                     if op == Some(OperationName::Edit) || op == Some(OperationName::Update) =>
                 {
-                    title = Some(parser.value()?.to_string_lossy().into());
+                    let val = parser.value()?;
+                    title = Some(term::args::string(&val).try_into()?);
                 }
                 Long("description")
                     if op == Some(OperationName::Edit) || op == Some(OperationName::Update) =>
@@ -536,7 +538,7 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
 
     attrs.push([
         term::format::bold("Title").into(),
-        term::label(revision.title.to_owned()),
+        term::label(revision.title.to_string()),
     ]);
     attrs.push([
         term::format::bold("Revision").into(),
@@ -632,9 +634,9 @@ fn print(
 }
 
 fn edit_title_description(
-    title: Option<String>,
+    title: Option<Title>,
     description: Option<String>,
-) -> anyhow::Result<Option<(String, String)>> {
+) -> anyhow::Result<Option<(Title, String)>> {
     const HELP: &str = r#"<!--
 Please enter a patch message for your changes. An empty
 message aborts the patch proposal.
@@ -659,7 +661,7 @@ and description.
 }
 
 fn update<R, G>(
-    title: Option<String>,
+    title: Option<Title>,
     description: Option<String>,
     doc: Doc,
     current: &mut IdentityMut<R>,

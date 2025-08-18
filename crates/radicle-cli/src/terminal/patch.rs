@@ -10,6 +10,7 @@ use thiserror::Error;
 
 use radicle::cob;
 use radicle::cob::patch;
+use radicle::cob::Title;
 use radicle::git;
 use radicle::patch::{Patch, PatchId};
 use radicle::prelude::Profile;
@@ -72,14 +73,14 @@ impl Message {
     /// Open the editor with the given title and description (if any).
     /// Returns the edited title and description, or nothing if it couldn't be parsed.
     pub fn edit_title_description(
-        title: Option<String>,
+        title: Option<cob::Title>,
         description: Option<String>,
         help: &str,
-    ) -> std::io::Result<Option<(String, String)>> {
+    ) -> std::io::Result<Option<(Title, String)>> {
         let mut placeholder = String::new();
 
         if let Some(title) = title {
-            placeholder.push_str(title.trim());
+            placeholder.push_str(title.as_ref());
             placeholder.push('\n');
         }
         if let Some(description) = description {
@@ -94,12 +95,12 @@ impl Message {
             Some((x, y)) => (x, y),
             None => (output.as_str(), ""),
         };
-        let (title, description) = (title.trim(), description.trim());
 
-        if title.is_empty() | title.contains('\n') {
+        let Ok(title) = Title::new(title) else {
             return Ok(None);
-        }
-        Ok(Some((title.to_owned(), description.to_owned())))
+        };
+
+        Ok(Some((title, description.trim().to_owned())))
     }
 
     pub fn append(&mut self, arg: &str) {
@@ -220,20 +221,19 @@ pub fn get_create_message(
     repo: &git::raw::Repository,
     base: &git::Oid,
     head: &git::Oid,
-) -> Result<(String, String), Error> {
+) -> Result<(Title, String), Error> {
     let display_msg = create_display_message(repo, base, head)?;
     let message = message.get(&display_msg)?;
 
     let (title, description) = message.split_once('\n').unwrap_or((&message, ""));
     let (title, description) = (title.trim().to_string(), description.trim().to_string());
 
-    if title.is_empty() {
-        return Err(io::Error::new(
+    let title = Title::new(title.as_str()).map_err(|err| {
+        io::Error::new(
             io::ErrorKind::InvalidInput,
-            "a patch title must be provided",
+            format!("invalid patch title: {err}"),
         )
-        .into());
-    }
+    })?;
 
     Ok((title, description))
 }
@@ -249,7 +249,7 @@ fn edit_display_message(title: &str, description: &str) -> String {
 pub fn get_edit_message(
     patch_message: term::patch::Message,
     patch: &cob::patch::Patch,
-) -> io::Result<(String, String)> {
+) -> io::Result<(Title, String)> {
     let display_msg = edit_display_message(patch.title(), patch.description());
     let patch_message = patch_message.get(&display_msg)?;
     let patch_message = patch_message.replace(PATCH_MSG.trim(), ""); // Delete help message.
@@ -259,12 +259,12 @@ pub fn get_edit_message(
         .unwrap_or((&patch_message, ""));
     let (title, description) = (title.trim().to_string(), description.trim().to_string());
 
-    if title.is_empty() {
-        return Err(io::Error::new(
+    let title = Title::new(title.as_str()).map_err(|err| {
+        io::Error::new(
             io::ErrorKind::InvalidInput,
-            "a patch title must be provided",
-        ));
-    }
+            format!("invalid patch title: {err}"),
+        )
+    })?;
 
     Ok((title, description))
 }

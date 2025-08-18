@@ -12,9 +12,9 @@ use crate::cob;
 use crate::cob::common::{Author, Authorization, Label, Reaction, Timestamp, Uri};
 use crate::cob::store::Transaction;
 use crate::cob::store::{Cob, CobAction};
-use crate::cob::thread;
 use crate::cob::thread::{Comment, CommentId, Thread};
 use crate::cob::{op, store, ActorId, Embed, EntryId, ObjectId, TypeName};
+use crate::cob::{thread, TitleError};
 use crate::identity::doc::DocError;
 use crate::node::device::Device;
 use crate::node::NodeId;
@@ -53,6 +53,8 @@ pub enum Error {
     Thread(#[from] thread::Error),
     #[error("store: {0}")]
     Store(#[from] store::Error),
+    #[error("invalid issue title due to: {0}")]
+    TitleError(#[from] TitleError),
     /// Action not authorized.
     #[error("{0} not authorized to apply {1:?}")]
     NotAuthorized(ActorId, Action),
@@ -424,10 +426,7 @@ impl Issue {
                 self.assignees = BTreeSet::from_iter(assignees);
             }
             Action::Edit { title } => {
-                if title.contains('\n') || title.contains('\r') {
-                    return Err(Error::InvalidTitle(title));
-                }
-                self.title = title;
+                self.title = title.to_string();
             }
             Action::Lifecycle { state } => {
                 self.state = state;
@@ -511,10 +510,8 @@ impl<R: ReadRepository> store::Transaction<Issue, R> {
     }
 
     /// Set the issue title.
-    pub fn edit(&mut self, title: impl ToString) -> Result<(), store::Error> {
-        self.push(Action::Edit {
-            title: title.to_string(),
-        })
+    pub fn edit(&mut self, title: cob::Title) -> Result<(), store::Error> {
+        self.push(Action::Edit { title })
     }
 
     /// Redact a comment.
@@ -631,7 +628,7 @@ where
     }
 
     /// Set the issue title.
-    pub fn edit<G>(&mut self, title: impl ToString, signer: &Device<G>) -> Result<EntryId, Error>
+    pub fn edit<G>(&mut self, title: cob::Title, signer: &Device<G>) -> Result<EntryId, Error>
     where
         G: crypto::signature::Signer<crypto::Signature>,
     {
@@ -821,7 +818,7 @@ where
     /// Create a new issue.
     pub fn create<'g, G, C>(
         &'g mut self,
-        title: impl ToString,
+        title: cob::Title,
         description: impl ToString,
         labels: &[Label],
         assignees: &[Did],
@@ -922,7 +919,7 @@ pub enum Action {
 
     /// Edit issue title.
     #[serde(rename = "edit")]
-    Edit { title: String },
+    Edit { title: cob::Title },
 
     /// Transition to a different state.
     #[serde(rename = "lifecycle")]
@@ -998,7 +995,7 @@ mod test {
         let mut eve_issues = Cache::no_cache(&*t.eve.repo).unwrap();
         let mut issue_alice = issues_alice
             .create(
-                "Alice Issue",
+                cob::Title::new("Alice Issue").unwrap(),
                 "Alice's comment",
                 &[],
                 &[],
@@ -1087,7 +1084,7 @@ mod test {
         let assignee_two = Did::from(arbitrary::gen::<ActorId>(1));
         let issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[assignee],
@@ -1126,7 +1123,7 @@ mod test {
         let assignee_two = Did::from(arbitrary::gen::<ActorId>(1));
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[assignee, assignee_two],
@@ -1156,7 +1153,7 @@ mod test {
         let mut issues = Cache::no_cache(&*repo).unwrap();
         let created = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],
@@ -1182,7 +1179,7 @@ mod test {
         let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],
@@ -1225,7 +1222,7 @@ mod test {
         let assignee_two = Did::from(arbitrary::gen::<ActorId>(1));
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[assignee, assignee_two],
@@ -1251,7 +1248,7 @@ mod test {
 
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],
@@ -1260,7 +1257,9 @@ mod test {
             )
             .unwrap();
 
-        issue.edit("Sorry typo", &node.signer).unwrap();
+        issue
+            .edit(cob::Title::new("Sorry typo").unwrap(), &node.signer)
+            .unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
@@ -1275,7 +1274,7 @@ mod test {
         let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],
@@ -1301,7 +1300,7 @@ mod test {
         let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],
@@ -1331,7 +1330,7 @@ mod test {
         let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],
@@ -1389,7 +1388,7 @@ mod test {
         let wontfix_label = Label::new("wontfix").unwrap();
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[ux_label.clone()],
                 &[],
@@ -1424,7 +1423,7 @@ mod test {
         let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],
@@ -1464,7 +1463,7 @@ mod test {
         let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],
@@ -1511,13 +1510,34 @@ mod test {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo).unwrap();
         issues
-            .create("First", "Blah", &[], &[], [], &node.signer)
+            .create(
+                cob::Title::new("First").unwrap(),
+                "Blah",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
             .unwrap();
         issues
-            .create("Second", "Blah", &[], &[], [], &node.signer)
+            .create(
+                cob::Title::new("Second").unwrap(),
+                "Blah",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
             .unwrap();
         issues
-            .create("Third", "Blah", &[], &[], [], &node.signer)
+            .create(
+                cob::Title::new("Third").unwrap(),
+                "Blah",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
             .unwrap();
 
         let issues = issues
@@ -1540,7 +1560,7 @@ mod test {
         let mut issues = Cache::no_cache(&*repo).unwrap();
         let created = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.\nYah yah yah",
                 &[],
                 &[],
@@ -1583,7 +1603,7 @@ mod test {
         };
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],
@@ -1642,7 +1662,7 @@ mod test {
         };
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],
@@ -1674,7 +1694,7 @@ mod test {
         let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],
@@ -1708,7 +1728,7 @@ mod test {
         let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],
@@ -1735,7 +1755,7 @@ mod test {
         let mut issues = Cache::no_cache(&*repo).unwrap();
         let issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],
@@ -1766,7 +1786,7 @@ mod test {
         let mut issues = Cache::no_cache(&*repo).unwrap();
         let mut issue = issues
             .create(
-                "My first issue",
+                cob::Title::new("My first issue").unwrap(),
                 "Blah blah blah.",
                 &[],
                 &[],

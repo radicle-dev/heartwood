@@ -344,7 +344,7 @@ impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
     }
 
     /// Create an [`issue::Issue`] in the `NodeHandle`'s storage.
-    pub fn issue(&self, rid: RepoId, title: &str, desc: &str) -> cob::ObjectId {
+    pub fn issue(&self, rid: RepoId, title: cob::Title, desc: &str) -> cob::ObjectId {
         let repo = self.storage.repository(rid).unwrap();
         let mut issues = issue::Cache::no_cache(&repo).unwrap();
         *issues

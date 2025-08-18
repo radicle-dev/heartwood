@@ -175,7 +175,10 @@ pub enum Action {
     // Actions on patch.
     //
     #[serde(rename = "edit")]
-    Edit { title: String, target: MergeTarget },
+    Edit {
+        title: cob::Title,
+        target: MergeTarget,
+    },
     #[serde(rename = "label")]
     Label { labels: BTreeSet<Label> },
     #[serde(rename = "lifecycle")]
@@ -422,7 +425,7 @@ impl MergeTarget {
 #[serde(rename_all = "camelCase")]
 pub struct Patch {
     /// Title of the patch.
-    pub(super) title: String,
+    pub(super) title: cob::Title,
     /// Patch author.
     pub(super) author: Author,
     /// Current state of the patch.
@@ -455,7 +458,11 @@ pub struct Patch {
 
 impl Patch {
     /// Construct a new patch object from a revision.
-    pub fn new(title: String, target: MergeTarget, (id, revision): (RevisionId, Revision)) -> Self {
+    pub fn new(
+        title: cob::Title,
+        target: MergeTarget,
+        (id, revision): (RevisionId, Revision),
+    ) -> Self {
         Self {
             title,
             author: revision.author.clone(),
@@ -472,7 +479,7 @@ impl Patch {
 
     /// Title of the patch.
     pub fn title(&self) -> &str {
-        self.title.as_str()
+        self.title.as_ref()
     }
 
     /// Current state of the patch.
@@ -1742,11 +1749,8 @@ impl Review {
 }
 
 impl<R: ReadRepository> store::Transaction<Patch, R> {
-    pub fn edit(&mut self, title: impl ToString, target: MergeTarget) -> Result<(), store::Error> {
-        self.push(Action::Edit {
-            title: title.to_string(),
-            target,
-        })
+    pub fn edit(&mut self, title: cob::Title, target: MergeTarget) -> Result<(), store::Error> {
+        self.push(Action::Edit { title, target })
     }
 
     pub fn edit_revision(
@@ -2095,7 +2099,7 @@ where
     /// Edit patch metadata.
     pub fn edit<G, S>(
         &mut self,
-        title: String,
+        title: cob::Title,
         target: MergeTarget,
         signer: &Device<G>,
     ) -> Result<EntryId, Error>
@@ -2678,7 +2682,7 @@ where
     /// Open a new patch.
     pub fn create<'g, C, G>(
         &'g mut self,
-        title: impl ToString,
+        title: cob::Title,
         description: impl ToString,
         target: MergeTarget,
         base: impl Into<git::Oid>,
@@ -2707,7 +2711,7 @@ where
     /// Draft a patch. This patch will be created in a [`State::Draft`] state.
     pub fn draft<'g, C, G>(
         &'g mut self,
-        title: impl ToString,
+        title: cob::Title,
         description: impl ToString,
         target: MergeTarget,
         base: impl Into<git::Oid>,
@@ -2755,7 +2759,7 @@ where
     /// Create a patch. This is an internal function used by `create` and `draft`.
     fn _create<'g, C, G>(
         &'g mut self,
-        title: impl ToString,
+        title: cob::Title,
         description: impl ToString,
         target: MergeTarget,
         base: impl Into<git::Oid>,
@@ -3060,7 +3064,7 @@ mod test {
         let target = MergeTarget::Delegates;
         let patch = patches
             .create(
-                "My first patch",
+                cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 target,
                 branch.base,
@@ -3100,7 +3104,7 @@ mod test {
         let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let patch = patches
             .create(
-                "My first patch",
+                cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
                 branch.base,
@@ -3133,7 +3137,7 @@ mod test {
         let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
-                "My first patch",
+                cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
                 branch.base,
@@ -3164,7 +3168,7 @@ mod test {
         let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
-                "My first patch",
+                cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
                 branch.base,
@@ -3216,7 +3220,7 @@ mod test {
         let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
-                "My first patch",
+                cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
                 branch.base,
@@ -3263,7 +3267,7 @@ mod test {
                 resolves: Default::default(),
             },
             Action::Edit {
-                title: String::from("My patch"),
+                title: cob::Title::new("My patch").unwrap(),
                 target: MergeTarget::Delegates,
             },
         ]);
@@ -3314,7 +3318,7 @@ mod test {
                     resolves: Default::default(),
                 },
                 Action::Edit {
-                    title: String::from("Some patch"),
+                    title: cob::Title::new("Some patch").unwrap(),
                     target: MergeTarget::Delegates,
                 },
             ],
@@ -3374,7 +3378,7 @@ mod test {
                 resolves: Default::default(),
             },
             Action::Edit {
-                title: String::from("My patch"),
+                title: cob::Title::new("My patch").unwrap(),
                 target: MergeTarget::Delegates,
             },
         ]);
@@ -3404,7 +3408,7 @@ mod test {
         let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
-                "My first patch",
+                cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
                 branch.base,
@@ -3449,7 +3453,7 @@ mod test {
         let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
-                "My first patch",
+                cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
                 branch.base,
@@ -3480,7 +3484,7 @@ mod test {
         let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
-                "My first patch",
+                cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
                 branch.base,
@@ -3531,7 +3535,7 @@ mod test {
         let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
-                "My first patch",
+                cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
                 branch.base,
@@ -3578,7 +3582,7 @@ mod test {
         let mut patches = Cache::no_cache(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
-                "My first patch",
+                cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
                 branch.base,
@@ -3633,7 +3637,7 @@ mod test {
         };
         let mut patch = patches
             .create(
-                "My first patch",
+                cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
                 branch.base,
@@ -3682,7 +3686,7 @@ mod test {
         let mut patches = Cache::no_cache(&*repo).unwrap();
         let mut patch = patches
             .create(
-                "My first patch",
+                cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
                 branch.base,

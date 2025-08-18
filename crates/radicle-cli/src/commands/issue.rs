@@ -9,7 +9,7 @@ use anyhow::{anyhow, Context as _};
 
 use radicle::cob::common::{Label, Reaction};
 use radicle::cob::issue::{CloseReason, State};
-use radicle::cob::{issue, thread};
+use radicle::cob::{issue, thread, Title};
 use radicle::crypto;
 use radicle::git::Oid;
 use radicle::issue::cache::Issues as _;
@@ -107,11 +107,11 @@ pub enum Assigned {
 pub enum Operation {
     Edit {
         id: Rev,
-        title: Option<String>,
+        title: Option<Title>,
         description: Option<String>,
     },
     Open {
-        title: Option<String>,
+        title: Option<Title>,
         description: Option<String>,
         labels: Vec<Label>,
         assignees: Vec<Did>,
@@ -189,7 +189,7 @@ impl Args for Options {
         let mut op: Option<OperationName> = None;
         let mut id: Option<Rev> = None;
         let mut assigned: Option<Assigned> = None;
-        let mut title: Option<String> = None;
+        let mut title: Option<Title> = None;
         let mut reaction: Option<Reaction> = None;
         let mut comment_id: Option<thread::CommentId> = None;
         let mut description: Option<String> = None;
@@ -236,7 +236,8 @@ impl Args for Options {
                 Long("title")
                     if op == Some(OperationName::Open) || op == Some(OperationName::Edit) =>
                 {
-                    title = Some(parser.value()?.to_string_lossy().into());
+                    let val = parser.value()?;
+                    title = Some(term::args::string(&val).try_into()?);
                 }
                 Long("description")
                     if op == Some(OperationName::Open) || op == Some(OperationName::Edit) =>
@@ -828,7 +829,7 @@ where
 }
 
 fn open<R, G>(
-    title: Option<String>,
+    title: Option<Title>,
     description: Option<String>,
     labels: Vec<Label>,
     assignees: Vec<Did>,
@@ -849,7 +850,7 @@ where
         anyhow::bail!("aborting issue creation due to empty title or description");
     };
     let issue = cache.create(
-        &title,
+        title,
         description,
         labels.as_slice(),
         assignees.as_slice(),
@@ -867,7 +868,7 @@ fn edit<'a, 'g, R, G>(
     issues: &'g mut issue::Cache<issue::Issues<'a, R>, cob::cache::StoreWriter>,
     repo: &storage::git::Repository,
     id: Rev,
-    title: Option<String>,
+    title: Option<Title>,
     description: Option<String>,
     signer: &Device<G>,
 ) -> anyhow::Result<issue::IssueMut<'a, 'g, R, cob::cache::StoreWriter>>
@@ -896,7 +897,7 @@ where
 
     // Editing via the editor.
     let Some((title, description)) = term::issue::get_title_description(
-        Some(title.unwrap_or(issue.title().to_owned())),
+        title.and(Title::new(issue.title()).ok()),
         Some(description.unwrap_or(issue.description().to_owned())),
     )?
     else {

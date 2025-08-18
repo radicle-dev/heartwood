@@ -2,6 +2,7 @@ use std::ffi::OsString;
 
 use anyhow::{anyhow, Context as _};
 
+use radicle::cob;
 use radicle::identity::{Identity, Visibility};
 use radicle::node::Handle as _;
 use radicle::prelude::RepoId;
@@ -105,7 +106,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         doc.visibility = Visibility::Public;
     })?;
 
-    identity.update("Publish repository", "", &doc, &signer)?;
+    // SAFETY: the `Title` here is guaranteed to be nonempty and does not
+    // contain `\n` or `\r`.
+    #[allow(clippy::unwrap_used)]
+    identity.update(
+        cob::Title::new("Publish repository").unwrap(),
+        "",
+        &doc,
+        &signer,
+    )?;
     repo.sign_refs(&signer)?;
     repo.set_identity_head()?;
     let validations = repo.validate()?;

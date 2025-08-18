@@ -7,9 +7,9 @@ use radicle_crypto::ssh::ExtendedSignature;
 use serde::{Deserialize, Serialize};
 
 use crate::cob::op::Op;
-use crate::cob::patch;
 use crate::cob::patch::Patch;
 use crate::cob::store::encoding;
+use crate::cob::{patch, Title};
 use crate::cob::{Entry, History, Manifest, Timestamp, Version};
 use crate::crypto::Signer;
 use crate::git;
@@ -224,7 +224,7 @@ impl<G: Signer> Actor<G> {
     /// Create a patch.
     pub fn patch<R: ReadRepository>(
         &mut self,
-        title: impl ToString,
+        title: Title,
         description: impl ToString,
         base: git::Oid,
         oid: git::Oid,
@@ -239,7 +239,7 @@ impl<G: Signer> Actor<G> {
                     resolves: Default::default(),
                 },
                 patch::Action::Edit {
-                    title: title.to_string(),
+                    title,
                     target: patch::MergeTarget::default(),
                 },
             ]),

@@ -1,5 +1,6 @@
 use std::{collections::HashSet, thread, time};
 
+use radicle::cob::Title;
 use test_log::test;
 
 use radicle::node::device::Device;
@@ -399,7 +400,7 @@ fn test_dont_fetch_owned_refs() {
 
     log::debug!(target: "test", "Fetch complete with {}", bob.id);
 
-    alice.issue(acme, "Don't fetch self", "Use ^");
+    alice.issue(acme, Title::new("Don't fetch self").unwrap(), "Use ^");
     let result = alice.handle.fetch(acme, bob.id, DEFAULT_TIMEOUT).unwrap();
     assert!(result.is_success())
 }
@@ -478,7 +479,11 @@ fn test_missing_remote() {
     log::debug!(target: "test", "Fetch complete with {}", bob.id);
     rad::fork_remote(acme, &alice.id, &carol, &bob.storage).unwrap();
 
-    alice.issue(acme, "Missing Remote", "Fixing the missing remote issue");
+    alice.issue(
+        acme,
+        Title::new("Missing Remote").unwrap(),
+        "Fixing the missing remote issue",
+    );
     let result = bob.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
     assert!(result.is_success());
     log::debug!(target: "test", "Fetch complete with {}", bob.id);
@@ -504,7 +509,7 @@ fn test_fetch_preserve_owned_refs() {
 
     log::debug!(target: "test", "Fetch complete with {}", bob.id);
 
-    alice.issue(acme, "Bug", "Bugs, bugs, bugs");
+    alice.issue(acme, Title::new("Bug").unwrap(), "Bugs, bugs, bugs");
 
     let before = alice
         .storage
@@ -906,7 +911,7 @@ fn test_non_fastforward_sigrefs() {
     // Bob updates his refs.
     bob.issue(
         rid,
-        "Updated Sigrefs",
+        Title::new("Updated Sigrefs").unwrap(),
         "Updated sigrefs are harshing my vibes",
     );
     // Alice fetches from Bob.
@@ -999,7 +1004,7 @@ fn test_outdated_sigrefs() {
 
     let issue_id = eve.issue(
         rid,
-        "Outdated Sigrefs",
+        Title::new("Outdated Sigrefs").unwrap(),
         "Outdated sigrefs are harshing my vibes",
     );
     let repo = eve.storage.repository(rid).unwrap();
@@ -1093,7 +1098,7 @@ fn test_outdated_delegate_sigrefs() {
 
     alice.issue(
         rid,
-        "Outdated Sigrefs",
+        Title::new("Outdated Sigrefs").unwrap(),
         "Outdated sigrefs are harshing my vibes",
     );
     let repo = alice.storage.repository(rid).unwrap();
@@ -1150,7 +1155,11 @@ fn missing_default_branch() {
 
     // Fetching from still works despite not having
     // `refs/heads/master`, but has `rad/sigrefs`.
-    bob.issue(rid, "Hello, Acme", "Popping in to say hello");
+    bob.issue(
+        rid,
+        Title::new("Hello, Acme").unwrap(),
+        "Popping in to say hello",
+    );
     alice.handle.fetch(rid, bob.id, DEFAULT_TIMEOUT).unwrap();
 
     {
@@ -1244,7 +1253,9 @@ fn missing_delegate_default_branch() {
                 doc.delegate(bob.signer.public_key().into());
             })
             .unwrap();
-        let rev = identity.update("Add Bob", "", &doc, &alice.signer).unwrap();
+        let rev = identity
+            .update(Title::new("Add Bob").unwrap(), "", &doc, &alice.signer)
+            .unwrap();
         repo.set_identity_head_to(rev).unwrap();
 
         let new = repo.identity_doc().unwrap().doc;
@@ -1261,7 +1272,7 @@ fn missing_delegate_default_branch() {
     // Create an issue to ensure there are new refs to fetch
     let issue = bob.issue(
         rid,
-        "Delegate Issue",
+        Title::new("Delegate Issue").unwrap(),
         "Further investigation into delegates",
     );
     let assert_bobs_issue_exists = |repo: &Repository| {
@@ -1349,7 +1360,7 @@ fn test_background_foreground_fetch() {
     // the new refs
     eve.issue(
         rid,
-        "Outdated Sigrefs",
+        Title::new("Outdated Sigrefs").unwrap(),
         "Outdated sigrefs are harshing my vibes",
     );
     let repo = eve.storage.repository(rid).unwrap();
@@ -1363,7 +1374,7 @@ fn test_background_foreground_fetch() {
         .unwrap();
     bob.issue(
         rid,
-        "Concurrent fetches",
+        Title::new("Concurrent fetches").unwrap(),
         "Concurrent fetches are harshing my vibes",
     );
     bob.handle.announce_refs(rid).unwrap();
@@ -1414,7 +1425,7 @@ fn test_catchup_on_refs_announcements() {
     bob.has_repository(&acme);
 
     log::debug!(target: "test", "Bob creating his issue..");
-    bob.issue(acme, "Bob's issue", "[..]");
+    bob.issue(acme, Title::new("Bob's issue").unwrap(), "[..]");
     bob.handle.announce_refs(acme).unwrap();
 
     log::debug!(target: "test", "Waiting for seed to fetch Bob's refs from Bob..");

@@ -32,9 +32,9 @@ pub enum Format {
 }
 
 pub fn get_title_description(
-    title: Option<String>,
+    title: Option<cob::Title>,
     description: Option<String>,
-) -> io::Result<Option<(String, String)>> {
+) -> io::Result<Option<(cob::Title, String)>> {
     term::patch::Message::edit_title_description(title, description, OPEN_MSG)
 }
 

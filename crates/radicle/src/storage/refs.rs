@@ -477,7 +477,7 @@ mod tests {
 
     use super::*;
     use crate::assert_matches;
-    use crate::{cob::identity::Identity, rad, test::fixtures, Storage};
+    use crate::{cob::identity::Identity, cob::Title, rad, test::fixtures, Storage};
 
     #[quickcheck]
     fn prop_canonical_roundtrip(refs: Refs) {
@@ -554,10 +554,10 @@ mod tests {
             let mut london_ident = Identity::load_mut(&london).unwrap();
 
             paris_ident
-                .update("Add Bob", "", &paris_doc, &alice)
+                .update(Title::new("Add Bob").unwrap(), "", &paris_doc, &alice)
                 .unwrap();
             london_ident
-                .update("Add Bob", "", &london_doc, &alice)
+                .update(Title::new("Add Bob").unwrap(), "", &london_doc, &alice)
                 .unwrap();
         }
 

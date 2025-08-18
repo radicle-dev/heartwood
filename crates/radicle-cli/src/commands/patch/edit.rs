@@ -2,6 +2,7 @@ use super::*;
 
 use radicle::cob;
 use radicle::cob::patch;
+use radicle::cob::Title;
 use radicle::crypto;
 use radicle::node::device::Device;
 use radicle::prelude::*;
@@ -31,14 +32,14 @@ pub fn run(
 
 fn edit_root<G>(
     mut patch: patch::PatchMut<'_, '_, Repository, cob::cache::StoreWriter>,
-    title: String,
+    title: Title,
     description: String,
     signer: &Device<G>,
 ) -> anyhow::Result<()>
 where
     G: crypto::signature::Signer<crypto::Signature>,
 {
-    let title = if title != patch.title() {
+    let title = if title.as_ref() != patch.title() {
         Some(title)
     } else {
         None
@@ -74,7 +75,7 @@ where
 fn edit_revision<G>(
     mut patch: patch::PatchMut<'_, '_, Repository, cob::cache::StoreWriter>,
     revision: patch::RevisionId,
-    mut title: String,
+    title: Title,
     description: String,
     signer: &Device<G>,
 ) -> anyhow::Result<()>
@@ -82,15 +83,16 @@ where
     G: crypto::signature::Signer<crypto::Signature>,
 {
     let embeds = patch.embeds().to_owned();
-    let description = if description.is_empty() {
-        title
+    let mut message = title.to_string();
+    let message = if description.is_empty() {
+        message
     } else {
-        title.push('\n');
-        title.push_str(&description);
-        title
+        message.push('\n');
+        message.push_str(&description);
+        message
     };
     patch.transaction("Edit revision", signer, |tx| {
-        tx.edit_revision(revision, description, embeds)?;
+        tx.edit_revision(revision, message, embeds)?;
         Ok(())
     })?;
     Ok(())
