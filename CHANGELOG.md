@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Deprecations
 
+- `rad diff` command will be removed in a future version.
+
 ## New Features
 
 - `rad cob log` now supports the arguments `--from` and `--to` which can be used

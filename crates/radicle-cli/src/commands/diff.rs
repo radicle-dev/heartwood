@@ -17,6 +17,10 @@ pub const HELP: Help = Help {
     description: "Show changes between commits",
     version: env!("RADICLE_VERSION"),
     usage: r#"
+
+DEPRECATION WARNING: The `rad diff` command is deprecated and
+                     will be removed in a future version.
+
 Usage
 
     rad diff [<commit>] [--staged] [<option>...]
