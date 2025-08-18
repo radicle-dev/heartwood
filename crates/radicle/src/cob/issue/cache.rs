@@ -100,7 +100,7 @@ impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
     /// main storage, and writing the update to the `cache`.
     pub fn create<'g, G>(
         &'g mut self,
-        title: impl ToString,
+        title: cob::Title,
         description: impl ToString,
         labels: &[Label],
         assignees: &[Did],

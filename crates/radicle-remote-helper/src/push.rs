@@ -500,7 +500,7 @@ where
 
     let patch = if opts.draft {
         patches.draft(
-            &title,
+            title,
             &description,
             patch::MergeTarget::default(),
             base,
@@ -510,7 +510,7 @@ where
         )
     } else {
         patches.create(
-            &title,
+            title,
             &description,
             patch::MergeTarget::default(),
             base,

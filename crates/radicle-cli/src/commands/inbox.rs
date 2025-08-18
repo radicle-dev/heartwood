@@ -364,7 +364,7 @@ impl NotificationRow {
     ) -> Self {
         Self {
             category: term::format::dim(category),
-            summary: term::Paint::new(summary),
+            summary: term::Paint::new(summary.to_string()),
             state,
             name: term::format::tertiary(name),
         }
@@ -455,7 +455,7 @@ impl NotificationRow {
             };
             (
                 String::from("id"),
-                rev.title.clone(),
+                rev.title.to_string(),
                 term::format::identity::state(&rev.state),
             )
         } else {

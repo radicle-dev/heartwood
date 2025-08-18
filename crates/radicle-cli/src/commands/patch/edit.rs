@@ -1,7 +1,7 @@
 use super::*;
 
-use radicle::cob;
 use radicle::cob::patch;
+use radicle::cob::{self, Title};
 use radicle::crypto;
 use radicle::node::device::Device;
 use radicle::prelude::*;
@@ -24,21 +24,21 @@ pub fn run(
     let (title, description) = term::patch::get_edit_message(message, &patch)?;
 
     match revision_id {
-        Some(id) => edit_revision(patch, id, title, description, &signer),
+        Some(id) => edit_revision(patch, id, title.to_string(), description, &signer),
         None => edit_root(patch, title, description, &signer),
     }
 }
 
 fn edit_root<G>(
     mut patch: patch::PatchMut<'_, '_, Repository, cob::cache::StoreWriter>,
-    title: String,
+    title: Title,
     description: String,
     signer: &Device<G>,
 ) -> anyhow::Result<()>
 where
     G: crypto::signature::Signer<crypto::Signature>,
 {
-    let title = if title != patch.title() {
+    let title = if title.as_ref() != patch.title() {
         Some(title)
     } else {
         None

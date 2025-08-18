@@ -110,7 +110,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
     /// main storage, and writing the update to the `cache`.
     pub fn create<'g, G>(
         &'g mut self,
-        title: impl ToString,
+        title: cob::Title,
         description: impl ToString,
         target: MergeTarget,
         base: impl Into<git::Oid>,
@@ -140,7 +140,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
     /// to the `cache`.
     pub fn draft<'g, G>(
         &'g mut self,
-        title: impl ToString,
+        title: cob::Title,
         description: impl ToString,
         target: MergeTarget,
         base: impl Into<git::Oid>,
@@ -710,9 +710,8 @@ mod tests {
     use radicle_cob::ObjectId;
 
     use crate::cob::cache::{Store, Update, Write};
-    use crate::cob::migrate;
     use crate::cob::thread::{Comment, Thread};
-    use crate::cob::Author;
+    use crate::cob::{migrate, Author, Title};
     use crate::patch::{
         ByRevision, MergeTarget, Patch, PatchCounts, PatchId, Revision, RevisionId, State, Status,
     };
@@ -767,13 +766,21 @@ mod tests {
         let mut cache = memory(repo);
         assert!(cache.is_empty().unwrap());
 
-        let patch = Patch::new("Patch #1".to_string(), MergeTarget::Delegates, revision());
+        let patch = Patch::new(
+            Title::new("Patch #1").unwrap(),
+            MergeTarget::Delegates,
+            revision(),
+        );
         let id = ObjectId::from_str("47799cbab2eca047b6520b9fce805da42b49ecab").unwrap();
         cache.update(&cache.rid(), &id, &patch).unwrap();
 
         let patch = Patch {
             state: State::Archived,
-            ..Patch::new("Patch #2".to_string(), MergeTarget::Delegates, revision())
+            ..Patch::new(
+                Title::new("Patch #2").unwrap(),
+                MergeTarget::Delegates,
+                revision(),
+            )
         };
         let id = ObjectId::from_str("ae981ded6ed2ed2cdba34c8603714782667f18a3").unwrap();
         cache.update(&cache.rid(), &id, &patch).unwrap();
@@ -803,7 +810,11 @@ mod tests {
             .collect::<BTreeSet<PatchId>>();
 
         for id in open_ids.iter() {
-            let patch = Patch::new(id.to_string(), MergeTarget::Delegates, revision());
+            let patch = Patch::new(
+                Title::new(&id.to_string()).unwrap(),
+                MergeTarget::Delegates,
+                revision(),
+            );
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
                 .unwrap();
@@ -812,7 +823,11 @@ mod tests {
         for id in draft_ids.iter() {
             let patch = Patch {
                 state: State::Draft,
-                ..Patch::new(id.to_string(), MergeTarget::Delegates, revision())
+                ..Patch::new(
+                    Title::new(&id.to_string()).unwrap(),
+                    MergeTarget::Delegates,
+                    revision(),
+                )
             };
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
@@ -822,7 +837,11 @@ mod tests {
         for id in archived_ids.iter() {
             let patch = Patch {
                 state: State::Archived,
-                ..Patch::new(id.to_string(), MergeTarget::Delegates, revision())
+                ..Patch::new(
+                    Title::new(&id.to_string()).unwrap(),
+                    MergeTarget::Delegates,
+                    revision(),
+                )
             };
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
@@ -835,7 +854,11 @@ mod tests {
                     revision: arbitrary::oid().into(),
                     commit: arbitrary::oid(),
                 },
-                ..Patch::new(id.to_string(), MergeTarget::Delegates, revision())
+                ..Patch::new(
+                    Title::new(&id.to_string()).unwrap(),
+                    MergeTarget::Delegates,
+                    revision(),
+                )
             };
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
@@ -869,7 +892,11 @@ mod tests {
         let mut patches = Vec::with_capacity(ids.len());
 
         for id in ids.iter() {
-            let patch = Patch::new(id.to_string(), MergeTarget::Delegates, revision());
+            let patch = Patch::new(
+                Title::new(&id.to_string()).unwrap(),
+                MergeTarget::Delegates,
+                revision(),
+            );
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
                 .unwrap();
@@ -898,7 +925,7 @@ mod tests {
             .next()
             .expect("at least one revision should have been created");
         let mut patch = Patch::new(
-            patch_id.to_string(),
+            Title::new(&patch_id.to_string()).unwrap(),
             MergeTarget::Delegates,
             (*rev_id, rev.clone()),
         );
@@ -937,7 +964,11 @@ mod tests {
         let mut patches = Vec::with_capacity(ids.len());
 
         for id in ids.iter() {
-            let patch = Patch::new(id.to_string(), MergeTarget::Delegates, revision());
+            let patch = Patch::new(
+                Title::new(&id.to_string()).unwrap(),
+                MergeTarget::Delegates,
+                revision(),
+            );
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
                 .unwrap();
@@ -964,7 +995,11 @@ mod tests {
         let mut patches = Vec::with_capacity(ids.len());
 
         for id in ids.iter() {
-            let patch = Patch::new(id.to_string(), MergeTarget::Delegates, revision());
+            let patch = Patch::new(
+                Title::new(&id.to_string()).unwrap(),
+                MergeTarget::Delegates,
+                revision(),
+            );
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
                 .unwrap();
@@ -990,7 +1025,11 @@ mod tests {
             .collect::<BTreeSet<PatchId>>();
 
         for id in ids.iter() {
-            let patch = Patch::new(id.to_string(), MergeTarget::Delegates, revision());
+            let patch = Patch::new(
+                Title::new(&id.to_string()).unwrap(),
+                MergeTarget::Delegates,
+                revision(),
+            );
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
                 .unwrap();

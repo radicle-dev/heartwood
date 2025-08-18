@@ -45,7 +45,7 @@ pub enum Action {
     #[serde(rename = "revision")]
     Revision {
         /// Short summary of changes.
-        title: String,
+        title: cob::Title,
         /// Longer comment on proposed changes.
         #[serde(default, skip_serializing_if = "String::is_empty")]
         description: String,
@@ -61,7 +61,7 @@ pub enum Action {
         /// The revision to edit.
         revision: RevisionId,
         /// Short summary of changes.
-        title: String,
+        title: cob::Title,
         /// Longer comment on proposed changes.
         #[serde(default, skip_serializing_if = "String::is_empty")]
         description: String,
@@ -207,7 +207,18 @@ impl Identity {
             "Initialize identity",
             &mut store,
             signer,
-            |tx, repo| tx.revision("Initial revision", "", doc, None, repo, signer),
+            |tx, repo| {
+                tx.revision(
+                    // SAFETY: "Initial revision" is a valid title
+                    #[allow(clippy::unwrap_used)]
+                    cob::Title::new("Initial revision").unwrap(),
+                    "",
+                    doc,
+                    None,
+                    repo,
+                    signer,
+                )
+            },
         )?;
 
         Ok(IdentityMut {
@@ -680,7 +691,7 @@ pub struct Revision {
     /// Identity document blob at this revision.
     pub blob: Oid,
     /// Title of the proposal.
-    pub title: String,
+    pub title: cob::Title,
     /// State of the revision.
     pub state: State,
     /// Description of the proposal.
@@ -749,7 +760,7 @@ impl Revision {
 impl Revision {
     fn new(
         id: RevisionId,
-        title: String,
+        title: cob::Title,
         description: String,
         author: Author,
         blob: Oid,
@@ -831,12 +842,12 @@ impl<R: ReadRepository> store::Transaction<Identity, R> {
     pub fn edit(
         &mut self,
         revision: RevisionId,
-        title: impl ToString,
+        title: cob::Title,
         description: impl ToString,
     ) -> Result<(), store::Error> {
         self.push(Action::RevisionEdit {
             revision,
-            title: title.to_string(),
+            title,
             description: description.to_string(),
         })
     }
@@ -849,7 +860,7 @@ impl<R: ReadRepository> store::Transaction<Identity, R> {
 impl<R: WriteRepository> store::Transaction<Identity, R> {
     pub fn revision<G: crypto::signature::Signer<crypto::Signature>>(
         &mut self,
-        title: impl ToString,
+        title: cob::Title,
         description: impl ToString,
         doc: &Doc,
         parent: Option<RevisionId>,
@@ -867,7 +878,7 @@ impl<R: WriteRepository> store::Transaction<Identity, R> {
 
         // Revision metadata.
         self.push(Action::Revision {
-            title: title.to_string(),
+            title,
             description: description.to_string(),
             blob,
             parent,
@@ -929,7 +940,7 @@ where
     /// If the signer is the only delegate, the revision is accepted automatically.
     pub fn update<G>(
         &mut self,
-        title: impl ToString,
+        title: cob::Title,
         description: impl ToString,
         doc: &Doc,
         signer: &Device<G>,
@@ -977,7 +988,7 @@ where
     pub fn edit<G>(
         &mut self,
         revision: RevisionId,
-        title: String,
+        title: cob::Title,
         description: String,
         signer: &Device<G>,
     ) -> Result<EntryId, Error>
@@ -1033,7 +1044,7 @@ mod lookup {
 mod test {
     use qcheck_macros::quickcheck;
 
-    use crate::cob;
+    use crate::cob::{self, Title};
     use crate::crypto::PublicKey;
     use crate::identity::did::Did;
     use crate::identity::doc::PayloadId;
@@ -1065,7 +1076,7 @@ mod test {
         let signer = &node.signer;
         let mut identity = Identity::load_mut(&*repo).unwrap();
         let mut doc = identity.doc().clone().edit();
-        let title = "Identity update";
+        let title = Title::new("Identity update").unwrap();
         let description = "";
         let r0 = identity.current;
 
@@ -1073,7 +1084,12 @@ mod test {
         assert!(identity.current().is_accepted());
         // Using an identical document to the current one fails.
         identity
-            .update(title, description, &doc.clone().verified().unwrap(), signer)
+            .update(
+                title.clone(),
+                description,
+                &doc.clone().verified().unwrap(),
+                signer,
+            )
             .unwrap_err();
         assert_eq!(identity.current, r0);
 
@@ -1086,7 +1102,12 @@ mod test {
         doc.delegate(bob.public_key().into());
         // The update should go through now.
         let r1 = identity
-            .update(title, description, &doc.clone().verified().unwrap(), signer)
+            .update(
+                title.clone(),
+                description,
+                &doc.clone().verified().unwrap(),
+                signer,
+            )
             .unwrap();
         assert!(identity.revision(&r1).unwrap().is_accepted());
         assert_eq!(identity.current, r1);
@@ -1095,7 +1116,12 @@ mod test {
         // signs it.
         doc.visibility = Visibility::private([]);
         let r2 = identity
-            .update(title, description, &doc.clone().verified().unwrap(), signer)
+            .update(
+                title.clone(),
+                description,
+                &doc.clone().verified().unwrap(),
+                signer,
+            )
             .unwrap();
         // R1 is still the head.
         assert_eq!(identity.current, r1);
@@ -1126,20 +1152,24 @@ mod test {
         let signer = &node.signer;
         let mut identity = Identity::load_mut(&*repo).unwrap();
         let mut doc = identity.doc().clone().edit();
-        let title = "Identity update";
         let description = "";
 
         // Let's add another delegate.
         doc.delegate(bob.public_key().into());
         let r1 = identity
-            .update(title, description, &doc.clone().verified().unwrap(), signer)
+            .update(
+                cob::Title::new("Identity update").unwrap(),
+                description,
+                &doc.clone().verified().unwrap(),
+                signer,
+            )
             .unwrap();
         assert_eq!(identity.current, r1);
 
         doc.visibility = Visibility::private([]);
         let r2 = identity
             .update(
-                "Make private",
+                cob::Title::new("Make private").unwrap(),
                 description,
                 &doc.clone().verified().unwrap(),
                 &node.signer,
@@ -1155,7 +1185,7 @@ mod test {
         doc.delegate(eve.public_key().into());
         let r3 = identity
             .update(
-                "Add Eve",
+                cob::Title::new("Add Eve").unwrap(),
                 description,
                 &doc.clone().verified().unwrap(),
                 &node.signer,
@@ -1167,7 +1197,7 @@ mod test {
         doc.visibility = Visibility::Public;
         let r3 = identity
             .update(
-                "Make public",
+                cob::Title::new("Make public").unwrap(),
                 description,
                 &doc.verified().unwrap(),
                 &node.signer,
@@ -1197,7 +1227,7 @@ mod test {
         alice_doc.delegate(bob.signer.public_key().into());
         let a1 = alice_identity
             .update(
-                "Add Bob",
+                cob::Title::new("Add Bob").unwrap(),
                 "",
                 &alice_doc.clone().verified().unwrap(),
                 &alice.signer,
@@ -1214,7 +1244,7 @@ mod test {
         alice_doc.visibility = Visibility::private([]);
         let a2 = alice_identity
             .update(
-                "Change visibility",
+                cob::Title::new("Change visibility").unwrap(),
                 "",
                 &alice_doc.clone().clone().verified().unwrap(),
                 &alice.signer,
@@ -1223,7 +1253,7 @@ mod test {
         // Bob makes the same change without knowing Alice already did.
         let b1 = bob_identity
             .update(
-                "Make private",
+                cob::Title::new("Make private").unwrap(),
                 "",
                 &alice_doc.verified().unwrap(),
                 &bob.signer,
@@ -1265,7 +1295,7 @@ mod test {
         let a0 = alice_identity.root;
         let a1 = alice_identity
             .update(
-                "Add Bob",
+                cob::Title::new("Add Bob").unwrap(),
                 "Eh.",
                 &alice_doc.clone().clone().verified().unwrap(),
                 &alice.signer,
@@ -1275,7 +1305,7 @@ mod test {
         alice_doc.visibility = Visibility::private([eve.signer.public_key().into()]);
         let a2 = alice_identity
             .update(
-                "Change visibility",
+                cob::Title::new("Change visibility").unwrap(),
                 "Eh.",
                 &alice_doc.verified().unwrap(),
                 &alice.signer,
@@ -1315,7 +1345,7 @@ mod test {
         let a0 = alice_identity.root;
         let a1 = alice_identity // Change description to change traversal order.
             .update(
-                "Add Bob and Eve",
+                cob::Title::new("Add Bob and Eve").unwrap(),
                 "Eh#!",
                 &alice_doc.clone().verified().unwrap(),
                 &alice.signer,
@@ -1325,7 +1355,7 @@ mod test {
         alice_doc.rescind(&eve.signer.public_key().into()).unwrap();
         let a2 = alice_identity
             .update(
-                "Remove Eve",
+                cob::Title::new("Remove Eve").unwrap(),
                 "",
                 &alice_doc.verified().unwrap(),
                 &alice.signer,
@@ -1348,7 +1378,7 @@ mod test {
         let e1 = cob::git::stable::with_advanced_timestamp(|| {
             eve_identity
                 .update(
-                    "Change visibility",
+                    cob::Title::new("Change visibility").unwrap(),
                     "",
                     &eve_doc.verified().unwrap(),
                     &eve.signer,
@@ -1391,7 +1421,7 @@ mod test {
         let a0 = alice_identity.root;
         let a1 = alice_identity
             .update(
-                "Add Bob and Eve",
+                cob::Title::new("Add Bob and Eve").unwrap(),
                 "Eh!#",
                 &alice_doc.clone().verified().unwrap(),
                 &alice.signer,
@@ -1401,7 +1431,7 @@ mod test {
         alice_doc.visibility = Visibility::private([]);
         let a2 = alice_identity
             .update(
-                "Change visibility",
+                cob::Title::new("Change visibility").unwrap(),
                 "",
                 &alice_doc.verified().unwrap(),
                 &alice.signer,
@@ -1426,7 +1456,7 @@ mod test {
         eve_doc.visibility = Visibility::private([eve.signer.public_key().into()]);
         let e2 = eve_identity
             .update(
-                "Change visibility",
+                cob::Title::new("Change visibility").unwrap(),
                 "",
                 &eve_doc.verified().unwrap(),
                 &eve.signer,
@@ -1477,7 +1507,7 @@ mod test {
         let a0 = alice_identity.root;
         let a1 = alice_identity
             .update(
-                "Add Bob and Eve",
+                cob::Title::new("Add Bob and Eve").unwrap(),
                 "",
                 &alice_doc.verified().unwrap(),
                 &alice.signer,
@@ -1503,7 +1533,7 @@ mod test {
         bob_doc.visibility = Visibility::private([]);
         let b1 = bob_identity
             .update(
-                "Change visibility #1",
+                cob::Title::new("Change visibility #1").unwrap(),
                 "",
                 &bob_doc.verified().unwrap(),
                 &bob.signer,
@@ -1518,7 +1548,7 @@ mod test {
         eve_doc.visibility = Visibility::private([]);
         let e1 = eve_identity
             .update(
-                "Change visibility #2",
+                cob::Title::new("Change visibility #2").unwrap(),
                 "Woops",
                 &eve_doc.verified().unwrap(),
                 &eve.signer,
@@ -1568,7 +1598,7 @@ mod test {
         doc.payload.insert(PayloadId::project(), prj.clone().into());
         identity
             .update(
-                "Update description",
+                cob::Title::new("Update description").unwrap(),
                 "",
                 &doc.clone().verified().unwrap(),
                 &alice,
@@ -1579,7 +1609,12 @@ mod test {
         doc.delegate(bob.public_key().into());
         doc.threshold = 2;
         identity
-            .update("Add bob", "", &doc.clone().verified().unwrap(), &alice)
+            .update(
+                cob::Title::new("Add bob").unwrap(),
+                "",
+                &doc.clone().verified().unwrap(),
+                &alice,
+            )
             .unwrap();
 
         // Add Eve as a delegate.
@@ -1587,7 +1622,12 @@ mod test {
 
         // Update with both Bob and Alice's signature.
         let revision = identity
-            .update("Add eve", "", &doc.clone().verified().unwrap(), &alice)
+            .update(
+                cob::Title::new("Add eve").unwrap(),
+                "",
+                &doc.clone().verified().unwrap(),
+                &alice,
+            )
             .unwrap();
         identity.accept(&revision, &bob).unwrap();
 
@@ -1598,7 +1638,7 @@ mod test {
 
         let revision = identity
             .update(
-                "Update description again",
+                cob::Title::new("Update description again").unwrap(),
                 "Bob's repository",
                 &doc.verified().unwrap(),
                 &bob,

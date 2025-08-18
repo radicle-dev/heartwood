@@ -9,6 +9,7 @@ use std::sync::LazyLock;
 use std::time;
 
 use crossbeam_channel as chan;
+use radicle::cob;
 use radicle::identity::Visibility;
 use radicle::node::address::Store as _;
 use radicle::node::device::Device;
@@ -1013,7 +1014,14 @@ fn test_refs_announcement_offline() {
     let old_refs = RefsAt::new(&repo, alice.id).unwrap();
     let mut issues = radicle::issue::Cache::no_cache(&repo).unwrap();
     issues
-        .create("Issue while offline!", "", &[], &[], [], alice.signer())
+        .create(
+            cob::Title::new("Issue while offline!").unwrap(),
+            "",
+            &[],
+            &[],
+            [],
+            alice.signer(),
+        )
         .unwrap();
     let new_refs = RefsAt::new(&repo, alice.id).unwrap();
     assert_ne!(old_refs, new_refs);

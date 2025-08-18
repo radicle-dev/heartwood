@@ -7,6 +7,7 @@ use std::str::FromStr;
 use base64::prelude::{Engine, BASE64_STANDARD};
 use localtime::LocalTime;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::git::Oid;
 use crate::prelude::{Did, PublicKey};
@@ -39,6 +40,53 @@ impl Deref for Timestamp {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum TitleError {
+    #[error("empty title")]
+    EmptyTitle,
+    #[error("invalid title")]
+    InvalidTitle,
+}
+
+/// Title
+#[derive(Display, Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
+#[display(inner)]
+pub struct Title(String);
+
+impl Title {
+    pub fn new(title: &str) -> Result<Self, TitleError> {
+        if title.contains('\n') || title.contains('\r') {
+            Err(TitleError::InvalidTitle)
+        } else if title.is_empty() {
+            Err(TitleError::EmptyTitle)
+        } else {
+            Ok(Self(title.trim().to_string()))
+        }
+    }
+}
+
+impl AsRef<str> for Title {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<&str> for Title {
+    type Error = TitleError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl TryFrom<String> for Title {
+    type Error = TitleError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(&value)
     }
 }
 
