@@ -43,7 +43,7 @@ pub enum Error {
     Thread(#[from] thread::Error),
     #[error("store: {0}")]
     Store(#[from] store::Error),
-    #[error("invalid title: {0}")]
+    #[error("invalid issue title due to: {0}")]
     TitleError(#[from] TitleError),
     /// Action not authorized.
     #[error("{0} not authorized to apply {1:?}")]
