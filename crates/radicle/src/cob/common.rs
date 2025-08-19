@@ -51,12 +51,23 @@ pub enum TitleError {
     InvalidTitle,
 }
 
-/// Title
+/// A `Title` is used for messages that are included in collaborative objects,
+/// such as patches, issues, and identity changes.
+///
+/// A `Title`:
+///   - Must not be empty
+///   - Must not contain `\n` or `\r` characters
+///   - Will be trimmed of any preceding or following whitespace
 #[derive(Display, Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
 #[display(inner)]
 pub struct Title(String);
 
 impl Title {
+    /// # Errors
+    ///
+    /// [`TitleError::EmptyTitle`]: the provided `title` was empty
+    /// [`TitleError::InvalidTitle`]: the provided `title` contained invalid
+    /// characters
     pub fn new(title: &str) -> Result<Self, TitleError> {
         if title.contains('\n') || title.contains('\r') {
             Err(TitleError::InvalidTitle)
