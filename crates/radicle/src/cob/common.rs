@@ -47,7 +47,7 @@ impl Deref for Timestamp {
 pub enum TitleError {
     #[error("empty title")]
     EmptyTitle,
-    #[error("invalid title")]
+    #[error("invalid characters in title")]
     InvalidTitle,
 }
 
