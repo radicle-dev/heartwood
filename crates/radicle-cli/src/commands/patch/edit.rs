@@ -25,7 +25,7 @@ pub fn run(
     let (title, description) = term::patch::get_edit_message(message, &patch)?;
 
     match revision_id {
-        Some(id) => edit_revision(patch, id, title.to_string(), description, &signer),
+        Some(id) => edit_revision(patch, id, title, description, &signer),
         None => edit_root(patch, title, description, &signer),
     }
 }
@@ -75,7 +75,7 @@ where
 fn edit_revision<G>(
     mut patch: patch::PatchMut<'_, '_, Repository, cob::cache::StoreWriter>,
     revision: patch::RevisionId,
-    mut title: String,
+    title: Title,
     description: String,
     signer: &Device<G>,
 ) -> anyhow::Result<()>
@@ -83,15 +83,16 @@ where
     G: crypto::signature::Signer<crypto::Signature>,
 {
     let embeds = patch.embeds().to_owned();
-    let description = if description.is_empty() {
-        title
+    let mut message = title.to_string();
+    let message = if description.is_empty() {
+        message
     } else {
-        title.push('\n');
-        title.push_str(&description);
-        title
+        message.push('\n');
+        message.push_str(&description);
+        message
     };
     patch.transaction("Edit revision", signer, |tx| {
-        tx.edit_revision(revision, description, embeds)?;
+        tx.edit_revision(revision, message, embeds)?;
         Ok(())
     })?;
     Ok(())
