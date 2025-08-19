@@ -85,11 +85,11 @@ impl AsRef<str> for Title {
     }
 }
 
-impl TryFrom<&str> for Title {
-    type Error = TitleError;
+impl FromStr for Title {
+    type Err = TitleError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::new(value)
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::new(s)
     }
 }
 
