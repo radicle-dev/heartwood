@@ -8,8 +8,9 @@ use std::io::IsTerminal as _;
 
 use thiserror::Error;
 
+use radicle::cob;
 use radicle::cob::patch;
-use radicle::cob::{self, Title};
+use radicle::cob::Title;
 use radicle::git;
 use radicle::patch::{Patch, PatchId};
 use radicle::prelude::Profile;

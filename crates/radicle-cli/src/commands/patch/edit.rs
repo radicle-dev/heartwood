@@ -1,7 +1,8 @@
 use super::*;
 
+use radicle::cob;
 use radicle::cob::patch;
-use radicle::cob::{self, Title};
+use radicle::cob::Title;
 use radicle::crypto;
 use radicle::node::device::Device;
 use radicle::prelude::*;
