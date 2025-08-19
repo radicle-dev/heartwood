@@ -228,10 +228,10 @@ pub fn get_create_message(
     let (title, description) = message.split_once('\n').unwrap_or((&message, ""));
     let (title, description) = (title.trim().to_string(), description.trim().to_string());
 
-    let title = Title::new(title.as_str()).map_err(|_| {
+    let title = Title::new(title.as_str()).map_err(|err| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
-            "a patch title must be provided",
+            format!("invalid patch title: {err}"),
         )
     })?;
 
@@ -259,10 +259,10 @@ pub fn get_edit_message(
         .unwrap_or((&patch_message, ""));
     let (title, description) = (title.trim().to_string(), description.trim().to_string());
 
-    let title = Title::new(title.as_str()).map_err(|_| {
+    let title = Title::new(title.as_str()).map_err(|err| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
-            "a patch title must be provided",
+            format!("invalid patch title: {err}"),
         )
     })?;
 
