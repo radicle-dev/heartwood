@@ -106,6 +106,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         doc.visibility = Visibility::Public;
     })?;
 
+    // SAFETY: the `Title` here is guaranteed to be nonempty and does not
+    // contain `\n` or `\r`.
+    #[allow(clippy::unwrap_used)]
     identity.update(
         cob::Title::new("Publish repository").unwrap(),
         "",
