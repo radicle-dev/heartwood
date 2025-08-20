@@ -427,7 +427,7 @@ where
                         stream: task.stream,
                     },
                 );
-                self.actions.push_back(Action::Send(fd, frame.to_bytes()));
+                self.actions.push_back(Action::Send(fd, frame.encode_vec()));
             }
         } else {
             // If the peer disconnected, we'll get here, but we still want to let the service know
@@ -479,7 +479,7 @@ where
                 ChannelEvent::Eof => Frame::control(*link, frame::Control::Eof { stream }),
             };
             self.actions
-                .push_back(reactor::Action::Send(fd, frame.to_bytes()));
+                .push_back(reactor::Action::Send(fd, frame.encode_vec()));
         }
     }
 
@@ -1126,7 +1126,7 @@ where
                     self.actions.push_back(Action::Send(
                         fd,
                         Frame::<service::Message>::control(link, frame::Control::Open { stream })
-                            .to_bytes(),
+                            .encode_vec(),
                     ));
                 }
             }
@@ -1264,7 +1264,7 @@ mod test {
         frame::StreamId::gossip(Link::Outbound).encode(&mut stream);
 
         // Serialize gossip message with some extension fields.
-        let mut gossip = wire::serialize(&pong);
+        let mut gossip = pong.encode_vec();
         String::from("extra").encode(&mut gossip);
         48u8.encode(&mut gossip);
 

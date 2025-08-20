@@ -16,6 +16,7 @@ use crate::bounded::BoundedVec;
 use crate::service::filter::Filter;
 use crate::service::{Link, NodeId, Timestamp};
 use crate::wire;
+use crate::wire::Encode as _;
 
 /// Maximum number of addresses which can be announced to other nodes.
 pub const ADDRESS_LIMIT: usize = 16;
@@ -82,7 +83,7 @@ impl NodeAnnouncement {
         let mut output = [0u8; 32];
 
         scrypt::scrypt(
-            wire::serialize(self).as_ref(),
+            &self.encode_vec(),
             Announcement::POW_SALT,
             &params,
             &mut output,
@@ -265,7 +266,8 @@ impl AnnouncementMessage {
     {
         use crypto::signature::Signer as _;
 
-        let msg = wire::serialize(&self);
+        let msg = self.encode_vec();
+
         let signature = signer.sign(&msg);
 
         Announcement {
@@ -365,7 +367,7 @@ impl Announcement {
 
     /// Verify this announcement's signature.
     pub fn verify(&self) -> bool {
-        let msg = wire::serialize(&self.message);
+        let msg = self.message.encode_vec();
         self.node.verify(msg, &self.signature).is_ok()
     }
 
@@ -425,8 +427,8 @@ impl PartialOrd for Message {
 
 impl Ord for Message {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let this = wire::serialize(self);
-        let other = wire::serialize(other);
+        let this = self.encode_vec();
+        let other = other.encode_vec();
 
         this.cmp(&other)
     }
@@ -678,7 +680,6 @@ mod tests {
     use radicle::git::raw;
 
     use super::*;
-    use crate::wire::Encode;
     use localtime::LocalTime;
     use radicle::test::arbitrary;
 
