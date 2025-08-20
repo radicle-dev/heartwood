@@ -234,7 +234,7 @@ impl<M> Frame<M> {
     }
 }
 
-impl<M: wire::Encode> Frame<M> {
+impl<M: wire::Encode + std::fmt::Debug> Frame<M> {
     /// Serialize frame to bytes.
     pub fn to_bytes(&self) -> Vec<u8> {
         wire::serialize(self)
@@ -356,7 +356,7 @@ impl<M: wire::Decode> wire::Decode for Frame<M> {
     }
 }
 
-impl<M: wire::Encode> wire::Encode for Frame<M> {
+impl<M: wire::Encode + std::fmt::Debug> wire::Encode for Frame<M> {
     fn encode(&self, buf: &mut impl BufMut) {
         self.version.encode(buf);
         self.stream.encode(buf);

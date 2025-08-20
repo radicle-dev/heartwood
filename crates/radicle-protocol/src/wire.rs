@@ -7,6 +7,7 @@ pub use message::{AddressType, MessageType};
 
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
+use std::fmt::Debug;
 use std::mem;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -106,10 +107,31 @@ pub trait Decode: Sized {
 ///
 /// # Panics
 ///
-/// If the encoded object exceeds [`Size::MAX`].
-pub fn serialize<E: Encode + ?Sized>(data: &E) -> Vec<u8> {
-    let mut buffer = Vec::new().limit(Size::MAX as usize);
+/// If the encoded object exceeds [`Size::MAX`]. If `-C debug-assertions` is
+/// passed to the compiler,  also log and panic with a more helpful message
+/// (similar to the behaviour of [`debug_assert`]).
+pub fn serialize<E: Encode + ?Sized + Debug>(data: &E) -> Vec<u8> {
+    let mut buffer = Vec::new();
+
+    #[cfg(not(debug_assertions))]
+    let mut buffer = buffer.limit(Size::MAX as usize);
+
     data.encode(&mut buffer);
+
+    #[cfg(debug_assertions)]
+    if buffer.len() > Size::MAX as usize {
+        let message = format!(
+            "Data encodes to {} bytes, but the limit is {} bytes",
+            buffer.len(),
+            Size::MAX
+        );
+        log::error!(target = "wire", data:debug; "{message}.");
+        panic!("{message}: {data:#?}");
+    } else {
+        buffer
+    }
+
+    #[cfg(not(debug_assertions))]
     buffer.into_inner()
 }
 
