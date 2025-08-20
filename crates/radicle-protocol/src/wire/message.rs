@@ -234,6 +234,8 @@ impl wire::Decode for Info {
 
 impl wire::Encode for Message {
     fn encode(&self, buf: &mut impl BufMut) {
+        let buf = &mut buf.limit(wire::Size::MAX as usize);
+
         self.type_id().encode(buf);
 
         match self {

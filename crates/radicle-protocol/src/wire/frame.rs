@@ -390,4 +390,25 @@ mod test {
         assert_eq!(StreamId::control(Link::Inbound), StreamId(VarInt(0b001)));
         assert_eq!(StreamId::gossip(Link::Inbound), StreamId(VarInt(0b011)));
     }
+
+    #[test]
+    fn test_encode_git_large() {
+        let size = u16::MAX as usize * 3;
+        assert!(
+            size > (wire::Size::MAX as usize * 2),
+            "we want to test sizes that are way larger than any gossip message"
+        );
+
+        let a_lot_of_data = vec![0u8; size];
+
+        let frame: Frame<Message> = Frame::git(StreamId(0u8.into()), a_lot_of_data);
+
+        // In previous versions since 3c5668e this would panic.
+        let bytes = wire::serialize(&frame);
+
+        assert!(
+            bytes.len() > wire::Size::MAX as usize * 2,
+            "just making sure that whatever was encoded is still quite large"
+        );
+    }
 }
