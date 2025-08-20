@@ -213,7 +213,7 @@ mod test {
 
     #[quickcheck]
     fn prop_encode_decode(input: VarInt) {
-        let encoded = wire::serialize(&input);
+        let encoded = input.encode_to_vec();
         let decoded: VarInt = wire::deserialize(&encoded).unwrap();
 
         assert_eq!(decoded, input);
@@ -222,30 +222,30 @@ mod test {
     #[test]
     #[should_panic]
     fn test_encode_overflow() {
-        wire::serialize(&VarInt(u64::MAX));
+        VarInt(u64::MAX).encode_to_vec();
     }
 
     #[test]
     fn test_encoding() {
-        assert_eq!(wire::serialize(&VarInt(0)), vec![0x0]);
-        assert_eq!(wire::serialize(&VarInt(1)), vec![0x01]);
-        assert_eq!(wire::serialize(&VarInt(10)), vec![0x0a]);
-        assert_eq!(wire::serialize(&VarInt(37)), vec![0x25]);
+        assert_eq!(VarInt(0).encode_to_vec(), vec![0x0]);
+        assert_eq!(VarInt(1).encode_to_vec(), vec![0x01]);
+        assert_eq!(VarInt(10).encode_to_vec(), vec![0x0a]);
+        assert_eq!(VarInt(37).encode_to_vec(), vec![0x25]);
         assert_eq!(
             wire::deserialize::<VarInt>(&[0x40, 0x25]).unwrap(),
             VarInt(37)
         );
-        assert_eq!(wire::serialize(&VarInt(15293)), vec![0x7b, 0xbd]);
+        assert_eq!(VarInt(15293).encode_to_vec(), vec![0x7b, 0xbd]);
         assert_eq!(
-            wire::serialize(&VarInt(494878333)),
+            VarInt(494878333).encode_to_vec(),
             vec![0x9d, 0x7f, 0x3e, 0x7d],
         );
         assert_eq!(
-            wire::serialize(&VarInt(151288809941952652)),
+            VarInt(151288809941952652).encode_to_vec(),
             vec![0xc2, 0x19, 0x7c, 0x5e, 0xff, 0x14, 0xe8, 0x8c]
         );
         assert_eq!(
-            wire::serialize(&VarInt(10000000000)),
+            VarInt(10000000000).encode_to_vec(),
             vec![0xc0, 0x00, 0x00, 0x02, 0x54, 0x0b, 0xe4, 0x00],
         );
     }

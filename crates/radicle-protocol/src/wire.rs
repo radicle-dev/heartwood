@@ -7,6 +7,7 @@ pub use message::{AddressType, MessageType};
 
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
+use std::fmt::Debug;
 use std::mem;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -94,19 +95,21 @@ impl From<bytes::TryGetError> for Error {
 
 /// Things that can be encoded as binary.
 pub trait Encode {
+    /// Encode self by writing it to the given buffer.
     fn encode(&self, buffer: &mut impl BufMut);
+
+    /// A convenience wrapper around [`Encode::encode`]
+    /// that allocates a [`Vec`].
+    fn encode_to_vec(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        self.encode(&mut buf);
+        buf
+    }
 }
 
 /// Things that can be decoded from binary.
 pub trait Decode: Sized {
     fn decode(buffer: &mut impl Buf) -> Result<Self, Error>;
-}
-
-/// Encode an object into a byte vector.
-pub fn serialize<E: Encode + ?Sized>(data: &E) -> Vec<u8> {
-    let mut buffer = Vec::new();
-    data.encode(&mut buffer);
-    buffer
 }
 
 /// Decode an object from a slice.
@@ -544,22 +547,22 @@ mod tests {
 
     #[quickcheck]
     fn prop_u8(input: u8) {
-        assert_eq!(deserialize::<u8>(&serialize(&input)).unwrap(), input);
+        assert_eq!(deserialize::<u8>(&input.encode_to_vec()).unwrap(), input);
     }
 
     #[quickcheck]
     fn prop_u16(input: u16) {
-        assert_eq!(deserialize::<u16>(&serialize(&input)).unwrap(), input);
+        assert_eq!(deserialize::<u16>(&input.encode_to_vec()).unwrap(), input);
     }
 
     #[quickcheck]
     fn prop_u32(input: u32) {
-        assert_eq!(deserialize::<u32>(&serialize(&input)).unwrap(), input);
+        assert_eq!(deserialize::<u32>(&input.encode_to_vec()).unwrap(), input);
     }
 
     #[quickcheck]
     fn prop_u64(input: u64) {
-        assert_eq!(deserialize::<u64>(&serialize(&input)).unwrap(), input);
+        assert_eq!(deserialize::<u64>(&input.encode_to_vec()).unwrap(), input);
     }
 
     #[quickcheck]
@@ -567,7 +570,10 @@ mod tests {
         if input.len() > u8::MAX as usize {
             return qcheck::TestResult::discard();
         }
-        assert_eq!(deserialize::<String>(&serialize(&input)).unwrap(), input);
+        assert_eq!(
+            deserialize::<String>(&input.encode_to_vec()).unwrap(),
+            input
+        );
 
         qcheck::TestResult::passed()
     }
@@ -575,38 +581,44 @@ mod tests {
     #[quickcheck]
     fn prop_vec(input: BoundedVec<String, 16>) {
         assert_eq!(
-            deserialize::<BoundedVec<String, 16>>(&serialize(&input.as_slice())).unwrap(),
+            deserialize::<BoundedVec<String, 16>>(&input.encode_to_vec()).unwrap(),
             input
         );
     }
 
     #[quickcheck]
     fn prop_pubkey(input: PublicKey) {
-        assert_eq!(deserialize::<PublicKey>(&serialize(&input)).unwrap(), input);
+        assert_eq!(
+            deserialize::<PublicKey>(&input.encode_to_vec()).unwrap(),
+            input
+        );
     }
 
     #[quickcheck]
     fn prop_filter(input: filter::Filter) {
         assert_eq!(
-            deserialize::<filter::Filter>(&serialize(&input)).unwrap(),
+            deserialize::<filter::Filter>(&input.encode_to_vec()).unwrap(),
             input
         );
     }
 
     #[quickcheck]
     fn prop_id(input: RepoId) {
-        assert_eq!(deserialize::<RepoId>(&serialize(&input)).unwrap(), input);
+        assert_eq!(
+            deserialize::<RepoId>(&input.encode_to_vec()).unwrap(),
+            input
+        );
     }
 
     #[quickcheck]
     fn prop_refs(input: Refs) {
-        assert_eq!(deserialize::<Refs>(&serialize(&input)).unwrap(), input);
+        assert_eq!(deserialize::<Refs>(&input.encode_to_vec()).unwrap(), input);
     }
 
     #[quickcheck]
     fn prop_tuple(input: (String, String)) {
         assert_eq!(
-            deserialize::<(String, String)>(&serialize(&input)).unwrap(),
+            deserialize::<(String, String)>(&input.encode_to_vec()).unwrap(),
             input
         );
     }
@@ -616,7 +628,7 @@ mod tests {
         let signature = Signature::from(input);
 
         assert_eq!(
-            deserialize::<Signature>(&serialize(&signature)).unwrap(),
+            deserialize::<Signature>(&signature.encode_to_vec()).unwrap(),
             signature
         );
     }
@@ -625,13 +637,13 @@ mod tests {
     fn prop_oid(input: [u8; 20]) {
         let oid = git::Oid::try_from(input.as_slice()).unwrap();
 
-        assert_eq!(deserialize::<git::Oid>(&serialize(&oid)).unwrap(), oid);
+        assert_eq!(deserialize::<git::Oid>(&oid.encode_to_vec()).unwrap(), oid);
     }
 
     #[quickcheck]
     fn prop_signed_refs(input: SignedRefs<Unverified>) {
         assert_eq!(
-            deserialize::<SignedRefs<Unverified>>(&serialize(&input)).unwrap(),
+            deserialize::<SignedRefs<Unverified>>(&input.encode_to_vec()).unwrap(),
             input
         );
     }
@@ -639,7 +651,7 @@ mod tests {
     #[test]
     fn test_string() {
         assert_eq!(
-            serialize(&String::from("hello")),
+            String::from("hello").encode_to_vec(),
             vec![5, b'h', b'e', b'l', b'l', b'o']
         );
     }
@@ -647,7 +659,7 @@ mod tests {
     #[test]
     fn test_alias() {
         assert_eq!(
-            serialize(&Alias::from_str("hello").unwrap()),
+            Alias::from_str("hello").unwrap().encode_to_vec(),
             vec![5, b'h', b'e', b'l', b'l', b'o']
         );
     }
@@ -656,7 +668,7 @@ mod tests {
     fn test_filter_invalid() {
         let b = bloomy::BloomFilter::with_size(filter::FILTER_SIZE_M / 3);
         let f = filter::Filter::from(b);
-        let bytes = serialize(&f);
+        let bytes = f.encode_to_vec();
 
         assert_matches!(
             deserialize::<filter::Filter>(&bytes).unwrap_err(),
@@ -667,10 +679,10 @@ mod tests {
     #[test]
     fn test_bounded_vec_limit() {
         let v: BoundedVec<u8, 2> = vec![1, 2].try_into().unwrap();
-        let buf = serialize(&v);
+        let buf = &v.encode_to_vec();
 
         assert_matches!(
-            deserialize::<BoundedVec<u8, 1>>(&buf),
+            deserialize::<BoundedVec<u8, 1>>(buf),
             Err(Error::InvalidSize {
                 expected: 1,
                 actual: 2
@@ -679,7 +691,7 @@ mod tests {
         );
 
         assert!(
-            deserialize::<BoundedVec<u8, 2>>(&buf).is_ok(),
+            deserialize::<BoundedVec<u8, 2>>(buf).is_ok(),
             "successfully decode vector of same size",
         );
     }

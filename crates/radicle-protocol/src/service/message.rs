@@ -16,6 +16,7 @@ use crate::bounded::BoundedVec;
 use crate::service::filter::Filter;
 use crate::service::{Link, NodeId, Timestamp};
 use crate::wire;
+use crate::wire::Encode as _;
 
 /// Maximum number of addresses which can be announced to other nodes.
 pub const ADDRESS_LIMIT: usize = 16;
@@ -69,20 +70,21 @@ impl NodeAnnouncement {
     /// Proof-of-work uses the [`scrypt`] algorithm with the parameters in
     /// [`Announcement::POW_PARAMS`]. The "work" is calculated by counting the number of leading
     /// zero bits after running `scrypt` on a serialized [`NodeAnnouncement`] using
-    /// [`wire::serialize`].
+    /// [`Encode::encode_to_vec`].
     ///
     /// In other words, `work = leading-zeros(scrypt(serialize(announcement)))`.
     ///
     /// Higher numbers mean higher difficulty. For each increase in work, difficulty is doubled.
     /// For instance, an output of `7` is *four* times more work than an output of `5`.
     ///
+    /// [`Encode::encode_to_vec`]: crate::wire::Encode::encode_to_vec
     pub fn work(&self) -> u32 {
         let (n, r, p) = Announcement::POW_PARAMS;
         let params = scrypt::Params::new(n, r, p, 32).expect("proof-of-work parameters are valid");
         let mut output = [0u8; 32];
 
         scrypt::scrypt(
-            wire::serialize(self).as_ref(),
+            &self.encode_to_vec(),
             Announcement::POW_SALT,
             &params,
             &mut output,
@@ -265,7 +267,8 @@ impl AnnouncementMessage {
     {
         use crypto::signature::Signer as _;
 
-        let msg = wire::serialize(&self);
+        let msg = self.encode_to_vec();
+
         let signature = signer.sign(&msg);
 
         Announcement {
@@ -365,7 +368,7 @@ impl Announcement {
 
     /// Verify this announcement's signature.
     pub fn verify(&self) -> bool {
-        let msg = wire::serialize(&self.message);
+        let msg = self.message.encode_to_vec();
         self.node.verify(msg, &self.signature).is_ok()
     }
 
@@ -425,8 +428,8 @@ impl PartialOrd for Message {
 
 impl Ord for Message {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let this = wire::serialize(self);
-        let other = wire::serialize(other);
+        let this = self.encode_to_vec();
+        let other = other.encode_to_vec();
 
         this.cmp(&other)
     }
@@ -678,7 +681,6 @@ mod tests {
     use radicle::git::raw;
 
     use super::*;
-    use crate::wire::Encode;
     use localtime::LocalTime;
     use radicle::test::arbitrary;
 

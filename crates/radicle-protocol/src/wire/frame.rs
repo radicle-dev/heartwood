@@ -234,13 +234,6 @@ impl<M> Frame<M> {
     }
 }
 
-impl<M: wire::Encode> Frame<M> {
-    /// Serialize frame to bytes.
-    pub fn to_bytes(&self) -> Vec<u8> {
-        wire::serialize(self)
-    }
-}
-
 /// Frame payload.
 #[derive(Debug, PartialEq, Eq)]
 pub enum FrameData<M> {
@@ -363,7 +356,7 @@ impl<M: wire::Encode> wire::Encode for Frame<M> {
         match &self.data {
             FrameData::Control(ctrl) => ctrl.encode(buf),
             FrameData::Git(data) => varint::payload::encode(data, buf),
-            FrameData::Gossip(msg) => varint::payload::encode(&wire::serialize(msg), buf),
+            FrameData::Gossip(msg) => varint::payload::encode(&msg.encode_to_vec(), buf),
         }
     }
 }
@@ -393,6 +386,8 @@ mod test {
 
     #[test]
     fn test_encode_git_large() {
+        use wire::Encode as _;
+
         let size = u16::MAX as usize * 3;
         assert!(
             size > (wire::Size::MAX as usize * 2),
@@ -404,7 +399,7 @@ mod test {
         let frame: Frame<Message> = Frame::git(StreamId(0u8.into()), a_lot_of_data);
 
         // In previous versions since 3c5668e this would panic.
-        let bytes = wire::serialize(&frame);
+        let bytes = frame.encode_to_vec();
 
         assert!(
             bytes.len() > wire::Size::MAX as usize * 2,

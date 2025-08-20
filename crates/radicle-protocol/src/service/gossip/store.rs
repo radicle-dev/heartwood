@@ -10,7 +10,7 @@ use crate::service::message::{
     Announcement, AnnouncementMessage, InventoryAnnouncement, NodeAnnouncement, RefsAnnouncement,
 };
 use crate::wire;
-use crate::wire::Decode;
+use crate::wire::{Decode as _, Encode as _};
 use radicle::node::Database;
 use radicle::node::NodeId;
 use radicle::prelude::Timestamp;
@@ -117,17 +117,17 @@ impl Store for Database {
             AnnouncementMessage::Node(msg) => {
                 stmt.bind((2, sql::Value::String(String::new())))?;
                 stmt.bind((3, &GossipType::Node))?;
-                stmt.bind((4, msg))?;
+                stmt.bind((4, &msg.encode_to_vec()[..]))?;
             }
             AnnouncementMessage::Refs(msg) => {
                 stmt.bind((2, &msg.rid))?;
                 stmt.bind((3, &GossipType::Refs))?;
-                stmt.bind((4, msg))?;
+                stmt.bind((4, &msg.encode_to_vec()[..]))?;
             }
             AnnouncementMessage::Inventory(msg) => {
                 stmt.bind((2, sql::Value::String(String::new())))?;
                 stmt.bind((3, &GossipType::Inventory))?;
-                stmt.bind((4, msg))?;
+                stmt.bind((4, &msg.encode_to_vec()[..]))?;
             }
         }
         stmt.bind((5, &ann.signature))?;
@@ -231,12 +231,6 @@ impl TryFrom<&sql::Value> for NodeAnnouncement {
     }
 }
 
-impl sql::BindableWithIndex for &NodeAnnouncement {
-    fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
-        wire::serialize(self).bind(stmt, i)
-    }
-}
-
 impl TryFrom<&sql::Value> for RefsAnnouncement {
     type Error = sql::Error;
 
@@ -254,12 +248,6 @@ impl TryFrom<&sql::Value> for RefsAnnouncement {
     }
 }
 
-impl sql::BindableWithIndex for &RefsAnnouncement {
-    fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
-        wire::serialize(self).bind(stmt, i)
-    }
-}
-
 impl TryFrom<&sql::Value> for InventoryAnnouncement {
     type Error = sql::Error;
 
@@ -274,12 +262,6 @@ impl TryFrom<&sql::Value> for InventoryAnnouncement {
                 message: Some("sql: invalid type for inventory announcement".to_owned()),
             }),
         }
-    }
-}
-
-impl sql::BindableWithIndex for &InventoryAnnouncement {
-    fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
-        wire::serialize(self).bind(stmt, i)
     }
 }
 

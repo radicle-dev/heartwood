@@ -446,7 +446,7 @@ mod tests {
         });
         let ann = ann.signed(&signer);
         let msg = Message::Announcement(ann);
-        let data = wire::serialize(&msg);
+        let data = msg.encode_to_vec();
 
         assert!(data.len() < wire::Size::MAX as usize);
     }
@@ -461,7 +461,7 @@ mod tests {
         });
         let ann = ann.signed(&signer);
         let msg = Message::Announcement(ann);
-        let data = wire::serialize(&msg);
+        let data = msg.encode_to_vec();
 
         assert!(data.len() < wire::Size::MAX as usize);
     }
@@ -482,44 +482,48 @@ mod tests {
         });
         let ann = ann.signed(&signer);
         let msg = Message::Announcement(ann);
-        let data = wire::serialize(&msg);
+        let data = msg.encode_to_vec();
 
         assert!(data.len() < wire::Size::MAX as usize);
     }
 
     #[test]
     fn test_pingpong_encode_max_size() {
-        wire::serialize(&Message::Ping(Ping {
+        Message::Ping(Ping {
             ponglen: 0,
             zeroes: ZeroBytes::new(Ping::MAX_PING_ZEROES),
-        }));
+        })
+        .encode_to_vec();
 
-        wire::serialize(&Message::Pong {
+        (Message::Pong {
             zeroes: ZeroBytes::new(Ping::MAX_PONG_ZEROES),
-        });
+        })
+        .encode_to_vec();
     }
 
     #[test]
     #[should_panic(expected = "advance out of bounds")]
     fn test_ping_encode_size_overflow() {
-        wire::serialize(&Message::Ping(Ping {
+        Message::Ping(Ping {
             ponglen: 0,
             zeroes: ZeroBytes::new(Ping::MAX_PING_ZEROES + 1),
-        }));
+        })
+        .encode_to_vec();
     }
 
     #[test]
     #[should_panic(expected = "advance out of bounds")]
     fn test_pong_encode_size_overflow() {
-        wire::serialize(&Message::Pong {
+        Message::Pong {
             zeroes: ZeroBytes::new(Ping::MAX_PONG_ZEROES + 1),
-        });
+        }
+        .encode_to_vec();
     }
 
     #[quickcheck]
     fn prop_message_encode_decode(message: Message) {
-        let encoded = &wire::serialize(&message);
-        let decoded = wire::deserialize::<Message>(encoded).unwrap();
+        let encoded = message.encode_to_vec();
+        let decoded = wire::deserialize::<Message>(&encoded).unwrap();
 
         assert_eq!(message, decoded);
     }
@@ -552,7 +556,7 @@ mod tests {
             let zeroes = ZeroBytes::new(zeroes);
 
             assert_eq!(
-                wire::deserialize::<ZeroBytes>(&wire::serialize(&zeroes)).unwrap(),
+                wire::deserialize::<ZeroBytes>(&zeroes.encode_to_vec()).unwrap(),
                 zeroes
             );
         }
@@ -565,7 +569,7 @@ mod tests {
     #[quickcheck]
     fn prop_addr(addr: Address) {
         assert_eq!(
-            wire::deserialize::<Address>(&wire::serialize(&addr)).unwrap(),
+            wire::deserialize::<Address>(&addr.encode_to_vec()).unwrap(),
             addr
         );
     }
