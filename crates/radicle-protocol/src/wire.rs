@@ -103,14 +103,10 @@ pub trait Decode: Sized {
 }
 
 /// Encode an object into a byte vector.
-///
-/// # Panics
-///
-/// If the encoded object exceeds [`Size::MAX`].
 pub fn serialize<E: Encode + ?Sized>(data: &E) -> Vec<u8> {
-    let mut buffer = Vec::new().limit(Size::MAX as usize);
+    let mut buffer = Vec::new();
     data.encode(&mut buffer);
-    buffer.into_inner()
+    buffer
 }
 
 /// Decode an object from a slice.
