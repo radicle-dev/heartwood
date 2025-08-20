@@ -35,6 +35,7 @@ Usage
     rad node status [<option>...]
     rad node start [--foreground] [--verbose] [<option>...] [-- <node-option>...]
     rad node stop [<option>...]
+    rad node restart [--foreground] [--verbose] [<option>...] [-- <node-option>...]
     rad node logs [-n <lines>]
     rad node debug [<option>...]
     rad node connect <nid>[@<addr>] [<option>...]
@@ -46,7 +47,7 @@ Usage
 
     For `<node-option>` see `radicle-node --help`.
 
-Start options
+Start / Restart options
 
     --foreground         Start the node in the foreground
     --path <path>        Start node binary at path (default: radicle-node)
@@ -116,6 +117,12 @@ pub enum Operation {
         timeout: time::Duration,
         count: usize,
     },
+    Restart {
+        foreground: bool,
+        verbose: bool,
+        path: PathBuf,
+        options: Vec<OsString>,
+    },
     Routing {
         json: bool,
         rid: Option<RepoId>,
@@ -145,6 +152,7 @@ pub enum OperationName {
     Config,
     Db,
     Events,
+    Restart,
     Routing,
     Logs,
     Start,
@@ -186,6 +194,7 @@ impl Args for Options {
                     "events" => op = Some(OperationName::Events),
                     "logs" => op = Some(OperationName::Logs),
                     "config" => op = Some(OperationName::Config),
+                    "restart" => op = Some(OperationName::Restart),
                     "routing" => op = Some(OperationName::Routing),
                     "inventory" => op = Some(OperationName::Inventory),
                     "start" => op = Some(OperationName::Start),
@@ -221,23 +230,43 @@ impl Args for Options {
                     let val = parser.value()?;
                     count = term::args::number(&val)?;
                 }
-                Long("foreground") if matches!(op, Some(OperationName::Start)) => {
+                Long("foreground")
+                    if matches!(
+                        op,
+                        Some(OperationName::Start) | Some(OperationName::Restart)
+                    ) =>
+                {
                     foreground = true;
                 }
                 Long("addresses") if matches!(op, Some(OperationName::Config)) => {
                     addresses = true;
                 }
-                Long("verbose") | Short('v') if matches!(op, Some(OperationName::Start)) => {
+                Long("verbose") | Short('v')
+                    if matches!(
+                        op,
+                        Some(OperationName::Start) | Some(OperationName::Restart)
+                    ) =>
+                {
                     verbose = true;
                 }
-                Long("path") if matches!(op, Some(OperationName::Start)) => {
+                Long("path")
+                    if matches!(
+                        op,
+                        Some(OperationName::Start) | Some(OperationName::Restart)
+                    ) =>
+                {
                     let val = parser.value()?;
                     path = Some(PathBuf::from(val));
                 }
                 Short('n') if matches!(op, Some(OperationName::Logs)) => {
                     lines = parser.value()?.parse()?;
                 }
-                Value(val) if matches!(op, Some(OperationName::Start)) => {
+                Value(val)
+                    if matches!(
+                        op,
+                        Some(OperationName::Start) | Some(OperationName::Restart)
+                    ) =>
+                {
                     options.push(val);
                 }
                 Value(val) if matches!(op, Some(OperationName::Db)) => {
@@ -257,6 +286,12 @@ impl Args for Options {
             OperationName::Config => Operation::Config { addresses },
             OperationName::Db => Operation::Db { args: options },
             OperationName::Events => Operation::Events { timeout, count },
+            OperationName::Restart => Operation::Restart {
+                foreground,
+                verbose,
+                options,
+                path: path.unwrap_or(PathBuf::from("radicle-node")),
+            },
             OperationName::Routing => Operation::Routing { rid, nid, json },
             OperationName::Logs => Operation::Logs { lines },
             OperationName::Start => Operation::Start {
@@ -316,6 +351,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Events { timeout, count } => {
             events::run(node, count, timeout)?;
+        }
+        Operation::Restart {
+            foreground,
+            options,
+            path,
+            verbose,
+        } => {
+            if node.is_running() {
+                control::stop(node.clone(), &profile);
+            }
+            control::start(node, !foreground, verbose, options, &path, &profile)?;
         }
         Operation::Routing { rid, nid, json } => {
             let store = profile.database()?;
