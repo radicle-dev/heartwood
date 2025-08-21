@@ -578,9 +578,32 @@ impl Home {
     }
 
     pub fn socket(&self) -> PathBuf {
-        env::var_os(env::RAD_SOCKET)
-            .map(PathBuf::from)
-            .unwrap_or_else(|| self.node().join(node::DEFAULT_SOCKET_NAME))
+        use env::RAD_SOCKET;
+
+        #[cfg(unix)]
+        const DEFAULT_SOCKET_NAME: &str = "control.sock";
+
+        #[cfg(windows)]
+        const DEFAULT_SOCKET_NAME: &str = r#"\\.\pipe\radicle-node"#;
+
+        match env::var_os(RAD_SOCKET).map(PathBuf::from) {
+            None => {
+                #[cfg(unix)]
+                return self.node().join(DEFAULT_SOCKET_NAME);
+
+                #[cfg(windows)]
+                return PathBuf::from(DEFAULT_SOCKET_NAME);
+            }
+            Some(path) => {
+                #[cfg(windows)]
+                {
+                    const PIPE_PREFIX: &str = r#"\\.\pipe\"#;
+                    assert!(path.starts_with(PIPE_PREFIX), "The value of the environment variable {RAD_SOCKET} ('{}') must start with {PIPE_PREFIX}. This restriction might be relaxed in the future.", path.display());
+                }
+
+                path
+            }
+        }
     }
 
     /// Return a read-write handle to the notifications database.

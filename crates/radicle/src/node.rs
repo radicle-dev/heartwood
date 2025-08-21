@@ -53,8 +53,6 @@ pub use timestamp::Timestamp;
 
 /// Peer-to-peer protocol version.
 pub const PROTOCOL_VERSION: u8 = 1;
-/// Default name for control socket file.
-pub const DEFAULT_SOCKET_NAME: &str = "control.sock";
 /// Default radicle protocol port.
 pub const DEFAULT_PORT: u16 = 8776;
 /// Default timeout when waiting for the node to respond with data.
