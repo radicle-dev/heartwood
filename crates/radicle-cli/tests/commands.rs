@@ -1375,7 +1375,7 @@ fn rad_clone_partial_fail() {
     eve.connect(&bob);
     eve.routes_to(&[(acme, carol), (acme, bob.id), (acme, alice.id)]);
     bob.storage.repository(acme).unwrap().remove().unwrap(); // Cause the fetch from Bob to fail.
-    bob.storage.lock_repository(acme).ok(); // Prevent repo from being re-fetched.
+    bob.storage.temporary_repository(acme).ok(); // Prevent repo from being re-fetched.
 
     test(
         "examples/rad-clone-partial-fail.md",

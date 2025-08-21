@@ -1,5 +1,6 @@
 use radicle::identity::doc::CanonicalRefsError;
 use radicle::identity::CanonicalRefs;
+use radicle::storage::git::TempRepository;
 pub(crate) use radicle_protocol::worker::fetch::error;
 
 use std::collections::BTreeSet;
@@ -27,8 +28,7 @@ use super::channels::ChannelsFlush;
 
 pub enum Handle {
     Clone {
-        handle: radicle_fetch::Handle<Repository, ChannelsFlush>,
-        tmp: tempfile::TempDir,
+        handle: radicle_fetch::Handle<TempRepository, ChannelsFlush>,
     },
     Pull {
         handle: radicle_fetch::Handle<Repository, ChannelsFlush>,
@@ -55,9 +55,9 @@ impl Handle {
                 notifications,
             })
         } else {
-            let (repo, tmp) = storage.lock_repository(rid)?;
+            let repo = storage.temporary_repository(rid)?;
             let handle = radicle_fetch::Handle::new(local, repo, follow, blocked, channels)?;
-            Ok(Handle::Clone { handle, tmp })
+            Ok(Handle::Clone { handle })
         }
     }
 
@@ -72,11 +72,18 @@ impl Handle {
         refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Fetch> {
         let (result, clone, notifs) = match self {
-            Self::Clone { mut handle, tmp } => {
+            Self::Clone { mut handle } => {
                 log::debug!(target: "worker", "{} cloning from {remote}", handle.local());
-                let result = radicle_fetch::clone(&mut handle, limit, remote)?;
-                mv(tmp, storage, &rid)?;
-                (result, true, None)
+                match radicle_fetch::clone(&mut handle, limit, remote) {
+                    Err(err) => {
+                        handle.into_inner().cleanup();
+                        return Err(err.into());
+                    }
+                    Ok(result) => {
+                        handle.into_inner().mv(storage.path_of(&rid))?;
+                        (result, true, None)
+                    }
+                }
             }
             Self::Pull {
                 mut handle,
@@ -162,35 +169,6 @@ impl Handle {
             }
         }
     }
-}
-
-/// In the case of cloning, we have performed the fetch into a
-/// temporary directory -- ensuring that no concurrent operations
-/// see an empty repository.
-///
-/// At the end of the clone, we perform a rename of the temporary
-/// directory to the storage repository.
-///
-/// # Errors
-///   - Will fail if `storage` contains `rid` already.
-fn mv(tmp: tempfile::TempDir, storage: &Storage, rid: &RepoId) -> Result<(), error::Fetch> {
-    use std::io::{Error, ErrorKind};
-
-    let from = tmp.path();
-    let to = storage.path_of(rid);
-
-    if !to.exists() {
-        std::fs::rename(from, to)?;
-    } else {
-        log::warn!(target: "worker", "Refusing to move cloned repository {rid} already exists");
-        return Err(Error::new(
-            ErrorKind::AlreadyExists,
-            format!("repository already exists {to:?}"),
-        )
-        .into());
-    }
-
-    Ok(())
 }
 
 // Post notifications for the given refs.

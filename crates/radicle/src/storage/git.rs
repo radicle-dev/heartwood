@@ -2,6 +2,9 @@
 pub mod cob;
 pub mod transport;
 
+pub mod temp;
+pub use temp::TempRepository;
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
@@ -9,7 +12,6 @@ use std::sync::LazyLock;
 use std::{fs, io};
 
 use crypto::Verified;
-use tempfile::TempDir;
 
 use crate::git::canonical::Quorum;
 use crate::identity::crefs::GetCanonicalRefs as _;
@@ -121,9 +123,9 @@ impl ReadStorage for Storage {
             if path.file_name().to_string_lossy().starts_with('.') {
                 continue;
             }
-            // Skip lock files.
+            // Skip temporary repositories
             if let Some(ext) = path.path().extension() {
-                if ext == "lock" {
+                if ext == TempRepository::EXT {
                     continue;
                 }
             }
@@ -213,23 +215,18 @@ impl Storage {
 
     /// Create a [`Repository`] in a temporary directory.
     ///
-    /// N.b. it is important to keep the [`TempDir`] in scope while
-    /// using the [`Repository`]. If it is dropped, any action on the
-    /// `Repository` will fail.
-    pub fn lock_repository(&self, rid: RepoId) -> Result<(Repository, TempDir), RepositoryError> {
+    /// This is used to prevent other processes accessing it during
+    /// initialization. Usually, callers will want to move the repository
+    /// to its destination after initialization in the temporary location.
+    pub fn temporary_repository(&self, rid: RepoId) -> Result<TempRepository, RepositoryError> {
         if self.contains(&rid)? {
             return Err(Error::Io(io::Error::new(
                 io::ErrorKind::AlreadyExists,
-                format!("refusing to create '{rid}.lock'"),
+                format!("refusing to create temporary repository for {rid}"),
             ))
             .into());
         }
-        let tmp = tempfile::Builder::new()
-            .prefix(&rid.canonical())
-            .suffix(".lock")
-            .tempdir_in(self.path())
-            .map_err(Error::from)?;
-        Ok((Repository::create(tmp.path(), rid, &self.info)?, tmp))
+        TempRepository::new(self.path(), rid, &self.info)
     }
 
     pub fn path(&self) -> &Path {
