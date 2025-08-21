@@ -8,6 +8,7 @@ use radicle::node::device::Device;
 use radicle::profile;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::{Runtime, VERSION};
+#[cfg(unix)]
 use radicle_signals as signals;
 
 pub const HELP_MSG: &str = r#"
@@ -139,8 +140,19 @@ fn execute() -> anyhow::Result<()> {
         log::warn!(target: "node", "Unable to set process open file limit: {e}");
     }
 
-    let (notify, signals) = chan::bounded(1);
-    signals::install(notify)?;
+    #[cfg(unix)]
+    let signals = {
+        let (notify, signals) = chan::bounded(1);
+        signals::install(notify)?;
+        signals
+    };
+
+    #[cfg(windows)]
+    let signals = {
+        let (_, signals) = chan::bounded(1);
+        log::warn!(target: "node", "Signal handlers not installed.");
+        signals
+    };
 
     if options.force {
         log::debug!(target: "node", "Removing existing control socket..");

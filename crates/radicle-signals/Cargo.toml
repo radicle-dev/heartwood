@@ -8,7 +8,7 @@ edition.workspace = true
 version = "0.11.0"
 rust-version.workspace = true
 
-[dependencies]
+[target.'cfg(unix)'.dependencies]
 crossbeam-channel = { workspace = true }
 libc = { workspace = true }
 signals_receipts = { version = "0.2.0", features = ["channel_notify_facility"] }

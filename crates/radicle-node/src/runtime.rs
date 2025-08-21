@@ -23,7 +23,6 @@ use radicle::node::address::Store as _;
 use radicle::node::notifications;
 use radicle::node::policy::config as policy;
 use radicle::node::Event;
-use radicle::node::Handle as _;
 use radicle::node::UserAgent;
 use radicle::profile::Home;
 use radicle::{cob, git, storage, Storage};
@@ -280,7 +279,11 @@ impl Runtime {
             let handle = self.handle.clone();
             || control::listen(listener, handle)
         });
+
+        #[cfg(unix)]
         let _signals = thread::spawn(&self.id, "signals", move || loop {
+            use radicle::node::Handle as _;
+
             match self.signals.recv() {
                 Ok(Signal::Terminate | Signal::Interrupt) => {
                     log::info!(target: "node", "Termination signal received; shutting down..");
