@@ -51,6 +51,9 @@ thiserror = { workspace = true }
 [target.'cfg(target_os = "linux")'.dependencies]
 radicle-systemd = { workspace = true, optional = true }
 
+[target.'cfg(windows)'.dependencies]
+winpipe = { workspace = true }
+
 [dev-dependencies]
 qcheck = { workspace = true }
 qcheck-macros = { workspace = true }

@@ -2870,6 +2870,7 @@ dependencies = [
  "tempfile",
  "test-log",
  "thiserror 1.0.69",
+ "winpipe",
 ]
 
 [[package]]
