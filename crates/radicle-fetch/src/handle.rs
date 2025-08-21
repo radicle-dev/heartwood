@@ -46,6 +46,10 @@ impl<R, S> Handle<R, S> {
     pub fn allowed(&self) -> Allowed {
         self.allowed.clone()
     }
+
+    pub fn into_inner(self) -> R {
+        self.repo
+    }
 }
 
 impl<R, S> Handle<R, S>
