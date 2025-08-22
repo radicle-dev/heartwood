@@ -127,7 +127,7 @@ where
         })?,
         [
             "push",
-            &format!("{}", stored.path().canonicalize()?.display()),
+            &format!("{}", dunce::canonicalize(stored.path())?.display()),
             &pushspec.to_string(),
         ],
         [],
@@ -295,9 +295,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
             "fetch",
             &format!(
                 "{}",
-                stored
-                    .path()
-                    .canonicalize()
+                dunce::canonicalize(stored.path())
                     .map_err(CheckoutError::Fetch)?
                     .display()
             ),

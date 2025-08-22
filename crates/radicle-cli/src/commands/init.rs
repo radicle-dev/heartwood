@@ -212,10 +212,7 @@ pub fn init(
     options: Options,
     profile: &profile::Profile,
 ) -> anyhow::Result<()> {
-    let path = repo
-        .workdir()
-        .unwrap_or_else(|| repo.path())
-        .canonicalize()?;
+    let path = dunce::canonicalize(repo.workdir().unwrap_or_else(|| repo.path()))?;
     let interactive = options.interactive;
 
     let default_branch = match find_default_branch(&repo) {

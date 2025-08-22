@@ -162,7 +162,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
 
                 // N.b. `working` is the `.git` folder and `fetch::run`
                 // requires the working directory.
-                let working = working.map_err(|_| Error::NoGitDir)?.canonicalize()?;
+                let working = dunce::canonicalize(working.map_err(|_| Error::NoGitDir)?)?;
                 let working = working.parent().ok_or_else(|| Error::NoWorkingCopy {
                     path: working.clone(),
                 })?;

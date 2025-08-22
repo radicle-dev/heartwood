@@ -541,7 +541,7 @@ impl Home {
             fs::create_dir_all(path.clone())?;
         }
         let home = Self {
-            path: path.canonicalize()?,
+            path: dunce::canonicalize(path)?,
         };
 
         for dir in &[home.storage(), home.keys(), home.node(), home.cobs()] {
