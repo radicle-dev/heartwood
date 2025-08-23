@@ -48,7 +48,7 @@ impl<const B: usize, D: wire::Decode> Deserializer<B, D> {
     }
 
     /// Decode and return the next message. Returns [`None`] if nothing was decoded.
-    pub fn deserialize_next(&mut self) -> Result<Option<D>, wire::Error> {
+    pub fn deserialize_next(&mut self) -> Result<Option<D>, wire::Invalid> {
         let mut reader = io::Cursor::new(self.unparsed.as_slice());
 
         match D::decode(&mut reader) {
@@ -59,7 +59,7 @@ impl<const B: usize, D: wire::Decode> Deserializer<B, D> {
                 Ok(Some(msg))
             }
             Err(wire::Error::UnexpectedEnd { .. }) => Ok(None),
-            Err(err) => Err(err),
+            Err(wire::Error::Invalid(err)) => Err(err),
         }
     }
 
@@ -106,7 +106,7 @@ impl<const B: usize, D: wire::Decode> io::Write for Deserializer<B, D> {
 }
 
 impl<const B: usize, D: wire::Decode> Iterator for Deserializer<B, D> {
-    type Item = Result<D, wire::Error>;
+    type Item = Result<D, wire::Invalid>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.deserialize_next().transpose()

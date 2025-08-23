@@ -12,13 +12,6 @@ use crate::{wire, wire::varint, wire::varint::VarInt, PROTOCOL_VERSION};
 /// by a version number.
 pub const PROTOCOL_VERSION_STRING: Version = Version([b'r', b'a', b'd', PROTOCOL_VERSION]);
 
-/// Control open byte.
-const CONTROL_OPEN: u8 = 0;
-/// Control close byte.
-const CONTROL_CLOSE: u8 = 1;
-/// Control EOF byte.
-const CONTROL_EOF: u8 = 2;
-
 /// Protocol version.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Version([u8; 4]);
@@ -43,7 +36,7 @@ impl wire::Decode for Version {
         buf.try_copy_to_slice(&mut version[..])?;
 
         if version != PROTOCOL_VERSION_STRING.0 {
-            return Err(wire::Error::InvalidProtocolVersion(version));
+            return Err(wire::Invalid::ProtocolVersion { actual: version }.into());
         }
         Ok(Self(version))
     }
@@ -94,29 +87,29 @@ impl StreamId {
     }
 
     /// Get the kind of stream this is.
-    pub fn kind(&self) -> Result<StreamKind, u8> {
+    pub fn kind(&self) -> Result<StreamType, u8> {
         let id = *self.0;
         let kind = ((id >> 1) & 0b11) as u8;
 
-        StreamKind::try_from(kind)
+        StreamType::try_from(kind)
     }
 
     /// Create a control identifier.
     pub fn control(link: Link) -> Self {
         let link = if link.is_outbound() { 0 } else { 1 };
-        Self(VarInt::from(((StreamKind::Control as u8) << 1) | link))
+        Self(VarInt::from(((u8::from(StreamType::Control)) << 1) | link))
     }
 
     /// Create a gossip identifier.
     pub fn gossip(link: Link) -> Self {
         let link = if link.is_outbound() { 0 } else { 1 };
-        Self(VarInt::from(((StreamKind::Gossip as u8) << 1) | link))
+        Self(VarInt::from((u8::from(StreamType::Gossip) << 1) | link))
     }
 
     /// Create a git identifier.
     pub fn git(link: Link) -> Self {
         let link = if link.is_outbound() { 0 } else { 1 };
-        Self(VarInt::from(((StreamKind::Git as u8) << 1) | link))
+        Self(VarInt::from((u8::from(StreamType::Git) << 1) | link))
     }
 
     /// Get the nth identifier while preserving the stream type and initiator.
@@ -160,7 +153,7 @@ impl wire::Encode for StreamId {
 /// Type of stream.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
-pub enum StreamKind {
+pub enum StreamType {
     /// Control stream, used to open and close streams.
     Control = 0b00,
     /// Gossip stream, used to exchange messages.
@@ -169,16 +162,22 @@ pub enum StreamKind {
     Git = 0b10,
 }
 
-impl TryFrom<u8> for StreamKind {
+impl TryFrom<u8> for StreamType {
     type Error = u8;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0b00 => Ok(StreamKind::Control),
-            0b01 => Ok(StreamKind::Gossip),
-            0b10 => Ok(StreamKind::Git),
+            0b00 => Ok(StreamType::Control),
+            0b01 => Ok(StreamType::Gossip),
+            0b10 => Ok(StreamType::Git),
             n => Err(n),
         }
+    }
+}
+
+impl From<StreamType> for u8 {
+    fn from(value: StreamType) -> Self {
+        value as u8
     }
 }
 
@@ -267,23 +266,50 @@ pub enum Control {
     },
 }
 
+/// Type of control message.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum ControlType {
+    /// Control open byte.
+    Open = 0,
+    /// Control close byte.
+    Close = 1,
+    /// Control EOF byte.
+    Eof = 2,
+}
+
+impl TryFrom<u8> for ControlType {
+    type Error = u8;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0b00 => Ok(ControlType::Open),
+            0b01 => Ok(ControlType::Close),
+            0b10 => Ok(ControlType::Eof),
+            n => Err(n),
+        }
+    }
+}
+
+impl From<ControlType> for u8 {
+    fn from(value: ControlType) -> Self {
+        value as u8
+    }
+}
+
 impl wire::Decode for Control {
     fn decode(buf: &mut impl Buf) -> Result<Self, wire::Error> {
-        let command = u8::decode(buf)?;
-        match command {
-            CONTROL_OPEN => {
-                let stream = StreamId::decode(buf)?;
-                Ok(Control::Open { stream })
-            }
-            CONTROL_CLOSE => {
-                let stream = StreamId::decode(buf)?;
-                Ok(Control::Close { stream })
-            }
-            CONTROL_EOF => {
-                let stream = StreamId::decode(buf)?;
-                Ok(Control::Eof { stream })
-            }
-            other => Err(wire::Error::InvalidControlMessage(other)),
+        match ControlType::try_from(u8::decode(buf)?) {
+            Ok(ControlType::Open) => Ok(Control::Open {
+                stream: StreamId::decode(buf)?,
+            }),
+            Ok(ControlType::Close) => Ok(Control::Close {
+                stream: StreamId::decode(buf)?,
+            }),
+            Ok(ControlType::Eof) => Ok(Control::Eof {
+                stream: StreamId::decode(buf)?,
+            }),
+            Err(other) => Err(wire::Invalid::ControlType { actual: other }.into()),
         }
     }
 }
@@ -292,15 +318,15 @@ impl wire::Encode for Control {
     fn encode(&self, buf: &mut impl BufMut) {
         match self {
             Self::Open { stream: id } => {
-                CONTROL_OPEN.encode(buf);
+                u8::from(ControlType::Open).encode(buf);
                 id.encode(buf);
             }
             Self::Eof { stream: id } => {
-                CONTROL_EOF.encode(buf);
+                u8::from(ControlType::Eof).encode(buf);
                 id.encode(buf);
             }
             Self::Close { stream: id } => {
-                CONTROL_CLOSE.encode(buf);
+                u8::from(ControlType::Close).encode(buf);
                 id.encode(buf);
             }
         }
@@ -311,12 +337,15 @@ impl<M: wire::Decode> wire::Decode for Frame<M> {
     fn decode(buf: &mut impl Buf) -> Result<Self, wire::Error> {
         let version = Version::decode(buf)?;
         if version.number() != PROTOCOL_VERSION {
-            return Err(wire::Error::WrongProtocolVersion(version.number()));
+            return Err(wire::Invalid::ProtocolVersionUnsupported {
+                actual: version.number(),
+            }
+            .into());
         }
         let stream = StreamId::decode(buf)?;
 
         match stream.kind() {
-            Ok(StreamKind::Control) => {
+            Ok(StreamType::Control) => {
                 let ctrl = Control::decode(buf)?;
                 let frame = Frame {
                     version,
@@ -325,7 +354,7 @@ impl<M: wire::Decode> wire::Decode for Frame<M> {
                 };
                 Ok(frame)
             }
-            Ok(StreamKind::Gossip) => {
+            Ok(StreamType::Gossip) => {
                 let data = varint::payload::decode(buf)?;
                 let mut cursor = io::Cursor::new(data);
                 let msg = M::decode(&mut cursor)?;
@@ -340,11 +369,11 @@ impl<M: wire::Decode> wire::Decode for Frame<M> {
 
                 Ok(frame)
             }
-            Ok(StreamKind::Git) => {
+            Ok(StreamType::Git) => {
                 let data = varint::payload::decode(buf)?;
                 Ok(Frame::git(stream, data))
             }
-            Err(n) => Err(wire::Error::InvalidStreamKind(n)),
+            Err(n) => Err(wire::Invalid::StreamType { actual: n }.into()),
         }
     }
 }
@@ -367,9 +396,9 @@ mod test {
 
     #[test]
     fn test_stream_id() {
-        assert_eq!(StreamId(VarInt(0b000)).kind().unwrap(), StreamKind::Control);
-        assert_eq!(StreamId(VarInt(0b010)).kind().unwrap(), StreamKind::Gossip);
-        assert_eq!(StreamId(VarInt(0b100)).kind().unwrap(), StreamKind::Git);
+        assert_eq!(StreamId(VarInt(0b000)).kind().unwrap(), StreamType::Control);
+        assert_eq!(StreamId(VarInt(0b010)).kind().unwrap(), StreamType::Gossip);
+        assert_eq!(StreamId(VarInt(0b100)).kind().unwrap(), StreamType::Git);
         assert_eq!(StreamId(VarInt(0b001)).link(), Link::Inbound);
         assert_eq!(StreamId(VarInt(0b000)).link(), Link::Outbound);
         assert_eq!(StreamId(VarInt(0b101)).link(), Link::Inbound);
