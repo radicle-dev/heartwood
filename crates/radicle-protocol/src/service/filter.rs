@@ -59,6 +59,30 @@ impl Filter {
         Self(bloom)
     }
 
+    pub fn allowed_by(
+        policies: impl Iterator<
+            Item = Result<radicle::node::policy::SeedPolicy, radicle::node::policy::store::Error>,
+        >,
+    ) -> Self {
+        let mut ids = Vec::new();
+
+        for seed in policies {
+            let seed = match seed {
+                Ok(seed) => seed,
+                Err(err) => {
+                    log::error!(target: "protocol::filter", "Failed to read seed policy: {err}");
+                    continue;
+                }
+            };
+
+            if seed.policy.is_allow() {
+                ids.push(seed.rid);
+            }
+        }
+
+        Self::new(ids)
+    }
+
     /// Empty filter with nothing set.
     pub fn empty() -> Self {
         Self(BloomFilter::from(vec![0x0; FILTER_SIZE_S]))

@@ -27,8 +27,8 @@ pub fn run(
 
     for row in rows {
         let row = row?;
-        let id = row.read::<&str, _>("id");
-        let mut patch = json::from_str::<json::Value>(row.read::<&str, _>("patch"))
+        let id = row.try_read::<&str, _>("id")?;
+        let mut patch = json::from_str::<json::Value>(row.try_read::<&str, _>("patch")?)
             .map_err(Error::MalformedJson)?;
         let patch = patch.as_object_mut().ok_or(Error::MalformedJsonSchema)?;
         let revisions = patch["revisions"]
@@ -117,7 +117,7 @@ mod tests {
             })
             .unwrap();
 
-        let patch = row.read::<&str, _>("patch");
+        let patch = row.try_read::<&str, _>("patch").unwrap();
         let actual: serde_json::Value = serde_json::from_str(patch).unwrap();
         let expected: serde_json::Value = serde_json::from_str(PATCH_V2).unwrap();
 

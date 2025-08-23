@@ -135,7 +135,7 @@ impl Store for Database {
 
         if let Some(row) = stmt.into_iter().next() {
             let row = row?;
-            let id = row.read::<i64, _>("rowid");
+            let id = row.try_read::<i64, _>("rowid")?;
 
             Ok(Some(id as AnnouncementId))
         } else {
@@ -342,9 +342,9 @@ mod parse {
     use super::*;
 
     pub fn announcement(row: sql::Row) -> Result<(AnnouncementId, Announcement), Error> {
-        let id = row.read::<i64, _>("rowid") as AnnouncementId;
-        let node = row.read::<NodeId, _>("node");
-        let gt = row.read::<GossipType, _>("type");
+        let id = row.try_read::<i64, _>("rowid")? as AnnouncementId;
+        let node = row.try_read::<NodeId, _>("node")?;
+        let gt = row.try_read::<GossipType, _>("type")?;
         let message = match gt {
             GossipType::Refs => {
                 let ann = row.try_read::<RefsAnnouncement, _>("message")?;
@@ -359,8 +359,8 @@ mod parse {
                 AnnouncementMessage::Node(ann)
             }
         };
-        let signature = row.read::<Signature, _>("signature");
-        let timestamp = row.read::<Timestamp, _>("timestamp");
+        let signature = row.try_read::<Signature, _>("signature")?;
+        let timestamp = row.try_read::<Timestamp, _>("timestamp")?;
 
         debug_assert_eq!(timestamp, message.timestamp());
 

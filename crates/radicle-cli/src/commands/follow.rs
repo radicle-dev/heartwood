@@ -147,41 +147,45 @@ pub fn following(profile: &Profile, alias: Option<Alias>) -> anyhow::Result<()> 
         term::format::default(String::from("Policy")),
     ]);
     t.divider();
-
-    match alias {
-        None => push_policies(&mut t, &aliases, store.follow_policies()?),
-        Some(alias) => push_policies(
-            &mut t,
-            &aliases,
-            store
-                .follow_policies()?
-                .filter(|p| p.alias.as_ref().is_some_and(|alias_| *alias_ == alias)),
-        ),
-    };
+    push_policies(&mut t, &aliases, store.follow_policies()?, &alias);
     t.print();
-
     Ok(())
 }
 
 fn push_policies(
     t: &mut Table<3, Paint<String>>,
     aliases: &impl AliasStore,
-    policies: impl Iterator<Item = policy::FollowPolicy>,
+    policies: impl Iterator<Item = Result<policy::FollowPolicy, policy::store::Error>>,
+    filter: &Option<Alias>,
 ) {
-    for policy::FollowPolicy {
-        nid: id,
-        alias,
-        policy,
-    } in policies
-    {
-        t.push([
-            term::format::highlight(Did::from(id).to_string()),
-            match alias {
-                None => term::format::secondary(fallback_alias(&id, aliases)),
-                Some(alias) => term::format::secondary(alias.to_string()),
-            },
-            term::format::secondary(policy.to_string()),
-        ]);
+    for policy in policies {
+        match policy {
+            Ok(policy::FollowPolicy {
+                nid: id,
+                alias,
+                policy,
+            }) => {
+                if match (filter, &alias) {
+                    (None, _) => false,
+                    (Some(filter), Some(alias)) => *filter != *alias,
+                    (Some(_), None) => true,
+                } {
+                    continue;
+                }
+
+                t.push([
+                    term::format::highlight(Did::from(id).to_string()),
+                    match alias {
+                        None => term::format::secondary(fallback_alias(&id, aliases)),
+                        Some(alias) => term::format::secondary(alias.to_string()),
+                    },
+                    term::format::secondary(policy.to_string()),
+                ]);
+            }
+            Err(err) => {
+                term::error(format!("Failed to read a follow policy: {err}"));
+            }
+        }
     }
 }
 

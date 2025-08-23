@@ -126,7 +126,7 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             .into_iter()
             .next()
             .unwrap()?;
-        let count = row.read::<i64, _>(0) as usize;
+        let count = row.try_read::<i64, _>(0)? as usize;
 
         stats.repos.unique = count;
     }
@@ -141,7 +141,7 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
         // SAFETY: `COUNT` always returns a row.
         let row = stmt.iter().next().unwrap()?;
-        stats.nodes.online_daily = row.read::<i64, _>(0) as usize;
+        stats.nodes.online_daily = row.try_read::<i64, _>(0)? as usize;
 
         let since = now - LocalDuration::from_mins(60 * 24 * 7); // 1 week.
         stmt.reset()?;
@@ -149,7 +149,7 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         stmt.bind((2, now.as_millis() as i64))?;
 
         let row = stmt.iter().next().unwrap()?;
-        stats.nodes.online_weekly = row.read::<i64, _>(0) as usize;
+        stats.nodes.online_weekly = row.try_read::<i64, _>(0)? as usize;
     }
 
     {
@@ -168,7 +168,7 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             .next()
             // SAFETY: `COUNT` always returns a row.
             .unwrap()?;
-        let count = row.read::<i64, _>(0) as usize;
+        let count = row.try_read::<i64, _>(0)? as usize;
 
         stats.nodes.public_daily = count;
     }
@@ -187,7 +187,7 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             .next()
             // SAFETY: `COUNT` always returns a row.
             .unwrap()?;
-        let count = row.read::<i64, _>(0) as usize;
+        let count = row.try_read::<i64, _>(0)? as usize;
 
         stats.nodes.seeding_weekly = count;
     }
