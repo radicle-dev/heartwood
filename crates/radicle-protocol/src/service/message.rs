@@ -677,12 +677,14 @@ mod tests {
     use std::str::FromStr;
 
     use fastrand;
+    use localtime::LocalTime;
     use qcheck_macros::quickcheck;
     use radicle::git::raw;
+    use radicle::test::arbitrary;
+
+    use crate::wire::Decode as _;
 
     use super::*;
-    use localtime::LocalTime;
-    use radicle::test::arbitrary;
 
     #[test]
     fn test_ref_remote_limit() {
@@ -711,7 +713,7 @@ mod tests {
         let mut buf = Vec::new();
         msg.encode(&mut buf);
 
-        let decoded = wire::deserialize(buf.as_slice());
+        let decoded = Message::decode_exact(buf.as_slice());
         assert!(decoded.is_ok());
         assert_eq!(msg, decoded.unwrap());
     }
@@ -730,7 +732,7 @@ mod tests {
         let mut buf: Vec<u8> = Vec::new();
         msg.encode(&mut buf);
 
-        let decoded = wire::deserialize(buf.as_slice());
+        let decoded = Message::decode_exact(buf.as_slice());
         assert!(
             decoded.is_ok(),
             "INVENTORY_LIMIT is a valid limit for decoding"

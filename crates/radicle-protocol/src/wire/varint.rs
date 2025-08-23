@@ -214,7 +214,7 @@ mod test {
     #[quickcheck]
     fn prop_encode_decode(input: VarInt) {
         let encoded = input.encode_to_vec();
-        let decoded: VarInt = wire::deserialize(&encoded).unwrap();
+        let decoded: VarInt = VarInt::decode_exact(&encoded).unwrap();
 
         assert_eq!(decoded, input);
     }
@@ -231,10 +231,7 @@ mod test {
         assert_eq!(VarInt(1).encode_to_vec(), vec![0x01]);
         assert_eq!(VarInt(10).encode_to_vec(), vec![0x0a]);
         assert_eq!(VarInt(37).encode_to_vec(), vec![0x25]);
-        assert_eq!(
-            wire::deserialize::<VarInt>(&[0x40, 0x25]).unwrap(),
-            VarInt(37)
-        );
+        assert_eq!(VarInt::decode_exact(&[0x40, 0x25]).unwrap(), VarInt(37));
         assert_eq!(VarInt(15293).encode_to_vec(), vec![0x7b, 0xbd]);
         assert_eq!(
             VarInt(494878333).encode_to_vec(),

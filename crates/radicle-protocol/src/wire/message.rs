@@ -227,7 +227,7 @@ impl wire::Decode for Info {
 
                 Ok(Self::RefsAlreadySynced { rid, at })
             }
-            Err(other) => Err(wire::Error::UnknownInfoType(other)),
+            Err(other) => Err(wire::Invalid::InfoMessageType { actual: other }.into()),
         }
     }
 }
@@ -336,7 +336,7 @@ impl wire::Decode for Message {
                 let zeroes = ZeroBytes::decode(buf)?;
                 Ok(Self::Pong { zeroes })
             }
-            Err(other) => Err(wire::Error::UnknownMessageType(other)),
+            Err(other) => Err(wire::Invalid::MessageType { actual: other }.into()),
         }
     }
 }
@@ -398,7 +398,7 @@ impl wire::Decode for Address {
 
                 HostName::Tor(onion)
             }
-            Err(other) => return Err(wire::Error::UnknownAddressType(other)),
+            Err(other) => return Err(wire::Invalid::AddressType { actual: other }.into()),
         };
         let port = u16::decode(buf)?;
 
@@ -432,7 +432,7 @@ mod tests {
     use radicle::storage::refs::RefsAt;
 
     use crate::deserializer::Deserializer;
-    use crate::wire::{self, Encode};
+    use crate::wire::{self, Decode, Encode};
     use radicle::test::arbitrary;
 
     #[test]
@@ -523,7 +523,7 @@ mod tests {
     #[quickcheck]
     fn prop_message_encode_decode(message: Message) {
         let encoded = message.encode_to_vec();
-        let decoded = wire::deserialize::<Message>(&encoded).unwrap();
+        let decoded = Message::decode_exact(&encoded).unwrap();
 
         assert_eq!(message, decoded);
     }
@@ -556,7 +556,7 @@ mod tests {
             let zeroes = ZeroBytes::new(zeroes);
 
             assert_eq!(
-                wire::deserialize::<ZeroBytes>(&zeroes.encode_to_vec()).unwrap(),
+                ZeroBytes::decode_exact(&zeroes.encode_to_vec()).unwrap(),
                 zeroes
             );
         }
@@ -568,9 +568,6 @@ mod tests {
 
     #[quickcheck]
     fn prop_addr(addr: Address) {
-        assert_eq!(
-            wire::deserialize::<Address>(&addr.encode_to_vec()).unwrap(),
-            addr
-        );
+        assert_eq!(Address::decode_exact(&addr.encode_to_vec()).unwrap(), addr);
     }
 }

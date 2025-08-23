@@ -42,39 +42,50 @@ use crate::service::filter;
 pub type Size = u16;
 
 #[derive(thiserror::Error, Debug)]
-pub enum Error {
+pub enum Invalid {
+    #[error("invalid Git object identifier size: expected {expected}, got {actual}")]
+    Oid { expected: usize, actual: usize },
+    #[error(transparent)]
+    Bounded(#[from] crate::bounded::Error),
+    #[error("invalid filter size: {actual}")]
+    FilterSize { actual: usize },
     #[error("UTF-8 error: {0}")]
     FromUtf8(#[from] FromUtf8Error),
-    #[error("invalid size: expected {expected}, got {actual}")]
-    InvalidSize { expected: usize, actual: usize },
-    #[error("invalid filter size: {0}")]
-    InvalidFilterSize(usize),
-    #[error("invalid channel type {0:x}")]
-    InvalidStreamKind(u8),
     #[error(transparent)]
-    InvalidRefName(#[from] fmt::Error),
+    RefName(#[from] fmt::Error),
     #[error(transparent)]
-    InvalidAlias(#[from] node::AliasError),
-    #[error("invalid user agent string: {0:?}")]
-    InvalidUserAgent(String),
-    #[error("invalid control message with type `{0}`")]
-    InvalidControlMessage(u8),
-    #[error("invalid protocol version header `{0:x?}`")]
-    InvalidProtocolVersion([u8; 4]),
+    Alias(#[from] node::AliasError),
+    #[error("invalid user agent string: {err}")]
+    InvalidUserAgent { err: String },
     #[error("invalid onion address: {0}")]
-    InvalidOnionAddr(#[from] tor::OnionAddrDecodeError),
-    #[error("invalid timestamp: {0}")]
-    InvalidTimestamp(u64),
-    #[error("wrong protocol version `{0}`")]
-    WrongProtocolVersion(u8),
-    #[error("unknown address type `{0}`")]
-    UnknownAddressType(u8),
-    #[error("unknown message type `{0}`")]
-    UnknownMessageType(u16),
-    #[error("unknown info type `{0}`")]
-    UnknownInfoType(u16),
-    #[error("unexpected bytes")]
-    UnexpectedBytes,
+    OnionAddr(#[from] tor::OnionAddrDecodeError),
+    #[error("invalid timestamp: {actual_millis} millis")]
+    Timestamp { actual_millis: u64 },
+
+    // Message types
+    #[error("invalid control message type: {actual:x}")]
+    ControlType { actual: u8 },
+    #[error("invalid stream type: {actual:x}")]
+    StreamType { actual: u8 },
+    #[error("invalid address type: {actual:x}")]
+    AddressType { actual: u8 },
+    #[error("invalid message type: {actual:x}")]
+    MessageType { actual: u16 },
+    #[error("invalid info message type: {actual:x}")]
+    InfoMessageType { actual: u16 },
+
+    // Protocol version handling
+    #[error("invalid protocol version string: {actual:x?}")]
+    ProtocolVersion { actual: [u8; 4] },
+    #[error("unsupported protocol version: {actual}")]
+    ProtocolVersionUnsupported { actual: u8 },
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error(transparent)]
+    Invalid(#[from] Invalid),
+
     #[error("unexpected end of buffer, requested {requested} more bytes but only {available} are available")]
     UnexpectedEnd { available: usize, requested: usize },
 }
@@ -110,16 +121,28 @@ pub trait Encode {
 /// Things that can be decoded from binary.
 pub trait Decode: Sized {
     fn decode(buffer: &mut impl Buf) -> Result<Self, Error>;
-}
 
-/// Decode an object from a slice.
-pub fn deserialize<T: Decode>(mut data: &[u8]) -> Result<T, Error> {
-    let result = T::decode(&mut data)?;
-
-    if data.is_empty() {
-        Ok(result)
-    } else {
-        Err(Error::UnexpectedBytes)
+    /// A convenience wrapper around [`Decode::decode`] to decode
+    /// from a slice exactly.
+    ///
+    /// # Panics
+    ///
+    ///  - If decoding failed because there were not enough bytes.
+    ///  - If there are any bytes left after decoding.
+    #[cfg(test)]
+    fn decode_exact(mut data: &[u8]) -> Result<Self, Invalid> {
+        match Self::decode(&mut data) {
+            Ok(value) => {
+                if !data.is_empty() {
+                    panic!("{} bytes left in buffer", data.len());
+                }
+                Ok(value)
+            }
+            Err(err @ Error::UnexpectedEnd { .. }) => {
+                panic!("{}", err);
+            }
+            Err(Error::Invalid(e)) => Err(e),
+        }
     }
 }
 
@@ -298,7 +321,7 @@ impl Decode for Refs {
 
         for _ in 0..len {
             let name = String::decode(buf)?;
-            let name = git::RefString::try_from(name).map_err(Error::from)?;
+            let name = git::RefString::try_from(name).map_err(Invalid::from)?;
             let oid = git::Oid::decode(buf)?;
 
             refs.insert(name, oid);
@@ -310,19 +333,21 @@ impl Decode for Refs {
 impl Decode for git::RefString {
     fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
         let ref_str = String::decode(buf)?;
-        git::RefString::try_from(ref_str).map_err(Error::from)
+        Ok(git::RefString::try_from(ref_str).map_err(Invalid::from)?)
     }
 }
 
 impl Decode for UserAgent {
     fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
-        String::decode(buf).and_then(|s| UserAgent::from_str(&s).map_err(Error::InvalidUserAgent))
+        let user_agent = String::decode(buf)?;
+        Ok(UserAgent::from_str(&user_agent).map_err(|err| Invalid::InvalidUserAgent { err })?)
     }
 }
 
 impl Decode for Alias {
     fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
-        String::decode(buf).and_then(|s| Alias::from_str(&s).map_err(Error::from))
+        let alias = String::decode(buf)?;
+        Ok(Alias::from_str(&alias).map_err(Invalid::from)?)
     }
 }
 
@@ -340,18 +365,19 @@ where
 
 impl Decode for git::Oid {
     fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
-        let len = Size::decode(buf)? as usize;
-        #[allow(non_upper_case_globals)]
-        const expected: usize = mem::size_of::<git::raw::Oid>();
+        const LEN_EXPECTED: usize = mem::size_of::<git::raw::Oid>();
 
-        if len != expected {
-            return Err(Error::InvalidSize {
-                expected,
+        let len = Size::decode(buf)? as usize;
+
+        if len != LEN_EXPECTED {
+            return Err(Invalid::Oid {
+                expected: LEN_EXPECTED,
                 actual: len,
-            });
+            }
+            .into());
         }
 
-        let buf: [u8; expected] = Decode::decode(buf)?;
+        let buf: [u8; LEN_EXPECTED] = Decode::decode(buf)?;
         let oid = git::raw::Oid::from_bytes(&buf).expect("the buffer is exactly the right size");
         let oid = git::Oid::from(oid);
 
@@ -406,10 +432,7 @@ where
 {
     fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
         let len: usize = Size::decode(buf)? as usize;
-        let mut items = Self::with_capacity(len).map_err(|_| Error::InvalidSize {
-            expected: Self::max(),
-            actual: len,
-        })?;
+        let mut items = Self::with_capacity(len).map_err(Invalid::from)?;
 
         for _ in 0..items.capacity() {
             let item = T::decode(buf)?;
@@ -426,7 +449,7 @@ impl Decode for String {
 
         buf.try_copy_to_slice(&mut bytes)?;
 
-        let string = String::from_utf8(bytes)?;
+        let string = String::from_utf8(bytes).map_err(Invalid::from)?;
 
         Ok(string)
     }
@@ -450,7 +473,7 @@ impl Decode for filter::Filter {
     fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
         let size: usize = Size::decode(buf)? as usize;
         if !filter::FILTER_SIZES.contains(&size) {
-            return Err(Error::InvalidFilterSize(size));
+            return Err(Invalid::FilterSize { actual: size }.into());
         }
 
         let mut bytes = vec![0; size];
@@ -514,7 +537,7 @@ impl Decode for node::Features {
 impl Decode for tor::OnionAddrV3 {
     fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
         let bytes: [u8; tor::ONION_V3_RAW_LEN] = Decode::decode(buf)?;
-        let addr = tor::OnionAddrV3::from_raw_bytes(bytes)?;
+        let addr = tor::OnionAddrV3::from_raw_bytes(bytes).map_err(Invalid::from)?;
 
         Ok(addr)
     }
@@ -529,7 +552,9 @@ impl Encode for Timestamp {
 impl Decode for Timestamp {
     fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
         let millis = u64::decode(buf)?;
-        let ts = Timestamp::try_from(millis).map_err(Error::InvalidTimestamp)?;
+        let ts = Timestamp::try_from(millis).map_err(|value| Invalid::Timestamp {
+            actual_millis: value,
+        })?;
 
         Ok(ts)
     }
@@ -547,22 +572,22 @@ mod tests {
 
     #[quickcheck]
     fn prop_u8(input: u8) {
-        assert_eq!(deserialize::<u8>(&input.encode_to_vec()).unwrap(), input);
+        assert_eq!(u8::decode_exact(&input.encode_to_vec()).unwrap(), input);
     }
 
     #[quickcheck]
     fn prop_u16(input: u16) {
-        assert_eq!(deserialize::<u16>(&input.encode_to_vec()).unwrap(), input);
+        assert_eq!(u16::decode_exact(&input.encode_to_vec()).unwrap(), input);
     }
 
     #[quickcheck]
     fn prop_u32(input: u32) {
-        assert_eq!(deserialize::<u32>(&input.encode_to_vec()).unwrap(), input);
+        assert_eq!(u32::decode_exact(&input.encode_to_vec()).unwrap(), input);
     }
 
     #[quickcheck]
     fn prop_u64(input: u64) {
-        assert_eq!(deserialize::<u64>(&input.encode_to_vec()).unwrap(), input);
+        assert_eq!(u64::decode_exact(&input.encode_to_vec()).unwrap(), input);
     }
 
     #[quickcheck]
@@ -570,10 +595,7 @@ mod tests {
         if input.len() > u8::MAX as usize {
             return qcheck::TestResult::discard();
         }
-        assert_eq!(
-            deserialize::<String>(&input.encode_to_vec()).unwrap(),
-            input
-        );
+        assert_eq!(String::decode_exact(&input.encode_to_vec()).unwrap(), input);
 
         qcheck::TestResult::passed()
     }
@@ -581,7 +603,7 @@ mod tests {
     #[quickcheck]
     fn prop_vec(input: BoundedVec<String, 16>) {
         assert_eq!(
-            deserialize::<BoundedVec<String, 16>>(&input.encode_to_vec()).unwrap(),
+            BoundedVec::<String, 16>::decode_exact(&input.encode_to_vec()).unwrap(),
             input
         );
     }
@@ -589,7 +611,7 @@ mod tests {
     #[quickcheck]
     fn prop_pubkey(input: PublicKey) {
         assert_eq!(
-            deserialize::<PublicKey>(&input.encode_to_vec()).unwrap(),
+            PublicKey::decode_exact(&input.encode_to_vec()).unwrap(),
             input
         );
     }
@@ -597,28 +619,25 @@ mod tests {
     #[quickcheck]
     fn prop_filter(input: filter::Filter) {
         assert_eq!(
-            deserialize::<filter::Filter>(&input.encode_to_vec()).unwrap(),
+            filter::Filter::decode_exact(&input.encode_to_vec()).unwrap(),
             input
         );
     }
 
     #[quickcheck]
     fn prop_id(input: RepoId) {
-        assert_eq!(
-            deserialize::<RepoId>(&input.encode_to_vec()).unwrap(),
-            input
-        );
+        assert_eq!(RepoId::decode_exact(&input.encode_to_vec()).unwrap(), input);
     }
 
     #[quickcheck]
     fn prop_refs(input: Refs) {
-        assert_eq!(deserialize::<Refs>(&input.encode_to_vec()).unwrap(), input);
+        assert_eq!(Refs::decode_exact(&input.encode_to_vec()).unwrap(), input);
     }
 
     #[quickcheck]
     fn prop_tuple(input: (String, String)) {
         assert_eq!(
-            deserialize::<(String, String)>(&input.encode_to_vec()).unwrap(),
+            <(String, String)>::decode_exact(&input.encode_to_vec()).unwrap(),
             input
         );
     }
@@ -628,7 +647,7 @@ mod tests {
         let signature = Signature::from(input);
 
         assert_eq!(
-            deserialize::<Signature>(&signature.encode_to_vec()).unwrap(),
+            Signature::decode_exact(&signature.encode_to_vec()).unwrap(),
             signature
         );
     }
@@ -637,13 +656,13 @@ mod tests {
     fn prop_oid(input: [u8; 20]) {
         let oid = git::Oid::try_from(input.as_slice()).unwrap();
 
-        assert_eq!(deserialize::<git::Oid>(&oid.encode_to_vec()).unwrap(), oid);
+        assert_eq!(git::Oid::decode_exact(&oid.encode_to_vec()).unwrap(), oid);
     }
 
     #[quickcheck]
     fn prop_signed_refs(input: SignedRefs<Unverified>) {
         assert_eq!(
-            deserialize::<SignedRefs<Unverified>>(&input.encode_to_vec()).unwrap(),
+            SignedRefs::<Unverified>::decode_exact(&input.encode_to_vec()).unwrap(),
             input
         );
     }
@@ -671,8 +690,8 @@ mod tests {
         let bytes = f.encode_to_vec();
 
         assert_matches!(
-            deserialize::<filter::Filter>(&bytes).unwrap_err(),
-            Error::InvalidFilterSize(_)
+            filter::Filter::decode_exact(&bytes).unwrap_err(),
+            Invalid::FilterSize { .. }
         );
     }
 
@@ -682,16 +701,16 @@ mod tests {
         let buf = &v.encode_to_vec();
 
         assert_matches!(
-            deserialize::<BoundedVec<u8, 1>>(buf),
-            Err(Error::InvalidSize {
+            BoundedVec::<u8, 1>::decode_exact(buf),
+            Err(Invalid::Bounded(crate::bounded::Error::InvalidSize {
                 expected: 1,
                 actual: 2
-            }),
+            })),
             "fail when vector is too small for buffer",
         );
 
         assert!(
-            deserialize::<BoundedVec<u8, 2>>(buf).is_ok(),
+            BoundedVec::<u8, 2>::decode_exact(buf).is_ok(),
             "successfully decode vector of same size",
         );
     }
