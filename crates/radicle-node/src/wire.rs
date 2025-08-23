@@ -1,10 +1,8 @@
 //! Implementation of the transport protocol.
 //!
 //! We use the Noise XK handshake pattern to establish an encrypted stream with a remote peer.
-//! The handshake itself is implemented in the external [`cyphernet`] and [`netservices`] crates.
 use std::collections::hash_map::Entry;
 use std::collections::VecDeque;
-use std::os::unix::io::{AsRawFd, RawFd};
 use std::sync::Arc;
 use std::{io, net, time};
 
@@ -15,13 +13,10 @@ use cyphernet::encrypt::noise::{HandshakePattern, Keyset, NoiseState};
 use cyphernet::proxy::socks5;
 use cyphernet::{Digest, EcSk, Ecdh, Sha256};
 use localtime::LocalTime;
-use netservices::resource::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
-use netservices::session::{NoiseSession, ProtocolArtifact, Socks5Session};
-use netservices::NetConnection;
+use mio::net::TcpStream;
 use radicle::node::device::Device;
-use reactor::{ResourceId, ResourceType, Timestamp};
 
-use radicle::collections::RandomMap;
+use radicle::collections::{RandomMap, RandomSet};
 use radicle::crypto;
 use radicle::node::config::AddressConfig;
 use radicle::node::Link;
@@ -33,6 +28,10 @@ pub use radicle_protocol::wire::frame::{Frame, FrameData, StreamId};
 pub use radicle_protocol::wire::*;
 use radicle_protocol::worker::{FetchRequest, FetchResult};
 
+use crate::reactor;
+use crate::reactor::{Listener, Transport};
+use crate::reactor::{NoiseSession, ProtocolArtifact, SessionEvent, Socks5Session};
+use crate::reactor::{Token, Tokens};
 use crate::service;
 use crate::service::io::Io;
 use crate::service::FETCH_TIMEOUT;
@@ -50,9 +49,6 @@ pub const NOISE_XK: HandshakePattern = HandshakePattern {
 /// Default time to wait until a network connection is considered inactive.
 pub const DEFAULT_CONNECTION_TIMEOUT: time::Duration = time::Duration::from_secs(6);
 
-/// Default time to wait when dialing a connection, before the remote is considered unreachable.
-pub const DEFAULT_DIAL_TIMEOUT: time::Duration = time::Duration::from_secs(6);
-
 /// Maximum size of a peer inbox, in bytes.
 pub const MAX_INBOX_SIZE: usize = 1024 * 1024 * 2;
 
@@ -69,10 +65,10 @@ pub enum Control {
 }
 
 /// Peer session type.
-pub type WireSession<G> = NoiseSession<G, Sha256, Socks5Session<net::TcpStream>>;
+type WireSession<G> = NoiseSession<G, Sha256, Socks5Session<TcpStream>>;
 
 /// Reactor action.
-type Action<G> = reactor::Action<NetAccept<WireSession<G>>, NetTransport<WireSession<G>>>;
+type Action<G> = reactor::Action<Listener, Transport<WireSession<G>>>;
 
 /// A worker stream.
 struct Stream {
@@ -171,21 +167,12 @@ impl Streams {
 /// The initial state of an outbound peer before handshake is completed.
 #[derive(Debug)]
 struct Outbound {
-    /// Resource ID, if registered.
-    id: Option<ResourceId>,
+    /// Token for I/O event notification.
+    token: Token,
     /// Remote address.
     addr: NetAddr<HostName>,
     /// Remote Node ID.
     nid: NodeId,
-}
-
-/// The initial state of an inbound peer before handshake is completed.
-#[derive(Debug)]
-struct Inbound {
-    /// Resource ID, if registered.
-    id: Option<ResourceId>,
-    /// Remote address.
-    addr: NetAddr<HostName>,
 }
 
 /// Peer connection state machine.
@@ -247,49 +234,49 @@ impl Peer {
 }
 
 /// Holds connected peers.
-struct Peers(RandomMap<ResourceId, Peer>);
+struct Peers(RandomMap<Token, Peer>);
 
 impl Peers {
-    fn get_mut(&mut self, id: &ResourceId) -> Option<&mut Peer> {
-        self.0.get_mut(id)
+    fn get_mut(&mut self, token: &Token) -> Option<&mut Peer> {
+        self.0.get_mut(token)
     }
 
-    fn entry(&mut self, id: ResourceId) -> Entry<ResourceId, Peer> {
-        self.0.entry(id)
+    fn entry(&mut self, token: Token) -> Entry<Token, Peer> {
+        self.0.entry(token)
     }
 
-    fn insert(&mut self, id: ResourceId, peer: Peer) {
-        if self.0.insert(id, peer).is_some() {
-            log::warn!(target: "wire", "Replacing existing peer id={id}");
+    fn insert(&mut self, token: Token, peer: Peer) {
+        if self.0.insert(token, peer).is_some() {
+            log::warn!(target: "wire", token=token.0; "Replacing existing peer");
         }
     }
 
-    fn remove(&mut self, id: &ResourceId) -> Option<Peer> {
+    fn remove(&mut self, id: &Token) -> Option<Peer> {
         self.0.remove(id)
     }
 
-    fn lookup(&self, node_id: &NodeId) -> Option<(ResourceId, &Peer)> {
+    fn lookup(&self, id: &NodeId) -> Option<(Token, &Peer)> {
         self.0
             .iter()
-            .find(|(_, peer)| peer.id() == Some(node_id))
-            .map(|(fd, peer)| (*fd, peer))
+            .find(|(_, peer)| peer.id() == Some(id))
+            .map(|(token, peer)| (*token, peer))
     }
 
-    fn lookup_mut(&mut self, node_id: &NodeId) -> Option<(ResourceId, &mut Peer)> {
+    fn lookup_mut(&mut self, id: &NodeId) -> Option<(Token, &mut Peer)> {
         self.0
             .iter_mut()
-            .find(|(_, peer)| peer.id() == Some(node_id))
+            .find(|(_, peer)| peer.id() == Some(id))
             .map(|(fd, peer)| (*fd, peer))
     }
 
-    fn active(&self) -> impl Iterator<Item = (ResourceId, &NodeId, Link)> {
+    fn active(&self) -> impl Iterator<Item = (Token, &NodeId, Link)> {
         self.0.iter().filter_map(|(id, peer)| match peer {
             Peer::Connected { nid, link, .. } => Some((*id, nid, *link)),
             Peer::Disconnecting { .. } => None,
         })
     }
 
-    fn connected(&self) -> impl Iterator<Item = (ResourceId, &NodeId)> {
+    fn connected(&self) -> impl Iterator<Item = (Token, &NodeId)> {
         self.0.iter().filter_map(|(id, peer)| {
             if let Peer::Connected { nid, .. } = peer {
                 Some((*id, nid))
@@ -305,7 +292,7 @@ impl Peers {
 }
 
 /// Wire protocol implementation for a set of peers.
-pub struct Wire<D, S, G: crypto::signature::Signer<crypto::Signature> + Ecdh> {
+pub(crate) struct Wire<D, S, G: crypto::signature::Signer<crypto::Signature> + Ecdh> {
     /// Backing service instance.
     service: Service<D, S, G>,
     /// Worker pool interface.
@@ -317,13 +304,15 @@ pub struct Wire<D, S, G: crypto::signature::Signer<crypto::Signature> + Ecdh> {
     /// Internal queue of actions to send to the reactor.
     actions: VecDeque<Action<G>>,
     /// Outbound attempted peers without a session.
-    outbound: RandomMap<RawFd, Outbound>,
+    outbound: RandomMap<Token, Outbound>,
     /// Inbound peers without a session.
-    inbound: RandomMap<RawFd, Inbound>,
+    inbound: RandomSet<Token>,
     /// Listening addresses that are not yet registered.
-    listening: RandomMap<RawFd, net::SocketAddr>,
+    listening: RandomMap<Token, net::SocketAddr>,
     /// Peer (established) sessions.
     peers: Peers,
+    /// A (practically) infinite source of tokens to identify transports and listeners.
+    tokens: Tokens,
 }
 
 impl<D, S, G> Wire<D, S, G>
@@ -341,43 +330,45 @@ where
             signer,
             metrics: Metrics::default(),
             actions: VecDeque::new(),
-            inbound: RandomMap::default(),
+            inbound: RandomSet::default(),
             outbound: RandomMap::default(),
             listening: RandomMap::default(),
             peers: Peers(RandomMap::default()),
+            tokens: Tokens::default(),
         }
     }
 
-    pub fn listen(&mut self, socket: NetAccept<WireSession<G>>) {
-        self.listening
-            .insert(socket.as_raw_fd(), socket.local_addr());
-        self.actions.push_back(Action::RegisterListener(socket));
+    pub fn listen(&mut self, socket: Listener) {
+        let token = self.tokens.advance();
+        self.listening.insert(token, socket.local_addr());
+        self.actions
+            .push_back(Action::RegisterListener(token, socket));
     }
 
-    fn disconnect(&mut self, id: ResourceId, reason: DisconnectReason) -> Option<(NodeId, Link)> {
-        match self.peers.entry(id) {
+    fn disconnect(&mut self, token: Token, reason: DisconnectReason) -> Option<(NodeId, Link)> {
+        match self.peers.entry(token) {
             Entry::Vacant(_) => {
                 // Connecting peer with no session.
-                log::debug!(target: "wire", "Disconnecting pending peer with id={id}: {reason}");
-                self.actions.push_back(Action::UnregisterTransport(id));
+                log::debug!(target: "wire", token=token.0; "Disconnecting pending peer: {reason}");
+                self.actions.push_back(Action::UnregisterTransport(token));
 
                 // Check for attempted outbound connections. Unestablished inbound connections don't
                 // have an NID yet.
                 self.outbound
                     .values()
-                    .find(|o| o.id == Some(id))
+                    .find(|o| o.token == token)
                     .map(|o| (o.nid, Link::Outbound))
             }
             Entry::Occupied(mut e) => match e.get_mut() {
                 Peer::Disconnecting { nid, link, .. } => {
-                    log::error!(target: "wire", "Peer with id={id} is already disconnecting");
+                    log::error!(target: "wire", token=token.0; "Peer is already disconnecting");
 
                     nid.map(|n| (n, *link))
                 }
                 Peer::Connected {
                     nid, streams, link, ..
                 } => {
-                    log::debug!(target: "wire", "Disconnecting peer with id={id}: {reason}");
+                    log::debug!(target: "wire", token=token.0; "Disconnecting peer: {reason}");
                     let nid = *nid;
                     let link = *link;
 
@@ -387,7 +378,7 @@ where
                         link,
                         reason,
                     });
-                    self.actions.push_back(Action::UnregisterTransport(id));
+                    self.actions.push_back(Action::UnregisterTransport(token));
 
                     Some((nid, link))
                 }
@@ -480,33 +471,32 @@ where
         }
     }
 
-    fn cleanup(&mut self, id: ResourceId, fd: RawFd) {
-        if self.inbound.remove(&fd).is_some() {
-            log::debug!(target: "wire", "Cleaning up inbound peer state with id={id} (fd={fd})");
-        } else if let Some(outbound) = self.outbound.remove(&fd) {
-            log::debug!(target: "wire", "Cleaning up outbound peer state with id={id} (fd={fd})");
+    fn cleanup(&mut self, token: Token) {
+        if self.inbound.remove(&token) {
+            log::debug!(target: "wire", token=token.0; "Cleaning up inbound peer state");
+        } else if let Some(outbound) = self.outbound.remove(&token) {
+            log::debug!(target: "wire", token=token.0; "Cleaning up outbound peer state");
             self.service.disconnected(
                 outbound.nid,
                 Link::Outbound,
                 &DisconnectReason::connection(),
             );
         } else {
-            log::debug!(target: "wire", "Tried to cleanup unknown peer with id={id} (fd={fd})");
+            log::debug!(target: "wire", token=token.0; "Tried to cleanup unknown peer");
         }
     }
 }
 
-impl<D, S, G> reactor::Handler for Wire<D, S, G>
+impl<D, S, G> reactor::ReactionHandler for Wire<D, S, G>
 where
     D: service::Store + Send,
     S: WriteStorage + Send + 'static,
     G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone + Send,
 {
-    type Listener = NetAccept<WireSession<G>>;
-    type Transport = NetTransport<WireSession<G>>;
-    type Command = Control;
+    type Listener = Listener;
+    type Transport = Transport<WireSession<G>>;
 
-    fn tick(&mut self, time: Timestamp) {
+    fn tick(&mut self, time: LocalTime) {
         self.metrics.open_channels = self
             .peers
             .iter()
@@ -525,133 +515,109 @@ where
         );
     }
 
-    fn handle_timer(&mut self) {
+    fn timer_reacted(&mut self) {
         self.service.wake();
     }
 
-    fn handle_listener_event(
+    fn listener_reacted(
         &mut self,
-        _: ResourceId, // Nb. This is the ID of the listener socket.
-        event: ListenerEvent<WireSession<G>>,
-        _: Timestamp,
+        _: Token, // Note that this is the token of the listener socket.
+        event: io::Result<(TcpStream, std::net::SocketAddr)>,
+        _: LocalTime,
     ) {
         match event {
-            ListenerEvent::Accepted(connection) => {
-                let Ok(remote) = connection.remote_addr() else {
-                    log::warn!(target: "wire", "Accepted connection doesn't have remote address; dropping..");
-                    drop(connection);
-
-                    return;
-                };
+            Ok((connection, peer)) => {
+                let remote = NetAddr::from(peer);
                 let InetHost::Ip(ip) = remote.host else {
                     log::error!(target: "wire", "Unexpected host type for inbound connection {remote}; dropping..");
                     drop(connection);
 
                     return;
                 };
-                let fd = connection.as_raw_fd();
-                log::debug!(target: "wire", "Inbound connection from {remote} (fd={fd})..");
+                log::debug!(target: "wire", "Inbound connection from {remote}..");
 
                 // If the service doesn't want to accept this connection,
                 // we drop the connection here, which disconnects the socket.
                 if !self.service.accepted(ip) {
-                    log::debug!(target: "wire", "Rejecting inbound connection from {ip} (fd={fd})..");
+                    log::debug!(target: "wire", "Rejecting inbound connection from {ip}..");
                     drop(connection);
 
                     return;
                 }
 
-                let session = match accept::<G>(
+                let session = accept::<G>(
                     remote.clone().into(),
                     connection,
                     self.signer.clone().into_inner(),
-                ) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        log::error!(target: "wire", "Error creating session for {ip}: {e}");
-                        return;
-                    }
-                };
-                let transport = match NetTransport::with_session(
-                    session,
-                    netservices::Direction::Inbound,
-                ) {
+                );
+                let transport = match Transport::with_session(session, Link::Inbound) {
                     Ok(transport) => transport,
                     Err(err) => {
                         log::error!(target: "wire", "Failed to create transport for accepted connection: {err}");
                         return;
                     }
                 };
-                log::debug!(target: "wire", "Accepted inbound connection from {remote} (fd={fd})..");
 
-                self.inbound.insert(
-                    fd,
-                    Inbound {
-                        id: None,
-                        addr: remote.into(),
-                    },
-                );
+                let token = self.tokens.advance();
+                log::debug!(target: "wire", token=token.0; "Accepted inbound connection from {remote}..");
+
+                self.inbound.insert(token);
                 self.actions
-                    .push_back(reactor::Action::RegisterTransport(transport))
+                    .push_back(reactor::Action::RegisterTransport(token, transport))
             }
-            ListenerEvent::Failure(err) => {
+            Err(err) => {
                 log::error!(target: "wire", "Error listening for inbound connections: {err}");
             }
         }
     }
 
-    fn handle_registered(&mut self, fd: RawFd, id: ResourceId, typ: ResourceType) {
-        match typ {
-            ResourceType::Listener => {
-                if let Some(local_addr) = self.listening.remove(&fd) {
-                    self.service.listening(local_addr);
-                }
-            }
-            ResourceType::Transport => {
-                if let Some(outbound) = self.outbound.get_mut(&fd) {
-                    log::debug!(target: "wire", "Outbound peer resource registered for {} with id={id} (fd={fd})", outbound.nid);
-                    outbound.id = Some(id);
-                } else if let Some(inbound) = self.inbound.get_mut(&fd) {
-                    log::debug!(target: "wire", "Inbound peer resource registered with id={id} (fd={fd})");
-                    inbound.id = Some(id);
-                } else {
-                    log::warn!(target: "wire", "Unknown peer registered with fd={fd} and id={id}");
-                }
-            }
+    fn listener_registered(&mut self, token: Token, _listener: &Self::Listener) {
+        if let Some(local_addr) = self.listening.remove(&token) {
+            self.service.listening(local_addr);
         }
     }
 
-    fn handle_transport_event(
+    fn transport_registered(&mut self, token: Token, _transport: &Self::Transport) {
+        if let Some(outbound) = self.outbound.get_mut(&token) {
+            log::debug!(target: "wire", token=token.0; "Outbound peer resource registered for {}", outbound.nid);
+        } else if self.inbound.contains(&token) {
+            log::debug!(target: "wire", token=token.0; "Inbound peer resource registered");
+        } else {
+            log::warn!(target: "wire", token=token.0; "Unknown peer registered");
+        }
+    }
+
+    fn transport_reacted(
         &mut self,
-        id: ResourceId,
+        token: Token,
         event: SessionEvent<WireSession<G>>,
-        _: Timestamp,
+        _: LocalTime,
     ) {
         match event {
-            SessionEvent::Established(fd, ProtocolArtifact { state, .. }) => {
+            SessionEvent::Established(ProtocolArtifact { state, session }) => {
                 // SAFETY: With the NoiseXK protocol, there is always a remote static key.
                 let nid: NodeId = state.remote_static_key.unwrap();
                 // Make sure we don't try to connect to ourselves by mistake.
                 if &nid == self.signer.public_key() {
                     log::error!(target: "wire", "Self-connection detected, disconnecting..");
-                    self.disconnect(id, DisconnectReason::SelfConnection);
+                    self.disconnect(token, DisconnectReason::SelfConnection);
 
                     return;
                 }
-                let (addr, link) = if let Some(peer) = self.inbound.remove(&fd) {
+
+                let established_addr: NetAddr<HostName> = session.state;
+                let (addr, link) = if self.inbound.remove(&token) {
                     self.metrics.peer(nid).inbound_connection_attempts += 1;
-                    (peer.addr, Link::Inbound)
-                } else if let Some(peer) = self.outbound.remove(&fd) {
+                    (established_addr, Link::Inbound)
+                } else if let Some(peer) = self.outbound.remove(&token) {
                     assert_eq!(nid, peer.nid);
                     (peer.addr, Link::Outbound)
                 } else {
-                    log::error!(target: "wire", "Session for {nid} (id={id}) not found");
+                    log::error!(target: "wire", token=token.0; "Session for {nid} not found");
                     return;
                 };
                 log::debug!(
-                    target: "wire",
-                    "Session established with {nid} (id={id}) (fd={fd}) ({})",
-                    if link.is_inbound() { "inbound" } else { "outbound" }
+                    target: "wire", token=token.0, direction:display=link; "Session established with {nid}"
                 );
 
                 // Connections to close.
@@ -677,21 +643,17 @@ where
                     conflicting.extend(
                         self.peers
                             .active()
-                            .filter(|(c_id, d, _)| **d == nid && *c_id != id)
+                            .filter(|(c_id, d, _)| **d == nid && *c_id != token)
                             .map(|(c_id, _, link)| (c_id, link)),
                     );
 
                     // Outbound connection attempts with the same remote key but a different file
                     // descriptor are conflicting.
-                    conflicting.extend(self.outbound.iter().filter_map(|(c_fd, other)| {
-                        if other.nid == nid && *c_fd != fd {
-                            other.id.map(|c_id| (c_id, Link::Outbound))
-                        } else {
-                            None
-                        }
+                    conflicting.extend(self.outbound.iter().filter_map(|(c_id, other)| {
+                        (other.nid == nid && *c_id != token).then_some((*c_id, Link::Outbound))
                     }));
 
-                    for (c_id, c_link) in conflicting {
+                    for (c_token, c_link) in conflicting {
                         // If we have precedence, the inbound connection is closed.
                         // In the case where both connections are inbound or outbound,
                         // we close the newer connection, ie. the one with the higher
@@ -699,31 +661,31 @@ where
                         let close = match (link, c_link) {
                             (Link::Inbound, Link::Outbound) => {
                                 if precedence {
-                                    id
+                                    token
                                 } else {
-                                    c_id
+                                    c_token
                                 }
                             }
                             (Link::Outbound, Link::Inbound) => {
                                 if precedence {
-                                    c_id
+                                    c_token
                                 } else {
-                                    id
+                                    token
                                 }
                             }
-                            (Link::Inbound, Link::Inbound) => id.max(c_id),
-                            (Link::Outbound, Link::Outbound) => id.max(c_id),
+                            (Link::Inbound, Link::Inbound) => token.max(c_token),
+                            (Link::Outbound, Link::Outbound) => token.max(c_token),
                         };
 
                         log::warn!(
-                            target: "wire", "Established session (id={id}) conflicts with existing session for {nid} (id={c_id})"
+                            target: "wire", "Established session with token {} conflicts with existing session with token {} for {nid}", token.0, c_token.0
                         );
                         disconnect.push(close);
                     }
                 }
                 for id in &disconnect {
                     log::warn!(
-                        target: "wire", "Closing conflicting session (id={id}) with {nid}.."
+                        target: "wire", token=token.0; "Closing conflicting session with {nid}.."
                     );
                     // Disconnect and return the associated NID of the peer, if available.
                     if let Some((nid, link)) = self.disconnect(*id, DisconnectReason::Conflict) {
@@ -734,9 +696,9 @@ where
                             .disconnected(nid, link, &DisconnectReason::Conflict);
                     }
                 }
-                if !disconnect.contains(&id) {
+                if !disconnect.contains(&token) {
                     self.peers
-                        .insert(id, Peer::connected(nid, addr.clone(), link));
+                        .insert(token, Peer::connected(nid, addr.clone(), link));
                     self.service.connected(nid, addr.into(), link);
                 }
             }
@@ -746,7 +708,7 @@ where
                     inbox,
                     streams,
                     ..
-                }) = self.peers.get_mut(&id)
+                }) = self.peers.get_mut(&token)
                 {
                     let metrics = self.metrics.peer(*nid);
                     metrics.received_bytes += data.len();
@@ -754,7 +716,10 @@ where
                     if inbox.input(&data).is_err() {
                         log::error!(target: "wire", "Maximum inbox size ({MAX_INBOX_SIZE}) reached for peer {nid}");
                         log::error!(target: "wire", "Unable to process messages fast enough for peer {nid}; disconnecting..");
-                        self.disconnect(id, DisconnectReason::Session(session::Error::Misbehavior));
+                        self.disconnect(
+                            token,
+                            DisconnectReason::Session(session::Error::Misbehavior),
+                        );
 
                         return;
                     }
@@ -855,7 +820,7 @@ where
                                     log::debug!(target: "wire", "Dropping read buffer for {nid} with {} bytes", inbox.len());
                                 }
                                 self.disconnect(
-                                    id,
+                                    token,
                                     DisconnectReason::Session(session::Error::Misbehavior),
                                 );
                                 break;
@@ -863,16 +828,16 @@ where
                         }
                     }
                 } else {
-                    log::warn!(target: "wire", "Dropping message from unconnected peer (id={id})");
+                    log::warn!(target: "wire", token=token.0; "Dropping message from unconnected peer");
                 }
             }
             SessionEvent::Terminated(err) => {
-                self.disconnect(id, DisconnectReason::Connection(Arc::new(err)));
+                self.disconnect(token, DisconnectReason::Connection(Arc::new(err)));
             }
         }
     }
 
-    fn handle_command(&mut self, cmd: Self::Command) {
+    fn handle_command(&mut self, cmd: Control) {
         match cmd {
             Control::User(cmd) => self.service.command(cmd),
             Control::Worker(result) => self.worker_result(result),
@@ -880,22 +845,18 @@ where
         }
     }
 
-    fn handle_error(
-        &mut self,
-        err: reactor::Error<NetAccept<WireSession<G>>, NetTransport<WireSession<G>>>,
-    ) {
+    fn handle_error(&mut self, err: reactor::Error<Listener, Transport<WireSession<G>>>) {
         match err {
-            reactor::Error::Poll(err) => {
+            reactor::Error::Poll(err) | reactor::Error::Registration(err) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
                 log::error!(target: "wire", "Can't poll connections: {err}");
             }
-            reactor::Error::ListenerDisconnect(id, _) => {
+            reactor::Error::ListenerDisconnect(token, _) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
-                log::error!(target: "wire", "Listener {id} disconnected");
+                log::error!(target: "wire", token=token.0; "Listener disconnected");
             }
-            reactor::Error::TransportDisconnect(id, transport) => {
-                let fd = transport.as_raw_fd();
-                log::error!(target: "wire", "Peer id={id} (fd={fd}) disconnected");
+            reactor::Error::TransportDisconnect(token, transport) => {
+                log::error!(target: "wire", token=token.0; "Peer disconnected");
 
                 // We're dropping the TCP connection here.
                 drop(transport);
@@ -903,7 +864,7 @@ where
                 // The peer transport is already disconnected and removed from the reactor;
                 // therefore there is no need to initiate a disconnection. We simply remove
                 // the peer from the map.
-                match self.peers.remove(&id) {
+                match self.peers.remove(&token) {
                     Some(mut peer) => {
                         if let Peer::Connected { streams, .. } = &mut peer {
                             streams.shutdown();
@@ -919,26 +880,24 @@ where
                             log::debug!(target: "wire", "Inbound disconnection before handshake; ignoring..")
                         }
                     }
-                    None => self.cleanup(id, fd),
+                    None => self.cleanup(token),
                 }
             }
         }
     }
 
-    fn handover_listener(&mut self, id: ResourceId, _listener: Self::Listener) {
-        log::error!(target: "wire", "Listener handover is not supported (id={id})");
+    fn handover_listener(&mut self, token: Token, _listener: Self::Listener) {
+        log::error!(target: "wire", token=token.0; "Listener handover is not supported");
     }
 
-    fn handover_transport(&mut self, id: ResourceId, transport: Self::Transport) {
-        let fd = transport.as_raw_fd();
-
-        match self.peers.entry(id) {
+    fn handover_transport(&mut self, token: Token, transport: Self::Transport) {
+        match self.peers.entry(token) {
             Entry::Occupied(e) => {
                 match e.get() {
                     Peer::Disconnecting {
                         nid, reason, link, ..
                     } => {
-                        log::debug!(target: "wire", "Transport handover for disconnecting peer with id={id} (fd={fd})");
+                        log::debug!(target: "wire", token=token.0; "Transport handover for disconnecting peer");
 
                         // Disconnect TCP stream.
                         drop(transport);
@@ -956,11 +915,11 @@ where
                         e.remove();
                     }
                     Peer::Connected { nid, .. } => {
-                        panic!("Wire::handover_transport: Unexpected handover of connected peer {nid} with id={id} (fd={fd})");
+                        panic!("Wire::handover_transport: Unexpected handover of connected peer {nid} with token {}", token.0);
                     }
                 }
             }
-            Entry::Vacant(_) => self.cleanup(id, fd),
+            Entry::Vacant(_) => self.cleanup(token),
         }
     }
 }
@@ -1024,27 +983,24 @@ where
                         self.service.config(),
                     )
                     .and_then(|session| {
-                        NetTransport::<WireSession<G>>::with_session(
-                            session,
-                            netservices::Direction::Outbound,
-                        )
+                        Transport::<WireSession<G>>::with_session(session, Link::Outbound)
                     }) {
                         Ok(transport) => {
+                            let token = self.tokens.advance();
                             self.outbound.insert(
-                                transport.as_raw_fd(),
+                                token,
                                 Outbound {
-                                    id: None,
+                                    token,
                                     nid: node_id,
                                     addr: addr.to_inner(),
                                 },
                             );
                             log::debug!(
                                 target: "wire",
-                                "Registering outbound transport for {node_id} (fd={})..",
-                                transport.as_raw_fd()
+                                "Registering outbound transport for {node_id}.."
                             );
                             self.actions
-                                .push_back(reactor::Action::RegisterTransport(transport));
+                                .push_back(reactor::Action::RegisterTransport(token, transport));
                         }
                         Err(err) => {
                             log::error!(target: "wire", "Error establishing connection to {addr}: {err}");
@@ -1176,27 +1132,41 @@ pub fn dial<G: Ecdh<Pk = NodeId>>(
             ));
         }
     };
-    // Nb. This timeout is currently not used by the underlying library due to the
-    // `socket2` library not supporting non-blocking connect with timeout.
-    let connection = net::TcpStream::connect_nonblocking(inet_addr, DEFAULT_DIAL_TIMEOUT)?;
+
+    let addr = {
+        use std::net::ToSocketAddrs as _;
+
+        inet_addr
+            .to_socket_addrs()?
+            .next()
+            .ok_or(io::ErrorKind::AddrNotAvailable)?
+    };
+
+    // NOTE: Previously, here was a note about setting the timeout for connecting
+    // to DEFAULT_DIAL_TIMEOUT, for which we have not figured out a way yet.
+    // Generally, we should understand what happens if the following call to
+    // `connect` fails. How do we learn about it? Where's the leak?
+
+    let connection = TcpStream::connect(addr)?;
+
     // Whether to tunnel regular connections through the proxy.
     let force_proxy = config.proxy.is_some();
 
-    session::<G>(
+    Ok(session::<G>(
         remote_addr,
         Some(remote_id),
         connection,
         force_proxy,
         signer,
-    )
+    ))
 }
 
 /// Accept a new connection.
 pub fn accept<G: Ecdh<Pk = NodeId>>(
     remote_addr: NetAddr<HostName>,
-    connection: net::TcpStream,
+    connection: TcpStream,
     signer: G,
-) -> io::Result<WireSession<G>> {
+) -> WireSession<G> {
     session::<G>(remote_addr, None, connection, false, signer)
 }
 
@@ -1204,42 +1174,64 @@ pub fn accept<G: Ecdh<Pk = NodeId>>(
 fn session<G: Ecdh<Pk = NodeId>>(
     remote_addr: NetAddr<HostName>,
     remote_id: Option<NodeId>,
-    connection: net::TcpStream,
+    connection: TcpStream,
     force_proxy: bool,
     signer: G,
-) -> io::Result<WireSession<G>> {
-    // There are issues with setting TCP_NODELAY on WSL. Not a big deal.
+) -> WireSession<G> {
     if let Err(e) = connection.set_nodelay(true) {
-        log::warn!(target: "wire", "Unable to set TCP_NODELAY on fd {}: {e}", connection.as_raw_fd());
-    }
-    connection.set_read_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
-    connection.set_write_timeout(Some(DEFAULT_CONNECTION_TIMEOUT))?;
-
-    let sock = socket2::Socket::from(connection);
-    let ka = socket2::TcpKeepalive::new()
-        .with_time(time::Duration::from_secs(30))
-        .with_interval(time::Duration::from_secs(10))
-        .with_retries(3);
-    if let Err(e) = sock.set_tcp_keepalive(&ka) {
-        log::warn!(target: "wire", "Unable to set TCP_KEEPALIVE on fd {}: {e}", sock.as_raw_fd());
+        log::warn!(target: "wire", "Unable to set TCP_NODELAY on socket {connection:?}: {e}");
     }
 
-    let socks5 = socks5::Socks5::with(remote_addr, force_proxy);
-    let proxy = Socks5Session::with(sock.into(), socks5);
-    let pair = G::generate_keypair();
-    let keyset = Keyset {
-        e: pair.0,
-        s: Some(signer),
-        re: None,
-        rs: remote_id,
+    let connection = std::net::TcpStream::from(connection);
+
+    if let Err(e) = connection.set_read_timeout(Some(DEFAULT_CONNECTION_TIMEOUT)) {
+        log::warn!(target: "wire", "Unable to set TCP read timeout on socket {connection:?}: {e}");
+    }
+
+    if let Err(e) = connection.set_write_timeout(Some(DEFAULT_CONNECTION_TIMEOUT)) {
+        log::warn!(target: "wire", "Unable to set TCP write timeout on socket {connection:?}: {e}");
+    }
+
+    #[cfg(feature = "socket2")]
+    {
+        let connection = socket2::SockRef::from(&connection);
+
+        let ka = socket2::TcpKeepalive::new()
+            .with_time(time::Duration::from_secs(30))
+            .with_interval(time::Duration::from_secs(10));
+
+        #[cfg(not(windows))]
+        let ka = ka.with_retries(3);
+
+        if let Err(e) = connection.set_tcp_keepalive(&ka) {
+            log::warn!(target: "wire", "Failed to set TCP_KEEPALIVE on socket {connection:?}: {e}");
+        }
+    }
+
+    #[cfg(not(feature = "socket2"))]
+    log::debug!(target: "wire", "Not attempting to set TCP_KEEPALIVE on socket {connection:?}");
+
+    let connection = TcpStream::from_std(connection);
+
+    let proxy = {
+        let socks5 = socks5::Socks5::with(remote_addr, force_proxy);
+        Socks5Session::new(connection, socks5)
     };
-    let noise = NoiseState::initialize::<{ Sha256::OUTPUT_LEN }>(
-        NOISE_XK,
-        remote_id.is_some(),
-        &[],
-        keyset,
-    );
-    Ok(WireSession::with(proxy, noise))
+
+    let noise = {
+        let pair = G::generate_keypair();
+
+        let keyset = Keyset {
+            e: pair.0,
+            s: Some(signer),
+            re: None,
+            rs: remote_id,
+        };
+
+        NoiseState::initialize::<{ Sha256::OUTPUT_LEN }>(NOISE_XK, remote_id.is_some(), &[], keyset)
+    };
+
+    WireSession::new(proxy, noise)
 }
 
 #[cfg(test)]

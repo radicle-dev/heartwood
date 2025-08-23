@@ -751,6 +751,15 @@ impl Link {
     }
 }
 
+impl std::fmt::Display for Link {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Link::Outbound => write!(f, "outbound"),
+            Link::Inbound => write!(f, "inbound"),
+        }
+    }
+}
+
 /// An established network connection with a peer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]

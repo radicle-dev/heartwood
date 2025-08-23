@@ -4,6 +4,7 @@
 #![allow(clippy::byte_char_slices)]
 
 pub mod fingerprint;
+pub mod reactor;
 pub mod runtime;
 
 mod control;

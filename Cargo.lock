@@ -685,7 +685,6 @@ checksum = "b67c16c8ef5ddcdab57aab83fd8e770540ea3682ccdae09642c63575b0da2184"
 dependencies = [
  "amplify",
  "ec25519",
- "multibase",
  "sha2",
 ]
 
@@ -1928,18 +1927,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "io-reactor"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77d78c3e630f04a61ec86ba171c0bbd161434a7f2e8e4a67728320d4ce7c6c79"
-dependencies = [
- "amplify",
- "crossbeam-channel",
- "libc",
- "popol",
-]
-
-[[package]]
 name = "io-uring"
 version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2229,20 +2216,6 @@ dependencies = [
  "base-x",
  "data-encoding",
  "data-encoding-macro",
-]
-
-[[package]]
-name = "netservices"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af0f91a10aaddcc3b76770c3bf5c17680829aa0828e5ffc69c62d58bfbe9c48c"
-dependencies = [
- "amplify",
- "cyphernet",
- "io-reactor",
- "libc",
- "rand",
- "socket2",
 ]
 
 [[package]]
@@ -2624,15 +2597,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "popol"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93406933502e4446250941cf95d5e62851feb62a25b742acf7ffce96755c53e3"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "portable-atomic"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2963,12 +2927,10 @@ dependencies = [
  "crossbeam-channel",
  "cyphernet",
  "fastrand",
- "io-reactor",
  "lexopt",
- "libc",
  "localtime",
  "log",
- "netservices",
+ "mio 1.0.4",
  "nonempty 0.9.0",
  "qcheck",
  "qcheck-macros",

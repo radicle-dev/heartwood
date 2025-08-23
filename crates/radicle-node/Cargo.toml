@@ -10,7 +10,7 @@ build = "build.rs"
 rust-version.workspace = true
 
 [features]
-default = ["backtrace", "systemd", "structured-logger"]
+default = ["backtrace", "systemd", "structured-logger", "socket2"]
 systemd = ["dep:radicle-systemd"]
 test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "radicle-protocol/test", "qcheck", "snapbox"]
 
@@ -22,14 +22,12 @@ bytes = { workspace = true }
 chrono = { workspace = true, features = ["clock"] }
 colored = { workspace = true }
 crossbeam-channel = { workspace = true }
-cyphernet = { workspace = true, features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
+cyphernet = { workspace = true, features = ["tor", "dns", "ed25519", "p2p-ed25519", "noise-framework", "noise_sha2"] }
 fastrand = { workspace = true }
-io-reactor = { version = "0.5.1", features = ["popol"] }
 lexopt = { workspace = true }
-libc = { workspace = true }
-log = { workspace = true, features = ["std"] }
+log = { workspace = true, features = ["kv", "std"] }
 localtime = { workspace = true }
-netservices = { version = "0.8.0", features = ["io-reactor", "socket2"] }
+mio = { version = "1", features = ["net", "os-poll"] }
 nonempty = { workspace = true, features = ["serialize"] }
 qcheck = { workspace = true, optional = true }
 radicle = { workspace = true, features = ["logger"] }
@@ -44,7 +42,7 @@ scrypt = { version = "0.11.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["preserve_order"] }
 snapbox = { workspace = true, optional = true }
-socket2 = "0.5.7"
+socket2 = { version = "0.5.7", features = ["all"], optional = true }
 structured-logger = { version = "1.0.4", optional = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
@@ -56,6 +54,7 @@ radicle-systemd = { workspace = true, optional = true }
 winpipe = { workspace = true }
 
 [dev-dependencies]
+mio = { version = "1", features = ["os-ext"] }
 qcheck = { workspace = true }
 qcheck-macros = { workspace = true }
 radicle = { workspace = true, features = ["test"] }

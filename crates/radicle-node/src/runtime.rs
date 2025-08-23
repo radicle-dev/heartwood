@@ -11,14 +11,11 @@ use winpipe::WinListener as Listener;
 
 use crossbeam_channel as chan;
 use cyphernet::Ecdh;
-use netservices::resource::NetAccept;
 use radicle::cob::migrate;
 use radicle::crypto;
 use radicle::node::device::Device;
 use radicle_fetch::FetchLimit;
 use radicle_signals::Signal;
-use reactor::poller::popol;
-use reactor::Reactor;
 use thiserror::Error;
 
 use radicle::node;
@@ -33,8 +30,9 @@ use radicle::{cob, git, storage, Storage};
 
 use crate::control;
 use crate::node::{routing, NodeId};
+use crate::reactor;
+use crate::reactor::Reactor;
 use crate::service::gossip;
-use crate::wire;
 use crate::wire::Wire;
 use crate::worker;
 use crate::{service, LocalTime};
@@ -115,7 +113,7 @@ pub struct Runtime {
     pub control: ControlSocket,
     pub handle: Handle,
     pub storage: Storage,
-    pub reactor: Reactor<wire::Control, popol::Poller>,
+    pub reactor: Reactor,
     pub pool: worker::Pool,
     pub local_addrs: Vec<net::SocketAddr>,
     pub signals: chan::Receiver<Signal>,
@@ -225,13 +223,13 @@ impl Runtime {
         let mut local_addrs = Vec::new();
 
         for addr in listen {
-            let listener = NetAccept::bind(&addr)?;
+            let listener = reactor::Listener::bind(addr)?;
             let local_addr = listener.local_addr();
 
             local_addrs.push(local_addr);
             wire.listen(listener);
         }
-        let reactor = Reactor::named(wire, popol::Poller::new(), thread::name(&id, "service"))?;
+        let reactor = Reactor::new(wire, thread::name(&id, "service"))?;
         let handle = Handle::new(home.clone(), reactor.controller(), emitter);
 
         let nid = *signer.public_key();
