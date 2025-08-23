@@ -425,15 +425,20 @@ impl wire::Decode for ZeroBytes {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use qcheck_macros::quickcheck;
     use radicle::node::device::Device;
     use radicle::node::UserAgent;
     use radicle::storage::refs::RefsAt;
+    use radicle::test::arbitrary;
 
     use crate::deserializer::Deserializer;
-    use crate::wire::{self, Decode, Encode};
-    use radicle::test::arbitrary;
+    use crate::prop_roundtrip;
+    use crate::wire::{roundtrip, Encode as _};
+
+    use super::*;
+
+    prop_roundtrip!(Address);
+    prop_roundtrip!(Message);
 
     #[test]
     fn test_refs_ann_max_size() {
@@ -520,14 +525,6 @@ mod tests {
         .encode_to_vec();
     }
 
-    #[quickcheck]
-    fn prop_message_encode_decode(message: Message) {
-        let encoded = message.encode_to_vec();
-        let decoded = Message::decode_exact(&encoded).unwrap();
-
-        assert_eq!(message, decoded);
-    }
-
     #[test]
     fn prop_message_decoder() {
         fn property(items: Vec<Message>) {
@@ -546,28 +543,14 @@ mod tests {
             .quickcheck(property as fn(items: Vec<Message>));
     }
 
-    #[test]
-    fn prop_zero_bytes_encode_decode() {
-        fn property(zeroes: wire::Size) {
-            if zeroes > Ping::MAX_PING_ZEROES {
-                return;
-            }
-
-            let zeroes = ZeroBytes::new(zeroes);
-
-            assert_eq!(
-                ZeroBytes::decode_exact(&zeroes.encode_to_vec()).unwrap(),
-                zeroes
-            );
+    #[quickcheck]
+    fn prop_zero_bytes_encode_decode(zeroes: wire::Size) -> qcheck::TestResult {
+        if zeroes > Ping::MAX_PING_ZEROES {
+            return qcheck::TestResult::discard();
         }
 
-        qcheck::QuickCheck::new()
-            .gen(qcheck::Gen::new(16))
-            .quickcheck(property as fn(zeroes: wire::Size));
-    }
+        roundtrip(ZeroBytes::new(zeroes));
 
-    #[quickcheck]
-    fn prop_addr(addr: Address) {
-        assert_eq!(Address::decode_exact(&addr.encode_to_vec()).unwrap(), addr);
+        qcheck::TestResult::passed()
     }
 }

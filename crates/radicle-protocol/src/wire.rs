@@ -561,8 +561,36 @@ impl Decode for Timestamp {
 }
 
 #[cfg(test)]
+fn roundtrip<T>(value: T)
+where
+    T: Encode + Decode + PartialEq + Debug,
+{
+    let encoded = value.encode_to_vec();
+    assert_eq!(T::decode_exact(&encoded).expect("roundtrip"), value);
+}
+
+#[cfg(test)]
+#[macro_export]
+macro_rules! prop_roundtrip {
+    ($t:ty, $name:tt) => {
+        paste::paste! {
+            #[quickcheck]
+            fn [< prop_roundtrip_ $name:lower >](v: $t) {
+                $crate::wire::roundtrip(v);
+            }
+        }
+    };
+    ($t:ty) => {
+        paste::paste! {
+            prop_roundtrip!($t, [< $t >]);
+        }
+    };
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+
     use qcheck;
     use qcheck_macros::quickcheck;
 
@@ -570,101 +598,36 @@ mod tests {
     use radicle::crypto::Unverified;
     use radicle::storage::refs::SignedRefs;
 
-    #[quickcheck]
-    fn prop_u8(input: u8) {
-        assert_eq!(u8::decode_exact(&input.encode_to_vec()).unwrap(), input);
-    }
-
-    #[quickcheck]
-    fn prop_u16(input: u16) {
-        assert_eq!(u16::decode_exact(&input.encode_to_vec()).unwrap(), input);
-    }
-
-    #[quickcheck]
-    fn prop_u32(input: u32) {
-        assert_eq!(u32::decode_exact(&input.encode_to_vec()).unwrap(), input);
-    }
-
-    #[quickcheck]
-    fn prop_u64(input: u64) {
-        assert_eq!(u64::decode_exact(&input.encode_to_vec()).unwrap(), input);
-    }
+    prop_roundtrip!(u16);
+    prop_roundtrip!(u32);
+    prop_roundtrip!(u64);
+    prop_roundtrip!(BoundedVec<u8, 16>, vec);
+    prop_roundtrip!(PublicKey);
+    prop_roundtrip!(filter::Filter, filter);
+    prop_roundtrip!(RepoId);
+    prop_roundtrip!(Refs);
+    prop_roundtrip!((String, String), tuple);
+    prop_roundtrip!(SignedRefs<Unverified>, signed_refs);
 
     #[quickcheck]
     fn prop_string(input: String) -> qcheck::TestResult {
         if input.len() > u8::MAX as usize {
             return qcheck::TestResult::discard();
         }
-        assert_eq!(String::decode_exact(&input.encode_to_vec()).unwrap(), input);
+
+        roundtrip(input);
 
         qcheck::TestResult::passed()
     }
 
     #[quickcheck]
-    fn prop_vec(input: BoundedVec<String, 16>) {
-        assert_eq!(
-            BoundedVec::<String, 16>::decode_exact(&input.encode_to_vec()).unwrap(),
-            input
-        );
-    }
-
-    #[quickcheck]
-    fn prop_pubkey(input: PublicKey) {
-        assert_eq!(
-            PublicKey::decode_exact(&input.encode_to_vec()).unwrap(),
-            input
-        );
-    }
-
-    #[quickcheck]
-    fn prop_filter(input: filter::Filter) {
-        assert_eq!(
-            filter::Filter::decode_exact(&input.encode_to_vec()).unwrap(),
-            input
-        );
-    }
-
-    #[quickcheck]
-    fn prop_id(input: RepoId) {
-        assert_eq!(RepoId::decode_exact(&input.encode_to_vec()).unwrap(), input);
-    }
-
-    #[quickcheck]
-    fn prop_refs(input: Refs) {
-        assert_eq!(Refs::decode_exact(&input.encode_to_vec()).unwrap(), input);
-    }
-
-    #[quickcheck]
-    fn prop_tuple(input: (String, String)) {
-        assert_eq!(
-            <(String, String)>::decode_exact(&input.encode_to_vec()).unwrap(),
-            input
-        );
-    }
-
-    #[quickcheck]
     fn prop_signature(input: [u8; 64]) {
-        let signature = Signature::from(input);
-
-        assert_eq!(
-            Signature::decode_exact(&signature.encode_to_vec()).unwrap(),
-            signature
-        );
+        roundtrip(Signature::from(input));
     }
 
     #[quickcheck]
     fn prop_oid(input: [u8; 20]) {
-        let oid = git::Oid::try_from(input.as_slice()).unwrap();
-
-        assert_eq!(git::Oid::decode_exact(&oid.encode_to_vec()).unwrap(), oid);
-    }
-
-    #[quickcheck]
-    fn prop_signed_refs(input: SignedRefs<Unverified>) {
-        assert_eq!(
-            SignedRefs::<Unverified>::decode_exact(&input.encode_to_vec()).unwrap(),
-            input
-        );
+        roundtrip(git::Oid::try_from(input.as_slice()).unwrap());
     }
 
     #[test]

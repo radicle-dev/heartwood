@@ -175,8 +175,13 @@ pub mod payload {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use qcheck_macros::quickcheck;
+
+    use crate::prop_roundtrip;
+
+    use super::*;
+
+    prop_roundtrip!(VarInt);
 
     impl qcheck::Arbitrary for VarInt {
         fn arbitrary(g: &mut qcheck::Gen) -> Self {
@@ -211,16 +216,8 @@ mod test {
         }
     }
 
-    #[quickcheck]
-    fn prop_encode_decode(input: VarInt) {
-        let encoded = input.encode_to_vec();
-        let decoded: VarInt = VarInt::decode_exact(&encoded).unwrap();
-
-        assert_eq!(decoded, input);
-    }
-
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "overflow")]
     fn test_encode_overflow() {
         VarInt(u64::MAX).encode_to_vec();
     }

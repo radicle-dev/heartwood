@@ -31,6 +31,7 @@ serde_json = { workspace = true, features = ["preserve_order"] }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+paste = "1.0.15"
 qcheck = { workspace = true }
 qcheck-macros = { workspace = true }
 radicle = { workspace = true, features = ["test"] }
