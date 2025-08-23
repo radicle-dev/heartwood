@@ -154,7 +154,7 @@ impl Store for Database {
             .into_iter()
             .next()
             .ok_or(Error::NoRows)??;
-        let count = row.read::<i64, _>(0) as usize;
+        let count = row.try_read::<i64, _>(0)? as usize;
 
         Ok(count)
     }

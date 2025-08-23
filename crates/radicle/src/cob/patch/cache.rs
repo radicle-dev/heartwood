@@ -427,8 +427,8 @@ pub struct PatchesIter<'a> {
 
 impl PatchesIter<'_> {
     fn parse_row(row: sql::Row) -> Result<(PatchId, Patch), Error> {
-        let id = PatchId::from_str(row.read::<&str, _>("id"))?;
-        let patch = serde_json::from_str::<Patch>(row.read::<&str, _>("patch"))
+        let id = PatchId::from_str(row.try_read::<&str, _>("id")?)?;
+        let patch = serde_json::from_str::<Patch>(row.try_read::<&str, _>("patch")?)
             .map_err(|e| Error::Object(id, e))?;
         Ok((id, patch))
     }
@@ -592,7 +592,7 @@ mod query {
         match stmt.into_iter().next().transpose()? {
             None => Ok(None),
             Some(row) => {
-                let patch = row.read::<&str, _>("patch");
+                let patch = row.try_read::<&str, _>("patch")?;
                 let patch = serde_json::from_str(patch).map_err(|e| Error::Object(*id, e))?;
                 Ok(Some(patch))
             }
@@ -618,10 +618,11 @@ mod query {
         match stmt.into_iter().next().transpose()? {
             None => Ok(None),
             Some(row) => {
-                let id = PatchId::from_str(row.read::<&str, _>("id"))?;
-                let patch = serde_json::from_str::<Patch>(row.read::<&str, _>("patch"))
+                let id = PatchId::from_str(row.try_read::<&str, _>("id")?)?;
+                let patch = serde_json::from_str::<Patch>(row.try_read::<&str, _>("patch")?)
                     .map_err(|e| Error::Object(id, e))?;
-                let revision = serde_json::from_str::<Revision>(row.read::<&str, _>("revision"))?;
+                let revision =
+                    serde_json::from_str::<Revision>(row.try_read::<&str, _>("revision")?)?;
                 Ok(Some(ByRevision {
                     id,
                     patch,
@@ -686,8 +687,8 @@ mod query {
         stmt.into_iter()
             .try_fold(PatchCounts::default(), |mut counts, row| {
                 let row = row?;
-                let count = row.read::<i64, _>("count") as usize;
-                let status = serde_json::from_str::<State>(row.read::<&str, _>("state"))?;
+                let count = row.try_read::<i64, _>("count")? as usize;
+                let status = serde_json::from_str::<State>(row.try_read::<&str, _>("state")?)?;
                 match status {
                     State::Draft => counts.draft += count,
                     State::Open { .. } => counts.open += count,

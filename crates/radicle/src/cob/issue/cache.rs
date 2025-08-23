@@ -440,8 +440,8 @@ pub struct IssuesIter<'a> {
 
 impl IssuesIter<'_> {
     fn parse_row(row: sql::Row) -> Result<(IssueId, Issue), Error> {
-        let id = IssueId::from_str(row.read::<&str, _>("id"))?;
-        let issue = serde_json::from_str::<Issue>(row.read::<&str, _>("issue"))?;
+        let id = IssueId::from_str(row.try_read::<&str, _>("id")?)?;
+        let issue = serde_json::from_str::<Issue>(row.try_read::<&str, _>("issue")?)?;
         Ok((id, issue))
     }
 }
@@ -537,7 +537,7 @@ mod query {
         match stmt.into_iter().next().transpose()? {
             None => Ok(None),
             Some(row) => {
-                let issue = row.read::<&str, _>("issue");
+                let issue = row.try_read::<&str, _>("issue")?;
                 let issue = serde_json::from_str(issue)?;
                 Ok(Some(issue))
             }
@@ -597,8 +597,8 @@ mod query {
         stmt.into_iter()
             .try_fold(IssueCounts::default(), |mut counts, row| {
                 let row = row?;
-                let count = row.read::<i64, _>("count") as usize;
-                let status = serde_json::from_str::<State>(row.read::<&str, _>("state"))?;
+                let count = row.try_read::<i64, _>("count")? as usize;
+                let status = serde_json::from_str::<State>(row.try_read::<&str, _>("state")?)?;
                 match status {
                     State::Closed { .. } => counts.closed += count,
                     State::Open => counts.open += count,

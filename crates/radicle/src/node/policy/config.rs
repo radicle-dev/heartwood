@@ -106,9 +106,20 @@ impl<T> Config<T> {
                 let nodes = self
                     .follow_policies()
                     .map_err(|err| FailedNodes { rid: *rid, err })?;
-                let mut followed: HashSet<_> = nodes
-                    .filter_map(|node| (node.policy == Policy::Allow).then_some(node.nid))
-                    .collect();
+
+                let mut followed: HashSet<_> = HashSet::new();
+                for node in nodes {
+                    let node = match node {
+                        Ok(node) => node,
+                        Err(err) => {
+                            log::warn!(target: "service", "Failed to read follow policy: {err}");
+                            continue;
+                        }
+                    };
+                    if node.policy == Policy::Allow {
+                        followed.insert(node.nid);
+                    }
+                }
 
                 if let Ok(repo) = storage.repository(*rid) {
                     let delegates = repo

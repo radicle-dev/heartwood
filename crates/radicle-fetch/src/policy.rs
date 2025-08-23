@@ -30,9 +30,22 @@ impl Allowed {
                 let nodes = config
                     .follow_policies()
                     .map_err(|err| error::Policy::FailedNodes { rid, err })?;
-                let followed: HashSet<_> = nodes
-                    .filter_map(|node| (node.policy == Policy::Allow).then_some(node.nid))
-                    .collect();
+
+                let mut followed = HashSet::new();
+
+                for node in nodes {
+                    let node = match node {
+                        Ok(policy) => policy,
+                        Err(err) => {
+                            log::error!(target: "fetch", "Failed to read follow policy for {rid}: {err}");
+                            continue;
+                        }
+                    };
+
+                    if node.policy == Policy::Allow {
+                        followed.insert(node.nid);
+                    }
+                }
 
                 Ok(Allowed::Followed { remotes: followed })
             }
@@ -62,10 +75,23 @@ impl BlockList {
     }
 
     pub fn from_config(config: &Config<Read>) -> Result<BlockList, error::Blocked> {
-        Ok(config
-            .follow_policies()?
-            .filter_map(|entry| (entry.policy == Policy::Block).then_some(entry.nid))
-            .collect())
+        let mut blocked = HashSet::new();
+
+        for entry in config.follow_policies()? {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(err) => {
+                    log::error!(target: "fetch", "Failed to read follow policy: {err}");
+                    continue;
+                }
+            };
+
+            if entry.policy == Policy::Block {
+                blocked.insert(entry.nid);
+            }
+        }
+
+        Ok(BlockList(blocked))
     }
 }
 

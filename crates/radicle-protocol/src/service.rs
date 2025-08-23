@@ -570,13 +570,7 @@ where
             // Nb. This is potentially slow if we have lots of repos. We should probably
             // only re-compute the filter when we've unseeded a certain amount of repos
             // and the filter is really out of date.
-            //
-            // TODO: Share this code with initialization code.
-            self.filter = Filter::new(
-                self.policies
-                    .seed_policies()?
-                    .filter_map(|t| (t.policy.is_allow()).then_some(t.rid)),
-            );
+            self.filter = Filter::allowed_by(self.policies.seed_policies()?);
             // Update and announce new inventory.
             if let Err(e) = self.remove_inventory(id) {
                 error!(target: "service", "Error updating inventory after unseed: {e}");
@@ -750,11 +744,7 @@ where
             .remove_inventories(private.iter(), &nid)?;
 
         // Setup subscription filter for seeded repos.
-        self.filter = Filter::new(
-            self.policies
-                .seed_policies()?
-                .filter_map(|t| (t.policy.is_allow()).then_some(t.rid)),
-        );
+        self.filter = Filter::allowed_by(self.policies.seed_policies()?);
         // Connect to configured peers.
         let addrs = self.config.connect.clone();
         for (id, addr) in addrs.into_iter().map(|ca| ca.into()) {
@@ -2510,10 +2500,16 @@ where
 
     /// Fetch all repositories that are seeded but missing from storage.
     fn fetch_missing_repositories(&mut self) -> Result<(), Error> {
-        // TODO(finto): could filter the policies based on the continue checks
-        // below, but `storage.contains` is fallible
         let policies = self.policies.seed_policies()?.collect::<Vec<_>>();
         for policy in policies {
+            let policy = match policy {
+                Ok(policy) => policy,
+                Err(err) => {
+                    log::error!(target: "protocol::filter", "Failed to read seed policy: {err}");
+                    continue;
+                }
+            };
+
             let rid = policy.rid;
 
             if !policy.is_allow() {

@@ -108,7 +108,7 @@ impl Store for Database {
         stmt.bind((2, node))?;
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
-            return Ok(Some(row.read::<Timestamp, _>("timestamp")));
+            return Ok(Some(row.try_read::<Timestamp, _>("timestamp")?));
         }
         Ok(None)
     }

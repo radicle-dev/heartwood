@@ -257,13 +257,13 @@ impl<T> Store<T> {
         stmt.bind((1, id))?;
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
-            let alias = row.read::<&str, _>("alias");
+            let alias = row.try_read::<&str, _>("alias")?;
             let alias = alias
                 .is_empty()
                 .not()
                 .then_some(alias.to_owned())
                 .and_then(|s| Alias::from_str(&s).ok());
-            let policy = row.read::<Policy, _>("policy");
+            let policy = row.try_read::<Policy, _>("policy")?;
 
             return Ok(Some(FollowPolicy {
                 nid: *id,
@@ -283,9 +283,9 @@ impl<T> Store<T> {
         stmt.bind((1, id))?;
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
-            let policy = match row.read::<Policy, _>("policy") {
+            let policy = match row.try_read::<Policy, _>("policy")? {
                 Policy::Allow => SeedingPolicy::Allow {
-                    scope: row.read::<Scope, _>("scope"),
+                    scope: row.try_read::<Scope, _>("scope")?,
                 },
                 Policy::Block => SeedingPolicy::Block,
             };
@@ -329,25 +329,38 @@ pub struct FollowPolicies<'a> {
 }
 
 impl Iterator for FollowPolicies<'_> {
-    type Item = FollowPolicy;
+    type Item = Result<FollowPolicy, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let row = self.inner.next()?;
         let Ok(row) = row else { return self.next() };
-        let id = row.read("id");
-        let alias = row.read::<&str, _>("alias").to_owned();
+
+        let id = match row.try_read("id") {
+            Ok(id) => id,
+            Err(err) => return Some(Err(err.into())),
+        };
+
+        let alias = match row.try_read::<&str, _>("alias") {
+            Ok(alias) => alias.to_owned(),
+            Err(err) => return Some(Err(err.into())),
+        };
+
         let alias = alias
             .is_empty()
             .not()
             .then_some(alias.to_owned())
             .and_then(|s| Alias::from_str(&s).ok());
-        let policy = row.read::<Policy, _>("policy");
 
-        Some(FollowPolicy {
+        let policy = match row.try_read::<Policy, _>("policy") {
+            Ok(policy) => policy,
+            Err(err) => return Some(Err(err.into())),
+        };
+
+        Some(Ok(FollowPolicy {
             nid: id,
             alias,
             policy,
-        })
+        }))
     }
 }
 
@@ -356,19 +369,35 @@ pub struct SeedPolicies<'a> {
 }
 
 impl Iterator for SeedPolicies<'_> {
-    type Item = SeedPolicy;
+    type Item = Result<SeedPolicy, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let row = self.inner.next()?;
         let Ok(row) = row else { return self.next() };
-        let id = row.read("id");
-        let policy = match row.read::<Policy, _>("policy") {
-            Policy::Allow => SeedingPolicy::Allow {
-                scope: row.read::<Scope, _>("scope"),
-            },
-            Policy::Block => SeedingPolicy::Block,
+
+        let id = match row.try_read("id") {
+            Ok(id) => id,
+            Err(err) => return Some(Err(err.into())),
         };
-        Some(SeedPolicy { rid: id, policy })
+
+        let policy = match row.try_read::<Policy, _>("policy") {
+            Ok(policy) => policy,
+            Err(err) => return Some(Err(err.into())),
+        };
+
+        match policy {
+            Policy::Allow => match row.try_read::<Scope, _>("scope") {
+                Ok(scope) => Some(Ok(SeedPolicy {
+                    rid: id,
+                    policy: SeedingPolicy::Allow { scope },
+                })),
+                Err(err) => Some(Err(err.into())),
+            },
+            Policy::Block => Some(Ok(SeedPolicy {
+                rid: id,
+                policy: SeedingPolicy::Block,
+            })),
+        }
     }
 }
 
@@ -457,9 +486,9 @@ mod test {
             assert!(db.follow(id, None).unwrap());
         }
         let mut entries = db.follow_policies().unwrap();
-        assert_matches!(entries.next(), Some(FollowPolicy { nid, .. }) if nid == ids[0]);
-        assert_matches!(entries.next(), Some(FollowPolicy { nid, .. }) if nid == ids[1]);
-        assert_matches!(entries.next(), Some(FollowPolicy { nid, .. }) if nid == ids[2]);
+        assert_matches!(entries.next(), Some(Ok(FollowPolicy { nid, .. })) if nid == ids[0]);
+        assert_matches!(entries.next(), Some(Ok(FollowPolicy { nid, .. })) if nid == ids[1]);
+        assert_matches!(entries.next(), Some(Ok(FollowPolicy { nid, .. })) if nid == ids[2]);
     }
 
     #[test]
@@ -471,9 +500,9 @@ mod test {
             assert!(db.seed(id, Scope::All).unwrap());
         }
         let mut entries = db.seed_policies().unwrap();
-        assert_matches!(entries.next(), Some(SeedPolicy { rid, .. }) if rid == ids[0]);
-        assert_matches!(entries.next(), Some(SeedPolicy { rid, .. }) if rid == ids[1]);
-        assert_matches!(entries.next(), Some(SeedPolicy { rid, .. }) if rid == ids[2]);
+        assert_matches!(entries.next(), Some(Ok(SeedPolicy { rid, .. })) if rid == ids[0]);
+        assert_matches!(entries.next(), Some(Ok(SeedPolicy { rid, .. })) if rid == ids[1]);
+        assert_matches!(entries.next(), Some(Ok(SeedPolicy { rid, .. })) if rid == ids[2]);
     }
 
     #[test]

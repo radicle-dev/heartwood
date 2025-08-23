@@ -115,15 +115,15 @@ impl Store for Database {
         stmt.bind((1, node))?;
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
-            let version = row.read::<i64, _>("version").try_into()?;
-            let features = row.read::<node::Features, _>("features");
-            let alias = Alias::from_str(row.read::<&str, _>("alias"))?;
-            let timestamp = row.read::<Timestamp, _>("timestamp");
-            let pow = row.read::<i64, _>("pow") as u32;
-            let agent = row.read::<UserAgent, _>("agent");
-            let penalty = row.read::<i64, _>("penalty").min(u8::MAX as i64);
+            let version = row.try_read::<i64, _>("version")?.try_into()?;
+            let features = row.try_read::<node::Features, _>("features")?;
+            let alias = Alias::from_str(row.try_read::<&str, _>("alias")?)?;
+            let timestamp = row.try_read::<Timestamp, _>("timestamp")?;
+            let pow = row.try_read::<i64, _>("pow")? as u32;
+            let agent = row.try_read::<UserAgent, _>("agent")?;
+            let penalty = row.try_read::<i64, _>("penalty")?.min(u8::MAX as i64);
             let penalty = Penalty(penalty as u8);
-            let banned = row.read::<i64, _>("banned").is_positive();
+            let banned = row.try_read::<i64, _>("banned")?.is_positive();
             let addrs = self.addresses_of(node)?;
 
             Ok(Some(Node {
@@ -154,8 +154,8 @@ impl Store for Database {
 
         if let Some(row) = stmt.into_iter().next() {
             let row = row?;
-            let addr_banned = row.read::<i64, _>(0).is_positive();
-            let node_banned = row.read::<i64, _>(1).is_positive();
+            let addr_banned = row.try_read::<i64, _>(0)?.is_positive();
+            let node_banned = row.try_read::<i64, _>(1)?.is_positive();
 
             Ok(node_banned || addr_banned)
         } else {
@@ -183,16 +183,16 @@ impl Store for Database {
 
         for row in stmt.into_iter() {
             let row = row?;
-            let _typ = row.read::<AddressType, _>("type");
-            let addr = row.read::<Address, _>("value");
-            let source = row.read::<Source, _>("source");
+            let _typ = row.try_read::<AddressType, _>("type")?;
+            let addr = row.try_read::<Address, _>("value")?;
+            let source = row.try_read::<Source, _>("source")?;
             let last_attempt = row
                 .read::<Option<i64>, _>("last_attempt")
                 .map(|t| LocalTime::from_millis(t as u128));
             let last_success = row
                 .read::<Option<i64>, _>("last_success")
                 .map(|t| LocalTime::from_millis(t as u128));
-            let banned = row.read::<i64, _>("banned").is_positive();
+            let banned = row.try_read::<i64, _>("banned")?.is_positive();
 
             addrs.push(KnownAddress {
                 addr,
@@ -212,7 +212,7 @@ impl Store for Database {
             .into_iter()
             .next()
             .ok_or(Error::NoRows)??;
-        let count = row.read::<i64, _>(0) as usize;
+        let count = row.try_read::<i64, _>(0)? as usize;
 
         Ok(count)
     }
@@ -224,7 +224,7 @@ impl Store for Database {
             .into_iter()
             .next()
             .ok_or(Error::NoRows)??;
-        let count = row.read::<i64, _>(0) as usize;
+        let count = row.try_read::<i64, _>(0)? as usize;
 
         Ok(count)
     }
@@ -299,17 +299,17 @@ impl Store for Database {
         let mut entries = Vec::new();
 
         while let Some(Ok(row)) = stmt.next() {
-            let node = row.read::<NodeId, _>("node");
-            let _typ = row.read::<AddressType, _>("type");
-            let addr = row.read::<Address, _>("value");
-            let source = row.read::<Source, _>("source");
-            let last_success = row.read::<Option<i64>, _>("last_success");
-            let last_attempt = row.read::<Option<i64>, _>("last_attempt");
+            let node = row.try_read::<NodeId, _>("node")?;
+            let _typ = row.try_read::<AddressType, _>("type")?;
+            let addr = row.try_read::<Address, _>("value")?;
+            let source = row.try_read::<Source, _>("source")?;
+            let last_success = row.try_read::<Option<i64>, _>("last_success")?;
+            let last_attempt = row.try_read::<Option<i64>, _>("last_attempt")?;
             let last_success = last_success.map(|t| LocalTime::from_millis(t as u128));
             let last_attempt = last_attempt.map(|t| LocalTime::from_millis(t as u128));
-            let version = row.read::<i64, _>("version").try_into()?;
-            let banned = row.read::<i64, _>("banned").is_positive();
-            let penalty = row.read::<i64, _>("penalty");
+            let version = row.try_read::<i64, _>("version")?.try_into()?;
+            let banned = row.try_read::<i64, _>("banned")?.is_positive();
+            let penalty = row.try_read::<i64, _>("penalty")?;
             let penalty = Penalty(penalty as u8); // Clamped at `u8::MAX`.
 
             entries.push(AddressEntry {

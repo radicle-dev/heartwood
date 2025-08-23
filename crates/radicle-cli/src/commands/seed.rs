@@ -203,21 +203,28 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
     ]);
     t.divider();
 
-    for policy::SeedPolicy { rid, policy } in store.seed_policies()? {
-        let id = rid.to_string();
-        let name = storage
-            .repository(rid)
-            .and_then(|repo| repo.project().map(|proj| proj.name().to_string()))
-            .unwrap_or_default();
-        let scope = policy.scope().unwrap_or_default().to_string();
-        let policy = term::format::policy(&Policy::from(policy));
+    for policy in store.seed_policies()? {
+        match policy {
+            Ok(policy::SeedPolicy { rid, policy }) => {
+                let id = rid.to_string();
+                let name = storage
+                    .repository(rid)
+                    .and_then(|repo| repo.project().map(|proj| proj.name().to_string()))
+                    .unwrap_or_default();
+                let scope = policy.scope().unwrap_or_default().to_string();
+                let policy = term::format::policy(&Policy::from(policy));
 
-        t.push([
-            term::format::tertiary(id),
-            name.into(),
-            policy,
-            term::format::dim(scope),
-        ])
+                t.push([
+                    term::format::tertiary(id),
+                    name.into(),
+                    policy,
+                    term::format::dim(scope),
+                ])
+            }
+            Err(err) => {
+                term::error(format!("Failed to read a seeding policy: {err}"));
+            }
+        }
     }
 
     if t.is_empty() {
