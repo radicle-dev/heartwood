@@ -623,61 +623,55 @@ where
                 let mut disconnect = Vec::new();
 
                 // Handle conflicting connections.
-                // This is typical when nodes have mutually configured their nodes to connect to
+                // This is typical when users have mutually configured their nodes to connect to
                 // each other on startup. We handle this by deterministically choosing one node
-                // whos outbound connection is the one that is kept. The other connections are
+                // whose outbound connection is the one that is kept. The other connections are
                 // dropped.
                 {
-                    // Whether we have precedence in case of conflicting connections.
                     // Having precedence means that our outbound connection will win over
                     // the other node's outbound connection.
-                    let precedence = *self.signer.public_key() > nid;
+                    enum Precedence {
+                        Ours,
+                        Theirs,
+                    }
 
-                    // Pre-existing connections that conflict with this newly established session.
-                    // Note that we can't know whether a connection is conflicting before we get the
-                    // remote static key.
-                    let mut conflicting = Vec::new();
+                    use Link::*;
+                    use Precedence::*;
 
-                    // Active sessions with the same NID but a different Resource ID are conflicting.
-                    conflicting.extend(
-                        self.peers
-                            .active()
-                            .filter(|(c_id, d, _)| **d == nid && *c_id != token)
-                            .map(|(c_id, _, link)| (c_id, link)),
-                    );
+                    // Whether we have precedence in case of conflicting connections.
+                    let precedence = if *self.signer.public_key() > nid {
+                        Ours
+                    } else {
+                        Theirs
+                    };
+
+                    // Active sessions with the same NID but a different token are conflicting.
+                    let peers = self.peers.active().filter_map(|(c_id, d, link)| {
+                        (*d == nid && c_id != token).then_some((c_id, link))
+                    });
 
                     // Outbound connection attempts with the same remote key but a different file
                     // descriptor are conflicting.
-                    conflicting.extend(self.outbound.iter().filter_map(|(c_id, other)| {
-                        (other.nid == nid && *c_id != token).then_some((*c_id, Link::Outbound))
-                    }));
+                    let outbound = self.outbound.iter().filter_map(|(c_id, other)| {
+                        (other.nid == nid && *c_id != token).then_some((*c_id, Outbound))
+                    });
 
-                    for (c_token, c_link) in conflicting {
+                    for (c_token, c_link) in peers.chain(outbound) {
                         // If we have precedence, the inbound connection is closed.
                         // In the case where both connections are inbound or outbound,
                         // we close the newer connection, ie. the one with the higher
-                        // resource id.
-                        let close = match (link, c_link) {
-                            (Link::Inbound, Link::Outbound) => {
-                                if precedence {
-                                    token
-                                } else {
-                                    c_token
-                                }
-                            }
-                            (Link::Outbound, Link::Inbound) => {
-                                if precedence {
-                                    c_token
-                                } else {
-                                    token
-                                }
-                            }
-                            (Link::Inbound, Link::Inbound) => token.max(c_token),
-                            (Link::Outbound, Link::Outbound) => token.max(c_token),
+                        // token.
+                        let close = match (link, c_link, &precedence) {
+                            (Inbound, Outbound, Ours) => token,
+                            (Inbound, Outbound, Theirs) => c_token,
+                            (Outbound, Inbound, Ours) => c_token,
+                            (Outbound, Inbound, Theirs) => token,
+                            (Inbound, Inbound, _) => token.max(c_token),
+                            (Outbound, Outbound, _) => token.max(c_token),
                         };
 
                         log::warn!(
-                            target: "wire", "Established session with token {} conflicts with existing session with token {} for {nid}", token.0, c_token.0
+                            target: "wire", "Established session with token {} conflicts with existing session with token {} for {nid}. Disconnecting session with token {}.", token.0, c_token.0, close.0
                         );
                         disconnect.push(close);
                     }
