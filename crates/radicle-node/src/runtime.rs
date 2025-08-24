@@ -321,28 +321,31 @@ impl Runtime {
 
     #[cfg(all(feature = "systemd", target_os = "linux"))]
     fn receive_listener() -> Option<Listener> {
-        use std::os::fd::FromRawFd;
-        match radicle_systemd::listen::fd("control") {
-            Ok(Some(fd)) => {
-                // NOTE: Here, we should make a call to [`fstat(2)`](man:fstat(2))
-                // and make sure that the file descriptor we received actually
-                // is `AF_UNIX`. However, this requires fiddling with
-                // `libc` types or another dependency like `nix`, see
-                // <https://github.com/lucab/libsystemd-rs/blob/b43fa5e3b5eca3e6aa16a6c2fad87220dc0ad7a0/src/activation.rs#L192-L196>
-                // systemd also implements such a check, see
-                // <https://github.com/systemd/systemd/blob/v254/src/libsystemd/sd-daemon/sd-daemon.c#L357-L398>
-                Some(unsafe {
-                    // SAFETY: We take ownership of this FD from systemd,
-                    // which guarantees that it is open.
-                    Listener::from_raw_fd(fd)
-                })
-            }
-            Ok(None) => None,
+        let fd = match radicle_systemd::listen::fd("control") {
+            Ok(Some(fd)) => fd,
+            Ok(None) => return None,
             Err(err) => {
-                log::trace!(target: "node", "Error receiving file descriptors from systemd: {err}");
-                None
+                log::error!(target: "node", "Error receiving listener from systemd: {err}");
+                return None;
             }
+        };
+
+        let socket: socket2::Socket = unsafe { std::os::fd::FromRawFd::from_raw_fd(fd) };
+
+        let domain = match socket.domain() {
+            Ok(domain) => domain,
+            Err(err) => {
+                log::error!(target: "node", "Error receiving listener from systemd when inspecting domain of socket: {err}");
+                return None;
+            }
+        };
+
+        if domain != socket2::Domain::UNIX {
+            log::error!(target: "node", "Dropping listener received from systemd: Domain is not AF_UNIX.");
+            return None;
         }
+
+        Some(Listener::from(socket))
     }
 
     fn bind(path: PathBuf) -> Result<ControlSocket, Error> {
