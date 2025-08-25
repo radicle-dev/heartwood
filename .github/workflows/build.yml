@@ -1,0 +1,32 @@
+name: build
+on:
+  push: { branches: [ '*' ] }
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.sha }}
+  cancel-in-progress: true
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+         - macos-latest       # arm64
+         - ubuntu-latest-arm  # arm64
+         - ubuntu-latest      # x64
+         - windows-latest-arm # arm64
+         - windows-latest     # x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo
+          key: ${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}-cargo-home
+      - uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}-cargo-target
+      - run: cargo build --workspace --verbose --all-features
+      - run: cargo test  --workspace --verbose --all-features
