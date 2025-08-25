@@ -25,7 +25,7 @@ main() {
   rev="$(git rev-parse HEAD)"
   gitarchive="build/heartwood-$rev.tar.gz"
   keypath="$(rad path)/keys/radicle.pub"
-  version="$(build/version)"
+  version="$(build/version | sed 's/releases\//v/')"
   image=radicle-build-$version
   rust_version="$(build/rust-version)"
 

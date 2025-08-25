@@ -17,8 +17,8 @@ main() {
     echo "fatal: empty version number" >&2 ; exit 1
   fi
 
-  if ! git rev-parse --verify "v$version^{tag}" >/dev/null 2>&1; then
-    echo "error: '$version' is not a valid version, tag 'v$version' not found" >&2
+  if ! git rev-parse --verify "releases/$version^{tag}" >/dev/null 2>&1; then
+    echo "error: '$version' is not a valid version, tag 'releases/$version' not found" >&2
     exit 1
   fi
 

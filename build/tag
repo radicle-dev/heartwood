@@ -3,11 +3,12 @@ set -e
 
 if [ $# -ne 1 ]; then
   echo "Usage: $0 <version-number>"
+  echo "Produces a Git Tag under 'releases/<version-number>', signed by the 'user.signingKey' which must match `rad self --ssh-key`"
   exit 1
 fi
 
 version="$1"
-tag="v$version"
+tag="releases/$version"
 
 git_config_key="user.signingKey"
 
