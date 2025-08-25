@@ -3,7 +3,7 @@ name = "radicle-cob"
 description = "Radicle Collaborative Objects library"
 homepage.workspace = true
 repository.workspace = true
-version = "0.15.0"
+version = "0.16.0"
 authors = [
   "Alex Good <alex@memoryandthought.me>",
   "Fintan Halpenny <fintan.halpenny@gmail.com>",

@@ -40,20 +40,20 @@ nonempty = "0.9.0"
 pretty_assertions = "1.3.0"
 qcheck = { version = "1", default-features = false }
 qcheck-macros = { version = "1", default-features = false }
-radicle = { version = "0.18", path = "crates/radicle" }
-radicle-cli = { version = "0.15", path = "crates/radicle-cli" }
+radicle = { version = "0.19", path = "crates/radicle" }
+radicle-cli = { version = "0.16", path = "crates/radicle-cli" }
 radicle-cli-test = { path = "crates/radicle-cli-test" }
-radicle-cob = { version = "0.15", path = "crates/radicle-cob" }
+radicle-cob = { version = "0.16", path = "crates/radicle-cob" }
 radicle-crypto = { version = "0.13", path = "crates/radicle-crypto" }
 radicle-dag = { version = "0.10", path = "crates/radicle-dag" }
-radicle-fetch = { version = "0.14", path = "crates/radicle-fetch" }
+radicle-fetch = { version = "0.15", path = "crates/radicle-fetch" }
 radicle-git-ext = { version = "0.8", default-features = false }
-radicle-node = { version = "0.14", path = "crates/radicle-node" }
-radicle-protocol = { version = "0.2", path = "crates/radicle-protocol" }
+radicle-node = { version = "0.15", path = "crates/radicle-node" }
+radicle-protocol = { version = "0.3", path = "crates/radicle-protocol" }
 radicle-signals = { version = "0.11", path = "crates/radicle-signals" }
 radicle-ssh = { version = "0.10", path = "crates/radicle-ssh", default-features = false }
 radicle-systemd = { version = "0.10", path = "crates/radicle-systemd" }
-radicle-term = { version = "0.14", path = "crates/radicle-term" }
+radicle-term = { version = "0.15", path = "crates/radicle-term" }
 schemars = { version = "1.0.4" }
 serde = "1.0"
 serde_json = "1.0"
