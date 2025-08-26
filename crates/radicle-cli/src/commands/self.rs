@@ -1,7 +1,8 @@
 use std::ffi::OsString;
 
 use radicle::crypto::ssh;
-use radicle::Profile;
+use radicle::node::Handle as _;
+use radicle::{Node, Profile};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -20,7 +21,6 @@ Options
 
     --did                Show your DID
     --alias              Show your Node alias
-    --nid                Show your Node ID (NID)
     --home               Show your Radicle home
     --config             Show the location of your configuration file
     --ssh-key            Show your public key in OpenSSH format
@@ -100,7 +100,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             term::print(profile.config.alias());
         }
         Show::NodeId => {
-            term::print(profile.id());
+            term::warning(
+                "The option `--nid` is deprecated, please use `rad node status` instead.",
+            );
+            term::print(
+                Node::new(profile.socket())
+                    .nid()
+                    .ok()
+                    .unwrap_or_else(|| *profile.id()),
+            );
         }
         Show::Did => {
             term::print(profile.did());
@@ -137,11 +145,13 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
         term::format::tertiary(did).into(),
     ]);
 
-    let node_id = profile.id();
-    table.push([
-        term::format::style("└╴Node ID (NID)").into(),
-        term::format::tertiary(node_id).into(),
-    ]);
+    let socket = profile.socket();
+    let node = if Node::new(&socket).is_running() {
+        term::format::positive(format!("running ({})", socket.display()))
+    } else {
+        term::format::negative("not running".to_string())
+    };
+    table.push([term::format::style("Node").into(), node.to_string().into()]);
 
     let ssh_agent = match ssh::agent::Agent::connect() {
         Ok(c) => term::format::positive(format!(
@@ -158,13 +168,14 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
         ssh_agent.to_string().into(),
     ]);
 
-    let ssh_short = ssh::fmt::fingerprint(node_id);
+    let id = profile.id();
+    let ssh_short = ssh::fmt::fingerprint(id);
     table.push([
         term::format::style("├╴Key (hash)").into(),
         term::format::tertiary(ssh_short).into(),
     ]);
 
-    let ssh_long = ssh::fmt::key(node_id);
+    let ssh_long = ssh::fmt::key(id);
     table.push([
         term::format::style("└╴Key (full)").into(),
         term::format::tertiary(ssh_long).into(),
