@@ -33,23 +33,23 @@ $ rad patch comment 6c61ef1 -m "I think we should use MIT"
 
 ``` ~alice
 $ rad patch show 6c61ef1 -v
-╭────────────────────────────────────────────────────╮
-│ Title     Define LICENSE for project               │
-│ Patch     6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b │
-│ Author    alice (you)                              │
-│ Head      717c900ec17735639587325e0fd9fe09991c9edd │
-│ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 │
-│ Branches  prepare-license                          │
-│ Commits   ahead 1, behind 0                        │
-│ Status    draft                                    │
-├────────────────────────────────────────────────────┤
-│ 717c900 Introduce license                          │
-├────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (717c900) now              │
-├────────────────────────────────────────────────────┤
-│ bob z6Mkt67…v4N1tRk now 833db19                    │
-│ I think we should use MIT                          │
-╰────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Title     Define LICENSE for project                                                                                      │
+│ Patch     6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b                                                                        │
+│ Author    alice (you)                                                                                                     │
+│ Head      717c900ec17735639587325e0fd9fe09991c9edd                                                                        │
+│ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                                                                        │
+│ Branches  prepare-license                                                                                                 │
+│ Commits   ahead 1, behind 0                                                                                               │
+│ Status    draft                                                                                                           │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 717c900 Introduce license                                                                                                 │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ● Revision 6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b with head 717c900ec17735639587325e0fd9fe09991c9edd by alice (you) now │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ bob z6Mkt67…v4N1tRk now 833db19                                                                                           │
+│ I think we should use MIT                                                                                                 │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 $ rad patch comment 6c61ef1 --reply-to 833db19 -m "Thanks, I'll add it!"
 ╭─────────────────────────╮
 │ alice (you) now 1803a38 │
@@ -85,22 +85,22 @@ $ rad patch review 6c61ef1 --accept -m "LGTM!"
 ✓ Patch 6c61ef1 accepted
 ✓ Synced with 2 seed(s)
 $ rad patch show 6c61ef1 -v
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title    Define LICENSE for project                                 │
-│ Patch    6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b                   │
-│ Author   alice z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi     │
-│ Head     1cc8cd9de8ccc44b4fe3876f2dbd2cd1cf9ddc0e                   │
-│ Base     f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                   │
-│ Commits  ahead 2, behind 0                                          │
-│ Status   draft                                                      │
-├─────────────────────────────────────────────────────────────────────┤
-│ 1cc8cd9 Add MIT License                                             │
-│ 717c900 Introduce license                                           │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice z6MknSL…StBU8Vi (717c900) now                     │
-│ ↑ updated to 93915b9afa94a9dc4f52f12cdf077d4613ea3eb3 (1cc8cd9) now │
-│   └─ ✓ accepted by bob (you) now                                    │
-╰─────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Title    Define LICENSE for project                                                                                                                                  │
+│ Patch    6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b                                                                                                                    │
+│ Author   alice z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                                                                                                      │
+│ Head     1cc8cd9de8ccc44b4fe3876f2dbd2cd1cf9ddc0e                                                                                                                    │
+│ Base     f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                                                                                                                    │
+│ Commits  ahead 2, behind 0                                                                                                                                           │
+│ Status   draft                                                                                                                                                       │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 1cc8cd9 Add MIT License                                                                                                                                              │
+│ 717c900 Introduce license                                                                                                                                            │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ● Revision 6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b with head 717c900ec17735639587325e0fd9fe09991c9edd by alice z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi now │
+│ ↑ Revision 93915b9afa94a9dc4f52f12cdf077d4613ea3eb3 with head 1cc8cd9de8ccc44b4fe3876f2dbd2cd1cf9ddc0e by alice z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi now │
+│   └─ ✓ accepted by bob (you) now                                                                                                                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ``` ~bob
@@ -110,22 +110,22 @@ $ rad patch delete 6c61ef1
 
 ``` ~alice
 $ rad patch show 6c61ef1 -v
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title     Define LICENSE for project                                │
-│ Patch     6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b                  │
-│ Author    alice (you)                                               │
-│ Head      1cc8cd9de8ccc44b4fe3876f2dbd2cd1cf9ddc0e                  │
-│ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                  │
-│ Branches  prepare-license                                           │
-│ Commits   ahead 2, behind 0                                         │
-│ Status    draft                                                     │
-├─────────────────────────────────────────────────────────────────────┤
-│ 1cc8cd9 Add MIT License                                             │
-│ 717c900 Introduce license                                           │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (717c900) now                               │
-│ ↑ updated to 93915b9afa94a9dc4f52f12cdf077d4613ea3eb3 (1cc8cd9) now │
-╰─────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Title     Define LICENSE for project                                                                                      │
+│ Patch     6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b                                                                        │
+│ Author    alice (you)                                                                                                     │
+│ Head      1cc8cd9de8ccc44b4fe3876f2dbd2cd1cf9ddc0e                                                                        │
+│ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                                                                        │
+│ Branches  prepare-license                                                                                                 │
+│ Commits   ahead 2, behind 0                                                                                               │
+│ Status    draft                                                                                                           │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 1cc8cd9 Add MIT License                                                                                                   │
+│ 717c900 Introduce license                                                                                                 │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ● Revision 6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b with head 717c900ec17735639587325e0fd9fe09991c9edd by alice (you) now │
+│ ↑ Revision 93915b9afa94a9dc4f52f12cdf077d4613ea3eb3 with head 1cc8cd9de8ccc44b4fe3876f2dbd2cd1cf9ddc0e by alice (you) now │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 If Alice also decides to delete the patch, then any seeds that have synced with
