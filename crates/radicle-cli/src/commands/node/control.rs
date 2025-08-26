@@ -260,29 +260,42 @@ pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
         term::warning(warning);
     }
 
-    if node.is_running() {
-        let listen = node
-            .listen_addrs()?
-            .into_iter()
-            .map(|addr| addr.to_string())
-            .collect::<Vec<_>>();
-
-        if listen.is_empty() {
-            term::success!("Node is {}.", term::format::positive("running"));
-        } else {
-            term::success!(
-                "Node is {} and listening on {}.",
-                term::format::positive("running"),
-                listen.join(", ")
-            );
-        }
-    } else {
+    if !node.is_running() {
         term::info!("Node is {}.", term::format::negative("stopped"));
         term::info!(
             "To start it, run {}.",
             term::format::command("rad node start")
         );
         return Ok(());
+    }
+
+    let listen = node
+        .listen_addrs()?
+        .into_iter()
+        .map(|addr| addr.to_string())
+        .collect::<Vec<_>>();
+
+    let nid = node.nid()?;
+    let nid = if &nid == profile.id() {
+        term::format::tertiary(term::format::node_id_human(&nid))
+    } else {
+        term::format::yellow(term::format::node_id_human(&nid)).bold()
+    };
+
+    if listen.is_empty() {
+        term::success!(
+            "Node is {} with Node ID {} and {} listening for inbound connections.",
+            term::format::positive("running"),
+            nid,
+            term::Paint::new("not").italic()
+        );
+    } else {
+        term::success!(
+            "Node is {} with Node ID {} and listening for inbound connections on {}.",
+            term::format::positive("running"),
+            nid,
+            listen.join(", ")
+        );
     }
 
     let sessions = sessions(node)?;

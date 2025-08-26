@@ -15,7 +15,7 @@ node status` command (or just `rad node` for short):
 
 ```
 $ rad node status
-✓ Node is running and listening on [..].
+✓ Node is running with Node ID z6MknSL[..]Vi and listening for inbound connections on [..].
 ```
 
 ```
