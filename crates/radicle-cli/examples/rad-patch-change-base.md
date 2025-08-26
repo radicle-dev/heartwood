@@ -43,7 +43,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 Our second patch looks like the following:
 
 ```
-$ rad patch show 183d343ab47d7fe18baf1b24b7209ad033d7fe5c -v
+$ rad patch show 183d343ab47d7fe18baf1b24b7209ad033d7fe5c
 ╭────────────────────────────────────────────────────╮
 │ Title     Add README, just for the fun             │
 │ Patch     183d343ab47d7fe18baf1b24b7209ad033d7fe5c │
@@ -57,7 +57,7 @@ $ rad patch show 183d343ab47d7fe18baf1b24b7209ad033d7fe5c -v
 │ 27857ec Add README, just for the fun               │
 │ 3e674d1 Define power requirements                  │
 ├────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (27857ec) now              │
+│ ● Revision 183d343 @ 27857ec by alice (you) now    │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -74,20 +74,20 @@ Now, if we show the patch we can see the patch's base has changed and
 we have a single commit:
 
 ```
-$ rad patch show 183d343 -v
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title     Add README, just for the fun                              │
-│ Patch     183d343ab47d7fe18baf1b24b7209ad033d7fe5c                  │
-│ Author    alice (you)                                               │
-│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                  │
-│ Base      3e674d1a1df90807e934f9ae5da2591dd6848a33                  │
-│ Branches  add-readme                                                │
-│ Commits   ahead 2, behind 0                                         │
-│ Status    open                                                      │
-├─────────────────────────────────────────────────────────────────────┤
-│ 27857ec Add README, just for the fun                                │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (27857ec) now                               │
-│ ↑ updated to ebe76f9c2148eb595d7a745f82275786bf3458c3 (27857ec) now │
-╰─────────────────────────────────────────────────────────────────────╯
+$ rad patch show 183d343
+╭────────────────────────────────────────────────────╮
+│ Title     Add README, just for the fun             │
+│ Patch     183d343ab47d7fe18baf1b24b7209ad033d7fe5c │
+│ Author    alice (you)                              │
+│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66 │
+│ Base      3e674d1a1df90807e934f9ae5da2591dd6848a33 │
+│ Branches  add-readme                               │
+│ Commits   ahead 2, behind 0                        │
+│ Status    open                                     │
+├────────────────────────────────────────────────────┤
+│ 27857ec Add README, just for the fun               │
+├────────────────────────────────────────────────────┤
+│ ● Revision 183d343 @ 27857ec by alice (you) now    │
+│ ↑ Revision ebe76f9 @ 27857ec by alice (you) now    │
+╰────────────────────────────────────────────────────╯
 ```

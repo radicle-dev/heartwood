@@ -13,9 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## New Features
 
-- `rad clone` now supports the flag `--bare` which works analoguously to 
+- `rad clone` now supports the flag `--bare` which works analoguously to
   `git clone --bare`.
 - `rad init --setup-signing` now works on bare repositories.
+- `rad patch show` now has improved output. It does not distinguish between the
+  original author's updates and other updated, each update is marked as
+  `Revision`, and the general output is cleaned up. It also shows `Base` by
+  default without the `--verbose` flag.
 
 ## Fixed Bugs
 

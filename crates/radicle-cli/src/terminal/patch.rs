@@ -394,12 +394,10 @@ pub fn show(
         term::format::tertiary("Head".to_owned()).into(),
         term::format::secondary(revision.head().to_string()).into(),
     ]);
-    if verbose {
-        attrs.push([
-            term::format::tertiary("Base".to_owned()).into(),
-            term::format::secondary(revision.base().to_string()).into(),
-        ]);
-    }
+    attrs.push([
+        term::format::tertiary("Base".to_owned()).into(),
+        term::format::secondary(revision.base().to_string()).into(),
+    ]);
     if !branches.is_empty() {
         attrs.push([
             term::format::tertiary("Branches".to_owned()).into(),
@@ -438,7 +436,7 @@ pub fn show(
         .children(commits.into_iter().map(|l| l.boxed()))
         .divider();
 
-    for line in timeline::timeline(profile, patch) {
+    for line in timeline::timeline(profile, patch, verbose) {
         widget.push(line);
     }
 

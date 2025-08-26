@@ -48,6 +48,7 @@ $ rad patch show aa45913e757cacd46972733bddee5472c78fa32a -p
 │ Patch     aa45913e757cacd46972733bddee5472c78fa32a │
 │ Author    alice (you)                              │
 │ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33 │
+│ Base      [..                                    ] │
 │ Branches  flux-capacitor-power                     │
 │ Commits   ahead 1, behind 0                        │
 │ Status    open                                     │
@@ -56,7 +57,7 @@ $ rad patch show aa45913e757cacd46972733bddee5472c78fa32a -p
 ├────────────────────────────────────────────────────┤
 │ 3e674d1 Define power requirements                  │
 ├────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (3e674d1) now              │
+│ ● Revision aa45913 @ 3e674d1 by alice (you) now    │
 ╰────────────────────────────────────────────────────╯
 
 commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
@@ -102,6 +103,7 @@ $ rad patch show aa45913
 │ Author    alice (you)                              │
 │ Labels    fun                                      │
 │ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33 │
+│ Base      [..                                    ] │
 │ Branches  flux-capacitor-power                     │
 │ Commits   ahead 1, behind 0                        │
 │ Status    open                                     │
@@ -110,7 +112,7 @@ $ rad patch show aa45913
 ├────────────────────────────────────────────────────┤
 │ 3e674d1 Define power requirements                  │
 ├────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (3e674d1) now              │
+│ ● Revision aa45913 @ 3e674d1 by alice (you) now    │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -183,25 +185,26 @@ Showing the patch list now will reveal the favorable verdict:
 
 ```
 $ rad patch show aa45913
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title     Define power requirements                                 │
-│ Patch     aa45913e757cacd46972733bddee5472c78fa32a                  │
-│ Author    alice (you)                                               │
-│ Labels    fun                                                       │
-│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                  │
-│ Branches  flux-capacitor-power, patch/aa45913                       │
-│ Commits   ahead 2, behind 0                                         │
-│ Status    open                                                      │
-│                                                                     │
-│ See details.                                                        │
-├─────────────────────────────────────────────────────────────────────┤
-│ 27857ec Add README, just for the fun                                │
-│ 3e674d1 Define power requirements                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (3e674d1) now                               │
-│ ↑ updated to 6e5a3b7b2ce27b32e7ccc2f0b3f4594897dde638 (27857ec) now │
-│   └─ ✓ accepted by alice (you) now                                  │
-╰─────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ Title     Define power requirements                │
+│ Patch     aa45913e757cacd46972733bddee5472c78fa32a │
+│ Author    alice (you)                              │
+│ Labels    fun                                      │
+│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66 │
+│ Base      [..                                    ] │
+│ Branches  flux-capacitor-power, patch/aa45913      │
+│ Commits   ahead 2, behind 0                        │
+│ Status    open                                     │
+│                                                    │
+│ See details.                                       │
+├────────────────────────────────────────────────────┤
+│ 27857ec Add README, just for the fun               │
+│ 3e674d1 Define power requirements                  │
+├────────────────────────────────────────────────────┤
+│ ● Revision aa45913 @ 3e674d1 by alice (you) now    │
+│ ↑ Revision 6e5a3b7 @ 27857ec by alice (you) now    │
+│   └─ ✓ accepted              by alice (you) now    │
+╰────────────────────────────────────────────────────╯
 $ rad patch list
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                      Author         Reviews  Head     +   -   Updated │
@@ -215,23 +218,24 @@ If you make a mistake on the patch description, you can always change it!
 ```
 $ rad patch edit aa45913 --message "Define power requirements" --message "Add requirements file" --no-announce
 $ rad patch show aa45913
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title     Define power requirements                                 │
-│ Patch     aa45913e757cacd46972733bddee5472c78fa32a                  │
-│ Author    alice (you)                                               │
-│ Labels    fun                                                       │
-│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                  │
-│ Branches  flux-capacitor-power, patch/aa45913                       │
-│ Commits   ahead 2, behind 0                                         │
-│ Status    open                                                      │
-│                                                                     │
-│ Add requirements file                                               │
-├─────────────────────────────────────────────────────────────────────┤
-│ 27857ec Add README, just for the fun                                │
-│ 3e674d1 Define power requirements                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (3e674d1) now                               │
-│ ↑ updated to 6e5a3b7b2ce27b32e7ccc2f0b3f4594897dde638 (27857ec) now │
-│   └─ ✓ accepted by alice (you) now                                  │
-╰─────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ Title     Define power requirements                │
+│ Patch     aa45913e757cacd46972733bddee5472c78fa32a │
+│ Author    alice (you)                              │
+│ Labels    fun                                      │
+│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66 │
+│ Base      [..                                    ] │
+│ Branches  flux-capacitor-power, patch/aa45913      │
+│ Commits   ahead 2, behind 0                        │
+│ Status    open                                     │
+│                                                    │
+│ Add requirements file                              │
+├────────────────────────────────────────────────────┤
+│ 27857ec Add README, just for the fun               │
+│ 3e674d1 Define power requirements                  │
+├────────────────────────────────────────────────────┤
+│ ● Revision aa45913 @ 3e674d1 by alice (you) now    │
+│ ↑ Revision 6e5a3b7 @ 27857ec by alice (you) now    │
+│   └─ ✓ accepted              by alice (you) now    │
+╰────────────────────────────────────────────────────╯
 ```

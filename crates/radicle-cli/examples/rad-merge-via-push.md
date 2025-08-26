@@ -83,35 +83,37 @@ $ rad patch --merged
 │ ✓  [ ... ]  First change   alice   (you)  -        20aa5dd  +0  -0  now     │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 $ rad patch show 696ec5508494692899337afe6713fe1796d0315c
-╭────────────────────────────────────────────────────────────────╮
-│ Title     First change                                         │
-│ Patch     696ec5508494692899337afe6713fe1796d0315c             │
-│ Author    alice (you)                                          │
-│ Head      20aa5dde6210796c3a2f04079b42316a31d02689             │
-│ Branches  feature/1                                            │
-│ Commits   ahead 0, behind 2                                    │
-│ Status    merged                                               │
-├────────────────────────────────────────────────────────────────┤
-│ 20aa5dd First change                                           │
-├────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (20aa5dd) now                          │
-│   └─ ✓ merged by alice (you) at revision 696ec55 (20aa5dd) now │
-╰────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ Title     First change                             │
+│ Patch     696ec5508494692899337afe6713fe1796d0315c │
+│ Author    alice (you)                              │
+│ Head      20aa5dde6210796c3a2f04079b42316a31d02689 │
+│ Base      [..                                    ] │
+│ Branches  feature/1                                │
+│ Commits   ahead 0, behind 2                        │
+│ Status    merged                                   │
+├────────────────────────────────────────────────────┤
+│ 20aa5dd First change                               │
+├────────────────────────────────────────────────────┤
+│ ● Revision 696ec55 @ 20aa5dd by alice (you) now    │
+│   └─ ✓ merged                by alice (you)        │
+╰────────────────────────────────────────────────────╯
 $ rad patch show 356f73863a8920455ff6e77cd9c805d68910551b
-╭────────────────────────────────────────────────────────────────╮
-│ Title     Second change                                        │
-│ Patch     356f73863a8920455ff6e77cd9c805d68910551b             │
-│ Author    alice (you)                                          │
-│ Head      daf349ff76bedf48c5f292290b682ee7be0683cf             │
-│ Branches  feature/2                                            │
-│ Commits   ahead 0, behind 2                                    │
-│ Status    merged                                               │
-├────────────────────────────────────────────────────────────────┤
-│ daf349f Second change                                          │
-├────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (daf349f) now                          │
-│   └─ ✓ merged by alice (you) at revision 356f738 (daf349f) now │
-╰────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ Title     Second change                            │
+│ Patch     356f73863a8920455ff6e77cd9c805d68910551b │
+│ Author    alice (you)                              │
+│ Head      daf349ff76bedf48c5f292290b682ee7be0683cf │
+│ Base      [..                                    ] │
+│ Branches  feature/2                                │
+│ Commits   ahead 0, behind 2                        │
+│ Status    merged                                   │
+├────────────────────────────────────────────────────┤
+│ daf349f Second change                              │
+├────────────────────────────────────────────────────┤
+│ ● Revision 356f738 @ daf349f by alice (you) now    │
+│   └─ ✓ merged                by alice (you)        │
+╰────────────────────────────────────────────────────╯
 ```
 
 We can verify that the remote tracking branches were also deleted:

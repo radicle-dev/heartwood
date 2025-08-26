@@ -9,150 +9,54 @@ use radicle::profile::Profile;
 use crate::terminal as term;
 use crate::terminal::format::Author;
 
+/// The timeline of a [`Patch`].
+///
+/// A [`Patch`] will always have opened with a root revision and may
+/// have a series of revisions that update the patch.
+///
+/// This function converts it into a series of [`term::Line`]s for
+/// display.
 pub fn timeline<'a>(
     profile: &'a Profile,
     patch: &'a Patch,
+    verbose: bool,
 ) -> impl Iterator<Item = term::Line> + 'a {
-    Timeline::build(profile, patch).into_lines(profile)
-}
-
-/// The timeline of a [`Patch`].
-///
-/// A `Patch` will always have opened with a root revision and may
-/// have a series of revisions that update the patch.
-///
-/// The function, [`timeline`], builds a `Timeline` and converts it
-/// into a series of [`term::Line`]s.
-struct Timeline<'a> {
-    opened: Opened<'a>,
-    revisions: Vec<RevisionEntry<'a>>,
-}
-
-impl<'a> Timeline<'a> {
-    fn build(profile: &Profile, patch: &'a Patch) -> Self {
-        let opened = Opened::from_patch(patch, profile);
-        let mut revisions = patch
-            .revisions()
-            .skip(1) // skip the root revision since it's handled in `Opened::from_patch`
-            .map(|(id, revision)| {
-                (
-                    revision.timestamp(),
-                    RevisionEntry::from_revision(patch, id, revision, profile),
-                )
-            })
-            .collect::<Vec<_>>();
-        revisions.sort_by_key(|(t, _)| *t);
-        Timeline {
-            opened,
-            revisions: revisions.into_iter().map(|(_, e)| e).collect(),
-        }
-    }
-
-    fn into_lines(self, profile: &'a Profile) -> impl Iterator<Item = term::Line> + 'a {
-        self.opened.into_lines(profile).chain(
-            self.revisions
-                .into_iter()
-                .flat_map(|r| r.into_lines(profile)),
-        )
-    }
-}
-
-/// The root `Revision` of the `Patch`.
-struct Opened<'a> {
-    /// The `Author` of the patch.
-    author: Author<'a>,
-    /// When the patch was created.
-    timestamp: cob::Timestamp,
-    /// The commit head of the `Revision`.
-    head: git::Oid,
-    /// Any updates performed on the root `Revision`.
-    updates: Vec<Update<'a>>,
-}
-
-impl<'a> Opened<'a> {
-    fn from_patch(patch: &'a Patch, profile: &Profile) -> Self {
-        let (root, revision) = patch.root();
-        let mut updates = Vec::new();
-        updates.extend(revision.reviews().map(|(_, review)| {
+    let mut revisions = patch
+        .revisions()
+        .map(|(id, revision)| {
             (
-                review.timestamp(),
-                Update::Reviewed {
-                    review: review.clone(),
-                },
+                revision.timestamp(),
+                RevisionEntry::from_revision(patch, id, revision, profile, verbose),
             )
-        }));
-        updates.extend(patch.merges().filter_map(|(nid, merge)| {
-            if merge.revision == root {
-                Some((
-                    merge.timestamp,
-                    Update::Merged {
-                        author: Author::new(nid, profile, false),
-                        merge: merge.clone(),
-                    },
-                ))
-            } else {
-                None
-            }
-        }));
-        updates.sort_by_key(|(t, _)| *t);
-        Opened {
-            author: Author::new(&patch.author().id, profile, false),
-            timestamp: patch.timestamp(),
-            head: revision.head(),
-            updates: updates.into_iter().map(|(_, up)| up).collect(),
-        }
-    }
+        })
+        .collect::<Vec<_>>();
 
-    fn into_lines(self, profile: &'a Profile) -> impl Iterator<Item = term::Line> + 'a {
-        iter::once(
-            term::Line::spaced([
-                term::format::positive("●").into(),
-                term::format::default("opened by").into(),
-            ])
-            .space()
-            .extend(self.author.line())
-            .space()
-            .extend(term::Line::spaced([
-                term::format::parens(term::format::secondary(term::format::oid(self.head))).into(),
-                term::format::dim(term::format::timestamp(self.timestamp)).into(),
-            ])),
-        )
-        .chain(self.updates.into_iter().map(|up| {
-            term::Line::spaced([term::Label::space(), term::Label::from("└─ ")])
-                .extend(up.into_line(profile))
-        }))
-    }
+    revisions.sort_by_key(|(t, _)| *t);
+
+    revisions
+        .into_iter()
+        .map(|(_, e)| e)
+        .flat_map(move |r| r.into_lines(profile, verbose))
 }
 
-/// A revision entry in the [`Timeline`].
-enum RevisionEntry<'a> {
-    /// An `Updated` entry means that the original author of the
-    /// `Patch` created a new revision.
-    Updated {
-        /// When the `Revision` was created.
-        timestamp: cob::Timestamp,
-        /// The id of the `Revision`.
-        id: RevisionId,
-        /// The commit head of the `Revision`.
-        head: git::Oid,
-        /// All [`Update`]s that occurred on the `Revision`.
-        updates: Vec<Update<'a>>,
-    },
-    /// A `Revised` entry means that an author other than the original
-    /// author of the `Patch` created a new revision.
-    Revised {
-        /// The `Author` that created the `Revision` (that is not the
-        /// `Patch` author).
-        author: Author<'a>,
-        /// When the `Revision` was created.
-        timestamp: cob::Timestamp,
-        /// The id of the `Revision`.
-        id: RevisionId,
-        /// The commit head of the `Revision`.
-        head: git::Oid,
-        /// All [`Update`]s that occurred on the `Revision`.
-        updates: Vec<Update<'a>>,
-    },
+/// A revision entry in the timeline.
+///
+/// We do not distinguish between revisions created by the original author and
+/// others, and also not between the initial revision and others. This tends to
+/// confuse more than it helps.
+struct RevisionEntry<'a> {
+    /// Whether this entry is about the initial [`Revision`] of the patch.
+    is_initial: bool,
+    /// The [`Author`] that created the [`Revision`].
+    author: Author<'a>,
+    /// When the [`Revision`] was created.
+    timestamp: cob::Timestamp,
+    /// The id of the [`Revision`].
+    id: RevisionId,
+    /// The commit head of the [`Revision`].
+    head: git::Oid,
+    /// All [`Update`]s that occurred on the [`Revision`].
+    updates: Vec<Update<'a>>,
 }
 
 impl<'a> RevisionEntry<'a> {
@@ -161,6 +65,7 @@ impl<'a> RevisionEntry<'a> {
         id: RevisionId,
         revision: &'a Revision,
         profile: &Profile,
+        verbose: bool,
     ) -> Self {
         let mut updates = Vec::new();
         updates.extend(revision.reviews().map(|(_, review)| {
@@ -176,8 +81,12 @@ impl<'a> RevisionEntry<'a> {
                 Some((
                     merge.timestamp,
                     Update::Merged {
-                        author: Author::new(nid, profile, false),
-                        merge: merge.clone(),
+                        author: Author::new(nid, profile, verbose),
+                        merge: if merge.commit != revision.head() {
+                            Some(merge.clone())
+                        } else {
+                            None
+                        },
                     },
                 ))
             } else {
@@ -186,84 +95,58 @@ impl<'a> RevisionEntry<'a> {
         }));
         updates.sort_by_key(|(t, _)| *t);
 
-        if revision.author() == patch.author() {
-            RevisionEntry::Updated {
-                timestamp: revision.timestamp(),
-                id,
-                head: revision.head(),
-                updates: updates.into_iter().map(|(_, up)| up).collect(),
-            }
+        RevisionEntry {
+            is_initial: patch.root().0 == id,
+            author: Author::new(&revision.author().id, profile, verbose),
+            timestamp: revision.timestamp(),
+            id,
+            head: revision.head(),
+            updates: updates.into_iter().map(|(_, up)| up).collect(),
+        }
+    }
+
+    fn into_lines(
+        self,
+        profile: &'a Profile,
+        verbose: bool,
+    ) -> impl Iterator<Item = term::Line> + 'a {
+        use term::{format::*, *};
+
+        let id: Label = if verbose {
+            self.id.to_string().into()
         } else {
-            RevisionEntry::Revised {
-                author: Author::new(&revision.author().id, profile, false),
-                timestamp: revision.timestamp(),
-                id,
-                head: revision.head(),
-                updates: updates.into_iter().map(|(_, up)| up).collect(),
-            }
-        }
-    }
+            oid(self.id).into()
+        };
 
-    fn into_lines(self, profile: &'a Profile) -> Vec<term::Line> {
-        match self {
-            RevisionEntry::Updated {
-                timestamp,
-                id,
-                head,
-                updates,
-            } => Self::updated(profile, timestamp, id, head, updates).collect(),
-            RevisionEntry::Revised {
-                author,
-                timestamp,
-                id,
-                head,
-                updates,
-            } => Self::revised(profile, author, timestamp, id, head, updates).collect(),
-        }
-    }
+        let icon = if self.is_initial {
+            positive("●")
+        } else {
+            tertiary("↑")
+        };
 
-    fn updated(
-        profile: &'a Profile,
-        timestamp: cob::Timestamp,
-        id: RevisionId,
-        head: git::Oid,
-        updates: Vec<Update<'a>>,
-    ) -> impl Iterator<Item = term::Line> + 'a {
-        iter::once(term::Line::spaced([
-            term::format::tertiary("↑").into(),
-            term::format::default("updated to").into(),
-            term::format::dim(id).into(),
-            term::format::parens(term::format::secondary(term::format::oid(head))).into(),
-            term::format::dim(term::format::timestamp(timestamp)).into(),
-        ]))
-        .chain(updates.into_iter().map(|up| {
-            term::Line::spaced([term::Label::space(), term::Label::from("└─ ")])
-                .extend(up.into_line(profile))
-        }))
-    }
+        let line = Line::spaced([icon.into(), dim("Revision").into(), id]).space();
 
-    fn revised(
-        profile: &'a Profile,
-        author: Author<'a>,
-        timestamp: cob::Timestamp,
-        id: RevisionId,
-        head: git::Oid,
-        updates: Vec<Update<'a>>,
-    ) -> impl Iterator<Item = term::Line> + 'a {
-        let (alias, nid) = author.labels();
-        iter::once(term::Line::spaced([
-            term::format::tertiary("*").into(),
-            term::format::default("revised by").into(),
-            alias,
-            nid,
-            term::format::default("in").into(),
-            term::format::dim(term::format::oid(id)).into(),
-            term::format::parens(term::format::secondary(term::format::oid(head))).into(),
-            term::format::dim(term::format::timestamp(timestamp)).into(),
-        ]))
-        .chain(updates.into_iter().map(|up| {
-            term::Line::spaced([term::Label::space(), term::Label::from("└─ ")])
-                .extend(up.into_line(profile))
+        let line = line
+            .item(dim(if verbose { "with head" } else { "@" }))
+            .space();
+
+        let line = line.item(secondary(if verbose {
+            Paint::new(self.head.to_string())
+        } else {
+            oid(self.head)
+        }));
+
+        iter::once(
+            line.space()
+                .extend([dim("by").into()])
+                .space()
+                .extend(self.author.line())
+                .space()
+                .item(dim(timestamp(self.timestamp))),
+        )
+        .chain(self.updates.into_iter().map(move |up| {
+            Line::spaced([Label::space(), Label::from("└─ ")])
+                .extend(up.into_line(profile, verbose))
         }))
     }
 }
@@ -273,56 +156,81 @@ enum Update<'a> {
     /// A revision of the patch was reviewed.
     Reviewed { review: Review },
     /// A revision of the patch was merged.
-    Merged { author: Author<'a>, merge: Merge },
+    Merged {
+        author: Author<'a>,
+        /// If the merge is none, this means that it was a fast-forward merge.
+        merge: Option<Merge>,
+    },
 }
 
 impl Update<'_> {
-    fn timestamp(&self) -> cob::Timestamp {
-        match self {
-            Update::Reviewed { review } => review.timestamp(),
-            Update::Merged { merge, .. } => merge.timestamp,
-        }
-    }
+    fn into_line(self, profile: &Profile, verbose: bool) -> term::Line {
+        use term::{format::*, *};
 
-    fn into_line(self, profile: &Profile) -> term::Line {
-        let timestamp = self.timestamp();
-        let mut line = match self {
+        match self {
             Update::Reviewed { review } => {
-                let verdict = review.verdict();
-                let verdict_symbol = match verdict {
-                    Some(Verdict::Accept) => term::PREFIX_SUCCESS,
-                    Some(Verdict::Reject) => term::PREFIX_ERROR,
-                    None => term::format::dim("⋄"),
+                let by = " ".repeat(if verbose { 0 } else { 13 }) + "by";
+
+                let (symbol, verb) = match review.verdict() {
+                    Some(Verdict::Accept) => (PREFIX_SUCCESS, positive("accepted")),
+                    Some(Verdict::Reject) => (PREFIX_ERROR, negative("rejected")),
+                    None => (dim("⋄"), default("reviewed")),
                 };
-                let verdict_verb = match verdict {
-                    Some(Verdict::Accept) => term::format::default("accepted"),
-                    Some(Verdict::Reject) => term::format::default("rejected"),
-                    None => term::format::default("reviewed"),
-                };
-                term::Line::spaced([
-                    verdict_symbol.into(),
-                    verdict_verb.into(),
-                    term::format::default("by").into(),
-                ])
-                .space()
-                .extend(Author::new(&review.author().id.into(), profile, false).line())
+
+                Line::spaced([symbol.into(), verb.into(), dim(by).into()])
+                    .space()
+                    .extend(Author::new(&review.author().id.into(), profile, verbose).line())
+                    .space()
+                    .item(dim(timestamp(review.timestamp())))
             }
             Update::Merged { author, merge } => {
+                // The additional whitespace after makes it align, see:
+                // - "merged  "
+                // - "accepted"
+                // - "rejected"
+                // This is less noisy to look at in the terminal.
+                const MERGED: &str = "merged  ";
+
+                let at_commit = if !verbose { " @ " } else { " at commit " };
+
                 let (alias, nid) = author.labels();
-                term::Line::spaced([
-                    term::PREFIX_SUCCESS.bold().into(),
-                    term::format::default("merged by").into(),
-                    alias,
-                    nid,
-                    term::format::default("at revision").into(),
-                    term::format::dim(term::format::oid(merge.revision)).into(),
-                    term::format::parens(term::format::secondary(term::format::oid(merge.commit)))
-                        .into(),
-                ])
+
+                let (commit, timestamp) = match merge {
+                    Some(merge) => (
+                        Line::spaced([dim(at_commit).into(), secondary(oid(merge.commit)).into()])
+                            .space(),
+                        timestamp(merge.timestamp),
+                    ),
+                    None => {
+                        let mut line = Line::blank();
+                        if !verbose {
+                            const LENGTH_OF_SHORT_COMMIT_HASH: usize = 7;
+                            const LENGTH_OF_SPACES: usize = 2;
+                            line.pad(
+                                2 // alignment
+                                    + 2 // parens
+                                    + LENGTH_OF_SHORT_COMMIT_HASH
+                                    + LENGTH_OF_SPACES,
+                            );
+                        }
+                        (line, "".into())
+                    }
+                };
+
+                Line::blank()
+                    .item(PREFIX_SUCCESS.bold())
+                    .space()
+                    .item(Label::from(positive(MERGED)))
+                    .space()
+                    .extend(commit)
+                    .item(dim("by"))
+                    .space()
+                    .item(alias)
+                    .space()
+                    .item(nid)
+                    .space()
+                    .item(timestamp)
             }
-        };
-        line.push(term::Label::space());
-        line.push(term::format::dim(term::format::timestamp(timestamp)));
-        line
+        }
     }
 }

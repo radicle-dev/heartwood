@@ -28,22 +28,23 @@ $ git branch -r
   bob/patches/e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46
   rad/master
 $ rad patch show e4934b6
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title    Define power requirements                                  │
-│ Patch    e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46                   │
-│ Author   bob z6Mkt67…v4N1tRk                                        │
-│ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                   │
-│ Commits  ahead 2, behind 0                                          │
-│ Status   open                                                       │
-│                                                                     │
-│ See details.                                                        │
-├─────────────────────────────────────────────────────────────────────┤
-│ 27857ec Add README, just for the fun                                │
-│ 3e674d1 Define power requirements                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by bob z6Mkt67…v4N1tRk (3e674d1) now                       │
-│ ↑ updated to 773b9aab58b11e9fa83d0ed0baca2bea6ff889c9 (27857ec) now │
-╰─────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────╮
+│ Title    Define power requirements                      │
+│ Patch    e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46       │
+│ Author   bob z6Mkt67…v4N1tRk                            │
+│ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66       │
+│ Base     [..                                          ] │
+│ Commits  ahead 2, behind 0                              │
+│ Status   open                                           │
+│                                                         │
+│ See details.                                            │
+├─────────────────────────────────────────────────────────┤
+│ 27857ec Add README, just for the fun                    │
+│ 3e674d1 Define power requirements                       │
+├─────────────────────────────────────────────────────────┤
+│ ● Revision e4934b6 @ 3e674d1 by bob z6Mkt67…v4N1tRk now │
+│ ↑ Revision 773b9aa @ 27857ec by bob z6Mkt67…v4N1tRk now │
+╰─────────────────────────────────────────────────────────╯
 ```
 
 Wait! There's a mistake.  The REQUIREMENTS should be a markdown file.  Let's
@@ -102,25 +103,26 @@ The patch is now merged and closed :).
 
 ```
 $ rad patch show e4934b6
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title    Define power requirements                                  │
-│ Patch    e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46                   │
-│ Author   bob z6Mkt67…v4N1tRk                                        │
-│ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                   │
-│ Commits  ahead 0, behind 1                                          │
-│ Status   merged                                                     │
-│                                                                     │
-│ See details.                                                        │
-├─────────────────────────────────────────────────────────────────────┤
-│ 27857ec Add README, just for the fun                                │
-│ 3e674d1 Define power requirements                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by bob z6Mkt67…v4N1tRk (3e674d1) now                       │
-│ ↑ updated to 773b9aab58b11e9fa83d0ed0baca2bea6ff889c9 (27857ec) now │
-│ * revised by alice (you) in 9d62420 (f567f69) now                   │
-│   └─ ✓ accepted by alice (you) now                                  │
-│   └─ ✓ merged by alice (you) at revision 9d62420 (f567f69) now      │
-╰─────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────╮
+│ Title    Define power requirements                      │
+│ Patch    e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46       │
+│ Author   bob z6Mkt67…v4N1tRk                            │
+│ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66       │
+│ Base     [..                                          ] │
+│ Commits  ahead 0, behind 1                              │
+│ Status   merged                                         │
+│                                                         │
+│ See details.                                            │
+├─────────────────────────────────────────────────────────┤
+│ 27857ec Add README, just for the fun                    │
+│ 3e674d1 Define power requirements                       │
+├─────────────────────────────────────────────────────────┤
+│ ● Revision e4934b6 @ 3e674d1 by bob z6Mkt67…v4N1tRk now │
+│ ↑ Revision 773b9aa @ 27857ec by bob z6Mkt67…v4N1tRk now │
+│ ↑ Revision 9d62420 @ f567f69 by alice (you) now         │
+│   └─ ✓ accepted              by alice (you) now         │
+│   └─ ✓ merged                by alice (you)             │
+╰─────────────────────────────────────────────────────────╯
 ```
 
 To publish our new state to the network, we simply push:

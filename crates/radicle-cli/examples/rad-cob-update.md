@@ -46,6 +46,7 @@ $ rad patch show 89f7afb
 │ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
 │ Author    alice (you)                                               │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
+│ Base      [..                                                     ] │
 │ Branches  changes                                                   │
 │ Commits   ahead 2, behind 0                                         │
 │ Status    open                                                      │
@@ -69,6 +70,7 @@ $ rad patch show 89f7afb
 │ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
 │ Author    alice (you)                                               │
 │ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
+│ Base      [..                                                     ] │
 │ Branches  changes                                                   │
 │ Commits   ahead 2, behind 0                                         │
 │ Status    open                                                      │
@@ -161,6 +163,7 @@ $ rad patch show 89f7afb
 │ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
 │ Author    alice (you)                                               │
 │ Head      f1339dd109e538c6b3a7fed3e72403e1b4db08c9                  │
+│ Base      [..                                                     ] │
 │ Branches  changes                                                   │
 │ Commits   ahead 3, behind 0                                         │
 │ Status    open                                                      │

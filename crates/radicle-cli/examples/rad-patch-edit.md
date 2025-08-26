@@ -45,21 +45,22 @@ Let's look at the patch, to see what it looks like before editing it:
 
 ```
 $ rad patch show 89f7afb
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title     Add README, just for the fun                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
-│ Author    alice (you)                                               │
-│ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
-│ Branches  changes                                                   │
-│ Commits   ahead 2, behind 0                                         │
-│ Status    open                                                      │
-├─────────────────────────────────────────────────────────────────────┤
-│ 8945f61 Define the LICENSE                                          │
-│ 03c02af Add README, just for the fun                                │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
-╰─────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ Title     Add README, just for the fun             │
+│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2 │
+│ Author    alice (you)                              │
+│ Head      8945f6189adf027892c85ac57f7e9341049c2537 │
+│ Base      [..                                    ] │
+│ Branches  changes                                  │
+│ Commits   ahead 2, behind 0                        │
+│ Status    open                                     │
+├────────────────────────────────────────────────────┤
+│ 8945f61 Define the LICENSE                         │
+│ 03c02af Add README, just for the fun               │
+├────────────────────────────────────────────────────┤
+│ ● Revision 89f7afb @ 03c02af by alice (you) now    │
+│ ↑ Revision 5d78dd5 @ 8945f61 by alice (you) now    │
+╰────────────────────────────────────────────────────╯
 ```
 
 We can change the title and description of the patch itself by using a
@@ -68,23 +69,24 @@ multi-line message (using two `--message` options here):
 ```
 $ rad patch edit 89f7afb --message "Add Metadata" --message "Add README & LICENSE" --no-announce
 $ rad patch show 89f7afb
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title     Add Metadata                                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
-│ Author    alice (you)                                               │
-│ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
-│ Branches  changes                                                   │
-│ Commits   ahead 2, behind 0                                         │
-│ Status    open                                                      │
-│                                                                     │
-│ Add README & LICENSE                                                │
-├─────────────────────────────────────────────────────────────────────┤
-│ 8945f61 Define the LICENSE                                          │
-│ 03c02af Add README, just for the fun                                │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
-╰─────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ Title     Add Metadata                             │
+│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2 │
+│ Author    alice (you)                              │
+│ Head      8945f6189adf027892c85ac57f7e9341049c2537 │
+│ Base      [..                                    ] │
+│ Branches  changes                                  │
+│ Commits   ahead 2, behind 0                        │
+│ Status    open                                     │
+│                                                    │
+│ Add README & LICENSE                               │
+├────────────────────────────────────────────────────┤
+│ 8945f61 Define the LICENSE                         │
+│ 03c02af Add README, just for the fun               │
+├────────────────────────────────────────────────────┤
+│ ● Revision 89f7afb @ 03c02af by alice (you) now    │
+│ ↑ Revision 5d78dd5 @ 8945f61 by alice (you) now    │
+╰────────────────────────────────────────────────────╯
 ```
 
 Notice that the `Title` is now `Add Metadata`, and the patch now has a
@@ -96,23 +98,24 @@ If we want to change a specific revision's description, we can use the
 ```
 $ rad patch edit 89f7afb --revision 5d78dd5 --message "Changes: Adds LICENSE file" --no-announce
 $ rad patch show 89f7afb
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title     Add Metadata                                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
-│ Author    alice (you)                                               │
-│ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
-│ Branches  changes                                                   │
-│ Commits   ahead 2, behind 0                                         │
-│ Status    open                                                      │
-│                                                                     │
-│ Add README & LICENSE                                                │
-├─────────────────────────────────────────────────────────────────────┤
-│ 8945f61 Define the LICENSE                                          │
-│ 03c02af Add README, just for the fun                                │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
-╰─────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ Title     Add Metadata                             │
+│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2 │
+│ Author    alice (you)                              │
+│ Head      8945f6189adf027892c85ac57f7e9341049c2537 │
+│ Base      [..                                    ] │
+│ Branches  changes                                  │
+│ Commits   ahead 2, behind 0                        │
+│ Status    open                                     │
+│                                                    │
+│ Add README & LICENSE                               │
+├────────────────────────────────────────────────────┤
+│ 8945f61 Define the LICENSE                         │
+│ 03c02af Add README, just for the fun               │
+├────────────────────────────────────────────────────┤
+│ ● Revision 89f7afb @ 03c02af by alice (you) now    │
+│ ↑ Revision 5d78dd5 @ 8945f61 by alice (you) now    │
+╰────────────────────────────────────────────────────╯
 ```
 
 We can see that this didn't affect the patch's description, but

@@ -21,20 +21,21 @@ First we see the patch as merged.
 
 ```
 $ rad patch show 696ec5508494692899337afe6713fe1796d0315c
-╭────────────────────────────────────────────────────────────────╮
-│ Title     First change                                         │
-│ Patch     696ec5508494692899337afe6713fe1796d0315c             │
-│ Author    alice (you)                                          │
-│ Head      20aa5dde6210796c3a2f04079b42316a31d02689             │
-│ Branches  feature/1, master                                    │
-│ Commits   up to date                                           │
-│ Status    merged                                               │
-├────────────────────────────────────────────────────────────────┤
-│ 20aa5dd First change                                           │
-├────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (20aa5dd) now                          │
-│   └─ ✓ merged by alice (you) at revision 696ec55 (20aa5dd) now │
-╰────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ Title     First change                             │
+│ Patch     696ec5508494692899337afe6713fe1796d0315c │
+│ Author    alice (you)                              │
+│ Head      20aa5dde6210796c3a2f04079b42316a31d02689 │
+│ Base      [..                                    ] │
+│ Branches  feature/1, master                        │
+│ Commits   up to date                               │
+│ Status    merged                                   │
+├────────────────────────────────────────────────────┤
+│ 20aa5dd First change                               │
+├────────────────────────────────────────────────────┤
+│ ● Revision 696ec55 @ 20aa5dd by alice (you) now    │
+│   └─ ✓ merged                by alice (you)        │
+╰────────────────────────────────────────────────────╯
 ```
 
 Now let's revert the patch by pushing a new `master` that doesn't include
@@ -64,12 +65,13 @@ $ rad patch show 696ec5508494692899337afe6713fe1796d0315c
 │ Patch     696ec5508494692899337afe6713fe1796d0315c │
 │ Author    alice (you)                              │
 │ Head      20aa5dde6210796c3a2f04079b42316a31d02689 │
+│ Base      [..                                    ] │
 │ Branches  feature/1                                │
 │ Commits   ahead 1, behind 0                        │
 │ Status    open                                     │
 ├────────────────────────────────────────────────────┤
 │ 20aa5dd First change                               │
 ├────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (20aa5dd) now              │
+│ ● Revision 696ec55 @ 20aa5dd by alice (you) now    │
 ╰────────────────────────────────────────────────────╯
 ```

@@ -23,13 +23,14 @@ $ rad patch show 97e18f8598237a396a1c0ac1509c89028e666c97
 │ Patch     97e18f8598237a396a1c0ac1509c89028e666c97 │
 │ Author    alice (you)                              │
 │ Head      2a465832b5a76abe25be44a3a5d224bbd7741ba7 │
+│ Base      [..                                    ] │
 │ Branches  cloudhead/draft                          │
 │ Commits   ahead 1, behind 0                        │
 │ Status    draft                                    │
 ├────────────────────────────────────────────────────┤
 │ 2a46583 Nothing to see here..                      │
 ├────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (2a46583) [ .. ]           │
+│ ● Revision 97e18f8 @ 2a46583 by alice (you) now    │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -46,13 +47,14 @@ $ rad patch show 97e18f8598237a396a1c0ac1509c89028e666c97
 │ Patch     97e18f8598237a396a1c0ac1509c89028e666c97 │
 │ Author    alice (you)                              │
 │ Head      2a465832b5a76abe25be44a3a5d224bbd7741ba7 │
+│ Base      [..                                    ] │
 │ Branches  cloudhead/draft                          │
 │ Commits   ahead 1, behind 0                        │
 │ Status    open                                     │
 ├────────────────────────────────────────────────────┤
 │ 2a46583 Nothing to see here..                      │
 ├────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (2a46583) [ .. ]           │
+│ ● Revision 97e18f8 @ 2a46583 by alice (you) now    │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -67,12 +69,13 @@ $ rad patch show 97e18f8598237a396a1c0ac1509c89028e666c97
 │ Patch     97e18f8598237a396a1c0ac1509c89028e666c97 │
 │ Author    alice (you)                              │
 │ Head      2a465832b5a76abe25be44a3a5d224bbd7741ba7 │
+│ Base      [..                                    ] │
 │ Branches  cloudhead/draft                          │
 │ Commits   ahead 1, behind 0                        │
 │ Status    draft                                    │
 ├────────────────────────────────────────────────────┤
 │ 2a46583 Nothing to see here..                      │
 ├────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (2a46583) [ .. ]           │
+│ ● Revision 97e18f8 @ 2a46583 by alice (you) now    │
 ╰────────────────────────────────────────────────────╯
 ```

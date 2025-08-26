@@ -97,20 +97,21 @@ Alice pulls the update.
 
 ``` ~alice
 $ rad patch show 55b9721
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title    Bob's patch                                                │
-│ Patch    55b9721ed7f6bfec38f43729e9b6631c5dc812fb                   │
-│ Author   bob z6Mkt67…v4N1tRk                                        │
-│ Head     cad2666a8a2250e4dee175ed5044be2c251ff08b                   │
-│ Commits  ahead 2, behind 0                                          │
-│ Status   open                                                       │
-├─────────────────────────────────────────────────────────────────────┤
-│ cad2666 Bob's commit #2                                             │
-│ bdcdb30 Bob's commit #1                                             │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by bob z6Mkt67…v4N1tRk (bdcdb30) now                       │
-│ ↑ updated to f91e056da05b2d9a58af1160c76245bc3debf7a8 (cad2666) now │
-╰─────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────╮
+│ Title    Bob's patch                                    │
+│ Patch    55b9721ed7f6bfec38f43729e9b6631c5dc812fb       │
+│ Author   bob z6Mkt67…v4N1tRk                            │
+│ Head     cad2666a8a2250e4dee175ed5044be2c251ff08b       │
+│ Base     [..                                          ] │
+│ Commits  ahead 2, behind 0                              │
+│ Status   open                                           │
+├─────────────────────────────────────────────────────────┤
+│ cad2666 Bob's commit #2                                 │
+│ bdcdb30 Bob's commit #1                                 │
+├─────────────────────────────────────────────────────────┤
+│ ● Revision 55b9721 @ bdcdb30 by bob z6Mkt67…v4N1tRk now │
+│ ↑ Revision f91e056 @ cad2666 by bob z6Mkt67…v4N1tRk now │
+╰─────────────────────────────────────────────────────────╯
 $ git ls-remote rad
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
 cad2666a8a2250e4dee175ed5044be2c251ff08b	refs/heads/patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb

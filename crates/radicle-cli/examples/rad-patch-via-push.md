@@ -25,6 +25,7 @@ $ rad patch show 6035d2f582afbe01ff23ea87528ae523d76875b6
 │ Patch     6035d2f582afbe01ff23ea87528ae523d76875b6 │
 │ Author    alice (you)                              │
 │ Head      42d894a83c9c356552a57af09ccdbd5587a99045 │
+│ Base      [..                                    ] │
 │ Branches  feature/1                                │
 │ Commits   ahead 1, behind 0                        │
 │ Status    open                                     │
@@ -33,7 +34,7 @@ $ rad patch show 6035d2f582afbe01ff23ea87528ae523d76875b6
 ├────────────────────────────────────────────────────┤
 │ 42d894a Add things                                 │
 ├────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (42d894a) now              │
+│ ● Revision 6035d2f @ 42d894a by alice (you) now    │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -137,21 +138,22 @@ We can then see that the patch head has moved:
 
 ```
 $ rad patch show 9580891
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title     Add more things                                           │
-│ Patch     95808913573cead52ad7b42c7b475260ec45c4b2                  │
-│ Author    alice (you)                                               │
-│ Head      02bef3fac41b2f98bb3c02b868a53ddfecb55b5f                  │
-│ Branches  feature/2                                                 │
-│ Commits   ahead 2, behind 0                                         │
-│ Status    open                                                      │
-├─────────────────────────────────────────────────────────────────────┤
-│ 02bef3f Improve code                                                │
-│ 8b0ea80 Add more things                                             │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (8b0ea80) now                               │
-│ ↑ updated to d7040c6c97629c2b94f86fb639bebbff5de39697 (02bef3f) now │
-╰─────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ Title     Add more things                          │
+│ Patch     95808913573cead52ad7b42c7b475260ec45c4b2 │
+│ Author    alice (you)                              │
+│ Head      02bef3fac41b2f98bb3c02b868a53ddfecb55b5f │
+│ Base      [..                                    ] │
+│ Branches  feature/2                                │
+│ Commits   ahead 2, behind 0                        │
+│ Status    open                                     │
+├────────────────────────────────────────────────────┤
+│ 02bef3f Improve code                               │
+│ 8b0ea80 Add more things                            │
+├────────────────────────────────────────────────────┤
+│ ● Revision 9580891 @ 8b0ea80 by alice (you) now    │
+│ ↑ Revision d7040c6 @ 02bef3f by alice (you) now    │
+╰────────────────────────────────────────────────────╯
 ```
 
 And we can check that all the refs are properly updated in our repository:
@@ -217,22 +219,23 @@ That worked. We can see the new revision if we call `rad patch show`:
 
 ```
 $ rad patch show 9580891
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title     Add more things                                           │
-│ Patch     95808913573cead52ad7b42c7b475260ec45c4b2                  │
-│ Author    alice (you)                                               │
-│ Head      9304dbc445925187994a7a93222a3f8bde73b785                  │
-│ Branches  feature/2                                                 │
-│ Commits   ahead 2, behind 0                                         │
-│ Status    open                                                      │
-├─────────────────────────────────────────────────────────────────────┤
-│ 9304dbc Amended commit                                              │
-│ 8b0ea80 Add more things                                             │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (8b0ea80) now                               │
-│ ↑ updated to d7040c6c97629c2b94f86fb639bebbff5de39697 (02bef3f) now │
-│ ↑ updated to 670d02794aa05afd6e0851f4aa848bc87c4712c7 (9304dbc) now │
-╰─────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ Title     Add more things                          │
+│ Patch     95808913573cead52ad7b42c7b475260ec45c4b2 │
+│ Author    alice (you)                              │
+│ Head      9304dbc445925187994a7a93222a3f8bde73b785 │
+│ Base      [..                                    ] │
+│ Branches  feature/2                                │
+│ Commits   ahead 2, behind 0                        │
+│ Status    open                                     │
+├────────────────────────────────────────────────────┤
+│ 9304dbc Amended commit                             │
+│ 8b0ea80 Add more things                            │
+├────────────────────────────────────────────────────┤
+│ ● Revision 9580891 @ 8b0ea80 by alice (you) now    │
+│ ↑ Revision d7040c6 @ 02bef3f by alice (you) now    │
+│ ↑ Revision 670d027 @ 9304dbc by alice (you) now    │
+╰────────────────────────────────────────────────────╯
 ```
 
 ## Empty patch
