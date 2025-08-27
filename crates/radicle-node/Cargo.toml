@@ -16,7 +16,6 @@ test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "radi
 
 [dependencies]
 amplify = { workspace = true }
-anyhow = { workspace = true }
 bloomy = "1.2"
 bytes = { workspace = true }
 chrono = { workspace = true, features = ["clock"] }

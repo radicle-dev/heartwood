@@ -1,11 +1,14 @@
 use std::io;
-use std::{env, fs, net, path::PathBuf, process};
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::process::exit;
 
-use anyhow::Context;
 use crossbeam_channel as chan;
+use thiserror::Error;
 
 use radicle::node::device::Device;
 use radicle::profile;
+
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::{Runtime, VERSION};
 #[cfg(unix)]
@@ -39,65 +42,74 @@ Options
     --help                              Print help
 "#;
 
-#[derive(Debug)]
 struct Options {
     config: Option<PathBuf>,
-    listen: Vec<net::SocketAddr>,
+    listen: Vec<SocketAddr>,
     log: Option<log::Level>,
     force: bool,
 }
 
-impl Options {
-    fn from_env() -> Result<Self, anyhow::Error> {
-        use lexopt::prelude::*;
+fn parse_options() -> Result<Options, lexopt::Error> {
+    use lexopt::prelude::*;
+    use std::str::FromStr as _;
 
-        let mut parser = lexopt::Parser::from_env();
-        let mut listen = Vec::new();
-        let mut config = None;
-        let mut force = false;
-        let mut log = None;
+    let mut parser = lexopt::Parser::from_env();
+    let mut listen = Vec::new();
+    let mut config = None;
+    let mut force = false;
+    let mut log = None;
 
-        while let Some(arg) = parser.next()? {
-            match arg {
-                Long("force") => {
-                    force = true;
-                }
-                Long("config") => {
-                    let value = parser.value()?;
-                    let path = PathBuf::from(value);
-                    config = Some(path);
-                }
-                Long("listen") => {
-                    let addr = parser.value()?.parse()?;
-                    listen.push(addr);
-                }
-                Long("log") => {
-                    log = Some(parser.value()?.parse()?);
-                }
-                Long("help") | Short('h') => {
-                    println!("{HELP_MSG}");
-                    process::exit(0);
-                }
-                Long("version") => {
-                    VERSION.write(&mut io::stdout())?;
-                    process::exit(0);
-                }
-                _ => anyhow::bail!(arg.unexpected()),
+    while let Some(arg) = parser.next()? {
+        match arg {
+            Long("force") => {
+                force = true;
+            }
+            Long("config") => {
+                config = Some(parser.value()?.parse_with(PathBuf::from_str)?);
+            }
+            Long("listen") => {
+                let addr = parser.value()?.parse_with(SocketAddr::from_str)?;
+                listen.push(addr);
+            }
+            Long("log") => {
+                log = Some(parser.value()?.parse_with(log::Level::from_str)?);
+            }
+            Long("help") | Short('h') => {
+                println!("{HELP_MSG}");
+                exit(0);
+            }
+            Long("version") => {
+                let _ = VERSION.write(&mut io::stdout());
+                exit(0);
+            }
+            _ => {
+                return Err(arg.unexpected());
             }
         }
-
-        Ok(Self {
-            force,
-            listen,
-            log,
-            config,
-        })
     }
+
+    Ok(Options {
+        force,
+        listen,
+        log,
+        config,
+    })
 }
 
-fn execute() -> anyhow::Result<()> {
+#[derive(Error, Debug)]
+enum ExecutionError {
+    #[error(transparent)]
+    Io(#[from] io::Error),
+    #[error(transparent)]
+    ConfigurationLoading(#[from] profile::config::LoadError),
+    #[error(transparent)]
+    MemorySigner(#[from] radicle::crypto::ssh::keystore::MemorySignerError),
+    #[error(transparent)]
+    Runtime(#[from] radicle_node::runtime::Error),
+}
+
+fn execute(options: Options) -> Result<(), ExecutionError> {
     let home = profile::home()?;
-    let options = Options::from_env()?;
 
     // Up to now, the active log level was `LOG_LEVEL_DEFAULT`.
     // The first thing we do after reading command line options is
@@ -126,16 +138,14 @@ fn execute() -> anyhow::Result<()> {
 
     let passphrase = profile::env::passphrase();
     let keystore = Keystore::new(&home.keys());
-    let signer = Device::from(
-        MemorySigner::load(&keystore, passphrase).context("couldn't load secret key")?,
-    );
+    let signer = Device::from(MemorySigner::load(&keystore, passphrase)?);
 
     log::info!(target: "node", "Node ID is {}", signer.public_key());
 
     // Add the preferred seeds as persistent peers so that we reconnect to them automatically.
     config.node.connect.extend(config.preferred_seeds);
 
-    let listen: Vec<std::net::SocketAddr> = if !options.listen.is_empty() {
+    let listen = if !options.listen.is_empty() {
         options.listen.clone()
     } else {
         config.node.listen.clone()
@@ -161,7 +171,7 @@ fn execute() -> anyhow::Result<()> {
 
     if options.force {
         log::debug!(target: "node", "Removing existing control socket..");
-        fs::remove_file(home.socket()).ok();
+        std::fs::remove_file(home.socket()).ok();
     }
     Runtime::init(home, config.node, listen, signals, signer)?.run()?;
 
@@ -186,7 +196,7 @@ fn initialize_logging() {
 
             #[derive(Error, Debug)]
             #[error("Error connecting to systemd journal: {0}")]
-            struct JournalError(std::io::Error);
+            struct JournalError(io::Error);
 
             radicle_systemd::journal::logger::<&str, &str, _>("radicle-node".to_string(), [])
                 .map_err(|err| Box::new(JournalError(err)) as Error)
@@ -226,8 +236,17 @@ fn main() {
 
     initialize_logging();
 
-    if let Err(err) = execute() {
+    let options = match parse_options() {
+        Ok(options) => options,
+        Err(err) => {
+            // The lexopt errors read nicely with a comma.
+            log::error!(target: "node", "Failed to parse options, {err:#}");
+            exit(2);
+        }
+    };
+
+    if let Err(err) = execute(options) {
         log::error!(target: "node", "{err:#}");
-        process::exit(1);
+        exit(1);
     }
 }
