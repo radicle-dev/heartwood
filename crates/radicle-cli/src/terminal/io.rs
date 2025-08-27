@@ -49,14 +49,13 @@ pub fn signer(profile: &Profile) -> anyhow::Result<BoxedDevice> {
         return Ok(signer);
     }
     let validator = PassphraseValidator::new(profile.keystore.clone());
-    let passphrase = match passphrase(validator) {
-        Ok(p) => p,
-        Err(inquire::InquireError::NotTTY) => {
+    let passphrase = match passphrase(validator)? {
+        Some(p) => p,
+        None => {
             anyhow::bail!(
-                "running in non-interactive mode, please set `{RAD_PASSPHRASE}` to unseal your key",
+                "A passphrase is required to read your Radicle key. Unable to continue. Consider setting the environment variable `{RAD_PASSPHRASE}`.",
             )
         }
-        Err(e) => return Err(e.into()),
     };
     let spinner = spinner("Unsealing key...");
     let signer = MemorySigner::load(&profile.keystore, Some(passphrase))?;

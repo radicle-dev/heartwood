@@ -243,18 +243,28 @@ pub fn init(
     let name: ProjectName = match options.name {
         Some(name) => name,
         None => {
-            let default = path.file_name().map(|f| f.to_string_lossy().to_string());
-            term::input(
+            let default = path
+                .file_name()
+                .and_then(|f| f.to_str())
+                .and_then(|f| ProjectName::try_from(f).ok());
+            let name = term::input(
                 "Name",
                 default,
                 Some("The name of your repository, eg. 'acme'"),
-            )?
-            .try_into()?
+            )?;
+
+            let Some(name) = name else {
+                anyhow::bail!("A project name is required.")
+            };
+
+            name
         }
     };
     let description = match options.description {
         Some(desc) => desc,
-        None => term::input("Description", None, Some("You may leave this blank"))?,
+        None => {
+            term::input("Description", None, Some("You may leave this blank"))?.unwrap_or_default()
+        }
     };
     let branch = match options.branch {
         Some(branch) => branch,
@@ -262,7 +272,8 @@ pub fn init(
             "Default branch",
             Some(default_branch),
             Some("Please specify an existing branch"),
-        )?,
+        )?
+        .unwrap_or_default(),
         None => default_branch,
     };
     let branch = RefString::try_from(branch.clone())

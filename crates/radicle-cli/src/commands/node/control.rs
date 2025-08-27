@@ -12,6 +12,7 @@ use localtime::LocalTime;
 
 use radicle::node;
 use radicle::node::{Address, ConnectResult, Handle as _, NodeId};
+use radicle::profile::env::RAD_PASSPHRASE;
 use radicle::Node;
 use radicle::{profile, Profile};
 
@@ -39,10 +40,12 @@ pub fn start(
         let validator = term::io::PassphraseValidator::new(profile.keystore.clone());
         let passphrase = if let Some(phrase) = profile::env::passphrase() {
             phrase
-        } else if let Ok(phrase) = term::io::passphrase(validator) {
+        } else if let Some(phrase) = term::io::passphrase(validator)? {
             phrase
         } else {
-            anyhow::bail!("your radicle passphrase is required to start your node");
+            anyhow::bail!(
+                "A passphrase is required to read your Radicle key in order to start the node. Unable to continue. Consider setting the environment variable `{RAD_PASSPHRASE}`."
+            );
         };
         Some((profile::env::RAD_PASSPHRASE, passphrase))
     } else {

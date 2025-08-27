@@ -2991,7 +2991,6 @@ name = "radicle-term"
 version = "0.15.0"
 dependencies = [
  "anstyle-query",
- "anyhow",
  "crossbeam-channel",
  "crossterm 0.29.0",
  "git2",

@@ -8,6 +8,7 @@ use inquire::ui::{ErrorMessageRenderConfig, StyleSheet, Styled};
 use inquire::validator;
 use inquire::InquireError;
 use inquire::{ui::Color, ui::RenderConfig, Confirm, CustomType, Password};
+use thiserror::Error;
 use zeroize::Zeroizing;
 
 use crate::format;
@@ -223,54 +224,123 @@ pub fn abort<D: fmt::Display>(prompt: D) -> bool {
     ask(prompt, false)
 }
 
-pub fn input<S, E>(message: &str, default: Option<S>, help: Option<&str>) -> anyhow::Result<S>
+#[derive(Error, Debug)]
+pub enum InputError<Custom> {
+    #[error(transparent)]
+    Io(#[from] io::Error),
+
+    #[error(transparent)]
+    Custom(Custom),
+}
+
+impl From<InputError<std::convert::Infallible>> for io::Error {
+    fn from(val: InputError<std::convert::Infallible>) -> Self {
+        match val {
+            InputError::Io(err) => err,
+            InputError::Custom(_) => unreachable!("infallible cannot be constructed"),
+        }
+    }
+}
+
+/// Prompts the user for input. If the user cancels the operation,
+/// the operation is interrupted, or no suitable terminal is found,
+/// then `Ok(None)` is returned.
+pub fn input<T, E>(
+    message: &str,
+    default: Option<T>,
+    help: Option<&str>,
+) -> Result<Option<T>, InputError<E>>
 where
-    S: fmt::Display + std::str::FromStr<Err = E> + Clone,
-    E: fmt::Debug + fmt::Display,
+    T: fmt::Display + std::str::FromStr<Err = E> + Clone,
+    E: std::error::Error + Send + Sync + 'static,
 {
-    let mut input = CustomType::<S>::new(message).with_render_config(*CONFIG);
+    let mut input = CustomType::<T>::new(message).with_render_config(*CONFIG);
 
     input.default = default;
     input.help_message = help;
 
-    let value = input.prompt()?;
+    match input.prompt() {
+        Ok(value) => Ok(Some(value)),
+        Err(err) => unwrap_inquire_error(err),
+    }
+}
 
-    Ok(value)
+fn unwrap_inquire_error<T, E>(error: InquireError) -> Result<Option<T>, InputError<E>>
+where
+    E: std::error::Error + Send + Sync + 'static,
+{
+    use InquireError::*;
+
+    let inner = match error {
+        OperationCanceled | OperationInterrupted | NotTTY => None,
+        InvalidConfiguration(err) => {
+            // This case not reachable, as long as the configuration passed
+            // to `prompt` is valid.
+            // The configuration is *mostly* taken from `CONFIG`,
+            // except for the added `CustomType` being prompted for.
+            // We demand that these must not depend on user input in
+            // a way that makes the configuration invalid.
+            // If this is the case, `CONFIG` should be reassessed, or
+            // the caller must control their input for the `CustomType`
+            // better. In any case, such errors are not recoverable,
+            // and certainly the user cannot do anything in that
+            // situation. Their input should not affect the config,
+            // that's the whole idea!
+            panic!("{err}")
+        }
+        IO(err) => Some(InputError::Io(err)),
+        Custom(err) => {
+            match err.downcast::<E>() {
+                Ok(err) => Some(InputError::Custom(*err)),
+                Err(err) => {
+                    // `inquire` guarantees that we do not end up here:
+                    // https://github.com/mikaelmello/inquire/blob/4ac91f3e1fc8b29fc17845f9204ea1d1f9e335aa/README.md?plain=1#L109
+                    panic!("inquire returned an unexpected error: {err:?}")
+                }
+            }
+        }
+    };
+
+    match inner {
+        Some(err) => Err(err),
+        None => Ok(None),
+    }
 }
 
 pub fn passphrase<V: validator::StringValidator + 'static>(
     validate: V,
-) -> Result<Passphrase, inquire::InquireError> {
-    Ok(Passphrase::from(
-        Password::new("Passphrase:")
-            .with_render_config(*CONFIG)
-            .with_display_mode(inquire::PasswordDisplayMode::Masked)
-            .without_confirmation()
-            .with_validator(validate)
-            .prompt()?,
-    ))
-}
-
-pub fn passphrase_confirm<K: AsRef<OsStr>>(
-    prompt: &str,
-    var: K,
-) -> Result<Passphrase, anyhow::Error> {
-    if let Ok(p) = env::var(var) {
-        Ok(Passphrase::from(p))
-    } else {
-        Ok(Passphrase::from(
-            Password::new(prompt)
-                .with_render_config(*CONFIG)
-                .with_display_mode(inquire::PasswordDisplayMode::Masked)
-                .with_custom_confirmation_message("Repeat passphrase:")
-                .with_custom_confirmation_error_message("The passphrases don't match.")
-                .with_help_message("Leave this blank to keep your radicle key unencrypted")
-                .prompt()?,
-        ))
+) -> io::Result<Option<Passphrase>> {
+    match Password::new("Passphrase:")
+        .with_render_config(*CONFIG)
+        .with_display_mode(inquire::PasswordDisplayMode::Masked)
+        .without_confirmation()
+        .with_validator(validate)
+        .prompt()
+    {
+        Ok(p) => Ok(Some(Passphrase::from(p))),
+        Err(err) => unwrap_inquire_error(err).map_err(InputError::into),
     }
 }
 
-pub fn passphrase_stdin() -> Result<Passphrase, anyhow::Error> {
+pub fn passphrase_confirm<K: AsRef<OsStr>>(prompt: &str, var: K) -> io::Result<Option<Passphrase>> {
+    if let Ok(p) = env::var(var) {
+        return Ok(Some(Passphrase::from(p)));
+    }
+
+    match Password::new(prompt)
+        .with_render_config(*CONFIG)
+        .with_display_mode(inquire::PasswordDisplayMode::Masked)
+        .with_custom_confirmation_message("Repeat passphrase:")
+        .with_custom_confirmation_error_message("The passphrases don't match.")
+        .with_help_message("Leave this blank to keep your radicle key unencrypted")
+        .prompt()
+    {
+        Ok(p) => Ok(Some(Passphrase::from(p))),
+        Err(err) => unwrap_inquire_error(err).map_err(InputError::into),
+    }
+}
+
+pub fn passphrase_stdin() -> io::Result<Passphrase> {
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
 

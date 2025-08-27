@@ -29,6 +29,12 @@ pub enum ProjectError {
 #[serde(try_from = "String", into = "String")]
 pub struct ProjectName(String);
 
+impl std::fmt::Display for ProjectName {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 impl From<ProjectName> for String {
     fn from(value: ProjectName) -> Self {
         value.0

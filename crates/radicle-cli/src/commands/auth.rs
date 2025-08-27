@@ -1,6 +1,5 @@
 #![allow(clippy::or_fun_call)]
 use std::ffi::OsString;
-use std::ops::Not as _;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context};
@@ -90,26 +89,32 @@ pub fn init(options: Options) -> anyhow::Result<()> {
             term::blank();
         }
     } else {
-        anyhow::bail!("a Git installation is required for Radicle to run");
+        anyhow::bail!("A Git installation is required for Radicle to run.");
     }
 
     let alias: Alias = if let Some(alias) = options.alias {
         alias
     } else {
         let user = env::var("USER").ok().and_then(|u| Alias::from_str(&u).ok());
-        term::input(
+        let user = term::input(
             "Enter your alias:",
             user,
             Some("This is your node alias. You can always change it later"),
-        )?
+        )?;
+
+        let Some(user) = user else {
+            anyhow::bail!("An alias is required for Radicle to run.")
+        };
+
+        user
     };
     let home = profile::home()?;
     let passphrase = if options.stdin {
-        term::passphrase_stdin()
+        Some(term::passphrase_stdin()?)
     } else {
-        term::passphrase_confirm("Enter a passphrase:", env::RAD_PASSPHRASE)
-    }?;
-    let passphrase = passphrase.trim().is_empty().not().then_some(passphrase);
+        term::passphrase_confirm("Enter a passphrase:", env::RAD_PASSPHRASE)?
+    };
+    let passphrase = passphrase.filter(|passphrase| !passphrase.trim().is_empty());
     let spinner = term::spinner("Creating your Ed25519 keypair...");
     let profile = Profile::init(home, alias, passphrase.clone(), env::seed())?;
     let mut agent = true;
@@ -187,8 +192,14 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
                 phrase
             } else if options.stdin {
                 term::passphrase_stdin()?
-            } else {
+            } else if let Some(passphrase) =
                 term::io::passphrase(term::io::PassphraseValidator::new(profile.keystore.clone()))?
+            {
+                passphrase
+            } else {
+                anyhow::bail!(
+                    "A passphrase is required to read your Radicle key. Unable to continue."
+                )
             };
             register(&mut agent, profile, passphrase)?;
 
