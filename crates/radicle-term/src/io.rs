@@ -10,7 +10,6 @@ use inquire::InquireError;
 use inquire::{ui::Color, ui::RenderConfig, Confirm, CustomType, Password};
 use zeroize::Zeroizing;
 
-use crate::command;
 use crate::format;
 use crate::{style, Paint, Size};
 
@@ -288,10 +287,4 @@ where
         .with_render_config(*CONFIG);
 
     selection.with_starting_cursor(0).prompt()
-}
-
-pub fn markdown(content: &str) {
-    if !content.is_empty() && command::bat(["-p", "-l", "md"], content).is_err() {
-        blob(content);
-    }
 }
