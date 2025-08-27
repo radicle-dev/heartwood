@@ -7,6 +7,7 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 
 pub mod control;
+pub mod fingerprint;
 pub mod runtime;
 pub(crate) use radicle_protocol::service;
 #[cfg(any(test, feature = "test"))]

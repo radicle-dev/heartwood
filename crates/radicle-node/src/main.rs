@@ -11,6 +11,7 @@ use radicle::node::device::Device;
 use radicle::profile;
 
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
+use radicle_node::fingerprint::{Fingerprint, FingerprintVerification};
 use radicle_node::{Runtime, VERSION};
 #[cfg(unix)]
 use radicle_signals as signals;
@@ -27,6 +28,8 @@ Options
 
     --config      <path>                            Config file to use
                   (default: ~/.radicle/config.json)
+    --secret      <path>                            Secret key to use
+                  (default ~/.radicle/keys/radicle)
     --force                                         Force start even if an existing control socket
                                                       is found
     --listen      <address>                         Address to listen on
@@ -100,6 +103,7 @@ struct LogOptions {
 
 struct Options {
     config: Option<PathBuf>,
+    secret: Option<PathBuf>,
     listen: Vec<SocketAddr>,
     log: LogOptions,
     force: bool,
@@ -112,6 +116,7 @@ fn parse_options() -> Result<Options, lexopt::Error> {
     let mut parser = lexopt::Parser::from_env();
     let mut listen = Vec::new();
     let mut config = None;
+    let mut secret = None;
     let mut force = false;
     let mut log_level = None;
     let mut log_logger = Logger::default();
@@ -124,6 +129,9 @@ fn parse_options() -> Result<Options, lexopt::Error> {
             }
             Long("config") => {
                 config = Some(parser.value()?.parse_with(PathBuf::from_str)?);
+            }
+            Long("secret") => {
+                secret = Some(parser.value()?.parse()?);
             }
             Long("listen") => {
                 let addr = parser.value()?.parse_with(SocketAddr::from_str)?;
@@ -164,6 +172,7 @@ fn parse_options() -> Result<Options, lexopt::Error> {
 
     Ok(Options {
         force,
+        secret,
         listen,
         config,
         log: LogOptions {
@@ -181,9 +190,21 @@ enum ExecutionError {
     #[error(transparent)]
     ConfigurationLoading(#[from] profile::config::LoadError),
     #[error(transparent)]
-    MemorySigner(#[from] radicle::crypto::ssh::keystore::MemorySignerError),
-    #[error(transparent)]
     Runtime(#[from] radicle_node::runtime::Error),
+    #[error(transparent)]
+    Fingerprint(#[from] radicle_node::fingerprint::Error),
+    #[error("failed to load secret key '{path}': not found")]
+    SecretNotFound { path: PathBuf },
+    #[error("failed to load secret '{path}': {source}")]
+    SecretLoading {
+        path: PathBuf,
+        source: radicle::crypto::ssh::keystore::Error,
+    },
+    #[error("failed to load secret key '{secret}': fingerprint of corresponding public key is different from '{fingerprint}'")]
+    FingerprintMismatch {
+        secret: PathBuf,
+        fingerprint: Fingerprint,
+    },
 }
 
 fn execute(options: Options) -> Result<(), ExecutionError> {
@@ -215,9 +236,38 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
     log::info!(target: "node", "Unlocking node keystore..");
 
     let passphrase = profile::env::passphrase();
-    let keystore = Keystore::new(&home.keys());
-    let signer = Device::from(MemorySigner::load(&keystore, passphrase)?);
 
+    let secret_path = options
+        .secret
+        .or_else(|| config.node.secret.clone())
+        .unwrap_or_else(|| home.keys().join("radicle"));
+
+    let keystore = Keystore::from_secret_path(&secret_path);
+
+    let secret_key = keystore
+        .secret_key(passphrase.clone())
+        .map_err(|err| ExecutionError::SecretLoading {
+            path: secret_path.clone(),
+            source: err,
+        })?
+        .ok_or_else(|| ExecutionError::SecretNotFound {
+            path: secret_path.clone(),
+        })?;
+
+    if let Some(fp) = Fingerprint::read(&home)? {
+        log::debug!(target: "node", "Verifying fingerprint..");
+        if fp.verify(&secret_key) != FingerprintVerification::Match {
+            return Err(ExecutionError::FingerprintMismatch {
+                secret: keystore.secret_key_path().to_path_buf(),
+                fingerprint: fp,
+            });
+        }
+    } else {
+        log::info!(target: "node", "Initializing fingerprint..");
+        Fingerprint::init(&home, &secret_key)?;
+    }
+
+    let signer = Device::from(MemorySigner::from_secret(secret_key));
     log::info!(target: "node", "Node ID is {}", signer.public_key());
 
     // Add the preferred seeds as persistent peers so that we reconnect to them automatically.

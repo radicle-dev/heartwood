@@ -459,6 +459,14 @@ pub struct Config {
     /// Extra fields that aren't supported.
     #[serde(flatten, skip_serializing)]
     pub extra: json::Map<String, json::Value>,
+    /// Path to a file containing an Ed25519 secret key, in OpenSSH format, i.e.
+    /// with the `-----BEGIN OPENSSH PRIVATE KEY-----` header. The corresponding
+    /// public key will be used as the Node ID.
+    ///
+    /// A decryption password cannot be configured, but passed at runtime via
+    /// the environment variable `RAD_PASSPHRASE`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secret: Option<std::path::PathBuf>,
 }
 
 impl Config {
@@ -485,6 +493,7 @@ impl Config {
             log: LogLevel::default(),
             seeding_policy: DefaultSeedingPolicy::default(),
             extra: json::Map::default(),
+            secret: None,
         }
     }
 
