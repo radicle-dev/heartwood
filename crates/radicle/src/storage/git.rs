@@ -1093,7 +1093,8 @@ mod tests {
         let (rid, _, working, _) =
             fixtures::project(tmp.path().join("project"), &storage, &signer).unwrap();
         let stored = storage.repository(rid).unwrap();
-        let sig = git2::Signature::now(&alice.to_string(), "anonymous@radicle.xyz").unwrap();
+        let sig =
+            git2::Signature::now(&alice.to_string(), "anonymous@radicle.example.com").unwrap();
         let head = working.head().unwrap().peel_to_commit().unwrap();
 
         git::commit(

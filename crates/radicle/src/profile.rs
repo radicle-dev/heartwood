@@ -784,7 +784,7 @@ mod test {
     #[test]
     fn test_config() {
         let cfg = json::from_value::<Config>(json::json!({
-          "publicExplorer": "https://app.radicle.xyz/nodes/$host/$rid$path",
+          "publicExplorer": "https://app.radicle.example.com/nodes/$host/$rid$path",
           "preferredSeeds": [],
           "web": {
             "pinned": {
@@ -800,8 +800,8 @@ mod test {
             "listen": [],
             "peers": { "type": "dynamic", "target": 8 },
             "connect": [
-              "z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo@rosa.radicle.xyz:8776",
-              "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@iris.radicle.xyz:8776"
+              "z6MkmJzKhSjQz1USfh8NBtaAFyz5gJace9eBV9yFcfMY5BN5@a.radicle.example.com:8776",
+              "z6MkrUZHwJD3pqerEBugSZRxDFdVqKnMUbyPHcFe5gkfFvTe@b.radicle.example.com:8776"
             ],
             "externalAddresses": [ "seed.radicle.example.com:8776" ],
             "db": { "journalMode": "wal" },

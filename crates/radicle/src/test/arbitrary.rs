@@ -298,7 +298,7 @@ impl Arbitrary for Address {
                 cyphernet::addr::HostName::Ip(net::IpAddr::V6(net::Ipv6Addr::from(octets)))
             }
             AddressType::Dns => cyphernet::addr::HostName::Dns(
-                g.choose(&["iris.radicle.xyz", "rosa.radicle.xyz"])
+                g.choose(&["iris.radicle.example.com", "rosa.radicle.example.com"])
                     .unwrap()
                     .to_string(),
             ),

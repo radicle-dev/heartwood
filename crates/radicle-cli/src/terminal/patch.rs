@@ -489,7 +489,7 @@ mod test {
     ) -> git::Oid {
         let sig = git::raw::Signature::new(
             "anonymous",
-            "anonymous@radicle.xyz",
+            "anonymous@radicle.example.com",
             &git::raw::Time::new(0, 0),
         )
         .unwrap();
