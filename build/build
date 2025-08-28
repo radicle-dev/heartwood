@@ -37,9 +37,14 @@ main() {
 
   echo "Building Radicle $version.."
   echo "Creating archive of repository at $rev in $gitarchive.."
-  git archive --format tar.gz -o "$gitarchive" HEAD
+
+  # TODO(lorenz): This file should probably also move to the "radicle-r13y" repo,
+  # so the definition of environment variables TARGETS, PACKAGES, BINARIES should
+  # *NOT* be here, but even outside of this script. I just defined them here to
+  # iterate on the build process setup.
 
   echo "Building image ($image).."
+  git archive --format tar.gz HEAD | \
   podman --cgroup-manager=cgroupfs build \
     --build-arg "RUST_VERSION=$rust_version" \
     --build-arg SOURCE_DATE_EPOCH \
@@ -47,7 +52,10 @@ main() {
     --build-arg LC_ALL \
     --build-arg "RADICLE_VERSION=$version" \
     --build-arg "GIT_HEAD=$rev" \
-    --arch amd64 --tag "$image" -f ./build/Dockerfile - < "$gitarchive"
+    --build-arg "TARGETS=x86_64-unknown-linux-musl" \
+    --build-arg "PACKAGES=radicle-cli radicle-remote-helper radicle-node" \
+    --build-arg "BINARIES=radicle-node rad git-remote-rad" \
+    --arch amd64 --tag "$image" -f ./build/Containerfile - < "$gitarchive"
 
   echo "Creating container (radicle-build-container).."
   podman --cgroup-manager=cgroupfs create --ulimit=host --replace --name radicle-build-container "$image"
@@ -75,9 +83,11 @@ main() {
     ssh-keygen -Y check-novalidate -n file -s "$filepath.sig" < "$filepath"
   done < build/TARGETS
 
+  # TODO(lorenz): Revisit this. The Containerfile changed,
+  # so removing these images might be a bad idea now.
   # Remove build artifacts that aren't needed anymore.
-  podman rm radicle-build-container > /dev/null
-  podman rmi --ignore "localhost/$image"
+  #podman rm radicle-build-container > /dev/null
+  #podman rmi --ignore "localhost/$image"
 }
 
 # Run build.
