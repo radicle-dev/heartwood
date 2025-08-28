@@ -168,54 +168,81 @@
           prefix = "msrv-";
         })
         // {
-          pre-commit-check = inputs.git-hooks.lib.${system}.run {
-            src = ./.;
-            settings.rust.check.cargoDeps = pkgs.rustPlatform.importCargoLock {lockFile = ./Cargo.lock;};
-            hooks = {
-              alejandra.enable = true;
-              rustfmt = {
+          pre-commit-check = let
+            grep = rec {
+              words = ["radicle.xyz" "radicle.zulipchat.com"];
+              after = map id words;
+              prefix = "grep-";
+              id = word: prefix + word;
+              hooks = builtins.listToAttrs (map (word: {
+                  # "," is problematic, as this is used to split
+                  # lists of hook names, when skipping, see:
+                  # https://pre-commit.com/#temporarily-disabling-hooks
+                  name = assert !lib.hasInfix "," word; id word;
+                  value = hook word;
+                })
+                words);
+              hook = word: {
                 enable = true;
-                fail_fast = true;
-                packageOverrides.rustfmt = rustup.toolchain;
-              };
-              cargo-check = {
-                enable = true;
-                name = "cargo check";
-                after = ["rustfmt"];
-                fail_fast = true;
-              };
-              cargo-doc = let
-                # We wrap `cargo` in order to set an environment variable that
-                # gives us a non-zero exit on warning.
-                command =
-                  pkgs.writeShellScript
-                  "cargo"
-                  "RUSTDOCFLAGS='--deny warnings' ${lib.getExe' rustup.toolchain "cargo"} $@";
-              in {
-                enable = true;
-                name = "cargo doc";
-                after = ["rustfmt"];
-                fail_fast = true;
-                entry = "${command} doc --workspace --all-features --no-deps";
+                entry = builtins.toString (pkgs.writeShellScript
+                  "grep-${word}"
+                  "! ${lib.getExe pkgs.ripgrep} --context=3 --fixed-strings '${word}' $@");
+                name = "Avoid '${word}' in Rust code";
                 files = "\\.rs$";
-                pass_filenames = false;
+                pass_filenames = true;
               };
-              clippy = {
-                enable = true;
-                name = "cargo clippy";
-                stages = ["pre-push"]; # Only pre-push, because it takes a while.
-                settings = {
-                  allFeatures = true;
-                  denyWarnings = true;
-                };
-                packageOverrides = {
-                  cargo = rustup.toolchain;
-                  clippy = rustup.toolchain;
-                };
-              };
-              shellcheck.enable = true;
             };
-          };
+          in
+            inputs.git-hooks.lib.${system}.run {
+              src = ./.;
+              settings.rust.check.cargoDeps = pkgs.rustPlatform.importCargoLock {lockFile = ./Cargo.lock;};
+              hooks =
+                {
+                  alejandra.enable = true;
+                  rustfmt = {
+                    enable = true;
+                    fail_fast = true;
+                    packageOverrides.rustfmt = rustup.toolchain;
+                  };
+                  cargo-check = {
+                    enable = true;
+                    name = "cargo check";
+                    after = ["rustfmt"] ++ grep.after;
+                    fail_fast = true;
+                  };
+                  cargo-doc = let
+                    # We wrap `cargo` in order to set an environment variable that
+                    # gives us a non-zero exit on warning.
+                    command =
+                      pkgs.writeShellScript
+                      "cargo"
+                      "RUSTDOCFLAGS='--deny warnings' ${lib.getExe' rustup.toolchain "cargo"} $@";
+                  in {
+                    enable = true;
+                    name = "cargo doc";
+                    after = ["rustfmt"] ++ grep.after;
+                    fail_fast = true;
+                    entry = "${command} doc --workspace --all-features --no-deps";
+                    files = "\\.rs$";
+                    pass_filenames = false;
+                  };
+                  clippy = {
+                    enable = true;
+                    name = "cargo clippy";
+                    stages = ["pre-push"]; # Only pre-push, because it takes a while.
+                    settings = {
+                      allFeatures = true;
+                      denyWarnings = true;
+                    };
+                    packageOverrides = {
+                      cargo = rustup.toolchain;
+                      clippy = rustup.toolchain;
+                    };
+                  };
+                  shellcheck.enable = true;
+                }
+                // grep.hooks;
+            };
 
           # Build the crate as part of `nix flake check` for convenience
           inherit (self.packages.${system}) radicle;
