@@ -15,6 +15,12 @@ use crate::storage::refs::SignedRefs;
 /// The birth of the radicle project, January 1st, 2018.
 pub const RADICLE_EPOCH: i64 = 1514817556;
 
+const USER_NAME: &str = "anonymous";
+
+// TODO: Next time we do something that changes all hashes,
+// also change this to "anonymous@radicle.example.com".
+const USER_EMAIL: &str = "anonymous@radicle.xyz";
+
 /// Create a new user info object.
 pub fn user() -> git::UserInfo {
     git::UserInfo {
@@ -94,15 +100,14 @@ pub fn repository<P: AsRef<Path>>(path: P) -> (git2::Repository, git2::Oid) {
         git2::RepositoryInitOptions::new().external_template(false),
     )
     .unwrap();
-    let user_name = "anonymous";
-    let user_email = "anonymous@radicle.xyz";
+
     {
         let mut config = repo.config().unwrap();
-        config.set_str("user.name", user_name).unwrap();
-        config.set_str("user.email", user_email).unwrap();
+        config.set_str("user.name", USER_NAME).unwrap();
+        config.set_str("user.email", USER_EMAIL).unwrap();
     }
     let sig =
-        git2::Signature::new(user_name, user_email, &git2::Time::new(RADICLE_EPOCH, 0)).unwrap();
+        git2::Signature::new(USER_NAME, USER_EMAIL, &git2::Time::new(RADICLE_EPOCH, 0)).unwrap();
     let head = git::initial_commit(&repo, &sig).unwrap();
     let tree = git::write_tree(Path::new("README"), "Hello World!\n".as_bytes(), &repo).unwrap();
     let oid = {
@@ -130,12 +135,8 @@ pub fn repository<P: AsRef<Path>>(path: P) -> (git2::Repository, git2::Oid) {
 /// Create an empty commit on the current branch.
 pub fn commit(msg: &str, parents: &[git2::Oid], repo: &git2::Repository) -> git::Oid {
     let head = repo.head().unwrap();
-    let sig = git2::Signature::new(
-        "anonymous",
-        "anonymous@radicle.xyz",
-        &git2::Time::new(RADICLE_EPOCH, 0),
-    )
-    .unwrap();
+    let sig =
+        git2::Signature::new(USER_NAME, USER_EMAIL, &git2::Time::new(RADICLE_EPOCH, 0)).unwrap();
     let tree = head.peel_to_commit().unwrap().tree().unwrap();
     let parents = parents
         .iter()
@@ -153,12 +154,8 @@ pub fn tag(name: &str, message: &str, commit: git2::Oid, repo: &git2::Repository
     let target = repo
         .find_object(commit, Some(git2::ObjectType::Commit))
         .unwrap();
-    let tagger = git2::Signature::new(
-        "anonymous",
-        "anonymous@radicle.xyz",
-        &git2::Time::new(RADICLE_EPOCH, 0),
-    )
-    .unwrap();
+    let tagger =
+        git2::Signature::new(USER_NAME, USER_EMAIL, &git2::Time::new(RADICLE_EPOCH, 0)).unwrap();
     repo.tag(name, &target, &tagger, message, false)
         .unwrap()
         .into()
