@@ -15,6 +15,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed Bugs
 
+## 1.3.1 - 2025-09-04
+
+## Fixed Bugs
+
+### Fixed Panics
+
+Two instances of panics were fixed in this release.
+
+The first, and most important, was a panic around serializing wire messages.
+There is a strict size limit on the protocol messages that we control. However,
+this size limit is not intended to be imposed on Git streams, for example during
+fetching from other nodes. We incorrectly placed a check for this size limit in
+the `serialize` function, which meant it would panic for some Git fetches. This
+was fixed by moving the check elsewhere, while also improving the code so we do
+not make that mistake again.
+
+The second involved using the `read` method from the `sqlite` crate. This method
+calls `try_read` and `unwrap`s the `Result`, which would cause a panic. We have
+replaced the calls to `read` with `try_read` to more gracefully handle the
+error.
+
+
 ## 1.3.0 - 2025-08-12
 
 ## Release Highlights
