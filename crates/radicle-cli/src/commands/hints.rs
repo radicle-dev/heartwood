@@ -66,6 +66,11 @@ pub(crate) fn issue_ids_completer(current: &std::ffi::OsStr) -> Vec<CompletionCa
     result.into_iter().map(CompletionCandidate::new).collect()
 }
 
+/// Wrapper for [`issue_ids`] to support clap API.
+pub(crate) fn patch_ids_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+    todo!()
+}
+
 /// List the `DID`s associated with the current repository, filtered by the `prefix`.
 // TODO: we could make this more like a fuzzy search
 pub fn dids(prefix: &str) -> Option<Vec<String>> {

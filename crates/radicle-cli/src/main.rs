@@ -10,6 +10,7 @@ use clap_complete::Shell;
 
 use radicle::version::Version;
 use radicle_cli::commands::rad_issue;
+use radicle_cli::commands::rad_patch;
 use radicle_cli::commands::*;
 use radicle_cli::terminal as term;
 
@@ -59,6 +60,9 @@ enum Commands {
     ///
     /// With issues you can organize your project and use it to discuss bugs and improvements.
     Issue(rad_issue::Args),
+
+    /// Commands to create, view, and edit Radicle patches
+    Patch(rad_patch::Args),
 }
 
 #[derive(Debug)]
