@@ -60,19 +60,6 @@ pub struct ListOptions {
     pub authored: bool,
 }
 
-#[derive(Debug, clap::Args)]
-#[group(required = false, multiple = false)]
-pub struct ResolveOptions {
-    #[arg(long, group = "cmd-resolve")]
-    pub review: Option<String>,
-
-    #[arg(long, group = "cmd-resolve")]
-    pub comment: Option<String>,
-
-    #[arg(long, group = "cmd-resolve")]
-    pub unresolve: bool,
-}
-
 #[derive(Debug, Parser)]
 pub struct ReviewOptions {
     #[clap(long, group = "cmd-review")]
@@ -86,6 +73,19 @@ pub struct ReviewOptions {
 
     #[clap(long, short = 'd', group = "cmd-review")]
     pub delete: bool,
+}
+
+impl From<ReviewOptions> for crate::commands::rad_patch::review::Options {
+    fn from(value: ReviewOptions) -> Self {
+        Self {
+            message: value.message.into(),
+            op: if value.delete {
+                crate::commands::rad_patch::review::Operation::Delete
+            } else {
+                todo!()
+            }
+        }
+    }
 }
 
 #[derive(Debug, clap::Args)]
@@ -208,6 +208,9 @@ pub enum Command {
         #[arg(value_name = "PATCH_ID", add = ArgValueCompleter::new(crate::commands::hints::patch_ids_completer))]
         patch_id: Rev,
 
+        #[clap(long)]
+        revision_id: Option<Rev>,
+
         #[clap(flatten)]
         options: ReviewOptions,
     },
@@ -216,8 +219,14 @@ pub enum Command {
         #[arg(value_name = "PATCH_ID", add = ArgValueCompleter::new(crate::commands::hints::patch_ids_completer))]
         patch_id: Rev,
 
-        #[clap(flatten)]
-        options: ResolveOptions,
+        #[clap(long)]
+        review_id: Option<Rev>,
+
+        #[clap(long)]
+        comment_id: Option<Rev>,
+
+        #[clap(long)]
+        undo: bool,
     },
 
     Delete {

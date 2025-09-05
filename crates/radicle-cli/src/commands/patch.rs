@@ -290,20 +290,6 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             )?;
         }
 
-        Some(Command::Comment {
-            revision_id,
-            message,
-            reply_to,
-        }) => {
-            comment::run(
-                revision_id,
-                message,
-                reply_to,
-                options.quiet,
-                &repository,
-                &profile,
-            )?;
-        }
         Some(Command::Review {
             patch_id,
             revision_id,
@@ -316,6 +302,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 .map(patch::RevisionId::from);
             review::run(patch_id, revision_id, opts, &profile, &repository)?;
         }
+
         Some(Command::Resolve {
             ref patch_id,
             ref review_id,
@@ -359,7 +346,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Some(Command::Label {
             patch_id,
-            opts: self::args::LabelArgs { add, delete },
+            opts: self::args::LabelArg { add, delete },
         }) => {
             let patch_id = patch_id.resolve(&repository.backend)?;
             label::run(&patch_id, add, delete, &profile, &repository)?;
