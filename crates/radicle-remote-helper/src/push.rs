@@ -400,14 +400,8 @@ pub fn run(
 
             // N.b. special case for handling the canonical ref, since it
             // creates a symlink to HEAD
-            if *refname == canonical_ref
-                && stored
-                    .set_head()
-                    .map(|head| head.is_updated())
-                    .unwrap_or(false)
-            {
-                print_update();
-                continue;
+            if *refname == canonical_ref {
+                stored.set_head_to_default_branch()?;
             }
 
             match stored.backend.refname_to_id(refname.as_str()) {

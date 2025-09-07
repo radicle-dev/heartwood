@@ -670,9 +670,16 @@ where
 
 /// Allows read-write access to a repository.
 pub trait WriteRepository: ReadRepository + SignRepository {
-    /// Set the repository head to the canonical branch.
-    /// This computes the head based on the delegate set.
-    fn set_head(&self) -> Result<SetHead, RepositoryError>;
+    /// Sets the symbolic reference `HEAD` to target the default branch.
+    /// This only depends on the value for the default branch in the identity
+    /// document, and does not require the canonical reference behind the
+    /// default branch to be computed, or even exist.
+    fn set_head_to_default_branch(&self) -> Result<(), RepositoryError>;
+
+    /// Computes the head of the default branch based on the delegate set,
+    /// and sets it.
+    fn set_default_branch_to_canonical_head(&self) -> Result<SetHead, RepositoryError>;
+
     /// Set the repository 'rad/id' to the canonical commit, agreed by quorum.
     fn set_identity_head(&self) -> Result<Oid, RepositoryError> {
         let head = self.canonical_identity_head()?;

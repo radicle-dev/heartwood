@@ -878,15 +878,38 @@ impl ReadRepository for Repository {
 }
 
 impl WriteRepository for Repository {
-    fn set_head(&self) -> Result<SetHead, RepositoryError> {
+    fn set_head_to_default_branch(&self) -> Result<(), RepositoryError> {
         let head_ref = refname!("HEAD");
+        let branch_ref = self.default_branch()?;
+
+        match self.raw().find_reference(head_ref.as_str()) {
+            Ok(mut head_ref) => {
+                if head_ref.symbolic_target().is_some_and(|t| t != branch_ref.as_str()) {
+                    head_ref.symbolic_set_target(branch_ref.as_str(), "set-head (radicle)")?;
+                }
+                Ok(())
+            }
+            Err(err) if git::ext::is_not_found_err(&err) => {
+                self.raw().reference_symbolic(
+                    head_ref.as_str(),
+                    branch_ref.as_str(),
+                    true,
+                    "set-head (radicle)",
+                )?;
+                Ok(())
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    fn set_default_branch_to_canonical_head(&self) -> Result<SetHead, RepositoryError> {
+        let (branch_ref, new) = self.canonical_head()?;
+
         let old = self
             .raw()
-            .refname_to_id(&head_ref)
+            .refname_to_id(&branch_ref)
             .ok()
             .map(|oid| oid.into());
-
-        let (branch_ref, new) = self.canonical_head()?;
 
         if old == Some(new) {
             return Ok(SetHead { old, new });
@@ -894,10 +917,6 @@ impl WriteRepository for Repository {
         log::debug!(target: "storage", "Setting ref: {} -> {}", &branch_ref, new);
         self.raw()
             .reference(&branch_ref, *new, true, "set-local-branch (radicle)")?;
-
-        log::debug!(target: "storage", "Setting ref: {head_ref} -> {branch_ref}");
-        self.raw()
-            .reference_symbolic(&head_ref, &branch_ref, true, "set-head (radicle)")?;
 
         Ok(SetHead { old, new })
     }
