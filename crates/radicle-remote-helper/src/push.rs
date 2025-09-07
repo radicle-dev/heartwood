@@ -285,8 +285,7 @@ pub fn run(
     }
     let delegates = stored.delegates()?;
     let identity = stored.identity()?;
-    let project = identity.project()?;
-    let canonical_ref = git::refs::branch(project.default_branch());
+    let canonical_ref = identity.default_branch()?;
     let mut set_canonical_refs: Vec<(git::Qualified, git::canonical::Object)> =
         Vec::with_capacity(specs.len());
 

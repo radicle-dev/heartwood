@@ -522,6 +522,12 @@ pub trait ReadRepository: Sized + ValidateRepository {
     /// Returns the [`Oid`] as well as the qualified reference name.
     fn head(&self) -> Result<(Qualified, Oid), RepositoryError>;
 
+    /// Gets the qualified reference name of the default branch of self,
+    /// according to the project payload in the identity document.
+    fn default_branch(&self) -> Result<Qualified, RepositoryError> {
+        Ok(self.identity_doc()?.default_branch()?.to_owned())
+    }
+
     /// Compute the canonical head of this repository.
     ///
     /// Ignores any existing `HEAD` reference.

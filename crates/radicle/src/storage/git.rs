@@ -786,7 +786,7 @@ impl ReadRepository for Repository {
 
     fn canonical_head(&self) -> Result<(Qualified, Oid), RepositoryError> {
         let doc = self.identity_doc()?;
-        let refname = git::refs::branch(doc.project()?.default_branch());
+        let refname = doc.default_branch()?.to_owned();
         let crefs = match doc.canonical_refs()? {
             Some(crefs) => crefs,
             // Fallback to constructing the default branch via the project

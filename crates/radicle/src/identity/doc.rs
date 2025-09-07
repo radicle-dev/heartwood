@@ -742,12 +742,16 @@ impl Doc {
         Ok(proj)
     }
 
+    /// Gets the qualified reference name of the default branch,
+    /// according to the project payload in this document.
+    pub fn default_branch(&self) -> Result<git::Qualified, PayloadError> {
+        Ok(git::refs::branch(self.project()?.default_branch()))
+    }
+
     pub fn default_branch_rule(
         &self,
     ) -> Result<(rules::Pattern, rules::ValidRule), DefaultBranchRuleError> {
-        let proj = self.project()?;
-        let refname = proj.default_branch();
-        let pattern = rules::Pattern::try_from(git::refs::branch(refname).to_owned())?;
+        let pattern = rules::Pattern::try_from(self.default_branch()?.to_owned())?;
         let rule = rules::Rule::new(
             rules::ResolvedDelegates::Delegates(self.delegates.clone()),
             self.threshold,
