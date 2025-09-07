@@ -326,7 +326,11 @@ impl WriteRepository for MockRepository {
         todo!()
     }
 
-    fn set_head(&self) -> Result<SetHead, RepositoryError> {
+    fn set_head_to_default_branch(&self) -> Result<(), RepositoryError> {
+        todo!()
+    }
+
+    fn set_default_branch_to_canonical_head(&self) -> Result<SetHead, RepositoryError> {
         todo!()
     }
 

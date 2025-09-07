@@ -119,11 +119,9 @@ impl Handle {
                 // points to a repository that is temporary and gets moved by [`mv`].
                 let repo = storage.repository(rid)?;
                 repo.set_identity_head()?;
-                match repo.set_head() {
-                    Ok(head) => {
-                        if head.is_updated() {
-                            log::trace!(target: "worker", "Set HEAD to {}", head.new);
-                        }
+                match repo.set_head_to_default_branch() {
+                    Ok(()) => {
+                        log::trace!(target: "worker", "Set HEAD successfully");
                     }
                     Err(RepositoryError::Quorum(e)) => {
                         log::warn!(target: "worker", "Fetch could not set HEAD: {e}")
@@ -369,9 +367,6 @@ fn set_canonical_refs(
     applied: &Applied,
 ) -> Result<Option<UpdatedCanonicalRefs>, error::Canonical> {
     let identity = repo.identity()?;
-    // TODO(finto): it's unfortunate that we may end up computing the default
-    // branch again after `set_head` is called after the fetch. This is due to
-    // the storage capabilities being leaked to this part of the code base.
     let rules = identity
         .canonical_refs_or_default(|| {
             let rule = identity.doc().default_branch_rule()?;
