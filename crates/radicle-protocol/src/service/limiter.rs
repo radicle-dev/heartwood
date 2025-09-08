@@ -74,6 +74,26 @@ impl AsTokens for config::RateLimit {
     }
 }
 
+impl AsTokens for config::LimitRateInbound {
+    fn capacity(&self) -> usize {
+        config::RateLimit::from(*self).capacity()
+    }
+
+    fn rate(&self) -> f64 {
+        config::RateLimit::from(*self).rate()
+    }
+}
+
+impl AsTokens for config::LimitRateOutbound {
+    fn capacity(&self) -> usize {
+        config::RateLimit::from(*self).capacity()
+    }
+
+    fn rate(&self) -> f64 {
+        config::RateLimit::from(*self).rate()
+    }
+}
+
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenBucket {

@@ -244,7 +244,7 @@ pub struct ConnectionLimits {
 }
 
 /// Rate limits for a single connection.
-#[derive(Debug, Clone, Serialize, Deserialize, Display)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Display)]
 #[display("RateLimit(fill_rate={fill_rate}, capacity={capacity})")]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
@@ -599,6 +599,18 @@ impl From<LimitGossipMaxAge> for LocalDuration {
     }
 }
 
+/// Create a new type (`$name`) around a given type (`$type`), with a provided
+/// default (`$default`).
+///
+/// The macro will attempt to derive any extra `$derive`s passed.
+///
+/// Note that the macro will provide the following traits automatically:
+///   - `Clone`
+///   - `Debug`
+///   - `Display`
+///   - `Serialize`
+///   - `Deserialize`
+///   - `From<$name> for $type`, i.e. can convert back into the original type
 macro_rules! wrapper {
     ($name:ident, $type:ty, $default:expr $(, $derive:ty)*) => {
         #[derive(Clone, Debug, Deserialize, Display, Serialize, From $(, $derive)*)]
@@ -631,7 +643,8 @@ wrapper!(
     RateLimit {
         fill_rate: 5.0,
         capacity: 1024,
-    }
+    },
+    Copy
 );
 wrapper!(LimitMaxOpenFiles, usize, 4096, Copy);
 wrapper!(
@@ -640,7 +653,8 @@ wrapper!(
     RateLimit {
         fill_rate: 10.0,
         capacity: 2048,
-    }
+    },
+    Copy
 );
 
 #[cfg(test)]

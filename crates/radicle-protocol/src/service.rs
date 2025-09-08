@@ -1313,7 +1313,7 @@ where
             Err(e) => error!(target: "service", "Error querying ban status for {ip}: {e}"),
         }
         let host: HostName = ip.into();
-        let tokens = RateLimit::from(self.config.limits.rate.inbound.clone());
+        let tokens = self.config.limits.rate.inbound;
 
         if self.limiter.limit(host.clone(), None, &tokens, self.clock) {
             trace!(target: "service", "Rate limiting inbound connection from {host}..");
@@ -1819,8 +1819,8 @@ where
         peer.last_active = self.clock;
 
         let limit: RateLimit = match peer.link {
-            Link::Outbound => self.config.limits.rate.outbound.clone().into(),
-            Link::Inbound => self.config.limits.rate.inbound.clone().into(),
+            Link::Outbound => self.config.limits.rate.outbound.into(),
+            Link::Inbound => self.config.limits.rate.inbound.into(),
         };
         if self
             .limiter
