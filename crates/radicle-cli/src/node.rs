@@ -1,6 +1,5 @@
 use core::time;
 use std::collections::BTreeSet;
-use std::io;
 use std::io::Write;
 
 use radicle::node::sync;
@@ -93,51 +92,12 @@ impl SyncError {
     }
 }
 
-/// Writes sync output.
-#[derive(Debug)]
-pub enum SyncWriter {
-    /// Write to standard out.
-    Stdout(io::Stdout),
-    /// Write to standard error.
-    Stderr(io::Stderr),
-    /// Discard output, like [`std::io::sink`].
-    Sink,
-}
-
-impl Clone for SyncWriter {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Stdout(_) => Self::Stdout(io::stdout()),
-            Self::Stderr(_) => Self::Stderr(io::stderr()),
-            Self::Sink => Self::Sink,
-        }
-    }
-}
-
-impl io::Write for SyncWriter {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        match self {
-            Self::Stdout(stdout) => stdout.write(buf),
-            Self::Stderr(stderr) => stderr.write(buf),
-            Self::Sink => Ok(buf.len()),
-        }
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        match self {
-            Self::Stdout(stdout) => stdout.flush(),
-            Self::Stderr(stderr) => stderr.flush(),
-            Self::Sink => Ok(()),
-        }
-    }
-}
-
 /// Configures how sync progress is reported.
 pub struct SyncReporting {
     /// Progress messages or animations.
-    pub progress: SyncWriter,
+    pub progress: term::DrawTarget,
     /// Completion messages.
-    pub completion: SyncWriter,
+    pub completion: term::DrawTarget,
     /// Debug output.
     pub debug: bool,
 }
@@ -145,8 +105,8 @@ pub struct SyncReporting {
 impl Default for SyncReporting {
     fn default() -> Self {
         Self {
-            progress: SyncWriter::Stderr(io::stderr()),
-            completion: SyncWriter::Stdout(io::stdout()),
+            progress: term::DrawTarget::Stderr,
+            completion: term::DrawTarget::Stdout,
             debug: false,
         }
     }
@@ -173,7 +133,7 @@ pub fn announce<R: ReadRepository>(
 fn announce_<R>(
     repo: &R,
     settings: SyncSettings,
-    mut reporting: SyncReporting,
+    reporting: SyncReporting,
     node: &mut Node,
     profile: &Profile,
 ) -> Result<Option<sync::AnnouncerResult>, SyncError>
@@ -214,7 +174,7 @@ where
         Err(err) => match err {
             sync::AnnouncerError::AlreadySynced(result) => {
                 term::success!(
-                    &mut reporting.completion;
+                    &mut reporting.completion.writer();
                     "Nothing to announce, already in sync with {} seed(s) (see `rad sync status`)",
                     term::format::positive(result.synced()),
                 );
@@ -222,7 +182,7 @@ where
             }
             sync::AnnouncerError::NoSeeds => {
                 term::info!(
-                    &mut reporting.completion;
+                    &mut reporting.completion.writer();
                     "{}",
                     term::format::yellow(format!("No seeds found for {rid}."))
                 );
@@ -235,8 +195,8 @@ where
     let min_replicas = target.replicas().lower_bound();
     let mut spinner = term::spinner_to(
         format!("Found {} seed(s)..", announcer.progress().unsynced()),
-        reporting.completion.clone(),
         reporting.progress.clone(),
+        reporting.completion.clone(),
     );
 
     match node.announce(rid, settings.timeout, announcer, |node, progress| {
