@@ -46,6 +46,27 @@ pub static CONFIG: LazyLock<RenderConfig> = LazyLock::new(|| RenderConfig {
     ..RenderConfig::default_colored()
 });
 
+/// Target for draw operations
+///
+/// This tells a [`Spinner`] object where to draw to.
+/// The draw target is a stateful wrapper over a drawing destination.
+#[derive(Clone)]
+pub enum DrawTarget {
+    Stdout,
+    Stderr,
+    Hidden,
+}
+
+impl DrawTarget {
+    pub fn writer(&self) -> Box<dyn io::Write> {
+        match self {
+            DrawTarget::Stdout => Box::new(io::stdout()),
+            DrawTarget::Stderr => Box::new(io::stderr()),
+            DrawTarget::Hidden => Box::new(io::sink()),
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! info {
     ($writer:expr; $($arg:tt)*) => ({
