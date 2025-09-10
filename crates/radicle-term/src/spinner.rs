@@ -3,11 +3,12 @@ use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 use std::{fmt, io, thread, time};
 
-use crate::io::{PREFIX_ERROR, PREFIX_WARNING};
-use crate::Paint;
+use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
+
+use crate::{DrawTarget, Paint};
 
 /// How much time to wait between spinner animation updates.
-pub const DEFAULT_TICK: time::Duration = time::Duration::from_millis(99);
+pub const DEFAULT_TICK: time::Duration = time::Duration::from_millis(120);
 /// The spinner animation strings.
 pub const DEFAULT_STYLE: [Paint<&'static str>; 4] = [
     Paint::magenta("◢"),
@@ -16,8 +17,23 @@ pub const DEFAULT_STYLE: [Paint<&'static str>; 4] = [
     Paint::blue("◥"),
 ];
 
-const CLEAR_UNTIL_NEWLINE: crossterm::terminal::Clear =
-    crossterm::terminal::Clear(crossterm::terminal::ClearType::UntilNewLine);
+impl From<DrawTarget> for ProgressDrawTarget {
+    fn from(value: DrawTarget) -> Self {
+        match value {
+            DrawTarget::Stdout => ProgressDrawTarget::stdout(),
+            DrawTarget::Stderr => ProgressDrawTarget::stderr(),
+            DrawTarget::Hidden => ProgressDrawTarget::hidden(),
+        }
+    }
+}
+
+enum State {
+    Running,
+    Canceled,
+    Done,
+    Warn,
+    Error,
+}
 
 struct Progress {
     state: State,
@@ -27,18 +43,10 @@ struct Progress {
 impl Progress {
     fn new(message: Paint<String>) -> Self {
         Self {
-            state: State::Running { cursor: 0 },
+            state: State::Running,
             message,
         }
     }
-}
-
-enum State {
-    Running { cursor: usize },
-    Canceled,
-    Done,
-    Warn,
-    Error,
 }
 
 /// A progress spinner.
@@ -50,10 +58,11 @@ pub struct Spinner {
 impl Drop for Spinner {
     fn drop(&mut self) {
         if let Ok(mut progress) = self.progress.lock() {
-            if let State::Running { .. } = progress.state {
+            if let State::Running = progress.state {
                 progress.state = State::Canceled;
             }
         }
+
         unsafe { ManuallyDrop::take(&mut self.handle) }
             .join()
             .unwrap();
@@ -109,11 +118,10 @@ impl Spinner {
 /// failure messages to `stdout`. This function handles signals, with there being only one
 /// element handling signals at a time, and is a wrapper to [`spinner_to()`].
 pub fn spinner(message: impl ToString) -> Spinner {
-    let (stdout, stderr) = (io::stdout(), io::stderr());
-    if stderr.is_terminal() {
-        spinner_to(message, stdout, stderr)
+    if io::stderr().is_terminal() {
+        spinner_to(message, DrawTarget::Stderr, DrawTarget::Stdout)
     } else {
-        spinner_to(message, stdout, io::sink())
+        spinner_to(message, DrawTarget::Hidden, DrawTarget::Stdout)
     }
 }
 
@@ -126,11 +134,11 @@ pub fn spinner(message: impl ToString) -> Spinner {
 /// handlers, then it will not attempt to install handlers again, and continue running.
 pub fn spinner_to(
     message: impl ToString,
-    mut completion: impl io::Write + Send + 'static,
-    mut animation: impl io::Write + Send + 'static,
+    progress_target: DrawTarget,
+    completion_target: DrawTarget,
 ) -> Spinner {
     let message = message.to_string();
-    let progress = Arc::new(Mutex::new(Progress::new(Paint::new(message))));
+    let progress = Arc::new(Mutex::new(Progress::new(Paint::new(message.clone()))));
 
     #[cfg(unix)]
     let (sig_tx, sig_rx) = crossbeam_channel::unbounded();
@@ -142,10 +150,22 @@ pub fn spinner_to(
         .name(String::from("spinner"))
         .spawn({
             let progress = progress.clone();
+            let spinner = ProgressBar::new_spinner();
+
+            spinner.set_draw_target(progress_target.into());
+            spinner.set_message(message.to_string());
+            spinner.set_style(
+                ProgressStyle::with_template("{spinner:.blue} {msg}")
+                    .unwrap()
+                    .tick_strings(&[
+                        DEFAULT_STYLE[0].to_string().as_str(),
+                        DEFAULT_STYLE[1].to_string().as_str(),
+                        DEFAULT_STYLE[2].to_string().as_str(),
+                        DEFAULT_STYLE[3].to_string().as_str(),
+                    ]),
+            );
 
             move || {
-                write!(animation, "{}", crossterm::cursor::Hide).ok();
-
                 loop {
                     let Ok(mut progress) = progress.lock() else {
                         break;
@@ -158,15 +178,14 @@ pub fn spinner_to(
                                 if sig == radicle_signals::Signal::Interrupt
                                     || sig == radicle_signals::Signal::Terminate =>
                             {
-                                write!(animation, "\r{CLEAR_UNTIL_NEWLINE}").ok();
+                                spinner.finish_and_clear();
                                 writeln!(
-                                    completion,
-                                    "{PREFIX_ERROR} {} {}",
-                                    &progress.message,
+                                    completion_target.writer(),
+                                    "{} {message} {}",
+                                    super::PREFIX_ERROR,
                                     Paint::red("<canceled>")
                                 )
                                 .ok();
-                                drop(animation);
                                 std::process::exit(-1);
                             }
                             Ok(_) => {}
@@ -175,59 +194,73 @@ pub fn spinner_to(
                     }
                     match &mut *progress {
                         Progress {
-                            state: State::Running { cursor },
+                            state: State::Running,
                             message,
                         } => {
-                            let spinner = DEFAULT_STYLE[*cursor];
-
-                            write!(animation, "\r{CLEAR_UNTIL_NEWLINE}{spinner} {message}",).ok();
-
-                            *cursor += 1;
-                            *cursor %= DEFAULT_STYLE.len();
+                            spinner.set_message(message.to_string());
+                            spinner.inc(1);
                         }
+
                         Progress {
                             state: State::Done,
                             message,
                         } => {
-                            write!(animation, "\r{CLEAR_UNTIL_NEWLINE}").ok();
-                            writeln!(completion, "{} {message}", super::PREFIX_SUCCESS).ok();
+                            spinner.finish_and_clear();
+                            writeln!(
+                                completion_target.writer(),
+                                "{} {message}",
+                                super::PREFIX_SUCCESS
+                            )
+                            .ok();
                             break;
                         }
+
                         Progress {
                             state: State::Canceled,
                             message,
                         } => {
-                            write!(animation, "\r{CLEAR_UNTIL_NEWLINE}").ok();
+                            spinner.finish_and_clear();
                             writeln!(
-                                completion,
-                                "{PREFIX_ERROR} {message} {}",
+                                completion_target.writer(),
+                                "{} {message} {}",
+                                super::PREFIX_ERROR,
                                 Paint::red("<canceled>")
                             )
                             .ok();
                             break;
                         }
+
                         Progress {
                             state: State::Warn,
                             message,
                         } => {
-                            write!(animation, "\r{CLEAR_UNTIL_NEWLINE}").ok();
-                            writeln!(completion, "{PREFIX_WARNING} {message}").ok();
+                            spinner.finish_and_clear();
+                            writeln!(
+                                completion_target.writer(),
+                                "{} {message}",
+                                super::PREFIX_WARNING
+                            )
+                            .ok();
                             break;
                         }
+
                         Progress {
                             state: State::Error,
                             message,
                         } => {
-                            write!(animation, "\r{CLEAR_UNTIL_NEWLINE}").ok();
-                            writeln!(completion, "{PREFIX_ERROR} {message}").ok();
+                            spinner.finish_and_clear();
+                            writeln!(
+                                completion_target.writer(),
+                                "{} {message}",
+                                super::PREFIX_ERROR
+                            )
+                            .ok();
                             break;
                         }
                     }
                     drop(progress);
                     thread::sleep(DEFAULT_TICK);
                 }
-
-                write!(animation, "{}", crossterm::cursor::Show).ok();
 
                 #[cfg(unix)]
                 if sig_result.is_ok() {
