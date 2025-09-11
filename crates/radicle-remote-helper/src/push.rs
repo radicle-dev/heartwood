@@ -890,8 +890,18 @@ fn push_ref(
     // This happens during the `list for-push` phase.
     let refspec = git::Refspec { src, dst, force };
     let repo = working.workdir().unwrap_or_else(|| working.path());
- 
-    let mut args = vec!["push".to_string()];
+
+    let mut args = vec![
+        "push".to_string(),
+        // This push is "internal" from the point of view of the user.
+        // If they want to run a pre-push hook, then they would configure
+        // this on their remote, and the hook would run before we get here.
+        // However, the context of this invocation of `git push` is
+        // the same repository, so if the user has configured a pre-push
+        // hook it would run twice, which is not what we want, so set this
+        // option.
+        "--no-verify".to_string(),
+    ];
 
     let verbosity: git::Verbosity = verbosity.into();
     args.extend(verbosity.into_flag());
