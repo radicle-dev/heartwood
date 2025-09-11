@@ -1,6 +1,6 @@
 use std::io::IsTerminal;
 use std::mem::ManuallyDrop;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::{fmt, io, thread, time};
 
 use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
@@ -16,6 +16,8 @@ pub const DEFAULT_STYLE: [Paint<&'static str>; 4] = [
     Paint::magenta("◤"),
     Paint::blue("◥"),
 ];
+static TEMPLATE: LazyLock<ProgressStyle> =
+    LazyLock::new(|| ProgressStyle::with_template("{spinner:.blue} {msg}").unwrap());
 
 impl From<DrawTarget> for ProgressDrawTarget {
     fn from(value: DrawTarget) -> Self {
@@ -154,16 +156,12 @@ pub fn spinner_to(
 
             spinner.set_draw_target(progress_target.into());
             spinner.set_message(message.to_string());
-            spinner.set_style(
-                ProgressStyle::with_template("{spinner:.blue} {msg}")
-                    .unwrap()
-                    .tick_strings(&[
-                        DEFAULT_STYLE[0].to_string().as_str(),
-                        DEFAULT_STYLE[1].to_string().as_str(),
-                        DEFAULT_STYLE[2].to_string().as_str(),
-                        DEFAULT_STYLE[3].to_string().as_str(),
-                    ]),
-            );
+            spinner.set_style(TEMPLATE.clone().tick_strings(&[
+                DEFAULT_STYLE[0].to_string().as_str(),
+                DEFAULT_STYLE[1].to_string().as_str(),
+                DEFAULT_STYLE[2].to_string().as_str(),
+                DEFAULT_STYLE[3].to_string().as_str(),
+            ]));
 
             move || {
                 loop {
