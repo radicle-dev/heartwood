@@ -132,11 +132,23 @@ pub fn repository() -> Result<Repository, anyhow::Error> {
 }
 
 /// Execute a git command by spawning a child process.
+/// Returns [`Result::Ok`] if the command *exited successfully*.
 pub fn git<S: AsRef<std::ffi::OsStr>>(
     repo: &std::path::Path,
     args: impl IntoIterator<Item = S>,
-) -> Result<String, io::Error> {
-    radicle::git::run::<_, _, &str, &str>(repo, args, [])
+) -> anyhow::Result<std::process::Output> {
+    let output = radicle::git::run::<_, _, &str, &str>(repo, args, [])?;
+
+    if !output.status.success() {
+        anyhow::bail!(
+            "`git` exited with status {}, stderr and stdout follow:\n{}\n{}\n",
+            output.status,
+            String::from_utf8_lossy(&output.stderr),
+            String::from_utf8_lossy(&output.stdout),
+        )
+    }
+
+    Ok(output)
 }
 
 /// Configure SSH signing in the given git repo, for the given peer.

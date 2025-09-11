@@ -754,29 +754,18 @@ pub fn run<P, S, K, V>(
     repo: P,
     args: impl IntoIterator<Item = S>,
     envs: impl IntoIterator<Item = (K, V)>,
-) -> Result<String, io::Error>
+) -> io::Result<std::process::Output>
 where
     P: AsRef<Path>,
     S: AsRef<std::ffi::OsStr>,
     K: AsRef<std::ffi::OsStr>,
     V: AsRef<std::ffi::OsStr>,
 {
-    let output = Command::new("git")
+    Command::new("git")
         .current_dir(repo)
         .envs(envs)
         .args(args)
-        .output()?;
-
-    if output.status.success() {
-        let out = if output.stdout.is_empty() {
-            &output.stderr
-        } else {
-            &output.stdout
-        };
-        return Ok(String::from_utf8_lossy(out).into());
-    }
-
-    Err(io::Error::other(String::from_utf8_lossy(&output.stderr)))
+        .output()
 }
 
 /// Functions that call to the `git` CLI instead of `git2`.
@@ -797,7 +786,7 @@ pub mod process {
         storage: &R,
         oids: impl IntoIterator<Item = Oid>,
         verbosity: Verbosity,
-    ) -> Result<(), io::Error>
+    ) -> io::Result<std::process::Output>
     where
         R: ReadRepository,
     {
@@ -810,8 +799,7 @@ pub mod process {
         fetch.push(url::File::new(storage.path()).to_string());
         fetch.extend(oids.into_iter().map(|oid| oid.to_string()));
         // N.b. `.` is used since we're fetching within the working copy
-        run::<_, _, &str, &str>(working, fetch, [])?;
-        Ok(())
+        run::<_, _, &str, &str>(working, fetch, [])
     }
 }
 

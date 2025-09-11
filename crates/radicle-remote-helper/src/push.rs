@@ -6,6 +6,7 @@ mod error;
 use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
+use std::process::ExitStatus;
 use std::str::FromStr;
 use std::{assert_eq, io};
 
@@ -124,6 +125,15 @@ pub enum Error {
     UnknownObjectType { oid: git::Oid },
     #[error(transparent)]
     FindObjects(#[from] git::canonical::error::FindObjectsError),
+
+    /// Errors for "internal" pushes, i.e., pushes that this process
+    /// initiates between the working copy and storage.
+    #[error("internal push failed with exit status {status}, stderr and stdout follow:\n{stderr}\n{stdout}")]
+    InternalPushFailed {
+        status: ExitStatus,
+        stderr: String,
+        stdout: String,
+    },
 }
 
 /// Push command.
@@ -888,13 +898,15 @@ fn push_ref(
 
     args.extend([url.to_string(), refspec.to_string()]);
 
-    radicle::git::run::<_, _, &str, &str>(repo, args, [])
-    .map_err(|err| {
-        Error::Io(std::io::Error::other(format!(
-            "failed to run `git push {url} {refspec}` in {:?}: {err}",
-            working.path()
-        )))
-    })?;
+    let output = radicle::git::run::<_, _, &str, &str>(repo, args, [])?;
+
+    if !output.status.success() {
+        return Err(Error::InternalPushFailed {
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            status: output.status,
+        });
+    }
 
     Ok(())
 }
