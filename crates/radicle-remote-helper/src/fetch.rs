@@ -7,7 +7,7 @@ use thiserror::Error;
 use radicle::git;
 use radicle::storage::ReadRepository;
 
-use crate::read_line;
+use crate::{read_line, Verbosity};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -31,6 +31,7 @@ pub fn run<R: ReadRepository>(
     working: &Path,
     stored: R,
     stdin: &io::Stdin,
+    verbosity: Verbosity,
 ) -> Result<(), Error> {
     // Read all the `fetch` lines.
     let mut line = String::new();
@@ -62,7 +63,7 @@ pub fn run<R: ReadRepository>(
     // used in the working copy, this will always result in the object
     // missing. This seems to only be an issue with `libgit2`/`git2`
     // and not `git` itself.
-    git::process::fetch_local(working, &stored, oids)?;
+    git::process::fetch_local(working, &stored, oids, verbosity.into())?;
 
     // Nb. An empty line means we're done.
     println!();

@@ -31,7 +31,7 @@ use radicle::{git, rad};
 use radicle_cli as cli;
 use radicle_cli::terminal as term;
 
-use crate::{hint, read_line, Options};
+use crate::{hint, read_line, Options, Verbosity};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -346,8 +346,17 @@ pub fn run(
                         let rules = crefs.rules();
                         let me = Did::from(nid);
 
-                        let explorer =
-                            push(src, &dst, *force, &nid, &working, stored, patches, &signer)?;
+                        let explorer = push(
+                            src,
+                            &dst,
+                            *force,
+                            &nid,
+                            &working,
+                            stored,
+                            patches,
+                            &signer,
+                            opts.verbosity,
+                        )?;
                         // If we're trying to update the canonical head, make sure
                         // we don't diverge from the current head. This only applies
                         // to repos with more than one delegate.
@@ -487,7 +496,7 @@ where
     //
     // In case the reference is not properly deleted, the next attempt to open a patch should
     // not fail, since the reference will already exist with the correct OID.
-    push_ref(src, &dst, false, working, stored.raw())?;
+    push_ref(src, &dst, false, working, stored.raw(), opts.verbosity)?;
 
     let (_, target) = stored.canonical_head()?;
     let base = if let Some(base) = opts.base {
@@ -601,7 +610,7 @@ where
     let commit = *src;
     let dst = dst.with_namespace(nid.into());
 
-    push_ref(src, &dst, force, working, stored.raw())?;
+    push_ref(src, &dst, force, working, stored.raw(), opts.verbosity)?;
 
     let Ok(Some(patch)) = patches.get(&patch_id) else {
         return Err(Error::NotFound(patch_id));
@@ -671,6 +680,7 @@ fn push<G>(
         cob::cache::StoreWriter,
     >,
     signer: &Device<G>,
+    verbosity: Verbosity,
 ) -> Result<Option<ExplorerResource>, Error>
 where
     G: crypto::signature::Signer<crypto::Signature>,
@@ -680,7 +690,7 @@ where
     // It's ok for the destination reference to be unknown, eg. when pushing a new branch.
     let old = stored.backend.find_reference(dst.as_str()).ok();
 
-    push_ref(src, &dst, force, working, stored.raw())?;
+    push_ref(src, &dst, force, working, stored.raw(), verbosity)?;
 
     if let Some(old) = old {
         let proj = stored.project()?;
@@ -863,22 +873,22 @@ fn push_ref(
     force: bool,
     working: &git::raw::Repository,
     stored: &git::raw::Repository,
+    verbosity: Verbosity,
 ) -> Result<(), Error> {
     let url = git::url::File::new(stored.path()).to_string();
     // Nb. The *force* indicator (`+`) is processed by Git tooling before we even reach this code.
     // This happens during the `list for-push` phase.
     let refspec = git::Refspec { src, dst, force };
     let repo = working.workdir().unwrap_or_else(|| working.path());
+ 
+    let mut args = vec!["push".to_string()];
 
-    radicle::git::run::<_, _, &str, &str>(
-        repo,
-        [
-            "push",
-            url.to_string().as_str(),
-            refspec.to_string().as_str(),
-        ],
-        [],
-    )
+    let verbosity: git::Verbosity = verbosity.into();
+    args.extend(verbosity.into_flag());
+
+    args.extend([url.to_string(), refspec.to_string()]);
+
+    radicle::git::run::<_, _, &str, &str>(repo, args, [])
     .map_err(|err| {
         Error::Io(std::io::Error::other(format!(
             "failed to run `git push {url} {refspec}` in {:?}: {err}",

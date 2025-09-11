@@ -54,6 +54,38 @@ impl std::fmt::Display for Version {
     }
 }
 
+/// Verbosity level for Git commands.
+#[derive(Default, Clone, Copy)]
+pub struct Verbosity(i8);
+
+impl Verbosity {
+    /// Transform into a command line flag, helpful for passing to invocations
+    /// of `git`.
+    ///
+    /// See <https://github.com/git/git/blob/c44beea485f0f2feaf460e2ac87fdd5608d63cf0/builtin/pull.c#L264-L276>
+    pub fn into_flag(&self) -> Option<String> {
+        const FLAG_PREFIX: &str = "-";
+        const FLAG_QUIET: &str = "q";
+        const FLAG_VERBOSE: &str = "v";
+
+        let repetitions = self.0.unsigned_abs() as usize;
+
+        if repetitions == 0 {
+            return None;
+        }
+
+        let flag = if self.0 > 0 { FLAG_VERBOSE } else { FLAG_QUIET };
+
+        Some(FLAG_PREFIX.to_string() + &flag.repeat(repetitions))
+    }
+}
+
+impl From<i8> for Verbosity {
+    fn from(v: i8) -> Self {
+        Self(v)
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum VersionError {
     #[error("malformed git version string")]
@@ -754,7 +786,7 @@ pub mod process {
 
     use crate::storage::ReadRepository;
 
-    use super::{run, url, Oid};
+    use super::{run, url, Oid, Verbosity};
 
     /// Perform a local fetch, i.e. `file://<storage path>`.
     ///
@@ -764,16 +796,18 @@ pub mod process {
         working: &Path,
         storage: &R,
         oids: impl IntoIterator<Item = Oid>,
+        verbosity: Verbosity,
     ) -> Result<(), io::Error>
     where
         R: ReadRepository,
     {
         let mut fetch = vec![
             "fetch".to_string(),
-            url::File::new(storage.path()).to_string(),
-            // N.b. avoid writing fetch head since we're only fetching objects
+            // Avoid writing fetch head since we're only fetching objects
             "--no-write-fetch-head".to_string(),
         ];
+        fetch.extend(verbosity.into_flag());
+        fetch.push(url::File::new(storage.path()).to_string());
         fetch.extend(oids.into_iter().map(|oid| oid.to_string()));
         // N.b. `.` is used since we're fetching within the working copy
         run::<_, _, &str, &str>(working, fetch, [])?;

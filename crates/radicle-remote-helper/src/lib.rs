@@ -70,6 +70,40 @@ pub enum Error {
     List(#[from] list::Error),
 }
 
+/// Models values for the `verbosity` option, see
+/// <https://git-scm.com/docs/gitremote-helpers#Documentation/gitremote-helpers.txt-optionverbosityn>.
+#[derive(Copy, Clone, Debug)]
+struct Verbosity(u8);
+
+impl From<Verbosity> for radicle::git::Verbosity {
+    /// Converts the verbosity option passed to a Git remote helper to
+    /// one that can be passed to other Git commands via command line.
+    /// Note that these scales are one off: While the default verbosity
+    /// for remote helpers is 1, the default verbosity via command line
+    /// (omitting the flag) is 0.
+    /// This implementation also cuts off verbosities greater than [`i8::MAX`].
+    fn from(val: Verbosity) -> Self {
+        radicle::git::Verbosity::from(i8::try_from(val.0).unwrap_or(i8::MAX) - 1)
+    }
+}
+
+/// The documentation on Git remote helpers, see
+/// <https://git-scm.com/docs/gitremote-helpers#Documentation/gitremote-helpers.txt-optionverbosityn>
+/// says: "1 is the default level of verbosity".
+impl Default for Verbosity {
+    fn default() -> Self {
+        Self(1)
+    }
+}
+
+impl FromStr for Verbosity {
+    type Err = std::num::ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        u8::from_str(s).map(Self)
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct Options {
     /// Don't sync after push.
@@ -84,6 +118,7 @@ pub struct Options {
     base: Option<Rev>,
     /// Patch message.
     message: cli::patch::Message,
+    verbosity: Verbosity,
 }
 
 /// Run the radicle remote helper using the given profile.
@@ -139,9 +174,15 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                 println!("fetch");
                 println!();
             }
-            ["option", "verbosity"] => {
-                println!("ok");
-            }
+            ["option", "verbosity", verbosity] => match verbosity.parse::<Verbosity>() {
+                Ok(verbosity) => {
+                    opts.verbosity = verbosity;
+                    println!("ok");
+                }
+                Err(err) => {
+                    println!("error {err}");
+                }
+            },
             ["option", "push-option", args @ ..] => {
                 // Nb. Git documentation says that we can print `error <msg>` or `unsupported`
                 // for options that are not supported, but this results in Git saying that
@@ -167,7 +208,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                     path: working.clone(),
                 })?;
 
-                return fetch::run(vec![(oid, refstr)], working, stored, &stdin)
+                return fetch::run(vec![(oid, refstr)], working, stored, &stdin, opts.verbosity)
                     .map_err(Error::from);
             }
             ["push", refspec] => {

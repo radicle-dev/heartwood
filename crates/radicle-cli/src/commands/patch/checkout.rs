@@ -132,7 +132,7 @@ fn find_patch_commit<'a>(
     match working.find_commit(head) {
         Ok(commit) => Ok(commit),
         Err(e) if git::ext::is_not_found_err(&e) => {
-            git::process::fetch_local(workdir, stored, [head.into()])?;
+            git::process::fetch_local(workdir, stored, [head.into()], git::Verbosity::default())?;
             working.find_commit(head).map_err(|e| e.into())
         }
         Err(e) => Err(e.into()),
