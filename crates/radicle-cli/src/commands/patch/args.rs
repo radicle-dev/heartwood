@@ -75,12 +75,12 @@ pub struct ReviewOptions {
     pub delete: bool,
 }
 
-impl From<ReviewOptions> for crate::commands::rad_patch::review::Options {
+impl From<ReviewOptions> for crate::commands::patch::review::Options {
     fn from(value: ReviewOptions) -> Self {
         Self {
             message: value.message.into(),
             op: if value.delete {
-                crate::commands::rad_patch::review::Operation::Delete
+                crate::commands::patch::review::Operation::Delete
             } else {
                 todo!()
             }
@@ -131,7 +131,7 @@ pub struct CheckoutOptions {
     pub force: bool,
 }
 
-impl From<CheckoutOptions> for crate::commands::rad_patch::checkout::Options {
+impl From<CheckoutOptions> for crate::commands::patch::checkout::Options {
     fn from(value: CheckoutOptions) -> Self {
         Self {
             name: value.name,

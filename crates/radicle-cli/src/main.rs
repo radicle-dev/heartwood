@@ -10,7 +10,7 @@ use clap_complete::Shell;
 
 use radicle::version::Version;
 use radicle_cli::commands::rad_issue;
-use radicle_cli::commands::rad_patch;
+use radicle_cli::commands::patch;
 use radicle_cli::commands::*;
 use radicle_cli::terminal as term;
 

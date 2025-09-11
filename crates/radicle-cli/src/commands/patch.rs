@@ -31,7 +31,7 @@ use radicle::patch::cache::Patches as _;
 use radicle::storage::git::transport;
 use radicle::{prelude::*, Node};
 
-use crate::commands::rad_patch::args::{Command, CommentSubcommand};
+use crate::commands::patch::args::{Command, CommentSubcommand};
 use crate::git::Rev;
 use crate::node;
 use crate::terminal as term;
@@ -224,7 +224,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         Some(Command::Update {
             ref patch_id,
             ref base_id,
-            message: crate::commands::rad_patch::args::UpdateMessageArg { message, no_message: _ },
+            message: crate::commands::patch::args::UpdateMessageArg { message, no_message: _ },
         }) => {
             let patch_id = patch_id.resolve(&repository.backend)?;
             let base_id = base_id
