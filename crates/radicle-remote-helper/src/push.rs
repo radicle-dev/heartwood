@@ -506,7 +506,7 @@ where
 
     let (_, target) = stored.canonical_head()?;
     let base = if let Some(base) = opts.base {
-        base.resolve(working)?
+        base
     } else {
         stored.merge_base(&target, &head)?
     };
@@ -638,7 +638,7 @@ where
     let (_, target) = stored.canonical_head()?;
     let head: git::Oid = commit;
     let base = if let Some(base) = opts.base {
-        base.resolve(working)?
+        base
     } else {
         stored.merge_base(&target, &head)?
     };

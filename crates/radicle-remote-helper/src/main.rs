@@ -33,7 +33,6 @@ use radicle::storage::{ReadRepository, WriteStorage};
 use radicle::version::Version;
 use radicle::{cob, profile};
 use radicle::{git, storage, Profile};
-use radicle_cli::git::Rev;
 use radicle_cli::terminal as cli;
 
 pub const VERSION: Version = Version {
@@ -78,7 +77,10 @@ fn main() {
 pub enum Error {
     /// Failed to parse `base`.
     #[error("failed to parse base revision: {0}")]
-    Base(Box<dyn std::error::Error>),
+    Base(#[source] git::raw::Error),
+    /// Base is not a commit.
+    #[error("base must be of type 'commit' but it is of type '{actual_type}'")]
+    BaseNotCommit { actual_type: String },
     /// Remote repository not found (or empty).
     #[error("remote repository `{0}` not found")]
     RepositoryNotFound(PathBuf),
@@ -162,7 +164,7 @@ pub struct Options {
     /// Open patch in draft mode.
     draft: bool,
     /// Patch base to use, when opening or updating a patch.
-    base: Option<Rev>,
+    base: Option<git::Oid>,
     /// Patch message.
     message: cli::patch::Message,
     verbosity: Verbosity,
@@ -299,8 +301,19 @@ fn push_option(args: &[&str], opts: &mut Options) -> Result<(), Error> {
                     opts.message.append(val);
                 }
                 "patch.base" => {
-                    let base = cli::args::rev(&val.into()).map_err(|e| Error::Base(e.into()))?;
-                    opts.base = Some(base);
+                    let repo = git::raw::Repository::open_from_env().map_err(Error::Base)?;
+                    let commit = repo
+                        .revparse_single(val)
+                        .map_err(Error::Base)?
+                        .into_commit()
+                        .map_err(|object| Error::BaseNotCommit {
+                            actual_type: object
+                                .kind()
+                                .map(|kind| kind.to_string())
+                                .unwrap_or_else(|| "<unknown type encountered>".to_string()),
+                        })?;
+
+                    opts.base = Some(git::Oid::from(commit.id()));
                 }
                 other => {
                     return Err(Error::UnsupportedPushOption(other.to_owned()));
