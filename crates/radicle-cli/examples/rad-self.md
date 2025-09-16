@@ -26,7 +26,7 @@ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 ```
 $ rad self --nid
-! Warning: The option `--nid` is deprecated, please use `rad node status` instead.
+! Warning: The option `--nid` is deprecated, please use `rad node status --only nid` instead.
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 

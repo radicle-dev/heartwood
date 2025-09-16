@@ -1,7 +1,7 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::time;
+use std::{process, time};
 
 use anyhow::anyhow;
 
@@ -63,6 +63,11 @@ Events options
 
     --timeout <secs>     How long to wait to receive an event before giving up
     --count, -n <count>  Exit after <count> events
+
+Status options
+
+    --only nid           If node is running, only print the Node ID and exit,
+                         otherwise exit with a non-zero exit status.
 
 General options
 
@@ -127,7 +132,9 @@ pub enum Operation {
     Logs {
         lines: usize,
     },
-    Status,
+    Status {
+        only_nid: bool,
+    },
     Inventory {
         nid: Option<NodeId>,
     },
@@ -171,6 +178,7 @@ impl Args for Options {
         let mut addresses = false;
         let mut path = None;
         let mut verbose = false;
+        let mut only_nid = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -206,6 +214,13 @@ impl Args for Options {
                 {
                     let val = parser.value()?;
                     nid = term::args::nid(&val).ok();
+                }
+                Long("only") if matches!(op, Some(OperationName::Status)) => {
+                    if &parser.value()? == "nid" {
+                        only_nid = true;
+                    } else {
+                        anyhow::bail!("unknown argument to --only");
+                    }
                 }
                 Long("json") if matches!(op, Some(OperationName::Routing)) => json = true,
                 Long("timeout")
@@ -263,7 +278,7 @@ impl Args for Options {
                 path: path.unwrap_or(PathBuf::from("radicle-node")),
             },
             OperationName::Inventory => Operation::Inventory { nid },
-            OperationName::Status => Operation::Status,
+            OperationName::Status => Operation::Status { only_nid },
             OperationName::Debug => Operation::Debug,
             OperationName::Sessions => Operation::Sessions,
             OperationName::Stop => Operation::Stop,
@@ -333,8 +348,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 println!("{}", term::format::tertiary(rid));
             }
         }
-        Operation::Status => {
+        Operation::Status { only_nid: false } => {
             control::status(&node, &profile)?;
+        }
+        Operation::Status { only_nid: true } => {
+            if node.is_running() {
+                term::print(term::format::node_id_human(&node.nid()?));
+            } else {
+                process::exit(2);
+            }
         }
         Operation::Stop => {
             control::stop(node, &profile);

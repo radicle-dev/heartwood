@@ -101,7 +101,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Show::NodeId => {
             term::warning(
-                "The option `--nid` is deprecated, please use `rad node status` instead.",
+                "The option `--nid` is deprecated, please use `rad node status --only nid` instead.",
             );
             term::print(
                 Node::new(profile.socket())
