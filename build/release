@@ -12,6 +12,7 @@ SSH_KEY="$(rad path)/keys/radicle"
 
 main() {
   version="$1"
+  destination="/var/www/files.radicle.xyz/releases/$version"
 
   if [ -z "$version" ]; then
     echo "fatal: empty version number" >&2 ; exit 1
@@ -28,7 +29,7 @@ main() {
   case "$confirmation" in
     [Yy]*)
       echo "Creating 'latest' symlink.."
-      ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf "/mnt/radicle/files/releases/$version" /mnt/radicle/files/releases/latest ;;
+      ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf "$destination/$version" /mnt/radicle/files/releases/latest ;;
     *)
       echo "Operation aborted."
       exit 1 ;;

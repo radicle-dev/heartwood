@@ -17,7 +17,7 @@ main() {
     echo "fatal: empty version number" >&2 ; exit 1
   fi
 
-  destination="/mnt/radicle/files/releases/$version"
+  destination="/var/www/files.radicle.xyz/releases/$version"
 
   # Create remote folder.
   ssh -i "$SSH_KEY" "$SSH_ADDRESS" mkdir -p "$destination"
@@ -52,7 +52,6 @@ main() {
     fi
   done < build/TARGETS
 
-  # TODO(cloudhead): Don't pass `--tags` when we have canonical refs.
   # Pushes tags without assuming the remote the user is using. It does this by
   # using the pushurl directly, i.e.
   # `rad://z3gqcJUoA1n9HaHKufZs5FCSGazv5/<nid>`, where `<nid>` is the local Node
