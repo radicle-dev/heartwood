@@ -743,15 +743,19 @@ impl Doc {
         Ok(git::refs::branch(self.project()?.default_branch()))
     }
 
-    pub fn default_branch_rule(
-        &self,
-    ) -> Result<(rules::Pattern, rules::ValidRule), DefaultBranchRuleError> {
-        let pattern = rules::Pattern::refs_heads_exact(self.project()?.default_branch());
+    pub fn default_branch_rule(&self) -> Result<rules::Rules, DefaultBranchRuleError> {
+        let pattern = git::fmt::refspec::QualifiedPattern::from(git::refs::branch(
+            self.project()?.default_branch(),
+        ));
         let rule = rules::Rule::new(
             rules::ResolvedDelegates::Delegates(self.delegates.clone()),
             self.threshold,
         );
-        Ok((pattern, rule))
+        Ok(rules::Rules::from_raw(
+            rules::RawRules::from_iter([(pattern, rule.into())]),
+            &mut || self.delegates.clone(),
+        )
+        .expect("default rules are valid"))
     }
 
     /// Return the associated [`Visibility`] of this document.
@@ -925,21 +929,20 @@ impl crefs::GetCanonicalRefs for Doc {
     type Error = CanonicalRefsError;
 
     fn canonical_refs(&self) -> Result<Option<CanonicalRefs>, Self::Error> {
-        self.raw_canonical_refs().and_then(|raw| {
-            raw.map(|raw| {
-                raw.try_into_canonical_refs(&mut || self.delegates.clone())
-                    .map_err(CanonicalRefsError::from)
-                    .and_then(|mut crefs| {
-                        self.default_branch_rule()
-                            .map_err(CanonicalRefsError::from)
-                            .map(|rule| {
-                                crefs.extend([rule]);
-                                crefs
-                            })
-                    })
-            })
-            .transpose()
-        })
+        let Some(raw_crefs) = self.raw_canonical_refs()? else {
+            return Ok(None);
+        };
+
+        let mut raw_rules = raw_crefs.raw_rules().clone();
+
+        let default_branch_rule = self.default_branch_rule()?;
+        raw_rules.extend(rules::RawRules::from(default_branch_rule));
+
+        let raw_crefs = RawCanonicalRefs::new(raw_rules);
+
+        Ok(Some(
+            raw_crefs.try_into_canonical_refs(&mut || self.delegates.clone())?,
+        ))
     }
 
     fn raw_canonical_refs(&self) -> Result<Option<RawCanonicalRefs>, Self::Error> {

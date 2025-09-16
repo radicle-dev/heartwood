@@ -347,8 +347,11 @@ fn set_canonical_refs(
     let identity = repo.identity()?;
     let rules = identity
         .canonical_refs_or_default(|| {
-            let rule = identity.doc().default_branch_rule()?;
-            Ok::<_, CanonicalRefsError>(CanonicalRefs::from_iter([rule]))
+            identity
+                .doc()
+                .default_branch_rule()
+                .map(CanonicalRefs::new)
+                .map_err(CanonicalRefsError::from)
         })?
         .rules()
         .clone();

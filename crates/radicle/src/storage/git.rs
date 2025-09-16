@@ -798,12 +798,13 @@ impl ReadRepository for Repository {
     fn canonical_head(&self) -> Result<(Qualified<'_>, Oid), RepositoryError> {
         let doc = self.identity_doc()?;
         let refname = doc.default_branch()?.to_owned();
-        let crefs = match doc.canonical_refs()? {
-            Some(crefs) => crefs,
-            // Fallback to constructing the default branch via the project
-            // payload
-            None => CanonicalRefs::from_iter([doc.default_branch_rule()?]),
-        };
+
+        let crefs = doc.canonical_refs_or_default(|| {
+            doc.default_branch_rule()
+                .map_err(RepositoryError::from)
+                .map(CanonicalRefs::new)
+        })?;
+
         Ok(crefs
             .rules()
             .canonical(refname, self)
