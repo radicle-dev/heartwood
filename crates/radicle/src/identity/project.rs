@@ -7,6 +7,7 @@ use serde::{
 use thiserror::Error;
 
 use crate::crypto;
+use crate::git::{refs::branch, Qualified};
 use crate::identity::doc;
 use crate::identity::doc::Payload;
 use crate::storage::BranchName;
@@ -253,6 +254,11 @@ impl Project {
     #[inline]
     pub fn default_branch(&self) -> &BranchName {
         &self.default_branch
+    }
+
+    #[inline]
+    pub fn default_branch_ref(&self) -> Qualified {
+        branch(&self.default_branch)
     }
 }
 

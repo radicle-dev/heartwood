@@ -250,6 +250,8 @@ pub fn run(
     stdin: &io::Stdin,
     opts: Options,
 ) -> Result<(), Error> {
+    const LOG_MESSAGE: &str = "set-canonical from push (radicle)";
+
     // Don't allow push if either of these conditions is true:
     //
     // 1. Our key is not in ssh-agent, which means we won't be able to sign the refs.
@@ -282,8 +284,7 @@ pub fn run(
         }
     }
     let delegates = stored.delegates()?;
-    let identity = stored.identity()?;
-    let canonical_ref = identity.default_branch()?;
+
     let mut set_canonical_refs: Vec<(git::Qualified, git::canonical::Object)> =
         Vec::with_capacity(specs.len());
 
@@ -395,6 +396,8 @@ pub fn run(
     if !ok.is_empty() {
         let _ = stored.sign_refs(&signer)?;
 
+        stored.set_canonical_symbolic_refs(LOG_MESSAGE)?;
+
         for (refname, object) in &set_canonical_refs {
             let oid = object.id();
             let kind = object.object_type();
@@ -407,20 +410,11 @@ pub fn run(
                 )
             };
 
-            // N.b. special case for handling the canonical ref, since it
-            // creates a symlink to HEAD
-            if *refname == canonical_ref {
-                stored.set_head_to_default_branch()?;
-            }
-
             match stored.backend.refname_to_id(refname.as_str()) {
                 Ok(new) if new != *oid => {
-                    stored.backend.reference(
-                        refname.as_str(),
-                        *oid,
-                        true,
-                        "set-canonical-reference from git-push (radicle)",
-                    )?;
+                    stored
+                        .backend
+                        .reference(refname.as_str(), *oid, true, LOG_MESSAGE)?;
                     print_update();
                 }
                 Err(e) if e.code() == git::raw::ErrorCode::NotFound => {

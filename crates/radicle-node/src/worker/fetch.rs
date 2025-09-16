@@ -12,8 +12,7 @@ use radicle::prelude::RepoId;
 use radicle::storage::git::Repository;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{
-    ReadRepository, ReadStorage as _, RefUpdate, RemoteRepository, RepositoryError,
-    WriteRepository as _,
+    ReadRepository, ReadStorage as _, RefUpdate, RemoteRepository, WriteRepository as _,
 };
 use radicle::{cob, git, node, Storage};
 use radicle_fetch::git::refs::Applied;
@@ -116,15 +115,6 @@ impl Handle {
                 // points to a repository that is temporary and gets moved by [`mv`].
                 let repo = storage.repository(rid)?;
                 repo.set_identity_head()?;
-                match repo.set_head_to_default_branch() {
-                    Ok(()) => {
-                        log::trace!(target: "worker", "Set HEAD successfully");
-                    }
-                    Err(RepositoryError::Quorum(e)) => {
-                        log::warn!(target: "worker", "Fetch could not set HEAD: {e}")
-                    }
-                    Err(e) => return Err(e.into()),
-                }
 
                 let canonical = match set_canonical_refs(&repo, &applied) {
                     Ok(updates) => updates.unwrap_or_default(),
@@ -363,8 +353,21 @@ fn set_canonical_refs(
     repo: &Repository,
     applied: &Applied,
 ) -> Result<Option<UpdatedCanonicalRefs>, error::Canonical> {
+    const LOG_MESSAGE: &str = "set-canonical from fetch (radicle)";
+
     let identity = repo.identity()?;
-    let rules = identity.doc().canonical_refs()?.rules().clone();
+    let crefs = identity.doc().canonical_refs()?;
+
+    for (name, target) in crefs.symbolic().iter() {
+        if let Err(e) = repo.set_symbolic_ref(name, target, LOG_MESSAGE) {
+            log::warn!(
+                target: "worker",
+                "Failed to set canonical symbolic reference {name}->{target}: {e}"
+            );
+        }
+    }
+
+    let rules = crefs.rules().clone();
 
     let mut updated_refs = UpdatedCanonicalRefs::default();
     let refnames = applied
@@ -406,12 +409,10 @@ fn set_canonical_refs(
                 refname, object, ..
             }) => {
                 let oid = object.id();
-                if let Err(e) = repo.backend.reference(
-                    refname.clone().as_str(),
-                    *oid,
-                    true,
-                    "set-canonical-reference from fetch (radicle)",
-                ) {
+                if let Err(e) =
+                    repo.backend
+                        .reference(refname.clone().as_str(), *oid, true, LOG_MESSAGE)
+                {
                     log::warn!(
                         target: "worker",
                         "Failed to set canonical reference {refname}->{oid}: {e}"

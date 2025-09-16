@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `git-remote-rad` now correctly reports the default branch to Git by listing
   the symbolic reference `HEAD`.
 - `rad status` learned a new option `--only nid` for printing the Node ID.
+- Symbolic references can now be handled by canonical references by coding them
+  in the payload `xyz.radicle.crefs` under the key `symbolic`.
 
 ## Fixed Bugs
 
