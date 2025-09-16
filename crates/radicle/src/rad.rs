@@ -143,7 +143,7 @@ where
     )?;
     stored.set_remote_identity_root_to(pk, identity)?;
     stored.set_identity_head_to(identity)?;
-    stored.set_head_to_default_branch()?;
+    stored.set_canonical_symbolic_refs("set-canonical from init (radicle)")?;
     stored.set_default_branch_to_canonical_head()?;
 
     let signed = stored.sign_refs(signer)?;

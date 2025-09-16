@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
        environment variable `RAD_PASSPHRASE` (lower priority than the
        credential).
        The identifier of the credential is "xyz.radicle.node.passphrase".
+- Symbolic references can now be handled by canonical references by coding them
+  in the payload `xyz.radicle.crefs` under the key `symbolic`.
 
 ## Fixed Bugs
 

@@ -122,8 +122,10 @@ pub enum RepositoryError {
     Refs(#[from] refs::Error),
     #[error("missing canonical reference rule for default branch")]
     MissingBranchRule,
+    #[error("missing canonical symbolic reference for default branch (`HEAD`)")]
+    MissingBranchSymbolic,
     #[error("could not get the default branch rule: {0}")]
-    DefaultBranchRule(#[from] doc::DefaultBranchRuleError),
+    DefaultBranchRule(#[from] doc::DefaultBranchError),
     #[error("failed to get canonical reference rules: {0}")]
     CanonicalRefs(#[from] doc::CanonicalRefsError),
     #[error(transparent)]
@@ -666,11 +668,26 @@ where
 
 /// Allows read-write access to a repository.
 pub trait WriteRepository: ReadRepository + SignRepository {
-    /// Sets the symbolic reference `HEAD` to target the default branch.
-    /// This only depends on the value for the default branch in the identity
-    /// document, and does not require the canonical reference behind the
-    /// default branch to be computed, or even exist.
-    fn set_head_to_default_branch(&self) -> Result<(), RepositoryError>;
+    /// Sets the canonical symbolic references.
+    ///
+    /// This only depends on the cref payload in the identity document, and does
+    /// not require the targeted canonical references to be computed, or even
+    /// exist.
+    fn set_canonical_symbolic_refs(&self, message: &str) -> Result<(), RepositoryError> {
+        for (name, target) in self.identity_doc()?.canonical_refs()?.symbolic().iter() {
+            self.set_symbolic_ref(name, target, message)?;
+        }
+        Ok(())
+    }
+
+    /// Sets a symbolic reference, if it does not exist or its target is different
+    /// from the given one.
+    fn set_symbolic_ref(
+        &self,
+        name: &RefStr,
+        target: &RefStr,
+        message: &str,
+    ) -> Result<(), RepositoryError>;
 
     /// Computes the head of the default branch based on the delegate set,
     /// and sets it.

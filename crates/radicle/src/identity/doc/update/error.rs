@@ -29,8 +29,13 @@ pub enum DocVerification {
     #[error(transparent)]
     Doc(#[from] DocError),
     #[error("incompatible payloads: The rule(s) xyz.radicle.crefs.rules.{matches:?} matches the value of xyz.radicle.project.defaultBranch ('{default}'). Possible resolutions: Change the name of the default branch or remove the rule(s).")]
-    DisallowDefault {
+    DisallowDefaultBranchRule {
         matches: Vec<String>,
+        default: git::fmt::Qualified<'static>,
+    },
+    #[error("incompatible payloads: The symbolic reference xyz.radicle.crefs.symbolic.HEAD → '{symbolic}' conflicts with xyz.radicle.project.defaultBranch ('{default}'). Possible resolutions: Remove either of the two.")]
+    DisallowDefaultBranchSymbolic {
+        symbolic: RefString,
         default: git::fmt::Qualified<'static>,
     },
 }
