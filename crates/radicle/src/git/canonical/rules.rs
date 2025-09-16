@@ -81,6 +81,13 @@ impl<'a> TryFrom<Qualified<'a>> for Pattern {
 }
 
 impl Pattern {
+    /// Construct a [`Pattern`] that matches a branch exactly.
+    ///
+    /// The resulting [`Pattern`] will match `refs/heads/<name>`.
+    pub fn refs_heads_exact(name: &git::fmt::RefStr) -> Self {
+        Self(QualifiedPattern::from(git::refs::branch(name)))
+    }
+
     /// Check if the `refname` matches the rule's `refspec`.
     pub fn matches(&self, refname: &Qualified) -> bool {
         // N.b. Git's refspecs do not quite match with glob-star semantics. A
