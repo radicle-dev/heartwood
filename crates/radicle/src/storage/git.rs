@@ -28,7 +28,7 @@ use crate::{git, git::Oid, node};
 use crate::git::RefError;
 use crate::git::UserInfo;
 use crate::git::fmt::{
-    Qualified, RefString, refname, refspec, refspec::PatternStr, refspec::PatternString,
+    Qualified, RefStr, RefString, refspec, refspec::PatternStr, refspec::PatternString,
 };
 pub use crate::storage::{Error, RepositoryError};
 
@@ -852,20 +852,17 @@ impl ReadRepository for Repository {
 
     fn canonical_head(&self) -> Result<(Qualified<'_>, Oid), RepositoryError> {
         let doc = self.identity_doc()?;
-        let refname = doc.default_branch()?.to_owned();
-
-        let crefs = doc.canonical_refs()?;
-
-        Ok(crefs
+        Ok(doc
+            .canonical_refs()?
             .rules()
-            .canonical(refname, self)
+            .canonical(doc.default_branch()?, self)
             .ok_or(RepositoryError::MissingBranchRule)?
             .find_objects()?
             .quorum()?)
         .map(
             |Quorum {
                  refname, object, ..
-             }| (refname, object.id()),
+             }| (refname.to_owned(), object.id()),
         )
     }
 
@@ -939,31 +936,41 @@ impl ReadRepository for Repository {
 }
 
 impl WriteRepository for Repository {
-    fn set_head_to_default_branch(&self) -> Result<(), RepositoryError> {
-        let head_ref = refname!("HEAD");
-        let branch_ref = self.default_branch()?;
-
-        match self.raw().find_reference(head_ref.as_str()) {
-            Ok(mut head_ref) => {
-                if head_ref
-                    .symbolic_target()
-                    .is_some_and(|t| t != branch_ref.as_str())
-                {
-                    head_ref.symbolic_set_target(branch_ref.as_str(), "set-head (radicle)")?;
+    fn set_symbolic_ref<Name, Target>(
+        &self,
+        name: &Name,
+        target: &Target,
+        message: &str,
+    ) -> Result<(), RepositoryError>
+    where
+        Name: AsRef<RefStr>,
+        Target: AsRef<RefStr>,
+    {
+        let name = name.as_ref();
+        let target = target.as_ref();
+        match self.raw().find_reference(name.as_str()) {
+            Ok(mut existing) => match existing.symbolic_target() {
+                Some(current) if current == target.as_str() => {
+                    // Already points to the correct target, nothing to do.
                 }
-                Ok(())
-            }
+                Some(_) => {
+                    // Symbolic ref pointing to a different target, update it.
+                    existing.symbolic_set_target(target.as_str(), message)?;
+                }
+                None => {
+                    // A direct (non-symbolic) ref exists where we expect a
+                    // symbolic one. Overwrite it with force.
+                    self.raw()
+                        .reference_symbolic(name.as_str(), target.as_str(), true, message)?;
+                }
+            },
             Err(err) if err.is_not_found() => {
-                self.raw().reference_symbolic(
-                    head_ref.as_str(),
-                    branch_ref.as_str(),
-                    true,
-                    "set-head (radicle)",
-                )?;
-                Ok(())
+                self.raw()
+                    .reference_symbolic(name.as_str(), target.as_str(), true, message)?;
             }
-            Err(err) => Err(err.into()),
+            Err(err) => return Err(err.into()),
         }
+        Ok(())
     }
 
     fn set_default_branch_to_canonical_head(&self) -> Result<SetHead, RepositoryError> {

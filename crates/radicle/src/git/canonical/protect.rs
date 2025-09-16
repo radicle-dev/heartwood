@@ -19,7 +19,7 @@ pub enum Error {
 }
 
 /// A witnesses that the inner reference-like value is not protected.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, Hash)]
 #[repr(transparent)]
 #[serde(transparent)]
 pub(super) struct Unprotected<T: RefLike>(T);
@@ -42,11 +42,32 @@ impl<T: RefLike> Unprotected<T> {
     pub fn into_inner(self) -> T {
         self.0
     }
+
+    /// Allows creation without any checking. Callers must ensure that
+    /// `reflike` is indeed unprotected!
+    #[inline]
+    const fn new_unchecked(reflike: T) -> Self {
+        Self(reflike)
+    }
 }
 
 impl<T: RefLike> AsRef<T> for Unprotected<T> {
     fn as_ref(&self) -> &T {
         &self.0
+    }
+}
+
+impl<T: RefLike> std::borrow::Borrow<T> for Unprotected<T> {
+    fn borrow(&self) -> &T {
+        &self.0
+    }
+}
+
+/// Enables looking up entries in a map keyed by `Unprotected<RefString>` using
+/// a `&RefStr`.
+impl std::borrow::Borrow<crate::git::fmt::RefStr> for Unprotected<crate::git::fmt::RefString> {
+    fn borrow(&self) -> &crate::git::fmt::RefStr {
+        self.0.as_ref()
     }
 }
 
@@ -68,13 +89,43 @@ impl<T: RefLike + std::fmt::Display> std::fmt::Display for Unprotected<T> {
 /// For types that are commonly used in conjunction with [`Unprotected`]
 /// have some `impl`s and companion infallible injections.
 mod impls {
-    use crate::git::fmt::{RefString, refspec::QualifiedPattern};
+    use crate::git::{
+        fmt::{Qualified, RefStr, RefString, refname, refspec::QualifiedPattern},
+        refs::branch,
+    };
 
     use super::*;
 
     /// [`RefString`] models reference names, thus the prototype of what it
     /// means to be [`RefLike`].
     impl RefLike for RefString {}
+
+    impl Unprotected<RefString> {
+        /// The reference name `HEAD`.
+        // We would like to have a `pub const HEAD`, but
+        // [`crate::git::RefStr::from_str`] is private.
+        #[inline]
+        pub fn head() -> Self {
+            // Calling [`Unprotected::new_unchecked`] here is legal,
+            // because we know statically that `HEAD` is not protected.
+            Unprotected::new_unchecked(refname!("HEAD"))
+        }
+    }
+
+    /// [`Qualified`] is a restriction on [`RefString`].
+    impl RefLike for Qualified<'_> {}
+
+    impl Unprotected<Qualified<'_>> {
+        /// Construct a qualified reference name for given branch, i.e.,
+        /// return `/refs/heads/<name>`
+        pub fn branch(name: &RefStr) -> Self {
+            Self::new(branch(name)).expect("branches are never protected")
+        }
+
+        pub fn to_ref_string(&self) -> Unprotected<RefString> {
+            Unprotected::new_unchecked(self.0.to_ref_string())
+        }
+    }
 
     /// A [`QualifiedPattern`] is [`RefLike`] in the sense that it matches a
     /// (possibly infinite) set of [`crate::git::Qualified`].

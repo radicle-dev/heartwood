@@ -301,8 +301,12 @@ fn git_push_canonical_lightweight_tags() {
     .unwrap();
 }
 
+/// This test exercises a large surface of the "Canonical References" feature:
+///  - Annotated Tags
+///  - Branches
+///  - Symbolic References
 #[test]
-fn git_push_canonical_annotated_tags() {
+fn git_push_canonical() {
     let mut environment = Environment::new();
     let alice = environment.node("alice");
     let bob = environment.node("bob");
@@ -327,6 +331,42 @@ fn git_push_canonical_annotated_tags() {
     formula(
         &environment.tempdir(),
         "examples/git/git-push-canonical-annotated-tags.md",
+    )
+    .unwrap()
+    .home(
+        "alice",
+        environment.work(&alice),
+        [("RAD_HOME", alice.home.path().display())],
+    )
+    .home(
+        "bob",
+        environment.work(&bob),
+        [("RAD_HOME", bob.home.path().display())],
+    )
+    .run()
+    .unwrap();
+
+    formula(
+        &environment.tempdir(),
+        "examples/git/git-push-canonical-branch.md",
+    )
+    .unwrap()
+    .home(
+        "alice",
+        environment.work(&alice),
+        [("RAD_HOME", alice.home.path().display())],
+    )
+    .home(
+        "bob",
+        environment.work(&bob),
+        [("RAD_HOME", bob.home.path().display())],
+    )
+    .run()
+    .unwrap();
+
+    formula(
+        &environment.tempdir(),
+        "examples/git/git-push-canonical-symbolic-ref.md",
     )
     .unwrap()
     .home(

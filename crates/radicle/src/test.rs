@@ -59,7 +59,7 @@ pub fn fetch<W: WriteRepository>(
     drop(opts);
 
     repo.set_identity_head()?;
-    repo.set_head_to_default_branch()?;
+    repo.set_canonical_symbolic_refs("set-canonical test (radicle)")?;
     repo.set_default_branch_to_canonical_head()?;
 
     let validations = repo.validate()?;

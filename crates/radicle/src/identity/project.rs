@@ -8,6 +8,7 @@ use thiserror::Error;
 
 use crate::crypto;
 use crate::git::BranchName;
+use crate::git::{fmt::Qualified, refs::branch};
 use crate::identity::doc;
 use crate::identity::doc::Payload;
 
@@ -253,6 +254,12 @@ impl Project {
     #[inline]
     pub fn default_branch(&self) -> &BranchName {
         &self.default_branch
+    }
+
+    /// Return the qualified name of the default branch.
+    #[inline]
+    pub fn default_branch_qualified(&self) -> Qualified<'_> {
+        branch(&self.default_branch)
     }
 }
 
