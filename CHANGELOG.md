@@ -283,6 +283,8 @@ With the introduction of `clap`, this helped with the introduction of a command
        environment variable `RAD_PASSPHRASE` (lower priority than the
        credential). The identifier of the credential is
        "xyz.radicle.node.passphrase".
+- Symbolic references can now be handled by canonical references by coding them
+  in the payload `xyz.radicle.crefs` under the key `symbolic`.
 
 ## Fixed Bugs
 

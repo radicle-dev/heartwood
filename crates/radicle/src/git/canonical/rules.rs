@@ -390,6 +390,22 @@ impl From<Did> for Allowed {
     }
 }
 
+impl std::fmt::Display for Allowed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Allowed::Delegates => f.write_str("\"allowed\""),
+            Allowed::Set(dids) => {
+                let dids = dids
+                    .iter()
+                    .map(|did| did.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\", \"");
+                f.write_fmt(format_args!("[\"{dids}\"]"))
+            }
+        }
+    }
+}
+
 /// A marker `enum` that is used in a [`ValidRule`].
 ///
 /// It ensures that a rule that has been deserialized, resolving the `delegates`

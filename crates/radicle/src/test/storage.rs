@@ -344,7 +344,12 @@ impl WriteRepository for MockRepository {
         todo!()
     }
 
-    fn set_head_to_default_branch(&self) -> Result<(), RepositoryError> {
+    fn set_symbolic_ref(
+        &self,
+        _name: &fmt::RefStr,
+        _target: &fmt::RefStr,
+        _message: &str,
+    ) -> Result<(), RepositoryError> {
         todo!()
     }
 

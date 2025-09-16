@@ -208,9 +208,13 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
             });
         }
     };
-    // Ensure that if we have canonical reference rules and a project, that no
-    // rule exists for the default branch. This rule must be synthesized when
-    // constructing the canonical reference rules.
+
+    // If we have both payloads `xyz.radicle.{project,crefs}` ensure that,
+    // in the `crefs` payload there is no …
+    //  1. … rule that matches the default branch from the  `project` payload.
+    //     (This rule must be synthesized!)
+    //  2. … symbolic reference with the name `HEAD`.
+    //     (This reference must be synthesized!)
     use super::GetRawCanonicalRefs as _;
     match raw
         .raw_canonical_refs()
@@ -225,11 +229,19 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
                 .map(|(pattern, _)| pattern.to_string())
                 .collect::<Vec<_>>();
             if !matches.is_empty() {
-                return Err(error::DocVerification::DisallowDefault { matches, default });
+                return Err(error::DocVerification::DisallowDefaultBranchRule { matches, default });
+            }
+
+            if let Some(symbolic) = crefs.symbolic().resolve_head() {
+                return Err(error::DocVerification::DisallowDefaultBranchSymbolic {
+                    symbolic: symbolic.to_owned(),
+                    default,
+                });
             }
         }
         _ => { /* we validate below */ }
     }
+
     // Verify that the canonical references payload is valid
     if let Err(e) = proposal.canonical_refs() {
         return Err(error::DocVerification::PayloadError {
@@ -332,7 +344,7 @@ mod test {
         assert!(
             matches!(
                 super::verify(raw),
-                Err(error::DocVerification::DisallowDefault { .. })
+                Err(error::DocVerification::DisallowDefaultBranchRule { .. })
             ),
             "Verification should be rejected for including default branch rule"
         )
