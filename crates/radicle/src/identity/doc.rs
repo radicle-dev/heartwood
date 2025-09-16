@@ -81,8 +81,6 @@ impl DocError {
 
 #[derive(Debug, Error)]
 pub enum DefaultBranchRuleError {
-    #[error("could not create rule due to the reference name being invalid: {0}")]
-    Pattern(#[from] rules::PatternError),
     #[error("could not load `xyz.radicle.project` to get default branch name: {0}")]
     Payload(#[from] PayloadError),
 }
@@ -751,7 +749,7 @@ impl Doc {
     pub fn default_branch_rule(
         &self,
     ) -> Result<(rules::Pattern, rules::ValidRule), DefaultBranchRuleError> {
-        let pattern = rules::Pattern::try_from(self.default_branch()?.to_owned())?;
+        let pattern = rules::Pattern::refs_heads_exact(self.project()?.default_branch());
         let rule = rules::Rule::new(
             rules::ResolvedDelegates::Delegates(self.delegates.clone()),
             self.threshold,
