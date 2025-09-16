@@ -1,9 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::git::canonical::{
-    rules::{self, RawRules, Rules, ValidationError},
-    ValidRule,
-};
+use crate::git::canonical::rules::{RawRules, Rules, ValidationError};
 
 use super::doc::{Delegates, Payload};
 
@@ -92,18 +89,6 @@ impl CanonicalRefs {
     /// Return the [`Rules`].
     pub fn rules(&self) -> &Rules {
         &self.rules
-    }
-}
-
-impl FromIterator<(rules::Pattern, ValidRule)> for CanonicalRefs {
-    fn from_iter<T: IntoIterator<Item = (rules::Pattern, ValidRule)>>(iter: T) -> Self {
-        Self::new(Rules::from_iter(iter))
-    }
-}
-
-impl Extend<(rules::Pattern, ValidRule)> for CanonicalRefs {
-    fn extend<T: IntoIterator<Item = (rules::Pattern, ValidRule)>>(&mut self, iter: T) {
-        self.rules.extend(iter)
     }
 }
 

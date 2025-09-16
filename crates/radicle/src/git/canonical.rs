@@ -10,6 +10,7 @@ use quorum::{CommitQuorum, CommitQuorumFailure, TagQuorum, TagQuorumFailure};
 mod voting;
 
 pub mod effects;
+pub mod protect;
 pub mod rules;
 
 pub use rules::{MatchedRule, RawRule, Rules, ValidRule};

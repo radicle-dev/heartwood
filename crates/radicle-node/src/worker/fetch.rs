@@ -369,8 +369,7 @@ fn set_canonical_refs(
     let identity = repo.identity()?;
     let rules = identity
         .canonical_refs_or_default(|| {
-            let rule = identity.doc().default_branch_rule()?;
-            Ok::<_, CanonicalRefsError>(CanonicalRefs::from_iter([rule]))
+            Ok::<_, CanonicalRefsError>(identity.doc().default_canonical_refs()?)
         })?
         .rules()
         .clone();

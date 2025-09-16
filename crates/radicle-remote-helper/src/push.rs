@@ -344,8 +344,7 @@ pub fn run(
                     PushAction::PushRef { dst } => {
                         let identity = stored.identity()?;
                         let crefs = identity.canonical_refs_or_default(|| {
-                            let rule = identity.doc().default_branch_rule()?;
-                            Ok::<_, CanonicalRefsError>(CanonicalRefs::from_iter([rule]))
+                            Ok::<_, CanonicalRefsError>(identity.doc().default_canonical_refs()?)
                         })?;
                         let rules = crefs.rules();
                         let me = Did::from(nid);

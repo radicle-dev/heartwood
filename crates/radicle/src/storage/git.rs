@@ -14,7 +14,7 @@ use tempfile::TempDir;
 use crate::git::canonical::Quorum;
 use crate::identity::crefs::GetCanonicalRefs as _;
 use crate::identity::doc::DocError;
-use crate::identity::{CanonicalRefs, Doc, DocAt, RepoId};
+use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
 use crate::node::device::Device;
 use crate::node::SyncedAt;
@@ -787,12 +787,11 @@ impl ReadRepository for Repository {
     fn canonical_head(&self) -> Result<(Qualified, Oid), RepositoryError> {
         let doc = self.identity_doc()?;
         let refname = doc.default_branch()?.to_owned();
-        let crefs = match doc.canonical_refs()? {
-            Some(crefs) => crefs,
-            // Fallback to constructing the default branch via the project
-            // payload
-            None => CanonicalRefs::from_iter([doc.default_branch_rule()?]),
-        };
+
+        let crefs = doc.canonical_refs_or_default(|| {
+            doc.default_canonical_refs().map_err(RepositoryError::from)
+        })?;
+
         Ok(crefs
             .rules()
             .canonical(refname, self)
