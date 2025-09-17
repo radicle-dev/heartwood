@@ -83,6 +83,7 @@ pub fn run(
             unified,
             hunk,
         } if by_hunk => {
+            crate::warning::obsolete("rad patch review --patch");
             let mut opts = git::raw::DiffOptions::new();
             opts.patience(true)
                 .minimal(true)
@@ -124,6 +125,7 @@ pub fn run(
             }
         }
         Operation::Delete => {
+            crate::warning::obsolete("rad patch review --delete");
             let name = git::refs::storage::draft::review(profile.id(), &patch_id);
 
             match repository.backend.find_reference(&name) {

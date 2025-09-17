@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The option `rad self --nid` was deprecated in favor of `rad status --only nid`
 - `rad diff` was deprecated in favor of using `git diff`
+- `rad patch review --patch` and `rad patch review --delete` are made obsolete.
+  This functionality never worked as intended, and may be removed before the
+  next major release.
 
 ## New Features
 
