@@ -53,3 +53,12 @@ pub(crate) fn deprecated(old: impl std::fmt::Display, new: impl std::fmt::Displa
         radicle_term::Paint::yellow("Deprecated:").bold(),
     );
 }
+
+/// Prints an obsoletion warning to standard error.
+pub(crate) fn obsolete(command: impl std::fmt::Display) {
+    eprintln!(
+        "{} {} The command `{command}` is obsolete and will be removed. Please stop using it.",
+        radicle_term::PREFIX_WARNING,
+        radicle_term::Paint::yellow("Obsolete:").bold(),
+    );
+}
