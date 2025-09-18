@@ -4,19 +4,6 @@ use crate::git::canonical::rules::{RawRules, Rules, ValidationError};
 
 use super::doc::{Delegates, Payload};
 
-/// Implemented by any data type or store that can return [`CanonicalRefs`] and
-/// [`RawCanonicalRefs`].
-pub trait GetRawCanonicalRefs {
-    type Error: std::error::Error + Send + Sync + 'static;
-
-    /// Retrieve the [`RawCanonicalRefs`], returning `Some` if they are
-    /// present, and `None` if they are absent.
-    ///
-    /// [`Self::Error`] is used to return any domain-specific error by the
-    /// implementing type.
-    fn raw_canonical_refs(&self) -> Result<Option<RawCanonicalRefs>, Self::Error>;
-}
-
 /// Configuration for canonical references and their rules.
 ///
 /// `RawCanonicalRefs` are verified into [`CanonicalRefs`].

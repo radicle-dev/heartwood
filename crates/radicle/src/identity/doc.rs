@@ -31,7 +31,7 @@ use crate::storage::{ReadRepository, RepositoryError};
 pub use crypto::PublicKey;
 pub use id::*;
 
-use super::crefs::{self, RawCanonicalRefs};
+use super::crefs::RawCanonicalRefs;
 use super::CanonicalRefs;
 
 /// Path to the identity document in the identity branch.
@@ -257,6 +257,10 @@ impl Payload {
         &mut self,
     ) -> Option<&mut serde_json::value::Map<String, serde_json::Value>> {
         self.value.as_object_mut()
+    }
+
+    pub fn into_inner(self) -> serde_json::Value {
+        self.value
     }
 }
 
@@ -782,7 +786,6 @@ impl Doc {
     /// The resulting [`CanonicalRefs`] are constructed by extension with
     /// [`Self::default_branch_rule`].
     pub fn canonical_refs(&self) -> Result<CanonicalRefs, CanonicalRefsError> {
-        use crefs::GetRawCanonicalRefs;
         let raw_crefs = self.raw_canonical_refs()?.unwrap_or_default();
 
         let mut raw_rules = raw_crefs.raw_rules().clone();
@@ -952,40 +955,34 @@ impl Doc {
 #[derive(Debug, Error)]
 pub enum CanonicalRefsError {
     #[error(transparent)]
-    Json(#[from] serde_json::Error),
+    Raw(#[from] RawCanonicalRefsError),
     #[error(transparent)]
     CanonicalRefs(#[from] rules::ValidationError),
     #[error(transparent)]
     DefaultBranch(#[from] DefaultBranchRuleError),
 }
 
-impl crefs::GetRawCanonicalRefs for Doc {
-    type Error = CanonicalRefsError;
+#[derive(Debug, Error)]
+pub enum RawCanonicalRefsError {
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+}
 
-    fn raw_canonical_refs(&self) -> Result<Option<RawCanonicalRefs>, Self::Error> {
-        let value = self.payload.get(&PayloadId::canonical_refs());
-        let crefs = value
-            .map(|value| {
-                serde_json::from_value((**value).clone()).map_err(CanonicalRefsError::from)
-            })
-            .transpose()?;
-        Ok(crefs)
+pub trait GetRawCanonicalRefs: GetPayload {
+    /// Retrieve the [`RawCanonicalRefs`] by deserializing from the payload
+    /// (if present).
+    fn raw_canonical_refs(&self) -> Result<Option<RawCanonicalRefs>, RawCanonicalRefsError> {
+        let Some(value) = self.get_payload(&PayloadId::canonical_refs()) else {
+            return Ok(None);
+        };
+
+        Ok(Some(serde_json::from_value(value.to_owned().into_inner())?))
     }
 }
 
-impl crefs::GetRawCanonicalRefs for RawDoc {
-    type Error = CanonicalRefsError;
+impl GetRawCanonicalRefs for Doc {}
 
-    fn raw_canonical_refs(&self) -> Result<Option<RawCanonicalRefs>, Self::Error> {
-        let value = self.payload.get(&PayloadId::canonical_refs());
-        let crefs = value
-            .map(|value| {
-                serde_json::from_value((**value).clone()).map_err(CanonicalRefsError::from)
-            })
-            .transpose()?;
-        Ok(crefs)
-    }
-}
+impl GetRawCanonicalRefs for RawDoc {}
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]

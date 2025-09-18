@@ -214,7 +214,7 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
     // Ensure that if we have canonical reference rules and a project, that no
     // rule exists for the default branch. This rule must be synthesized when
     // constructing the canonical reference rules.
-    use super::crefs::GetRawCanonicalRefs as _;
+    use super::GetRawCanonicalRefs as _;
     match raw
         .raw_canonical_refs()
         .map(|rcrefs| rcrefs.and_then(|c| project.map(|p| (c, p))))
