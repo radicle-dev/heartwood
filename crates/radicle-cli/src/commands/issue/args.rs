@@ -17,10 +17,10 @@ use crate::{git::Rev, terminal::patch::Message};
 /// Command line Peer argument.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub enum Assigned {
-    /// Filter issues assigned to the local `NID`
+    /// Filter issues assigned to the local DID
     #[default]
     Me,
-    /// Filter issues assigned to the given `DID`
+    /// Filter issues assigned to the given DID
     Peer(Did),
 }
 
@@ -32,12 +32,12 @@ pub struct Args {
     #[command(subcommand)]
     pub(crate) command: Option<Command>,
 
-    /// Don't print anything
+    /// Do not print anything
     #[arg(short, long)]
     #[clap(global = true)]
     pub(crate) quiet: bool,
 
-    /// Don't announce issue to peers
+    /// Do not announce issue changes to the network
     #[arg(long)]
     #[arg(value_name = "no-announce")]
     #[clap(global = true)]
@@ -63,9 +63,9 @@ pub struct Args {
 /// Commands to create, view, and edit Radicle issues
 #[derive(Subcommand, Debug)]
 pub(crate) enum Command {
-    /// Manage assignees of an issue
+    /// Add or delete assignees from an issue
     Assign {
-        /// The issue to assign a DID to
+        /// ID of the issue
         #[arg(value_name = "ISSUE_ID")]
         id: Rev,
 
@@ -93,7 +93,7 @@ pub(crate) enum Command {
     },
     /// Add a comment to an issue
     Comment {
-        /// The issue to comment on
+        /// ID of the issue
         id: Rev,
 
         /// The body of the comment
@@ -107,14 +107,14 @@ pub(crate) enum Command {
         #[arg(conflicts_with = "edit")]
         reply_to: Option<Rev>,
 
-        /// The comment to edit (if any)
+        /// Edit a comment by specifying its ID
         #[arg(long, value_name = "COMMENT_ID")]
         #[arg(conflicts_with = "reply_to")]
         edit: Option<Rev>,
     },
-    /// Edit an issue
+    /// Edit the title and description of an issue
     Edit {
-        /// The issue to edit
+        /// ID of the issue
         #[arg(value_name = "ISSUE_ID")]
         id: Rev,
 
@@ -128,13 +128,13 @@ pub(crate) enum Command {
     },
     /// Delete an issue
     Delete {
-        /// The issue to delete
+        /// ID of the issue
         #[arg(value_name = "ISSUE_ID")]
         id: Rev,
     },
-    /// Update labels on an issue
+    /// Add or delete labels from an issue
     Label {
-        /// The issue to label
+        /// ID of the issue
         id: Rev,
 
         /// Add an assignee (may be specified multiple times)
@@ -157,47 +157,47 @@ pub(crate) enum Command {
     List(ListArgs),
     /// Open a new issue
     Open {
-        /// The new title to set
+        /// The title of the issue
         #[arg(long, short)]
         title: Option<Title>,
 
-        /// The new description to set
+        /// The description of the issue
         #[arg(long, short)]
         description: Option<String>,
 
-        /// A set of labels to associate
+        /// A set of labels to associate with the issue
         #[arg(long)]
         labels: Vec<Label>,
 
-        /// A set of DIDs to assign
+        /// A set of DIDs to assign to the issue
         #[arg(value_name = "DID")]
         #[arg(long)]
         assignees: Vec<Did>,
     },
     /// Add a reaction emoji to an issue or comment
     React {
-        /// The issue to react to
+        /// ID of the issue
         #[arg(value_name = "ISSUE_ID")]
         id: Rev,
 
-        /// The emoji reaction to react with
+        /// The emoji reaction
         #[arg(long = "emoji")]
         #[arg(value_name = "CHAR")]
         reaction: Option<Reaction>,
 
-        /// Optionally react to a given comment
+        /// Optionally react to a comment
         #[arg(long = "to")]
         #[arg(value_name = "COMMENT_ID")]
         comment_id: Option<Rev>,
     },
     /// Show a specific issue
     Show {
-        /// The issue to display
+        /// ID of the issue
         id: Rev,
     },
-    /// Set the state of an issue
+    /// Transition the state of an issue
     State {
-        /// The issue to be transitioned
+        /// ID of the issue
         #[arg(value_name = "ISSUE_ID")]
         id: Rev,
 
@@ -216,7 +216,7 @@ impl Default for Command {
 /// Arguments for the [`Command::List`] subcommand.
 #[derive(Parser, Debug)]
 pub(crate) struct ListArgs {
-    /// List issues assigned to <DID> (default: me)
+    /// Filter for the list of issues that are assigned to '<DID>' (default: me)
     #[arg(long, name = "DID")]
     #[arg(default_missing_value = "me")]
     #[arg(num_args = 0..=1)]
@@ -274,17 +274,17 @@ impl From<ListArgs> for Option<State> {
 #[derive(Parser, Debug)]
 #[group(id = "state", required = true, multiple = false)]
 pub(crate) struct StateArgs {
-    /// Change state to open
+    /// Change the state to 'open'
     #[arg(long)]
     #[arg(group = "state")]
     pub(crate) open: bool,
 
-    /// Change state to closed
+    /// Change the state to 'closed'
     #[arg(long)]
     #[arg(group = "state")]
     pub(crate) closed: bool,
 
-    /// Change state to solved
+    /// Change the state to 'solved'
     #[arg(long)]
     #[arg(group = "state")]
     pub(crate) solved: bool,
