@@ -6,35 +6,15 @@ use super::doc::{Delegates, Payload};
 
 /// Implemented by any data type or store that can return [`CanonicalRefs`] and
 /// [`RawCanonicalRefs`].
-pub trait GetCanonicalRefs {
+pub trait GetRawCanonicalRefs {
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// Retrieve the [`CanonicalRefs`], returning `Some` if they are not
-    /// present, and `None` if they are missing.
-    ///
-    /// [`Self::Error`] is used to return any domain-specific error by the
-    /// implementing type.
-    fn canonical_refs(&self) -> Result<Option<CanonicalRefs>, Self::Error>;
-
-    /// Retrieve the [`RawCanonicalRefs`], returning `Some` if they are not
-    /// present, and `None` if they are missing.
+    /// Retrieve the [`RawCanonicalRefs`], returning `Some` if they are
+    /// present, and `None` if they are absent.
     ///
     /// [`Self::Error`] is used to return any domain-specific error by the
     /// implementing type.
     fn raw_canonical_refs(&self) -> Result<Option<RawCanonicalRefs>, Self::Error>;
-
-    /// Retrieve the [`CanonicalRefs`], and in the case of `None`, then use the
-    /// `default` function to return a default set of [`CanonicalRefs`].
-    fn canonical_refs_or_default<D, E>(&self, default: D) -> Result<CanonicalRefs, E>
-    where
-        D: Fn() -> Result<CanonicalRefs, E>,
-        E: From<Self::Error>,
-    {
-        match self.canonical_refs()? {
-            Some(crefs) => Ok(crefs),
-            None => Ok(default()?),
-        }
-    }
 }
 
 /// Configuration for canonical references and their rules.

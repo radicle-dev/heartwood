@@ -1,5 +1,3 @@
-use radicle::identity::doc::CanonicalRefsError;
-use radicle::identity::CanonicalRefs;
 use radicle::storage::git::TempRepository;
 pub(crate) use radicle_protocol::worker::fetch::error;
 
@@ -10,7 +8,6 @@ use localtime::LocalTime;
 
 use radicle::cob::TypedId;
 use radicle::crypto::PublicKey;
-use radicle::identity::crefs::GetCanonicalRefs as _;
 use radicle::prelude::NodeId;
 use radicle::prelude::RepoId;
 use radicle::storage::git::Repository;
@@ -345,16 +342,7 @@ fn set_canonical_refs(
     applied: &Applied,
 ) -> Result<Option<UpdatedCanonicalRefs>, error::Canonical> {
     let identity = repo.identity()?;
-    let rules = identity
-        .canonical_refs_or_default(|| {
-            identity
-                .doc()
-                .default_branch_rule()
-                .map(CanonicalRefs::new)
-                .map_err(CanonicalRefsError::from)
-        })?
-        .rules()
-        .clone();
+    let rules = identity.doc().canonical_refs()?.rules().clone();
 
     let mut updated_refs = UpdatedCanonicalRefs::default();
     let refnames = applied

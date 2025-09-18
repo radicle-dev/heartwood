@@ -15,9 +15,8 @@ use crypto::Verified;
 
 use crate::git::canonical::Quorum;
 use crate::git::raw::ErrorExt as _;
-use crate::identity::crefs::GetCanonicalRefs as _;
 use crate::identity::doc::DocError;
-use crate::identity::{CanonicalRefs, Doc, DocAt, RepoId};
+use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
 use crate::node::device::Device;
 use crate::node::SyncedAt;
@@ -799,11 +798,7 @@ impl ReadRepository for Repository {
         let doc = self.identity_doc()?;
         let refname = doc.default_branch()?.to_owned();
 
-        let crefs = doc.canonical_refs_or_default(|| {
-            doc.default_branch_rule()
-                .map_err(RepositoryError::from)
-                .map(CanonicalRefs::new)
-        })?;
+        let crefs = doc.canonical_refs()?;
 
         Ok(crefs
             .rules()

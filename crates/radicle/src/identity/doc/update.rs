@@ -6,7 +6,6 @@ use serde_json as json;
 
 use crate::{
     git,
-    identity::crefs::GetCanonicalRefs as _,
     prelude::Did,
     storage::{refs, ReadRepository, RepositoryError},
 };
@@ -215,6 +214,7 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
     // Ensure that if we have canonical reference rules and a project, that no
     // rule exists for the default branch. This rule must be synthesized when
     // constructing the canonical reference rules.
+    use super::crefs::GetRawCanonicalRefs as _;
     match raw
         .raw_canonical_refs()
         .map(|rcrefs| rcrefs.and_then(|c| project.map(|p| (c, p))))
@@ -281,10 +281,7 @@ mod test {
 
     use crate::{
         git,
-        identity::{
-            crefs::GetCanonicalRefs,
-            doc::{update::error, PayloadId},
-        },
+        identity::doc::{update::error, PayloadId},
         prelude::RawDoc,
         test::arbitrary,
     };
@@ -366,7 +363,7 @@ mod test {
         )
         .unwrap();
         let verified = super::verify(raw).unwrap();
-        let crefs = verified.canonical_refs().unwrap().unwrap();
+        let crefs = verified.canonical_refs().unwrap();
         assert!(
             crefs.rules().matches(&branch).next().is_some(),
             "Default branch rule is missing!"

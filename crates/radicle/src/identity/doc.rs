@@ -758,6 +758,23 @@ impl Doc {
         .expect("default rules are valid"))
     }
 
+    /// Construct the canonical references for this document.
+    /// The implementation of [`crefs::RawCanonicalRefs`] is used to
+    /// obtain the payload identified by [`PayloadId::canonical_refs`], if it
+    /// exists.
+    /// The resulting [`CanonicalRefs`] are constructed by extension with
+    /// [`Self::default_branch_rule`].
+    pub fn canonical_refs(&self) -> Result<CanonicalRefs, CanonicalRefsError> {
+        use crefs::GetRawCanonicalRefs;
+        let raw_crefs = self.raw_canonical_refs()?.unwrap_or_default();
+
+        let mut raw_rules = raw_crefs.raw_rules().clone();
+        raw_rules.extend(rules::RawRules::from(self.default_branch_rule()?));
+
+        let raw_crefs = RawCanonicalRefs::new(raw_rules);
+        Ok(raw_crefs.try_into_canonical_refs(&mut || self.delegates.clone())?)
+    }
+
     /// Return the associated [`Visibility`] of this document.
     pub fn visibility(&self) -> &Visibility {
         &self.visibility
@@ -925,25 +942,8 @@ pub enum CanonicalRefsError {
     DefaultBranch(#[from] DefaultBranchRuleError),
 }
 
-impl crefs::GetCanonicalRefs for Doc {
+impl crefs::GetRawCanonicalRefs for Doc {
     type Error = CanonicalRefsError;
-
-    fn canonical_refs(&self) -> Result<Option<CanonicalRefs>, Self::Error> {
-        let Some(raw_crefs) = self.raw_canonical_refs()? else {
-            return Ok(None);
-        };
-
-        let mut raw_rules = raw_crefs.raw_rules().clone();
-
-        let default_branch_rule = self.default_branch_rule()?;
-        raw_rules.extend(rules::RawRules::from(default_branch_rule));
-
-        let raw_crefs = RawCanonicalRefs::new(raw_rules);
-
-        Ok(Some(
-            raw_crefs.try_into_canonical_refs(&mut || self.delegates.clone())?,
-        ))
-    }
 
     fn raw_canonical_refs(&self) -> Result<Option<RawCanonicalRefs>, Self::Error> {
         let value = self.payload.get(&PayloadId::canonical_refs());
@@ -956,12 +956,8 @@ impl crefs::GetCanonicalRefs for Doc {
     }
 }
 
-impl crefs::GetCanonicalRefs for RawDoc {
+impl crefs::GetRawCanonicalRefs for RawDoc {
     type Error = CanonicalRefsError;
-
-    fn canonical_refs(&self) -> Result<Option<CanonicalRefs>, Self::Error> {
-        Ok(None)
-    }
 
     fn raw_canonical_refs(&self) -> Result<Option<RawCanonicalRefs>, Self::Error> {
         let value = self.payload.get(&PayloadId::canonical_refs());
