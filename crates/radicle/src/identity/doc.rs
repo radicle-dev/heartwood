@@ -274,6 +274,23 @@ impl Deref for Payload {
     }
 }
 
+/// Trait for all types that may carry payloads.
+pub trait GetPayload {
+    fn get_payload(&self, id: &PayloadId) -> Option<&Payload>;
+}
+
+impl GetPayload for Doc {
+    fn get_payload(&self, id: &PayloadId) -> Option<&Payload> {
+        self.payload.get(id)
+    }
+}
+
+impl GetPayload for RawDoc {
+    fn get_payload(&self, id: &PayloadId) -> Option<&Payload> {
+        self.payload.get(id)
+    }
+}
+
 /// A verified identity document at a specific commit.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocAt {
