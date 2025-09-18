@@ -9,8 +9,6 @@ use std::process::ExitStatus;
 use std::str::FromStr;
 use std::{assert_eq, io};
 
-use radicle::identity::crefs::GetCanonicalRefs as _;
-use radicle::identity::doc::CanonicalRefsError;
 use radicle::node::device::Device;
 use thiserror::Error;
 
@@ -20,7 +18,7 @@ use radicle::cob::patch;
 use radicle::cob::patch::cache::Patches as _;
 use radicle::crypto;
 use radicle::explorer::ExplorerResource;
-use radicle::identity::{CanonicalRefs, Did};
+use radicle::identity::Did;
 use radicle::node;
 use radicle::node::{Handle, NodeId};
 use radicle::storage;
@@ -343,9 +341,7 @@ pub fn run(
                     ),
                     PushAction::PushRef { dst } => {
                         let identity = stored.identity()?;
-                        let crefs = identity.canonical_refs_or_default(|| {
-                            Ok::<_, CanonicalRefsError>(identity.doc().default_canonical_refs()?)
-                        })?;
+                        let crefs = identity.doc().canonical_refs()?;
                         let rules = crefs.rules();
                         let me = Did::from(nid);
 

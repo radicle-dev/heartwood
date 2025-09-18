@@ -12,7 +12,6 @@ use crypto::Verified;
 use tempfile::TempDir;
 
 use crate::git::canonical::Quorum;
-use crate::identity::crefs::GetCanonicalRefs as _;
 use crate::identity::doc::DocError;
 use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
@@ -788,9 +787,7 @@ impl ReadRepository for Repository {
         let doc = self.identity_doc()?;
         let refname = doc.default_branch()?.to_owned();
 
-        let crefs = doc.canonical_refs_or_default(|| {
-            doc.default_canonical_refs().map_err(RepositoryError::from)
-        })?;
+        let crefs = doc.canonical_refs()?;
 
         Ok(crefs
             .rules()
