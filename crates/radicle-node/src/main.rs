@@ -2,6 +2,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::exit;
+use std::str::FromStr;
 
 use crossbeam_channel as chan;
 use thiserror::Error;
@@ -14,17 +15,7 @@ use radicle_node::{Runtime, VERSION};
 #[cfg(unix)]
 use radicle_signals as signals;
 
-/// The log level to use before reading any other value
-/// from configuration.
-///
-/// Note that this is different from the default value
-/// of the command line argument `--log`, as it is valid
-/// *even before that argument is parsed*.
-/// It ensures that we log the errors parsing the
-/// command line arguments, such as `--log`.
-const LOG_LEVEL_DEFAULT: &log::Level = &log::Level::Warn;
-
-pub const HELP_MSG: &str = r#"
+const HELP_MSG: &str = r#"
 Usage
 
    radicle-node [<option>...]
@@ -34,18 +25,59 @@ Usage
 
 Options
 
-    --config             <path>         Config file to use (default ~/.radicle/config.json)
-    --force                             Force start even if an existing control socket is found
-    --listen             <address>      Address to listen on
-    --log                <level>        Set log level (default: info)
-    --version                           Print program version
-    --help                              Print help
+    --config      <path>                            Config file to use
+                  (default: ~/.radicle/config.json)
+    --force                                         Force start even if an existing control socket
+                                                      is found
+    --listen      <address>                         Address to listen on
+    --log-level   <level>                           Set log level
+                  (default: info)
+    --log-logger  (radicle | systemd)               Set logger implementation
+                  (default: radicle)
+    --version                                       Print program version
+    --help                                          Print help
 "#;
+
+#[derive(Debug, Clone)]
+enum Logger {
+    Radicle,
+    #[cfg(all(feature = "systemd", target_os = "linux"))]
+    Systemd,
+}
+
+impl Default for Logger {
+    fn default() -> Self {
+        #[cfg(all(feature = "systemd", target_os = "linux"))]
+        if radicle_systemd::journal::connected() {
+            return Logger::Systemd;
+        }
+
+        Logger::Radicle
+    }
+}
+
+impl FromStr for Logger {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "radicle" => Ok(Logger::Radicle),
+            #[cfg(all(feature = "systemd", target_os = "linux"))]
+            "systemd" => Ok(Logger::Systemd),
+            _ => Err("unknown logger"),
+        }
+    }
+}
+
+struct LogOptions {
+    level: Option<log::Level>,
+    logger: Logger,
+}
 
 struct Options {
     config: Option<PathBuf>,
     listen: Vec<SocketAddr>,
-    log: Option<log::Level>,
+    log: LogOptions,
     force: bool,
 }
 
@@ -57,7 +89,8 @@ fn parse_options() -> Result<Options, lexopt::Error> {
     let mut listen = Vec::new();
     let mut config = None;
     let mut force = false;
-    let mut log = None;
+    let mut log_level = None;
+    let mut log_logger = Logger::default();
 
     while let Some(arg) = parser.next()? {
         match arg {
@@ -71,8 +104,21 @@ fn parse_options() -> Result<Options, lexopt::Error> {
                 let addr = parser.value()?.parse_with(SocketAddr::from_str)?;
                 listen.push(addr);
             }
-            Long("log") => {
-                log = Some(parser.value()?.parse_with(log::Level::from_str)?);
+            Long("log") | Long("log-level") => {
+                if matches!(arg, Long("log")) {
+                    eprintln!("Warning: The option `--log` is deprecated and will be removed. Please use `--log-level` instead.");
+                }
+                log_level = Some(parser.value()?.parse_with(log::Level::from_str)?);
+            }
+            Long("log-logger") => {
+                let parsed = parser.value()?.parse_with(Logger::from_str)?;
+                if matches!(parsed, Logger::Radicle) {
+                    return Err(lexopt::Error::Custom(
+                        "choice of this logger explicitly is forbidden, because it is deprecated"
+                            .into(),
+                    ));
+                }
+                log_logger = parsed;
             }
             Long("help") | Short('h') => {
                 println!("{HELP_MSG}");
@@ -91,8 +137,11 @@ fn parse_options() -> Result<Options, lexopt::Error> {
     Ok(Options {
         force,
         listen,
-        log,
         config,
+        log: LogOptions {
+            level: log_level,
+            logger: log_logger,
+        },
     })
 }
 
@@ -115,14 +164,14 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
     // The first thing we do after reading command line options is
     // to set the log level, as this influences logging during
     // configuration loading.
-    if let Some(level) = options.log {
+    if let Some(level) = options.log.level {
         log::set_max_level(level.to_level_filter());
     }
 
     let config = options.config.unwrap_or_else(|| home.config());
     let mut config = profile::Config::load(&config)?;
 
-    if options.log.is_none() {
+    if options.log.level.is_none() {
         log::set_max_level(log::Level::from(config.node.log).to_level_filter());
     } else {
         // It might seem counter-intuitive at first, as there
@@ -178,51 +227,38 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
     Ok(())
 }
 
-fn initialize_logging() {
-    let level = *LOG_LEVEL_DEFAULT;
+fn initialize_logging(options: &LogOptions) -> Result<(), Box<dyn std::error::Error>> {
+    let level = options.level.unwrap_or(log::Level::Info);
 
-    //  - We are compiling conditionally, so cannot depend
-    //    on the concrete type of the logger(s).
-    //  - We are dealing with `Option`, so we need `Box: Sized`.
-    //  - We want to provide a `Box` to `log::set_boxed_logger`.
-    //  - We also want to keep around any errors along the way.
-    type Logger = Box<dyn log::Log>;
-    type Error = Box<dyn std::error::Error>;
+    let logger: Box<dyn log::Log> = {
+        match options.logger {
+            #[cfg(all(feature = "systemd", target_os = "linux"))]
+            Logger::Systemd => {
+                use radicle_systemd::journal::*;
+                use thiserror::Error;
 
-    let journal: Result<Option<Logger>, Error> = {
-        #[cfg(all(feature = "systemd", target_os = "linux"))]
-        {
-            use thiserror::Error;
+                #[derive(Error, Debug)]
+                enum JournalError {
+                    #[error("journald not connected")]
+                    NotConnected,
+                    #[error("journald i/o: {0}")]
+                    Io(#[from] io::Error),
+                }
 
-            #[derive(Error, Debug)]
-            #[error("Error connecting to systemd journal: {0}")]
-            struct JournalError(io::Error);
+                if !connected() {
+                    return Err(Box::new(JournalError::NotConnected));
+                }
 
-            radicle_systemd::journal::logger::<&str, &str, _>("radicle-node".to_string(), [])
-                .map_err(|err| Box::new(JournalError(err)) as Error)
+                logger::<&str, &str, _>("radicle-node".to_string(), []).map_err(Box::new)?
+            }
+            Logger::Radicle => Box::new(radicle::logger::Logger::new(level)),
         }
-        #[cfg(not(all(feature = "systemd", target_os = "linux")))]
-        {
-            // This is constant, and `rustc` will hopefully use it to
-            // optimize away the `match` below.
-            Ok(None)
-        }
-    };
-
-    let (logger, err) = match journal {
-        Ok(Some(logger)) => (logger, None),
-        otherwise => (
-            Box::new(radicle::logger::Logger::new(level)) as Logger,
-            otherwise.err(),
-        ),
     };
 
     log::set_boxed_logger(logger).expect("no other logger should have been set already");
     log::set_max_level(level.to_level_filter());
 
-    if let Some(err) = err {
-        log::warn!(target: "node", "Error initializing logger (fell back to default): {err}");
-    }
+    Ok(())
 }
 
 fn main() {
@@ -234,16 +270,16 @@ fn main() {
         std::env::set_var(RUST_BACKTRACE, "1");
     }
 
-    initialize_logging();
+    let options = parse_options().unwrap_or_else(|err| {
+        // The lexopt errors read nicely with a comma.
+        eprintln!("Failed to parse options, {err:#}");
+        exit(2);
+    });
 
-    let options = match parse_options() {
-        Ok(options) => options,
-        Err(err) => {
-            // The lexopt errors read nicely with a comma.
-            log::error!(target: "node", "Failed to parse options, {err:#}");
-            exit(2);
-        }
-    };
+    initialize_logging(&options.log).unwrap_or_else(|err| {
+        eprintln!("Failed to initialize logging: {err:#}");
+        exit(3);
+    });
 
     if let Err(err) = execute(options) {
         log::error!(target: "node", "{err:#}");
