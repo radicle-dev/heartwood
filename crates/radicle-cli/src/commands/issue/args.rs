@@ -92,26 +92,7 @@ pub(crate) enum Command {
         storage: bool,
     },
     /// Add a comment to an issue
-    Comment {
-        /// ID of the issue
-        id: Rev,
-
-        /// The body of the comment
-        #[arg(long, short)]
-        #[arg(value_name = "MESSAGE")]
-        message: Message,
-
-        /// Optionally, the comment to reply to. If not specified, the comment
-        /// will be in reply to the issue itself
-        #[arg(long, value_name = "COMMENT_ID")]
-        #[arg(conflicts_with = "edit")]
-        reply_to: Option<Rev>,
-
-        /// Edit a comment by specifying its ID
-        #[arg(long, value_name = "COMMENT_ID")]
-        #[arg(conflicts_with = "reply_to")]
-        edit: Option<Rev>,
-    },
+    Comment(CommentArgs),
     /// Edit the title and description of an issue
     Edit {
         /// ID of the issue
@@ -207,6 +188,25 @@ pub(crate) enum Command {
     },
 }
 
+impl Command {
+    /// Returns `true` if the changes made by the command should announce to the
+    /// network.
+    pub(crate) fn should_announce_for(&self) -> bool {
+        match self {
+            Command::Open { .. }
+            | Command::React { .. }
+            | Command::State { .. }
+            | Command::Delete { .. }
+            | Command::Assign { .. }
+            | Command::Label { .. }
+            // Special handling for `--edit` will be removed in the future.
+            | Command::Edit { .. } => true,
+            Command::Comment(args) => !args.is_edit(),
+            _ => false,
+        }
+    }
+}
+
 impl Default for Command {
     fn default() -> Self {
         Self::List(ListArgs::default())
@@ -266,6 +266,95 @@ impl From<ListArgs> for Option<State> {
             })
         } else {
             None
+        }
+    }
+}
+
+/// Arguments for the [`Command::Comment`] subcommand.
+#[derive(Parser, Debug)]
+pub(crate) struct CommentArgs {
+    /// ID of the issue
+    id: Rev,
+
+    /// The body of the comment
+    #[arg(long, short)]
+    #[arg(value_name = "MESSAGE")]
+    message: Message,
+
+    /// Optionally, the comment to reply to. If not specified, the comment
+    /// will be in reply to the issue itself
+    #[arg(long, value_name = "COMMENT_ID")]
+    #[arg(conflicts_with = "edit")]
+    reply_to: Option<Rev>,
+
+    /// Edit a comment by specifying its ID
+    #[arg(long, value_name = "COMMENT_ID")]
+    #[arg(conflicts_with = "reply_to")]
+    edit: Option<Rev>,
+}
+
+impl CommentArgs {
+    // TODO(finto): this is only needed to avoid announcing edits for the time
+    // being
+    /// If the comment is editing an existing comment
+    pub(crate) fn is_edit(&self) -> bool {
+        self.edit.is_some()
+    }
+}
+
+/// The action that should be performed based on the supplied [`CommentArgs`].
+pub(crate) enum CommentAction {
+    /// Comment to the main issue thread.
+    Comment {
+        /// The issue ID
+        id: Rev,
+        /// The message of the comment.
+        message: Message,
+    },
+    /// Reply to a specific comment in the issue.
+    Reply {
+        /// The issue ID
+        id: Rev,
+        /// The message that is being used to reply to the comment.
+        message: Message,
+        /// The comment ID that is being replied to.
+        reply_to: Rev,
+    },
+    /// Edit a specific comment in the issue.
+    Edit {
+        /// The issue ID
+        id: Rev,
+        /// The message that is being used to edit the comment.
+        message: Message,
+        /// The comment ID that is being edited.
+        to_edit: Rev,
+    },
+}
+
+impl From<CommentArgs> for CommentAction {
+    fn from(
+        CommentArgs {
+            id,
+            message,
+            reply_to,
+            edit,
+        }: CommentArgs,
+    ) -> Self {
+        match (reply_to, edit) {
+            (Some(_), Some(_)) => {
+                unreachable!("the argument '--reply-to' cannot be used with '--edit'")
+            }
+            (Some(reply_to), None) => Self::Reply {
+                id,
+                message,
+                reply_to,
+            },
+            (None, Some(to_edit)) => Self::Edit {
+                id,
+                message,
+                to_edit,
+            },
+            (None, None) => Self::Comment { id, message },
         }
     }
 }

@@ -1,14 +1,14 @@
 mod args;
 mod cache;
+mod comment;
 
 use anyhow::Context as _;
 
 use radicle::cob::common::Label;
 use radicle::cob::issue::{CloseReason, State};
-use radicle::cob::{issue, thread, Title};
+use radicle::cob::{issue, Title};
 
 use radicle::crypto;
-use radicle::git::Oid;
 use radicle::issue::cache::Issues as _;
 use radicle::node::device::Device;
 use radicle::node::NodeId;
@@ -20,7 +20,7 @@ use radicle::Profile;
 use radicle::{cob, Node};
 
 pub use args::Args;
-use args::{Assigned, Command, StateArg};
+use args::{Assigned, Command, CommentAction, StateArg};
 
 use crate::git::Rev;
 use crate::node;
@@ -28,7 +28,6 @@ use crate::terminal as term;
 use crate::terminal::args::Error;
 use crate::terminal::format::Author;
 use crate::terminal::issue::Format;
-use crate::terminal::patch::Message;
 use crate::terminal::Element;
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
@@ -41,21 +40,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let repo = profile.storage.repository_mut(rid)?;
 
     let command = args.command.unwrap_or_default();
-    let announce = !args.no_announce
-        && matches!(
-            &command,
-            Command::Open { .. }
-                | Command::React { .. }
-                | Command::State { .. }
-                | Command::Delete { .. }
-                | Command::Assign { .. }
-                | Command::Label { .. }
-                | Command::Edit { .. }
-                // TODO(erikli): Remove special handling for `--edit` and
-                // make it also announce.
-                | Command::Comment { edit: None, .. }
-        );
-
+    let announce = !args.no_announce && command.should_announce_for();
     let mut issues = term::cob::issues_mut(&profile, &repo)?;
 
     match command {
@@ -89,66 +74,37 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 &profile,
             )?;
         }
-        Command::Comment {
-            id,
-            message,
-            reply_to,
-            edit: None,
-        } => {
-            let reply_to = reply_to
-                .map(|rev| rev.resolve::<radicle::git::Oid>(repo.raw()))
-                .transpose()?;
-
-            let signer = term::signer(&profile)?;
-            let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
-            let mut issue = issues.get_mut(&issue_id)?;
-            let (root_comment_id, _) = issue.root();
-            let body = prompt_comment(message, issue.thread(), reply_to, None)?;
-            let comment_id =
-                issue.comment(body, reply_to.unwrap_or(*root_comment_id), vec![], &signer)?;
-
-            if args.quiet {
-                term::print(comment_id);
-            } else {
-                let comment = issue.thread().comment(&comment_id).unwrap();
-                term::comment::widget(&comment_id, comment, &profile).print();
+        Command::Comment(c) => match CommentAction::from(c) {
+            CommentAction::Comment { id, message } => {
+                comment::comment(&profile, &repo, &mut issues, id, message, None, args.quiet)?;
             }
-        }
-        Command::Comment {
-            id,
-            message,
-            reply_to: None,
-            edit: Some(comment_id),
-        } => {
-            let signer = term::signer(&profile)?;
-            let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
-            let comment_id = comment_id.resolve(&repo.backend)?;
-            let mut issue = issues.get_mut(&issue_id)?;
-
-            let comment = issue
-                .thread()
-                .comment(&comment_id)
-                .ok_or(anyhow::anyhow!("comment '{comment_id}' not found"))?;
-
-            let body = prompt_comment(
+            CommentAction::Reply {
+                id,
                 message,
-                issue.thread(),
-                comment.reply_to(),
-                Some(comment.body()),
-            )?;
-
-            issue.edit_comment(comment_id, body, vec![], &signer)?;
-
-            if args.quiet {
-                term::print(comment_id);
-            } else {
-                let comment = issue.thread().comment(&comment_id).unwrap();
-                term::comment::widget(&comment_id, comment, &profile).print();
-            }
-        }
-        Command::Comment { .. } => {
-            unreachable!("the argument '--reply-to' cannot be used with '--edit'");
-        }
+                reply_to,
+            } => comment::comment(
+                &profile,
+                &repo,
+                &mut issues,
+                id,
+                message,
+                Some(reply_to),
+                args.quiet,
+            )?,
+            CommentAction::Edit {
+                id,
+                message,
+                to_edit,
+            } => comment::edit(
+                &profile,
+                &repo,
+                &mut issues,
+                id,
+                message,
+                to_edit,
+                args.quiet,
+            )?,
+        },
         Command::Show { id } => {
             let format = if args.header {
                 term::issue::Format::Header
@@ -484,95 +440,4 @@ where
     })?;
 
     Ok(issue)
-}
-
-/// Get a comment from the user, by prompting.
-pub fn prompt_comment(
-    message: Message,
-    thread: &thread::Thread,
-    mut reply_to: Option<Oid>,
-    edit: Option<&str>,
-) -> anyhow::Result<String> {
-    let (chase, missing) = {
-        let mut chase = Vec::with_capacity(thread.len());
-        let mut missing = None;
-        while let Some(id) = reply_to {
-            if let Some(comment) = thread.comment(&id) {
-                chase.push(comment);
-                reply_to = comment.reply_to();
-            } else {
-                missing = reply_to;
-                break;
-            }
-        }
-
-        (chase, missing)
-    };
-
-    let quotes = if chase.is_empty() {
-        ""
-    } else {
-        "Quotes (lines starting with '>') will be preserved. Please remove those that you do not intend to keep.\n"
-    };
-
-    let mut buffer = term::format::html::commented(format!("HTML comments, such as this one, are deleted before posting.\n{quotes}Saving an empty file aborts the operation.").as_str());
-    buffer.push('\n');
-
-    for comment in chase.iter().rev() {
-        buffer.reserve(2);
-        buffer.push('\n');
-        comment_quoted(comment, &mut buffer);
-    }
-
-    if let Some(id) = missing {
-        buffer.push('\n');
-        buffer.push_str(
-            term::format::html::commented(
-                format!("The comment with ID {id} that was replied to could not be found.")
-                    .as_str(),
-            )
-            .as_str(),
-        );
-    }
-
-    if let Some(edit) = edit {
-        if !chase.is_empty() {
-            buffer.push_str(
-                "\n<!-- The contents of the comment you are editing follow below this line. -->\n",
-            );
-        }
-
-        buffer.reserve(2 + edit.len());
-        buffer.push('\n');
-        buffer.push_str(edit);
-    }
-
-    let body = message.get(&buffer)?;
-    if body.is_empty() {
-        anyhow::bail!("aborting operation due to empty comment");
-    }
-
-    Ok(body)
-}
-
-fn comment_quoted(comment: &thread::Comment, buffer: &mut String) {
-    let body = comment.body();
-    let lines = body.lines();
-    let hint = {
-        let (lower, upper) = lines.size_hint();
-        upper.unwrap_or(lower)
-    };
-
-    buffer.push_str(format!("{} wrote:\n", comment.author()).as_str());
-    buffer.reserve(body.len() + hint * 2);
-
-    for line in lines {
-        buffer.push('>');
-        if !line.is_empty() {
-            buffer.push(' ');
-        }
-
-        buffer.push_str(line);
-        buffer.push('\n');
-    }
 }
