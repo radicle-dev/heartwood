@@ -10,7 +10,7 @@ build = "build.rs"
 rust-version.workspace = true
 
 [features]
-default = ["systemd"]
+default = ["systemd", "structured-logger"]
 systemd = ["dep:radicle-systemd"]
 test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "radicle-protocol/test", "qcheck", "snapbox"]
 
@@ -44,6 +44,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["preserve_order"] }
 snapbox = { workspace = true, optional = true }
 socket2 = "0.5.7"
+structured-logger = { version = "1.0.4", optional = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 

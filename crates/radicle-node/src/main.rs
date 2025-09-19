@@ -32,8 +32,9 @@ Options
     --listen      <address>                         Address to listen on
     --log-level   <level>                           Set log level
                   (default: info)
-    --log-logger  (radicle | systemd)               Set logger implementation
+    --log-logger  (radicle | structured | systemd)  Set logger implementation
                   (default: radicle)
+    --log-format  json                              Set log format for logger implementation
     --version                                       Print program version
     --help                                          Print help
 "#;
@@ -41,6 +42,8 @@ Options
 #[derive(Debug, Clone)]
 enum Logger {
     Radicle,
+    #[cfg(feature = "structured-logger")]
+    Structured,
     #[cfg(all(feature = "systemd", target_os = "linux"))]
     Systemd,
 }
@@ -62,6 +65,8 @@ impl FromStr for Logger {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "radicle" => Ok(Logger::Radicle),
+            #[cfg(feature = "structured-logger")]
+            "structured" => Ok(Logger::Structured),
             #[cfg(all(feature = "systemd", target_os = "linux"))]
             "systemd" => Ok(Logger::Systemd),
             _ => Err("unknown logger"),
@@ -69,9 +74,27 @@ impl FromStr for Logger {
     }
 }
 
+enum LogFormat {
+    #[cfg(feature = "structured-logger")]
+    Json,
+}
+
+impl FromStr for LogFormat {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            #[cfg(feature = "structured-logger")]
+            "json" => Ok(LogFormat::Json),
+            _ => Err("unknown log format"),
+        }
+    }
+}
+
 struct LogOptions {
     level: Option<log::Level>,
     logger: Logger,
+    format: Option<LogFormat>,
 }
 
 struct Options {
@@ -91,6 +114,7 @@ fn parse_options() -> Result<Options, lexopt::Error> {
     let mut force = false;
     let mut log_level = None;
     let mut log_logger = Logger::default();
+    let mut log_format = None;
 
     while let Some(arg) = parser.next()? {
         match arg {
@@ -120,6 +144,9 @@ fn parse_options() -> Result<Options, lexopt::Error> {
                 }
                 log_logger = parsed;
             }
+            Long("log-format") => {
+                log_format = Some(parser.value()?.parse_with(LogFormat::from_str)?);
+            }
             Long("help") | Short('h') => {
                 println!("{HELP_MSG}");
                 exit(0);
@@ -141,6 +168,7 @@ fn parse_options() -> Result<Options, lexopt::Error> {
         log: LogOptions {
             level: log_level,
             logger: log_logger,
+            format: log_format,
         },
     })
 }
@@ -232,6 +260,16 @@ fn initialize_logging(options: &LogOptions) -> Result<(), Box<dyn std::error::Er
 
     let logger: Box<dyn log::Log> = {
         match options.logger {
+            #[cfg(feature = "structured-logger")]
+            Logger::Structured => {
+                use structured_logger::{json, Builder};
+
+                let writer = match options.format {
+                    Some(LogFormat::Json) | None => json::new_writer(io::stdout()),
+                };
+
+                Box::new(Builder::new().with_default_writer(writer).build())
+            }
             #[cfg(all(feature = "systemd", target_os = "linux"))]
             Logger::Systemd => {
                 use radicle_systemd::journal::*;
