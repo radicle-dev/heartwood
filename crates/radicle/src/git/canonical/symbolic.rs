@@ -108,8 +108,7 @@ impl SymbolicRefs {
     /// Convenience method to get the target of the `HEAD` reference.
     /// See also [`SymbolicRefs::head`].
     pub fn get_head(&self) -> Option<&RawTarget> {
-        self.0
-            .get(&Unprotected::head())
+        self.resolve_unprotected(&Unprotected::head())
             .map(|target| target.as_ref())
     }
 }
