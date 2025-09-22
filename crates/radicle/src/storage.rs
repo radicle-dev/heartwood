@@ -673,9 +673,10 @@ where
 /// Allows read-write access to a repository.
 pub trait WriteRepository: ReadRepository + SignRepository {
     /// Sets the canonical symbolic references.
-    /// This only depends on the cref payload in the identity document
-    /// document, and does not require the targeted canonical references
-    /// to be computed, or even exist.
+    ///
+    /// This only depends on the cref payload in the identity document, and does
+    /// not require the targeted canonical references to be computed, or even
+    /// exist.
     fn set_canonical_symbolic_refs(&self, message: &str) -> Result<(), RepositoryError> {
         for (name, target) in self.identity_doc()?.canonical_refs()?.symbolic().iter() {
             self.set_symbolic_ref(name, target, message)?;
