@@ -153,7 +153,7 @@ impl SymbolicRefs {
     }
 
     /// Consume `other` by iteratively inserting into self.
-    pub fn extend(&mut self, other: SymbolicRefs) -> Result<(), InsertionError> {
+    pub fn combine(&mut self, other: SymbolicRefs) -> Result<(), InsertionError> {
         for (name, target) in other.0 {
             self.try_insert_unprotected(name, target)?;
         }
@@ -319,6 +319,6 @@ mod test {
         let mut b = SymbolicRefs::default();
         assert_matches!(b.try_insert(refname!("b"), refname!("a")), Ok(()));
 
-        assert_matches!(a.extend(b), Err(InsertionError::Cyclic { .. }));
+        assert_matches!(a.combine(b), Err(InsertionError::Cyclic { .. }));
     }
 }

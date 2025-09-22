@@ -850,7 +850,7 @@ impl Doc {
 
         raw_crefs
             .symbolic_mut()
-            .extend(symbolic::SymbolicRefs::head(project.default_branch()))?;
+            .combine(symbolic::SymbolicRefs::head(project.default_branch()))?;
 
         Ok(raw_crefs.try_into_canonical_refs(resolve)?)
     }
