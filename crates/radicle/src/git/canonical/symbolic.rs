@@ -116,7 +116,7 @@ impl SymbolicRefs {
 
 #[derive(Debug, Error)]
 pub enum InsertionError {
-    #[error("inserting symbolic reference '{name} → {target}' would create cycle")]
+    #[error("inserting symbolic reference '{name} → {target}' would create a cycle")]
     Cyclic { name: RawName, target: RawTarget },
 
     #[error(transparent)]
