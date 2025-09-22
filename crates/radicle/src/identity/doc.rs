@@ -765,16 +765,20 @@ impl Doc {
     }
 
     /// Construct the canonical references for this document.
+    ///
     /// Starts by obtaining the payload identified by
     /// [`PayloadId::canonical_refs`], if it exists.
-    /// Verifies that the rule for the default branch (if it exists) are
-    /// compatible with, i.e. for [`rules::Allowed::Delegates`] and a thresold
+    ///
+    /// Verifies that the rule for the default branch – if it exists – is
+    /// compatible, i.e. for [`rules::Allowed::Delegates`] and a threshold
     /// matching [`Self::threshold`].
-    /// Falls back to synthesizing canonical references from the payload
-    /// identified by [`PayloadId::project`], i.e. a rule exactly
-    /// matching [`Project::default_branch`] that is compatible with self, and
-    /// a symbolic reference with name `HEAD`
-    /// (see [`symbolic::SymbolicRefs::head`]) that targets the same branch.
+    ///
+    /// If the payload is missing, it falls back to synthesizing canonical
+    /// references from the payload identified by [`PayloadId::project`], i.e. a
+    /// rule exactly matching [`Project::default_branch`] that is compatible
+    /// with self, and a symbolic reference with name `HEAD` (see
+    /// [`symbolic::SymbolicRefs::head`]) that targets the same branch.
+    ///
     /// The resulting [`CanonicalRefs`] must pass validation, and there are
     /// cases where the payload is valid as such, but invalid in combination
     /// with the synthesized rule and symbolic reference. For example, if
