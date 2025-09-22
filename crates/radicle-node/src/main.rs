@@ -74,6 +74,7 @@ impl FromStr for Logger {
     }
 }
 
+#[derive(Clone, Copy)]
 enum LogFormat {
     #[cfg(feature = "structured-logger")]
     Json,
@@ -264,8 +265,8 @@ fn initialize_logging(options: &LogOptions) -> Result<(), Box<dyn std::error::Er
             Logger::Structured => {
                 use structured_logger::{json, Builder};
 
-                let writer = match options.format {
-                    Some(LogFormat::Json) | None => json::new_writer(io::stdout()),
+                let writer = match options.format.unwrap_or(LogFormat::Json) {
+                    LogFormat::Json => json::new_writer(io::stdout()),
                 };
 
                 Box::new(Builder::new().with_default_writer(writer).build())
