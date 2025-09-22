@@ -139,7 +139,7 @@ fn parse_options() -> Result<Options, lexopt::Error> {
                 let parsed = parser.value()?.parse_with(Logger::from_str)?;
                 if matches!(parsed, Logger::Radicle) {
                     return Err(lexopt::Error::Custom(
-                        "choice of this logger explicitly is forbidden, because it is deprecated"
+                        "explicitly choosing this logger is forbidden, because it is deprecated"
                             .into(),
                     ));
                 }
