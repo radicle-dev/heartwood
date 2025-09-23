@@ -301,14 +301,6 @@ fn initialize_logging(options: &LogOptions) -> Result<(), Box<dyn std::error::Er
 }
 
 fn main() {
-    // If `RUST_BACKTRACE` does not have a value, then we set it to capture
-    // backtraces for better debugging, otherwise we keep the environments
-    // value.
-    const RUST_BACKTRACE: &str = "RUST_BACKTRACE";
-    if std::env::var_os(RUST_BACKTRACE).is_none() {
-        std::env::set_var(RUST_BACKTRACE, "1");
-    }
-
     let options = parse_options().unwrap_or_else(|err| {
         // The lexopt errors read nicely with a comma.
         eprintln!("Failed to parse options, {err:#}");
