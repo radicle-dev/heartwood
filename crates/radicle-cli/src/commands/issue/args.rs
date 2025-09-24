@@ -214,13 +214,11 @@ impl Default for Command {
 }
 
 /// Arguments for the [`Command::List`] subcommand.
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Default)]
 pub(crate) struct ListArgs {
     /// Filter for the list of issues that are assigned to '<DID>' (default: me)
     #[arg(long, name = "DID")]
-    #[arg(default_missing_value = "me")]
     #[arg(num_args = 0..=1)]
-    #[arg(require_equals = true)]
     pub(crate) assigned: Option<Assigned>,
 
     /// List all issues
@@ -229,6 +227,7 @@ pub(crate) struct ListArgs {
 
     /// List only open issues (default)
     #[arg(long, group = "state")]
+    #[arg(default_value = "true")]
     open: bool,
 
     /// List only closed issues
@@ -238,18 +237,6 @@ pub(crate) struct ListArgs {
     /// List only solved issues
     #[arg(long, group = "state")]
     solved: bool,
-}
-
-impl Default for ListArgs {
-    fn default() -> Self {
-        Self {
-            assigned: None,
-            all: false,
-            open: true,
-            closed: false,
-            solved: false,
-        }
-    }
 }
 
 impl From<ListArgs> for Option<State> {

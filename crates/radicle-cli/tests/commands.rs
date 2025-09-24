@@ -66,6 +66,11 @@ fn rad_issue() {
 }
 
 #[test]
+fn rad_issue_list() {
+    Environment::alice(["rad-init", "rad-issue", "rad-issue-list"]);
+}
+
+#[test]
 fn rad_cob_update() {
     Environment::alice(["rad-init", "rad-cob-log"]);
 }
