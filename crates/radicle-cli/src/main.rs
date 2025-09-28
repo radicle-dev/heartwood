@@ -45,6 +45,7 @@ struct CliArgs {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    Clean(clean::Args),
     Issue(issue::Args),
 }
 
@@ -247,7 +248,9 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             );
         }
         "clean" => {
-            term::run_command_args::<clean::Options, _>(clean::HELP, clean::run, args.to_vec());
+            if let Some(Commands::Clean(args)) = CliArgs::parse().command {
+                term::run_command_fn(clean::run, args);
+            }
         }
         "self" => {
             term::run_command_args::<rad_self::Options, _>(

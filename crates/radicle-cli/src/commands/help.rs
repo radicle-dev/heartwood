@@ -56,7 +56,10 @@ const COMMANDS: &[CommandItem] = &[
     CommandItem::Lexopt(crate::commands::node::HELP),
     CommandItem::Lexopt(crate::commands::patch::HELP),
     CommandItem::Lexopt(crate::commands::path::HELP),
-    CommandItem::Lexopt(crate::commands::clean::HELP),
+    CommandItem::Clap {
+        name: "clean",
+        about: crate::commands::clean::ABOUT,
+    },
     CommandItem::Lexopt(crate::commands::rad_self::HELP),
     CommandItem::Lexopt(crate::commands::seed::HELP),
     CommandItem::Lexopt(crate::commands::follow::HELP),
