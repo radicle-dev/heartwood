@@ -36,7 +36,7 @@ of the Git repository.
 
 ### Introducing the `patch.branch` Option
 
-Continuing on the them of making `jj` users happy, `git-remote-rad` can now
+Continuing on the theme of making `jj` users happy, `git-remote-rad` can now
 handle the option `-o patch.branch[=<name>]`. When the option is passed without
 a name, i.e. `-o patch.branch`, an upstream branch will be created which is
 named after the patch being created – `patches/<PATCH ID>`. Alternatively, the
