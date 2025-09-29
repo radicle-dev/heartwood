@@ -58,9 +58,6 @@ output shows a timeline of the root of the patch and each new revision, without
 any differentiation. The revision identifiers, head commit of the revision, and
 author are still printed as per usual.
 
-While cleaning house, the alignment of revision timeline items were also cleaned
-up.
-
 ### Structured Logging
 
 The `radicle-node` has learned to output structure logging using the new
