@@ -73,7 +73,8 @@ For `rad diff`, the whole command is deprecated, and `git diff` should be used
 instead. It is better to use the tools that already exist in this case.
 
 The option `rad self --nid` was deprecated in favor of `rad node status --only nid`.
-The reason for this is that we will be making efforts to separate user and node.
+The reason for this is that we will be making efforts to separate the cryptographic
+identity of user and node.
 For this case, the node will – in a future version – learn to be configurable
 when accepting the signing key location. This means that a running node is
 required to report the correct Node ID – and cannot rely on the default
