@@ -92,6 +92,8 @@ confusing.
 - `rad patch review --patch` and `rad patch review --delete` are made obsolete.
   This functionality never worked as intended, and may be removed before the
   next major release.
+- The option `radicle-node --log` was deprecated in favor of
+  `radicle-node --log-level` to be in line with `--log-logger` and `--log-format`.
 
 ## New Features
 
