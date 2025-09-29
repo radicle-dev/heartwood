@@ -46,6 +46,7 @@ struct CliArgs {
 #[derive(Subcommand, Debug)]
 enum Commands {
     Issue(issue::Args),
+    Unfollow(unfollow::Args),
 }
 
 #[derive(Debug)]
@@ -270,11 +271,9 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             );
         }
         "unfollow" => {
-            term::run_command_args::<unfollow::Options, _>(
-                unfollow::HELP,
-                unfollow::run,
-                args.to_vec(),
-            );
+            if let Some(Commands::Unfollow(args)) = CliArgs::parse().command {
+                term::run_command_fn(unfollow::run, args);
+            }
         }
         "unseed" => {
             term::run_command_args::<unseed::Options, _>(unseed::HELP, unseed::run, args.to_vec());
