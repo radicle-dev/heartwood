@@ -28,7 +28,7 @@ Some improvements to supporting bare repositories have been made for `rad` and
 `--bare`, which clones the repository into a bare repository, as opposed to
 having a working tree (see [gitrepository-layout]).
 
-The `git-remote-rad`, remote helper, also learned to better handle bare
+`git-remote-rad` (our Git remote helper), also learned to better handle bare
 repositories, when using `git push` and `git fetch` with a `rad://` remote.
 
 For `jj` users, this begins to unlock being able to use `jj` without co-location
