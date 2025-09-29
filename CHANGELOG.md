@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Better Support for Bare Repositories
 
-[gitrepostiory-layout]: https://git-scm.com/docs/gitrepository-layout/2.20.0
+[gitrepostiory-layout]: https://git-scm.com/docs/gitrepository-layout/2.49.0
 
 Some improvements to supporting bare repositories have been made for `rad` and
 `git-remote-rad`. For `rad`, the `rad clone` command has learned a new flag
