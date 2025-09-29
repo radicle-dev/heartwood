@@ -72,7 +72,7 @@ warnings for several `rad` commands and options.
 For `rad diff`, the whole command is deprecated, and `git diff` should be used
 instead. It is better to use the tools that already exist in this case.
 
-The option `rad self --nid` was deprecated in favor of `rad status --only nid`.
+The option `rad self --nid` was deprecated in favor of `rad node status --only nid`.
 The reason for this is that we will be making efforts to separate user and node.
 For this case, the node will – in a future version – learn to be configurable
 when accepting the signing key location. This means that a running node is
@@ -87,7 +87,7 @@ confusing.
 
 ## Deprecations
 
-- The option `rad self --nid` was deprecated in favor of `rad status --only nid`
+- The option `rad self --nid` was deprecated in favor of `rad node status --only nid`
 - `rad diff` was deprecated in favor of using `git diff`
 - `rad patch review --patch` and `rad patch review --delete` are made obsolete.
   This functionality never worked as intended, and may be removed before the
