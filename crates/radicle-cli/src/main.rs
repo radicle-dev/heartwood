@@ -46,6 +46,7 @@ struct CliArgs {
 #[derive(Subcommand, Debug)]
 enum Commands {
     Clean(clean::Args),
+    Clone(clone::Args),
     Issue(issue::Args),
     Path(path::Args),
     Stats(stats::Args),
@@ -188,7 +189,9 @@ pub(crate) fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyho
             );
         }
         "clone" => {
-            term::run_command_args::<clone::Options, _>(clone::HELP, clone::run, args.to_vec());
+            if let Some(Commands::Clone(args)) = CliArgs::parse().command {
+                term::run_command_fn(clone::run, args);
+            }
         }
         "cob" => {
             term::run_command_args::<cob::Options, _>(cob::HELP, cob::run, args.to_vec());

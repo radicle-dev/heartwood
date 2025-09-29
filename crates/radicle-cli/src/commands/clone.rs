@@ -1,10 +1,7 @@
-#![allow(clippy::or_fun_call)]
-use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::time;
+pub mod args;
 
-use anyhow::anyhow;
+use std::path::{Path, PathBuf};
+
 use radicle::issue::cache::Issues as _;
 use radicle::patch::cache::Patches as _;
 use thiserror::Error;
@@ -26,119 +23,12 @@ use crate::commands::sync;
 use crate::node::SyncSettings;
 use crate::project;
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::Element as _;
 
-pub const HELP: Help = Help {
-    name: "clone",
-    description: "Clone a Radicle repository",
-    version: env!("RADICLE_VERSION"),
-    usage: r#"
-Usage
+pub use args::Args;
+pub(crate) use args::ABOUT;
 
-    rad clone <rid> [<directory>] [--scope <scope>] [<option>...]
-
-    The `clone` command will use your local node's routing table to find seeds from
-    which it can clone the repository.
-
-    For private repositories, use the `--seed` options, to clone directly
-    from known seeds in the privacy set.
-
-Options
-
-        --bare              Make a bare repository
-        --scope <scope>     Follow scope: `followed` or `all` (default: all)
-    -s, --seed <nid>        Clone from this seed (may be specified multiple times)
-        --timeout <secs>    Timeout for fetching repository (default: 9)
-        --help              Print help
-
-"#,
-};
-
-#[derive(Debug)]
-pub struct Options {
-    /// The RID of the repository.
-    id: RepoId,
-    /// The target directory for the repository to be cloned into.
-    directory: Option<PathBuf>,
-    /// The seeding scope of the repository.
-    scope: Scope,
-    /// Sync settings.
-    sync: SyncSettings,
-    bare: bool,
-}
-
-impl Args for Options {
-    fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
-        use lexopt::prelude::*;
-
-        let mut parser = lexopt::Parser::from_args(args);
-        let mut id: Option<RepoId> = None;
-        let mut scope = Scope::All;
-        let mut sync = SyncSettings::default();
-        let mut directory = None;
-        let mut bare = false;
-
-        while let Some(arg) = parser.next()? {
-            match arg {
-                Long("seed") | Short('s') => {
-                    let value = parser.value()?;
-                    let value = term::args::nid(&value)?;
-
-                    sync.seeds.insert(value);
-                }
-                Long("scope") => {
-                    let value = parser.value()?;
-
-                    scope = term::args::parse_value("scope", value)?;
-                }
-                Long("timeout") => {
-                    let value = parser.value()?;
-                    let secs = term::args::number(&value)?;
-
-                    sync.timeout = time::Duration::from_secs(secs as u64);
-                }
-                Long("no-confirm") => {
-                    // We keep this flag here for consistency though it doesn't have any effect,
-                    // since the command is fully non-interactive.
-                }
-                Long("bare") => {
-                    bare = true;
-                }
-                Long("help") | Short('h') => {
-                    return Err(Error::Help.into());
-                }
-                Value(val) if id.is_none() => {
-                    let val = val.to_string_lossy();
-                    let val = val.strip_prefix("rad://").unwrap_or(&val);
-                    let val = RepoId::from_str(val)?;
-
-                    id = Some(val);
-                }
-                // Parse <directory> once <rid> has been parsed
-                Value(val) if id.is_some() && directory.is_none() => {
-                    directory = Some(Path::new(&val).to_path_buf());
-                }
-                _ => return Err(anyhow!(arg.unexpected())),
-            }
-        }
-        let id =
-            id.ok_or_else(|| anyhow!("to clone, an RID must be provided; see `rad clone --help`"))?;
-
-        Ok((
-            Options {
-                id,
-                directory,
-                scope,
-                sync,
-                bare,
-            },
-            vec![],
-        ))
-    }
-}
-
-pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let mut node = radicle::Node::new(profile.socket());
 
@@ -154,16 +44,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         doc,
         project: proj,
     } = clone(
-        options.id,
-        options.directory.clone(),
-        options.scope,
-        options.sync.with_profile(&profile),
+        args.repo,
+        args.directory.clone(),
+        args.scope,
+        SyncSettings::from(args.sync).with_profile(&profile),
         &mut node,
         &profile,
-        options.bare,
+        args.bare,
     )?
     .print_or_success()
-    .ok_or_else(|| anyhow::anyhow!("failed to clone {}", options.id))?;
+    .ok_or_else(|| anyhow::anyhow!("failed to clone {}", args.repo))?;
     let delegates = doc
         .delegates()
         .iter()
@@ -171,7 +61,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         .filter(|id| id != profile.id())
         .collect::<Vec<_>>();
     let default_branch = proj.default_branch().clone();
-    let path = if !options.bare {
+    let path = if !args.bare {
         working.workdir().unwrap()
     } else {
         working.path()
@@ -181,7 +71,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     radicle::git::configure_repository(&working)?;
     checkout::setup_remotes(
         project::SetupRemote {
-            rid: options.id,
+            rid: args.repo,
             tracking: Some(default_branch),
             repo: &working,
             fetch: true,
@@ -211,7 +101,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     ])]);
     info.print();
 
-    let location = options
+    let location = args
         .directory
         .map_or(proj.name().to_string(), |loc| loc.display().to_string());
     term::info!(
