@@ -75,10 +75,10 @@ instead. It is better to use the tools that already exist in this case.
 The option `rad self --nid` was deprecated in favor of `rad node status --only nid`.
 The reason for this is that we will be making efforts to separate the cryptographic
 identity of user and node.
-For this case, the node will – in a future version – learn to be configurable
-when accepting the signing key location. This means that a running node is
-required to report the correct Node ID – and cannot rely on the default
-location.
+For this case, the node will – in a future version – read the location of the
+secret key to use from configuration or arguments at runtime. This means that a
+running node is required to report the correct Node ID – and the command cannot
+rely on the default location, which is shared with the user.
 
 The options `rad patch review [--patch | --delete]` are marked as obsolete,
 since their functionality never worked as intended. Reviews are something that
