@@ -46,6 +46,7 @@ struct CliArgs {
 #[derive(Subcommand, Debug)]
 enum Commands {
     Issue(issue::Args),
+    Unseed(unseed::Args),
 }
 
 #[derive(Debug)]
@@ -277,7 +278,9 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             );
         }
         "unseed" => {
-            term::run_command_args::<unseed::Options, _>(unseed::HELP, unseed::run, args.to_vec());
+            if let Some(Commands::Unseed(args)) = CliArgs::parse().command {
+                term::run_command_fn(unseed::run, args);
+            }
         }
         "remote" => {
             term::run_command_args::<remote::Options, _>(remote::HELP, remote::run, args.to_vec())
