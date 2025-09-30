@@ -58,18 +58,33 @@ fn find_and_peel(repo: &Repository, oid: Oid) -> Result<Oid, error::Ancestry> {
     }
 }
 
+/// Peels the two objects to commits (see [`find_and_peel`]) and determines
+/// their ancestry relationship (see [`ahead_behind`]).
 pub fn ancestry(repo: &Repository, old: Oid, new: Oid) -> Result<Ancestry, error::Ancestry> {
     let old = find_and_peel(repo, old)?;
     let new = find_and_peel(repo, new)?;
 
-    if old == new {
+    ahead_behind(repo, old, new)
+}
+
+/// Determine the ancestry relationship between two commits.
+pub fn ahead_behind(
+    repo: &Repository,
+    old_commit: Oid,
+    new_commit: Oid,
+) -> Result<Ancestry, error::Ancestry> {
+    if old_commit == new_commit {
         return Ok(Ancestry::Equal);
     }
 
     let (ahead, behind) = repo
         .backend
-        .graph_ahead_behind(*new, *old)
-        .map_err(|err| error::Ancestry::Check { old, new, err })?;
+        .graph_ahead_behind(*new_commit, *old_commit)
+        .map_err(|err| error::Ancestry::Check {
+            old: old_commit,
+            new: new_commit,
+            err,
+        })?;
 
     if ahead > 0 && behind == 0 {
         Ok(Ancestry::Ahead)
@@ -128,77 +143,130 @@ fn direct<'a>(
     target: Oid,
     no_ff: Policy,
 ) -> Result<Updated<'a>, error::Update> {
-    let tip = refname_to_id(repo, name.clone())?;
-    match tip {
-        Some(prev) => {
-            let ancestry = ancestry(repo, prev, target)?;
+    let Some(reference) = find(repo, &name)? else {
+        repo.backend
+            .reference(name.as_ref(), target.into(), false, "radicle: create")
+            .map_err(|err| error::Update::Create {
+                name: name.to_owned(),
+                target,
+                err,
+            })?;
 
-            match ancestry {
-                Ancestry::Equal => Ok(RefUpdate::Skipped {
-                    name: name.to_ref_string(),
-                    oid: target,
-                }
-                .into()),
-                Ancestry::Ahead => {
-                    // N.b. the update is a fast-forward so we can safely
-                    // pass `force: true`.
-                    repo.backend
-                        .reference(name.as_ref(), target.into(), true, "radicle: update")
-                        .map_err(|err| error::Update::Create {
-                            name: name.to_owned(),
-                            target,
-                            err,
-                        })?;
-                    Ok(RefUpdate::from(name.to_ref_string(), prev, target).into())
-                }
-                Ancestry::Behind | Ancestry::Diverged if matches!(no_ff, Policy::Allow) => {
-                    // N.b. the update is a non-fast-forward but
-                    // we allow it, so we pass `force: true`.
-                    repo.backend
-                        .reference(name.as_ref(), target.into(), true, "radicle: update")
-                        .map_err(|err| error::Update::Create {
-                            name: name.to_owned(),
-                            target,
-                            err,
-                        })?;
-                    Ok(RefUpdate::from(name.to_ref_string(), prev, target).into())
-                }
-                // N.b. if the target is behind, we simply reject the update
-                Ancestry::Behind => Ok(Update::Direct {
-                    name,
-                    target,
-                    no_ff,
-                }
-                .into()),
-                Ancestry::Diverged if matches!(no_ff, Policy::Reject) => Ok(Update::Direct {
-                    name,
-                    target,
-                    no_ff,
-                }
-                .into()),
-                Ancestry::Diverged => Err(error::Update::NonFF {
-                    name: name.to_owned(),
-                    new: target,
-                    cur: prev,
-                }),
+        return Ok(RefUpdate::Created {
+            name: name.to_ref_string(),
+            oid: target,
+        }
+        .into());
+    };
+
+    let Some(prev) = reference.target() else {
+        // This should never happen, as there are no facilities to create
+        // symbolic references in Radicle namespaces. If it does, e.g. because
+        // some external program or the user themselves created it, we better
+        // do not touch it.
+        return Err(error::Update::Symbolic {
+            name: name.to_owned(),
+        });
+    };
+
+    let ancestry = {
+        use git::raw::ObjectType::{self, *};
+        const ANY_KIND: Option<ObjectType> = Some(Any);
+
+        let prev = repo.backend.find_object(prev, ANY_KIND).map_err(|err| {
+            error::Update::Ancestry(error::Ancestry::Object {
+                oid: prev.into(),
+                err,
+            })
+        })?;
+
+        let target = repo
+            .backend
+            .find_object(*target, ANY_KIND)
+            .map_err(|err| error::Update::Ancestry(error::Ancestry::Object { oid: target, err }))?;
+
+        if prev.id() == target.id() {
+            // If the two objects are identical, their ancestry does not matter,
+            // we can always skip the update.
+            return Ok(RefUpdate::Skipped {
+                name: name.to_ref_string(),
+                oid: target.id().into(),
+            }
+            .into());
+        }
+
+        match (prev.kind(), target.kind()) {
+            (Some(Commit), Some(Commit)) => {
+                // This is the common case, we have two commits to compare.
+                let prev = prev.id().into();
+                let target = target.id().into();
+                Some(ahead_behind(repo, prev, target)?)
+            }
+            (Some(Tag), Some(Tag)) => {
+                // Even though these tags might point to the same commit,
+                // refuse to peel, because that tag itself has changed
+                // (e.g. its name or signature).
+                None
+            }
+            (Some(Commit | Tag), Some(Commit | Tag)) => {
+                // The reference changes from a commit to a tag or vice versa.
+                None
+            }
+            _ => {
+                // One of the objects is not a commit or a tag, we're clueless.
+                None
             }
         }
-        None => {
-            // N.b. the reference didn't exist so we pass `force:
-            // false`.
+    };
+
+    match ancestry {
+        Some(Ancestry::Equal) => Ok(RefUpdate::Skipped {
+            name: name.to_ref_string(),
+            oid: target,
+        }
+        .into()),
+        Some(Ancestry::Ahead) => {
+            // N.b. the update is a fast-forward so we can safely
+            // pass `force: true`.
             repo.backend
-                .reference(name.as_ref(), target.into(), false, "radicle: create")
+                .reference(name.as_ref(), target.into(), true, "radicle: update")
                 .map_err(|err| error::Update::Create {
                     name: name.to_owned(),
                     target,
                     err,
                 })?;
-            Ok(RefUpdate::Created {
-                name: name.to_ref_string(),
-                oid: target,
-            }
-            .into())
+            Ok(RefUpdate::from(name.to_ref_string(), prev, target).into())
         }
+        Some(Ancestry::Behind | Ancestry::Diverged) | None if matches!(no_ff, Policy::Allow) => {
+            // N.b. the update is a non-fast-forward but
+            // we allow it, so we pass `force: true`.
+            repo.backend
+                .reference(name.as_ref(), target.into(), true, "radicle: update")
+                .map_err(|err| error::Update::Create {
+                    name: name.to_owned(),
+                    target,
+                    err,
+                })?;
+            Ok(RefUpdate::from(name.to_ref_string(), prev, target).into())
+        }
+        // N.b. if the target is behind, we simply reject the update
+        Some(Ancestry::Behind) => Ok(Update::Direct {
+            name,
+            target,
+            no_ff,
+        }
+        .into()),
+        Some(Ancestry::Diverged) | None if matches!(no_ff, Policy::Reject) => Ok(Update::Direct {
+            name,
+            target,
+            no_ff,
+        }
+        .into()),
+        Some(Ancestry::Diverged) | None => Err(error::Update::NonFF {
+            name: name.to_owned(),
+            new: target,
+            cur: prev.into(),
+        }),
     }
 }
 

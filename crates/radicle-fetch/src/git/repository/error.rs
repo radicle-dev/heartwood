@@ -79,4 +79,7 @@ pub enum Update {
     Peel(#[source] raw::Error),
     #[error(transparent)]
     Resolve(#[from] Resolve),
+
+    #[error("refusing to update symbolic ref {name}")]
+    Symbolic { name: Namespaced<'static> },
 }
