@@ -220,17 +220,17 @@ enum PushAction {
 
 impl PushAction {
     fn new(
-        dst: &git::RefString,
+        dst: git::RefString,
         patches: &cob::patch::Cache<
             cob::patch::Patches<'_, storage::git::Repository>,
             cob::cache::StoreWriter,
         >,
     ) -> Result<Self, error::PushAction> {
-        if dst == &*rad::PATCHES_REFNAME {
+        if dst == *rad::PATCHES_REFNAME {
             return Ok(Self::OpenPatch);
         }
 
-        let dst = git::Qualified::from_refstr(dst)
+        let dst = git::Qualified::from_refstr(&dst)
             .ok_or_else(|| error::PushAction::InvalidRef {
                 refname: dst.clone(),
             })?
@@ -322,8 +322,9 @@ pub fn run(
         let Ok(cmd) = Command::parse(&spec, &working) else {
             return Err(Error::InvalidCommand(format!("push {spec}")));
         };
-        let result = match &cmd {
-            Command::Delete(dst) => {
+        let dst = cmd.dst().to_string();
+        let result = match cmd {
+            Command::Delete(ref dst) => {
                 // Delete refs.
                 let refname = nid.to_namespace().join(dst);
                 let (canonical_ref, _) = &stored.head()?;
@@ -359,7 +360,7 @@ pub fn run(
                         patch,
                     } => patch_update(
                         src,
-                        *force,
+                        force,
                         patch_id,
                         *patch,
                         &nid,
@@ -381,7 +382,7 @@ pub fn run(
                         let explorer = push(
                             src,
                             &dst,
-                            *force,
+                            force,
                             &nid,
                             &working,
                             stored,
@@ -397,9 +398,9 @@ pub fn run(
                         // canonical branch.
                         if let Some(canonical) = rules.canonical(dst.clone(), stored) {
                             let object = working
-                                .find_object(**src, None)
+                                .find_object(*src, None)
                                 .map(|obj| git::canonical::Object::new(&obj))?
-                                .ok_or(Error::UnknownObjectType { oid: *src })?;
+                                .ok_or(Error::UnknownObjectType { oid: src })?;
 
                             let canonical = canonical::Canonical::new(me, object, canonical)?;
                             match canonical.quorum() {
@@ -416,11 +417,11 @@ pub fn run(
         match result {
             // Let Git tooling know that this ref has been pushed.
             Ok(resource) => {
-                println!("ok {}", cmd.dst());
+                println!("ok {dst}");
                 ok.insert(spec, resource);
             }
             // Let Git tooling know that there was an error pushing the ref.
-            Err(e) => println!("error {} {e}", cmd.dst()),
+            Err(e) => println!("error {dst} {e}"),
         }
     }
 
@@ -502,7 +503,7 @@ pub fn run(
 
 /// Open a new patch.
 fn patch_open<G>(
-    src: &git::Oid,
+    src: git::Oid,
     upstream: &Option<git::RefString>,
     nid: &NodeId,
     working: &git::raw::Repository,
@@ -518,7 +519,7 @@ fn patch_open<G>(
 where
     G: crypto::signature::Signer<crypto::Signature>,
 {
-    let head = *src;
+    let head = src;
     let dst = git::refs::storage::staging::patch(nid, head);
 
     // Before creating the patch, we must push the associated git objects to storage.
@@ -528,7 +529,7 @@ where
     //
     // In case the reference is not properly deleted, the next attempt to open a patch should
     // not fail, since the reference will already exist with the correct OID.
-    push_ref(src, &dst, false, stored.raw(), opts.verbosity)?;
+    push_ref(&src, &dst, false, stored.raw(), opts.verbosity)?;
 
     let (_, target) = stored.canonical_head()?;
     let base = if let Some(base) = opts.base {
@@ -660,7 +661,7 @@ where
 /// Update an existing patch.
 #[allow(clippy::too_many_arguments)]
 fn patch_update<G>(
-    src: &git::Oid,
+    commit: git::Oid,
     force: bool,
     patch_id: patch::PatchId,
     patch: patch::Patch,
@@ -677,10 +678,9 @@ fn patch_update<G>(
 where
     G: crypto::signature::Signer<crypto::Signature>,
 {
-    let commit = *src;
     let dst = git::refs::patch(&patch_id).with_namespace(nid.into());
 
-    push_ref(src, &dst, force, stored.raw(), opts.verbosity)?;
+    push_ref(&commit, &dst, force, stored.raw(), opts.verbosity)?;
 
     // Don't update patch if it already has a revision matching this commit.
     if patch.revisions().any(|(_, r)| r.head() == commit) {
@@ -735,7 +735,7 @@ where
 }
 
 fn push<G>(
-    src: &git::Oid,
+    head: git::Oid,
     dst: &git::Qualified,
     force: bool,
     nid: &NodeId,
@@ -751,12 +751,11 @@ fn push<G>(
 where
     G: crypto::signature::Signer<crypto::Signature>,
 {
-    let head = *src;
     let dst = dst.with_namespace(nid.into());
     // It's ok for the destination reference to be unknown, eg. when pushing a new branch.
     let old = stored.backend.find_reference(dst.as_str()).ok();
 
-    push_ref(src, &dst, force, stored.raw(), verbosity)?;
+    push_ref(&head, &dst, force, stored.raw(), verbosity)?;
 
     if let Some(old) = old {
         let proj = stored.project()?;
