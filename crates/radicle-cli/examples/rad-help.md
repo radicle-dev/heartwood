@@ -22,6 +22,7 @@ Common `rad` commands used in various situations:
 	node         Control and query the Radicle Node
 	patch        Manage patches
 	path         Display the Radicle home path
+	publish      Publish a repository to the network
 	clean        Remove all remotes from a repository
 	self         Show information about your identity and device
 	seed         Manage repository seeding policies

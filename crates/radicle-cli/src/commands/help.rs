@@ -60,6 +60,10 @@ const COMMANDS: &[CommandItem] = &[
         about: crate::commands::path::ABOUT,
     },
     CommandItem::Clap {
+        name: "publish",
+        about: crate::commands::publish::ABOUT,
+    },
+    CommandItem::Clap {
         name: "clean",
         about: crate::commands::clean::ABOUT,
     },

@@ -1,75 +1,20 @@
-use std::ffi::OsString;
+mod args;
 
 use anyhow::{anyhow, Context as _};
 
 use radicle::cob;
 use radicle::identity::{Identity, Visibility};
 use radicle::node::Handle as _;
-use radicle::prelude::RepoId;
 use radicle::storage::{SignRepository, ValidateRepository, WriteRepository, WriteStorage};
 
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
 
-pub const HELP: Help = Help {
-    name: "publish",
-    description: "Publish a repository to the network",
-    version: env!("RADICLE_VERSION"),
-    usage: r#"
-Usage
+pub use args::Args;
+pub(crate) use args::ABOUT;
 
-    rad publish [<rid>] [<option>...]
-
-    Publishing a private repository makes it public and discoverable
-    on the network.
-
-    By default, this command will publish the current repository.
-    If an `<rid>` is specified, that repository will be published instead.
-
-    Note that this command can only be run for repositories with a
-    single delegate. The delegate must be the currently authenticated
-    user. For repositories with more than one delegate, the `rad id`
-    command must be used.
-
-Options
-
-    --help                    Print help
-"#,
-};
-
-#[derive(Default, Debug)]
-pub struct Options {
-    pub rid: Option<RepoId>,
-}
-
-impl Args for Options {
-    fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
-        use lexopt::prelude::*;
-
-        let mut parser = lexopt::Parser::from_args(args);
-        let mut rid = None;
-
-        while let Some(arg) = parser.next()? {
-            match arg {
-                Long("help") | Short('h') => {
-                    return Err(Error::Help.into());
-                }
-                Value(val) if rid.is_none() => {
-                    rid = Some(term::args::rid(&val)?);
-                }
-                arg => {
-                    return Err(anyhow!(arg.unexpected()));
-                }
-            }
-        }
-
-        Ok((Options { rid }, vec![]))
-    }
-}
-
-pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let rid = match options.rid {
+    let rid = match args.rid {
         Some(rid) => rid,
         None => radicle::rad::cwd()
             .map(|(_, rid)| rid)
@@ -81,7 +26,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let doc = identity.doc();
 
     if doc.is_public() {
-        return Err(Error::WithHint {
+        return Err(term::Error::WithHint {
             err: anyhow!("repository is already public"),
             hint: "to announce the repository to the network, run `rad sync --inventory`",
         }
@@ -91,7 +36,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         return Err(anyhow!("only the repository delegate can publish it"));
     }
     if doc.delegates().len() > 1 {
-        return Err(Error::WithHint {
+        return Err(term::Error::WithHint {
             err: anyhow!(
                 "only repositories with a single delegate can be published with this command"
             ),
