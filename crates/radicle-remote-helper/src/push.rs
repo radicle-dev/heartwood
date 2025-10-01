@@ -6,7 +6,6 @@ mod error;
 use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::process::ExitStatus;
-use std::str::FromStr;
 use std::{assert_eq, io};
 
 use radicle::identity::crefs::GetCanonicalRefs as _;
@@ -211,8 +210,8 @@ impl Command {
 enum PushAction {
     OpenPatch,
     UpdatePatch {
-        dst: git::Qualified<'static>,
-        patch: patch::PatchId,
+        patch_id: patch::PatchId,
+        patch: Box<patch::Patch>,
     },
     PushRef {
         dst: git::Qualified<'static>,
@@ -220,28 +219,50 @@ enum PushAction {
 }
 
 impl PushAction {
-    fn new(dst: &git::RefString) -> Result<Self, error::PushAction> {
+    fn new(
+        dst: &git::RefString,
+        patches: &cob::patch::Cache<
+            cob::patch::Patches<'_, storage::git::Repository>,
+            cob::cache::StoreWriter,
+        >,
+    ) -> Result<Self, error::PushAction> {
         if dst == &*rad::PATCHES_REFNAME {
-            Ok(Self::OpenPatch)
-        } else {
-            let dst = git::Qualified::from_refstr(dst)
-                .ok_or_else(|| error::PushAction::InvalidRef {
-                    refname: dst.clone(),
-                })?
-                .to_owned();
-
-            if let Some(oid) = dst.strip_prefix(git::refname!("refs/heads/patches")) {
-                let patch = git::Oid::from_str(oid)
-                    .map_err(|err| error::PushAction::InvalidPatchId {
-                        suffix: oid.to_string(),
-                        source: err,
-                    })
-                    .map(patch::PatchId::from)?;
-                Ok(Self::UpdatePatch { dst, patch })
-            } else {
-                Ok(Self::PushRef { dst })
-            }
+            return Ok(Self::OpenPatch);
         }
+
+        let dst = git::Qualified::from_refstr(dst)
+            .ok_or_else(|| error::PushAction::InvalidRef {
+                refname: dst.clone(),
+            })?
+            .to_owned();
+
+        let Some(oid) = dst.strip_prefix(git::refname!("refs/heads/patches")) else {
+            return Ok(Self::PushRef { dst });
+        };
+
+        let candidates = {
+            let result: Result<Vec<_>, _> = patches.list_by_prefix(oid.to_string())?.collect();
+            result?
+        };
+
+        if candidates.is_empty() {
+            return Err(error::PushAction::InvalidPatchId {
+                suffix: oid.to_string(),
+            });
+        } else if candidates.len() > 1 {
+            return Err(error::PushAction::AmbiguousPatchId {
+                suffix: oid.to_string(),
+                candidates: candidates.iter().map(|(id, _)| id.to_string()).collect(),
+            });
+        }
+
+        let mut candidates = candidates;
+        let (patch_id, patch) = candidates.remove(0);
+
+        Ok(Self::UpdatePatch {
+            patch_id,
+            patch: Box::new(patch),
+        })
     }
 }
 
@@ -319,7 +340,7 @@ pub fn run(
             }
             Command::Push(git::Refspec { src, dst, force }) => {
                 let patches = crate::patches_mut(profile, stored)?;
-                let action = PushAction::new(dst)?;
+                let action = PushAction::new(dst, &patches)?;
 
                 match action {
                     PushAction::OpenPatch => patch_open(
@@ -333,11 +354,14 @@ pub fn run(
                         profile,
                         opts.clone(),
                     ),
-                    PushAction::UpdatePatch { dst, patch } => patch_update(
-                        src,
-                        &dst,
-                        *force,
+                    PushAction::UpdatePatch {
+                        patch_id,
                         patch,
+                    } => patch_update(
+                        src,
+                        *force,
+                        patch_id,
+                        *patch,
                         &nid,
                         &working,
                         stored,
@@ -637,9 +661,9 @@ where
 #[allow(clippy::too_many_arguments)]
 fn patch_update<G>(
     src: &git::Oid,
-    dst: &git::Qualified,
     force: bool,
     patch_id: patch::PatchId,
+    patch: patch::Patch,
     nid: &NodeId,
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
@@ -654,13 +678,9 @@ where
     G: crypto::signature::Signer<crypto::Signature>,
 {
     let commit = *src;
-    let dst = dst.with_namespace(nid.into());
+    let dst = git::refs::patch(&patch_id).with_namespace(nid.into());
 
     push_ref(src, &dst, force, stored.raw(), opts.verbosity)?;
-
-    let Ok(Some(patch)) = patches.get(&patch_id) else {
-        return Err(Error::NotFound(patch_id));
-    };
 
     // Don't update patch if it already has a revision matching this commit.
     if patch.revisions().any(|(_, r)| r.head() == commit) {

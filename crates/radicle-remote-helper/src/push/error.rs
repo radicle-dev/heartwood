@@ -1,5 +1,6 @@
 use radicle::git;
 use radicle::git::canonical;
+use radicle::patch;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -36,11 +37,17 @@ pub struct HeadsDiverge {
 
 #[derive(Debug, Error)]
 pub enum PushAction {
+    #[error(transparent)]
+    Cache(#[from] patch::cache::Error),
     #[error("invalid reference {refname}, expected qualified reference starting with `refs/`")]
     InvalidRef { refname: git::RefString },
     #[error("found refs/heads/patches/{suffix} where {suffix} was an invalid Patch ID")]
-    InvalidPatchId {
+    InvalidPatchId { suffix: String },
+    #[error(
+        "found refs/heads/patches/{suffix} where {suffix} was an ambiguous among {candidates:?}"
+    )]
+    AmbiguousPatchId {
         suffix: String,
-        source: git::raw::Error,
+        candidates: Vec<String>,
     },
 }

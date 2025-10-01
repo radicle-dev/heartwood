@@ -46,6 +46,10 @@ pub trait Patches {
     /// [`Patches::drafted`], [`Patches::merged`].
     fn list_by_status(&self, status: &Status) -> Result<Self::Iter<'_>, Self::Error>;
 
+    /// List all patches in the store with an id that starts with the
+    /// given `prefix`.
+    fn list_by_prefix(&self, prefix: String) -> Result<Self::Iter<'_>, Self::Error>;
+
     /// Get the [`PatchCounts`] of all the patches in the store.
     fn counts(&self) -> Result<PatchCounts, Self::Error>;
 
@@ -469,6 +473,10 @@ where
         query::list_by_status(&self.cache.db, &self.rid(), status)
     }
 
+    fn list_by_prefix(&self, prefix: String) -> Result<Self::Iter<'_>, Self::Error> {
+        query::list_by_prefix(&self.cache.db, &self.rid(), prefix)
+    }
+
     fn counts(&self) -> Result<PatchCounts, Self::Error> {
         query::counts(&self.cache.db, &self.rid())
     }
@@ -530,6 +538,22 @@ where
             .map_err(super::Error::from)
     }
 
+    fn list_by_prefix(&self, prefix: String) -> Result<Self::Iter<'_>, Self::Error> {
+        self.store
+            .all()
+            .map(move |inner| NoCacheIter {
+                inner: Box::new(inner.into_iter().filter_map(move |res| {
+                    match res {
+                        Ok((id, patch)) => (id.to_string().starts_with(&prefix))
+                            .then_some((id, patch))
+                            .map(Ok),
+                        Err(e) => Some(Err(e.into())),
+                    }
+                })),
+            })
+            .map_err(super::Error::from)
+    }
+
     fn counts(&self) -> Result<PatchCounts, Self::Error> {
         self.store.counts().map_err(super::Error::from)
     }
@@ -559,6 +583,10 @@ where
 
     fn list_by_status(&self, status: &Status) -> Result<Self::Iter<'_>, Self::Error> {
         query::list_by_status(&self.cache.db, &self.rid(), status)
+    }
+
+    fn list_by_prefix(&self, prefix: String) -> Result<Self::Iter<'_>, Self::Error> {
+        query::list_by_prefix(&self.cache.db, &self.rid(), prefix)
     }
 
     fn counts(&self) -> Result<PatchCounts, Self::Error> {
@@ -645,6 +673,26 @@ mod query {
             ",
         )?;
         stmt.bind((1, rid))?;
+        Ok(PatchesIter {
+            inner: stmt.into_iter(),
+        })
+    }
+
+    pub(super) fn list_by_prefix<'a>(
+        db: &'a sql::ConnectionThreadSafe,
+        rid: &RepoId,
+        prefix: String,
+    ) -> Result<PatchesIter<'a>, Error> {
+        let mut stmt = db.prepare(
+            "SELECT patches.id, patch
+             FROM patches
+             WHERE repo = ?1
+             AND id LIKE ?2 || '%'
+             ORDER BY id
+            ",
+        )?;
+        stmt.bind((1, rid))?;
+        stmt.bind((2, sql::Value::String(prefix)))?;
         Ok(PatchesIter {
             inner: stmt.into_iter(),
         })

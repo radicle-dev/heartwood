@@ -72,3 +72,30 @@ $ rad patch show b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5
 │ ↑ Revision ea7def3 @ 4d27214 by alice (you) now    │
 ╰────────────────────────────────────────────────────╯
 ```
+
+Of course it is possible to update the patch via `git push` directly:
+
+```
+$ git mv README.md README.markdown
+$ git commit -q -m "Longer file extension"
+$ git push rad HEAD:patches/b6a23eb08656d
+$ rad patch show b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5
+╭────────────────────────────────────────────────────╮
+│ Title     Not a real change                        │
+│ Patch     b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5 │
+│ Author    alice (you)                              │
+│ Head      344e9ca07a4bf4b68cae3676d42727e17135f889 │
+│ Base      [..                                    ] │
+│ Branches  feature/1                                │
+│ Commits   ahead 3, behind 0                        │
+│ Status    open                                     │
+├────────────────────────────────────────────────────┤
+│ 344e9ca Longer file extension                      │
+│ 4d27214 Rename readme file                         │
+│ 51b2f0f Not a real change                          │
+├────────────────────────────────────────────────────┤
+│ ● Revision b6a23eb @ 51b2f0f by alice (you) now    │
+│ ↑ Revision ea7def3 @ 4d27214 by alice (you) now    │
+│ ↑ Revision 226fa43 @ 344e9ca by alice (you) now    │
+╰────────────────────────────────────────────────────╯
+```
