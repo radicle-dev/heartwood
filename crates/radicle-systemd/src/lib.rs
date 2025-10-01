@@ -3,5 +3,5 @@
 #[cfg(all(feature = "journal", target_os = "linux"))]
 pub mod journal;
 
-#[cfg(feature = "listen")]
+#[cfg(all(feature = "listen", unix))]
 pub mod listen;
