@@ -32,76 +32,74 @@ $ git commit -m "Make changes"
 
 ```
 $ rad diff HEAD^ HEAD
-╭────────────────────────────────────────────╮
-│ README -> README.md ❲moved❳                │
-╰────────────────────────────────────────────╯
-
-╭────────────────────────────────────────────╮
-│ main.c +6 ❲created❳                        │
-├────────────────────────────────────────────┤
-│ @@ -0,0 +1,6 @@                            │
-│      1     + #include <stdio.h>            │
-│      2     +                               │
-│      3     + int main(void) {              │
-│      4     +     printf("Hello World!/n"); │
-│      5     +     return 0;                 │
-│      6     + }                             │
-╰────────────────────────────────────────────╯
-
+diff --git a/README b/README.md
+similarity index 100%
+rename from README
+rename to README.md
+diff --git a/main.c b/main.c
+new file mode 100644
+index 0000000..aae4e0e
+--- /dev/null
++++ b/main.c
+@@ -0,0 +1,6 @@
++#include <stdio.h>
++
++int main(void) {
++    printf("Hello World!/n");
++    return 0;
++}
 ```
 
 ```
 $ sed -i 's/Hello World/Hello Radicle/' main.c
 $ rad diff
-╭──────────────────────────────────────────────╮
-│ main.c -1 +1                                 │
-├──────────────────────────────────────────────┤
-│ @@ -1,6 +1,6 @@                              │
-│ 1    1       #include <stdio.h>              │
-│ 2    2                                       │
-│ 3    3       int main(void) {                │
-│ 4          -     printf("Hello World!/n");   │
-│      4     +     printf("Hello Radicle!/n"); │
-│ 5    5           return 0;                   │
-│ 6    6       }                               │
-╰──────────────────────────────────────────────╯
-
+diff --git a/main.c b/main.c
+index aae4e0e..a3ed869 100644
+--- a/main.c
++++ b/main.c
+@@ -1,6 +1,6 @@
+ #include <stdio.h>
+ 
+ int main(void) {
+-    printf("Hello World!/n");
++    printf("Hello Radicle!/n");
+     return 0;
+ }
 ```
 
 ```
 $ git add main.c
 $ rad diff
 $ rad diff --staged
-╭──────────────────────────────────────────────╮
-│ main.c -1 +1                                 │
-├──────────────────────────────────────────────┤
-│ @@ -1,6 +1,6 @@                              │
-│ 1    1       #include <stdio.h>              │
-│ 2    2                                       │
-│ 3    3       int main(void) {                │
-│ 4          -     printf("Hello World!/n");   │
-│      4     +     printf("Hello Radicle!/n"); │
-│ 5    5           return 0;                   │
-│ 6    6       }                               │
-╰──────────────────────────────────────────────╯
-
+diff --git a/main.c b/main.c
+index aae4e0e..a3ed869 100644
+--- a/main.c
++++ b/main.c
+@@ -1,6 +1,6 @@
+ #include <stdio.h>
+ 
+ int main(void) {
+-    printf("Hello World!/n");
++    printf("Hello Radicle!/n");
+     return 0;
+ }
 ```
 
 ```
 $ git rm -f -q main.c
 $ rad diff --staged
-╭────────────────────────────────────────────╮
-│ main.c -6 ❲deleted❳                        │
-├────────────────────────────────────────────┤
-│ @@ -1,6 +0,0 @@                            │
-│ 1          - #include <stdio.h>            │
-│ 2          -                               │
-│ 3          - int main(void) {              │
-│ 4          -     printf("Hello World!/n"); │
-│ 5          -     return 0;                 │
-│ 6          - }                             │
-╰────────────────────────────────────────────╯
-
+diff --git a/main.c b/main.c
+deleted file mode 100644
+index aae4e0e..0000000
+--- a/main.c
++++ /dev/null
+@@ -1,6 +0,0 @@
+-#include <stdio.h>
+-
+-int main(void) {
+-    printf("Hello World!/n");
+-    return 0;
+-}
 ```
 
 For now, copies are not detected.
@@ -112,13 +110,13 @@ $ mkdir docs
 $ cp README.md docs/README.md
 $ git add docs
 $ rad diff --staged
-╭─────────────────────────────╮
-│ docs/README.md +1 ❲created❳ │
-├─────────────────────────────┤
-│ @@ -0,0 +1,1 @@             │
-│      1     + Hello World!   │
-╰─────────────────────────────╯
-
+diff --git a/docs/README.md b/docs/README.md
+new file mode 100644
+index 0000000..980a0d5
+--- /dev/null
++++ b/docs/README.md
+@@ -0,0 +1 @@
++Hello World!
 $ git reset
 $ git checkout .
 ```
@@ -129,10 +127,9 @@ Empty file.
 $ touch EMPTY
 $ git add EMPTY
 $ rad diff --staged
-╭─────────────────╮
-│ EMPTY ❲created❳ │
-╰─────────────────╯
-
+diff --git a/EMPTY b/EMPTY
+new file mode 100644
+index 0000000..e69de29
 $ git reset
 $ git checkout .
 ```
@@ -142,10 +139,9 @@ File mode change.
 ```
 $ chmod +x README.md
 $ rad diff
-╭───────────────────────────────────────────╮
-│ README.md 100644 -> 100755 ❲mode changed❳ │
-╰───────────────────────────────────────────╯
-
+diff --git a/README.md b/README.md
+old mode 100644
+new mode 100755
 $ git reset -q
 $ git checkout .
 ```
@@ -157,8 +153,8 @@ $ touch file.bin
 $ truncate -s 8 file.bin
 $ git add file.bin
 $ rad diff --staged
-╭─────────────────────────────╮
-│ file.bin ❲binary❳ ❲created❳ │
-╰─────────────────────────────╯
-
+diff --git a/file.bin b/file.bin
+new file mode 100644
+index 0000000..1b1cb4d
+Binary files /dev/null and b/file.bin differ
 ```

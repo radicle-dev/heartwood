@@ -49,6 +49,18 @@ enum Commands {
     Clean(clean::Args),
     Clone(clone::Args),
     Debug(debug::Args),
+
+    /// This command is deprecated and delegates to `git diff`.
+    /// Even before it was deprecated, it was not printed by
+    /// `rad -h`, so it is also hidden.
+    ///
+    /// Since it is hidden, it makes no sense to add `about`
+    /// for the command listing, and since it is external,
+    /// `--help` will delegate to `git diff --help` it makes
+    /// no sense to add `long_about` for `rad diff --help`.
+    #[command(external_subcommand, hide = true)]
+    Diff(Vec<OsString>),
+
     Fork(fork::Args),
     Issue(issue::Args),
     Path(path::Args),
@@ -206,7 +218,11 @@ pub(crate) fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyho
             term::run_command_args::<config::Options, _>(config::HELP, config::run, args.to_vec());
         }
         "diff" => {
-            term::run_command_args::<diff::Options, _>(diff::HELP, diff::run, args.to_vec());
+            if let Some(Commands::Diff(mut args)) = CliArgs::parse().command {
+                debug_assert_eq!(args[0], "diff");
+                args.remove(0);
+                return diff::run(args).map_err(Some);
+            }
         }
         "debug" => {
             if let Some(Commands::Debug(args)) = CliArgs::parse().command {
