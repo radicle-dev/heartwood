@@ -11,6 +11,7 @@ Common `rad` commands used in various situations:
 	checkout     Checkout a repository into the local directory
 	clone        Clone a Radicle repository
 	config       Manage your local Radicle configuration
+	debug        Write out information to help debug your Radicle node remotely
 	fork         Create a fork of a repository
 	help         CLI help
 	id           Manage repository identities

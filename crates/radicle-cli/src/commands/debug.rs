@@ -1,7 +1,7 @@
-#![allow(clippy::or_fun_call)]
+mod args;
+
 use std::collections::BTreeMap;
 use std::env;
-use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -11,40 +11,16 @@ use serde::Serialize;
 use radicle::Profile;
 
 use crate::terminal as term;
-use crate::terminal::args::{Args, Help};
+
+pub use args::Args;
+pub(crate) use args::ABOUT;
 
 pub const NAME: &str = "rad";
 pub const VERSION: &str = env!("RADICLE_VERSION");
 pub const DESCRIPTION: &str = "Radicle command line interface";
 pub const GIT_HEAD: &str = env!("GIT_HEAD");
 
-pub const HELP: Help = Help {
-    name: "debug",
-    description: "Write out information to help debug your Radicle node remotely",
-    version: env!("RADICLE_VERSION"),
-    usage: r#"
-Usage
-
-    rad debug
-
-    Run this if you are reporting a problem in Radicle. The output is
-    helpful for Radicle developers to debug your problem remotely. The
-    output is meant to not include any sensitive information, but
-    please check it, and then forward to the Radicle developers.
-
-"#,
-};
-
-#[derive(Debug)]
-pub struct Options {}
-
-impl Args for Options {
-    fn from_args(_args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
-        Ok((Options {}, vec![]))
-    }
-}
-
-pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(_args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     match ctx.profile() {
         Ok(profile) => debug(Some(&profile)),
         Err(e) => {
