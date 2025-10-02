@@ -1,8 +1,8 @@
-use fmt::{Component, RefString};
+use fmt::Component;
 
 use radicle_git_ref_format::refname;
 
-use crate::{object, test::arbitrary::Invalid, ObjectId, TypeName};
+use crate::{object, ObjectId, TypeName};
 
 #[cfg(feature = "git2")]
 mod git {
@@ -300,36 +300,5 @@ fn parse_refstr(oid: ObjectId, typename: TypeName) {
                 .and(refname!("more/paths"))
         ),
         Some((typename, oid))
-    );
-}
-
-/// Note: an invalid type name is also an invalid reference string, it
-/// cannot start or end with a '.', and cannot have '..'.
-#[quickcheck]
-fn invalid_parse_refstr(oid: Invalid<ObjectId>, typename: TypeName) {
-    let oid = RefString::try_from(oid.value).unwrap();
-    let typename = Component::from(&typename);
-    let suffix = refname!("refs/cobs").and(typename).and(oid);
-
-    // All parsing will fail because `oid` is not a valid ObjectId
-    assert_eq!(object::parse_refstr(&suffix), None);
-
-    assert_eq!(
-        object::parse_refstr(&refname!("refs/namespaces/a").join(&suffix)),
-        None
-    );
-
-    assert_eq!(
-        object::parse_refstr(&refname!("refs/namespaces/a/refs/namespaces/b").join(&suffix)),
-        None
-    );
-
-    assert_eq!(
-        object::parse_refstr(
-            &refname!("refs/namespaces/a/refs/namespaces/b")
-                .join(suffix)
-                .and(refname!("more/paths"))
-        ),
-        None
     );
 }

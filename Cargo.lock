@@ -2975,6 +2975,10 @@ version = "0.17.0"
 dependencies = [
  "fastrand",
  "git2",
+ "gix",
+ "gix-actor",
+ "gix-hash",
+ "gix-object",
  "log",
  "nonempty",
  "qcheck",

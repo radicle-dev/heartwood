@@ -3,6 +3,9 @@
 #[cfg(feature = "git2")]
 pub mod git;
 
+#[cfg(feature = "gix")]
+pub mod gix;
+
 #[cfg(feature = "stable-commit-ids")]
 pub mod stable;
 

@@ -65,7 +65,7 @@ extern crate radicle_git_metadata as metadata;
 extern crate radicle_git_ref_format as fmt;
 extern crate radicle_oid as oid;
 
-mod backend;
+pub mod backend;
 
 #[cfg(all(any(test, feature = "test"), feature = "git2"))]
 pub use backend::git;

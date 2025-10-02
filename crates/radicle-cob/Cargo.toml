@@ -16,6 +16,7 @@ rust-version.workspace = true
 [features]
 default = []
 git2 = ["dep:git2", "radicle-oid/git2"]
+gix = ["dep:gix", "dep:gix-actor", "dep:gix-hash", "dep:gix-object", "radicle-oid/gix"]
 # Only used for testing. Ensures that commit ids are stable.
 stable-commit-ids = []
 test = []
@@ -34,6 +35,10 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 signature = { workspace = true }
 thiserror = { workspace = true }
+gix = { workspace = true, optional = true, features = ["tree-editor"] }
+gix-actor = { version = "0.35.4", optional = true }
+gix-hash = { version = "0.19", optional = true }
+gix-object = { version = "0.50.2", optional = true }
 
 [dev-dependencies]
 fastrand = { workspace = true }

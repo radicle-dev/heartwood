@@ -1,4 +1,6 @@
+#[cfg(feature = "git2")]
 pub mod project;
+#[cfg(feature = "git2")]
 pub use project::{Project, RemoteProject};
 
 #[cfg(feature = "git2")]
