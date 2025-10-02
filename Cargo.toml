@@ -28,6 +28,7 @@ dunce = "1.0.5"
 fastrand = { version = "2.0.0", default-features = false }
 getrandom = { version = "0.4.3", default-features = false }
 git2 = { version = "0.21", default-features = false, features = ["vendored-libgit2"] }
+gix = { version = "0.73.0", default-features = false }
 gix-hash = { version = "0.25.0", default-features = false, features = ["sha1"] }
 gix-packetline = { version = "0.21.1", default-features = false }
 human-panic = "2.0.6"
