@@ -21,4 +21,8 @@ pub enum Signatures {
 
     #[error(transparent)]
     Signature(#[from] Signature),
+
+    #[cfg(feature = "gix")]
+    #[error(transparent)]
+    Decode(#[from] gix_object::decode::Error),
 }

@@ -1,0 +1,83 @@
+use std::io;
+
+use thiserror::Error;
+
+use radicle::{cob, identity, storage};
+use radicle_fetch as fetch;
+
+#[derive(Debug, Error)]
+pub enum Fetch {
+    #[error(transparent)]
+    Run(#[from] fetch::Error),
+    #[error(transparent)]
+    Git(#[from] radicle::git::raw::Error),
+    #[error(transparent)]
+    Storage(#[from] storage::Error),
+    #[error(transparent)]
+    StorageCopy(#[from] io::Error),
+    #[error(transparent)]
+    Repository(#[from] radicle::storage::RepositoryError),
+    #[error(transparent)]
+    RefsDb(Box<radicle::node::refs::Error>),
+    #[error(
+        "validation of the storage repository failed: the delegates {delegates:?} failed to validate to meet a threshold of {threshold}"
+    )]
+    Validation {
+        threshold: usize,
+        delegates: Vec<String>,
+    },
+    #[error(transparent)]
+    Cache(#[from] Cache),
+}
+
+impl From<radicle::node::refs::Error> for Fetch {
+    fn from(err: radicle::node::refs::Error) -> Self {
+        Self::RefsDb(Box::new(err))
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum Cache {
+    #[error(transparent)]
+    Parse(#[from] cob::ParseIdentifierError),
+    #[error(transparent)]
+    Repository(#[from] storage::RepositoryError),
+    #[error("failed to remove {type_name} '{id}' from cache: {err}")]
+    Remove {
+        id: cob::ObjectId,
+        type_name: cob::TypeName,
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+    #[error(transparent)]
+    Store(#[from] cob::store::Error),
+    #[error("failed to update {type_name} '{id}' in cache: {err}")]
+    Update {
+        id: cob::ObjectId,
+        type_name: cob::TypeName,
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+}
+
+#[derive(Debug, Error)]
+pub enum Handle {
+    #[error(transparent)]
+    Doc(#[from] identity::DocError),
+    #[error(transparent)]
+    Io(#[from] io::Error),
+    #[error(transparent)]
+    Init(#[from] fetch::handle::error::Init),
+    #[error(transparent)]
+    Storage(#[from] storage::Error),
+    #[error(transparent)]
+    Repository(#[from] radicle::storage::RepositoryError),
+}
+
+#[derive(Debug, Error)]
+pub enum Canonical {
+    #[error(transparent)]
+    Identity(#[from] radicle::storage::RepositoryError),
+    #[error(transparent)]
+    CanonicalRefs(#[from] radicle::identity::doc::CanonicalRefsError),
+}

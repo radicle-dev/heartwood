@@ -1,0 +1,77 @@
+[package]
+name = "radicle"
+description = "Radicle standard library"
+version = "0.25.1"
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+bstr = ["radicle-git-ref-format/bstr"]
+default = []
+gix = ["radicle-oid/gix"]
+i2p = ["cyphernet/i2p"]
+test = ["tempfile", "qcheck", "radicle-crypto/test", "radicle-cob/test"]
+qcheck = [
+  "radicle-core/qcheck",
+  "radicle-oid/qcheck",
+  "dep:qcheck"
+]
+schemars = [
+  "radicle-oid/schemars",
+  "radicle-core/schemars",
+  "radicle-crypto/schemars",
+  "radicle-localtime/schemars",
+  "dep:schemars"
+]
+tor = ["cyphernet/tor"]
+
+[dependencies]
+base64 = "0.21.3"
+bytesize = { version = "2", features = ["serde"] }
+cyphernet = { workspace = true, features = ["dns", "p2p-ed25519"] }
+dunce = { workspace = true }
+fast-glob = { version = "0.3.2" }
+fastrand = { workspace = true, features = ["std"] }
+git2 = { workspace = true, features = ["vendored-libgit2"] }
+indexmap = { workspace = true, features = ["serde"] }
+log = { workspace = true, features = ["std"] }
+multibase = { workspace = true, features = ["std"] }
+nonempty = { workspace = true, features = ["serialize"] }
+qcheck = { workspace = true, optional = true }
+radicle-cob = { workspace = true, features = ["git2"] }
+radicle-core = { workspace = true, features = ["git2", "serde", "sqlite"] }
+radicle-crypto = { workspace = true, features = ["radicle-git-ref-format", "serde", "ssh", "sqlite", "cyphernet"] }
+radicle-git-ref-format = { workspace = true, features = ["macro", "serde"] }
+radicle-git-metadata = { workspace = true }
+radicle-localtime = { workspace = true, features = ["serde"] }
+radicle-oid = { workspace = true, features = ["git2", "serde", "std", "sha1"] }
+schemars = { workspace = true, optional = true, features = ["derive", "std"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["preserve_order"] }
+serde-untagged = "0.1.7"
+siphasher = "1.0.0"
+sqlite = { workspace = true, features = ["bundled"] }
+tempfile = { workspace = true, optional = true }
+thiserror = { workspace = true, default-features = true }
+unicode-normalization = { version = "0.1" }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+radicle-windows = { workspace = true }
+uds_windows = { workspace = true }
+
+[dev-dependencies]
+emojis = "0.6"
+jsonschema = { version = "0.30", default-features = false }
+pretty_assertions = { workspace = true }
+qcheck = { workspace = true }
+qcheck-macros = { workspace = true }
+radicle-cob = { workspace = true, features = ["stable-commit-ids", "test"] }
+radicle-core = {workspace = true, features = ["qcheck"] }
+radicle-crypto = { workspace = true, features = ["test"] }
+tempfile = { workspace = true }

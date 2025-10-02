@@ -1,0 +1,49 @@
+[package]
+name = "radicle-crypto"
+version = "0.19.0"
+description = "Radicle cryptographic primitives"
+
+categories = ["no-std"]
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["multibase", "std"]
+alloc = ["ed25519-dalek/alloc", "curve25519-dalek/alloc", "zeroize/alloc"]
+cyphernet = ["dep:cyphernet", "alloc", "diffie-hellman", "getrandom", "multibase"]
+diffie-hellman = []
+multibase = ["dep:multibase", "cyphernet?/multibase"]
+schemars = ["dep:schemars", "serde"]
+serde = ["dep:serde", "ed25519-dalek/serde", "zeroize/serde"]
+ssh = ["ssh-agent-lib", "ssh-key", "alloc"]
+std = ["alloc", "ed25519-dalek/std", "getrandom?/std", "multibase?/std", "schemars?/std", "serde?/std", "ssh-key?/std", "thiserror/std", "zeroize/std" ]
+test = ["alloc", "qcheck"]
+
+[dependencies]
+cyphernet = { workspace = true, features = ["ed25519"], optional = true }
+getrandom = { workspace = true, optional = true }
+radicle-git-ref-format = { workspace = true, optional = true }
+multibase = { workspace = true, default-features = false, optional = true }
+qcheck = { workspace = true, optional = true }
+schemars = { workspace = true, default-features = false, features = ["derive"], optional = true }
+serde = { workspace = true, default-features = false, features = ["derive"], optional = true }
+sqlite = { workspace = true, features = ["bundled"], optional = true }
+ssh-agent-lib = { version = "0.6", default-features = false, features = ["log"], optional = true }
+ssh-key = { version = "0.6.3", default-features = false, features = ["ed25519", "encryption"], optional = true }
+thiserror = { workspace = true, default-features = false }
+zeroize = { workspace = true, default-features = false }
+
+# dalek
+curve25519-dalek = { version = "4", default-features = false, features = ["zeroize"] }
+ed25519-dalek = { version = "2", default-features = false, features = ["zeroize"] }
+
+[target.'cfg(windows)'.dependencies]
+winpipe = { workspace = true }
+
+[dev-dependencies]
+qcheck = { workspace = true }
+qcheck-macros = { workspace = true }
+tempfile = { workspace = true }

@@ -1,0 +1,288 @@
+extern crate std;
+
+use std::borrow::ToOwned as _;
+use std::cell::RefCell;
+use std::env::VarError;
+use std::path::Path;
+use std::path::PathBuf;
+use std::string::{String, ToString as _};
+use std::vec::Vec;
+
+use proto::{PrivateCredential, PublicCredential};
+use ssh_agent_lib::blocking::Client;
+pub use ssh_agent_lib::error::AgentError;
+use ssh_agent_lib::proto;
+use ssh_key::public::{Ed25519PublicKey, KeyData};
+use thiserror::Error;
+
+use crate::{PublicKey, Signature, SigningKey, VerifyingKey};
+
+#[cfg(unix)]
+use std::os::unix::net::UnixStream as Stream;
+
+#[cfg(windows)]
+use winpipe::WinStream as Stream;
+
+#[derive(Debug, Error)]
+pub enum ConnectError {
+    #[error(transparent)]
+    Agent(#[from] AgentError),
+    #[error("Unable to read environment variable '{var}': {source}")]
+    EnvVar { var: String, source: VarError },
+}
+
+impl ConnectError {
+    pub fn is_not_running(&self) -> bool {
+        use std::io::ErrorKind::*;
+        match self {
+            Self::EnvVar {
+                source: VarError::NotPresent,
+                ..
+            } => true,
+            Self::Agent(AgentError::IO(source)) if source.kind() == NotFound => true,
+            #[cfg(windows)]
+            Self::Agent(AgentError::IO(source)) if source.kind() == ConnectionRefused => {
+                // On Windows, a named pipe might be used, and if no
+                // agent is running, we might get a "connection refused"
+                // error, even though the `SSH_AUTH_SOCK` environment variable
+                // is set and a named pipe exists.
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum IntoSignerError {
+    #[error(transparent)]
+    Agent(#[from] AgentError),
+    #[error("Identity {identity} not found in agent.")]
+    IdentityNotFound { identity: PublicKey },
+}
+
+pub struct Agent {
+    path: PathBuf,
+    client: Client<Stream>,
+}
+
+impl Agent {
+    /// Connect to a running SSH agent.
+    pub fn connect() -> Result<Self, ConnectError> {
+        const SSH_AUTH_SOCK: &str = "SSH_AUTH_SOCK";
+
+        let path = match std::env::var(SSH_AUTH_SOCK) {
+            Ok(path) => Ok(PathBuf::from(path)),
+            #[cfg(windows)]
+            Err(VarError::NotPresent) => {
+                // Windows exposes the SSH Agent on a default named pipe.
+                const DEFAULT_SSH_AGENT_PIPE: &str = "\\\\.\\pipe\\openssh-ssh-agent";
+                Ok(PathBuf::from(DEFAULT_SSH_AGENT_PIPE))
+            }
+            Err(err) => Err(ConnectError::EnvVar {
+                var: SSH_AUTH_SOCK.to_string(),
+                source: err,
+            }),
+        }?;
+
+        let client = Client::new(
+            Stream::connect(&path).map_err(|err| ConnectError::Agent(AgentError::IO(err)))?,
+        );
+
+        Ok(Self { path, client })
+    }
+
+    /// Register a key with the agent.
+    pub fn register(&mut self, key: &SigningKey, comment: String) -> Result<(), AgentError> {
+        use ssh_key::private::{Ed25519Keypair, KeypairData};
+        self.client.add_identity(proto::AddIdentity {
+            credential: PrivateCredential::Key {
+                privkey: KeypairData::Ed25519(
+                    Ed25519Keypair::from_bytes(
+                        &ed25519_dalek::SigningKey::from(key.clone()).to_keypair_bytes(),
+                    )
+                    .unwrap(),
+                ),
+                comment,
+            },
+        })
+    }
+
+    pub fn unregister(&mut self, key: &VerifyingKey) -> Result<(), AgentError> {
+        self.client.remove_identity(proto::RemoveIdentity {
+            credential: PublicCredential::Key(Self::key_data(key)),
+        })
+    }
+
+    pub fn unregister_all(&mut self) -> Result<(), AgentError> {
+        self.client.remove_all_identities()
+    }
+
+    pub fn sign(&mut self, key: &VerifyingKey, data: &[u8]) -> Result<[u8; 64], AgentError> {
+        let sig = self.client.sign(proto::SignRequest {
+            credential: PublicCredential::Key(Self::key_data(key)),
+            data: data.to_vec(),
+            flags: 0,
+        })?;
+
+        Ok(sig.as_bytes().to_owned().try_into().unwrap())
+    }
+
+    /// Transform this [`Agent`] into an [`AgentSigner`] scoped to the given
+    /// `identity`.
+    pub fn into_signer(mut self, identity: VerifyingKey) -> Result<AgentSigner, IntoSignerError> {
+        if self.request_identities()?.contains(identity.public_key()) {
+            Ok(AgentSigner::new(self, identity))
+        } else {
+            Err(IntoSignerError::IdentityNotFound {
+                identity: *identity.public_key(),
+            })
+        }
+    }
+
+    pub fn path(&self) -> &Path {
+        self.path.as_ref()
+    }
+
+    pub fn request_identities(&mut self) -> Result<Vec<PublicKey>, AgentError> {
+        Ok(self
+            .client
+            .request_identities()?
+            .into_iter()
+            .filter_map(|identity| {
+                identity
+                    .credential
+                    .key_data()
+                    .ed25519()
+                    .map(|key| PublicKey::from(key.0))
+            })
+            .collect())
+    }
+
+    fn key_data(key: &VerifyingKey) -> KeyData {
+        KeyData::Ed25519(Ed25519PublicKey(key.to_bytes()))
+    }
+}
+
+/// A [`crate::signature::Signer`] that uses `ssh-agent`.
+pub struct AgentSigner {
+    agent: RefCell<Agent>,
+    public: VerifyingKey,
+}
+
+impl crate::signature::Signer<Signature> for AgentSigner {
+    fn try_sign(&self, msg: &[u8]) -> Result<Signature, crate::signature::Error> {
+        let sig = self
+            .agent
+            .borrow_mut()
+            .sign(&self.public, msg)
+            .map_err(crate::signature::Error::from_source)?;
+        Ok(Signature::from(sig))
+    }
+}
+
+impl AsRef<VerifyingKey> for AgentSigner {
+    fn as_ref(&self) -> &VerifyingKey {
+        &self.public
+    }
+}
+
+impl AsRef<crate::PublicKey> for AgentSigner {
+    fn as_ref(&self) -> &crate::PublicKey {
+        self.public.public_key()
+    }
+}
+
+impl crate::signature::KeypairRef for AgentSigner {
+    type VerifyingKey = VerifyingKey;
+}
+
+impl AgentSigner {
+    pub fn new(agent: Agent, public: VerifyingKey) -> Self {
+        let agent = RefCell::new(agent);
+
+        Self { agent, public }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use ssh_agent_lib::blocking::Client;
+    use ssh_agent_lib::proto::{PublicCredential, SignRequest};
+    use ssh_agent_lib::ssh_key::public::{Ed25519PublicKey, KeyData};
+
+    use crate::VerifyingKey;
+
+    #[test]
+    fn test_agent_encoding_remove() {
+        use std::str::FromStr;
+
+        let pk =
+            VerifyingKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
+        let expected = [
+            0, 0, 0, 56, // Message length
+            18, // Message type (remove identity)
+            0, 0, 0, 51, // Key blob length
+            0, 0, 0, 11, // Key type length
+            115, 115, 104, 45, 101, 100, 50, 53, 53, 49, 57, // Key type
+            0, 0, 0, 32, // Key length
+            208, 232, 92, 138, 225, 114, 116, 99, 156, 177, 148, 93, 65, 93, 198, 25, 46, 203, 79,
+            37, 145, 51, 176, 174, 61, 136, 160, 107, 4, 95, 175, 144, // Key
+        ];
+
+        let mut client = Client::new(std::io::Cursor::new(Vec::new()));
+
+        // We expect this to fail with an unexpected EOF, since the client will
+        // attempt to read a response from the stream, but the stream is empty,
+        // since we are not actually connected to SSH agent.
+        assert!(
+            matches!(client.remove_identity(ssh_agent_lib::proto::RemoveIdentity {
+                credential: PublicCredential::Key(KeyData::Ed25519(Ed25519PublicKey(pk.to_bytes()))),
+            }),
+                Err(
+                    super::AgentError::Proto(ssh_agent_lib::proto::ProtoError::IO(err)),
+                ) if err.kind() == std::io::ErrorKind::UnexpectedEof
+            )
+        );
+
+        assert_eq!(client.into_inner().into_inner(), expected.as_slice());
+    }
+
+    #[test]
+    fn test_agent_encoding_sign() {
+        use std::str::FromStr;
+
+        let pk =
+            VerifyingKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
+        let expected = [
+            0, 0, 0, 73, // Message length
+            13, // Message type (sign request)
+            0, 0, 0, 51, // Key blob length
+            0, 0, 0, 11, // Key type length
+            115, 115, 104, 45, 101, 100, 50, 53, 53, 49, 57, // Key type
+            0, 0, 0, 32, // Public key
+            208, 232, 92, 138, 225, 114, 116, 99, 156, 177, 148, 93, 65, 93, 198, 25, 46, 203, 79,
+            37, 145, 51, 176, 174, 61, 136, 160, 107, 4, 95, 175, 144, // Key
+            0, 0, 0, 9, // Length of data to sign
+            1, 2, 3, 4, 5, 6, 7, 8, 9, // Data to sign
+            0, 0, 0, 0, // Signature flags
+        ];
+
+        let mut client = Client::new(std::io::Cursor::new(Vec::new()));
+        let data: Vec<u8> = [1, 2, 3, 4, 5, 6, 7, 8, 9].into_iter().collect();
+
+        client
+            .sign(SignRequest {
+                credential: PublicCredential::Key(KeyData::Ed25519(Ed25519PublicKey(
+                    pk.to_bytes(),
+                ))),
+                data,
+                flags: 0,
+            })
+            .ok();
+
+        assert_eq!(client.into_inner().into_inner(), expected);
+    }
+}

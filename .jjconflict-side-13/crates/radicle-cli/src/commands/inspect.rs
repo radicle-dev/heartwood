@@ -1,0 +1,335 @@
+mod args;
+
+use std::collections::HashMap;
+use std::path::Path;
+use std::str::FromStr;
+
+use anyhow::Context as _;
+use chrono::prelude::*;
+
+use radicle::identity::RepoId;
+use radicle::identity::{DocAt, Identity};
+use radicle::node::AliasStore as _;
+use radicle::node::policy::SeedingPolicy;
+use radicle::storage::git::{Repository, Storage};
+use radicle::storage::refs::{FeatureLevel, RefsAt, SignedRefs};
+use radicle::storage::{ReadRepository, ReadStorage};
+
+use crate::terminal as term;
+use crate::terminal::Element;
+use crate::terminal::json;
+
+pub use args::Args;
+use args::Target;
+
+pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
+    let rid = match args.repo {
+        Some(rid) => {
+            if let Ok(val) = RepoId::from_str(&rid) {
+                val
+            } else {
+                radicle::rad::at(Path::new(&rid))
+                    .map(|(_, id)| id)
+                    .context("Supplied argument is not a valid path")?
+            }
+        }
+        None => radicle::rad::cwd()
+            .map(|(_, rid)| rid)
+            .context("Current directory is not a Radicle repository")?,
+    };
+
+    let target = args.target.into();
+
+    if matches!(target, Target::RepoId) {
+        term::info!("{}", term::format::highlight(rid.urn()));
+        return Ok(());
+    }
+
+    let profile = ctx.profile()?;
+    let storage = &profile.storage;
+
+    match target {
+        Target::Refs => {
+            let (repo, _) = repo(rid, storage)?;
+            refs(&repo)?;
+        }
+        Target::Payload => {
+            let (_, doc) = repo(rid, storage)?;
+            json::to_pretty(&doc.payload(), Path::new("radicle.json"))?.print();
+        }
+        Target::Identity => {
+            let (_, doc) = repo(rid, storage)?;
+            json::to_pretty(&*doc, Path::new("radicle.json"))?.print();
+        }
+        Target::Sigrefs => {
+            let (repo, _) = repo(rid, storage)?;
+            for remote in repo.remote_ids()? {
+                let remote = remote?;
+                let refs = RefsAt::new(&repo, remote)?;
+                let sigrefs = SignedRefs::load_at(refs.at, remote, &repo);
+
+                term::println(format_args!(
+                    "{:<48} {} {}",
+                    term::format::tertiary(remote.to_human()),
+                    term::format::secondary(refs.at),
+                    match sigrefs {
+                        Ok(Some(refs)) => {
+                            let mut level = refs.feature_level();
+
+                            // For their own refs, be more strict, and interpret
+                            // `FeatureLevel::Parent` at a root commit as
+                            // `FeatureLevel::Root`. This is so that users
+                            // have a chance of detecting that automatic migration
+                            // did not run or is otherwise broken.
+                            if &remote == profile.id()
+                                && level == FeatureLevel::Parent
+                                && refs.parent().is_none()
+                            {
+                                level = FeatureLevel::Root;
+                            }
+
+                            let s = level.to_string();
+                            match level {
+                                FeatureLevel::None => term::format::negative(s),
+                                FeatureLevel::Root => term::format::yellow(s),
+                                FeatureLevel::Parent => term::format::positive(s),
+                                _ => term::format::faint(s),
+                            }
+                        }
+                        Err(err) => {
+                            term::format::negative(err.to_string())
+                        }
+                        Ok(None) => {
+                            term::format::negative("missing".to_string())
+                        }
+                    }
+                ));
+            }
+        }
+        Target::Policy => {
+            let policies = profile.policies()?;
+            let seed = policies.seed_policy(&rid)?;
+            match seed.policy {
+                SeedingPolicy::Allow { scope } => {
+                    term::println(format_args!(
+                        "Repository {} is {} with scope {}",
+                        term::format::tertiary(&rid),
+                        term::format::positive("being seeded"),
+                        term::format::dim(format!("`{scope}`"))
+                    ));
+                }
+                SeedingPolicy::Block => {
+                    term::println(format_args!(
+                        "Repository {} is {}",
+                        term::format::tertiary(&rid),
+                        term::format::negative("not being seeded"),
+                    ));
+                }
+            }
+        }
+        Target::Delegates => {
+            let (_, doc) = repo(rid, storage)?;
+            let aliases = profile.aliases();
+            for did in doc.delegates().iter() {
+                if let Some(alias) = aliases.alias(did) {
+                    term::println(format_args!(
+                        "{} {}",
+                        term::format::tertiary(&did),
+                        term::format::parens(term::format::dim(alias))
+                    ));
+                } else {
+                    term::println(term::format::tertiary(&did));
+                }
+            }
+        }
+        Target::Visibility => {
+            let (_, doc) = repo(rid, storage)?;
+            term::println(term::format::visibility(doc.visibility()));
+        }
+        Target::History => {
+            let (repo, _) = repo(rid, storage)?;
+            let identity = Identity::load(&repo)?;
+            let head = repo.identity_head()?;
+            let history = repo.revwalk(head)?;
+
+            for oid in history {
+                let oid = oid?.into();
+                let tip = repo.commit(oid)?;
+
+                let Some(revision) = identity.revision(&tip.id().into()) else {
+                    continue;
+                };
+                if !revision.is_accepted() {
+                    continue;
+                }
+                let doc = &revision.doc;
+                let timezone = if tip.time().sign() == '+' {
+                    #[allow(deprecated)]
+                    FixedOffset::east(tip.time().offset_minutes() * 60)
+                } else {
+                    #[allow(deprecated)]
+                    FixedOffset::west(tip.time().offset_minutes() * 60)
+                };
+                let time = DateTime::<Utc>::from(
+                    std::time::UNIX_EPOCH
+                        + std::time::Duration::from_secs(tip.time().seconds() as u64),
+                )
+                .with_timezone(&timezone)
+                .to_rfc2822();
+
+                term::println(format_args!(
+                    "{} {}",
+                    term::format::yellow("commit"),
+                    term::format::yellow(oid),
+                ));
+                if let Ok(parent) = tip.parent_id(0) {
+                    term::println(format_args!("parent {parent}"));
+                }
+                term::println(format_args!("blob   {}", revision.blob));
+                term::println(format_args!("date   {time}"));
+                term::blank();
+
+                for line in tip.message()?.lines() {
+                    if line.is_empty() {
+                        term::blank();
+                    } else {
+                        term::indented(term::format::dim(line));
+                    }
+                }
+                term::blank();
+
+                for line in json::to_pretty(&doc, Path::new("radicle.json"))? {
+                    term::println(format_args!(" {line}"));
+                }
+
+                term::blank();
+            }
+        }
+        Target::RepoId => {
+            // Handled above.
+        }
+    }
+
+    Ok(())
+}
+
+fn repo(rid: RepoId, storage: &Storage) -> anyhow::Result<(Repository, DocAt)> {
+    let repo = storage
+        .repository(rid)
+        .context("No repository with the given RID exists")?;
+    let doc = repo.identity_doc()?;
+
+    Ok((repo, doc))
+}
+
+fn refs(repo: &radicle::storage::git::Repository) -> anyhow::Result<()> {
+    let mut refs = Vec::new();
+    for r in repo.references()? {
+        let r = r?;
+        if let Some(namespace) = r.namespace {
+            refs.push(format!("{}/{}", namespace, r.name));
+        }
+    }
+
+    term::print(tree(refs));
+
+    Ok(())
+}
+
+/// Show the list of given git references as a newline terminated tree `String` similar to the tree command.
+fn tree(mut refs: Vec<String>) -> String {
+    refs.sort();
+
+    // List of references with additional unique entries for each 'directory'.
+    //
+    // i.e. "refs/heads/master" becomes ["refs"], ["refs", "heads"], and ["refs", "heads",
+    // "master"].
+    let mut refs_expanded: Vec<Vec<String>> = Vec::new();
+    // Number of entries per Git 'directory'.
+    let mut ref_entries: HashMap<Vec<String>, usize> = HashMap::new();
+    let mut last: Vec<String> = Vec::new();
+
+    for r in refs {
+        let r: Vec<String> = r.split('/').map(|s| s.to_string()).collect();
+
+        for (i, v) in r.iter().enumerate() {
+            let last_v = last.get(i);
+            if Some(v) != last_v {
+                last = r.clone().iter().take(i + 1).map(String::from).collect();
+
+                refs_expanded.push(last.clone());
+
+                let mut dir = last.clone();
+                dir.pop();
+                if dir.is_empty() {
+                    continue;
+                }
+
+                if let Some(num) = ref_entries.get_mut(&dir) {
+                    *num += 1;
+                } else {
+                    ref_entries.insert(dir, 1);
+                }
+            }
+        }
+    }
+    let mut tree = String::default();
+
+    for mut ref_components in refs_expanded {
+        // Better to explode when things do not go as expected.
+        let name = ref_components.pop().expect("non-empty vector");
+        if ref_components.is_empty() {
+            tree.push_str(&format!("{name}\n"));
+            continue;
+        }
+
+        for i in 1..ref_components.len() {
+            let parent: Vec<String> = ref_components.iter().take(i).cloned().collect();
+
+            let num = ref_entries.get(&parent).unwrap_or(&0);
+            if *num == 0 {
+                tree.push_str("    ");
+            } else {
+                tree.push_str("│   ");
+            }
+        }
+
+        if let Some(num) = ref_entries.get_mut(&ref_components) {
+            if *num == 1 {
+                tree.push_str(&format!("└── {name}\n"));
+            } else {
+                tree.push_str(&format!("├── {name}\n"));
+            }
+            *num -= 1;
+        }
+    }
+
+    tree
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_tree() {
+        let arg = vec![
+            String::from("z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/refs/heads/master"),
+            String::from("z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/refs/rad/id"),
+            String::from("z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/refs/rad/sigrefs"),
+        ];
+        let exp = r#"
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+└── refs
+    ├── heads
+    │   └── master
+    └── rad
+        ├── id
+        └── sigrefs
+"#
+        .trim_start();
+
+        assert_eq!(tree(arg), exp);
+        assert_eq!(tree(vec![String::new()]), "\n");
+    }
+}

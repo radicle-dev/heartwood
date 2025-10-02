@@ -1,0 +1,12 @@
+[package]
+name = "radicle-dag"
+version = "0.10.0"
+description = "Radicle DAG implementation"
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+fastrand = { workspace = true }

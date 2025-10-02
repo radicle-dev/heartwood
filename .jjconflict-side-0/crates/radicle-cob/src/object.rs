@@ -1,9 +1,10 @@
 // Copyright © 2022 The Radicle Link Contributors
 
-use std::{ops::Deref, str::FromStr};
+use std::str::FromStr;
 
 use fmt::{Component, RefString};
 use oid::Oid;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -17,10 +18,8 @@ pub mod storage;
 pub use storage::{Commit, Objects, Reference, Storage};
 
 #[derive(Debug, Error)]
-pub enum ParseObjectId {
-    #[error(transparent)]
-    Git(#[from] oid::str::ParseOidError),
-}
+#[error(transparent)]
+pub struct ParseObjectId(#[from] oid::str::ParseOidError);
 
 /// The id of an object
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -31,8 +30,7 @@ impl FromStr for ObjectId {
     type Err = ParseObjectId;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let oid = Oid::from_str(s)?;
-        Ok(ObjectId(oid))
+        Ok(Self(Oid::from_str(s)?))
     }
 }
 
@@ -48,21 +46,27 @@ impl From<&Oid> for ObjectId {
     }
 }
 
+impl From<ObjectId> for Oid {
+    fn from(id: ObjectId) -> Self {
+        id.0
+    }
+}
+
 #[cfg(feature = "git2")]
 impl From<git2::Oid> for ObjectId {
     fn from(oid: git2::Oid) -> Self {
-        Oid::from(oid).into()
+        Self(Oid::from(oid))
     }
 }
 
 #[cfg(feature = "git2")]
 impl From<&git2::Oid> for ObjectId {
     fn from(oid: &git2::Oid) -> Self {
-        ObjectId(Oid::from(*oid))
+        Self(Oid::from(*oid))
     }
 }
 
-impl Deref for ObjectId {
+impl std::ops::Deref for ObjectId {
     type Target = Oid;
 
     fn deref(&self) -> &Self::Target {

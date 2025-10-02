@@ -1,14 +1,8 @@
-use std::{iter, marker::PhantomData};
+use std::iter;
 
 use qcheck::Arbitrary;
 
-use crate::{ObjectId, TypeName};
-
-#[derive(Clone, Debug)]
-pub struct Invalid<T> {
-    pub value: String,
-    _marker: PhantomData<T>,
-}
+use crate::{object::ObjectId, TypeName};
 
 impl Arbitrary for TypeName {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
@@ -27,17 +21,5 @@ impl Arbitrary for TypeName {
 impl Arbitrary for ObjectId {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         Self::from(oid::Oid::arbitrary(g))
-    }
-}
-
-impl Arbitrary for Invalid<ObjectId> {
-    fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let mut rng = fastrand::Rng::with_seed(u64::arbitrary(g));
-        let len = rng.usize(21..50);
-        let value = iter::repeat_with(|| rng.alphanumeric()).take(len).collect();
-        Invalid {
-            value,
-            _marker: PhantomData,
-        }
     }
 }

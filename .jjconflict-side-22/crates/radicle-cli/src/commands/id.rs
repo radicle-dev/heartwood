@@ -1,0 +1,638 @@
+mod args;
+
+use std::collections::BTreeSet;
+
+use anyhow::{Context, anyhow};
+
+use radicle::cob::Title;
+use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
+use radicle::identity::doc::update;
+use radicle::identity::{Doc, Identity, RawDoc, doc};
+use radicle::node::NodeId;
+use radicle::storage::{ReadRepository as _, ReadStorage as _, WriteRepository};
+use radicle::{Profile, cob, crypto};
+use radicle_surf::diff::Diff;
+use radicle_term::Element;
+
+use crate::git::Rev;
+use crate::git::unified_diff::Encode as _;
+use crate::terminal as term;
+use crate::terminal::args::{Error, rid_or_cwd};
+use crate::terminal::format::Author;
+use crate::terminal::patch::Message;
+
+pub use args::Args;
+use args::Command;
+
+pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
+    let profile = ctx.profile()?;
+    let storage = &profile.storage;
+    let (_, rid) = rid_or_cwd(args.repo)?;
+    let repo = storage
+        .repository(rid)
+        .context(anyhow!("repository `{rid}` not found in local storage"))?;
+
+    let device = profile.signer()?;
+    let mut identity = Identity::load_mut(&repo, &device)?;
+    let current = identity.current().clone();
+
+    let interactive = args.interactive();
+    let command = args.command.unwrap_or(Command::List);
+
+    match command {
+        Command::Accept { revision } => {
+            let revision = get(revision, &identity, &repo)?.clone();
+            let id = revision.id;
+
+            if !revision.is_active() {
+                anyhow::bail!("cannot vote on revision that is {}", revision.state);
+            }
+
+            if interactive.confirm(format!("Accept revision {}?", term::format::tertiary(id))) {
+                identity.accept(&revision.id)?;
+
+                if let Some(revision) = identity.revision(&id) {
+                    // Update the canonical head to point to the latest accepted revision.
+                    if revision.is_accepted() && revision.id == identity.current {
+                        repo.set_identity_head_to(revision.id)?;
+                    }
+                    // TODO: Different output if canonical changed?
+
+                    if !args.quiet {
+                        term::success!("Revision {id} accepted");
+                        print_meta(revision, &current, &profile)?;
+                    }
+                }
+            }
+        }
+        Command::Reject { revision } => {
+            let revision = get(revision, &identity, &repo)?.clone();
+
+            if !revision.is_active() {
+                anyhow::bail!("cannot vote on revision that is {}", revision.state);
+            }
+
+            if interactive.confirm(format!(
+                "Reject revision {}?",
+                term::format::tertiary(revision.id)
+            )) {
+                identity.reject(revision.id)?;
+
+                if !args.quiet {
+                    term::success!("Revision {} rejected", revision.id);
+                    print_meta(&revision, &current, &profile)?;
+                }
+            }
+        }
+        Command::Edit {
+            revision,
+            title,
+            description,
+        } => {
+            let revision = get(revision, &identity, &repo)?.clone();
+
+            if !revision.is_active() {
+                anyhow::bail!("revision can no longer be edited");
+            }
+            let Some((title, description)) = edit_title_description(title, description)? else {
+                anyhow::bail!("revision title or description missing");
+            };
+            identity.edit(revision.id, title, description)?;
+
+            if !args.quiet {
+                term::success!("Revision {} edited", revision.id);
+            }
+        }
+        Command::Update {
+            title,
+            description,
+            delegate: delegates,
+            rescind,
+            threshold,
+            visibility,
+            allow,
+            disallow,
+            payload,
+            edit,
+        } => {
+            let proposal = {
+                let mut proposal = current.doc.clone().edit();
+                let allow = allow.into_iter().collect::<BTreeSet<_>>();
+                let disallow = disallow.into_iter().collect::<BTreeSet<_>>();
+
+                proposal.threshold = threshold.unwrap_or(proposal.threshold);
+
+                let proposal = match visibility {
+                    Some(edit) => update::visibility(proposal, edit),
+                    None => proposal,
+                };
+                let proposal = match update::privacy_allow_list(proposal, allow, disallow) {
+                    Ok(proposal) => proposal,
+                    Err(e) => match e {
+                        update::error::PrivacyAllowList::Overlapping(overlap) =>anyhow::bail!("`--allow` and `--disallow` must not overlap: {overlap:?}"),
+                        update::error::PrivacyAllowList::PublicVisibility => return Err(Error::with_hint(
+                            anyhow!("`--allow` and `--disallow` should only be used for private repositories"),
+                            "use `--visibility private` to make the repository private, or perhaps you meant to use `--delegate`/`--rescind`")
+                        .into())
+                    }
+                };
+                let threshold = proposal.threshold;
+                let proposal = match update::delegates(proposal, delegates, rescind, &repo)? {
+                    Ok(proposal) => proposal,
+                    Err(errs) => {
+                        term::error(format!("failed to verify delegates for {rid}"));
+                        term::error(format!(
+                            "the threshold of {threshold} delegates cannot be met.."
+                        ));
+                        for e in errs {
+                            print_delegate_verification_error(&e);
+                        }
+                        anyhow::bail!("fatal: refusing to update identity document");
+                    }
+                };
+
+                // TODO(erikli): whenever `clap` starts supporting custom value parsers
+                // for a series of values, we can parse into `Payload` implicitly.
+                let payloads = args::parse_many_upserts(&payload).collect::<Result<Vec<_>, _>>()?;
+
+                update::payload(proposal, payloads)?
+            };
+
+            // If `--edit` is specified, the document can also be edited via a text edit.
+            let proposal = if edit {
+                match term::editor::Editor::comment()
+                    .extension("json")
+                    .initial(serde_json::to_string_pretty(&current.doc)?)?
+                    .edit()?
+                {
+                    Some(proposal) => serde_json::from_str::<RawDoc>(&proposal)?,
+                    None => {
+                        term::println(term::format::italic(
+                            "Nothing to do. The document is up to date. See `rad inspect --identity`.",
+                        ));
+                        return Ok(());
+                    }
+                }
+            } else {
+                proposal
+            };
+
+            let proposal = update::verify(proposal)?;
+            if proposal == current.doc {
+                if !args.quiet {
+                    term::println(term::format::italic(
+                        "Nothing to do. The document is up to date. See `rad inspect --identity`.",
+                    ));
+                }
+                return Ok(());
+            }
+            let revision = update(title, description, proposal, &mut identity, &profile)?;
+
+            if revision.is_accepted() && revision.parent == Some(current.id) {
+                // Update the canonical head to point to the latest accepted revision.
+                repo.set_identity_head_to(revision.id)?;
+            }
+            if args.quiet {
+                term::println(revision.id);
+            } else {
+                term::success!(
+                    "Identity revision {} created",
+                    term::format::tertiary(revision.id)
+                );
+                print(&revision, &current, &repo, &profile)?;
+            }
+        }
+        Command::List => {
+            let mut revisions =
+                term::Table::<8, term::Label>::new(term::table::TableOptions::bordered());
+
+            revisions.header([
+                term::format::dim(String::from("●")).into(),
+                term::format::bold(String::from("ID")).into(),
+                term::format::bold(String::from("Title")).into(),
+                term::format::bold(String::from("Author")).into(),
+                term::Label::blank(),
+                term::format::bold(String::from("Status")).into(),
+                term::format::bold(String::from("Created")).into(),
+                term::format::bold(String::from("Parent")).into(),
+            ]);
+            revisions.divider();
+
+            for r in identity.revisions().rev() {
+                let icon = match r.state {
+                    identity::State::Active => term::format::tertiary("●"),
+                    identity::State::Accepted => term::format::positive("●"),
+                    identity::State::Rejected(_) => term::format::negative("●"),
+                    identity::State::Redacted(_) => continue,
+                }
+                .into();
+                let state = match &r.state {
+                    identity::State::Active => "active".to_string(),
+                    identity::State::Accepted => "accepted".to_string(),
+                    identity::State::Rejected(identity::RejectedBy::Vote) => {
+                        "rejected ✘".to_string()
+                    }
+                    identity::State::Rejected(identity::RejectedBy::Parent) => {
+                        "rejected ↥".to_string()
+                    }
+                    identity::State::Rejected(identity::RejectedBy::Sibling(_)) => {
+                        "rejected ⇄".to_string()
+                    }
+                    identity::State::Redacted(_) => continue,
+                }
+                .into();
+                let id = if args.verbose {
+                    term::label(r.id.to_string())
+                } else {
+                    term::format::oid(r.id).into()
+                };
+                let title = term::label(r.title.to_string());
+                let (alias, author) =
+                    term::format::Author::new(r.author.public_key(), &profile, true).labels();
+                let timestamp = term::format::timestamp(r.timestamp).into();
+                let parent = r
+                    .parent
+                    .map(|p| {
+                        if args.verbose {
+                            term::label(p.to_string())
+                        } else {
+                            term::format::oid(p).into()
+                        }
+                    })
+                    .unwrap_or_else(|| term::Paint::new("none".to_string()).into());
+
+                revisions.push([icon, id, title, alias, author, state, timestamp, parent]);
+            }
+            revisions.print();
+
+            term::blank();
+            term::println("Hints:");
+            term::println(format!(
+                "  {} active\n  {} accepted\n  {} rejected:\n    {} … by delegate votes   {} … by parent   {} … by sibling",
+                term::format::tertiary("●"),
+                term::format::positive("●"),
+                term::format::negative("●"),
+                "✘",
+                "↥",
+                "⇄",
+            ));
+        }
+        Command::Redact { revision } => {
+            let revision = get(revision, &identity, &repo)?.clone();
+
+            if revision.is_accepted() {
+                anyhow::bail!("cannot redact accepted revision");
+            }
+            if interactive.confirm(format!(
+                "Redact revision {}?",
+                term::format::tertiary(revision.id)
+            )) {
+                identity.redact(revision.id)?;
+
+                if !args.quiet {
+                    term::success!("Revision {} redacted", revision.id);
+                }
+            }
+        }
+        Command::Show { revision } => {
+            let revision = get(revision, &identity, &repo)?;
+            let previous = revision.parent.unwrap_or(revision.id);
+            let previous = identity
+                .revision(&previous)
+                .ok_or(anyhow!("revision `{previous}` not found"))?;
+
+            print(revision, previous, &repo, &profile)?;
+        }
+        Command::Cache { storage: false } => {
+            set_identity_head(&repo)?;
+        }
+        Command::Cache { storage: true } => {
+            for info in profile.storage.repositories()? {
+                if let Err(err) = set_identity_head(&profile.storage.repository(info.rid)?) {
+                    term::error(format!(
+                        "Failed to cache identity for repository {}: {err}",
+                        info.rid
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn get<'a>(
+    revision: Rev,
+    identity: &'a Identity,
+    repo: &radicle::storage::git::Repository,
+) -> anyhow::Result<&'a Revision> {
+    let id = revision.resolve(&repo.backend)?;
+    let revision = identity
+        .revision(&id)
+        .filter(|revision| !matches!(revision.state, identity::State::Redacted(_)))
+        .ok_or(anyhow!("revision `{id}` not found"))?;
+
+    Ok(revision)
+}
+
+fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow::Result<()> {
+    let mut attrs = term::Table::<2, term::Label>::new(Default::default());
+
+    attrs.push([
+        term::format::bold("Title").into(),
+        term::label(revision.title.to_string()),
+    ]);
+    attrs.push([
+        term::format::bold("Revision").into(),
+        term::label(revision.id.to_string()),
+    ]);
+    if let Some(parent) = revision.parent {
+        attrs.push([
+            term::format::bold("Parent").into(),
+            term::label(parent.to_string()),
+        ]);
+    }
+    attrs.push([
+        term::format::bold("Blob").into(),
+        term::label(revision.blob.to_string()),
+    ]);
+    attrs.push([
+        term::format::bold("Author").into(),
+        term::label(revision.author.to_string()),
+    ]);
+    match &revision.state {
+        identity::State::Rejected(reason) => {
+            attrs.push([
+                term::format::bold("State").into(),
+                term::label(format!(
+                    "{} {}",
+                    term::format::negative(revision.state),
+                    term::format::dim(format!("by {reason}")),
+                )),
+            ]);
+        }
+        identity::State::Active => {
+            attrs.push([
+                term::format::bold("State").into(),
+                term::label(term::format::tertiary(revision.state.to_string())),
+            ]);
+        }
+        identity::State::Accepted => {
+            attrs.push([
+                term::format::bold("State").into(),
+                term::label(term::format::positive(revision.state.to_string())),
+            ]);
+        }
+        identity::State::Redacted(_) => (),
+    }
+    attrs.push([
+        term::format::bold("Quorum").into(),
+        if revision.is_accepted() {
+            term::format::positive("yes").into()
+        } else {
+            term::format::negative("no").into()
+        },
+    ]);
+
+    let mut meta = term::VStack::default()
+        .border(Some(term::colors::FAINT))
+        .child(attrs)
+        .children(if !revision.description.is_empty() {
+            vec![
+                term::Label::blank().boxed(),
+                term::textarea(revision.description.to_owned()).boxed(),
+            ]
+        } else {
+            vec![]
+        })
+        .divider();
+
+    let accepted = {
+        let mut accepted = revision.accepted().collect::<Vec<_>>();
+        accepted.sort();
+        accepted
+    };
+
+    let rejected = {
+        let mut rejected = revision.rejected().collect::<Vec<_>>();
+        rejected.sort();
+        rejected
+    };
+
+    let unknown = {
+        let mut unknown = previous
+            .delegates()
+            .iter()
+            .filter(|id| !accepted.contains(id) && !rejected.contains(id))
+            .collect::<Vec<_>>();
+        unknown.sort();
+        unknown
+    };
+
+    let mut signatures = term::Table::<4, _>::default();
+
+    for id in accepted {
+        let author = term::format::Author::new(&id, profile, true);
+        signatures.push([
+            term::PREFIX_SUCCESS.into(),
+            id.to_string().into(),
+            author.alias().unwrap_or_default(),
+            author.you().unwrap_or_default(),
+        ]);
+    }
+    for id in rejected {
+        let author = term::format::Author::new(&id, profile, true);
+        signatures.push([
+            term::PREFIX_ERROR.into(),
+            id.to_string().into(),
+            author.alias().unwrap_or_default(),
+            author.you().unwrap_or_default(),
+        ]);
+    }
+    for id in unknown {
+        let author = term::format::Author::new(id, profile, true);
+        signatures.push([
+            term::format::dim("?").into(),
+            id.to_string().into(),
+            author.alias().unwrap_or_default(),
+            author.you().unwrap_or_default(),
+        ]);
+    }
+    meta.push(signatures);
+    meta.print();
+
+    Ok(())
+}
+
+fn print(
+    revision: &identity::Revision,
+    previous: &identity::Revision,
+    repo: &radicle::storage::git::Repository,
+    profile: &Profile,
+) -> anyhow::Result<()> {
+    print_meta(revision, previous, profile)?;
+    term::blank();
+    print_diff(revision.parent.as_ref(), &revision.id, repo)?;
+
+    Ok(())
+}
+
+fn edit_title_description(
+    title: Option<Title>,
+    description: Option<String>,
+) -> anyhow::Result<Option<(Title, String)>> {
+    const HELP: &str = r#"<!--
+Please enter a patch message for your changes. An empty
+message aborts the patch proposal.
+
+The first line is the patch title. The patch description
+follows, and must be separated with a blank line, just
+like a commit message. Markdown is supported in the title
+and description.
+-->"#;
+
+    let result = if let (Some(t), d) = (title.as_ref(), description.as_deref()) {
+        Some((t.to_owned(), d.unwrap_or_default().to_owned()))
+    } else {
+        let result = Message::edit_title_description(title, description, HELP)?;
+        if let Some((title, description)) = result {
+            Some((title, description))
+        } else {
+            None
+        }
+    };
+    Ok(result)
+}
+
+fn update(
+    title: Option<Title>,
+    description: Option<String>,
+    doc: Doc,
+    current: &mut IdentityMut<
+        impl WriteRepository + cob::Store<Namespace = NodeId>,
+        impl crypto::Signer,
+    >,
+    profile: &Profile,
+) -> anyhow::Result<Revision> {
+    if let Some((title, description)) = edit_title_description(title, description)? {
+        let id = current
+            .update(title, description, &doc)
+            .map_err(|e| on_identity_err(e, profile))?;
+        let revision = current
+            .revision(&id)
+            .ok_or(anyhow!("update failed: revision {id} is missing"))?;
+
+        Ok(revision.clone())
+    } else {
+        Err(anyhow!("you must provide a revision title and description"))
+    }
+}
+
+fn set_identity_head(repo: &radicle::storage::git::Repository) -> anyhow::Result<()> {
+    repo.set_identity_head()?;
+    term::success!("Successfully cached identity of repository {}", repo.id());
+    Ok(())
+}
+
+fn on_identity_err(e: identity::Error, profile: &Profile) -> anyhow::Error {
+    let e = anyhow::Error::from(e);
+
+    e.chain()
+        .find_map(|c| c.downcast_ref::<identity::ApplyError>())
+        .map(|e| on_apply_err(e, profile))
+        .unwrap_or(e)
+}
+
+fn on_apply_err(e: &identity::ApplyError, profile: &Profile) -> anyhow::Error {
+    match e {
+        e @ identity::ApplyError::NonDelegateUnauthorized { author, .. } => {
+            let nid = NodeId::from(*author);
+            let labels = Author::new(&nid, profile, false).labels();
+
+            Error::with_hint(
+                anyhow!(e.to_string()),
+                format!(
+                    "{} {} is attempting to modify the identity document but is not a delegate!",
+                    labels.0, labels.1
+                ),
+            )
+            .into()
+        }
+        e @ radicle::cob::identity::ApplyError::Missing(_)
+        | e @ radicle::cob::identity::ApplyError::Init(_)
+        | e @ radicle::cob::identity::ApplyError::InvalidSignature(..)
+        | e @ radicle::cob::identity::ApplyError::NotAuthorized
+        | e @ radicle::cob::identity::ApplyError::MissingParent
+        | e @ radicle::cob::identity::ApplyError::DuplicateVerdict
+        | e @ radicle::cob::identity::ApplyError::UnexpectedState
+        | e @ radicle::cob::identity::ApplyError::SiblingAccepted { .. }
+        | e @ radicle::cob::identity::ApplyError::DocUnchanged
+        | e @ radicle::cob::identity::ApplyError::Git(_)
+        | e @ radicle::cob::identity::ApplyError::Doc(_)
+        | e => {
+            anyhow!(e.to_string())
+        }
+    }
+}
+
+fn print_diff(
+    previous: Option<&RevisionId>,
+    current: &RevisionId,
+    repo: &radicle::storage::git::Repository,
+) -> anyhow::Result<()> {
+    let previous = if let Some(previous) = previous {
+        let previous = Doc::load_at(*previous, repo)?;
+        let previous = serde_json::to_string_pretty(&previous.doc)?;
+
+        Some(previous)
+    } else {
+        None
+    };
+    let current = Doc::load_at(*current, repo)?;
+    let current = serde_json::to_string_pretty(&current.doc)?;
+
+    let tmp = tempfile::tempdir()?;
+    let repo = radicle::git::raw::Repository::init_opts(
+        tmp.path(),
+        radicle::git::raw::RepositoryInitOptions::new()
+            .external_template(false)
+            .bare(true),
+    )?;
+
+    let previous = if let Some(previous) = previous {
+        let tree = radicle::git::write_tree(&doc::PATH, previous.as_bytes(), &repo)?;
+        Some(tree)
+    } else {
+        None
+    };
+    let current = radicle::git::write_tree(&doc::PATH, current.as_bytes(), &repo)?;
+    let mut opts = radicle::git::raw::DiffOptions::new();
+    opts.context_lines(u32::MAX);
+
+    let diff = repo.diff_tree_to_tree(previous.as_ref(), Some(&current), Some(&mut opts))?;
+    let diff = Diff::try_from(diff)?;
+
+    if let Some(modified) = diff.modified().next() {
+        let diff = modified.diff.to_unified_string()?;
+        term::print(diff);
+    } else {
+        term::println(term::format::italic("No changes."));
+    }
+    Ok(())
+}
+
+fn print_delegate_verification_error(err: &update::error::DelegateVerification) {
+    use update::error::DelegateVerification::*;
+    match err {
+        MissingDefaultBranch { branch, did } => term::error(format!(
+            "missing {} for {} in local storage",
+            term::format::secondary(branch),
+            term::format::did(did)
+        )),
+        MissingDelegate { did } => {
+            term::error(format!("the delegate {did} is missing"));
+            term::hint(format!(
+                "run `rad follow {did}` to follow this missing peer"
+            ));
+        }
+    }
+}

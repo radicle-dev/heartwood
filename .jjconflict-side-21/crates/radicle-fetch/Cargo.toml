@@ -1,0 +1,25 @@
+[package]
+name = "radicle-fetch"
+description = "Radicle fetch protocol"
+homepage.workspace = true
+license.workspace = true
+version = "0.16.0"
+authors = ["Fintan Halpenny <fintan.halpenny@gmail.com>"]
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bstr = { workspace = true }
+either = "1.9.0"
+gix-features = { version = "0.43.1", features = ["progress"] }
+gix-hash = { workspace = true }
+gix-odb = "0.70.0"
+gix-pack = "0.60.0"
+gix-protocol = { version = "0.51.0", features = ["blocking-client"] }
+gix-transport = { version = "0.48.0", features = ["blocking-client"] }
+log = { workspace = true, features = ["std"] }
+nonempty = { workspace = true }
+radicle = { workspace = true }
+radicle-oid = { workspace = true, features = ["gix"] }
+radicle-git-ref-format = { workspace = true, features = ["bstr"] }
+thiserror = { workspace = true }

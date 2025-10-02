@@ -1,0 +1,4 @@
+[advisories]
+ignore = [
+  "RUSTSEC-2023-0071", # issue bd8af7a5e3fd02c0963d7550a5cc2cab00950775
+]

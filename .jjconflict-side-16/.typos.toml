@@ -1,0 +1,40 @@
+[default]
+extend-ignore-re = [
+    "[0-9a-f]{7}\\.\\.\\.?[0-9a-f]{7}", # Git range between two short commit IDs
+    "[0-9a-f]{7}\\[\\.\\.\\]", # Shortened commit IDs as written in tests
+    "did:key:z6Mk[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{44}",
+    "rad://z[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{28}",
+    "rad:z[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{28}",
+    "z6Mk[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{44}",
+]
+
+[default.extend-identifiers]
+"typ" = "typ" # We may write "typ" instead of "type". The latter is a Rust keyword.
+
+[type.codespell]
+check-file = false
+extend-glob = [".codespellrc"]
+
+[type.md]
+extend-ignore-re = [
+    "(Author:|author|committer) radicle ", # Commit Metadata
+    "/radicle:", # User Agent fragment
+    "\"radicle",
+    "\\.radicle", # Path fragment of default `$RAD_HOME`
+    "`radicle`",
+    "radicle heartwood protocol & stack", # Old fixture.
+    "radicle-\\w+", # Crates in Cargo style
+    "radicle\\.((example|zulipchat)\\.com|dev|network|xyz)", # URLs
+    "radicle\\w*::", # Crates in Rust code style
+    "xyz\\.radicle\\.(issue|patch|id)", # COB Type Names
+]
+
+[type.md.extend-identifiers]
+"radicle" = "Radicle"
+
+[files]
+extend-exclude = [
+    "crates/radicle-surf/src/test/platinum",
+    "simulation/modules/radicle-node/cue.mod"
+]
+

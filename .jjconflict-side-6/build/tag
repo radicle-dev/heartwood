@@ -1,0 +1,51 @@
+#! /bin/sh
+set -e
+
+if [ $# -ne 1 ]; then
+  echo "Usage: $0 <version-number>"
+  echo "Produces a Git Tag under 'releases/<version-number>', signed by the 'user.signingKey' which must match 'rad self --ssh-key'"
+  exit 1
+fi
+
+version="$1"
+tag="releases/$version"
+
+git_config_key="user.signingKey"
+
+git_rev="$(git rev-parse HEAD)"
+git_key="$(git config $git_config_key)"
+
+if [ "$(printf '%s' "$git_key" | cut -c -5)" != "key::" ]; then
+  printf "The Git signing key set as \`%s\` does not start with \`key::\`.\n" "$git_config_key"
+  printf "This is not supported. Refer to <https://git-scm.com/docs/git-config#Documentation/git-config.txt-usersigningKey>.\n"
+  exit 1
+fi
+
+rad_did="$(rad self --did)"
+rad_key="$(rad self --ssh-key)"
+
+git show "$git_rev"
+
+if [ "$git_key" != "key::$rad_key" ]; then
+  printf "The Git signing key set as \`%s\` does not match the output of \`rad self --ssh-key\`. Aborting.\n" "$git_config_key"
+  exit 1
+fi
+
+printf "\n"
+printf "Tag the above commit with \033[35m%s\033[0m, using \033[35m%s\033[0m? [y/N] " "$tag" "$rad_did"
+read -r confirmation
+
+case "$confirmation" in
+  [Yy]*)
+    rad auth
+    if git tag --annotate --sign --message="Release $version" "$tag" "$git_rev"; then
+      printf "Tag %s created and signed over %s.\n" "$tag" "$git_rev"
+    else
+      echo "Failed to create tag. Aborting."
+      exit 1
+    fi ;;
+  *)
+    echo "Aborting."
+    exit 1 ;;
+esac
+

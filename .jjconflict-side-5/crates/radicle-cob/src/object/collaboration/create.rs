@@ -78,7 +78,7 @@ where
     let object = T::init(&init_change, storage).map_err(error::Create::evaluate)?;
 
     storage
-        .update(identifier, &type_name, &object_id, &object_id)
+        .update(identifier, &type_name, &object_id, &Oid::from(object_id))
         .map_err(|err| error::Create::Refs { err: Box::new(err) })?;
 
     let history = History::new_from_root(init_change);

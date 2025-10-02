@@ -102,7 +102,7 @@ impl ChangeGraph {
         mut self,
         store: &S,
     ) -> Result<CollaborativeObject<T>, EvaluateError> {
-        let root = *self.object_id;
+        let root = Oid::from(self.object_id);
         let root = self
             .graph
             .get(&root)

@@ -1,0 +1,37 @@
+[package]
+name = "radicle-protocol"
+version = "0.9.1"
+description = "The Radicle Protocol"
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+i2p = ["cypheraddr/i2p", "radicle/i2p"]
+test = ["radicle/test", "qcheck"]
+tor = ["cypheraddr/tor", "radicle/tor"]
+
+[dependencies]
+bloomy = "1.2"
+bytes = { workspace = true }
+cypheraddr = { workspace = true, features = ["serde"] }
+fastrand = { workspace = true }
+log = { workspace = true, features = ["std"] }
+nonempty = { workspace = true, features = ["serialize"] }
+qcheck = { workspace = true, optional = true }
+radicle = { workspace = true }
+radicle-core = { workspace = true }
+radicle-fetch = { workspace = true }
+radicle-localtime = { workspace = true }
+sqlite = { workspace = true, features = ["bundled"] }
+scrypt = { version = "0.11.0", default-features = false }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true, default-features = true }
+
+[dev-dependencies]
+pastey = "0.2"
+qcheck = { workspace = true }
+qcheck-macros = { workspace = true }
+radicle = { workspace = true, features = ["test"] }

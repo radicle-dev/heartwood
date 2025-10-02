@@ -319,10 +319,7 @@ fn write_commit(
     };
     let (author, timestamp) = if let Ok(s) = std::env::var(GIT_COMMITTER_DATE) {
         let Ok(timestamp) = s.trim().parse::<i64>() else {
-            panic!(
-                "Invalid timestamp value {s:?} for `{}`",
-                GIT_COMMITTER_DATE
-            );
+            panic!("Invalid timestamp value {s:?} for `{GIT_COMMITTER_DATE}`");
         };
         let author = Author {
             time: metadata::author::Time::new(timestamp, 0),

@@ -209,17 +209,49 @@ pub struct Embed<T = Vec<u8>> {
     pub content: T,
 }
 
-#[cfg(feature = "git2")]
-impl<T: From<Oid>> Embed<T> {
+pub trait Embedder {
+    type StoreError;
+
+    /// Compute the object ID of the embed without actually storing it.
+    fn oid(&self, embed: Embed<Vec<u8>>) -> Oid;
+
+    /// Return an embed where the content is replaced by a content hash.
+    fn hashed<T: From<Oid>>(&self, embed: Embed<Vec<u8>>) -> Embed<T> {
+        Embed {
+            name: embed.name.clone(),
+            content: T::from(self.oid(embed)),
+        }
+    }
+
     /// Create a new embed.
-    pub fn store(
+    fn store<T: From<Oid>>(
+        &self,
         name: impl ToString,
         content: &[u8],
-        repo: &git2::Repository,
-    ) -> Result<Self, git2::Error> {
-        let oid = repo.blob(content)?;
+    ) -> Result<Embed<T>, Self::StoreError>;
+}
 
-        Ok(Self {
+#[cfg(feature = "git2")]
+impl Embedder for git2::Repository {
+    type StoreError = git2::Error;
+
+    /// Compute the Object ID of the embed without actually storing it.
+    fn oid(&self, embed: Embed<Vec<u8>>) -> Oid {
+        // SAFETY: This should not fail since we are using a valid object type.
+        git2::Oid::hash_object(git2::ObjectType::Blob, &embed.content)
+            .expect("Embed::oid: invalid object")
+            .into()
+    }
+
+    /// Create and store a new embed.
+    fn store<T: From<Oid>>(
+        &self,
+        name: impl ToString,
+        content: &[u8],
+    ) -> Result<Embed<T>, git2::Error> {
+        let oid = self.blob(content)?;
+
+        Ok(Embed {
             name: name.to_string(),
             content: T::from(oid.into()),
         })
@@ -242,12 +274,5 @@ impl Embed<Vec<u8>> {
             name: self.name.clone(),
             content: T::from(self.oid()),
         }
-    }
-}
-
-impl Embed<Oid> {
-    /// Get the object id of the embedded content.
-    pub fn oid(&self) -> Oid {
-        self.content
     }
 }

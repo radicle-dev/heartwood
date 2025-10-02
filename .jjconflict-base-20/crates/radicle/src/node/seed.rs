@@ -1,0 +1,56 @@
+pub mod store;
+pub use store::{Error, Store};
+
+use localtime::LocalTime;
+
+use crate::node::KnownAddress;
+use crate::prelude::NodeId;
+use crate::storage::ReadRepository;
+
+/// Holds an oid and timestamp.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+pub struct SyncedAt {
+    /// Head of `rad/sigrefs`.
+    pub oid: crate::git::Oid,
+    /// When these refs were synced.
+    pub timestamp: LocalTime,
+}
+
+impl SyncedAt {
+    /// Create a new [`SyncedAt`] given an OID, by looking up the timestamp in the repo.
+    pub fn new<S: ReadRepository>(
+        oid: crate::git::Oid,
+        repo: &S,
+    ) -> Result<Self, crate::git::raw::Error> {
+        let timestamp = repo.commit(oid)?.time();
+        let timestamp = LocalTime::from_secs(timestamp.seconds() as u64);
+
+        Ok(Self { oid, timestamp })
+    }
+}
+
+impl Ord for SyncedAt {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.timestamp.cmp(&other.timestamp)
+    }
+}
+
+impl PartialOrd for SyncedAt {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Seed of a specific repository that has been synced at least once.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncedSeed {
+    /// The Node ID.
+    pub nid: NodeId,
+    /// Known addresses for this node.
+    pub addresses: Vec<KnownAddress>,
+    /// Sync information for a given repo.
+    pub synced_at: SyncedAt,
+}

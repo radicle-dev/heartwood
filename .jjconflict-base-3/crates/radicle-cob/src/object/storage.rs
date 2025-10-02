@@ -5,8 +5,7 @@ use std::{collections::BTreeMap, error::Error};
 use fmt::RefString;
 use oid::Oid;
 
-use crate::change::EntryId;
-use crate::{ObjectId, TypeName};
+use crate::{object::ObjectId, TypeName};
 
 /// The [`Reference`]s that refer to the commits that make up a
 /// [`crate::CollaborativeObject`].
@@ -84,7 +83,7 @@ pub trait Storage {
         namespace: &Self::Namespace,
         typename: &TypeName,
         object_id: &ObjectId,
-        entry: &EntryId,
+        entry: &Oid,
     ) -> Result<(), Self::UpdateError>;
 
     /// Remove a ref to a particular collaborative object
@@ -105,6 +104,7 @@ pub mod convert {
     #[derive(Debug, Error)]
     pub enum Error {
         #[error("the reference '{name}' does not point to a commit object")]
+        #[cfg(feature = "git2")]
         NotCommit {
             name: RefString,
             #[cfg(feature = "git2")]
