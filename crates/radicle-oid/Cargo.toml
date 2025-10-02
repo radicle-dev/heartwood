@@ -12,13 +12,12 @@ rust-version.workspace = true
 # For documentation of features refer to the module documentation in `./lib.rs`
 [features]
 default = ["sha1", "std"]
-gix = ["dep:gix-hash"]
 std = []
 sha1 = []
 
 [dependencies]
 git2 = { workspace = true, optional = true, default-features = false }
-gix-hash = { workspace = true, optional = true }
+gix = { workspace = true, optional = true }
 qcheck = { workspace = true, optional = true, default-features = false }
 radicle-git-ref-format = { workspace = true, optional = true, default-features = false }
 schemars = { workspace = true, optional = true, default-features = false }
@@ -26,6 +25,6 @@ serde = { workspace = true, optional = true, default-features = false }
 
 [dev-dependencies]
 git2 = { workspace = true }
-gix-hash = { workspace = true }
+gix = { workspace = true }
 qcheck = { workspace = true }
 qcheck-macros = { workspace = true }
