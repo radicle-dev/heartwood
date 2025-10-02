@@ -1,0 +1,37 @@
+[package]
+name = "radicle-term"
+description = "Terminal library used by the Radicle CLI"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+version = "0.16.0"
+authors = ["cloudhead <cloudhead@radicle.xyz>"]
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["git2"]
+
+[dependencies]
+anstyle-query = "1.0.0"
+crossterm = "0.29.0"
+indicatif = { version = "0.18.0" }
+inquire = { version = "0.7.4", default-features = false, features = [
+    "crossterm",
+    "editor",
+] }
+thiserror = { workspace = true }
+unicode-display-width = "0.3.0"
+unicode-segmentation = "1.7.1"
+zeroize = { workspace = true }
+git2 = { workspace = true, optional = true }
+shlex = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+crossbeam-channel = { workspace = true }
+libc = { workspace = true }
+radicle-signals = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }

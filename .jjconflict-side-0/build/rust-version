@@ -1,0 +1,11 @@
+#! /usr/bin/env bash
+set -euo pipefail
+
+if ! version=$(grep -m 1 -oP '^\s*channel\s*=\s*"?\K([\d\.]+)' rust-toolchain.toml)
+then
+  echo "fatal: no rust version found via rust-toolchain.toml" >&2
+  exit 1
+else
+  echo "$version"
+fi
+
