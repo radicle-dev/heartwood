@@ -3075,6 +3075,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "radicle-pack"
+version = "0.1.0"
+
+[[package]]
 name = "radicle-protocol"
 version = "0.9.1"
 dependencies = [
