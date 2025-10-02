@@ -26,6 +26,7 @@ unicode-segmentation = "1.7.1"
 zeroize = { workspace = true }
 git2 = { workspace = true, optional = true }
 shlex = { workspace = true }
+gix = { workspace = true, optional = true }
 
 [target.'cfg(unix)'.dependencies]
 crossbeam-channel = { workspace = true }
