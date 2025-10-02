@@ -6,3 +6,11 @@ license.workspace = true
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
+
+[dependencies]
+gix-features = { version = "0.39.1", features = ["progress"] }
+gix-hash = "0.15.1"
+gix-odb = "0.66.0"
+gix-pack = "0.56.0"
+gix-protocol = { version = "0.47.0", features = ["blocking-client"] }
+gix-transport = { version = "0.44.0", features = ["blocking-client"] }
