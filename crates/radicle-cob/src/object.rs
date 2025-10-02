@@ -1,6 +1,6 @@
 // Copyright © 2022 The Radicle Link Contributors
 
-use std::{convert::TryFrom as _, ops::Deref, str::FromStr};
+use std::{ops::Deref, str::FromStr};
 
 use fmt::{Component, RefString};
 use oid::Oid;
@@ -78,17 +78,13 @@ impl std::fmt::Display for ObjectId {
 
 impl From<&ObjectId> for Component<'_> {
     fn from(id: &ObjectId) -> Self {
-        let refstr = RefString::from(*id);
-
-        Component::from_refstr(refstr)
-            .expect("collaborative object id's are valid refname components")
+        Self::from(&id.0)
     }
 }
 
-impl From<ObjectId> for RefString {
-    fn from(id: ObjectId) -> Self {
-        RefString::try_from(id.0.to_string())
-            .expect("collaborative object id's are valid ref strings")
+impl From<&ObjectId> for RefString {
+    fn from(id: &ObjectId) -> Self {
+        Self::from(&id.0)
     }
 }
 

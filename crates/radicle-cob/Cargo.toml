@@ -22,14 +22,14 @@ test = []
 
 [dependencies]
 fastrand = { workspace = true }
-git-ref-format-core = { workspace = true }
 git2 = { workspace = true, optional = true }
 log = { workspace = true }
 nonempty = { workspace = true, features = ["serialize"] }
 radicle-crypto = { workspace = true, features = ["ssh"] }
 radicle-dag = { workspace = true }
 radicle-git-metadata = { workspace = true }
-radicle-oid = { workspace = true, features = ["sha1", "serde", "std"] }
+radicle-git-ref-format = { workspace = true, features = ["macro"] }
+radicle-oid = { workspace = true, features = ["radicle-git-ref-format", "serde", "sha1", "std"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 signature = { workspace = true }

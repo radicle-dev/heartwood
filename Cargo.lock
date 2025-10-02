@@ -2974,7 +2974,6 @@ name = "radicle-cob"
 version = "0.17.0"
 dependencies = [
  "fastrand",
- "git-ref-format-core",
  "git2",
  "log",
  "nonempty",
