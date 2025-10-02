@@ -1,0 +1,823 @@
+use std::ops::ControlFlow;
+use std::str::FromStr;
+
+use sqlite as sql;
+use thiserror::Error;
+
+use crate::cob;
+use crate::cob::cache;
+use crate::cob::cache::{Remove, StoreReader, StoreWriter, Update};
+use crate::cob::store;
+use crate::cob::store::access::{ReadOnly, WriteAs};
+use crate::cob::{Embed, Label, ObjectId, TypeName, Uri};
+use crate::node::NodeId;
+use crate::prelude::{Did, RepoId};
+use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
+
+use super::{CloseReason, Issue, IssueCounts, IssueId, IssueMut, State};
+
+/// A set of read-only methods for a [`Issue`] store.
+pub trait Issues {
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// An iterator for returning a set of issues from the store.
+    type Iter<'a>: Iterator<Item = Result<(IssueId, Issue), Self::Error>> + 'a
+    where
+        Self: 'a;
+
+    /// Get the `Issue`, identified by `id`, returning `None` if it
+    /// was not found.
+    fn get(&self, id: &IssueId) -> Result<Option<Issue>, Self::Error>;
+
+    /// List all issues that are in the store.
+    fn list(&self) -> Result<Self::Iter<'_>, Self::Error>;
+
+    /// List all issues in the store that match the provided `status`.
+    ///
+    /// Also see [`Issues::opened`], [`Issues::solved`] and [`Issues::closed`].
+    fn list_by_status(&self, status: &State) -> Result<Self::Iter<'_>, Self::Error>;
+
+    /// Get the [`IssueCounts`] of all the issues in the store.
+    fn counts(&self) -> Result<IssueCounts, Self::Error>;
+
+    /// List all open issues in the store.
+    fn opened(&self) -> Result<Self::Iter<'_>, Self::Error> {
+        self.list_by_status(&State::Open)
+    }
+
+    /// List all closed issues with `CloseReason::Solved` in the store.
+    fn solved(&self) -> Result<Self::Iter<'_>, Self::Error> {
+        self.list_by_status(&State::Closed {
+            reason: CloseReason::Solved,
+        })
+    }
+
+    /// List all closed issues with `CloseReason::Other` in the store.
+    fn closed(&self) -> Result<Self::Iter<'_>, Self::Error> {
+        self.list_by_status(&State::Closed {
+            reason: CloseReason::Other,
+        })
+    }
+
+    /// Returns `true` if there are no issues in the store.
+    fn is_empty(&self) -> Result<bool, Self::Error> {
+        Ok(self.counts()?.total() == 0)
+    }
+}
+
+/// [`Issues`] store that can also [`Update`] and [`Remove`]
+/// [`Issue`] in/from the store.
+pub trait IssuesMut: Issues + Update<Issue> + Remove<Issue> {}
+
+impl<T> IssuesMut for T where T: Issues + Update<Issue> + Remove<Issue> {}
+
+/// An `Issue` store that relies on the `cache` for reads and as a
+/// write-through cache.
+///
+/// The `store` is used for the main storage when performing a
+/// write-through. It is also used for identifying which `RepoId` is
+/// being used for the `cache`.
+pub struct Cache<'a, Repo, Access, C> {
+    store: super::Issues<'a, Repo, Access>,
+    cache: C,
+}
+
+impl<'a, Repo, Access, C> Cache<'a, Repo, Access, C> {
+    pub fn new(store: super::Issues<'a, Repo, Access>, cache: C) -> Self {
+        Self { store, cache }
+    }
+}
+
+impl<'a, Repo, Access, C> HasRepoId for Cache<'a, Repo, Access, C>
+where
+    Repo: HasRepoId,
+{
+    fn rid(&self) -> RepoId {
+        self.store.rid()
+    }
+}
+
+impl<'a, 'b, Repo, Signer: crypto::Signer, C> Cache<'a, Repo, WriteAs<'b, Signer>, C> {
+    /// Create a new [`Issue`] using the [`super::Issues`] as the
+    /// main storage, and writing the update to the `cache`.
+    pub fn create<'g>(
+        &'g mut self,
+        title: cob::Title,
+        description: impl ToString,
+        labels: &[Label],
+        assignees: &[Did],
+        embeds: impl IntoIterator<Item = Embed<Uri>>,
+    ) -> Result<IssueMut<'a, 'b, 'g, Repo, Signer, C>, super::Error>
+    where
+        Repo: ReadRepository + WriteRepository + cob::Store<Namespace = NodeId>,
+        C: Update<Issue>,
+    {
+        self.store.create(
+            title,
+            description,
+            labels,
+            assignees,
+            embeds,
+            &mut self.cache,
+        )
+    }
+
+    /// Remove the given `id` from the [`super::Issues`] storage, and
+    /// removing the entry from the `cache`.
+    pub fn remove(&mut self, id: &IssueId) -> Result<(), super::Error>
+    where
+        Repo: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
+        C: Remove<Issue>,
+    {
+        self.store.raw.remove(id)?;
+        self.cache
+            .remove(id)
+            .map_err(|e| super::Error::CacheRemove {
+                id: *id,
+                err: e.into(),
+            })?;
+        Ok(())
+    }
+}
+
+impl<'a, Repo, Access, C> Cache<'a, Repo, Access, C>
+where
+    Access: cob::store::access::Access,
+{
+    /// Read the given `id` from the [`super::Issues`] store and
+    /// writing it to the `cache`.
+    pub fn write(&mut self, id: &IssueId) -> Result<(), super::Error>
+    where
+        Repo: ReadRepository + cob::Store<Namespace = NodeId>,
+        C: Update<Issue>,
+    {
+        let issue = self
+            .store
+            .get(id)?
+            .ok_or_else(|| store::Error::NotFound((*super::TYPENAME).clone(), *id))?;
+        self.update(&self.rid(), id, &issue)
+            .map_err(|e| super::Error::CacheUpdate {
+                id: *id,
+                err: e.into(),
+            })?;
+        Ok(())
+    }
+
+    /// Read all the issues from the [`super::Issues`] store and
+    /// writing them to `cache`.
+    ///
+    /// The `callback` is used for reporting success, failures, and
+    /// progress to the caller. The caller may also decide to continue
+    /// or break from the process.
+    pub fn write_all(
+        &mut self,
+        on_issue: impl Fn(&Result<(IssueId, Issue), store::Error>, &cache::Progress) -> ControlFlow<()>,
+    ) -> Result<(), super::Error>
+    where
+        Repo: ReadRepository + cob::Store<Namespace = NodeId>,
+        C: Update<Issue> + Remove<Issue>,
+    {
+        // Start by clearing the cache. This will get rid of issues that are cached but
+        // no longer exist in storage.
+        self.remove_all(&self.rid())
+            .map_err(|e| super::Error::CacheRemoveAll { err: e.into() })?;
+
+        let issues = self.store.all()?;
+        let mut progress = cache::Progress::new(issues.len());
+        for issue in self.store.all()? {
+            progress.inc();
+            match on_issue(&issue, &progress) {
+                ControlFlow::Continue(()) => match issue {
+                    Ok((id, issue)) => {
+                        self.update(&self.rid(), &id, &issue)
+                            .map_err(|e| super::Error::CacheUpdate { id, err: e.into() })?;
+                    }
+                    Err(_) => continue,
+                },
+                ControlFlow::Break(()) => break,
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<'a, 'b, Repo, Signer> Cache<'a, Repo, WriteAs<'b, Signer>, cache::NoCache>
+where
+    Repo: WriteRepository + cob::Store<Namespace = NodeId>,
+    Signer: crypto::Signer,
+{
+    /// Get a `Cache` that does no write-through modifications and
+    /// uses the [`super::Issues`] store for all reads and writes.
+    pub fn no_cache(repository: &'a Repo, signer: &'b Signer) -> Result<Self, RepositoryError> {
+        let store = super::Issues::open(repository, WriteAs::new(signer))?;
+        Ok(Self {
+            store,
+            cache: cache::NoCache,
+        })
+    }
+
+    /// Get the [`IssueMut`], identified by `id`.
+    pub fn get_mut<'g>(
+        &'g mut self,
+        id: &ObjectId,
+    ) -> Result<IssueMut<'a, 'b, 'g, Repo, Signer, cache::NoCache>, super::Error> {
+        let issue = self
+            .store
+            .get(id)?
+            .ok_or_else(move || store::Error::NotFound(super::TYPENAME.clone(), *id))?;
+
+        Ok(IssueMut {
+            id: *id,
+            issue,
+            store: &mut self.store,
+            cache: &mut self.cache,
+        })
+    }
+}
+
+impl<'a, Repo> Cache<'a, Repo, ReadOnly, StoreReader> {
+    pub fn reader(store: super::Issues<'a, Repo, ReadOnly>, cache: StoreReader) -> Self {
+        Self { store, cache }
+    }
+}
+
+impl<'a, Repo, Access> Cache<'a, Repo, Access, StoreWriter> {
+    pub fn open(store: super::Issues<'a, Repo, Access>, cache: StoreWriter) -> Self {
+        Self { store, cache }
+    }
+}
+
+impl<'a, 'b, Repo, Signer: crypto::Signer> Cache<'a, Repo, WriteAs<'b, Signer>, StoreWriter>
+where
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
+{
+    /// Get the [`IssueMut`], identified by `id`, using the
+    /// `StoreWriter` for retrieving the `Issue`.
+    pub fn get_mut<'g>(
+        &'g mut self,
+        id: &ObjectId,
+    ) -> Result<IssueMut<'a, 'b, 'g, Repo, Signer, StoreWriter>, Error> {
+        let issue = Issues::get(self, id)?
+            .ok_or_else(move || Error::NotFound(super::TYPENAME.clone(), *id))?;
+
+        Ok(IssueMut {
+            id: *id,
+            issue,
+            store: &mut self.store,
+            cache: &mut self.cache,
+        })
+    }
+}
+
+impl<'a, Repo, Access, C> cache::Update<Issue> for Cache<'a, Repo, Access, C>
+where
+    C: cache::Update<Issue>,
+{
+    type Out = <C as cache::Update<Issue>>::Out;
+    type UpdateError = <C as cache::Update<Issue>>::UpdateError;
+
+    fn update(
+        &mut self,
+        rid: &RepoId,
+        id: &ObjectId,
+        object: &Issue,
+    ) -> Result<Self::Out, Self::UpdateError> {
+        self.cache.update(rid, id, object)
+    }
+}
+
+impl<'a, Repo, Access, C> cache::Remove<Issue> for Cache<'a, Repo, Access, C>
+where
+    C: cache::Remove<Issue>,
+{
+    type Out = <C as cache::Remove<Issue>>::Out;
+    type RemoveError = <C as cache::Remove<Issue>>::RemoveError;
+
+    fn remove(&mut self, id: &ObjectId) -> Result<Self::Out, Self::RemoveError> {
+        self.cache.remove(id)
+    }
+
+    fn remove_all(&mut self, rid: &RepoId) -> Result<Self::Out, Self::RemoveError> {
+        self.cache.remove_all(rid)
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum UpdateError {
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Sql(#[from] sql::Error),
+}
+
+impl Update<Issue> for StoreWriter {
+    type Out = bool;
+    type UpdateError = UpdateError;
+
+    fn update(
+        &mut self,
+        rid: &RepoId,
+        id: &ObjectId,
+        object: &Issue,
+    ) -> Result<Self::Out, Self::UpdateError> {
+        let mut stmt = self.db.prepare(
+            "INSERT INTO issues (id, repo, issue)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT DO UPDATE
+             SET issue = (?3)",
+        )?;
+
+        stmt.bind((1, sql::Value::String(id.to_string())))?;
+        stmt.bind((2, rid))?;
+        stmt.bind((3, sql::Value::String(serde_json::to_string(&object)?)))?;
+        stmt.next()?;
+
+        Ok(self.db.change_count() > 0)
+    }
+}
+
+impl Remove<Issue> for StoreWriter {
+    type Out = bool;
+    type RemoveError = sql::Error;
+
+    fn remove(&mut self, id: &ObjectId) -> Result<Self::Out, Self::RemoveError> {
+        let mut stmt = self.db.prepare(
+            "DELETE FROM issues
+             WHERE id = ?1",
+        )?;
+
+        stmt.bind((1, sql::Value::String(id.to_string())))?;
+        stmt.next()?;
+
+        Ok(self.db.change_count() > 0)
+    }
+
+    fn remove_all(&mut self, rid: &RepoId) -> Result<Self::Out, Self::RemoveError> {
+        let mut stmt = self.db.prepare(
+            "DELETE FROM issues
+             WHERE repo = ?1",
+        )?;
+
+        stmt.bind((1, rid))?;
+        stmt.next()?;
+
+        Ok(self.db.change_count() > 0)
+    }
+}
+
+pub struct NoCacheIter<'a> {
+    inner: Box<dyn Iterator<Item = Result<(IssueId, Issue), super::Error>> + 'a>,
+}
+
+impl Iterator for NoCacheIter<'_> {
+    type Item = Result<(IssueId, Issue), super::Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<'a, Repo, Access> Issues for Cache<'a, Repo, Access, cache::NoCache>
+where
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
+    Access: store::access::Access,
+{
+    type Error = super::Error;
+    type Iter<'b>
+        = NoCacheIter<'b>
+    where
+        Self: 'b;
+
+    fn get(&self, id: &IssueId) -> Result<Option<Issue>, Self::Error> {
+        self.store.get(id).map_err(super::Error::from)
+    }
+
+    fn list(&self) -> Result<Self::Iter<'_>, Self::Error> {
+        self.store
+            .all()
+            .map(|inner| NoCacheIter {
+                inner: Box::new(inner.into_iter().map(|res| res.map_err(super::Error::from))),
+            })
+            .map_err(super::Error::from)
+    }
+
+    fn list_by_status(&self, status: &State) -> Result<Self::Iter<'_>, Self::Error> {
+        let status = *status;
+        self.store
+            .all()
+            .map(move |inner| NoCacheIter {
+                inner: Box::new(inner.into_iter().filter_map(move |res| match res {
+                    Ok((id, issue)) => (status == issue.state).then_some((id, issue)).map(Ok),
+                    Err(e) => Some(Err(e.into())),
+                })),
+            })
+            .map_err(super::Error::from)
+    }
+
+    fn counts(&self) -> Result<IssueCounts, Self::Error> {
+        self.store.counts()
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("object `{1}` of type `{0}` was not found")]
+    NotFound(TypeName, ObjectId),
+    #[error(transparent)]
+    Object(#[from] cob::object::ParseObjectId),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Sql(#[from] sql::Error),
+}
+
+/// Iterator that returns a set of issues based on an SQL query.
+///
+/// The query is expected to return rows with columns identified by
+/// the `id` and `issue` names.
+pub struct IssuesIter<'a> {
+    inner: sql::CursorWithOwnership<'a>,
+}
+
+impl IssuesIter<'_> {
+    fn parse_row(row: sql::Row) -> Result<(IssueId, Issue), Error> {
+        let id = IssueId::from_str(row.try_read::<&str, _>("id")?)?;
+        let issue = serde_json::from_str::<Issue>(row.try_read::<&str, _>("issue")?)?;
+        Ok((id, issue))
+    }
+}
+
+impl Iterator for IssuesIter<'_> {
+    type Item = Result<(IssueId, Issue), Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row = self.inner.next()?;
+        Some(row.map_err(Error::from).and_then(IssuesIter::parse_row))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<'a, Repo, Access> Issues for Cache<'a, Repo, Access, StoreWriter>
+where
+    Repo: HasRepoId,
+{
+    type Error = Error;
+    type Iter<'b>
+        = IssuesIter<'b>
+    where
+        Self: 'b;
+
+    fn get(&self, id: &IssueId) -> Result<Option<Issue>, Self::Error> {
+        query::get(&self.cache.db, &self.rid(), id)
+    }
+
+    fn list(&self) -> Result<Self::Iter<'_>, Self::Error> {
+        query::list(&self.cache.db, &self.rid())
+    }
+
+    fn list_by_status(&self, status: &State) -> Result<Self::Iter<'_>, Self::Error> {
+        query::list_by_status(&self.cache.db, &self.rid(), status)
+    }
+
+    fn counts(&self) -> Result<IssueCounts, Self::Error> {
+        query::counts(&self.cache.db, &self.rid())
+    }
+}
+
+impl<'a, Repo, Access> Issues for Cache<'a, Repo, Access, StoreReader>
+where
+    Repo: HasRepoId,
+{
+    type Error = Error;
+    type Iter<'b>
+        = IssuesIter<'b>
+    where
+        Self: 'b;
+
+    fn get(&self, id: &IssueId) -> Result<Option<Issue>, Self::Error> {
+        query::get(&self.cache.db, &self.rid(), id)
+    }
+
+    fn list(&self) -> Result<Self::Iter<'_>, Self::Error> {
+        query::list(&self.cache.db, &self.rid())
+    }
+
+    fn list_by_status(&self, status: &State) -> Result<Self::Iter<'_>, Self::Error> {
+        query::list_by_status(&self.cache.db, &self.rid(), status)
+    }
+
+    fn counts(&self) -> Result<IssueCounts, Self::Error> {
+        query::counts(&self.cache.db, &self.rid())
+    }
+}
+
+/// Helper SQL queries for [ `Issues`] trait implementations.
+mod query {
+    use sqlite as sql;
+
+    use super::*;
+
+    pub(super) fn get(
+        db: &sql::ConnectionThreadSafe,
+        rid: &RepoId,
+        id: &IssueId,
+    ) -> Result<Option<Issue>, Error> {
+        let id = sql::Value::String(id.to_string());
+        let mut stmt = db.prepare(
+            "SELECT issue
+             FROM issues
+             WHERE id = ?1 and repo = ?2",
+        )?;
+
+        stmt.bind((1, id))?;
+        stmt.bind((2, rid))?;
+
+        match stmt.into_iter().next().transpose()? {
+            None => Ok(None),
+            Some(row) => {
+                let issue = row.try_read::<&str, _>("issue")?;
+                let issue = serde_json::from_str(issue)?;
+                Ok(Some(issue))
+            }
+        }
+    }
+
+    pub(super) fn list<'a>(
+        db: &'a sql::ConnectionThreadSafe,
+        rid: &RepoId,
+    ) -> Result<IssuesIter<'a>, Error> {
+        let mut stmt = db.prepare(
+            "SELECT id, issue
+             FROM issues
+             WHERE repo = ?1
+            ",
+        )?;
+        stmt.bind((1, rid))?;
+        Ok(IssuesIter {
+            inner: stmt.into_iter(),
+        })
+    }
+
+    pub(super) fn list_by_status<'a>(
+        db: &'a sql::ConnectionThreadSafe,
+        rid: &RepoId,
+        filter: &State,
+    ) -> Result<IssuesIter<'a>, Error> {
+        let mut stmt = db.prepare(
+            "SELECT id, issue
+             FROM issues
+             WHERE repo = ?1
+             AND issue->>'$.state.status' = ?2
+             ORDER BY id
+            ",
+        )?;
+        stmt.bind((1, rid))?;
+        stmt.bind((2, sql::Value::String(filter.to_string())))?;
+        Ok(IssuesIter {
+            inner: stmt.into_iter(),
+        })
+    }
+
+    pub(super) fn counts(
+        db: &sql::ConnectionThreadSafe,
+        rid: &RepoId,
+    ) -> Result<IssueCounts, Error> {
+        let mut stmt = db.prepare(
+            "SELECT
+                 issue->'$.state' AS state,
+                 COUNT(*) AS count
+             FROM issues
+             WHERE repo = ?1
+             GROUP BY issue->'$.state.status'",
+        )?;
+        stmt.bind((1, rid))?;
+
+        stmt.into_iter()
+            .try_fold(IssueCounts::default(), |mut counts, row| {
+                let row = row?;
+                let count = row.try_read::<i64, _>("count")? as usize;
+                let status = serde_json::from_str::<State>(row.try_read::<&str, _>("state")?)?;
+                match status {
+                    State::Closed { .. } => counts.closed += count,
+                    State::Open => counts.open += count,
+                }
+                Ok(counts)
+            })
+    }
+}
+
+#[allow(clippy::unwrap_used)]
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+    use std::str::FromStr;
+
+    use radicle_cob::ObjectId;
+
+    use crate::cob::cache::{Store, Update, Write};
+    use crate::cob::migrate;
+    use crate::cob::store::access::ReadOnly;
+    use crate::cob::thread::Thread;
+    use crate::issue::{CloseReason, Issue, IssueCounts, IssueId, State};
+    use crate::storage::HasRepoId as _;
+    use crate::test::arbitrary;
+    use crate::test::storage::MockRepository;
+
+    use super::{Cache, Issues};
+
+    fn memory<'a>(store: &'a MockRepository) -> Cache<'a, MockRepository, ReadOnly, Store<Write>> {
+        let store = super::super::Issues::open(store, ReadOnly).unwrap();
+        let cache = Store::<Write>::memory()
+            .unwrap()
+            .with_migrations(migrate::ignore)
+            .unwrap();
+        Cache { store, cache }
+    }
+
+    #[test]
+    fn test_is_empty() {
+        let repo = arbitrary::r#gen::<MockRepository>(1);
+        let mut cache = memory(&repo);
+        assert!(cache.is_empty().unwrap());
+
+        let issue = Issue::new(Thread::default());
+        let id = ObjectId::from_str("47799cbab2eca047b6520b9fce805da42b49ecab").unwrap();
+        cache.update(&cache.rid(), &id, &issue).unwrap();
+
+        let issue = Issue {
+            state: State::Closed {
+                reason: CloseReason::Solved,
+            },
+            ..Issue::new(Thread::default())
+        };
+        let id = ObjectId::from_str("ae981ded6ed2ed2cdba34c8603714782667f18a3").unwrap();
+        cache.update(&cache.rid(), &id, &issue).unwrap();
+
+        assert!(!cache.is_empty().unwrap())
+    }
+
+    #[test]
+    fn test_counts() {
+        let repo = arbitrary::r#gen::<MockRepository>(1);
+        let mut cache = memory(&repo);
+        let n_open = arbitrary::r#gen::<u8>(0);
+        let n_closed = arbitrary::r#gen::<u8>(1);
+        let open_ids = (0..n_open)
+            .map(|_| IssueId::from(arbitrary::oid()))
+            .collect::<BTreeSet<IssueId>>();
+        let closed_ids = (0..n_closed)
+            .map(|_| IssueId::from(arbitrary::oid()))
+            .collect::<BTreeSet<IssueId>>();
+
+        for id in open_ids.iter() {
+            let issue = Issue::new(Thread::default());
+            cache
+                .update(&cache.rid(), &IssueId::from(*id), &issue)
+                .unwrap();
+        }
+
+        for id in closed_ids.iter() {
+            let issue = Issue {
+                state: State::Closed {
+                    reason: CloseReason::Solved,
+                },
+                ..Issue::new(Thread::default())
+            };
+            cache
+                .update(&cache.rid(), &IssueId::from(*id), &issue)
+                .unwrap();
+        }
+
+        assert_eq!(
+            cache.counts().unwrap(),
+            IssueCounts {
+                open: open_ids.len(),
+                closed: closed_ids.len()
+            }
+        );
+    }
+
+    #[test]
+    fn test_get() {
+        let repo = arbitrary::r#gen::<MockRepository>(1);
+        let mut cache = memory(&repo);
+        let ids = (0..arbitrary::r#gen::<u8>(1))
+            .map(|_| IssueId::from(arbitrary::oid()))
+            .collect::<BTreeSet<IssueId>>();
+        let missing = (0..arbitrary::r#gen::<u8>(2))
+            .filter_map(|_| {
+                let id = IssueId::from(arbitrary::oid());
+                (!ids.contains(&id)).then_some(id)
+            })
+            .collect::<BTreeSet<IssueId>>();
+        let mut issues = Vec::with_capacity(ids.len());
+
+        for id in ids.iter() {
+            let issue = Issue {
+                title: id.to_string(),
+                ..Issue::new(Thread::default())
+            };
+            cache
+                .update(&cache.rid(), &IssueId::from(*id), &issue)
+                .unwrap();
+            issues.push((*id, issue));
+        }
+
+        for (id, issue) in issues.into_iter() {
+            assert_eq!(Some(issue), cache.get(&id).unwrap());
+        }
+
+        for id in &missing {
+            assert_eq!(cache.get(id).unwrap(), None);
+        }
+    }
+
+    #[test]
+    fn test_list() {
+        let repo = arbitrary::r#gen::<MockRepository>(1);
+        let mut cache = memory(&repo);
+        let ids = (0..arbitrary::r#gen::<u8>(1))
+            .map(|_| IssueId::from(arbitrary::oid()))
+            .collect::<BTreeSet<IssueId>>();
+        let mut issues = Vec::with_capacity(ids.len());
+
+        for id in ids.iter() {
+            let issue = Issue {
+                title: id.to_string(),
+                ..Issue::new(Thread::default())
+            };
+            cache
+                .update(&cache.rid(), &IssueId::from(*id), &issue)
+                .unwrap();
+            issues.push((*id, issue));
+        }
+
+        let mut list = cache
+            .list()
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        list.sort_by_key(|(id, _)| *id);
+        issues.sort_by_key(|(id, _)| *id);
+        assert_eq!(issues, list);
+    }
+
+    #[test]
+    fn test_list_by_status() {
+        let repo = arbitrary::r#gen::<MockRepository>(1);
+        let mut cache = memory(&repo);
+        let ids = (0..arbitrary::r#gen::<u8>(1))
+            .map(|_| IssueId::from(arbitrary::oid()))
+            .collect::<BTreeSet<IssueId>>();
+        let mut issues = Vec::with_capacity(ids.len());
+
+        for id in ids.iter() {
+            let issue = Issue {
+                title: id.to_string(),
+                ..Issue::new(Thread::default())
+            };
+            cache
+                .update(&cache.rid(), &IssueId::from(*id), &issue)
+                .unwrap();
+            issues.push((*id, issue));
+        }
+
+        let mut list = cache
+            .list_by_status(&State::Open)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        list.sort_by_key(|(id, _)| *id);
+        issues.sort_by_key(|(id, _)| *id);
+        assert_eq!(issues, list);
+    }
+
+    #[test]
+    fn test_remove() {
+        let repo = arbitrary::r#gen::<MockRepository>(1);
+        let mut cache = memory(&repo);
+        let ids = (0..arbitrary::r#gen::<u8>(1))
+            .map(|_| IssueId::from(arbitrary::oid()))
+            .collect::<BTreeSet<IssueId>>();
+
+        for id in ids.iter() {
+            let issue = Issue {
+                title: id.to_string(),
+                ..Issue::new(Thread::default())
+            };
+            cache
+                .update(&cache.rid(), &IssueId::from(*id), &issue)
+                .unwrap();
+            assert_eq!(Some(issue), cache.get(id).unwrap());
+            super::Remove::remove(&mut cache, id).unwrap();
+            assert_eq!(None, cache.get(id).unwrap());
+        }
+    }
+}

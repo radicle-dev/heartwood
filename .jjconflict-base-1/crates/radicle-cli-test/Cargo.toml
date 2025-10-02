@@ -1,0 +1,28 @@
+[package]
+name = "radicle-cli-test"
+version = "0.14.1"
+description = "Radicle CLI test library"
+
+categories = ["development-tools::testing"]
+keywords = ["cli", "test", "command"]
+readme = "README.md"
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+escargot = "0.5.7"
+log = { workspace = true, features = ["std"] }
+pretty_assertions = { workspace = true }
+radicle-log = { workspace = true, features = ["test"] }
+radicle-term = { workspace = true }
+snapbox = { workspace = true }
+thiserror = { workspace = true, default-features = true }
+
+[target.'cfg(unix)'.dependencies]
+shlex = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+winsplit = { workspace = true }
