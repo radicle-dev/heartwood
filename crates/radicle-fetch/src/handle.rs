@@ -12,9 +12,9 @@ use crate::policy::{Allowed, BlockList};
 use crate::transport::{ConnectionStream, Transport};
 
 /// The handle used for pulling or cloning changes from a remote peer.
-pub struct Handle<S> {
+pub struct Handle<R, S> {
     pub(crate) local: PublicKey,
-    repo: Repository,
+    repo: R,
     pub(crate) allowed: Allowed,
     pub(crate) transport: Transport<S>,
     /// The set of keys we will ignore when fetching from a
@@ -29,37 +29,9 @@ pub struct Handle<S> {
     pub(crate) interrupt: Arc<AtomicBool>,
 }
 
-impl<S> Handle<S> {
-    pub fn new(
-        local: PublicKey,
-        repo: Repository,
-        follow: Allowed,
-        blocked: BlockList,
-        connection: S,
-    ) -> Result<Self, error::Init>
-    where
-        S: ConnectionStream,
-    {
-        let git_dir = repo.backend.path().to_path_buf();
-        let transport = Transport::new(git_dir, BString::from(repo.id.canonical()), connection);
-
-        Ok(Self {
-            local,
-            repo,
-            allowed: follow,
-            transport,
-            blocked,
-            interrupt: Arc::new(AtomicBool::new(false)),
-        })
-    }
-
+impl<R, S> Handle<R, S> {
     pub fn is_blocked(&self, key: &PublicKey) -> bool {
         self.blocked.is_blocked(key)
-    }
-
-    #[inline]
-    pub fn repository(&self) -> &Repository {
-        &self.repo
     }
 
     #[inline]
@@ -71,12 +43,49 @@ impl<S> Handle<S> {
         self.interrupt.store(true, atomic::Ordering::Relaxed);
     }
 
-    pub fn verified(&self, head: Oid) -> Result<Doc, DocError> {
-        Ok(self.repo.identity_doc_at(head)?.doc)
-    }
-
     pub fn allowed(&self) -> Allowed {
         self.allowed.clone()
+    }
+}
+
+impl<R, S> Handle<R, S>
+where
+    R: AsRef<Repository>,
+{
+    pub fn new(
+        local: PublicKey,
+        repo: R,
+        follow: Allowed,
+        blocked: BlockList,
+        connection: S,
+    ) -> Result<Self, error::Init>
+    where
+        S: ConnectionStream,
+    {
+        let git_dir = repo.as_ref().backend.path().to_path_buf();
+        let transport = Transport::new(
+            git_dir,
+            BString::from(repo.as_ref().id.canonical()),
+            connection,
+        );
+
+        Ok(Self {
+            local,
+            repo,
+            allowed: follow,
+            transport,
+            blocked,
+            interrupt: Arc::new(AtomicBool::new(false)),
+        })
+    }
+
+    #[inline]
+    pub fn repository(&self) -> &Repository {
+        self.repo.as_ref()
+    }
+
+    pub fn verified(&self, head: Oid) -> Result<Doc, DocError> {
+        Ok(self.repository().identity_doc_at(head)?.doc)
     }
 }
 

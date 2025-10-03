@@ -8,6 +8,7 @@ use radicle::identity::{Did, Doc, DocError};
 
 use radicle::prelude::Verified;
 use radicle::storage;
+use radicle::storage::git::Repository;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{
     git::Validation, Remote, RemoteId, RemoteRepository, Remotes, ValidateRepository, Validations,
@@ -196,7 +197,10 @@ impl FetchState {
         ap
     }
 
-    pub(crate) fn as_cached<'a, S>(&'a mut self, handle: &'a mut Handle<S>) -> Cached<'a, S> {
+    pub(crate) fn as_cached<'a, R, S>(
+        &'a mut self,
+        handle: &'a mut Handle<R, S>,
+    ) -> Cached<'a, R, S> {
         Cached {
             handle,
             state: self,
@@ -207,13 +211,14 @@ impl FetchState {
 impl FetchState {
     /// Perform the ls-refs and fetch for the given `step`. The result
     /// of these processes is kept track of in the internal state.
-    pub(super) fn run_stage<S, F>(
+    pub(super) fn run_stage<R, S, F>(
         &mut self,
-        handle: &mut Handle<S>,
+        handle: &mut Handle<R, S>,
         handshake: &handshake::Outcome,
         step: &F,
     ) -> Result<BTreeSet<PublicKey>, error::Step>
     where
+        R: AsRef<Repository>,
         S: transport::ConnectionStream,
         F: ProtocolStage,
     {
@@ -280,9 +285,9 @@ impl FetchState {
     /// The resulting [`sigrefs::RemoteRefs`] will be the set of
     /// `rad/sigrefs` of the fetched remotes.
     #[allow(clippy::too_many_arguments)]
-    fn run_special_refs<S>(
+    fn run_special_refs<R, S>(
         &mut self,
-        handle: &mut Handle<S>,
+        handle: &mut Handle<R, S>,
         handshake: &handshake::Outcome,
         delegates: BTreeSet<PublicKey>,
         threshold: usize,
@@ -291,6 +296,7 @@ impl FetchState {
         refs_at: Option<Vec<RefsAt>>,
     ) -> Result<sigrefs::RemoteRefs, error::Protocol>
     where
+        R: AsRef<Repository>,
         S: transport::ConnectionStream,
     {
         match refs_at {
@@ -348,15 +354,16 @@ impl FetchState {
     ///      of updating tips.
     ///   7. Apply the valid tips, iff no delegates failed validation.
     ///   8. Signal to the other side that the process has completed.
-    pub(super) fn run<S>(
+    pub(super) fn run<R, S>(
         mut self,
-        handle: &mut Handle<S>,
+        handle: &mut Handle<R, S>,
         handshake: &handshake::Outcome,
         limit: FetchLimit,
         remote: PublicKey,
         refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Protocol>
     where
+        R: AsRef<Repository>,
         S: transport::ConnectionStream,
     {
         let start = Instant::now();
@@ -598,12 +605,15 @@ impl FetchState {
 
 /// A cached version of [`Handle`] by using the underlying
 /// [`FetchState`]'s data for performing lookups.
-pub(crate) struct Cached<'a, S> {
-    handle: &'a mut Handle<S>,
+pub(crate) struct Cached<'a, R, S> {
+    handle: &'a mut Handle<R, S>,
     state: &'a mut FetchState,
 }
 
-impl<S> Cached<'_, S> {
+impl<R, S> Cached<'_, R, S>
+where
+    R: AsRef<Repository>,
+{
     /// Resolves `refname` to its [`ObjectId`] by first looking at the
     /// [`FetchState`] and falling back to the [`Handle::refdb`].
     pub fn refname_to_id<'b, N>(
@@ -651,7 +661,10 @@ impl<S> Cached<'_, S> {
     }
 }
 
-impl<S> RemoteRepository for Cached<'_, S> {
+impl<R, S> RemoteRepository for Cached<'_, R, S>
+where
+    R: AsRef<Repository>,
+{
     fn remote(&self, remote: &RemoteId) -> Result<Remote, storage::refs::Error> {
         // N.b. this is unused so we just delegate to the underlying
         // repository for a correct implementation.
@@ -671,7 +684,10 @@ impl<S> RemoteRepository for Cached<'_, S> {
     }
 }
 
-impl<S> ValidateRepository for Cached<'_, S> {
+impl<R, S> ValidateRepository for Cached<'_, R, S>
+where
+    R: AsRef<Repository>,
+{
     // N.b. we don't verify the `rad/id` of each remote since they may
     // not have a reference to the COB if they have not interacted
     // with it.

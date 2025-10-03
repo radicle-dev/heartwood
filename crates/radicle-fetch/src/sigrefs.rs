@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::{Deref, Not as _};
 
+use radicle::storage::git::Repository;
 pub use radicle::storage::refs::SignedRefsAt;
 pub use radicle::storage::{git::Validation, Validations};
 use radicle::{crypto::PublicKey, storage::ValidateRepository};
@@ -53,10 +54,13 @@ impl<T> DelegateStatus<T> {
 
     /// Construct a `DelegateStatus` with [`SignedRefsAt`] signed reference
     /// data, if it can be found in `repo`.
-    pub fn load<S>(
+    pub fn load<R, S>(
         self,
-        cached: &Cached<S>,
-    ) -> Result<DelegateStatus<Option<SignedRefsAt>>, radicle::storage::refs::Error> {
+        cached: &Cached<R, S>,
+    ) -> Result<DelegateStatus<Option<SignedRefsAt>>, radicle::storage::refs::Error>
+    where
+        R: AsRef<Repository>,
+    {
         let remote = *self.remote();
         self.traverse(|_| cached.load(&remote))
     }
@@ -102,10 +106,13 @@ impl RemoteRefs {
     ///
     /// If the sigrefs are missing for a given remote, regardless of delegate
     /// status, then that remote is filtered out.
-    pub(crate) fn load<'a, S>(
-        cached: &Cached<S>,
+    pub(crate) fn load<'a, R, S>(
+        cached: &Cached<R, S>,
         remotes: impl Iterator<Item = &'a PublicKey>,
-    ) -> Result<Self, error::RemoteRefs> {
+    ) -> Result<Self, error::RemoteRefs>
+    where
+        R: AsRef<Repository>,
+    {
         remotes
             .filter_map(|id| match cached.load(id) {
                 Ok(None) => None,

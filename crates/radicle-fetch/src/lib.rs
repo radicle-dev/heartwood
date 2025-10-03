@@ -16,6 +16,7 @@ use gix_protocol::handshake;
 pub use gix_protocol::{transport::bstr::ByteSlice, RemoteProgress};
 pub use handle::Handle;
 pub use policy::{Allowed, BlockList, Scope};
+use radicle::storage::git::Repository;
 pub use state::{FetchLimit, FetchResult};
 pub use transport::Transport;
 
@@ -47,13 +48,14 @@ pub enum Error {
 /// It is expected that the local peer has a copy of the repository
 /// and is pulling new changes. If the repository does not exist, then
 /// [`clone`] should be used.
-pub fn pull<S>(
-    handle: &mut Handle<S>,
+pub fn pull<R, S>(
+    handle: &mut Handle<R, S>,
     limit: FetchLimit,
     remote: PublicKey,
     refs_at: Option<Vec<RefsAt>>,
 ) -> Result<FetchResult, Error>
 where
+    R: AsRef<Repository>,
     S: transport::ConnectionStream,
 {
     let start = Instant::now();
@@ -83,12 +85,13 @@ where
 ///
 /// It is expected that the local peer has an empty repository which
 /// they want to populate with the `remote`'s view of the project.
-pub fn clone<S>(
-    handle: &mut Handle<S>,
+pub fn clone<R, S>(
+    handle: &mut Handle<R, S>,
     limit: FetchLimit,
     remote: PublicKey,
 ) -> Result<FetchResult, Error>
 where
+    R: AsRef<Repository>,
     S: transport::ConnectionStream,
 {
     let start = Instant::now();
@@ -120,7 +123,7 @@ where
     result
 }
 
-fn perform_handshake<S>(handle: &mut Handle<S>) -> Result<handshake::Outcome, Error>
+fn perform_handshake<R, S>(handle: &mut Handle<R, S>) -> Result<handshake::Outcome, Error>
 where
     S: transport::ConnectionStream,
 {

@@ -27,11 +27,11 @@ use super::channels::ChannelsFlush;
 
 pub enum Handle {
     Clone {
-        handle: radicle_fetch::Handle<ChannelsFlush>,
+        handle: radicle_fetch::Handle<Repository, ChannelsFlush>,
         tmp: tempfile::TempDir,
     },
     Pull {
-        handle: radicle_fetch::Handle<ChannelsFlush>,
+        handle: radicle_fetch::Handle<Repository, ChannelsFlush>,
         notifications: node::notifications::StoreWriter,
     },
 }

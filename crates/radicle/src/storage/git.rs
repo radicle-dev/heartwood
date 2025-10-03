@@ -285,6 +285,12 @@ pub struct Repository {
     pub backend: git2::Repository,
 }
 
+impl AsRef<Repository> for Repository {
+    fn as_ref(&self) -> &Repository {
+        self
+    }
+}
+
 impl git::canonical::effects::Ancestry for Repository {
     fn graph_ahead_behind(
         &self,
