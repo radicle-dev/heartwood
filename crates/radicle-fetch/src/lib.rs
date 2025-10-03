@@ -73,7 +73,7 @@ where
     log::debug!(
         target: "fetch",
         "Finished pull of {} ({}ms)",
-        handle.repo.id(),
+        handle.repository().id(),
         start.elapsed().as_millis()
     );
     result
@@ -101,7 +101,7 @@ where
         .run(handle, &handshake, limit, remote, None)
         .map_err(Error::Protocol);
     let elapsed = start.elapsed().as_millis();
-    let rid = handle.repo.id();
+    let rid = handle.repository().id();
 
     match &result {
         Ok(_) => {

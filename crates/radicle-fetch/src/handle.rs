@@ -14,7 +14,7 @@ use crate::transport::{ConnectionStream, Transport};
 /// The handle used for pulling or cloning changes from a remote peer.
 pub struct Handle<S> {
     pub(crate) local: PublicKey,
-    pub(crate) repo: Repository,
+    repo: Repository,
     pub(crate) allowed: Allowed,
     pub(crate) transport: Transport<S>,
     /// The set of keys we will ignore when fetching from a
@@ -57,14 +57,12 @@ impl<S> Handle<S> {
         self.blocked.is_blocked(key)
     }
 
+    #[inline]
     pub fn repository(&self) -> &Repository {
         &self.repo
     }
 
-    pub fn repository_mut(&mut self) -> &mut Repository {
-        &mut self.repo
-    }
-
+    #[inline]
     pub fn local(&self) -> &PublicKey {
         &self.local
     }

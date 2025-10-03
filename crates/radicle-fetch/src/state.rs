@@ -229,7 +229,7 @@ impl FetchState {
         log::trace!(target: "fetch", "Received refs {refs:?}");
         step.pre_validate(&refs)?;
 
-        let wants_haves = step.wants_haves(&handle.repo, &refs)?;
+        let wants_haves = step.wants_haves(handle.repository(), &refs)?;
         if !wants_haves.wants.is_empty() {
             let keepfile =
                 handle
@@ -261,7 +261,7 @@ impl FetchState {
             }
         }
 
-        let up = step.prepare_updates(self, &handle.repo, &refs)?;
+        let up = step.prepare_updates(self, handle.repository(), &refs)?;
         self.update_all(up.tips);
 
         Ok(fetched)
@@ -493,13 +493,14 @@ impl FetchState {
                     remote,
                     data: Some(sigrefs),
                 } => {
-                    if let Some(SignedRefsAt { at, .. }) = SignedRefsAt::load(remote, &handle.repo)?
+                    if let Some(SignedRefsAt { at, .. }) =
+                        SignedRefsAt::load(remote, handle.repository())?
                     {
                         // Prune non-delegates if they're behind or
                         // diverged. A diverged case is non-fatal for
                         // delegates.
                         if matches!(
-                            repository::ancestry(&handle.repo, at, sigrefs.at)?,
+                            repository::ancestry(handle.repository(), at, sigrefs.at)?,
                             repository::Ancestry::Behind | repository::Ancestry::Diverged
                         ) {
                             self.prune(&remote);
@@ -523,9 +524,10 @@ impl FetchState {
                     remote,
                     data: Some(sigrefs),
                 } => {
-                    if let Some(SignedRefsAt { at, .. }) = SignedRefsAt::load(remote, &handle.repo)?
+                    if let Some(SignedRefsAt { at, .. }) =
+                        SignedRefsAt::load(remote, handle.repository())?
                     {
-                        let ancestry = repository::ancestry(&handle.repo, at, sigrefs.at)?;
+                        let ancestry = repository::ancestry(handle.repository(), at, sigrefs.at)?;
                         if matches!(ancestry, repository::Ancestry::Behind) {
                             log::trace!(target: "fetch", "Advertised `rad/sigrefs` {} is behind {at} for {remote}", sigrefs.at);
                             self.prune(&remote);
@@ -566,7 +568,7 @@ impl FetchState {
         // delegates that pass the threshold.
         if valid_delegates.len() >= threshold {
             let applied = repository::update(
-                &handle.repo,
+                handle.repository(),
                 self.tips
                     .clone()
                     .into_values()
@@ -613,7 +615,7 @@ impl<S> Cached<'_, S> {
     {
         let refname = refname.into();
         match self.state.refs.refname_to_id(refname.clone()) {
-            None => repository::refname_to_id(&self.handle.repo, refname),
+            None => repository::refname_to_id(self.handle.repository(), refname),
             Some(oid) => Ok(Some(oid)),
         }
     }
@@ -638,8 +640,8 @@ impl<S> Cached<'_, S> {
 
     pub fn load(&self, remote: &PublicKey) -> Result<Option<SignedRefsAt>, sigrefs::error::Load> {
         match self.state.sigrefs.get(remote) {
-            None => SignedRefsAt::load(*remote, &self.handle.repo),
-            Some(tip) => SignedRefsAt::load_at(*tip, *remote, &self.handle.repo).map(Some),
+            None => SignedRefsAt::load(*remote, self.handle.repository()),
+            Some(tip) => SignedRefsAt::load_at(*tip, *remote, self.handle.repository()).map(Some),
         }
     }
 
@@ -653,7 +655,7 @@ impl<S> RemoteRepository for Cached<'_, S> {
     fn remote(&self, remote: &RemoteId) -> Result<Remote, storage::refs::Error> {
         // N.b. this is unused so we just delegate to the underlying
         // repository for a correct implementation.
-        self.handle.repo.remote(remote)
+        self.handle.repository().remote(remote)
     }
 
     fn remotes(&self) -> Result<Remotes<Verified>, storage::refs::Error> {
@@ -665,7 +667,7 @@ impl<S> RemoteRepository for Cached<'_, S> {
     }
 
     fn remote_refs_at(&self) -> Result<Vec<RefsAt>, storage::refs::Error> {
-        self.handle.repo.remote_refs_at()
+        self.handle.repository().remote_refs_at()
     }
 }
 
