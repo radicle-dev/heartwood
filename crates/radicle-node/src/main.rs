@@ -237,8 +237,21 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
 
     let passphrase = profile::env::passphrase();
 
-    let secret_path = options
-        .secret
+    let secret_path = options.secret;
+
+    #[cfg(all(feature = "systemd", target_os = "linux"))]
+    let secret_path = secret_path.or_else(|| {
+        const ID: &str = "xyz.radicle.node.secret";
+        match radicle_systemd::credential::path(ID) {
+            Err(err) => {
+                log::warn!(target: "node", "Failed to obtain path of the secret key via systemd credential with ID '{ID}': {err}");
+                None
+            },
+            Ok(path) => path
+        }
+    });
+
+    let secret_path = secret_path
         .or_else(|| config.node.secret.clone())
         .unwrap_or_else(|| home.keys().join("radicle"));
 
