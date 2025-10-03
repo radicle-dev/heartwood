@@ -3,12 +3,13 @@
 use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::env;
-use std::ffi::OsString;
 use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::{anyhow, bail, Context as _};
 use serde_json as json;
+
+use clap::Parser;
 
 use radicle::crypto::ssh;
 use radicle::explorer::ExplorerUrl;
@@ -25,168 +26,57 @@ use radicle::{profile, Node};
 use crate::commands;
 use crate::git;
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::Interactive;
 
-pub const HELP: Help = Help {
-    name: "init",
-    description: "Initialize a Radicle repository",
-    version: env!("RADICLE_VERSION"),
-    usage: r#"
-Usage
+pub(crate) const ABOUT: &str = "Initialize a Radicle repository";
 
-    rad init [<path>] [<option>...]
-
-Options
-
-        --name <string>            Name of the repository
-        --description <string>     Description of the repository
-        --default-branch <name>    The default branch of the repository
-        --scope <scope>            Repository follow scope: `followed` or `all` (default: all)
-        --private                  Set repository visibility to *private*
-        --public                   Set repository visibility to *public*
-        --existing <rid>           Setup repository as an existing Radicle repository
-    -u, --set-upstream             Setup the upstream of the default branch
-        --setup-signing            Setup the radicle key as a signing key for this repository
-        --no-confirm               Don't ask for confirmation during setup
-        --no-seed                  Don't seed this repository after initializing it
-    -v, --verbose                  Verbose mode
-        --help                     Print help
-"#,
-};
-
-#[derive(Default)]
-pub struct Options {
+#[derive(Debug, Parser)]
+#[command(about = ABOUT, disable_version_flag = true)]
+pub struct Args {
+    /// Directory to be initialized
     pub path: Option<PathBuf>,
+    /// Name of the repository
+    #[arg(long, value_name = "STRING")]
     pub name: Option<ProjectName>,
+    /// Description of the repository
+    #[arg(long, value_name = "STRING")]
     pub description: Option<String>,
+    /// The default branch of the repository
+    #[arg(long = "default-branch", value_name = "NAME")]
     pub branch: Option<String>,
-    pub interactive: Interactive,
-    pub visibility: Option<Visibility>,
-    pub existing: Option<RepoId>,
-    pub setup_signing: bool,
+    /// Repository follow scope: `followed` or `all`
+    #[arg(long, default_value_t = Scope::All)]
     pub scope: Scope,
+    /// Set repository visibility to *private*
+    #[arg(long, conflicts_with = "public")]
+    pub private: bool,
+    /// Set repository visibility to *public*
+    #[arg(long, conflicts_with = "private", default_value_t = true)]
+    pub public: bool,
+    /// Setup repository as an existing Radicle repository
+    #[arg(long, value_name = "RID")]
+    pub existing: Option<RepoId>,
+    /// Setup the upstream of the default branch
+    #[arg(short = 'u', long)]
     pub set_upstream: bool,
+    /// Setup the radicle key as a signing key for this repository
+    #[arg(long)]
+    pub setup_signing: bool,
+    /// Don't ask for confirmation during setup
+    #[arg(long)]
+    pub no_confirm: bool,
+    /// Don't seed this repository after initializing it
+    #[arg(long)]
+    pub no_seed: bool,
+    /// Verbose mode
+    #[arg(short, long)]
     pub verbose: bool,
-    pub seed: bool,
 }
 
-impl Args for Options {
-    fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
-        use lexopt::prelude::*;
-
-        let mut parser = lexopt::Parser::from_args(args);
-        let mut path: Option<PathBuf> = None;
-
-        let mut name = None;
-        let mut description = None;
-        let mut branch = None;
-        let mut interactive = Interactive::Yes;
-        let mut set_upstream = false;
-        let mut setup_signing = false;
-        let mut scope = Scope::All;
-        let mut existing = None;
-        let mut seed = true;
-        let mut verbose = false;
-        let mut visibility = None;
-
-        while let Some(arg) = parser.next()? {
-            match arg {
-                Long("name") if name.is_none() => {
-                    let value = parser.value()?;
-                    let value = term::args::string(&value);
-                    let value = ProjectName::try_from(value)?;
-
-                    name = Some(value);
-                }
-                Long("description") if description.is_none() => {
-                    let value = parser
-                        .value()?
-                        .to_str()
-                        .ok_or(anyhow::anyhow!(
-                            "invalid repository description specified with `--description`"
-                        ))?
-                        .to_owned();
-
-                    description = Some(value);
-                }
-                Long("default-branch") if branch.is_none() => {
-                    let value = parser
-                        .value()?
-                        .to_str()
-                        .ok_or(anyhow::anyhow!(
-                            "invalid branch specified with `--default-branch`"
-                        ))?
-                        .to_owned();
-
-                    branch = Some(value);
-                }
-                Long("scope") => {
-                    let value = parser.value()?;
-
-                    scope = term::args::parse_value("scope", value)?;
-                }
-                Long("set-upstream") | Short('u') => {
-                    set_upstream = true;
-                }
-                Long("setup-signing") => {
-                    setup_signing = true;
-                }
-                Long("no-confirm") => {
-                    interactive = Interactive::No;
-                }
-                Long("no-seed") => {
-                    seed = false;
-                }
-                Long("private") => {
-                    visibility = Some(Visibility::private([]));
-                }
-                Long("public") => {
-                    visibility = Some(Visibility::Public);
-                }
-                Long("existing") if existing.is_none() => {
-                    let val = parser.value()?;
-                    let rid = term::args::rid(&val)?;
-
-                    existing = Some(rid);
-                }
-                Long("verbose") | Short('v') => {
-                    verbose = true;
-                }
-                Long("help") | Short('h') => {
-                    return Err(Error::Help.into());
-                }
-                Value(val) if path.is_none() => {
-                    path = Some(val.into());
-                }
-                _ => anyhow::bail!(arg.unexpected()),
-            }
-        }
-
-        Ok((
-            Options {
-                path,
-                name,
-                description,
-                branch,
-                scope,
-                existing,
-                interactive,
-                set_upstream,
-                setup_signing,
-                seed,
-                visibility,
-                verbose,
-            },
-            vec![],
-        ))
-    }
-}
-
-pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let cwd = env::current_dir()?;
-    let path = options.path.as_deref().unwrap_or(cwd.as_path());
+    let path = args.path.as_deref().unwrap_or(cwd.as_path());
     let repo = match git::Repository::open(path) {
         Ok(r) => r,
         Err(e) if radicle::git::ext::is_not_found_err(&e) => {
@@ -200,20 +90,21 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
     }
 
-    if let Some(rid) = options.existing {
-        init_existing(repo, rid, options, &profile)
+    if let Some(rid) = args.existing {
+        init_existing(repo, rid, args, &profile)
     } else {
-        init(repo, options, &profile)
+        init(repo, args, &profile)
     }
 }
 
 pub fn init(
     repo: git::Repository,
-    options: Options,
+    args: Args,
     profile: &profile::Profile,
 ) -> anyhow::Result<()> {
     let path = dunce::canonicalize(repo.workdir().unwrap_or_else(|| repo.path()))?;
-    let interactive = options.interactive;
+    let interactive = if args.no_confirm { Interactive::No } else { Interactive::Yes };
+    let visibility = if args.private { Some(Visibility::private([])) } else { Some(Visibility::Public) };
 
     let default_branch = match find_default_branch(&repo) {
         Err(err @ DefaultBranchError::Head) => {
@@ -232,15 +123,16 @@ pub fn init(
 
     term::headline(format!(
         "Initializing{}radicle 👾 repository in {}..",
-        if let Some(visibility) = &options.visibility {
-            term::format::spaced(term::format::visibility(visibility))
+
+        if let Some(ref visibility) = visibility {
+            term::format::spaced(term::format::visibility(&visibility))
         } else {
             term::format::default(" ").into()
         },
         term::format::dim(path.display())
     ));
 
-    let name: ProjectName = match options.name {
+    let name: ProjectName = match args.name {
         Some(name) => name,
         None => {
             let default = path
@@ -256,13 +148,13 @@ pub fn init(
             name.ok_or_else(|| anyhow::anyhow!("A project name is required."))?
         }
     };
-    let description = match options.description {
+    let description = match args.description {
         Some(desc) => desc,
         None => {
             term::input("Description", None, Some("You may leave this blank"))?.unwrap_or_default()
         }
     };
-    let branch = match options.branch {
+    let branch = match args.branch {
         Some(branch) => branch,
         None if interactive.yes() => term::input(
             "Default branch",
@@ -274,7 +166,7 @@ pub fn init(
     };
     let branch = RefString::try_from(branch.clone())
         .map_err(|e| anyhow!("invalid branch name {:?}: {}", branch, e))?;
-    let visibility = if let Some(v) = options.visibility {
+    let visibility = if let Some(v) = visibility {
         v
     } else {
         let selected = term::select(
@@ -308,20 +200,20 @@ pub fn init(
             ));
             spinner.finish();
 
-            if options.verbose {
+            if args.verbose {
                 term::blob(json::to_string_pretty(&proj)?);
             }
             // It's important to seed our own repositories to make sure that our node signals
             // interest for them. This ensures that messages relating to them are relayed to us.
-            if options.seed {
-                profile.seed(rid, options.scope, &mut node)?;
+            if !args.no_seed {
+                profile.seed(rid, args.scope, &mut node)?;
 
                 if doc.is_public() {
                     profile.add_inventory(rid, &mut node)?;
                 }
             }
 
-            if options.set_upstream || git::branch_remote(&repo, proj.default_branch()).is_err() {
+            if args.set_upstream || git::branch_remote(&repo, proj.default_branch()).is_err() {
                 // Setup eg. `master` -> `rad/master`
                 radicle::git::set_upstream(
                     &repo,
@@ -333,7 +225,7 @@ pub fn init(
                 push_cmd = format!("git push {} {branch}", *radicle::rad::REMOTE_NAME);
             }
 
-            if options.setup_signing {
+            if args.setup_signing {
                 // Setup radicle signing key.
                 self::setup_signing(profile.id(), &repo, interactive)?;
             }
@@ -378,12 +270,13 @@ pub fn init(
 pub fn init_existing(
     working: git::Repository,
     rid: RepoId,
-    options: Options,
+    args: Args,
     profile: &profile::Profile,
 ) -> anyhow::Result<()> {
     let stored = profile.storage.repository(rid)?;
     let project = stored.project()?;
     let url = radicle::git::Url::from(rid);
+    let interactive = if args.no_confirm { Interactive::No } else { Interactive::Yes };
 
     radicle::git::configure_repository(&working)?;
     radicle::git::configure_remote(
@@ -393,7 +286,7 @@ pub fn init_existing(
         &url.clone().with_namespace(profile.public_key),
     )?;
 
-    if options.set_upstream {
+    if args.set_upstream {
         // Setup eg. `master` -> `rad/master`
         radicle::git::set_upstream(
             &working,
@@ -403,9 +296,9 @@ pub fn init_existing(
         )?;
     }
 
-    if options.setup_signing {
+    if args.setup_signing {
         // Setup radicle signing key.
-        self::setup_signing(profile.id(), &working, options.interactive)?;
+        self::setup_signing(profile.id(), &working, interactive)?;
     }
 
     term::success!(

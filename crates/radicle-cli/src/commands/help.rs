@@ -58,7 +58,10 @@ const COMMANDS: &[CommandItem] = &[
     },
     CommandItem::Lexopt(crate::commands::help::HELP),
     CommandItem::Lexopt(crate::commands::id::HELP),
-    CommandItem::Lexopt(crate::commands::init::HELP),
+    CommandItem::Clap {
+        name: "init",
+        about: crate::commands::init::ABOUT,
+    },
     CommandItem::Lexopt(crate::commands::inbox::HELP),
     CommandItem::Lexopt(crate::commands::inspect::HELP),
     CommandItem::Clap {

@@ -50,6 +50,7 @@ enum Commands {
     Clone(clone::Args),
     Debug(debug::Args),
     Fork(fork::Args),
+    Init(init::Args),
     Issue(issue::Args),
     Path(path::Args),
     Publish(publish::Args),
@@ -231,7 +232,9 @@ pub(crate) fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyho
             term::run_command_args::<inbox::Options, _>(inbox::HELP, inbox::run, args.to_vec())
         }
         "init" => {
-            term::run_command_args::<init::Options, _>(init::HELP, init::run, args.to_vec());
+            if let Some(Commands::Init(args)) = CliArgs::parse().command {
+                term::run_command_fn(init::run, args);
+            }
         }
         "inspect" => {
             term::run_command_args::<inspect::Options, _>(
