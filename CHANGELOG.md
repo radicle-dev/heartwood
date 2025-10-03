@@ -16,11 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rad issue` now uses `clap` to parse its command-line arguments.
    This affects error reporting as well as help output.
 - `radicle-node` now supports systemd Credentials (refer to
-  <https://systemd.io/CREDENTIALS> for more information) to load
-  the secret key, in addition to the commandline argument
-  `--secret` (higher priority than the credential) and the
-  configuration file (lower priority than the credential).
-  The identifier of the credential is "xyz.radicle.node.secret".
+  <https://systemd.io/CREDENTIALS> for more information) to load:
+    1. The secret key, in addition to the commandline argument
+       `--secret` (higher priority than the credential) and the
+       configuration file (lower priority than the credential).
+       The identifier of the credential is "xyz.radicle.node.secret".
+    2. The optional passphrase for the secret key, in addition to the
+       environment variable `RAD_PASSPHRASE` (lower priority than the
+       credential).
+       The identifier of the credential is "xyz.radicle.node.passphrase".
 
 ## Fixed Bugs
 

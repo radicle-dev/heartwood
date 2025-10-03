@@ -235,7 +235,28 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
     log::info!(target: "node", "Version {} ({})", env!("RADICLE_VERSION"), env!("GIT_HEAD"));
     log::info!(target: "node", "Unlocking node keystore..");
 
-    let passphrase = profile::env::passphrase();
+    let passphrase = None;
+
+    #[cfg(all(feature = "systemd", target_os = "linux"))]
+    let passphrase = passphrase.or_else(|| {
+        const ID: &str = "xyz.radicle.node.passphrase";
+        match radicle_systemd::credential::path(ID) {
+            Err(err) => {
+                log::warn!(target: "node", "Failed to obtain path of the passphrase file via systemd credential with '{ID}': {err}");
+                None
+            },
+            Ok(Some(ref path)) => match std::fs::read_to_string(path) {
+                Ok(passphrase) => Some(passphrase.into()),
+                Err(err) => {
+                    log::warn!(target: "node", "Failed to read passphrase from '{}': {err}", path.display());
+                    None
+                }
+            }
+            Ok(None) => None,
+        }
+    });
+
+    let passphrase = passphrase.or_else(profile::env::passphrase);
 
     let secret_path = options.secret;
 
