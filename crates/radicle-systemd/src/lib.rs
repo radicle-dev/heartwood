@@ -5,3 +5,5 @@ pub mod journal;
 
 #[cfg(all(feature = "listen", unix))]
 pub mod listen;
+
+pub mod credential;
