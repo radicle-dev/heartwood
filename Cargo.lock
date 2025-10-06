@@ -2918,7 +2918,6 @@ dependencies = [
 name = "radicle-node"
 version = "0.16.0"
 dependencies = [
- "amplify",
  "backtrace",
  "bloomy",
  "bytes",

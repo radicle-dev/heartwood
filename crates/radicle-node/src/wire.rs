@@ -6,7 +6,6 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::{io, net, time};
 
-use amplify::Wrapper as _;
 use crossbeam_channel as chan;
 use cyphernet::addr::{HostName, InetHost, NetAddr};
 use cyphernet::encrypt::noise::{HandshakePattern, Keyset, NoiseState};
@@ -977,7 +976,7 @@ where
                     self.metrics.peer(node_id).outbound_connection_attempts += 1;
 
                     match dial::<G>(
-                        addr.to_inner(),
+                        (*addr).clone(),
                         node_id,
                         self.signer.clone().into_inner(),
                         self.service.config(),
@@ -992,7 +991,7 @@ where
                                 Outbound {
                                     token,
                                     nid: node_id,
-                                    addr: addr.to_inner(),
+                                    addr: (*addr).clone(),
                                 },
                             );
                             log::debug!(
