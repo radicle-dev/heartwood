@@ -225,6 +225,7 @@ where
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum CheckoutError {
     #[error("failed to fetch to working copy: {0}")]
     FetchIo(#[source] std::io::Error),
