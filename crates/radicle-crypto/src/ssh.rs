@@ -16,6 +16,7 @@ use crate::PublicKey;
 pub use keystore::{Keystore, Passphrase};
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ExtendedSignatureError {
     #[error(transparent)]
     Ssh(#[from] ssh_key::Error),
@@ -128,6 +129,7 @@ pub mod fmt {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum SignatureError {
     #[error(transparent)]
     Invalid(#[from] crypto::Error),
@@ -164,6 +166,7 @@ impl Encodable for crypto::Signature {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum PublicKeyError {
     #[error(transparent)]
     Invalid(#[from] crypto::Error),
@@ -199,6 +202,7 @@ impl Encodable for PublicKey {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum SecretKeyError {
     #[error(transparent)]
     Encoding(#[from] encoding::Error),

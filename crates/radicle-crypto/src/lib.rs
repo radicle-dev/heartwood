@@ -28,6 +28,7 @@ pub type SharedSecret = [u8; 32];
 /// Error returned if signing fails, eg. due to an HSM or KMS.
 #[derive(Debug, Clone, Error)]
 #[error(transparent)]
+#[non_exhaustive]
 pub struct SignerError {
     #[from]
     source: Arc<dyn std::error::Error + Send + Sync>,
@@ -93,6 +94,7 @@ impl fmt::Debug for Signature {
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SignatureError {
     #[error("invalid multibase string: {0}")]
     Multibase(#[from] multibase::Error),
@@ -273,6 +275,7 @@ impl Deref for SecretKey {
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum PublicKeyError {
     #[error("invalid length {0}")]
     InvalidLength(usize),

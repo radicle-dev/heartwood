@@ -15,6 +15,7 @@ use super::ExtendedSignature;
 pub type Passphrase = Zeroizing<String>;
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum Error {
     #[error(transparent)]
     Io(#[from] io::Error),
@@ -227,6 +228,7 @@ impl Keystore {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum MemorySignerError {
     #[error(transparent)]
     Keystore(#[from] Error),
