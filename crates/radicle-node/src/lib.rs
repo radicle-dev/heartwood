@@ -3,19 +3,21 @@
 // suggestions did not make sense.
 #![allow(clippy::byte_char_slices)]
 
-use std::str::FromStr;
-use std::sync::LazyLock;
-
-pub mod control;
 pub mod fingerprint;
 pub mod runtime;
+
+mod control;
 pub(crate) use radicle_protocol::service;
+mod wire;
+mod worker;
+
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 #[cfg(test)]
 pub mod tests;
-pub mod wire;
-pub mod worker;
+
+use std::str::FromStr;
+use std::sync::LazyLock;
 
 use radicle::version::Version;
 
