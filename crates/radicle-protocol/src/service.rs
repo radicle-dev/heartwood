@@ -30,6 +30,8 @@ use radicle::node;
 use radicle::node::address;
 use radicle::node::address::Store as _;
 use radicle::node::address::{AddressBook, AddressType, KnownAddress};
+#[cfg(feature = "tor")]
+use radicle::node::config::AddressConfig;
 use radicle::node::config::{PeerConfig, RateLimit};
 use radicle::node::device::Device;
 use radicle::node::refs::Store as _;
@@ -406,7 +408,7 @@ where
     G: crypto::signature::Signer<crypto::Signature>,
 {
     pub fn new(
-        config: Config,
+        mut config: Config,
         db: Stores<D>,
         storage: S,
         policies: policy::Config<Write>,
@@ -429,6 +431,10 @@ where
                 .with_max_capacity(fetcher::MaxQueueSize::default());
             FetcherService::new(config)
         };
+
+        // For backwards compatibility, ensure that we are announcer of our own Node ID.
+        config.announcers.insert(*signer.public_key());
+
         Self {
             config,
             storage,
@@ -1571,12 +1577,15 @@ where
                 // from a new repository being initialized.
                 self.seed_discovered(message.rid, *announcer, message.timestamp);
 
-                // Update sync status of announcer for this repo.
-                if let Some(refs) = refs.iter().find(|r| &r.remote == self.nid()) {
+                // Update sync status of announcers for this repo.
+                for refs in refs
+                    .iter()
+                    .filter(|r| self.config.announcers.contains(&r.remote))
+                {
                     debug!(
                         target: "service",
-                        "Refs announcement of {announcer} for {} contains our own remote at {} (t={})",
-                        message.rid, refs.at, message.timestamp
+                        "Refs announcement of {announcer} for {} contains announcer {} (t={})",
+                        message.rid, refs, message.timestamp
                     );
                     match self.db.seeds_mut().synced(
                         &message.rid,
@@ -2614,7 +2623,8 @@ where
     fn is_supported_address(&self, address: &Address) -> bool {
         match AddressType::from(address) {
             // Only consider onion addresses if configured.
-            AddressType::Onion => self.config.onion.is_some(),
+            #[cfg(feature = "tor")]
+            AddressType::Onion => self.config.onion != AddressConfig::Drop,
             AddressType::Dns | AddressType::Ipv4 | AddressType::Ipv6 => true,
         }
     }

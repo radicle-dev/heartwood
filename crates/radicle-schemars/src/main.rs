@@ -81,7 +81,7 @@ fn print_schema() -> io::Result<()> {
 
             #[derive(JsonSchema)]
             #[schemars(untagged)]
-            #[allow(dead_code)]
+            #[allow(dead_code, clippy::large_enum_variant)]
             enum CommandResult {
                 Nid(radicle::node::NodeId),
                 Config(Box<radicle::node::Config>),

@@ -477,6 +477,7 @@ impl Address {
     }
 
     /// Returns `true` if the [`HostName`] is a Tor onion address.
+    #[cfg(feature = "tor")]
     pub fn is_onion(&self) -> bool {
         match self.0.host {
             HostName::Tor(_) => true,

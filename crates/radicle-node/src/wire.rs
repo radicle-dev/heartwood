@@ -19,6 +19,7 @@ use radicle::node::device::Device;
 
 use radicle::collections::{RandomMap, RandomSet};
 use radicle::crypto;
+#[cfg(feature = "tor")]
 use radicle::node::config::AddressConfig;
 use radicle::node::Link;
 use radicle::node::NodeId;
@@ -1092,13 +1093,14 @@ pub fn dial<G: Ecdh<Pk = NodeId>>(
         (HostName::Dns(_), Some(proxy)) => proxy.into(),
         (HostName::Dns(dns), None) => NetAddr::new(InetHost::Dns(dns.clone()), remote_addr.port),
         // For onion addresses, handle with care.
+        #[cfg(feature = "tor")]
         (HostName::Tor(onion), proxy) => match config.onion {
             // In onion proxy mode, simply use the configured proxy address.
             // This takes precedence over any global proxy.
-            Some(AddressConfig::Proxy { address }) => address.into(),
+            AddressConfig::Proxy { address } => address.into(),
             // In "forward" mode, if a global proxy is set, we use that, otherwise
             // we treat `.onion` addresses as regular DNS names.
-            Some(AddressConfig::Forward) => {
+            AddressConfig::Forward => {
                 if let Some(proxy) = proxy {
                     proxy.into()
                 } else {
@@ -1106,7 +1108,7 @@ pub fn dial<G: Ecdh<Pk = NodeId>>(
                 }
             }
             // If onion address support isn't configured, refuse to connect.
-            None => {
+            AddressConfig::Drop => {
                 return Err(io::Error::new(
                     io::ErrorKind::Unsupported,
                     "no configuration found for .onion addresses",

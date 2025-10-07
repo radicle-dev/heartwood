@@ -21,7 +21,9 @@ pub type ProtocolVersion = u8;
 pub mod seeds {
     use std::{str::FromStr, sync::LazyLock};
 
-    use cyphernet::addr::{tor::OnionAddrV3, HostName, NetAddr};
+    #[cfg(feature = "tor")]
+    use cyphernet::addr::tor::OnionAddrV3;
+    use cyphernet::addr::{HostName, NetAddr};
 
     use super::{ConnectAddress, NodeId, PeerAddr};
 
@@ -40,6 +42,7 @@ pub mod seeds {
             NodeId::from_str("z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7").unwrap(),
             vec![
                 HostName::Dns("iris.radicle.xyz".to_owned()),
+                #[cfg(feature = "tor")]
                 #[allow(clippy::unwrap_used)] // Value is manually verified.
                 OnionAddrV3::from_str(
                     "irisradizskwweumpydlj4oammoshkxxjur3ztcmo7cou5emc6s5lfid.onion",
@@ -57,6 +60,7 @@ pub mod seeds {
             NodeId::from_str("z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo").unwrap(),
             vec![
                 HostName::Dns("rosa.radicle.xyz".to_owned()),
+                #[cfg(feature = "tor")]
                 #[allow(clippy::unwrap_used)] // Value is manually verified.
                 OnionAddrV3::from_str(
                     "rosarad5bxgdlgjnzzjygnsxrwxmoaj4vn7xinlstwglxvyt64jlnhyd.onion",
@@ -350,9 +354,10 @@ pub enum Relay {
 }
 
 /// Proxy configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "mode")]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[cfg(feature = "tor")]
 pub enum AddressConfig {
     /// Proxy connections to this address type.
     Proxy {
@@ -362,6 +367,9 @@ pub enum AddressConfig {
     /// Forward address to the next layer. Either this is the global proxy,
     /// or the operating system, via DNS.
     Forward,
+    /// Drop connections to this address type.
+    #[default]
+    Drop,
 }
 
 /// Default seeding policy. Applies when no repository policies for the given repo are found.
@@ -488,8 +496,9 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy: Option<net::SocketAddr>,
     /// Onion address config.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub onion: Option<AddressConfig>,
+    #[cfg(feature = "tor")]
+    #[serde(default, skip_serializing_if = "crate::serde_ext::is_default")]
+    pub onion: AddressConfig,
     /// Peer-to-peer network.
     #[serde(default)]
     pub network: Network,
@@ -519,6 +528,8 @@ pub struct Config {
     /// the environment variable `RAD_PASSPHRASE`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub secret: Option<std::path::PathBuf>,
+    #[serde(default, skip_serializing_if = "HashSet::is_empty")]
+    pub announcers: HashSet<super::NodeId>,
 }
 
 impl Config {
@@ -538,7 +549,8 @@ impl Config {
             external_addresses: vec![],
             network: Network::default(),
             proxy: None,
-            onion: None,
+            #[cfg(feature = "tor")]
+            onion: AddressConfig::Drop,
             relay: Relay::default(),
             limits: Limits::default(),
             workers: Workers::default(),
@@ -546,6 +558,7 @@ impl Config {
             seeding_policy: DefaultSeedingPolicy::default(),
             extra: json::Map::default(),
             secret: None,
+            announcers: HashSet::new(),
         }
     }
 
