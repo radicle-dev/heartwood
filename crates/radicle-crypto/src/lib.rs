@@ -158,6 +158,20 @@ impl TryFrom<String> for Signature {
 /// The public/verification key.
 #[derive(Hash, Serialize, Deserialize, PartialEq, Eq, Copy, Clone)]
 #[serde(into = "String", try_from = "String")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[cfg_attr(
+    feature = "schemars",
+    schemars(
+        title = "Ed25519",
+        description = "An Ed25519 public key in multibase encoding.",
+        extend("examples" = [
+            "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7",
+            "z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C",
+            "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+            "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5",
+        ]),
+    ),
+)]
 pub struct PublicKey(pub ed25519::PublicKey);
 
 #[cfg(feature = "cyphernet")]

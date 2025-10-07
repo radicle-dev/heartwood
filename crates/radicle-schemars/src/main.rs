@@ -81,12 +81,9 @@ fn print_schema() -> io::Result<()> {
 
             #[derive(JsonSchema)]
             #[schemars(untagged)]
-            #[allow(dead_code)]
+            #[allow(dead_code, clippy::large_enum_variant)]
             enum CommandResult {
-                Nid(
-                    #[schemars(with = "radicle::schemars_ext::crypto::PublicKey")]
-                    radicle::node::NodeId,
-                ),
+                Nid(radicle::node::NodeId),
                 Config(radicle::node::Config),
                 ListenAddrs(ListenAddrs),
                 ConnectResult(radicle::node::ConnectResult),

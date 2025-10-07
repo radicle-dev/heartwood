@@ -553,10 +553,6 @@ impl std::fmt::Display for Link {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Session {
-    #[cfg_attr(
-        feature = "schemars",
-        schemars(with = "crate::schemars_ext::crypto::PublicKey")
-    )]
     pub nid: NodeId,
     pub link: Link,
     pub addr: Address,
@@ -576,10 +572,6 @@ impl Session {
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Seed {
     /// The Node ID.
-    #[cfg_attr(
-        feature = "schemars",
-        schemars(with = "crate::schemars_ext::crypto::PublicKey")
-    )]
     pub nid: NodeId,
     /// Known addresses for this seed.
     pub addrs: Vec<KnownAddress>,
@@ -700,10 +692,6 @@ impl From<Vec<Seed>> for Seeds {
 pub enum FetchResult {
     Success {
         updated: Vec<RefUpdate>,
-        #[cfg_attr(
-            feature = "schemars",
-            schemars(with = "HashSet<crate::schemars_ext::crypto::PublicKey>")
-        )]
         namespaces: HashSet<NodeId>,
         clone: bool,
     },

@@ -492,7 +492,7 @@ where
     G: crypto::signature::Signer<crypto::Signature>,
 {
     pub fn new(
-        config: Config,
+        mut config: Config,
         db: Stores<D>,
         storage: S,
         policies: policy::Config<Write>,
@@ -506,6 +506,9 @@ where
         let last_timestamp = node.timestamp;
         let clock = LocalTime::default(); // Updated on initialize.
         let inventory = gossip::inventory(clock.into(), []); // Updated on initialize.
+
+        // For backwards compatibility, ensure that we are announcer of our own Node ID.
+        config.announcers.insert(*signer.public_key());
 
         Self {
             config,
@@ -1669,12 +1672,15 @@ where
                 // from a new repository being initialized.
                 self.seed_discovered(message.rid, *announcer, message.timestamp);
 
-                // Update sync status of announcer for this repo.
-                if let Some(refs) = refs.iter().find(|r| &r.remote == self.nid()) {
+                // Update sync status of announcers for this repo.
+                for refs in refs
+                    .iter()
+                    .filter(|r| self.config.announcers.contains(&r.remote))
+                {
                     debug!(
                         target: "service",
-                        "Refs announcement of {announcer} for {} contains our own remote at {} (t={})",
-                        message.rid, refs.at, message.timestamp
+                        "Refs announcement of {announcer} for {} contains announcer {} (t={})",
+                        message.rid, refs, message.timestamp
                     );
                     match self.db.seeds_mut().synced(
                         &message.rid,

@@ -2908,6 +2908,7 @@ dependencies = [
  "qcheck",
  "qcheck-macros",
  "radicle-ssh",
+ "schemars",
  "serde",
  "signature 2.2.0",
  "sqlite",
