@@ -7,6 +7,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs, io, iter, net, process, thread, time,
     time::Duration,
+    time::SystemTime,
 };
 
 use crossbeam_channel as chan;
@@ -107,22 +108,37 @@ impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
             .connect(remote.id, remote.addr.into(), ConnectOptions::default())
             .ok();
 
-        local_events
-            .iter()
-            .find(|e| {
-                matches!(
-                    e, Event::PeerConnected { nid } if nid == &remote.id
-                )
-            })
-            .unwrap();
-        remote_events
-            .iter()
-            .find(|e| {
-                matches!(
-                    e, Event::PeerConnected { nid } if nid == &self.id
-                )
-            })
-            .unwrap();
+        // This timeout is rather arbitrary. The main point is to avoid waiting
+        // indefinitely, but to also give slow CI enough time to settle.
+        const TIMEOUT: Duration = Duration::from_secs(60);
+
+        log::debug!(target: "test", "Waiting {:?} for node {} to be connected to peer {} (direction 1/2).", TIMEOUT, self.id, remote.id);
+        if let Err(err) = local_events.wait(
+            |event| match event {
+                Event::PeerConnected { nid } if *nid == remote.id => Some(()),
+                _ => None,
+            },
+            TIMEOUT,
+        ) {
+            panic!(
+                "Failed to connect node {} to peer {} within {:?}: {err}",
+                self.id, remote.id, TIMEOUT
+            );
+        }
+
+        log::debug!(target: "test", "Waiting {:?} for node {} to be connected to peer {} (direction 2/2).", TIMEOUT, remote.id, self.id);
+        if let Err(err) = remote_events.wait(
+            |event| match event {
+                Event::PeerConnected { nid } if *nid == self.id => Some(()),
+                _ => None,
+            },
+            TIMEOUT,
+        ) {
+            panic!(
+                "Failed to connect node {} to peer {} within {:?}: {err}",
+                remote.id, self.id, TIMEOUT
+            );
+        }
 
         self
     }
@@ -578,6 +594,12 @@ pub fn converge<'a, G: Signer<Signature> + cyphernet::Ecdh + 'static>(
         }
     }
 
+    // This timeout is rather arbitrary. The main point is to avoid waiting
+    // indefinitely, but to also give slow CI enough time to settle.
+    const TIMEOUT_DURATION: Duration = Duration::from_secs(30);
+
+    let timeout = SystemTime::now() + TIMEOUT_DURATION;
+
     // Then, while there are nodes remaining to converge, check each node to see if
     // its routing table has all routes. If so, remove it from the remaining nodes.
     while !remaining.is_empty() {
@@ -595,6 +617,11 @@ pub fn converge<'a, G: Signer<Signature> + cyphernet::Ecdh + 'static>(
             true
         });
         thread::sleep(Duration::from_millis(100));
+
+        if SystemTime::now() > timeout {
+            log::warn!(target: "test", "Nodes did not converge within {:?}. Remaining nodes: {:?}", TIMEOUT_DURATION, remaining.keys());
+            break;
+        }
     }
     all_routes
 }

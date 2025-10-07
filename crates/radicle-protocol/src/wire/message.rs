@@ -3,7 +3,7 @@ use std::{mem, net};
 use bytes::Buf;
 use bytes::BufMut;
 #[cfg(feature = "i2p")]
-use cyphernet::addr::i2p;
+use cypheraddr::i2p;
 #[cfg(feature = "tor")]
 use cypheraddr::tor;
 use cypheraddr::{HostName, NetAddr};

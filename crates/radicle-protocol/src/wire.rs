@@ -16,7 +16,7 @@ use std::string::FromUtf8Error;
 use bytes::{Buf, BufMut};
 
 #[cfg(feature = "i2p")]
-use cyphernet::addr::i2p;
+use cypheraddr::i2p;
 #[cfg(feature = "tor")]
 use cypheraddr::tor;
 

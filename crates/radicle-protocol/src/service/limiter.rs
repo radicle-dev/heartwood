@@ -156,7 +156,7 @@ mod test {
     }
 
     #[test]
-    fn test_limitter_refill() {
+    fn test_limiter_refill() {
         let mut r = RateLimiter::default();
         let t = (3, 0.2); // Three tokens burst. One token every 5 seconds.
         let a = HostName::Dns(String::from("seed.radicle.example.com"));
@@ -188,7 +188,7 @@ mod test {
 
     #[test]
     #[rustfmt::skip]
-    fn test_limitter_multi() {
+    fn test_limiter_multi() {
         let t = (1, 1.0); // One token per second. One token burst.
         let n = arbitrary::gen::<NodeId>(1);
         let n = Some(&n);
@@ -208,7 +208,7 @@ mod test {
 
     #[test]
     #[rustfmt::skip]
-    fn test_limitter_different_rates() {
+    fn test_limiter_different_rates() {
         let t1 = (1, 1.0); // One token per second. One token burst.
         let t2 = (2, 2.0); // Two tokens per second. Two token burst.
         let n = arbitrary::gen::<NodeId>(1);

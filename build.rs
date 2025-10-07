@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // x.y.z, with efe10f95be being a unique prefix of the OID of
         // `HEAD`, and the working directory was dirty.
         // If this is a build pointing to a commit that has release tag, this
-        // will just return the tag name itelf, e.g. `releases/x.y.z`.
+        // will just return the tag name itself, e.g. `releases/x.y.z`.
         // If all fails, we just use `hash`, which, in the worst case is
         // still "unknown" (see above) but in most cases will just be
         // the short OID of `HEAD`.

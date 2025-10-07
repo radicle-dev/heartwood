@@ -3129,6 +3129,7 @@ dependencies = [
  "crossbeam-channel",
  "cyphernet",
  "fastrand",
+ "gix-packetline",
  "lexopt",
  "log",
  "mio 1.0.4",

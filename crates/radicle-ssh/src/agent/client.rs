@@ -52,20 +52,7 @@ pub enum Error {
 
 impl Error {
     pub fn is_not_running(&self) -> bool {
-        match self {
-            Self::EnvVar { .. } | Self::BadAuthSock { .. } => true,
-            #[cfg(windows)]
-            Self::Connect { source, .. }
-                if source.kind() == std::io::ErrorKind::ConnectionRefused =>
-            {
-                // On Windows, a named pipe might be used, and if no
-                // agent is running, we might get a "connection refused"
-                // error, even though the `SSH_AUTH_SOCK` environment
-                // variable is set and the named pipe exists.
-                true
-            }
-            _ => false,
-        }
+        matches!(self, Self::EnvVar { .. } | Self::BadAuthSock { .. })
     }
 }
 
