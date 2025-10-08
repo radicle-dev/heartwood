@@ -479,6 +479,7 @@ pub fn run(
 fn patch_base(
     head: &git::Oid,
     opts: &Options,
+    working: &git::raw::Repository,
     stored: &storage::git::Repository,
 ) -> Result<git::Oid, Error> {
     Ok(if let Some(base) = opts.base {
@@ -490,7 +491,31 @@ fn patch_base(
         // be computed, e.g. while they wait for their fellow delegates
         // to converge and sync.
         let (_, target) = stored.canonical_head()?;
-        stored.merge_base(&target, head)?
+
+        let repo = if working.path() == stored.path() {
+            stored
+        } else {
+            {
+                // Approach 1: Add alternates to ODB of repo in storage.
+                let odb = stored.backend.odb()?;
+                odb.add_disk_alternate(working.path().to_string_lossy().as_ref())?;
+                stored.backend.set_odb(&odb)?;
+                stored
+            }
+
+            {
+                // Approach 2: Create a new in-memory repo with an ODB that refers to both.
+                let odb = radicle::git::raw::Odb::new()?;
+                odb.add_disk_alternate(&stored.backend.path().join("objects").to_string_lossy())?;
+                odb.add_disk_alternate(&working.path().join("objects").to_string_lossy())?;
+                &storage::git::Repository {
+                    backend: radicle::git::raw::Repository::from_odb(odb)?,
+                    id: stored.id,
+                }
+            }
+        };
+
+        repo.merge_base(&target, head)?
     })
 }
 
@@ -554,9 +579,9 @@ fn patch_open<G>(
 where
     G: crypto::signature::Signer<crypto::Signature>,
 {
-    let temp = TempPatchRef::new(stored, head, nid);
-    temp.push(head, opts.verbosity)?;
-    let base = patch_base(head, &opts, stored)?;
+    // let temp = TempPatchRef::new(stored, head, nid);
+    // temp.push(head, opts.verbosity)?;
+    let base = patch_base(head, &opts, working, stored)?;
 
     if base == *head {
         return Err(Error::EmptyPatch);
@@ -687,10 +712,10 @@ where
         return Err(Error::NotFound(patch_id));
     };
 
-    let temp = TempPatchRef::new(stored, head, nid);
-    temp.push(head, opts.verbosity)?;
+    // let temp = TempPatchRef::new(stored, head, nid);
+    // temp.push(head, opts.verbosity)?;
 
-    let base = patch_base(head, &opts, stored)?;
+    let base = patch_base(head, &opts, working, stored)?;
 
     // Don't update patch if it already has a matching revision.
     if patch
