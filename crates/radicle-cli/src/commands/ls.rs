@@ -1,36 +1,13 @@
-use clap::Parser;
+mod args;
+
+pub use args::Args;
+pub(crate) use args::ABOUT;
 
 use radicle::storage::{ReadStorage, RepositoryInfo};
 
 use crate::terminal as term;
 
 use term::Element;
-
-pub(crate) const ABOUT: &str = "List repositories";
-const LONG_ABOUT: &str = r#"
-By default, this command shows you all repositories that you have forked or initialized.
-If you wish to see all seeded repositories, use the `--seeded` option.
-"#;
-
-#[derive(Debug, Parser)]
-#[command(about = ABOUT, long_about = LONG_ABOUT, disable_version_flag = true)]
-pub struct Args {
-    /// Show only private repositories
-    #[arg(long)]
-    private: bool,
-    /// Show only public repositories
-    #[arg(long)]
-    public: bool,
-    /// Show all seeded repositories
-    #[arg(short, long)]
-    seeded: bool,
-    /// Show all repositories in storage
-    #[arg(short, long)]
-    all: bool,
-    /// Verbose output
-    #[arg(short, long)]
-    verbose: bool,
-}
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
@@ -52,10 +29,10 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         ..
     } in repos
     {
-        if doc.is_public() && args.private && !args.public {
+        if doc.is_public() && args.private {
             continue;
         }
-        if !doc.is_public() && !args.private && args.public {
+        if !doc.is_public() && args.public {
             continue;
         }
         if refs.is_none() && !args.all && !args.seeded {
