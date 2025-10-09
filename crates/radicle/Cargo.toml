@@ -13,7 +13,7 @@ rust-version.workspace = true
 default = []
 test = ["tempfile", "qcheck", "radicle-crypto/test", "radicle-cob/test"]
 logger = ["colored", "chrono"]
-schemars = ["radicle-oid/schemars", "dep:schemars"]
+schemars = ["dep:schemars", "radicle-crypto/schemars", "radicle-oid/schemars"]
 
 [dependencies]
 amplify = { workspace = true, features = ["std"] }
