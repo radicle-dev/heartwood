@@ -1,15 +1,18 @@
 #![allow(clippy::or_fun_call)]
 #![allow(clippy::collapsible_else_if)]
+
+mod args;
+
+pub use args::Args;
+pub(crate) use args::ABOUT;
+
 use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::env;
-use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::{anyhow, bail, Context as _};
 use serde_json as json;
-
-use clap::Parser;
 
 use radicle::crypto::ssh;
 use radicle::explorer::ExplorerUrl;
@@ -18,7 +21,6 @@ use radicle::git::RefString;
 use radicle::identity::project::ProjectName;
 use radicle::identity::{Doc, RepoId, Visibility};
 use radicle::node::events::UploadPack;
-use radicle::node::policy::Scope;
 use radicle::node::{Event, Handle, NodeId, DEFAULT_SUBSCRIBE_TIMEOUT};
 use radicle::storage::ReadStorage as _;
 use radicle::{profile, Node};
@@ -27,51 +29,6 @@ use crate::commands;
 use crate::git;
 use crate::terminal as term;
 use crate::terminal::Interactive;
-
-pub(crate) const ABOUT: &str = "Initialize a Radicle repository";
-
-#[derive(Debug, Parser)]
-#[command(about = ABOUT, disable_version_flag = true)]
-pub struct Args {
-    /// Directory to be initialized
-    pub path: Option<PathBuf>,
-    /// Name of the repository
-    #[arg(long, value_name = "STRING")]
-    pub name: Option<ProjectName>,
-    /// Description of the repository
-    #[arg(long, value_name = "STRING")]
-    pub description: Option<String>,
-    /// The default branch of the repository
-    #[arg(long = "default-branch", value_name = "NAME")]
-    pub branch: Option<String>,
-    /// Repository follow scope: `followed` or `all`
-    #[arg(long, default_value_t = Scope::All)]
-    pub scope: Scope,
-    /// Set repository visibility to *private*
-    #[arg(long, conflicts_with = "public")]
-    pub private: bool,
-    /// Set repository visibility to *public*
-    #[arg(long, conflicts_with = "private", default_value_t = true)]
-    pub public: bool,
-    /// Setup repository as an existing Radicle repository
-    #[arg(long, value_name = "RID")]
-    pub existing: Option<RepoId>,
-    /// Setup the upstream of the default branch
-    #[arg(short = 'u', long)]
-    pub set_upstream: bool,
-    /// Setup the radicle key as a signing key for this repository
-    #[arg(long)]
-    pub setup_signing: bool,
-    /// Don't ask for confirmation during setup
-    #[arg(long)]
-    pub no_confirm: bool,
-    /// Don't seed this repository after initializing it
-    #[arg(long)]
-    pub no_seed: bool,
-    /// Verbose mode
-    #[arg(short, long)]
-    pub verbose: bool,
-}
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
@@ -97,14 +54,11 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 }
 
-pub fn init(
-    repo: git::Repository,
-    args: Args,
-    profile: &profile::Profile,
-) -> anyhow::Result<()> {
+pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> anyhow::Result<()> {
     let path = dunce::canonicalize(repo.workdir().unwrap_or_else(|| repo.path()))?;
-    let interactive = if args.no_confirm { Interactive::No } else { Interactive::Yes };
-    let visibility = if args.private { Some(Visibility::private([])) } else { Some(Visibility::Public) };
+    let interactive = args.interactive();
+    let visibility = args.visibility();
+    let seed = args.seed();
 
     let default_branch = match find_default_branch(&repo) {
         Err(err @ DefaultBranchError::Head) => {
@@ -123,11 +77,9 @@ pub fn init(
 
     term::headline(format!(
         "Initializing{}radicle 👾 repository in {}..",
-
-        if let Some(ref visibility) = visibility {
-            term::format::spaced(term::format::visibility(&visibility))
-        } else {
-            term::format::default(" ").into()
+        match visibility {
+            Some(ref visibility) => term::format::spaced(term::format::visibility(visibility)),
+            None => term::format::default(" ").into(),
         },
         term::format::dim(path.display())
     ));
@@ -139,6 +91,8 @@ pub fn init(
                 .file_name()
                 .and_then(|f| f.to_str())
                 .and_then(|f| ProjectName::try_from(f).ok());
+            // TODO(finto): this is interactive without checking `interactive` –
+            // this should check if interactive and use the default if not
             let name = term::input(
                 "Name",
                 default,
@@ -169,6 +123,8 @@ pub fn init(
     let visibility = if let Some(v) = visibility {
         v
     } else {
+        // TODO(finto): this is interactive without checking `interactive` –
+        // this should check if interactive and use the `private` if not
         let selected = term::select(
             "Visibility",
             &["public", "private"],
@@ -205,7 +161,7 @@ pub fn init(
             }
             // It's important to seed our own repositories to make sure that our node signals
             // interest for them. This ensures that messages relating to them are relayed to us.
-            if !args.no_seed {
+            if seed {
                 profile.seed(rid, args.scope, &mut node)?;
 
                 if doc.is_public() {
@@ -276,7 +232,7 @@ pub fn init_existing(
     let stored = profile.storage.repository(rid)?;
     let project = stored.project()?;
     let url = radicle::git::Url::from(rid);
-    let interactive = if args.no_confirm { Interactive::No } else { Interactive::Yes };
+    let interactive = args.interactive();
 
     radicle::git::configure_repository(&working)?;
     radicle::git::configure_remote(
