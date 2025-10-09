@@ -20,6 +20,7 @@ qcheck = [
 schemars = [
   "radicle-oid/schemars",
   "radicle-core/schemars",
+  "radicle-crypto/schemars",
   "radicle-localtime/schemars",
   "dep:schemars"
 ]

@@ -40,10 +40,6 @@ pub enum Command {
         rid: RepoId,
 
         /// The namespaces for which references should be announced.
-        #[cfg_attr(
-            feature = "schemars",
-            schemars(with = "HashSet<crate::schemars_ext::crypto::PublicKey>")
-        )]
         namespaces: HashSet<PublicKey>,
     },
 
@@ -69,13 +65,7 @@ pub enum Command {
 
     /// Disconnect from a node.
     #[serde(rename_all = "camelCase")]
-    Disconnect {
-        #[cfg_attr(
-            feature = "schemars",
-            schemars(with = "crate::schemars_ext::crypto::PublicKey")
-        )]
-        nid: NodeId,
-    },
+    Disconnect { nid: NodeId },
 
     /// Look up seeds for the given repository in the routing table.
     #[serde(rename_all = "camelCase")]
@@ -91,10 +81,6 @@ pub enum Command {
         rid: RepoId,
 
         /// The namespaces for which references should be announced.
-        #[cfg_attr(
-            feature = "schemars",
-            schemars(with = "HashSet<crate::schemars_ext::crypto::PublicKey>")
-        )]
         namespaces: HashSet<PublicKey>,
     },
 
@@ -102,22 +88,12 @@ pub enum Command {
     Sessions,
 
     /// Get a specific peer session.
-    Session {
-        #[cfg_attr(
-            feature = "schemars",
-            schemars(with = "crate::schemars_ext::crypto::PublicKey")
-        )]
-        nid: NodeId,
-    },
+    Session { nid: NodeId },
 
     /// Fetch the given repository from the network.
     #[serde(rename_all = "camelCase")]
     Fetch {
         rid: RepoId,
-        #[cfg_attr(
-            feature = "schemars",
-            schemars(with = "crate::schemars_ext::crypto::PublicKey")
-        )]
         nid: NodeId,
         timeout: time::Duration,
     },
@@ -136,23 +112,13 @@ pub enum Command {
     /// Follow the given node.
     #[serde(rename_all = "camelCase")]
     Follow {
-        #[cfg_attr(
-            feature = "schemars",
-            schemars(with = "crate::schemars_ext::crypto::PublicKey")
-        )]
         nid: NodeId,
         alias: Option<super::Alias>,
     },
 
     /// Unfollow the given node.
     #[serde(rename_all = "camelCase")]
-    Unfollow {
-        #[cfg_attr(
-            feature = "schemars",
-            schemars(with = "crate::schemars_ext::crypto::PublicKey")
-        )]
-        nid: NodeId,
-    },
+    Unfollow { nid: NodeId },
 
     /// Get the node's status.
     Status,

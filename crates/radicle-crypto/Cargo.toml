@@ -25,6 +25,7 @@ multibase = { workspace = true }
 qcheck = { workspace = true, optional = true }
 git-ref-format-core = { workspace = true, optional = true }
 radicle-ssh = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true, features = ["derive", "std"] }
 serde = { workspace = true, features = ["derive", "std"] }
 signature = { workspace = true }
 sqlite = { workspace = true, features = ["bundled"], optional = true }
