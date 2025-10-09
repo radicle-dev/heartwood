@@ -519,6 +519,8 @@ pub struct Config {
     /// the environment variable `RAD_PASSPHRASE`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub secret: Option<std::path::PathBuf>,
+    #[serde(default, skip_serializing_if = "HashSet::is_empty")]
+    pub announcers: HashSet<super::NodeId>,
 }
 
 impl Config {
@@ -546,6 +548,7 @@ impl Config {
             seeding_policy: DefaultSeedingPolicy::default(),
             extra: json::Map::default(),
             secret: None,
+            announcers: HashSet::new(),
         }
     }
 
