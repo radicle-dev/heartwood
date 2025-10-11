@@ -6,9 +6,13 @@
 
 // Re-exports that are only used within this crate.
 pub(crate) use git2::{
-    message_trailers_strs, AutotagOption, Blob, Config, FetchOptions, FetchPrune, Object,
-    RemoteCallbacks, Revwalk, Sort,
+    message_trailers_strs, AutotagOption, Blob, Config, FetchOptions, FetchPrune, Object, Revwalk,
+    Sort,
 };
+
+// Re-exports that are only used within this crate for testing.
+#[cfg(any(test, feature = "test"))]
+pub(crate) use git2::RemoteCallbacks;
 
 // Re-exports that are used by other crates in the workspace, including this crate.
 pub use git2::{
