@@ -60,7 +60,6 @@ $ rad patch comment 6c61ef1 --reply-to 833db19 -m "Thanks, I'll add it!"
 
 ``` ~alice
 $ touch MIT
-$ ln MIT LICENSE -f
 $ git add MIT
 $ git commit -am "Add MIT License"
 [prepare-license 1cc8cd9] Add MIT License
