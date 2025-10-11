@@ -34,7 +34,7 @@ impl TempRepository {
             .collect();
         let path = root
             .as_ref()
-            .join(format!("{rid}.{random}"))
+            .join(format!("{}.{random}", rid.canonical()))
             .with_extension(Self::EXT);
         let repo = Repository::create(&path, rid, info)?;
         Ok(Self { repo, path })
