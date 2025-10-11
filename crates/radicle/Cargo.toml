@@ -60,3 +60,4 @@ qcheck = { workspace = true }
 qcheck-macros = { workspace = true }
 radicle-cob = { workspace = true, features = ["stable-commit-ids"] }
 radicle-crypto = { workspace = true, features = ["test"] }
+tempfile = { workspace = true }
