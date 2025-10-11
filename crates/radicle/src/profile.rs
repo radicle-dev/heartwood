@@ -779,15 +779,16 @@ mod test {
     use super::*;
 
     // Checks that if we have:
-    // '/run/user/1000/.tmpqfK6ih/../.tmpqfK6ih/Radicle/Home'
+    // '/run/user/1000/.tmpqfK6ih/../.tmpqfK6ih/Home/Radicle'
     //
     // that it gets normalized to:
-    // '/run/user/1000/.tmpqfK6ih/Radicle/Home'
+    // '/run/user/1000/.tmpqfK6ih/Home/Radicle'
     #[test]
     fn canonicalize_home() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("Home").join("Radicle");
         fs::create_dir_all(path.clone()).unwrap();
+        let path = dunce::canonicalize(path).unwrap();
 
         let last = tmp.path().components().next_back().unwrap();
         let home = Home::new(
