@@ -8,23 +8,23 @@ $ touch file.bin
 $ rad self --did
 did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 $ pwd
-[..]/home/bob/.radicle
+[..]/bob/.radicle
 $ mkdir src
 $ cd src
 $ pwd
-[..]/home/bob/.radicle/src
+[..]/bob/.radicle/src
 ```
 
 ``` ~alice
 $ rad self --did
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 $ pwd
-[..]/home/alice/.radicle
+[..]/alice/.radicle
 ```
 
 ``` ~bob
 $ pwd
-[..]/home/bob/.radicle/src
+[..]/bob/.radicle/src
 ```
 
 ```

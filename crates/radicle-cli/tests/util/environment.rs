@@ -82,37 +82,37 @@ impl Default for Environment {
 
 impl Environment {
     /// Create a new test environment.
-    fn named(name: &'static str) -> Self {
+    pub fn new() -> Self {
         Self {
-            tempdir: tempfile::TempDir::with_prefix("radicle-".to_owned() + name).unwrap(),
+            tempdir: tempfile::TempDir::new().unwrap(),
             users: 0,
         }
     }
 
-    /// Create a new test environment.
-    pub fn new() -> Self {
-        Self::named("")
-    }
-
-    /// Return the temp directory path.
+    /// Return the path of the temporary directory at which
+    /// this testing environment is rooted.
     pub fn tempdir(&self) -> PathBuf {
         self.tempdir.path().into()
     }
 
-    /// Path to the working directory designated for given alias.
-    pub fn work(&self, has_alias: &impl HasAlias) -> PathBuf {
-        self.tempdir().join("work").join(has_alias.alias().as_ref())
+    /// Return the home directory of the user with the given alias.
+    /// This is in analogy to a Unix home directory.
+    pub fn unix_home(&self, has_alias: &impl HasAlias) -> PathBuf {
+        self.tempdir().join(has_alias.alias().to_string())
     }
 
-    /// We don't have `RAD_HOME` or `HOME` to rely on to compute a home as usual.
-    pub fn home(&self, alias: &Alias) -> Home {
-        Home::new(
-            self.tempdir()
-                .join("home")
-                .join(alias.to_string())
-                .join(".radicle"),
-        )
-        .unwrap()
+    /// Return the Radicle path of the user with the given alias.
+    /// This is in analogy to `$RAD_HOME` and always a subdirectory of
+    /// the user's home directory (see [`Environment::unix_home`]).
+    pub fn rad_home(&self, has_alias: &impl HasAlias) -> Home {
+        Home::new(self.unix_home(has_alias).join(".radicle")).unwrap()
+    }
+
+    /// Path to the working directory of the user with the given alias.
+    /// Tests that need to act on multiple repositories should crate
+    /// subdirecories within this directory.
+    pub fn work(&self, has_alias: &impl HasAlias) -> PathBuf {
+        self.unix_home(has_alias).join("work")
     }
 
     /// Create a new default configuration.
@@ -135,7 +135,7 @@ impl Environment {
     /// is provided.
     pub fn profile_with(&mut self, config: profile::Config) -> Profile {
         let alias = config.alias().clone();
-        let home = self.home(&alias);
+        let home = self.rad_home(&alias);
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
         let policies_db = home.node().join(POLICIES_DB_FILE);
         let cobs_db = home.cobs().join(COBS_DB_FILE);
@@ -224,7 +224,12 @@ impl Environment {
         self.node_with(config::seed(alias))
     }
 
-    /// Convenience method for placing repository fixture.
+    /// Convenience method for placing repository fixture into the
+    /// directory returned by [`Environment::work`] for the user.
+    /// Use this only in tests that act on *a single repository* only.
+    /// For tests that need to act on multiple repositories,
+    /// create the repositories as subdirectories of the working
+    /// directory returned by [`Environment::work`].
     pub fn repository(
         &self,
         has_alias: &impl HasAlias,
@@ -236,24 +241,17 @@ impl Environment {
     pub fn test(
         &self,
         test_file: &'static str,
-        subject: &(impl HasAlias + HasHome),
+        subject: &impl HasAlias,
     ) -> Result<(), Box<dyn std::error::Error>> {
         formula(
             self.work(subject).as_ref(),
             PathBuf::from("examples").join(test_file.to_owned() + ".md"),
         )?
-        .env(
-            "RAD_HOME",
-            subject.home().path().to_path_buf().to_string_lossy(),
-        )
+        .env("USER", subject.alias().as_ref())
+        .env("RAD_HOME", self.rad_home(subject).path().to_string_lossy())
         .env(
             "JJ_CONFIG",
-            subject
-                .home()
-                .path()
-                .parent()
-                .unwrap()
-                .to_path_buf()
+            self.unix_home(subject)
                 .join(".jjconfig.toml")
                 .to_string_lossy(),
         )
@@ -262,10 +260,11 @@ impl Environment {
         Ok(())
     }
 
+    /// Convenience method for executing multiple test formulas with standard configuration.
     pub fn tests(
         &self,
         test_files: impl IntoIterator<Item = &'static str>,
-        subject: &(impl HasAlias + HasHome),
+        subject: &impl HasAlias,
     ) -> Result<(), Box<dyn std::error::Error>> {
         for test_file in test_files {
             self.test(test_file, subject)?;
@@ -288,6 +287,12 @@ pub trait HasAlias {
     fn alias(&self) -> &Alias;
 }
 
+impl HasAlias for Alias {
+    fn alias(&self) -> &Alias {
+        self
+    }
+}
+
 impl HasAlias for Node<MemorySigner> {
     fn alias(&self) -> &Alias {
         &self.config.alias
@@ -303,27 +308,5 @@ impl HasAlias for Profile {
 impl<G> HasAlias for NodeHandle<G> {
     fn alias(&self) -> &Alias {
         &self.alias
-    }
-}
-
-pub trait HasHome {
-    fn home(&self) -> &Home;
-}
-
-impl HasHome for Profile {
-    fn home(&self) -> &Home {
-        &self.home
-    }
-}
-
-impl HasHome for Node<MemorySigner> {
-    fn home(&self) -> &Home {
-        &self.home
-    }
-}
-
-impl HasHome for NodeHandle<MemorySigner> {
-    fn home(&self) -> &Home {
-        &self.home
     }
 }

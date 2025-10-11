@@ -9,11 +9,11 @@ Node         not running
 SSH          not running
 ├╴Key (hash) SHA256:UIedaL6Cxm6OUErh9GQUzzglSk7VpQlVTI1TAFB/HWA
 └╴Key (full) ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHahWSBEpuT1ESZbynOmBNkLBSnR32Ar4woZqSV2YNH1
-Home         [..]/home/alice/.radicle
-├╴Config     [..]/home/alice/.radicle/config.json
-├╴Storage    [..]/home/alice/.radicle/storage
-├╴Keys       [..]/home/alice/.radicle/keys
-└╴Node       [..]/home/alice/.radicle/node
+Home         [..]/alice/.radicle
+├╴Config     [..]/alice/.radicle/config.json
+├╴Storage    [..]/alice/.radicle/storage
+├╴Keys       [..]/alice/.radicle/keys
+└╴Node       [..]/alice/.radicle/node
 ```
 
 If you need to display only your DID, Node ID, or SSH Public Key, you can use
@@ -41,5 +41,5 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHahWSBEpuT1ESZbynOmBNkLBSnR32Ar4woZqSV2YNH1
 
 ```
 $ rad self --home
-[..]/home/alice/.radicle
+[..]/alice/.radicle
 ```

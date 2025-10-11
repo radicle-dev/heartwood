@@ -28,7 +28,6 @@ pub(crate) fn formula(
         .env("EDITOR", "true")
         .env("TZ", "UTC")
         .env("LANG", "C")
-        .env("USER", "alice")
         .env(env::RAD_PASSPHRASE, "radicle")
         .env(env::RAD_KEYGEN_SEED, RAD_SEED)
         .env(env::RAD_RNG_SEED, "0")
