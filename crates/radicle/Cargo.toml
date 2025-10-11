@@ -24,7 +24,7 @@ crossbeam-channel = { workspace = true }
 cyphernet = { workspace = true, features = ["tor", "dns", "p2p-ed25519"] }
 dunce = { workspace = true }
 fast-glob = { version = "0.3.2" }
-fastrand = { workspace = true }
+fastrand = { workspace = true, features = ["std"] }
 git2 = { workspace = true, features = ["vendored-libgit2"] }
 indexmap = { version = "2", features = ["serde"] }
 localtime = { workspace = true, features = ["serde"] }
