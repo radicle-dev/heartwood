@@ -455,7 +455,7 @@ impl Node<MockSigner> {
     }
 }
 
-impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone> Node<G> {
+impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone + std::fmt::Debug> Node<G> {
     /// Spawn a node in its own thread.
     pub fn spawn(self) -> NodeHandle<G> {
         let alias = self.config.alias.clone();

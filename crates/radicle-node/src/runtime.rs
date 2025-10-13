@@ -131,7 +131,7 @@ impl Runtime {
         signer: Device<G>,
     ) -> Result<Runtime, Error>
     where
-        G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone + 'static,
+        G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone + 'static + std::fmt::Debug,
     {
         let id = *signer.public_key();
         let alias = config.alias.clone();

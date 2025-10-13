@@ -100,7 +100,7 @@ impl<M: StateMachine, S: Session> Display for ProtocolArtifact<M, S> {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Protocol<M: StateMachine, S: Session> {
     pub(crate) state: M,
     pub(crate) session: S,

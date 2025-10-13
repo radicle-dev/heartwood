@@ -490,7 +490,7 @@ impl<D, S, G> reactor::ReactionHandler for Wire<D, S, G>
 where
     D: service::Store + Send,
     S: WriteStorage + Send + 'static,
-    G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone + Send,
+    G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone + Send + std::fmt::Debug,
 {
     type Listener = Listener;
     type Transport = Transport<WireSession<G>>;
