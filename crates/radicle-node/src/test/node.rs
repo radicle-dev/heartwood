@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::io::BufRead as _;
 use std::mem::ManuallyDrop;
 use std::path::Path;
@@ -455,7 +456,7 @@ impl Node<MockSigner> {
     }
 }
 
-impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone> Node<G> {
+impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone + Debug> Node<G> {
     /// Spawn a node in its own thread.
     pub fn spawn(self) -> NodeHandle<G> {
         let alias = self.config.alias.clone();

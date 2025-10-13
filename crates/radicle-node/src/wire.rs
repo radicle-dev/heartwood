@@ -3,6 +3,7 @@
 //! We use the Noise XK handshake pattern to establish an encrypted stream with a remote peer.
 use std::collections::hash_map::Entry;
 use std::collections::VecDeque;
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::{io, net, time};
 
@@ -490,7 +491,7 @@ impl<D, S, G> reactor::ReactionHandler for Wire<D, S, G>
 where
     D: service::Store + Send,
     S: WriteStorage + Send + 'static,
-    G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone + Send,
+    G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone + Send + Debug,
 {
     type Listener = Listener;
     type Transport = Transport<WireSession<G>>;

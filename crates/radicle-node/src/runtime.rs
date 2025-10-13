@@ -1,6 +1,7 @@
 pub mod handle;
 pub mod thread;
 
+use std::fmt::Debug;
 use std::path::PathBuf;
 use std::{fs, io, net};
 
@@ -131,7 +132,11 @@ impl Runtime {
         signer: Device<G>,
     ) -> Result<Runtime, Error>
     where
-        G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone + 'static,
+        G: crypto::signature::Signer<crypto::Signature>
+            + Ecdh<Pk = NodeId>
+            + Clone
+            + Debug
+            + 'static,
     {
         let id = *signer.public_key();
         let alias = config.alias.clone();
