@@ -1,285 +1,34 @@
+mod args;
+
 use std::collections::BTreeSet;
-use std::{ffi::OsString, io};
 
 use anyhow::{anyhow, Context};
 
 use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
 use radicle::cob::Title;
 use radicle::identity::doc::update;
-use radicle::identity::doc::update::EditVisibility;
 use radicle::identity::{doc, Doc, Identity, RawDoc};
 use radicle::node::device::Device;
 use radicle::node::NodeId;
-use radicle::prelude::{Did, RepoId};
 use radicle::storage::{ReadStorage as _, WriteRepository};
 use radicle::{cob, crypto, Profile};
 use radicle_surf::diff::Diff;
 use radicle_term::Element;
-use serde_json as json;
 
 use crate::git::unified_diff::Encode as _;
 use crate::git::Rev;
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::args::Error;
 use crate::terminal::patch::Message;
-use crate::terminal::Interactive;
 
-pub const HELP: Help = Help {
-    name: "id",
-    description: "Manage repository identities",
-    version: env!("RADICLE_VERSION"),
-    usage: r#"
-Usage
+pub use args::Args;
+use args::Command;
+pub(crate) use args::ABOUT;
 
-    rad id list [<option>...]
-    rad id update [--title <string>] [--description <string>]
-                  [--delegate <did>] [--rescind <did>]
-                  [--threshold <num>] [--visibility <private | public>]
-                  [--allow <did>] [--disallow <did>]
-                  [--no-confirm] [--payload <id> <key> <val>...] [--edit] [<option>...]
-    rad id edit <revision-id> [--title <string>] [--description <string>] [<option>...]
-    rad id show <revision-id> [<option>...]
-    rad id <accept | reject | redact> <revision-id> [<option>...]
-
-    The *rad id* command is used to manage and propose changes to the
-    identity of a Radicle repository.
-
-    See the rad-id(1) man page for more information.
-
-Options
-
-    --repo <rid>           Repository (defaults to the current repository)
-    --quiet, -q            Don't print anything
-    --help                 Print help
-"#,
-};
-
-#[derive(Clone, Debug, Default)]
-pub enum Operation {
-    Update {
-        title: Option<Title>,
-        description: Option<String>,
-        delegate: Vec<Did>,
-        rescind: Vec<Did>,
-        threshold: Option<usize>,
-        visibility: Option<EditVisibility>,
-        allow: BTreeSet<Did>,
-        disallow: BTreeSet<Did>,
-        payload: Vec<(doc::PayloadId, String, json::Value)>,
-        edit: bool,
-    },
-    AcceptRevision {
-        revision: Rev,
-    },
-    RejectRevision {
-        revision: Rev,
-    },
-    EditRevision {
-        revision: Rev,
-        title: Option<Title>,
-        description: Option<String>,
-    },
-    RedactRevision {
-        revision: Rev,
-    },
-    ShowRevision {
-        revision: Rev,
-    },
-    #[default]
-    ListRevisions,
-}
-
-#[derive(Default, PartialEq, Eq)]
-pub enum OperationName {
-    Accept,
-    Reject,
-    Edit,
-    Update,
-    Show,
-    Redact,
-    #[default]
-    List,
-}
-
-pub struct Options {
-    pub op: Operation,
-    pub rid: Option<RepoId>,
-    pub interactive: Interactive,
-    pub quiet: bool,
-}
-
-impl Args for Options {
-    fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
-        use lexopt::prelude::*;
-
-        let mut parser = lexopt::Parser::from_args(args);
-        let mut op: Option<OperationName> = None;
-        let mut revision: Option<Rev> = None;
-        let mut rid: Option<RepoId> = None;
-        let mut title: Option<Title> = None;
-        let mut description: Option<String> = None;
-        let mut delegate: Vec<Did> = Vec::new();
-        let mut rescind: Vec<Did> = Vec::new();
-        let mut visibility: Option<EditVisibility> = None;
-        let mut allow: BTreeSet<Did> = BTreeSet::new();
-        let mut disallow: BTreeSet<Did> = BTreeSet::new();
-        let mut threshold: Option<usize> = None;
-        let mut interactive = Interactive::new(io::stdout());
-        let mut payload = Vec::new();
-        let mut edit = false;
-        let mut quiet = false;
-
-        while let Some(arg) = parser.next()? {
-            match arg {
-                Long("help") => {
-                    return Err(Error::HelpManual { name: "rad-id" }.into());
-                }
-                Short('h') => {
-                    return Err(Error::Help.into());
-                }
-                Long("title")
-                    if op == Some(OperationName::Edit) || op == Some(OperationName::Update) =>
-                {
-                    let val = parser.value()?;
-                    title = Some(term::args::string(&val).try_into()?);
-                }
-                Long("description")
-                    if op == Some(OperationName::Edit) || op == Some(OperationName::Update) =>
-                {
-                    description = Some(parser.value()?.to_string_lossy().into());
-                }
-                Long("quiet") | Short('q') => {
-                    quiet = true;
-                }
-                Long("no-confirm") => {
-                    interactive = Interactive::No;
-                }
-                Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "e" | "edit" => op = Some(OperationName::Edit),
-                    "u" | "update" => op = Some(OperationName::Update),
-                    "l" | "list" => op = Some(OperationName::List),
-                    "s" | "show" => op = Some(OperationName::Show),
-                    "a" | "accept" => op = Some(OperationName::Accept),
-                    "r" | "reject" => op = Some(OperationName::Reject),
-                    "d" | "redact" => op = Some(OperationName::Redact),
-
-                    unknown => anyhow::bail!("unknown operation '{}'", unknown),
-                },
-                Long("repo") => {
-                    let val = parser.value()?;
-                    let val = term::args::rid(&val)?;
-
-                    rid = Some(val);
-                }
-                Long("delegate") => {
-                    let did = term::args::did(&parser.value()?)?;
-                    delegate.push(did);
-                }
-                Long("rescind") => {
-                    let did = term::args::did(&parser.value()?)?;
-                    rescind.push(did);
-                }
-                Long("allow") => {
-                    let value = parser.value()?;
-                    let did = term::args::did(&value)?;
-                    allow.insert(did);
-                }
-                Long("disallow") => {
-                    let value = parser.value()?;
-                    let did = term::args::did(&value)?;
-                    disallow.insert(did);
-                }
-                Long("visibility") => {
-                    let value = parser.value()?;
-                    let value = term::args::parse_value("visibility", value)?;
-
-                    visibility = Some(value);
-                }
-                Long("threshold") => {
-                    threshold = Some(parser.value()?.to_string_lossy().parse()?);
-                }
-                Long("payload") => {
-                    let mut values = parser.values()?;
-                    let id = values
-                        .next()
-                        .ok_or(anyhow!("expected payload id, eg. `xyz.radicle.project`"))?;
-                    let id: doc::PayloadId = term::args::parse_value("payload", id)?;
-
-                    let key = values
-                        .next()
-                        .ok_or(anyhow!("expected payload key, eg. 'defaultBranch'"))?;
-                    let key = term::args::string(&key);
-
-                    let val = values
-                        .next()
-                        .ok_or(anyhow!("expected payload value, eg. '\"heartwood\"'"))?;
-                    let val = val.to_string_lossy().to_string();
-                    let val = json::from_str(val.as_str())
-                        .map_err(|e| anyhow!("invalid JSON value `{val}`: {e}"))?;
-
-                    payload.push((id, key, val));
-                }
-                Long("edit") => {
-                    edit = true;
-                }
-                Value(val) => {
-                    let val = term::args::rev(&val)?;
-                    revision = Some(val);
-                }
-                _ => {
-                    return Err(anyhow!(arg.unexpected()));
-                }
-            }
-        }
-
-        let op = match op.unwrap_or_default() {
-            OperationName::Accept => Operation::AcceptRevision {
-                revision: revision.ok_or_else(|| anyhow!("a revision must be provided"))?,
-            },
-            OperationName::Reject => Operation::RejectRevision {
-                revision: revision.ok_or_else(|| anyhow!("a revision must be provided"))?,
-            },
-            OperationName::Edit => Operation::EditRevision {
-                title,
-                description,
-                revision: revision.ok_or_else(|| anyhow!("a revision must be provided"))?,
-            },
-            OperationName::Show => Operation::ShowRevision {
-                revision: revision.ok_or_else(|| anyhow!("a revision must be provided"))?,
-            },
-            OperationName::List => Operation::ListRevisions,
-            OperationName::Redact => Operation::RedactRevision {
-                revision: revision.ok_or_else(|| anyhow!("a revision must be provided"))?,
-            },
-            OperationName::Update => Operation::Update {
-                title,
-                description,
-                delegate,
-                rescind,
-                threshold,
-                visibility,
-                allow,
-                disallow,
-                payload,
-                edit,
-            },
-        };
-        Ok((
-            Options {
-                rid,
-                op,
-                interactive,
-                quiet,
-            },
-            vec![],
-        ))
-    }
-}
-
-pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
-    let rid = if let Some(rid) = options.rid {
+    let rid = if let Some(rid) = args.repo {
         rid
     } else {
         let (_, rid) = radicle::rad::cwd()?;
@@ -291,8 +40,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut identity = Identity::load_mut(&repo)?;
     let current = identity.current().clone();
 
-    match options.op {
-        Operation::AcceptRevision { revision } => {
+    let interactive = args.interactive();
+    let command = args.command.unwrap_or(Command::List);
+
+    match command {
+        Command::Accept { revision } => {
             let revision = get(revision, &identity, &repo)?.clone();
             let id = revision.id;
             let signer = term::signer(&profile)?;
@@ -301,10 +53,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 anyhow::bail!("cannot vote on revision that is {}", revision.state);
             }
 
-            if options
-                .interactive
-                .confirm(format!("Accept revision {}?", term::format::tertiary(id)))
-            {
+            if interactive.confirm(format!("Accept revision {}?", term::format::tertiary(id))) {
                 identity.accept(&revision.id, &signer)?;
 
                 if let Some(revision) = identity.revision(&id) {
@@ -314,14 +63,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     }
                     // TODO: Different output if canonical changed?
 
-                    if !options.quiet {
+                    if !args.quiet {
                         term::success!("Revision {id} accepted");
                         print_meta(revision, &current, &profile)?;
                     }
                 }
             }
         }
-        Operation::RejectRevision { revision } => {
+        Command::Reject { revision } => {
             let revision = get(revision, &identity, &repo)?.clone();
             let signer = term::signer(&profile)?;
 
@@ -329,19 +78,19 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 anyhow::bail!("cannot vote on revision that is {}", revision.state);
             }
 
-            if options.interactive.confirm(format!(
+            if interactive.confirm(format!(
                 "Reject revision {}?",
                 term::format::tertiary(revision.id)
             )) {
                 identity.reject(revision.id, &signer)?;
 
-                if !options.quiet {
+                if !args.quiet {
                     term::success!("Revision {} rejected", revision.id);
                     print_meta(&revision, &current, &profile)?;
                 }
             }
         }
-        Operation::EditRevision {
+        Command::Edit {
             revision,
             title,
             description,
@@ -357,11 +106,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             };
             identity.edit(revision.id, title, description, &signer)?;
 
-            if !options.quiet {
+            if !args.quiet {
                 term::success!("Revision {} edited", revision.id);
             }
         }
-        Operation::Update {
+        Command::Update {
             title,
             description,
             delegate: delegates,
@@ -375,6 +124,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         } => {
             let proposal = {
                 let mut proposal = current.doc.clone().edit();
+                let allow = allow.into_iter().collect::<BTreeSet<_>>();
+                let disallow = disallow.into_iter().collect::<BTreeSet<_>>();
+
                 proposal.threshold = threshold.unwrap_or(proposal.threshold);
 
                 let proposal = match visibility {
@@ -407,7 +159,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     }
                 };
 
-                update::payload(proposal, payload)?
+                // TODO(erikli): whenever `clap` starts supporting custom value parsers
+                // for a series of values, we can parse into `Payload` implicitly.
+                let payloads = args::parse_many_upserts(&payload).collect::<Result<Vec<_>, _>>()?;
+
+                update::payload(proposal, payloads)?
             };
 
             // If `--edit` is specified, the document can also be edited via a text edit.
@@ -431,7 +187,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
             let proposal = update::verify(proposal)?;
             if proposal == current.doc {
-                if !options.quiet {
+                if !args.quiet {
                     term::print(term::format::italic(
                         "Nothing to do. The document is up to date. See `rad inspect --identity`.",
                     ));
@@ -445,7 +201,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 // Update the canonical head to point to the latest accepted revision.
                 repo.set_identity_head_to(revision.id)?;
             }
-            if options.quiet {
+            if args.quiet {
                 term::print(revision.id);
             } else {
                 term::success!(
@@ -455,7 +211,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 print(&revision, &current, &repo, &profile)?;
             }
         }
-        Operation::ListRevisions => {
+        Command::List => {
             let mut revisions =
                 term::Table::<7, term::Label>::new(term::table::TableOptions::bordered());
 
@@ -489,25 +245,25 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
             revisions.print();
         }
-        Operation::RedactRevision { revision } => {
+        Command::Redact { revision } => {
             let revision = get(revision, &identity, &repo)?.clone();
             let signer = term::signer(&profile)?;
 
             if revision.is_accepted() {
                 anyhow::bail!("cannot redact accepted revision");
             }
-            if options.interactive.confirm(format!(
+            if interactive.confirm(format!(
                 "Redact revision {}?",
                 term::format::tertiary(revision.id)
             )) {
                 identity.redact(revision.id, &signer)?;
 
-                if !options.quiet {
+                if !args.quiet {
                     term::success!("Revision {} redacted", revision.id);
                 }
             }
         }
-        Operation::ShowRevision { revision } => {
+        Command::Show { revision } => {
             let revision = get(revision, &identity, &repo)?;
             let previous = revision.parent.unwrap_or(revision.id);
             let previous = identity
