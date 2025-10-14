@@ -139,40 +139,52 @@ where
     }
 }
 
+/// [`Payload`]: super::Payload
+/// A change (update or insertion) to particular `key` within a [`Payload`]
+/// in a document.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PayloadUpsert {
+    /// [`Payload`]: super::Payload
+    /// The identifier for the document [`Payload`].
+    pub id: PayloadId,
+    /// [`Payload`]: super::Payload
+    /// The key within the [`Payload`] that is being updated.
+    pub key: String,
+    /// [`Payload`]: super::Payload
+    /// The value to update within the [`Payload`].
+    pub value: json::Value,
+}
+
 // TODO(finto): I think this API would likely be much nicer if we use [JSON Patch][patch] and [JSON Merge Patch][merge]
 //
 // [patch]: https://datatracker.ietf.org/doc/html/rfc6902
 // [merge]: https://datatracker.ietf.org/doc/html/rfc7396
-/// Change the payload of the document, using the set of triples:
-///
-///   - [`PayloadId`]: the identifier for the document [`Payload`]
-///   - [`String`]: the key within the [`Payload`] that is being updated
-///   - [`json::Value`]: the value to update the [`Payload`]
+/// [`Payload`]: super::Payload
+/// Change (update or insert) a key in a [`Payload`] of the document,
+/// using the provided `updates`.
 ///
 /// # Errors
 ///
 /// This fails if one of the [`PayloadId`]s does not point to a JSON object as
 /// its value.
-///
-/// [`Payload`]: super::Payload
 pub fn payload(
     mut raw: RawDoc,
-    payload: Vec<(PayloadId, String, json::Value)>,
+    upserts: impl IntoIterator<Item = PayloadUpsert>,
 ) -> Result<RawDoc, error::PayloadError> {
-    for (id, key, val) in payload {
+    for PayloadUpsert { id, key, value } in upserts {
         if let Some(ref mut payload) = raw.payload.get_mut(&id) {
             if let Some(obj) = payload.as_object_mut() {
-                if val.is_null() {
+                if value.is_null() {
                     obj.remove(&key);
                 } else {
-                    obj.insert(key, val);
+                    obj.insert(key, value);
                 }
             } else {
                 return Err(error::PayloadError::ExpectedObject { id });
             }
         } else {
             raw.payload
-                .insert(id, serde_json::json!({ key: val }).into());
+                .insert(id, serde_json::json!({ key: value }).into());
         }
     }
     Ok(raw)
@@ -277,21 +289,23 @@ mod test {
         test::arbitrary,
     };
 
+    use super::PayloadUpsert;
+
     #[test]
     fn test_can_update_crefs() {
         let raw = arbitrary::gen::<RawDoc>(1);
         let raw = super::payload(
             raw,
-            vec![(
-                PayloadId::canonical_refs(),
-                "rules".to_string(),
-                json!({
+            [PayloadUpsert {
+                id: PayloadId::canonical_refs(),
+                key: "rules".to_string(),
+                value: json!({
                     "refs/tags/*": {
                         "threshold": 1,
                         "allow": "delegates"
                     }
                 }),
-            )],
+            }],
         )
         .unwrap();
         let verified = super::verify(raw);
@@ -306,10 +320,10 @@ mod test {
         ));
         let raw = super::payload(
             raw,
-            vec![(
-                PayloadId::canonical_refs(),
-                "rules".to_string(),
-                json!({
+            [PayloadUpsert {
+                id: PayloadId::canonical_refs(),
+                key: "rules".to_string(),
+                value: json!({
                     "refs/tags/*": {
                         "threshold": 1,
                         "allow": "delegates"
@@ -319,7 +333,7 @@ mod test {
                         "allow": "delegates",
                     }
                 }),
-            )],
+            }],
         )
         .unwrap();
         assert!(
@@ -339,16 +353,16 @@ mod test {
         ));
         let raw = super::payload(
             raw,
-            vec![(
-                PayloadId::canonical_refs(),
-                "rules".to_string(),
-                json!({
+            [PayloadUpsert {
+                id: PayloadId::canonical_refs(),
+                key: "rules".to_string(),
+                value: json!({
                     "refs/tags/*": {
                         "threshold": 1,
                         "allow": "delegates"
                     }
                 }),
-            )],
+            }],
         )
         .unwrap();
         let verified = super::verify(raw).unwrap();
