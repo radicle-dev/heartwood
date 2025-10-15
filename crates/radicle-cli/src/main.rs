@@ -50,6 +50,7 @@ enum Commands {
     Checkout(checkout::Args),
     Clean(clean::Args),
     Clone(clone::Args),
+    Cob(cob::Args),
     Debug(debug::Args),
 
     /// This command is deprecated and delegates to `git diff`.
@@ -223,7 +224,9 @@ pub(crate) fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyho
             }
         }
         "cob" => {
-            term::run_command_args::<cob::Options, _>(cob::HELP, cob::run, args.to_vec());
+            if let Some(Commands::Cob(args)) = CliArgs::parse().command {
+                term::run_command_fn(cob::run, args);
+            }
         }
         "config" => {
             term::run_command_args::<config::Options, _>(config::HELP, config::run, args.to_vec());

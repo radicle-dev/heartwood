@@ -10,6 +10,7 @@ Common `rad` commands used in various situations:
 	block        Block repositories or nodes from being seeded or followed
 	checkout     Checkout a repository into the local directory
 	clone        Clone a Radicle repository
+	cob          Manage collaborative objects
 	config       Manage your local Radicle configuration
 	debug        Write out information to help debug your Radicle node remotely
 	fork         Create a fork of a repository

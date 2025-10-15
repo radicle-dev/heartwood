@@ -1,7 +1,6 @@
-use std::ffi::OsString;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::{fs, io};
+mod args;
+
+use std::io;
 
 use anyhow::{anyhow, bail};
 
@@ -18,392 +17,40 @@ use radicle::storage;
 
 use crate::git::Rev;
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
 
-pub const HELP: Help = Help {
-    name: "cob",
-    description: "Manage collaborative objects",
-    version: env!("RADICLE_VERSION"),
-    usage: r#"
-Usage
+pub use args::Args;
+pub(crate) use args::ABOUT;
 
-    rad cob <command> [<option>...]
+use args::{FilteredTypeName, Format};
 
-    rad cob create  --repo <rid> --type <typename> <filename> [<option>...]
-    rad cob list    --repo <rid> --type <typename>
-    rad cob log     --repo <rid> --type <typename> --object <oid> [<option>...]
-    rad cob migrate [<option>...]
-    rad cob show    --repo <rid> --type <typename> --object <oid> [<option>...]
-    rad cob update  --repo <rid> --type <typename> --object <oid> <filename>
-                    [<option>...]
-
-Commands
-
-    create                      Create a new COB of a given type given initial actions
-    list                        List all COBs of a given type (--object is not needed)
-    log                         Print a log of all raw operations on a COB
-    migrate                     Migrate the COB database to the latest version
-    update                      Add actions to a COB
-    show                        Print the state of COBs
-
-Create, Update options
-
-    --embed-file <name> <path>  Supply embed of given name via file at given path
-    --embed-hash <name> <oid>   Supply embed of given name via object ID of blob
-
-Log options
-
-    --format (pretty | json)    Desired output format (default: pretty)
-    --from <oid>                Git object ID of the commit of the operation to
-                                start iterating at.
-    --until <oid>               Git object ID of the commit of the operation to
-                                stop iterating at.
-
-Show options
-
-    --format json               Desired output format (default: json)
-
-Other options
-
-    --help                      Print help
-"#,
-};
-
-#[derive(Clone, Copy, PartialEq)]
-enum OperationName {
-    Update,
-    Create,
-    List,
-    Log,
-    Migrate,
-    Show,
-}
-
-enum Operation {
-    Create {
-        rid: RepoId,
-        type_name: FilteredTypeName,
-        message: String,
-        actions: PathBuf,
-        embeds: Vec<Embed>,
-    },
-    List {
-        rid: RepoId,
-        type_name: FilteredTypeName,
-    },
-    Log {
-        rid: RepoId,
-        type_name: FilteredTypeName,
-        oid: Rev,
-        format: Format,
-        from: Option<Rev>,
-        until: Option<Rev>,
-    },
-    Migrate,
-    Show {
-        rid: RepoId,
-        type_name: FilteredTypeName,
-        oids: Vec<Rev>,
-    },
-    Update {
-        rid: RepoId,
-        type_name: FilteredTypeName,
-        oid: Rev,
-        message: String,
-        actions: PathBuf,
-        embeds: Vec<Embed>,
-    },
-}
-
-enum Format {
-    Json,
-    Pretty,
-}
-
-pub struct Options {
-    op: Operation,
-}
-
-/// A precursor to [`cob::Embed`] used for parsing
-/// that can be initialized without relying on a [`git::Repository`].
-struct Embed {
-    name: String,
-    content: EmbedContent,
-}
-
-enum EmbedContent {
-    Path(PathBuf),
-    Hash(Rev),
-}
-
-/// A thin wrapper around [`cob::TypeName`] used for parsing.
-/// Well known COB type names are captured as variants,
-/// with [`FilteredTypeName::Other`] as an escape hatch for type names
-/// that are not well known.
-enum FilteredTypeName {
-    Issue,
-    Patch,
-    Identity,
-    Other(cob::TypeName),
-}
-
-impl From<cob::TypeName> for FilteredTypeName {
-    fn from(value: cob::TypeName) -> Self {
-        if value == *cob::issue::TYPENAME {
-            FilteredTypeName::Issue
-        } else if value == *cob::patch::TYPENAME {
-            FilteredTypeName::Patch
-        } else if value == *cob::identity::TYPENAME {
-            FilteredTypeName::Identity
-        } else {
-            FilteredTypeName::Other(value)
-        }
-    }
-}
-
-impl AsRef<cob::TypeName> for FilteredTypeName {
-    fn as_ref(&self) -> &cob::TypeName {
-        match self {
-            FilteredTypeName::Issue => &cob::issue::TYPENAME,
-            FilteredTypeName::Patch => &cob::patch::TYPENAME,
-            FilteredTypeName::Identity => &cob::identity::TYPENAME,
-            FilteredTypeName::Other(value) => value,
-        }
-    }
-}
-
-impl std::fmt::Display for FilteredTypeName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.as_ref().fmt(f)
-    }
-}
-
-impl Embed {
-    fn try_into_bytes(
-        self,
-        repo: &storage::git::Repository,
-    ) -> anyhow::Result<cob::Embed<cob::Uri>> {
-        Ok(match self.content {
-            EmbedContent::Hash(hash) => cob::Embed {
-                name: self.name,
-                content: hash.resolve::<git::Oid>(&repo.backend)?.into(),
-            },
-            EmbedContent::Path(path) => {
-                cob::Embed::store(self.name, &std::fs::read(path)?, &repo.backend)?
-            }
-        })
-    }
-}
-
-impl Args for Options {
-    fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
-        use lexopt::prelude::*;
-        use term::args::string;
-        use OperationName::*;
-
-        let mut parser = lexopt::Parser::from_args(args);
-
-        let op = match parser.next()? {
-            None | Some(Long("help") | Short('h')) => {
-                return Err(Error::Help.into());
-            }
-            Some(Value(val)) => match val.to_string_lossy().as_ref() {
-                "update" => Update,
-                "create" => Create,
-                "list" => List,
-                "log" => Log,
-                "migrate" => Migrate,
-                "show" => Show,
-                unknown => bail!("unknown operation '{unknown}'"),
-            },
-            Some(arg) => return Err(anyhow!(arg.unexpected())),
-        };
-
-        let mut type_name: Option<FilteredTypeName> = None;
-        let mut oids: Vec<Rev> = vec![];
-        let mut rid: Option<RepoId> = None;
-        let mut format: Format = Format::Pretty;
-        let mut message: Option<String> = None;
-        let mut embeds: Vec<Embed> = vec![];
-        let mut actions: Option<PathBuf> = None;
-        let mut from: Option<Rev> = None;
-        let mut until: Option<Rev> = None;
-
-        while let Some(arg) = parser.next()? {
-            match (&op, &arg) {
-                (_, Long("help") | Short('h')) => {
-                    return Err(Error::Help.into());
-                }
-                (_, Long("repo") | Short('r')) => {
-                    rid = Some(term::args::rid(&parser.value()?)?);
-                }
-                (_, Long("type") | Short('t')) => {
-                    let v = string(&parser.value()?);
-                    type_name = Some(FilteredTypeName::from(cob::TypeName::from_str(&v)?));
-                }
-                (Update | Log | Show, Long("object") | Short('o')) => {
-                    let v = string(&parser.value()?);
-                    oids.push(Rev::from(v));
-                }
-                (Update | Create, Long("message") | Short('m')) => {
-                    message = Some(string(&parser.value()?));
-                }
-                (Log | Show | Update, Long("format")) => {
-                    format = match (op, string(&parser.value()?).as_ref()) {
-                        (Log, "pretty") => Format::Pretty,
-                        (Log | Show | Update, "json") => Format::Json,
-                        (_, unknown) => bail!("unknown format '{unknown}'"),
-                    };
-                }
-                (Update | Create, Long("embed-file")) => {
-                    let mut values = parser.values()?;
-
-                    let name = values
-                        .next()
-                        .map(|s| term::args::string(&s))
-                        .ok_or(anyhow!("expected name of embed"))?;
-
-                    let content = EmbedContent::Path(PathBuf::from(
-                        values
-                            .next()
-                            .ok_or(anyhow!("expected path to file to embed"))?,
-                    ));
-
-                    embeds.push(Embed { name, content });
-                }
-                (Update | Create, Long("embed-hash")) => {
-                    let mut values = parser.values()?;
-
-                    let name = values
-                        .next()
-                        .map(|s| term::args::string(&s))
-                        .ok_or(anyhow!("expected name of embed"))?;
-
-                    let content = EmbedContent::Hash(Rev::from(term::args::string(
-                        &values
-                            .next()
-                            .ok_or(anyhow!("expected hash of file to embed"))?,
-                    )));
-
-                    embeds.push(Embed { name, content });
-                }
-                (Update | Create, Value(val)) => {
-                    actions = Some(PathBuf::from(term::args::string(val)));
-                }
-                (Log, Long("from")) => {
-                    let v = parser.value()?;
-                    from = Some(term::args::rev(&v)?);
-                }
-                (Log, Long("until")) => {
-                    let v = parser.value()?;
-                    until = Some(term::args::rev(&v)?);
-                }
-                _ => return Err(anyhow!(arg.unexpected())),
-            }
-        }
-
-        if op == OperationName::Migrate {
-            return Ok((
-                Options {
-                    op: Operation::Migrate,
-                },
-                vec![],
-            ));
-        }
-
-        let rid = rid.ok_or_else(|| anyhow!("a repository id must be specified with `--repo`"))?;
-        let type_name =
-            type_name.ok_or_else(|| anyhow!("an object type must be specified with `--type`"))?;
-
-        let missing_oid = || anyhow!("an object id must be specified with `--object`");
-        let missing_message = || anyhow!("a message must be specified with `--message`");
-
-        Ok((
-            Options {
-                op: match op {
-                    Create => Operation::Create {
-                        rid,
-                        type_name,
-                        message: message.ok_or_else(missing_message)?,
-                        actions: actions.ok_or_else(|| {
-                            anyhow!("a file containing initial actions must be specified")
-                        })?,
-                        embeds,
-                    },
-                    List => Operation::List { rid, type_name },
-                    Log => Operation::Log {
-                        rid,
-                        type_name,
-                        oid: oids.pop().ok_or_else(missing_oid)?,
-                        format,
-                        from,
-                        until,
-                    },
-                    Migrate => Operation::Migrate,
-                    Show => {
-                        if oids.is_empty() {
-                            return Err(missing_oid());
-                        }
-                        Operation::Show {
-                            rid,
-                            oids,
-                            type_name,
-                        }
-                    }
-                    Update => Operation::Update {
-                        rid,
-                        type_name,
-                        oid: oids.pop().ok_or_else(missing_oid)?,
-                        message: message.ok_or_else(missing_message)?,
-                        actions: actions.ok_or_else(|| {
-                            anyhow!("a file containing actions must be specified")
-                        })?,
-                        embeds,
-                    },
-                },
-            },
-            vec![],
-        ))
-    }
-}
-
-pub fn run(Options { op }: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
+    use args::Command::*;
+    use args::FilteredTypeName::*;
     use cob::store::Store;
-    use FilteredTypeName::*;
-    use Operation::*;
 
     let profile = ctx.profile()?;
     let storage = &profile.storage;
 
-    match op {
-        Create {
-            rid,
-            type_name,
-            message,
-            embeds,
-            actions,
-        } => {
+    match args.command {
+        Create(create) => {
             let signer = &profile.signer()?;
-            let repo = storage.repository_mut(rid)?;
-
-            let reader = io::BufReader::new(fs::File::open(actions)?);
-
-            let embeds = embeds
-                .into_iter()
-                .map(|embed| embed.try_into_bytes(&repo))
-                .collect::<anyhow::Result<Vec<_>>>()?;
+            let repo = storage.repository_mut(create.rid())?;
+            let type_name = create.type_name();
+            let reader = create.actions_reader()?;
+            let message = create.message();
+            let embeds = create.embeds(&repo)?;
 
             let oid = match type_name {
                 Patch => {
                     let store: Store<cob::patch::Patch, _> = Store::open(&repo)?;
                     let actions = read_jsonl_actions(reader)?;
-                    let (oid, _) = store.create(&message, actions, embeds, signer)?;
+                    let (oid, _) = store.create(message, actions, embeds, signer)?;
                     oid
                 }
                 Issue => {
                     let store: Store<cob::issue::Issue, _> = Store::open(&repo)?;
                     let actions = read_jsonl_actions(reader)?;
-                    let (oid, _) = store.create(&message, actions, embeds, signer)?;
+                    let (oid, _) = store.create(message, actions, embeds, signer)?;
                     oid
                 }
                 Identity => anyhow::bail!(
@@ -414,7 +61,7 @@ pub fn run(Options { op }: Options, ctx: impl term::Context) -> anyhow::Result<(
                     let store: Store<cob::external::External, _> =
                         Store::open_for(&type_name, &repo)?;
                     let actions = read_jsonl_actions(reader)?;
-                    let (oid, _) = store.create(&message, actions, embeds, signer)?;
+                    let (oid, _) = store.create(message, actions, embeds, signer)?;
                     oid
                 }
             };
@@ -431,30 +78,33 @@ pub fn run(Options { op }: Options, ctx: impl term::Context) -> anyhow::Result<(
                 );
             }
         }
-        List { rid, type_name } => {
-            let repo = storage.repository(rid)?;
-            let cobs = radicle_cob::list::<NonEmpty<cob::Entry>, _>(&repo, type_name.as_ref())?;
+        List { repo, type_name } => {
+            let repo = storage.repository(repo)?;
+            let cobs = radicle_cob::list::<NonEmpty<cob::Entry>, _>(
+                &repo,
+                FilteredTypeName::from(type_name).as_ref(),
+            )?;
             for cob in cobs {
                 println!("{}", cob.id);
             }
         }
         Log {
-            rid,
+            repo,
             type_name,
-            oid,
+            object,
             format,
             from,
             until,
         } => {
-            let repo = storage.repository(rid)?;
-            let oid = oid.resolve(&repo.backend)?;
+            let repo = storage.repository(repo)?;
+            let oid = object.resolve(&repo.backend)?;
 
             let from = from.map(|from| from.resolve(&repo.backend)).transpose()?;
             let until = until
                 .map(|until| until.resolve(&repo.backend))
                 .transpose()?;
 
-            match type_name {
+            match type_name.into() {
                 Issue => operations::<cob::issue::Action>(
                     &cob::issue::TYPENAME,
                     oid,
@@ -485,12 +135,13 @@ pub fn run(Options { op }: Options, ctx: impl term::Context) -> anyhow::Result<(
             }
         }
         Show {
-            rid,
-            oids,
+            repo,
+            objects,
             type_name,
+            format: _,
         } => {
-            let repo = storage.repository(rid)?;
-            if let Err(e) = show(oids, &repo, type_name, &profile) {
+            let repo = storage.repository(repo)?;
+            if let Err(e) = show(objects, &repo, type_name.into(), &profile) {
                 if let Some(err) = e.downcast_ref::<std::io::Error>() {
                     if err.kind() == std::io::ErrorKind::BrokenPipe {
                         return Ok(());
@@ -499,29 +150,21 @@ pub fn run(Options { op }: Options, ctx: impl term::Context) -> anyhow::Result<(
                 return Err(e);
             }
         }
-        Update {
-            rid,
-            type_name,
-            oid,
-            message,
-            actions,
-            embeds,
-        } => {
+        Update(update) => {
             let signer = &profile.signer()?;
-            let repo = storage.repository_mut(rid)?;
-            let reader = io::BufReader::new(fs::File::open(actions)?);
-            let oid = &oid.resolve(&repo.backend)?;
-            let embeds = embeds
-                .into_iter()
-                .map(|embed| embed.try_into_bytes(&repo))
-                .collect::<anyhow::Result<Vec<_>>>()?;
+            let repo = storage.repository_mut(update.rid())?;
+            let reader = update.actions_reader()?;
+            let oid = &update.object(&repo)?;
+            let type_name = update.type_name();
+            let embeds = update.embeds(&repo)?;
+            let message = update.message();
 
             let oid = match type_name {
                 Patch => {
                     let actions: Vec<cob::patch::Action> = read_jsonl(reader)?;
                     let mut patches = profile.patches_mut(&repo)?;
                     let mut patch = patches.get_mut(oid)?;
-                    patch.transaction(&message, &*profile.signer()?, |tx| {
+                    patch.transaction(message, &*profile.signer()?, |tx| {
                         tx.extend(actions)?;
                         tx.embed(embeds)?;
                         Ok(())
@@ -531,7 +174,7 @@ pub fn run(Options { op }: Options, ctx: impl term::Context) -> anyhow::Result<(
                     let actions: Vec<cob::issue::Action> = read_jsonl(reader)?;
                     let mut issues = profile.issues_mut(&repo)?;
                     let mut issue = issues.get_mut(oid)?;
-                    issue.transaction(&message, &*profile.signer()?, |tx| {
+                    issue.transaction(message, &*profile.signer()?, |tx| {
                         tx.extend(actions)?;
                         tx.embed(embeds)?;
                         Ok(())
@@ -546,7 +189,7 @@ pub fn run(Options { op }: Options, ctx: impl term::Context) -> anyhow::Result<(
                     let actions: Vec<Action> = read_jsonl(reader)?;
                     let mut store: Store<External, _> = Store::open_for(&type_name, &repo)?;
                     let tx = cob::store::Transaction::new(type_name.clone(), actions, embeds);
-                    let (_, oid) = tx.commit(&message, *oid, &mut store, signer)?;
+                    let (_, oid) = tx.commit(message, *oid, &mut store, signer)?;
                     oid
                 }
             };
