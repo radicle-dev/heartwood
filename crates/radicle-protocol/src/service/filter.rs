@@ -192,14 +192,14 @@ mod test {
         assert_eq!(hs.iter().size_hint(), (42, Some(42)));
     }
 
-    // N.B. this test ensures that the `radicle_oid::Oid`, which is the
-    // underlying type of `RepoId`, still passes the check for a known filter.
-    //
-    // The filter is taken from a known good version `releases/1.5.0` and is
-    // known to contain `heartwood`. Prior to fixing the `Hash` implementation
-    // of `radicle_oid::Oid`, this test would fail.
-    //
-    // After the fix, this test passes.
+    /// N.B. this test ensures that the `radicle_oid::Oid`, which is the
+    /// underlying type of `RepoId`, still passes the check for a known filter.
+    ///
+    /// The filter is taken from a known good version `releases/1.5.0` and is
+    /// known to contain `heartwood`. Prior to fixing the `Hash` implementation
+    /// of `radicle_oid::Oid`, this test would fail.
+    ///
+    /// After the fix, this test passes.
     #[test]
     fn compatible() {
         let filter = {
