@@ -201,7 +201,7 @@ mod test {
     //
     // After the fix, this test passes.
     #[test]
-    fn test_compatible_filter() {
+    fn compatible() {
         let filter = {
             let mut filter = [0u8; FILTER_SIZE_S];
 
