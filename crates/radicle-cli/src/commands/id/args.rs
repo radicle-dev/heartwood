@@ -51,7 +51,10 @@ pub(super) fn parse_many_upserts(
     // so we can chunk the aggregated slice exactly.
     let chunks = values.chunks_exact(3);
 
-    assert!(chunks.remainder().is_empty());
+    assert!(
+        chunks.remainder().is_empty(),
+        "Expected `--payload` values to appear in triples, this may indicate a bug in `clap`"
+    );
 
     chunks.map(|chunk| {
         // Slice accesses will not panic, guaranteed by `chunks_exact(3)`.
