@@ -350,7 +350,8 @@ mod std {
         #[allow(clippy::derived_hash_with_manual_eq)]
         impl hash::Hash for Oid {
             fn hash<H: hash::Hasher>(&self, state: &mut H) {
-                state.write(self.as_ref());
+                let bytes: &[u8] = self.as_ref();
+                std::hash::Hash::hash(bytes, state)
             }
         }
     }
