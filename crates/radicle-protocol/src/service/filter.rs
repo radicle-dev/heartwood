@@ -192,14 +192,12 @@ mod test {
         assert_eq!(hs.iter().size_hint(), (42, Some(42)));
     }
 
-    /// N.B. this test ensures that the `radicle_oid::Oid`, which is the
-    /// underlying type of `RepoId`, still passes the check for a known filter.
+    /// Checks that a particular filter extracted from a live deployment of
+    /// `radicle-node` at `release/1.5.0`, which is known to contain
+    /// "heartwood", actually also evaluates to contain "heartwood".
     ///
-    /// The filter is taken from a known good version `releases/1.5.0` and is
-    /// known to contain `heartwood`. Prior to fixing the `Hash` implementation
-    /// of `radicle_oid::Oid`, this test would fail.
-    ///
-    /// After the fix, this test passes.
+    /// This is to catch regressions in the [`std::hash::Hash`] implementation
+    /// [`RepoId`] and other breaking changes to [`Filter`].
     #[test]
     fn compatible() {
         let filter = {
