@@ -400,6 +400,14 @@ impl std::fmt::Display for FilteredTypeName {
     }
 }
 
+impl std::str::FromStr for FilteredTypeName {
+    type Err = cob::TypeNameParse;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self::from(s.parse::<cob::TypeName>()?))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::Args;
