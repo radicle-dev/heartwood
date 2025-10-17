@@ -11,6 +11,7 @@ use metadata::commit::trailers::OwnedTrailer;
 use nonempty::NonEmpty;
 use oid::Oid;
 
+use crate::backend::GIT_COMMITTER_DATE;
 use crate::change::store::Version;
 use crate::signatures;
 use crate::trailers::CommitTrailer;
@@ -316,11 +317,11 @@ fn write_commit(
             stable,
         )
     };
-    let (author, timestamp) = if let Ok(s) = std::env::var(super::GIT_COMMITTER_DATE) {
+    let (author, timestamp) = if let Ok(s) = std::env::var(GIT_COMMITTER_DATE) {
         let Ok(timestamp) = s.trim().parse::<i64>() else {
             panic!(
                 "Invalid timestamp value {s:?} for `{}`",
-                super::GIT_COMMITTER_DATE
+                GIT_COMMITTER_DATE
             );
         };
         let author = Author {
