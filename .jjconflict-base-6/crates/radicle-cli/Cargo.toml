@@ -1,0 +1,78 @@
+[package]
+name = "radicle-cli"
+version = "0.23.0"
+description = "Radicle CLI"
+
+build = "build.rs"
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "rad"
+path = "src/main.rs"
+
+[features]
+default = ["backtrace", "i2p","tor"]
+i2p = ["radicle/i2p"]
+tor = ["radicle/tor"]
+
+[dependencies]
+anyhow = "1"
+chrono = { workspace = true, features = ["clock", "std"] }
+clap = { version = "4.5.44", features = ["derive"] }
+clap_complete = "4.5"
+dunce = { workspace = true }
+getrandom = { workspace = true, features = ["std"] }
+human-panic.workspace = true
+humantime.workspace = true
+itertools.workspace = true
+log = { workspace = true, features = ["std"] }
+nonempty = { workspace = true }
+radicle = { workspace = true, features = ["schemars"] }
+radicle-cob = { workspace = true }
+radicle-crypto = { workspace = true }
+radicle-localtime = { workspace = true }
+radicle-surf = { workspace = true }
+radicle-term = { workspace = true }
+radicle-log = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true, default-features = true }
+timeago = { version = "0.4.2", default-features = false }
+tree-sitter-bash = "0.23.3"
+tree-sitter-c = "0.23.2"
+tree-sitter-css = "0.23.1"
+tree-sitter-go = "0.23.4"
+tree-sitter-highlight = "0.24.4"
+tree-sitter-html = "0.23.2"
+tree-sitter-json = "0.24.8"
+tree-sitter-md = "0.3.2"
+tree-sitter-python = "0.23.4"
+tree-sitter-ruby = "0.23.1"
+tree-sitter-rust = "0.23.2"
+tree-sitter-toml-ng = "0.6.0"
+tree-sitter-typescript = "0.23.2"
+rs-release = "0.1.11"
+
+[target.'cfg(unix)'.dependencies]
+backtrace = { workspace = true, optional = true }
+shlex = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+radicle-windows = { workspace = true }
+winsplit = { workspace = true }
+
+[dev-dependencies]
+radicle = { workspace = true, features = ["test"] }
+radicle-cli-test = { workspace = true }
+radicle-localtime = { workspace = true }
+radicle-node = { workspace = true, features = ["test"] }
+radicle-log = { workspace = true, features = ["test"] }
+
+[lints]
+workspace = true

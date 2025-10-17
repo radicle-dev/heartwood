@@ -2901,6 +2901,7 @@ dependencies = [
  "fast-glob",
  "fastrand",
  "git2",
+ "gix",
  "indexmap",
  "jsonschema",
  "libc",
