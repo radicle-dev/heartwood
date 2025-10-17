@@ -29,10 +29,10 @@ fn buf_reader(path: std::path::PathBuf) -> io::Result<io::BufReader<std::fs::Fil
 fn embeds(
     repo: &storage::git::Repository,
     files: Vec<String>,
-    oids: Vec<String>,
+    hashes: Vec<String>,
 ) -> anyhow::Result<Vec<cob::Embed<cob::Uri>>> {
     parse_many_embeds::<std::path::PathBuf>(&files)
-        .chain(parse_many_embeds::<Rev>(&oids))
+        .chain(parse_many_embeds::<Rev>(&hashes))
         .map(|embed| embed.try_into_bytes(repo))
         .collect::<anyhow::Result<Vec<_>>>()
 }
@@ -50,14 +50,14 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             repo,
             type_name,
             message,
-            embed_file,
-            embed_hash,
+            embed_files,
+            embed_hashes,
             actions,
         }) => {
             let signer = &profile.signer()?;
             let repo = storage.repository_mut(repo)?;
             let reader = buf_reader(actions)?;
-            let embeds = embeds(&repo, embed_file, embed_hash)?;
+            let embeds = embeds(&repo, embed_files, embed_hashes)?;
 
             let oid = match type_name {
                 Patch => {
@@ -174,8 +174,8 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             type_name,
             object,
             message,
-            embed_file,
-            embed_hash,
+            embed_files,
+            embed_hashes,
             actions,
             ..
         }) => {
@@ -183,7 +183,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             let repo = storage.repository_mut(repo)?;
             let reader = buf_reader(actions)?;
             let oid = object.resolve::<radicle::git::Oid>(&repo.backend)?.into();
-            let embeds = embeds(&repo, embed_file, embed_hash)?;
+            let embeds = embeds(&repo, embed_files, embed_hashes)?;
 
             let oid = match type_name {
                 Patch => {

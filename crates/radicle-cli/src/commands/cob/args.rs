@@ -105,12 +105,12 @@ pub(super) struct Create {
     pub(super) message: String,
 
     /// Supply embed of given name via file at given path
-    #[arg(long, value_names = ["NAME", "PATH"], num_args = 2)]
-    pub(super) embed_file: Vec<String>,
+    #[arg(long = "embed-file", value_names = ["NAME", "PATH"], num_args = 2)]
+    pub(super) embed_files: Vec<String>,
 
     /// Supply embed of given name via object ID of blob
-    #[arg(long, value_names = ["NAME", "OID"], num_args = 2)]
-    pub(super) embed_hash: Vec<String>,
+    #[arg(long = "embed-hash", value_names = ["NAME", "OID"], num_args = 2)]
+    pub(super) embed_hashes: Vec<String>,
 
     /// A file that contains a sequence of actions for the COB, in JSON Lines
     /// format.
@@ -137,12 +137,12 @@ pub(super) struct Update {
     pub(super) message: String,
 
     /// Supply embed of given name via file at given path
-    #[arg(long, value_names = ["NAME", "PATH"], num_args = 2)]
-    pub(super) embed_file: Vec<String>,
+    #[arg(long = "embed-file", value_names = ["NAME", "PATH"], num_args = 2)]
+    pub(super) embed_files: Vec<String>,
 
     /// Supply embed of given name via object ID of blob
-    #[arg(long, value_names = ["NAME", "OID"], num_args = 2)]
-    pub(super) embed_hash: Vec<String>,
+    #[arg(long = "embed-hash", value_names = ["NAME", "OID"], num_args = 2)]
+    pub(super) embed_hashes: Vec<String>,
 
     // TODO(finto): `Format` is unused and is obsolete for this command
     /// Desired output format
