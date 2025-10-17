@@ -1,6 +1,5 @@
 use std::fmt;
 use std::fs;
-use std::io;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -95,128 +94,65 @@ pub(super) enum Command {
 pub(super) struct Create {
     /// Repository ID of the repository to operate on
     #[arg(long, short, value_name = "RID")]
-    repo: RepoId,
+    pub(super) repo: RepoId,
 
     /// Typename of the object to create
     #[arg(long = "type", short, value_name = "TYPENAME")]
-    type_name: cob::TypeName,
+    pub(super) type_name: FilteredTypeName,
 
     /// Attach a message
     #[arg(long, short)]
-    message: String,
+    pub(super) message: String,
 
     /// Supply embed of given name via file at given path
     #[arg(long, value_names = ["NAME", "PATH"], num_args = 2)]
-    embed_file: Vec<String>,
+    pub(super) embed_file: Vec<String>,
 
     /// Supply embed of given name via object ID of blob
     #[arg(long, value_names = ["NAME", "OID"], num_args = 2)]
-    embed_hash: Vec<String>,
+    pub(super) embed_hash: Vec<String>,
 
     /// A file that contains a sequence of actions for the COB, in JSON Lines
     /// format.
     #[arg(value_name = "FILENAME")]
-    actions: PathBuf,
-}
-
-impl Create {
-    pub(super) fn rid(&self) -> RepoId {
-        self.repo
-    }
-
-    pub(super) fn type_name(&self) -> FilteredTypeName {
-        FilteredTypeName::from(self.type_name.clone())
-    }
-
-    pub(super) fn message(&self) -> &String {
-        &self.message
-    }
-
-    pub(super) fn embeds(
-        &self,
-        repo: &storage::git::Repository,
-    ) -> anyhow::Result<Vec<cob::Embed<cob::Uri>>> {
-        parse_many_embeds::<PathBuf>(&self.embed_file)
-            .chain(parse_many_embeds::<Rev>(&self.embed_hash))
-            .map(|embed| embed.try_into_bytes(repo))
-            .collect::<anyhow::Result<Vec<_>>>()
-    }
-
-    pub fn actions_reader(&self) -> io::Result<io::BufReader<fs::File>> {
-        Ok(io::BufReader::new(fs::File::open(&self.actions)?))
-    }
+    pub(super) actions: PathBuf,
 }
 
 #[derive(Parser, Debug)]
 pub(super) struct Update {
     /// Repository ID of the repository to operate on
     #[arg(long, short)]
-    repo: RepoId,
+    pub(super) repo: RepoId,
 
     /// Typename of the object to update
     #[arg(long = "type", short, value_name = "TYPENAME")]
-    type_name: cob::TypeName,
+    pub(super) type_name: FilteredTypeName,
 
     /// Object ID of the object to update
     #[arg(long, short, value_name = "OID")]
-    object: Rev,
+    pub(super) object: Rev,
 
     /// Attach a message
     #[arg(long, short)]
-    message: String,
+    pub(super) message: String,
 
     /// Supply embed of given name via file at given path
     #[arg(long, value_names = ["NAME", "PATH"], num_args = 2)]
-    embed_file: Vec<String>,
+    pub(super) embed_file: Vec<String>,
 
     /// Supply embed of given name via object ID of blob
     #[arg(long, value_names = ["NAME", "OID"], num_args = 2)]
-    embed_hash: Vec<String>,
+    pub(super) embed_hash: Vec<String>,
 
     // TODO(finto): `Format` is unused and is obsolete for this command
     /// Desired output format
     #[arg(long, default_value_t = Format::Json, value_parser = FormatParser)]
-    format: Format,
+    pub(super) format: Format,
 
     /// A file that contains a sequence of actions for the COB, in JSON Lines
     /// format.
     #[arg(value_name = "FILENAME")]
-    actions: PathBuf,
-}
-
-impl Update {
-    pub(super) fn rid(&self) -> RepoId {
-        self.repo
-    }
-
-    pub(super) fn type_name(&self) -> FilteredTypeName {
-        FilteredTypeName::from(self.type_name.clone())
-    }
-
-    pub(super) fn object(
-        &self,
-        repo: &storage::git::Repository,
-    ) -> Result<cob::ObjectId, radicle::git::raw::Error> {
-        self.object.resolve(&repo.backend)
-    }
-
-    pub(super) fn message(&self) -> &String {
-        &self.message
-    }
-
-    pub(super) fn embeds(
-        &self,
-        repo: &storage::git::Repository,
-    ) -> anyhow::Result<Vec<cob::Embed<cob::Uri>>> {
-        parse_many_embeds::<PathBuf>(&self.embed_file)
-            .chain(parse_many_embeds::<Rev>(&self.embed_hash))
-            .map(|embed| embed.try_into_bytes(repo))
-            .collect::<anyhow::Result<Vec<_>>>()
-    }
-
-    pub fn actions_reader(&self) -> io::Result<io::BufReader<fs::File>> {
-        Ok(io::BufReader::new(fs::File::open(&self.actions)?))
-    }
+    pub(super) actions: PathBuf,
 }
 
 /// A precursor to [`cob::Embed`] used for parsing
