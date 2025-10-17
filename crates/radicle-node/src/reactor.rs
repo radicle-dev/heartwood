@@ -34,6 +34,12 @@ const SECONDS_IN_AN_HOUR: u64 = 60 * 60;
 /// Maximum amount of time to wait for I/O.
 const WAIT_TIMEOUT: Duration = Duration::from_secs(SECONDS_IN_AN_HOUR);
 
+/// Maximum duration to accept the service to spend handling events (and errors,
+/// ticking, etc.) without warning. Set to log whenever the service becomes so
+/// is so slow to respond that it would not be able to handle at least 10
+/// "requests" per second, i.e. `1s / 10 = 100ms`.
+const LAG_TIMEOUT: Duration = Duration::from_millis(100);
+
 /// A resource which can be managed by the reactor.
 pub trait EventHandler {
     /// The type of reactions which this resource may generate upon receiving
@@ -421,6 +427,11 @@ impl<H: ReactionHandler> Runtime<H> {
                         Ok(ControlMessage::Command(cmd)) => self.service.handle_command(*cmd),
                     }
                 }
+            }
+
+            let duration = Instant::now().duration_since(tick);
+            if duration > LAG_TIMEOUT {
+                log::warn!(target: "reactor", "Service was busy {:?} which exceeds the timeout of {:?}", duration, LAG_TIMEOUT);
             }
 
             self.handle_actions(tick);
