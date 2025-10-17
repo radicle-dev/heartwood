@@ -51,7 +51,6 @@ pub enum TransportState {
 /// Transport is an adaptor around a specific [`Session`] (implementing
 /// session management, including optional handshake, encoding, etc.) to be used
 /// as a transport resource in a [`crate::reactor::Reactor`].
-#[derive(Debug)]
 pub struct Transport<S: Session> {
     state: TransportState,
     session: S,
@@ -59,6 +58,17 @@ pub struct Transport<S: Session> {
     write_intent: bool,
     read_buffer: Box<[u8; READ_BUFFER_SIZE]>,
     write_buffer: VecDeque<u8>,
+}
+
+impl<S: Session> std::fmt::Debug for Transport<S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Transport")
+            .field("session", &self.session.display())
+            .field("state", &self.state)
+            .field("link_direction", &self.link_direction)
+            .field("write_intent", &self.write_intent)
+            .finish()
+    }
 }
 
 impl<S: Session + Source> Source for Transport<S> {
