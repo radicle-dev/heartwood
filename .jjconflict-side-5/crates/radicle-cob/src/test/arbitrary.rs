@@ -1,0 +1,43 @@
+use std::{iter, marker::PhantomData};
+
+use qcheck::Arbitrary;
+
+use crate::{ObjectId, TypeName};
+
+#[derive(Clone, Debug)]
+pub struct Invalid<T> {
+    pub value: String,
+    _marker: PhantomData<T>,
+}
+
+impl Arbitrary for TypeName {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        let mut rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+        let mut name: Vec<String> = Vec::new();
+        for _ in 0..rng.usize(1..5) {
+            let len = rng.usize(1..16);
+            name.push(iter::repeat_with(|| rng.alphanumeric()).take(len).collect());
+        }
+        name.join(".")
+            .parse::<TypeName>()
+            .expect("TypeName is valid")
+    }
+}
+
+impl Arbitrary for ObjectId {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        Self::from(oid::Oid::arbitrary(g))
+    }
+}
+
+impl Arbitrary for Invalid<ObjectId> {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        let mut rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+        let len = rng.usize(21..50);
+        let value = iter::repeat_with(|| rng.alphanumeric()).take(len).collect();
+        Invalid {
+            value,
+            _marker: PhantomData,
+        }
+    }
+}

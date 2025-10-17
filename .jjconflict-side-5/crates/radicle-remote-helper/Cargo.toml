@@ -1,0 +1,24 @@
+[package]
+name = "radicle-remote-helper"
+version = "0.18.1"
+description = "Radicle git remote helper"
+
+build = "build.rs"
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "git-remote-rad"
+path = "src/main.rs"
+
+[dependencies]
+dunce = { workspace = true }
+log = { workspace = true }
+radicle = { workspace = true }
+radicle-cli = { workspace = true }
+radicle-log = { workspace = true }
+radicle-term = { workspace = true }
+thiserror = { workspace = true, default-features = true }
