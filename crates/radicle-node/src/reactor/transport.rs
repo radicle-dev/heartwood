@@ -146,7 +146,7 @@ impl<S: Session> Transport<S> {
         SessionEvent::Terminated(reason)
     }
 
-    fn handle_io(&mut self, interest: Interest) -> Option<SessionEvent<S>> {
+    fn handle_io(&mut self, _registry: &Registry, event: &Event) -> Option<SessionEvent<S>> {
         if self.state == TransportState::Terminated {
             log::warn!(target: "transport", "Transport {self} is terminated, ignoring I/O event");
             return None;
@@ -164,17 +164,19 @@ impl<S: Session> Transport<S> {
             log::trace!(target: "transport", "Transport {self} got I/O while in handshake mode");
         }
 
-        let resp = match interest {
-            Interest::READABLE => self.handle_readable(),
-            Interest::WRITABLE => self.handle_writable(),
-            _ => unreachable!(),
+        let resp = if event.is_readable() {
+            self.handle_readable()
+        } else if event.is_writable() {
+            self.handle_writable()
+        } else {
+            unreachable!()
         };
 
         if force_write_intent {
             self.write_intent = true;
         } else if self.state == TransportState::Handshake {
             // During handshake, after each read we need to write and then wait
-            self.write_intent = interest == Interest::READABLE;
+            self.write_intent = event.is_readable();
         }
 
         if matches!(&resp, Some(SessionEvent::Terminated(e)) if e.kind() == io::ErrorKind::ConnectionReset)
@@ -299,15 +301,15 @@ impl<S: Session + Source> EventHandler for Transport<S> {
         }
     }
 
-    fn handle(&mut self, event: &Event) -> Vec<Self::Reaction> {
+    fn handle(&mut self, registry: &Registry, event: &Event) -> Vec<Self::Reaction> {
         let mut events = Vec::with_capacity(2);
         if event.is_writable() {
-            if let Some(event) = self.handle_io(Interest::WRITABLE) {
+            if let Some(event) = self.handle_io(registry, event) {
                 events.push(event);
             }
         }
         if event.is_readable() {
-            if let Some(event) = self.handle_io(Interest::READABLE) {
+            if let Some(event) = self.handle_io(registry, event) {
                 events.push(event);
             }
         }

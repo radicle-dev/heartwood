@@ -15,7 +15,7 @@ use std::{io, thread};
 
 use crossbeam_channel::{unbounded, Receiver, TryRecvError};
 use mio::event::{Event, Source};
-use mio::{Events, Interest, Poll, Waker};
+use mio::{Events, Interest, Poll, Registry, Waker};
 use thiserror::Error;
 
 use timer::Timer;
@@ -52,7 +52,7 @@ pub trait EventHandler {
 
     /// Method called by the reactor when an I/O readiness event
     /// is received for this resource.
-    fn handle(&mut self, event: &Event) -> Vec<Self::Reaction>;
+    fn handle(&mut self, registry: &Registry, event: &Event) -> Vec<Self::Reaction>;
 }
 
 /// The trait guarantees that the data are either written in full or, in case
@@ -461,7 +461,7 @@ impl<H: ReactionHandler> Runtime<H> {
                         .get_mut(&token)
                         .expect("resource disappeared");
                     listener
-                        .handle(event)
+                        .handle(self.poll.registry(), event)
                         .into_iter()
                         .for_each(|service_event| {
                             self.service.listener_reacted(token, service_event, instant);
@@ -482,7 +482,7 @@ impl<H: ReactionHandler> Runtime<H> {
                         .get_mut(&token)
                         .expect("resource disappeared");
                     transport
-                        .handle(event)
+                        .handle(self.poll.registry(), event)
                         .into_iter()
                         .for_each(|service_event| {
                             self.service

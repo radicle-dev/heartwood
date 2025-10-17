@@ -63,7 +63,7 @@ impl EventHandler for Listener {
         Some(Interest::READABLE)
     }
 
-    fn handle(&mut self, event: &Event) -> Vec<Self::Reaction> {
+    fn handle(&mut self, _registry: &Registry, event: &Event) -> Vec<Self::Reaction> {
         if !event.is_readable() {
             return vec![];
         }
