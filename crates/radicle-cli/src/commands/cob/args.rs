@@ -218,7 +218,7 @@ where
     assert!(chunks.remainder().is_empty());
 
     chunks.map(|chunk| {
-        // Slice accesses will not panic, guaranteed by `chunks_exact(3)`.
+        // Slice accesses will not panic, guaranteed by `chunks_exact(2)`.
         Embed {
             name: chunk[0].to_string(),
             content: EmbedContent::from(T::from(chunk[1].clone())),
