@@ -2901,6 +2901,7 @@ dependencies = [
  "fast-glob",
  "fastrand",
  "git2",
+ "gix",
  "indexmap",
  "jsonschema",
  "libc",
@@ -3176,6 +3177,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "radicle-pack"
+version = "0.1.0"
+
+[[package]]
 name = "radicle-protocol"
 version = "0.9.1"
 dependencies = [
@@ -3266,6 +3271,7 @@ dependencies = [
  "anstyle-query",
  "crossterm",
  "git2",
+ "gix",
  "indicatif",
  "inquire",
  "libc",

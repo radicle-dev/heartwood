@@ -1,0 +1,21 @@
+[package]
+name = "radicle-git-ref-format"
+version = "0.2.0"
+description = "Everything you never knew you wanted for handling git ref names."
+
+keywords = ["radicle", "git", "refname", "ref", "references"]
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+macro = []
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true, optional = true, features = ["derive", "std"] }
+bstr = { workspace = true, optional = true }
+percent-encoding = { version = "2.1.0", optional = true }
+minicbor = { version = "0.13", features = ["std"], optional = true }

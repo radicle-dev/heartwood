@@ -3,7 +3,7 @@ name = "radicle-cob"
 description = "Radicle Collaborative Objects library"
 homepage.workspace = true
 repository.workspace = true
-version = "0.17.0"
+version = "0.20.0"
 authors = [
   "Alex Good <alex@memoryandthought.me>",
   "Fintan Halpenny <fintan.halpenny@gmail.com>",
@@ -15,25 +15,24 @@ rust-version.workspace = true
 
 [features]
 default = []
-git2 = ["dep:git2", "radicle-oid/git2"]
 # Only used for testing. Ensures that commit ids are stable.
 stable-commit-ids = []
 test = []
 
 [dependencies]
 fastrand = { workspace = true }
+git-ref-format-core = { workspace = true }
 git2 = { workspace = true, optional = true }
 log = { workspace = true }
 nonempty = { workspace = true, features = ["serialize"] }
 radicle-crypto = { workspace = true, features = ["ssh"] }
 radicle-dag = { workspace = true }
 radicle-git-metadata = { workspace = true }
-radicle-git-ref-format = { workspace = true, features = ["macro"] }
-radicle-oid = { workspace = true, features = ["radicle-git-ref-format", "serde", "sha1", "std"] }
+radicle-oid = { workspace = true, features = ["git2", "serde", "sha1", "std"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 signature = { workspace = true }
-thiserror = { workspace = true }
+thiserror = { workspace = true, default-features = true }
 
 [dev-dependencies]
 fastrand = { workspace = true }

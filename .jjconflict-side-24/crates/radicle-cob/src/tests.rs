@@ -1,20 +1,22 @@
-use fmt::Component;
+use fmt::{Component, RefString};
 
 use radicle_git_ref_format::refname;
 
-use crate::{object, ObjectId, TypeName};
+use crate::{ObjectId, TypeName, object, test::arbitrary::Invalid};
 
 #[cfg(feature = "git2")]
 mod git {
     use std::ops::ControlFlow;
 
-    use crypto::test::signer::MockSigner;
-    use crypto::{PublicKey, Signer};
-    use nonempty::{nonempty, NonEmpty};
+    use crypto::PublicKey;
+    use crypto::Signer as _;
+    use crypto::SigningKey;
+
+    use nonempty::{NonEmpty, nonempty};
     use qcheck::Arbitrary;
 
     use crate::{
-        create, get, list, update, Create, Entry, ObjectId, TypeName, Update, Updated, Version,
+        Create, Entry, ObjectId, TypeName, Update, Updated, Version, create, get, list, update,
     };
 
     use crate::test;
@@ -22,15 +24,16 @@ mod git {
     #[test]
     fn roundtrip() {
         let storage = test::Storage::new();
-        let signer = gen::<MockSigner>(1);
-        let terry = test::Person::new(&storage, "terry", *signer.public_key()).unwrap();
-        let proj = test::Project::new(&storage, "discworld", *signer.public_key()).unwrap();
+        let signer = r#gen::<SigningKey>(1);
+        let terry = test::Person::new(&storage, "terry", signer.public_key().to_owned()).unwrap();
+        let proj =
+            test::Project::new(&storage, "discworld", signer.public_key().to_owned()).unwrap();
         let proj = test::RemoteProject {
             project: proj,
             person: terry,
         };
         let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
-        let cob = create::<NonEmpty<Entry>, _, _>(
+        let cob = create::<NonEmpty<Entry>, _>(
             &storage,
             &signer,
             Some(proj.project.content_id),
@@ -56,7 +59,7 @@ mod git {
     #[test]
     fn list_cobs() {
         let storage = test::Storage::new();
-        let signer = gen::<MockSigner>(1);
+        let signer = r#gen::<SigningKey>(1);
         let terry = test::Person::new(&storage, "terry", *signer.public_key()).unwrap();
         let proj = test::Project::new(&storage, "discworld", *signer.public_key()).unwrap();
         let proj = test::RemoteProject {
@@ -64,7 +67,7 @@ mod git {
             person: terry,
         };
         let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
-        let issue_1 = create::<NonEmpty<Entry>, _, _>(
+        let issue_1 = create::<NonEmpty<Entry>, _>(
             &storage,
             &signer,
             Some(proj.project.content_id),
@@ -108,7 +111,7 @@ mod git {
     #[test]
     fn update_cob() {
         let storage = test::Storage::new();
-        let signer = gen::<MockSigner>(1);
+        let signer = r#gen::<SigningKey>(1);
         let terry = test::Person::new(&storage, "terry", *signer.public_key()).unwrap();
         let proj = test::Project::new(&storage, "discworld", *signer.public_key()).unwrap();
         let proj = test::RemoteProject {
@@ -116,7 +119,7 @@ mod git {
             person: terry,
         };
         let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
-        let cob = create::<NonEmpty<Entry>, _, _>(
+        let cob = create::<NonEmpty<Entry>, _>(
             &storage,
             &signer,
             Some(proj.project.content_id),
@@ -163,9 +166,9 @@ mod git {
     #[test]
     fn traverse_cobs() {
         let storage = test::Storage::new();
-        let neil_signer = gen::<MockSigner>(2);
+        let neil_signer = r#gen::<SigningKey>(2);
         let neil = test::Person::new(&storage, "gaiman", *neil_signer.public_key()).unwrap();
-        let terry_signer = gen::<MockSigner>(1);
+        let terry_signer = r#gen::<SigningKey>(1);
         let terry = test::Person::new(&storage, "pratchett", *terry_signer.public_key()).unwrap();
         let proj = test::Project::new(&storage, "discworld", *terry_signer.public_key()).unwrap();
         let terry_proj = test::RemoteProject {
@@ -177,7 +180,7 @@ mod git {
             person: neil,
         };
         let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
-        let cob = create::<NonEmpty<Entry>, _, _>(
+        let cob = create::<NonEmpty<Entry>, _>(
             &storage,
             &terry_signer,
             Some(terry_proj.project.content_id),
@@ -201,7 +204,7 @@ mod git {
         )
         .unwrap();
 
-        let Updated { object, .. } = update::<NonEmpty<Entry>, _, _>(
+        let Updated { object, .. } = update::<NonEmpty<Entry>, _>(
             &storage,
             &neil_signer,
             Some(neil_proj.project.content_id),
@@ -264,10 +267,10 @@ mod git {
         Ok(())
     }
 
-    fn gen<T: Arbitrary>(size: usize) -> T {
-        let mut gen = qcheck::Gen::new(size);
+    fn r#gen<T: Arbitrary>(size: usize) -> T {
+        let mut r#gen = qcheck::Gen::new(size);
 
-        T::arbitrary(&mut gen)
+        T::arbitrary(&mut r#gen)
     }
 }
 
@@ -300,5 +303,36 @@ fn parse_refstr(oid: ObjectId, typename: TypeName) {
                 .and(refname!("more/paths"))
         ),
         Some((typename, oid))
+    );
+}
+
+/// Note: an invalid type name is also an invalid reference string, it
+/// cannot start or end with a '.', and cannot have '..'.
+#[quickcheck]
+fn invalid_parse_refstr(oid: Invalid<ObjectId>, typename: TypeName) {
+    let oid = RefString::try_from(oid.value).unwrap();
+    let typename = Component::from(&typename);
+    let suffix = refname!("refs/cobs").and(typename).and(oid);
+
+    // All parsing will fail because `oid` is not a valid ObjectId
+    assert_eq!(object::parse_refstr(&suffix), None);
+
+    assert_eq!(
+        object::parse_refstr(&refname!("refs/namespaces/a").join(&suffix)),
+        None
+    );
+
+    assert_eq!(
+        object::parse_refstr(&refname!("refs/namespaces/a/refs/namespaces/b").join(&suffix)),
+        None
+    );
+
+    assert_eq!(
+        object::parse_refstr(
+            &refname!("refs/namespaces/a/refs/namespaces/b")
+                .join(suffix)
+                .and(refname!("more/paths"))
+        ),
+        None
     );
 }

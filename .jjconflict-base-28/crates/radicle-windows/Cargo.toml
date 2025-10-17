@@ -1,0 +1,24 @@
+[package]
+name = "radicle-windows"
+version = "0.1.0"
+description = "Radicle integration with Windows"
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+thiserror = { workspace = true }
+
+[target.'cfg(windows)'.dependencies.windows]
+workspace = true
+features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+]
+
+[package.metadata.docs.rs]
+default-target = "x86_64-pc-windows-msvc"

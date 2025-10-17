@@ -8,10 +8,8 @@ use crate::{ObjectId, TypeName, object, test::arbitrary::Invalid};
 mod git {
     use std::ops::ControlFlow;
 
-    use crypto::PublicKey;
-    use crypto::Signer as _;
-    use crypto::SigningKey;
-
+    use crypto::test::signer::MockSigner;
+    use crypto::{PublicKey, Signer};
     use nonempty::{NonEmpty, nonempty};
     use qcheck::Arbitrary;
 
@@ -24,16 +22,15 @@ mod git {
     #[test]
     fn roundtrip() {
         let storage = test::Storage::new();
-        let signer = r#gen::<SigningKey>(1);
-        let terry = test::Person::new(&storage, "terry", signer.public_key().to_owned()).unwrap();
-        let proj =
-            test::Project::new(&storage, "discworld", signer.public_key().to_owned()).unwrap();
+        let signer = r#gen::<MockSigner>(1);
+        let terry = test::Person::new(&storage, "terry", *signer.public_key()).unwrap();
+        let proj = test::Project::new(&storage, "discworld", *signer.public_key()).unwrap();
         let proj = test::RemoteProject {
             project: proj,
             person: terry,
         };
         let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
-        let cob = create::<NonEmpty<Entry>, _>(
+        let cob = create::<NonEmpty<Entry>, _, _>(
             &storage,
             &signer,
             Some(proj.project.content_id),
@@ -59,7 +56,7 @@ mod git {
     #[test]
     fn list_cobs() {
         let storage = test::Storage::new();
-        let signer = r#gen::<SigningKey>(1);
+        let signer = r#gen::<MockSigner>(1);
         let terry = test::Person::new(&storage, "terry", *signer.public_key()).unwrap();
         let proj = test::Project::new(&storage, "discworld", *signer.public_key()).unwrap();
         let proj = test::RemoteProject {
@@ -67,7 +64,7 @@ mod git {
             person: terry,
         };
         let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
-        let issue_1 = create::<NonEmpty<Entry>, _>(
+        let issue_1 = create::<NonEmpty<Entry>, _, _>(
             &storage,
             &signer,
             Some(proj.project.content_id),
@@ -111,7 +108,7 @@ mod git {
     #[test]
     fn update_cob() {
         let storage = test::Storage::new();
-        let signer = r#gen::<SigningKey>(1);
+        let signer = r#gen::<MockSigner>(1);
         let terry = test::Person::new(&storage, "terry", *signer.public_key()).unwrap();
         let proj = test::Project::new(&storage, "discworld", *signer.public_key()).unwrap();
         let proj = test::RemoteProject {
@@ -119,7 +116,7 @@ mod git {
             person: terry,
         };
         let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
-        let cob = create::<NonEmpty<Entry>, _>(
+        let cob = create::<NonEmpty<Entry>, _, _>(
             &storage,
             &signer,
             Some(proj.project.content_id),
@@ -166,9 +163,9 @@ mod git {
     #[test]
     fn traverse_cobs() {
         let storage = test::Storage::new();
-        let neil_signer = r#gen::<SigningKey>(2);
+        let neil_signer = r#gen::<MockSigner>(2);
         let neil = test::Person::new(&storage, "gaiman", *neil_signer.public_key()).unwrap();
-        let terry_signer = r#gen::<SigningKey>(1);
+        let terry_signer = r#gen::<MockSigner>(1);
         let terry = test::Person::new(&storage, "pratchett", *terry_signer.public_key()).unwrap();
         let proj = test::Project::new(&storage, "discworld", *terry_signer.public_key()).unwrap();
         let terry_proj = test::RemoteProject {
@@ -180,7 +177,7 @@ mod git {
             person: neil,
         };
         let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
-        let cob = create::<NonEmpty<Entry>, _>(
+        let cob = create::<NonEmpty<Entry>, _, _>(
             &storage,
             &terry_signer,
             Some(terry_proj.project.content_id),
@@ -204,7 +201,7 @@ mod git {
         )
         .unwrap();
 
-        let Updated { object, .. } = update::<NonEmpty<Entry>, _>(
+        let Updated { object, .. } = update::<NonEmpty<Entry>, _, _>(
             &storage,
             &neil_signer,
             Some(neil_proj.project.content_id),

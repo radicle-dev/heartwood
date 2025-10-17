@@ -110,20 +110,12 @@ impl Editor {
                 "editor not configured: the `EDITOR` environment variable is not set",
             ));
         };
-
-        let lossy = cmd.to_string_lossy();
-
-        #[cfg(unix)]
-        let Some(parts) = shlex::split(&lossy) else {
+        let Some(parts) = shlex::split(cmd.to_string_lossy().as_ref()) else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("invalid editor command {cmd:?}"),
             ));
         };
-
-        #[cfg(windows)]
-        let parts = winsplit::split(&lossy);
-
         let Some((program, args)) = parts.split_first() else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -136,7 +128,7 @@ impl Editor {
             {
                 use std::os::fd::{AsRawFd as _, FromRawFd as _};
 
-                // We duplicate the stderr file descriptor to pass it to the child process; otherwise, if
+                // We duplicate the stderr file descriptor to pass it to the child process, otherwise, if
                 // we simply pass the `RawFd` of our stderr, `Command` will close our stderr when the
                 // child exits.
 
@@ -161,9 +153,6 @@ impl Editor {
                 .read(true)
                 .write(true)
                 .open("/dev/tty")?;
-            process::Stdio::from(tty)
-        } else if cfg!(windows) {
-            let tty = fs::OpenOptions::new().read(true).open("CONIN$")?;
             process::Stdio::from(tty)
         } else {
             return Err(io::Error::new(
@@ -204,57 +193,36 @@ impl Editor {
 /// Get the default editor command.
 fn default_editor() -> Option<OsString> {
     // First check the standard environment variables.
-    if let Ok(visual) = env::var("VISUAL")
-        && !visual.is_empty()
-    {
-        return Some(visual.into());
+    if let Ok(visual) = env::var("VISUAL") {
+        if !visual.is_empty() {
+            return Some(visual.into());
+        }
     }
-    if let Ok(editor) = env::var("EDITOR")
-        && !editor.is_empty()
-    {
-        return Some(editor.into());
+    if let Ok(editor) = env::var("EDITOR") {
+        if !editor.is_empty() {
+            return Some(editor.into());
+        }
     }
-
     // Check Git. The user might have configured their editor there.
-    // On Windows, custom editors configured via Git are not supported,
-    // because of the complexity surrounding how the editor command is
-    // parsed and executed. See also <https://stackoverflow.com/a/773973/1835188>.
-    #[cfg(all(feature = "git2", not(windows)))]
+    #[cfg(feature = "git2")]
     if let Ok(path) = git2::Config::open_default().and_then(|cfg| cfg.get_path("core.editor")) {
         return Some(path.into_os_string());
     }
-
     // On macOS, `nano` is installed by default and it's what most users are used to
     // in the terminal.
-    #[cfg(target_os = "macos")]
-    if exists("nano") {
+    if cfg!(target_os = "macos") && exists("nano") {
         return Some("nano".into());
     }
-
-    // On Windows, `edit` is available by default, see <https://learn.microsoft.com/windows/edit>.
-    #[cfg(windows)]
-    if exists("edit.exe") {
-        return Some("edit.exe".into());
-    }
-
-    // On Windows, `notepad` is commonly available for decades, see <https://apps.microsoft.com/detail/9msmlrh6lzf3>.
-    #[cfg(windows)]
-    if exists("notepad.exe") {
-        return Some("notepad.exe".into());
-    }
-
     // If all else fails, we try `vi`. It's usually installed on most unix-based systems.
     if exists("vi") {
         return Some("vi".into());
     }
-
     None
 }
 
-/// Check whether a binary can be found in the most common paths on Unix-like systems.
-/// We don't bother checking the `$PATH` variable, as we're only looking for very standard tools
+/// Check whether a binary can be found in the most common paths.
+/// We don't bother checking the $PATH variable, as we're only looking for very standard tools
 /// and prefer not to make this too complex.
-#[cfg(unix)]
 fn exists(cmd: &str) -> bool {
     // Some common paths where system-installed binaries are found.
     const PATHS: &[&str] = &["/usr/local/bin", "/usr/bin", "/bin"];
@@ -265,18 +233,4 @@ fn exists(cmd: &str) -> bool {
         }
     }
     false
-}
-
-/// Check whether a binary can be found on `$PATH`.
-/// See:
-///  - <https://devblogs.microsoft.com/scripting/weekend-scripter-where-exethe-what-why-and-how/>
-///  - <https://learn.microsoft.com/windows-server/administration/windows-commands/where>
-#[cfg(windows)]
-fn exists(cmd: &str) -> bool {
-    std::process::Command::new("where.exe")
-        .arg("/q")
-        .arg("$PATH:".to_owned() + cmd)
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or_default()
 }

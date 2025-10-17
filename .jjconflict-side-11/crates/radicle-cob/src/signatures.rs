@@ -76,6 +76,20 @@ impl<Tree, Parent> TryFrom<&CommitData<Tree, Parent>> for Signatures {
     }
 }
 
+#[cfg(feature = "gix")]
+impl<'a> TryFrom<gix::Commit<'a>> for Signatures {
+    type Error = error::Signatures;
+
+    fn try_from(value: gix::Commit<'a>) -> Result<Self, Self::Error> {
+        let Some((pem, _data)) = value.signature()? else {
+            return Ok(Self([].into()));
+        };
+
+        let signature = ExtendedSignature::from_pem(pem.as_ref())?;
+        Ok(Self([(signature.key, signature.sig)].into()))
+    }
+}
+
 impl FromIterator<(PublicKey, crypto::Signature)> for Signatures {
     fn from_iter<T>(iter: T) -> Self
     where

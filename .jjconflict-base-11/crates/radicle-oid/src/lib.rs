@@ -74,10 +74,12 @@ extern crate alloc;
 #[cfg(not(feature = "sha1"))]
 compile_error!("The `sha1` feature is required.");
 
+const SHA1_DIGEST_LEN: usize = 20;
+
 #[derive(PartialEq, Eq, Ord, PartialOrd, Clone, Copy)]
 #[non_exhaustive]
 pub enum Oid {
-    Sha1([u8; Self::LEN_SHA1]),
+    Sha1([u8; SHA1_DIGEST_LEN]),
 }
 
 /// Conversions to/from SHA-1.
@@ -85,24 +87,18 @@ pub enum Oid {
 // for forwards compatibility: What if another hash with digests of the same
 // length becomes popular?
 impl Oid {
-    /// The length of a SHA-1 object identifier in bytes.
-    pub const LEN_SHA1: usize = 20;
-
-    /// A SHA-1 object identifier with all digest bytes set to zero.
-    /// This is sometimes used as a sentinel value to indicate the absence of
-    /// an object.
-    /// To compare whether an object identifier is zero, prefer the method
-    /// [`Oid::is_zero`] over checking equality with this constant.
-    pub const ZERO_SHA1: Self = Self::Sha1([0u8; Self::LEN_SHA1]);
-
-    pub fn from_sha1(digest: [u8; Self::LEN_SHA1]) -> Self {
+    pub fn from_sha1(digest: [u8; SHA1_DIGEST_LEN]) -> Self {
         Self::Sha1(digest)
     }
 
-    pub fn into_sha1(&self) -> Option<[u8; Self::LEN_SHA1]> {
+    pub fn into_sha1(&self) -> Option<[u8; SHA1_DIGEST_LEN]> {
         match self {
             Oid::Sha1(digest) => Some(*digest),
         }
+    }
+
+    pub fn sha1_zero() -> Self {
+        Self::Sha1([0u8; SHA1_DIGEST_LEN])
     }
 }
 
@@ -112,7 +108,7 @@ impl Oid {
     /// See also [`::git2::Oid::is_zero`].
     pub fn is_zero(&self) -> bool {
         match self {
-            Oid::Sha1(array) => array.iter().all(|b| *b == 0),
+            Oid::Sha1(ref array) => array.iter().all(|b| *b == 0),
         }
     }
 }
@@ -120,7 +116,7 @@ impl Oid {
 impl AsRef<[u8]> for Oid {
     fn as_ref(&self) -> &[u8] {
         match self {
-            Oid::Sha1(array) => array,
+            Oid::Sha1(ref array) => array,
         }
     }
 }
@@ -134,11 +130,11 @@ impl From<Oid> for alloc::boxed::Box<[u8]> {
 }
 
 pub mod str {
-    use super::Oid;
+    use super::{Oid, SHA1_DIGEST_LEN};
     use core::str;
 
     /// Length of the string representation of a SHA-1 digest in hexadecimal notation.
-    pub(super) const SHA1_DIGEST_STR_LEN: usize = Oid::LEN_SHA1 * 2;
+    pub(super) const SHA1_DIGEST_STR_LEN: usize = SHA1_DIGEST_LEN * 2;
 
     impl str::FromStr for Oid {
         type Err = error::ParseOidError;
@@ -151,8 +147,8 @@ pub mod str {
                 return Err(Len(len));
             }
 
-            let mut bytes = [0u8; Oid::LEN_SHA1];
-            for i in 0..Oid::LEN_SHA1 {
+            let mut bytes = [0u8; SHA1_DIGEST_LEN];
+            for i in 0..SHA1_DIGEST_LEN {
                 bytes[i] = u8::from_str_radix(&s[i * 2..=i * 2 + 1], 16)
                     .map_err(|source| At { index: i, source })?;
             }
@@ -234,7 +230,7 @@ pub mod str {
                 "0000000000000000000000000000000000000000"
                     .parse::<Oid>()
                     .unwrap(),
-                Oid::ZERO_SHA1
+                Oid::sha1_zero()
             );
         }
 
@@ -247,7 +243,7 @@ pub mod str {
         }
 
         #[quickcheck]
-        fn gix_roundtrip(oid: Oid) {
+        fn gix_roundrip(oid: Oid) {
             let other = gix_hash::ObjectId::from(oid);
             let other = other.to_string();
             let other = other.parse::<Oid>().unwrap();
@@ -323,7 +319,7 @@ mod fmt {
         #[test]
         fn zero() {
             assert_eq!(
-                Oid::ZERO_SHA1.to_string(),
+                Oid::sha1_zero().to_string(),
                 "0000000000000000000000000000000000000000"
             );
         }
@@ -371,7 +367,7 @@ mod gix {
         fn from(other: Other) -> Self {
             match other {
                 Other::Sha1(digest) => Self::Sha1(digest),
-                _ => unimplemented!("conversion from {other:?} into radicle_oid::Oid"),
+                _ => panic!("unexpected SHA variant was returned for `gix_hash::ObjectId`"),
             }
         }
     }
@@ -388,7 +384,7 @@ mod gix {
         fn eq(&self, other: &Other) -> bool {
             match (self, other) {
                 (Oid::Sha1(a), Other::Sha1(b)) => a == b,
-                _ => unimplemented!("conversion from {other:?} into radicle_oid::Oid"),
+                _ => panic!("unexpected SHA variant was returned for `gix_hash::ObjectId`"),
             }
         }
     }
@@ -408,7 +404,7 @@ mod gix {
 
         #[test]
         fn zero() {
-            assert!(Oid::ZERO_SHA1 == Other::null(Kind::Sha1));
+            assert!(Oid::sha1_zero() == Other::null(Kind::Sha1));
         }
     }
 }
@@ -455,7 +451,7 @@ mod git2 {
 
         #[test]
         fn zero() {
-            assert!(Oid::ZERO_SHA1 == Other::zero());
+            assert!(Oid::sha1_zero() == Other::zero());
         }
     }
 }
@@ -469,7 +465,9 @@ mod test {
 
         impl Arbitrary for Oid {
             fn arbitrary(g: &mut Gen) -> Self {
-                Self::Sha1(<[u8; Oid::LEN_SHA1]>::arbitrary(g))
+                let slice = [0u8; SHA1_DIGEST_LEN];
+                g.fill(slice);
+                Self::Sha1(slice)
             }
         }
     }
@@ -510,12 +508,8 @@ mod serde {
                     type Value = Oid;
 
                     fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                        write!(
-                            f,
-                            "a Git object identifier (SHA-1 digest in hexadecimal notation; {} characters; {} bytes)",
-                            crate::str::SHA1_DIGEST_STR_LEN,
-                            Oid::LEN_SHA1
-                        )
+                        use crate::str::SHA1_DIGEST_STR_LEN;
+                        write!(f, "a Git object identifier (SHA-1 digest in hexadecimal notation; {SHA1_DIGEST_STR_LEN} characters; {SHA1_DIGEST_LEN} bytes)")
                     }
 
                     fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
@@ -557,7 +551,7 @@ mod radicle_git_ref_format {
 mod schemars {
     use alloc::{borrow::Cow, format};
 
-    use ::schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
+    use ::schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
 
     use super::Oid;
 
@@ -571,12 +565,9 @@ mod schemars {
         }
 
         fn json_schema(_: &mut SchemaGenerator) -> Schema {
-            use crate::str::SHA1_DIGEST_STR_LEN;
+            use crate::{str::SHA1_DIGEST_STR_LEN, SHA1_DIGEST_LEN};
             json_schema!({
-                "description": format!(
-                    "A Git object identifier (SHA-1 digest in hexadecimal notation; {SHA1_DIGEST_STR_LEN} characters; {} bytes)",
-                    Oid::LEN_SHA1,
-                ),
+                "description": format!("A Git object identifier (SHA-1 digest in hexadecimal notation; {SHA1_DIGEST_STR_LEN} characters; {SHA1_DIGEST_LEN} bytes)"),
                 "type": "string",
                 "maxLength": SHA1_DIGEST_STR_LEN,
                 "minLength": SHA1_DIGEST_STR_LEN,

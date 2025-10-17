@@ -1,0 +1,70 @@
+#![allow(clippy::unwrap_used)]
+
+use qcheck::Arbitrary;
+
+use super::*;
+
+pub fn signed_refs_at(g: &mut qcheck::Gen, root: Oid, signer: &impl crypto::Signer) -> SignedRefs {
+    let mut refs = Refs::arbitrary(g);
+    refs.insert(IDENTITY_ROOT.to_ref_string(), root);
+
+    let mut level = None;
+
+    if bool::arbitrary(g) {
+        level = Some(FeatureLevel::Parent);
+        let parent = Oid::arbitrary(g);
+        refs.insert(SIGREFS_PARENT.to_ref_string(), parent);
+    }
+
+    let signature = crypto::signature::Signer::sign(signer, &refs.canonical());
+    SignedRefs {
+        refs,
+        signature,
+        id: *signer.public_key(),
+        level: level.unwrap_or_else(|| FeatureLevel::arbitrary(g)),
+        parent: Arbitrary::arbitrary(g),
+        at: Oid::arbitrary(g),
+    }
+}
+
+impl Arbitrary for Refs {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        let names = &[
+            "heads/master",
+            "heads/feature/1",
+            "heads/feature/2",
+            "heads/feature/3",
+            "rad/id",
+            "tags/v1.0",
+            "tags/v2.0",
+            "notes/1",
+        ];
+
+        let mut refs = Self::new();
+        for _ in 0..g.size().min(names.len()) {
+            if let Some(name) = g.choose(names) {
+                let oid = storage::Oid::arbitrary(g);
+                let name = git::fmt::RefString::try_from(*name).unwrap();
+
+                refs.insert(name, oid);
+            }
+        }
+        refs
+    }
+}
+
+impl Arbitrary for RefsAt {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        Self {
+            remote: PublicKey::arbitrary(g),
+            at: Oid::arbitrary(g),
+        }
+    }
+}
+
+impl Arbitrary for FeatureLevel {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        *g.choose(&[FeatureLevel::None, FeatureLevel::Root, FeatureLevel::Parent])
+            .unwrap()
+    }
+}

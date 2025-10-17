@@ -1,14 +1,15 @@
 use std::{collections::BTreeMap, convert::TryFrom as _};
 
-use radicle_git_ref_format::refname;
-
-use fmt::Component;
+use fmt::{refname, Component};
 use tempfile::TempDir;
+
+use oid::Oid;
 
 use crate::{
     change,
+    object::ObjectId,
     object::{self, Reference},
-    signatures, ObjectId, Store,
+    signatures, Store,
 };
 
 pub mod error {
@@ -163,7 +164,7 @@ impl object::Storage for Storage {
         namespace: &Self::Namespace,
         typename: &crate::TypeName,
         object_id: &ObjectId,
-        entry: &change::EntryId,
+        entry: &Oid,
     ) -> Result<(), Self::UpdateError> {
         let name = refname!("refs/rad")
             .join(Component::from(namespace))

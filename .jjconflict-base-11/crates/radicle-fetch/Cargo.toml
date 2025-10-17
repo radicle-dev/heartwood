@@ -3,7 +3,7 @@ name = "radicle-fetch"
 description = "Radicle fetch protocol"
 homepage.workspace = true
 license.workspace = true
-version = "0.20.0"
+version = "0.18.0"
 authors = ["Fintan Halpenny <fintan.halpenny@gmail.com>"]
 edition.workspace = true
 rust-version.workspace = true
@@ -20,5 +20,7 @@ gix-refspec = "0.37"
 gix-transport = { version = "0.54.0", features = ["blocking-client"] }
 log = { workspace = true, features = ["std"] }
 nonempty = { workspace = true }
-radicle = { workspace = true, features = ["bstr", "gix"] }
+radicle = { workspace = true }
+radicle-oid = { workspace = true, features = ["gix"] }
+radicle-git-ref-format = { workspace = true, features = ["bstr"] }
 thiserror = { workspace = true, default-features = true }

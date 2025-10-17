@@ -33,10 +33,9 @@
 //!
 //! ## `gix`
 //!
-//! [`Id`]: ::gix::Id
-//! [`ObjectId`]: ::gix::hash::ObjectId
+//! [`ObjectId`]: ::gix_hash::ObjectId
 //!
-//! Provides conversions to/from [`Id`] and [`ObjectId`].
+//! Provides conversions to/from [`ObjectId`].
 //!
 //! ## `schemars`
 //!
@@ -245,7 +244,7 @@ pub mod str {
 
         #[quickcheck]
         fn gix_roundrip(oid: Oid) {
-            let other = gix::hash::ObjectId::from(oid);
+            let other = gix_hash::ObjectId::from(oid);
             let other = other.to_string();
             let other = other.parse::<Oid>().unwrap();
             assert_eq!(oid, other);
@@ -332,7 +331,7 @@ mod fmt {
 
         #[quickcheck]
         fn gix(oid: Oid) {
-            assert_eq!(oid.to_string(), gix::hash::ObjectId::from(oid).to_string());
+            assert_eq!(oid.to_string(), gix_hash::ObjectId::from(oid).to_string());
         }
     }
 }
@@ -360,7 +359,7 @@ mod std {
 
 #[cfg(any(feature = "gix", test))]
 mod gix {
-    use ::gix::{hash::ObjectId as Other, oid, Id};
+    use gix_hash::ObjectId as Other;
 
     use super::Oid;
 
@@ -370,12 +369,6 @@ mod gix {
                 Other::Sha1(digest) => Self::Sha1(digest),
                 _ => panic!("unexpected SHA variant was returned for `gix_hash::ObjectId`"),
             }
-        }
-    }
-
-    impl From<Id<'_>> for Oid {
-        fn from(other: Id<'_>) -> Self {
-            Self::from(Other::from(other))
         }
     }
 
@@ -396,10 +389,10 @@ mod gix {
         }
     }
 
-    impl AsRef<oid> for Oid {
-        fn as_ref(&self) -> &oid {
+    impl AsRef<gix_hash::oid> for Oid {
+        fn as_ref(&self) -> &gix_hash::oid {
             match self {
-                Oid::Sha1(digest) => oid::from_bytes_unchecked(digest),
+                Oid::Sha1(digest) => gix_hash::oid::from_bytes_unchecked(digest),
             }
         }
     }
@@ -407,7 +400,7 @@ mod gix {
     #[cfg(test)]
     mod test {
         use super::*;
-        use gix::hash::Kind;
+        use gix_hash::Kind;
 
         #[test]
         fn zero() {

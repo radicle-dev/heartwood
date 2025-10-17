@@ -1,15 +1,13 @@
 use std::{collections::BTreeMap, convert::TryFrom as _};
 
-use fmt::{refname, Component};
+use radicle_git_ref_format::refname;
+
+use fmt::Component;
 use tempfile::TempDir;
 
-use oid::Oid;
-
 use crate::{
-    change,
-    object::ObjectId,
+    ObjectId, Store, change,
     object::{self, Reference},
-    signatures, Store,
 };
 
 pub mod error {
@@ -70,29 +68,38 @@ impl change::Storage for Storage {
 
     type ObjectId = <git2::Repository as change::Storage>::ObjectId;
     type Parent = <git2::Repository as change::Storage>::Parent;
-    type Signatures = <git2::Repository as change::Storage>::Signatures;
 
-    fn store<Signer>(
+    type PublicKey = <git2::Repository as change::Storage>::PublicKey;
+    type Signature = <git2::Repository as change::Storage>::Signature;
+
+    fn store(
         &self,
         authority: Option<Self::Parent>,
         parents: Vec<Self::Parent>,
-        signer: &Signer,
+        signer: &impl crypto::Signer,
         spec: change::Template<Self::ObjectId>,
     ) -> Result<
-        change::store::Entry<Self::Parent, Self::ObjectId, Self::Signatures>,
+        change::store::Entry<
+            Self::Parent,
+            Self::ObjectId,
+            crypto::ExtendedSignature<Self::PublicKey, Self::Signature>,
+        >,
         Self::StoreError,
-    >
-    where
-        Signer: signature::Signer<signatures::ExtendedSignature>,
-    {
+    > {
         self.as_raw().store(authority, parents, signer, spec)
     }
 
     fn load(
         &self,
         id: Self::ObjectId,
-    ) -> Result<change::store::Entry<Self::Parent, Self::ObjectId, Self::Signatures>, Self::LoadError>
-    {
+    ) -> Result<
+        change::store::Entry<
+            Self::Parent,
+            Self::ObjectId,
+            crypto::ExtendedSignature<Self::PublicKey, Self::Signature>,
+        >,
+        Self::LoadError,
+    > {
         self.as_raw().load(id)
     }
 
@@ -164,7 +171,7 @@ impl object::Storage for Storage {
         namespace: &Self::Namespace,
         typename: &crate::TypeName,
         object_id: &ObjectId,
-        entry: &Oid,
+        entry: &change::EntryId,
     ) -> Result<(), Self::UpdateError> {
         let name = refname!("refs/rad")
             .join(Component::from(namespace))

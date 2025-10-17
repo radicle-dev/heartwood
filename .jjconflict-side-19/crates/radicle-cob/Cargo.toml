@@ -3,7 +3,7 @@ name = "radicle-cob"
 description = "Radicle Collaborative Objects library"
 homepage.workspace = true
 repository.workspace = true
-version = "0.17.0"
+version = "0.19.0"
 authors = [
   "Alex Good <alex@memoryandthought.me>",
   "Fintan Halpenny <fintan.halpenny@gmail.com>",
@@ -28,11 +28,11 @@ nonempty = { workspace = true, features = ["serialize"] }
 radicle-crypto = { workspace = true, features = ["ssh"] }
 radicle-dag = { workspace = true }
 radicle-git-metadata = { workspace = true }
-radicle-oid = { workspace = true, features = ["git2", "sha1", "serde", "std"] }
+radicle-oid = { workspace = true, features = ["git2", "serde", "sha1", "std"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 signature = { workspace = true }
-thiserror = { workspace = true }
+thiserror = { workspace = true, default-features = true }
 
 [dev-dependencies]
 fastrand = { workspace = true }
