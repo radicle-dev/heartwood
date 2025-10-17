@@ -1,4 +1,4 @@
-#[path = "rad_self/args.rs"]
+#[path = "self/args.rs"]
 mod args;
 
 pub use args::Args;
