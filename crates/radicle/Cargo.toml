@@ -10,7 +10,9 @@ edition.workspace = true
 rust-version.workspace = true
 
 [features]
-default = []
+default = ["git2"]
+git2 = ["radicle-oid/git2"]
+gix = ["dep:gix", "radicle-oid/gix"]
 test = ["tempfile", "qcheck", "radicle-crypto/test", "radicle-cob/test"]
 logger = ["colored", "chrono"]
 schemars = ["radicle-oid/schemars", "dep:schemars"]
@@ -27,6 +29,7 @@ dunce = { workspace = true }
 fast-glob = { version = "0.3.2" }
 fastrand = { workspace = true, features = ["std"] }
 git2 = { workspace = true, features = ["vendored-libgit2"] }
+gix = { workspace = true, optional = true }
 indexmap = { version = "2", features = ["serde"] }
 localtime = { workspace = true, features = ["serde"] }
 log = { workspace = true, features = ["std"] }
@@ -36,7 +39,7 @@ qcheck = { workspace = true, optional = true }
 radicle-cob = { workspace = true, features = ["git2"] }
 radicle-crypto = { workspace = true, features = ["git-ref-format-core", "ssh", "sqlite", "cyphernet"] }
 radicle-git-ref-format = { workspace = true, features = ["macro", "serde"] }
-radicle-oid = { workspace = true, features = ["git2", "serde", "std", "sha1"] }
+radicle-oid = { workspace = true, features = ["serde", "std", "sha1"] }
 radicle-ssh = { workspace = true }
 schemars = { workspace = true, optional = true, features = ["derive", "std"] }
 serde = { workspace = true, features = ["derive"] }

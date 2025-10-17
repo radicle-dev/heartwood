@@ -203,10 +203,23 @@ fn default_editor() -> Option<OsString> {
             return Some(editor.into());
         }
     }
-    // Check Git. The user might have configured their editor there.
-    #[cfg(feature = "git2")]
-    if let Ok(path) = git2::Config::open_default().and_then(|cfg| cfg.get_path("core.editor")) {
-        return Some(path.into_os_string());
+    {
+        // Check Git. The user might have configured their editor there.
+        #[cfg(feature = "git2")]
+        if let Ok(path) = git2::Config::open_default().and_then(|cfg| cfg.get_path("core.editor")) {
+            return Some(path.into_os_string());
+        }
+        #[cfg(feature = "gix")]
+        if let Ok(cwd) = std::env::current_dir() {
+            if let Ok(repo) = gix::discover(cwd) {
+                if let Some(path) = repo
+                    .config_snapshot()
+                    .trusted_program(gix::config::tree::Core::EDITOR)
+                {
+                    return Some(path.into_owned());
+                }
+            }
+        }
     }
     // On macOS, `nano` is installed by default and it's what most users are used to
     // in the terminal.
