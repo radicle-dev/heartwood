@@ -19,7 +19,6 @@ use crate::git::Rev;
 use crate::terminal as term;
 
 pub use args::Args;
-pub(crate) use args::ABOUT;
 
 use args::{FilteredTypeName, Format};
 

@@ -15,10 +15,8 @@ use radicle::storage;
 
 use crate::git::Rev;
 
-pub(crate) const ABOUT: &str = "Manage collaborative objects";
-
 #[derive(Parser, Debug)]
-#[command(about = ABOUT, disable_version_flag = true)]
+#[command(disable_version_flag = true)]
 pub struct Args {
     #[command(subcommand)]
     pub(super) command: Command,

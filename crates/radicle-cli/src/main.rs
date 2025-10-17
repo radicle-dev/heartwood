@@ -50,6 +50,7 @@ enum Commands {
     Checkout(checkout::Args),
     Clean(clean::Args),
     Clone(clone::Args),
+    #[command(hide = true)]
     Cob(cob::Args),
     Debug(debug::Args),
 
