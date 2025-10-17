@@ -1,129 +1,41 @@
-use std::ffi::OsString;
+#[path = "rad_self/args.rs"]
+mod args;
+
+pub use args::Args;
+pub(crate) use args::ABOUT;
 
 use radicle::crypto::ssh;
 use radicle::node::Handle as _;
 use radicle::{Node, Profile};
 
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::Element as _;
 
-pub const HELP: Help = Help {
-    name: "self",
-    description: "Show information about your identity and device",
-    version: env!("RADICLE_VERSION"),
-    usage: r#"
-Usage
-
-    rad self [<option>...]
-
-Options
-
-    --did                Show your DID
-    --alias              Show your Node alias
-    --home               Show your Radicle home
-    --config             Show the location of your configuration file
-    --ssh-key            Show your public key in OpenSSH format
-    --ssh-fingerprint    Show your public key fingerprint in OpenSSH format
-    --help               Show help
-"#,
-};
-
-#[derive(Debug)]
-enum Show {
-    Alias,
-    NodeId,
-    Did,
-    Home,
-    Config,
-    SshKey,
-    SshFingerprint,
-    All,
-}
-
-#[derive(Debug)]
-pub struct Options {
-    show: Show,
-}
-
-impl Args for Options {
-    fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
-        use lexopt::prelude::*;
-
-        let mut parser = lexopt::Parser::from_args(args);
-        let mut show: Option<Show> = None;
-
-        while let Some(arg) = parser.next()? {
-            match arg {
-                Long("alias") if show.is_none() => {
-                    show = Some(Show::Alias);
-                }
-                Long("nid") if show.is_none() => {
-                    show = Some(Show::NodeId);
-                }
-                Long("did") if show.is_none() => {
-                    show = Some(Show::Did);
-                }
-                Long("home") if show.is_none() => {
-                    show = Some(Show::Home);
-                }
-                Long("config") if show.is_none() => {
-                    show = Some(Show::Config);
-                }
-                Long("ssh-key") if show.is_none() => {
-                    show = Some(Show::SshKey);
-                }
-                Long("ssh-fingerprint") if show.is_none() => {
-                    show = Some(Show::SshFingerprint);
-                }
-                Long("help") | Short('h') => {
-                    return Err(Error::Help.into());
-                }
-                _ => anyhow::bail!(arg.unexpected()),
-            }
-        }
-
-        Ok((
-            Options {
-                show: show.unwrap_or(Show::All),
-            },
-            vec![],
-        ))
-    }
-}
-
-pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
 
-    match options.show {
-        Show::Alias => {
-            term::print(profile.config.alias());
-        }
-        Show::NodeId => {
-            crate::warning::deprecated("rad self --nid", "rad node status --only nid");
-            term::print(
-                Node::new(profile.socket())
-                    .nid()
-                    .ok()
-                    .unwrap_or_else(|| *profile.id()),
-            );
-        }
-        Show::Did => {
-            term::print(profile.did());
-        }
-        Show::Home => {
-            term::print(profile.home().path().display());
-        }
-        Show::Config => {
-            term::print(profile.home.config().display());
-        }
-        Show::SshKey => {
-            term::print(ssh::fmt::key(profile.id()));
-        }
-        Show::SshFingerprint => {
-            term::print(ssh::fmt::fingerprint(profile.id()));
-        }
-        Show::All => all(&profile)?,
+    if args.did {
+        term::print(profile.did());
+    } else if args.alias {
+        term::print(profile.config.alias());
+    } else if args.home {
+        term::print(profile.home().path().display());
+    } else if args.ssh_key {
+        term::print(ssh::fmt::key(profile.id()));
+    } else if args.config {
+        term::print(profile.home.config().display());
+    } else if args.ssh_fingerprint {
+        term::print(ssh::fmt::fingerprint(profile.id()));
+    } else if args.nid {
+        crate::warning::deprecated("rad self --nid", "rad node status --only nid");
+        term::print(
+            Node::new(profile.socket())
+                .nid()
+                .ok()
+                .unwrap_or_else(|| *profile.id()),
+        );
+    } else {
+        all(&profile)?
     }
 
     Ok(())

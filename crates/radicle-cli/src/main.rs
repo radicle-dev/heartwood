@@ -72,6 +72,8 @@ enum Commands {
     Path(path::Args),
     Publish(publish::Args),
     Seed(seed::Args),
+    #[command(name = "self")]
+    RadSelf(rad_self::Args),
     Stats(stats::Args),
     Unblock(unblock::Args),
     Unfollow(unfollow::Args),
@@ -303,11 +305,9 @@ pub(crate) fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyho
             }
         }
         "self" => {
-            term::run_command_args::<rad_self::Options, _>(
-                rad_self::HELP,
-                rad_self::run,
-                args.to_vec(),
-            );
+            if let Some(Commands::RadSelf(args)) = CliArgs::parse().command {
+                term::run_command_fn(rad_self::run, args)
+            }
         }
         "sync" => {
             term::run_command_args::<sync::Options, _>(sync::HELP, sync::run, args.to_vec());
