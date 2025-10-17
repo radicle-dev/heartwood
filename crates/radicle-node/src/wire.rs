@@ -5,6 +5,7 @@ use std::collections::hash_map::Entry;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::{Instant, SystemTime};
 use std::{io, net, time};
 
 use crossbeam_channel as chan;
@@ -12,7 +13,6 @@ use cyphernet::addr::{HostName, InetHost, NetAddr};
 use cyphernet::encrypt::noise::{HandshakePattern, Keyset, NoiseState};
 use cyphernet::proxy::socks5;
 use cyphernet::{Digest, EcSk, Ecdh, Sha256};
-use localtime::LocalTime;
 use mio::net::TcpStream;
 use radicle::node::device::Device;
 
@@ -313,6 +313,8 @@ pub(crate) struct Wire<D, S, G: crypto::signature::Signer<crypto::Signature> + E
     peers: Peers,
     /// A (practically) infinite source of tokens to identify transports and listeners.
     tokens: Tokens,
+    /// Record of system time and instant when the node started.
+    epoch: (SystemTime, Instant),
 }
 
 impl<D, S, G> Wire<D, S, G>
@@ -335,7 +337,12 @@ where
             listening: RandomMap::default(),
             peers: Peers(RandomMap::default()),
             tokens: Tokens::default(),
+            epoch: (SystemTime::now(), Instant::now()),
         }
+    }
+
+    fn time(&self, instant: Instant) -> SystemTime {
+        self.epoch.0 + (instant - self.epoch.1)
     }
 
     pub fn listen(&mut self, socket: Listener) {
@@ -496,7 +503,7 @@ where
     type Listener = Listener;
     type Transport = Transport<WireSession<G>>;
 
-    fn tick(&mut self, time: LocalTime) {
+    fn tick(&mut self, time: Instant) {
         self.metrics.open_channels = self
             .peers
             .iter()
@@ -509,10 +516,8 @@ where
             })
             .sum();
         self.metrics.worker_queue_size = self.worker.len();
-        self.service.tick(
-            LocalTime::from_millis(time.as_millis() as u128),
-            &self.metrics,
-        );
+
+        self.service.tick(self.time(time).into(), &self.metrics);
     }
 
     fn timer_reacted(&mut self) {
@@ -523,7 +528,7 @@ where
         &mut self,
         _: Token, // Note that this is the token of the listener socket.
         event: io::Result<(TcpStream, std::net::SocketAddr)>,
-        _: LocalTime,
+        _: Instant,
     ) {
         match event {
             Ok((connection, peer)) => {
@@ -587,12 +592,7 @@ where
         }
     }
 
-    fn transport_reacted(
-        &mut self,
-        token: Token,
-        event: SessionEvent<WireSession<G>>,
-        _: LocalTime,
-    ) {
+    fn transport_reacted(&mut self, token: Token, event: SessionEvent<WireSession<G>>, _: Instant) {
         match event {
             SessionEvent::Established(ProtocolArtifact { state, session }) => {
                 // SAFETY: With the NoiseXK protocol, there is always a remote static key.
