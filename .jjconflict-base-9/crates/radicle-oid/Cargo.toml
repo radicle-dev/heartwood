@@ -1,0 +1,32 @@
+[package]
+name = "radicle-oid"
+version = "0.2.2"
+description = "Radicle representation of Git object identifiers"
+
+categories = ["no-std"]
+keywords = ["radicle", "git", "oid"]
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+# For documentation of features refer to the module documentation in `./lib.rs`
+[features]
+default = ["sha1", "std"]
+std = []
+sha1 = []
+
+[dependencies]
+git2 = { workspace = true, optional = true, default-features = false }
+gix = { workspace = true, optional = true }
+qcheck = { workspace = true, optional = true, default-features = false }
+radicle-git-ref-format = { workspace = true, optional = true, default-features = false }
+schemars = { workspace = true, optional = true, default-features = false }
+serde = { workspace = true, optional = true, default-features = false }
+
+[dev-dependencies]
+git2 = { workspace = true }
+gix = { workspace = true }
+qcheck = { workspace = true }
+qcheck-macros = { workspace = true }

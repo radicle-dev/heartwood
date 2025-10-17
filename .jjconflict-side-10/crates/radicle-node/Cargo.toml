@@ -1,0 +1,64 @@
+[package]
+name = "radicle-node"
+version = "0.21.1"
+description = "The Radicle Node"
+
+build = "build.rs"
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["backtrace", "i2p", "systemd", "structured-logger", "socket2", "tor"]
+dhat-heap = ["dep:dhat"]
+i2p = ["cyphernet/i2p", "radicle/i2p", "radicle-protocol/i2p"]
+systemd = ["dep:radicle-systemd"]
+test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "radicle-protocol/test", "qcheck", "snapbox"]
+tor = ["cyphernet/tor", "radicle/tor", "radicle-protocol/tor"]
+
+[dependencies]
+backtrace = { workspace = true, optional = true }
+bytes = { workspace = true }
+crossbeam-channel = "0.5.6"
+cyphernet = { workspace = true, features = ["dns", "ed25519", "p2p-ed25519", "noise-framework", "noise_sha2"] }
+dhat = { version = "0.3.3", optional = true }
+fastrand = { workspace = true }
+getrandom = { workspace = true, features = ["std"] }
+gix-packetline = { workspace = true, features = ["blocking-io"] }
+indexmap = { workspace = true }
+lexopt = { workspace = true }
+log = { workspace = true, features = ["kv", "std"] }
+mio = { version = "1", features = ["net", "os-poll"] }
+qcheck = { workspace = true, optional = true }
+radicle = { workspace = true }
+radicle-fetch = { workspace = true }
+radicle-localtime = { workspace = true }
+radicle-protocol = { workspace = true }
+radicle-signals = { workspace = true }
+radicle-log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["preserve_order"] }
+snapbox = { workspace = true, optional = true }
+socket2 = { version = "0.5.7", features = ["all"], optional = true }
+structured-logger = { version = "1.0.4", optional = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true, default-features = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+radicle-systemd = { workspace = true, optional = true }
+
+[target.'cfg(windows)'.dependencies]
+radicle-windows = { workspace = true }
+uds_windows = { workspace = true }
+
+[dev-dependencies]
+mio = { version = "1", features = ["os-ext"] }
+qcheck = { workspace = true }
+radicle = { workspace = true, features = ["test"] }
+radicle-log = { workspace = true, features = ["test"] }
+radicle-protocol = { workspace = true, features = ["test"] }
+radicle-crypto = { workspace = true, features = ["test", "cyphernet"] }
+snapbox = { workspace = true }
+test-log = "0.2.19"
