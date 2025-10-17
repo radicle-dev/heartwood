@@ -198,10 +198,10 @@ impl From<Rev> for EmbedContent {
     }
 }
 
-/// Parses a slice of all embed name-path or name-oid pairs as aggregated by
+/// Parses a slice of all embeds as name-path or name-oid pairs as aggregated by
 /// `clap`.
-/// E.g. `["image", "/image.png", "ref", "d87dcfe8c2b3200e78b128d9b959cfdf7063fefe"]`
-/// will result in iterator over two [`Embed`]s.
+/// E.g. `["image", "./image.png", "code", "d87dcfe8c2b3200e78b128d9b959cfdf7063fefe"]`
+/// will result a `Vec` of two [`Embed`]s.
 ///
 /// # Panics
 ///
