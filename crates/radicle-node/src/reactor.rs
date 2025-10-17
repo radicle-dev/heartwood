@@ -34,6 +34,12 @@ const SECONDS_IN_AN_HOUR: u64 = 60 * 60;
 /// Maximum amount of time to wait for I/O.
 const WAIT_TIMEOUT: Duration = Duration::from_secs(SECONDS_IN_AN_HOUR);
 
+/// Maximum duration we accept the service to spend handling events (and errors,
+/// ticking, etc.) without warning. We set this to be warned whenever the
+/// service becomes so slow that we would not be able to handle at least 100
+/// "requests" per second, i.e. `1s / 100 = 10ms`.
+const LAG_TIMEOUT: Duration = Duration::from_millis(10);
+
 /// A resource which can be managed by the reactor.
 pub trait EventHandler {
     /// The type of reactions which this resource may generate upon receiving
@@ -371,10 +377,9 @@ impl<H: ReactionHandler> Runtime<H> {
 
     fn run(mut self) {
         loop {
-            let before_poll = Instant::now();
             let timeout = self
                 .timeouts
-                .next_expiring_from(before_poll)
+                .next_expiring_from(Instant::now())
                 .unwrap_or(WAIT_TIMEOUT);
 
             self.register_interests()
@@ -384,31 +389,38 @@ impl<H: ReactionHandler> Runtime<H> {
 
             let mut events = Events::with_capacity(1024);
 
-            // Blocking
+            // Block and wait for I/O events or timeout.
             let res = self.poll.poll(&mut events, Some(timeout));
 
-            self.service.tick();
+            // This instant allows us to measure the time spent by the service
+            // to handle the result of polling.
             let tick = Instant::now();
 
-            // The way this is currently used basically ignores which keys have
-            // timed out. So as long as *something* timed out, we wake the service.
+            // We inform the service that time has advanced.
+            self.service.tick();
+
+            // We inform the service about errors during polling.
+            if let Err(err) = res {
+                log::warn!(target: "reactor", "Failure during polling: {err}");
+                self.service.handle_error(Error::Poll(err));
+            }
+
+            // We inform the service that some timers have reacted.
+            // The way this is currently used basically ignores which
+            // timers have expired. As long as *something* timed out,
+            // we inform the service.
             let timers_fired = self.timeouts.remove_expired_by(tick);
             if timers_fired > 0 {
                 log::trace!(target: "reactor", "Timer has fired");
                 self.service.timer_reacted();
             }
 
-            if let Err(err) = res {
-                log::warn!(target: "reactor", "Failure during polling: {err}");
-                self.service.handle_error(Error::Poll(err));
-            }
-
-            let awoken = self.handle_events(tick, events);
-
             log::trace!(target: "reactor", "Duration between tick and events handled: {:?}", Instant::now().duration_since(tick));
 
             // Process the commands only if we awoken by the waker.
-            if awoken {
+            if events.is_empty() {
+                log::trace!(target: "reactor", "Woke up from poll without events");
+            } else if self.handle_events(tick, events) {
                 loop {
                     match self.receiver.try_recv() {
                         Err(TryRecvError::Empty) => break,
@@ -419,6 +431,11 @@ impl<H: ReactionHandler> Runtime<H> {
                         Ok(ControlMessage::Command(cmd)) => self.service.handle_command(*cmd),
                     }
                 }
+            }
+
+            let duration = Instant::now().duration_since(tick);
+            if duration > LAG_TIMEOUT {
+                log::warn!(target: "reactor", "Service took {:?} to tick and handle errors and events, which exceeds the timeout of {:?}", duration, LAG_TIMEOUT);
             }
 
             self.handle_actions(tick);
