@@ -49,27 +49,24 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         Create(args::Create {
             repo,
             type_name,
-            message,
-            embed_files,
-            embed_hashes,
-            actions,
+            operation,
         }) => {
             let signer = &profile.signer()?;
             let repo = storage.repository_mut(repo)?;
-            let reader = buf_reader(actions)?;
-            let embeds = embeds(&repo, embed_files, embed_hashes)?;
+            let reader = buf_reader(operation.actions)?;
+            let embeds = embeds(&repo, operation.embed_files, operation.embed_hashes)?;
 
             let oid = match type_name {
                 Patch => {
                     let store: Store<cob::patch::Patch, _> = Store::open(&repo)?;
                     let actions = read_jsonl_actions(reader)?;
-                    let (oid, _) = store.create(&message, actions, embeds, signer)?;
+                    let (oid, _) = store.create(&operation.message, actions, embeds, signer)?;
                     oid
                 }
                 Issue => {
                     let store: Store<cob::issue::Issue, _> = Store::open(&repo)?;
                     let actions = read_jsonl_actions(reader)?;
-                    let (oid, _) = store.create(&message, actions, embeds, signer)?;
+                    let (oid, _) = store.create(&operation.message, actions, embeds, signer)?;
                     oid
                 }
                 Identity => anyhow::bail!(
@@ -80,7 +77,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     let store: Store<cob::external::External, _> =
                         Store::open_for(&type_name, &repo)?;
                     let actions = read_jsonl_actions(reader)?;
-                    let (oid, _) = store.create(&message, actions, embeds, signer)?;
+                    let (oid, _) = store.create(&operation.message, actions, embeds, signer)?;
                     oid
                 }
             };
@@ -173,24 +170,21 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             repo,
             type_name,
             object,
-            message,
-            embed_files,
-            embed_hashes,
-            actions,
-            ..
+            operation,
+            format: _,
         }) => {
             let signer = &profile.signer()?;
             let repo = storage.repository_mut(repo)?;
-            let reader = buf_reader(actions)?;
+            let reader = buf_reader(operation.actions)?;
             let oid = object.resolve::<radicle::git::Oid>(&repo.backend)?.into();
-            let embeds = embeds(&repo, embed_files, embed_hashes)?;
+            let embeds = embeds(&repo, operation.embed_files, operation.embed_hashes)?;
 
             let oid = match type_name {
                 Patch => {
                     let actions: Vec<cob::patch::Action> = read_jsonl(reader)?;
                     let mut patches = profile.patches_mut(&repo)?;
                     let mut patch = patches.get_mut(&oid)?;
-                    patch.transaction(&message, &*profile.signer()?, |tx| {
+                    patch.transaction(&operation.message, &*profile.signer()?, |tx| {
                         tx.extend(actions)?;
                         tx.embed(embeds)?;
                         Ok(())
@@ -200,7 +194,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     let actions: Vec<cob::issue::Action> = read_jsonl(reader)?;
                     let mut issues = profile.issues_mut(&repo)?;
                     let mut issue = issues.get_mut(&oid)?;
-                    issue.transaction(&message, &*profile.signer()?, |tx| {
+                    issue.transaction(&operation.message, &*profile.signer()?, |tx| {
                         tx.extend(actions)?;
                         tx.embed(embeds)?;
                         Ok(())
@@ -215,7 +209,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     let actions: Vec<Action> = read_jsonl(reader)?;
                     let mut store: Store<External, _> = Store::open_for(&type_name, &repo)?;
                     let tx = cob::store::Transaction::new(type_name.clone(), actions, embeds);
-                    let (_, oid) = tx.commit(&message, oid, &mut store, signer)?;
+                    let (_, oid) = tx.commit(&operation.message, oid, &mut store, signer)?;
                     oid
                 }
             };

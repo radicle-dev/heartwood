@@ -91,16 +91,8 @@ pub(super) enum Command {
 }
 
 #[derive(Parser, Debug)]
-pub(super) struct Create {
-    /// Repository ID of the repository to operate on
-    #[arg(long, short, value_name = "RID")]
-    pub(super) repo: RepoId,
-
-    /// Typename of the object to create
-    #[arg(long = "type", short, value_name = "TYPENAME")]
-    pub(super) type_name: FilteredTypeName,
-
-    /// Attach a message
+pub(super) struct Operation {
+    /// Message describing the operation
     #[arg(long, short)]
     pub(super) message: String,
 
@@ -112,10 +104,23 @@ pub(super) struct Create {
     #[arg(long = "embed-hash", value_names = ["NAME", "OID"], num_args = 2)]
     pub(super) embed_hashes: Vec<String>,
 
-    /// A file that contains a sequence of actions for the COB, in JSON Lines
-    /// format.
+    /// A file that contains a sequence actions (in JSONL format) to apply.
     #[arg(value_name = "FILENAME")]
     pub(super) actions: PathBuf,
+}
+
+#[derive(Parser, Debug)]
+pub(super) struct Create {
+    /// Repository ID of the repository to operate on
+    #[arg(long, short, value_name = "RID")]
+    pub(super) repo: RepoId,
+
+    /// Typename of the object to create
+    #[arg(long = "type", short, value_name = "TYPENAME")]
+    pub(super) type_name: FilteredTypeName,
+
+    #[clap(flatten)]
+    pub(super) operation: Operation,
 }
 
 #[derive(Parser, Debug)]
@@ -132,27 +137,13 @@ pub(super) struct Update {
     #[arg(long, short, value_name = "OID")]
     pub(super) object: Rev,
 
-    /// Attach a message
-    #[arg(long, short)]
-    pub(super) message: String,
-
-    /// Supply embed of given name via file at given path
-    #[arg(long = "embed-file", value_names = ["NAME", "PATH"], num_args = 2)]
-    pub(super) embed_files: Vec<String>,
-
-    /// Supply embed of given name via object ID of blob
-    #[arg(long = "embed-hash", value_names = ["NAME", "OID"], num_args = 2)]
-    pub(super) embed_hashes: Vec<String>,
-
     // TODO(finto): `Format` is unused and is obsolete for this command
     /// Desired output format
     #[arg(long, default_value_t = Format::Json, value_parser = FormatParser)]
     pub(super) format: Format,
 
-    /// A file that contains a sequence of actions for the COB, in JSON Lines
-    /// format.
-    #[arg(value_name = "FILENAME")]
-    pub(super) actions: PathBuf,
+    #[clap(flatten)]
+    pub(super) operation: Operation,
 }
 
 /// A precursor to [`cob::Embed`] used for parsing
