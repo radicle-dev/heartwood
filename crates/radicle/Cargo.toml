@@ -11,6 +11,7 @@ rust-version.workspace = true
 
 [features]
 default = []
+gix = ["dep:gix", "radicle-oid/gix"]
 test = ["tempfile", "qcheck", "radicle-crypto/test", "radicle-cob/test"]
 logger = ["colored", "chrono"]
 schemars = ["radicle-oid/schemars", "dep:schemars"]
@@ -27,6 +28,7 @@ dunce = { workspace = true }
 fast-glob = { version = "0.3.2" }
 fastrand = { workspace = true, features = ["std"] }
 git2 = { workspace = true, features = ["vendored-libgit2"] }
+gix = { workspace = true, optional = true }
 indexmap = { version = "2", features = ["serde"] }
 localtime = { workspace = true, features = ["serde"] }
 log = { workspace = true, features = ["std"] }
