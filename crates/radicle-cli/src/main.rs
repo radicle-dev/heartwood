@@ -70,6 +70,7 @@ enum Commands {
     Fork(fork::Args),
     Id(id::Args),
     Init(init::Args),
+    Inbox(inbox::Args),
     Issue(issue::Args),
     Ls(ls::Args),
     Path(path::Args),
@@ -267,7 +268,9 @@ pub(crate) fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyho
             }
         }
         "inbox" => {
-            term::run_command_args::<inbox::Options, _>(inbox::HELP, inbox::run, args.to_vec())
+            if let Some(Commands::Inbox(args)) = CliArgs::parse().command {
+                term::run_command_fn(inbox::run, args)
+            }
         }
         "init" => {
             if let Some(Commands::Init(args)) = CliArgs::parse().command {
