@@ -685,7 +685,9 @@ fn test_concurrent_fetches() {
     let scale = config::scale();
     let repos = scale.max(4);
     let limits = Limits {
-        // Have one fetch be queued.
+        // By setting fetch concurrency to one less than the total number of repos,
+        // we guarantee that at least one fetch will be queued while the others
+        // are in progress.
         fetch_concurrency: (repos - 1).into(),
         ..Limits::default()
     };
@@ -726,6 +728,10 @@ fn test_concurrent_fetches() {
         bob_repos.insert(rid);
     }
 
+    // Clone repositories list for assertions so we don't assert over an empty set.
+    let all_alice_repos = alice_repos.clone();
+    let all_bob_repos = bob_repos.clone();
+
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
 
@@ -742,7 +748,10 @@ fn test_concurrent_fetches() {
 
     while !bob_repos.is_empty() {
         match alice_events.recv().unwrap() {
+            // We're looking for a `RefsFetched` event, which signals a completed fetch.
+            // We also ensure that `updated` is not empty, meaning data was actually received.
             Event::RefsFetched { rid, updated, .. } if !updated.is_empty() => {
+                // Once a repo is fetched, remove it from our tracking set.
                 bob_repos.remove(&rid);
                 log::debug!(target: "test", "{} fetched {rid} ({} left)",alice.id, bob_repos.len());
             }
@@ -753,6 +762,7 @@ fn test_concurrent_fetches() {
     while !alice_repos.is_empty() {
         match bob_events.recv().unwrap() {
             Event::RefsFetched { rid, updated, .. } if !updated.is_empty() => {
+                // Once a repo is fetched, remove it from our tracking set.
                 alice_repos.remove(&rid);
                 log::debug!(target: "test", "{} fetched {rid} ({} left)", bob.id, alice_repos.len());
             }
@@ -760,7 +770,11 @@ fn test_concurrent_fetches() {
         }
     }
 
-    for rid in &bob_repos {
+    // Positively assert empty sets, not necessary but proves test was previously broken.
+    assert!(bob_repos.is_empty());
+    assert!(alice_repos.is_empty());
+
+    for rid in &all_bob_repos {
         let doc = alice
             .storage
             .repository(*rid)
@@ -771,7 +785,7 @@ fn test_concurrent_fetches() {
 
         assert!(proj.name().starts_with("bob"));
     }
-    for rid in &alice_repos {
+    for rid in &all_alice_repos {
         let doc = bob
             .storage
             .repository(*rid)
