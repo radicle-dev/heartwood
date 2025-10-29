@@ -2822,7 +2822,6 @@ dependencies = [
  "dunce",
  "human-panic",
  "itertools",
- "lexopt",
  "localtime",
  "log",
  "nonempty",

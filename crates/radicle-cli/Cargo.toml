@@ -20,7 +20,6 @@ clap = { version = "4.5.44", features = ["derive"] }
 dunce = { workspace = true }
 human-panic.workspace = true
 itertools.workspace = true
-lexopt = { workspace = true }
 localtime = { workspace = true }
 log = { workspace = true, features = ["std"] }
 nonempty = { workspace = true }
