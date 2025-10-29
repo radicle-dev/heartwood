@@ -1,9 +1,8 @@
+mod args;
+
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use std::collections::BTreeSet;
 use std::collections::HashSet;
-use std::ffi::OsString;
-use std::str::FromStr;
 use std::time;
 
 use anyhow::{anyhow, Context as _};
@@ -23,266 +22,14 @@ use radicle_term::Element;
 use crate::node::SyncReporting;
 use crate::node::SyncSettings;
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::format::Author;
 use crate::terminal::{Table, TableOptions};
 
-pub const HELP: Help = Help {
-    name: "sync",
-    description: "Sync repositories to the network",
-    version: env!("RADICLE_VERSION"),
-    usage: r#"
-Usage
+pub use args::Args;
+pub(crate) use args::ABOUT;
+use args::{Command, SortBy, SyncDirection, SyncMode};
 
-    rad sync [--fetch | --announce] [<rid>] [<option>...]
-    rad sync --inventory [<option>...]
-    rad sync status [<rid>] [<option>...]
-
-    By default, the current repository is synchronized both ways.
-    If an <rid> is specified, that repository is synced instead.
-
-    The process begins by fetching changes from connected seeds,
-    followed by announcing local refs to peers, thereby prompting
-    them to fetch from us.
-
-    When `--fetch` is specified, any number of seeds may be given
-    using the `--seed` option, eg. `--seed <nid>@<addr>:<port>`.
-
-    When `--replicas` is specified, the given replication factor will try
-    to be matched. For example, `--replicas 5` will sync with 5 seeds.
-
-    The synchronization process can be configured using `--replicas <min>` and
-    `--replicas-max <max>`. If these options are used independently, then the
-    replication factor is taken as the given `<min>`/`<max>` value. If the
-    options are used together, then the replication factor has a minimum and
-    maximum bound.
-
-    For fetching, the synchronization process will be considered successful if
-    at least `<min>` seeds were fetched from *or* all preferred seeds were
-    fetched from. If `<max>` is specified then the process will continue and
-    attempt to sync with `<max>` seeds.
-
-    For reference announcing, the synchronization process will be considered
-    successful if at least `<min>` seeds were pushed to *and* all preferred
-    seeds were pushed to.
-
-    When `--fetch` or `--announce` are specified on their own, this command
-    will only fetch or announce.
-
-    If `--inventory` is specified, the node's inventory is announced to
-    the network. This mode does not take an `<rid>`.
-
-Commands
-
-    status                    Display the sync status of a repository
-
-Options
-
-        --sort-by       <field>   Sort the table by column (options: nid, alias, status)
-    -f, --fetch                   Turn on fetching (default: true)
-    -a, --announce                Turn on ref announcing (default: true)
-    -i, --inventory               Turn on inventory announcing (default: false)
-        --timeout       <secs>    How many seconds to wait while syncing
-        --seed          <nid>     Sync with the given node (may be specified multiple times)
-    -r, --replicas      <count>   Sync with a specific number of seeds
-        --replicas-max  <count>   Sync with an upper bound number of seeds
-    -v, --verbose                 Verbose output
-        --debug                   Print debug information afer sync
-        --help                    Print help
-"#,
-};
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum Operation {
-    Synchronize(SyncMode),
-    #[default]
-    Status,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum SortBy {
-    Nid,
-    Alias,
-    #[default]
-    Status,
-}
-
-impl FromStr for SortBy {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "nid" => Ok(Self::Nid),
-            "alias" => Ok(Self::Alias),
-            "status" => Ok(Self::Status),
-            _ => Err("invalid `--sort-by` field"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SyncMode {
-    Repo {
-        settings: SyncSettings,
-        direction: SyncDirection,
-    },
-    Inventory,
-}
-
-impl Default for SyncMode {
-    fn default() -> Self {
-        Self::Repo {
-            settings: SyncSettings::default(),
-            direction: SyncDirection::default(),
-        }
-    }
-}
-
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub enum SyncDirection {
-    Fetch,
-    Announce,
-    #[default]
-    Both,
-}
-
-#[derive(Default, Debug)]
-pub struct Options {
-    pub rid: Option<RepoId>,
-    pub debug: bool,
-    pub verbose: bool,
-    pub sort_by: SortBy,
-    pub op: Operation,
-}
-
-impl Args for Options {
-    fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
-        use lexopt::prelude::*;
-
-        let mut parser = lexopt::Parser::from_args(args);
-        let mut verbose = false;
-        let mut timeout = time::Duration::from_secs(9);
-        let mut rid = None;
-        let mut fetch = false;
-        let mut announce = false;
-        let mut inventory = false;
-        let mut debug = false;
-        let mut replicas = None;
-        let mut max_replicas = None;
-        let mut seeds = BTreeSet::new();
-        let mut sort_by = SortBy::default();
-        let mut op: Option<Operation> = None;
-
-        while let Some(arg) = parser.next()? {
-            match arg {
-                Long("debug") => {
-                    debug = true;
-                }
-                Long("verbose") | Short('v') => {
-                    verbose = true;
-                }
-                Long("fetch") | Short('f') => {
-                    fetch = true;
-                }
-                Long("replicas") | Short('r') => {
-                    let val = parser.value()?;
-                    let count = term::args::number(&val)?;
-
-                    if count == 0 {
-                        anyhow::bail!("value for `--replicas` must be greater than zero");
-                    }
-                    replicas = Some(count);
-                }
-                Long("replicas-max") => {
-                    let val = parser.value()?;
-                    let count = term::args::number(&val)?;
-
-                    if count == 0 {
-                        anyhow::bail!("value for `--replicas-max` must be greater than zero");
-                    }
-                    max_replicas = Some(count);
-                }
-                Long("seed") => {
-                    let val = parser.value()?;
-                    let nid = term::args::nid(&val)?;
-
-                    seeds.insert(nid);
-                }
-                Long("announce") | Short('a') => {
-                    announce = true;
-                }
-                Long("inventory") | Short('i') => {
-                    inventory = true;
-                }
-                Long("sort-by") if matches!(op, Some(Operation::Status)) => {
-                    let value = parser.value()?;
-                    sort_by = value.parse()?;
-                }
-                Long("timeout") | Short('t') => {
-                    let value = parser.value()?;
-                    let secs = term::args::parse_value("timeout", value)?;
-
-                    timeout = time::Duration::from_secs(secs);
-                }
-                Long("help") | Short('h') => {
-                    return Err(Error::Help.into());
-                }
-                Value(val) if rid.is_none() => match val.to_string_lossy().as_ref() {
-                    "s" | "status" => {
-                        op = Some(Operation::Status);
-                    }
-                    _ => {
-                        rid = Some(term::args::rid(&val)?);
-                    }
-                },
-                arg => {
-                    return Err(anyhow!(arg.unexpected()));
-                }
-            }
-        }
-
-        let sync = if inventory && fetch {
-            anyhow::bail!("`--inventory` cannot be used with `--fetch`");
-        } else if inventory {
-            SyncMode::Inventory
-        } else {
-            let direction = match (fetch, announce) {
-                (true, true) | (false, false) => SyncDirection::Both,
-                (true, false) => SyncDirection::Fetch,
-                (false, true) => SyncDirection::Announce,
-            };
-            let mut settings = SyncSettings::default().timeout(timeout);
-
-            let replicas = match (replicas, max_replicas) {
-                (None, None) => sync::ReplicationFactor::default(),
-                (None, Some(min)) => sync::ReplicationFactor::must_reach(min),
-                (Some(min), None) => sync::ReplicationFactor::must_reach(min),
-                (Some(min), Some(max)) => sync::ReplicationFactor::range(min, max),
-            };
-            settings.replicas = replicas;
-            if !seeds.is_empty() {
-                settings.seeds = seeds;
-            }
-            SyncMode::Repo {
-                settings,
-                direction,
-            }
-        };
-
-        Ok((
-            Options {
-                rid,
-                debug,
-                verbose,
-                sort_by,
-                op: op.unwrap_or(Operation::Synchronize(sync)),
-            },
-            vec![],
-        ))
-    }
-}
-
-pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let mut node = radicle::Node::new(profile.socket());
     if !node.is_running() {
@@ -290,10 +37,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             "to sync a repository, your node must be running. To start it, run `rad node start`"
         );
     }
+    let verbose = args.verbose;
+    let debug = args.verbose;
 
-    match &options.op {
-        Operation::Status => {
-            let rid = match options.rid {
+    match args.command {
+        Some(Command::Status { rid, sort_by }) => {
+            let rid = match rid {
                 Some(rid) => rid,
                 None => {
                     let (_, rid) = radicle::rad::cwd()
@@ -301,37 +50,41 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     rid
                 }
             };
-            sync_status(rid, &mut node, &profile, &options)?;
+            sync_status(rid, &mut node, &profile, &sort_by, verbose)?;
         }
-        Operation::Synchronize(SyncMode::Repo {
-            settings,
-            direction,
-        }) => {
-            let rid = match options.rid {
-                Some(rid) => rid,
-                None => {
-                    let (_, rid) = radicle::rad::cwd()
-                        .context("Current directory is not a Radicle repository")?;
-                    rid
-                }
-            };
-            let settings = settings.clone().with_profile(&profile);
+        None => match SyncMode::from(args.sync) {
+            SyncMode::Repo {
+                rid,
+                settings,
+                direction,
+            } => {
+                let rid = match rid {
+                    Some(rid) => rid,
+                    None => {
+                        let (_, rid) = radicle::rad::cwd()
+                            .context("Current directory is not a Radicle repository")?;
+                        rid
+                    }
+                };
+                let settings = settings.clone().with_profile(&profile);
 
-            if [SyncDirection::Fetch, SyncDirection::Both].contains(direction) {
-                if !profile.policies()?.is_seeding(&rid)? {
-                    anyhow::bail!("repository {rid} is not seeded");
+                if matches!(direction, SyncDirection::Fetch | SyncDirection::Both) {
+                    if !profile.policies()?.is_seeding(&rid)? {
+                        anyhow::bail!("repository {rid} is not seeded");
+                    }
+                    let result = fetch(rid, settings.clone(), &mut node, &profile)?;
+                    display_fetch_result(&result, verbose)
                 }
-                let result = fetch(rid, settings.clone(), &mut node, &profile)?;
-                display_fetch_result(&result, options.verbose)
+                if matches!(direction, SyncDirection::Announce | SyncDirection::Both) {
+                    announce_refs(rid, settings, &mut node, &profile, verbose, debug)?;
+                }
             }
-            if [SyncDirection::Announce, SyncDirection::Both].contains(direction) {
-                announce_refs(rid, settings, &mut node, &profile, &options)?;
+            SyncMode::Inventory => {
+                announce_inventory(node)?;
             }
-        }
-        Operation::Synchronize(SyncMode::Inventory) => {
-            announce_inventory(node)?;
-        }
+        },
     }
+
     Ok(())
 }
 
@@ -339,7 +92,8 @@ fn sync_status(
     rid: RepoId,
     node: &mut Node,
     profile: &Profile,
-    options: &Options,
+    sort_by: &SortBy,
+    verbose: bool,
 ) -> anyhow::Result<()> {
     const SYMBOL_STATE: &str = "?";
     const SYMBOL_STATE_UNKNOWN: &str = "•";
@@ -358,7 +112,7 @@ fn sync_status(
     ]);
     table.divider();
 
-    sort_seeds_by(local_nid, &mut seeds, &aliases, &options.sort_by);
+    sort_seeds_by(local_nid, &mut seeds, &aliases, sort_by);
 
     let seeds = seeds.into_iter().flat_map(|seed| {
         let (status, head, time) = match seed.sync {
@@ -386,7 +140,7 @@ fn sync_status(
                 term::format::oid(oid),
                 term::format::timestamp(timestamp),
             ),
-            None if options.verbose => (
+            None if verbose => (
                 term::format::dim(SYMBOL_STATE_UNKNOWN),
                 term::paint(String::new()),
                 term::paint(String::new()),
@@ -394,7 +148,7 @@ fn sync_status(
             None => return None,
         };
 
-        let (alias, nid) = Author::new(&seed.nid, profile, options.verbose).labels();
+        let (alias, nid) = Author::new(&seed.nid, profile, verbose).labels();
 
         Some([
             nid,
@@ -448,7 +202,8 @@ fn announce_refs(
     settings: SyncSettings,
     node: &mut Node,
     profile: &Profile,
-    options: &Options,
+    verbose: bool,
+    debug: bool,
 ) -> anyhow::Result<()> {
     let Ok(repo) = profile.storage.repository(rid) else {
         return Err(anyhow!(
@@ -470,14 +225,14 @@ fn announce_refs(
         &repo,
         settings,
         SyncReporting {
-            debug: options.debug,
+            debug,
             ..SyncReporting::default()
         },
         node,
         profile,
     )?;
     if let Some(result) = result {
-        print_announcer_result(&result, options.verbose)
+        print_announcer_result(&result, verbose)
     }
 
     Ok(())

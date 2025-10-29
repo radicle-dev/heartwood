@@ -83,6 +83,7 @@ enum Commands {
     #[command(name = "self")]
     RadSelf(rad_self::Args),
     Stats(stats::Args),
+    Sync(sync::Args),
     Unblock(unblock::Args),
     Unfollow(unfollow::Args),
     Unseed(unseed::Args),
@@ -337,7 +338,9 @@ pub(crate) fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyho
             }
         }
         "sync" => {
-            term::run_command_args::<sync::Options, _>(sync::HELP, sync::run, args.to_vec());
+            if let Some(Commands::Sync(args)) = CliArgs::parse().command {
+                term::run_command_fn(sync::run, args);
+            }
         }
         "seed" => {
             if let Some(Commands::Seed(args)) = CliArgs::parse().command {
