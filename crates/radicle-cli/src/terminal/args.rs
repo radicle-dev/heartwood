@@ -15,7 +15,6 @@ use radicle::node::{Address, Alias};
 use radicle::prelude::{Did, NodeId, RepoId};
 
 use crate::git::Rev;
-use crate::terminal as term;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -34,20 +33,6 @@ pub enum Error {
         err: anyhow::Error,
         hint: &'static str,
     },
-}
-
-pub struct Help {
-    pub name: &'static str,
-    pub description: &'static str,
-    pub version: &'static str,
-    pub usage: &'static str,
-}
-
-impl Help {
-    /// Print help to stdout.
-    pub fn print(&self) {
-        term::help(self.name, self.version, self.description, self.usage);
-    }
 }
 
 pub trait Args: Sized {
