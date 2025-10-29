@@ -1,10 +1,8 @@
 pub mod args;
-use std::process;
 
 pub use args::{Args, Error, Help};
 pub mod format;
 pub mod io;
-use clap::Parser;
 pub use io::signer;
 pub mod cob;
 pub mod comment;
@@ -33,23 +31,6 @@ impl Context for Profile {
 
     fn home(&self) -> Result<Home, std::io::Error> {
         Ok(self.home.clone())
-    }
-}
-
-/// Execute a function `cmd` that runs a command with parsed the `args`
-/// and a default context.
-pub fn run_command_fn<F, P: Parser, C>(cmd: F, args: P, ctx: C) -> !
-where
-    F: FnOnce(P, C) -> anyhow::Result<()>,
-    C: Context,
-{
-    match cmd(args, ctx) {
-        Ok(()) => process::exit(0),
-        Err(err) => {
-            // First parameter is not used and can just be empty.
-            fail(&err);
-            process::exit(1);
-        }
     }
 }
 

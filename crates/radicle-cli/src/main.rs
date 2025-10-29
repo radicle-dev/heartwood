@@ -119,13 +119,7 @@ fn main() {
         log::warn!(target: "cli", "Unable to set open file limit: {e}");
     }
     let CliArgs { command } = CliArgs::parse();
-    match run(command, term::DefaultContext) {
-        Ok(_) => process::exit(0),
-        Err(err) => {
-            term::error(format!("{err}"));
-            process::exit(1);
-        }
-    }
+    run(command, term::DefaultContext)
 }
 
 fn write_version(as_json: bool) -> anyhow::Result<()> {
@@ -140,37 +134,47 @@ fn write_version(as_json: bool) -> anyhow::Result<()> {
     }
 }
 
-fn run(command: Command, ctx: impl term::Context) -> Result<(), anyhow::Error> {
+fn run(command: Command, ctx: impl term::Context) -> ! {
+    match run_command(command, ctx) {
+        Ok(()) => process::exit(0),
+        Err(err) => {
+            term::fail(&err);
+            process::exit(1);
+        }
+    }
+}
+
+fn run_command(command: Command, ctx: impl term::Context) -> Result<(), anyhow::Error> {
     match command {
-        Command::Auth(args) => term::run_command_fn(auth::run, args, ctx),
-        Command::Block(args) => term::run_command_fn(block::run, args, ctx),
-        Command::Checkout(args) => term::run_command_fn(checkout::run, args, ctx),
-        Command::Clean(args) => term::run_command_fn(clean::run, args, ctx),
-        Command::Clone(args) => term::run_command_fn(clone::run, args, ctx),
-        Command::Cob(args) => term::run_command_fn(cob::run, args, ctx),
-        Command::Config(args) => term::run_command_fn(config::run, args, ctx),
-        Command::Debug(args) => term::run_command_fn(debug::run, args, ctx),
-        Command::Follow(args) => term::run_command_fn(follow::run, args, ctx),
-        Command::Fork(args) => term::run_command_fn(fork::run, args, ctx),
-        Command::Id(args) => term::run_command_fn(id::run, args, ctx),
-        Command::Inbox(args) => term::run_command_fn(inbox::run, args, ctx),
-        Command::Init(args) => term::run_command_fn(init::run, args, ctx),
-        Command::Inspect(args) => term::run_command_fn(inspect::run, args, ctx),
-        Command::Issue(args) => term::run_command_fn(issue::run, args, ctx),
-        Command::Ls(args) => term::run_command_fn(ls::run, args, ctx),
-        Command::Node(args) => term::run_command_fn(node::run, args, ctx),
-        Command::Patch(args) => term::run_command_fn(patch::run, args, ctx),
-        Command::Path(args) => term::run_command_fn(path::run, args, ctx),
-        Command::Publish(args) => term::run_command_fn(publish::run, args, ctx),
-        Command::Remote(args) => term::run_command_fn(remote::run, args, ctx),
-        Command::Seed(args) => term::run_command_fn(seed::run, args, ctx),
-        Command::RadSelf(args) => term::run_command_fn(rad_self::run, args, ctx),
-        Command::Stats(args) => term::run_command_fn(stats::run, args, ctx),
-        Command::Sync(args) => term::run_command_fn(sync::run, args, ctx),
-        Command::Unblock(args) => term::run_command_fn(unblock::run, args, ctx),
-        Command::Unfollow(args) => term::run_command_fn(unfollow::run, args, ctx),
-        Command::Unseed(args) => term::run_command_fn(unseed::run, args, ctx),
-        Command::Watch(args) => term::run_command_fn(watch::run, args, ctx),
+        Command::Auth(args) => auth::run(args, ctx),
+        Command::Block(args) => block::run(args, ctx),
+        Command::Checkout(args) => checkout::run(args, ctx),
+        Command::Clean(args) => clean::run(args, ctx),
+        Command::Clone(args) => clone::run(args, ctx),
+        Command::Cob(args) => cob::run(args, ctx),
+        Command::Config(args) => config::run(args, ctx),
+        Command::Debug(args) => debug::run(args, ctx),
+        Command::Follow(args) => follow::run(args, ctx),
+        Command::Fork(args) => fork::run(args, ctx),
+        Command::Id(args) => id::run(args, ctx),
+        Command::Inbox(args) => inbox::run(args, ctx),
+        Command::Init(args) => init::run(args, ctx),
+        Command::Inspect(args) => inspect::run(args, ctx),
+        Command::Issue(args) => issue::run(args, ctx),
+        Command::Ls(args) => ls::run(args, ctx),
+        Command::Node(args) => node::run(args, ctx),
+        Command::Patch(args) => patch::run(args, ctx),
+        Command::Path(args) => path::run(args, ctx),
+        Command::Publish(args) => publish::run(args, ctx),
+        Command::Remote(args) => remote::run(args, ctx),
+        Command::Seed(args) => seed::run(args, ctx),
+        Command::RadSelf(args) => rad_self::run(args, ctx),
+        Command::Stats(args) => stats::run(args, ctx),
+        Command::Sync(args) => sync::run(args, ctx),
+        Command::Unblock(args) => unblock::run(args, ctx),
+        Command::Unfollow(args) => unfollow::run(args, ctx),
+        Command::Unseed(args) => unseed::run(args, ctx),
+        Command::Watch(args) => watch::run(args, ctx),
         Command::Version { json } => write_version(json),
         Command::External(mut args) => {
             let exe = args.remove(0);
