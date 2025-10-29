@@ -1,6 +1,6 @@
 pub mod args;
 
-pub use args::{Args, Error};
+pub use args::Error;
 pub mod format;
 pub mod io;
 pub use io::signer;
