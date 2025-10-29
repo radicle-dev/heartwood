@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::fmt::Display;
 use std::io;
 use std::io::Write;
 use std::{io::ErrorKind, process};
@@ -176,36 +177,65 @@ fn run_command(command: Command, ctx: impl term::Context) -> Result<(), anyhow::
         Command::Unseed(args) => unseed::run(args, ctx),
         Command::Watch(args) => watch::run(args, ctx),
         Command::Version { json } => write_version(json),
-        Command::External(mut args) => {
-            let exe = args.remove(0);
+        Command::External(args) => ExternalCommand::new(args).run(),
+    }
+}
 
-            // This command is deprecated and delegates to `git diff`.
-            // Even before it was deprecated, it was not printed by
-            // `rad -h`.
-            //
-            // Since it is external, `--help` will delegate to `git diff --help`.
-            if exe == "diff" {
-                return diff::run(args);
-            }
+struct ExternalCommand {
+    command: OsString,
+    args: Vec<OsString>,
+}
 
-            let exe = format!("{NAME}-{exe:?}");
-            let status = process::Command::new(&exe).args(&args).status();
+impl ExternalCommand {
+    fn new(mut args: Vec<OsString>) -> Self {
+        let command = args.remove(0);
+        Self { command, args }
+    }
 
-            match status {
-                Ok(status) => {
-                    if !status.success() {
-                        return Err(anyhow!("`{exe}` exited with an error."));
-                    }
-                    Ok(())
+    fn is_diff(&self) -> bool {
+        self.command == "diff"
+    }
+
+    fn exe(&self) -> OsString {
+        let mut exe = OsString::from(NAME);
+        exe.push("-");
+        exe.push(self.command.clone());
+        exe
+    }
+
+    fn display_exe(&self) -> impl Display {
+        match self.exe().into_string() {
+            Ok(exe) => exe,
+            Err(exe) => format!("{exe:?}"),
+        }
+    }
+
+    fn run(self) -> anyhow::Result<()> {
+        // This command is deprecated and delegates to `git diff`.
+        // Even before it was deprecated, it was not printed by
+        // `rad -h`.
+        //
+        // Since it is external, `--help` will delegate to `git diff --help`.
+        if self.is_diff() {
+            return diff::run(self.args);
+        }
+
+        let status = process::Command::new(self.exe()).args(&self.args).status();
+        match status {
+            Ok(status) => {
+                if !status.success() {
+                    return Err(anyhow!("`{}` exited with an error.", self.display_exe()));
                 }
-                Err(err) => {
-                    if let ErrorKind::NotFound = err.kind() {
-                        Err(anyhow!(
-                            "`{exe}` is not a command. See `rad --help` for a list of commands.",
-                        ))
-                    } else {
-                        Err(err.into())
-                    }
+                Ok(())
+            }
+            Err(err) => {
+                if let ErrorKind::NotFound = err.kind() {
+                    Err(anyhow!(
+                        "`{}` is not a known command. See `rad --help` for a list of commands.",
+                        self.display_exe(),
+                    ))
+                } else {
+                    Err(err.into())
                 }
             }
         }
