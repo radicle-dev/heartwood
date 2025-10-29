@@ -1,6 +1,7 @@
 pub mod args;
 
-pub use args::Error;
+pub(crate) use args::Error;
+
 pub mod format;
 pub mod io;
 pub use io::signer;

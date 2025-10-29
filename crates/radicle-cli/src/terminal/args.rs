@@ -5,16 +5,7 @@ use radicle::node::policy::Scope;
 use radicle::prelude::{Did, NodeId, RepoId};
 
 #[derive(thiserror::Error, Debug)]
-pub enum Error {
-    /// If this error is returned from argument parsing, help is displayed.
-    #[error("help invoked")]
-    Help,
-    /// If this error is returned from argument parsing, the manual page is displayed.
-    #[error("help manual invoked")]
-    HelpManual { name: &'static str },
-    /// If this error is returned from argument parsing, usage is displayed.
-    #[error("usage invoked")]
-    Usage,
+pub(crate) enum Error {
     /// An error with a hint.
     #[error("{err}")]
     WithHint {
