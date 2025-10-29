@@ -1,5 +1,4 @@
-pub mod args;
-
+pub(crate) mod args;
 pub(crate) use args::Error;
 
 pub mod format;
