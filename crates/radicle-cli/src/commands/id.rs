@@ -23,7 +23,6 @@ use crate::terminal::patch::Message;
 
 pub use args::Args;
 use args::Command;
-pub(crate) use args::ABOUT;
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;

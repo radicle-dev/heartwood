@@ -30,7 +30,7 @@ use crate::terminal::format::Author;
 use crate::terminal::issue::Format;
 use crate::terminal::Element;
 
-pub(crate) const ABOUT: &str = "Manage issues";
+const ABOUT: &str = "Manage issues";
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;

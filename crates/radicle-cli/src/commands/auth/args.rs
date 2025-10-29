@@ -1,7 +1,7 @@
 use clap::Parser;
 use radicle::node::Alias;
 
-pub(crate) const ABOUT: &str = "Manage identities and profiles";
+const ABOUT: &str = "Manage identities and profiles";
 const LONG_ABOUT: &str = r#"
 A passphrase may be given via the environment variable `RAD_PASSPHRASE` or
 via the standard input stream if `--stdin` is used. Using either of these

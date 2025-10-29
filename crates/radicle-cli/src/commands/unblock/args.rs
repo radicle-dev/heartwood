@@ -2,8 +2,7 @@ use clap::Parser;
 
 use crate::terminal::args::BlockTarget;
 
-pub(crate) const ABOUT: &str =
-    "Unblock repositories or nodes to allow them to be seeded or followed";
+const ABOUT: &str = "Unblock repositories or nodes to allow them to be seeded or followed";
 
 #[derive(Parser, Debug)]
 #[command(about = ABOUT, disable_version_flag = true)]

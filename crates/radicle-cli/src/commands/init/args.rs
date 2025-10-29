@@ -8,7 +8,7 @@ use radicle::{
 };
 use radicle_term::Interactive;
 
-pub(crate) const ABOUT: &str = "Initialize a Radicle repository";
+const ABOUT: &str = "Initialize a Radicle repository";
 
 #[derive(Debug, Parser)]
 #[command(about = ABOUT, disable_version_flag = true)]

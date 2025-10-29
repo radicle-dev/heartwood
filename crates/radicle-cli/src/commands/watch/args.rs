@@ -7,7 +7,7 @@ use radicle::git;
 use radicle::git::fmt::RefString;
 use radicle::prelude::{NodeId, RepoId};
 
-pub(crate) const ABOUT: &str = "Wait for some state to be updated";
+const ABOUT: &str = "Wait for some state to be updated";
 
 const LONG_ABOUT: &str = r#"
 Watches a Git reference, and optionally exits when it reaches a target value.

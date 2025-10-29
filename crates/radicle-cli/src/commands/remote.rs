@@ -14,7 +14,6 @@ use crate::terminal as term;
 use crate::terminal::Context;
 
 pub use args::Args;
-pub(crate) use args::ABOUT;
 use args::{Command, ListOption};
 
 pub fn run(args: Args, ctx: impl Context) -> anyhow::Result<()> {

@@ -14,7 +14,7 @@ use crate::commands::patch::review;
 use crate::git::Rev;
 use crate::terminal::patch::Message;
 
-pub(crate) const ABOUT: &str = "Manage patches";
+const ABOUT: &str = "Manage patches";
 
 #[derive(Debug, Parser)]
 #[command(about = ABOUT, disable_version_flag = true)]

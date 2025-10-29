@@ -4,7 +4,7 @@ use radicle::node::{Alias, NodeId};
 
 use crate::terminal as term;
 
-pub(crate) const ABOUT: &str = "Manage node follow policies";
+const ABOUT: &str = "Manage node follow policies";
 
 const LONG_ABOUT: &str = r#"
 The `follow` command will print all nodes being followed, optionally filtered by alias, if no

@@ -1,6 +1,6 @@
 use clap::Parser;
 
-pub const ABOUT: &str = "Write out information to help debug your Radicle node remotely";
+const ABOUT: &str = "Write out information to help debug your Radicle node remotely";
 
 const LONG_ABOUT: &str = r#"
 Run this if you are reporting a problem in Radicle. The output is

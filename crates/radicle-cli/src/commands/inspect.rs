@@ -23,7 +23,6 @@ use crate::terminal::Element;
 
 pub use args::Args;
 use args::Target;
-pub(crate) use args::ABOUT;
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let rid = match args.repo {

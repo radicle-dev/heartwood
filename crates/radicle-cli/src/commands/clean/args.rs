@@ -2,7 +2,7 @@ use clap::Parser;
 
 use radicle::prelude::RepoId;
 
-pub const ABOUT: &str = "Remove all remotes from a repository";
+const ABOUT: &str = "Remove all remotes from a repository";
 
 const LONG_ABOUT: &str = r#"
 Removes all remotes from a repository, as long as they are not the

@@ -11,7 +11,7 @@ use radicle::prelude::*;
 
 use crate::terminal;
 
-pub(crate) const ABOUT: &str = "Clone a Radicle repository";
+const ABOUT: &str = "Clone a Radicle repository";
 
 const LONG_ABOUT: &str = r#"
 The `clone` command will use your local node's routing table to find seeds from

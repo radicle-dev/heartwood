@@ -1,6 +1,6 @@
 use clap::Parser;
 
-pub(crate) const ABOUT: &str = "Inspect a Radicle repository";
+const ABOUT: &str = "Inspect a Radicle repository";
 const LONG_ABOUT: &str = r#"Inspects the given path or RID. If neither is specified,
 the current repository is inspected.
 "#;

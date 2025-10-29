@@ -3,7 +3,7 @@ use std::{fmt::Display, str::FromStr};
 use clap::{Parser, Subcommand, ValueEnum};
 use radicle::{node::notifications::NotificationId, prelude::RepoId};
 
-pub(crate) const ABOUT: &str = "Manage your Radicle notifications";
+const ABOUT: &str = "Manage your Radicle notifications";
 
 const LONG_ABOUT: &str = r#"
 By default, this command lists all items in your inbox.

@@ -19,7 +19,6 @@ use crate::terminal::Element as _;
 use crate::warning;
 
 pub use args::Args;
-pub(crate) use args::ABOUT;
 use args::{Addr, Command};
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {

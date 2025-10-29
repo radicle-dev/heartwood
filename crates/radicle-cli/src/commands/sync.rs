@@ -26,7 +26,6 @@ use crate::terminal::format::Author;
 use crate::terminal::{Table, TableOptions};
 
 pub use args::Args;
-pub(crate) use args::ABOUT;
 use args::{Command, SortBy, SyncDirection, SyncMode};
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {

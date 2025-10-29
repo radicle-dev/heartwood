@@ -2,7 +2,6 @@ mod args;
 
 pub use args::Args;
 use args::Command;
-pub(crate) use args::ABOUT;
 
 use std::path::Path;
 

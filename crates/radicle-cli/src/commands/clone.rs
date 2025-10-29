@@ -26,7 +26,6 @@ use crate::terminal as term;
 use crate::terminal::Element as _;
 
 pub use args::Args;
-pub(crate) use args::ABOUT;
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;

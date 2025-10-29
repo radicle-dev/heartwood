@@ -1,6 +1,6 @@
 use clap::Parser;
 
-pub(crate) const ABOUT: &str = "Show information about your identity and device";
+const ABOUT: &str = "Show information about your identity and device";
 
 #[derive(Debug, Parser)]
 #[command(about = ABOUT, disable_version_flag = true)]

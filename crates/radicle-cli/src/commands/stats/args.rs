@@ -1,6 +1,6 @@
 use clap::Parser;
 
-pub(crate) const ABOUT: &str = "Displays aggregated repository and node metrics";
+const ABOUT: &str = "Displays aggregated repository and node metrics";
 
 #[derive(Debug, Parser)]
 #[command(about = ABOUT, disable_version_flag = true)]

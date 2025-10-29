@@ -1,7 +1,7 @@
 use clap::Parser;
 use radicle::prelude::{Did, RepoId};
 
-pub(crate) const ABOUT: &str = "Checkout a repository into the local directory";
+const ABOUT: &str = "Checkout a repository into the local directory";
 const LONG_ABOUT: &str = r#"
 Creates a working copy from a repository in local storage.
 "#;

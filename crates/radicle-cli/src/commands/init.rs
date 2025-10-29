@@ -4,7 +4,6 @@
 mod args;
 
 pub use args::Args;
-pub(crate) use args::ABOUT;
 
 use std::collections::HashSet;
 use std::convert::TryFrom;

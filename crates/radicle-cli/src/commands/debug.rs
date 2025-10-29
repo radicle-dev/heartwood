@@ -13,7 +13,6 @@ use radicle::Profile;
 use crate::terminal as term;
 
 pub use args::Args;
-pub(crate) use args::ABOUT;
 
 pub const NAME: &str = "rad";
 pub const VERSION: &str = env!("RADICLE_VERSION");

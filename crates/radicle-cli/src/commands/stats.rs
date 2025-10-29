@@ -16,7 +16,6 @@ use serde::Serialize;
 use crate::terminal as term;
 
 pub use args::Args;
-pub(crate) use args::ABOUT;
 
 #[derive(Default, Serialize)]
 #[serde(rename_all = "camelCase")]

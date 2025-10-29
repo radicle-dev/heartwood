@@ -1,7 +1,7 @@
 use clap::Parser;
 use radicle::prelude::RepoId;
 
-pub(crate) const ABOUT: &str = "Remove repository seeding policies";
+const ABOUT: &str = "Remove repository seeding policies";
 
 const LONG_ABOUT: &str = r#"
 The `unseed` command removes the seeding policy, if found,

@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use radicle::node::Alias;
 
-pub(crate) const ABOUT: &str = "Manage your local Radicle configuration";
+const ABOUT: &str = "Manage your local Radicle configuration";
 
 const LONG_ABOUT: &str = r#"
 If no argument is specified, prints the current radicle configuration as JSON.

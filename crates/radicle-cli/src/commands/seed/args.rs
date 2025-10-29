@@ -9,7 +9,7 @@ use radicle::prelude::*;
 use crate::node::SyncSettings;
 use crate::terminal;
 
-pub(crate) const ABOUT: &str = "Manage repository seeding policies";
+const ABOUT: &str = "Manage repository seeding policies";
 
 const LONG_ABOUT: &str = r#"
 The `seed` command, when no Repository ID is provided, will list the

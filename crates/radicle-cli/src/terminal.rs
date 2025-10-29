@@ -1,7 +1,10 @@
 pub mod args;
+use std::process;
+
 pub use args::{Args, Error, Help};
 pub mod format;
 pub mod io;
+use clap::Parser;
 pub use io::signer;
 pub mod cob;
 pub mod comment;
@@ -11,16 +14,9 @@ pub mod json;
 pub mod patch;
 pub mod upload_pack;
 
-use std::ffi::OsString;
-use std::process;
-
-use clap::Parser;
-
 pub use radicle_term::*;
 
 use radicle::profile::{Home, Profile};
-
-use crate::terminal;
 
 /// Context passed to all commands.
 pub trait Context {
@@ -67,74 +63,6 @@ where
         Err(err) => {
             // First parameter is not used and can just be empty.
             fail("", &err);
-            process::exit(1);
-        }
-    }
-}
-
-pub fn run_command<A, C>(help: Help, cmd: C) -> !
-where
-    A: Args,
-    C: Command<A, DefaultContext>,
-{
-    let args = std::env::args_os().skip(1).collect();
-
-    run_command_args(help, cmd, args)
-}
-
-pub fn run_command_args<A, C>(help: Help, cmd: C, args: Vec<OsString>) -> !
-where
-    A: Args,
-    C: Command<A, DefaultContext>,
-{
-    use io as term;
-
-    let options = match A::from_args(args) {
-        Ok((opts, unparsed)) => {
-            if let Err(err) = args::finish(unparsed) {
-                term::error(err);
-                process::exit(1);
-            }
-            opts
-        }
-        Err(err) => {
-            let hint = match err.downcast_ref::<Error>() {
-                Some(Error::Help) => {
-                    help.print();
-                    process::exit(0);
-                }
-                // Print the manual, or the regular help if there's an error.
-                Some(Error::HelpManual { name }) => {
-                    let Ok(status) = term::manual(name) else {
-                        help.print();
-                        process::exit(0);
-                    };
-                    if !status.success() {
-                        help.print();
-                        process::exit(0);
-                    }
-                    process::exit(status.code().unwrap_or(0));
-                }
-                Some(Error::Usage) => {
-                    term::usage(help.name, help.usage);
-                    process::exit(1);
-                }
-                Some(Error::WithHint { hint, .. }) => Some(hint),
-                None => None,
-            };
-            io::error(format!("rad {}: {err}", help.name));
-
-            if let Some(hint) = hint {
-                io::hint(hint);
-            }
-            process::exit(1);
-        }
-    };
-
-    match cmd.run(options, DefaultContext) {
-        Ok(()) => process::exit(0),
-        Err(err) => {
-            terminal::fail(help.name, &err);
             process::exit(1);
         }
     }

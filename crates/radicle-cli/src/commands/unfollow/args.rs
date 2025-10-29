@@ -4,7 +4,7 @@ use radicle::node::NodeId;
 
 use crate::terminal as term;
 
-pub(crate) const ABOUT: &str = "Unfollow a peer";
+const ABOUT: &str = "Unfollow a peer";
 
 const LONG_ABOUT: &str = r#"
 The `unfollow` command takes a Node ID, optionally in DID format,

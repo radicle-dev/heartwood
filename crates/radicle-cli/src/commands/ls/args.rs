@@ -1,6 +1,6 @@
 use clap::Parser;
 
-pub(crate) const ABOUT: &str = "List repositories";
+const ABOUT: &str = "List repositories";
 const LONG_ABOUT: &str = r#"
 By default, this command shows you all repositories that you have forked or initialized.
 If you wish to see all seeded repositories, use the `--seeded` option.

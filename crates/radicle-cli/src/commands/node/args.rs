@@ -11,7 +11,7 @@ use radicle::crypto::{PublicKey, PublicKeyError};
 use radicle::node::{Address, NodeId, PeerAddr, PeerAddrParseError};
 use radicle::prelude::RepoId;
 
-pub(crate) const ABOUT: &str = "Control and query the Radicle Node";
+const ABOUT: &str = "Control and query the Radicle Node";
 
 #[derive(Parser, Debug)]
 #[command(about = ABOUT, long_about, disable_version_flag = true)]

@@ -14,7 +14,6 @@ use radicle::{profile, Profile};
 use crate::terminal as term;
 
 pub use args::Args;
-pub(crate) use args::ABOUT;
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     match ctx.profile() {

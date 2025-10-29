@@ -6,7 +6,7 @@ use radicle::node::NodeId;
 
 use crate::terminal as term;
 
-pub(crate) const ABOUT: &str = "Manage a repository's remotes";
+const ABOUT: &str = "Manage a repository's remotes";
 
 #[derive(Parser, Debug)]
 #[command(about = ABOUT, disable_version_flag = true)]

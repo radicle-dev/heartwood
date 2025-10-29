@@ -1,6 +1,6 @@
 use radicle::identity::RepoId;
 
-pub(crate) const ABOUT: &str = "Publish a repository to the network";
+const ABOUT: &str = "Publish a repository to the network";
 
 const LONG_ABOUT: &str = r#"
 Publishing a private repository makes it public and discoverable

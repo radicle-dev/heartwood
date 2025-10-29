@@ -1,6 +1,6 @@
 use radicle::identity::RepoId;
 
-pub(crate) const ABOUT: &str = "Create a fork of a repository";
+const ABOUT: &str = "Create a fork of a repository";
 
 #[derive(Debug, clap::Parser)]
 #[command(about = ABOUT, disable_version_flag = true)]

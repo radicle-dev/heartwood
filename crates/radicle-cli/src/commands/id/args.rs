@@ -17,7 +17,7 @@ use crate::git::Rev;
 
 use crate::terminal::Interactive;
 
-pub(crate) const ABOUT: &str = "Manage repository identities";
+const ABOUT: &str = "Manage repository identities";
 const LONG_ABOUT: &str = r#"
 The `id` command is used to manage and propose changes to the
 identity of a Radicle repository.

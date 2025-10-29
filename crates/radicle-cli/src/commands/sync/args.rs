@@ -10,7 +10,7 @@ use radicle::{
 
 use crate::node::SyncSettings;
 
-pub(crate) const ABOUT: &str = "Sync repositories to the network";
+const ABOUT: &str = "Sync repositories to the network";
 
 const LONG_ABOUT: &str = r#"
 By default, the current repository is synchronized both ways.

@@ -33,7 +33,6 @@ use crate::terminal as term;
 use crate::terminal::patch::Message;
 
 pub use args::Args;
-pub(crate) use args::ABOUT;
 
 use args::{AssignArgs, Command, CommentAction, LabelArgs};
 
