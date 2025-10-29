@@ -36,21 +36,6 @@ impl Context for Profile {
     }
 }
 
-/// A command that can be run.
-pub trait Command<A: Args, C: Context> {
-    /// Run the command, given arguments and a context.
-    fn run(self, args: A, context: C) -> anyhow::Result<()>;
-}
-
-impl<F, A: Args, C: Context> Command<A, C> for F
-where
-    F: FnOnce(A, C) -> anyhow::Result<()>,
-{
-    fn run(self, args: A, context: C) -> anyhow::Result<()> {
-        self(args, context)
-    }
-}
-
 /// Execute a function `cmd` that runs a command with parsed the `args`
 /// and a default context.
 pub fn run_command_fn<F, P: Parser, C>(cmd: F, args: P, ctx: C) -> !
