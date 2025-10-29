@@ -47,7 +47,7 @@ where
         Ok(()) => process::exit(0),
         Err(err) => {
             // First parameter is not used and can just be empty.
-            fail("", &err);
+            fail(&err);
             process::exit(1);
         }
     }
@@ -75,7 +75,7 @@ impl Context for DefaultContext {
     }
 }
 
-pub fn fail(_name: &str, error: &anyhow::Error) {
+pub fn fail(error: &anyhow::Error) {
     let err = error.to_string();
     let err = err.trim_end();
 
