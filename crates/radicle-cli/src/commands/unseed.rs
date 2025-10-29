@@ -7,11 +7,11 @@ use crate::terminal as term;
 pub use args::Args;
 pub(crate) use args::ABOUT;
 
-pub fn run(options: Args, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let mut node = radicle::Node::new(profile.socket());
 
-    for rid in options.rids {
+    for rid in args.rids {
         delete(rid, &mut node, &profile)?;
     }
 
