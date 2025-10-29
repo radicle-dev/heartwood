@@ -1,6 +1,7 @@
 use std::ffi::OsString;
-use std::io::{self, Write};
-use std::{io::ErrorKind, iter, process};
+use std::io;
+use std::io::Write;
+use std::{io::ErrorKind, process};
 
 use anyhow::anyhow;
 use clap::builder::styling::AnsiColor;
@@ -18,7 +19,17 @@ pub const RADICLE_VERSION: &str = env!("RADICLE_VERSION");
 pub const RADICLE_VERSION_LONG: &str =
     concat!(env!("RADICLE_VERSION"), " (", env!("GIT_HEAD"), ")");
 pub const DESCRIPTION: &str = "Radicle command line interface";
-pub const LONG_DESCRIPTION: &str = "Radicle is a sovereign code forge built on Git.";
+pub const LONG_DESCRIPTION: &str = r#"
+Radicle is a sovereign code forge built on Git.
+
+See `rad <COMMAND> --help` to learn about a specific command.
+
+Do you have feedback?
+
+ - Chat <\x1b]8;;https://radicle.zulipchat.com\x1b\\radicle.zulipchat.com\x1b]8;;\x1b\\>
+ - Mail <\x1b]8;;mailto:feedback@radicle.xyz\x1b\\feedback@radicle.xyz\x1b]8;;\x1b\\>
+   (Messages are automatically posted to the public #feedback channel on Zulip.)
+"#;
 pub const TIMESTAMP: &str = env!("SOURCE_DATE_EPOCH");
 pub const VERSION: Version = Version {
     name: NAME,
@@ -36,15 +47,17 @@ const STYLES: Styles = Styles::styled()
 #[command(name = NAME)]
 #[command(version = RADICLE_VERSION)]
 #[command(long_version = RADICLE_VERSION_LONG)]
+#[command(about = DESCRIPTION)]
+#[command(long_about = LONG_DESCRIPTION)]
 #[command(propagate_version = true)]
 #[command(styles = STYLES)]
 struct CliArgs {
     #[command(subcommand)]
-    pub command: Option<Commands>,
+    pub command: Command,
 }
 
 #[derive(Subcommand, Debug)]
-enum Commands {
+enum Command {
     Auth(auth::Args),
     Block(block::Args),
     Checkout(checkout::Args),
@@ -54,23 +67,12 @@ enum Commands {
     Cob(cob::Args),
     Config(config::Args),
     Debug(debug::Args),
-
-    /// This command is deprecated and delegates to `git diff`.
-    /// Even before it was deprecated, it was not printed by
-    /// `rad -h`, so it is also hidden.
-    ///
-    /// Since it is hidden, it makes no sense to add `about`
-    /// for the command listing, and since it is external,
-    /// `--help` will delegate to `git diff --help` it makes
-    /// no sense to add `long_about` for `rad diff --help`.
-    #[command(external_subcommand, hide = true)]
-    Diff(Vec<OsString>),
-
     Follow(follow::Args),
     Fork(fork::Args),
     Id(id::Args),
     Inbox(inbox::Args),
     Init(init::Args),
+    #[command(alias = ".")]
     Inspect(inspect::Args),
     Issue(issue::Args),
     Ls(ls::Args),
@@ -88,13 +90,16 @@ enum Commands {
     Unfollow(unfollow::Args),
     Unseed(unseed::Args),
     Watch(watch::Args),
-}
 
-#[derive(Debug)]
-enum Command {
-    Other(Vec<OsString>),
-    Help,
-    Version { json: bool },
+    /// Print the version information of the CLI
+    Version {
+        /// Print the version information in JSON format
+        #[arg(long)]
+        json: bool,
+    },
+
+    #[command(external_subcommand)]
+    External(Vec<OsString>),
 }
 
 fn main() {
@@ -113,291 +118,92 @@ fn main() {
     if let Err(e) = radicle::io::set_file_limit(4096) {
         log::warn!(target: "cli", "Unable to set open file limit: {e}");
     }
-    match parse_args().map_err(Some).and_then(run) {
+    let CliArgs { command } = CliArgs::parse();
+    match run(command, term::DefaultContext) {
         Ok(_) => process::exit(0),
         Err(err) => {
-            if let Some(err) = err {
-                term::error(format!("rad: {err}"));
-            }
+            term::error(format!("{err}"));
             process::exit(1);
         }
     }
 }
 
-fn parse_args() -> anyhow::Result<Command> {
-    use lexopt::prelude::*;
-
-    let mut parser = lexopt::Parser::from_env();
-    let mut command = None;
-    let mut json = false;
-
-    while let Some(arg) = parser.next()? {
-        match arg {
-            Long("json") => {
-                json = true;
-            }
-            Long("help") | Short('h') => {
-                command = Some(Command::Help);
-            }
-            Long("version") => {
-                command = Some(Command::Version { json: false });
-            }
-            Value(val) if command.is_none() => {
-                if val == *"." {
-                    command = Some(Command::Other(vec![OsString::from("inspect")]));
-                } else if val == "version" {
-                    command = Some(Command::Version { json: false });
-                } else {
-                    let args = iter::once(val)
-                        .chain(iter::from_fn(|| parser.value().ok()))
-                        .collect();
-
-                    command = Some(Command::Other(args))
-                }
-            }
-            _ => anyhow::bail!(arg.unexpected()),
-        }
+fn write_version(as_json: bool) -> anyhow::Result<()> {
+    let mut stdout = io::stdout();
+    if as_json {
+        VERSION.write_json(&mut stdout)?;
+        writeln!(&mut stdout)?;
+        Ok(())
+    } else {
+        VERSION.write(&mut stdout)?;
+        Ok(())
     }
-    if let Some(Command::Version { json: j }) = &mut command {
-        *j = json;
-    }
-    Ok(command.unwrap_or_else(|| Command::Other(vec![])))
 }
 
-fn print_help() -> anyhow::Result<()> {
-    VERSION.write(&mut io::stdout())?;
-    println!("{DESCRIPTION}");
-    println!();
-
-    help::run(Default::default(), term::DefaultContext)
-}
-
-fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
+fn run(command: Command, ctx: impl term::Context) -> Result<(), anyhow::Error> {
     match command {
-        Command::Version { json } => {
-            let mut stdout = io::stdout();
-            if json {
-                VERSION
-                    .write_json(&mut stdout)
-                    .map_err(|e| Some(e.into()))?;
-                writeln!(&mut stdout).ok();
-            } else {
-                VERSION.write(&mut stdout).map_err(|e| Some(e.into()))?;
-            }
-        }
-        Command::Help => {
-            print_help()?;
-        }
-        Command::Other(args) => {
-            let exe = args.first();
+        Command::Auth(args) => term::run_command_fn(auth::run, args, ctx),
+        Command::Block(args) => term::run_command_fn(block::run, args, ctx),
+        Command::Checkout(args) => term::run_command_fn(checkout::run, args, ctx),
+        Command::Clean(args) => term::run_command_fn(clean::run, args, ctx),
+        Command::Clone(args) => term::run_command_fn(clone::run, args, ctx),
+        Command::Cob(args) => term::run_command_fn(cob::run, args, ctx),
+        Command::Config(args) => term::run_command_fn(config::run, args, ctx),
+        Command::Debug(args) => term::run_command_fn(debug::run, args, ctx),
+        Command::Follow(args) => term::run_command_fn(follow::run, args, ctx),
+        Command::Fork(args) => term::run_command_fn(fork::run, args, ctx),
+        Command::Id(args) => term::run_command_fn(id::run, args, ctx),
+        Command::Inbox(args) => term::run_command_fn(inbox::run, args, ctx),
+        Command::Init(args) => term::run_command_fn(init::run, args, ctx),
+        Command::Inspect(args) => term::run_command_fn(inspect::run, args, ctx),
+        Command::Issue(args) => term::run_command_fn(issue::run, args, ctx),
+        Command::Ls(args) => term::run_command_fn(ls::run, args, ctx),
+        Command::Node(args) => term::run_command_fn(node::run, args, ctx),
+        Command::Patch(args) => term::run_command_fn(patch::run, args, ctx),
+        Command::Path(args) => term::run_command_fn(path::run, args, ctx),
+        Command::Publish(args) => term::run_command_fn(publish::run, args, ctx),
+        Command::Remote(args) => term::run_command_fn(remote::run, args, ctx),
+        Command::Seed(args) => term::run_command_fn(seed::run, args, ctx),
+        Command::RadSelf(args) => term::run_command_fn(rad_self::run, args, ctx),
+        Command::Stats(args) => term::run_command_fn(stats::run, args, ctx),
+        Command::Sync(args) => term::run_command_fn(sync::run, args, ctx),
+        Command::Unblock(args) => term::run_command_fn(unblock::run, args, ctx),
+        Command::Unfollow(args) => term::run_command_fn(unfollow::run, args, ctx),
+        Command::Unseed(args) => term::run_command_fn(unseed::run, args, ctx),
+        Command::Watch(args) => term::run_command_fn(watch::run, args, ctx),
+        Command::Version { json } => write_version(json),
+        Command::External(mut args) => {
+            let exe = args.remove(0);
 
-            if let Some(Some(exe)) = exe.map(|s| s.to_str()) {
-                run_other(exe, &args[1..])?;
-            } else {
-                print_help()?;
+            // This command is deprecated and delegates to `git diff`.
+            // Even before it was deprecated, it was not printed by
+            // `rad -h`.
+            //
+            // Since it is external, `--help` will delegate to `git diff --help`.
+            if exe == "diff" {
+                return diff::run(args);
             }
-        }
-    }
 
-    Ok(())
-}
-
-/// Runs a `rad` command. `exe` expects the commands' name, e.g. `issue`,
-/// `args` expects all other arguments.
-///
-/// For commands that are already migrated to `clap`, we need to parse the
-/// arguments again. This needs to be done for each migrated command
-/// individually, otherwise `clap` would fail to parse on an non-migrated and
-/// therefore unknown command.
-pub(crate) fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
-    match exe {
-        "auth" => {
-            if let Some(Commands::Auth(args)) = CliArgs::parse().command {
-                term::run_command_fn(auth::run, args);
-            }
-        }
-        "block" => {
-            if let Some(Commands::Block(args)) = CliArgs::parse().command {
-                term::run_command_fn(block::run, args);
-            }
-        }
-        "checkout" => {
-            if let Some(Commands::Checkout(args)) = CliArgs::parse().command {
-                term::run_command_fn(checkout::run, args);
-            }
-        }
-        "clone" => {
-            if let Some(Commands::Clone(args)) = CliArgs::parse().command {
-                term::run_command_fn(clone::run, args);
-            }
-        }
-        "cob" => {
-            if let Some(Commands::Cob(args)) = CliArgs::parse().command {
-                term::run_command_fn(cob::run, args);
-            }
-        }
-        "config" => {
-            if let Some(Commands::Config(args)) = CliArgs::parse().command {
-                term::run_command_fn(config::run, args);
-            }
-        }
-        "diff" => {
-            if let Some(Commands::Diff(mut args)) = CliArgs::parse().command {
-                debug_assert_eq!(args[0], "diff");
-                args.remove(0);
-                return diff::run(args).map_err(Some);
-            }
-        }
-        "debug" => {
-            if let Some(Commands::Debug(args)) = CliArgs::parse().command {
-                term::run_command_fn(debug::run, args);
-            }
-        }
-        "follow" => {
-            if let Some(Commands::Follow(args)) = CliArgs::parse().command {
-                term::run_command_fn(follow::run, args);
-            }
-        }
-        "fork" => {
-            if let Some(Commands::Fork(args)) = CliArgs::parse().command {
-                term::run_command_fn(fork::run, args);
-            }
-        }
-        "help" => {
-            term::run_command_args::<help::Options, _>(help::HELP, help::run, args.to_vec());
-        }
-        "id" => {
-            if let Some(Commands::Id(args)) = CliArgs::parse().command {
-                term::run_command_fn(id::run, args);
-            }
-        }
-        "inbox" => {
-            if let Some(Commands::Inbox(args)) = CliArgs::parse().command {
-                term::run_command_fn(inbox::run, args)
-            }
-        }
-        "init" => {
-            if let Some(Commands::Init(args)) = CliArgs::parse().command {
-                term::run_command_fn(init::run, args);
-            }
-        }
-        "inspect" => {
-            let reconstructed_args = {
-                // This is a horrible workaround to reconstruct the original
-                // args after having them mangled by our `lexopt`-style parser
-                // in `parse_args()` in case they were `rad .`.
-                // TODO: Remove this, when `rad` is fully migrated to `clap`.
-                vec!["rad", "inspect"]
-                    .into_iter()
-                    .map(OsString::from)
-                    .chain(args.iter().cloned())
-            };
-
-            if let Some(Commands::Inspect(args)) = CliArgs::parse_from(reconstructed_args).command {
-                term::run_command_fn(inspect::run, args);
-            }
-        }
-        "issue" => {
-            if let Some(Commands::Issue(args)) = CliArgs::parse().command {
-                term::run_command_fn(issue::run, args);
-            }
-        }
-        "ls" => {
-            if let Some(Commands::Ls(args)) = CliArgs::parse().command {
-                term::run_command_fn(ls::run, args);
-            }
-        }
-        "node" => {
-            if let Some(Commands::Node(args)) = CliArgs::parse().command {
-                term::run_command_fn(node::run, args);
-            }
-        }
-        "patch" => {
-            if let Some(Commands::Patch(args)) = CliArgs::parse().command {
-                term::run_command_fn(patch::run, args);
-            }
-        }
-        "path" => {
-            if let Some(Commands::Path(args)) = CliArgs::parse().command {
-                term::run_command_fn(path::run, args);
-            }
-        }
-        "publish" => {
-            if let Some(Commands::Publish(args)) = CliArgs::parse().command {
-                term::run_command_fn(publish::run, args);
-            }
-        }
-        "clean" => {
-            if let Some(Commands::Clean(args)) = CliArgs::parse().command {
-                term::run_command_fn(clean::run, args);
-            }
-        }
-        "self" => {
-            if let Some(Commands::RadSelf(args)) = CliArgs::parse().command {
-                term::run_command_fn(rad_self::run, args)
-            }
-        }
-        "sync" => {
-            if let Some(Commands::Sync(args)) = CliArgs::parse().command {
-                term::run_command_fn(sync::run, args);
-            }
-        }
-        "seed" => {
-            if let Some(Commands::Seed(args)) = CliArgs::parse().command {
-                term::run_command_fn(seed::run, args);
-            }
-        }
-        "unblock" => {
-            if let Some(Commands::Unblock(args)) = CliArgs::parse().command {
-                term::run_command_fn(unblock::run, args);
-            }
-        }
-        "unfollow" => {
-            if let Some(Commands::Unfollow(args)) = CliArgs::parse().command {
-                term::run_command_fn(unfollow::run, args);
-            }
-        }
-        "unseed" => {
-            if let Some(Commands::Unseed(args)) = CliArgs::parse().command {
-                term::run_command_fn(unseed::run, args);
-            }
-        }
-        "remote" => {
-            if let Some(Commands::Remote(args)) = CliArgs::parse().command {
-                term::run_command_fn(remote::run, args);
-            }
-        }
-        "stats" => {
-            if let Some(Commands::Stats(args)) = CliArgs::parse().command {
-                term::run_command_fn(stats::run, args);
-            }
-        }
-        "watch" => {
-            if let Some(Commands::Watch(args)) = CliArgs::parse().command {
-                term::run_command_fn(watch::run, args);
-            }
-        }
-        other => {
-            let exe = format!("{NAME}-{exe}");
-            let status = process::Command::new(exe).args(args).status();
+            let exe = format!("{NAME}-{exe:?}");
+            let status = process::Command::new(&exe).args(&args).status();
 
             match status {
                 Ok(status) => {
                     if !status.success() {
-                        return Err(None);
+                        return Err(anyhow!("`{exe}` exited with an error."));
                     }
+                    Ok(())
                 }
                 Err(err) => {
                     if let ErrorKind::NotFound = err.kind() {
-                        return Err(Some(anyhow!(
-                            "`{other}` is not a command. See `rad --help` for a list of commands.",
-                        )));
+                        Err(anyhow!(
+                            "`{exe}` is not a command. See `rad --help` for a list of commands.",
+                        ))
                     } else {
-                        return Err(Some(err.into()));
+                        Err(err.into())
                     }
                 }
             }
         }
     }
-    Ok(())
 }

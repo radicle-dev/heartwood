@@ -1,45 +1,54 @@
 ```
 $ rad --help
-rad [..]
-Radicle command line interface
+Radicle is a sovereign code forge built on Git.
 
-Usage: rad <command> [--help]
-Common `rad` commands used in various situations:
-
-	auth         Manage identities and profiles
-	block        Block repositories or nodes from being seeded or followed
-	checkout     Checkout a repository into the local directory
-	clone        Clone a Radicle repository
-	config       Manage your local Radicle configuration
-	debug        Write out information to help debug your Radicle node remotely
-	fork         Create a fork of a repository
-	help         CLI help
-	id           Manage repository identities
-	init         Initialize a Radicle repository
-	inbox        Manage your Radicle notifications
-	inspect      Inspect a Radicle repository
-	issue        Manage issues
-	ls           List repositories
-	node         Control and query the Radicle Node
-	patch        Manage patches
-	path         Display the Radicle home path
-	publish      Publish a repository to the network
-	clean        Remove all remotes from a repository
-	self         Show information about your identity and device
-	seed         Manage repository seeding policies
-	follow       Manage node follow policies
-	unblock      Unblock repositories or nodes to allow them to be seeded or followed
-	unfollow     Unfollow a peer
-	unseed       Remove repository seeding policies
-	remote       Manage a repository's remotes
-	stats        Displays aggregated repository and node metrics
-	sync         Sync repositories to the network
-	watch        Wait for some state to be updated
-
-See `rad <command> --help` to learn about a specific command.
+See `rad <COMMAND> --help` to learn about a specific command.
 
 Do you have feedback?
- - Chat[..]
- - Mail[..]
+
+ - Chat </x1b]8;;https://radicle.zulipchat.com/x1b//radicle.zulipchat.com/x1b]8;;/x1b//>
+ - Mail </x1b]8;;mailto:feedback@radicle.xyz/x1b//feedback@radicle.xyz/x1b]8;;/x1b//>
    (Messages are automatically posted to the public #feedback channel on Zulip.)
+
+
+Usage: rad <COMMAND>
+
+Commands:
+  auth      Manage identities and profiles
+  block     Block repositories or nodes from being seeded or followed
+  checkout  Checkout a repository into the local directory
+  clean     Remove all remotes from a repository
+  clone     Clone a Radicle repository
+  config    Manage your local Radicle configuration
+  debug     Write out information to help debug your Radicle node remotely
+  follow    Manage node follow policies
+  fork      Create a fork of a repository
+  id        Manage repository identities
+  inbox     Manage your Radicle notifications
+  init      Initialize a Radicle repository
+  inspect   Inspect a Radicle repository
+  issue     Manage issues
+  ls        List repositories
+  node      Control and query the Radicle Node
+  patch     Manage patches
+  path      Display the Radicle home path
+  publish   Publish a repository to the network
+  remote    Manage a repository's remotes
+  seed      Manage repository seeding policies
+  self      Show information about your identity and device
+  stats     Displays aggregated repository and node metrics
+  sync      Sync repositories to the network
+  unblock   Unblock repositories or nodes to allow them to be seeded or followed
+  unfollow  Unfollow a peer
+  unseed    Remove repository seeding policies
+  watch     Wait for some state to be updated
+  version   Print the version information of the CLI
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```

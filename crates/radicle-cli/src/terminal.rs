@@ -57,11 +57,12 @@ where
 
 /// Execute a function `cmd` that runs a command with parsed the `args`
 /// and a default context.
-pub fn run_command_fn<F, P: Parser>(cmd: F, args: P) -> !
+pub fn run_command_fn<F, P: Parser, C>(cmd: F, args: P, ctx: C) -> !
 where
-    F: FnOnce(P, DefaultContext) -> anyhow::Result<()>,
+    F: FnOnce(P, C) -> anyhow::Result<()>,
+    C: Context,
 {
-    match cmd(args, DefaultContext) {
+    match cmd(args, ctx) {
         Ok(()) => process::exit(0),
         Err(err) => {
             // First parameter is not used and can just be empty.
