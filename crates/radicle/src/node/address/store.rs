@@ -183,7 +183,7 @@ impl Store for Database {
 
         for row in stmt.into_iter() {
             let row = row?;
-            let _typ = row.try_read::<AddressType, _>("type")?;
+            let _type = row.try_read::<AddressType, _>("type")?;
             let addr = row.try_read::<Address, _>("value")?;
             let source = row.try_read::<Source, _>("source")?;
             let last_attempt = row
@@ -300,7 +300,7 @@ impl Store for Database {
 
         while let Some(Ok(row)) = stmt.next() {
             let node = row.try_read::<NodeId, _>("node")?;
-            let _typ = row.try_read::<AddressType, _>("type")?;
+            let _type = row.try_read::<AddressType, _>("type")?;
             let addr = row.try_read::<Address, _>("value")?;
             let source = row.try_read::<Source, _>("source")?;
             let last_success = row.try_read::<Option<i64>, _>("last_success")?;

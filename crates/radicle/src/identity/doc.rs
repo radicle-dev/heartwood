@@ -104,7 +104,7 @@ impl Version {
     pub fn new(n: u32) -> Result<Version, VersionError> {
         match NonZeroU32::new(n) {
             None => Err(VersionError::ZeroVersion),
-            Some(n) if n > IDENTITY_VERSION.into() => Err(VersionError::UnkownVersion(n)),
+            Some(n) if n > IDENTITY_VERSION.into() => Err(VersionError::UnknownVersion(n)),
             Some(n) => Ok(Version(n)),
         }
     }
@@ -146,7 +146,7 @@ pub enum VersionError {
     #[error("the version 0 is not supported")]
     ZeroVersion,
     #[error("unknown identity document version {0}, only version {IDENTITY_VERSION} is supported")]
-    UnkownVersion(NonZeroU32),
+    UnknownVersion(NonZeroU32),
 }
 
 impl VersionError {
@@ -155,14 +155,14 @@ impl VersionError {
     /// This will give a user more information on how to upgrade to a newer
     /// version of an identity document, if there is one.
     pub fn verbose(&self) -> String {
-        const UNKOWN_VERSION_ERROR: &str = r#"
+        const UNKNOWN_VERSION_ERROR: &str = r#"
 Perhaps a new version of the identity document is released which is not supported by the current client.
 See https://radicle.xyz for the latest versions of Radicle.
 The CLI command `rad id migrate` will help to migrate to an up-to-date versions."#;
 
         match self {
             err @ Self::ZeroVersion => err.to_string(),
-            err @ Self::UnkownVersion(_) => format!("{err}{UNKOWN_VERSION_ERROR}"),
+            err @ Self::UnknownVersion(_) => format!("{err}{UNKNOWN_VERSION_ERROR}"),
         }
     }
 }
@@ -1038,7 +1038,7 @@ mod test {
             serde_json::from_str::<Version>(&v)
                 .expect_err("should fail to deserialize")
                 .to_string(),
-            VersionError::UnkownVersion(NonZeroU32::MAX).to_string(),
+            VersionError::UnknownVersion(NonZeroU32::MAX).to_string(),
         )
     }
 
