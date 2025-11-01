@@ -224,6 +224,14 @@
               hooks =
                 {
                   alejandra.enable = true;
+                  typos = {
+                    enable = true;
+                    files = "^crates/radicle/.*\\.rs$";
+                    settings = {
+                      verbose = true;
+                      write = true;
+                    };
+                  };
                   codespell = {
                     enable = true;
                     entry = "${lib.getExe pkgs.codespell} -w";

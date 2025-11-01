@@ -1,0 +1,5 @@
+[default]
+extend-ignore-identifiers-re = [
+    "did:key:z6Mk.*",
+    "z6Mk.*",
+]
