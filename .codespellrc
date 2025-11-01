@@ -1,4 +1,4 @@
 [codespell]
-skip = .git*,*.lock,.codespellrc
+skip = .git*,*.lock,.codespellrc,target,.jj
 check-hidden = true
-ignore-words-list = ser,noes
+ignore-words-list = set,noes

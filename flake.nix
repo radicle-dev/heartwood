@@ -235,6 +235,13 @@
               hooks =
                 {
                   alejandra.enable = true;
+                  typos = {
+                    enable = true;
+                    settings = {
+                      verbose = true;
+                      write = true;
+                    };
+                  };
                   codespell = {
                     enable = true;
                     entry = "${lib.getExe pkgs.codespell} -w";
