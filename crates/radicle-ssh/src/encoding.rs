@@ -56,7 +56,7 @@ pub trait Encoding {
     /// May panic if the argument is greater than [`u32::MAX`].
     /// This is a convenience method, to spare callers casting or converting
     /// [`usize`] to [`u32`]. If callers end up in a situation where they
-    /// need to push a 32-bit unisgned integer, but the value they would
+    /// need to push a 32-bit unsigned integer, but the value they would
     /// like to push does not fit 32 bits, then the implementation will not
     /// comply with the SSH format anyway.
     fn extend_usize(&mut self, u: usize) {
