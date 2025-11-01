@@ -213,7 +213,6 @@
                   "grep-${word}"
                   "! ${lib.getExe pkgs.ripgrep} --context=3 --fixed-strings '${word}' $@");
                 name = "Avoid '${word}' in '${files}'";
-                stages = ["pre-commit" "pre-push"];
                 pass_filenames = true;
               };
             };
@@ -221,6 +220,10 @@
             inputs.git-hooks.lib.${system}.run {
               src = ./.;
               settings.rust.check.cargoDeps = pkgs.rustPlatform.importCargoLock {lockFile = ./Cargo.lock;};
+              default_stages = [
+                "pre-commit"
+                "pre-push"
+              ];
               hooks =
                 {
                   alejandra.enable = true;
