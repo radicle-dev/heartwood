@@ -17,6 +17,7 @@ path = "src/main.rs"
 anyhow = "1"
 chrono = { workspace = true, features = ["clock", "std"] }
 clap = { version = "4.5.44", features = ["derive"] }
+clap_complete = "4.5"
 dunce = { workspace = true }
 human-panic.workspace = true
 itertools.workspace = true

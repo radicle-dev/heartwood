@@ -7,7 +7,7 @@ use std::{io::ErrorKind, process};
 use anyhow::anyhow;
 use clap::builder::styling::AnsiColor;
 use clap::builder::Styles;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory as _, Parser, Subcommand};
 
 use radicle::version::Version;
 use radicle_cli::commands::*;
@@ -98,6 +98,12 @@ enum Command {
         json: bool,
     },
 
+    /// Print static completion information for a given shell
+    Completion {
+        /// The type of shell to provide static completions for
+        shell: clap_complete::Shell,
+    },
+
     #[command(external_subcommand)]
     External(Vec<OsString>),
 }
@@ -176,8 +182,21 @@ fn run_command(command: Command, ctx: impl term::Context) -> Result<(), anyhow::
         Command::Unseed(args) => unseed::run(args, ctx),
         Command::Watch(args) => watch::run(args, ctx),
         Command::Version { json } => write_version(json),
+        Command::Completion { shell } => {
+            print_completions(shell, &mut CliArgs::command());
+            Ok(())
+        }
         Command::External(args) => ExternalCommand::new(args).run(),
     }
+}
+
+fn print_completions<G: clap_complete::Generator>(generator: G, cmd: &mut clap::Command) {
+    clap_complete::generate(
+        generator,
+        cmd,
+        cmd.get_name().to_string(),
+        &mut io::stdout(),
+    );
 }
 
 struct ExternalCommand {

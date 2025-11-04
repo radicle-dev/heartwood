@@ -53,6 +53,47 @@ Or directly from our seed node:
         --git https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git \
         crates/radicle-cli crates/radicle-node crates/radicle-remote-helper
 
+## `rad` Shell Completions
+
+A `rad completion` subcommand is provided to generate static completions for your favorite shell.
+
+### Bash
+
+```
+echo 'source <(rad completion bash)' >> ~/.bashrc
+```
+
+### Zsh
+
+```
+echo 'source <(rad completion zsh)' >> ~/.zshrc
+```
+
+### Fish
+
+```
+rad completion fish > ~/.config/fish/completions/rad.fish
+```
+
+### PowerShell
+
+```
+Add-Content $PROFILE "`nInvoke-Expression (rad completion powershell | Out-String)"
+```
+
+### Elvish
+
+Add to `~/.elvish/rc.elv` (or `~/.config/elvish/rc.elv`)
+```
+eval (rad completion elvish | slurp)
+```
+
+Or save to a file and source it
+```
+rad completion elvish > ~/.elvish/lib/rad.elv
+echo 'use rad' >> ~/.elvish/rc.elv
+```
+
 ## Running
 
 *Systemd* unit files are provided for the node under the `/systemd` folder.
