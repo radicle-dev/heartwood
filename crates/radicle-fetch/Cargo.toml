@@ -22,4 +22,4 @@ nonempty = { workspace = true }
 radicle = { workspace = true }
 radicle-oid = { workspace = true, features = ["gix"] }
 radicle-git-ref-format = { workspace = true, features = ["bstr"] }
-thiserror = { workspace = true }
+thiserror = { workspace = true, default-features = true }

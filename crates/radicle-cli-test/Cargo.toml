@@ -18,4 +18,4 @@ pretty_assertions = { workspace = true }
 radicle = { workspace = true, features = ["logger", "test"]}
 shlex = { workspace = true }
 snapbox = { workspace = true }
-thiserror = { workspace = true }
+thiserror = { workspace = true, default-features = true }

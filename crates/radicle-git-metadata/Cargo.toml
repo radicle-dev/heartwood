@@ -10,4 +10,4 @@ keywords = ["radicle", "git", "metadata"]
 rust-version.workspace = true
 
 [dependencies]
-thiserror = { workspace = true }
+thiserror = { workspace = true, default-features = true }

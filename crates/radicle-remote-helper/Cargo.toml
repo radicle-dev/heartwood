@@ -19,4 +19,4 @@ log = { workspace = true }
 radicle = { workspace = true }
 radicle-cli = { workspace = true }
 radicle-crypto = { workspace = true }
-thiserror = { workspace = true }
+thiserror = { workspace = true, default-features = true }

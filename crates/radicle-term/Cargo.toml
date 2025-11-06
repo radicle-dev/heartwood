@@ -20,7 +20,7 @@ inquire = { version = "0.7.4", default-features = false, features = [
     "crossterm",
     "editor",
 ] }
-thiserror = { workspace = true }
+thiserror = { workspace = true, default-features = true }
 unicode-display-width = "0.3.0"
 unicode-segmentation = "1.7.1"
 zeroize = { workspace = true }

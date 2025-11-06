@@ -41,7 +41,7 @@ snapbox = { workspace = true, optional = true }
 socket2 = { version = "0.5.7", features = ["all"], optional = true }
 structured-logger = { version = "1.0.4", optional = true }
 tempfile = { workspace = true }
-thiserror = { workspace = true }
+thiserror = { workspace = true, default-features = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 radicle-systemd = { workspace = true, optional = true }

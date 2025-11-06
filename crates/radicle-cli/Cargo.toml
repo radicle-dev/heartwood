@@ -35,7 +35,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 shlex = { workspace = true }
 tempfile = { workspace = true }
-thiserror = { workspace = true }
+thiserror = { workspace = true, default-features = true }
 timeago = { version = "0.4.2", default-features = false }
 tree-sitter = "0.24.4"
 tree-sitter-bash = "0.23.3"

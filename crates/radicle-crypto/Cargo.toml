@@ -29,7 +29,7 @@ serde = { workspace = true, features = ["derive", "std"] }
 signature = { workspace = true }
 sqlite = { workspace = true, features = ["bundled"], optional = true }
 ssh-key = { version = "0.6.3", default-features = false, features = ["std", "encryption", "getrandom"], optional = true }
-thiserror = { workspace = true }
+thiserror = { workspace = true, default-features = true }
 zeroize = { workspace = true }
 
 [dev-dependencies]
