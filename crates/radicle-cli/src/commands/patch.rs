@@ -13,7 +13,6 @@ mod react;
 mod ready;
 mod redact;
 mod resolve;
-mod review;
 mod show;
 mod update;
 
@@ -197,12 +196,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             revision,
             options,
         } => {
-            let patch_id = id.resolve(&repository.backend)?;
-            let revision_id = revision
-                .map(|rev| rev.resolve::<radicle::git::Oid>(&repository.backend))
-                .transpose()?
-                .map(patch::RevisionId::from);
-            review::run(patch_id, revision_id, options.into(), &profile, &repository)?;
+            unimplemented!("patch review command is not implemented");
         }
 
         Command::Resolve {

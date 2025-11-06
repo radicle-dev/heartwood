@@ -1,9 +1,5 @@
 //! Git-related functions and types.
-
-pub mod ddiff;
-pub mod pretty_diff;
-pub mod unified_diff;
-
+ 
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::fs::{File, OpenOptions};

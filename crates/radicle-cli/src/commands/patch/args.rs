@@ -9,7 +9,6 @@ use radicle::prelude::Did;
 use radicle::prelude::RepoId;
 
 use crate::commands::patch::checkout;
-use crate::commands::patch::review;
 
 use crate::git::Rev;
 use crate::terminal::patch::Message;
@@ -586,68 +585,6 @@ pub(super) struct ReviewArgs {
 
     #[clap(flatten)]
     message_args: MessageArgs,
-}
-
-impl ReviewArgs {
-    fn as_operation(&self) -> review::Operation {
-        let Self {
-            patch,
-            accept,
-            reject,
-            delete,
-            ..
-        } = self;
-
-        if *patch {
-            let verdict = if *accept {
-                Some(Verdict::Accept)
-            } else if *reject {
-                Some(Verdict::Reject)
-            } else {
-                None
-            };
-            return review::Operation::Review(review::ReviewOptions {
-                by_hunk: true,
-                unified: self.unified,
-                hunk: self.hunk,
-                verdict,
-            });
-        }
-
-        if *delete {
-            return review::Operation::Delete;
-        }
-
-        if *accept {
-            return review::Operation::Review(review::ReviewOptions {
-                by_hunk: false,
-                unified: 3,
-                hunk: None,
-                verdict: Some(Verdict::Accept),
-            });
-        }
-
-        if *reject {
-            return review::Operation::Review(review::ReviewOptions {
-                by_hunk: false,
-                unified: 3,
-                hunk: None,
-                verdict: Some(Verdict::Reject),
-            });
-        }
-
-        panic!("expected one of `--patch`, `--delete`, `--accept`, or `--reject`");
-    }
-}
-
-impl From<ReviewArgs> for review::Options {
-    fn from(args: ReviewArgs) -> Self {
-        let op = args.as_operation();
-        Self {
-            message: Message::from(args.message_args),
-            op,
-        }
-    }
 }
 
 #[derive(Debug, clap::Args)]

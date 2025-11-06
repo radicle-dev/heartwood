@@ -27,7 +27,6 @@ radicle = { workspace = true, features = ["logger", "schemars"] }
 radicle-cob = { workspace = true }
 radicle-crypto = { workspace = true }
 radicle-git-ref-format = { workspace = true, features = ["macro"] }
-radicle-surf = { workspace = true }
 radicle-term = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }

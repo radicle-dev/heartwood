@@ -12,10 +12,9 @@ use radicle::node::device::Device;
 use radicle::node::NodeId;
 use radicle::storage::{ReadStorage as _, WriteRepository};
 use radicle::{cob, crypto, Profile};
-use radicle_surf::diff::Diff;
 use radicle_term::Element;
 
-use crate::git::unified_diff::Encode as _;
+// use crate::git::unified_diff::Encode as _;
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::Error;
@@ -472,11 +471,12 @@ fn print_diff(
     let mut opts = radicle::git::raw::DiffOptions::new();
     opts.context_lines(u32::MAX);
 
-    let diff = repo.diff_tree_to_tree(previous.as_ref(), Some(&current), Some(&mut opts))?;
-    let diff = Diff::try_from(diff)?;
+    let _diff = repo.diff_tree_to_tree(previous.as_ref(), Some(&current), Some(&mut opts))?;
 
-    if let Some(modified) = diff.modified().next() {
-        let diff = modified.diff.to_unified_string()?;
+    todo!("diffing");
+
+    if let Some(modified) = /* diff.modified().next() */ Some(1) {
+        let diff = 0 /* modified.diff.to_unified_string()? */ ;
         print!("{diff}");
     } else {
         term::print(term::format::italic("No changes."));
