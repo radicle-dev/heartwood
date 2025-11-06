@@ -22,6 +22,7 @@ gix-hash = { workspace = true, optional = true }
 multibase = { workspace = true }
 proptest = { workspace = true, optional = true }
 qcheck = { workspace = true, optional = true }
+radicle-crypto = { workspace = true }
 radicle-git-ref-format = { workspace = true, optional = true }
 radicle-oid = { workspace = true, default-features = false, features = ["sha1"] }
 schemars = { workspace = true, optional = true, default-features = false, features = ["derive"] }

@@ -2935,6 +2935,7 @@ dependencies = [
  "multibase",
  "proptest",
  "qcheck",
+ "radicle-crypto",
  "radicle-git-ref-format",
  "radicle-oid",
  "schemars",

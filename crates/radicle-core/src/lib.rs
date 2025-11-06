@@ -71,5 +71,8 @@ extern crate std as doc_std;
 
 extern crate alloc;
 
+pub mod node;
+pub use node::NodeId;
+
 pub mod repo;
 pub use repo::RepoId;
