@@ -585,7 +585,7 @@ impl Home {
             path: dunce::canonicalize(path)?,
         };
 
-        for dir in &[home.storage(), home.keys(), home.node(), home.cobs()] {
+        for dir in &home.subdirectories() {
             if !dir.exists() {
                 fs::create_dir_all(dir)?;
             }
@@ -594,26 +594,85 @@ impl Home {
         Ok(home)
     }
 
+    /// Load existing Radicle Home directories.
+    ///
+    /// The `home` path is the expected base directory for all necessary
+    /// subdirectories.
+    ///
+    /// # Errors
+    ///
+    /// If `home` or any of the subdirectories are missing an [`io::Error`] is
+    /// returned.
+    pub fn load<P>(home: P) -> Result<Self, io::Error>
+    where
+        P: AsRef<Path>,
+    {
+        let path = dunce::canonicalize(home.as_ref())?;
+        if !path.exists() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Radicle home directory does not exist: {}", path.display()),
+            ));
+        }
+        let home = Self { path };
+
+        let missing = home
+            .subdirectories()
+            .into_iter()
+            .filter(|dir| !dir.exists())
+            .collect::<Vec<_>>();
+
+        if !missing.is_empty() {
+            let missing = missing
+                .into_iter()
+                .map(|dir| dir.display().to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Required Radicle directories are missing: [{}]", missing),
+            ));
+        }
+
+        Ok(home)
+    }
+
+    /// The set of directories found under the [`Home`] directory path.
+    ///
+    /// List of directories:
+    /// - [`Home::storage`]
+    /// - [`Home::keys`]
+    /// - [`Home::node`]
+    /// - [`Home::cobs`]
+    fn subdirectories(&self) -> [PathBuf; 4] {
+        [self.storage(), self.keys(), self.node(), self.cobs()]
+    }
+
     pub fn path(&self) -> &Path {
         self.path.as_path()
     }
 
+    /// The `/storage` directory under [`Home::path`].
     pub fn storage(&self) -> PathBuf {
         self.path.join("storage")
     }
 
+    /// The `config.json` file path under [`Home::path`].
     pub fn config(&self) -> PathBuf {
         self.path.join("config.json")
     }
 
+    /// The `/keys` directory under [`Home::path`].
     pub fn keys(&self) -> PathBuf {
         self.path.join("keys")
     }
 
+    /// The `/node` directory under [`Home::path`].
     pub fn node(&self) -> PathBuf {
         self.path.join("node")
     }
 
+    /// The `/cobs` directory under [`Home::path`].
     pub fn cobs(&self) -> PathBuf {
         self.path.join("cobs")
     }
