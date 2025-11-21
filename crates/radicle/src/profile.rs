@@ -556,14 +556,6 @@ pub struct Home {
     path: PathBuf,
 }
 
-impl TryFrom<PathBuf> for Home {
-    type Error = io::Error;
-
-    fn try_from(home: PathBuf) -> Result<Self, Self::Error> {
-        Self::new(home)
-    }
-}
-
 impl Home {
     /// Creates the Radicle Home directories.
     ///

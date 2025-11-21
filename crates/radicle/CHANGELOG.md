@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Opening database connections requires specification of a configuration.
   `radicle::Profile` conveniently provides methods that supply the
   configuration from `radicle::Profile::config`.
+- The `TryFrom<PathBuf>` implementation for `Home` is removed in favor of using
+  the `Home::new` and `Home::load` methods.
 
 ### Removed
 
