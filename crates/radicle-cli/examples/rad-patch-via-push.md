@@ -330,6 +330,7 @@ we should get an error:
 
 ``` (stderr) (fail)
 $ git push rad master:refs/patches
+warn: attempted to create a patch using the commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354, but this commit is already included in the base branch
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  ! [remote rejected] master -> refs/patches (patch commits are already included in the base branch)
 error: failed to push some refs to 'rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi'

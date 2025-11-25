@@ -31,7 +31,7 @@ use radicle::{git, rad};
 use radicle_cli as cli;
 use radicle_cli::terminal as term;
 
-use crate::{hint, read_line, Options, Verbosity};
+use crate::{hint, read_line, warn, Options, Verbosity};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -556,6 +556,9 @@ where
     let base = patch_base(head, &opts, stored)?;
 
     if base == *head {
+        warn(format!(
+            "attempted to create a patch using the commit {head}, but this commit is already included in the base branch"
+        ));
         return Err(Error::EmptyPatch);
     }
 
