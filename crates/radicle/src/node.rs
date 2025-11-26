@@ -484,6 +484,14 @@ impl Address {
         &self.0.host
     }
 
+    /// Returns `true` if the [`HostName`] is a Tor onion address.
+    pub fn is_onion(&self) -> bool {
+        match self.0.host {
+            HostName::Tor(_) => true,
+            _ => false,
+        }
+    }
+
     /// Return the port number of the [`Address`].
     pub fn port(&self) -> u16 {
         self.0.port
