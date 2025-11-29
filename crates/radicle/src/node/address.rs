@@ -259,33 +259,51 @@ pub fn is_local(addr: &net::IpAddr) -> bool {
         net::IpAddr::V4(addr) => {
             addr.is_private() || addr.is_loopback() || addr.is_link_local() || addr.is_unspecified()
         }
-        net::IpAddr::V6(_) => false,
+        net::IpAddr::V6(addr) => {
+            addr.is_loopback() || addr.is_unicast_link_local() || addr.is_unspecified()
+        }
     }
 }
 
 /// Check whether an IPv4 address is globally routable.
 ///
-/// This code is adapted from the Rust standard library's `net::Ipv4Addr::is_global`. It can be
-/// replaced once that function is stabilized.
+/// This implementation lacks many exceptions, and should be improved once
+/// corresponding functions in [`std::net::Ipv4Addr`] are stabilized.
+///
+/// See
+///  - <https://github.com/rust-lang/rust/issues/27709>
+///  - <https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml>
 fn ipv4_is_routable(addr: &net::Ipv4Addr) -> bool {
-    // Check if this address is 192.0.0.9 or 192.0.0.10. These addresses are the only two
-    // globally routable addresses in the 192.0.0.0/24 range.
-    if u32::from(*addr) == 0xc0000009 || u32::from(*addr) == 0xc000000a {
+    // https://datatracker.ietf.org/doc/html/rfc7723#section-4.1
+    if *addr == net::Ipv4Addr::new(192, 0, 0, 9) {
         return true;
     }
+
+    // https://datatracker.ietf.org/doc/html/rfc8155#section-8.1
+    if *addr == net::Ipv4Addr::new(192, 0, 0, 10) {
+        return true;
+    }
+
+    // https://datatracker.ietf.org/doc/html/rfc791#section-3.2
+    if addr.octets()[0] == 0 {
+        return false;
+    }
+
     !addr.is_private()
         && !addr.is_loopback()
         && !addr.is_link_local()
         && !addr.is_broadcast()
         && !addr.is_documentation()
-        // Make sure the address is not in 0.0.0.0/8.
-        && addr.octets()[0] != 0
 }
 
 /// Check whether an IPv6 address is globally routable.
 ///
-/// For now, this always returns `true`, as IPv6 addresses
-/// are not fully supported.
-fn ipv6_is_routable(_addr: &net::Ipv6Addr) -> bool {
-    true
+/// This implementation lacks many exceptions, and should be improved once
+/// corresponding functions in [`std::net::Ipv6Addr`] are stabilized.
+///
+/// See
+///  - <https://github.com/rust-lang/rust/issues/27709>
+///  - <https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml>
+fn ipv6_is_routable(addr: &net::Ipv6Addr) -> bool {
+    !addr.is_loopback() && !addr.is_unicast_link_local() && !addr.is_unspecified()
 }
