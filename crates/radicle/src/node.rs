@@ -465,8 +465,15 @@ pub struct Address(
 impl Address {
     /// Check whether this address is from the local network.
     pub fn is_local(&self) -> bool {
-        match self.0.host {
-            HostName::Ip(ip) => address::is_local(&ip),
+        match &self.0.host {
+            HostName::Ip(ip) => address::is_local(ip),
+            HostName::Dns(name) => {
+                let name = name.strip_suffix(".").unwrap_or(name);
+
+                // RFC 2606, Section 2
+                // <https://datatracker.ietf.org/doc/html/rfc2606#section-2>
+                name.ends_with(".localhost") || name == "localhost"
+            }
             _ => false,
         }
     }
@@ -475,6 +482,7 @@ impl Address {
     pub fn is_routable(&self) -> bool {
         match self.0.host {
             HostName::Ip(ip) => address::is_routable(&ip),
+            HostName::Dns(_) => !self.is_local(),
             _ => true,
         }
     }
