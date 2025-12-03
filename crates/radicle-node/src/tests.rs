@@ -457,8 +457,8 @@ fn test_inventory_relay_bad_timestamp() {
     );
     assert_matches!(
         alice.outbox().next(),
-        Some(Io::Disconnect(addr, DisconnectReason::Session(session::Error::InvalidTimestamp(t))))
-        if addr == bob.id() && t == timestamp
+        Some(Io::Disconnect(addr, DisconnectReason::Session(session::Error::InvalidTimestamp(session::InvalidTimestamp::Future { theirs, .. }))))
+        if addr == bob.id() && theirs == timestamp
     );
 }
 
