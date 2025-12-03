@@ -1461,7 +1461,7 @@ where
 
         // Don't allow messages from too far in the future.
         if timestamp.saturating_sub(now.as_millis()) > MAX_TIME_DELTA.as_millis() as u64 {
-            return Err(session::Error::InvalidTimestamp(timestamp));
+            return Err(session::Error::future_timestamp(timestamp, now.into()));
         }
 
         // We don't process announcements from nodes we don't know, since the node announcement is
