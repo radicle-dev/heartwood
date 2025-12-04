@@ -5,7 +5,6 @@ use std::collections::hash_map::Entry;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
 use std::{io, net, time};
 
 use crossbeam_channel as chan;
@@ -13,6 +12,7 @@ use cyphernet::addr::{HostName, InetHost, NetAddr};
 use cyphernet::encrypt::noise::{HandshakePattern, Keyset, NoiseState};
 use cyphernet::proxy::socks5;
 use cyphernet::{Digest, EcSk, Ecdh, Sha256};
+use localtime::LocalTime;
 use mio::net::TcpStream;
 use radicle::node::device::Device;
 
@@ -291,35 +291,6 @@ impl Peers {
     }
 }
 
-/// The epoch time of when the node started.
-struct Epoch {
-    /// The system time when the node started.
-    started_time: SystemTime,
-    /// The instant when the node started.
-    started_at: Instant,
-}
-
-impl Epoch {
-    /// Construct a new [`Epoch`].
-    fn new(started_time: SystemTime, started_at: Instant) -> Self {
-        Self {
-            started_time,
-            started_at,
-        }
-    }
-
-    /// Construct an [`Epoch`] where both values are recorded using their
-    /// equivalent `now` constructors.
-    fn now() -> Self {
-        Self::new(SystemTime::now(), Instant::now())
-    }
-
-    /// Get the elapsed [`SystemTime`] given a later [`Instant`].
-    fn elapsed_time(&self, later: Instant) -> SystemTime {
-        self.started_time + (later - self.started_at)
-    }
-}
-
 /// Wire protocol implementation for a set of peers.
 pub(crate) struct Wire<D, S, G: crypto::signature::Signer<crypto::Signature> + Ecdh> {
     /// Backing service instance.
@@ -342,8 +313,6 @@ pub(crate) struct Wire<D, S, G: crypto::signature::Signer<crypto::Signature> + E
     peers: Peers,
     /// A (practically) infinite source of tokens to identify transports and listeners.
     tokens: Tokens,
-    /// Record of system time and instant when the node started.
-    epoch: Epoch,
 }
 
 impl<D, S, G> Wire<D, S, G>
@@ -366,12 +335,7 @@ where
             listening: RandomMap::default(),
             peers: Peers(RandomMap::default()),
             tokens: Tokens::default(),
-            epoch: Epoch::now(),
         }
-    }
-
-    fn time(&self, instant: Instant) -> SystemTime {
-        self.epoch.elapsed_time(instant)
     }
 
     pub fn listen(&mut self, socket: Listener) {
@@ -532,7 +496,7 @@ where
     type Listener = Listener;
     type Transport = Transport<WireSession<G>>;
 
-    fn tick(&mut self, time: Instant) {
+    fn tick(&mut self, time: LocalTime) {
         self.metrics.open_channels = self
             .peers
             .iter()
@@ -545,8 +509,10 @@ where
             })
             .sum();
         self.metrics.worker_queue_size = self.worker.len();
-
-        self.service.tick(self.time(time).into(), &self.metrics);
+        self.service.tick(
+            LocalTime::from_millis(time.as_millis() as u128),
+            &self.metrics,
+        );
     }
 
     fn timer_reacted(&mut self) {
@@ -557,7 +523,7 @@ where
         &mut self,
         _: Token, // Note that this is the token of the listener socket.
         event: io::Result<(TcpStream, std::net::SocketAddr)>,
-        _: Instant,
+        _: LocalTime,
     ) {
         match event {
             Ok((connection, peer)) => {
@@ -621,7 +587,12 @@ where
         }
     }
 
-    fn transport_reacted(&mut self, token: Token, event: SessionEvent<WireSession<G>>, _: Instant) {
+    fn transport_reacted(
+        &mut self,
+        token: Token,
+        event: SessionEvent<WireSession<G>>,
+        _: LocalTime,
+    ) {
         match event {
             SessionEvent::Established(ProtocolArtifact { state, session }) => {
                 // SAFETY: With the NoiseXK protocol, there is always a remote static key.

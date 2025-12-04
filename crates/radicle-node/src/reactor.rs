@@ -10,10 +10,11 @@ use std::fmt::{Debug, Display, Formatter};
 use std::io::ErrorKind;
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::{io, thread};
 
 use crossbeam_channel::{unbounded, Receiver, TryRecvError};
+use localtime::LocalTime;
 use mio::event::{Event, Source};
 use mio::{Events, Interest, Poll, Waker};
 use thiserror::Error;
@@ -211,7 +212,7 @@ pub trait ReactionHandler: Send + Iterator<Item = Action<Self::Listener, Self::T
     type Transport: EventHandler + Source + Send + Debug + WriteAtomic;
 
     /// Method called by the reactor on the start of each event loop once the poll has returned.
-    fn tick(&mut self, instant: Instant);
+    fn tick(&mut self, time: localtime::LocalTime);
 
     /// Method called by the reactor when a previously set timeout is fired.
     ///
@@ -226,7 +227,7 @@ pub trait ReactionHandler: Send + Iterator<Item = Action<Self::Listener, Self::T
         &mut self,
         token: Token,
         reaction: <Self::Listener as EventHandler>::Reaction,
-        instant: Instant,
+        time: localtime::LocalTime,
     );
 
     /// Method called by the reactor upon a reaction to an I/O event on a transport resource.
@@ -234,7 +235,7 @@ pub trait ReactionHandler: Send + Iterator<Item = Action<Self::Listener, Self::T
         &mut self,
         token: Token,
         reaction: <Self::Transport as EventHandler>::Reaction,
-        instant: Instant,
+        time: localtime::LocalTime,
     );
 
     /// Method called by the reactor when a given resource was successfully registered
@@ -371,7 +372,7 @@ impl<H: ReactionHandler> Runtime<H> {
 
     fn run(mut self) {
         loop {
-            let before_poll = Instant::now();
+            let before_poll = LocalTime::now();
             let timeout = self
                 .timeouts
                 .next_expiring_from(before_poll)
@@ -387,12 +388,12 @@ impl<H: ReactionHandler> Runtime<H> {
             // Blocking
             let res = self.poll.poll(&mut events, Some(timeout));
 
-            let tick = Instant::now();
-            self.service.tick(tick);
+            let now = LocalTime::now();
+            self.service.tick(now);
 
             // The way this is currently used basically ignores which keys have
             // timed out. So as long as *something* timed out, we wake the service.
-            let timers_fired = self.timeouts.remove_expired_by(tick);
+            let timers_fired = self.timeouts.remove_expired_by(now);
             if timers_fired > 0 {
                 log::trace!(target: "reactor", "Timer has fired");
                 self.service.timer_reacted();
@@ -403,9 +404,7 @@ impl<H: ReactionHandler> Runtime<H> {
                 self.service.handle_error(Error::Poll(err));
             }
 
-            let awoken = self.handle_events(tick, events);
-
-            log::trace!(target: "reactor", "Duration between tick and events handled: {:?}", Instant::now().duration_since(tick));
+            let awoken = self.handle_events(now, events);
 
             // Process the commands only if we awoken by the waker.
             if awoken {
@@ -421,14 +420,14 @@ impl<H: ReactionHandler> Runtime<H> {
                 }
             }
 
-            self.handle_actions(tick);
+            self.handle_actions(now);
         }
     }
 
     /// # Returns
     ///
     /// Whether one of the events was originated from the waker.
-    fn handle_events(&mut self, instant: Instant, events: Events) -> bool {
+    fn handle_events(&mut self, time: LocalTime, events: Events) -> bool {
         log::trace!(target: "reactor", "Handling events");
         let mut awoken = false;
         let mut deregistered = Vec::new();
@@ -450,7 +449,7 @@ impl<H: ReactionHandler> Runtime<H> {
                         .handle(event)
                         .into_iter()
                         .for_each(|service_event| {
-                            self.service.listener_reacted(token, service_event, instant);
+                            self.service.listener_reacted(token, service_event, time);
                         });
                 } else {
                     let listener = self.deregister_listener(token).unwrap_or_else(|| {
@@ -471,8 +470,7 @@ impl<H: ReactionHandler> Runtime<H> {
                         .handle(event)
                         .into_iter()
                         .for_each(|service_event| {
-                            self.service
-                                .transport_reacted(token, service_event, instant);
+                            self.service.transport_reacted(token, service_event, time);
                         });
                 } else {
                     let transport = self.deregister_transport(token).unwrap_or_else(|| {
@@ -490,13 +488,13 @@ impl<H: ReactionHandler> Runtime<H> {
         awoken
     }
 
-    fn handle_actions(&mut self, instant: Instant) {
+    fn handle_actions(&mut self, time: LocalTime) {
         while let Some(action) = self.service.next() {
             log::trace!(target: "reactor", "Handling action {action} from the service");
 
             // Deadlock may happen here if the service will generate events over and over
             // in the handle_* calls we may never get out of this loop
-            if let Err(err) = self.handle_action(action, instant) {
+            if let Err(err) = self.handle_action(action, time) {
                 log::error!(target: "reactor", "Error: {err}");
                 self.service.handle_error(err);
             }
@@ -506,7 +504,7 @@ impl<H: ReactionHandler> Runtime<H> {
     fn handle_action(
         &mut self,
         action: Action<H::Listener, H::Transport>,
-        instant: Instant,
+        time: LocalTime,
     ) -> Result<(), Error<H::Listener, H::Transport>> {
         match action {
             Action::RegisterListener(token, mut listener) => {
@@ -564,7 +562,7 @@ impl<H: ReactionHandler> Runtime<H> {
             Action::SetTimer(duration) => {
                 log::trace!(target: "reactor", "Adding timer {duration:?} from now");
 
-                self.timeouts.set_timeout(duration, instant);
+                self.timeouts.set_timeout(duration, time);
             }
         }
         Ok(())
