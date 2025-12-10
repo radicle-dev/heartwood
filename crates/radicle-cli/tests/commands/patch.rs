@@ -386,3 +386,43 @@ fn rad_merge_no_ff() {
         .tests(["rad-init", "rad-merge-no-ff"], &alice)
         .unwrap();
 }
+
+#[test]
+fn rad_patch_merge_on_first_push() {
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+
+    environment.repository(&alice);
+
+    test(
+        "examples/rad-init.md",
+        environment.work(&alice),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    bob.connect(&alice).converge([&alice]);
+
+    formula(
+        &environment.tempdir(),
+        "examples/rad-patch-merge-on-first-push.md",
+    )
+    .unwrap()
+    .home(
+        "alice",
+        environment.work(&alice),
+        [("RAD_HOME", alice.home.path().display())],
+    )
+    .home(
+        "bob",
+        environment.work(&bob),
+        [("RAD_HOME", bob.home.path().display())],
+    )
+    .run()
+    .unwrap();
+}
