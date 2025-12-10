@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## Fixed Bugs
+
+- Previously, a delegate could push to the default branch, for the first time,
+  while attempting to merge a patch. However, the patch would not be marked as
+  merged. The Git remote helper will now fallback to the canonical default
+  branch, if the default branch of the delegate could not be found, and
+  correctly mark the patch as merged.
+
 ## 1.9.1
 
 ## Improvements

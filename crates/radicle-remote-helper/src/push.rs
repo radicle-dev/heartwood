@@ -800,8 +800,18 @@ where
 {
     let head = *src;
     let dst = dst.with_namespace(nid.into());
-    // It's ok for the destination reference to be unknown, eg. when pushing a new branch.
-    let old = stored.backend.find_reference(dst.as_str()).ok();
+
+    // In some rare cases, pushing to the default branch is a new action for a delegate.
+    // If this is the case, use the canonical head before the push to determine the old side.
+    //
+    // Note that this is only important for reverting and merging, but must happen before the push.
+    let old = stored
+        .backend
+        .find_reference(dst.as_str())
+        .ok()
+        .map(|old| old.peel_to_commit().map(|c| c.id().into()))
+        .transpose()?
+        .or_else(|| stored.canonical_head().map(|(_, oid)| oid).ok());
 
     push_ref(
         src,
@@ -820,11 +830,10 @@ where
         // If we're pushing to the project's default branch, we want to see if any patches got
         // merged or reverted, and if so, update the patch COB.
         if &*dst.strip_namespace() == master {
-            let old = old.peel_to_commit()?.id();
             // Only delegates affect the merge state of the COB.
             if stored.delegates()?.contains(&nid.into()) {
-                patch_revert_all(old.into(), head, &stored.backend, &mut patches)?;
-                patch_merge_all(old.into(), head, working, &mut patches, signer)?;
+                patch_revert_all(old, head, &stored.backend, &mut patches)?;
+                patch_merge_all(old, head, working, &mut patches, signer)?;
             }
         }
     }
