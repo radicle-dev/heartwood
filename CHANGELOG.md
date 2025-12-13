@@ -28,6 +28,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed Bugs
 
+## Breaking Changes
+
+- The `Connected` state of a peer no longer contains fetching information. This
+  information was returned when requesting for `Seeds` on the control socket.
+  Callers should no longer expect the `fetching` inside that JSON result.
+- The `rad debug` information for ongoing fetches contained the number of
+  subscribers awaiting for results, this was removed.
+
 ## 1.5.0
 
 ## Release Highlights
