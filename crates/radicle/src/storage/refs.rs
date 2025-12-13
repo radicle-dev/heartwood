@@ -371,7 +371,7 @@ impl<V> Deref for SignedRefs<V> {
 ///
 /// `RefsAt` can also be used for communicating announcements of updates
 /// references to other nodes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct RefsAt {
