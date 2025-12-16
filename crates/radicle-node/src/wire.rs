@@ -576,7 +576,7 @@ where
     }
 
     fn transport_registered(&mut self, token: Token, _transport: &Self::Transport) {
-        if let Some(outbound) = self.outbound.get_mut(&token) {
+        if let Some(outbound) = self.outbound.get(&token) {
             log::debug!(target: "wire", token=token.0; "Outbound peer resource registered for {}", outbound.nid);
         } else if self.inbound.contains(&token) {
             log::debug!(target: "wire", token=token.0; "Inbound peer resource registered");
