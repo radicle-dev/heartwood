@@ -1,6 +1,9 @@
 pub mod command;
 pub mod event;
 
+#[cfg(test)]
+mod test;
+
 use std::net::IpAddr;
 
 use localtime::{LocalDuration, LocalTime};
