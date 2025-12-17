@@ -990,7 +990,7 @@ where
                                 .push_back(reactor::Action::RegisterTransport(token, transport));
                         }
                         Err(err) => {
-                            log::error!(target: "wire", "Error establishing connection to {addr}: {err}");
+                            logger::establish_connection(&addr, &err);
 
                             self.service.disconnected(
                                 node_id,
@@ -1219,6 +1219,21 @@ fn session<G: Ecdh<Pk = NodeId>>(
     };
 
     WireSession::new(proxy, noise)
+}
+
+mod logger {
+    use radicle::node::Address;
+
+    pub fn establish_connection(addr: &Address, err: &std::io::Error) {
+        use std::io::ErrorKind::*;
+        match err.kind() {
+            ConnectionRefused | ConnectionReset | HostUnreachable | ConnectionAborted
+            | NotConnected => {
+                log::info!(target: "wire", "Could not establish connection to {addr}: {err}")
+            }
+            _ => log::error!(target: "wire", "Error establishing connection to {addr}: {err}"),
+        }
+    }
 }
 
 #[cfg(test)]
