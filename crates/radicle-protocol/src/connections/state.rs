@@ -71,6 +71,8 @@ use super::Attempts;
 /// [`ConnectionType`]: session::ConnectionType
 #[derive(Debug)]
 pub struct Connections {
+    /// [`NodeId`] of the running node.
+    local: NodeId,
     /// The state of the connection lifecycle for each node in the network.
     sessions: Sessions,
     /// Rate limiter of IP hosts.
@@ -83,8 +85,9 @@ impl Connections {
     /// Construct a new [`Connections`] with the provided [`Config`] and [`RateLimiter`].
     ///
     /// The state will start with no [`Sessions`], to begin.
-    pub fn new(config: Config, limiter: RateLimiter) -> Self {
+    pub fn new(local: NodeId, config: Config, limiter: RateLimiter) -> Self {
         Self {
+            local,
             sessions: Sessions::default(),
             limiter,
             config,
@@ -145,6 +148,11 @@ impl Connections {
     ///
     /// Transitions the state of the existing session to `Attempted`.
     pub fn attempted(&mut self, command::Attempt { node }: command::Attempt) -> event::Attempted {
+        if let Some(event) =
+            self.guard_self_session(&node, event::Attempted::SelfConnection { node })
+        {
+            return event;
+        }
         self.sessions
             .session_to_attempted(&node)
             .map(event::Attempted::attempt)
@@ -168,6 +176,10 @@ impl Connections {
     ) -> event::Connect {
         if self.is_disconnected(&node) {
             return event::Connect::disconnected(node);
+        }
+        if let Some(event) = self.guard_self_session(&node, event::Connect::SelfConnection { node })
+        {
+            return event;
         }
         if self.is_connecting(&node) {
             return event::Connect::already_connecting(node);
@@ -211,6 +223,11 @@ impl Connections {
                 addr,
                 connection_type,
             } => {
+                if let Some(event) =
+                    self.guard_self_session(&node, event::Connected::SelfConnection { node })
+                {
+                    return event;
+                }
                 // In this scenario, it's possible that our peer is persistent, and
                 // disconnected. We get an inbound connection before we attempt a re-connection,
                 // and therefore we treat it as a regular inbound connection.
@@ -239,6 +256,11 @@ impl Connections {
                 addr: _,
                 connection_type,
             } => {
+                if let Some(event) =
+                    self.guard_self_session(&node, event::Connected::SelfConnection { node })
+                {
+                    return event;
+                }
                 // Transitions the session to connected no matter what state it is in
                 match self.sessions.session_to_connected(
                     &node,
@@ -284,6 +306,11 @@ impl Connections {
         }: command::Disconnect,
         reason: &DisconnectReason,
     ) -> event::Disconnected {
+        if let Some(event) =
+            self.guard_self_session(&node, event::Disconnected::SelfConnection { node })
+        {
+            return event;
+        }
         let Some(session) = self.sessions.get_session(&node) else {
             return event::Disconnected::missing(node);
         };
@@ -323,6 +350,11 @@ impl Connections {
         &mut self,
         command::Reconnect { node }: command::Reconnect,
     ) -> event::Reconnect {
+        if let Some(event) =
+            self.guard_self_session(&node, event::Reconnect::SelfConnection { node })
+        {
+            return event;
+        }
         self.sessions
             .session_to_initial(&node)
             .map(event::Reconnect::reconnecting)
@@ -397,6 +429,11 @@ impl Connections {
         }: command::Message,
         now: LocalTime,
     ) -> event::HandledMessage {
+        if let Some(event) =
+            self.guard_self_session(&node, event::HandledMessage::SelfConnection { node })
+        {
+            return event;
+        }
         if self.sessions.is_diconnected(&node) {
             return event::HandledMessage::Disconnected { node };
         }
@@ -500,6 +537,10 @@ impl Connections {
         now: &LocalTime,
     ) -> impl Iterator<Item = (&NodeId, &session::Session<session::Connected>)> {
         self.sessions.unresponsive(*now, self.config.stale())
+    }
+
+    fn guard_self_session<T>(&self, node: &NodeId, event: T) -> Option<T> {
+        (&self.local == node).then_some(event)
     }
 
     fn has_reached_inbound_limit(&self) -> bool {

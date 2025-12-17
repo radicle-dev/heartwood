@@ -43,6 +43,8 @@ pub enum Attempted {
     },
     /// The session did not exist for this node, and it was expected to.
     MissingSession { node: NodeId },
+    /// Attempted to connect to the local node.
+    SelfConnection { node: NodeId },
 }
 
 impl Attempted {
@@ -80,6 +82,8 @@ pub enum Connect {
         /// local node.
         record_ip: Option<IpAddr>,
     },
+    /// Attempted to connect to the local node.
+    SelfConnection { node: NodeId },
 }
 
 impl Connect {
@@ -119,6 +123,8 @@ pub enum Connected {
     },
     /// An existing session was expected for the node, but there was none.
     MissingSession { node: NodeId },
+    /// Connection came from the local node.
+    SelfConnection { node: NodeId },
 }
 
 impl Connected {
@@ -169,6 +175,8 @@ pub enum Disconnected {
         /// The link that was expected from the call to disconnect.
         expected: Link,
     },
+    /// Attempted to disconnect from the local node.
+    SelfConnection { node: NodeId },
 }
 
 impl Disconnected {
@@ -215,6 +223,8 @@ pub enum Reconnect {
     },
     /// An existing session was expected for the node, but there was none.
     MissingSession { node: NodeId },
+    /// Attempted to reconnect to the local node.
+    SelfConnection { node: NodeId },
 }
 
 impl Reconnect {
@@ -251,6 +261,8 @@ pub enum HandledMessage {
     },
     /// An existing session was expected for the node, but there was none.
     MissingSession { node: NodeId },
+    /// Message originated from the local node.
+    SelfConnection { node: NodeId },
 }
 
 /// The result of pinging a connected session.
