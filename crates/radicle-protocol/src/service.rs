@@ -493,6 +493,7 @@ where
                 outbound,
             };
             connections::state::Connections::new(
+                *signer.node_id(),
                 connections_config,
                 RateLimiter::new(config.peers()),
             )
@@ -1260,6 +1261,9 @@ where
                 #[cfg(debug_assertions)]
                 panic!("Service::attempted: unknown session {nid}@{addr}");
             }
+            event::Attempted::SelfConnection { node } => {
+                debug!(target: "service", "Attempted connection to this running node {node}");
+            }
         }
     }
 
@@ -1295,6 +1299,9 @@ where
             }
             event::Connected::MissingSession { node } => {
                 debug!(target: "service", "Could not transition {node} to connect since its session is missing");
+            }
+            event::Connected::SelfConnection { node } => {
+                warn!(target: "service", "Connected to local node {node}");
             }
         }
     }
@@ -1358,6 +1365,9 @@ where
                 // In cases of connection conflicts, there may be disconnections of one of the two
                 // connections. In that case we don't want the service to remove the session.
                 trace!(target: "service", "Conflicting sessions {node} found={found} expected={expected}");
+            }
+            event::Disconnected::SelfConnection { node } => {
+                warn!(target: "service", "Disconnection came for local node {node}");
             }
         }
 
@@ -1753,6 +1763,10 @@ where
             HandledMessage::Connected { session } => session,
             HandledMessage::Subscribed { session } => session,
             HandledMessage::Pinged { session, pinged: _ } => session,
+            HandledMessage::SelfConnection { node } => {
+                warn!(target: "service", "Message sender is the local node {node}");
+                return Ok(());
+            }
         };
 
         message.log(log::Level::Debug, remote, Link::Inbound);
@@ -2132,6 +2146,10 @@ where
                 debug!("Reconnecting to missing session for {node}");
                 false
             }
+            event::Reconnect::SelfConnection { node } => {
+                warn!(target: "service", "Attempted reconnect with local node {node}");
+                false
+            }
         }
     }
 
@@ -2139,15 +2157,16 @@ where
         use connections::state::command;
         use connections::state::event;
 
-        if nid == self.node_id() {
-            return Err(ConnectError::SelfConnection);
-        }
         let command = command::Connect {
             node: nid,
             addr: addr.clone(),
             connection_type: self.connection_type(&nid),
         };
         match self.connections.connect(command, self.clock) {
+            event::Connect::SelfConnection { node } => {
+                log::debug!(target: "service", "Attempted connect to local node {node}");
+                Err(ConnectError::SelfConnection)
+            }
             event::Connect::AlreadyConnected { session } => {
                 let node = session.node();
                 trace!(target: "service", "Connected to {node} already");
