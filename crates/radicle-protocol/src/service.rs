@@ -2530,8 +2530,16 @@ where
             if !policy.is_allow() {
                 continue;
             }
-            if self.storage.contains(&rid)? {
-                continue;
+            match self.storage.contains(&rid) {
+                Ok(exists) => {
+                    if exists {
+                        continue;
+                    }
+                }
+                Err(err) => {
+                    log::warn!(target: "protocol::filter", "Failed to check if {rid} exists: {err}");
+                    continue;
+                }
             }
             match self.seeds(&rid, [self.node_id()].into()) {
                 Ok(seeds) => {
