@@ -247,13 +247,18 @@ impl Connections {
                         let session = self.sessions.inbound(node, addr, connection_type, now);
                         event::Connected::established(session)
                     }
-                    Some(session) => event::Connected::established(session),
+                    Some(session) => {
+                        // TODO(finto): the address was never used in the
+                        // previous code in the case of the link being outbound
+                        // – it assumes that the session's address is the same
+                        debug_assert_eq!(session.address(), &addr);
+                        event::Connected::established(session)
+                    }
                 }
             }
-            // TODO(finto): why was the address never used? Or did I miss something
             command::Connected::Outbound {
                 node,
-                addr: _,
+                addr,
                 connection_type,
             } => {
                 if let Some(event) =
@@ -269,7 +274,13 @@ impl Connections {
                     connection_type,
                 ) {
                     None => event::Connected::missing(node),
-                    Some(session) => event::Connected::established(session),
+                    Some(session) => {
+                        // TODO(finto): the address was never used in the
+                        // previous code in the case of the link being outbound
+                        // – it assumes that the session's address is the same
+                        debug_assert_eq!(session.address(), &addr);
+                        event::Connected::established(session)
+                    }
                 }
             }
         }
