@@ -89,7 +89,8 @@ where
     }
 
     /// Perform the handshake with the server side.
-    pub(crate) fn handshake(&mut self) -> Result<handshake::Outcome, Box<handshake::Error>> {
+    #[allow(clippy::result_large_err)]
+    pub(crate) fn handshake(&mut self) -> Result<handshake::Outcome, handshake::Error> {
         log::trace!(target: "fetch", "Performing handshake for {}", self.repo);
         let (read, write) = self.stream.open();
         gix_protocol::fetch::handshake(
@@ -98,7 +99,6 @@ where
             vec![],
             &mut progress::Discard,
         )
-        .map_err(Box::new)
     }
 
     /// Perform ls-refs with the server side.

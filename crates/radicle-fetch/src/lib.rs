@@ -9,6 +9,7 @@ mod refs;
 mod stage;
 mod state;
 
+use std::io;
 use std::time::Instant;
 
 use gix_protocol::handshake;
@@ -28,8 +29,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("failed to perform fetch handshake: {0}")]
-    Handshake(#[from] Box<handshake::Error>),
+    #[error(transparent)]
+    Handshake(Box<HandshakeError>),
     #[error("failed to load `rad/id`")]
     Identity {
         #[source]
@@ -41,6 +42,20 @@ pub enum Error {
     MissingRadId,
     #[error("attempted to replicate from self")]
     ReplicateSelf,
+}
+
+impl From<HandshakeError> for Error {
+    fn from(err: HandshakeError) -> Self {
+        Self::Handshake(Box::new(err))
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum HandshakeError {
+    #[error("failed to perform fetch handshake: {0}")]
+    Gix(handshake::Error),
+    #[error("an I/O error occurred during the fetch handshake ({0})")]
+    Io(io::Error),
 }
 
 /// Pull changes from the `remote`.
@@ -127,11 +142,24 @@ fn perform_handshake<R, S>(handle: &mut Handle<R, S>) -> Result<handshake::Outco
 where
     S: transport::ConnectionStream,
 {
-    let result = handle.transport.handshake();
+    handle
+        .transport
+        .handshake()
+        .map_err(handle_handshake_err)
+        .map_err(Error::from)
+}
 
-    if let Err(err) = &result {
-        log::warn!(target: "fetch", "Failed to perform handshake: {err}");
-    }
-
-    Ok(result?)
+fn handle_handshake_err(err: handshake::Error) -> HandshakeError {
+    let err = match err {
+        handshake::Error::Transport(error) => match error {
+            gix_transport::client::Error::Io(error) => HandshakeError::Io(error),
+            err => HandshakeError::Gix(handshake::Error::Transport(err)),
+        },
+        err => {
+            log::warn!(target: "fetch", "Failed to perform handshake: {err}");
+            HandshakeError::Gix(err)
+        }
+    };
+    log::warn!(target: "fetch", "{err}");
+    err
 }
