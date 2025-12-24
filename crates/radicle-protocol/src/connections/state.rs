@@ -346,7 +346,7 @@ impl Connections {
                 // Only stabilise sessions that are not already marked as stable
                 if !session.is_stable() {
                     let stable = session
-                        .stabilise(now, self.config.stale_connection)
+                        .stabilise(now, self.config.stale())
                         .then_some(session.clone());
                     stabilised.extend(stable);
                     stabilised
@@ -366,7 +366,7 @@ impl Connections {
         mut ping: impl FnMut() -> message::Ping + 'a,
         now: LocalTime,
     ) -> impl Iterator<Item = event::Ping> + 'a {
-        let keep_alive = self.config.keep_alive;
+        let keep_alive = self.config.keep_alive();
         self.sessions
             .inactive(now, keep_alive)
             .map(move |(_, session)| event::Ping {
@@ -400,8 +400,8 @@ impl Connections {
         if self.sessions.is_disconnected(&node) {
             return event::HandledMessage::Disconnected { node };
         }
-        let outbound_limit = RateLimit::from(self.config.limits.outbound);
-        let inbound_limit = RateLimit::from(self.config.limits.inbound);
+        let outbound_limit = self.config.outbound.rate_limit;
+        let inbound_limit = self.config.inbound.rate_limit;
         let result =
             self.sessions
                 .while_connecting(&node, None, connection_type, now, |connected| {
@@ -499,18 +499,17 @@ impl Connections {
         &self,
         now: &LocalTime,
     ) -> impl Iterator<Item = (&NodeId, &session::Session<session::Connected>)> {
-        self.sessions
-            .unresponsive(*now, self.config.stale_connection)
+        self.sessions.unresponsive(*now, self.config.stale())
     }
 
     fn has_reached_inbound_limit(&self) -> bool {
-        self.sessions.connected_inbound() >= self.config.inbound_limit
+        self.sessions.connected_inbound() >= self.config.inbound.maximum
     }
 
     fn has_reached_ip_limit(&mut self, ip: &IpAddr, now: LocalTime) -> bool {
         let addr = HostName::from(*ip);
         self.limiter
-            .limit(addr, None, &self.config.limits.inbound, now)
+            .limit(addr, None, &self.config.inbound.rate_limit, now)
     }
 
     fn reason_severity(&self, reason: &DisconnectReason, now: LocalTime) -> Severity {
@@ -545,14 +544,14 @@ impl Connections {
     }
 
     fn idle(&self) -> LocalDuration {
-        self.config.idle
+        self.config.idle()
     }
 
     fn reconnection_delay(&self, attempts: Attempts) -> LocalDuration {
         let attempts = u32::try_from(usize::from(attempts)).unwrap_or(u32::MAX);
         LocalDuration::from_secs(2u64.saturating_pow(attempts)).clamp(
-            self.config.reconnection_delay.min_delta,
-            self.config.reconnection_delay.max_delta,
+            self.config.reconnection_delay().min_delta,
+            self.config.reconnection_delay().max_delta,
         )
     }
 
