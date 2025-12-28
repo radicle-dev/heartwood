@@ -69,26 +69,6 @@ pub(crate) mod bytesize {
     );
 }
 
-pub(crate) mod localtime {
-    use super::*;
-
-    /// See [`::localtime::LocalDuration`]
-    #[derive(JsonSchema)]
-    #[schemars(
-        remote = "localtime::LocalDuration",
-        description = "A time duration measured locally in milliseconds."
-    )]
-    pub(crate) struct LocalDuration(u64);
-
-    /// See [`crate::serde_ext::localtime::time`]
-    #[derive(JsonSchema)]
-    #[schemars(
-        remote = "localtime::LocalDuration",
-        description = "A time duration measured locally in seconds."
-    )]
-    pub(crate) struct LocalDurationInSeconds(u64);
-}
-
 pub(crate) mod git {
     pub(crate) mod fmt {
         /// See [`crate::git::fmt::RefString`]

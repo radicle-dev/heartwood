@@ -548,14 +548,7 @@ impl From<LogLevel> for log::Level {
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(transparent)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
-pub struct LimitRoutingMaxAge(
-    #[serde(with = "crate::serde_ext::localtime::duration")]
-    #[cfg_attr(
-        feature = "schemars",
-        schemars(with = "crate::schemars_ext::localtime::LocalDuration")
-    )]
-    localtime::LocalDuration,
-);
+pub struct LimitRoutingMaxAge(localtime::LocalDuration);
 
 impl Default for LimitRoutingMaxAge {
     fn default() -> Self {
@@ -578,14 +571,7 @@ impl From<LocalDuration> for LimitRoutingMaxAge {
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(transparent)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
-pub struct LimitGossipMaxAge(
-    #[serde(with = "crate::serde_ext::localtime::duration")]
-    #[cfg_attr(
-        feature = "schemars",
-        schemars(with = "crate::schemars_ext::localtime::LocalDuration")
-    )]
-    localtime::LocalDuration,
-);
+pub struct LimitGossipMaxAge(localtime::LocalDuration);
 
 impl Default for LimitGossipMaxAge {
     fn default() -> Self {

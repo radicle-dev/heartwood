@@ -34,7 +34,6 @@ human-panic = "2"
 itertools = "0.14"
 lexopt = "0.3.0"
 libc = "0.2.137"
-localtime = "1.2.0"
 log = "0.4.17"
 multibase = "0.9.1"
 nonempty = "0.9.0"
@@ -50,6 +49,7 @@ radicle-dag = { version = "0.10", path = "crates/radicle-dag" }
 radicle-fetch = { version = "0.16", path = "crates/radicle-fetch" }
 radicle-git-metadata = { version = "0.1.0", path = "crates/radicle-git-metadata", default-features = false }
 radicle-git-ref-format = { version = "0.1.0", path = "crates/radicle-git-ref-format", default-features = false }
+radicle-localtime = { version = "0.1", path = "crates/radicle-localtime" }
 radicle-node = { version = "0.16", path = "crates/radicle-node" }
 radicle-oid = { version = "0.1.0", path = "crates/radicle-oid", default-features = false }
 radicle-protocol = { version = "0.4", path = "crates/radicle-protocol" }

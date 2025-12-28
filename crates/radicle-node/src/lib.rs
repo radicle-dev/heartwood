@@ -17,6 +17,8 @@ pub mod test;
 #[cfg(test)]
 pub mod tests;
 
+extern crate radicle_localtime as localtime;
+
 use std::str::FromStr;
 use std::sync::LazyLock;
 

@@ -21,13 +21,13 @@ clap_complete = "4.5"
 dunce = { workspace = true }
 human-panic.workspace = true
 itertools.workspace = true
-localtime = { workspace = true }
 log = { workspace = true, features = ["std"] }
 nonempty = { workspace = true }
 radicle = { workspace = true, features = ["logger", "schemars"] }
 radicle-cob = { workspace = true }
 radicle-crypto = { workspace = true }
 radicle-git-ref-format = { workspace = true, features = ["macro"] }
+radicle-localtime = { workspace = true }
 radicle-surf = { workspace = true }
 radicle-term = { workspace = true }
 schemars = { workspace = true }
@@ -57,6 +57,7 @@ zeroize = { workspace = true }
 pretty_assertions = { workspace = true }
 radicle = { workspace = true, features = ["test"] }
 radicle-cli-test = { workspace = true }
+radicle-localtime = { workspace = true }
 radicle-node = { workspace = true, features = ["test"] }
 
 [lints]

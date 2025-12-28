@@ -102,11 +102,6 @@ pub enum State {
     #[serde(rename_all = "camelCase")]
     Connected {
         /// Connected since this time.
-        #[serde(with = "crate::serde_ext::localtime::time")]
-        #[cfg_attr(
-            feature = "schemars",
-            schemars(with = "crate::schemars_ext::localtime::LocalDurationInSeconds")
-        )]
         since: LocalTime,
         /// Ping state.
         #[serde(skip)]
@@ -124,18 +119,8 @@ pub enum State {
     #[serde(rename_all = "camelCase")]
     Disconnected {
         /// Since when has this peer been disconnected.
-        #[serde(with = "crate::serde_ext::localtime::time")]
-        #[cfg_attr(
-            feature = "schemars",
-            schemars(with = "crate::schemars_ext::localtime::LocalDurationInSeconds")
-        )]
         since: LocalTime,
         /// When to retry the connection.
-        #[serde(with = "crate::serde_ext::localtime::time")]
-        #[cfg_attr(
-            feature = "schemars",
-            schemars(with = "crate::schemars_ext::localtime::LocalDurationInSeconds")
-        )]
         retry_at: LocalTime,
     },
 }

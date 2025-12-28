@@ -15,11 +15,6 @@ pub struct SyncedAt {
     /// Head of `rad/sigrefs`.
     pub oid: crate::git::Oid,
     /// When these refs were synced.
-    #[serde(with = "crate::serde_ext::localtime::time")]
-    #[cfg_attr(
-        feature = "schemars",
-        schemars(with = "crate::schemars_ext::localtime::LocalDurationInSeconds")
-    )]
     pub timestamp: LocalTime,
 }
 

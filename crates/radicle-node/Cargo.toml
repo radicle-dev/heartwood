@@ -25,12 +25,12 @@ cyphernet = { workspace = true, features = ["tor", "dns", "ed25519", "p2p-ed2551
 fastrand = { workspace = true }
 lexopt = { workspace = true }
 log = { workspace = true, features = ["kv", "std"] }
-localtime = { workspace = true }
 mio = { version = "1", features = ["net", "os-poll"] }
 nonempty = { workspace = true, features = ["serialize"] }
 qcheck = { workspace = true, optional = true }
 radicle = { workspace = true, features = ["logger"] }
 radicle-fetch = { workspace = true }
+radicle-localtime = { workspace = true }
 radicle-protocol = { workspace = true }
 radicle-signals = { workspace = true }
 sqlite = { workspace = true, features = ["bundled"] }

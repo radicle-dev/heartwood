@@ -2169,15 +2169,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4ce301924b7887e9d637144fdade93f9dfff9b60981d4ac161db09720d39aa5"
 
 [[package]]
-name = "localtime"
-version = "1.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "016a009e0bb8ba6e3229fb74bf11a8fe6ef24542cc6ef35ef38863ac13f96d87"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2796,7 +2787,6 @@ dependencies = [
  "indexmap",
  "jsonschema",
  "libc",
- "localtime",
  "log",
  "multibase",
  "nonempty",
@@ -2807,6 +2797,7 @@ dependencies = [
  "radicle-crypto",
  "radicle-git-metadata",
  "radicle-git-ref-format",
+ "radicle-localtime",
  "radicle-oid",
  "radicle-ssh",
  "schemars",
@@ -2832,7 +2823,6 @@ dependencies = [
  "dunce",
  "human-panic",
  "itertools",
- "localtime",
  "log",
  "nonempty",
  "pretty_assertions",
@@ -2841,6 +2831,7 @@ dependencies = [
  "radicle-cob",
  "radicle-crypto",
  "radicle-git-ref-format",
+ "radicle-localtime",
  "radicle-node",
  "radicle-surf",
  "radicle-term",
@@ -2982,6 +2973,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "radicle-localtime"
+version = "0.1.0"
+dependencies = [
+ "schemars",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "radicle-node"
 version = "0.16.0"
 dependencies = [
@@ -2994,7 +2994,6 @@ dependencies = [
  "cyphernet",
  "fastrand",
  "lexopt",
- "localtime",
  "log",
  "mio 1.0.4",
  "nonempty",
@@ -3003,6 +3002,7 @@ dependencies = [
  "radicle",
  "radicle-crypto",
  "radicle-fetch",
+ "radicle-localtime",
  "radicle-protocol",
  "radicle-signals",
  "radicle-systemd",
@@ -3041,7 +3041,6 @@ dependencies = [
  "crossbeam-channel",
  "cyphernet",
  "fastrand",
- "localtime",
  "log",
  "nonempty",
  "paste",
@@ -3050,6 +3049,7 @@ dependencies = [
  "radicle",
  "radicle-crypto",
  "radicle-fetch",
+ "radicle-localtime",
  "scrypt",
  "serde",
  "serde_json",

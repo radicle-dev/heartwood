@@ -20,6 +20,7 @@ use radicle::profile::Home;
 use radicle::storage::{ReadStorage, RefUpdate, RemoteRepository};
 use radicle::test::fixtures;
 
+use radicle_localtime::LocalTime;
 #[allow(unused_imports)]
 use radicle_node::test::logger;
 use radicle_node::test::node::Node;
@@ -806,7 +807,7 @@ fn rad_node_connect_without_address() {
             &Alias::new("bob"),
             0,
             &UserAgent::default(),
-            localtime::LocalTime::now().into(),
+            LocalTime::now().into(),
             [node::KnownAddress::new(
                 node::Address::from(bob.addr),
                 node::address::Source::Imported,
@@ -1351,7 +1352,7 @@ fn rad_clone_partial_fail() {
             &Alias::new("carol"),
             0,
             &UserAgent::default(),
-            localtime::LocalTime::now().into(),
+            LocalTime::now().into(),
             [node::KnownAddress::new(
                 // Eve will fail to connect to this address.
                 node::Address::from(net::SocketAddr::from(([0, 0, 0, 0], 19873))),
@@ -1361,7 +1362,7 @@ fn rad_clone_partial_fail() {
         .unwrap();
     eve.db
         .routing_mut()
-        .add_inventory([&acme], carol, localtime::LocalTime::now().into())
+        .add_inventory([&acme], carol, LocalTime::now().into())
         .unwrap();
     eve.config.peers = node::config::PeerConfig::Static;
 
@@ -1395,7 +1396,7 @@ fn rad_clone_connect() {
     let mut eve = environment.node("eve");
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
     let ua = UserAgent::default();
-    let now = localtime::LocalTime::now().into();
+    let now = LocalTime::now().into();
 
     fixtures::repository(working.join("acme"));
 

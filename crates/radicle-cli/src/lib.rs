@@ -9,3 +9,5 @@ pub mod project;
 pub mod terminal;
 
 mod warning;
+
+extern crate radicle_localtime as localtime;

@@ -13,9 +13,28 @@ use crate::git::Oid;
 use crate::prelude::{Did, PublicKey};
 
 /// Timestamp used for COB operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Timestamp(LocalTime);
+
+impl Serialize for Timestamp {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_u64(self.0.as_millis())
+    }
+}
+
+impl<'de> Deserialize<'de> for Timestamp {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        u128::deserialize(deserializer)
+            .map(LocalTime::from_millis)
+            .map(Self)
+    }
+}
 
 impl Timestamp {
     pub fn from_secs(secs: u64) -> Self {

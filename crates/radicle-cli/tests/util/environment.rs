@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use localtime::LocalTime;
 use radicle::cob::cache::COBS_DB_FILE;
 use radicle::crypto::ssh::{keystore::MemorySigner, Keystore};
 use radicle::crypto::{KeyPair, Seed};
@@ -13,6 +12,7 @@ use radicle::profile::Home;
 use radicle::profile::{self};
 use radicle::storage::git::transport;
 use radicle::{Profile, Storage};
+use radicle_localtime::LocalTime;
 
 use radicle_node::test::node::{Node, NodeHandle};
 

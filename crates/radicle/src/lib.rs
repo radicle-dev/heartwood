@@ -8,6 +8,8 @@ pub extern crate radicle_crypto as crypto;
 #[macro_use]
 extern crate amplify;
 
+extern crate radicle_localtime as localtime;
+
 mod canonical;
 
 pub mod cli;

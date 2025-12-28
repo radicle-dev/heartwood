@@ -150,18 +150,8 @@ pub struct KnownAddress {
     /// Address of the peer who sent us this address.
     pub source: Source,
     /// Last time this address was used to successfully connect to a peer.
-    #[serde(with = "crate::serde_ext::localtime::option::time")]
-    #[cfg_attr(
-        feature = "schemars",
-        schemars(with = "Option<crate::schemars_ext::localtime::LocalDurationInSeconds>")
-    )]
     pub last_success: Option<LocalTime>,
     /// Last time this address was tried.
-    #[serde(with = "crate::serde_ext::localtime::option::time")]
-    #[cfg_attr(
-        feature = "schemars",
-        schemars(with = "Option<crate::schemars_ext::localtime::LocalDurationInSeconds>")
-    )]
     pub last_attempt: Option<LocalTime>,
     /// Whether this address has been banned.
     pub banned: bool,

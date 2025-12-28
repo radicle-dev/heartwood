@@ -18,11 +18,11 @@ crossbeam-channel = { workspace = true }
 cyphernet = { workspace = true, features = ["tor"] }
 fastrand = { workspace = true }
 log = { workspace = true, features = ["std"] }
-localtime = { workspace = true }
 nonempty = { workspace = true, features = ["serialize"] }
 qcheck = { workspace = true, optional = true }
 radicle = { workspace = true, features = ["logger"] }
 radicle-fetch = { workspace = true }
+radicle-localtime = { workspace = true }
 sqlite = { workspace = true, features = ["bundled"] }
 scrypt = { version = "0.11.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
