@@ -45,6 +45,7 @@ radicle = { version = "0.20", path = "crates/radicle" }
 radicle-cli = { version = "0.17", path = "crates/radicle-cli" }
 radicle-cli-test = { path = "crates/radicle-cli-test" }
 radicle-cob = { version = "0.17", path = "crates/radicle-cob" }
+radicle-core = { version = "0.1", path = "crates/radicle-core" }
 radicle-crypto = { version = "0.14", path = "crates/radicle-crypto" }
 radicle-dag = { version = "0.10", path = "crates/radicle-dag" }
 radicle-fetch = { version = "0.16", path = "crates/radicle-fetch" }

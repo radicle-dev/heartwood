@@ -50,6 +50,7 @@ pub use cyphernet::addr::{HostName, PeerAddr, PeerAddrParseError};
 pub use db::Database;
 pub use events::{Event, Events};
 pub use features::Features;
+pub use radicle_core::NodeId;
 pub use seed::SyncedAt;
 pub use timestamp::Timestamp;
 
@@ -1001,9 +1002,6 @@ impl<T: DeserializeOwned> Iterator for LineIter<T> {
         }
     }
 }
-
-/// Public node & device identifier.
-pub type NodeId = PublicKey;
 
 /// Node controller.
 #[derive(Debug, Clone)]

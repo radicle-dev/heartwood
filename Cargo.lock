@@ -2825,6 +2825,7 @@ dependencies = [
  "qcheck",
  "qcheck-macros",
  "radicle-cob",
+ "radicle-core",
  "radicle-crypto",
  "radicle-git-metadata",
  "radicle-git-ref-format",
