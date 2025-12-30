@@ -1,7 +1,5 @@
 pub mod update;
 
-mod id;
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::num::{NonZeroU32, NonZeroUsize};
@@ -29,7 +27,7 @@ use crate::storage;
 use crate::storage::{ReadRepository, RepositoryError};
 
 pub use crypto::PublicKey;
-pub use id::*;
+pub use radicle_core::repo::*;
 
 use super::crefs::{self, RawCanonicalRefs};
 use super::CanonicalRefs;

@@ -270,15 +270,6 @@ impl Arbitrary for storage::Remote<crypto::Unverified> {
     }
 }
 
-impl Arbitrary for RepoId {
-    fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let bytes = <[u8; 20]>::arbitrary(g);
-        let oid = crate::git::Oid::from_sha1(bytes);
-
-        RepoId::from(oid)
-    }
-}
-
 impl Arbitrary for AddressType {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let t = *g.choose(&[1, 2, 3, 4]).unwrap() as u8;

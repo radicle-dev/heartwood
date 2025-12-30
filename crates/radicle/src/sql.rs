@@ -4,7 +4,6 @@ use std::str::FromStr;
 use sqlite as sql;
 use sqlite::Value;
 
-use crate::identity::RepoId;
 use crate::node;
 use crate::node::{Address, UserAgent};
 
@@ -25,29 +24,6 @@ pub fn transaction<T, E: From<sql::Error>>(
             db.execute("ROLLBACK")?;
             Err(err)
         }
-    }
-}
-
-impl TryFrom<&Value> for RepoId {
-    type Error = sql::Error;
-
-    fn try_from(value: &Value) -> Result<Self, Self::Error> {
-        match value {
-            Value::String(id) => RepoId::from_urn(id).map_err(|e| sql::Error {
-                code: None,
-                message: Some(e.to_string()),
-            }),
-            _ => Err(sql::Error {
-                code: None,
-                message: Some(format!("sql: invalid type `{:?}` for id", value.kind())),
-            }),
-        }
-    }
-}
-
-impl sqlite::BindableWithIndex for &RepoId {
-    fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
-        self.urn().as_str().bind(stmt, i)
     }
 }
 
