@@ -95,6 +95,22 @@ avoid storing development keys with `ssh-agent`.
 Logging for `radicle-node` is turned on by default. Check the respective
 `--help` output to set the log level.
 
+## Running tests
+
+You can run the full suite of tests from the root of the project with either:
+
+```shell
+$ cargo test
+
+// or
+
+$ cargo nextest run
+```
+
+[nextest](https://nexte.st/) is the preferred method and requires installing separately.
+
+_**Note:** If you see a `Too many open files; class=Os (2)` log line you'll need to fix with an appropriate `ulimit -n XXXX` adjustment_
+
 ## Writing tests
 
 ### Documentation tests
