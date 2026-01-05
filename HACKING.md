@@ -15,20 +15,20 @@ For an architectural overview of Heartwood, see [ARCHITECTURE.md](ARCHITECTURE.m
 
 ---
 
-The repository is structured in *crates*, as follows:
+The repository is structured in _crates_, as follows:
 
-* `radicle`: The Radicle standard library that contains shared libraries used across the project.
-* `radicle-cli`: the Radicle command-line interface (`rad`).
-* `radicle-cli-test`: The Radicle CLI testing framework, for writing documentation tests.
-* `radicle-cob`: Radicle Collaborative Objects (COBs). Provides a way of creating and traversing edit histories.
-* `radicle-crdt`: Conflict-free replicated datatypes (CRDTs) used for things like discussions and patches.
-* `radicle-crypto`: A wrapper around Ed25519 cryptographic signing primitives.
-* `radicle-dag`: A simple directed acyclic graph implementation used by `radicle-cob`.
-* `radicle-node`: The radicle peer-to-peer daemon that enables users to connect to the network and share code.
-* `radicle-remote-helper`: A Git remote helper for `rad://` remotes.
-* `radicle-ssh`: OpenSSH functionality, including a library used to interface with `ssh-agent`.
-* `radicle-term`: A generic terminal library used by the Radicle CLI.
-* `radicle-tools`: Tools used to aid in the development of Radicle.
+- `radicle`: The Radicle standard library that contains shared libraries used across the project.
+- `radicle-cli`: the Radicle command-line interface (`rad`).
+- `radicle-cli-test`: The Radicle CLI testing framework, for writing documentation tests.
+- `radicle-cob`: Radicle Collaborative Objects (COBs). Provides a way of creating and traversing edit histories.
+- `radicle-crdt`: Conflict-free replicated datatypes (CRDTs) used for things like discussions and patches.
+- `radicle-crypto`: A wrapper around Ed25519 cryptographic signing primitives.
+- `radicle-dag`: A simple directed acyclic graph implementation used by `radicle-cob`.
+- `radicle-node`: The radicle peer-to-peer daemon that enables users to connect to the network and share code.
+- `radicle-remote-helper`: A Git remote helper for `rad://` remotes.
+- `radicle-ssh`: OpenSSH functionality, including a library used to interface with `ssh-agent`.
+- `radicle-term`: A generic terminal library used by the Radicle CLI.
+- `radicle-tools`: Tools used to aid in the development of Radicle.
 
 ## Running in debug mode
 
@@ -53,7 +53,7 @@ following section on environment variables.
 When testing things, if you want to run one or more nodes in isolation from the
 public Radicle network of nodes:
 
-* In the node `config.json` file:
+- In the node `config.json` file:
   - set `preferredSeeds` to `[]`
   - set `node.connect` to `[]`
   - set `node.network` to `test`
@@ -94,6 +94,22 @@ avoid storing development keys with `ssh-agent`.
 
 Logging for `radicle-node` is turned on by default. Check the respective
 `--help` output to set the log level.
+
+## Running tests
+
+You can run the full suite of tests from the root of the project with either:
+
+```shell
+$ cargo test
+
+// or
+
+$ cargo nextest run
+```
+
+[nextest](https://nexte.st/) is the preferred method and requires installing separately.
+
+_**Note:** If you see a `Too many open files; class=Os (2)` log line you'll need to fix with an appropriate `ulimit -n XXXX` adjustment_
 
 ## Writing tests
 
@@ -175,4 +191,3 @@ encoded in the standard OpenSSH format. It's therefore possible to use standard
 OpenSSH tools to interact with them, eg. `ssh-add`.
 
 Your radicle secret key is protected with a passphrase (See: `$RAD_PASSPHRASE`).
-
