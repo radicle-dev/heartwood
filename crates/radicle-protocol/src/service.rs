@@ -9,6 +9,8 @@ pub mod limiter;
 pub mod message;
 pub mod session;
 
+mod logging;
+
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -1024,6 +1026,7 @@ where
             refs_at,
             timeout,
         };
+        logging::fetch_command(&cmd);
         let fetcher::service::FetchInitiated { event, rejected } = self.fetcher.fetch(cmd, channel);
 
         if let Some(c) = rejected {
@@ -1033,31 +1036,21 @@ where
             .ok();
         }
 
-        match event {
-            fetcher::state::event::Fetch::Started {
+        logging::fetch_event(&event);
+        if let fetcher::state::event::Fetch::Started {
+            rid,
+            from: _,
+            refs_at,
+            timeout,
+        } = event
+        {
+            self.outbox.fetch(
+                session,
                 rid,
-                from,
                 refs_at,
                 timeout,
-            } => {
-                debug!(target: "service", "Starting fetch for {rid} from {from}");
-                self.outbox.fetch(
-                    session,
-                    rid,
-                    refs_at,
-                    timeout,
-                    self.config.limits.fetch_pack_receive,
-                );
-            }
-            fetcher::state::event::Fetch::Queued { rid, from } => {
-                debug!(target: "service", "Queued fetch for {rid} from {from}");
-            }
-            fetcher::state::event::Fetch::AlreadyFetching { rid, from } => {
-                debug!(target: "service", "Already fetching {rid} from {from}");
-            }
-            fetcher::state::event::Fetch::QueueAtCapacity { rid, from, .. } => {
-                debug!(target: "service", "Queue at capacity for {from}, rejected {rid}");
-            }
+                self.config.limits.fetch_pack_receive,
+            );
         }
     }
 
@@ -1073,94 +1066,77 @@ where
         // Dequeue next fetches
         self.dequeue_fetches();
 
-        match event {
-            fetcher::state::event::Fetched::NotFound { from, rid } => {
-                error!(target: "service", "Unexpected fetch result for {rid} from {from}");
+        logging::fetched_event(&event, &result);
+        if let fetcher::state::event::Fetched::Completed {
+            from,
+            rid,
+            refs_at: _,
+        } = event
+        {
+            // Notify responders
+            let fetch_result = match &result {
+                Ok(success) => FetchResult::Success {
+                    updated: success.updated.clone(),
+                    namespaces: success.namespaces.clone(),
+                    clone: success.clone,
+                },
+                Err(e) => FetchResult::Failed {
+                    reason: e.to_string(),
+                },
+            };
+            for responder in subscribers {
+                responder.send(fetch_result.clone()).ok();
             }
-            fetcher::state::event::Fetched::Completed {
-                from,
-                rid,
-                refs_at: _,
-            } => {
-                // Notify responders
-                let fetch_result = match &result {
-                    Ok(success) => FetchResult::Success {
-                        updated: success.updated.clone(),
-                        namespaces: success.namespaces.clone(),
-                        clone: success.clone,
-                    },
-                    Err(e) => FetchResult::Failed {
-                        reason: e.to_string(),
-                    },
-                };
-                for responder in subscribers {
-                    responder.send(fetch_result.clone()).ok();
-                }
-                match result {
-                    Ok(crate::worker::fetch::FetchResult {
-                        updated,
-                        canonical,
-                        namespaces,
-                        clone,
-                        doc,
-                    }) => {
-                        info!(target: "service", "Fetched {rid} from {from} successfully");
-                        // Update our routing table in case this fetch was user-initiated and doesn't
-                        // come from an announcement.
-                        self.seed_discovered(rid, from, self.clock.into());
+            match result {
+                Ok(crate::worker::fetch::FetchResult {
+                    updated,
+                    canonical,
+                    namespaces,
+                    clone,
+                    doc,
+                }) => {
+                    // Update our routing table in case this fetch was user-initiated and doesn't
+                    // come from an announcement.
+                    self.seed_discovered(rid, from, self.clock.into());
 
-                        for update in &updated {
-                            if update.is_skipped() {
-                                trace!(target: "service", "Ref skipped: {update} for {rid}");
-                            } else {
-                                debug!(target: "service", "Ref updated: {update} for {rid}");
-                            }
-                        }
-                        self.emitter.emit(Event::RefsFetched {
-                            remote: from,
-                            rid,
-                            updated: updated.clone(),
-                        });
-                        self.emitter.emit_all(
-                            canonical
-                                .into_iter()
-                                .map(|(refname, target)| Event::CanonicalRefUpdated {
-                                    rid,
-                                    refname,
-                                    target,
-                                })
-                                .collect(),
-                        );
+                    self.emitter.emit(Event::RefsFetched {
+                        remote: from,
+                        rid,
+                        updated: updated.clone(),
+                    });
+                    self.emitter.emit_all(
+                        canonical
+                            .into_iter()
+                            .map(|(refname, target)| Event::CanonicalRefUpdated {
+                                rid,
+                                refname,
+                                target,
+                            })
+                            .collect(),
+                    );
 
-                        // Announce our new inventory if this fetch was a full clone.
-                        // Only update and announce inventory for public repositories.
-                        if clone && doc.is_public() {
-                            debug!(target: "service", "Updating and announcing inventory for cloned repository {rid}..");
-
-                            if let Err(e) = self.add_inventory(rid) {
-                                error!(target: "service", "Error announcing inventory for {rid}: {e}");
-                            }
-                        }
-
-                        // It's possible for a fetch to succeed but nothing was updated.
-                        if updated.is_empty() || updated.iter().all(|u| u.is_skipped()) {
-                            debug!(target: "service", "Nothing to announce, no refs were updated..");
-                        } else {
-                            // Finally, announce the refs. This is useful for nodes to know what we've synced,
-                            // beyond just knowing that we have added an item to our inventory.
-                            if let Err(e) = self.announce_refs(rid, doc.into(), namespaces, false) {
-                                error!(target: "service", "Failed to announce new refs: {e}");
-                            }
+                    // Announce our new inventory if this fetch was a full clone.
+                    // Only update and announce inventory for public repositories.
+                    if clone && doc.is_public() {
+                        if let Err(e) = self.add_inventory(rid) {
+                            error!(target: "service", "Error announcing inventory for {rid}: {e}");
                         }
                     }
-                    Err(err) => {
-                        error!(target: "service", "Fetch failed for {rid} from {from}: {err}");
 
-                        // For now, we only disconnect the from in case of timeout. In the future,
-                        // there may be other reasons to disconnect.
-                        if err.is_timeout() {
-                            self.outbox.disconnect(from, DisconnectReason::Fetch(err));
+                    // It's possible for a fetch to succeed but nothing was updated.
+                    if !(updated.is_empty() || updated.iter().all(|u| u.is_skipped())) {
+                        // Finally, announce the refs. This is useful for nodes to know what we've synced,
+                        // beyond just knowing that we have added an item to our inventory.
+                        if let Err(e) = self.announce_refs(rid, doc.into(), namespaces, false) {
+                            error!(target: "service", "Failed to announce new refs: {e}");
                         }
+                    }
+                }
+                Err(err) => {
+                    // For now, we only disconnect the from in case of timeout. In the future,
+                    // there may be other reasons to disconnect.
+                    if err.is_timeout() {
+                        self.outbox.disconnect(from, DisconnectReason::Fetch(err));
                     }
                 }
             }
@@ -1929,6 +1905,7 @@ where
 
     /// Add a local repository to our inventory.
     fn add_inventory(&mut self, rid: RepoId) -> Result<bool, Error> {
+        debug!(target: "service", "Updating and announcing inventory for cloned repository {rid}..");
         let node = self.node_id();
         let now = self.timestamp();
 
