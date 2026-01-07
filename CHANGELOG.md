@@ -9,24 +9,126 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Release Highlights
 
+## New Features
+
+## Fixed Bugs
+
 ## Deprecations
+
+## 1.6.0
+
+## Release Highlights
+
+### Migrating `radicle-node` to `mio`
+
+The crates [`netservices`], [`io-reactor`], and [`popol`] were crucially valuable
+for implementing `radicle-node`. However, they are not ideal dependencies for
+ensuring long-term health of the network I/O layer:
+
+- [`popol`] is only intended to support Unix-like platforms, and support on other
+  platforms, like Windows, is desired.
+- Even though [`io-reactor`] defines the trait [`reactor::poller::Poll`] to
+  potentially support multiple I/O polling mechanisms, there is only one single
+  implementation wrapping [`popol`]. Issues for other polling crates are open
+  since 2023 without tangible progress: [#10 for `mio`], [#9 for `polling`],
+  [#8 for `epoll`]. This suggests that it is not a high priority for the maintainers
+  to integrate with other polling abstractions which might offer better
+  cross-platform compatibility when compared to `popol`.
+- The trait [`reactor::poller::Poll`] can only be implemented for file
+  descriptors which also implement [`std::os::fd::raw::AsRawFd`], which is only
+  implemented on Unix-like platforms and WASI. It is believed that this is
+  leaked from `popol` as the only known implementation of the trait wraps it.
+- To benefit from network effects, it would be nice to see others maintaining crates
+  that depend on `io-reactor`. However, according to crates.io, the
+  [only dependent is `radicle-node`] (via `netservices`). Contrary to that,
+  at the time of writing, `mio` has 494 dependents according to
+  [crates.io][mio reverse dependencies], and, notably, `tokio`, which has
+  30628 dependents on [crates.io][tokio reverse dependencies], is dependent on
+  [`mio`]. We therefore think that even if `mio` is obsoleted, e.g. by [`a10`]
+  (which is based on [`io_uring`] on Linux and could potentially build on top of
+  [I/O rings on Windows]) the people behind a large network of dependent projects
+  are expected to come up with new ideas and solutions, that Radicle would then
+  benefit from.
+- One downside of using `mio` is that it forces the use of [`mio::Token`] to
+  identify sources (while a type that is `Eq + Clone` might be enough). Another
+  downside is that it forces the use of the types in [`mio::net`] for sockets,
+  which need to be converted to/from [`std::net`] if required. These
+  distinctions are also [noted by cloudhead]. This is acceptable to the team, in
+  order to leverage the benefits of a well-tested and cross-platform network I/O
+  layer.
+
+[`netservices`]: https://crates.io/crates/netservices
+[`io-reactor`]: https://crates.io/crates/io-reactor
+[`popol`]: https://crates.io/crates/popol
+[`reactor::poller::Poll`]: https://docs.rs/io-reactor/0.5.2/reactor/poller/trait.Poll.html
+[#10 for `mio`]: https://github.com/rust-amplify/io-reactor/issues/10
+[#9 for `polling`]: https://github.com/rust-amplify/io-reactor/issues/9
+[#8 for `epoll`]: https://github.com/rust-amplify/io-reactor/issues/8
+[`std::os::fd::raw::AsRawFd`]: https://doc.rust-lang.org/nightly/std/os/fd/raw/trait.AsRawFd.html
+[only dependent is `radicle-node`]: https://crates.io/crates/io-reactor/reverse_dependencies
+[mio reverse dependencies]: https://crates.io/crates/mio/reverse_dependencies
+[tokio reverse dependencies]: https://crates.io/crates/tokio/reverse_dependencies
+[`a10`]: https://crates.io/crates/a10
+[`io_uring`]: https://en.wikipedia.org/wiki/Io_uring
+[I/O rings on Windows]: https://learn.microsoft.com/en-us/windows/win32/api/ioringapi/
+[`mio::Token`]: https://docs.rs/mio/1.0.4/mio/struct.Token.html
+[`mio::net`]: https://docs.rs/mio/1.0.4/mio/net/index.html
+[`std::net`]: https://doc.rust-lang.org/stable/std/net/index.html
+[noted by cloudhead]: https://cloudhead.io/popol/
+
+### Building `radicle-node` on Windows
+
+The efforts to migrate `radicle-node` to use `mio`, alongside changes that fixed
+path canonicalization and supporting Windows pipes, have allowed developers to
+build `radicle-node` on Windows.
+
+We encourage users to try out Radicle on Windows by building from source. At the
+time of writing, there may be undiscovered issues, since this is a nascent time
+for `radicle-node` on Windows. Please report any issues you see via `rad issue`
+or on our [Zulip](https://radicle.zulipchat.com).
+
+### Rust MSRV Update to 1.85
+
+For those who are developing on top of the `heartwood` crates, it is important
+to note that the Minimum Supported Rust Version (MSRV) is now 1.85.
 
 ## New Features
 
-- `rad issue` now uses `clap` to parse its command-line arguments.
-   This affects error reporting as well as help output.
-- `radicle-node` now supports systemd Credentials (refer to
-  <https://systemd.io/CREDENTIALS> for more information) to load:
-    1. The secret key, in addition to the commandline argument
-       `--secret` (higher priority than the credential) and the
-       configuration file (lower priority than the credential).
-       The identifier of the credential is "xyz.radicle.node.secret".
+### Argument Parsing via `clap`
+
+`rad` now uses the `clap` crate for parsing its command-line arguments. This
+brings a brand new look to the help output for the `rad` CLI, and ensures that
+we do not miss documenting options when they are added. Note that this does
+affect error reporting, as they are now reported by `clap` when parsing fails.
+
+#### Shell Completions
+
+With the introduction of `clap`, this helped with the introduction of a command
+`rad completion` to emit shell completions for static information.
+
+### systemd Credentials for `radicle-node`
+
+`radicle-node` now supports systemd Credentials (refer to
+<https://systemd.io/CREDENTIALS> for more information) to load:
+    1. The secret key, in addition to the commandline argument `--secret`
+       (higher priority than the credential) and the configuration file (lower
+       priority than the credential). The identifier of the credential is
+       "xyz.radicle.node.secret".
     2. The optional passphrase for the secret key, in addition to the
        environment variable `RAD_PASSPHRASE` (lower priority than the
-       credential).
-       The identifier of the credential is "xyz.radicle.node.passphrase".
+       credential). The identifier of the credential is
+       "xyz.radicle.node.passphrase".
 
 ## Fixed Bugs
+
+### Fix Bootstrapping
+
+The IP (both IPv4 and IPv6) and the Tor onion addresses were specified for the
+bootstrap nodes. When a new user came to using Radicle, there was a chance that
+their setup did not support IPv6 or Tor, resulting in a failure to connect to
+one of those addresses. The node does not know how to try a follow-up address,
+for the moment, so we have decided to skip Tor addresses when it is not
+configured, and removed the IP addresses in favor of the DNS names.
 
 ## 1.5.0
 
