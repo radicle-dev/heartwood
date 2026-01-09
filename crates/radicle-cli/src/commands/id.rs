@@ -12,10 +12,8 @@ use radicle::node::device::Device;
 use radicle::node::NodeId;
 use radicle::storage::{ReadStorage as _, WriteRepository};
 use radicle::{cob, crypto, Profile};
-use radicle_surf::diff::Diff;
 use radicle_term::Element;
 
-use crate::git::unified_diff::Encode as _;
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::Error;
@@ -443,44 +441,26 @@ fn print_diff(
     current: &RevisionId,
     repo: &radicle::storage::git::Repository,
 ) -> anyhow::Result<()> {
-    let previous = if let Some(previous) = previous {
-        let previous = Doc::load_at(*previous, repo)?;
-        let previous = serde_json::to_string_pretty(&previous.doc)?;
-
-        Some(previous)
-    } else {
-        None
-    };
-    let current = Doc::load_at(*current, repo)?;
-    let current = serde_json::to_string_pretty(&current.doc)?;
-
-    let tmp = tempfile::tempdir()?;
-    let repo = radicle::git::raw::Repository::init_opts(
-        tmp.path(),
-        radicle::git::raw::RepositoryInitOptions::new()
-            .external_template(false)
-            .bare(true),
+    let previous = previous
+        .map(|id| Doc::load_at(*id, repo).map(|doc| doc.blob))
+        .transpose()?;
+    let current = Doc::load_at(*current, repo)?.blob;
+    let old_blob = previous
+        .map(|id| repo.raw().find_blob(id.into()))
+        .transpose()?;
+    let new_blob = Some(repo.raw().find_blob(current.into())?);
+    let as_path = (*doc::PATH).to_string_lossy();
+    repo.raw().diff_blobs(
+        old_blob.as_ref(),
+        Some(&as_path),
+        new_blob.as_ref(),
+        Some(&as_path),
+        None,
+        None,
+        None,
+        None,
+        None,
     )?;
-
-    let previous = if let Some(previous) = previous {
-        let tree = radicle::git::write_tree(&doc::PATH, previous.as_bytes(), &repo)?;
-        Some(tree)
-    } else {
-        None
-    };
-    let current = radicle::git::write_tree(&doc::PATH, current.as_bytes(), &repo)?;
-    let mut opts = radicle::git::raw::DiffOptions::new();
-    opts.context_lines(u32::MAX);
-
-    let diff = repo.diff_tree_to_tree(previous.as_ref(), Some(&current), Some(&mut opts))?;
-    let diff = Diff::try_from(diff)?;
-
-    if let Some(modified) = diff.modified().next() {
-        let diff = modified.diff.to_unified_string()?;
-        print!("{diff}");
-    } else {
-        term::print(term::format::italic("No changes."));
-    }
     Ok(())
 }
 
