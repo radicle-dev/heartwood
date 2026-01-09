@@ -12,10 +12,8 @@ use radicle::node::device::Device;
 use radicle::node::NodeId;
 use radicle::storage::{ReadStorage as _, WriteRepository};
 use radicle::{cob, crypto, Profile};
-use radicle_surf::diff::Diff;
 use radicle_term::Element;
 
-use crate::git::unified_diff::Encode as _;
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::Error;
@@ -445,14 +443,14 @@ fn print_diff(
 ) -> anyhow::Result<()> {
     let previous = if let Some(previous) = previous {
         let previous = Doc::load_at(*previous, repo)?;
-        let previous = serde_json::to_string_pretty(&previous.doc)?;
+        let previous = format!("{}\n", serde_json::to_string_pretty(&previous.doc)?);
 
         Some(previous)
     } else {
         None
     };
     let current = Doc::load_at(*current, repo)?;
-    let current = serde_json::to_string_pretty(&current.doc)?;
+    let current = format!("{}\n", serde_json::to_string_pretty(&current.doc)?);
 
     let tmp = tempfile::tempdir()?;
     let repo = radicle::git::raw::Repository::init_opts(
@@ -469,19 +467,22 @@ fn print_diff(
         None
     };
     let current = radicle::git::write_tree(&doc::PATH, current.as_bytes(), &repo)?;
-    let mut opts = radicle::git::raw::DiffOptions::new();
-    opts.context_lines(u32::MAX);
 
-    let diff = repo.diff_tree_to_tree(previous.as_ref(), Some(&current), Some(&mut opts))?;
-    let diff = Diff::try_from(diff)?;
-
-    if let Some(modified) = diff.modified().next() {
-        let diff = modified.diff.to_unified_string()?;
-        print!("{diff}");
-    } else {
-        term::print(term::format::italic("No changes."));
+    {
+        let mut diff = std::process::Command::new("git");
+        diff.args(["-C".to_string(), repo.path().display().to_string()]);
+        diff.arg("diff-tree");
+        if let Some(previous) = previous {
+            diff.arg(format!("{}", previous.id()));
+        }
+        diff.arg(format!("{}", current.id()));
+        diff.arg(format!("-U{}", u16::MAX));
+        // diff.arg(format!("-- {}", doc::PATH.display().to_string()));
+        // eprintln!("{:?}", diff);
+        let mut child = diff.spawn()?;
+        let exit_status = child.wait()?;
+        std::process::exit(exit_status.code().unwrap_or(1));
     }
-    Ok(())
 }
 
 fn print_delegate_verification_error(err: &update::error::DelegateVerification) {
