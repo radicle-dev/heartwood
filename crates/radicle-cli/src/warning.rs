@@ -55,6 +55,8 @@ pub(crate) fn deprecated(old: impl std::fmt::Display, new: impl std::fmt::Displa
 }
 
 /// Prints an obsoletion warning to standard error.
+/// For removed commands, use [`crate::removed`].
+#[allow(dead_code)] // As of 2026-01-09 all obsoletions have turned into removals. Keep for future use.
 pub(crate) fn obsolete(command: impl std::fmt::Display) {
     eprintln!(
         "{} {} The command `{command}` is obsolete and will be removed. Please stop using it.",

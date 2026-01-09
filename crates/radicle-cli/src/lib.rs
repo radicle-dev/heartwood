@@ -11,3 +11,12 @@ pub mod terminal;
 mod warning;
 
 extern crate radicle_localtime as localtime;
+
+/// Returns an error saying that given command is obsolete and has been removed.
+/// See also [`warning::obsolete`].
+fn removed(command: &str) -> anyhow::Error {
+    anyhow::anyhow!(
+        "The command `{}` is obsolete and has been removed.",
+        command
+    )
+}
