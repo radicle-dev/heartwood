@@ -1,0 +1,37 @@
+[package]
+name = "radicle-surf-test"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+publish = false
+
+[lib]
+test = true
+
+[features]
+test = []
+
+[dev-dependencies]
+nonempty = "0.5"
+pretty_assertions = "1.3.0"
+proptest = "1"
+serde_json = "1"
+url = "2.5"
+
+[dev-dependencies.git2]
+workspace = true
+
+[dev-dependencies.radicle-git-ext]
+path = "../../radicle-git-ext"
+
+[dev-dependencies.radicle-git-ext-test]
+path = "../../radicle-git-ext/t"
+features = ["test"]
+
+[dev-dependencies.radicle-surf]
+path = ".."
+features = ["serde"]
+
+[dev-dependencies.test-helpers]
+path = "../../test/test-helpers"

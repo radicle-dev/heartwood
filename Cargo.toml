@@ -2,6 +2,8 @@
 members = ["crates/*"]
 resolver = "2"
 
+exclude = ["crates/radicle-surf"] # TODO: Remove exclusion.
+
 [workspace.package]
 edition = "2024"
 license = "MIT OR Apache-2.0"

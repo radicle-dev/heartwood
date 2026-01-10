@@ -1,0 +1,59 @@
+[package]
+name = "radicle-surf"
+description = "A code surfing library for Git repositories"
+readme = "README.md"
+version = "0.28.0"
+authors = ["The Radicle Team <dev@radicle.xyz>"]
+homepage.workspace = true
+repository.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+include = [
+    "**/*.rs",
+    "Cargo.toml",
+    "data/git-platinum.tgz",
+]
+
+[lib]
+test = false
+doctest = false
+
+[features]
+# NOTE: testing `test_submodule_failure` on GH actions
+# is painful since it uses this specific repo and expects
+# certain branches to be setup. So we use this feature flag
+# to ignore the test on CI.
+gh-actions = []
+minicbor = ["radicle-git-ext/minicbor"]
+serde = ["dep:serde", "url/serde"]
+
+[dependencies]
+base64 = "0.21"
+log = "0.4"
+nonempty = "0.9"
+thiserror = "1.0"
+url = "2.5.4"
+
+[dependencies.git2]
+workspace = true
+
+[dependencies.radicle-git-ext]
+version = "0.13.0"
+path = "../radicle-git-ext"
+features = ["serde"]
+
+[dependencies.radicle-std-ext]
+version = "0.2.0"
+path = "../radicle-std-ext"
+
+[dependencies.serde]
+version = "1"
+features = ["serde_derive"]
+optional = true
+
+[build-dependencies]
+anyhow = "1.0"
+flate2 = "1.1"
+tar = "0.4.45"
