@@ -1,10 +1,10 @@
 use std::{convert::TryFrom, str};
 
-use radicle_git_ext::Oid;
+use radicle_oid::Oid;
 use thiserror::Error;
 
 #[cfg(feature = "serde")]
-use serde::{ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeStruct};
 
 #[derive(Debug, Error)]
 pub enum Error {

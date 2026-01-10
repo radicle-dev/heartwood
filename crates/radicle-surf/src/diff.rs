@@ -8,9 +8,9 @@ use std::{
 };
 
 #[cfg(feature = "serde")]
-use serde::{ser, ser::SerializeStruct, Serialize, Serializer};
+use serde::{Serialize, Serializer, ser, ser::SerializeStruct};
 
-use git_ext::Oid;
+use radicle_oid::Oid;
 
 pub mod git;
 
@@ -257,18 +257,13 @@ impl Serialize for Copied {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize), serde(rename_all = "camelCase"))]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum EofNewLine {
     OldMissing,
     NewMissing,
     BothMissing,
+    #[default]
     NoneMissing,
-}
-
-impl Default for EofNewLine {
-    fn default() -> Self {
-        Self::NoneMissing
-    }
 }
 
 /// A file that was modified within a [`Diff`].

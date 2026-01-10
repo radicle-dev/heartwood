@@ -1,12 +1,12 @@
-use pretty_assertions::{assert_eq, assert_ne};
-use radicle_git_ext::ref_format::{name::component, refname, refspec};
-use radicle_surf::{Branch, Error, Glob, Repository};
+use radicle_git_ref_format::{component, pattern, refname};
 
-use super::GIT_PLATINUM;
+use crate::{Branch, Error, Glob, Repository};
+
+use super::platinum;
 
 #[test]
 fn switch_to_banana() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let history_master = repo.history(Branch::local(refname!("master")))?;
     repo.switch_namespace(&refname!("golden"))?;
     let history_banana = repo.history(Branch::local(refname!("banana")))?;
@@ -18,7 +18,7 @@ fn switch_to_banana() -> Result<(), Error> {
 
 #[test]
 fn me_namespace() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let history = repo.history(Branch::local(refname!("master")))?;
 
     assert_eq!(repo.which_namespace().unwrap(), None);
@@ -42,7 +42,7 @@ fn me_namespace() -> Result<(), Error> {
         refname!("heads/feature/#1194"),
     )];
     let mut branches = repo
-        .branches(Glob::remotes(refspec::pattern!("fein/*")))?
+        .branches(Glob::remotes(pattern!("fein/*")))?
         .collect::<Result<Vec<_>, _>>()?;
     branches.sort();
 
@@ -53,7 +53,7 @@ fn me_namespace() -> Result<(), Error> {
 
 #[test]
 fn golden_namespace() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let history = repo.history(Branch::local(refname!("master")))?;
 
     assert_eq!(repo.which_namespace().unwrap(), None);
@@ -85,7 +85,7 @@ fn golden_namespace() -> Result<(), Error> {
         Branch::remote(remote, refname!("tags/v0.1.0")),
     ];
     let mut branches = repo
-        .branches(Glob::remotes(refspec::pattern!("kickflip/*")))?
+        .branches(Glob::remotes(pattern!("kickflip/*")))?
         .collect::<Result<Vec<_>, _>>()?;
     branches.sort();
 
@@ -96,7 +96,7 @@ fn golden_namespace() -> Result<(), Error> {
 
 #[test]
 fn silver_namespace() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let history = repo.history(Branch::local(refname!("master")))?;
 
     assert_eq!(repo.which_namespace().unwrap(), None);

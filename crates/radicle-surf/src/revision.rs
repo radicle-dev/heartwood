@@ -1,9 +1,7 @@
 use std::convert::Infallible;
 
-use git_ext::{
-    ref_format::{Qualified, RefString},
-    Oid,
-};
+use radicle_git_ref_format::{Qualified, RefString};
+use radicle_oid::Oid;
 
 use crate::{Branch, Commit, Error, Repository, Tag};
 
@@ -50,10 +48,13 @@ impl Revision for Oid {
 }
 
 impl Revision for &str {
-    type Error = git2::Error;
+    type Error = radicle_oid::str::error::ParseOidError;
 
-    fn object_id(&self, repo: &Repository) -> Result<Oid, Self::Error> {
-        Oid::from_str_ext(self, repo.object_format())
+    fn object_id(&self, _repo: &Repository) -> Result<Oid, Self::Error> {
+        use std::str::FromStr as _;
+
+        // TODO: Support for SHA-256.
+        Oid::from_str(self)
     }
 }
 
@@ -75,10 +76,10 @@ impl Revision for Tag {
 }
 
 impl Revision for String {
-    type Error = git2::Error;
+    type Error = radicle_oid::str::error::ParseOidError;
 
     fn object_id(&self, repo: &Repository) -> Result<Oid, Self::Error> {
-        Oid::from_str_ext(self, repo.object_format())
+        self.as_str().object_id(repo)
     }
 }
 

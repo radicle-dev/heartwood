@@ -5,18 +5,16 @@ use std::{
     str,
 };
 
-use git_ext::{
-    ref_format::{refspec::QualifiedPattern, Qualified, RefStr, RefString},
-    Oid,
-};
+use radicle_git_ref_format::{Qualified, RefStr, RefString, refspec::QualifiedPattern};
+use radicle_oid::Oid;
 
 use crate::{
+    Branch, Commit, Error, Glob, History, Namespace, Revision, Signature, Stats, Tag, ToCommit,
     blob::{Blob, BlobRef},
     diff::{Diff, FileDiff},
     fs::{Directory, File, FileContent},
     refs::{BranchNames, Branches, Categories, Namespaces, TagNames, Tags},
     tree::{Entry, Tree},
-    Branch, Commit, Error, Glob, History, Namespace, Revision, Signature, Stats, Tag, ToCommit,
 };
 
 /// Enumeration of errors that can occur in repo operations.
@@ -373,7 +371,7 @@ impl Repository {
             .to_commit(self)
             .map_err(|e| Error::ToCommit(e.into()))?;
 
-        match self.inner.extract_signature(&commit.id, field) {
+        match self.inner.extract_signature(&commit.id.into(), field) {
             Err(error) => {
                 if error.code() == git2::ErrorCode::NotFound {
                     Ok(None)

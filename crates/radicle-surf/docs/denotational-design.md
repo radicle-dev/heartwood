@@ -11,7 +11,7 @@ and view their differences.
 The stream of consciousness that gave birth to this document started with thinking how the user would interact with
 the system, identifying the key components. This is captured in [User Flow](#user-flow). From there we found nouns that
 represent objects in our system and verbs that represent functions over those objects. This iteratively informed us as
-to what other actions we would need to supply. We would occassionally look at [GitHub](todo) and [Pijul Nest](todo) for
+to what other actions we would need to supply. We would occasionally look at [GitHub](todo) and [Pijul Nest](todo) for
 inspiration, since we would like to imitate the features that they supply, and we ultimately want use one or both of
 these for our backends.
 
@@ -33,7 +33,7 @@ repl = do
 But then we thought about what happens when we are in `browse` but we would like to change the history and see that
 file or directory at a different snapshot. This was captured in the pseudo-code below:
 ```haskell
-  src_foo_bar <- find...
+  src_foo_bar <- find…
   history' <- historyOf src_foo_bar
 ```
 
@@ -54,7 +54,7 @@ type Label
 --  |-- bar.hs
 --
 -- Would look like:
--- @("foo", Right ("bar.hs", "module Banana ...") :| [])@
+-- @("foo", Right ("bar.hs", "module Banana …") :| [])@
 type Directory
 μ Directory = (Label, NonEmpty (Either Directory File))
 
@@ -64,7 +64,7 @@ type DirectoryContents
 μ DirectoryContents = IsRepo | Directory | File
 
 -- Opaque representation of repository state directories (e.g. `.git`, `.pijul`)
--- Those are not browseable, but have to be present at the repo root 'Directory'.
+-- Those are not browsable, but have to be present at the repo root 'Directory'.
 type IsRepo
 
 -- A Directory captures its own Label followed by 1 or more DirectoryContents
@@ -91,7 +91,7 @@ type SystemType
   = IsFile
   | IsDirectory
 
--- A Chnage is an enumeration of how a file has changed.
+-- A Change is an enumeration of how a file has changed.
 -- This is simply used for getting the difference between two
 -- directories.
 type Change

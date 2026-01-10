@@ -11,8 +11,7 @@ use std::{
 };
 
 use git2::Blob;
-use radicle_git_ext::{is_not_found_err, Oid};
-use radicle_std_ext::result::ResultExt as _;
+use radicle_oid::Oid;
 use url::Url;
 
 use crate::{Repository, Revision};
@@ -186,9 +185,9 @@ impl Iterator for Entries {
 
     fn next(&mut self) -> Option<Self::Item> {
         // Can be improved when `pop_first()` is stable for BTreeMap.
-        let next_key = match self.listing.keys().next() {
-            Some(k) => k.clone(),
-            None => return None,
+        let next_key = {
+            let k = self.listing.keys().next()?;
+            k.clone()
         };
         self.listing.remove(&next_key)
     }
@@ -228,7 +227,7 @@ impl Ord for Entry {
 }
 
 impl Entry {
-    /// Get a label for the `Entriess`, either the name of the [`File`],
+    /// Get a label for the `Entries`, either the name of the [`File`],
     /// the name of the [`Directory`], or the name of the [`Submodule`].
     pub fn name(&self) -> &String {
         match self {
@@ -300,7 +299,7 @@ impl Entry {
 /// [git-tree]: https://git-scm.com/book/en/v2/Git-Internals-Git-Objects
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Directory {
-    /// The name of the directoy.
+    /// The name of the directory.
     name: String,
     /// The relative path of the directory, not including the `name`,
     /// in respect to the root of the git repository.
@@ -414,11 +413,13 @@ impl Directory {
         // Search the path in git2 tree.
         let path = path.as_ref();
         let git2_tree = repo.find_tree(self.id)?;
-        let entry = git2_tree
-            .get_path(path)
-            .or_matches::<error::Directory, _, _>(is_not_found_err, || {
-                Err(error::Directory::PathNotFound(path.to_path_buf()))
-            })?;
+        let entry = git2_tree.get_path(path).map_err(|err| {
+            if err.code() == git2::ErrorCode::NotFound {
+                error::Directory::PathNotFound(path.to_path_buf())
+            } else {
+                err.into()
+            }
+        })?;
         let parent = path
             .parent()
             .ok_or_else(|| error::Directory::InvalidPath(path.to_path_buf()))?;

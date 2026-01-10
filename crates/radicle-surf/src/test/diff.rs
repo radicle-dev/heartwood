@@ -1,19 +1,21 @@
-use pretty_assertions::assert_eq;
-use radicle_git_ext::{ref_format::refname, Oid};
-use radicle_surf::{
+use std::{path::Path, str::FromStr};
+
+use radicle_git_ref_format::refname;
+use radicle_oid::Oid;
+
+use crate::{
+    Branch, Error, Repository,
     diff::{
         Added, Diff, DiffContent, DiffFile, EofNewLine, FileDiff, FileMode, FileStats, Hunk, Line,
         Modification, Modified, Stats,
     },
-    Branch, Error, Repository,
 };
-use std::{path::Path, str::FromStr};
 
-use super::GIT_PLATINUM;
+use super::platinum;
 
 #[test]
 fn test_initial_diff() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let oid = Oid::from_str("d3464e33d75c75c99bfb90fa2e9d16efc0b7d0e3")?;
     let commit = repo.commit(oid).unwrap();
     assert!(commit.parents.is_empty());
@@ -62,7 +64,7 @@ fn test_initial_diff() -> Result<(), Error> {
 
 #[test]
 fn test_diff_of_rev() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let diff = repo.diff_commit("80bacafba303bf0cdf6142921f430ff265f25095")?;
     assert_eq!(diff.files().count(), 1);
     Ok(())
@@ -70,7 +72,7 @@ fn test_diff_of_rev() -> Result<(), Error> {
 
 #[test]
 fn test_diff_file() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let path_buf = Path::new("README.md").to_path_buf();
     let diff = repo.diff_file(
         &path_buf,
@@ -113,7 +115,7 @@ fn test_diff_file() -> Result<(), Error> {
 
 #[test]
 fn test_diff() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let oid = "80bacafba303bf0cdf6142921f430ff265f25095";
     let commit = repo.commit(oid).unwrap();
     let parent_oid = commit.parents.first().unwrap();
@@ -163,7 +165,7 @@ fn test_diff() -> Result<(), Error> {
 
 #[test]
 fn test_branch_diff() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let rev_from = Branch::local(refname!("master"));
     let rev_to = Branch::local(refname!("dev"));
     let diff = repo.diff(&rev_from, &rev_to)?;
@@ -181,16 +183,16 @@ fn test_branch_diff() -> Result<(), Error> {
     assert_eq!(diff.moved().count(), 1);
     assert_eq!(diff.modified().count(), 2);
     for c in diff.added() {
-        println!("added: {:?}", &c.path);
+        println!("added: {:?}", c.path);
     }
     for d in diff.deleted() {
-        println!("deleted: {:?}", &d.path);
+        println!("deleted: {:?}", d.path);
     }
     for m in diff.moved() {
-        println!("moved: {:?} -> {:?}", &m.old_path, &m.new_path);
+        println!("moved: {:?} -> {:?}", m.old_path, m.new_path);
     }
     for m in diff.modified() {
-        println!("modified: {:?}", &m.path);
+        println!("modified: {:?}", m.path);
     }
 
     // Verify moved.
@@ -198,11 +200,11 @@ fn test_branch_diff() -> Result<(), Error> {
 
     // We can find a `FileDiff` for the old_path in a move.
     let file_diff = repo.diff_file(&diff_moved.old_path, &rev_from, &rev_to)?;
-    println!("old path file diff: {:?}", &file_diff);
+    println!("old path file diff: {:?}", file_diff);
 
     // We can find a `FileDiff` for the new_path in a move.
     let file_diff = repo.diff_file(&diff_moved.new_path, &rev_from, &rev_to)?;
-    println!("new path file diff: {:?}", &file_diff);
+    println!("new path file diff: {:?}", file_diff);
 
     // We can find a `FileDiff` if given a directory name.
     let dir_diff = repo.diff_file(&"special/", &rev_from, &rev_to)?;
@@ -211,9 +213,10 @@ fn test_branch_diff() -> Result<(), Error> {
     Ok(())
 }
 
+#[cfg(feature = "serde")]
 #[test]
 fn test_diff_serde() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let rev_from = Branch::local(refname!("master"));
     let rev_to = Branch::local(refname!("diff-test"));
     let diff = repo.diff(rev_from, rev_to)?;
@@ -380,6 +383,7 @@ fn test_diff_serde() -> Result<(), Error> {
     Ok(())
 }
 
+#[cfg(feature = "serde")]
 #[test]
 fn test_rename_with_changes() {
     let buf = r"

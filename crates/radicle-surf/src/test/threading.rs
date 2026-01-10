@@ -1,13 +1,14 @@
 use std::sync::{Mutex, MutexGuard};
 
-use radicle_git_ext::ref_format::{name::component, refname};
-use radicle_surf::{Branch, Error, Glob, Repository};
+use radicle_git_ref_format::{component, refname};
 
-use super::GIT_PLATINUM;
+use crate::{Branch, Error, Glob, Repository};
+
+use super::platinum;
 
 #[test]
 fn basic_test() -> Result<(), Error> {
-    let shared_repo = Mutex::new(Repository::open(GIT_PLATINUM)?);
+    let shared_repo = Mutex::new(Repository::open(platinum::get())?);
     let locked_repo: MutexGuard<Repository> = shared_repo.lock().unwrap();
     let mut branches = locked_repo
         .branches(Glob::all_heads().branches().and(Glob::all_remotes()))?

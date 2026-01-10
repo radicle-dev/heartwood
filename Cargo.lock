@@ -1819,6 +1819,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
+name = "hex-literal"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e712f64ec3850b98572bffac52e2c6f282b29fe6c5fa6d42334b30be438d95c1"
+
+[[package]]
 name = "hmac"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2295,6 +2301,12 @@ checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
 ]
+
+[[package]]
+name = "minicbor"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "124d887cb82f0b1469bdac3d1b65764a381eed1a54fdab0070e5772b13114521"
 
 [[package]]
 name = "miniz_oxide"
@@ -2927,7 +2939,7 @@ dependencies = [
  "radicle-localtime",
  "radicle-log",
  "radicle-node",
- "radicle-surf",
+ "radicle-surf 0.28.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "radicle-term",
  "schemars",
  "serde",
@@ -3073,6 +3085,7 @@ dependencies = [
 name = "radicle-git-metadata"
 version = "0.2.0"
 dependencies = [
+ "git2",
  "thiserror 2.0.18",
 ]
 
@@ -3210,6 +3223,28 @@ name = "radicle-std-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb935931bdd2a2966f3b584f3031d9d54ec0713ddbc563a0193d54e62a88ec73"
+
+[[package]]
+name = "radicle-surf"
+version = "0.28.0"
+dependencies = [
+ "base64 0.21.7",
+ "flate2",
+ "git2",
+ "hex-literal",
+ "log",
+ "minicbor",
+ "nonempty 0.9.0",
+ "proptest",
+ "radicle-git-metadata",
+ "radicle-git-ref-format",
+ "radicle-oid",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "url",
+]
 
 [[package]]
 name = "radicle-surf"
@@ -4637,6 +4672,7 @@ dependencies = [
  "idna",
  "percent-encoding",
  "serde",
+ "serde_derive",
 ]
 
 [[package]]

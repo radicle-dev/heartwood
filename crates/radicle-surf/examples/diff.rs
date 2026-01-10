@@ -2,8 +2,8 @@ extern crate radicle_surf;
 
 use std::{env::Args, str::FromStr, time::Instant};
 
-use radicle_git_ext::Oid;
-use radicle_surf::{diff::Diff, Repository};
+use radicle_oid::Oid;
+use radicle_surf::{Repository, diff::Diff};
 
 fn main() {
     let options = get_options_or_exit();
@@ -80,7 +80,8 @@ impl Options {
                 \tpath-to-repo: Path to the directory containing .git subdirectory\n\
                 \tbase-revision: Git commit ID of the base revision (one that will be considered less recent)\n\
                 \thead-revision: Git commit ID of the head revision (one that will be considered more recent) or 'HEAD' to use current git HEAD\n",
-                args[0]));
+                args[0]
+            ));
         }
 
         let path_to_repo = args[1].clone();

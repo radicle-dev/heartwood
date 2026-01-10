@@ -2,13 +2,13 @@
 // using Generic associated types supported in Rust 1.65.0.
 
 use std::{
-    collections::{btree_set, BTreeSet},
+    collections::{BTreeSet, btree_set},
     convert::TryFrom as _,
 };
 
-use git_ext::ref_format::{self, lit, name::Components, Component, Qualified, RefString};
+use radicle_git_ref_format::{self, Component, Qualified, RefString, lit, name::Components};
 
-use crate::{tag, Branch, Namespace, Tag};
+use crate::{Branch, Namespace, Tag, tag};
 
 /// Iterator over [`Tag`]s.
 #[derive(Default)]
@@ -66,7 +66,7 @@ impl Iterator for TagNames<'_> {
                             tag::reference_name(&r)
                                 .map(|name| lit::refs_tags(name).into())
                                 .map_err(error::Tag::from)
-                        }))
+                        }));
                     }
                     None => self.inner.current += 1,
                 },
@@ -110,7 +110,7 @@ impl Iterator for Branches<'_> {
                         return Some(
                             res.map_err(error::Branch::from)
                                 .and_then(|r| Branch::try_from(&r).map_err(error::Branch::from)),
-                        )
+                        );
                     }
                     None => self.current += 1,
                 },
@@ -133,7 +133,7 @@ impl Iterator for BranchNames<'_> {
                             Branch::try_from(&r)
                                 .map(|branch| branch.refname().into_owned())
                                 .map_err(error::Branch::from)
-                        }))
+                        }));
                     }
                     None => self.inner.current += 1,
                 },
@@ -187,7 +187,7 @@ impl Iterator for Categories<'_> {
                     Some(res) => {
                         return Some(res.map_err(error::Category::from).and_then(|r| {
                             let name = std::str::from_utf8(r.name_bytes())?;
-                            let name = ref_format::RefStr::try_from_str(name)?;
+                            let name = radicle_git_ref_format::RefStr::try_from_str(name)?;
                             let name = name.qualified().ok_or_else(|| {
                                 error::Category::NotQualified(name.to_ref_string())
                             })?;
@@ -207,7 +207,7 @@ impl Iterator for Categories<'_> {
 pub mod error {
     use std::str;
 
-    use radicle_git_ext::ref_format::{self, RefString};
+    use radicle_git_ref_format::{self, RefString};
     use thiserror::Error;
 
     use crate::{branch, tag};
@@ -227,7 +227,7 @@ pub mod error {
         #[error("the reference '{0}' was expected to be qualified, i.e. 'refs/<category>/<path>'")]
         NotQualified(RefString),
         #[error(transparent)]
-        RefFormat(#[from] ref_format::Error),
+        RefFormat(#[from] radicle_git_ref_format::Error),
         #[error(transparent)]
         Utf8(#[from] str::Utf8Error),
     }

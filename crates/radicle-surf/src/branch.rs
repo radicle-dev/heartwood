@@ -3,7 +3,7 @@ use std::{
     str::{self, FromStr},
 };
 
-use git_ext::ref_format::{component, lit, Component, Qualified, RefStr, RefString};
+use radicle_git_ref_format::{Component, Qualified, RefStr, RefString, lit, name::component};
 
 use crate::refs::refstr_join;
 
@@ -295,7 +295,7 @@ impl FromStr for Remote {
 }
 
 pub mod error {
-    use radicle_git_ext::ref_format::{self, RefString};
+    use radicle_git_ref_format::{self, RefString};
     use thiserror::Error;
 
     #[derive(Debug, Error)]
@@ -305,7 +305,7 @@ pub mod error {
         #[error("the refname '{0}' did not begin with 'refs/heads' or 'refs/remotes'")]
         NotQualified(String),
         #[error(transparent)]
-        RefFormat(#[from] ref_format::Error),
+        RefFormat(#[from] radicle_git_ref_format::Error),
         #[error(transparent)]
         Utf8(#[from] std::str::Utf8Error),
     }
@@ -317,7 +317,7 @@ pub mod error {
         #[error("the refname '{0}' did not begin with 'refs/heads'")]
         NotQualified(String),
         #[error(transparent)]
-        RefFormat(#[from] ref_format::Error),
+        RefFormat(#[from] radicle_git_ref_format::Error),
         #[error(transparent)]
         Utf8(#[from] std::str::Utf8Error),
     }
@@ -329,7 +329,7 @@ pub mod error {
         #[error("the refname '{0}' did not begin with 'refs/remotes'")]
         NotRemotes(RefString),
         #[error(transparent)]
-        RefFormat(#[from] ref_format::Error),
+        RefFormat(#[from] radicle_git_ref_format::Error),
         #[error(transparent)]
         Utf8(#[from] std::str::Utf8Error),
     }

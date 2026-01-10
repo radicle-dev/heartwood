@@ -1,14 +1,12 @@
 use std::path::PathBuf;
 
-use radicle_git_ext::ref_format::refname;
-use radicle_surf::{Branch, Glob, Repository};
+use crate::{Branch, Glob, Repository, test::platinum};
+use radicle_git_ref_format::refname;
 use serde_json::json;
-
-const GIT_PLATINUM: &str = "../data/git-platinum";
 
 #[test]
 fn tree_serialization() {
-    let repo = Repository::open(GIT_PLATINUM).unwrap();
+    let repo = Repository::open(platinum::get()).unwrap();
     let tree = repo.tree(refname!("refs/heads/master"), &"src").unwrap();
 
     let expected = json!({
@@ -59,7 +57,7 @@ fn tree_serialization() {
 
 #[test]
 fn test_tree_last_commit() {
-    let repo = Repository::open(GIT_PLATINUM).unwrap();
+    let repo = Repository::open(platinum::get()).unwrap();
     let tree = repo.tree(refname!("refs/heads/master"), &"src").unwrap();
     let last_commit = tree.last_commit(&repo).unwrap();
     assert_ne!(*tree.commit(), last_commit);
@@ -71,7 +69,7 @@ fn test_tree_last_commit() {
 
 #[test]
 fn repo_tree_empty_branch() {
-    let repo = Repository::open(GIT_PLATINUM).unwrap();
+    let repo = Repository::open(platinum::get()).unwrap();
     let rev = Branch::local(refname!("empty-branch"));
     let tree = repo.tree(rev, &"").unwrap();
     assert_eq!(tree.entries().len(), 0);
@@ -85,7 +83,7 @@ fn repo_tree_empty_branch() {
 
 #[test]
 fn repo_tree() {
-    let repo = Repository::open(GIT_PLATINUM).unwrap();
+    let repo = Repository::open(platinum::get()).unwrap();
     let tree = repo
         .tree("27acd68c7504755aa11023300890bb85bbd69d45", &"src")
         .unwrap();
@@ -132,7 +130,7 @@ fn repo_tree() {
 
 #[test]
 fn repo_blob() {
-    let repo = Repository::open(GIT_PLATINUM).unwrap();
+    let repo = Repository::open(platinum::get()).unwrap();
     let blob = repo
         .blob("27acd68c7504755aa11023300890bb85bbd69d45", &"src/memory.rs")
         .unwrap();
@@ -171,7 +169,7 @@ fn repo_blob() {
 
 #[test]
 fn tree_ordering() {
-    let repo = Repository::open(GIT_PLATINUM).unwrap();
+    let repo = Repository::open(platinum::get()).unwrap();
     let tree = repo
         .tree(refname!("refs/heads/master"), &PathBuf::new())
         .unwrap();
@@ -195,7 +193,7 @@ fn tree_ordering() {
 
 #[test]
 fn commit_branches() {
-    let repo = Repository::open(GIT_PLATINUM).unwrap();
+    let repo = Repository::open(platinum::get()).unwrap();
     let init_commit = "d3464e33d75c75c99bfb90fa2e9d16efc0b7d0e3";
     let glob = Glob::all_heads().branches().and(Glob::all_remotes());
     let branches = repo.revision_branches(init_commit, glob).unwrap();

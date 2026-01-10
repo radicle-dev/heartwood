@@ -4,12 +4,11 @@ use std::{
     str::{self, FromStr},
 };
 
-use git_ext::ref_format::{
-    self,
-    refspec::{NamespacedPattern, PatternString, QualifiedPattern},
-    Component, Namespaced, Qualified, RefStr, RefString,
-};
 use nonempty::NonEmpty;
+use radicle_git_ref_format::{
+    self, Component, Namespaced, Qualified, RefStr, RefString,
+    refspec::{NamespacedPattern, PatternString, QualifiedPattern},
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -19,7 +18,7 @@ pub enum Error {
     #[error("namespaces must not be empty")]
     EmptyNamespace,
     #[error(transparent)]
-    RefFormat(#[from] ref_format::Error),
+    RefFormat(#[from] radicle_git_ref_format::Error),
     #[error(transparent)]
     Utf8(#[from] str::Utf8Error),
 }

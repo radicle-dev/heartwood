@@ -123,3 +123,16 @@ impl FromStr for Author {
         })
     }
 }
+
+#[cfg(feature = "git2")]
+impl TryFrom<&Author> for git2::Signature<'_> {
+    type Error = git2::Error;
+
+    fn try_from(author: &Author) -> Result<Self, Self::Error> {
+        git2::Signature::new(
+            &author.name,
+            &author.email,
+            &git2::Time::new(author.time.seconds(), author.time.offset()),
+        )
+    }
+}

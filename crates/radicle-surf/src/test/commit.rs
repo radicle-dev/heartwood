@@ -1,14 +1,13 @@
 use std::str::FromStr;
 
+use crate::{Author, Commit, Time};
 use proptest::prelude::*;
-use radicle_git_ext::Oid;
-use radicle_surf::{Author, Commit, Time};
-use test_helpers::roundtrip;
+use radicle_oid::Oid;
 
 proptest! {
     #[test]
     fn prop_test_commits(commit in commits_strategy()) {
-        roundtrip::json(commit)
+        super::roundtrip::json(commit)
     }
 }
 

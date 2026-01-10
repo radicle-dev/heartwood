@@ -1,18 +1,16 @@
-//! Unit tests for radicle_surf::file_system
-
-mod directory {
-    use radicle_git_ext::ref_format::refname;
-    use radicle_surf::{
-        fs::{self, Entry},
+pub mod directory {
+    use crate::{
         Branch, Oid, Repository,
+        fs::{self, Entry},
+        test::platinum,
     };
+    use git2::RepositoryInitOptions;
+    use radicle_git_ref_format::refname;
     use std::path::Path;
-
-    const GIT_PLATINUM: &str = "../data/git-platinum";
 
     #[test]
     fn directory_find_entry() {
-        let repo = Repository::open(GIT_PLATINUM).unwrap();
+        let repo = Repository::open(platinum::get()).unwrap();
         let root = repo.root_dir(Branch::local(refname!("master"))).unwrap();
 
         // find_entry for a file.
@@ -53,7 +51,7 @@ mod directory {
 
     #[test]
     fn directory_find_file_and_directory() {
-        let repo = Repository::open(GIT_PLATINUM).unwrap();
+        let repo = Repository::open(platinum::get()).unwrap();
         // Get the snapshot of the directory for a given commit.
         let root = repo
             .root_dir("80ded66281a4de2889cc07293a8f10947c6d57fe")
@@ -91,7 +89,7 @@ mod directory {
 
     #[test]
     fn directory_size() {
-        let repo = Repository::open(GIT_PLATINUM).unwrap();
+        let repo = Repository::open(platinum::get()).unwrap();
         let root = repo.root_dir(Branch::local(refname!("master"))).unwrap();
 
         /*
@@ -112,7 +110,7 @@ mod directory {
 
     #[test]
     fn directory_last_commit() {
-        let repo = Repository::open(GIT_PLATINUM).unwrap();
+        let repo = Repository::open(platinum::get()).unwrap();
         let branch = Branch::local(refname!("dev"));
         let root = repo.root_dir(&branch).unwrap();
         let dir = root.find_directory(&"this/is", &repo).unwrap();
@@ -125,7 +123,7 @@ mod directory {
 
     #[test]
     fn file_last_commit() {
-        let repo = Repository::open(GIT_PLATINUM).unwrap();
+        let repo = Repository::open(platinum::get()).unwrap();
         let branch = Branch::local(refname!("master"));
         let root = repo.root_dir(&branch).unwrap();
 
@@ -145,9 +143,11 @@ mod directory {
     /// interpreted as glob patterns by git's pathspec, causing errors.
     #[test]
     fn directory_with_bracket_in_name() {
-        let repo = test_helpers::tempdir::WithTmpDir::new(|path| {
-            git2::Repository::init(path).map_err(std::io::Error::other)
-        })
+        let path = tempfile::TempDir::new().unwrap();
+        let repo = git2::Repository::init_opts(
+            path.path().join("repo"),
+            RepositoryInitOptions::new().initial_head("master"),
+        )
         .unwrap();
 
         // Initialize the repo and create test structure:

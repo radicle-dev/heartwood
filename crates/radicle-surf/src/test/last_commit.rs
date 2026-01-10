@@ -1,18 +1,19 @@
 use std::{path::PathBuf, str::FromStr};
 
-use radicle_git_ext::{ref_format::refname, Oid};
-use radicle_surf::{Branch, Repository};
+use radicle_git_ref_format::refname;
+use radicle_oid::Oid;
 
-use super::GIT_PLATINUM;
+use crate::{Branch, Repository};
+
+use super::platinum;
 
 #[test]
 fn readme_missing_and_memory() {
-    let repo = Repository::open(GIT_PLATINUM)
-        .expect("Could not retrieve ./data/git-platinum as git repository");
+    let repo = Repository::open(platinum::get()).unwrap();
     let oid =
         Oid::from_str("d3464e33d75c75c99bfb90fa2e9d16efc0b7d0e3").expect("Failed to parse SHA");
 
-    // memory.rs is commited later so it should not exist here.
+    // memory.rs is committed later so it should not exist here.
     let memory_last_commit_oid = repo
         .last_commit(&"src/memory.rs", oid)
         .expect("Failed to get last commit")
@@ -31,8 +32,7 @@ fn readme_missing_and_memory() {
 
 #[test]
 fn folder_svelte() {
-    let repo = Repository::open(GIT_PLATINUM)
-        .expect("Could not retrieve ./data/git-platinum as git repository");
+    let repo = Repository::open(platinum::get()).unwrap();
     // Check that last commit is the actual last commit even if head commit differs.
     let oid =
         Oid::from_str("19bec071db6474af89c866a1bd0e4b1ff76e2b97").expect("Could not parse SHA");
@@ -49,8 +49,7 @@ fn folder_svelte() {
 
 #[test]
 fn nest_directory() {
-    let repo = Repository::open(GIT_PLATINUM)
-        .expect("Could not retrieve ./data/git-platinum as git repository");
+    let repo = Repository::open(platinum::get()).unwrap();
     // Check that last commit is the actual last commit even if head commit differs.
     let oid =
         Oid::from_str("19bec071db6474af89c866a1bd0e4b1ff76e2b97").expect("Failed to parse SHA");
@@ -68,8 +67,7 @@ fn nest_directory() {
 #[test]
 #[cfg(not(windows))]
 fn can_get_last_commit_for_special_filenames() {
-    let repo = Repository::open(GIT_PLATINUM)
-        .expect("Could not retrieve ./data/git-platinum as git repository");
+    let repo = Repository::open(platinum::get()).unwrap();
 
     // Check that last commit is the actual last commit even if head commit differs.
     let oid =
@@ -92,8 +90,7 @@ fn can_get_last_commit_for_special_filenames() {
 
 #[test]
 fn root() {
-    let repo = Repository::open(GIT_PLATINUM)
-        .expect("Could not retrieve ./data/git-platinum as git repository");
+    let repo = Repository::open(platinum::get()).unwrap();
     let rev = Branch::local(refname!("master"));
     let root_last_commit_id = repo
         .last_commit(&PathBuf::new(), rev)
@@ -110,10 +107,9 @@ fn root() {
 
 #[test]
 fn binary_file() {
-    let repo = Repository::open(GIT_PLATINUM)
-        .expect("Could not retrieve ./data/git-platinum as git repository");
+    let repo = Repository::open(platinum::get()).unwrap();
     let history = repo.history(Branch::local(refname!("dev"))).unwrap();
     let file_commit = history.by_path(&"bin/cat").next();
     assert!(file_commit.is_some());
-    println!("file commit: {:?}", &file_commit);
+    println!("file commit: {:?}", file_commit);
 }

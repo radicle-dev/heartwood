@@ -1,7 +1,7 @@
 # An updated design for radicle-surf
 
 This is a design blueprint for the new `radicle-git/radicle-surf` crate. The
-actual design details and implemenation are described and updated in its
+actual design details and implementation are described and updated in its
 documentation comments, viewable via `cargo doc`.
 
 ## Introduction
@@ -16,7 +16,7 @@ UI for a git repo:
 2. Diff between two revisions that resolve into two commits.
 3. Retrieve the history of commits with a given head, and optionally a file.
 4. List refs and retrieve their metadata: Branches, Tags, Remotes,
-Notes and user-defined "categories", where a category is: `refs/<category>/<...>`.
+Notes and user-defined "categories", where a category is: `refs/<category>/<…>`.
 
 ## Motivation
 
@@ -107,7 +107,7 @@ Currently we have multiple types to identify a `Commit` or `Revision`.
 The relations between them are: all `Rev` and `Commit` can resolve into `Oid`,
 and in most cases `Rev` can resolve into `Commit`.
 
-On one hand, `Oid` is the ultimate unique identifer but it is more machine-
+On one hand, `Oid` is the ultimate unique identifier but it is more machine-
 friendly than human-friendly. On the other hand, `Revision` is most human-
 friendly and better suited in the API interface. A conversion from `Revision`
 to `Oid` will be useful.
@@ -138,7 +138,7 @@ Our API will use these traits where we expect a `Revision` or a `Commit`.
 
 The current `History` is generic over VCS types and also retrieves the full list
 of commits when the history is created. The VCS part can be removed and the
-history can lazy-load the list of commits by implmenting `Iterator` to support
+history can lazy-load the list of commits by implementing `Iterator` to support
  potentially very long histories.
 
 We can also store the head commit with the history so that it's easy to get
@@ -288,7 +288,7 @@ pub struct History<'a> {
 }
 
 impl<'a> History<'a> {
-    /// This method creats a new `RevWalk` internally and return an
+    /// This method creates a new `RevWalk` internally and return an
     /// iterator for all commits in a history.
     pub fn iter(&self) -> impl Iterator<Item = Commit>;
 }

@@ -1,24 +1,14 @@
 [package]
 name = "radicle-surf"
-description = "A code surfing library for Git repositories"
-readme = "README.md"
 version = "0.28.0"
-authors = ["The Radicle Team <dev@radicle.xyz>"]
-homepage.workspace = true
-repository.workspace = true
+description = "A code surfing library for Git repositories"
+
+readme = "README.md"
+
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 rust-version.workspace = true
-
-include = [
-    "**/*.rs",
-    "Cargo.toml",
-    "data/git-platinum.tgz",
-]
-
-[lib]
-test = false
-doctest = false
 
 [features]
 # NOTE: testing `test_submodule_failure` on GH actions
@@ -26,34 +16,24 @@ doctest = false
 # certain branches to be setup. So we use this feature flag
 # to ignore the test on CI.
 gh-actions = []
-minicbor = ["radicle-git-ext/minicbor"]
-serde = ["dep:serde", "url/serde"]
+serde = ["dep:serde", "radicle-git-ref-format/serde", "radicle-oid/serde", "url/serde"]
 
 [dependencies]
 base64 = "0.21"
+git2 = { workspace = true, features = ["vendored-libgit2"] }
 log = "0.4"
+minicbor = { version = "0.13", features = ["std"], optional = true }
 nonempty = "0.9"
+radicle-git-metadata = { workspace = true, features = ["git2"] }
+radicle-git-ref-format = { workspace = true, features = ["macro"] }
+radicle-oid = { workspace = true, features = ["git2", "sha1"] }
+serde = { workspace = true, optional = true, features = ["derive"] }
 thiserror = "1.0"
 url = "2.5.4"
 
-[dependencies.git2]
-workspace = true
-
-[dependencies.radicle-git-ext]
-version = "0.13.0"
-path = "../radicle-git-ext"
-features = ["serde"]
-
-[dependencies.radicle-std-ext]
-version = "0.2.0"
-path = "../radicle-std-ext"
-
-[dependencies.serde]
-version = "1"
-features = ["serde_derive"]
-optional = true
-
-[build-dependencies]
-anyhow = "1.0"
+[dev-dependencies]
 flate2 = "1.1"
-tar = "0.4.45"
+hex-literal = "1.1.0"
+proptest = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }

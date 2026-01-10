@@ -27,7 +27,7 @@ pub enum Error {
     #[error(transparent)]
     Namespace(#[from] namespace::Error),
     #[error(transparent)]
-    RefFormat(#[from] git_ext::ref_format::Error),
+    RefFormat(#[from] radicle_git_ref_format::Error),
     #[error(transparent)]
     Revision(Box<dyn std::error::Error + Send + Sync + 'static>),
     #[error(transparent)]
@@ -36,4 +36,6 @@ pub enum Error {
     Tags(#[from] refs::error::Tag),
     #[error(transparent)]
     Repo(#[from] repo::error::Repo),
+    #[error(transparent)]
+    Oid(#[from] radicle_oid::str::error::ParseOidError),
 }

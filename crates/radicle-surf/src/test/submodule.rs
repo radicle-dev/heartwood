@@ -1,17 +1,19 @@
 use std::{convert::Infallible, path::Path};
 
 use proptest::{collection, proptest};
-use radicle_git_ext::commit::CommitData;
-use radicle_git_ext::ref_format::refname;
-use radicle_git_ext_test::gen;
-use radicle_surf::tree::EntryKind;
-use radicle_surf::{fs, Branch, Repository};
+use radicle_git_metadata::commit::CommitData;
+use radicle_git_ref_format::refname;
+
+use crate::tree::EntryKind;
+use crate::{Branch, Repository, fs};
+
+use super::r#gen;
 
 proptest! {
     #[test]
     fn test_submodule(
-        initial in gen::commit::commit(),
-        commits in collection::vec(gen::commit::commit(), 1..5)
+        initial in r#gen::commit::commit(),
+        commits in collection::vec(r#gen::commit::commit(), 1..5)
     ) {
         prop::test_submodule(initial, commits)
     }
@@ -19,8 +21,8 @@ proptest! {
     #[ignore = "segfault"]
     #[test]
     fn test_submodule_bare(
-        initial in gen::commit::commit(),
-        commits in collection::vec(gen::commit::commit(), 1..5)
+        initial in r#gen::commit::commit(),
+        commits in collection::vec(r#gen::commit::commit(), 1..5)
     ) {
         prop::test_submodule_bare(initial, commits)
     }
@@ -28,7 +30,8 @@ proptest! {
 }
 
 mod prop {
-    use radicle_git_ext_test::{gen::commit, repository};
+    use crate::test::r#gen::commit;
+    use crate::test::repository;
 
     use super::*;
 
@@ -39,12 +42,11 @@ mod prop {
         let refname = refname!("refs/heads/master");
         let author = git2::Signature::try_from(initial.author()).unwrap();
 
-        let submodule = repository::fixture(&refname, commits).unwrap();
-        let repo = repository::fixture(&refname, vec![initial]).unwrap();
+        let submodule = repository::fixture(&refname, commits);
+        let repo = repository::fixture(&refname, vec![initial]);
 
         let head = repo.head.expect("missing initial commit");
-        let sub =
-            repository::submodule(&repo.inner, &submodule.inner, &refname, head, &author).unwrap();
+        let sub = repository::submodule(&repo.inner, &submodule.inner, &refname, head, &author);
 
         let repo = Repository::open(repo.inner.path()).unwrap();
         let branch = Branch::local(refname);
@@ -65,12 +67,11 @@ mod prop {
         let refname = refname!("refs/heads/master");
         let author = git2::Signature::try_from(initial.author()).unwrap();
 
-        let submodule = repository::fixture(&refname, commits).unwrap();
-        let repo = repository::bare_fixture(&refname, vec![initial]).unwrap();
+        let submodule = repository::fixture(&refname, commits);
+        let repo = repository::bare_fixture(&refname, vec![initial]);
 
         let head = repo.head.expect("missing initial commit");
-        let sub =
-            repository::submodule(&repo.inner, &submodule.inner, &refname, head, &author).unwrap();
+        let sub = repository::submodule(&repo.inner, &submodule.inner, &refname, head, &author);
 
         let repo = Repository::open(repo.inner.path()).unwrap();
         let branch = Branch::local(refname);

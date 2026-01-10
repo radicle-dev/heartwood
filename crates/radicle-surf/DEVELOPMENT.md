@@ -5,7 +5,7 @@ Thanks for wanting to contribute to `radicle-surf`!
 
 ## Building & Testing 🏗️
 
-We try to make development as seemless as possible so we can get down to the real work. We supply
+We try to make development as seamless as possible so we can get down to the real work. We supply
 the toolchain via the `rust-toolchain` file, and the formatting rules `.rustmt.toml` file.
 
 For the [Nix](https://nixos.org/) inclined there is a `default.nix` file to get all the necessary
@@ -52,7 +52,7 @@ of development.
 
 If more tests are needed then we should add them under `mod tests` in the relevant module. We strive
 to find properties of our programs so that we can use tools like `proptest` to extensively prove our
-programs are correct. As well as this, we add unit tests to esnure the examples in our heads are
+programs are correct. As well as this, we add unit tests to ensure the examples in our heads are
 correct, and testing out the ergonomics of our API first-hand.
 
 ## CI files 🤖

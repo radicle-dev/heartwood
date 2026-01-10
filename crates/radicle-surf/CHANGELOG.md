@@ -27,7 +27,7 @@ changes include:
 - `Browser` is removed. Its methods are implemented directly with `Repository`.
 - Git will be the only supported VCS. Any extension points for other VCSes were
 removed.
-- `Ref` and `RefScope` are removed. Re-use the `git-ref-format` crate and a new
+- `Ref` and `RefScope` are removed. Reuse the `git-ref-format` crate and a new
 `Glob` type for the refspec patterns.
 - Added support of `Tree` and `Blob` that correspond to their definitions in
 Git.

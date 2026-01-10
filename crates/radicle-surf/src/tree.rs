@@ -4,15 +4,15 @@
 use std::cmp::Ordering;
 use std::path::PathBuf;
 
-use radicle_git_ext::Oid;
+use radicle_oid::Oid;
 #[cfg(feature = "serde")]
 use serde::{
-    ser::{SerializeStruct as _, Serializer},
     Serialize,
+    ser::{SerializeStruct as _, Serializer},
 };
 use url::Url;
 
-use crate::{fs, Commit, Error, Repository};
+use crate::{Commit, Error, Repository, fs};
 
 /// Represents a tree object as in git. It is essentially the content of
 /// one directory. Note that multiple directories can have the same content,

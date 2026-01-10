@@ -1,16 +1,16 @@
 use std::path::Path;
 
-use radicle_git_ext::ref_format::refname;
-use radicle_surf::{
-    fs::{self, Directory},
+use crate::{
     Branch, Repository,
+    fs::{self, Directory},
 };
+use radicle_git_ref_format::refname;
 
-use super::GIT_PLATINUM;
+use super::platinum;
 
 #[test]
 fn iterate_root_dir_recursive() {
-    let repo = Repository::open(GIT_PLATINUM).unwrap();
+    let repo = Repository::open(platinum::get()).unwrap();
 
     let root_dir = repo.root_dir(Branch::local(refname!("master"))).unwrap();
     let count = println_dir(&root_dir, &repo);
@@ -41,7 +41,7 @@ fn iterate_root_dir_recursive() {
 
 #[test]
 fn browse_repo_lazily() {
-    let repo = Repository::open(GIT_PLATINUM).unwrap();
+    let repo = Repository::open(platinum::get()).unwrap();
 
     let root_dir = repo.root_dir(Branch::local(refname!("master"))).unwrap();
     let count = root_dir.entries(&repo).unwrap().entries().count();
@@ -57,7 +57,7 @@ fn browse_repo_lazily() {
 
 #[test]
 fn test_file_history() {
-    let repo = Repository::open(GIT_PLATINUM).unwrap();
+    let repo = Repository::open(platinum::get()).unwrap();
     let history = repo.history(Branch::local(refname!("dev"))).unwrap();
     let path = Path::new("README.md");
     let mut file_history = history.by_path(&path);
@@ -68,7 +68,7 @@ fn test_file_history() {
 
 #[test]
 fn test_commit_history() {
-    let repo = Repository::open(GIT_PLATINUM).unwrap();
+    let repo = Repository::open(platinum::get()).unwrap();
     let head = "a0dd9122d33dff2a35f564d564db127152c88e02";
 
     // verify `&str` works.
@@ -83,7 +83,7 @@ fn test_commit_history() {
 
 #[test]
 fn test_commit_signature() {
-    let repo = Repository::open(GIT_PLATINUM).unwrap();
+    let repo = Repository::open(platinum::get()).unwrap();
     let commit_with_signature = "e24124b7538658220b5aaf3b6ef53758f0a106dc";
     let signature = repo.extract_signature(commit_with_signature, None).unwrap();
     assert!(signature.is_some());

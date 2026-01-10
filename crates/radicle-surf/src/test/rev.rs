@@ -1,9 +1,10 @@
 use std::str::FromStr;
 
-use radicle_git_ext::ref_format::{name::component, refname};
-use radicle_surf::{Branch, Error, Oid, Repository};
+use radicle_git_ref_format::{component, refname};
 
-use super::GIT_PLATINUM;
+use crate::{Branch, Error, Oid, Repository};
+
+use super::platinum;
 
 // **FIXME**: This seems to break occasionally on
 // buildkite. For some reason the commit
@@ -18,7 +19,7 @@ use super::GIT_PLATINUM;
 // * Expand "Options" and select "clean checkout".
 #[test]
 fn _master() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let mut history = repo.history(Branch::remote(component!("origin"), refname!("master")))?;
 
     let commit1 = Oid::from_str("3873745c8f6ffb45c990eb23b491d4b4b6182f95")?;
@@ -26,7 +27,7 @@ fn _master() -> Result<(), Error> {
         history.any(|commit| commit.unwrap().id == commit1),
         "commit_id={}, history =\n{:#?}",
         commit1,
-        &history
+        history
     );
 
     let commit2 = Oid::from_str("d6880352fc7fda8f521ae9b7357668b17bb5bad5")?;
@@ -34,7 +35,7 @@ fn _master() -> Result<(), Error> {
         history.any(|commit| commit.unwrap().id == commit2),
         "commit_id={}, history =\n{:#?}",
         commit2,
-        &history
+        history
     );
 
     Ok(())
@@ -42,7 +43,7 @@ fn _master() -> Result<(), Error> {
 
 #[test]
 fn commit() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let rev = Oid::from_str("3873745c8f6ffb45c990eb23b491d4b4b6182f95")?;
     let mut history = repo.history(rev)?;
 
@@ -54,7 +55,7 @@ fn commit() -> Result<(), Error> {
 
 #[test]
 fn commit_parents() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let rev = Oid::from_str("3873745c8f6ffb45c990eb23b491d4b4b6182f95")?;
     let history = repo.history(rev)?;
     let commit = history.head();
@@ -69,7 +70,7 @@ fn commit_parents() -> Result<(), Error> {
 
 #[test]
 fn commit_short() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let rev = repo.oid("3873745c8")?;
     let mut history = repo.history(rev)?;
 
@@ -81,7 +82,7 @@ fn commit_short() -> Result<(), Error> {
 
 #[test]
 fn tag() -> Result<(), Error> {
-    let repo = Repository::open(GIT_PLATINUM)?;
+    let repo = Repository::open(platinum::get())?;
     let rev = refname!("refs/tags/v0.2.0");
     let history = repo.history(&rev)?;
 

@@ -3,12 +3,12 @@
 
 use std::ops::Deref;
 
-use radicle_git_ext::Oid;
+use radicle_oid::Oid;
 
 #[cfg(feature = "serde")]
 use serde::{
-    ser::{SerializeStruct as _, Serializer},
     Serialize,
+    ser::{SerializeStruct as _, Serializer},
 };
 
 use crate::Commit;

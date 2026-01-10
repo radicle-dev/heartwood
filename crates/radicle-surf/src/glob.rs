@@ -1,9 +1,8 @@
 use std::marker::PhantomData;
 
-use git_ext::ref_format::{
-    self, refname,
-    refspec::{self, PatternString, QualifiedPattern},
-    Qualified, RefStr, RefString,
+use radicle_git_ref_format::{
+    self, Qualified, RefStr, RefString, pattern, refname,
+    refspec::{PatternString, QualifiedPattern},
 };
 use thiserror::Error;
 
@@ -12,7 +11,7 @@ use crate::{Branch, Local, Namespace, Remote, Tag};
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
-    RefFormat(#[from] ref_format::Error),
+    RefFormat(#[from] radicle_git_ref_format::Error),
 }
 
 /// A collection of globs for a git reference type.
@@ -51,7 +50,7 @@ impl<T> Glob<T> {
 impl Glob<Namespace> {
     /// Creates the `Glob` that matches all `refs/namespaces`.
     pub fn all_namespaces() -> Self {
-        Self::namespaces(refspec::pattern!("*"))
+        Self::namespaces(pattern!("*"))
     }
 
     /// Creates a `Glob` for `refs/namespaces`, starting with `glob`.
@@ -101,7 +100,7 @@ impl Extend<PatternString> for Glob<Namespace> {
 impl Glob<Tag> {
     /// Creates a `Glob` that matches all `refs/tags`.
     pub fn all_tags() -> Self {
-        Self::tags(refspec::pattern!("*"))
+        Self::tags(pattern!("*"))
     }
 
     /// Creates a `Glob` for `refs/tags`, starting with `glob`.
@@ -150,7 +149,7 @@ impl Extend<PatternString> for Glob<Tag> {
 impl Glob<Local> {
     /// Creates the `Glob` that matches all `refs/heads`.
     pub fn all_heads() -> Self {
-        Self::heads(refspec::pattern!("*"))
+        Self::heads(pattern!("*"))
     }
 
     /// Creates a `Glob` for `refs/heads`, starting with `glob`.
@@ -224,7 +223,7 @@ impl From<Glob<Local>> for Glob<Branch> {
 impl Glob<Remote> {
     /// Creates the `Glob` that matches all `refs/remotes`.
     pub fn all_remotes() -> Self {
-        Self::remotes(refspec::pattern!("*"))
+        Self::remotes(pattern!("*"))
     }
 
     /// Creates a `Glob` for `refs/remotes`, starting with `glob`.
@@ -298,7 +297,7 @@ impl From<Glob<Remote>> for Glob<Branch> {
 impl Glob<Qualified<'_>> {
     pub fn all_category<R: AsRef<RefStr>>(category: R) -> Self {
         Self {
-            globs: vec![Self::qualify_category(category, refspec::pattern!("*"))],
+            globs: vec![Self::qualify_category(category, pattern!("*"))],
             glob_type: PhantomData,
         }
     }
