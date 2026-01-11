@@ -200,28 +200,25 @@ impl ReviewItem {
     #[allow(clippy::type_complexity)]
     fn paths(&self) -> (Option<(&Path, Oid)>, Option<(&Path, Oid)>) {
         match self {
-            Self::FileAdded { path, new, .. } => (None, Some((path, Oid::from(*new.oid)))),
-            Self::FileDeleted { path, old, .. } => (Some((path, Oid::from(*old.oid))), None),
+            Self::FileAdded { path, new, .. } => (None, Some((path, new.oid))),
+            Self::FileDeleted { path, old, .. } => (Some((path, old.oid)), None),
             Self::FileMoved { moved } => (
-                Some((&moved.old_path, Oid::from(*moved.old.oid))),
-                Some((&moved.new_path, Oid::from(*moved.new.oid))),
+                Some((&moved.old_path, moved.old.oid)),
+                Some((&moved.new_path, moved.new.oid)),
             ),
             Self::FileCopied { copied } => (
-                Some((&copied.old_path, Oid::from(*copied.old.oid))),
-                Some((&copied.new_path, Oid::from(*copied.new.oid))),
+                Some((&copied.old_path, copied.old.oid)),
+                Some((&copied.new_path, copied.new.oid)),
             ),
-            Self::FileModified { path, old, new, .. } => (
-                Some((path, Oid::from(*old.oid))),
-                Some((path, Oid::from(*new.oid))),
-            ),
-            Self::FileEofChanged { path, old, new, .. } => (
-                Some((path, Oid::from(*old.oid))),
-                Some((path, Oid::from(*new.oid))),
-            ),
-            Self::FileModeChanged { path, old, new, .. } => (
-                Some((path, Oid::from(*old.oid))),
-                Some((path, Oid::from(*new.oid))),
-            ),
+            Self::FileModified { path, old, new, .. } => {
+                (Some((path, old.oid)), Some((path, new.oid)))
+            }
+            Self::FileEofChanged { path, old, new, .. } => {
+                (Some((path, old.oid)), Some((path, new.oid)))
+            }
+            Self::FileModeChanged { path, old, new, .. } => {
+                (Some((path, old.oid)), Some((path, new.oid)))
+            }
         }
     }
 

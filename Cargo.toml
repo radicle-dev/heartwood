@@ -58,6 +58,7 @@ radicle-node = { version = "0.21", path = "crates/radicle-node" }
 radicle-oid = { version = "0.2.1", path = "crates/radicle-oid", default-features = false }
 radicle-protocol = { version = "0.9", path = "crates/radicle-protocol" }
 radicle-signals = { version = "0.12", path = "crates/radicle-signals" }
+radicle-surf = { version = "0.28.0", path = "crates/radicle-surf", default-features = false }
 radicle-systemd = { version = "0.13", path = "crates/radicle-systemd" }
 radicle-term = { version = "0.19", path = "crates/radicle-term" }
 radicle-windows = { version = "0.1", path = "crates/radicle-windows" }
@@ -75,12 +76,8 @@ winpipe = "0.1.1"
 winsplit = "0.1.0"
 zeroize = { version = "1.5.7", default-features = false }
 
-# Crates from the "radicle-git" workspace. These should be synced manually.
-# When updating, start from `radicle-surf`:
-# `radicle-surf` → `radicle-git-ext` → `git-ref-format` → `git-ref-format-core`
-# Also note that `radicle-surf → git2` so try to also sync with `git2`.
+# Crates from the "radicle-git" workspace.
 git-ref-format-core = { version = "0.6.0", default-features = false }
-radicle-surf = "0.28.0"
 
 [workspace.lints.clippy]
 fallible_impl_from = "deny"

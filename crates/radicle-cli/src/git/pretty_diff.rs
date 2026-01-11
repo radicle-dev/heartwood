@@ -338,7 +338,7 @@ impl ToPretty for Added {
         repo: &R,
     ) -> Self::Output {
         let old = None;
-        let new = Some((self.path.as_path(), Oid::from(*self.new.oid)));
+        let new = Some((self.path.as_path(), self.new.oid));
 
         pretty_modification(header, &self.diff, old, new, repo, hi)
     }
@@ -354,7 +354,7 @@ impl ToPretty for Deleted {
         header: &Self::Context,
         repo: &R,
     ) -> Self::Output {
-        let old = Some((self.path.as_path(), Oid::from(*self.old.oid)));
+        let old = Some((self.path.as_path(), self.old.oid));
         let new = None;
 
         pretty_modification(header, &self.diff, old, new, repo, hi)
@@ -371,8 +371,8 @@ impl ToPretty for Modified {
         header: &Self::Context,
         repo: &R,
     ) -> Self::Output {
-        let old = Some((self.path.as_path(), Oid::from(*self.old.oid)));
-        let new = Some((self.path.as_path(), Oid::from(*self.new.oid)));
+        let old = Some((self.path.as_path(), self.old.oid));
+        let new = Some((self.path.as_path(), self.new.oid));
 
         pretty_modification(header, &self.diff, old, new, repo, hi)
     }
