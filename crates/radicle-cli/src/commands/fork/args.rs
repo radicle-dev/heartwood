@@ -1,6 +1,7 @@
 use radicle::identity::RepoId;
 
-const ABOUT: &str = "Create a fork of a repository";
+const ABOUT: &str =
+    "[OBSOLETE] Copy the default branch of the repository under the current user's namespace";
 
 #[derive(Debug, clap::Parser)]
 #[command(about = ABOUT, disable_version_flag = true)]

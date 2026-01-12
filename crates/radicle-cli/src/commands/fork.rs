@@ -4,11 +4,12 @@ use anyhow::Context as _;
 
 use radicle::rad;
 
-use crate::terminal as term;
+use crate::{terminal as term, warning};
 
 pub use args::Args;
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
+    warning::obsolete("rad fork");
     let profile = ctx.profile()?;
     let signer = profile.signer()?;
     let storage = &profile.storage;
