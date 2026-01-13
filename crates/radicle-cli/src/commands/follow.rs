@@ -14,12 +14,8 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut node = radicle::Node::new(profile.socket());
 
     match Operation::from(args) {
-        Operation::Follow {
-            nid,
-            alias,
-            verbose: _,
-        } => follow(nid, alias, &mut node, &profile)?,
-        Operation::List { alias, verbose: _ } => following(&profile, alias)?,
+        Operation::Follow { nid, alias, .. } => follow(nid, alias, &mut node, &profile)?,
+        Operation::List { alias, .. } => following(&profile, alias)?,
     }
 
     Ok(())

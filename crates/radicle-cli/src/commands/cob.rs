@@ -150,7 +150,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             repo,
             objects,
             type_name,
-            format: _,
+            ..
         } => {
             let repo = storage.repository(repo)?;
             if let Err(e) = show(objects, &repo, type_name.into(), &profile) {
@@ -167,7 +167,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             type_name,
             object,
             operation,
-            format: _,
+            ..
         }) => {
             let signer = &profile.signer()?;
             let repo = storage.repository_mut(repo)?;
