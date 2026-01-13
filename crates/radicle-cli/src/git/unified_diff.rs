@@ -37,7 +37,7 @@ impl Error {
         match self {
             Self::UnexpectedEof => true,
             Self::Io(e) => e.kind() == io::ErrorKind::UnexpectedEof,
-            _ => false,
+            Self::Syntax(_) | Self::ParseInt(_) | Self::Utf8(_) => false,
         }
     }
 }

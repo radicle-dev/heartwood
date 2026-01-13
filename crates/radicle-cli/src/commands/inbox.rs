@@ -453,7 +453,8 @@ fn show(
                 .spawn()?
                 .wait()?;
         }
-        notification => {
+        notification @ NotificationKind::Cob { .. }
+        | notification @ NotificationKind::Unknown { .. } => {
             term::json::to_pretty(&notification, Path::new("notification.json"))?.print();
         }
     }
