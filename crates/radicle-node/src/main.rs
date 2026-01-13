@@ -51,6 +51,9 @@ enum Logger {
     Systemd,
 }
 
+// Required for Mac and potentially Windows as clippy complains because of the OS specific
+// guard below.
+#[allow(clippy::derivable_impls)]
 impl Default for Logger {
     fn default() -> Self {
         #[cfg(all(feature = "systemd", target_os = "linux"))]
