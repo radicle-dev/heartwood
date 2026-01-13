@@ -59,6 +59,7 @@ impl Default for Theme {
 
 impl Theme {
     /// Get the named color.
+    #[must_use]
     pub fn color(&self, color: &'static str) -> term::Color {
         if let Some(c) = (self.color)(color) {
             c
@@ -68,6 +69,7 @@ impl Theme {
     }
 
     /// Return the color of a syntax group.
+    #[must_use]
     pub fn highlight(&self, group: &'static str) -> Option<term::Color> {
         let color = match group {
             "keyword" => self.color("red"),

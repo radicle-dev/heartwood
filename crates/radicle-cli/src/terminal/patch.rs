@@ -140,6 +140,7 @@ blank is also okay.
 
 /// Combine the title and description fields to display to the user.
 #[inline]
+#[must_use]
 pub fn message(title: &str, description: &str) -> String {
     format!("{title}\n\n{description}").trim().to_string()
 }
