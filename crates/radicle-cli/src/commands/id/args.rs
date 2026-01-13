@@ -55,6 +55,7 @@ pub(super) fn parse_many_upserts(
 
     chunks.map(|chunk| {
         // Slice accesses will not panic, guaranteed by `chunks_exact(3)`.
+        #[allow(clippy::indexing_slicing)]
         Ok(PayloadUpsert {
             id: PayloadId::from_str(&chunk[0])?,
             key: chunk[1].to_owned(),

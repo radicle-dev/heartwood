@@ -210,6 +210,7 @@ where
 
     chunks.map(|chunk| {
         // Slice accesses will not panic, guaranteed by `chunks_exact(2)`.
+        #[allow(clippy::indexing_slicing)]
         Embed {
             name: chunk[0].to_string(),
             content: EmbedContent::from(T::from(chunk[1].clone())),

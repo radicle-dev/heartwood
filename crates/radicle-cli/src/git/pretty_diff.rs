@@ -537,14 +537,14 @@ impl ToPretty for Modification {
         match self {
             Modification::Deletion(diff::Deletion { line, line_no }) => {
                 if let Some(lines) = &blobs.old.as_ref() {
-                    lines[*line_no as usize - 1].clone()
+                    lines.get(*line_no as usize - 1).unwrap().clone()
                 } else {
                     term::Line::new(String::from_utf8_lossy(line.as_bytes()).as_ref())
                 }
             }
             Modification::Addition(diff::Addition { line, line_no }) => {
                 if let Some(lines) = &blobs.new.as_ref() {
-                    lines[*line_no as usize - 1].clone()
+                    lines.get(*line_no as usize - 1).unwrap().clone()
                 } else {
                     term::Line::new(String::from_utf8_lossy(line.as_bytes()).as_ref())
                 }
@@ -554,7 +554,7 @@ impl ToPretty for Modification {
             } => {
                 // Nb. we can check in the old or the new blob, we choose the new.
                 if let Some(lines) = &blobs.new.as_ref() {
-                    lines[*line_no_new as usize - 1].clone()
+                    lines.get(*line_no_new as usize - 1).unwrap().clone()
                 } else {
                     term::Line::new(String::from_utf8_lossy(line.as_bytes()).as_ref())
                 }

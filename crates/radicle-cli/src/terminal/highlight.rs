@@ -145,9 +145,11 @@ impl Builder {
                     }
                 }
                 ts::HighlightEvent::HighlightStart(h) => {
-                    let name = HIGHLIGHTS[h.0];
-                    let style =
-                        term::Style::default().fg(theme.highlight(name).unwrap_or_default());
+                    let color = HIGHLIGHTS
+                        .get(h.0)
+                        .and_then(|name| theme.highlight(name))
+                        .unwrap_or_default();
+                    let style = term::Style::default().fg(color);
 
                     self.advance();
                     self.styles.push(style);
