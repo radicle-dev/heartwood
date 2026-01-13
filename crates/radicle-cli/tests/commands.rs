@@ -338,7 +338,7 @@ fn rad_config() {
     let mut environment = Environment::new();
     let alias = Alias::new("alice");
     let profile = environment.profile_with(profile::Config {
-        preferred_seeds: vec![RADICLE_NODE_BOOTSTRAP_IRIS.clone()[0].clone()],
+        preferred_seeds: vec![RADICLE_NODE_BOOTSTRAP_IRIS.clone().first().unwrap().clone()],
         ..profile::Config::new(alias)
     });
     let working = tempfile::tempdir().unwrap();
