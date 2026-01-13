@@ -81,6 +81,7 @@ radicle-surf = "0.26.0"
 [workspace.lints]
 clippy.type_complexity = "allow"
 clippy.enum_variant_names = "allow"
+clippy.indexing_slicing = "deny"
 clippy.fallible_impl_from = "deny"
 clippy.wildcard_enum_match_arm = "deny"
 clippy.unneeded_field_pattern = "deny"

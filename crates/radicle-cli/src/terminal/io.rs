@@ -78,7 +78,7 @@ pub fn comment_select(issue: &Issue) -> anyhow::Result<(&CommentId, &Comment)> {
         (0..comments.len()).collect(),
     )
     .with_render_config(*CONFIG)
-    .with_formatter(&|i| comments[i.index].1.body().to_owned())
+    .with_formatter(&|i| comments.get(i.index).unwrap().1.body().to_owned())
     .prompt()?;
 
     comments
