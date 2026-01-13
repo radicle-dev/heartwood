@@ -17,6 +17,7 @@ use radicle_term::element::Line;
 use crate::terminal as term;
 
 /// Format a node id to be more compact.
+#[must_use]
 pub fn node_id_human_compact(node: &NodeId) -> Paint<String> {
     let node = node.to_human();
     let start = node.chars().take(7).collect::<String>();
@@ -26,10 +27,12 @@ pub fn node_id_human_compact(node: &NodeId) -> Paint<String> {
 }
 
 /// Format a node id.
+#[must_use]
 pub fn node_id_human(node: &NodeId) -> Paint<String> {
     Paint::new(node.to_human())
 }
 
+#[must_use]
 pub fn addr_compact(address: &Address) -> Paint<String> {
     let host = match address.host() {
         HostName::Ip(ip) => ip.to_string(),
@@ -72,17 +75,20 @@ pub fn command<D: fmt::Display>(cmd: D) -> Paint<String> {
 }
 
 /// Format a COB id.
+#[must_use]
 pub fn cob(id: &ObjectId) -> Paint<String> {
     Paint::new(format!("{:.7}", id.to_string()))
 }
 
 /// Format a DID.
+#[must_use]
 pub fn did(did: &Did) -> Paint<String> {
     let nid = did.as_key().to_human();
     Paint::new(format!("{}…{}", &nid[..7], &nid[nid.len() - 7..]))
 }
 
 /// Format a Visibility.
+#[must_use]
 pub fn visibility(v: &Visibility) -> Paint<&str> {
     match v {
         Visibility::Public => term::format::positive("public"),
@@ -91,6 +97,7 @@ pub fn visibility(v: &Visibility) -> Paint<&str> {
 }
 
 /// Format a policy.
+#[must_use]
 pub fn policy(p: &Policy) -> Paint<String> {
     match p {
         Policy::Allow => term::format::positive(p.to_string()),
@@ -108,6 +115,7 @@ pub fn timestamp(time: impl Into<LocalTime>) -> Paint<String> {
     Paint::new(fmt.convert(duration.into()))
 }
 
+#[must_use]
 pub fn bytes(size: usize) -> Paint<String> {
     const KB: usize = 1024;
     const MB: usize = 1024usize.pow(2);
@@ -125,6 +133,7 @@ pub fn bytes(size: usize) -> Paint<String> {
 }
 
 /// Format a ref update.
+#[must_use]
 pub fn ref_update(update: &RefUpdate) -> Paint<&'static str> {
     match update {
         RefUpdate::Updated { .. } => term::format::tertiary("updated"),
@@ -134,6 +143,7 @@ pub fn ref_update(update: &RefUpdate) -> Paint<&'static str> {
     }
 }
 
+#[must_use]
 pub fn ref_update_verbose(update: &RefUpdate) -> Paint<String> {
     match update {
         RefUpdate::Created { name, .. } => format!(
@@ -175,6 +185,7 @@ pub struct Identity<'a> {
 }
 
 impl<'a> Identity<'a> {
+    #[must_use]
     pub fn new(profile: &'a Profile) -> Self {
         Self {
             profile,
@@ -183,11 +194,13 @@ impl<'a> Identity<'a> {
         }
     }
 
+    #[must_use]
     pub fn short(mut self) -> Self {
         self.short = true;
         self
     }
 
+    #[must_use]
     pub fn styled(mut self) -> Self {
         self.styled = true;
         self
@@ -227,6 +240,7 @@ pub struct Author<'a> {
 }
 
 impl<'a> Author<'a> {
+    #[must_use]
     pub fn new(nid: &'a NodeId, profile: &Profile, verbose: bool) -> Author<'a> {
         let alias = profile.alias(nid);
 
@@ -238,10 +252,12 @@ impl<'a> Author<'a> {
         }
     }
 
+    #[must_use]
     pub fn alias(&self) -> Option<term::Label> {
         self.alias.as_ref().map(|a| a.to_string().into())
     }
 
+    #[must_use]
     pub fn you(&self) -> Option<term::Label> {
         if self.you {
             Some(term::format::primary("(you)").dim().italic().into())
@@ -256,6 +272,7 @@ impl<'a> Author<'a> {
     ///   * `(<did>, (you))` -- the `Author` is the local peer and has no alias
     ///   * `(<alias>, <did>)` -- the `Author` is another peer and has an alias
     ///   * `(<blank>, <did>)` -- the `Author` is another peer and has no alias
+    #[must_use]
     pub fn labels(self) -> (term::Label, term::Label) {
         let node_id = if self.verbose {
             term::format::node_id_human(self.nid)
@@ -274,6 +291,7 @@ impl<'a> Author<'a> {
         (alias, author)
     }
 
+    #[must_use]
     pub fn line(self) -> Line {
         let (alias, author) = self.labels();
         Line::spaced([alias, author])
@@ -283,6 +301,7 @@ impl<'a> Author<'a> {
 /// HTML-related formatting.
 pub mod html {
     /// Comment a string with HTML comments.
+    #[must_use]
     pub fn commented(s: &str) -> String {
         format!("<!--\n{s}\n-->")
     }
@@ -290,6 +309,7 @@ pub mod html {
     /// Remove html style comments from a string.
     ///
     /// The HTML comments must start at the beginning of a line and stop at the end.
+    #[must_use]
     pub fn strip_comments(s: &str) -> String {
         let ends_with_newline = s.ends_with('\n');
         let mut is_comment = false;
@@ -323,6 +343,7 @@ pub mod issue {
     use radicle::issue::{CloseReason, State};
 
     /// Format issue state.
+    #[must_use]
     pub fn state(s: &State) -> term::Paint<String> {
         match s {
             State::Open => term::format::positive(s.to_string()),
@@ -341,6 +362,7 @@ pub mod patch {
     use super::*;
     use radicle::patch::{State, Verdict};
 
+    #[must_use]
     pub fn verdict(v: Option<Verdict>) -> term::Paint<String> {
         match v {
             Some(Verdict::Accept) => term::PREFIX_SUCCESS.into(),
@@ -350,6 +372,7 @@ pub mod patch {
     }
 
     /// Format patch state.
+    #[must_use]
     pub fn state(s: &State) -> term::Paint<String> {
         match s {
             State::Draft => term::format::dim(s.to_string()),
@@ -366,6 +389,7 @@ pub mod identity {
     use radicle::cob::identity::State;
 
     /// Format identity revision state.
+    #[must_use]
     pub fn state(s: &State) -> term::Paint<String> {
         match s {
             State::Active => term::format::tertiary(s.to_string()),

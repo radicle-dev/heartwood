@@ -22,6 +22,7 @@ impl Default for UploadPack {
 
 impl UploadPack {
     /// Construct an empty set of spinners.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             remotes: BTreeSet::new(),

@@ -33,6 +33,7 @@ impl Error {
         Self::Syntax(msg.to_string())
     }
 
+    #[must_use]
     pub fn is_eof(&self) -> bool {
         match self {
             Self::UnexpectedEof => true,
@@ -137,12 +138,14 @@ impl TryFrom<&Hunk<Modification>> for HunkHeader {
 }
 
 impl HunkHeader {
+    #[must_use]
     pub fn old_line_range(&self) -> std::ops::Range<u32> {
         let start: u32 = self.old_line_no;
         let end: u32 = self.old_line_no + self.old_size;
         start..end + 1
     }
 
+    #[must_use]
     pub fn new_line_range(&self) -> std::ops::Range<u32> {
         let start: u32 = self.new_line_no;
         let end: u32 = self.new_line_no + self.new_size;
@@ -579,6 +582,7 @@ impl<'a> Writer<'a> {
         Ok(())
     }
 
+    #[must_use]
     pub fn styled(mut self, value: bool) -> Self {
         self.styled = value;
         self

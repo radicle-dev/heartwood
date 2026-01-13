@@ -43,6 +43,7 @@ impl LocalTime {
     }
 
     /// Construct a local time from whole seconds since Epoch.
+    #[must_use = "constructor return new instances"]
     pub const fn from_secs(secs: u64) -> Self {
         Self {
             millis: secs as u128 * 1000,
@@ -50,16 +51,19 @@ impl LocalTime {
     }
 
     /// Construct a local time from milliseconds since Epoch.
+    #[must_use = "constructor return new instances"]
     pub const fn from_millis(millis: u128) -> Self {
         Self { millis }
     }
 
     /// Return whole seconds since Epoch.
+    #[must_use = "returns a value but does not modify the time"]
     pub fn as_secs(&self) -> u64 {
         (self.millis / 1000).try_into().unwrap()
     }
 
     /// Return milliseconds since Epoch.
+    #[must_use = "returns a value but does not modify the time"]
     pub fn as_millis(&self) -> u64 {
         self.millis.try_into().unwrap()
     }
@@ -69,6 +73,7 @@ impl LocalTime {
     /// # Panics
     ///
     /// This function will panic if `earlier` is later than `self`.
+    #[must_use = "returns the duration but does not modify the time"]
     pub fn duration_since(&self, earlier: LocalTime) -> LocalDuration {
         LocalDuration::from_millis(
             self.millis
@@ -78,6 +83,7 @@ impl LocalTime {
     }
 
     /// Get the difference between two times.
+    #[must_use = "returns the difference but does not modify the time"]
     pub fn diff(&self, other: LocalTime) -> LocalDuration {
         if self > &other {
             self.duration_since(other)
@@ -153,31 +159,37 @@ impl LocalDuration {
     pub const MAX: LocalDuration = LocalDuration(u128::MAX);
 
     /// Create a new duration from whole seconds.
+    #[must_use = "constructor return new instances"]
     pub const fn from_secs(secs: u64) -> Self {
         Self(secs as u128 * 1000)
     }
 
     /// Create a new duration from whole minutes.
+    #[must_use = "constructor return new instances"]
     pub const fn from_mins(mins: u64) -> Self {
         Self::from_secs(mins * 60)
     }
 
     /// Construct a new duration from milliseconds.
+    #[must_use = "constructor return new instances"]
     pub const fn from_millis(millis: u128) -> Self {
         Self(millis)
     }
 
     /// Return the number of minutes in this duration.
+    #[must_use = "returns a value but does not modify the duration"]
     pub const fn as_mins(&self) -> u64 {
         self.as_secs() / 60
     }
 
     /// Return the number of seconds in this duration.
+    #[must_use = "returns a value but does not modify the duration"]
     pub const fn as_secs(&self) -> u64 {
         (self.0 / 1000) as u64
     }
 
     /// Return the number of milliseconds in this duration.
+    #[must_use = "returns a value but does not modify the duration"]
     pub const fn as_millis(&self) -> u128 {
         self.0
     }

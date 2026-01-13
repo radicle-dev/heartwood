@@ -51,6 +51,7 @@ pub mod migrate {
     use super::MigrateSpinner;
 
     /// Display migration progress via a spinner.
+    #[must_use]
     pub fn spinner() -> MigrateSpinner {
         MigrateSpinner::default()
     }

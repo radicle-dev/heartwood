@@ -25,12 +25,14 @@ pub struct SyncSettings {
 
 impl SyncSettings {
     /// Set sync timeout. Defaults to [`DEFAULT_SYNC_TIMEOUT`].
+    #[must_use]
     pub fn timeout(mut self, timeout: time::Duration) -> Self {
         self.timeout = timeout;
         self
     }
 
     /// Set replicas.
+    #[must_use]
     pub fn replicas(mut self, replicas: sync::ReplicationFactor) -> Self {
         self.replicas = replicas;
         self
@@ -44,6 +46,7 @@ impl SyncSettings {
 
     /// Use profile to populate sync settings, by adding preferred seeds if no seeds are specified,
     /// and removing the local node from the set.
+    #[must_use]
     pub fn with_profile(mut self, profile: &Profile) -> Self {
         // If no seeds were specified, add the preferred seeds.
         if self.seeds.is_empty() {

@@ -21,6 +21,7 @@ pub struct PassphraseValidator {
 
 impl PassphraseValidator {
     /// Create a new validator.
+    #[must_use]
     pub fn new(keystore: Keystore) -> Self {
         Self { keystore }
     }

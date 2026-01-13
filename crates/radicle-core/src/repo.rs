@@ -47,6 +47,7 @@ impl RepoId {
     ///
     /// Eg. `rad:z3XncAdkZjeK9mQS5Sdc4qhw98BUX`.
     ///
+    #[must_use]
     pub fn urn(&self) -> String {
         RAD_PREFIX.to_string() + &self.canonical()
     }
@@ -65,6 +66,7 @@ impl RepoId {
     ///
     /// Eg. `z3XncAdkZjeK9mQS5Sdc4qhw98BUX`.
     ///
+    #[must_use]
     pub fn canonical(&self) -> String {
         multibase::encode(multibase::Base::Base58Btc, AsRef::<[u8]>::as_ref(&self.0))
     }

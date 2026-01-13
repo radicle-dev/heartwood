@@ -382,6 +382,7 @@ impl DDiff {
     }
 
     /// Returns owned files in the diff.
+    #[must_use]
     pub fn into_files(self) -> Vec<FileDDiff> {
         self.files
     }
