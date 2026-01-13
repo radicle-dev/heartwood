@@ -510,7 +510,8 @@ where
             .sum();
         self.metrics.worker_queue_size = self.worker.len();
 
-        self.service.tick(SystemTime::now().into(), &self.metrics);
+        self.service
+            .tick(SystemTime::now().try_into().unwrap(), &self.metrics);
     }
 
     fn timer_reacted(&mut self) {

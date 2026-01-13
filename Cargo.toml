@@ -81,6 +81,7 @@ radicle-surf = "0.26.0"
 [workspace.lints]
 clippy.type_complexity = "allow"
 clippy.enum_variant_names = "allow"
+clippy.fallible_impl_from = "deny"
 
 [profile.container]
 inherits = "release"

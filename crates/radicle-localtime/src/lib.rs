@@ -3,7 +3,7 @@
 //! Taken from <https://github.com/cloudhead/localtime>
 
 use std::sync::atomic;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, SystemTimeError, UNIX_EPOCH};
 
 /// Local time.
 ///
@@ -30,7 +30,7 @@ impl LocalTime {
     pub fn now() -> Self {
         static LAST: atomic::AtomicU64 = atomic::AtomicU64::new(0);
 
-        let now = Self::from(SystemTime::now()).as_secs();
+        let now = Self::try_from(SystemTime::now()).unwrap().as_secs();
         let last = LAST.load(atomic::Ordering::SeqCst);
 
         // If the current time is in the past, return the last recorded time instead.
@@ -95,11 +95,13 @@ impl LocalTime {
 }
 
 /// Convert a `SystemTime` into a local time.
-impl From<SystemTime> for LocalTime {
-    fn from(system: SystemTime) -> Self {
-        let millis = system.duration_since(UNIX_EPOCH).unwrap().as_millis();
+impl TryFrom<SystemTime> for LocalTime {
+    type Error = SystemTimeError;
 
-        Self { millis }
+    fn try_from(system: SystemTime) -> Result<Self, Self::Error> {
+        system.duration_since(UNIX_EPOCH).map(|duration| Self {
+            millis: duration.as_millis(),
+        })
     }
 }
 

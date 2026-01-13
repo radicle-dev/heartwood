@@ -393,6 +393,9 @@ pub(super) enum CommentAction {
     },
 }
 
+// `emoji.unwrap()` is safe because an --emoji is required by --react and
+// --react requires --emoji in Clap. See CommentArts::react and CommentArgs::emoji.
+#[allow(clippy::fallible_impl_from)]
 impl From<CommentArgs> for CommentAction {
     fn from(
         CommentArgs {
