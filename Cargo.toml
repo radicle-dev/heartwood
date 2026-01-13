@@ -85,6 +85,7 @@ clippy.indexing_slicing = "deny"
 clippy.fallible_impl_from = "deny"
 clippy.wildcard_enum_match_arm = "deny"
 clippy.unneeded_field_pattern = "deny"
+clippy.fn_params_excessive_bools = "deny"
 
 [profile.container]
 inherits = "release"
