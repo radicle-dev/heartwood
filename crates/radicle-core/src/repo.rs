@@ -234,10 +234,12 @@ mod sqlite_impls {
                     code: None,
                     message: Some(e.to_string()),
                 }),
-                _ => Err(Error {
-                    code: None,
-                    message: Some(format!("sql: invalid type `{:?}` for id", value.kind())),
-                }),
+                Value::Binary(_) | Value::Float(_) | Value::Integer(_) | Value::Null => {
+                    Err(Error {
+                        code: None,
+                        message: Some(format!("sql: invalid type `{:?}` for id", value.kind())),
+                    })
+                }
             }
         }
     }

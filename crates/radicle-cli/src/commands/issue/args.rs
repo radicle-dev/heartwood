@@ -196,7 +196,7 @@ impl Command {
             // Special handling for `--edit` will be removed in the future.
             | Command::Edit { .. } => true,
             Command::Comment(args) => !args.is_edit(),
-            _ => false,
+            Command::Cache{..} | Command::Show { .. } | Command::List(_) => false,
         }
     }
 }

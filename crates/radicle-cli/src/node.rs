@@ -87,7 +87,7 @@ impl SyncError {
     fn is_connection_err(&self) -> bool {
         match self {
             Self::Node(e) => e.is_connection_err(),
-            _ => false,
+            Self::Repository(_) | Self::AllSeedsTimedOut | Self::Target(_) => false,
         }
     }
 }

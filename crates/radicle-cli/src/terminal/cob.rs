@@ -102,6 +102,9 @@ where
 
 /// Adds a hint to the COB out-of-date database error.
 fn with_hint(e: profile::Error) -> anyhow::Error {
+    // There are many types that aren't `profile::Error::CobsCache`; specifying them all in an
+    // error path seems overly verbose with little value.
+    #[allow(clippy::wildcard_enum_match_arm)]
     match e {
         profile::Error::CobsCache(cob::cache::Error::OutOfDate) => {
             anyhow::Error::from(terminal::args::Error::WithHint {

@@ -186,7 +186,10 @@ impl ReviewItem {
             Self::FileAdded { hunk, .. } => hunk.as_ref(),
             Self::FileDeleted { hunk, .. } => hunk.as_ref(),
             Self::FileModified { hunk, .. } => hunk.as_ref(),
-            _ => None,
+            Self::FileMoved { .. }
+            | Self::FileCopied { .. }
+            | Self::FileEofChanged { .. }
+            | Self::FileModeChanged { .. } => None,
         }
     }
 
@@ -277,7 +280,7 @@ impl ReviewItem {
                 EofNewLine::OldMissing => {
                     VStack::default().child(term::Label::new("`\\n` added at end-of-file"))
                 }
-                _ => VStack::default(),
+                EofNewLine::BothMissing | EofNewLine::NoneMissing => VStack::default(),
             },
             Self::FileModeChanged { .. } => VStack::default(),
         }
