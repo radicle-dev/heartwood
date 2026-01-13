@@ -345,14 +345,6 @@ pub fn check_version() -> Result<Version, anyhow::Error> {
     Ok(git_version)
 }
 
-/// Parse a remote refspec into a peer id and ref.
-pub fn parse_remote(refspec: &str) -> Option<(NodeId, &str)> {
-    refspec
-        .strip_prefix("refs/remotes/")
-        .and_then(|s| s.split_once('/'))
-        .and_then(|(peer, r)| NodeId::from_str(peer).ok().map(|p| (p, r)))
-}
-
 pub fn add_tag(
     repo: &Repository,
     message: &str,
