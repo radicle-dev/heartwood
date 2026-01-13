@@ -19,52 +19,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Release Highlights
 
-## Migrating `radicle-node` to `mio`
+### Migrating `radicle-node` to `mio`
 
-The crates [`netservices`], [`io-reactor`], and [`popol`] have served us well to
-implement radicle-node. However, they are not ideal dependencies for ensuring
-long-term health of our network I/O layer:
+The crates [`netservices`], [`io-reactor`], and [`popol`] were crucially valuable
+for implementing `radicle-node`. However, they are not ideal dependencies for
+ensuring long-term health of the network I/O layer:
 
-- [`popol`] is only intended to support Unix-like platforms, and we are looking to
-  support other platforms, like Windows.
-- Even though io-reactor defines the trait [`reactor::poller::Poll`] to
+- [`popol`] is only intended to support Unix-like platforms, and support on other
+  platforms, like Windows, is desired.
+- Even though [`io-reactor`] defines the trait [`reactor::poller::Poll`] to
   potentially support multiple I/O polling mechanisms, there only is one single
-  implementation for wrapping popol. Issues for other polling crates are open
-  since 2023 without tangible progress: [#10 for mio], [#9 for polling], [#8 for
-  epoll]. This suggests that it is not a high priority for the maintainers to
-  integrate with other polling abstractions (which might offer better
-  cross-platform compatibility).
+  implementation wrapping [`popol`]. Issues for other polling crates are open
+  since 2023 without tangible progress: [#10 for `mio`], [#9 for `polling`],
+  [#8 for `epoll`]. This suggests that it is not a high priority for the maintainers
+  to integrate with other polling abstractions which might offer better
+  cross-platform compatibility when compared to `popol`.
 - The trait [`reactor::poller::Poll`] can only be implemented for file descriptors
   which also implement [`std::os::fd::raw::AsRawFd`] and this trait is only
-  implemented on Unix-like platforms and WASI. We believe that this is leaked
-  from popol as the only known implementation of the trait wraps it.
-- We would like to benefit from network effects, i.e. from other people
-  maintaining crates that depend on io-reactor to implement support for other
-  pollers. However, according to crates.io, the [only dependent is radicle-node]
-  (via `netservices`). Contrary to that, at the time of writing, `mio` has 494
-  dependents according to [crates.io][mio reverse dependencies], and, notably,
-  `tokio`, which has 30628 dependents on [crates.io][tokio reverse
-  dependencies], is dependent on [`mio`]. We therefore think that even if mio is
-  obsoleted, e.g. by [`a10`] (which is based on [`io_uring`] on Linux and could
-  potentially build on top of [I/O rings on Windows]) the people behind a large
-  network of dependent projects will come up with new ideas and solutions, that
-  we would then benefit from.
-- One downside of `mio` is that it forces the use of [`mio::Token`] to identify
-  sources (while a type that is Eq + Clone might be enough), and that it forces
+  implemented on Unix-like platforms and WASI. It is believed that this is leaked
+  from `popol` as the only known implementation of the trait wraps it.
+- To benefit from network effects, it would be nice to see others maintaining crates
+  that depend on `io-reactor`. However, according to crates.io, the
+  [only dependent is `radicle-node`] (via `netservices`). Contrary to that,
+  at the time of writing, `mio` has 494 dependents according to
+  [crates.io][mio reverse dependencies], and, notably, `tokio`, which has
+  30628 dependents on [crates.io][tokio reverse dependencies], is dependent on
+  [`mio`]. We therefore think that even if `mio` is obsoleted, e.g. by [`a10`]
+  (which is based on [`io_uring`] on Linux and could potentially build on top of
+  [I/O rings on Windows]) the people behind a large network of dependent projects
+  are expected to come up with new ideas and solutions, that Radicle would then
+  benefit from.
+- One downside using of `mio` is that it forces the use of [`mio::Token`] to identify
+  sources (while a type that is `Eq + Clone` might be enough), and that it forces
   the use of the types in [`mio::net`] for sockets, which need to be converted
   to/from [`std::net`] if required. These distinctions are also [noted by
-  cloudhead]. We are willing to buy in that far to mio to leverage the benefits
+  cloudhead]. Buy in that far is acceptable, in order to leverage the benefits
   of a well-tested and cross-platform network I/O layer.
 
 [`netservices`]: https://crates.io/crates/netservices
 [`io-reactor`]: https://crates.io/crates/io-reactor
 [`popol`]: https://crates.io/crates/popol
 [`reactor::poller::Poll`]: https://docs.rs/io-reactor/0.5.2/reactor/poller/trait.Poll.html
-[#10 for mio]: https://github.com/rust-amplify/io-reactor/issues/10
-[#9 for polling]: https://github.com/rust-amplify/io-reactor/issues/9
-[#8 for epoll]: https://github.com/rust-amplify/io-reactor/issues/8
+[#10 for `mio`]: https://github.com/rust-amplify/io-reactor/issues/10
+[#9 for `polling`]: https://github.com/rust-amplify/io-reactor/issues/9
+[#8 for `epoll`]: https://github.com/rust-amplify/io-reactor/issues/8
 [`std::os::fd::raw::AsRawFd`]: https://doc.rust-lang.org/nightly/std/os/fd/raw/trait.AsRawFd.html
-[only dependent is radicle-node]: https://crates.io/crates/io-reactor/reverse_dependencies
+[only dependent is `radicle-node`]: https://crates.io/crates/io-reactor/reverse_dependencies
 [mio reverse dependencies]: https://crates.io/crates/mio/reverse_dependencies
 [tokio reverse dependencies]: https://crates.io/crates/tokio/reverse_dependencies
 [`a10`]: https://crates.io/crates/a10
@@ -82,12 +82,9 @@ path canonicalization and supporting Windows pipes, have allowed developers to
 build `radicle-node` on Windows.
 
 We encourage users to try out Radicle on Windows by building from source. At
-this time, there may be hidden issues that we are not aware of, since this a
-nascent time for `radicle-node` on Windows. Please report any issues you see via
+this time, there may be undiscovered issues, since this is a nascent time for
+`radicle-node` on Windows. Please report any issues you see via
 `rad issue` or on our [Zulip](https://radicle.zulipchat.com).
-
-Next steps for the team will be distributing a binary alongside our other
-binaries.
 
 ### Rust MSRV Update to 1.85
 
@@ -108,7 +105,7 @@ affect error reporting, as they are now reported by `clap` when parsing fails.
 With the introduction of `clap`, this helped with the introduction of a command
 `rad completion` to emit shell completions for static information.
 
-### Systemd Credentials for `radicle-node`
+### systemd Credentials for `radicle-node`
 
 `radicle-node` now supports systemd Credentials (refer to
 <https://systemd.io/CREDENTIALS> for more information) to load:
