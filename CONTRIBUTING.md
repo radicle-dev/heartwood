@@ -75,6 +75,20 @@ Make sure all tests are passing with:
 Some tests require `jq`. If `jq` is not detected, these tests will succeed
 without effectively testing anything.
 
+#### `cargo nextest`
+
+Another popular test runner is [`nextest`](https://nexte.st/), which can be used through `cargo nextest`.
+
+The equivalent to the above `cargo test` command would be:
+
+    $ cargo nextest run --workspace
+
+Note that `cargo nextest` does not include doc tests, however, we do not write doc tests.
+
+To run the test suite, use the command:
+
+    $ just test-rust
+
 ### Checking the docs
 
 If you make documentation changes, you may want to check whether there are any
