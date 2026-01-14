@@ -76,7 +76,7 @@ Note that `cargo nextest` does not include doc tests, however, we do not write d
 If you make documentation changes, you may want to check whether there are any
 warnings or errors:
 
-    $ cargo doc --workspace --all-features
+    $ cargo doc --workspace --all-features --no-deps
 
 ### Code style
 
