@@ -100,6 +100,23 @@ However, there are some instances where they are acceptable:
 3. The presence of `Option::None` or `Result::Err` is truly an unexpected scenario
    and you intend the program to panic.
 
+#### Use of the term "safe" or "safety"
+
+As we are programming in Rust, the terms safe and unsafe are narrowly defined to
+refer to the safety of the language, i.e. "safe Rust" and "unsafe Rust", as
+mentioned in [The Rustnomicon].
+
+With this in mind, we only accept the use of "safe" about code if it is related
+to implementing something within the realm of unsafe Rust. The comment must
+describe why the use of unsafe Rust is in fact safe, and under what conditions.
+
+We will not accept the use of "safe" if it relates to the use of `panic!`,
+`unreachable!`, `unwrap`, or `expect`. We will, however, still recommend that
+those uses are documented – generally using a `# Panic` header in a document
+string.
+
+[The Rustnomicon]: https://doc.rust-lang.org/nomicon/meet-safe-and-unsafe.html
+
 #### Module imports
 
 Modules are declared at the top of the file, before the imports. Public modules
