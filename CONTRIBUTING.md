@@ -44,9 +44,9 @@ Patch formatting follows the same rules as commit formatting. See below.
 
 Always check your code with the linter (`clippy`), by running:
 
-    $ cargo clippy --workspace --tests
+    $ cargo clippy --workspace --all-targets --all-features -- -Dwarnings
 
-And make sure your code is formatted with, using:
+And make sure your code is formatted using:
 
     $ cargo fmt
 
