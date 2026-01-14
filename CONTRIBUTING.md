@@ -268,9 +268,11 @@ When proposing changes via a patch:
 
 **Preparing commits**
 
-1. Each commit in your patch must pass all the tests, lints and checks. This is
-   so that they can be built into binaries and to make git bisecting possible.
-2. Do not include any commits that are fixes or refactorings of previous patch
+1. It is preferred that each commit in your patch passes all the tests, lints
+   and checks. This is so that they can be built into binaries and to make git
+   bisecting possible. There are times when it is necessary to have commits that
+   do not pass checks, e.g. the commit would become too large.
+2. Do not include any commits that are fixes or refactoring of previous patch
    commits. These should be squashed to the minimal diff required to make the
    change, unless it's helpful to make a large change over multiple commits,
    while still respecting (1). Do not include `fixup!` commits either.
@@ -278,10 +280,20 @@ When proposing changes via a patch:
    mainly concerns a certain area of the codebase. For example. These prefixes
    should usually be the name of the crate, minus any common prefix. Eg.
    `cli:`, and *not* `radicle-cli:`. For documentation, you can use `docs:`,
-   and for CI-related files, you can use `ci:`.
+   and for CI-related files, you can use `ci:`. Additionally, you can add
+   further scope within the crate, e.g. `node/service`.
 
 To help with the above, use `git commit --amend` and `git rebase -i`. You can
-also interactively construct a commit from a working tree using `git add -p`.
+also interactively construct a commit from a working tree using `git add -p**.
+
+**Git Hooks**
+
+The `justfile` contains a way to install Git hooks using:
+
+    $ just install-hooks
+
+This will allow you to have a `pre-commit` and `pre-push` hooks that will ensure
+that all of the project checks are performed.
 
 ### Writing commit messages
 
