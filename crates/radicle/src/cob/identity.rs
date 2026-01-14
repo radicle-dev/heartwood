@@ -129,6 +129,8 @@ pub enum ApplyError {
     Git(#[from] git::raw::Error),
     #[error("identity document error: {0}")]
     Doc(#[from] DocError),
+    #[error("non-delegate not authorized to perform this action")]
+    NonDelegateUnauthorized,
 }
 
 /// Error updating or creating proposals.
@@ -445,7 +447,7 @@ impl Identity {
         let current = self.current().clone();
 
         if !current.is_delegate(&author.into()) {
-            return Err(ApplyError::UnexpectedState);
+            return Err(ApplyError::NonDelegateUnauthorized);
         }
         match action {
             Action::RevisionAccept {
@@ -1396,6 +1398,7 @@ mod test {
                 .unwrap()
         });
         // Eve's revision is active.
+        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, e1]);
         assert!(eve_identity.revision(&e1).unwrap().is_active());
 
         //  b1      (Accept "Remove Eve") 2/2
@@ -1411,7 +1414,7 @@ mod test {
         eve_identity.reload().unwrap();
         // Now that Eve reloaded, since Bob's vote to remove Eve went through first (b1 < e1),
         // her revision is no longer valid.
-        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, b1, e1]);
+        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, b1]);
         assert_eq!(eve_identity.revision(&e1), None);
         assert!(!eve_identity.is_delegate(&eve.signer.public_key().into()));
     }
