@@ -5,7 +5,7 @@ use std::collections::hash_map::Entry;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 use std::{io, net, time};
 
 use crossbeam_channel as chan;
@@ -13,6 +13,7 @@ use cyphernet::addr::{HostName, InetHost, NetAddr};
 use cyphernet::encrypt::noise::{HandshakePattern, Keyset, NoiseState};
 use cyphernet::proxy::socks5;
 use cyphernet::{Digest, EcSk, Ecdh, Sha256};
+use localtime::LocalTime;
 use mio::net::TcpStream;
 use radicle::node::device::Device;
 
@@ -510,8 +511,7 @@ where
             .sum();
         self.metrics.worker_queue_size = self.worker.len();
 
-        self.service
-            .tick(SystemTime::now().try_into().unwrap(), &self.metrics);
+        self.service.tick(LocalTime::now(), &self.metrics);
     }
 
     fn timer_reacted(&mut self) {
