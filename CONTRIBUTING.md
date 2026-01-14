@@ -56,7 +56,7 @@ Always check your code with the linter (`clippy`), by running:
 
     $ just lint-rust
 
-And make sure your code is formatted, using:
+And make sure your code is formatted using:
 
     $ just format-rust
 
