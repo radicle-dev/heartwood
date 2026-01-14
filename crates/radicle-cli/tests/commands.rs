@@ -610,7 +610,9 @@ fn rad_id_collaboration() {
     let bob = environment.node("bob");
     let eve = environment.node("eve");
     let seed = environment.seed("seed");
-    let distrustful = environment.seed("distrustful");
+    // On Mac OS X and BSD systems `SUN_LEN` is 104 bytes, "distrustful" was causing paths to be
+    // 106, and as such this test will error. Renamed to shorter "bad".
+    let distrustful = environment.seed("bad");
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
     environment.repository(&alice);
