@@ -163,9 +163,11 @@ Imports are organized in groups, from least specific to more specific:
     use git_ref_format as format;    // Then, external dependencies.
     use serde_json::Value;
 
-    use crate::crypto::PublicKey;    // Finally, local crate imports.
+    use crate::crypto::PublicKey;    // Then, local crate imports.
     use crate::storage::refs::Refs;
     use crate::storage::RemoteId;
+
+    use super::Oid;                  // Finally, super imports.
 
 #### Variable naming
 
