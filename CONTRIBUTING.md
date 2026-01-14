@@ -13,6 +13,8 @@ If creating an issue, please make sure to include:
 - steps to reproduce your issue,
 - the output of `rad debug`,
 - the contents of the log files referred to by that output.
+  This can be improved by running the node with `--log-level debug`,
+  e.g. `rad node start -- --log-level debug`.
 
 
 ## Contributing Code
