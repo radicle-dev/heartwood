@@ -129,6 +129,24 @@ pub enum ApplyError {
     Git(#[from] git::raw::Error),
     #[error("identity document error: {0}")]
     Doc(#[from] DocError),
+    #[error("{author} is not a delegate, and only delegates are allowed to {action}")]
+    NonDelegateUnauthorized { author: Did, action: String },
+}
+
+impl ApplyError {
+    fn non_delegate_unauthorized(author: Did, action: &Action) -> Self {
+        let action = match action {
+            Action::Revision { .. } => "create a revision",
+            Action::RevisionEdit { .. } => "edit a revision",
+            Action::RevisionAccept { .. } => "accept a revision",
+            Action::RevisionReject { .. } => "reject a revision",
+            Action::RevisionRedact { .. } => "redact a revision",
+        };
+        Self::NonDelegateUnauthorized {
+            author,
+            action: action.to_string(),
+        }
+    }
 }
 
 /// Error updating or creating proposals.
@@ -444,8 +462,9 @@ impl Identity {
     ) -> Result<(), ApplyError> {
         let current = self.current().clone();
 
-        if !current.is_delegate(&author.into()) {
-            return Err(ApplyError::UnexpectedState);
+        let did = author.into();
+        if !current.is_delegate(&did) {
+            return Err(ApplyError::non_delegate_unauthorized(did, &action));
         }
         match action {
             Action::RevisionAccept {
@@ -1396,6 +1415,7 @@ mod test {
                 .unwrap()
         });
         // Eve's revision is active.
+        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, e1]);
         assert!(eve_identity.revision(&e1).unwrap().is_active());
 
         //  b1      (Accept "Remove Eve") 2/2
@@ -1411,7 +1431,7 @@ mod test {
         eve_identity.reload().unwrap();
         // Now that Eve reloaded, since Bob's vote to remove Eve went through first (b1 < e1),
         // her revision is no longer valid.
-        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, b1, e1]);
+        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, b1]);
         assert_eq!(eve_identity.revision(&e1), None);
         assert!(!eve_identity.is_delegate(&eve.signer.public_key().into()));
     }
