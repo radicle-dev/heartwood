@@ -603,6 +603,56 @@ fn rad_id_multi_delegate() {
 }
 
 #[test]
+fn rad_id_unauthorized_delegate() {
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+
+    environment.repository(&alice);
+
+    test(
+        "examples/rad-init.md",
+        environment.work(&alice),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    // Alice sets up the seed
+    alice.handle.seed(acme, Scope::Followed).unwrap();
+
+    bob.connect(&alice).converge([&alice]);
+    bob.rad(
+        "clone",
+        &[acme.to_string().as_str()],
+        environment.work(&bob),
+    )
+    .unwrap();
+
+    formula(
+        &environment.tempdir(),
+        "examples/rad-id-unauthorized-delegate.md",
+    )
+    .unwrap()
+    .home(
+        "alice",
+        environment.work(&alice),
+        [("RAD_HOME", alice.home.path().display())],
+    )
+    .home(
+        "bob",
+        environment.work(&bob),
+        [("RAD_HOME", bob.home.path().display())],
+    )
+    .run()
+    .unwrap();
+}
+
+#[test]
 #[ignore = "slow"]
 fn rad_id_collaboration() {
     let mut environment = Environment::new();

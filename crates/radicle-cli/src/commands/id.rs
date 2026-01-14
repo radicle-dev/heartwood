@@ -427,7 +427,9 @@ where
     G: crypto::signature::Signer<crypto::Signature>,
 {
     if let Some((title, description)) = edit_title_description(title, description)? {
-        let id = current.update(title, description, &doc, signer)?;
+        let id = current
+            .update(title, description, &doc, signer)
+            .map_err(on_identity_err)?;
         let revision = current
             .revision(&id)
             .ok_or(anyhow!("update failed: revision {id} is missing"))?;
@@ -435,6 +437,19 @@ where
         Ok(revision.clone())
     } else {
         Err(anyhow!("you must provide a revision title and description"))
+    }
+}
+
+fn on_identity_err(e: identity::Error) -> anyhow::Error {
+    let e = anyhow::Error::from(e);
+
+    let apply_err = e
+        .chain()
+        .find_map(|c| c.downcast_ref::<identity::ApplyError>());
+
+    match apply_err {
+        Some(e @ identity::ApplyError::NonDelegateUnauthorized { .. }) => anyhow!(e.to_string()),
+        _ => e,
     }
 }
 
