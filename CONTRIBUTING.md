@@ -14,6 +14,11 @@ If creating an issue, please make sure to include:
 - the output of `rad debug`,
 - the contents of the log files referred to by that output.
 
+If possible, please reproduce the issue after setting the log level
+for `radicle-node` to "debug". This is done by specifying the
+commandline argument `--log-level debug`.
+If you start `radicle-node` via `rad node start`, then change the
+invocation to `rad node start -- --log-level debug`.
 
 ## Contributing Code
 
