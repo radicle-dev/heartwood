@@ -84,31 +84,28 @@ The following code guidelines will help make code review smoother.
 
 #### Use of `unwrap` and `expect`
 
-Use `unwrap` only in either of three circumstances:
+In general, the use of `unwrap` or `expect` should be seldom used in the code base.
+Instead, proper handling of these cases should made, whether through better expressing
+the logic through types, through error handling, or a combination of these.
 
-1. Based on manual static analysis, you've concluded that it's impossible for
-the code to panic; so unwrapping is *safe*. An example would be:
+However, there are some instances where they are acceptable:
+
+1. They may be used as part of test code, and this is generally allowed by
+allowing it via clippy
+
+        #[allow(clippy::unwrap_used)]
+
+2. Based on manual static analysis, you've concluded that it's impossible for
+the code to panic; so unwrapping is acceptable. An example would be:
 
         let list = vec![a, b, c];
         let first = list.first().unwrap();
 
-2. The panic caused by `unwrap` would indicate a bug in the software, and it
-would be impossible to continue in that case.
+Note that this may still be questioned, since this code can still be fragile,
+e.g. the definition of `list` is changed later.
 
-3. The `unwrap` is part of test code, ie. `cfg!(test)` is `true`.
-
-In the first and second case, document `unwrap` call sites with a comment prefixed
-with `SAFETY:` that explains why it's safe to unwrap, eg.
-
-    // SAFETY: Node IDs are valid ref strings.
-    let r = RefString::try_from(node.to_string()).unwrap();
-
-Use `expect` only if the function expects certain invariants that were not met,
-either due to bad inputs, or a problem with the environment; and include the
-expectation in the message. For example:
-
-    logger::init(log::Level::Debug)
-        .expect("logger must only be initialized once");
+3. The presence of `Option::None` or `Result::Err` is truly an unexpected scenario
+and the program should fail.
 
 #### Module imports
 
