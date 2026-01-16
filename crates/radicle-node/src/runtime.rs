@@ -1,14 +1,11 @@
+mod socket;
+use socket::ControlSocket;
+
 pub mod handle;
 pub mod thread;
 
 use std::fmt::Debug;
-use std::path::PathBuf;
 use std::{fs, io, net};
-
-#[cfg(unix)]
-use std::os::unix::net::UnixListener as Listener;
-#[cfg(windows)]
-use winpipe::WinListener as Listener;
 
 use crossbeam_channel as chan;
 use cyphernet::Ecdh;
@@ -78,16 +75,12 @@ pub enum Error {
     /// An I/O error.
     #[error("i/o error: {0}")]
     Io(#[from] io::Error),
-    /// A control socket error.
-    #[error("control socket error: {0}")]
-    Control(#[from] control::Error),
-    /// Another node is already running.
-    #[error(
-        "another node appears to be running; \
-        if this isn't the case, delete the socket file at '{0}' \
-        and restart the node"
-    )]
-    AlreadyRunning(PathBuf),
+    /// Failed to construct a valid socket path.
+    #[error(transparent)]
+    ControlSocketPath(#[from] socket::error::SocketPath),
+    /// Failed to construct the control socket.
+    #[error(transparent)]
+    Control(#[from] socket::error::ControlSocket),
     /// A git version error.
     #[error("git version error: {0}")]
     GitVersion(#[from] git::VersionError),
@@ -97,14 +90,6 @@ impl From<service::Error> for Error {
     fn from(e: service::Error) -> Self {
         Self::Service(Box::new(e))
     }
-}
-
-/// Wraps a [`Listener`] but tracks its origin.
-pub enum ControlSocket {
-    /// The listener was created by binding to it.
-    Bound(Listener, PathBuf),
-    /// The listener was received via socket activation.
-    Received(Listener),
 }
 
 /// Holds join handles to the client threads, as well as a client handle.
@@ -258,7 +243,11 @@ impl Runtime {
                 policies_db: home.node().join(node::POLICIES_DB_FILE),
             },
         )?;
-        let control = Self::bind(home.socket())?;
+
+        let control = {
+            let socket_path = socket::SocketPath::new(home.socket())?;
+            ControlSocket::bind(socket_path)?
+        };
 
         Ok(Runtime {
             id,
@@ -320,51 +309,5 @@ impl Runtime {
         log::debug!(target: "node", "Node shutdown completed for {}", self.id);
 
         Ok(())
-    }
-
-    #[cfg(all(feature = "systemd", target_os = "linux"))]
-    fn receive_listener() -> Option<Listener> {
-        let fd = match radicle_systemd::listen::fd("control") {
-            Ok(Some(fd)) => fd,
-            Ok(None) => return None,
-            Err(err) => {
-                log::error!(target: "node", "Error receiving listener from systemd: {err}");
-                return None;
-            }
-        };
-
-        let socket: socket2::Socket = unsafe { std::os::fd::FromRawFd::from_raw_fd(fd) };
-
-        let domain = match socket.domain() {
-            Ok(domain) => domain,
-            Err(err) => {
-                log::error!(target: "node", "Error receiving listener from systemd when inspecting domain of socket: {err}");
-                return None;
-            }
-        };
-
-        if domain != socket2::Domain::UNIX {
-            log::error!(target: "node", "Dropping listener received from systemd: Domain is not AF_UNIX.");
-            return None;
-        }
-
-        Some(Listener::from(socket))
-    }
-
-    fn bind(path: PathBuf) -> Result<ControlSocket, Error> {
-        #[cfg(all(feature = "systemd", target_os = "linux"))]
-        {
-            if let Some(listener) = Self::receive_listener() {
-                log::info!(target: "node", "Received control socket.");
-                return Ok(ControlSocket::Received(listener));
-            }
-        }
-
-        log::info!(target: "node", "Binding control socket {}..", &path.display());
-        match Listener::bind(&path) {
-            Ok(sock) => Ok(ControlSocket::Bound(sock, path)),
-            Err(err) if err.kind() == io::ErrorKind::AddrInUse => Err(Error::AlreadyRunning(path)),
-            Err(err) => Err(err.into()),
-        }
     }
 }

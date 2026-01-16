@@ -2,7 +2,6 @@
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::io::LineWriter;
-use std::path::PathBuf;
 use std::{io, net, time};
 
 #[cfg(unix)]
@@ -24,10 +23,6 @@ const MAX_TIMEOUT: time::Duration = time::Duration::MAX;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("failed to bind control socket listener: {0}")]
-    Bind(io::Error),
-    #[error("invalid socket path specified: {0}")]
-    InvalidPath(PathBuf),
     #[error("node: {0}")]
     Node(#[from] runtime::HandleError),
 }
