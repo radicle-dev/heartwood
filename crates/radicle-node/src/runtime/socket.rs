@@ -41,14 +41,17 @@ mod windows;
 
 pub mod error;
 
-use std::fmt;
 use std::io;
-use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
 use std::os::unix::net::UnixListener as Listener;
 #[cfg(windows)]
 use winpipe::WinListener as Listener;
+
+#[cfg(unix)]
+pub(crate) use unix::UnixSocketPath as SocketPath;
+#[cfg(windows)]
+pub(crate) use windows::WindowsPipePath as SocketPath;
 
 /// Wraps a [`Listener`] but tracks its origin.
 pub enum ControlSocket {
@@ -110,73 +113,5 @@ impl ControlSocket {
         }
 
         Some(Listener::from(socket))
-    }
-}
-
-/// A cross-platform socket path that works on both Unix and Windows.
-///
-/// On Unix systems, this wraps a [`UnixSocketPath`].
-/// On Windows, this wraps a [`WindowsPipePath`].
-///
-/// This type provides a unified API for socket paths across platforms.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum SocketPath {
-    #[cfg(unix)]
-    Unix(unix::UnixSocketPath),
-    #[cfg(windows)]
-    Windows(windows::WindowsPipePath),
-}
-
-impl SocketPath {
-    /// Creates a new socket path appropriate for the current platform.
-    ///
-    /// On Unix, this creates a `UnixSocketPath`.
-    /// On Windows, this creates a `WindowsPipePath`.
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, error::SocketPath> {
-        #[cfg(unix)]
-        {
-            unix::UnixSocketPath::new(path).map(SocketPath::Unix)
-        }
-        #[cfg(windows)]
-        {
-            windows::WindowsPipePath::new(path).map(SocketPath::Windows)
-        }
-    }
-
-    /// Returns the path as a `Path` reference.
-    pub fn as_path(&self) -> &Path {
-        match self {
-            #[cfg(unix)]
-            SocketPath::Unix(p) => p.as_path(),
-            #[cfg(windows)]
-            SocketPath::Windows(p) => p.as_path(),
-        }
-    }
-
-    /// Consumes the socket path and returns the inner `PathBuf`.
-    pub fn into_path_buf(self) -> PathBuf {
-        match self {
-            #[cfg(unix)]
-            SocketPath::Unix(p) => p.into_path_buf(),
-            #[cfg(windows)]
-            SocketPath::Windows(p) => p.into_path_buf(),
-        }
-    }
-}
-
-impl AsRef<Path> for SocketPath {
-    fn as_ref(&self) -> &Path {
-        self.as_path()
-    }
-}
-
-impl fmt::Display for SocketPath {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            #[cfg(unix)]
-            SocketPath::Unix(p) => write!(f, "{}", p),
-            #[cfg(windows)]
-            SocketPath::Windows(p) => write!(f, "{}", p),
-        }
     }
 }
