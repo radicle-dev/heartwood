@@ -247,7 +247,7 @@ impl Peers {
 
     fn insert(&mut self, token: Token, peer: Peer) {
         if self.0.insert(token, peer).is_some() {
-            log::warn!(target: "wire", token=token.0; "Replacing existing peer");
+            log::debug!(target: "wire", token=token.0; "Replacing existing peer");
         }
     }
 
@@ -395,7 +395,7 @@ where
 
         let nid = task.remote;
         let Some((fd, peer)) = self.peers.lookup_mut(&nid) else {
-            log::warn!(target: "wire", "Peer {nid} not found; ignoring fetch result");
+            log::debug!(target: "wire", "Peer {nid} not found; ignoring fetch result");
             return;
         };
 
@@ -420,7 +420,7 @@ where
         } else {
             // If the peer disconnected, we'll get here, but we still want to let the service know
             // about the fetch result, so we don't return here.
-            log::warn!(target: "wire", "Peer {nid} is not connected; ignoring fetch result");
+            log::debug!(target: "wire", "Peer {nid} is not connected; ignoring fetch result");
             return;
         };
 
@@ -443,11 +443,11 @@ where
 
     fn flush(&mut self, remote: NodeId, stream: StreamId) {
         let Some((fd, peer)) = self.peers.lookup_mut(&remote) else {
-            log::warn!(target: "wire", "Peer {remote} is not known; ignoring flush");
+            log::debug!(target: "wire", "Peer {remote} is not known; ignoring flush");
             return;
         };
         let Peer::Connected { streams, link, .. } = peer else {
-            log::warn!(target: "wire", "Peer {remote} is not connected; ignoring flush");
+            log::debug!(target: "wire", "Peer {remote} is not connected; ignoring flush");
             return;
         };
         let Some(s) = streams.get_mut(&stream) else {
@@ -581,7 +581,7 @@ where
         } else if self.inbound.contains(&token) {
             log::debug!(target: "wire", token=token.0; "Inbound peer resource registered");
         } else {
-            log::warn!(target: "wire", token=token.0; "Unknown peer registered");
+            log::debug!(target: "wire", token=token.0; "Unknown peer registered");
         }
     }
 
@@ -664,14 +664,14 @@ where
                             (Outbound, Outbound, _) => token.max(c_token),
                         };
 
-                        log::warn!(
+                        log::trace!(
                             target: "wire", "Established session with token {} conflicts with existing session with token {} for {nid}. Disconnecting session with token {}.", token.0, c_token.0, close.0
                         );
                         disconnect.push(close);
                     }
                 }
                 for id in &disconnect {
-                    log::warn!(
+                    log::info!(
                         target: "wire", token=token.0; "Closing conflicting session with {nid}.."
                     );
                     // Disconnect and return the associated NID of the peer, if available.
@@ -726,7 +726,7 @@ where
                                     ChannelsConfig::new(FETCH_TIMEOUT)
                                         .with_reader_limit(reader_limit),
                                 ) else {
-                                    log::warn!(target: "wire", "Peer attempted to open already-open stream stream {stream}");
+                                    log::debug!(target: "wire", "Peer attempted to open already-open stream stream {stream}");
                                     continue;
                                 };
 
@@ -815,7 +815,7 @@ where
                         }
                     }
                 } else {
-                    log::warn!(target: "wire", token=token.0; "Dropping message from unconnected peer");
+                    log::debug!(target: "wire", token=token.0; "Dropping message from unconnected peer");
                 }
             }
             SessionEvent::Terminated(err) => {
@@ -1006,7 +1006,7 @@ where
                             self.metrics.peer(nid).disconnects += 1;
                         }
                     } else {
-                        log::warn!(target: "wire", "Peer {nid} is not connected: ignoring disconnect");
+                        log::debug!(target: "wire", "Peer {nid} is not connected: ignoring disconnect");
                     }
                 }
                 Io::Wakeup(d) => {

@@ -97,7 +97,7 @@ where
                     Ok(n) => {
                         let mut lock = reporter.lock().expect("FATAL: upload_pack poisoned lock");
                         if let Err(e) = lock.write_all(&buffer[..n]) {
-                            log::warn!(target: "worker", "Error reading stdout to upload-pack reporter: {e}");
+                            log::debug!(target: "worker", "Failed to write buffer to upload-pack reporter: {e}");
                             emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
                             break;
                         }
@@ -119,7 +119,7 @@ where
                     Ok(0) => break,
                     Ok(n) => {
                         if let Err(e) = stdin.write_all(&buffer[..n]) {
-                            log::warn!(target: "worker", "Error writing to upload-pack stdin: {e}");
+                            log::debug!(target: "worker", "Failed to write to upload-pack stdin: {e}");
                             break;
                         }
                     }
@@ -128,7 +128,7 @@ where
                         break;
                     }
                     Err(e) if e.kind() == io::ErrorKind::TimedOut => {
-                        log::warn!(target: "worker", "Read channel timed out for upload-pack {}", header.repo);
+                        log::debug!(target: "worker", "Read channel timed out for upload-pack {}", header.repo);
                         // N.b. if the read timed out, ensure that the sender isn't
                         // still sending messages.
                         let lock = reporter.lock().expect("FATAL: upload_pack poisoned lock");

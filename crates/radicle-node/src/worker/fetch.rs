@@ -96,7 +96,7 @@ impl Handle {
         };
 
         for rejected in result.rejected() {
-            log::warn!(target: "worker", "Rejected update for {}", rejected.refname())
+            log::debug!(target: "worker", "Rejected update for {}", rejected.refname())
         }
 
         match result {
@@ -119,7 +119,7 @@ impl Handle {
                 validations,
             } => {
                 for warn in validations {
-                    log::warn!(target: "worker", "Validation error: {warn}");
+                    log::debug!(target: "worker", "Validation error: {warn}");
                 }
 
                 // N.b. We do not go through handle for this since the cloning handle
@@ -133,7 +133,7 @@ impl Handle {
                         }
                     }
                     Err(RepositoryError::Quorum(e)) => {
-                        log::warn!(target: "worker", "Fetch could not set HEAD: {e}")
+                        log::warn!(target: "worker", "Fetch could not set HEAD for {rid}: {e}")
                     }
                     Err(e) => return Err(e.into()),
                 }
@@ -141,7 +141,7 @@ impl Handle {
                 let canonical = match set_canonical_refs(&repo, &applied) {
                     Ok(updates) => updates.unwrap_or_default(),
                     Err(e) => {
-                        log::warn!(target: "worker", "Failed to set canonical references: {e}");
+                        log::warn!(target: "worker", "Failed to set canonical references for {rid}: {e}");
                         UpdatedCanonicalRefs::default()
                     }
                 };
@@ -228,7 +228,7 @@ where
         let (namespace, qualified) = match radicle::git::parse_ref_namespaced(name) {
             Err(e) => {
                 log::error!(target: "worker", "Git reference is invalid: {name:?}: {e}");
-                log::warn!(target: "worker", "Skipping refs caching for fetch of {repo}");
+                log::debug!(target: "worker", "Skipping refs caching for fetch of {repo}");
                 break;
             }
             Ok((n, q)) => (n, q),
@@ -248,7 +248,7 @@ where
 
         if let Err(e) = result {
             log::error!(target: "worker", "Error updating git refs cache for {name:?}: {e}");
-            log::warn!(target: "worker", "Skipping refs caching for fetch of {repo}");
+            log::debug!(target: "worker", "Skipping refs caching for fetch of {repo}");
             break;
         }
     }
@@ -380,7 +380,7 @@ fn set_canonical_refs(
 
         let canonical = match canonical.find_objects() {
             Err(err) => {
-                log::warn!(target: "worker", "Failed to find objects for canonical computation: {err}");
+                log::warn!(target: "worker", "Failed to find objects for canonical computation of `{name}`: {err}");
                 continue;
             }
             Ok(canonical) => canonical,
@@ -390,7 +390,7 @@ fn set_canonical_refs(
             Err(err) => {
                 log::warn!(
                     target: "worker",
-                    "Failed to calculate canonical reference: {err}",
+                    "Failed to calculate canonical reference `{name}`: {err}",
                 );
                 continue;
             }

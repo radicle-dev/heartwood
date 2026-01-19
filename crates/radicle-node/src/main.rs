@@ -327,7 +327,7 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
     #[cfg(windows)]
     let signals = {
         let (_, signals) = chan::bounded(1);
-        log::warn!(target: "node", "Signal handlers not installed.");
+        log::info!(target: "node", "No signal handlers were installed, because this is not available on Windows.");
         signals
     };
 

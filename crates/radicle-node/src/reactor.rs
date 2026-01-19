@@ -483,7 +483,7 @@ impl<H: ReactionHandler> Runtime<H> {
                     deregistered.push(token);
                 }
             } else if !deregistered.contains(&token) {
-                log::warn!(target: "reactor", token=token.0; "Event from unknown token {}: {:?}", token.0, event);
+                log::debug!(target: "reactor", token=token.0; "Event from unknown token {}: {:?}", token.0, event);
             }
         }
 
@@ -576,12 +576,12 @@ impl<H: ReactionHandler> Runtime<H> {
 
     fn deregister_listener(&mut self, token: Token) -> Option<H::Listener> {
         let Some(mut source) = self.listeners.remove(&token) else {
-            log::warn!(target: "reactor", token=token.0; "Deregistering non-registered listener with token {}", token.0);
+            log::debug!(target: "reactor", token=token.0; "Deregistering non-registered listener with token {}", token.0);
             return None;
         };
 
         if let Err(err) = self.poll.registry().deregister(&mut source) {
-            log::warn!(target: "reactor", token=token.0; "Failed to deregister listener with token {} from mio: {err}", token.0);
+            log::debug!(target: "reactor", token=token.0; "Failed to deregister listener with token {} from mio: {err}", token.0);
         }
 
         Some(source)
@@ -589,12 +589,12 @@ impl<H: ReactionHandler> Runtime<H> {
 
     fn deregister_transport(&mut self, token: Token) -> Option<H::Transport> {
         let Some(mut source) = self.transports.remove(&token) else {
-            log::warn!(target: "reactor", token=token.0; "Deregistering non-registered transport with token {}", token.0);
+            log::debug!(target: "reactor", token=token.0; "Deregistering non-registered transport with token {}", token.0);
             return None;
         };
 
         if let Err(err) = self.poll.registry().deregister(&mut source) {
-            log::warn!(target: "reactor", token=token.0; "Failed to deregister transport with token {} from mio: {err}", token.0);
+            log::debug!(target: "reactor", token=token.0; "Failed to deregister transport with token {} from mio: {err}", token.0);
         }
 
         Some(source)
