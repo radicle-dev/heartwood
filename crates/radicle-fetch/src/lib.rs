@@ -150,16 +150,11 @@ where
 }
 
 fn handle_handshake_err(err: handshake::Error) -> HandshakeError {
-    let err = match err {
+    match err {
         handshake::Error::Transport(error) => match error {
             gix_transport::client::Error::Io(error) => HandshakeError::Io(error),
             err => HandshakeError::Gix(handshake::Error::Transport(err)),
         },
-        err => {
-            log::warn!(target: "fetch", "Failed to perform handshake: {err}");
-            HandshakeError::Gix(err)
-        }
-    };
-    log::warn!(target: "fetch", "{err}");
-    err
+        err => HandshakeError::Gix(err),
+    }
 }

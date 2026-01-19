@@ -328,8 +328,8 @@ fn agent_name() -> String {
         Ok(version) => version,
         Err(err) => {
             use radicle::git::VERSION_REQUIRED;
-            log::warn!(target: "fetch", "The git version could not be determined: {err}");
-            log::warn!(target: "fetch", "Pretending that we are on git version {VERSION_REQUIRED}.");
+            log::debug!(target: "fetch", "The git version could not be determined: {err}");
+            log::debug!(target: "fetch", "Pretending that we are on git version {VERSION_REQUIRED}.");
             VERSION_REQUIRED
         }
     };
