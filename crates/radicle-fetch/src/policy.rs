@@ -20,7 +20,7 @@ impl Allowed {
             .map_err(|err| error::Policy::FailedPolicy { rid, err })?;
         match entry.policy {
             SeedingPolicy::Block => {
-                log::info!(target: "fetch", "Attempted to fetch non-seeded repo {rid}");
+                log::info!("Attempted to fetch non-seeded repo {rid}");
                 Err(error::Policy::BlockedPolicy { rid })
             }
             SeedingPolicy::Allow { scope: Scope::All } => Ok(Self::All),
@@ -37,7 +37,7 @@ impl Allowed {
                     let node = match node {
                         Ok(policy) => policy,
                         Err(err) => {
-                            log::debug!(target: "fetch", "Failed to read follow policy for {rid}: {err}");
+                            log::debug!("Failed to read follow policy for {rid}: {err}");
                             continue;
                         }
                     };
@@ -81,7 +81,7 @@ impl BlockList {
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(err) => {
-                    log::debug!(target: "fetch", "Failed to read follow policy: {err}");
+                    log::debug!("Failed to read follow policy: {err}");
                     continue;
                 }
             };

@@ -159,7 +159,7 @@ where
     R: io::Read,
     W: io::Write,
 {
-    log::trace!(target: "fetch", "Performing fetch");
+    log::trace!("Performing fetch");
 
     if wants_haves.wants.is_empty() {
         return Err(Error::ReadRemainingBytes(io::Error::new(
@@ -214,6 +214,6 @@ where
         .and_then(packfile::Keepfile::new);
     out.pack = Some(pack_out);
 
-    log::trace!(target: "fetch", "fetched refs: {:?}", out.refs);
+    log::trace!("fetched refs: {:?}", out.refs);
     Ok(out)
 }

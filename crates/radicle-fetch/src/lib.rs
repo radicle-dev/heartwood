@@ -88,7 +88,6 @@ where
         .map_err(Error::Protocol);
 
     log::debug!(
-        target: "fetch",
         "Finished pull of {} ({}ms)",
         handle.repository().id(),
         start.elapsed().as_millis()
@@ -123,16 +122,10 @@ where
 
     match &result {
         Ok(_) => {
-            log::debug!(
-                target: "fetch",
-                "Finished clone of {rid} from {remote} ({elapsed}ms)",
-            );
+            log::debug!("Finished clone of {rid} from {remote} ({elapsed}ms)",);
         }
         Err(e) => {
-            log::debug!(
-                target: "fetch",
-                "Clone of {rid} from {remote} failed with '{e}' ({elapsed}ms)",
-            );
+            log::debug!("Clone of {rid} from {remote} failed with '{e}' ({elapsed}ms)",);
         }
     }
     result
