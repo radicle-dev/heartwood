@@ -52,8 +52,6 @@ pub const MAX_PATH_LEN: usize = 104;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnixSocketPath {
     inner: PathBuf,
-    /// Cached byte length for quick access
-    byte_len: usize,
 }
 
 impl UnixSocketPath {
@@ -102,10 +100,7 @@ impl UnixSocketPath {
             });
         }
 
-        Ok(Self {
-            byte_len: bytes.len(),
-            inner: path,
-        })
+        Ok(Self { inner: path })
     }
 
     /// Returns the path as a `Path` reference.
