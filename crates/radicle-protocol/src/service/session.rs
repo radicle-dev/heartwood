@@ -301,7 +301,7 @@ impl Session {
     pub fn fetched(&mut self, rid: RepoId) {
         if let State::Connected { fetching, .. } = &mut self.state {
             if !fetching.remove(&rid) {
-                log::warn!(target: "service", "Fetched unknown repository {rid}");
+                log::debug!(target: "service", "Fetched unknown repository {rid}");
             }
         }
     }
@@ -319,7 +319,7 @@ impl Session {
         self.last_active = since;
 
         if let State::Connected { .. } = &self.state {
-            log::error!(target: "service", "Session {} is already in 'connected' state, resetting..", self.id);
+            log::debug!(target: "service", "Session {} is already in 'connected' state, resetting..", self.id);
         };
         self.state = State::Connected {
             since,

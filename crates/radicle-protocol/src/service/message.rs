@@ -217,9 +217,9 @@ impl RefsStatus {
                 self.want.push(theirs);
             }
             Err(e) => {
-                log::warn!(
+                log::debug!(
                     target: "service",
-                    "Error getting cached ref of {repo} for refs status: {e}"
+                    "Failed to get cached 'rad/sigrefs' of {} in {repo} for refs status: {e}", theirs.remote,
                 );
             }
         }

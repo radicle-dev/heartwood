@@ -691,7 +691,7 @@ where
 
             // If we're not seeding this repo, just skip it.
             if !self.policies.is_seeding(&rid)? {
-                warn!(target: "service", "Local repository {rid} is not seeded");
+                debug!(target: "service", "Local repository {rid} is not seeded");
                 continue;
             }
             // Add public repositories to inventory.
@@ -1813,7 +1813,7 @@ where
         let local = self.node_id();
         let relay = self.config.is_relay();
         let Some(peer) = self.sessions.get_mut(remote) else {
-            warn!(target: "service", "Session not found for {remote}");
+            debug!(target: "service", "Session not found for {remote}");
             return Ok(());
         };
         peer.last_active = self.clock;
@@ -2537,7 +2537,7 @@ where
                     }
                 }
                 Err(err) => {
-                    log::warn!(target: "protocol::filter", "Failed to check if {rid} exists: {err}");
+                    log::debug!(target: "protocol::filter", "Failed to check if {rid} exists: {err}");
                     continue;
                 }
             }
