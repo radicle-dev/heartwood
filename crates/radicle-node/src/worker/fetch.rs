@@ -106,7 +106,7 @@ impl Handle {
                 validations,
             } => {
                 for fail in validations.iter() {
-                    log::error!(target: "worker", "Validation error: {fail}");
+                    log::warn!(target: "worker", "Validation error: {fail}");
                 }
                 Err(error::Fetch::Validation {
                     threshold,
@@ -207,7 +207,7 @@ fn notify(
         if let RefUpdate::Skipped { .. } = update {
             // Don't notify about skipped refs.
         } else if let Err(e) = store.insert(rid, update, now) {
-            log::error!(
+            log::debug!(
                 target: "worker",
                 "Failed to update notification store for {rid}: {e}"
             );
@@ -227,7 +227,7 @@ where
         let name = r.name();
         let (namespace, qualified) = match radicle::git::parse_ref_namespaced(name) {
             Err(e) => {
-                log::error!(target: "worker", "Git reference is invalid: {name:?}: {e}");
+                log::debug!(target: "worker", "Git reference is invalid: {name:?}: {e}");
                 log::debug!(target: "worker", "Skipping refs caching for fetch of {repo}");
                 break;
             }
@@ -247,7 +247,7 @@ where
         };
 
         if let Err(e) = result {
-            log::error!(target: "worker", "Error updating git refs cache for {name:?}: {e}");
+            log::debug!(target: "worker", "Failed to update git refs cache for {name:?}: {e}");
             log::debug!(target: "worker", "Skipping refs caching for fetch of {repo}");
             break;
         }
@@ -326,7 +326,7 @@ where
         }
         Err(e) => {
             // Object was found, but failed to load. Fall-through.
-            log::error!(target: "fetch", "Error loading COB {tid} from storage: {e}");
+            log::debug!(target: "fetch", "Failed to load COB {tid} from storage: {e}");
         }
     }
     // The object has either been removed entirely from the repository,

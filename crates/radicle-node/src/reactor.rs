@@ -399,7 +399,7 @@ impl<H: ReactionHandler> Runtime<H> {
             }
 
             if let Err(err) = res {
-                log::error!(target: "reactor", "Error during polling: {err}");
+                log::warn!(target: "reactor", "Failure during polling: {err}");
                 self.service.handle_error(Error::Poll(err));
             }
 
@@ -497,7 +497,7 @@ impl<H: ReactionHandler> Runtime<H> {
             // Deadlock may happen here if the service will generate events over and over
             // in the handle_* calls we may never get out of this loop
             if let Err(err) = self.handle_action(action, instant) {
-                log::error!(target: "reactor", "Error: {err}");
+                log::warn!(target: "reactor", "Failure: {err}");
                 self.service.handle_error(err);
             }
         }
@@ -558,7 +558,7 @@ impl<H: ReactionHandler> Runtime<H> {
                         }
                     }
                 } else {
-                    log::error!(target: "reactor", token=token.0; "No transport with token {token:?} is known!");
+                    log::debug!(target: "reactor", token=token.0; "No transport with token {token:?} is known!");
                 }
             }
             Action::SetTimer(duration) => {
