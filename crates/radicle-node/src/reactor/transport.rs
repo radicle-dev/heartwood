@@ -206,7 +206,7 @@ impl<S: Session> Transport<S> {
         }
         match self.flush() {
             Ok(_) => None,
-            // In this case, the write could not complete. Leave `needs_flush` set
+            // In this case, the write could not complete. Leave `write_intent` set
             // to be notified when the socket is ready to write again.
             Err(err)
                 if matches!(
