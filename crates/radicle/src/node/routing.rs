@@ -222,10 +222,8 @@ impl Store for Database {
         ignore: &NodeId,
     ) -> Result<usize, Error> {
         let limit: i64 = limit
-            .unwrap_or(i64::MAX as usize)
-            .try_into()
-            .map_err(|_| Error::UnitOverflow)?;
-
+            .and_then(|limit| i64::try_from(limit).ok())
+            .unwrap_or(i64::MAX);
         let mut stmt = self.db.prepare(
             "DELETE FROM routing
              WHERE node <> ?1 AND rowid IN
