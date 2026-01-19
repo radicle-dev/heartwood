@@ -58,7 +58,7 @@ impl UnixSocketPath {
     /// The maximum number of bytes allowed in a socket path (excluding null terminator).
     pub const MAX_PATH_BYTES: usize = MAX_PATH_LEN - 1;
 
-    /// Creates a new `UnixSocketPath` after validating the path.
+    /// Creates a new [`UnixSocketPath`] after validating the path.
     ///
     /// # Errors
     ///
@@ -71,7 +71,7 @@ impl UnixSocketPath {
         Self::from_path_buf(path.to_path_buf())
     }
 
-    /// Creates a new `UnixSocketPath` from a `PathBuf`.
+    /// Creates a new [`UnixSocketPath`] from a [`PathBuf`].
     ///
     /// # Errors
     ///
@@ -103,19 +103,19 @@ impl UnixSocketPath {
         Ok(Self { inner: path })
     }
 
-    /// Returns the path as a `Path` reference.
+    /// Returns the path as a [`Path`] reference.
     #[inline]
     pub fn as_path(&self) -> &Path {
         &self.inner
     }
 
-    /// Returns the path as an `OsStr` reference.
+    /// Returns the path as an [`OsStr`] reference.
     #[inline]
     pub fn as_os_str(&self) -> &OsStr {
         self.inner.as_os_str()
     }
 
-    /// Consumes the `UnixSocketPath` and returns the inner `PathBuf`.
+    /// Consumes the [`UnixSocketPath`] and returns the inner [`PathBuf`].
     #[inline]
     pub fn into_path_buf(self) -> PathBuf {
         self.inner
