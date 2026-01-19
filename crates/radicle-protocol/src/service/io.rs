@@ -82,7 +82,7 @@ impl Outbox {
         // Store our announcement so that it can be retrieved from us later, just like
         // announcements we receive from peers.
         if let Err(e) = gossip.announced(&ann.node, &ann) {
-            error!(target: "service", "Error updating our gossip store with announced message: {e}");
+            warn!(target: "service", "Failed to update gossip store with announced message: {e}");
         }
 
         for peer in peers {
