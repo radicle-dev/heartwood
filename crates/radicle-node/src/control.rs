@@ -50,7 +50,7 @@ where
 
                 thread::spawn(&nid, "control", move || {
                     if let Err((e, mut stream)) = command(stream, handle) {
-                        log::error!(target: "control", "Command returned error: {e}");
+                        log::debug!(target: "control", "Command returned error: {e}");
 
                         CommandResult::error(e).to_writer(&mut stream).ok();
 
@@ -59,7 +59,7 @@ where
                     }
                 });
             }
-            Err(e) => log::error!(target: "control", "Failed to accept incoming connection: {e}"),
+            Err(e) => log::warn!(target: "control", "Failed to accept incoming connection: {e}"),
         }
     }
     log::debug!(target: "control", "Exiting control loop..");

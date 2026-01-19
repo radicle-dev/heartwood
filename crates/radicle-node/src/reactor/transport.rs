@@ -265,7 +265,7 @@ impl<S: Session> Transport<S> {
                         Ok(0)
                     },
                     _ => {
-                        log::error!(target: "transport", "Resource {} failed write operation with message '{err}'", self.display());
+                        log::warn!(target: "transport", "Resource {} failed write operation with message '{err}'", self.display());
                         Err(err)
                     },
                 }

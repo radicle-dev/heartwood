@@ -137,7 +137,7 @@ where
                         }
                     }
                     Err(e) => {
-                        log::error!(target: "worker", "Error on upload-pack channel read for {}: {e}", header.repo);
+                        log::debug!(target: "worker", "Failure on upload-pack channel read for {}: {e}", header.repo);
                         emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
                         break;
                     }
