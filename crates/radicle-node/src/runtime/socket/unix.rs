@@ -19,8 +19,8 @@ pub const MAX_PATH_LEN: usize = 108;
 ))]
 pub const MAX_PATH_LEN: usize = 104;
 
-// Fallback for other Unix-like systems, use conservative that matches BSD
-// family.
+// Fallback for other Unix-like systems, use conservative value
+// that matches BSD family.
 #[cfg(all(
     unix,
     not(any(
@@ -39,9 +39,9 @@ pub const MAX_PATH_LEN: usize = 104;
 /// A validated Unix domain socket path.
 ///
 /// This type guarantees that the contained path:
-/// - Does not exceed the platform's `sun_path` limit
-/// - Does not contain embedded null bytes
-/// - Is not empty
+/// - Does have a length that fits the platform's `sun_path` size.
+/// - Does not contain embedded null bytes.
+/// - Is not empty.
 ///
 /// # Example
 ///
