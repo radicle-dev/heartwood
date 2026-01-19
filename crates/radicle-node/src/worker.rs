@@ -240,7 +240,7 @@ impl Worker {
             // N.b. ensure that `git gc` works in debug mode.
             debug_assert!(false, "`git gc` failed: {e}");
 
-            log::warn!(target: "worker", "Failed to run `git gc`: {e}");
+            log::debug!(target: "worker", "Failed to run `git gc`: {e}");
         }
         Ok(result)
     }

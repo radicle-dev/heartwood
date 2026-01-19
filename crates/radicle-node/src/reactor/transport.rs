@@ -148,7 +148,7 @@ impl<S: Session> Transport<S> {
 
     fn handle_io(&mut self, interest: Interest) -> Option<SessionEvent<S>> {
         if self.state == TransportState::Terminated {
-            log::warn!(target: "transport", "Transport {self} is terminated, ignoring I/O event");
+            log::debug!(target: "transport", "Transport {self} is terminated, ignoring I/O event");
             return None;
         }
 
@@ -217,7 +217,7 @@ impl<S: Session> Transport<S> {
                         | io::ErrorKind::Interrupted
                 ) =>
             {
-                log::warn!(target: "transport", "Resource {} was not able to consume any data even though it has announced its write readiness", self.display());
+                log::debug!(target: "transport", "Resource {} was not able to consume any data even though it has announced its write readiness", self.display());
                 self.write_intent = true;
                 None
             }
@@ -241,7 +241,7 @@ impl<S: Session> Transport<S> {
                 // when there's data on the socket. We leave it here in case external
                 // conditions change.
 
-                log::warn!(target: "transport",
+                log::trace!(target: "transport",
                     "WOULD_BLOCK on resource which had read intent - probably normal thing to happen"
                 );
                 None
@@ -261,7 +261,7 @@ impl<S: Session> Transport<S> {
                     | io::ErrorKind::OutOfMemory
                     | io::ErrorKind::WriteZero
                     | io::ErrorKind::Interrupted => {
-                        log::warn!(target: "transport", "Resource {} kernel buffer is full (system message is '{err}')", self.display());
+                        log::trace!(target: "transport", "Resource {} kernel buffer is full (system message is '{err}')", self.display());
                         Ok(0)
                     },
                     _ => {
