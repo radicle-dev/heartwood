@@ -26,7 +26,7 @@ impl Keepfile {
 impl Drop for Keepfile {
     fn drop(&mut self) {
         if let Err(e) = fs::remove_file(&self.path) {
-            log::warn!(target: "fetch", "Failed to remove {:?}: {e}", self.path);
+            log::warn!("Failed to remove {:?}: {e}", self.path);
         }
     }
 }

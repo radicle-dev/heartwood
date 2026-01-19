@@ -231,7 +231,7 @@ impl FetchState {
                 .collect::<Vec<_>>(),
             None => vec![],
         };
-        log::trace!(target: "fetch", "Received refs {refs:?}");
+        log::trace!("Received refs {refs:?}");
         step.pre_validate(&refs)?;
 
         let wants_haves = step.wants_haves(handle.repository(), &refs)?;
@@ -242,7 +242,7 @@ impl FetchState {
                     .fetch(wants_haves, handle.interrupt.clone(), handshake)?;
             self.keepfiles.extend(keepfile);
         } else {
-            log::trace!(target: "fetch", "Nothing to fetch")
+            log::trace!("Nothing to fetch")
         };
 
         let mut fetched = BTreeSet::new();
@@ -308,7 +308,7 @@ impl FetchState {
                     blocked: handle.blocked.clone(),
                     limit: limit.special,
                 };
-                log::trace!(target: "fetch", "{sigrefs_at:?}");
+                log::trace!("{sigrefs_at:?}");
                 self.run_stage(handle, handshake, &sigrefs_at)?;
                 let remotes = refs_at.iter().map(|r| &r.remote);
 
@@ -317,7 +317,7 @@ impl FetchState {
             }
             None => {
                 let followed = handle.allowed();
-                log::trace!(target: "fetch", "Followed nodes {followed:?}");
+                log::trace!("Followed nodes {followed:?}");
                 let special_refs = stage::SpecialRefs {
                     blocked: handle.blocked.clone(),
                     remote,
@@ -326,7 +326,7 @@ impl FetchState {
                     threshold,
                     limit: limit.special,
                 };
-                log::trace!(target: "fetch", "{special_refs:?}");
+                log::trace!("{special_refs:?}");
                 let fetched = self.run_stage(handle, handshake, &special_refs)?;
 
                 let signed_refs = sigrefs::RemoteRefs::load(
@@ -378,7 +378,7 @@ impl FetchState {
                 limit: limit.special,
             },
         )?;
-        log::debug!(target: "fetch", "Fetched rad/id ({}ms)", start.elapsed().as_millis());
+        log::debug!("Fetched rad/id ({}ms)", start.elapsed().as_millis());
 
         // N.b. The error case here should not happen. In the case of
         // a `clone` we have asked for refs/rad/id and ensured it was
@@ -399,7 +399,7 @@ impl FetchState {
             .map(|did| PublicKey::from(*did))
             .collect::<BTreeSet<_>>();
 
-        log::trace!(target: "fetch", "Identity delegates {delegates:?}");
+        log::trace!("Identity delegates {delegates:?}");
 
         // The local peer does not need to count towards the threshold
         // since they must be valid already.
@@ -418,7 +418,6 @@ impl FetchState {
             refs_at,
         )?;
         log::debug!(
-            target: "fetch",
             "Fetched data for {} remote(s) ({}ms)",
             signed_refs.len(),
             start.elapsed().as_millis()
@@ -431,7 +430,6 @@ impl FetchState {
         };
         self.run_stage(handle, handshake, &data_refs)?;
         log::debug!(
-            target: "fetch",
             "Fetched data refs for {} remotes ({}ms)",
             data_refs.remotes.len(),
             start.elapsed().as_millis()
@@ -441,9 +439,9 @@ impl FetchState {
         // We're finished fetching on this side, and all that's left
         // is validation.
         match handle.transport.done() {
-            Ok(()) => log::debug!(target: "fetch", "Sent done signal to remote {remote}"),
+            Ok(()) => log::debug!("Sent done signal to remote {remote}"),
             Err(err) => {
-                log::debug!(target: "fetch", "Failed to signal EOF to {remote}: {err}")
+                log::debug!("Failed to signal EOF to {remote}: {err}")
             }
         }
 
@@ -472,7 +470,7 @@ impl FetchState {
         // private function.
         for remote in signed_refs.keys() {
             if handle.is_blocked(remote) {
-                log::trace!(target: "fetch", "Skipping blocked remote {remote}");
+                log::trace!("Skipping blocked remote {remote}");
                 continue;
             }
 
@@ -480,12 +478,12 @@ impl FetchState {
                 .load(&self.as_cached(handle))?;
             match remote {
                 sigrefs::DelegateStatus::NonDelegate { remote, data: None } => {
-                    log::debug!(target: "fetch", "Pruning non-delegate {remote} tips, missing 'rad/sigrefs'");
+                    log::debug!("Pruning non-delegate {remote} tips, missing 'rad/sigrefs'");
                     failures.push(sigrefs::Validation::MissingRadSigRefs(remote));
                     self.prune(&remote);
                 }
                 sigrefs::DelegateStatus::Delegate { remote, data: None } => {
-                    log::debug!(target: "fetch", "Pruning delegate {remote} tips, missing 'rad/sigrefs'");
+                    log::debug!("Pruning delegate {remote} tips, missing 'rad/sigrefs'");
                     failures.push(sigrefs::Validation::MissingRadSigRefs(remote));
                     self.prune(&remote);
                     // This delegate has removed their `rad/sigrefs`.
@@ -518,7 +516,6 @@ impl FetchState {
                     let cache = self.as_cached(handle);
                     if let Some(warns) = sigrefs::validate(&cache, sigrefs)?.as_mut() {
                         log::debug!(
-                            target: "fetch",
                             "Pruning non-delegate {remote} tips, due to validation failures"
                         );
                         self.prune(&remote);
@@ -536,7 +533,10 @@ impl FetchState {
                     {
                         let ancestry = repository::ancestry(handle.repository(), at, sigrefs.at)?;
                         if matches!(ancestry, repository::Ancestry::Behind) {
-                            log::trace!(target: "fetch", "Advertised `rad/sigrefs` {} is behind {at} for {remote}", sigrefs.at);
+                            log::trace!(
+                                "Advertised `rad/sigrefs` {} is behind {at} for {remote}",
+                                sigrefs.at
+                            );
                             self.prune(&remote);
                             continue;
                         } else if matches!(ancestry, repository::Ancestry::Diverged) {
@@ -552,7 +552,7 @@ impl FetchState {
                     let mut fails =
                         sigrefs::validate(&cache, sigrefs)?.unwrap_or(Validations::default());
                     if !fails.is_empty() {
-                        log::debug!(target: "fetch", "Pruning delegate {remote} tips, due to validation failures");
+                        log::debug!("Pruning delegate {remote} tips, due to validation failures");
                         self.prune(&remote);
                         valid_delegates.remove(&remote);
                         failed_delegates.insert(remote);
@@ -565,7 +565,6 @@ impl FetchState {
             }
         }
         log::debug!(
-            target: "fetch",
             "Validated {} remote(s) ({}ms)",
             remotes.len(),
             start.elapsed().as_millis()
@@ -581,7 +580,7 @@ impl FetchState {
                     .into_values()
                     .flat_map(|ups| ups.into_iter()),
             )?;
-            log::debug!(target: "fetch", "Applied updates ({}ms)", start.elapsed().as_millis());
+            log::debug!("Applied updates ({}ms)", start.elapsed().as_millis());
             Ok(FetchResult::Success {
                 applied,
                 remotes,
@@ -589,7 +588,6 @@ impl FetchState {
             })
         } else {
             log::debug!(
-                target: "fetch",
                 "Fetch failed: {} failure(s) ({}ms)",
                 failures.len(),
                 start.elapsed().as_millis()

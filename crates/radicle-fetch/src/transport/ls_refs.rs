@@ -38,7 +38,7 @@ where
     R: io::Read,
     W: io::Write,
 {
-    log::trace!(target: "fetch", "Performing ls-refs: {:?}", config.prefixes);
+    log::trace!("Performing ls-refs: {:?}", config.prefixes);
     let handshake::Outcome {
         server_protocol_version: protocol,
         capabilities,

@@ -91,7 +91,7 @@ where
     /// Perform the handshake with the server side.
     #[allow(clippy::result_large_err)]
     pub(crate) fn handshake(&mut self) -> Result<handshake::Outcome, handshake::Error> {
-        log::trace!(target: "fetch", "Performing handshake for {}", self.repo);
+        log::trace!("Performing handshake for {}", self.repo);
         let (read, write) = self.stream.open();
         gix_protocol::fetch::handshake(
             &mut Connection::new(read, write, self.repo.clone()),
@@ -129,7 +129,6 @@ where
         handshake: &handshake::Outcome,
     ) -> Result<Option<Keepfile>, Error> {
         log::trace!(
-            target: "fetch",
             "Running fetch wants={:?}, haves={:?}",
             wants_haves.wants,
             wants_haves.haves
@@ -328,8 +327,8 @@ fn agent_name() -> String {
         Ok(version) => version,
         Err(err) => {
             use radicle::git::VERSION_REQUIRED;
-            log::debug!(target: "fetch", "The git version could not be determined: {err}");
-            log::debug!(target: "fetch", "Pretending that we are on git version {VERSION_REQUIRED}.");
+            log::debug!("The git version could not be determined: {err}");
+            log::debug!("Pretending that we are on git version {VERSION_REQUIRED}.");
             VERSION_REQUIRED
         }
     };
