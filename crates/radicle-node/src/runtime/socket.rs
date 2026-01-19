@@ -1,42 +1,38 @@
 //! Type-safe socket path handling with platform-specific validation.
 //!
-//! This module provides newtype wrappers around `PathBuf` that enforce
+//! This module provides newtype wrappers around [`PathBuf`] that enforce
 //! platform-specific constraints for Unix domain sockets and Windows named
 //! pipes.
 //!
 //! # Platform Constraints
 //!
-//! ## Unix Domain Sockets (`sun_path` limits)
+//! ## Unix Domain Sockets (size of `sockaddr_un.sun_path`)
 //!
-//! The maximum length of the socket path, referred to as `sun_path`, can differ
-//! on different operating systems.
+//! The maximum length of the socket path, usually related to the size of
+//! `sockaddr_un.sun_path`, differs between operating systems.
 //!
-//! The following are the known lengths:
+//! The following lengths (in C `char`s, assumed to match bytes) are known:
+//! - 104: [macOS] (and thus iOS), [FreeBSD] (and thus DragonFly),
+//!   [NetBSD], [OpenBSD]
+//! - 108: [Linux] (and thus Android)
 //!
-//! - Linux: [108 bytes](linux-length) (see "Address Format")
-//! - MacOS/iOS: [104 bytes](macos-length)
-//! - FreeBSD: [104 bytes](free-bsd) (see "Addressing")
-//! - NetBSD: [104 bytes](net-bsd) (see "Addressing")
-//! - OpenBSD: [104 bytes](open-bsd) (see "Addressing")
-//! - DragonFly: [104 bytes](free-bsd) (derived from FreeBSD)
-//! - Android: [108 bytes](linux-length) (same as Linux)
-//!
-//! In the case of a missing OS case, a conservative value of `104 bytes` is
-//! used for the maximum length.
+//! On other Unix-like operating systems, a conservative length
+//! of 104 bytes is used.
 //!
 //! ## Windows Named Pipes
 //!
-//! Windows named pipes have the following [constraints][windows]:
-//! - Maximum path length: up to 256 characters
-//! - Expected format: `\\.\pipe\<pipename>` or `\\<server>\pipe\<pipename>`
-//! - The name must exclude backslashes
+//! Windows imposes the following constraints on paths for named pipes,
+//! see [`CreateNamedPipeW`]:
+//! - Length up to 256 characters.
+//! - Format: `\\.\pipe\<pipename>` or `\\<host>\pipe\<pipename>`
+//! - `<pipename>` must exclude backslashes.
 //!
-//! [linux]: https://man7.org/linux/man-pages/man7/unix.7.html
-//! [macos]: https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/man/man4/unix.4
-//! [free-bsd]: https://man.freebsd.org/cgi/man.cgi?unix(4)
-//! [net-bsd]: https://man.netbsd.org/unix.4
-//! [open-bsd]: https://man.openbsd.org/unix.4
-//! [windows]: https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-createnamedpipew#parameters
+//! [Linux]: https://man7.org/linux/man-pages/man7/unix.7.html
+//! [macOS]: https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/man/man4/unix.4
+//! [FreeBSD]: https://man.freebsd.org/cgi/man.cgi?unix(4)
+//! [NetBSD]: https://man.netbsd.org/unix.4
+//! [OpenBSD]: https://man.openbsd.org/unix.4
+//! [`CreateNamedPipeW`]: https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-createnamedpipew#parameters
 
 #[cfg(unix)]
 mod unix;
