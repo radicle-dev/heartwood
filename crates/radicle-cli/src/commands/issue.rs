@@ -122,9 +122,8 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             let id = id.resolve(&repo.backend)?;
             let issue = issues
                 .get(&id)
-                .map_err(|e| Error::WithHint {
-                    err: e.into(),
-                    hint: "reset the cache with `rad issue cache` and try again",
+                .map_err(|e| {
+                    Error::with_hint(e, "reset the cache with `rad issue cache` and try again")
                 })?
                 .context("No issue with the given ID exists")?;
             term::issue::show(&issue, &id, format, args.verbose, &profile)?;

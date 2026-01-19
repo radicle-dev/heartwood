@@ -25,22 +25,20 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let doc = identity.doc();
 
     if doc.is_public() {
-        return Err(term::Error::WithHint {
-            err: anyhow!("repository is already public"),
-            hint: "to announce the repository to the network, run `rad sync --inventory`",
-        }
+        return Err(term::Error::with_hint(
+            anyhow!("repository is already public"),
+            "to announce the repository to the network, run `rad sync --inventory`",
+        )
         .into());
     }
     if !doc.is_delegate(&profile.id().into()) {
         return Err(anyhow!("only the repository delegate can publish it"));
     }
     if doc.delegates().len() > 1 {
-        return Err(term::Error::WithHint {
-            err: anyhow!(
-                "only repositories with a single delegate can be published with this command"
-            ),
-            hint: "see `rad id --help` to publish repositories with more than one delegate",
-        }
+        return Err(term::Error::with_hint(
+            anyhow!("only repositories with a single delegate can be published with this command"),
+            "see `rad id --help` to publish repositories with more than one delegate",
+        )
         .into());
     }
     let signer = profile.signer()?;

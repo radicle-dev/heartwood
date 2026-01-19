@@ -104,10 +104,7 @@ where
 fn with_hint(e: profile::Error) -> anyhow::Error {
     match e {
         profile::Error::CobsCache(cob::cache::Error::OutOfDate) => {
-            anyhow::Error::from(terminal::args::Error::WithHint {
-                err: e.into(),
-                hint: MIGRATION_HINT,
-            })
+            terminal::args::Error::with_hint(e, MIGRATION_HINT).into()
         }
         e => anyhow::Error::from(e),
     }

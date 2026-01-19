@@ -135,12 +135,11 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 let proposal = match update::privacy_allow_list(proposal, allow, disallow) {
                     Ok(proposal) => proposal,
                     Err(e) => match e {
-                        update::error::PrivacyAllowList::Overlapping(overlap) =>                     anyhow::bail!("`--allow` and `--disallow` must not overlap: {overlap:?}"),
-                        update::error::PrivacyAllowList::PublicVisibility =>                         return Err(Error::WithHint {
-                            err:
+                        update::error::PrivacyAllowList::Overlapping(overlap) =>anyhow::bail!("`--allow` and `--disallow` must not overlap: {overlap:?}"),
+                        update::error::PrivacyAllowList::PublicVisibility => return Err(Error::with_hint(
                             anyhow!("`--allow` and `--disallow` should only be used for private repositories"),
-                            hint: "use `--visibility private` to make the repository private, or perhaps you meant to use `--delegate`/`--rescind`",
-                        }.into())
+                            "use `--visibility private` to make the repository private, or perhaps you meant to use `--delegate`/`--rescind`")
+                        .into())
                     }
                 };
                 let threshold = proposal.threshold;

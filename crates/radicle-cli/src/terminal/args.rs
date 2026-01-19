@@ -8,10 +8,20 @@ use radicle::prelude::{Did, NodeId, RepoId};
 pub(crate) enum Error {
     /// An error with a hint.
     #[error("{err}")]
-    WithHint {
-        err: anyhow::Error,
-        hint: &'static str,
-    },
+    WithHint { err: anyhow::Error, hint: String },
+}
+
+impl Error {
+    pub fn with_hint<E, H>(err: E, hint: H) -> Self
+    where
+        E: Into<anyhow::Error>,
+        H: ToString,
+    {
+        Self::WithHint {
+            err: err.into(),
+            hint: hint.to_string(),
+        }
+    }
 }
 
 /// Targets used in the `block` and `unblock` commands
