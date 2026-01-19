@@ -70,7 +70,7 @@ impl Filter {
             let seed = match seed {
                 Ok(seed) => seed,
                 Err(err) => {
-                    log::error!(target: "protocol::filter", "Failed to read seed policy: {err}");
+                    log::debug!(target: "protocol::filter", "Failed to read seed policy: {err}");
                     continue;
                 }
             };

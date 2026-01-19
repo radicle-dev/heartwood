@@ -44,7 +44,7 @@ pub fn inventory(
 ) -> InventoryAnnouncement {
     let inventory = inventory.into_iter().collect::<Vec<_>>();
     if inventory.len() > INVENTORY_LIMIT {
-        error!(
+        warn!(
             target: "service",
             "inventory announcement limit ({}) exceeded, other nodes will see only some of your projects",
             inventory.len()

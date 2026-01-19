@@ -572,7 +572,7 @@ where
             self.filter = Filter::allowed_by(self.policies.seed_policies()?);
             // Update and announce new inventory.
             if let Err(e) = self.remove_inventory(id) {
-                error!(target: "service", "Error updating inventory after unseed: {e}");
+                warn!(target: "service", "Failed to update inventory after unseed: {e}");
             }
         }
         Ok(updated)
@@ -660,7 +660,7 @@ where
             Ok(Some(last)) => Some(last.to_local_time()),
             Ok(None) => None,
             Err(e) => {
-                error!(target: "service", "Error getting the latest gossip message from db: {e}");
+                warn!(target: "service", "Failed to get the latest gossip message from db: {e}");
                 None
             }
         };
@@ -671,11 +671,13 @@ where
             Ok(0) => {
                 info!(target: "service", "Empty refs database, populating from storage..");
                 if let Err(e) = self.db.refs_mut().populate(&self.storage) {
-                    error!(target: "service", "Failed to populate refs database: {e}");
+                    warn!(target: "service", "Failed to populate refs database: {e}");
                 }
             }
             Ok(n) => debug!(target: "service", "Refs database has {n} cached references"),
-            Err(e) => error!(target: "service", "Error checking refs database: {e}"),
+            Err(e) => {
+                warn!(target: "service", "Failed to retrieve count of refs from database: {e}")
+            }
         }
 
         let announced = self
@@ -748,7 +750,7 @@ where
         let addrs = self.config.connect.clone();
         for (id, addr) in addrs.into_iter().map(|ca| ca.into()) {
             if let Err(e) = self.connect(id, addr) {
-                error!(target: "service", "Service::initialization connection error: {e}");
+                debug!(target: "service", "Service::initialization connection error: {e}");
             }
         }
         // Try to establish some connections.
@@ -804,7 +806,7 @@ where
             trace!(target: "service", "Running 'gossip' task...");
 
             if let Err(e) = self.relay_announcements() {
-                error!(target: "service", "Error relaying stored announcements: {e}");
+                warn!(target: "service", "Failed to relay stored announcements: {e}");
             }
             self.outbox.wakeup(GOSSIP_INTERVAL);
             self.last_gossip = now;
@@ -813,7 +815,7 @@ where
             trace!(target: "service", "Running 'sync' task...");
 
             if let Err(e) = self.fetch_missing_repositories() {
-                error!(target: "service", "Error fetching missing inventory: {e}");
+                warn!(target: "service", "Failed to fetch missing inventory: {e}");
             }
             self.outbox.wakeup(SYNC_INTERVAL);
             self.last_sync = now;
@@ -829,14 +831,14 @@ where
             trace!(target: "service", "Running 'prune' task...");
 
             if let Err(err) = self.prune_routing_entries(&now) {
-                error!(target: "service", "Error pruning routing entries: {err}");
+                warn!(target: "service", "Failed to prune routing entries: {err}");
             }
             if let Err(err) = self
                 .db
                 .gossip_mut()
                 .prune((now - LocalDuration::from(self.config.limits.gossip_max_age)).into())
             {
-                error!(target: "service", "Error pruning gossip entries: {err}");
+                warn!(target: "service", "Failed to prune gossip entries: {err}");
             }
 
             self.outbox.wakeup(PRUNE_INTERVAL);
@@ -890,7 +892,7 @@ where
                     resp.send(seeds).ok();
                 }
                 Err(e) => {
-                    error!(target: "service", "Error getting seeds for {rid}: {e}");
+                    warn!(target: "service", "Failed to get seeds for {rid}: {e}");
                 }
             },
             Command::Fetch(rid, seed, timeout, resp) => {
@@ -933,11 +935,11 @@ where
                 let doc = match self.storage.get(id) {
                     Ok(Some(doc)) => doc,
                     Ok(None) => {
-                        error!(target: "service", "Error announcing refs: repository {id} not found");
+                        warn!(target: "service", "Failed to announce refs: repository {id} not found");
                         return;
                     }
                     Err(e) => {
-                        error!(target: "service", "Error announcing refs: doc error: {e}");
+                        warn!(target: "service", "Failed to announce refs: doc error: {e}");
                         return;
                     }
                 };
@@ -949,7 +951,7 @@ where
                         }
                     }
                     Err(err) => {
-                        error!(target: "service", "Error announcing refs: {err}");
+                        warn!(target: "service", "Failed to announce refs: {err}");
                     }
                 }
             }
@@ -961,7 +963,7 @@ where
                     resp.send(updated).ok();
                 }
                 Err(e) => {
-                    error!(target: "service", "Error adding {rid} to inventory: {e}");
+                    warn!(target: "service", "Failed to add {rid} to inventory: {e}");
                 }
             },
             Command::QueryState(query, sender) => {
@@ -990,7 +992,7 @@ where
                 }
             }
             Err(e) => {
-                error!(target: "service", "Error getting the refs status of {rid}: {e}");
+                warn!(target: "service", "Failed to get the refs status of {rid}: {e}");
             }
         }
         // We didn't try to fetch anything.
@@ -1070,7 +1072,7 @@ where
 
     fn queue_fetch(&mut self, fetch: QueuedFetch) {
         let Some(s) = self.sessions.get_mut(&fetch.from) else {
-            log::error!(target: "service", "Cannot queue fetch for unknown session {}", fetch.from);
+            log::debug!(target: "service", "Cannot queue fetch for unknown session {}", fetch.from);
             return;
         };
         if let Err(e) = s.queue_fetch(fetch) {
@@ -1139,7 +1141,7 @@ where
         result: Result<crate::worker::fetch::FetchResult, crate::worker::FetchError>,
     ) {
         let Some(fetching) = self.fetching.remove(&rid) else {
-            error!(target: "service", "Received unexpected fetch result for {rid}, from {remote}");
+            debug!(target: "service", "Received unexpected fetch result for {rid}, from {remote}");
             return;
         };
         debug_assert_eq!(fetching.from, remote);
@@ -1165,7 +1167,7 @@ where
                 },
             };
             if sub.send(result).is_err() {
-                error!(target: "service", "Error sending fetch result for {rid} from {remote}..");
+                debug!(target: "service", "Failed to send fetch result for {rid} from {remote}..");
             } else {
                 debug!(target: "service", "Sent fetch result for {rid} from {remote}..");
             }
@@ -1213,7 +1215,7 @@ where
                     debug!(target: "service", "Updating and announcing inventory for cloned repository {rid}..");
 
                     if let Err(e) = self.add_inventory(rid) {
-                        error!(target: "service", "Error announcing inventory for {rid}: {e}");
+                        warn!(target: "service", "Failed to announce inventory for {rid}: {e}");
                     }
                 }
 
@@ -1224,12 +1226,12 @@ where
                     // Finally, announce the refs. This is useful for nodes to know what we've synced,
                     // beyond just knowing that we have added an item to our inventory.
                     if let Err(e) = self.announce_refs(rid, doc.into(), namespaces, false) {
-                        error!(target: "service", "Failed to announce new refs: {e}");
+                        warn!(target: "service", "Failed to announce new refs: {e}");
                     }
                 }
             }
             Err(err) => {
-                error!(target: "service", "Fetch failed for {rid} from {remote}: {err}");
+                warn!(target: "service", "Fetch failed for {rid} from {remote}: {err}");
 
                 // For now, we only disconnect the remote in case of timeout. In the future,
                 // there may be other reasons to disconnect.
@@ -1310,7 +1312,7 @@ where
                     return false;
                 }
             }
-            Err(e) => error!(target: "service", "Error querying ban status for {ip}: {e}"),
+            Err(e) => warn!(target: "service", "Failed to query ban status for {ip}: {e}"),
         }
         let host: HostName = ip.into();
         let tokens = self.config.limits.rate.inbound;
@@ -1379,7 +1381,7 @@ where
                                     .addresses_mut()
                                     .record_ip(&remote, ip, self.clock.into())
                             {
-                                log::error!(target: "service", "Error recording IP address for {remote}: {e}");
+                                log::debug!(target: "service", "Failed to record IP address for {remote}: {e}");
                             }
                         }
                     }
@@ -1473,7 +1475,7 @@ where
                 .addresses_mut()
                 .disconnected(&remote, &addr, severity)
             {
-                error!(target: "service", "Error updating address store: {e}");
+                debug!(target: "service", "Failed to update address store: {e}");
             }
             // Only re-attempt outbound connections, since we don't care if an inbound connection
             // is dropped.
@@ -1544,7 +1546,7 @@ where
                     }
                 }
                 Err(e) => {
-                    error!(target: "service", "Error looking up node in address book: {e}");
+                    debug!(target: "service", "Failed to look up node in address book: {e}");
                     return Ok(None);
                 }
             }
@@ -1577,7 +1579,7 @@ where
                 return Ok(None);
             }
             Err(e) => {
-                error!(target: "service", "Error updating gossip entry from {announcer}: {e}");
+                debug!(target: "service", "Failed to update gossip entry from {announcer}: {e}");
                 return Ok(None);
             }
         };
@@ -1602,7 +1604,7 @@ where
                         }
                     }
                     Err(e) => {
-                        error!(target: "service", "Error processing inventory from {announcer}: {e}");
+                        debug!(target: "service", "Failed to process inventory from {announcer}: {e}");
                         return Ok(None);
                     }
                 }
@@ -1633,7 +1635,7 @@ where
                                         missing.push(*id);
                                     }
                                 }
-                                Err(e) => error!(
+                                Err(e) => debug!(
                                     target: "service",
                                     "Error checking local inventory for {id}: {e}"
                                 ),
@@ -1703,7 +1705,7 @@ where
                             }
                         }
                         Err(e) => {
-                            error!(target: "service", "Error updating sync status for {}: {e}", message.rid);
+                            debug!(target: "service", "Failed to update sync status for {}: {e}", message.rid);
                         }
                     }
                 }
@@ -1781,7 +1783,7 @@ where
                     }
                     Err(err) => {
                         // An error here is due to a fault in our address store.
-                        error!(target: "service", "Error processing node announcement from {announcer}: {err}");
+                        warn!(target: "service", "Failed to process node announcement from {announcer}: {err}");
                     }
                 }
             }
@@ -1871,7 +1873,7 @@ where
                                 .gossip_mut()
                                 .set_relay(id, gossip::RelayStatus::Relay)
                             {
-                                error!(target: "service", "Error setting relay flag for message: {e}");
+                                warn!(target: "service", "Failed to set relay flag for message: {e}");
                                 return Ok(());
                             }
                         } else {
@@ -1892,7 +1894,7 @@ where
                             let ann = match ann {
                                 Ok(a) => a,
                                 Err(e) => {
-                                    error!(target: "service", "Error reading gossip message from store: {e}");
+                                    debug!(target: "service", "Failed to read gossip message from store: {e}");
                                     continue;
                                 }
                             };
@@ -1907,7 +1909,7 @@ where
                         }
                     }
                     Err(e) => {
-                        error!(target: "service", "Error querying gossip messages from store: {e}");
+                        warn!(target: "service", "Failed to query gossip messages from store: {e}");
                     }
                 }
                 peer.subscribe = Some(subscribe);
@@ -2044,7 +2046,7 @@ where
         let now = self.timestamp();
 
         if !self.storage.contains(&rid)? {
-            error!(target: "service", "Attempt to add non-existing inventory {rid}: repository not found in storage");
+            debug!(target: "service", "Attempt to add non-existing inventory {rid}: repository not found in storage");
             return Ok(false);
         }
         // Add to our local inventory.
@@ -2188,7 +2190,7 @@ where
                 r.at,
                 timestamp.to_local_time(),
             ) {
-                error!(
+                warn!(
                     target: "service",
                     "Error updating refs database for `rad/sigrefs` of {} in {rid}: {e}",
                     r.remote
@@ -2219,7 +2221,7 @@ where
             );
             // Update our local node's sync status to mark the refs as announced.
             if let Err(e) = self.db.seeds_mut().synced(&rid, &ann.node, r.at, timestamp) {
-                error!(target: "service", "Error updating sync status for local node: {e}");
+                warn!(target: "service", "Failed to update sync status for local node: {e}");
             } else {
                 debug!(target: "service", "Saved local sync status for {rid}..");
             }
@@ -2262,7 +2264,7 @@ where
         let timestamp: Timestamp = self.clock.into();
 
         if let Err(e) = self.db.addresses_mut().attempted(&nid, &addr, timestamp) {
-            error!(target: "service", "Error updating address book with connection attempt: {e}");
+            warn!(target: "service", "Failed to update address book with connection attempt: {e}");
         }
         self.sessions.insert(
             nid,
@@ -2507,7 +2509,7 @@ where
                 peers
             }
             Err(e) => {
-                error!(target: "service", "Unable to lookup available peers in address book: {e}");
+                warn!(target: "service", "Unable to lookup available peers in address book: {e}");
                 Vec::new()
             }
         }
@@ -2520,7 +2522,7 @@ where
             let policy = match policy {
                 Ok(policy) => policy,
                 Err(err) => {
-                    log::error!(target: "protocol::filter", "Failed to read seed policy: {err}");
+                    debug!(target: "protocol::filter", "Failed to read seed policy: {err}");
                     continue;
                 }
             };
@@ -2561,7 +2563,7 @@ where
                     }
                 }
                 Err(e) => {
-                    error!(target: "service", "Couldn't fetch missing repo {rid}: failed to lookup seeds: {e}");
+                    debug!(target: "service", "Couldn't fetch missing repo {rid}: failed to lookup seeds: {e}");
                 }
             }
         }
@@ -2580,7 +2582,7 @@ where
                         .addresses_mut()
                         .connected(&sess.id, &sess.addr, self.clock.into())
                 {
-                    error!(target: "service", "Error updating address book with connection: {e}");
+                    warn!(target: "service", "Failed to update address book with connection: {e}");
                 }
             }
         }
@@ -2645,7 +2647,7 @@ where
         }
         for (id, ka) in connect {
             if let Err(e) = self.connect(id, ka.addr.clone()) {
-                error!(target: "service", "Service::maintain_connections connection error: {e}");
+                warn!(target: "service", "Service::maintain_connections connection error: {e}");
             }
         }
     }
