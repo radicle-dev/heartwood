@@ -12,10 +12,10 @@ const LOCAL_PIPE_PREFIX: &str = r"\\.\pipe\";
 /// A validated local Windows named pipe path.
 ///
 /// This type guarantees that the contained path:
-/// - Follows the format `\\.\pipe\<pipename>`
-/// - Does not exceed 256 characters total
-/// - The pipe name portion does not contain backslashes
-/// - Contains valid UTF-8
+/// - Follows the format `\\.\pipe\<pipename>`.
+/// - Does not exceed a length of 256 characters.
+/// - The `<pipename>` portion does not contain backslashes.
+/// - Is valid UTF-8.
 ///
 /// # Example
 ///
@@ -30,12 +30,12 @@ const LOCAL_PIPE_PREFIX: &str = r"\\.\pipe\";
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WindowsPipePath {
     inner: PathBuf,
-    /// The pipe name portion (after `\\.\pipe\`)
+    /// The pipe name portion (after `\\.\pipe\`).
     pipe_name: String,
 }
 
 impl WindowsPipePath {
-    /// Creates a new `WindowsPipePath` from a pipe name.
+    /// Creates a new [`WindowsPipePath`] from a pipe name.
     ///
     /// This automatically prepends `\\.\pipe\` to the name.
     ///
@@ -73,7 +73,7 @@ impl WindowsPipePath {
         })
     }
 
-    /// Creates a `WindowsPipePath` from a full path string.
+    /// Creates a [`WindowsPipePath`] from a [`Path`].
     ///
     /// The path must be in the format `\\.\pipe\<pipename>`.
     ///
@@ -153,7 +153,7 @@ impl WindowsPipePath {
         self.inner.to_str().unwrap()
     }
 
-    /// Returns the full path as a `Path` reference.
+    /// Returns the full path as a [`Path`] reference.
     #[inline]
     pub fn as_path(&self) -> &Path {
         &self.inner
@@ -165,7 +165,7 @@ impl WindowsPipePath {
         &self.pipe_name
     }
 
-    /// Consumes the `WindowsPipePath` and returns the inner `PathBuf`.
+    /// Consumes the [`WindowsPipePath`] and returns the inner [`PathBuf`].
     #[inline]
     pub fn into_path_buf(self) -> PathBuf {
         self.inner
