@@ -443,7 +443,7 @@ impl FetchState {
         match handle.transport.done() {
             Ok(()) => log::debug!(target: "fetch", "Sent done signal to remote {remote}"),
             Err(err) => {
-                log::warn!(target: "fetch", "Attempted to send done to remote {remote}: {err}")
+                log::debug!(target: "fetch", "Failed to signal EOF to {remote}: {err}")
             }
         }
 
@@ -485,7 +485,7 @@ impl FetchState {
                     self.prune(&remote);
                 }
                 sigrefs::DelegateStatus::Delegate { remote, data: None } => {
-                    log::warn!(target: "fetch", "Pruning delegate {remote} tips, missing 'rad/sigrefs'");
+                    log::debug!(target: "fetch", "Pruning delegate {remote} tips, missing 'rad/sigrefs'");
                     failures.push(sigrefs::Validation::MissingRadSigRefs(remote));
                     self.prune(&remote);
                     // This delegate has removed their `rad/sigrefs`.
@@ -552,7 +552,7 @@ impl FetchState {
                     let mut fails =
                         sigrefs::validate(&cache, sigrefs)?.unwrap_or(Validations::default());
                     if !fails.is_empty() {
-                        log::warn!(target: "fetch", "Pruning delegate {remote} tips, due to validation failures");
+                        log::debug!(target: "fetch", "Pruning delegate {remote} tips, due to validation failures");
                         self.prune(&remote);
                         valid_delegates.remove(&remote);
                         failed_delegates.insert(remote);
