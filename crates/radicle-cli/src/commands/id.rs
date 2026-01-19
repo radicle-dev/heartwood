@@ -19,6 +19,7 @@ use crate::git::unified_diff::Encode as _;
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::Error;
+use crate::terminal::format::Author;
 use crate::terminal::patch::Message;
 
 pub use args::Args;
@@ -193,7 +194,14 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 return Ok(());
             }
             let signer = term::signer(&profile)?;
-            let revision = update(title, description, proposal, &mut identity, &signer)?;
+            let revision = update(
+                title,
+                description,
+                proposal,
+                &mut identity,
+                &signer,
+                &profile,
+            )?;
 
             if revision.is_accepted() && revision.parent == Some(current.id) {
                 // Update the canonical head to point to the latest accepted revision.
@@ -420,6 +428,7 @@ fn update<R, G>(
     doc: Doc,
     current: &mut IdentityMut<R>,
     signer: &Device<G>,
+    profile: &Profile,
 ) -> anyhow::Result<Revision>
 where
     R: WriteRepository + cob::Store<Namespace = NodeId>,
@@ -428,7 +437,7 @@ where
     if let Some((title, description)) = edit_title_description(title, description)? {
         let id = current
             .update(title, description, &doc, signer)
-            .map_err(on_identity_err)?;
+            .map_err(|e| on_identity_err(e, profile))?;
         let revision = current
             .revision(&id)
             .ok_or(anyhow!("update failed: revision {id} is missing"))?;
@@ -439,16 +448,31 @@ where
     }
 }
 
-fn on_identity_err(e: identity::Error) -> anyhow::Error {
+fn on_identity_err(e: identity::Error, profile: &Profile) -> anyhow::Error {
     let e = anyhow::Error::from(e);
 
-    let apply_err = e
-        .chain()
-        .find_map(|c| c.downcast_ref::<identity::ApplyError>());
+    e.chain()
+        .find_map(|c| c.downcast_ref::<identity::ApplyError>())
+        .map(|e| on_apply_err(e, profile))
+        .unwrap_or(e)
+}
 
-    match apply_err {
-        Some(e @ identity::ApplyError::NonDelegateUnauthorized { .. }) => anyhow!(e.to_string()),
-        _ => e,
+fn on_apply_err(e: &identity::ApplyError, profile: &Profile) -> anyhow::Error {
+    match e {
+        e @ identity::ApplyError::NonDelegateUnauthorized { author, .. } => {
+            let nid = NodeId::from(*author);
+            let labels = Author::new(&nid, profile, false).labels();
+
+            Error::with_hint(
+                anyhow!(e.to_string()),
+                format!(
+                    "{} {} is attempting to modify the identity document but isn't a delegate!",
+                    labels.0, labels.1
+                ),
+            )
+            .into()
+        }
+        e => anyhow!(e.to_string()),
     }
 }
 
