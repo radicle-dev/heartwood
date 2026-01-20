@@ -192,11 +192,56 @@ Finally, `SSH_LOGIN=<user> build/release <version>` is used to create a symlink
 from version release to the `latest` release – which is used in our install
 script linked to on [Get Started][website].
 
+### Release Branch
+
+At this point, a release branch should be created. This branch will used for
+*patch releases*, e.g. `1.5.1`, `1.5.2`, etc.
+
+The branch must be named `releases/x.y`, similar to the tagged release, where
+`x` is the major version, and `y` is the minor version, e.g `releases/1.5`,
+`releases/1.6`, etc.
+
+### CHANGELOG
+
+The `heartwood/CHANGELOG.md` must be updated to reflect the latest changes that
+were made with regards to the binaries. Many of them should have been included
+during the development process, such as new features, breaking changes, or fixed
+bugs. It is still worth checking `scripts/changelog` to see if there were any
+missed notes.
+
+Once the change log is finalized with a header using the version number, e.g.
+`## 1.5.0`, it should be committed to the `releases/x.y` branch and a patch must
+be made to port the changes to the `master` branch.
+
+### Announcement
+
 The announcement post is prepared using the [`radicle.xyz`
 repository][radicle-xyz], and should appear in the [Updates][updates] section of
-the website.
+the website. The announcement is essentially the same as the
+`heartwood/CHANGELOG.md` entry, but should include some preamble about the
+effort of the release – have fun with it!
 
 We then announce on [Zulip][zulip], [Mastodon][mastodon], and [Bluesky][bsk].
+
+Patch Releases
+--------------
+
+After the `x.y.0` release is made, it may be beneficial, or even necessary, to
+release patch releases of the binaries. These patch releases must be compatible
+with minor version that was released, otherwise the commits should not be
+included.
+
+These changes may have been made on `master` and back-ported to the
+`releases/x.y` branch. Note that is not the job of the maintainer to ensure that
+the change applies cleanly to both branches – it is the job of the person
+contributing the changes.
+Alternatively, it may be the case that changes are made on the `releases/x.y`
+branch and forward-ported to `master`. The burden of ensuring changes apply
+remains the same as above.
+
+Remember that `heartwood/CHANGELOG.md` must be updated to include the latest
+changes in the patch release. These must be forward-ported to the `master`
+branch.
 
 [radicle-infra]: https://app.radicle.xyz/nodes/seed.radicle.xyz/rad:z254T5p17bdFPmzfDojsdjo4HjpoZ
 [radicle-nix]: https://github.com/radicle-nix/radicle-nix
