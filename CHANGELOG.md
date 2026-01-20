@@ -15,6 +15,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Deprecations
 
+## 1.6.1
+
+## Fixed Bugs
+
+### Improve Logging
+
+The introduction of new logs in `radicle-node` caused too many log lines to be
+output. All logs were evaluated and adjusted to a more suitable log level.
+
+### Improve `Service::fetch_missing_repositories`
+
+If the check for `storage.contains` failed with an error, the whole process of
+fetching missing repositories would fail. Instead, the error is logged and it
+continues to gather repositories to fetch.
+
+### Surface Underlying I/O Error for `radicle-fetch`
+
+When an I/O error would occur within the `gix-transport` crate, the underlying
+error would become opaque. This makes it hard to debug the issue when it occurs.
+Instead, surface the I/O error so that it can be inspected.
+
 ## 1.6.0
 
 ## Release Highlights
