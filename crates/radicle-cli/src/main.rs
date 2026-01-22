@@ -118,8 +118,8 @@ fn main() {
     .homepage(env!("CARGO_PKG_HOMEPAGE"))
     .support("Open a support request at https://radicle.zulipchat.com/ or file an issue via Radicle itself, or e-mail to team@radicle.xyz"));
 
-    if let Some(lvl) = radicle::logger::env_level() {
-        let logger = Box::new(radicle::logger::Logger::new(lvl));
+    if let Some(lvl) = radicle_log::env_level() {
+        let logger = Box::new(radicle_log::Logger::new(lvl));
         log::set_boxed_logger(logger).expect("no other logger should have been set already");
         log::set_max_level(lvl.to_level_filter());
     }

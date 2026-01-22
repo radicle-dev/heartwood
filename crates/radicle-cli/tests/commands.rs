@@ -22,7 +22,7 @@ use radicle::test::fixtures;
 
 use radicle_localtime::LocalTime;
 #[allow(unused_imports)]
-use radicle_node::test::logger;
+use radicle_log::test::Logger;
 use radicle_node::test::node::Node;
 use radicle_node::PROTOCOL_VERSION;
 

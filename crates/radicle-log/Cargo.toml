@@ -1,0 +1,20 @@
+[package]
+name = "radicle-log"
+description = "Radicle loggers"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+test = []
+
+[dependencies]
+chrono = { workspace = true, features = ["clock"] }
+colored = { workspace = true }
+radicle-localtime = { workspace = true, features = ["serde"] }
+log = { version = "0.4", features = ["std"] }
+radicle-term = { workspace = true }
+regex = "1"
