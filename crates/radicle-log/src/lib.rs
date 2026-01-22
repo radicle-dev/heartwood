@@ -5,8 +5,7 @@
 #[cfg(feature = "test")]
 pub mod test;
 
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 
 use chrono::prelude::*;
 use colored::*;

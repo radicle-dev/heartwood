@@ -28,11 +28,12 @@ lexopt = { workspace = true }
 log = { workspace = true, features = ["kv", "std"] }
 mio = { version = "1", features = ["net", "os-poll"] }
 qcheck = { workspace = true, optional = true }
-radicle = { workspace = true, features = ["logger"] }
+radicle = { workspace = true }
 radicle-fetch = { workspace = true }
 radicle-localtime = { workspace = true }
 radicle-protocol = { workspace = true }
 radicle-signals = { workspace = true }
+radicle-log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["preserve_order"] }
 snapbox = { workspace = true, optional = true }
@@ -53,6 +54,7 @@ mio = { version = "1", features = ["os-ext"] }
 qcheck = { workspace = true }
 qcheck-macros = { workspace = true }
 radicle = { workspace = true, features = ["test"] }
+radicle-log = { workspace = true, features = ["test"] }
 radicle-protocol = { workspace = true, features = ["test"] }
 radicle-crypto = { workspace = true, features = ["test", "cyphernet"] }
 snapbox = { workspace = true }
