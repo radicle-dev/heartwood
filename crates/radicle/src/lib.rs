@@ -19,8 +19,6 @@ pub mod explorer;
 pub mod git;
 pub mod identity;
 pub mod io;
-#[cfg(feature = "logger")]
-pub mod logger;
 pub mod node;
 pub mod profile;
 pub mod rad;
