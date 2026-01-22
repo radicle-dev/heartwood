@@ -7,7 +7,7 @@ use radicle::prelude::RepoId;
 use radicle::profile::Home;
 
 #[allow(unused_imports)]
-use radicle_node::test::logger;
+use radicle_log::test::Logger;
 
 mod util;
 use util::environment::Environment;

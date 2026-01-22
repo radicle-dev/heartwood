@@ -401,7 +401,7 @@ fn initialize_logging(options: &LogOptions) -> Result<(), Box<dyn std::error::Er
                 const SYSLOG_IDENTIFIER: &str = "radicle-node";
                 logger::<&str, &str, _>(SYSLOG_IDENTIFIER.to_string(), []).map_err(Box::new)?
             }
-            Logger::Radicle => Box::new(radicle::logger::Logger::new()),
+            Logger::Radicle => Box::new(radicle_log::Logger::new()),
         }
     };
 

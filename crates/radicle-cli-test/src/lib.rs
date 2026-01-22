@@ -186,8 +186,11 @@ impl TestFormula {
         // We don't need to re-build every time the `build` function is called. Once is enough.
         BUILD.call_once(|| {
             use escargot::format::Message;
-            use radicle::logger::env_level;
-            use radicle::logger::test::Logger;
+            use radicle_log::env_level;
+            use radicle_log::test::Logger;
+            use radicle_term::Paint;
+
+            Paint::force(true);
 
             let level = env_level().unwrap_or(log::Level::Debug);
             let logger = Box::new(Logger::new(level));
