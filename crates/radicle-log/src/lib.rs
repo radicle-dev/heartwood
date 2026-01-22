@@ -5,6 +5,9 @@
 #[cfg(feature = "test")]
 pub mod test;
 
+#[cfg(test)]
+mod tests;
+
 use std::io::{self, Write};
 
 use chrono::prelude::*;
