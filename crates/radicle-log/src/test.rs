@@ -1,5 +1,5 @@
-use localtime::LocalTime;
 use log::*;
+use radicle_localtime::LocalTime;
 
 pub struct Logger {
     level: Level,

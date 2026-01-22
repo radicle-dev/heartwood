@@ -2815,8 +2815,6 @@ dependencies = [
  "amplify",
  "base64 0.21.7",
  "bytesize",
- "chrono",
- "colored",
  "crossbeam-channel",
  "cyphernet",
  "dunce",
@@ -2873,6 +2871,7 @@ dependencies = [
  "radicle-crypto",
  "radicle-git-ref-format",
  "radicle-localtime",
+ "radicle-log",
  "radicle-node",
  "radicle-surf",
  "radicle-term",
@@ -2909,6 +2908,8 @@ dependencies = [
  "log",
  "pretty_assertions",
  "radicle",
+ "radicle-log",
+ "radicle-term",
  "shlex",
  "snapbox",
  "thiserror 2.0.17",
@@ -3045,6 +3046,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "radicle-log"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "colored",
+ "log",
+ "radicle-localtime",
+ "radicle-term",
+ "regex",
+]
+
+[[package]]
 name = "radicle-node"
 version = "0.16.0"
 dependencies = [
@@ -3066,6 +3079,7 @@ dependencies = [
  "radicle-crypto",
  "radicle-fetch",
  "radicle-localtime",
+ "radicle-log",
  "radicle-protocol",
  "radicle-signals",
  "radicle-systemd",
@@ -3131,6 +3145,7 @@ dependencies = [
  "radicle",
  "radicle-cli",
  "radicle-crypto",
+ "radicle-log",
  "thiserror 2.0.17",
 ]
 
