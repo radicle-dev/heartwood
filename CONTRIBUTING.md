@@ -84,28 +84,21 @@ The following code guidelines will help make code review smoother.
 
 #### Use of `unwrap` and `expect`
 
-In general, the use of `unwrap` or `expect` should be seldom used in the code base.
+In general, `unwrap` or `expect` should be seldom used.
 Instead, proper handling of these cases should made, whether through better expressing
-the logic through types, through error handling, or a combination of these.
+the logic using types, through error handling, or a combination of these.
 
 However, there are some instances where they are acceptable:
 
-1. They may be used as part of test code, and this is generally allowed by
-allowing it via clippy
-
-        #[allow(clippy::unwrap_used)]
-
-2. Based on manual static analysis, you've concluded that it's impossible for
-the code to panic; so unwrapping is acceptable. An example would be:
-
-        let list = vec![a, b, c];
-        let first = list.first().unwrap();
-
-Note that this may still be questioned, since this code can still be fragile,
-e.g. the definition of `list` is changed later.
-
+1. In tests, where `#[allow(clippy::unwrap_used)]` is commonly used.
+2. If, after analysing the code for yourself, you have concluded that
+   a call to `unwrap` does not panic (not under any circumstance, for any given
+   input). In this case, it is still preferred to use `expect` and provide
+   a message which gives your argument.
+   Note that if your analysis does not appear very stable under possible future
+   refactorings and changes, it might still not be accepted.
 3. The presence of `Option::None` or `Result::Err` is truly an unexpected scenario
-and the program should fail.
+   and you intend the program to panic.
 
 #### Module imports
 
