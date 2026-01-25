@@ -413,7 +413,8 @@ impl<H: ReactionHandler> Runtime<H> {
                     match self.receiver.try_recv() {
                         Err(TryRecvError::Empty) => break,
                         Err(TryRecvError::Disconnected) => {
-                            panic!("control channel disconnected unexpectedly")
+                            log::error!(target: "reactor", "Control channel disconnected; shutting down reactor");
+                            return self.handle_shutdown();
                         }
                         Ok(ControlMessage::Shutdown) => return self.handle_shutdown(),
                         Ok(ControlMessage::Command(cmd)) => self.service.handle_command(*cmd),
