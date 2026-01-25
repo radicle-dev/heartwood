@@ -5,6 +5,7 @@ mod upload_pack;
 pub mod fetch;
 pub mod garbage;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crossbeam_channel as chan;
@@ -25,6 +26,7 @@ pub use radicle_protocol::worker::{
 
 use crate::runtime::{thread, Handle};
 use crate::wire::StreamId;
+use crate::{LocalDuration, LocalTime};
 
 pub use channels::{ChannelEvent, Channels, ChannelsConfig};
 
@@ -67,6 +69,8 @@ pub struct FetchConfig {
     /// Configuration for `git gc` garbage collection. Defaults to `1
     /// hour ago`.
     pub expiry: garbage::Expiry,
+    /// Minimum interval between `git gc` runs per repository.
+    pub gc_interval: LocalDuration,
 }
 
 /// A worker that replicates git objects.
@@ -80,6 +84,7 @@ struct Worker {
     notifications: notifications::StoreWriter,
     cache: cob::cache::StoreWriter,
     db: radicle::node::Database,
+    last_gc: HashMap<RepoId, LocalTime>,
 }
 
 impl Worker {
@@ -210,6 +215,7 @@ impl Worker {
             limit,
             local,
             expiry,
+            gc_interval,
         } = &self.fetch_config;
         // N.b. if the `rid` is blocked this will return an error, so
         // we won't continue with any further set up of the fetch.
@@ -236,11 +242,22 @@ impl Worker {
             refs_at,
         )?;
 
-        if let Err(e) = garbage::collect(&self.storage, rid, *expiry) {
-            // N.b. ensure that `git gc` works in debug mode.
-            debug_assert!(false, "`git gc` failed: {e}");
+        let now = LocalTime::now();
+        let should_gc = self
+            .last_gc
+            .get(&rid)
+            .map(|last| now - *last >= *gc_interval)
+            .unwrap_or(true);
+        if should_gc {
+            if let Err(e) = garbage::collect(&self.storage, rid, *expiry) {
+                // N.b. ensure that `git gc` works in debug mode.
+                debug_assert!(false, "`git gc` failed: {e}");
 
-            log::debug!(target: "worker", "Failed to run `git gc`: {e}");
+                log::debug!(target: "worker", "Failed to run `git gc`: {e}");
+            }
+            self.last_gc.insert(rid, now);
+        } else {
+            log::debug!(target: "worker", "Skipping `git gc` for {rid}; recently ran");
         }
         Ok(result)
     }
@@ -276,6 +293,7 @@ impl Pool {
                 notifications: notifications.clone(),
                 cache: cache.clone(),
                 db: db.clone(),
+                last_gc: HashMap::new(),
             };
             let thread = thread::spawn(&nid, format!("worker#{i}"), || worker.run());
 

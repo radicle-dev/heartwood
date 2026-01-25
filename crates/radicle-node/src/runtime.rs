@@ -36,7 +36,7 @@ use crate::reactor::Reactor;
 use crate::service::gossip;
 use crate::wire::Wire;
 use crate::worker;
-use crate::{service, LocalTime};
+use crate::{service, LocalDuration, LocalTime};
 
 pub use handle::Error as HandleError;
 pub use handle::Handle;
@@ -242,6 +242,7 @@ impl Runtime {
             limit: FetchLimit::default(),
             local: nid,
             expiry: worker::garbage::Expiry::default(),
+            gc_interval: LocalDuration::from_mins(10),
         };
         let pool = worker::Pool::with(
             worker_recv,
