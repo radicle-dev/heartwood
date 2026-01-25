@@ -105,6 +105,9 @@ impl NodeAnnouncement {
     /// If the given difficulty target is too high, there may not be a result. In that case, `None`
     /// is returned.
     pub fn solve(mut self, target: u32) -> Option<Self> {
+        if target == 0 {
+            return Some(self);
+        }
         loop {
             if let Some(nonce) = self.nonce.checked_add(1) {
                 self.nonce = nonce;
