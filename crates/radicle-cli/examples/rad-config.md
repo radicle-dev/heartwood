@@ -47,6 +47,7 @@ $ rad config
         "inbound": 128,
         "outbound": 16
       },
+      "gcInterval": 600,
       "fetchPackReceive": "500.0 MiB"
     },
     "workers": 8,

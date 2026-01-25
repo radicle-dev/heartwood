@@ -137,6 +137,9 @@ pub struct Limits {
     /// Connection limits.
     pub connection: ConnectionLimits,
 
+    /// Minimum interval between `git gc` runs per repository.
+    pub gc_interval: LimitGcInterval,
+
     /// Channel limits.
     pub fetch_pack_receive: FetchPackSizeLimit,
 }
@@ -582,6 +585,29 @@ impl Default for LimitGossipMaxAge {
 impl From<LimitGossipMaxAge> for LocalDuration {
     fn from(value: LimitGossipMaxAge) -> Self {
         value.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(transparent)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+pub struct LimitGcInterval(localtime::LocalDuration);
+
+impl Default for LimitGcInterval {
+    fn default() -> Self {
+        Self(localtime::LocalDuration::from_mins(10))
+    }
+}
+
+impl From<LimitGcInterval> for LocalDuration {
+    fn from(value: LimitGcInterval) -> Self {
+        value.0
+    }
+}
+
+impl From<LocalDuration> for LimitGcInterval {
+    fn from(value: LocalDuration) -> Self {
+        Self(value)
     }
 }
 
