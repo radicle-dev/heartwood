@@ -1437,7 +1437,7 @@ where
         });
 
         // Attempt to re-connect to persistent peers.
-        if self.config.peer(&remote).is_some() {
+        if self.config.is_persistent(&remote) {
             let delay = LocalDuration::from_secs(2u64.saturating_pow(session.attempts() as u32))
                 .clamp(MIN_RECONNECTION_DELTA, MAX_RECONNECTION_DELTA);
 
