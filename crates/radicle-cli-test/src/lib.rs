@@ -217,13 +217,19 @@ impl TestFormula {
             use radicle_log::test::Logger;
             use radicle_term::Paint;
 
-            Paint::force(true);
-
             let level = env_level().unwrap_or(log::Level::Debug);
             let logger = Box::new(Logger::new(level));
 
             log::set_boxed_logger(logger).expect("no other logger should have been set already");
             log::set_max_level(level.to_level_filter());
+
+            // `NO_COLOR` is supported by [`radicle-term::Paint`] - however when using `force()` we
+            // override it. Because `cargo nextest` runs tests in a PTY and [`radicle-term::Paint`]
+            // detects that (disabling colours), we need to use `force()` to ensure colours are painted.
+            match env::var("NO_COLOR") {
+                Err(_) => Paint::force(true),
+                Ok(_) => log::info!(target: "test", "NO_COLOR detected, disabling colours."),
+            }
 
             for (package, binary) in binaries {
                 log::debug!(target: "test", "Building binaries for package `{package}`..");
