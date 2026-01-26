@@ -2660,13 +2660,13 @@ where
         let mut reconnect = Vec::new();
 
         for (nid, session) in self.sessions.iter_mut() {
-            if let Some(addr) = self.config.peer(nid) {
+            if self.config.is_persistent(nid) {
                 if let session::State::Disconnected { retry_at, .. } = &mut session.state {
                     // TODO: Try to reconnect only if the peer was attempted. A disconnect without
                     // even a successful attempt means that we're unlikely to be able to reconnect.
 
                     if now >= *retry_at {
-                        reconnect.push((*nid, addr.clone(), session.attempts()));
+                        reconnect.push((*nid, session.addr.clone(), session.attempts()));
                     }
                 }
             }
