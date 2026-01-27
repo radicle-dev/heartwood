@@ -22,7 +22,7 @@ To push changes, run `git push`.
 
 ``` ~bob
 $ rad clone rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK
-✓ Seeding policy updated for rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK with scope 'all'
+✓ Seeding policy updated for rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK with scope 'followed'
 Fetching rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 ✓ Creating checkout in ./heartwood..

@@ -10,7 +10,7 @@ have to update our seeding policy for the project.
 
 ```
 $ rad seed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-fetch
-✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
+✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'followed'
 ```
 
 Now that the project is seeding we can fetch it and we will have it in

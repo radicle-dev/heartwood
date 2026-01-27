@@ -108,7 +108,7 @@ up in our inventory:
 ```
 $ rad seed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ✓ Inventory updated with rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
+✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'followed'
 $ rad node inventory
 rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ```

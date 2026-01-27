@@ -30,7 +30,7 @@ $ rad inspect --identity
 ``` ~bob
 $ rad ls --all --private
 $ rad clone rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --timeout 1
-✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'all'
+✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'followed'
 Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from the network, found 1 potential seed(s).
 ✓ Target met: 1 preferred seed(s).
 ✓ Creating checkout in ./heartwood..
@@ -49,7 +49,7 @@ We can also use `rad seed` to seed and fetch without creating a checkout.
 
 ``` ~bob
 $ rad seed rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --timeout 1
-✓ Seeding policy exists for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'all'
+✓ Seeding policy exists for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'followed'
 Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 ```

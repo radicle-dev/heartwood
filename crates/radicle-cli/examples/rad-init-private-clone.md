@@ -6,7 +6,7 @@ $ rad ls
 ```
 ``` ~bob (fail)
 $ rad clone rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --timeout 1
-✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'all'
+✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'followed'
 Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from the network, found 1 potential seed(s).
 ✗ Target not met: could not fetch from [z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi], and required 1 more seed(s)
 ! Warning: Failed to fetch from 1 seed(s).

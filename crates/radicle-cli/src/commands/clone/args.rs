@@ -62,7 +62,7 @@ pub struct Args {
     /// Follow scope
     #[arg(
         long,
-        default_value_t = Scope::All,
+        default_value_t = Scope::Followed,
         value_parser = terminal::args::ScopeParser
     )]
     pub(super) scope: Scope,

@@ -14,5 +14,5 @@ Note that seeding works fine without a running node:
 
 ``` ~alice
 $ rad seed rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5
-✓ Seeding policy updated for rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5 with scope 'all'
+✓ Seeding policy updated for rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5 with scope 'followed'
 ```
