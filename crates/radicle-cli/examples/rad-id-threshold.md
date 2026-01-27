@@ -170,7 +170,7 @@ sync` and fetch his references:
 
 ``` ~bob
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
+✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'followed'
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential seed(s).
 ✓ Target met: 1 seed(s)
 ✓ Creating checkout in ./heartwood..

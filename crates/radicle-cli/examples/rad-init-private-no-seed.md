@@ -28,7 +28,7 @@ We can decide to seed it later, so that others can fetch it from us, given
 that they are part of the allow list:
 ```
 $ rad seed rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu
-✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'all'
+✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'followed'
 ```
 
 But it still won't show up in our inventory, since it's private:
