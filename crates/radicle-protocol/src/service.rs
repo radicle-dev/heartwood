@@ -1597,9 +1597,18 @@ where
                     );
                     return Ok(None);
                 };
-                // Refs can be relayed by peers who don't have the data in storage,
-                // therefore we only check whether we are connected to the *announcer*,
-                // which is required by the protocol to only announce refs it has.
+                // Ref announcements may be relayed by peers who don't have the
+                // actual refs in storage, therefore we only check whether we
+                // are connected to the *announcer*, which is required by the
+                // protocol to only announce refs it has.
+                //
+                // TODO(Ade): Perhaps it makes sense to establish connections to
+                // followed but unconnected peers. Consider:
+                //   Connections: Alice ←→ Bob ←→ Eve
+                //   Follows:     Alice ←→ Eve
+                // Eve announces refs, and Bob relays these announcements to Alice.
+                // Then, Alice might determine that Bob does not have Eve's refs,
+                // and therefore connect directly to Eve in order to fetch.
                 let Some(remote) = self.sessions.get(announcer).cloned() else {
                     trace!(
                         target: "service",
