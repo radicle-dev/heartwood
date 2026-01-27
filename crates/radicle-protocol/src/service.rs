@@ -1655,6 +1655,13 @@ where
                 // Refs can be relayed by peers who don't have the data in storage,
                 // therefore we only check whether we are connected to the *announcer*,
                 // which is required by the protocol to only announce refs it has.
+                //
+                // TODO(Ade): Perhaps it makes sense in a more peer-to-peer arrangement
+                // to establish connections to peers whom you follow but aren't directly connected
+                // to. E.g. Alice <--> Bob <--> Eve
+                // Alice follows Eve, Eve announces refs of interest but because Alice
+                // is not directly connected she cant see said refs if Bob isn't also interested in
+                // Eve's refs.
                 let Some(remote) = self.sessions.get(announcer).cloned() else {
                     trace!(
                         target: "service",
