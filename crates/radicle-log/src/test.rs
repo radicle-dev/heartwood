@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
@@ -17,6 +18,7 @@ pub struct Logger {
     pub base58_ref_oid_re: Regex,
     pub base58_re: Regex,
     writer: SharedWriter,
+    aliases: HashMap<String, String>,
 }
 
 /// The Base58 pattern used for Radicle IDs.
@@ -24,6 +26,15 @@ const BASE58_REGEX: &str = r"z[1-9A-HJ-NP-Za-km-z]{10,}";
 
 impl Logger {
     pub fn new(level: Level) -> Self {
+        let mut aliases = HashMap::new();
+        if let Ok(s) = std::env::var("RAD_ALIASES") {
+            for pair in s.split(',') {
+                if let Some((k, v)) = pair.split_once('=') {
+                    aliases.insert(k.to_owned(), v.to_owned());
+                }
+            }
+        }
+
         Self {
             level,
             // base58: Starts with 'z', base58 chars, 10+ length.
@@ -35,6 +46,7 @@ impl Logger {
             ).expect("invalid regex"),
             base58_re: Regex::new(BASE58_REGEX).expect("invalid id regex"),
             writer: Arc::new(Mutex::new(io::stdout())),
+            aliases,
         }
     }
 
@@ -50,6 +62,65 @@ impl Logger {
         log::set_boxed_logger(Box::new(self))?;
         log::set_max_level(level.to_level_filter());
         Ok(())
+    }
+
+    fn paint_base58_with_aliases<'a>(&'a self, s: &'a str) -> Paint<&'a str> {
+        let alias_or_match_str = self.aliases.get(s).map(|x| x.as_str()).unwrap_or(s);
+        let colour = colour_for_base58(s);
+
+        colour.paint(alias_or_match_str).bold()
+    }
+
+    fn format_message(&self, msg: &str, paint_plain: impl Fn(&str) -> String) -> String {
+        let mut coloured_msg = String::new();
+        let mut last_match = 0;
+
+        // Iterate over the main composite matches
+        for caps in self.base58_ref_oid_re.captures_iter(msg) {
+            let whole_match = caps.get(0).unwrap();
+
+            // Paint text BEFORE the match (Plain style)
+            coloured_msg.push_str(&paint_plain(&msg[last_match..whole_match.start()]));
+
+            // Handle the match based on which group captured it
+            if let Some(m) = caps.name("base58") {
+                // Standard Base58 match (not inside a ref)
+                let match_str = m.as_str();
+
+                coloured_msg.push_str(&self.paint_base58_with_aliases(match_str).to_string());
+            } else if let Some(m) = caps.name("oid") {
+                // Git OID match (RGB from hex with contrast check)
+                let oid = m.as_str();
+                coloured_msg.push_str(&paint_oid(oid).to_string());
+            } else if let Some(m) = caps.name("ref") {
+                // Git Ref match
+                let ref_str = m.as_str();
+                let mut last_ref_idx = 0;
+
+                // Search for Base58 IDs *inside* this ref string
+                for id_match in self.base58_re.find_iter(ref_str) {
+                    let prefix = &ref_str[last_ref_idx..id_match.start()];
+                    coloured_msg.push_str(&Paint::new(prefix).bold().underline().to_string());
+
+                    // Paint the ID itself (Deterministic Colour + Bold)
+                    let id = id_match.as_str();
+                    coloured_msg
+                        .push_str(&self.paint_base58_with_aliases(id).underline().to_string());
+
+                    last_ref_idx = id_match.end();
+                }
+
+                let suffix = &ref_str[last_ref_idx..];
+                coloured_msg.push_str(&Paint::new(suffix).bold().underline().to_string());
+            }
+
+            last_match = whole_match.end();
+        }
+
+        // Paint the remaining text
+        coloured_msg.push_str(&paint_plain(&msg[last_match..]));
+
+        coloured_msg
     }
 }
 
@@ -80,57 +151,7 @@ impl Log for Logger {
         };
 
         let msg = record.args().to_string();
-        let mut coloured_msg = String::new();
-        let mut last_match = 0;
-
-        // Iterate over the main composite matches
-        for caps in self.base58_ref_oid_re.captures_iter(&msg) {
-            let whole_match = caps.get(0).unwrap();
-
-            // Paint text BEFORE the match (Plain style)
-            coloured_msg.push_str(&paint_plain(&msg[last_match..whole_match.start()]));
-
-            // Handle the match based on which group captured it
-            if let Some(m) = caps.name("base58") {
-                // Standard Base58 match (not inside a ref)
-                let match_str = m.as_str();
-                coloured_msg.push_str(&paint_base58(match_str).to_string());
-            } else if let Some(m) = caps.name("oid") {
-                // Git OID match (RGB from hex with contrast check)
-                let oid = m.as_str();
-                coloured_msg.push_str(&paint_oid(oid).to_string());
-            } else if let Some(m) = caps.name("ref") {
-                // Git Ref match
-                let ref_str = m.as_str();
-                let mut last_ref_idx = 0;
-
-                // Search for Base58 IDs *inside* this ref string
-                for id_match in self.base58_re.find_iter(ref_str) {
-                    let prefix = &ref_str[last_ref_idx..id_match.start()];
-                    coloured_msg.push_str(&Paint::new(prefix).bold().underline().to_string());
-
-                    // Paint the ID itself (Deterministic Colour + Bold)
-                    let id = id_match.as_str();
-                    coloured_msg.push_str(
-                        &colour_for_base58(id)
-                            .paint(id)
-                            .bold()
-                            .underline()
-                            .to_string(),
-                    );
-
-                    last_ref_idx = id_match.end();
-                }
-
-                let suffix = &ref_str[last_ref_idx..];
-                coloured_msg.push_str(&Paint::new(suffix).bold().underline().to_string());
-            }
-
-            last_match = whole_match.end();
-        }
-
-        // Paint the remaining text
-        coloured_msg.push_str(&paint_plain(&msg[last_match..]));
+        let coloured_msg = self.format_message(&msg, &paint_plain);
 
         let time = LocalTime::now().as_secs();
         let mut writer = self.writer.lock().unwrap_or_else(|e| e.into_inner());
@@ -152,23 +173,27 @@ impl Log for Logger {
                 let current = std::thread::current();
                 let target_str = format!("{}:", target);
 
-                let prefix = if let Some(name) = current.name() {
-                    format!("{} {:<16} {:>10}", time, name, target_str)
+                // We format the timestamp separately to avoid it being colored as an OID.
+                let time_display = paint_plain(&format!("{} ", time));
+
+                let rest_of_prefix = if let Some(name) = current.name() {
+                    format!("{:<16} {:>10}", name, target_str)
                 } else {
-                    format!("{} {:>10}", time, target_str)
+                    format!("{:>10}", target_str)
                 };
 
-                let _ = writeln!(writer, "{} {}", paint_plain(&prefix), coloured_msg);
+                let coloured_rest = self.format_message(&rest_of_prefix, &paint_plain);
+
+                let _ = writeln!(
+                    writer,
+                    "{}\t{} {}",
+                    time_display, coloured_rest, coloured_msg
+                );
             }
         }
     }
 
     fn flush(&self) {}
-}
-
-fn paint_base58(s: &str) -> Paint<&str> {
-    let colour = colour_for_base58(s);
-    colour.paint(s).bold()
 }
 
 /// Deterministically pick a colour for a base58 string.
@@ -212,9 +237,9 @@ pub fn paint_oid(oid: &str) -> Paint<&str> {
     let paint = colour.paint(oid);
 
     // Thresholds: < 40 is very dark, > 215 is very bright.
-    if luminance < 40.0 {
+    if luminance < 50.0 {
         paint.bg(Color::White)
-    } else if luminance > 215.0 {
+    } else if luminance > 205.0 {
         paint.bg(Color::Black)
     } else {
         paint
