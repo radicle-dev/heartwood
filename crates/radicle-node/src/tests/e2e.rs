@@ -1,6 +1,8 @@
 use std::{collections::HashSet, thread, time};
 
+use radicle::cob;
 use radicle::cob::Title;
+use radicle_crypto::test::signer::MockSigner;
 use test_log::test;
 
 use radicle::git::raw::ErrorExt as _;
@@ -20,7 +22,7 @@ use crate::node::config::Limits;
 use crate::node::{Config, ConnectOptions};
 use crate::service;
 use crate::storage::git::transport;
-use crate::test::node::{converge, Node};
+use crate::test::node::{converge, Node, NodeHandle};
 
 mod config {
     use super::*;
@@ -1558,4 +1560,98 @@ fn test_fetch_emits_canonical_ref_update() {
             time::Duration::from_secs(9 * scale as u64),
         )
         .unwrap();
+}
+
+#[test]
+fn test_non_fastword_identity_doc() {
+    use radicle::identity::Identity;
+
+    let tmp = tempfile::tempdir().unwrap();
+
+    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
+    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let eve = Node::init(tmp.path(), Config::test(Alias::new("eve")));
+    let alice_laptop = Node::init(tmp.path(), Config::test(Alias::new("alice-laptop")));
+
+    let rid = alice.project("acme", "");
+
+    let mut alice = alice.spawn();
+    let mut alice_laptop = alice_laptop.spawn();
+    let mut bob = bob.spawn();
+    let mut eve = eve.spawn();
+
+    let has_issue = |node: &NodeHandle<MockSigner>, issue: &cob::ObjectId| -> bool {
+        let repo = node.storage.repository(rid).unwrap();
+        repo.contains(**issue).unwrap()
+    };
+
+    alice.connect(&alice_laptop);
+    alice.connect(&bob);
+    alice.connect(&eve);
+    eve.connect(&bob);
+    eve.connect(&alice_laptop);
+
+    // Bob and Eve have the same state for the repository
+    bob.handle.seed(rid, Scope::Followed).unwrap();
+    bob.handle.fetch(rid, alice.id, DEFAULT_TIMEOUT).unwrap();
+
+    alice_laptop.handle.seed(rid, Scope::All).unwrap();
+    alice_laptop
+        .handle
+        .fetch(rid, alice.id, DEFAULT_TIMEOUT)
+        .unwrap();
+    // Alice pushes new references to her laptop
+    let issue = alice_laptop.issue(
+        rid,
+        "Feature #1".parse().unwrap(),
+        "Implementing new feature",
+    );
+
+    // Eve will fetch these references since her scope is "all"
+    eve.handle.seed(rid, Scope::All).unwrap();
+    eve.handle
+        .fetch(rid, alice_laptop.id, DEFAULT_TIMEOUT)
+        .unwrap();
+    assert!(has_issue(&eve, &issue));
+
+    // Alice updates the identity of the document to include her laptop
+    let (prev, next) = {
+        let repo = alice.storage.repository(rid).unwrap();
+        let mut identity = Identity::load_mut(&repo).unwrap();
+        let prev = identity.current;
+        let doc = repo
+            .identity_doc()
+            .unwrap()
+            .doc
+            .with_edits(|raw| raw.delegate(alice_laptop.id.into()))
+            .unwrap();
+        let rev = identity
+            .update(Title::new("Add Laptop").unwrap(), "", &doc, &alice.signer)
+            .unwrap();
+        repo.set_identity_head_to(rev).unwrap();
+        (prev, rev)
+    };
+
+    // Bob fetches from Alice and we see the identity document was updated.
+    //
+    // Bob does not have the issue because Alice does not have the updates from
+    // Alice's Laptop.
+    let result = bob.handle.fetch(rid, alice.id, DEFAULT_TIMEOUT).unwrap();
+    assert!(matches!(result, FetchResult::Success { .. }));
+    assert!(!has_issue(&bob, &issue));
+    let repo = bob.storage.repository(rid).unwrap();
+    let identity = Identity::load_mut(&repo).unwrap();
+    assert_eq!(identity.current, next);
+    assert_eq!(identity.parent, Some(prev));
+
+    // Bob fetches from Eve, the identity document should remain the same, but
+    // since Bob now knows that Alice's Laptop is a delegate, the issue should
+    // be fetched.
+    bob.handle.fetch(rid, eve.id, DEFAULT_TIMEOUT).unwrap();
+    assert!(matches!(result, FetchResult::Success { .. }));
+    assert!(has_issue(&bob, &issue));
+    let repo = bob.storage.repository(rid).unwrap();
+    let identity = Identity::load_mut(&repo).unwrap();
+    assert_eq!(identity.current, next);
+    assert_eq!(identity.parent, Some(prev));
 }

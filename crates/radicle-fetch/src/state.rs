@@ -87,6 +87,8 @@ pub mod error {
         Resolve(#[from] git::repository::error::Resolve),
         #[error(transparent)]
         Verified(#[from] radicle::identity::DocError),
+        #[error("failed to verify `refs/rad/id`: {0}")]
+        Graph(#[source] radicle::git::raw::Error),
     }
 }
 
@@ -637,13 +639,48 @@ where
         self.handle.verified(head)
     }
 
+    /// Resolve the verified [`Doc`], by choosing a `refs/rad/id` head to
+    /// resolve from.
+    ///
+    /// There are two candidate namespaces:
+    ///
+    ///   1. Of the fetching node.
+    ///   2. Of the node being fetched from.
+    ///
+    /// Both might be unset, in this case [`None`] is returned.
+    ///
+    /// If exactly one of the two is set, it is used.
+    ///
+    /// Otherwise, the ahead/behind relationship between the two candidates
+    /// is checked, and (2.) is used if it is ahead of (1.).
     pub fn canonical(&self) -> Result<Option<Doc>, error::Canonical> {
         let tip = self.refname_to_id(refs::REFS_RAD_ID.clone())?;
         let cached_tip = self.canonical_rad_id();
 
-        tip.or(cached_tip)
-            .map(|tip| self.verified(tip).map_err(error::Canonical::from))
-            .transpose()
+        let oid = match (tip, cached_tip) {
+            (None, None) => {
+                return Ok(None);
+            }
+            (Some(oid), None) | (None, Some(oid)) => oid,
+            (Some(repository), Some(cached)) => {
+                let repo = self.handle.repository();
+                match repo
+                    .backend
+                    .graph_ahead_behind(repository.into(), cached.into())
+                {
+                    Ok((ahead, behind)) => match (ahead, behind) {
+                        (0, _) => cached,
+                        _ => repository,
+                    },
+                    Err(err) if err.code() == radicle::git::raw::ErrorCode::NotFound => repository,
+                    Err(err) => {
+                        return Err(error::Canonical::Graph(err));
+                    }
+                }
+            }
+        };
+
+        self.verified(oid).map(Some).map_err(error::Canonical::from)
     }
 
     pub fn load(&self, remote: &PublicKey) -> Result<Option<SignedRefsAt>, sigrefs::error::Load> {
