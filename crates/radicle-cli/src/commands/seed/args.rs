@@ -49,7 +49,7 @@ pub struct Args {
     /// Peer follow scope for this repository
     #[arg(
         long,
-        default_value_t = Scope::All,
+        default_value_t = Scope::Followed,
         value_parser = terminal::args::ScopeParser
     )]
     pub(super) scope: Scope,
