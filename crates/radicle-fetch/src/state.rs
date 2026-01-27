@@ -641,7 +641,8 @@ where
         let tip = self.refname_to_id(refs::REFS_RAD_ID.clone())?;
         let cached_tip = self.canonical_rad_id();
 
-        tip.or(cached_tip)
+        cached_tip
+            .or(tip)
             .map(|tip| self.verified(tip).map_err(error::Canonical::from))
             .transpose()
     }
