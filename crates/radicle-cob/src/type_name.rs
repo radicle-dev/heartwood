@@ -89,6 +89,10 @@ mod test {
         assert!(TypeName::from_str("abc.123.ghi").is_ok());
         assert!(TypeName::from_str("1bc.123.ghi").is_ok());
         assert!(TypeName::from_str("1bc-123.ghi").is_ok());
+    }
+
+    #[test]
+    fn invalid_typenames() {
         assert!(TypeName::from_str("").is_err());
         assert!(TypeName::from_str(".").is_err());
         assert!(TypeName::from_str(".abc.123.ghi").is_err());
