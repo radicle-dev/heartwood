@@ -310,7 +310,7 @@ pub(crate) struct CommentArgs {
     /// The body of the comment
     #[arg(long, short)]
     #[arg(value_name = "MESSAGE")]
-    message: Message,
+    message: Option<Message>,
 
     /// Optionally, the comment to reply to. If not specified, the comment
     /// will be in reply to the issue itself
@@ -441,6 +441,7 @@ impl From<CommentArgs> for CommentAction {
             edit,
         }: CommentArgs,
     ) -> Self {
+        let message = message.unwrap_or(Message::Edit);
         match (reply_to, edit) {
             (Some(_), Some(_)) => {
                 unreachable!("the argument '--reply-to' cannot be used with '--edit'")
