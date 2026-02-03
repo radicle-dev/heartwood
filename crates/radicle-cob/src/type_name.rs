@@ -10,6 +10,9 @@ use thiserror::Error;
 /// alphanumeric characters or hyphens separated by a period. Each
 /// component must start and end with an alphanumeric character.
 ///
+/// The total length of a typename MUST NOT exceed 255, and each component
+/// length MUST NOT exceed 63.
+///
 /// # Examples
 ///
 /// * `abc.def`
@@ -19,6 +22,9 @@ use thiserror::Error;
 pub struct TypeName(String);
 
 impl TypeName {
+    const MAX_LENGTH: usize = 255;
+    const MAX_COMPONENT: usize = 63;
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -40,8 +46,18 @@ impl FromStr for TypeName {
     type Err = TypeNameParse;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.len() > Self::MAX_LENGTH {
+            return Err(TypeNameParse {
+                invalid: s.to_string(),
+            });
+        }
         let split = s.split('.');
         for component in split {
+            if component.len() > Self::MAX_COMPONENT {
+                return Err(TypeNameParse {
+                    invalid: s.to_string(),
+                });
+            }
             if component.is_empty() {
                 return Err(TypeNameParse {
                     invalid: s.to_string(),
@@ -100,5 +116,15 @@ mod test {
         assert!(TypeName::from_str("abc..ghi").is_err());
         assert!(TypeName::from_str("abc.-123.ghi").is_err());
         assert!(TypeName::from_str("abc.123-.ghi").is_err());
+        assert!(TypeName::from_str(&format!(
+            "a.very.long.name.that.exceeds.the.two-hundred-and-fifty-five.length.limit.{}",
+            "a".repeat(255)
+        ))
+        .is_err());
+        assert!(TypeName::from_str(&format!(
+            "component.exceeds.sixty-three.limit.{}",
+            "a".repeat(64)
+        ))
+        .is_err());
     }
 }

@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pushed the default branch to the local user's namespace. The command is now
   deprecated, and the user should use `git push` instead.
 
+## Breaking Changes
+
+- The `TypeName` strings defined in `radicle-cob` are restricted to reflect the
+  size limits on domain names as specified in
+  [RFC-1035](https://www.rfc-editor.org/rfc/rfc1035#section-2.3.4).
+
 ## 1.6.1
 
 ## Fixed Bugs
