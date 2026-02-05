@@ -8,7 +8,7 @@ use radicle::git;
 use radicle::node;
 use radicle::node::address::Store as _;
 use radicle::node::config::seeds::RADICLE_NODE_BOOTSTRAP_IRIS;
-use radicle::node::config::DefaultSeedingPolicy;
+use radicle::node::config::{DefaultSeedingPolicy, MigratingScope};
 use radicle::node::events::Event;
 use radicle::node::policy::Scope;
 use radicle::node::routing::Store as _;
@@ -2867,6 +2867,27 @@ fn rad_workflow() {
         "examples/workflow/6-pulling-contributor.md",
         environment.work(&bob).join("heartwood"),
         Some(&bob.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
+fn rad_seed_policy_allow_no_scope() {
+    let mut environment = Environment::new();
+    let alice = environment.node_with(Config {
+        seeding_policy: DefaultSeedingPolicy::Allow {
+            scope: MigratingScope::Implicit(Scope::All),
+        },
+        ..Config::test(Alias::new("alice"))
+    });
+
+    let alice = alice.spawn();
+
+    test(
+        "examples/rad-seed-policy-allow-no-scope.md",
+        environment.work(&alice),
+        Some(&alice.home),
         [],
     )
     .unwrap();
