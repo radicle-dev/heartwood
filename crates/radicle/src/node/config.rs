@@ -408,6 +408,13 @@ impl DefaultSeedingPolicy {
             scope: MigratingScope::Explicit(Scope::All),
         }
     }
+
+    /// Seed only delegate changes.
+    pub fn followed() -> Self {
+        Self::Allow {
+            scope: MigratingScope::Explicit(Scope::Followed),
+        }
+    }
 }
 
 impl From<DefaultSeedingPolicy> for SeedingPolicy {

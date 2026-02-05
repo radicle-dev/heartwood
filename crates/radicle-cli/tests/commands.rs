@@ -2873,6 +2873,54 @@ fn rad_workflow() {
 }
 
 #[test]
+fn rad_seed_policy_allow_scope_followed() {
+    let mut environment = Environment::new();
+    let seed = environment.node_with(Config {
+        seeding_policy: DefaultSeedingPolicy::followed(),
+        ..Config::test(Alias::new("seed"))
+    });
+
+    let mut eve = environment.node("eve");
+    let nix = eve.project("nixpkgs", "Home for Nix Packages");
+
+    let mut bob = environment.node("bob");
+    let heartwood = bob.project("heartwood", "Radicle Heartwood Protocol & Stack");
+
+    let mut seed = seed.spawn();
+    let bob = bob.spawn();
+    let eve = eve.spawn();
+
+    seed.connect(&eve);
+    seed.connect(&bob);
+
+    seed.has_remote_of(&heartwood, &bob.id);
+    seed.has_remote_of(&nix, &eve.id);
+
+    formula(
+        &environment.tempdir(),
+        "examples/rad-seed-policy-allow-scope-followed.md",
+    )
+    .unwrap()
+    .home(
+        "seed",
+        seed.home.path(),
+        [("RAD_HOME", seed.home.path().display())],
+    )
+    .home(
+        "bob",
+        bob.home.path(),
+        [("RAD_HOME", bob.home.path().display())],
+    )
+    .home(
+        "eve",
+        eve.home.path(),
+        [("RAD_HOME", eve.home.path().display())],
+    )
+    .run()
+    .unwrap();
+}
+
+#[test]
 fn rad_seed_policy_allow_no_scope() {
     let mut environment = Environment::new();
     let alice = environment.node_with(Config {
@@ -2881,6 +2929,8 @@ fn rad_seed_policy_allow_no_scope() {
         },
         ..Config::test(Alias::new("alice"))
     });
+    // IS Implicit
+    // println!(">>> {:#?}", alice.config);
 
     let alice = alice.spawn();
 
