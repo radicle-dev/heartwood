@@ -362,16 +362,34 @@ pub enum AddressConfig {
     Forward,
 }
 
+/// Temporary [`Profile::Scope`] type wrapper for tracking implicitly vs explicitly set "scope" in
+/// node config.
+///
+/// Implicitly defaulted [`Profile::Scope`] will be removed in the next few versions (added v1.6.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+pub enum MigratingScope {
+    Explicit(Scope),
+    Implicit(Scope),
+}
+
+impl From<MigratingScope> for Scope {
+    fn from(value: MigratingScope) -> Self {
+        match value {
+            MigratingScope::Explicit(scope) => scope,
+            MigratingScope::Implicit(scope) => scope,
+        }
+    }
+}
+
 /// Default seeding policy. Applies when no repository policies for the given repo are found.
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "default")]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum DefaultSeedingPolicy {
     /// Allow seeding.
     Allow {
         /// Seeding scope.
-        #[serde(default)]
-        scope: Scope,
+        scope: MigratingScope,
     },
     /// Block seeding.
     #[default]
@@ -386,7 +404,9 @@ impl DefaultSeedingPolicy {
 
     /// Seed everything from anyone.
     pub fn permissive() -> Self {
-        Self::Allow { scope: Scope::All }
+        Self::Allow {
+            scope: MigratingScope::Explicit(Scope::All),
+        }
     }
 }
 
@@ -394,8 +414,76 @@ impl From<DefaultSeedingPolicy> for SeedingPolicy {
     fn from(policy: DefaultSeedingPolicy) -> Self {
         match policy {
             DefaultSeedingPolicy::Block => Self::Block,
-            DefaultSeedingPolicy::Allow { scope } => Self::Allow { scope },
+            DefaultSeedingPolicy::Allow { scope } => match scope {
+                MigratingScope::Explicit(scope) => SeedingPolicy::Allow { scope },
+                MigratingScope::Implicit(scope) => SeedingPolicy::Allow { scope },
+            },
         }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for DefaultSeedingPolicy {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Debug, Deserialize, Default)]
+        #[serde(rename_all = "camelCase", tag = "default")]
+        pub enum Shadow {
+            /// Allow seeding.
+            Allow {
+                /// Seeding scope.
+                scope: Option<Scope>,
+            },
+            /// Block seeding.
+            #[default]
+            Block,
+        }
+
+        let shadow = Shadow::deserialize(deserializer)?;
+
+        match shadow {
+            Shadow::Allow { scope: None } => Ok(Self::Allow {
+                scope: MigratingScope::Implicit(Scope::All),
+            }),
+            Shadow::Allow { scope: Some(scope) } => Ok(Self::Allow {
+                scope: MigratingScope::Explicit(scope),
+            }),
+            Shadow::Block => Ok(Self::Block),
+        }
+    }
+}
+
+impl serde::Serialize for DefaultSeedingPolicy {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[derive(Debug, Serialize, Default)]
+        #[serde(rename_all = "camelCase", tag = "default")]
+        pub enum Shadow {
+            /// Allow seeding.
+            Allow {
+                /// Seeding scope.
+                #[serde(skip_serializing_if = "Option::is_none")]
+                scope: Option<Scope>,
+            },
+            /// Block seeding.
+            #[default]
+            Block,
+        }
+
+        let shadow = match self {
+            DefaultSeedingPolicy::Allow { scope } => match scope {
+                MigratingScope::Explicit(scope) => Shadow::Allow {
+                    scope: Some(*scope),
+                },
+                MigratingScope::Implicit(_) => Shadow::Allow { scope: None },
+            },
+            DefaultSeedingPolicy::Block => Shadow::Block,
+        };
+
+        shadow.serialize(serializer)
     }
 }
 
@@ -682,5 +770,101 @@ mod test {
             super::LimitConnectionsInbound::default().0,
         );
         assert_eq!(config.limits.connection.outbound.0, 1337);
+    }
+
+    #[test]
+    fn deserialize_migrating_scope() {
+        use super::{DefaultSeedingPolicy, MigratingScope};
+        use crate::node::policy::Scope;
+        use serde_json::json;
+
+        let seeding_policy: DefaultSeedingPolicy = serde_json::from_value(json!({
+            "default": "allow"
+        }))
+        .unwrap();
+
+        assert_eq!(
+            seeding_policy,
+            DefaultSeedingPolicy::Allow {
+                scope: MigratingScope::Implicit(Scope::All)
+            }
+        );
+
+        let seeding_policy: DefaultSeedingPolicy = serde_json::from_value(json!({
+            "default": "allow",
+            "scope": null
+        }))
+        .unwrap();
+
+        assert_eq!(
+            seeding_policy,
+            DefaultSeedingPolicy::Allow {
+                scope: MigratingScope::Implicit(Scope::All)
+            }
+        );
+
+        let seeding_policy: DefaultSeedingPolicy = serde_json::from_value(json!({
+            "default": "allow",
+            "scope": "all"
+        }))
+        .unwrap();
+
+        assert_eq!(
+            seeding_policy,
+            DefaultSeedingPolicy::Allow {
+                scope: MigratingScope::Explicit(Scope::All)
+            }
+        );
+
+        let seeding_policy: DefaultSeedingPolicy = serde_json::from_value(json!({
+            "default": "allow",
+            "scope": "followed"
+        }))
+        .unwrap();
+
+        assert_eq!(
+            seeding_policy,
+            DefaultSeedingPolicy::Allow {
+                scope: MigratingScope::Explicit(Scope::Followed)
+            }
+        )
+    }
+
+    #[test]
+    fn serialize_migrating_scope() {
+        use super::{DefaultSeedingPolicy, MigratingScope};
+        use crate::node::policy::Scope;
+        use serde_json::json;
+
+        assert_eq!(
+            json!({
+                "default": "allow"
+            }),
+            serde_json::to_value(DefaultSeedingPolicy::Allow {
+                scope: MigratingScope::Implicit(Scope::All)
+            })
+            .unwrap()
+        );
+
+        assert_eq!(
+            json!({
+                "default": "allow",
+                "scope": "all"
+            }),
+            serde_json::to_value(DefaultSeedingPolicy::Allow {
+                scope: MigratingScope::Explicit(Scope::All)
+            })
+            .unwrap()
+        );
+        assert_eq!(
+            json!({
+                "default": "allow",
+                "scope": "followed"
+            }),
+            serde_json::to_value(DefaultSeedingPolicy::Allow {
+                scope: MigratingScope::Explicit(Scope::Followed)
+            })
+            .unwrap()
+        );
     }
 }
