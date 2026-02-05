@@ -2872,3 +2872,24 @@ fn rad_workflow() {
     )
     .unwrap();
 }
+
+#[test]
+fn rad_seed_policy_allow_no_scope() {
+    let mut environment = Environment::new();
+    let alice = environment.node_with(Config {
+        seeding_policy: DefaultSeedingPolicy::Allow {
+            scope: node::config::Scope::implicit(),
+        },
+        ..Config::test(Alias::new("alice"))
+    });
+
+    let alice = alice.spawn();
+
+    test(
+        "examples/rad-seed-policy-allow-no-scope.md",
+        environment.work(&alice),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}

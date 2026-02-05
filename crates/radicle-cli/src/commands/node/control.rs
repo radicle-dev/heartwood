@@ -257,7 +257,7 @@ pub fn connect_many(
 }
 
 pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
-    for warning in crate::warning::nodes_renamed(&profile.config) {
+    for warning in crate::warning::config_warnings(&profile.config) {
         term::warning(warning);
     }
 

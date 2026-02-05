@@ -131,7 +131,7 @@ fn stderr_of(bin: &str, args: &[&str]) -> anyhow::Result<String> {
 
 fn collect_warnings(profile: Option<&Profile>) -> Vec<String> {
     match profile {
-        Some(profile) => crate::warning::nodes_renamed(&profile.config),
+        Some(profile) => crate::warning::config_warnings(&profile.config),
         None => vec!["No Radicle profile found.".to_string()],
     }
 }

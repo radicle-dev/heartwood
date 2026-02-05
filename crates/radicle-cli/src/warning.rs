@@ -22,26 +22,51 @@ fn nodes_renamed_for_option(
     option: &'static str,
     iter: impl IntoIterator<Item = ConnectAddress>,
 ) -> Vec<String> {
-    let mut warnings: Vec<String> = vec![];
-
-    for (i, value) in iter.into_iter().enumerate() {
+    iter.into_iter().enumerate().fold(Vec::new(), |mut warnings, (i, value)| {
         let old: Address = value.into();
         if let Some(new) = NODES_RENAMED.get(&old) {
             warnings.push(format!(
-                "Value of configuration option `{option}` at index {i} mentions node with address '{old}', which has been renamed to '{new}'. Please update your configuration."
+                "Value of configuration option `{option}` at index {i} mentions node with address '{old}', which has been renamed to '{new}'. Please edit your configuration file to use the new address."
             ));
         }
-    }
-
-    warnings
+        warnings
+    })
 }
 
-pub(crate) fn nodes_renamed(config: &Config) -> Vec<String> {
+fn nodes_renamed(config: &Config) -> Vec<String> {
     let mut warnings = nodes_renamed_for_option("node.connect", config.node.connect.clone());
     warnings.extend(nodes_renamed_for_option(
         "preferredSeeds",
         config.preferred_seeds.clone(),
     ));
+
+    warnings
+}
+
+fn implicit_seeding_policy_allow_scope(config: &Config) -> Vec<String> {
+    use radicle::node::config::DefaultSeedingPolicy;
+    use radicle::node::policy;
+
+    let DefaultSeedingPolicy::Allow { scope } = config.node.seeding_policy else {
+        return vec![];
+    };
+    if scope.is_implicit() {
+        let scope = scope.into_inner();
+        vec![format!(
+                "Configuration option 'node.seedingPolicy.scope' is not set, and thus takes the value '{scope}' by default. The default value will change to '{}' in a future release. Please edit your configuration file, and set it to one of ['{}', '{}'] explicitly.",
+                policy::Scope::Followed,
+                policy::Scope::All,
+                policy::Scope::Followed,
+            )]
+    } else {
+        vec![]
+    }
+}
+
+pub(crate) fn config_warnings(config: &Config) -> Vec<String> {
+    let mut warnings = nodes_renamed(config);
+    warnings.extend(implicit_seeding_policy_allow_scope(config));
+
     warnings
 }
 
