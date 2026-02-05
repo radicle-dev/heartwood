@@ -68,6 +68,7 @@ pretty_assertions = { workspace = true }
 qcheck = { workspace = true }
 qcheck-macros = { workspace = true }
 radicle-cob = { workspace = true, features = ["stable-commit-ids", "test"] }
+radicle-core = {workspace = true, features = ["qcheck"]}
 radicle-crypto = { workspace = true, features = ["test"] }
 radicle-git-metadata = { workspace = true }
 tempfile = { workspace = true }
