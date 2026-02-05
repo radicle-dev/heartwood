@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use radicle::node::config::ConnectAddress;
+use radicle::node::policy::Scope;
 use radicle::node::Address;
 use radicle::profile::Config;
 
@@ -22,26 +23,48 @@ fn nodes_renamed_for_option(
     option: &'static str,
     iter: impl IntoIterator<Item = ConnectAddress>,
 ) -> Vec<String> {
-    let mut warnings: Vec<String> = vec![];
-
-    for (i, value) in iter.into_iter().enumerate() {
+    iter.into_iter().enumerate().fold(Vec::new(), |mut warnings, (i, value)| {
         let old: Address = value.into();
         if let Some(new) = NODES_RENAMED.get(&old) {
             warnings.push(format!(
                 "Value of configuration option `{option}` at index {i} mentions node with address '{old}', which has been renamed to '{new}'. Please update your configuration."
             ));
         }
-    }
-
-    warnings
+        warnings
+    })
 }
 
-pub(crate) fn nodes_renamed(config: &Config) -> Vec<String> {
+fn nodes_renamed(config: &Config) -> Vec<String> {
     let mut warnings = nodes_renamed_for_option("node.connect", config.node.connect.clone());
     warnings.extend(nodes_renamed_for_option(
         "preferred_seeds",
         config.preferred_seeds.clone(),
     ));
+
+    warnings
+}
+
+fn implicit_seeding_policy_allow_scope(config: &Config) -> Vec<String> {
+    use radicle::node::config::{DefaultSeedingPolicy, MigratingScope};
+
+    if let DefaultSeedingPolicy::Allow {
+        scope: MigratingScope::Implicit(scope),
+    } = config.node.seeding_policy
+    {
+        vec![format!(
+                "node 'seedingPolicy.scope' has been set to '{scope}' by default. This default value will be removed in a future release. Please explicitly set it to one of ['{}', '{}'] in your node config.",
+                Scope::All,
+                Scope::Followed,
+        )]
+    } else {
+        vec![]
+    }
+}
+
+pub(crate) fn config_warnings(config: &Config) -> Vec<String> {
+    let mut warnings = nodes_renamed(config);
+    warnings.extend(implicit_seeding_policy_allow_scope(config));
+
     warnings
 }
 
