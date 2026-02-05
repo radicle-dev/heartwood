@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use radicle::node::config::ConnectAddress;
-use radicle::node::policy::Scope;
 use radicle::node::Address;
 use radicle::profile::Config;
 
@@ -45,17 +44,20 @@ fn nodes_renamed(config: &Config) -> Vec<String> {
 }
 
 fn implicit_seeding_policy_allow_scope(config: &Config) -> Vec<String> {
-    use radicle::node::config::{DefaultSeedingPolicy, MigratingScope};
+    use radicle::node::config::DefaultSeedingPolicy;
+    use radicle::node::policy;
 
-    if let DefaultSeedingPolicy::Allow {
-        scope: MigratingScope::Implicit(scope),
-    } = config.node.seeding_policy
-    {
-        vec![format!(
+    if let DefaultSeedingPolicy::Allow { scope } = config.node.seeding_policy {
+        if scope.is_implicit() {
+            let scope = scope.into_inner();
+            vec![format!(
                 "node 'seedingPolicy.scope' has been set to '{scope}' by default. This default value will be removed in a future release. Please explicitly set it to one of ['{}', '{}'] in your node config.",
-                Scope::All,
-                Scope::Followed,
-        )]
+                policy::Scope::All,
+                policy::Scope::Followed,
+            )]
+        } else {
+            vec![]
+        }
     } else {
         vec![]
     }
