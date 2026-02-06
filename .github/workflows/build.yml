@@ -30,4 +30,11 @@ jobs:
           path: target
           key: ${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}-cargo-target
       - run: cargo build --workspace --verbose --all-features
-      - run: cargo test  --workspace --verbose --all-features
+      - if: runner.os != 'Windows'
+        run: cargo test  --workspace --verbose --all-features -- --nocapture
+      - if: runner.os == 'Windows'
+        run: cargo test  --workspace --verbose --all-features -- --nocapture
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: trace
+          RUST_TEST_THREADS: 1
