@@ -7,7 +7,7 @@ use serde_json as json;
 use thiserror::Error;
 
 use crate::explorer::Explorer;
-use crate::node::config::{DefaultSeedingPolicy, MigratingScope};
+use crate::node::config::DefaultSeedingPolicy;
 use crate::node::policy::{Policy, Scope};
 use crate::node::Alias;
 use crate::{cli, node, web};
@@ -193,7 +193,7 @@ impl Config {
                 log::warn!(target: "radicle", "Overwriting `seedingPolicy` configuration");
                 cfg.node.seeding_policy = match policy {
                     Policy::Allow => DefaultSeedingPolicy::Allow {
-                        scope: MigratingScope::Explicit(scope),
+                        scope: scope.into(),
                     },
                     Policy::Block => DefaultSeedingPolicy::Block,
                 }
