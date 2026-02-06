@@ -30,12 +30,6 @@ MemoryDenyWriteExecute=true
 # `rad auth`.
 #Environment=RAD_PASSPHRASE=snickerdoodle
 
-# Basic hardening options. For more, please refer to `systemd-analyze security`.
-PrivateTmp=true
-ProtectSystem=strict
-NoNewPrivileges=true
-MemoryDenyWriteExecute=true
-
 User=seed
 Group=seed
 
