@@ -62,6 +62,14 @@
         commonArgs = mkCommonArgs craneLib;
       };
 
+      rustupDevShell = rec {
+        toolchain = rustup.toolchain.override (prev: {
+          extensions = prev.extensions ++ ["rust-analyzer"];
+        });
+        craneLib = (crane.mkLib pkgs).overrideToolchain toolchain;
+        commonArgs = mkCommonArgs craneLib;
+      };
+
       srcFilters = path: type:
         builtins.any (suffix: lib.hasSuffix suffix path) [
           ".sql" # schemas
@@ -336,7 +344,7 @@
           };
         };
 
-      devShells.default = rustup.craneLib.devShell {
+      devShells.default = rustupDevShell.craneLib.devShell {
         inherit (self.checks.${system}.pre-commit-check) shellHook;
         buildInputs = self.checks.${system}.pre-commit-check.enabledPackages;
 
@@ -348,11 +356,10 @@
           cargo-nextest
           cargo-semver-checks
           ripgrep
-          rust-analyzer
           sqlite
         ];
 
-        env.RUST_SRC_PATH = "${rustup.toolchain}/lib/rustlib/src/rust/library";
+        env.RUST_SRC_PATH = "${rustupDevShell.toolchain}/lib/rustlib/src/rust/library";
       };
     });
 }
