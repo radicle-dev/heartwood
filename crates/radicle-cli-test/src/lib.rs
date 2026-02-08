@@ -170,6 +170,11 @@ pub struct TestFormula {
 
 impl TestFormula {
     pub fn new(cwd: PathBuf) -> Self {
+        #[cfg(windows)]
+        const PATH_SEPARATOR: char = ';';
+        #[cfg(not(windows))]
+        const PATH_SEPARATOR: char = ':';
+
         Self {
             cwd: cwd.clone(),
             env: HashMap::new(),
@@ -178,7 +183,8 @@ impl TestFormula {
             subs: Substitutions::new(),
             bins: env::var("PATH")
                 .map(|env_path| {
-                    let mut bins: Vec<PathBuf> = env_path.split(':').map(PathBuf::from).collect();
+                    let mut bins: Vec<PathBuf> =
+                        env_path.split(PATH_SEPARATOR).map(PathBuf::from).collect();
                     // Add current working directory to `$PATH`,
                     // this makes it more convenient to execute scripts during testing.
                     bins.push(cwd);
