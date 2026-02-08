@@ -192,7 +192,7 @@ pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> an
                 term::format::dim("(RID)"),
                 term::format::highlight(rid.urn())
             );
-            let directory = if path == env::current_dir()? {
+            let directory = if path == dunce::canonicalize(env::current_dir()?)? {
                 "this directory".to_owned()
             } else {
                 term::format::tertiary(path.display()).to_string()
