@@ -8,7 +8,7 @@ use radicle::git;
 use radicle::node;
 use radicle::node::address::Store as _;
 use radicle::node::config::seeds::RADICLE_NODE_BOOTSTRAP_IRIS;
-use radicle::node::config::{DefaultSeedingPolicy, Scope as ConfigScope};
+use radicle::node::config::DefaultSeedingPolicy;
 use radicle::node::events::Event;
 use radicle::node::policy::Scope;
 use radicle::node::routing::Store as _;
@@ -2877,7 +2877,7 @@ fn rad_seed_policy_allow_no_scope() {
     let mut environment = Environment::new();
     let alice = environment.node_with(Config {
         seeding_policy: DefaultSeedingPolicy::Allow {
-            scope: ConfigScope::from(None),
+            scope: node::config::Scope::implicit(),
         },
         ..Config::test(Alias::new("alice"))
     });

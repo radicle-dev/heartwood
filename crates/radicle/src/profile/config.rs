@@ -193,7 +193,7 @@ impl Config {
                 log::warn!(target: "radicle", "Overwriting `seedingPolicy` configuration");
                 cfg.node.seeding_policy = match policy {
                     Policy::Allow => DefaultSeedingPolicy::Allow {
-                        scope: scope.into(),
+                        scope: node::config::Scope::explicit(scope),
                     },
                     Policy::Block => DefaultSeedingPolicy::Block,
                 }

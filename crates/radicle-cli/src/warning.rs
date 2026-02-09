@@ -47,17 +47,16 @@ fn implicit_seeding_policy_allow_scope(config: &Config) -> Vec<String> {
     use radicle::node::config::DefaultSeedingPolicy;
     use radicle::node::policy;
 
-    if let DefaultSeedingPolicy::Allow { scope } = config.node.seeding_policy {
-        if scope.is_implicit() {
-            let scope = scope.into_inner();
-            vec![format!(
+    let DefaultSeedingPolicy::Allow { scope } = config.node.seeding_policy else {
+        return vec![];
+    };
+    if scope.is_implicit() {
+        let scope = scope.into_inner();
+        vec![format!(
                 "node 'seedingPolicy.scope' has been set to '{scope}' by default. This default value will be removed in a future release. Please explicitly set it to one of ['{}', '{}'] in your node config.",
                 policy::Scope::All,
                 policy::Scope::Followed,
             )]
-        } else {
-            vec![]
-        }
     } else {
         vec![]
     }
