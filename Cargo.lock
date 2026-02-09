@@ -2888,6 +2888,7 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-toml-ng",
  "tree-sitter-typescript",
+ "winsplit",
  "zeroize",
 ]
 
@@ -2902,6 +2903,7 @@ dependencies = [
  "shlex",
  "snapbox",
  "thiserror 2.0.17",
+ "winsplit",
 ]
 
 [[package]]
@@ -3201,6 +3203,7 @@ dependencies = [
  "thiserror 2.0.17",
  "unicode-display-width",
  "unicode-segmentation",
+ "winsplit",
  "zeroize",
 ]
 
@@ -5106,6 +5109,12 @@ dependencies = [
  "sync-ptr",
  "windows",
 ]
+
+[[package]]
+name = "winsplit"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ab703352da6a72f35c39a533526393725640575bb211f61987a2748323ad956"
 
 [[package]]
 name = "wit-bindgen-rt"

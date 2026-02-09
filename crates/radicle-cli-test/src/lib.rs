@@ -353,7 +353,13 @@ impl TestFormula {
                     content.push('\n');
                 } else if let Some(line) = line.strip_prefix('$') {
                     let line = line.trim();
+
+                    #[cfg(unix)]
                     let parts = shlex::split(line).ok_or(Error::Parse)?;
+
+                    #[cfg(windows)]
+                    let parts = winsplit::split(line);
+
                     let (cmd, args) = parts.split_first().ok_or(Error::Parse)?;
 
                     test.assertions.push(Assertion {

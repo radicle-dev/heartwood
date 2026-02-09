@@ -69,6 +69,7 @@ sqlite = "0.32.0"
 tempfile = "3.3.0"
 thiserror = { version = "2", default-features = false }
 winpipe = "0.1.1"
+winsplit = "0.1.0"
 zeroize = "1.5.7"
 
 # Crates from the "radicle-git" workspace. These should be synced manually.
