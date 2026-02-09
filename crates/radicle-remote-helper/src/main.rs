@@ -18,6 +18,7 @@
 
 mod fetch;
 mod list;
+mod protocol;
 mod push;
 mod service;
 
@@ -35,6 +36,8 @@ use radicle::version::Version;
 use radicle::{cob, profile};
 use radicle::{git, storage, Profile};
 use radicle_cli::terminal as cli;
+
+use crate::protocol::{Command, Line};
 
 pub const VERSION: Version = Version {
     name: env!("CARGO_BIN_NAME"),
@@ -121,6 +124,9 @@ pub enum Error {
     /// Invalid object ID.
     #[error("invalid oid: {0}")]
     InvalidOid(#[from] radicle::git::ParseOidError),
+    /// Protocol error.
+    #[error(transparent)]
+    Protocol(#[from] protocol::Error),
 }
 
 /// Models values for the `verbosity` option, see
@@ -252,46 +258,72 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
     }
 
     loop {
-        let tokens = read_line(&stdin, &mut line)?;
-
-        if debug {
-            eprintln!("{}: {}", VERSION.name, &tokens.join(" "));
+        line.clear();
+        let read = stdin.read_line(&mut line)?;
+        if read == 0 {
+            break;
         }
 
-        match tokens.as_slice() {
-            ["capabilities"] => {
+        let cmd = Command::parse_line(&line)?;
+
+        if debug {
+            eprintln!("{}: {:?}", VERSION.name, cmd);
+        }
+
+        match cmd {
+            Line::Valid(Command::Capabilities) => {
                 println!("option");
                 println!("push"); // Implies `list` command.
                 println!("fetch");
                 println!();
             }
-            ["option", "verbosity", verbosity] => match verbosity.parse::<Verbosity>() {
-                Ok(verbosity) => {
-                    opts.verbosity = verbosity;
-                    println!("ok");
+            Line::Valid(Command::Option { key, value }) => match key.as_str() {
+                "verbosity" => {
+                    if let Some(val) = value {
+                        match val.parse::<Verbosity>() {
+                            Ok(verbosity) => {
+                                opts.verbosity = verbosity;
+                                println!("ok");
+                            }
+                            Err(err) => {
+                                println!("error {err}");
+                            }
+                        }
+                    } else {
+                        println!("error missing value for verbosity");
+                    }
                 }
-                Err(err) => {
-                    println!("error {err}");
+                "push-option" => {
+                    if let Some(val) = value {
+                        let args = val.split(' ').collect::<Vec<_>>();
+                        // Nb. Git documentation says that we can print `error <msg>` or `unsupported`
+                        // for options that are not supported, but this results in Git saying that
+                        // "push-option" itself is an unsupported option, which is not helpful or correct.
+                        // Hence, we just exit with an error in this case.
+                        push_option(&args, &mut opts)?;
+                        println!("ok");
+                    } else {
+                        println!("error missing value for push-option");
+                    }
+                }
+                "cas" => {
+                    if let Some(val) = value {
+                        expected_refs.push(val);
+                        println!("ok");
+                    } else {
+                        println!("error missing value for cas");
+                    }
+                }
+                "progress" => {
+                    println!("unsupported");
+                }
+                _ => {
+                    println!("unsupported");
                 }
             },
-            ["option", "push-option", args @ ..] => {
-                // Nb. Git documentation says that we can print `error <msg>` or `unsupported`
-                // for options that are not supported, but this results in Git saying that
-                // "push-option" itself is an unsupported option, which is not helpful or correct.
-                // Hence, we just exit with an error in this case.
-                push_option(args, &mut opts)?;
-                println!("ok");
-            }
-            ["option", "cas", refstr] => {
-                expected_refs.push((*refstr).to_owned());
-                println!("ok");
-            }
-            ["option", "progress", ..] | ["option", ..] => {
-                println!("unsupported");
-            }
-            ["fetch", oid, refstr] => {
-                let oid = git::Oid::from_str(oid)?;
-                let refstr = git::fmt::RefString::try_from(*refstr)?;
+            Line::Valid(Command::Fetch { oid, refstr }) => {
+                let oid = git::Oid::from_str(&oid)?;
+                let refstr = git::fmt::RefString::try_from(refstr.as_str())?;
 
                 fetch::run(vec![(oid, refstr)], stored, &git, &stdin, opts.verbosity)?;
 
@@ -300,9 +332,9 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
 
                 return Ok(());
             }
-            ["push", refspec] => {
+            Line::Valid(Command::Push(refspec)) => {
                 let output = push::run(
-                    vec![refspec.to_string()],
+                    vec![refspec],
                     remote,
                     url,
                     &stored,
@@ -321,28 +353,27 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
 
                 return Ok(());
             }
-            ["list"] => {
+            Line::Valid(Command::List) => {
                 let refs = list::for_fetch(&url, &profile, &stored)?;
                 for line in refs {
                     println!("{line}");
                 }
                 println!();
             }
-            ["list", "for-push"] => {
+            Line::Valid(Command::ListForPush) => {
                 let refs = list::for_push(&profile, &stored)?;
                 for line in refs {
                     println!("{line}");
                 }
                 println!();
             }
-            [] => {
+            Line::Blank => {
                 return Ok(());
-            }
-            _ => {
-                return Err(Error::InvalidCommand(line.trim().to_owned()));
             }
         }
     }
+
+    Ok(())
 }
 
 /// Parse a single push option. Returns `Ok` if it was successful.
@@ -392,20 +423,6 @@ fn push_option(args: &[&str], opts: &mut Options) -> Result<(), Error> {
         }
     }
     Ok(())
-}
-
-/// Read one line from stdin, and split it into tokens.
-pub(crate) fn read_line<'a>(stdin: &io::Stdin, line: &'a mut String) -> io::Result<Vec<&'a str>> {
-    line.clear();
-
-    let read = stdin.read_line(line)?;
-    if read == 0 {
-        return Ok(vec![]);
-    }
-    let line = line.trim();
-    let tokens = line.split(' ').filter(|t| !t.is_empty()).collect();
-
-    Ok(tokens)
 }
 
 /// Write a hint to the user.
