@@ -110,12 +110,20 @@ impl Editor {
                 "editor not configured: the `EDITOR` environment variable is not set",
             ));
         };
-        let Some(parts) = shlex::split(cmd.to_string_lossy().as_ref()) else {
+
+        let lossy = cmd.to_string_lossy();
+
+        #[cfg(unix)]
+        let Some(parts) = shlex::split(&lossy) else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("invalid editor command {cmd:?}"),
             ));
         };
+
+        #[cfg(windows)]
+        let parts = winsplit::split(&lossy);
+
         let Some((program, args)) = parts.split_first() else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,

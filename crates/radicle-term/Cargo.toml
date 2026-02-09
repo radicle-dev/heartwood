@@ -25,12 +25,15 @@ unicode-display-width = "0.3.0"
 unicode-segmentation = "1.7.1"
 zeroize = { workspace = true }
 git2 = { workspace = true, optional = true }
-shlex = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 crossbeam-channel = { workspace = true }
 libc = { workspace = true }
 radicle-signals = { workspace = true }
+shlex = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+winsplit = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

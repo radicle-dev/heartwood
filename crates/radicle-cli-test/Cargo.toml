@@ -16,6 +16,11 @@ escargot = "0.5.7"
 log = { workspace = true, features = ["std"] }
 pretty_assertions = { workspace = true }
 radicle = { workspace = true, features = ["logger", "test"]}
-shlex = { workspace = true }
 snapbox = { workspace = true }
 thiserror = { workspace = true, default-features = true }
+
+[target.'cfg(unix)'.dependencies]
+shlex = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+winsplit = { workspace = true }
