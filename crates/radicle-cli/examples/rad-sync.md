@@ -107,7 +107,7 @@ It's also possible to receive an error if a repository is not found anywhere.
 
 ```
 $ rad seed rad:z39mP9rQAaGmERfUMPULfPUi473tY --no-fetch
-✓ Seeding policy updated for rad:z39mP9rQAaGmERfUMPULfPUi473tY with scope 'all'
+✓ Seeding policy updated for rad:z39mP9rQAaGmERfUMPULfPUi473tY with scope 'followed'
 ```
 ``` (fail)
 $ rad sync rad:z39mP9rQAaGmERfUMPULfPUi473tY

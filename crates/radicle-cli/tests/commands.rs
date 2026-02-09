@@ -572,6 +572,7 @@ fn rad_id_multi_delegate() {
 
     alice.handle.seed(acme, Scope::All).unwrap();
     bob.handle.follow(eve.id, None).unwrap();
+    eve.handle.follow(bob.id, None).unwrap();
     alice.connect(&bob).converge([&bob]);
     eve.connect(&alice).converge([&alice]);
 
@@ -2059,17 +2060,19 @@ fn rad_remote() {
         .handle
         .follow(bob.id, Some(Alias::new("bob")))
         .unwrap();
+    alice
+        .handle
+        .follow(eve.id, Some(Alias::new("eve")))
+        .unwrap();
 
     bob.connect(&alice);
     bob.routes_to(&[(rid, alice.id)]);
     bob.fork(rid, bob.home.path()).unwrap();
-    bob.announce(rid, 2, bob.home.path()).unwrap();
     alice.has_remote_of(&rid, &bob.id);
 
-    eve.connect(&bob);
+    eve.connect(&alice);
     eve.routes_to(&[(rid, alice.id)]);
     eve.fork(rid, eve.home.path()).unwrap();
-    eve.announce(rid, 2, eve.home.path()).unwrap();
     alice.has_remote_of(&rid, &eve.id);
 
     test(
@@ -2864,6 +2867,27 @@ fn rad_workflow() {
         "examples/workflow/6-pulling-contributor.md",
         environment.work(&bob).join("heartwood"),
         Some(&bob.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
+fn rad_seed_policy_allow_no_scope() {
+    let mut environment = Environment::new();
+    let alice = environment.node_with(Config {
+        seeding_policy: DefaultSeedingPolicy::Allow {
+            scope: node::config::Scope::implicit(),
+        },
+        ..Config::test(Alias::new("alice"))
+    });
+
+    let alice = alice.spawn();
+
+    test(
+        "examples/rad-seed-policy-allow-no-scope.md",
+        environment.work(&alice),
+        Some(&alice.home),
         [],
     )
     .unwrap();

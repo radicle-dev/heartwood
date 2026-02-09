@@ -84,7 +84,9 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
                     .repository(rid)
                     .and_then(|repo| repo.project().map(|proj| proj.name().to_string()))
                     .unwrap_or_default();
-                let scope = policy.scope().unwrap_or_default().to_string();
+                let scope = policy
+                    .scope()
+                    .map_or(String::new(), |scope| scope.to_string());
                 let policy = term::format::policy(&Policy::from(policy));
 
                 t.push([

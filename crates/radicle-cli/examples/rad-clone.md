@@ -2,7 +2,7 @@ To create a local copy of a repository on the radicle network, we use the
 `clone` command, followed by the identifier or *RID* of the repository:
 
 ```
-$ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope followed
+$ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ✓ Seeding policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'followed'
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found [..] potential seed(s).
 ✓ Target met: [..] seed(s)
