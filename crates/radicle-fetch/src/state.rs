@@ -87,6 +87,8 @@ pub mod error {
         Resolve(#[from] git::repository::error::Resolve),
         #[error(transparent)]
         Verified(#[from] radicle::identity::DocError),
+        #[error("failed to verify `refs/rad/id`: {0}")]
+        Graph(#[source] radicle::git::raw::Error),
     }
 }
 
@@ -637,14 +639,62 @@ where
         self.handle.verified(head)
     }
 
+    /// Resolve the verified [`Doc`], by choosing a `refs/rad/id` head to
+    /// resolve with.
+    ///
+    /// There are two `refs/rad/id` to possibly choose from:
+    ///
+    ///   1. The `refs/rad/id` of the fetching node, if present
+    ///   2. The `refs/rad/id` of the node being fetched from, if set.
+    ///
+    /// If *neither* of these are present, then `None` is returned.
+    ///
+    /// If *one or the other* of these are present, then try to load the verified
+    /// the [`Doc`].
+    ///
+    /// If *both* of these are present, then check which one is the latest
+    /// update, falling back to the one present in the local repository.
     pub fn canonical(&self) -> Result<Option<Doc>, error::Canonical> {
         let tip = self.refname_to_id(refs::REFS_RAD_ID.clone())?;
         let cached_tip = self.canonical_rad_id();
+        let tip = CanonicalTip::new(tip, cached_tip);
 
-        cached_tip
-            .or(tip)
-            .map(|tip| self.verified(tip).map_err(error::Canonical::from))
-            .transpose()
+        match tip {
+            CanonicalTip::Neither => Ok(None),
+            CanonicalTip::Repository(oid) => {
+                self.verified(oid).map(Some).map_err(error::Canonical::from)
+            }
+            CanonicalTip::Cached(oid) => {
+                self.verified(oid).map(Some).map_err(error::Canonical::from)
+            }
+            CanonicalTip::Both { repository, cached } => {
+                let repo = self.handle.repository();
+                match repo
+                    .backend
+                    .graph_ahead_behind(repository.into(), cached.into())
+                {
+                    Ok((ahead, behind)) => match (ahead, behind) {
+                        (_, 0) => self
+                            .verified(repository)
+                            .map(Some)
+                            .map_err(error::Canonical::from),
+                        (0, m) if m > 0 => self
+                            .verified(cached)
+                            .map(Some)
+                            .map_err(error::Canonical::from),
+                        _ => self
+                            .verified(repository)
+                            .map(Some)
+                            .map_err(error::Canonical::from),
+                    },
+                    Err(err) if err.code() == radicle::git::raw::ErrorCode::NotFound => self
+                        .verified(repository)
+                        .map(Some)
+                        .map_err(error::Canonical::from),
+                    Err(err) => Err(error::Canonical::Graph(err)),
+                }
+            }
+        }
     }
 
     pub fn load(&self, remote: &PublicKey) -> Result<Option<SignedRefsAt>, sigrefs::error::Load> {
@@ -730,5 +780,23 @@ where
         }
 
         Ok(validations)
+    }
+}
+
+enum CanonicalTip {
+    Neither,
+    Repository(Oid),
+    Cached(Oid),
+    Both { repository: Oid, cached: Oid },
+}
+
+impl CanonicalTip {
+    fn new(repository: Option<Oid>, cached: Option<Oid>) -> Self {
+        match (repository, cached) {
+            (None, None) => CanonicalTip::Neither,
+            (None, Some(cached)) => CanonicalTip::Cached(cached),
+            (Some(repository), None) => CanonicalTip::Repository(repository),
+            (Some(repository), Some(cached)) => CanonicalTip::Both { repository, cached },
+        }
     }
 }
