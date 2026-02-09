@@ -310,10 +310,18 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                 )?);
             }
             ["list"] => {
-                list::for_fetch(&url, &profile, &stored)?;
+                let refs = list::for_fetch(&url, &profile, &stored)?;
+                for line in refs {
+                    println!("{line}");
+                }
+                println!();
             }
             ["list", "for-push"] => {
-                list::for_push(&profile, &stored)?;
+                let refs = list::for_push(&profile, &stored)?;
+                for line in refs {
+                    println!("{line}");
+                }
+                println!();
             }
             [] => {
                 return Ok(());

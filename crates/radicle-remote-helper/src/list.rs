@@ -39,17 +39,19 @@ pub fn for_fetch<R: ReadRepository + cob::Store<Namespace = NodeId> + 'static>(
     url: &Url,
     profile: &Profile,
     stored: &R,
-) -> Result<(), Error> {
+) -> Result<Vec<String>, Error> {
+    let mut lines = Vec::new();
+
     if let Some(namespace) = url.namespace {
         // Listing namespaced refs.
         for (name, oid) in stored.references_of(&namespace)? {
-            println!("{oid} {name}");
+            lines.push(format!("{oid} {name}"));
         }
     } else {
         // List the symbolic reference `HEAD`, which is interpreted by
         // Git clients to determine the default branch.
         match stored.head() {
-            Ok((target, _)) => println!("@{target} HEAD"),
+            Ok((target, _)) => lines.push(format!("@{target} HEAD")),
             Err(err) => eprintln!("remote: error resolving HEAD: {err}"),
         }
 
@@ -60,43 +62,45 @@ pub fn for_fetch<R: ReadRepository + cob::Store<Namespace = NodeId> + 'static>(
             git::fmt::pattern!("refs/tags/*"),
         ] {
             for (name, oid) in stored.references_glob(&glob)? {
-                println!("{oid} {name}");
+                lines.push(format!("{oid} {name}"));
             }
         }
 
         // List the patch refs, but do not abort if there is an error,
         // as this would break all fetch behavior.
         // Instead, just output an error to the user.
-        if let Err(e) = patch_refs(profile, stored) {
-            eprintln!("remote: error listing patch refs: {e}");
+        match patch_refs(profile, stored) {
+            Ok(mut refs) => lines.append(&mut refs),
+            Err(e) => eprintln!("remote: error listing patch refs: {e}"),
         }
     }
-    println!();
 
-    Ok(())
+    Ok(lines)
 }
 
 /// List refs for pushing (`git push`).
-pub fn for_push<R: ReadRepository>(profile: &Profile, stored: &R) -> Result<(), Error> {
+pub fn for_push<R: ReadRepository>(profile: &Profile, stored: &R) -> Result<Vec<String>, Error> {
+    let mut lines = Vec::new();
+
     // Only our own refs can be pushed to.
     for (name, oid) in stored.references_of(profile.id())? {
         // Only branches and tags can be pushed to.
         if name.starts_with(git::fmt::refname!("refs/heads").as_str())
             || name.starts_with(git::fmt::refname!("refs/tags").as_str())
         {
-            println!("{oid} {name}");
+            lines.push(format!("{oid} {name}"));
         }
     }
-    println!();
 
-    Ok(())
+    Ok(lines)
 }
 
 /// List canonical patch references. These are magic refs that can be used to pull patch updates.
 fn patch_refs<R: ReadRepository + cob::Store<Namespace = NodeId> + 'static>(
     profile: &Profile,
     stored: &R,
-) -> Result<(), Error> {
+) -> Result<Vec<String>, Error> {
+    let mut lines = Vec::new();
     let patches = crate::patches(profile, stored)?;
     for patch in patches.list()? {
         let Ok((id, patch)) = patch else {
@@ -106,8 +110,8 @@ fn patch_refs<R: ReadRepository + cob::Store<Namespace = NodeId> + 'static>(
         let head = patch.head();
 
         if patch.is_open() && stored.commit(*head).is_ok() {
-            println!("{} {}", patch.head(), git::refs::patch(&id));
+            lines.push(format!("{} {}", patch.head(), git::refs::patch(&id)));
         }
     }
-    Ok(())
+    Ok(lines)
 }
