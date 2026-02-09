@@ -239,7 +239,13 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
 
     let stdin = io::stdin();
     let mut line = String::new();
-    let mut opts = Options::default();
+    let mut opts = Options {
+        // Introduce a safer default, do not sync on push without explicit `--sync`.
+        // As part of our efforts to reduce new user error we've changed the default
+        // so new users can avoid easy mistakes like pushing secrets to the network.
+        no_sync: true,
+        ..Options::default()
+    };
     let mut expected_refs = Vec::new();
 
     if let Err(e) = radicle::io::set_file_limit(4096) {
