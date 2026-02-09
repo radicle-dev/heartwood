@@ -19,6 +19,7 @@
 mod fetch;
 mod list;
 mod push;
+mod service;
 
 use std::path::PathBuf;
 use std::process;
@@ -241,6 +242,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
     let mut line = String::new();
     let mut opts = Options::default();
     let mut expected_refs = Vec::new();
+    let git = service::RealGitService;
 
     if let Err(e) = radicle::io::set_file_limit(4096) {
         if debug {
@@ -290,12 +292,12 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                 let oid = git::Oid::from_str(oid)?;
                 let refstr = git::fmt::RefString::try_from(*refstr)?;
 
-                return Ok(fetch::run(
-                    vec![(oid, refstr)],
-                    stored,
-                    &stdin,
-                    opts.verbosity,
-                )?);
+                fetch::run(vec![(oid, refstr)], stored, &git, &stdin, opts.verbosity)?;
+
+                // Nb. An empty line means we're done
+                println!();
+
+                return Ok(());
             }
             ["push", refspec] => {
                 return Ok(push::run(

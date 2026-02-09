@@ -4,8 +4,8 @@ use std::{io, process::ExitStatus};
 use thiserror::Error;
 
 use radicle::git;
-use radicle::storage::ReadRepository;
 
+use crate::service::GitService;
 use crate::{read_line, Verbosity};
 
 #[derive(Debug, Error)]
@@ -33,9 +33,10 @@ pub enum Error {
 }
 
 /// Run a git fetch command.
-pub fn run<R: ReadRepository>(
+pub fn run<G: GitService>(
     mut refs: Vec<(git::Oid, git::fmt::RefString)>,
-    stored: R,
+    stored: radicle::storage::git::Repository,
+    git: &G,
     stdin: &io::Stdin,
     verbosity: Verbosity,
 ) -> Result<(), Error> {
@@ -58,7 +59,7 @@ pub fn run<R: ReadRepository>(
     }
 
     // Verify them and prepare the final refspecs.
-    let oids = refs.into_iter().map(|(oid, _)| oid);
+    let oids = refs.into_iter().map(|(oid, _)| oid).collect();
 
     // Rely on the environment variable `GIT_DIR` pointing at the repository.
     let working = None;
@@ -72,7 +73,7 @@ pub fn run<R: ReadRepository>(
     // used in the working copy, this will always result in the object
     // missing. This seems to only be an issue with `libgit2`/`git2`
     // and not `git` itself.
-    let output = git::process::fetch_pack(working, &stored, oids, verbosity.into())?;
+    let output = git.fetch_pack(working, &stored, oids, verbosity.into())?;
 
     if !output.status.success() {
         return Err(Error::FetchPackFailed {
@@ -81,9 +82,6 @@ pub fn run<R: ReadRepository>(
             status: output.status,
         });
     }
-
-    // Nb. An empty line means we're done.
-    println!();
 
     Ok(())
 }
