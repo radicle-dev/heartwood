@@ -30,7 +30,7 @@ use radicle::{git, rad};
 use radicle_cli as cli;
 use radicle_cli::terminal as term;
 
-use crate::service::NodeSession;
+use crate::service::{GitService, NodeSession};
 use crate::{hint, read_line, warn, Options, Verbosity};
 
 #[derive(Debug, Error)]
@@ -252,8 +252,9 @@ pub fn run(
     stdin: &io::Stdin,
     opts: Options,
     expected_refs: &[String],
+    git: &impl GitService,
     node: &mut impl NodeSession,
-) -> Result<(), Error> {
+) -> Result<Vec<String>, Error> {
     // Don't allow push if either of these conditions is true:
     //
     // 1. Our key is not in ssh-agent, which means we won't be able to sign the refs.
@@ -269,6 +270,7 @@ pub fn run(
     let mut line = String::new();
     let mut ok = HashMap::new();
     let hints = opts.hints || profile.hints();
+    let mut output = Vec::new();
 
     assert_eq!(signer.public_key(), &nid);
 
@@ -331,6 +333,7 @@ pub fn run(
                         &signer,
                         profile,
                         opts.clone(),
+                        git,
                     ),
                     PushAction::UpdatePatch { dst, patch } => patch_update(
                         src,
@@ -344,6 +347,7 @@ pub fn run(
                         &signer,
                         opts.clone(),
                         expected_refs,
+                        git,
                     ),
                     PushAction::PushRef { dst } => {
                         let identity = stored.identity()?;
@@ -365,6 +369,7 @@ pub fn run(
                             &signer,
                             opts.verbosity,
                             expected_refs,
+                            git,
                         )?;
                         // If we're trying to update the canonical head, make sure
                         // we don't diverge from the current head. This only applies
@@ -393,11 +398,11 @@ pub fn run(
         match result {
             // Let Git tooling know that this ref has been pushed.
             Ok(resource) => {
-                println!("ok {}", cmd.dst());
+                output.push(format!("ok {}", cmd.dst()));
                 ok.insert(spec, resource);
             }
             // Let Git tooling know that there was an error pushing the ref.
-            Err(e) => println!("error {} {e}", cmd.dst()),
+            Err(e) => output.push(format!("error {} {e}", cmd.dst())),
         }
     }
 
@@ -476,10 +481,7 @@ pub fn run(
         }
     }
 
-    // Done.
-    println!();
-
-    Ok(())
+    Ok(output)
 }
 
 fn patch_base(
@@ -509,15 +511,25 @@ fn patch_base(
 ///
 /// We choose to push a temporary reference to storage, which gets deleted on
 /// [`Drop::drop`].
-struct TempPatchRef<'a> {
+struct TempPatchRef<'a, G> {
     stored: &'a storage::git::Repository,
     reference: git::fmt::Namespaced<'a>,
+    git: &'a G,
 }
 
-impl<'a> TempPatchRef<'a> {
-    fn new(stored: &'a storage::git::Repository, head: &git::Oid, nid: &NodeId) -> Self {
+impl<'a, G: GitService> TempPatchRef<'a, G> {
+    fn new(
+        stored: &'a storage::git::Repository,
+        head: &git::Oid,
+        nid: &NodeId,
+        git: &'a G,
+    ) -> Self {
         let reference = git::refs::storage::staging::patch(nid, *head);
-        Self { stored, reference }
+        Self {
+            stored,
+            reference,
+            git,
+        }
     }
 
     fn push(&self, src: &git::Oid, verbosity: Verbosity) -> Result<(), Error> {
@@ -528,11 +540,12 @@ impl<'a> TempPatchRef<'a> {
             self.stored.raw(),
             verbosity,
             &[],
+            self.git,
         )
     }
 }
 
-impl<'a> Drop for TempPatchRef<'a> {
+impl<'a, G> Drop for TempPatchRef<'a, G> {
     fn drop(&mut self) {
         if let Err(err) = self
             .stored
@@ -550,7 +563,7 @@ impl<'a> Drop for TempPatchRef<'a> {
 }
 
 /// Open a new patch.
-fn patch_open<G>(
+fn patch_open<G, S>(
     head: &git::Oid,
     upstream: &Option<git::fmt::RefString>,
     nid: &NodeId,
@@ -563,11 +576,13 @@ fn patch_open<G>(
     signer: &Device<G>,
     profile: &Profile,
     opts: Options,
+    git: &S,
 ) -> Result<Option<ExplorerResource>, Error>
 where
     G: crypto::signature::Signer<crypto::Signature>,
+    S: GitService,
 {
-    let temp = TempPatchRef::new(stored, head, nid);
+    let temp = TempPatchRef::new(stored, head, nid, git);
     temp.push(head, opts.verbosity)?;
     let base = patch_base(head, &opts, stored)?;
 
@@ -686,7 +701,7 @@ where
 
 /// Update an existing patch.
 #[allow(clippy::too_many_arguments)]
-fn patch_update<G>(
+fn patch_update<G, S>(
     head: &git::Oid,
     dst: &git::fmt::Qualified,
     force: bool,
@@ -701,15 +716,17 @@ fn patch_update<G>(
     signer: &Device<G>,
     opts: Options,
     expected_refs: &[String],
+    git: &S,
 ) -> Result<Option<ExplorerResource>, Error>
 where
     G: crypto::signature::Signer<crypto::Signature>,
+    S: GitService,
 {
     let Ok(Some(patch)) = patches.get(&patch_id) else {
         return Err(Error::NotFound(patch_id));
     };
 
-    let temp = TempPatchRef::new(stored, head, nid);
+    let temp = TempPatchRef::new(stored, head, nid, git);
     temp.push(head, opts.verbosity)?;
 
     let base = patch_base(head, &opts, stored)?;
@@ -736,6 +753,7 @@ where
         stored.raw(),
         opts.verbosity,
         expected_refs,
+        git,
     )?;
 
     let mut patch_mut = patch::PatchMut::new(patch_id, patch, &mut patches);
@@ -772,7 +790,7 @@ where
     Ok(Some(ExplorerResource::Patch { id: patch_id }))
 }
 
-fn push<G>(
+fn push<G, S>(
     src: &git::Oid,
     dst: &git::fmt::Qualified,
     force: bool,
@@ -786,16 +804,26 @@ fn push<G>(
     signer: &Device<G>,
     verbosity: Verbosity,
     expected_refs: &[String],
+    git: &S,
 ) -> Result<Option<ExplorerResource>, Error>
 where
     G: crypto::signature::Signer<crypto::Signature>,
+    S: GitService,
 {
     let head = *src;
     let dst = dst.with_namespace(nid.into());
     // It's ok for the destination reference to be unknown, eg. when pushing a new branch.
     let old = stored.backend.find_reference(dst.as_str()).ok();
 
-    push_ref(src, &dst, force, stored.raw(), verbosity, expected_refs)?;
+    push_ref(
+        src,
+        &dst,
+        force,
+        stored.raw(),
+        verbosity,
+        expected_refs,
+        git,
+    )?;
 
     if let Some(old) = old {
         let proj = stored.project()?;
@@ -979,6 +1007,7 @@ fn push_ref(
     stored: &git::raw::Repository,
     verbosity: Verbosity,
     expected_refs: &[String],
+    git: &impl GitService,
 ) -> Result<(), Error> {
     let path = dunce::canonicalize(stored.path())?.display().to_string();
     // Nb. The *force* indicator (`+`) is processed by Git tooling before we even reach this code.
@@ -1002,7 +1031,7 @@ fn push_ref(
     // Rely on the environment variable `GIT_DIR`.
     let working = None;
 
-    let output = radicle::git::run(working, args)?;
+    let output = git.send_pack(working, &args)?;
 
     if !output.status.success() {
         return Err(Error::SendPackFailed {

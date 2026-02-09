@@ -301,7 +301,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                 return Ok(());
             }
             ["push", refspec] => {
-                return Ok(push::run(
+                let output = push::run(
                     vec![refspec.to_string()],
                     remote,
                     url,
@@ -310,8 +310,16 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                     &stdin,
                     opts,
                     &expected_refs,
+                    &git,
                     &mut node,
-                )?);
+                )?;
+
+                for line in output {
+                    println!("{line}");
+                }
+                println!();
+
+                return Ok(());
             }
             ["list"] => {
                 let refs = list::for_fetch(&url, &profile, &stored)?;
