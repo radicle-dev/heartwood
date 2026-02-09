@@ -4,7 +4,6 @@ mod canonical;
 mod error;
 
 use std::collections::HashMap;
-use std::io::IsTerminal;
 use std::process::ExitStatus;
 use std::str::FromStr;
 use std::{assert_eq, io};
@@ -22,7 +21,7 @@ use radicle::crypto;
 use radicle::explorer::ExplorerResource;
 use radicle::identity::{CanonicalRefs, Did};
 use radicle::node;
-use radicle::node::{Handle, NodeId};
+use radicle::node::NodeId;
 use radicle::storage;
 use radicle::storage::git::transport::local::Url;
 use radicle::storage::{ReadRepository, SignRepository as _, WriteRepository};
@@ -31,6 +30,7 @@ use radicle::{git, rad};
 use radicle_cli as cli;
 use radicle_cli::terminal as term;
 
+use crate::service::NodeSession;
 use crate::{hint, read_line, warn, Options, Verbosity};
 
 #[derive(Debug, Error)]
@@ -252,6 +252,7 @@ pub fn run(
     stdin: &io::Stdin,
     opts: Options,
     expected_refs: &[String],
+    node: &mut impl NodeSession,
 ) -> Result<(), Error> {
     // Don't allow push if either of these conditions is true:
     //
@@ -456,10 +457,15 @@ pub fn run(
                 // Connect to local node and announce refs to the network.
                 // If our node is not running, we simply skip this step, as the
                 // refs will be announced eventually, when the node restarts.
-                let node = radicle::Node::new(profile.socket());
                 if node.is_running() {
                     // Nb. allow this to fail. The push to local storage was still successful.
-                    sync(stored, ok.into_values().flatten(), opts, node, profile).ok();
+                    node.sync(
+                        stored,
+                        ok.into_values().flatten().collect(),
+                        opts,
+                        profile,
+                    )
+                    .ok();
                 } else if hints {
                     hint("offline push, your node is not running");
                     hint("to sync with the network, run `rad node start`");
@@ -1004,62 +1010,6 @@ fn push_ref(
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
             status: output.status,
         });
-    }
-
-    Ok(())
-}
-
-/// Sync with the network.
-fn sync(
-    repo: &storage::git::Repository,
-    updated: impl Iterator<Item = ExplorerResource>,
-    opts: Options,
-    mut node: radicle::Node,
-    profile: &Profile,
-) -> Result<(), cli::node::SyncError> {
-    let progress = if io::stderr().is_terminal() {
-        term::PaintTarget::Stderr
-    } else {
-        term::PaintTarget::Hidden
-    };
-    let result = cli::node::announce(
-        repo,
-        cli::node::SyncSettings::default().with_profile(profile),
-        cli::node::SyncReporting {
-            progress,
-            completion: term::PaintTarget::Stderr,
-            debug: opts.sync_debug,
-        },
-        &mut node,
-        profile,
-    )?;
-
-    let mut urls = Vec::new();
-
-    if let Some(result) = result {
-        for seed in profile.config.preferred_seeds.iter() {
-            if result.is_synced(&seed.id) {
-                for resource in updated {
-                    let url = profile
-                        .config
-                        .public_explorer
-                        .url(seed.addr.host.clone(), repo.id)
-                        .resource(resource);
-
-                    urls.push(url);
-                }
-                break;
-            }
-        }
-    }
-
-    // Print URLs to the updated resources.
-    if !urls.is_empty() {
-        eprintln!();
-        for url in urls {
-            eprintln!("  {}", term::format::dim(url));
-        }
-        eprintln!();
     }
 
     Ok(())
