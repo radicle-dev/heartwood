@@ -97,6 +97,15 @@ impl RepoId {
         multibase::encode(multibase::Base::Base58Btc, AsRef::<[u8]>::as_ref(&self.0))
     }
 
+    /// Decode the input string into a [`RepoId`].
+    ///
+    /// # Errors
+    ///
+    /// - The [multibase] decoding fails
+    /// - The decoded [multibase] code does not match any expected multibase code
+    /// - The input exceeds the expected number of bytes, post multibase decoding
+    ///
+    /// [multibase]: https://github.com/multiformats/multibase?tab=readme-ov-file#multibase-table
     pub fn from_canonical(input: &str) -> Result<Self, IdError> {
         const EXPECTED_LEN: usize = 20;
         let (base, bytes) = multibase::decode(input)?;
