@@ -35,15 +35,16 @@ pub enum Error {
 /// Run a git fetch command.
 pub fn run<G: GitService>(
     mut refs: Vec<(git::Oid, git::fmt::RefString)>,
-    stored: radicle::storage::git::Repository,
+    stored: &radicle::storage::git::Repository,
     git: &G,
-    stdin: &io::Stdin,
+    mut stdin: impl io::BufRead,
     verbosity: Verbosity,
 ) -> Result<(), Error> {
     // Read all the `fetch` lines.
     let mut line = String::new();
     loop {
-        let tokens = read_line(stdin, &mut line)?;
+        let tokens = read_line(&mut stdin, &mut line)?;
+        let tokens: Vec<&str> = tokens.iter().map(|s| s.as_str()).collect();
         match tokens.as_slice() {
             ["fetch", oid, refstr] => {
                 let oid = git::Oid::from_str(oid)?;
@@ -73,7 +74,7 @@ pub fn run<G: GitService>(
     // used in the working copy, this will always result in the object
     // missing. This seems to only be an issue with `libgit2`/`git2`
     // and not `git` itself.
-    let output = git.fetch_pack(working, &stored, oids, verbosity.into())?;
+    let output = git.fetch_pack(working, stored, oids, verbosity.into())?;
 
     if !output.status.success() {
         return Err(Error::FetchPackFailed {

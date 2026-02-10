@@ -22,10 +22,11 @@ mod protocol;
 mod push;
 mod service;
 
+use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::process;
 use std::str::FromStr;
-use std::{env, fmt, io};
+use std::{env, fmt};
 
 use thiserror::Error;
 
@@ -245,9 +246,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
     let debug = radicle::profile::env::debug();
 
     let stdin = io::stdin();
-    let mut line = String::new();
-    let mut opts = Options::default();
-    let mut expected_refs = Vec::new();
+    let stdout = io::stdout();
     let git = service::RealGitService;
     let mut node = service::RealNodeSession::new(&profile);
 
@@ -257,9 +256,37 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
         }
     }
 
+    run_loop(
+        stdin.lock(),
+        stdout.lock(),
+        &git,
+        &mut node,
+        &stored,
+        &profile,
+        remote,
+        url,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_loop<R: BufRead, W: Write, G: service::GitService, N: service::NodeSession>(
+    mut input: R,
+    mut output: W,
+    git: &G,
+    node: &mut N,
+    stored: &storage::git::Repository,
+    profile: &Profile,
+    remote: Option<git::fmt::RefString>,
+    url: Url,
+) -> Result<(), Error> {
+    let mut line = String::new();
+    let mut opts = Options::default();
+    let mut expected_refs = Vec::new();
+    let debug = radicle::profile::env::debug();
+
     loop {
         line.clear();
-        let read = stdin.read_line(&mut line)?;
+        let read = input.read_line(&mut line)?;
         if read == 0 {
             break;
         }
@@ -272,10 +299,10 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
 
         match cmd {
             Line::Valid(Command::Capabilities) => {
-                println!("option");
-                println!("push"); // Implies `list` command.
-                println!("fetch");
-                println!();
+                writeln!(output, "option")?;
+                writeln!(output, "push")?; // Implies `list` command.
+                writeln!(output, "fetch")?;
+                writeln!(output)?;
             }
             Line::Valid(Command::Option { key, value }) => match key.as_str() {
                 "verbosity" => {
@@ -283,14 +310,14 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                         match val.parse::<Verbosity>() {
                             Ok(verbosity) => {
                                 opts.verbosity = verbosity;
-                                println!("ok");
+                                writeln!(output, "ok")?;
                             }
                             Err(err) => {
-                                println!("error {err}");
+                                writeln!(output, "error {err}")?;
                             }
                         }
                     } else {
-                        println!("error missing value for verbosity");
+                        writeln!(output, "error missing value for verbosity")?;
                     }
                 }
                 "push-option" => {
@@ -301,71 +328,71 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                         // "push-option" itself is an unsupported option, which is not helpful or correct.
                         // Hence, we just exit with an error in this case.
                         push_option(&args, &mut opts)?;
-                        println!("ok");
+                        writeln!(output, "ok")?;
                     } else {
-                        println!("error missing value for push-option");
+                        writeln!(output, "error missing value for push-option")?;
                     }
                 }
                 "cas" => {
                     if let Some(val) = value {
                         expected_refs.push(val);
-                        println!("ok");
+                        writeln!(output, "ok")?;
                     } else {
-                        println!("error missing value for cas");
+                        writeln!(output, "error missing value for cas")?;
                     }
                 }
                 "progress" => {
-                    println!("unsupported");
+                    writeln!(output, "unsupported")?;
                 }
                 _ => {
-                    println!("unsupported");
+                    writeln!(output, "unsupported")?;
                 }
             },
             Line::Valid(Command::Fetch { oid, refstr }) => {
                 let oid = git::Oid::from_str(&oid)?;
                 let refstr = git::fmt::RefString::try_from(refstr.as_str())?;
 
-                fetch::run(vec![(oid, refstr)], stored, &git, &stdin, opts.verbosity)?;
+                fetch::run(vec![(oid, refstr)], stored, git, &mut input, opts.verbosity)?;
 
                 // Nb. An empty line means we're done
-                println!();
+                writeln!(output)?;
 
                 return Ok(());
             }
             Line::Valid(Command::Push(refspec)) => {
-                let output = push::run(
+                let result = push::run(
                     vec![refspec],
-                    remote,
-                    url,
-                    &stored,
-                    &profile,
-                    &stdin,
-                    opts,
+                    remote.clone(),
+                    url.clone(),
+                    stored,
+                    profile,
+                    &mut input,
+                    opts.clone(),
                     &expected_refs,
-                    &git,
-                    &mut node,
+                    git,
+                    node,
                 )?;
 
-                for line in output {
-                    println!("{line}");
+                for line in result {
+                    writeln!(output, "{line}")?;
                 }
-                println!();
+                writeln!(output)?;
 
                 return Ok(());
             }
             Line::Valid(Command::List) => {
-                let refs = list::for_fetch(&url, &profile, &stored)?;
+                let refs = list::for_fetch(&url, profile, stored)?;
                 for line in refs {
-                    println!("{line}");
+                    writeln!(output, "{line}")?;
                 }
-                println!();
+                writeln!(output)?;
             }
             Line::Valid(Command::ListForPush) => {
-                let refs = list::for_push(&profile, &stored)?;
+                let refs = list::for_push(profile, stored)?;
                 for line in refs {
-                    println!("{line}");
+                    writeln!(output, "{line}")?;
                 }
-                println!();
+                writeln!(output)?;
             }
             Line::Blank => {
                 return Ok(());
@@ -466,4 +493,13 @@ pub(crate) fn patches_mut<'a>(
         }
         Err(err) => Err(err.into()),
     }
+}
+
+pub fn read_line(r: &mut impl io::BufRead, line: &mut String) -> Result<Vec<String>, io::Error> {
+    line.clear();
+    let read = r.read_line(line)?;
+    if read == 0 {
+        return Ok(Vec::new());
+    }
+    Ok(line.split_whitespace().map(|s| s.to_string()).collect())
 }

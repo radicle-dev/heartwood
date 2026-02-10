@@ -27,7 +27,6 @@ use radicle::storage::git::transport::local::Url;
 use radicle::storage::{ReadRepository, SignRepository as _, WriteRepository};
 use radicle::Profile;
 use radicle::{git, rad};
-use radicle_cli as cli;
 use radicle_cli::terminal as term;
 
 use crate::service::{GitService, NodeSession};
@@ -249,7 +248,7 @@ pub fn run(
     url: Url,
     stored: &storage::git::Repository,
     profile: &Profile,
-    stdin: &io::Stdin,
+    mut stdin: impl io::BufRead,
     opts: Options,
     expected_refs: &[String],
     git: &impl GitService,
@@ -276,9 +275,10 @@ pub fn run(
 
     // Read all the `push` lines.
     loop {
-        let tokens = read_line(stdin, &mut line)?;
+        let tokens = read_line(&mut stdin, &mut line)?;
+        let tokens: Vec<&str> = tokens.iter().map(|s| s.as_str()).collect();
         match tokens.as_slice() {
-            ["push", spec] => {
+            [cmd, spec] if *cmd == "push" => {
                 specs.push(spec.to_string());
             }
             // An empty line means end of input.
