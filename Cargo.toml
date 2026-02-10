@@ -59,6 +59,7 @@ radicle-signals = { version = "0.11", path = "crates/radicle-signals" }
 radicle-ssh = { version = "0.10", path = "crates/radicle-ssh", default-features = false }
 radicle-systemd = { version = "0.11", path = "crates/radicle-systemd" }
 radicle-term = { version = "0.16", path = "crates/radicle-term" }
+radicle-windows = { version = "0.1", path = "crates/radicle-windows" }
 schemars = { version = "1.0.4", default-features = false }
 serde = { version = "1.0", default-features = false }
 serde_json = "1.0"
