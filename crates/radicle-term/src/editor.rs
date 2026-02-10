@@ -223,7 +223,8 @@ fn default_editor() -> Option<OsString> {
 
     // On macOS, `nano` is installed by default and it's what most users are used to
     // in the terminal.
-    if cfg!(target_os = "macos") && exists("nano") {
+    #[cfg(target_os = "macos")]
+    if exists("nano") {
         return Some("nano".into());
     }
     // If all else fails, we try `vi`. It's usually installed on most unix-based systems.
