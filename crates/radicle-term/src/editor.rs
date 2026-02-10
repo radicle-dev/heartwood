@@ -227,16 +227,31 @@ fn default_editor() -> Option<OsString> {
     if exists("nano") {
         return Some("nano".into());
     }
+
+    // On Windows, `edit` is available by default, see <https://learn.microsoft.com/windows/edit>.
+    #[cfg(windows)]
+    if exists("edit.exe") {
+        return Some("edit.exe".into());
+    }
+
+    // On Windows, `notepad` is commonly available for decades, see <https://apps.microsoft.com/detail/9msmlrh6lzf3>.
+    #[cfg(windows)]
+    if exists("notepad.exe") {
+        return Some("notepad.exe".into());
+    }
+
     // If all else fails, we try `vi`. It's usually installed on most unix-based systems.
     if exists("vi") {
         return Some("vi".into());
     }
+
     None
 }
 
-/// Check whether a binary can be found in the most common paths.
-/// We don't bother checking the $PATH variable, as we're only looking for very standard tools
+/// Check whether a binary can be found in the most common paths on Unix-like systems.
+/// We don't bother checking the `$PATH` variable, as we're only looking for very standard tools
 /// and prefer not to make this too complex.
+#[cfg(unix)]
 fn exists(cmd: &str) -> bool {
     // Some common paths where system-installed binaries are found.
     const PATHS: &[&str] = &["/usr/local/bin", "/usr/bin", "/bin"];
@@ -247,4 +262,18 @@ fn exists(cmd: &str) -> bool {
         }
     }
     false
+}
+
+/// Check whether a binary can be found on `$PATH`.
+/// See:
+///  - <https://devblogs.microsoft.com/scripting/weekend-scripter-where-exethe-what-why-and-how/>
+///  - <https://learn.microsoft.com/windows-server/administration/windows-commands/where>
+#[cfg(windows)]
+fn exists(cmd: &str) -> bool {
+    std::process::Command::new("where.exe")
+        .arg("/q")
+        .arg("$PATH:".to_owned() + cmd)
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or_default()
 }
