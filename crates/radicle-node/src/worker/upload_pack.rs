@@ -84,6 +84,9 @@ where
         cmd.spawn()?
     };
 
+    #[cfg(windows)]
+    let job = radicle_windows::jobs::Job::for_child(&child)?;
+
     let mut stdin = child.stdin.take().unwrap();
     let mut stdout = io::BufReader::new(child.stdout.take().unwrap());
     let reporter = std::sync::Mutex::new(Reporter::new(header.repo, remote, emitter.clone(), send));
@@ -150,8 +153,12 @@ where
         if let Err(e) = reader.join() {
             log::warn!(target: "worker", "Upload pack thread panicked: {e:?}");
         }
-        child.kill()?;
-        Ok::<_, io::Error>(())
+
+        #[cfg(unix)]
+        return child.kill();
+
+        #[cfg(windows)]
+        return job.terminate(3);
     })?;
 
     let status = child.wait()?;

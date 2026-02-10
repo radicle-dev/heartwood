@@ -48,6 +48,7 @@ radicle-systemd = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winpipe = { workspace = true }
+radicle-windows = { workspace = true }
 
 [dev-dependencies]
 mio = { version = "1", features = ["os-ext"] }
