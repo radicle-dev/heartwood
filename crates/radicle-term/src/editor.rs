@@ -110,12 +110,20 @@ impl Editor {
                 "editor not configured: the `EDITOR` environment variable is not set",
             ));
         };
-        let Some(parts) = shlex::split(cmd.to_string_lossy().as_ref()) else {
+
+        let lossy = cmd.to_string_lossy();
+
+        #[cfg(unix)]
+        let Some(parts) = shlex::split(&lossy) else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("invalid editor command {cmd:?}"),
             ));
         };
+
+        #[cfg(windows)]
+        let parts = winsplit::split(&lossy);
+
         let Some((program, args)) = parts.split_first() else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -203,26 +211,47 @@ fn default_editor() -> Option<OsString> {
             return Some(editor.into());
         }
     }
+
     // Check Git. The user might have configured their editor there.
-    #[cfg(feature = "git2")]
+    // On Windows, custom editors configured via Git are not supported,
+    // because of the complexity surrounding how the editor command is
+    // parsed and executed. See also <https://stackoverflow.com/a/773973/1835188>.
+    #[cfg(all(feature = "git2", not(windows)))]
     if let Ok(path) = git2::Config::open_default().and_then(|cfg| cfg.get_path("core.editor")) {
         return Some(path.into_os_string());
     }
+
     // On macOS, `nano` is installed by default and it's what most users are used to
     // in the terminal.
-    if cfg!(target_os = "macos") && exists("nano") {
+    #[cfg(target_os = "macos")]
+    if exists("nano") {
         return Some("nano".into());
     }
+
+    // On Windows, `edit` is available by default, see <https://learn.microsoft.com/windows/edit>.
+    #[cfg(windows)]
+    if exists("edit.exe") {
+        return Some("edit.exe".into());
+    }
+
+    // On Windows, `notepad` is commonly available for decades, see <https://apps.microsoft.com/detail/9msmlrh6lzf3>.
+    #[cfg(windows)]
+    if exists("notepad.exe") {
+        return Some("notepad.exe".into());
+    }
+
     // If all else fails, we try `vi`. It's usually installed on most unix-based systems.
     if exists("vi") {
         return Some("vi".into());
     }
+
     None
 }
 
-/// Check whether a binary can be found in the most common paths.
-/// We don't bother checking the $PATH variable, as we're only looking for very standard tools
+/// Check whether a binary can be found in the most common paths on Unix-like systems.
+/// We don't bother checking the `$PATH` variable, as we're only looking for very standard tools
 /// and prefer not to make this too complex.
+#[cfg(unix)]
 fn exists(cmd: &str) -> bool {
     // Some common paths where system-installed binaries are found.
     const PATHS: &[&str] = &["/usr/local/bin", "/usr/bin", "/bin"];
@@ -233,4 +262,18 @@ fn exists(cmd: &str) -> bool {
         }
     }
     false
+}
+
+/// Check whether a binary can be found on `$PATH`.
+/// See:
+///  - <https://devblogs.microsoft.com/scripting/weekend-scripter-where-exethe-what-why-and-how/>
+///  - <https://learn.microsoft.com/windows-server/administration/windows-commands/where>
+#[cfg(windows)]
+fn exists(cmd: &str) -> bool {
+    std::process::Command::new("where.exe")
+        .arg("/q")
+        .arg("$PATH:".to_owned() + cmd)
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or_default()
 }

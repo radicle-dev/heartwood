@@ -21,9 +21,14 @@ pub fn run(elem: impl Element) -> io::Result<()> {
     let Some(pager) = radicle::profile::env::pager() else {
         return elem.write(Constraint::UNBOUNDED);
     };
+
+    #[cfg(unix)]
     let Some(parts) = shlex::split(&pager) else {
         return elem.write(Constraint::UNBOUNDED);
     };
+    #[cfg(windows)]
+    let parts = winsplit::split(&pager);
+
     let Some((program, args)) = parts.split_first() else {
         return elem.write(Constraint::UNBOUNDED);
     };
