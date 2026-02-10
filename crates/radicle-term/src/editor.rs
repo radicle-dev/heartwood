@@ -211,11 +211,16 @@ fn default_editor() -> Option<OsString> {
             return Some(editor.into());
         }
     }
+
     // Check Git. The user might have configured their editor there.
-    #[cfg(feature = "git2")]
+    // On Windows, custom editors configured via Git are not supported,
+    // because of the complexity surrounding how the editor command is
+    // parsed and executed. See also <https://stackoverflow.com/a/773973/1835188>.
+    #[cfg(all(feature = "git2", not(windows)))]
     if let Ok(path) = git2::Config::open_default().and_then(|cfg| cfg.get_path("core.editor")) {
         return Some(path.into_os_string());
     }
+
     // On macOS, `nano` is installed by default and it's what most users are used to
     // in the terminal.
     if cfg!(target_os = "macos") && exists("nano") {
