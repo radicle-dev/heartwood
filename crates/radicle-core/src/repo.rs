@@ -1,3 +1,4 @@
+use alloc::fmt;
 use alloc::string::String;
 use alloc::string::ToString as _;
 use alloc::vec::Vec;
@@ -8,12 +9,35 @@ use thiserror::Error;
 /// Radicle identifier prefix.
 pub const RAD_PREFIX: &str = "rad:";
 
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum IdError {
     #[error(transparent)]
     Multibase(#[from] multibase::Error),
     #[error("invalid length: expected {expected} bytes, got {actual} bytes")]
     Length { expected: usize, actual: usize },
+    #[error(fmt = fmt_mismatched_base_encoding)]
+    MismatchedBaseEncoding {
+        input: String,
+        expected: Vec<multibase::Base>,
+        found: multibase::Base,
+    },
+}
+
+fn fmt_mismatched_base_encoding(
+    input: &String,
+    expected: &[multibase::Base],
+    found: &multibase::Base,
+    formatter: &mut fmt::Formatter,
+) -> fmt::Result {
+    write!(
+        formatter,
+        "invalid multibase encoding '{}' for '{}', expected one of {:?}",
+        found.code(),
+        input,
+        expected.iter().map(|base| base.code()).collect::<Vec<_>>()
+    )?;
+    Ok(())
 }
 
 /// A repository identifier.
@@ -43,6 +67,8 @@ impl core::fmt::Debug for RepoId {
 }
 
 impl RepoId {
+    const ALLOWED_BASES: [multibase::Base; 1] = [multibase::Base::Base58Btc];
+
     /// Format the identifier as a human-readable URN.
     ///
     /// Eg. `rad:z3XncAdkZjeK9mQS5Sdc4qhw98BUX`.
@@ -73,13 +99,26 @@ impl RepoId {
 
     pub fn from_canonical(input: &str) -> Result<Self, IdError> {
         const EXPECTED_LEN: usize = 20;
-        let (_, bytes) = multibase::decode(input)?;
+        let (base, bytes) = multibase::decode(input)?;
+        Self::guard_base_encoding(input, base)?;
         let bytes: [u8; EXPECTED_LEN] =
             bytes.try_into().map_err(|bytes: Vec<u8>| IdError::Length {
                 expected: EXPECTED_LEN,
                 actual: bytes.len(),
             })?;
         Ok(Self(Oid::from_sha1(bytes)))
+    }
+
+    fn guard_base_encoding(input: &str, base: multibase::Base) -> Result<(), IdError> {
+        if !Self::ALLOWED_BASES.contains(&base) {
+            Err(IdError::MismatchedBaseEncoding {
+                input: input.to_string(),
+                expected: Self::ALLOWED_BASES.to_vec(),
+                found: base,
+            })
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -294,5 +333,55 @@ mod test {
         fn assert_prop_roundtrip_parse(rid in arbitrary::rid()) {
             prop_roundtrip_parse(rid)
         }
+    }
+
+    #[test]
+    fn invalid() {
+        assert!("".parse::<RepoId>().is_err());
+        assert!("not-a-valid-rid".parse::<RepoId>().is_err());
+        assert!("xyz:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
+            .parse::<RepoId>()
+            .is_err());
+        assert!("RAD:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
+            .parse::<RepoId>()
+            .is_err());
+        assert!("rad:".parse::<RepoId>().is_err());
+        assert!("rad:z3gqcJUoA1n9HaHKufZs5FCSG0zv5"
+            .parse::<RepoId>()
+            .is_err());
+        assert!("rad:z3gqcJUoA1n9HaHKufZs5FCSGOzv5"
+            .parse::<RepoId>()
+            .is_err());
+        assert!("rad:z3gqcJUoA1n9HaHKufZs5FCSGIzv5"
+            .parse::<RepoId>()
+            .is_err());
+        assert!("rad:z3gqcJUoA1n9HaHKufZs5FCSGlzv5"
+            .parse::<RepoId>()
+            .is_err());
+        assert!("rad:z3gqcJUoA1n9HaHKufZs5FCSGázv5"
+            .parse::<RepoId>()
+            .is_err());
+        assert!("rad:z3gqcJUoA1n9HaHKufZs5FCSG@zv5"
+            .parse::<RepoId>()
+            .is_err());
+        assert!("rad:Z3gqcJUoA1n9HaHKufZs5FCSGazv5"
+            .parse::<RepoId>()
+            .is_err());
+        assert!("rad:z3gqcJUoA1n9HaHKuf".parse::<RepoId>().is_err());
+        assert!("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5abcdef"
+            .parse::<RepoId>()
+            .is_err());
+        assert!("rad: z3gqcJUoA1n9HaHKufZs5FCSGazv5"
+            .parse::<RepoId>()
+            .is_err());
+    }
+
+    #[test]
+    fn valid() {
+        assert!("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
+            .parse::<RepoId>()
+            .is_ok());
+        assert!("z3gqcJUoA1n9HaHKufZs5FCSGazv5".parse::<RepoId>().is_ok());
+        assert!("z3XncAdkZjeK9mQS5Sdc4qhw98BUX".parse::<RepoId>().is_ok());
     }
 }
