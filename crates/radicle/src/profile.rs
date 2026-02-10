@@ -88,6 +88,10 @@ pub mod env {
 
     /// Get the configured pager program from the environment.
     pub fn pager() -> Option<String> {
+        // On Windows, custom pagers configured via Git are not supported,
+        // because of the complexity surrounding how the pager command is
+        // parsed and executed. See also <https://stackoverflow.com/a/773973/1835188>.
+        #[cfg(not(windows))]
         if let Ok(cfg) = crate::git::raw::Config::open_default() {
             if let Ok(pager) = cfg.get_string("core.pager") {
                 return Some(pager);
