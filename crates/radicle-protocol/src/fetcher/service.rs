@@ -176,3 +176,82 @@ impl<S> FetcherService<S> {
         self.state.dequeue(from)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fetcher::MaxQueueSize;
+    use radicle::test::arbitrary;
+    use std::num::NonZeroUsize;
+    use std::time::Duration;
+
+    fn config(max_concurrency: usize, max_queue_size: usize) -> Config {
+        Config::new()
+            .with_max_concurrency(NonZeroUsize::new(max_concurrency).unwrap())
+            .with_max_capacity(MaxQueueSize::new(
+                NonZeroUsize::new(max_queue_size).unwrap(),
+            ))
+    }
+
+    fn gen_refs_at(count: usize) -> Vec<RefsAt> {
+        (0..count).map(|_| arbitrary::gen(1)).collect()
+    }
+
+    #[test]
+    fn test_fetch_coalescing_different_refs() {
+        let mut service = FetcherService::<usize>::new(config(1, 10));
+        let node = arbitrary::gen(1);
+        let repo = arbitrary::gen(1);
+        let refs_specific = gen_refs_at(1);
+        let refs_all = vec![];
+        let timeout = Duration::from_secs(30);
+
+        // fetch specific refs (Subscriber 1)
+        let initiated1 = service.fetch(
+            command::Fetch {
+                from: node,
+                rid: repo,
+                refs_at: refs_specific.clone(),
+                timeout,
+            },
+            Some(1),
+        );
+        assert!(matches!(initiated1.event, event::Fetch::Started { .. }));
+
+        // fetch all refs (Subscriber 2)
+        let initiated2 = service.fetch(
+            command::Fetch {
+                from: node,
+                rid: repo,
+                refs_at: refs_all.clone(),
+                timeout,
+            },
+            Some(2),
+        );
+
+        // should be queued because refs differ
+        assert!(matches!(initiated2.event, event::Fetch::Queued { .. }));
+
+        // complete the specific refs fetch
+        let completed = service.fetched(command::Fetched {
+            from: node,
+            rid: repo,
+        });
+
+        match completed.event {
+            event::Fetched::Completed { ref refs_at, .. } => {
+                assert_eq!(refs_at, &refs_specific);
+            }
+            _ => panic!("Expected Completed event"),
+        }
+
+        // only Subscriber 1 should be notified
+        assert_eq!(completed.subscribers, vec![1]);
+
+        // subscriber 2 should still be waiting
+        assert!(service.subscribers.contains_key(&FetchKey::new(repo, node)));
+        let remaining = &service.subscribers[&FetchKey::new(repo, node)];
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].1, 2);
+    }
+}
