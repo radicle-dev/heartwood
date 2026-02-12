@@ -70,6 +70,7 @@ sqlite = "0.32.0"
 tempfile = "3.3.0"
 thiserror = { version = "2", default-features = false }
 uds_windows = "1.1.0"
+windows = "0.62"
 winpipe = "0.1.1"
 winsplit = "0.1.0"
 zeroize = "1.5.7"

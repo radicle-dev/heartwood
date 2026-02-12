@@ -8,7 +8,16 @@ edition.workspace = true
 version = "0.11.0"
 rust-version.workspace = true
 
-[target.'cfg(unix)'.dependencies]
+[dependencies]
 crossbeam-channel = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 signals_receipts = { version = "0.2.0", features = ["channel_notify_facility"] }
+
+[target.'cfg(windows)'.dependencies.windows]
+workspace = true
+features = [
+    "Win32_Foundation",
+    "Win32_System_Console",
+]

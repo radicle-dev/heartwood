@@ -287,7 +287,6 @@ impl Runtime {
             || control::listen(listener, handle)
         });
 
-        #[cfg(unix)]
         let _signals = thread::spawn(&self.id, "signals", move || loop {
             use radicle::node::Handle as _;
 

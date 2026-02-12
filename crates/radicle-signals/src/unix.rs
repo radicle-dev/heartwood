@@ -57,10 +57,7 @@ pub fn install(notify: chan::Sender<Signal>) -> io::Result<()> {
     }
 
     SignalsChannel::install_with_outside_channel(ChanSender(notify)).map_err(|e| match e {
-        InstallError::AlreadyInstalled { unused_notify: _ } => io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            "signal handling is already installed",
-        ),
+        InstallError::AlreadyInstalled { unused_notify: _ } => already_installed(),
         _ => io::Error::other(e), // The error type is non-exhaustive.
     })
 }

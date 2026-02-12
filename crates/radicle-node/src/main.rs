@@ -13,7 +13,6 @@ use radicle::profile;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::fingerprint::{Fingerprint, FingerprintVerification};
 use radicle_node::{Runtime, VERSION};
-#[cfg(unix)]
 use radicle_signals as signals;
 
 const HELP_MSG: &str = r#"
@@ -320,17 +319,9 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
         log::warn!(target: "node", "Unable to set process open file limit: {e}");
     }
 
-    #[cfg(unix)]
     let signals = {
         let (notify, signals) = chan::bounded(1);
         signals::install(notify)?;
-        signals
-    };
-
-    #[cfg(windows)]
-    let signals = {
-        let (_, signals) = chan::bounded(1);
-        log::info!(target: "node", "No signal handlers were installed, because this is not available on Windows.");
         signals
     };
 

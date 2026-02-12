@@ -3151,6 +3151,7 @@ dependencies = [
  "crossbeam-channel",
  "libc",
  "signals_receipts",
+ "windows 0.62.2",
 ]
 
 [[package]]
