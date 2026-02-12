@@ -30,6 +30,14 @@ jobs:
           path: target
           key: ${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}-cargo-target
       - run: cargo build --workspace --verbose --all-features
+      - if: runner.os == 'Windows'
+        working-directory: windows
+        run: dotnet build
+      - if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: radicle-installer-${{ runner.arch }}-${{ github.sha }}-${{ github.job }}
+          path: windows/bin/*/*.msi
       - if: runner.os != 'Windows'
         run: cargo test  --workspace --verbose --all-features -- --nocapture
       - if: runner.os == 'Windows'
