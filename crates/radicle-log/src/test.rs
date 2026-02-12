@@ -27,7 +27,7 @@ const BASE58_REGEX: &str = r"z[1-9A-HJ-NP-Za-km-z]{10,}";
 impl Logger {
     pub fn new(level: Level) -> Self {
         let mut aliases = HashMap::new();
-        if let Ok(s) = std::env::var("RAD_ALIASES") {
+        if let Ok(s) = std::env::var("RAD_LOG_ALIASES") {
             for pair in s.split(',') {
                 if let Some((k, v)) = pair.split_once('=') {
                     aliases.insert(k.to_owned(), v.to_owned());
