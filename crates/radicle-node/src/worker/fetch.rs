@@ -1,10 +1,11 @@
+use std::collections::BTreeSet;
+use std::error::Error as _;
+use std::str::FromStr;
+
 use radicle::identity::doc::CanonicalRefsError;
 use radicle::identity::CanonicalRefs;
 use radicle::storage::git::TempRepository;
 pub(crate) use radicle_protocol::worker::fetch::error;
-
-use std::collections::BTreeSet;
-use std::str::FromStr;
 
 use localtime::LocalTime;
 
@@ -120,6 +121,17 @@ impl Handle {
             } => {
                 for warn in validations {
                     log::debug!(target: "worker", "Validation error: {warn}");
+                }
+
+                for e in &applied.errors {
+                    match e.source() {
+                        None => {
+                            log::warn!(target: "worker", "Failed to update reference in {rid}: {e}")
+                        }
+                        Some(source) => {
+                            log::warn!(target: "worker", "Failed to update reference in {rid}: {e}, due to {source}")
+                        }
+                    }
                 }
 
                 // N.b. We do not go through handle for this since the cloning handle

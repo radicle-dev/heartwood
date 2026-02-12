@@ -117,29 +117,31 @@ where
     }
 }
 
-pub fn update<'a, I>(repo: &Repository, updates: I) -> Result<Applied<'a>, error::Update>
+pub fn update<'a, I>(repo: &Repository, updates: I) -> Applied<'a>
 where
     I: IntoIterator<Item = Update<'a>>,
 {
-    let mut applied = Applied::default();
-    for up in updates.into_iter() {
-        match up {
-            Update::Direct {
-                name,
-                target,
-                no_ff,
-            } => match direct(repo, name, target, no_ff)? {
-                Updated::Rejected(r) => applied.rejected.push(r),
-                Updated::Accepted(u) => applied.updated.push(u),
-            },
-            Update::Prune { name, prev } => match prune(repo, name, prev)? {
-                Updated::Rejected(r) => applied.rejected.push(r),
-                Updated::Accepted(u) => applied.updated.push(u),
-            },
-        }
-    }
-
-    Ok(applied)
+    updates
+        .into_iter()
+        .fold(Applied::default(), |mut applied, up| {
+            match up {
+                Update::Direct {
+                    name,
+                    target,
+                    no_ff,
+                } => match direct(repo, name, target, no_ff) {
+                    Ok(Updated::Rejected(r)) => applied.rejected.push(r),
+                    Ok(Updated::Accepted(u)) => applied.updated.push(u),
+                    Err(err) => applied.errors.push(err),
+                },
+                Update::Prune { name, prev } => match prune(repo, name, prev) {
+                    Ok(Updated::Rejected(r)) => applied.rejected.push(r),
+                    Ok(Updated::Accepted(u)) => applied.updated.push(u),
+                    Err(err) => applied.errors.push(err),
+                },
+            };
+            applied
+        })
 }
 
 fn direct<'a>(

@@ -24,6 +24,8 @@ use radicle::prelude::PublicKey;
 
 pub use radicle::storage::RefUpdate;
 
+use crate::git::repository::error;
+
 /// The set of applied changes from a reference store update.
 #[derive(Debug, Default)]
 pub struct Applied<'a> {
@@ -33,6 +35,8 @@ pub struct Applied<'a> {
     pub rejected: Vec<Update<'a>>,
     /// Set of successfully updated references.
     pub updated: Vec<RefUpdate>,
+    /// Collected errors while attempting to update references.
+    pub errors: Vec<error::Update>,
 }
 
 impl Applied<'_> {

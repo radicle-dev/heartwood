@@ -579,7 +579,7 @@ impl FetchState {
                     .clone()
                     .into_values()
                     .flat_map(|ups| ups.into_iter()),
-            )?;
+            );
             log::debug!("Applied updates ({}ms)", start.elapsed().as_millis());
             Ok(FetchResult::Success {
                 applied,
