@@ -24,6 +24,7 @@ use crate::git::raw::ErrorExt as _;
 use crate::identity::{project::Project, Did};
 use crate::node::device::Device;
 use crate::storage;
+use crate::storage::HasRepoId;
 use crate::storage::{ReadRepository, RepositoryError};
 
 pub use crypto::PublicKey;
@@ -50,10 +51,16 @@ pub enum DocError {
     Delegates(#[from] DelegatesError),
     #[error(transparent)]
     Threshold(#[from] ThresholdError),
-    #[error("git: {0}")]
-    Git(#[from] git::raw::Error),
     #[error("missing identity document")]
     Missing,
+    #[error("failed to load identity document rid={rid}, commit={commit}: {source}")]
+    Blob {
+        rid: RepoId,
+        commit: Oid,
+        source: crate::git::raw::Error,
+    },
+    #[error("failed to obtain hash of identity document data: {source}")]
+    HashBuffer { source: crate::git::raw::Error },
 }
 
 #[derive(Debug, Error)]
@@ -68,7 +75,7 @@ impl DocError {
     /// Whether this error is caused by the document not being found.
     pub fn is_not_found(&self) -> bool {
         match self {
-            Self::Git(e) => e.is_not_found(),
+            Self::Blob { source, .. } => source.is_not_found(),
             _ => false,
         }
     }
@@ -827,7 +834,12 @@ impl Doc {
         repo: &R,
     ) -> Result<git::raw::Blob<'_>, DocError> {
         let path = Path::new("embeds").join(*PATH);
-        repo.blob_at(commit, path.as_path()).map_err(DocError::from)
+        repo.blob_at(commit, path.as_path())
+            .map_err(|err| DocError::Blob {
+                rid: repo.rid(),
+                commit,
+                source: err,
+            })
     }
 
     /// Encode the [`Doc`] as canonical JSON, returning the set of bytes and its
@@ -838,7 +850,8 @@ impl Doc {
             serde_json::Serializer::with_formatter(&mut buf, CanonicalFormatter::new());
 
         self.serialize(&mut serializer)?;
-        let oid = git::raw::Oid::hash_object(git::raw::ObjectType::Blob, &buf)?;
+        let oid = git::raw::Oid::hash_object(git::raw::ObjectType::Blob, &buf)
+            .map_err(|err| DocError::HashBuffer { source: err })?;
 
         Ok((oid.into(), buf))
     }

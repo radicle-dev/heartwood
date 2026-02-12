@@ -128,6 +128,12 @@ pub enum RepositoryError {
     CanonicalRefs(#[from] doc::CanonicalRefsError),
     #[error(transparent)]
     FindObjects(#[from] canonical::effects::FindObjectsError),
+    #[error("failed to resolve identity doc head for {namespace} in {rid}: {source}")]
+    IdentityHead {
+        rid: RepoId,
+        namespace: RemoteId,
+        source: crate::git::raw::Error,
+    },
 }
 
 impl RepositoryError {

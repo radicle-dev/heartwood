@@ -37,7 +37,7 @@ use crate::git::UserInfo;
 pub use crate::storage::{Error, RepositoryError};
 
 use super::refs::RefsAt;
-use super::{RemoteId, RemoteRepository, ValidateRepository};
+use super::{HasRepoId, RemoteId, RemoteRepository, ValidateRepository};
 
 pub static NAMESPACES_GLOB: LazyLock<PatternString> =
     LazyLock::new(|| git::fmt::pattern!("refs/namespaces/*"));
@@ -547,9 +547,17 @@ impl Repository {
         Ok(proj)
     }
 
-    pub fn identity_doc_of(&self, remote: &RemoteId) -> Result<Doc, DocError> {
-        let oid = self.identity_head_of(remote)?;
-        Doc::load_at(oid, self).map(|d| d.into())
+    pub fn identity_doc_of(&self, remote: &RemoteId) -> Result<Doc, RepositoryError> {
+        let oid = self
+            .identity_head_of(remote)
+            .map_err(|err| RepositoryError::IdentityHead {
+                rid: self.rid(),
+                namespace: *remote,
+                source: err,
+            })?;
+        Doc::load_at(oid, self)
+            .map(|d| d.into())
+            .map_err(RepositoryError::from)
     }
 
     pub fn remote_ids(
