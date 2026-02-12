@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<?ifndef env.CARGO_PROFILE ?>
+  <?define CARGO_PROFILE = "debug" ?>
+<?else?>
+  <?define CARGO_PROFILE = $(env.CARGO_PROFILE) ?>
+<?endif?>
+
+<?ifndef env.CARGO_TARGET_DIR ?>
+  <?define CARGO_TARGET_DIR = "target" ?>
+<?else?>
+  <?define CARGO_TARGET_DIR = $(env.CARGO_TARGET_DIR) ?>
+<?endif?>
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Id="xyz.radicle"
+    Name="Radicle"
+    Manufacturer="Radicle Team"
+    Version="$(env.RADICLE_VERSION)"
+    UpgradeCode="24fb0aa5-a2a7-4c6f-8283-4f2c8aaf5dd7"
+    Scope="perUser"
+    InstallerVersion="500"
+    Compressed="yes"
+  >
+    <MediaTemplate EmbedCab="yes" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Radicle is already installed." />
+    <Property Id="ARPURLINFOABOUT" Value="https://www.radicle.xyz/" />
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="INSTALLFOLDER" Name="Radicle">  
+        <Component Id="InstallFolderComponent" Guid="*">
+          <RemoveFolder On="uninstall" />
+          <RegistryKey Root="HKCU" Key="Software\Radicle\Components">
+            <RegistryValue Name="InstallFolder" Type="integer" Value="0" KeyPath="yes" />
+          </RegistryKey>
+        </Component>
+        <Directory Id="BinFolder" Name="bin">
+          <Component Id="BinFolderComponent" Guid="9d24e7f1-4c00-4cb4-9644-14ed3e0e7ebf">
+            <RemoveFolder Id="RemoveDirectoryOnUninstall" On="uninstall" />
+            <File Source="..\$(CARGO_TARGET_DIR)\$(CARGO_PROFILE)\rad.exe" />
+            <File Source="..\$(CARGO_TARGET_DIR)\$(CARGO_PROFILE)\radicle-node.exe" />
+            <File Source="..\$(CARGO_TARGET_DIR)\$(CARGO_PROFILE)\git-remote-rad.exe" />
+            <RegistryKey Root="HKCU" Key="Software\Radicle\Components">
+              <RegistryValue Name="BinFolder" Type="integer" Value="0" KeyPath="yes" />
+            </RegistryKey>
+          </Component>
+          <Component Id="BinFolderInPathComponent" Guid="c37b7983-5f94-4c07-a1bd-40fe31b9e468">
+            <Environment Id="envPath" Name="PATH" Value="[BinFolder]" Action="set" System="no" Part="last" Permanent="no" />
+            <RegistryKey Root="HKCU" Key="Software\Radicle\Components">
+              <RegistryValue Name="BinFolderInPath" Type="integer" Value="0" KeyPath="yes" />
+            </RegistryKey>
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <Feature Id="Main" Title="Radicle" Level="1">
+      <ComponentRef Id="InstallFolderComponent" />
+      <ComponentRef Id="BinFolderComponent" />
+      <ComponentRef Id="BinFolderInPathComponent" />
+    </Feature>
+  </Package>
+</Wix>

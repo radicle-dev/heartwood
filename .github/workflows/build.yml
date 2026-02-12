@@ -19,7 +19,11 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 512
+          fetch-tags: true
+          filter: 'tree:0'
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/cache@v4
         with:
@@ -30,6 +34,17 @@ jobs:
           path: target
           key: ${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}-cargo-target
       - run: cargo build --workspace --verbose --all-features
+      - if: runner.os == 'Windows'
+        working-directory: windows
+        run: |
+          $env:RADICLE_VERSION = "$(.\version.ps1)"
+          echo $env:RADICLE_VERSION
+          dotnet build
+      - if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: radicle-installer-${{ runner.arch }}-${{ github.sha }}-${{ github.job }}
+          path: windows/bin/*/*.msi
       - if: runner.os != 'Windows'
         run: cargo test  --workspace --verbose --all-features -- --nocapture
       - if: runner.os == 'Windows'
