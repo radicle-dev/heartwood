@@ -10,6 +10,11 @@ use snapbox::cmd::{Command, OutputAssert};
 use snapbox::{Assert, Substitutions};
 use thiserror::Error;
 
+#[cfg(windows)]
+const PATH_SEPARATOR: char = ';';
+#[cfg(not(windows))]
+const PATH_SEPARATOR: char = ':';
+
 /// Used to ensure the build task is only run once.
 static BUILD: sync::Once = sync::Once::new();
 
@@ -170,11 +175,6 @@ pub struct TestFormula {
 
 impl TestFormula {
     pub fn new(cwd: PathBuf) -> Self {
-        #[cfg(windows)]
-        const PATH_SEPARATOR: char = ';';
-        #[cfg(not(windows))]
-        const PATH_SEPARATOR: char = ':';
-
         Self {
             cwd: cwd.clone(),
             env: HashMap::new(),
@@ -492,7 +492,7 @@ impl TestFormula {
                     .iter()
                     .map(|p| p.as_os_str())
                     .collect::<Vec<_>>()
-                    .join(ffi::OsStr::new(":"));
+                    .join(ffi::OsStr::new(&PATH_SEPARATOR.to_string()));
                 let result = Command::new(cmd.clone())
                     .env_clear()
                     .env("PATH", &bins)
@@ -584,7 +584,7 @@ $ rad sync
             bins: {
                 let mut bins: Vec<_> = env::var("PATH")
                     .unwrap_or_default()
-                    .split(':')
+                    .split(PATH_SEPARATOR)
                     .map(PathBuf::from)
                     .collect();
                 bins.push(cwd);
