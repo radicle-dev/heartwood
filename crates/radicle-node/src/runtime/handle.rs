@@ -24,7 +24,7 @@ use crate::profile::Home;
 use crate::reactor;
 use crate::runtime::Emitter;
 use crate::service;
-use crate::service::{CommandError, QueryState};
+use crate::service::QueryState;
 use crate::storage::refs::RefsAt;
 use crate::wire;
 use crate::wire::StreamId;
@@ -38,7 +38,7 @@ pub enum Error {
     ChannelDisconnected,
     /// The command returned an error.
     #[error("command failed: {0}")]
-    Command(#[from] CommandError),
+    Command(#[from] service::command::Error),
     /// The operation timed out.
     #[error("the operation timed out")]
     Timeout,

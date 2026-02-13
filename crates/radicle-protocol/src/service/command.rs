@@ -2,20 +2,18 @@ use std::{collections::HashSet, fmt, sync::Arc, time};
 
 use crossbeam_channel::Sender;
 use radicle::crypto::PublicKey;
-use radicle::node::policy::config as policy;
 use radicle::node::policy::Scope;
-use radicle::node::routing;
 use radicle::node::FetchResult;
 use radicle::node::Seeds;
 use radicle::node::{Address, Alias, Config, ConnectOptions};
-use radicle::storage;
 use radicle::storage::refs::RefsAt;
 use radicle_core::{NodeId, RepoId};
+use thiserror::Error;
 
 use super::ServiceState;
 
 /// Function used to query internal service state.
-pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<(), CommandError> + Send + Sync;
+pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<(), Error> + Send + Sync;
 
 /// Commands sent to the service by the operator.
 pub enum Command {
@@ -47,7 +45,7 @@ pub enum Command {
     /// Unfollow the given node.
     Unfollow(NodeId, Sender<bool>),
     /// Query the internal service state.
-    QueryState(Arc<QueryState>, Sender<Result<(), CommandError>>),
+    QueryState(Arc<QueryState>, Sender<Result<(), Error>>),
 }
 
 impl fmt::Debug for Command {
@@ -71,13 +69,19 @@ impl fmt::Debug for Command {
     }
 }
 
-/// Command-related errors.
-#[derive(thiserror::Error, Debug)]
-pub enum CommandError {
-    #[error(transparent)]
-    Storage(#[from] storage::Error),
-    #[error(transparent)]
-    Routing(#[from] routing::Error),
-    #[error(transparent)]
-    Policy(#[from] policy::Error),
+/// An error that occurred when processing a service [`Command`].
+#[non_exhaustive]
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("{0}")]
+    Other(#[source] Box<dyn std::error::Error + Send + Sync + 'static>),
+}
+
+impl Error {
+    pub(super) fn other<E>(error: E) -> Self
+    where
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        Self::Other(Box::new(error))
+    }
 }

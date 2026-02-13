@@ -3,7 +3,7 @@
 #![allow(clippy::collapsible_if)]
 #![warn(clippy::unwrap_used)]
 pub mod command;
-pub use command::{Command, CommandError, QueryState};
+pub use command::{Command, QueryState};
 
 pub mod filter;
 pub mod gossip;
