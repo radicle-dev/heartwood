@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::io::BufRead as _;
 use std::mem::ManuallyDrop;
+use std::net::Ipv4Addr;
 use std::path::Path;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -460,7 +461,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone + Debug> Node<G
     /// Spawn a node in its own thread.
     pub fn spawn(self) -> NodeHandle<G> {
         let alias = self.config.alias.clone();
-        let listen = vec![([0, 0, 0, 0], 0).into()];
+        let listen = vec![(Ipv4Addr::LOCALHOST, 0).into()];
         let (_, signals) = chan::bounded(1);
         let rt = Runtime::init(
             self.home.clone(),
