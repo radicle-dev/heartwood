@@ -10,6 +10,7 @@ pub mod event;
 
 pub use command::Command;
 pub use event::Event;
+use serde::Serialize;
 
 use std::collections::{BTreeMap, VecDeque};
 use std::num::NonZeroUsize;
@@ -42,7 +43,7 @@ pub const MAX_CONCURRENCY: NonZeroUsize = NonZeroUsize::MIN;
 /// of fetches can happen with it concurrently. This does not guarantee that the
 /// node will actually allow this node to fetch from it – since it will maintain
 /// its own capacity for connections and load.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct FetcherState {
     /// The active fetches that are occurring, ensuring only one fetch per repository.
     active: BTreeMap<RepoId, ActiveFetch>,
@@ -235,7 +236,7 @@ impl FetcherState {
 }
 
 /// Configuration for the [`FetcherState`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct Config {
     /// Maximum number of concurrent fetches per peer connection.
     maximum_concurrency: NonZeroUsize,
@@ -271,7 +272,7 @@ impl Default for Config {
 }
 
 /// An active fetch represents a repository being fetched by a particular node.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ActiveFetch {
     pub from: NodeId,
     pub refs: RefsToFetch,
@@ -290,7 +291,7 @@ impl ActiveFetch {
 }
 
 /// A fetch that is waiting to be processed, in the fetch queue.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct QueuedFetch {
     /// The repository that will be fetched.
     pub rid: RepoId,
@@ -304,14 +305,15 @@ pub struct QueuedFetch {
 ///
 /// It ensures that the queue contains unique items for fetching, and does not
 /// exceed the provided maximum capacity.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Queue {
     queue: VecDeque<QueuedFetch>,
     max_queue_size: MaxQueueSize,
 }
 
 /// The maximum number of fetches that can be queued for a single node.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(transparent)]
 pub struct MaxQueueSize(usize);
 
 impl MaxQueueSize {
