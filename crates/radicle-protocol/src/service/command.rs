@@ -1,6 +1,6 @@
 use std::{collections::HashSet, fmt, sync::Arc, time};
 
-use crossbeam_channel as chan;
+use crossbeam_channel::Sender;
 use radicle::crypto::PublicKey;
 use radicle::node::policy::config as policy;
 use radicle::node::policy::Scope;
@@ -20,34 +20,34 @@ pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<(), CommandError> + Se
 /// Commands sent to the service by the operator.
 pub enum Command {
     /// Announce repository references for given repository and namespaces to peers.
-    AnnounceRefs(RepoId, HashSet<PublicKey>, chan::Sender<RefsAt>),
+    AnnounceRefs(RepoId, HashSet<PublicKey>, Sender<RefsAt>),
     /// Announce local repositories to peers.
     AnnounceInventory,
     /// Add repository to local inventory.
-    AddInventory(RepoId, chan::Sender<bool>),
+    AddInventory(RepoId, Sender<bool>),
     /// Connect to node with the given address.
     Connect(NodeId, Address, ConnectOptions),
     /// Disconnect from node.
     Disconnect(NodeId),
     /// Get the node configuration.
-    Config(chan::Sender<Config>),
+    Config(Sender<Config>),
     /// Get the node's listen addresses.
-    ListenAddrs(chan::Sender<Vec<std::net::SocketAddr>>),
+    ListenAddrs(Sender<Vec<std::net::SocketAddr>>),
     /// Lookup seeds for the given repository in the routing table, and report
     /// sync status for given namespaces.
-    Seeds(RepoId, HashSet<PublicKey>, chan::Sender<Seeds>),
+    Seeds(RepoId, HashSet<PublicKey>, Sender<Seeds>),
     /// Fetch the given repository from the network.
-    Fetch(RepoId, NodeId, time::Duration, chan::Sender<FetchResult>),
+    Fetch(RepoId, NodeId, time::Duration, Sender<FetchResult>),
     /// Seed the given repository.
-    Seed(RepoId, Scope, chan::Sender<bool>),
+    Seed(RepoId, Scope, Sender<bool>),
     /// Unseed the given repository.
-    Unseed(RepoId, chan::Sender<bool>),
+    Unseed(RepoId, Sender<bool>),
     /// Follow the given node.
-    Follow(NodeId, Option<Alias>, chan::Sender<bool>),
+    Follow(NodeId, Option<Alias>, Sender<bool>),
     /// Unfollow the given node.
-    Unfollow(NodeId, chan::Sender<bool>),
+    Unfollow(NodeId, Sender<bool>),
     /// Query the internal service state.
-    QueryState(Arc<QueryState>, chan::Sender<Result<(), CommandError>>),
+    QueryState(Arc<QueryState>, Sender<Result<(), CommandError>>),
 }
 
 impl fmt::Debug for Command {
