@@ -1,5 +1,7 @@
 use std::{collections::HashSet, fmt, sync::Arc, time};
 
+use crossbeam_channel::Receiver;
+use crossbeam_channel::SendError;
 use crossbeam_channel::Sender;
 use radicle::crypto::PublicKey;
 use radicle::node::policy::Scope;
@@ -19,6 +21,45 @@ pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<()> + Send + Sync;
 ///
 /// It is a type synonym for a [`std::result::Result`]
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// A [`Responder`] returns results after processing a service [`Command`].
+///
+/// To construct a [`Responder`], use [`Responder::new`], which also returns its
+/// corresponding [`Receiver`].
+///
+/// To send results, use either:
+/// - [`Responder::send`]
+/// - [`Responder::ok`]
+/// - [`Responder::err`]
+pub struct Responder<T> {
+    channel: Sender<Result<T>>,
+}
+
+impl<T> Responder<T> {
+    /// Construct a new [`Responder`] and its corresponding [`Receiver`].
+    pub fn new() -> (Self, Receiver<Result<T>>) {
+        let (sender, receiver) = crossbeam_channel::bounded(1);
+        (Self { channel: sender }, receiver)
+    }
+
+    /// Send a [`Result`] to the receiver.
+    pub fn send(&self, result: Result<T>) -> std::result::Result<(), SendError<Result<T>>> {
+        self.channel.send(result)
+    }
+
+    /// Send a [`Result::Ok`] to the receiver.
+    pub fn ok(&self, value: T) -> std::result::Result<(), SendError<Result<T>>> {
+        self.send(Ok(value))
+    }
+
+    /// Send a [`Result::Err`] to the receiver.
+    pub fn err<E>(&self, error: E) -> std::result::Result<(), SendError<Result<T>>>
+    where
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        self.send(Err(Error::other(error)))
+    }
+}
 
 /// Commands sent to the service by the operator.
 pub enum Command {
