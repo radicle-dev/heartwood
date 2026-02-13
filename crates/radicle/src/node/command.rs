@@ -120,6 +120,10 @@ pub enum Command {
     #[serde(rename_all = "camelCase")]
     Unfollow { nid: NodeId },
 
+    /// Block the given node.
+    #[serde(rename_all = "camelCase")]
+    Block { nid: NodeId },
+
     /// Get the node's status.
     Status,
 

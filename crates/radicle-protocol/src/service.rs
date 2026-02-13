@@ -856,6 +856,16 @@ where
                     .expect("Service::command: error unfollowing node");
                 resp.ok(updated).ok();
             }
+            Command::Block(id, resp) => {
+                let updated = self
+                    .policies
+                    .set_follow_policy(&id, policy::Policy::Block)
+                    .expect("Service::command: error blocking node");
+                if updated {
+                    self.outbox.disconnect(id, DisconnectReason::Policy);
+                }
+                resp.send(updated).ok();
+            }
             Command::AnnounceRefs(id, namespaces, resp) => {
                 let doc = match self.storage.get(id) {
                     Ok(Some(doc)) => doc,
@@ -1212,6 +1222,12 @@ where
         info!(target: "service", "Connected to {remote} ({addr}) ({link:?})");
         self.emitter.emit(Event::PeerConnected { nid: remote });
 
+        if let Ok(true) = self.policies.is_blocked(&remote) {
+            debug!(target: "service", "Disconnecting blocked peer {remote}");
+            self.outbox.disconnect(remote, DisconnectReason::Policy);
+            return;
+        }
+
         let msgs = self.initial(link);
 
         if link.is_outbound() {
@@ -1344,6 +1360,7 @@ where
                 DisconnectReason::Session(e) => e.severity(),
                 DisconnectReason::Command
                 | DisconnectReason::Conflict
+                | DisconnectReason::Policy
                 | DisconnectReason::SelfConnection => Severity::Low,
             };
 
@@ -2386,6 +2403,7 @@ where
                     .filter(|entry| !entry.address.banned)
                     .filter(|entry| !entry.penalty.is_connect_threshold_reached())
                     .filter(|entry| !self.sessions.contains_key(&entry.node))
+                    .filter(|entry| !self.policies.is_blocked(&entry.node).unwrap_or(false))
                     .filter(|entry| !self.config.external_addresses.contains(&entry.address.addr))
                     .filter(|entry| &entry.node != self.nid())
                     .filter(|entry| self.is_supported_address(&entry.address.addr))
@@ -2553,6 +2571,9 @@ where
 
         for (nid, session) in self.sessions.iter_mut() {
             if self.config.is_persistent(nid) {
+                if self.policies.is_blocked(nid).unwrap_or(false) {
+                    continue;
+                }
                 if let session::State::Disconnected { retry_at, .. } = &mut session.state {
                     // TODO: Try to reconnect only if the peer was attempted. A disconnect without
                     // even a successful attempt means that we're unlikely to be able to reconnect.
@@ -2684,6 +2705,8 @@ pub enum DisconnectReason {
     Conflict,
     /// Connection to self.
     SelfConnection,
+    /// Peer is blocked by policy
+    Policy,
     /// User requested disconnect
     Command,
 }
@@ -2712,6 +2735,7 @@ impl fmt::Display for DisconnectReason {
             Self::Command => write!(f, "command"),
             Self::SelfConnection => write!(f, "self-connection"),
             Self::Conflict => write!(f, "conflict"),
+            Self::Policy => write!(f, "policy"),
             Self::Session(err) => write!(f, "{err}"),
             Self::Fetch(err) => write!(f, "fetch: {err}"),
         }

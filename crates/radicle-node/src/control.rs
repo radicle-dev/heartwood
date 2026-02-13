@@ -170,6 +170,14 @@ where
                 return Err(CommandError::Runtime(e));
             }
         },
+        Command::Block { nid } => match handle.block(nid) {
+            Ok(result) => {
+                CommandResult::updated(result).to_writer(writer)?;
+            }
+            Err(e) => {
+                return Err(CommandError::Runtime(e));
+            }
+        },
         Command::Unfollow { nid } => match handle.unfollow(nid) {
             Ok(result) => {
                 CommandResult::updated(result).to_writer(writer)?;
