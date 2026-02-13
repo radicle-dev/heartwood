@@ -203,7 +203,7 @@ impl radicle::node::Handle for Handle {
         id: RepoId,
         namespaces: impl IntoIterator<Item = PublicKey>,
     ) -> Result<Seeds, Self::Error> {
-        let (responder, receiver) = service::command::Responder::new();
+        let (responder, receiver) = service::command::Responder::oneshot();
         self.command(service::Command::Seeds(
             id,
             HashSet::from_iter(namespaces),
@@ -213,13 +213,13 @@ impl radicle::node::Handle for Handle {
     }
 
     fn config(&self) -> Result<Config, Self::Error> {
-        let (responder, receiver) = service::command::Responder::new();
+        let (responder, receiver) = service::command::Responder::oneshot();
         self.command(service::Command::Config(responder))?;
         Ok(receiver.recv()??)
     }
 
     fn listen_addrs(&self) -> Result<Vec<net::SocketAddr>, Self::Error> {
-        let (responder, receiver) = service::command::Responder::new();
+        let (responder, receiver) = service::command::Responder::oneshot();
         self.command(service::Command::ListenAddrs(responder))?;
         Ok(receiver.recv()??)
     }
@@ -230,31 +230,31 @@ impl radicle::node::Handle for Handle {
         from: NodeId,
         timeout: time::Duration,
     ) -> Result<FetchResult, Error> {
-        let (responder, receiver) = service::command::Responder::new();
+        let (responder, receiver) = service::command::Responder::oneshot();
         self.command(service::Command::Fetch(id, from, timeout, responder))?;
         Ok(receiver.recv()??)
     }
 
     fn follow(&mut self, id: NodeId, alias: Option<Alias>) -> Result<bool, Error> {
-        let (responder, receiver) = service::command::Responder::new();
+        let (responder, receiver) = service::command::Responder::oneshot();
         self.command(service::Command::Follow(id, alias, responder))?;
         Ok(receiver.recv()??)
     }
 
     fn unfollow(&mut self, id: NodeId) -> Result<bool, Error> {
-        let (responder, receiver) = service::command::Responder::new();
+        let (responder, receiver) = service::command::Responder::oneshot();
         self.command(service::Command::Unfollow(id, responder))?;
         Ok(receiver.recv()??)
     }
 
     fn seed(&mut self, id: RepoId, scope: policy::Scope) -> Result<bool, Error> {
-        let (responder, receiver) = service::command::Responder::new();
+        let (responder, receiver) = service::command::Responder::oneshot();
         self.command(service::Command::Seed(id, scope, responder))?;
         Ok(receiver.recv()??)
     }
 
     fn unseed(&mut self, id: RepoId) -> Result<bool, Error> {
-        let (responder, receiver) = service::command::Responder::new();
+        let (responder, receiver) = service::command::Responder::oneshot();
         self.command(service::Command::Unseed(id, responder))?;
         Ok(receiver.recv()??)
     }
@@ -264,7 +264,7 @@ impl radicle::node::Handle for Handle {
         id: RepoId,
         namespaces: impl IntoIterator<Item = PublicKey>,
     ) -> Result<RefsAt, Error> {
-        let (responder, receiver) = service::command::Responder::new();
+        let (responder, receiver) = service::command::Responder::oneshot();
         self.command(service::Command::AnnounceRefs(
             id,
             HashSet::from_iter(namespaces),
@@ -279,7 +279,7 @@ impl radicle::node::Handle for Handle {
     }
 
     fn add_inventory(&mut self, rid: RepoId) -> Result<bool, Error> {
-        let (responder, receiver) = service::command::Responder::new();
+        let (responder, receiver) = service::command::Responder::oneshot();
         self.command(service::Command::AddInventory(rid, responder))?;
         Ok(receiver.recv()??)
     }

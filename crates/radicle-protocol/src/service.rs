@@ -873,8 +873,16 @@ where
 
                 match self.announce_own_refs(id, doc, namespaces) {
                     Ok((refs, _timestamp)) => {
-                        for r in refs {
-                            resp.ok(r).ok();
+                        // TODO(finto): currently the command caller only
+                        // expects one `RefsAt`, this should be fixed in the
+                        // trait, eventually.
+                        if let Some(refs) = refs.first() {
+                            resp.ok(*refs).ok();
+                        } else {
+                            resp.err(command::Error::custom(format!(
+                                "no refs were announced for {id}"
+                            )))
+                            .ok();
                         }
                     }
                     Err(err) => {

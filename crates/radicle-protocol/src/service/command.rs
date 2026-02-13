@@ -24,7 +24,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// A [`Responder`] returns results after processing a service [`Command`].
 ///
-/// To construct a [`Responder`], use [`Responder::new`], which also returns its
+/// To construct a [`Responder`], use [`Responder::oneshot`], which also returns its
 /// corresponding [`Receiver`].
 ///
 /// To send results, use either:
@@ -38,23 +38,23 @@ pub struct Responder<T> {
 
 impl<T> Responder<T> {
     /// Construct a new [`Responder`] and its corresponding [`Receiver`].
-    pub fn new() -> (Self, Receiver<Result<T>>) {
+    pub fn oneshot() -> (Self, Receiver<Result<T>>) {
         let (sender, receiver) = crossbeam_channel::bounded(1);
         (Self { channel: sender }, receiver)
     }
 
     /// Send a [`Result`] to the receiver.
-    pub fn send(&self, result: Result<T>) -> std::result::Result<(), SendError<Result<T>>> {
+    pub fn send(self, result: Result<T>) -> std::result::Result<(), SendError<Result<T>>> {
         self.channel.send(result)
     }
 
     /// Send a [`Result::Ok`] to the receiver.
-    pub fn ok(&self, value: T) -> std::result::Result<(), SendError<Result<T>>> {
+    pub fn ok(self, value: T) -> std::result::Result<(), SendError<Result<T>>> {
         self.send(Ok(value))
     }
 
     /// Send a [`Result::Err`] to the receiver.
-    pub fn err<E>(&self, error: E) -> std::result::Result<(), SendError<Result<T>>>
+    pub fn err<E>(self, error: E) -> std::result::Result<(), SendError<Result<T>>>
     where
         E: std::error::Error + Send + Sync + 'static,
     {
@@ -108,7 +108,7 @@ impl Command {
         rid: RepoId,
         keys: HashSet<PublicKey>,
     ) -> (Self, Receiver<Result<RefsAt>>) {
-        let (responder, receiver) = Responder::new();
+        let (responder, receiver) = Responder::oneshot();
         (Self::AnnounceRefs(rid, keys, responder), receiver)
     }
 
@@ -117,7 +117,7 @@ impl Command {
     }
 
     pub fn add_inventory(rid: RepoId) -> (Self, Receiver<Result<bool>>) {
-        let (responder, receiver) = Responder::new();
+        let (responder, receiver) = Responder::oneshot();
         (Self::AddInventory(rid, responder), receiver)
     }
 
@@ -130,17 +130,17 @@ impl Command {
     }
 
     pub fn config() -> (Self, Receiver<Result<Config>>) {
-        let (responder, receiver) = Responder::new();
+        let (responder, receiver) = Responder::oneshot();
         (Self::Config(responder), receiver)
     }
 
     pub fn listen_addrs() -> (Self, Receiver<Result<Vec<std::net::SocketAddr>>>) {
-        let (responder, receiver) = Responder::new();
+        let (responder, receiver) = Responder::oneshot();
         (Self::ListenAddrs(responder), receiver)
     }
 
     pub fn seeds(rid: RepoId, keys: HashSet<PublicKey>) -> (Self, Receiver<Result<Seeds>>) {
-        let (responder, receiver) = Responder::new();
+        let (responder, receiver) = Responder::oneshot();
         (Self::Seeds(rid, keys, responder), receiver)
     }
 
@@ -149,27 +149,27 @@ impl Command {
         node_id: NodeId,
         duration: time::Duration,
     ) -> (Self, Receiver<Result<FetchResult>>) {
-        let (responder, receiver) = Responder::new();
+        let (responder, receiver) = Responder::oneshot();
         (Self::Fetch(rid, node_id, duration, responder), receiver)
     }
 
     pub fn seed(rid: RepoId, scope: Scope) -> (Self, Receiver<Result<bool>>) {
-        let (responder, receiver) = Responder::new();
+        let (responder, receiver) = Responder::oneshot();
         (Self::Seed(rid, scope, responder), receiver)
     }
 
     pub fn unseed(rid: RepoId) -> (Self, Receiver<Result<bool>>) {
-        let (responder, receiver) = Responder::new();
+        let (responder, receiver) = Responder::oneshot();
         (Self::Unseed(rid, responder), receiver)
     }
 
     pub fn follow(node_id: NodeId, alias: Option<Alias>) -> (Self, Receiver<Result<bool>>) {
-        let (responder, receiver) = Responder::new();
+        let (responder, receiver) = Responder::oneshot();
         (Self::Follow(node_id, alias, responder), receiver)
     }
 
     pub fn unfollow(node_id: NodeId) -> (Self, Receiver<Result<bool>>) {
-        let (responder, receiver) = Responder::new();
+        let (responder, receiver) = Responder::oneshot();
         (Self::Unfollow(node_id, responder), receiver)
     }
 
