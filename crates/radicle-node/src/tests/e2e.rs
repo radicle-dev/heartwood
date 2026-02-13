@@ -1563,7 +1563,7 @@ fn test_fetch_emits_canonical_ref_update() {
 }
 
 #[test]
-fn test_non_fastword_identity_doc() {
+fn test_non_fastforward_identity_doc() {
     use radicle::identity::Identity;
 
     let tmp = tempfile::tempdir().unwrap();
@@ -1590,6 +1590,12 @@ fn test_non_fastword_identity_doc() {
     alice.connect(&eve);
     eve.connect(&bob);
     eve.connect(&alice_laptop);
+
+    // Due to permissive relaying, we need to lock down the scope for the RID.
+    //
+    // See: [`radicle-protocol::service::Service::relay()`] and
+    //      [`radicle-protocol::service::Service::relay_announcement()`]
+    alice.handle.seed(rid, Scope::Followed).unwrap();
 
     // Bob and Eve have the same state for the repository
     bob.handle.seed(rid, Scope::Followed).unwrap();
@@ -1631,6 +1637,8 @@ fn test_non_fastword_identity_doc() {
         repo.set_identity_head_to(rev).unwrap();
         (prev, rev)
     };
+
+    assert!(!has_issue(&alice, &issue));
 
     // Bob fetches from Alice and we see the identity document was updated.
     //
