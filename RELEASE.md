@@ -22,8 +22,8 @@ git checkout <commit>
 ```
 
 The tag name that is being chosen for the release candidate is the next semantic
-version, followed by `-rc.0`. If it is a follow-up release candidate for any
-fixes, we increase digit, e.g. `releases/1.1.0-rc.1`, `releases/1.1.0-rc.2`,
+version, followed by `-rc.1`. If it is a follow-up release candidate for any
+fixes, we increase digit, e.g. `releases/1.1.0-rc.2`, `releases/1.1.0-rc.3`,
 etc.
 
 Note that, for the next part, `git config user.signingKey` must match the key
