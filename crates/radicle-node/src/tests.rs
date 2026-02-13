@@ -8,7 +8,8 @@ use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time;
 
-use crossbeam_channel as chan;
+use test_log::test;
+
 use radicle::cob;
 use radicle::identity::Visibility;
 use radicle::node::address::Store as _;
@@ -414,15 +415,23 @@ fn test_seeding() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let proj_id: identity::RepoId = test::arbitrary::gen(1);
 
-    let (sender, receiver) = chan::bounded(1);
-    alice.command(Command::Seed(proj_id, policy::Scope::default(), sender));
-    let policy_change = receiver.recv().map_err(runtime::HandleError::from).unwrap();
+    let (cmd, receiver) = Command::seed(proj_id, policy::Scope::default());
+    alice.command(cmd);
+    let policy_change = receiver
+        .recv()
+        .map_err(runtime::HandleError::from)
+        .unwrap()
+        .unwrap();
     assert!(policy_change);
     assert!(alice.policies().is_seeding(&proj_id).unwrap());
 
-    let (sender, receiver) = chan::bounded(1);
-    alice.command(Command::Unseed(proj_id, sender));
-    let policy_change = receiver.recv().map_err(runtime::HandleError::from).unwrap();
+    let (cmd, receiver) = Command::unseed(proj_id);
+    alice.command(cmd);
+    let policy_change = receiver
+        .recv()
+        .map_err(runtime::HandleError::from)
+        .unwrap()
+        .unwrap();
     assert!(policy_change);
     assert!(!alice.policies().is_seeding(&proj_id).unwrap());
 }
@@ -929,13 +938,13 @@ fn test_refs_announcement_followed() {
     );
 
     // Alice starts to track Bob.
-    let (sender, receiver) = chan::bounded(1);
-    alice.command(Command::Follow(
-        bob.id,
-        Some(node::Alias::new("bob")),
-        sender,
-    ));
-    let policy_change = receiver.recv().map_err(runtime::HandleError::from).unwrap();
+    let (cmd, receiver) = Command::follow(bob.id, Some(node::Alias::new("bob")));
+    alice.command(cmd);
+    let policy_change = receiver
+        .recv()
+        .map_err(runtime::HandleError::from)
+        .unwrap()
+        .unwrap();
     assert!(policy_change);
 
     // Bob announces refs again.
@@ -1402,11 +1411,11 @@ fn test_seed_repo_subscribe() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let rid = arbitrary::gen::<RepoId>(1);
-    let (send, recv) = chan::bounded(1);
 
     alice.connect_to(&bob);
-    alice.command(Command::Seed(rid, policy::Scope::default(), send));
-    assert!(recv.recv().unwrap());
+    let (cmd, recv) = Command::seed(rid, policy::Scope::default());
+    alice.command(cmd);
+    assert!(recv.recv().unwrap().unwrap());
 
     assert_matches!(
         alice.messages(bob.id).next(),
@@ -1491,16 +1500,16 @@ fn test_queued_fetch_max_capacity() {
     alice.connect_to(&bob);
 
     // Send the first fetch.
-    let (send, _recv1) = chan::bounded::<node::FetchResult>(1);
-    alice.command(Command::Fetch(rid1, bob.id, DEFAULT_TIMEOUT, send));
+    let (cmd, _recv1) = Command::fetch(rid1, bob.id, DEFAULT_TIMEOUT);
+    alice.command(cmd);
 
     // Send the 2nd fetch that will be queued.
-    let (send2, _recv2) = chan::bounded::<node::FetchResult>(1);
-    alice.command(Command::Fetch(rid2, bob.id, DEFAULT_TIMEOUT, send2));
+    let (cmd, _recv2) = Command::fetch(rid2, bob.id, DEFAULT_TIMEOUT);
+    alice.command(cmd);
 
     // Send the 3rd fetch that will be queued.
-    let (send3, _recv3) = chan::bounded::<node::FetchResult>(1);
-    alice.command(Command::Fetch(rid3, bob.id, DEFAULT_TIMEOUT, send3));
+    let (cmd, _recv3) = Command::fetch(rid3, bob.id, DEFAULT_TIMEOUT);
+    alice.command(cmd);
 
     // The first fetch is initiated.
     assert_matches!(alice.fetches().next(), Some((rid, _)) if rid == rid1);
@@ -1514,14 +1523,14 @@ fn test_queued_fetch_max_capacity() {
     alice.fetched(rid1, bob.id, Ok(fetch::FetchResult::new(doc.clone())));
 
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
-    assert_matches!(alice.fetches().next(), Some((rid, _)) if rid == rid2);
+    assert_eq!(alice.fetches().next(), Some((rid2, bob.id)));
     // ... but not the third.
     assert_matches!(alice.fetches().next(), None);
 
     // Finish the 2nd fetch.
     alice.fetched(rid2, bob.id, Ok(fetch::FetchResult::new(doc)));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
-    assert_matches!(alice.fetches().next(), Some((rid, _)) if rid == rid3);
+    assert_eq!(alice.fetches().next(), Some((rid3, bob.id)));
 }
 
 #[test]
@@ -1615,16 +1624,16 @@ fn test_queued_fetch_from_command_same_rid() {
     alice.connect_to(&carol);
 
     // Send the first fetch.
-    let (send, _recv1) = chan::bounded::<node::FetchResult>(1);
-    alice.command(Command::Fetch(rid1, bob.id, DEFAULT_TIMEOUT, send));
+    let (cmd, _recv1) = Command::fetch(rid1, bob.id, DEFAULT_TIMEOUT);
+    alice.command(cmd);
 
     // Send the 2nd fetch that will be queued.
-    let (send2, _recv2) = chan::bounded::<node::FetchResult>(1);
-    alice.command(Command::Fetch(rid1, eve.id, DEFAULT_TIMEOUT, send2));
+    let (cmd, _recv2) = Command::fetch(rid1, eve.id, DEFAULT_TIMEOUT);
+    alice.command(cmd);
 
     // Send the 3rd fetch that will be queued.
-    let (send3, _recv3) = chan::bounded::<node::FetchResult>(1);
-    alice.command(Command::Fetch(rid1, carol.id, DEFAULT_TIMEOUT, send3));
+    let (cmd, _recv3) = Command::fetch(rid1, carol.id, DEFAULT_TIMEOUT);
+    alice.command(cmd);
 
     // Peers Alice will fetch from.
     let mut peers = [bob.id, eve.id, carol.id]
@@ -1771,29 +1780,20 @@ fn test_init_and_seed() {
     assert!(bob.get(proj_id).unwrap().is_none());
 
     // Bob seeds Alice's project.
-    let (sender, receiver) = chan::bounded(1);
-    bob.command(service::Command::Seed(
-        proj_id,
-        policy::Scope::default(),
-        sender,
-    ));
-    assert!(receiver.recv().unwrap());
+    let (cmd, receiver) = service::Command::seed(proj_id, policy::Scope::default());
+    bob.command(cmd);
+    assert!(receiver.recv().unwrap().unwrap());
 
     // Eve seeds Alice's project.
-    let (sender, receiver) = chan::bounded(1);
-    eve.command(service::Command::Seed(
-        proj_id,
-        policy::Scope::default(),
-        sender,
-    ));
-    assert!(receiver.recv().unwrap());
+    let (cmd, receiver) = service::Command::seed(proj_id, policy::Scope::default());
+    eve.command(cmd);
+    assert!(receiver.recv().unwrap().unwrap());
 
-    let (send, _) = chan::bounded(1);
-    // Alice announces her inventory.
     // We now expect Eve to fetch Alice's project from Alice.
     // Then we expect Bob to fetch Alice's project from Eve.
     alice.elapse(LocalDuration::from_secs(1)); // Make sure our announcement is fresh.
-    alice.command(service::Command::AddInventory(proj_id, send));
+    let (cmd, _) = service::Command::add_inventory(proj_id);
+    alice.command(cmd);
 
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 
@@ -2032,13 +2032,13 @@ fn test_announcement_message_amplification() {
             continue;
         }
 
-        let (tx, _) = chan::bounded(1);
         let timestamp = (*alice.clock()).into();
         alice
             .storage_mut()
             .repos
             .insert(rid, gen::<MockRepository>(1));
-        alice.command(Command::AddInventory(rid, tx));
+        let (cmd, _) = Command::add_inventory(rid);
+        alice.command(cmd);
 
         sim.run_while([&mut alice, &mut bob, &mut eve, &mut zod, &mut tom], |s| {
             s.elapsed() < LocalDuration::from_mins(3)

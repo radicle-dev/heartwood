@@ -203,25 +203,25 @@ impl radicle::node::Handle for Handle {
         id: RepoId,
         namespaces: impl IntoIterator<Item = PublicKey>,
     ) -> Result<Seeds, Self::Error> {
-        let (sender, receiver) = chan::bounded(1);
+        let (responder, receiver) = service::command::Responder::new();
         self.command(service::Command::Seeds(
             id,
             HashSet::from_iter(namespaces),
-            sender,
+            responder,
         ))?;
-        receiver.recv().map_err(Error::from)
+        Ok(receiver.recv()??)
     }
 
     fn config(&self) -> Result<Config, Self::Error> {
-        let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::Config(sender))?;
-        receiver.recv().map_err(Error::from)
+        let (responder, receiver) = service::command::Responder::new();
+        self.command(service::Command::Config(responder))?;
+        Ok(receiver.recv()??)
     }
 
     fn listen_addrs(&self) -> Result<Vec<net::SocketAddr>, Self::Error> {
-        let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::ListenAddrs(sender))?;
-        receiver.recv().map_err(Error::from)
+        let (responder, receiver) = service::command::Responder::new();
+        self.command(service::Command::ListenAddrs(responder))?;
+        Ok(receiver.recv()??)
     }
 
     fn fetch(
@@ -230,33 +230,33 @@ impl radicle::node::Handle for Handle {
         from: NodeId,
         timeout: time::Duration,
     ) -> Result<FetchResult, Error> {
-        let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::Fetch(id, from, timeout, sender))?;
-        receiver.recv().map_err(Error::from)
+        let (responder, receiver) = service::command::Responder::new();
+        self.command(service::Command::Fetch(id, from, timeout, responder))?;
+        Ok(receiver.recv()??)
     }
 
     fn follow(&mut self, id: NodeId, alias: Option<Alias>) -> Result<bool, Error> {
-        let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::Follow(id, alias, sender))?;
-        receiver.recv().map_err(Error::from)
+        let (responder, receiver) = service::command::Responder::new();
+        self.command(service::Command::Follow(id, alias, responder))?;
+        Ok(receiver.recv()??)
     }
 
     fn unfollow(&mut self, id: NodeId) -> Result<bool, Error> {
-        let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::Unfollow(id, sender))?;
-        receiver.recv().map_err(Error::from)
+        let (responder, receiver) = service::command::Responder::new();
+        self.command(service::Command::Unfollow(id, responder))?;
+        Ok(receiver.recv()??)
     }
 
     fn seed(&mut self, id: RepoId, scope: policy::Scope) -> Result<bool, Error> {
-        let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::Seed(id, scope, sender))?;
-        receiver.recv().map_err(Error::from)
+        let (responder, receiver) = service::command::Responder::new();
+        self.command(service::Command::Seed(id, scope, responder))?;
+        Ok(receiver.recv()??)
     }
 
     fn unseed(&mut self, id: RepoId) -> Result<bool, Error> {
-        let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::Unseed(id, sender))?;
-        receiver.recv().map_err(Error::from)
+        let (responder, receiver) = service::command::Responder::new();
+        self.command(service::Command::Unseed(id, responder))?;
+        Ok(receiver.recv()??)
     }
 
     fn announce_refs_for(
@@ -264,13 +264,13 @@ impl radicle::node::Handle for Handle {
         id: RepoId,
         namespaces: impl IntoIterator<Item = PublicKey>,
     ) -> Result<RefsAt, Error> {
-        let (sender, receiver) = chan::bounded(1);
+        let (responder, receiver) = service::command::Responder::new();
         self.command(service::Command::AnnounceRefs(
             id,
             HashSet::from_iter(namespaces),
-            sender,
+            responder,
         ))?;
-        receiver.recv().map_err(Error::from)
+        Ok(receiver.recv()??)
     }
 
     fn announce_inventory(&mut self) -> Result<(), Error> {
@@ -279,9 +279,9 @@ impl radicle::node::Handle for Handle {
     }
 
     fn add_inventory(&mut self, rid: RepoId) -> Result<bool, Error> {
-        let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::AddInventory(rid, sender))?;
-        receiver.recv().map_err(Error::from)
+        let (responder, receiver) = service::command::Responder::new();
+        self.command(service::Command::AddInventory(rid, responder))?;
+        Ok(receiver.recv()??)
     }
 
     fn subscribe(&self, _timeout: time::Duration) -> Result<Self::Events, Self::Error> {

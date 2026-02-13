@@ -31,6 +31,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// - [`Responder::send`]
 /// - [`Responder::ok`]
 /// - [`Responder::err`]
+#[derive(Debug)]
 pub struct Responder<T> {
     channel: Sender<Result<T>>,
 }
@@ -62,36 +63,119 @@ impl<T> Responder<T> {
 }
 
 /// Commands sent to the service by the operator.
+///
+/// Each variant has a corresponding helper constructor, e.g. [`Command::Seed`]
+/// and [`Command::seed`]. These constructors will hide the construction of the
+/// [`Responder`], and return the corresponding [`Receiver`] to receive the
+/// result of the command process.
+///
+/// If the command does not return a [`Responder`], then it will only return the
+/// [`Command`] variant, e.g. [`Command::AnnounceInventory`].
 pub enum Command {
     /// Announce repository references for given repository and namespaces to peers.
-    AnnounceRefs(RepoId, HashSet<PublicKey>, Sender<RefsAt>),
+    AnnounceRefs(RepoId, HashSet<PublicKey>, Responder<RefsAt>),
     /// Announce local repositories to peers.
     AnnounceInventory,
     /// Add repository to local inventory.
-    AddInventory(RepoId, Sender<bool>),
+    AddInventory(RepoId, Responder<bool>),
     /// Connect to node with the given address.
     Connect(NodeId, Address, ConnectOptions),
     /// Disconnect from node.
     Disconnect(NodeId),
     /// Get the node configuration.
-    Config(Sender<Config>),
+    Config(Responder<Config>),
     /// Get the node's listen addresses.
-    ListenAddrs(Sender<Vec<std::net::SocketAddr>>),
+    ListenAddrs(Responder<Vec<std::net::SocketAddr>>),
     /// Lookup seeds for the given repository in the routing table, and report
     /// sync status for given namespaces.
-    Seeds(RepoId, HashSet<PublicKey>, Sender<Seeds>),
+    Seeds(RepoId, HashSet<PublicKey>, Responder<Seeds>),
     /// Fetch the given repository from the network.
-    Fetch(RepoId, NodeId, time::Duration, Sender<FetchResult>),
+    Fetch(RepoId, NodeId, time::Duration, Responder<FetchResult>),
     /// Seed the given repository.
-    Seed(RepoId, Scope, Sender<bool>),
+    Seed(RepoId, Scope, Responder<bool>),
     /// Unseed the given repository.
-    Unseed(RepoId, Sender<bool>),
+    Unseed(RepoId, Responder<bool>),
     /// Follow the given node.
-    Follow(NodeId, Option<Alias>, Sender<bool>),
+    Follow(NodeId, Option<Alias>, Responder<bool>),
     /// Unfollow the given node.
-    Unfollow(NodeId, Sender<bool>),
+    Unfollow(NodeId, Responder<bool>),
     /// Query the internal service state.
     QueryState(Arc<QueryState>, Sender<Result<()>>),
+}
+
+impl Command {
+    pub fn announce_refs(
+        rid: RepoId,
+        keys: HashSet<PublicKey>,
+    ) -> (Self, Receiver<Result<RefsAt>>) {
+        let (responder, receiver) = Responder::new();
+        (Self::AnnounceRefs(rid, keys, responder), receiver)
+    }
+
+    pub fn announce_inventory() -> Self {
+        Self::AnnounceInventory
+    }
+
+    pub fn add_inventory(rid: RepoId) -> (Self, Receiver<Result<bool>>) {
+        let (responder, receiver) = Responder::new();
+        (Self::AddInventory(rid, responder), receiver)
+    }
+
+    pub fn connect(node_id: NodeId, address: Address, options: ConnectOptions) -> Self {
+        Self::Connect(node_id, address, options)
+    }
+
+    pub fn disconnect(node_id: NodeId) -> Self {
+        Self::Disconnect(node_id)
+    }
+
+    pub fn config() -> (Self, Receiver<Result<Config>>) {
+        let (responder, receiver) = Responder::new();
+        (Self::Config(responder), receiver)
+    }
+
+    pub fn listen_addrs() -> (Self, Receiver<Result<Vec<std::net::SocketAddr>>>) {
+        let (responder, receiver) = Responder::new();
+        (Self::ListenAddrs(responder), receiver)
+    }
+
+    pub fn seeds(rid: RepoId, keys: HashSet<PublicKey>) -> (Self, Receiver<Result<Seeds>>) {
+        let (responder, receiver) = Responder::new();
+        (Self::Seeds(rid, keys, responder), receiver)
+    }
+
+    pub fn fetch(
+        rid: RepoId,
+        node_id: NodeId,
+        duration: time::Duration,
+    ) -> (Self, Receiver<Result<FetchResult>>) {
+        let (responder, receiver) = Responder::new();
+        (Self::Fetch(rid, node_id, duration, responder), receiver)
+    }
+
+    pub fn seed(rid: RepoId, scope: Scope) -> (Self, Receiver<Result<bool>>) {
+        let (responder, receiver) = Responder::new();
+        (Self::Seed(rid, scope, responder), receiver)
+    }
+
+    pub fn unseed(rid: RepoId) -> (Self, Receiver<Result<bool>>) {
+        let (responder, receiver) = Responder::new();
+        (Self::Unseed(rid, responder), receiver)
+    }
+
+    pub fn follow(node_id: NodeId, alias: Option<Alias>) -> (Self, Receiver<Result<bool>>) {
+        let (responder, receiver) = Responder::new();
+        (Self::Follow(node_id, alias, responder), receiver)
+    }
+
+    pub fn unfollow(node_id: NodeId) -> (Self, Receiver<Result<bool>>) {
+        let (responder, receiver) = Responder::new();
+        (Self::Unfollow(node_id, responder), receiver)
+    }
+
+    pub fn query_state(state: Arc<QueryState>, sender: Sender<Result<()>>) -> Self {
+        Self::QueryState(state, sender)
+    }
 }
 
 impl fmt::Debug for Command {
@@ -130,4 +214,14 @@ impl Error {
     {
         Self::Other(Box::new(error))
     }
+
+    pub(super) fn custom(message: String) -> Self {
+        Self::other(Custom { message })
+    }
+}
+
+#[derive(Debug, Error)]
+#[error("{message}")]
+struct Custom {
+    message: String,
 }
