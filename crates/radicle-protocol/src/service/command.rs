@@ -13,7 +13,12 @@ use thiserror::Error;
 use super::ServiceState;
 
 /// Function used to query internal service state.
-pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<(), Error> + Send + Sync;
+pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<()> + Send + Sync;
+
+/// A result returned from processing a [`Command`].
+///
+/// It is a type synonym for a [`std::result::Result`]
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// Commands sent to the service by the operator.
 pub enum Command {
@@ -45,7 +50,7 @@ pub enum Command {
     /// Unfollow the given node.
     Unfollow(NodeId, Sender<bool>),
     /// Query the internal service state.
-    QueryState(Arc<QueryState>, Sender<Result<(), Error>>),
+    QueryState(Arc<QueryState>, Sender<Result<()>>),
 }
 
 impl fmt::Debug for Command {
