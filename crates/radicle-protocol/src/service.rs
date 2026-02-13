@@ -856,6 +856,16 @@ where
                     .expect("Service::command: error unfollowing node");
                 resp.ok(updated).ok();
             }
+            Command::Block(id, resp) => {
+                let updated = self
+                    .policies
+                    .set_follow_policy(&id, policy::Policy::Block)
+                    .expect("Service::command: error blocking node");
+                if updated {
+                    self.outbox.disconnect(id, DisconnectReason::Policy);
+                }
+                resp.send(updated).ok();
+            }
             Command::AnnounceRefs(id, namespaces, resp) => {
                 let doc = match self.storage.get(id) {
                     Ok(Some(doc)) => doc,
@@ -1344,6 +1354,7 @@ where
                 DisconnectReason::Session(e) => e.severity(),
                 DisconnectReason::Command
                 | DisconnectReason::Conflict
+                | DisconnectReason::Policy
                 | DisconnectReason::SelfConnection => Severity::Low,
             };
 
@@ -2684,6 +2695,8 @@ pub enum DisconnectReason {
     Conflict,
     /// Connection to self.
     SelfConnection,
+    /// Peer is blocked by policy
+    Policy,
     /// User requested disconnect
     Command,
 }
@@ -2712,6 +2725,7 @@ impl fmt::Display for DisconnectReason {
             Self::Command => write!(f, "command"),
             Self::SelfConnection => write!(f, "self-connection"),
             Self::Conflict => write!(f, "conflict"),
+            Self::Policy => write!(f, "policy"),
             Self::Session(err) => write!(f, "{err}"),
             Self::Fetch(err) => write!(f, "fetch: {err}"),
         }

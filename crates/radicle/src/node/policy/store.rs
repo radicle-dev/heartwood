@@ -119,14 +119,15 @@ impl Store<Write> {
     /// Follow a node.
     pub fn follow(&mut self, id: &NodeId, alias: Option<&Alias>) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
-            "INSERT INTO `following` (id, alias)
-             VALUES (?1, ?2)
-             ON CONFLICT DO UPDATE
-             SET alias = ?2 WHERE alias != ?2",
+            "INSERT INTO `following` (id, alias, policy)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT (id) DO UPDATE
+             SET alias = ?2, policy = ?3 WHERE alias != ?2 OR policy != ?3",
         )?;
 
         stmt.bind((1, id))?;
         stmt.bind((2, alias.map_or("", |alias| alias.as_str())))?;
+        stmt.bind((3, Policy::Allow))?;
         stmt.next()?;
 
         Ok(self.db.change_count() > 0)
@@ -245,6 +246,18 @@ impl<T> Store<T> {
             self.seed_policy(id)?,
             Some(SeedPolicy { policy, .. })
             if policy.is_allow()
+        ))
+    }
+
+    /// Returns `true` if there is a follow policy for the given node, and that
+    /// policy is [`Policy::Block`].
+    pub fn is_blocked(&self, id: &NodeId) -> Result<bool, Error> {
+        Ok(matches!(
+            self.follow_policy(id)?,
+            Some(FollowPolicy {
+                policy: Policy::Block,
+                ..
+            })
         ))
     }
 

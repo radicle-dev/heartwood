@@ -99,6 +99,8 @@ pub enum Command {
     Follow(NodeId, Option<Alias>, Responder<bool>),
     /// Unfollow the given node.
     Unfollow(NodeId, Responder<bool>),
+    /// Block the given node.
+    Block(NodeId, Sender<bool>),
     /// Query the internal service state.
     QueryState(Arc<QueryState>, Sender<Result<()>>),
 }
@@ -194,6 +196,7 @@ impl fmt::Debug for Command {
             Self::Unseed(id, _) => write!(f, "Unseed({id})"),
             Self::Follow(id, _, _) => write!(f, "Follow({id})"),
             Self::Unfollow(id, _) => write!(f, "Unfollow({id})"),
+            Self::Block(id, _) => write!(f, "Block({id})"),
             Self::QueryState { .. } => write!(f, "QueryState(..)"),
         }
     }

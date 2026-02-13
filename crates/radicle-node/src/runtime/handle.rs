@@ -247,6 +247,12 @@ impl radicle::node::Handle for Handle {
         Ok(receiver.recv()??)
     }
 
+    fn block(&mut self, id: NodeId) -> Result<bool, Self::Error> {
+        let (sender, receiver) = chan::bounded(1);
+        self.command(service::Command::Block(id, sender))?;
+        receiver.recv().map_err(Error::from)
+    }
+
     fn seed(&mut self, id: RepoId, scope: policy::Scope) -> Result<bool, Error> {
         let (responder, receiver) = service::command::Responder::oneshot();
         self.command(service::Command::Seed(id, scope, responder))?;

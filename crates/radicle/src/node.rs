@@ -907,6 +907,8 @@ pub trait Handle: Clone + Sync + Send {
     fn seed(&mut self, id: RepoId, scope: policy::Scope) -> Result<bool, Self::Error>;
     /// Start following the given peer.
     fn follow(&mut self, id: NodeId, alias: Option<Alias>) -> Result<bool, Self::Error>;
+    /// Set the following policy to block for the given peer.
+    fn block(&mut self, id: NodeId) -> Result<bool, Self::Error>;
     /// Un-seed the given repo and delete it from storage.
     fn unseed(&mut self, id: RepoId) -> Result<bool, Self::Error>;
     /// Unfollow the given peer.
@@ -1186,6 +1188,13 @@ impl Handle for Node {
 
     fn follow(&mut self, nid: NodeId, alias: Option<Alias>) -> Result<bool, Error> {
         let mut lines = self.call::<Success>(Command::Follow { nid, alias }, DEFAULT_TIMEOUT)?;
+        let response = lines.next().ok_or(Error::EmptyResponse)??;
+
+        Ok(response.updated)
+    }
+
+    fn block(&mut self, nid: NodeId) -> Result<bool, Error> {
+        let mut lines = self.call::<Success>(Command::Block { nid }, DEFAULT_TIMEOUT)?;
         let response = lines.next().ok_or(Error::EmptyResponse)??;
 
         Ok(response.updated)

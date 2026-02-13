@@ -18,6 +18,7 @@ pub struct Handle {
     pub updates: Arc<Mutex<Vec<(RepoId, PublicKey)>>>,
     pub seeding: Arc<Mutex<HashSet<RepoId>>>,
     pub following: Arc<Mutex<HashSet<NodeId>>>,
+    pub blocked: Arc<Mutex<HashSet<NodeId>>>,
 }
 
 impl radicle::node::Handle for Handle {
@@ -85,6 +86,7 @@ impl radicle::node::Handle for Handle {
     }
 
     fn follow(&mut self, id: NodeId, _alias: Option<Alias>) -> Result<bool, Self::Error> {
+        self.blocked.lock().unwrap().remove(&id);
         Ok(self.following.lock().unwrap().insert(id))
     }
 
@@ -93,7 +95,14 @@ impl radicle::node::Handle for Handle {
     }
 
     fn unfollow(&mut self, id: NodeId) -> Result<bool, Self::Error> {
-        Ok(self.following.lock().unwrap().remove(&id))
+        let f = self.following.lock().unwrap().remove(&id);
+        let b = self.blocked.lock().unwrap().remove(&id);
+        Ok(f || b)
+    }
+
+    fn block(&mut self, id: NodeId) -> Result<bool, Self::Error> {
+        self.following.lock().unwrap().remove(&id);
+        Ok(self.blocked.lock().unwrap().insert(id))
     }
 
     fn announce_refs_for(
