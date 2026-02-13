@@ -230,6 +230,8 @@ pub enum ConnectError {
         "attempted connection to {nid}, via {addr} but addresses of this kind are not supported"
     )]
     UnsupportedAddress { nid: NodeId, addr: Address },
+    #[error("attempted connection with blocked peer {nid}")]
+    Blocked { nid: NodeId },
 }
 
 /// A store for all node data.
@@ -1219,6 +1221,16 @@ where
     }
 
     pub fn connected(&mut self, remote: NodeId, addr: Address, link: Link) {
+        if let Ok(true) = self.policies.is_blocked(&remote) {
+            self.emitter.emit(Event::PeerDisconnected {
+                nid: remote,
+                reason: format!("{remote} is blocked"),
+            });
+            info!(target: "service", "Disconnecting blocked inbound peer {remote}");
+            self.outbox.disconnect(remote, DisconnectReason::Policy);
+            return;
+        }
+
         info!(target: "service", "Connected to {remote} ({addr}) ({link:?})");
         self.emitter.emit(Event::PeerConnected { nid: remote });
 
@@ -2164,6 +2176,9 @@ where
         if nid == self.node_id() {
             return Err(ConnectError::SelfConnection);
         }
+        if let Ok(true) = self.policies.is_blocked(&nid) {
+            return Err(ConnectError::Blocked { nid });
+        }
         if !self.is_supported_address(&addr) {
             return Err(ConnectError::UnsupportedAddress { nid, addr });
         }
@@ -2397,6 +2412,7 @@ where
                     .filter(|entry| !entry.address.banned)
                     .filter(|entry| !entry.penalty.is_connect_threshold_reached())
                     .filter(|entry| !self.sessions.contains_key(&entry.node))
+                    .filter(|entry| !self.policies.is_blocked(&entry.node).unwrap_or(false))
                     .filter(|entry| !self.config.external_addresses.contains(&entry.address.addr))
                     .filter(|entry| &entry.node != self.nid())
                     .filter(|entry| self.is_supported_address(&entry.address.addr))
@@ -2564,6 +2580,9 @@ where
 
         for (nid, session) in self.sessions.iter_mut() {
             if self.config.is_persistent(nid) {
+                if self.policies.is_blocked(nid).unwrap_or(false) {
+                    continue;
+                }
                 if let session::State::Disconnected { retry_at, .. } = &mut session.state {
                     // TODO: Try to reconnect only if the peer was attempted. A disconnect without
                     // even a successful attempt means that we're unlikely to be able to reconnect.
