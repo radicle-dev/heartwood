@@ -187,21 +187,6 @@ impl TestFormula {
     }
 
     pub fn build(&mut self, binaries: &[(&str, &str)]) -> &mut Self {
-        let manifest = env::var("CARGO_MANIFEST_DIR").expect(
-            "TestFormula::build: cannot build binaries: variable `CARGO_MANIFEST_DIR` is not set",
-        );
-        let profile = if cfg!(debug_assertions) {
-            "debug"
-        } else {
-            "release"
-        };
-        let target_dir = env::var("CARGO_TARGET_DIR").unwrap_or("target".to_string());
-        let manifest = Path::new(manifest.as_str());
-        let bins = manifest.join(&target_dir).join(profile);
-
-        // Add the target dir to the beginning of the list we will use as `PATH`.
-        self.bins.insert(0, bins);
-
         // We don't need to re-build every time the `build` function is called. Once is enough.
         BUILD.call_once(|| {
             use escargot::format::Message;
@@ -220,8 +205,6 @@ impl TestFormula {
                 let results = escargot::CargoBuild::new()
                     .package(package)
                     .bin(binary)
-                    .manifest_path(manifest.join("Cargo.toml"))
-                    .target_dir(&target_dir)
                     .exec()
                     .unwrap();
 
@@ -538,6 +521,19 @@ fn bins(cwd: PathBuf) -> Vec<PathBuf> {
     let mut bins: Vec<PathBuf> = env::var("PATH")
         .map(|env_path| env_path.split(PATH_SEPARATOR).map(PathBuf::from).collect())
         .unwrap_or_default();
+
+    if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
+        let profile = cfg!(debug_assertions)
+            .then_some("debug")
+            .unwrap_or("release");
+        let target_dir = env::var("CARGO_TARGET_DIR").unwrap_or("target".to_string());
+
+        bins.push(
+            PathBuf::from(manifest_dir.as_str())
+                .join(&target_dir)
+                .join(profile),
+        )
+    }
 
     // Add current working directory to `$PATH`,
     // this makes it more convenient to execute scripts during testing.
