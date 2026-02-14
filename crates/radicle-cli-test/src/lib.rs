@@ -481,6 +481,16 @@ impl TestFormula {
                         let assert = OutputAssert::new(output).with_assert(assert.clone());
                         let expected = Self::map_spaced_brackets(&assertion.expected);
 
+                        let expected = {
+                            #[cfg(windows)]
+                            const EXE: &str = ".exe";
+
+                            #[cfg(unix)]
+                            const EXE: &str = "";
+
+                            expected.replace("[EXE]", EXE)
+                        };
+
                         let matches = if test.stderr {
                             assert.stderr_matches(&expected)
                         } else {

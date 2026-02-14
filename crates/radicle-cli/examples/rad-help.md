@@ -9,7 +9,7 @@ Do you have feedback?
  - Mail <feedback@radicle.xyz>
    (Messages are automatically posted to the public #feedback channel on Zulip.)
 
-Usage: rad <COMMAND>
+Usage: rad[EXE] <COMMAND>
 
 Commands:
   auth      Manage identities and profiles
