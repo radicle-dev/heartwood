@@ -535,6 +535,17 @@ fn bins(cwd: PathBuf) -> Vec<PathBuf> {
         )
     }
 
+    #[cfg(windows)]
+    {
+        // Radicle CLI tests rely on various Unix coreutils
+        // (such as `ls` and `touch`) being available.
+        // On Windows, it is very likely that we can find them in the
+        // following location.
+        // Note that adding this path to the end of `$PATH` causes
+        // no harm, even if the directory does not exist.
+        bins.push(PathBuf::from(r#"C:\Program Files\Git\usr\bin"#));
+    }
+
     // Add current working directory to `$PATH`,
     // this makes it more convenient to execute scripts during testing.
     bins.push(cwd);
