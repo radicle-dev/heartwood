@@ -169,7 +169,8 @@ pub struct TestFormula {
     tests: Vec<Test>,
     /// Output substitutions.
     subs: Substitutions,
-    /// Binaries path.
+    /// List of paths to directories to be searched for binaries.
+    /// This is used to construct the `PATH` environment variable for the tests.
     bins: Vec<PathBuf>,
 }
 
@@ -181,16 +182,7 @@ impl TestFormula {
             homes: HashMap::new(),
             tests: Vec::new(),
             subs: Substitutions::new(),
-            bins: env::var("PATH")
-                .map(|env_path| {
-                    let mut bins: Vec<PathBuf> =
-                        env_path.split(PATH_SEPARATOR).map(PathBuf::from).collect();
-                    // Add current working directory to `$PATH`,
-                    // this makes it more convenient to execute scripts during testing.
-                    bins.push(cwd);
-                    bins
-                })
-                .unwrap_or_default(),
+            bins: bins(cwd),
         }
     }
 
@@ -540,6 +532,19 @@ impl TestFormula {
     }
 }
 
+/// Get the list of binary paths to use as `PATH` for the tests,
+/// starting with the current working directory.
+fn bins(cwd: PathBuf) -> Vec<PathBuf> {
+    let mut bins: Vec<PathBuf> = env::var("PATH")
+        .map(|env_path| env_path.split(PATH_SEPARATOR).map(PathBuf::from).collect())
+        .unwrap_or_default();
+
+    // Add current working directory to `$PATH`,
+    // this makes it more convenient to execute scripts during testing.
+    bins.push(cwd);
+    bins
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -581,15 +586,7 @@ $ rad sync
             cwd: cwd.clone(),
             env: HashMap::new(),
             subs: Substitutions::new(),
-            bins: {
-                let mut bins: Vec<_> = env::var("PATH")
-                    .unwrap_or_default()
-                    .split(PATH_SEPARATOR)
-                    .map(PathBuf::from)
-                    .collect();
-                bins.push(cwd);
-                bins
-            },
+            bins: bins(cwd),
             tests: vec![
                 Test {
                     context: vec![String::from("Let's try to track @dave and @sean:")],
