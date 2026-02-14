@@ -70,6 +70,8 @@ pub struct Assertion {
     expected: String,
     /// Expected exit status.
     exit: ExitStatus,
+    /// Line number in the test file where this assertion is defined.
+    line: usize,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
@@ -275,7 +277,7 @@ impl TestFormula {
         let mut fenced = false; // Whether we're inside a fenced code block.
         let mut file: Option<(PathBuf, String)> = None; // Path and content of file created by this test block.
 
-        for line in r.lines() {
+        for (row, line) in r.lines().enumerate() {
             let line = line?;
 
             if line.starts_with("```") {
@@ -343,6 +345,7 @@ impl TestFormula {
                         } else {
                             ExitStatus::Success
                         },
+                        line: row + 1,
                     });
                 } else if let Some(a) = test.assertions.last_mut() {
                     a.expected.push_str(line.as_str());
@@ -411,13 +414,16 @@ impl TestFormula {
                         *arg = arg.replace(format!("${k}").as_str(), &v);
                     }
                 }
-                let path = assertion
+                let location = assertion
                     .path
                     .file_name()
                     .map(|f| f.to_string_lossy().to_string())
+                    .map(|f| f.strip_suffix(".md").unwrap_or(&f).to_owned())
+                    .map(|f| f + ":" + assertion.line.to_string().as_str())
                     .unwrap_or(String::from("<none>"));
-                let cmd = if assertion.command == "rad" {
-                    snapbox::cmd::cargo_bin("rad")
+
+                let (cmd, cmd_display) = if assertion.command == "rad" {
+                    (snapbox::cmd::cargo_bin("rad"), "rad".to_string())
                 } else if assertion.command == "cd" {
                     let arg = assertion.args.first().unwrap();
                     let dir: PathBuf = arg.into();
@@ -426,7 +432,7 @@ impl TestFormula {
                     // TODO: Add support for `..` and `/`
                     // TODO: Error if more than one args are given.
 
-                    log::debug!(target: "test", "{path}: Running `cd {}`..", dir.display());
+                    log::debug!(target: "test", "{location}: `cd {}`..", dir.display());
 
                     if !dir.exists() {
                         return Err(io::Error::new(
@@ -438,12 +444,11 @@ impl TestFormula {
 
                     continue;
                 } else {
-                    PathBuf::from(&assertion.command)
+                    (PathBuf::from(&assertion.command), assertion.command.clone())
                 };
-                log::debug!(target: "test", "{path}: Running `{}` with {:?} in `{}`..", cmd.display(), assertion.args, run.path().display());
 
                 if !run.path().exists() {
-                    log::warn!(target: "test", "{path}: Directory {} does not exist. Creating..", run.path().display());
+                    log::warn!(target: "test", "{location}: Directory {} does not exist. Creating..", run.path().display());
                     fs::create_dir_all(run.path())?;
                 }
 
@@ -463,20 +468,24 @@ impl TestFormula {
                     .collect::<Vec<_>>()
                     .join(ffi::OsStr::new(&PATH_SEPARATOR.to_string()));
 
-                log::debug!(target: "test", "Using PATH={:?}", bins);
-
-                let result = Command::new(cmd.clone())
+                let command = Command::new(cmd.clone())
                     .env_clear()
                     .env("PATH", &bins)
                     .env("RUST_BACKTRACE", "1")
                     .envs(jj_envs)
                     .envs(run.envs())
                     .current_dir(run.path())
-                    .args(args)
-                    .with_assert(assert.clone())
-                    .output();
+                    .args(args.clone())
+                    .with_assert(assert.clone());
 
-                match result {
+                log::debug!(target: "test", "{location}: `{} {}` @ {}", cmd_display, args.join(" "), run.path().display());
+                log::trace!(target: "test", "{location}: {}", run.envs().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<_>>().join(", "));
+                log::logger().flush();
+
+                // Even though it would be possible to use `Command::assert` to directly obtain
+                // `OutputAssert`, we use `Command::output` to be able to handle `io::ErrorKind::NotFound`
+                // separately and provide a more helpful error message in that case.
+                match command.output() {
                     Ok(output) => {
                         let assert = OutputAssert::new(output).with_assert(assert.clone());
                         let expected = Self::map_spaced_brackets(&assertion.expected);
@@ -507,11 +516,11 @@ impl TestFormula {
                     }
                     Err(err) => {
                         if err.kind() == io::ErrorKind::NotFound {
-                            log::error!(target: "test", "{path}: Command `{}` does not exist..", cmd.display());
+                            log::error!(target: "test", "{location}: Command `{}` does not exist..", cmd.display());
                         }
                         return Err(io::Error::new(
                             err.kind(),
-                            format!("{path}: {err}: `{}`", cmd.display()),
+                            format!("{location}: {err}: `{}`", cmd.display()),
                         ));
                     }
                 }
@@ -606,6 +615,7 @@ $ rad sync
                     home: None,
                     assertions: vec![
                         Assertion {
+                            line: 3,
                             path: path.clone(),
                             command: String::from("rad"),
                             args: vec![String::from("track"), String::from("@dave")],
@@ -615,6 +625,7 @@ $ rad sync
                             exit: ExitStatus::Success,
                         },
                         Assertion {
+                            line: 7,
                             path: path.clone(),
                             command: String::from("rad"),
                             args: vec![String::from("track"), String::from("@sean")],
@@ -634,6 +645,7 @@ $ rad sync
                     context: vec![String::from("Super, now let's move on to the next step.")],
                     home: Some("alice".to_owned()),
                     assertions: vec![Assertion {
+                        line: 13,
                         path: path.clone(),
                         command: String::from("rad"),
                         args: vec![String::from("sync")],
