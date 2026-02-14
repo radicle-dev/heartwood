@@ -52,7 +52,20 @@ pub enum Error {
 
 impl Error {
     pub fn is_not_running(&self) -> bool {
-        matches!(self, Self::EnvVar { .. } | Self::BadAuthSock { .. })
+        match self {
+            Self::EnvVar { .. } | Self::BadAuthSock { .. } => true,
+            #[cfg(windows)]
+            Self::Connect { source, .. }
+                if source.kind() == std::io::ErrorKind::ConnectionRefused =>
+            {
+                // On Windows, a named pipe might be used, and if no
+                // agent is running, we might get a "connection refused"
+                // error, even though the `SSH_AUTH_SOCK` environment
+                // variable is set and the named pipe exists.
+                true
+            }
+            _ => false,
+        }
     }
 }
 
@@ -104,24 +117,20 @@ impl AgentClient<Stream> {
     pub fn connect_env() -> Result<Self, Error> {
         const SSH_AUTH_SOCK: &str = "SSH_AUTH_SOCK";
 
-        let path = match std::env::var(SSH_AUTH_SOCK) {
-            Ok(var) => var,
-            Err(err) => {
-                if cfg!(windows) {
-                    // Windows uses a named pipe for the SSH agent, which
-                    // we fall back to in case reading the environment
-                    // variable fails.
-                    "\\\\.\\pipe\\openssh-ssh-agent".to_string()
-                } else {
-                    return Err(Error::EnvVar {
-                        var: SSH_AUTH_SOCK.to_string(),
-                        source: err,
-                    });
-                }
-            }
-        };
+        let var = std::env::var(SSH_AUTH_SOCK);
 
-        Self::connect(path)
+        #[cfg(windows)]
+        let var = var.or_else(|_| {
+            // Windows uses a named pipe for the SSH agent, which
+            // we fall back to in case reading the environment
+            // variable fails.
+            return Ok(r"\\.\pipe\openssh-ssh-agent".to_string());
+        });
+
+        Self::connect(var.map_err(|err| Error::EnvVar {
+            var: SSH_AUTH_SOCK.to_string(),
+            source: err,
+        })?)
     }
 }
 
