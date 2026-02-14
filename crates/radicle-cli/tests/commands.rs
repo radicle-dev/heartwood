@@ -1738,6 +1738,7 @@ fn rad_fork() {
     environment.tests(["rad-fetch", "rad-fork"], &bob).unwrap();
 }
 
+#[cfg(unix)]
 #[test]
 fn rad_diff() {
     if std::env::consts::OS == "macos" {
