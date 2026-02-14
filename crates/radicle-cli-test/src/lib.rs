@@ -169,9 +169,6 @@ pub struct TestFormula {
     tests: Vec<Test>,
     /// Output substitutions.
     subs: Substitutions,
-    /// List of paths to directories to be searched for binaries.
-    /// This is used to construct the `PATH` environment variable for the tests.
-    bins: Vec<PathBuf>,
 }
 
 impl TestFormula {
@@ -182,7 +179,6 @@ impl TestFormula {
             homes: HashMap::new(),
             tests: Vec::new(),
             subs: Substitutions::new(),
-            bins: bins(cwd),
         }
     }
 
@@ -401,7 +397,6 @@ impl TestFormula {
         let mut runner = TestRunner::new(self);
 
         fs::create_dir_all(&self.cwd)?;
-        log::debug!(target: "test", "Using PATH {:?}", self.bins);
 
         // For each code block.
         for test in &self.tests {
@@ -462,12 +457,14 @@ impl TestFormula {
                     vec![]
                 };
 
-                let bins = self
-                    .bins
+                let bins = bins(self.cwd.clone())
                     .iter()
                     .map(|p| p.as_os_str())
                     .collect::<Vec<_>>()
                     .join(ffi::OsStr::new(&PATH_SEPARATOR.to_string()));
+
+                log::debug!(target: "test", "Using PATH={:?}", bins);
+
                 let result = Command::new(cmd.clone())
                     .env_clear()
                     .env("PATH", &bins)
@@ -593,7 +590,6 @@ $ rad sync
             cwd: cwd.clone(),
             env: HashMap::new(),
             subs: Substitutions::new(),
-            bins: bins(cwd),
             tests: vec![
                 Test {
                     context: vec![String::from("Let's try to track @dave and @sean:")],
