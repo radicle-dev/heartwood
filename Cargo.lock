@@ -714,9 +714,9 @@ dependencies = [
 
 [[package]]
 name = "cypheraddr"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba5c54d2ad4ab9941383519471b75d12abc1a7b4779265e233168f2703a730d9"
+checksum = "4204e8808fcdd40bed39e49371f13f56d6984c32bc03dcb577d2a40b989b9d68"
 dependencies = [
  "amplify",
  "base32",
@@ -738,9 +738,9 @@ dependencies = [
 
 [[package]]
 name = "cyphernet"
-version = "0.5.2"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac949369884a7a1d802cc669821269c707be8cec4d65043382e253733d2e62e1"
+checksum = "2de2031ff4b9fc77e4dad022047341b55d285398164cc698e4082f4754b2e684"
 dependencies = [
  "cypheraddr",
  "cyphergraphy",
@@ -3990,9 +3990,9 @@ dependencies = [
 
 [[package]]
 name = "socks5-client"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffc7dcf6fab1d65d82d633006a4cc658d76ce436e01cf1a7c71873c0eeba324c"
+checksum = "a87421b87207f5d39606da1ac9edd9a5333f4809d26a1fa9bbac58ca42913535"
 dependencies = [
  "amplify",
  "cypheraddr",

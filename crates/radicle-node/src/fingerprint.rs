@@ -68,7 +68,7 @@ impl Fingerprint {
         home: &Home,
         secret_key: &impl std::ops::Deref<Target = crypto::SecretKey>,
     ) -> Result<(), Error> {
-        let public_key = crypto::PublicKey(secret_key.deref().public_key());
+        let public_key = secret_key.deref().public_key().into();
         let mut file = std::fs::OpenOptions::new()
             .create_new(true)
             .write(true)
@@ -86,7 +86,7 @@ impl Fingerprint {
         &self,
         secret_key: &impl std::ops::Deref<Target = crypto::SecretKey>,
     ) -> FingerprintVerification {
-        let public_key = crypto::PublicKey(secret_key.deref().public_key());
+        let public_key = secret_key.deref().public_key().into();
         if crypto::ssh::fmt::fingerprint(&public_key) == self.0 {
             FingerprintVerification::Match
         } else {

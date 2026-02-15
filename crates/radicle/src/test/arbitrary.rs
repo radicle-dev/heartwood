@@ -238,7 +238,8 @@ impl Arbitrary for Address {
             AddressType::Onion => {
                 let pk = PublicKey::arbitrary(g);
                 let addr = OnionAddrV3::from(
-                    cyphernet::ed25519::PublicKey::from_pk_compressed(**pk).unwrap(),
+                    cyphernet::ed25519::PublicKey::from_pk_compressed(pk.to_byte_array())
+                        .unwrap(),
                 );
                 cyphernet::addr::HostName::Tor(addr)
             }

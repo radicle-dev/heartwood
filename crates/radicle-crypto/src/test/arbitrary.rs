@@ -18,6 +18,6 @@ impl Arbitrary for PublicKey {
         let seed = Seed::new(bytes);
         let keypair = KeyPair::from_seed(seed);
 
-        PublicKey(keypair.pk)
+        keypair.pk.into()
     }
 }

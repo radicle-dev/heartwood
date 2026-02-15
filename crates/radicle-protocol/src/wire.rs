@@ -175,7 +175,7 @@ impl Encode for u64 {
 
 impl Encode for PublicKey {
     fn encode(&self, buf: &mut impl BufMut) {
-        self.deref().encode(buf)
+        self.to_byte_array().encode(buf)
     }
 }
 

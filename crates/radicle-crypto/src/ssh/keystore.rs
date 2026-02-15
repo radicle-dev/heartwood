@@ -332,7 +332,7 @@ impl MemorySigner {
             .ok_or_else(|| MemorySignerError::NotFound(public_path.to_path_buf()))?;
 
         secret
-            .validate_public_key(&public)
+            .validate_public_key(&public.into())
             .map_err(|_| MemorySignerError::KeyMismatch {
                 secret: keystore.secret_key_path().to_path_buf(),
                 public: public_path.to_path_buf(),
@@ -345,7 +345,7 @@ impl MemorySigner {
     /// the public key from the secret key.
     pub fn from_secret(secret: Zeroizing<SecretKey>) -> Self {
         Self {
-            public: PublicKey(secret.public_key()),
+            public: secret.public_key().into(),
             secret,
         }
     }

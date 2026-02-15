@@ -25,8 +25,8 @@ bytes = "1.11.1"
 chrono = { version = "0.4.26", default-features = false }
 colored = "2.1.0"
 crossbeam-channel = "0.5.6"
-cypheraddr = "0.4.0"
-cyphernet = "0.5.2"
+cypheraddr = "0.4.1"
+cyphernet = "0.5.3"
 dunce = "1.0.5"
 fastrand = { version = "2.0.0", default-features = false }
 git2 = { version = "0.20.4", default-features = false, features = ["vendored-libgit2"] }

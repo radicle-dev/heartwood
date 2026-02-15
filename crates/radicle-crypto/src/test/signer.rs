@@ -27,7 +27,9 @@ impl signature::Signer<Signature> for MockSigner {
 
 impl signature::Verifier<Signature> for MockSigner {
     fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
-        self.pk.verify(msg, signature)
+        self.pk
+            .verify(msg, signature)
+            .map_err(signature::Error::from_source)
     }
 }
 

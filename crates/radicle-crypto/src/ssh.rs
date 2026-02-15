@@ -43,7 +43,9 @@ impl ExtendedSignature {
     /// Convert to OpenSSH standard PEM format.
     pub fn to_pem(&self) -> Result<String, ExtendedSignatureError> {
         ssh_key::SshSig::new(
-            ssh_key::public::KeyData::from(ssh_key::public::Ed25519PublicKey(**self.key)),
+            ssh_key::public::KeyData::from(ssh_key::public::Ed25519PublicKey(
+                self.key.to_byte_array(),
+            )),
             String::from("radicle"),
             ssh_key::HashAlg::Sha256,
             ssh_key::Signature::new(ssh_key::Algorithm::Ed25519, **self.sig)?,

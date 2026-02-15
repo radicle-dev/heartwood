@@ -125,7 +125,7 @@ impl Agent {
     }
 
     fn key_data(key: &PublicKey) -> KeyData {
-        KeyData::Ed25519(Ed25519PublicKey(***key))
+        KeyData::Ed25519(Ed25519PublicKey(key.to_byte_array()))
     }
 }
 
@@ -191,7 +191,6 @@ mod test {
     use ssh_agent_lib::blocking::Client;
     use ssh_agent_lib::proto::SignRequest;
     use ssh_agent_lib::ssh_key::public::{Ed25519PublicKey, KeyData};
-    use std::ops::Deref;
 
     #[test]
     fn test_agent_encoding_remove() {
@@ -216,7 +215,7 @@ mod test {
         // since we are not actually connected to SSH agent.
         assert!(
             matches!(client.remove_identity(ssh_agent_lib::proto::RemoveIdentity {
-                pubkey: KeyData::Ed25519(Ed25519PublicKey(**pk.deref())),
+                pubkey: KeyData::Ed25519(Ed25519PublicKey(pk.to_byte_array())),
             }),
                 Err(
                     super::AgentError::Proto(ssh_agent_lib::proto::ProtoError::IO(err)),
@@ -251,7 +250,7 @@ mod test {
 
         client
             .sign(SignRequest {
-                pubkey: KeyData::Ed25519(Ed25519PublicKey(**pk.deref())),
+                pubkey: KeyData::Ed25519(Ed25519PublicKey(pk.to_byte_array())),
                 data,
                 flags: 0,
             })
