@@ -37,6 +37,7 @@ pub fn addr_compact(address: &Address) -> Paint<String> {
     let host = match address.host() {
         HostName::Ip(ip) => ip.to_string(),
         HostName::Dns(dns) => dns.clone(),
+        #[cfg(feature = "tor")]
         HostName::Tor(onion) => {
             let onion = onion.to_string();
             let start = onion.chars().take(8).collect::<String>();

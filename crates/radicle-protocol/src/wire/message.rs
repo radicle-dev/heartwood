@@ -2,7 +2,9 @@ use std::{mem, net};
 
 use bytes::Buf;
 use bytes::BufMut;
-use cypheraddr::{tor, HostName, NetAddr};
+#[cfg(feature = "tor")]
+use cypheraddr::tor;
+use cypheraddr::{HostName, NetAddr};
 use radicle::crypto::Signature;
 use radicle::git::Oid;
 use radicle::identity::RepoId;
@@ -79,6 +81,7 @@ pub enum AddressType {
     Ipv4 = 1,
     Ipv6 = 2,
     Dns = 3,
+    #[cfg(feature = "tor")]
     Onion = 4,
 }
 
@@ -94,6 +97,7 @@ impl From<&Address> for AddressType {
             HostName::Ip(net::IpAddr::V4(_)) => AddressType::Ipv4,
             HostName::Ip(net::IpAddr::V6(_)) => AddressType::Ipv6,
             HostName::Dns(_) => AddressType::Dns,
+            #[cfg(feature = "tor")]
             HostName::Tor(_) => AddressType::Onion,
             _ => todo!(), // FIXME(cloudhead): Maxim will remove `non-exhaustive`
         }
@@ -108,6 +112,7 @@ impl TryFrom<u8> for AddressType {
             1 => Ok(AddressType::Ipv4),
             2 => Ok(AddressType::Ipv6),
             3 => Ok(AddressType::Dns),
+            #[cfg(feature = "tor")]
             4 => Ok(AddressType::Onion),
             _ => Err(other),
         }
@@ -356,6 +361,7 @@ impl wire::Encode for Address {
                 u8::from(AddressType::Dns).encode(buf);
                 dns.encode(buf);
             }
+            #[cfg(feature = "tor")]
             HostName::Tor(addr) => {
                 u8::from(AddressType::Onion).encode(buf);
                 addr.encode(buf);
@@ -393,6 +399,7 @@ impl wire::Decode for Address {
 
                 HostName::Dns(dns)
             }
+            #[cfg(feature = "tor")]
             Ok(AddressType::Onion) => {
                 let onion: tor::OnionAddrV3 = wire::Decode::decode(buf)?;
 

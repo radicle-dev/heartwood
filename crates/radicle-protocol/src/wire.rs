@@ -15,6 +15,7 @@ use std::string::FromUtf8Error;
 
 use bytes::{Buf, BufMut};
 
+#[cfg(feature = "tor")]
 use cypheraddr::tor;
 
 use radicle::crypto::{PublicKey, Signature, Unverified};
@@ -58,6 +59,7 @@ pub enum Invalid {
     Alias(#[from] node::AliasError),
     #[error("invalid user agent string: {err}")]
     InvalidUserAgent { err: String },
+    #[cfg(feature = "tor")]
     #[error("invalid onion address: {0}")]
     OnionAddr(#[from] tor::OnionAddrDecodeError),
     #[error("invalid timestamp: {actual_millis} millis")]
@@ -257,6 +259,7 @@ impl Encode for Refs {
     }
 }
 
+#[cfg(feature = "tor")]
 impl Encode for cypheraddr::tor::OnionAddrV3 {
     fn encode(&self, buf: &mut impl BufMut) {
         self.into_raw_bytes().encode(buf)
@@ -536,6 +539,7 @@ impl Decode for node::Features {
     }
 }
 
+#[cfg(feature = "tor")]
 impl Decode for tor::OnionAddrV3 {
     fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
         let bytes: [u8; tor::ONION_V3_RAW_LEN] = Decode::decode(buf)?;
