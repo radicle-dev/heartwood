@@ -354,7 +354,7 @@ pub enum Relay {
 }
 
 /// Proxy configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "mode")]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg(feature = "tor")]
@@ -367,6 +367,9 @@ pub enum AddressConfig {
     /// Forward address to the next layer. Either this is the global proxy,
     /// or the operating system, via DNS.
     Forward,
+    /// Drop connections to this address type.
+    #[default]
+    Drop,
 }
 
 /// Default seeding policy. Applies when no repository policies for the given repo are found.
@@ -494,8 +497,8 @@ pub struct Config {
     pub proxy: Option<net::SocketAddr>,
     /// Onion address config.
     #[cfg(feature = "tor")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub onion: Option<AddressConfig>,
+    #[serde(default, skip_serializing_if = "crate::serde_ext::is_default")]
+    pub onion: AddressConfig,
     /// Peer-to-peer network.
     #[serde(default)]
     pub network: Network,
@@ -545,7 +548,7 @@ impl Config {
             network: Network::default(),
             proxy: None,
             #[cfg(feature = "tor")]
-            onion: None,
+            onion: AddressConfig::Drop,
             relay: Relay::default(),
             limits: Limits::default(),
             workers: Workers::default(),
