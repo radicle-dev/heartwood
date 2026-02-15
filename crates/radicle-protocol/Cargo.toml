@@ -9,6 +9,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [features]
+i2p = ["cypheraddr/i2p", "radicle/i2p"]
 test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "qcheck"]
 tor = ["cypheraddr/tor", "radicle/tor"]
 

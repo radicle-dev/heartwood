@@ -2654,11 +2654,18 @@ where
     ///
     /// If the [`Address`] is an `.onion` address and the service supports onion
     /// routing then this will return `true`.
+    ///
+    /// # I2P
+    ///
+    /// If the [`Address`] is an I2P address and the service supports I2P
+    /// connections then this will return `true`.
     fn is_supported_address(&self, address: &Address) -> bool {
         match AddressType::from(address) {
             // Only consider onion addresses if configured.
             #[cfg(feature = "tor")]
             AddressType::Onion => self.config.onion != AddressConfig::Drop,
+            #[cfg(feature = "i2p")]
+            AddressType::I2p => self.config.i2p != AddressConfig::Drop,
             AddressType::Dns | AddressType::Ipv4 | AddressType::Ipv6 => true,
         }
     }

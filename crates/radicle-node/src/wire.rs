@@ -21,7 +21,7 @@ use radicle::collections::{RandomMap, RandomSet};
 use radicle::crypto;
 use radicle::node::Link;
 use radicle::node::NodeId;
-#[cfg(feature = "tor")]
+#[cfg(any(feature = "i2p", feature = "tor"))]
 use radicle::node::config::AddressConfig;
 use radicle::storage::WriteStorage;
 use radicle_protocol::deserializer::Deserializer;
@@ -1083,6 +1083,30 @@ pub fn dial<G: Ecdh<Pk = NodeId>>(
     signer: G,
     config: &radicle::node::Config,
 ) -> io::Result<WireSession<G>> {
+    #[cfg(any(feature = "i2p", feature = "tor"))]
+    fn proxy_or_forward<H: std::fmt::Display>(
+        config: &AddressConfig,
+        global_proxy: Option<net::SocketAddr>,
+        host: H,
+        port: u16,
+    ) -> io::Result<NetAddr<InetHost>> {
+        match config {
+            // In proxy mode, simply use the configured proxy address.
+            // This takes precedence over any global proxy.
+            AddressConfig::Proxy { address } => Ok((*address).into()),
+            // In "forward" mode, if a global proxy is set, we use that, otherwise
+            // we treat the address as a regular DNS name.
+            AddressConfig::Forward => Ok(global_proxy
+                .map(Into::into)
+                .unwrap_or_else(|| NetAddr::new(InetHost::Dns(host.to_string()), port))),
+            // If address type support isn't configured, refuse to connect.
+            AddressConfig::Drop => Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "no configuration found for address type",
+            )),
+        }
+    }
+
     // Determine what address to establish a TCP connection with, given the remote peer
     // address and our node configuration.
     let inet_addr: NetAddr<InetHost> = match (&remote_addr.host, config.proxy) {
@@ -1093,27 +1117,11 @@ pub fn dial<G: Ecdh<Pk = NodeId>>(
         (HostName::Dns(dns), None) => NetAddr::new(InetHost::Dns(dns.clone()), remote_addr.port),
         // For onion addresses, handle with care.
         #[cfg(feature = "tor")]
-        (HostName::Tor(onion), proxy) => match config.onion {
-            // In onion proxy mode, simply use the configured proxy address.
-            // This takes precedence over any global proxy.
-            AddressConfig::Proxy { address } => address.into(),
-            // In "forward" mode, if a global proxy is set, we use that, otherwise
-            // we treat `.onion` addresses as regular DNS names.
-            AddressConfig::Forward => {
-                if let Some(proxy) = proxy {
-                    proxy.into()
-                } else {
-                    NetAddr::new(InetHost::Dns(onion.to_string()), remote_addr.port)
-                }
-            }
-            // If onion address support isn't configured, refuse to connect.
-            AddressConfig::Drop => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    "no configuration found for .onion addresses",
-                ));
-            }
-        },
+        (HostName::Tor(onion), proxy) => {
+            proxy_or_forward(&config.onion, proxy, onion, remote_addr.port)?
+        }
+        #[cfg(feature = "i2p")]
+        (HostName::I2p(i2p), proxy) => proxy_or_forward(&config.i2p, proxy, i2p, remote_addr.port)?,
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,

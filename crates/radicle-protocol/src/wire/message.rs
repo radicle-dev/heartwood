@@ -2,6 +2,8 @@ use std::{mem, net};
 
 use bytes::Buf;
 use bytes::BufMut;
+#[cfg(feature = "i2p")]
+use cypheraddr::i2p;
 #[cfg(feature = "tor")]
 use cypheraddr::tor;
 use cypheraddr::{HostName, NetAddr};
@@ -83,6 +85,8 @@ pub enum AddressType {
     Dns = 3,
     #[cfg(feature = "tor")]
     Onion = 4,
+    #[cfg(feature = "i2p")]
+    I2p = 5,
 }
 
 impl From<AddressType> for u8 {
@@ -99,6 +103,8 @@ impl From<&Address> for AddressType {
             HostName::Dns(_) => AddressType::Dns,
             #[cfg(feature = "tor")]
             HostName::Tor(_) => AddressType::Onion,
+            #[cfg(feature = "i2p")]
+            HostName::I2p(_) => AddressType::I2p,
             _ => todo!(), // FIXME(cloudhead): Maxim will remove `non-exhaustive`
         }
     }
@@ -114,6 +120,8 @@ impl TryFrom<u8> for AddressType {
             3 => Ok(AddressType::Dns),
             #[cfg(feature = "tor")]
             4 => Ok(AddressType::Onion),
+            #[cfg(feature = "i2p")]
+            5 => Ok(AddressType::I2p),
             _ => Err(other),
         }
     }
@@ -366,6 +374,11 @@ impl wire::Encode for Address {
                 u8::from(AddressType::Onion).encode(buf);
                 addr.encode(buf);
             }
+            #[cfg(feature = "i2p")]
+            HostName::I2p(ref addr) => {
+                u8::from(AddressType::I2p).encode(buf);
+                addr.encode(buf);
+            }
             _ => {
                 unimplemented!(
                     "Encoding not defined for addresses of the same type as the following: {:?}",
@@ -404,6 +417,12 @@ impl wire::Decode for Address {
                 let onion: tor::OnionAddrV3 = wire::Decode::decode(buf)?;
 
                 HostName::Tor(onion)
+            }
+            #[cfg(feature = "i2p")]
+            Ok(AddressType::I2p) => {
+                let i2p: i2p::I2pAddr = wire::Decode::decode(buf)?;
+
+                HostName::I2p(i2p)
             }
             Err(other) => return Err(wire::Invalid::AddressType { actual: other }.into()),
         };

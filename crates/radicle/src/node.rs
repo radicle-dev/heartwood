@@ -470,11 +470,11 @@ impl TryFrom<&sqlite::Value> for Alias {
     feature = "schemars",
     derive(schemars::JsonSchema),
     schemars(description = "\
-    An IP address, or a DNS name, or a Tor onion name, followed by the symbol ':', \
-    followed by a TCP port number.",
-    extend(
-        "examples" = [
+    An IP address, or a DNS name, or a Tor onion name, or an I2P address,\
+    followed by the symbol ':', followed by a TCP port number.",
+    extend("examples" = [
             "xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
+            "f2atcc7udeub5kh4nkljtjwyk7ikjviorufzgwnfwhkphljl3vhq.b32.i2p:8776",
             "seed.example.com:8776",
             "192.0.2.0:31337",
         ],
@@ -522,6 +522,15 @@ impl Address {
         }
     }
 
+    /// Returns `true` if the [`HostName`] is an I2P address.
+    #[cfg(feature = "i2p")]
+    pub fn is_i2p(&self) -> bool {
+        match self.0.host {
+            HostName::I2p(_) => true,
+            _ => false,
+        }
+    }
+
     /// Return the port number of the [`Address`].
     pub fn port(&self) -> u16 {
         self.0.port
@@ -542,6 +551,8 @@ impl Address {
                     .collect::<String>();
                 format!("{start}…{end}")
             }
+            #[cfg(feature = "i2p")]
+            HostName::I2p(i2p) => i2p.to_string(),
             _ => unreachable!(),
         };
 

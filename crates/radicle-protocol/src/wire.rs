@@ -14,6 +14,8 @@ use std::string::FromUtf8Error;
 
 use bytes::{Buf, BufMut};
 
+#[cfg(feature = "i2p")]
+use cypheraddr::i2p;
 #[cfg(feature = "tor")]
 use cypheraddr::tor;
 
@@ -60,6 +62,9 @@ pub enum Invalid {
     #[cfg(feature = "tor")]
     #[error("invalid onion address: {0}")]
     OnionAddr(#[from] tor::OnionAddrDecodeError),
+    #[cfg(feature = "i2p")]
+    #[error("invalid i2p address: {0}")]
+    I2pAddr(#[from] i2p::I2pAddrParseError),
     #[error("invalid timestamp: {actual_millis} millis")]
     Timestamp { actual_millis: u64 },
 
@@ -263,6 +268,13 @@ impl Encode for Refs {
 impl Encode for cypheraddr::tor::OnionAddrV3 {
     fn encode(&self, buf: &mut impl BufMut) {
         self.into_raw_bytes().encode(buf)
+    }
+}
+
+#[cfg(feature = "i2p")]
+impl Encode for i2p::I2pAddr {
+    fn encode(&self, buf: &mut impl BufMut) {
+        self.to_string().encode(buf)
     }
 }
 
@@ -526,6 +538,16 @@ impl Decode for tor::OnionAddrV3 {
     fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
         let bytes: [u8; tor::ONION_V3_RAW_LEN] = Decode::decode(buf)?;
         let addr = tor::OnionAddrV3::from_raw_bytes(bytes).map_err(Invalid::from)?;
+
+        Ok(addr)
+    }
+}
+
+#[cfg(feature = "i2p")]
+impl Decode for i2p::I2pAddr {
+    fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
+        let s = String::decode(buf)?;
+        let addr = i2p::I2pAddr::from_str(&s).map_err(Invalid::from)?;
 
         Ok(addr)
     }

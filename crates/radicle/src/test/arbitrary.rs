@@ -5,6 +5,8 @@ use std::str::FromStr;
 use std::{iter, net};
 
 use crypto::PublicKey;
+#[cfg(feature = "i2p")]
+use cyphernet::addr::i2p::I2pAddr;
 #[cfg(feature = "tor")]
 use cyphernet::{EcPk, addr::tor::OnionAddrV3};
 use qcheck::Arbitrary;
@@ -208,10 +210,14 @@ impl Arbitrary for MockRepository {
 
 impl Arbitrary for AddressType {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        #[cfg(not(feature = "tor"))]
-        let types = [1, 2, 3];
+        #[allow(unused_mut)]
+        let mut types = vec![1, 2, 3];
+
         #[cfg(feature = "tor")]
-        let types = [1, 2, 3, 4];
+        types.push(4);
+
+        #[cfg(feature = "i2p")]
+        types.push(5);
 
         let t = *g.choose(&types).unwrap() as u8;
 
@@ -238,10 +244,39 @@ impl Arbitrary for Address {
             AddressType::Onion => {
                 let pk = PublicKey::arbitrary(g);
                 let addr = OnionAddrV3::from(
-                    cyphernet::ed25519::PublicKey::from_pk_compressed(pk.to_byte_array())
-                        .unwrap(),
+                    cyphernet::ed25519::PublicKey::from_pk_compressed(pk.to_byte_array()).unwrap(),
                 );
                 cyphernet::addr::HostName::Tor(addr)
+            }
+            #[cfg(feature = "i2p")]
+            AddressType::I2p => {
+                let address = if bool::arbitrary(g) {
+                    let name: String = iter::repeat_with(|| {
+                        char::from(
+                            // Base32 alphabet from RFC 4648.
+                            *g.choose(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
+                                .expect("alphabet is non-empty"),
+                        )
+                    })
+                    .take(56)
+                    .collect();
+
+                    name + ".b32"
+                } else {
+                    g.choose(&["iris.radicle.example", "rosa.radicle.example"])
+                        .unwrap()
+                        .to_string()
+                };
+
+                let suffix = if bool::arbitrary(g) {
+                    ".i2p"
+                } else {
+                    ".i2p.alt"
+                };
+
+                let address = address + suffix;
+
+                cyphernet::addr::HostName::I2p(I2pAddr::from_str(&address).unwrap())
             }
         };
 

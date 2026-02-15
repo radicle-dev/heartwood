@@ -537,6 +537,8 @@ impl TryFrom<&sql::Value> for AddressType {
                 "dns" => Ok(AddressType::Dns),
                 #[cfg(feature = "tor")]
                 "onion" => Ok(AddressType::Onion),
+                #[cfg(feature = "i2p")]
+                "i2p" => Ok(AddressType::I2p),
                 _ => Err(err),
             },
             _ => Err(err),
@@ -552,6 +554,8 @@ impl sql::BindableWithIndex for AddressType {
             Self::Dns => "dns".bind(stmt, i),
             #[cfg(feature = "tor")]
             Self::Onion => "onion".bind(stmt, i),
+            #[cfg(feature = "i2p")]
+            Self::I2p => "i2p".bind(stmt, i),
         }
     }
 }

@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   value are asked to keep the substring `/radicle:{YOUR_VERSION}/` which allows
   for better telemetry regarding version distribution on the network.
   To opt-out of sending any meaningful user agent, set `node.userAgent = null`.
+- In addition to connections via SOCKS proxy and Tor for `*.onion` names, now
+  connections via SOCKS proxy and I2P for `*.i2p{,.alt}` names is now supported.
+  To enable making connections via I2P, configure `node.i2p`.
 
 ## 1.8.0
 

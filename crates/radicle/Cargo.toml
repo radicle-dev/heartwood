@@ -11,6 +11,7 @@ rust-version.workspace = true
 
 [features]
 default = []
+i2p = ["cyphernet/i2p"]
 test = ["tempfile", "qcheck", "radicle-crypto/test", "radicle-cob/test"]
 logger = ["colored", "chrono"]
 qcheck = [
