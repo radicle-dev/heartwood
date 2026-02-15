@@ -47,6 +47,11 @@ pub fn addr_compact(address: &Address) -> Paint<String> {
                 .collect::<String>();
             format!("{start}…{end}")
         }
+        #[cfg(feature = "i2p")]
+        HostName::I2p(i2p) => {
+            // TODO: Base32 addresses can be shortened like onion addresses.
+            i2p.to_string()
+        }
         _ => unreachable!(),
     };
 

@@ -10,7 +10,8 @@ build = "build.rs"
 rust-version.workspace = true
 
 [features]
-default = ["backtrace", "systemd", "structured-logger", "socket2", "tor"]
+default = ["backtrace", "i2p", "systemd", "structured-logger", "socket2", "tor"]
+i2p = ["cyphernet/i2p", "radicle/i2p", "radicle-protocol/i2p"]
 systemd = ["dep:radicle-systemd"]
 test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "radicle-protocol/test", "qcheck", "snapbox"]
 tor = ["cyphernet/tor", "radicle/tor", "radicle-protocol/tor"]

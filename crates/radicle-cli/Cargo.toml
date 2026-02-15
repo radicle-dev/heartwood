@@ -14,7 +14,8 @@ name = "rad"
 path = "src/main.rs"
 
 [features]
-default = ["tor"]
+default = ["i2p", "tor"]
+i2p = ["radicle/i2p"]
 tor = ["radicle/tor"]
 
 [dependencies]

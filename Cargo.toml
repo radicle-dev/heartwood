@@ -99,4 +99,5 @@ debug = true
 incremental = false
 
 [patch.crates-io]
-cyphernet.git = "https://github.com/cyphernet-labs/cyphernet.rs?rev=888ee2a3468c8bbfdc868238fd67505401aa0ee4"
+cyphernet = { git = "https://github.com/lorenzleutgeb/cyphernet.rs.git", branch = "push-ooltwtzkpvlk" }
+cypheraddr = { git = "https://github.com/lorenzleutgeb/cyphernet.rs.git", branch = "push-ooltwtzkpvlk" }

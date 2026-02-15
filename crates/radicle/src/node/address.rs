@@ -203,6 +203,8 @@ pub enum AddressType {
     Dns = 3,
     #[cfg(feature = "tor")]
     Onion = 4,
+    #[cfg(feature = "i2p")]
+    I2p = 5,
 }
 
 impl From<AddressType> for u8 {
@@ -219,6 +221,8 @@ impl From<&Address> for AddressType {
             HostName::Dns(_) => AddressType::Dns,
             #[cfg(feature = "tor")]
             HostName::Tor(_) => AddressType::Onion,
+            #[cfg(feature = "i2p")]
+            HostName::I2p(_) => AddressType::I2p,
             _ => todo!(), // FIXME(cloudhead): Maxim will remove `non-exhaustive`
         }
     }
@@ -234,6 +238,8 @@ impl TryFrom<u8> for AddressType {
             3 => Ok(AddressType::Dns),
             #[cfg(feature = "tor")]
             4 => Ok(AddressType::Onion),
+            #[cfg(feature = "i2p")]
+            5 => Ok(AddressType::I2p),
             _ => Err(other),
         }
     }

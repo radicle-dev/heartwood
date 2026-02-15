@@ -428,8 +428,8 @@ impl TryFrom<&sqlite::Value> for Alias {
     feature = "schemars",
     derive(schemars::JsonSchema),
     schemars(description = "\
-    An IP address, or a DNS name, or a Tor onion name, followed by the symbol ':', \
-    followed by a TCP port number.\
+    An IP address, or a DNS name, or a Tor onion name, or I2P address,
+    followed by the symbol ':', followed by a TCP port number.\
 ")
 )]
 pub struct Address(
@@ -439,6 +439,7 @@ pub struct Address(
         regex(pattern = r"^.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$"),
         extend("examples" = [
             "xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
+            "f2atcc7udeub5kh4nkljtjwyk7ikjviorufzgwnfwhkphljl3vhq.b32.i2p:8776",
             "seed.example.com:8776",
             "192.0.2.0:31337",
         ]),
@@ -481,6 +482,15 @@ impl Address {
     pub fn is_onion(&self) -> bool {
         match self.0.host {
             HostName::Tor(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Returns `true` if the [`HostName`] is an I2P address.
+    #[cfg(feature = "i2p")]
+    pub fn is_i2p(&self) -> bool {
+        match self.0.host {
+            HostName::I2p(_) => true,
             _ => false,
         }
     }

@@ -6,6 +6,8 @@ use std::{iter, net};
 
 use crypto::test::signer::MockSigner;
 use crypto::{PublicKey, Unverified};
+#[cfg(feature = "i2p")]
+use cyphernet::addr::i2p::I2pAddr;
 #[cfg(feature = "tor")]
 use cyphernet::{addr::tor::OnionAddrV3, EcPk};
 use qcheck::Arbitrary;
@@ -300,6 +302,30 @@ impl Arbitrary for Address {
                     cyphernet::ed25519::PublicKey::from_pk_compressed(*pk).unwrap(),
                 );
                 cyphernet::addr::HostName::Tor(addr)
+            }
+            #[cfg(feature = "i2p")]
+            AddressType::I2p => {
+                let address = if bool::arbitrary(g) {
+                    let mut rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+
+                    let name: String = iter::repeat_with(|| rng.alphanumeric()).take(56).collect();
+
+                    name + ".b32"
+                } else {
+                    g.choose(&["iris.radicle.example", "rosa.radicle.example"])
+                        .unwrap()
+                        .to_string()
+                };
+
+                let suffix = if bool::arbitrary(g) {
+                    ".i2p"
+                } else {
+                    ".i2p.alt"
+                };
+
+                let address = address + suffix;
+
+                cyphernet::addr::HostName::I2p(I2pAddr::from_str(&address).unwrap())
             }
         };
 

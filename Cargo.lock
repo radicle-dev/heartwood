@@ -676,7 +676,7 @@ dependencies = [
 [[package]]
 name = "cypheraddr"
 version = "0.4.0"
-source = "git+https://github.com/cyphernet-labs/cyphernet.rs?rev=888ee2a3468c8bbfdc868238fd67505401aa0ee4#888ee2a3468c8bbfdc868238fd67505401aa0ee4"
+source = "git+https://github.com/lorenzleutgeb/cyphernet.rs.git?branch=push-ooltwtzkpvlk#ca0fedcac9f1075d516ce1f0129f4aa9b73ee81e"
 dependencies = [
  "amplify",
  "base32",
@@ -688,7 +688,7 @@ dependencies = [
 [[package]]
 name = "cyphergraphy"
 version = "0.3.0"
-source = "git+https://github.com/cyphernet-labs/cyphernet.rs?rev=888ee2a3468c8bbfdc868238fd67505401aa0ee4#888ee2a3468c8bbfdc868238fd67505401aa0ee4"
+source = "git+https://github.com/lorenzleutgeb/cyphernet.rs.git?branch=push-ooltwtzkpvlk#ca0fedcac9f1075d516ce1f0129f4aa9b73ee81e"
 dependencies = [
  "amplify",
  "ec25519",
@@ -698,7 +698,7 @@ dependencies = [
 [[package]]
 name = "cyphernet"
 version = "0.5.2"
-source = "git+https://github.com/cyphernet-labs/cyphernet.rs?rev=888ee2a3468c8bbfdc868238fd67505401aa0ee4#888ee2a3468c8bbfdc868238fd67505401aa0ee4"
+source = "git+https://github.com/lorenzleutgeb/cyphernet.rs.git?branch=push-ooltwtzkpvlk#ca0fedcac9f1075d516ce1f0129f4aa9b73ee81e"
 dependencies = [
  "cypheraddr",
  "cyphergraphy",
@@ -2385,7 +2385,7 @@ dependencies = [
 [[package]]
 name = "noise-framework"
 version = "0.4.0"
-source = "git+https://github.com/cyphernet-labs/cyphernet.rs?rev=888ee2a3468c8bbfdc868238fd67505401aa0ee4#888ee2a3468c8bbfdc868238fd67505401aa0ee4"
+source = "git+https://github.com/lorenzleutgeb/cyphernet.rs.git?branch=push-ooltwtzkpvlk#ca0fedcac9f1075d516ce1f0129f4aa9b73ee81e"
 dependencies = [
  "amplify",
  "chacha20poly1305",
@@ -3891,7 +3891,7 @@ dependencies = [
 [[package]]
 name = "socks5-client"
 version = "0.4.1"
-source = "git+https://github.com/cyphernet-labs/cyphernet.rs?rev=888ee2a3468c8bbfdc868238fd67505401aa0ee4#888ee2a3468c8bbfdc868238fd67505401aa0ee4"
+source = "git+https://github.com/lorenzleutgeb/cyphernet.rs.git?branch=push-ooltwtzkpvlk#ca0fedcac9f1075d516ce1f0129f4aa9b73ee81e"
 dependencies = [
  "amplify",
  "cypheraddr",

@@ -275,7 +275,7 @@ pub struct RateLimits {
     schemars(description = "\
     A node address to connect to. Format: An Ed25519 public key in multibase encoding, \
     followed by the symbol '@', followed by an IP address, or a DNS name, or a Tor onion \
-    name, followed by the symbol ':', followed by a TCP port number.\
+    name, or an I2P address, followed by the symbol ':', followed by a TCP port number.\
 ")
 )]
 pub struct ConnectAddress(
@@ -286,6 +286,7 @@ pub struct ConnectAddress(
         extend("examples" = [
             "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@rosa.radicle.xyz:8776",
             "z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C@xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
+            "z6Mkvky2mnSYCTUMKRdAUoZXBXLLKtnWEkWeYQcGjjnmobAU@f2atcc7udeub5kh4nkljtjwyk7ikjviorufzgwnfwhkphljl3vhq.b32.i2p:8776",
             "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi@seed.example.com:8776",
             "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5@192.0.2.0:31337",
         ]),
@@ -355,7 +356,7 @@ pub enum Relay {
 #[derive(Debug, Copy, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "mode")]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
-#[cfg(feature = "tor")]
+#[cfg(any(feature = "tor", feature = "i2p"))]
 pub enum AddressConfig {
     /// Proxy connections to this address type.
     Proxy {
@@ -439,6 +440,10 @@ pub struct Config {
     #[cfg(feature = "tor")]
     #[serde(default, skip_serializing_if = "crate::serde_ext::is_default")]
     pub onion: AddressConfig,
+    /// I2P address config.
+    #[cfg(feature = "i2p")]
+    #[serde(default, skip_serializing_if = "crate::serde_ext::is_default")]
+    pub i2p: AddressConfig,
     /// Peer-to-peer network.
     #[serde(default)]
     pub network: Network,
@@ -489,6 +494,8 @@ impl Config {
             proxy: None,
             #[cfg(feature = "tor")]
             onion: AddressConfig::Drop,
+            #[cfg(feature = "i2p")]
+            i2p: AddressConfig::Drop,
             relay: Relay::default(),
             limits: Limits::default(),
             workers: Workers::default(),
