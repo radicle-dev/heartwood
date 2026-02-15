@@ -1097,10 +1097,10 @@ pub fn dial<G: Ecdh<Pk = NodeId>>(
         (HostName::Tor(onion), proxy) => match config.onion {
             // In onion proxy mode, simply use the configured proxy address.
             // This takes precedence over any global proxy.
-            Some(AddressConfig::Proxy { address }) => address.into(),
+            AddressConfig::Proxy { address } => address.into(),
             // In "forward" mode, if a global proxy is set, we use that, otherwise
             // we treat `.onion` addresses as regular DNS names.
-            Some(AddressConfig::Forward) => {
+            AddressConfig::Forward => {
                 if let Some(proxy) = proxy {
                     proxy.into()
                 } else {
@@ -1108,7 +1108,7 @@ pub fn dial<G: Ecdh<Pk = NodeId>>(
                 }
             }
             // If onion address support isn't configured, refuse to connect.
-            None => {
+            AddressConfig::Drop => {
                 return Err(io::Error::new(
                     io::ErrorKind::Unsupported,
                     "no configuration found for .onion addresses",

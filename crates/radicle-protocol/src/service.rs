@@ -30,6 +30,8 @@ use radicle::node;
 use radicle::node::address;
 use radicle::node::address::Store as _;
 use radicle::node::address::{AddressBook, AddressType, KnownAddress};
+#[cfg(feature = "tor")]
+use radicle::node::config::AddressConfig;
 use radicle::node::config::{PeerConfig, RateLimit};
 use radicle::node::device::Device;
 use radicle::node::refs::Store as _;
@@ -2576,7 +2578,7 @@ where
         match AddressType::from(address) {
             // Only consider onion addresses if configured.
             #[cfg(feature = "tor")]
-            AddressType::Onion => self.config.onion.is_some(),
+            AddressType::Onion => self.config.onion != AddressConfig::Drop,
             AddressType::Dns | AddressType::Ipv4 | AddressType::Ipv6 => true,
         }
     }
