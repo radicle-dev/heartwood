@@ -24,6 +24,7 @@ schemars = [
   "radicle-localtime/schemars",
   "dep:schemars"
 ]
+tor = ["cyphernet/tor"]
 
 [dependencies]
 amplify = { workspace = true, features = ["std"] }
@@ -32,7 +33,7 @@ bytesize = { version = "2", features = ["serde"] }
 chrono = { workspace = true, features = ["clock"], optional = true }
 colored = { workspace = true, optional = true }
 crossbeam-channel = { workspace = true }
-cyphernet = { workspace = true, features = ["tor", "dns", "p2p-ed25519"] }
+cyphernet = { workspace = true, features = ["dns", "p2p-ed25519"] }
 dunce = { workspace = true }
 fast-glob = { version = "0.3.2" }
 fastrand = { workspace = true, features = ["std"] }

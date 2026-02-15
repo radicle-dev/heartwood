@@ -10,12 +10,13 @@ rust-version.workspace = true
 
 [features]
 test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "qcheck"]
+tor = ["cypheraddr/tor"]
 
 [dependencies]
 bloomy = "1.2"
 bytes = { workspace = true }
 crossbeam-channel = { workspace = true }
-cypheraddr = { workspace = true, features = ["serde", "tor"] }
+cypheraddr = { workspace = true, features = ["serde"] }
 fastrand = { workspace = true }
 log = { workspace = true, features = ["std"] }
 nonempty = { workspace = true, features = ["serialize"] }

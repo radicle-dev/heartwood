@@ -10,9 +10,10 @@ build = "build.rs"
 rust-version.workspace = true
 
 [features]
-default = ["backtrace", "systemd", "structured-logger", "socket2"]
+default = ["backtrace", "systemd", "structured-logger", "socket2", "tor"]
 systemd = ["dep:radicle-systemd"]
 test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "radicle-protocol/test", "qcheck", "snapbox"]
+tor = ["cyphernet/tor", "radicle/tor", "radicle-protocol/tor"]
 
 [dependencies]
 backtrace = { version = "0.3.75", optional = true }
@@ -21,7 +22,7 @@ bytes = { workspace = true }
 chrono = { workspace = true, features = ["clock"] }
 colored = { workspace = true }
 crossbeam-channel = { workspace = true }
-cyphernet = { workspace = true, features = ["tor", "dns", "ed25519", "p2p-ed25519", "noise-framework", "noise_sha2"] }
+cyphernet = { workspace = true, features = ["dns", "ed25519", "p2p-ed25519", "noise-framework", "noise_sha2"] }
 fastrand = { workspace = true }
 gix-packetline = { workspace = true, features = ["blocking-io"] }
 lexopt = { workspace = true }

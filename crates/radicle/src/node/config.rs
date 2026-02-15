@@ -21,7 +21,9 @@ pub type ProtocolVersion = u8;
 pub mod seeds {
     use std::{str::FromStr, sync::LazyLock};
 
-    use cyphernet::addr::{tor::OnionAddrV3, HostName, NetAddr};
+    #[cfg(feature = "tor")]
+    use cyphernet::addr::tor::OnionAddrV3;
+    use cyphernet::addr::{HostName, NetAddr};
 
     use super::{ConnectAddress, NodeId, PeerAddr};
 
@@ -40,6 +42,7 @@ pub mod seeds {
             NodeId::from_str("z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7").unwrap(),
             vec![
                 HostName::Dns("iris.radicle.xyz".to_owned()),
+                #[cfg(feature = "tor")]
                 #[allow(clippy::unwrap_used)] // Value is manually verified.
                 OnionAddrV3::from_str(
                     "irisradizskwweumpydlj4oammoshkxxjur3ztcmo7cou5emc6s5lfid.onion",
@@ -57,6 +60,7 @@ pub mod seeds {
             NodeId::from_str("z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo").unwrap(),
             vec![
                 HostName::Dns("rosa.radicle.xyz".to_owned()),
+                #[cfg(feature = "tor")]
                 #[allow(clippy::unwrap_used)] // Value is manually verified.
                 OnionAddrV3::from_str(
                     "rosarad5bxgdlgjnzzjygnsxrwxmoaj4vn7xinlstwglxvyt64jlnhyd.onion",
@@ -353,6 +357,7 @@ pub enum Relay {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "mode")]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[cfg(feature = "tor")]
 pub enum AddressConfig {
     /// Proxy connections to this address type.
     Proxy {
@@ -488,6 +493,7 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy: Option<net::SocketAddr>,
     /// Onion address config.
+    #[cfg(feature = "tor")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub onion: Option<AddressConfig>,
     /// Peer-to-peer network.
@@ -538,6 +544,7 @@ impl Config {
             external_addresses: vec![],
             network: Network::default(),
             proxy: None,
+            #[cfg(feature = "tor")]
             onion: None,
             relay: Relay::default(),
             limits: Limits::default(),

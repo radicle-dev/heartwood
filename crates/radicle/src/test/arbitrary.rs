@@ -6,8 +6,8 @@ use std::{iter, net};
 
 use crypto::test::signer::MockSigner;
 use crypto::{PublicKey, Unverified};
-use cyphernet::addr::tor::OnionAddrV3;
-use cyphernet::EcPk;
+#[cfg(feature = "tor")]
+use cyphernet::{addr::tor::OnionAddrV3, EcPk};
 use qcheck::Arbitrary;
 
 use crate::collections::RandomMap;
@@ -293,6 +293,7 @@ impl Arbitrary for Address {
                     .unwrap()
                     .to_string(),
             ),
+            #[cfg(feature = "tor")]
             AddressType::Onion => {
                 let pk = PublicKey::arbitrary(g);
                 let addr = OnionAddrV3::from(

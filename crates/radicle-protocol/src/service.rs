@@ -2614,6 +2614,7 @@ where
     fn is_supported_address(&self, address: &Address) -> bool {
         match AddressType::from(address) {
             // Only consider onion addresses if configured.
+            #[cfg(feature = "tor")]
             AddressType::Onion => self.config.onion.is_some(),
             AddressType::Dns | AddressType::Ipv4 | AddressType::Ipv6 => true,
         }
