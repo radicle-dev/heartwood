@@ -416,6 +416,22 @@ impl Repository {
                 .no_reinit(true)
                 .external_template(false),
         )?;
+
+        {
+            // Even though `external_template(false)` is called above,
+            // libgit2 places stub files in the repository:
+            // https://github.com/libgit2/libgit2/blob/ca225744b992bf2bf24e9a2eb357ddef78179667/src/libgit2/repo_template.h#L50-L54
+            // This is helpful for a "normal" repository, directly interacted
+            // with by a human, but not necessary for our use case.
+            // Attempt to remove these files, but ignore any errors.
+            // An alternative solution would be to define our own template,
+            // but distributing that template is way more complex than
+            // deleting a handful of files.
+            let _ = fs::remove_dir_all(path.as_ref().join("hooks"));
+            let _ = fs::remove_dir_all(path.as_ref().join("info"));
+            let _ = fs::remove_file(path.as_ref().join("description"));
+        }
+
         let mut config = backend.config()?;
 
         config.set_str("user.name", &info.name())?;
