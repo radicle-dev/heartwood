@@ -1,0 +1,26 @@
+#! /usr/bin/env bash
+
+# NOTE: Copy/link this file to `$RAD_HOME/hooks/pre-receive`
+# and make it executable.
+
+#echo "pre-receive: begin"
+
+#env | grep "GIT_PUSH_CERT"
+
+# Check that `GIT_PUSH_CERT_NONCE_STATUS=OK`
+
+if [ "$GIT_PUSH_CERT_NONCE_STATUS" != "OK" ]
+then
+	echo "pre-receive: GIT_PUSH_CERT_NONCE_STATUS ≠ \"OK\"."
+	exit 1
+fi
+
+if [ "$GIT_PUSH_CERT_STATUS" != "G" ]
+then
+	echo "pre-receive: GIT_PUSH_CERT_STATUS ≠ \"G\"."
+	exit 2
+fi
+
+# TODO Check that $GIT_PUSH_CERT_KEY matches ourselves.
+
+#echo "pre-receive: end"
