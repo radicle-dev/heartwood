@@ -980,9 +980,15 @@ fn push_ref(
     let path = dunce::canonicalize(stored.path())?.display().to_string();
     // Nb. The *force* indicator (`+`) is processed by Git tooling before we even reach this code.
     // This happens during the `list for-push` phase.
-    let refspec = git::fmt::refspec::Refspec { src, dst, force };
+    let refspec = git::fmt::refspec::Refspec {
+        src,
+        dst: dst.strip_namespace(),
+        force,
+    };
 
     let mut cmd = std::process::Command::new("git");
+
+    cmd.env("GIT_NAMESPACE", dst.namespace().as_str());
 
     let mut args = vec![
         "-c".to_string(),
@@ -1025,10 +1031,7 @@ fn push_ref(
     args.push("--signed=true".to_string());
 
     for expected in expected_refs {
-        args.push(format!(
-            "--force-with-lease=refs/namespaces/{}/{expected}",
-            dst.namespace()
-        ));
+        args.push(format!("--force-with-lease={expected}"));
     }
 
     cmd.args(args);
