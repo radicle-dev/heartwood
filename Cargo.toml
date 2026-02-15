@@ -97,3 +97,6 @@ clippy.must_use_candidate = "deny"
 inherits = "release"
 debug = true
 incremental = false
+
+[patch.crates-io]
+cyphernet.git = "https://github.com/cyphernet-labs/cyphernet.rs?rev=888ee2a3468c8bbfdc868238fd67505401aa0ee4"

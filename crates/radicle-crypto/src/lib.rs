@@ -172,7 +172,18 @@ impl TryFrom<String> for Signature {
         ]),
     ),
 )]
-pub struct PublicKey(pub ed25519::PublicKey);
+pub struct PublicKey(pub amplify::Bytes32);
+
+impl PublicKey {
+    /// Verify the signature for a given payload.
+    pub fn verify(
+        &self,
+        payload: impl AsRef<[u8]>,
+        signature: &ed25519::Signature,
+    ) -> Result<(), ed25519::Error> {
+        ed25519::PublicKey::new(self.0.to_byte_array()).verify(payload, signature)
+    }
+}
 
 #[cfg(feature = "cyphernet")]
 impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for PublicKey {
@@ -186,7 +197,9 @@ impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for PublicKe
 #[cfg(feature = "ssh")]
 impl From<PublicKey> for ssh_key::PublicKey {
     fn from(key: PublicKey) -> Self {
-        ssh_key::PublicKey::from(ssh_key::public::Ed25519PublicKey(**key))
+        ssh_key::PublicKey::from(ssh_key::public::Ed25519PublicKey(
+            key.deref().to_byte_array(),
+        ))
     }
 }
 
@@ -195,24 +208,24 @@ impl cyphernet::EcPk for PublicKey {
     const COMPRESSED_LEN: usize = 32;
     const CURVE_NAME: &'static str = "Edwards25519";
 
-    type Compressed = [u8; 32];
+    type Compressed = amplify::Bytes32;
 
     fn base_point() -> Self {
         unimplemented!()
     }
 
     fn to_pk_compressed(&self) -> Self::Compressed {
-        *self.0.deref()
+        amplify::Bytes32::from_byte_array(self.deref().to_byte_array())
     }
 
     fn from_pk_compressed(pk: Self::Compressed) -> Result<Self, cyphernet::EcPkInvalid> {
-        Ok(PublicKey::from(pk))
+        Ok(PublicKey::from(pk.to_byte_array()))
     }
 
     fn from_pk_compressed_slice(slice: &[u8]) -> Result<Self, cyphernet::EcPkInvalid> {
         ed25519::PublicKey::from_slice(slice)
             .map_err(|_| cyphernet::EcPkInvalid::default())
-            .map(Self)
+            .map(Self::from)
     }
 }
 
@@ -224,7 +237,8 @@ impl SecretKey {
     /// Elliptic-curve Diffie-Hellman.
     pub fn ecdh(&self, pk: &PublicKey) -> Result<[u8; 32], ed25519::Error> {
         let scalar = self.seed().scalar();
-        let ge = edwards25519::GeP3::from_bytes_vartime(pk).ok_or(Error::InvalidPublicKey)?;
+        let ge = edwards25519::GeP3::from_bytes_vartime(&pk.deref().to_byte_array())
+            .ok_or(Error::InvalidPublicKey)?;
 
         Ok(edwards25519::ge_scalarmult(&scalar, &ge).to_bytes())
     }
@@ -333,13 +347,19 @@ impl fmt::Debug for PublicKey {
 
 impl From<ed25519::PublicKey> for PublicKey {
     fn from(other: ed25519::PublicKey) -> Self {
-        Self(other)
+        Self(amplify::Bytes32::from_byte_array(*other.deref()))
+    }
+}
+
+impl From<PublicKey> for ed25519::PublicKey {
+    fn from(val: PublicKey) -> Self {
+        ed25519::PublicKey::new(val.0.to_byte_array())
     }
 }
 
 impl From<[u8; 32]> for PublicKey {
     fn from(other: [u8; 32]) -> Self {
-        Self(ed25519::PublicKey::new(other))
+        Self(amplify::Bytes32::from_byte_array(other))
     }
 }
 
@@ -347,7 +367,7 @@ impl TryFrom<&[u8]> for PublicKey {
     type Error = ed25519::Error;
 
     fn try_from(other: &[u8]) -> Result<Self, Self::Error> {
-        ed25519::PublicKey::from_slice(other).map(Self)
+        ed25519::PublicKey::from_slice(other).map(Self::from)
     }
 }
 
@@ -362,7 +382,7 @@ impl PublicKey {
     pub fn to_human(&self) -> String {
         let mut buf = [0; 2 + ed25519::PublicKey::BYTES];
         buf[..2].copy_from_slice(&Self::MULTICODEC_TYPE);
-        buf[2..].copy_from_slice(self.0.deref());
+        buf[2..].copy_from_slice(self.0.to_byte_array().as_slice());
 
         multibase::encode(multibase::Base::Base58Btc, buf)
     }
@@ -397,7 +417,7 @@ impl FromStr for PublicKey {
         if let Some(bytes) = bytes.strip_prefix(&Self::MULTICODEC_TYPE) {
             let key = ed25519::PublicKey::from_slice(bytes)?;
 
-            Ok(Self(key))
+            Ok(key.into())
         } else {
             Err(PublicKeyError::Multicodec(Self::MULTICODEC_TYPE))
         }
@@ -413,7 +433,7 @@ impl TryFrom<String> for PublicKey {
 }
 
 impl Deref for PublicKey {
-    type Target = ed25519::PublicKey;
+    type Target = amplify::Bytes32;
 
     fn deref(&self) -> &Self::Target {
         &self.0

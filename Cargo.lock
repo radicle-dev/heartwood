@@ -676,8 +676,7 @@ dependencies = [
 [[package]]
 name = "cypheraddr"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba5c54d2ad4ab9941383519471b75d12abc1a7b4779265e233168f2703a730d9"
+source = "git+https://github.com/cyphernet-labs/cyphernet.rs?rev=888ee2a3468c8bbfdc868238fd67505401aa0ee4#888ee2a3468c8bbfdc868238fd67505401aa0ee4"
 dependencies = [
  "amplify",
  "base32",
@@ -689,8 +688,7 @@ dependencies = [
 [[package]]
 name = "cyphergraphy"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b67c16c8ef5ddcdab57aab83fd8e770540ea3682ccdae09642c63575b0da2184"
+source = "git+https://github.com/cyphernet-labs/cyphernet.rs?rev=888ee2a3468c8bbfdc868238fd67505401aa0ee4#888ee2a3468c8bbfdc868238fd67505401aa0ee4"
 dependencies = [
  "amplify",
  "ec25519",
@@ -700,8 +698,7 @@ dependencies = [
 [[package]]
 name = "cyphernet"
 version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac949369884a7a1d802cc669821269c707be8cec4d65043382e253733d2e62e1"
+source = "git+https://github.com/cyphernet-labs/cyphernet.rs?rev=888ee2a3468c8bbfdc868238fd67505401aa0ee4#888ee2a3468c8bbfdc868238fd67505401aa0ee4"
 dependencies = [
  "cypheraddr",
  "cyphergraphy",
@@ -2388,8 +2385,7 @@ dependencies = [
 [[package]]
 name = "noise-framework"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b57e96e713d599dc58755d0e5bb2238908a63e13f624f70c8345fdb7d8b51bae"
+source = "git+https://github.com/cyphernet-labs/cyphernet.rs?rev=888ee2a3468c8bbfdc868238fd67505401aa0ee4#888ee2a3468c8bbfdc868238fd67505401aa0ee4"
 dependencies = [
  "amplify",
  "chacha20poly1305",
@@ -3895,8 +3891,7 @@ dependencies = [
 [[package]]
 name = "socks5-client"
 version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffc7dcf6fab1d65d82d633006a4cc658d76ce436e01cf1a7c71873c0eeba324c"
+source = "git+https://github.com/cyphernet-labs/cyphernet.rs?rev=888ee2a3468c8bbfdc868238fd67505401aa0ee4#888ee2a3468c8bbfdc868238fd67505401aa0ee4"
 dependencies = [
  "amplify",
  "cypheraddr",
