@@ -4,7 +4,7 @@ mod canonical;
 mod error;
 
 use std::collections::HashMap;
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Write as _};
 use std::process::ExitStatus;
 use std::str::FromStr;
 use std::{assert_eq, io};
@@ -974,17 +974,57 @@ fn push_ref(
     verbosity: Verbosity,
     expected_refs: &[String],
 ) -> Result<(), Error> {
+    // FIXME: Not a good idea to randomly load the profile here, do properly.
+    let profile = Profile::load()?;
+
     let path = dunce::canonicalize(stored.path())?.display().to_string();
     // Nb. The *force* indicator (`+`) is processed by Git tooling before we even reach this code.
     // This happens during the `list for-push` phase.
     let refspec = git::fmt::refspec::Refspec { src, dst, force };
 
-    let mut args = vec!["send-pack".to_string()];
+    let mut cmd = std::process::Command::new("git");
+
+    let mut args = vec![
+        "-c".to_string(),
+        "gpg.format=ssh".to_string(),
+        "-c".to_string(),
+        "gpg.ssh.allowedSignersFile=/home/lorenz/.radicle/signers".to_string(),
+        "-c".to_string(),
+        format!(
+            "user.signingKey=key::{}",
+            radicle::crypto::ssh::fmt::key(profile.id())
+        ),
+        "send-pack".to_string(),
+    ];
 
     let verbosity: git::Verbosity = verbosity.into();
     args.extend(verbosity.into_flag());
 
     args.extend([path.to_string(), refspec.to_string()]);
+
+    // FIXME: Promote the hooks path to `Home`.
+    let hooks = profile
+        .home()
+        .path()
+        .join("hooks")
+        .to_string_lossy()
+        .to_string();
+
+    // FIXME: Think about a good way to generate nonce. The environment variable just gives control.
+    let nonce =
+        std::env::var(radicle::profile::env::RAD_RNG_SEED).unwrap_or("thefutureisnow".to_string());
+
+    // FIXME: Make sure this file exists, create it if it doesn't.
+    let signers = profile
+        .home()
+        .keys()
+        .join("radicle.pub")
+        .to_string_lossy()
+        .to_string();
+
+    args.push(format!(r#"--receive-pack=git -c receive.certNonceSeed={nonce} -c core.hooksPath="{hooks}" -c gpg.ssh.allowedSignersFile="{signers}" receive-pack"#));
+
+    args.push("--signed=true".to_string());
 
     for expected in expected_refs {
         args.push(format!(
@@ -993,10 +1033,9 @@ fn push_ref(
         ));
     }
 
-    // Rely on the environment variable `GIT_DIR`.
-    let working = None;
+    cmd.args(args);
 
-    let output = radicle::git::run(working, args)?;
+    let output = cmd.output()?;
 
     if !output.status.success() {
         return Err(Error::SendPackFailed {
@@ -1004,6 +1043,8 @@ fn push_ref(
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
             status: output.status,
         });
+    } else {
+        std::io::stderr().write_all(&output.stderr)?;
     }
 
     Ok(())

@@ -1,0 +1,14 @@
+#! /usr/bin/env bash
+
+# NOTE: Copy/link this file to `$RAD_HOME/hooks/post-receive`
+# and make it executable.
+
+#echo "post-receive: begin"
+
+echo "Push certificate received:"
+git cat-file blob "$GIT_PUSH_CERT" | sed -e 's/^/\t/'
+echo ""
+
+# TODO: Do something interesting with the certificate.
+
+#echo "post-receive: end"
