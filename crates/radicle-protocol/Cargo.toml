@@ -15,7 +15,7 @@ test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "qche
 bloomy = "1.2"
 bytes = { workspace = true }
 crossbeam-channel = { workspace = true }
-cyphernet = { workspace = true, features = ["tor"] }
+cypheraddr = { workspace = true, features = ["serde", "tor"] }
 fastrand = { workspace = true }
 log = { workspace = true, features = ["std"] }
 nonempty = { workspace = true, features = ["serialize"] }

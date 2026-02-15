@@ -2,7 +2,7 @@ use std::{mem, net};
 
 use bytes::Buf;
 use bytes::BufMut;
-use cyphernet::addr::{tor, HostName, NetAddr};
+use cypheraddr::{tor, HostName, NetAddr};
 use radicle::crypto::Signature;
 use radicle::git::Oid;
 use radicle::identity::RepoId;

@@ -15,7 +15,7 @@ use std::string::FromUtf8Error;
 
 use bytes::{Buf, BufMut};
 
-use cyphernet::addr::tor;
+use cypheraddr::tor;
 
 use radicle::crypto::{PublicKey, Signature, Unverified};
 use radicle::git;
@@ -257,7 +257,7 @@ impl Encode for Refs {
     }
 }
 
-impl Encode for cyphernet::addr::tor::OnionAddrV3 {
+impl Encode for cypheraddr::tor::OnionAddrV3 {
     fn encode(&self, buf: &mut impl BufMut) {
         self.into_raw_bytes().encode(buf)
     }

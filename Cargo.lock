@@ -679,6 +679,7 @@ dependencies = [
  "amplify",
  "base32",
  "cyphergraphy",
+ "serde",
  "sha3",
 ]
 
@@ -3083,7 +3084,7 @@ dependencies = [
  "bloomy",
  "bytes",
  "crossbeam-channel",
- "cyphernet",
+ "cypheraddr",
  "fastrand",
  "log",
  "nonempty",
