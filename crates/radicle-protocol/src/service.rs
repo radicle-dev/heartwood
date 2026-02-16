@@ -230,6 +230,8 @@ pub enum ConnectError {
         "attempted connection to {nid}, via {addr} but addresses of this kind are not supported"
     )]
     UnsupportedAddress { nid: NodeId, addr: Address },
+    #[error("attempted connection with blocked peer {nid}")]
+    Blocked { nid: NodeId },
 }
 
 /// A store for all node data.
@@ -2169,6 +2171,9 @@ where
 
         if nid == self.node_id() {
             return Err(ConnectError::SelfConnection);
+        }
+        if let Ok(true) = self.policies.is_blocked(&nid) {
+            return Err(ConnectError::Blocked { nid });
         }
         if !self.is_supported_address(&addr) {
             return Err(ConnectError::UnsupportedAddress { nid, addr });
