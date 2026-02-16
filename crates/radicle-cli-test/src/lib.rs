@@ -4,16 +4,11 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync;
-use std::{env, ffi, fs, io, mem};
+use std::{env, fs, io, mem};
 
 use snapbox::cmd::{Command, OutputAssert};
 use snapbox::{Assert, Substitutions};
 use thiserror::Error;
-
-#[cfg(windows)]
-const PATH_SEPARATOR: char = ';';
-#[cfg(not(windows))]
-const PATH_SEPARATOR: char = ':';
 
 /// Used to ensure the build task is only run once.
 static BUILD: sync::Once = sync::Once::new();
@@ -462,11 +457,7 @@ impl TestFormula {
                     vec![]
                 };
 
-                let bins = bins(self.cwd.clone())
-                    .iter()
-                    .map(|p| p.as_os_str())
-                    .collect::<Vec<_>>()
-                    .join(ffi::OsStr::new(&PATH_SEPARATOR.to_string()));
+                let bins = std::env::join_paths(bins(self.cwd.clone())).unwrap();
 
                 let command = Command::new(cmd.clone())
                     .env_clear()
@@ -531,13 +522,17 @@ impl TestFormula {
     }
 }
 
-/// Get the list of binary paths to use as `PATH` for the tests,
+/// Get the list of binary paths to use as `$PATH` for the tests,
 /// starting with the current working directory.
 fn bins(cwd: PathBuf) -> Vec<PathBuf> {
-    let mut bins: Vec<PathBuf> = env::var("PATH")
-        .map(|env_path| env_path.split(PATH_SEPARATOR).map(PathBuf::from).collect())
-        .unwrap_or_default();
+    let mut bins: Vec<PathBuf> = Vec::new();
 
+    // Add current working directory to `$PATH`,
+    // this makes it more convenient to execute scripts during testing.
+    bins.push(cwd);
+
+    // If we're running in a cargo build environment, add the target
+    // directory to `$PATH` as well.
     if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
         let profile = cfg!(debug_assertions)
             .then_some("debug")
@@ -551,6 +546,11 @@ fn bins(cwd: PathBuf) -> Vec<PathBuf> {
         )
     }
 
+    // Add the "real" `$PATH`.
+    if let Ok(path) = env::var("PATH") {
+        bins.extend(env::split_paths(&path));
+    }
+
     #[cfg(windows)]
     {
         // Radicle CLI tests rely on various Unix coreutils
@@ -562,9 +562,6 @@ fn bins(cwd: PathBuf) -> Vec<PathBuf> {
         bins.push(PathBuf::from(r#"C:\Program Files\Git\usr\bin"#));
     }
 
-    // Add current working directory to `$PATH`,
-    // this makes it more convenient to execute scripts during testing.
-    bins.push(cwd);
     bins
 }
 
