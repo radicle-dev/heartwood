@@ -23,6 +23,7 @@ colored = { workspace = true }
 crossbeam-channel = { workspace = true }
 cyphernet = { workspace = true, features = ["tor", "dns", "ed25519", "p2p-ed25519", "noise-framework", "noise_sha2"] }
 fastrand = { workspace = true }
+gix-packetline = { workspace = true, features = ["blocking-io"] }
 lexopt = { workspace = true }
 log = { workspace = true, features = ["kv", "std"] }
 mio = { version = "1", features = ["net", "os-poll"] }

@@ -141,15 +141,51 @@ impl Worker {
 
                 let timeout = channels.timeout();
                 let (mut stream_r, stream_w) = channels.split();
-                let header = match upload_pack::pktline::git_request(&mut stream_r) {
-                    Ok(header) => header,
-                    Err(e) => {
+
+                let mut iter = gix_packetline::blocking_io::StreamingPeekableIter::new(
+                    &mut stream_r,
+                    &[gix_packetline::PacketLineRef::Flush],
+                    false, /* packet tracing */
+                );
+
+                let header = match iter.read_line() {
+                    None => {
+                        return FetchResult::Responder {
+                            rid: None,
+                            result: Err(UploadError::PacketLine(std::io::Error::new(
+                                std::io::ErrorKind::UnexpectedEof,
+                                "unexpected end of stream while reading upload-pack header",
+                            ))),
+                        }
+                    }
+                    Some(Err(e)) => {
                         return FetchResult::Responder {
                             rid: None,
                             result: Err(UploadError::PacketLine(e)),
                         }
                     }
+                    Some(Ok(Err(e))) => {
+                        return FetchResult::Responder {
+                            rid: None,
+                            result: Err(UploadError::PacketLine(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                format!("invalid upload-pack header: {e}"),
+                            ))),
+                        }
+                    }
+                    Some(Ok(Ok(header))) => header,
                 };
+
+                let Some(header) = upload_pack::GitRequest::from_packetline(header) else {
+                    return FetchResult::Responder {
+                        rid: None,
+                        result: Err(UploadError::PacketLine(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "failed to parse upload-pack header",
+                        ))),
+                    };
+                };
+
                 log::debug!(target: "worker", "Spawning upload-pack process for {} on stream {stream}..", header.repo);
 
                 if let Err(e) = self.is_authorized(remote, header.repo) {
