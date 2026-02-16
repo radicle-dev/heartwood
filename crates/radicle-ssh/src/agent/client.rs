@@ -120,11 +120,11 @@ impl AgentClient<Stream> {
         let var = std::env::var(SSH_AUTH_SOCK);
 
         #[cfg(windows)]
-        let var = var.or_else(|_| {
+        let var = var.or({
             // Windows uses a named pipe for the SSH agent, which
             // we fall back to in case reading the environment
             // variable fails.
-            return Ok(r"\\.\pipe\openssh-ssh-agent".to_string());
+            Ok(r"\\.\pipe\openssh-ssh-agent".to_string())
         });
 
         Self::connect(var.map_err(|err| Error::EnvVar {
