@@ -249,6 +249,8 @@ impl<T> Store<T> {
         ))
     }
 
+    /// Returns `true` if there is a follow policy for the given node, and that
+    /// policy is [`Policy::Block`].
     pub fn is_blocked(&self, id: &NodeId) -> Result<bool, Error> {
         Ok(matches!(
             self.follow_policy(id)?,
