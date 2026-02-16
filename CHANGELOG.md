@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## New Features
 
+- The block policy for `NodeId`'s is used for limiting the namespaces fetched
+  from other nodes. It is now also extended to block connections to the blocked
+  `NodeId`.
 - The set of references returned by `references_of` were restricted to `heads`,
   `tags`, `notes`, `rad`, and `cobs`. The restriction is lifted, and the only
   references filtered out are `refs/tmp/heads` – used by `radicle-remote-helper`
