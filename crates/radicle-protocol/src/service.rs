@@ -1225,7 +1225,7 @@ where
         self.emitter.emit(Event::PeerConnected { nid: remote });
 
         if let Ok(true) = self.policies.is_blocked(&remote) {
-            debug!(target: "service", "Disconnecting blocked peer {remote}");
+            info!(target: "service", "Disconnecting blocked peer {remote}");
             self.outbox.disconnect(remote, DisconnectReason::Policy);
             return;
         }
