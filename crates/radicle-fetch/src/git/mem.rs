@@ -26,10 +26,10 @@ impl Refdb {
         &'a self,
         remote: &'a PublicKey,
     ) -> impl Iterator<Item = (RefString, Oid)> + 'a {
+        let remote = Component::from(remote);
         self.0.iter().filter_map(move |(refname, oid)| {
             let ns = refname.to_namespaced()?;
-            (ns.namespace() == Component::from(remote))
-                .then(|| (ns.strip_namespace().to_ref_string(), *oid))
+            (ns.namespace() == remote).then(|| (ns.strip_namespace().to_ref_string(), *oid))
         })
     }
 
