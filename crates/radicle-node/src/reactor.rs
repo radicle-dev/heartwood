@@ -418,13 +418,14 @@ impl<H: ReactionHandler> Runtime<H> {
             if self.handle_events(tick, events) {
                 // If a wake event was emitted, eagerly consume all control messages.
                 loop {
+                    use ControlMessage::*;
+                    use TryRecvError::*;
+
                     match self.receiver.try_recv() {
-                        Err(TryRecvError::Empty) => break,
-                        Err(TryRecvError::Disconnected) => {
-                            panic!("control channel disconnected unexpectedly")
-                        }
-                        Ok(ControlMessage::Shutdown) => return self.handle_shutdown(),
-                        Ok(ControlMessage::Command(cmd)) => self.service.handle_command(*cmd),
+                        Ok(Command(cmd)) => self.service.handle_command(*cmd),
+                        Ok(Shutdown) => return self.handle_shutdown(),
+                        Err(Empty) => break,
+                        Err(Disconnected) => panic!("control channel disconnected unexpectedly"),
                     }
                 }
             }
