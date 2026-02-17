@@ -1,4 +1,9 @@
+use std::io;
+
+use clap::Parser;
+
 use radicle::identity::RepoId;
+use radicle_term::Interactive;
 
 const ABOUT: &str = "Publish a repository to the network";
 
@@ -14,7 +19,7 @@ single delegate. The delegate must be the currently authenticated
 user. For repositories with more than one delegate, the `rad id`
 command must be used."#;
 
-#[derive(Debug, clap::Parser)]
+#[derive(Debug, Parser)]
 #[command(about = ABOUT, long_about = LONG_ABOUT, disable_version_flag = true)]
 pub struct Args {
     /// The Repository ID of the repository to publish
@@ -22,6 +27,21 @@ pub struct Args {
     /// [example values: rad:z3Tr6bC7ctEg2EHmLvknUr29mEDLH, z3Tr6bC7ctEg2EHmLvknUr29mEDLH]
     #[arg(value_name = "RID")]
     pub(super) rid: Option<RepoId>,
+
+    /// Do not ask for confirmation to publish the repository.
+    #[arg(long)]
+    #[arg(global = true)]
+    no_confirm: bool,
+}
+
+impl Args {
+    pub(super) fn interactive(&self) -> Interactive {
+        if self.no_confirm {
+            Interactive::No
+        } else {
+            Interactive::new(io::stdout())
+        }
+    }
 }
 
 #[cfg(test)]

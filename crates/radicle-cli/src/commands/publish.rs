@@ -6,6 +6,7 @@ use radicle::cob;
 use radicle::identity::{Identity, Visibility};
 use radicle::node::Handle as _;
 use radicle::storage::{SignRepository, ValidateRepository, WriteRepository, WriteStorage};
+use radicle_term::PREFIX_WARNING;
 
 use crate::terminal as term;
 
@@ -44,29 +45,57 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let signer = profile.signer()?;
 
     // Update identity document.
-    let doc = doc.clone().with_edits(|doc| {
+    let proposal = doc.clone().with_edits(|doc| {
         doc.visibility = Visibility::Public;
     })?;
 
-    // SAFETY: the `Title` here is guaranteed to be nonempty and does not
-    // contain `\n` or `\r`.
-    #[allow(clippy::unwrap_used)]
-    identity.update(
-        cob::Title::new("Publish repository").unwrap(),
-        "",
-        &doc,
-        &signer,
-    )?;
-    repo.sign_refs(&signer)?;
-    repo.set_identity_head()?;
-    let validations = repo.validate()?;
+    let interactive = args.interactive();
 
-    if !validations.is_empty() {
-        for err in validations {
-            term::error(format!("validation error: {err}"));
-        }
-        anyhow::bail!("fatal: repository storage is corrupt");
+    if interactive.yes() {
+        term::info!(
+            "{PREFIX_WARNING} You are about to change the visibility of {rid} from '{}' to '{}'",
+            term::format::visibility(doc.visibility()),
+            term::format::visibility(proposal.visibility())
+        );
+        term::info!(
+            "{PREFIX_WARNING} Once published, any node on the Radicle network will be allowed to fetch it."
+        );
+        term::info!(
+            "{PREFIX_WARNING} You are currently connected to the network '{}'",
+            term::format::network(&profile.config.node.network)
+        );
     }
+    if interactive.confirm(
+        format!("Are you sure you want to publish {rid}?"),
+        term::DefaultConfirmation::No,
+    ) {
+        // SAFETY: the `Title` here is guaranteed to be nonempty and does not
+        // contain `\n` or `\r`.
+        #[allow(clippy::unwrap_used)]
+        identity.update(
+            cob::Title::new("Publish repository").unwrap(),
+            "",
+            &proposal,
+            &signer,
+        )?;
+        repo.sign_refs(&signer)?;
+        repo.set_identity_head()?;
+        let validations = repo.validate()?;
+
+        if !validations.is_empty() {
+            for err in validations {
+                term::error(format!("validation error: {err}"));
+            }
+            anyhow::bail!("fatal: repository storage is corrupt");
+        }
+    } else {
+        term::success!(
+            "Repository will remain {}",
+            term::format::visibility(doc.visibility())
+        );
+        return Ok(());
+    }
+
     let mut node = radicle::Node::new(profile.socket());
     let spinner = term::spinner("Updating inventory..");
 
@@ -76,7 +105,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
 
     term::success!(
         "Repository is now {}",
-        term::format::visibility(doc.visibility())
+        term::format::visibility(proposal.visibility())
     );
 
     if !node.is_running() {
