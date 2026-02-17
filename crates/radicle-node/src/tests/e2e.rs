@@ -1663,3 +1663,82 @@ fn test_non_fastforward_identity_doc() {
     assert_eq!(identity.current, next);
     assert_eq!(identity.parent, Some(prev));
 }
+
+#[test]
+fn test_block_active_connection() {
+    let tmp = tempfile::tempdir().unwrap();
+    let alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
+
+    let mut alice = alice.spawn();
+    let bob = bob.spawn();
+
+    alice.connect(&bob);
+    converge([&alice, &bob]);
+
+    let events = alice.handle.events();
+    assert!(alice.handle.block(bob.id).unwrap());
+
+    events
+        .wait(
+            |e| matches!(e, Event::PeerDisconnected { nid, .. } if *nid == bob.id).then_some(()),
+            DEFAULT_TIMEOUT,
+        )
+        .unwrap();
+
+    let sessions = alice.handle.sessions().unwrap();
+    assert!(sessions.iter().all(|s| s.nid != bob.id));
+}
+
+#[test]
+fn test_block_prevents_connection() {
+    let tmp = tempfile::tempdir().unwrap();
+    let alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    assert!(alice.handle.block(bob.id).unwrap());
+
+    let result = alice
+        .handle
+        .connect(bob.id, bob.addr.into(), ConnectOptions::default())
+        .unwrap();
+
+    assert_matches!(result, ConnectResult::Disconnected { .. });
+
+    let events = alice.handle.events();
+    bob.connect(&alice);
+
+    // Alice receives Bob's inbound connection, but disconnects from him.
+    events
+        .wait(
+            |e| matches!(e, Event::PeerDisconnected { nid, .. } if *nid == bob.id).then_some(()),
+            time::Duration::from_secs(10),
+        )
+        .unwrap();
+
+    let sessions = alice.handle.sessions().unwrap();
+    assert!(sessions.iter().all(|s| s.nid != bob.id));
+}
+
+#[test]
+fn test_block_prevents_fetch() {
+    let tmp = tempfile::tempdir().unwrap();
+    let alice = Node::init(tmp.path(), config::relay("alice"));
+    let mut bob = Node::init(tmp.path(), config::relay("bob"));
+    let rid = bob.project("acme", "");
+
+    let mut alice = alice.spawn();
+    let bob = bob.spawn();
+
+    assert!(alice.handle.block(bob.id).unwrap());
+
+    let result = alice
+        .handle
+        .fetch(rid, bob.id, time::Duration::from_secs(5))
+        .unwrap();
+
+    assert_matches!(result, FetchResult::Failed { .. });
+}
