@@ -99,6 +99,9 @@ impl<G: 'static> Drop for NodeHandle<G> {
 
 impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
     /// Connect this node to another node, and wait for the connection to be established both ways.
+    ///
+    /// If the remote has blocked this node, then the remote event will be
+    /// [`Event::PeerDisconnected`].
     pub fn connect(&mut self, remote: &NodeHandle<G>) -> &mut Self {
         let local_events = self.handle.events();
         let remote_events = remote.handle.events();
@@ -119,7 +122,9 @@ impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
             .iter()
             .find(|e| {
                 matches!(
-                    e, Event::PeerConnected { nid } if nid == &self.id
+                    e,
+                    Event::PeerConnected { nid } | Event::PeerDisconnected { nid, .. }
+                    if nid == &self.id
                 )
             })
             .unwrap();
