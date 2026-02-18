@@ -7,6 +7,7 @@ pub use radicle_term::{style, Paint};
 
 use radicle::cob::ObjectId;
 use radicle::identity::Visibility;
+use radicle::node::config::Network;
 use radicle::node::policy::Policy;
 use radicle::node::{Address, Alias, AliasStore, HostName, NodeId};
 use radicle::prelude::Did;
@@ -103,6 +104,12 @@ pub fn policy(p: &Policy) -> Paint<String> {
         Policy::Allow => term::format::positive(p.to_string()),
         Policy::Block => term::format::negative(p.to_string()),
     }
+}
+
+/// Format a network name.
+#[must_use]
+pub fn network(n: &Network) -> Paint<String> {
+    bold(term::format::secondary(n).to_string())
 }
 
 /// Format a timestamp.
