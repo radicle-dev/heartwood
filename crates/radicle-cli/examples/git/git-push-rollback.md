@@ -16,7 +16,7 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential s
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 $ git commit -m "Third commit" --allow-empty -q
-$ git push rad
+$ git push rad -o sync
 $ git branch -arv
   alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master f2de534 Second commit
   rad/master                                                    319a7dc Third commit
@@ -34,7 +34,7 @@ Fast-forward
 ```
 
 ``` ~alice (stderr)
-$ git push rad
+$ git push rad -o sync
 ✓ Canonical reference refs/heads/master updated to target commit 319a7dc3b195368ded4b099f8c90bbb80addccd3
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
@@ -53,7 +53,7 @@ Since the canonical head is still decidable from this commit she is allowed to
 push and the new canonical head becomes the previous commit again:
 
 ``` ~alice (stderr)
-$ git push rad -f
+$ git push rad -f -o sync
 ✓ Canonical reference refs/heads/master updated to target commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi

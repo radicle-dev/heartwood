@@ -19,7 +19,7 @@ $ rad inspect --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
 $ git commit -m "Third commit" --allow-empty -q
-$ git push rad
+$ git push rad -o sync
 $ git branch -arv
   alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master f2de534 Second commit
   rad/master                                                    319a7dc Third commit
@@ -42,7 +42,7 @@ If we try to push now, we get an error with a hint, telling us that we need to
 integrate Bob's changes before pushing ours:
 
 ``` ~alice (stderr)
-$ git push rad
+$ git push rad -o sync
 warn: could not determine target commit for canonical reference 'refs/heads/master', found diverging commits 2e8758fc512cbdef298c86feddff5ba3280e94b4 and 319a7dc3b195368ded4b099f8c90bbb80addccd3, with base commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 and threshold 1
 warn: it is recommended to find a commit to agree upon
 ✓ Synced with 1 seed(s)

@@ -9,11 +9,11 @@ $ cd heartwood
 $ rad issue open --title "No license file" --description "..." -q
 ✓ Synced with 1 seed(s)
 $ git commit -m "Change copyright" --allow-empty -q
-$ git push rad HEAD:bob/copy
+$ git push rad HEAD:bob/copy -o sync
 $ cd ..
 $ cd radicle-git
 $ git commit -m "Change copyright" --allow-empty -q
-$ git push rad -o patch.message="Copyright fixes" HEAD:refs/patches
+$ git push rad -o patch.message="Copyright fixes" HEAD:refs/patches -o sync
 ```
 
 ``` ~alice

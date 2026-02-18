@@ -12,7 +12,7 @@ f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 $ git commit --allow-empty -m "Minor update" -q
 $ git rev-parse master
 e09c4dc1b54443ceea715ea648afecdcfd1dd7d0
-$ git push rad master
+$ git push rad master -o sync
 ```
 
 ``` ~bob

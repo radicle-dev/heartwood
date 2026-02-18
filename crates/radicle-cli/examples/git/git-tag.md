@@ -11,7 +11,7 @@ $ git tag v1.0 -a -m "Release v1.0"
 ```
 
 ``` ~alice (stderr)
-$ git push rad v1.0
+$ git push rad v1.0 -o sync
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new tag]         v1.0 -> v1.0
@@ -63,7 +63,7 @@ Updated tag 'v1.0' (was be18ed6)
 ```
 
 ``` ~alice (stderr)
-$ git push rad v1.0 -f
+$ git push rad v1.0 -f -o sync
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + be18ed6...9dbdebc v1.0 -> v1.0 (forced update)

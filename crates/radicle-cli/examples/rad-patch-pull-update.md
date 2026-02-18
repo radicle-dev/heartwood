@@ -42,7 +42,7 @@ our fork:
 
 ``` ~bob (stderr)
 $ cd heartwood
-$ git push rad master
+$ git push rad master -o sync
 ✓ Synced with 1 seed(s)
 To rad://zhbMU4DUXrzB8xT6qAJh6yZ7bFMK/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new branch]      master -> master
@@ -53,7 +53,7 @@ Bob then opens a patch.
 ``` ~bob (stderr)
 $ git checkout -b bob/feature -q
 $ git commit --allow-empty -m "Bob's commit #1" -q
-$ git push rad -o sync -o patch.message="Bob's patch" HEAD:refs/patches
+$ git push rad -o sync -o patch.message="Bob's patch" HEAD:refs/patches -o sync
 ✓ Patch 55b9721ed7f6bfec38f43729e9b6631c5dc812fb opened
 ✓ Synced with 1 seed(s)
 To rad://zhbMU4DUXrzB8xT6qAJh6yZ7bFMK/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
@@ -82,7 +82,7 @@ Bob then updates the patch.
 
 ``` ~bob (stderr)
 $ git commit --allow-empty -m "Bob's commit #2" -q
-$ git push rad -o sync -o patch.message="Updated."
+$ git push rad -o sync -o patch.message="Updated." -o sync
 ✓ Patch 55b9721 updated to revision f91e056da05b2d9a58af1160c76245bc3debf7a8
 To compare against your previous revision 55b9721, run:
 

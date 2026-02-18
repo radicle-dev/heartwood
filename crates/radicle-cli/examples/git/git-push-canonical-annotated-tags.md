@@ -96,7 +96,7 @@ tag
 ```
 
 ``` ~alice (stderr)
-$ git push rad --tags
+$ git push rad --tags -o sync
 ✓ Canonical reference refs/tags/v1.0-hotfix updated to target tag ac51a0746a5e8311829bc481202909a1e3acc0c2
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
@@ -139,7 +139,7 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential s
 ✓ Target met: 1 seed(s)
 ✓ Remote alice added
 ✓ Remote-tracking branch alice/master created for z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-$ git push rad master
+$ git push rad master -o sync
 ```
 
 ``` ~alice
@@ -179,7 +179,7 @@ ac51a0746a5e8311829bc481202909a1e3acc0c2
 
 ``` ~bob (stderr)
 $ git tag -a -m "Release 2" v2.0
-$ git push rad --tags
+$ git push rad --tags -o sync
 warn: could not determine target for canonical reference 'refs/tags/v2.0', no object with at least 2 vote(s) found (threshold not met)
 warn: it is recommended to find an object (either commit or tag) to agree upon
 ✓ Synced with 1 seed(s)
@@ -206,7 +206,7 @@ $ git tag v2.0 bob/tags/v2.0
 ```
 
 ``` ~alice (stderr)
-$ git push rad --tags
+$ git push rad --tags -o sync
 ✓ Canonical reference refs/tags/v2.0 updated to target tag 89f935f27a16f8ed97915ade4accab8fe48057aa
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
@@ -223,7 +223,7 @@ reference is created:
 
 ``` ~bob (stderr)
 $ git tag qa/v2.1
-$ git push rad --tags
+$ git push rad --tags -o sync
 ✓ Canonical reference refs/tags/qa/v2.1 updated to target commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk

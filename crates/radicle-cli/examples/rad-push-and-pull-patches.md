@@ -4,7 +4,7 @@ Testing pulling, fetching and the `FETCH_HEAD`.
 $ git push rad
 $ git checkout -b bob/1 -q
 $ git commit --allow-empty -m "Changes #1" -q
-$ git push -o patch.message="Changes" rad HEAD:refs/patches
+$ git push -o patch.message="Changes" rad HEAD:refs/patches -o sync
 ```
 
 ``` ~alice
@@ -32,7 +32,7 @@ f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 ``` ~alice (stderr)
 $ git checkout patch/d004b67 -q
 $ git commit --allow-empty -m "Changes #2" -q
-$ git push
+$ git push -o sync
 ✓ Patch d004b67 updated to revision 2eb705c3da98e05c083df15be5b1bd6856a0bd77
 To compare against your previous revision d004b67, run:
 
@@ -45,7 +45,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 
 ``` ~bob
 $ git commit --allow-empty -m "Changes #2" -q
-$ git push
+$ git push -o sync
 ```
 
 ``` ~alice (stderr)
@@ -55,7 +55,7 @@ From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
  + c2aaf1c...8d5f1ba patches/d004b67355456c46de10c0d287e4a791ad1a6945 -> rad/patches/d004b67355456c46de10c0d287e4a791ad1a6945  (forced update)
 $ git checkout - -q
 $ git commit --allow-empty -m "Changes #3" -q
-$ git push
+$ git push -o sync
 ✓ Patch d004b67 updated to revision 7b5015a8dac188bb0d44a334aa68a51298750b07
 To compare against your previous revision d004b67, run:
 

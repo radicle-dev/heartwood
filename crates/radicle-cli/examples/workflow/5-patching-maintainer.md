@@ -91,7 +91,7 @@ Fast-forward
  create mode 100644 REQUIREMENTS.md
 ```
 ``` (stderr)
-$ git push rad master
+$ git push rad master -o sync
 ✓ Patch e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46 merged at revision 9d62420
 ✓ Canonical reference refs/heads/master updated to target commit f567f695d25b4e8fb63b5f5ad2a584529826e908
 ✓ Synced with 1 seed(s)
@@ -128,7 +128,7 @@ $ rad patch show e4934b6
 To publish our new state to the network, we simply push:
 
 ```
-$ git push
+$ git push -o sync
 ```
 
 Finally, we will close the issue that was opened for this

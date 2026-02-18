@@ -9,7 +9,7 @@ $ git commit -m "Introduce license"
 ```
 
 ``` ~alice (stderr)
-$ git push rad -o patch.draft -o patch.message="Define LICENSE for project" HEAD:refs/patches
+$ git push rad -o patch.draft -o patch.message="Define LICENSE for project" HEAD:refs/patches -o sync
 ✓ Patch 6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b drafted
 ✓ Synced with 2 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
@@ -68,7 +68,7 @@ $ git commit -am "Add MIT License"
 ```
 
 ``` ~alice (stderr)
-$ git push -f
+$ git push -f -o sync
 ✓ Patch 6c61ef1 updated to revision 93915b9afa94a9dc4f52f12cdf077d4613ea3eb3
 To compare against your previous revision 6c61ef1, run:
 

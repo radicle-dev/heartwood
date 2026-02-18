@@ -7,7 +7,7 @@ $ git checkout -b alice/1 -q
 $ git commit --allow-empty -m "Change #1" -q
 $ git rev-parse HEAD
 7461703ce0fda972df450d071d1d3702057a6352
-$ git push rad HEAD:alice/1
+$ git push rad HEAD:alice/1 -o sync
 ```
 
 ``` ~bob

@@ -12,7 +12,7 @@ $ git commit -v -m "Define power requirements"
 ```
 
 ``` ~alice (stderr)
-$ git push rad -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
+$ git push rad -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches -o sync
 ✓ Patch aa45913e757cacd46972733bddee5472c78fa32a opened
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
@@ -45,7 +45,7 @@ $ git commit --message "Add README, just for the fun"
 ```
 
 ``` ~alice (stderr)
-$ git push rad -o patch.message="Add README, just for the fun"
+$ git push rad -o patch.message="Add README, just for the fun" -o sync
 ✓ Patch aa45913 updated to revision 3156bed9d64d4675d6cf56612d217fc5f4e8a53a
 To compare against your previous revision aa45913, run:
 
