@@ -43,7 +43,7 @@ pretty_assertions = "1.3.0"
 proptest = "1.9"
 qcheck = { version = "1", default-features = false }
 qcheck-macros = { version = "1", default-features = false }
-radicle = { version = "0.20", path = "crates/radicle" }
+radicle = { version = "0.21", path = "crates/radicle" }
 radicle-cli = { version = "0.17", path = "crates/radicle-cli" }
 radicle-cli-test = { path = "crates/radicle-cli-test" }
 radicle-cob = { version = "0.17", path = "crates/radicle-cob" }

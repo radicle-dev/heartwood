@@ -2886,7 +2886,7 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
 name = "radicle"
-version = "0.20.0"
+version = "0.21.0"
 dependencies = [
  "amplify",
  "base64 0.21.7",
