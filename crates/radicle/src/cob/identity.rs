@@ -95,6 +95,7 @@ impl CobAction for Action {
 }
 
 /// Error applying an operation onto a state.
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum ApplyError {
     /// Causal dependency missing.

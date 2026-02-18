@@ -482,7 +482,8 @@ fn on_apply_err(e: &identity::ApplyError, profile: &Profile) -> anyhow::Error {
         | e @ radicle::cob::identity::ApplyError::Redacted
         | e @ radicle::cob::identity::ApplyError::DocUnchanged
         | e @ radicle::cob::identity::ApplyError::Git(_)
-        | e @ radicle::cob::identity::ApplyError::Doc(_) => {
+        | e @ radicle::cob::identity::ApplyError::Doc(_)
+        | e => {
             anyhow!(e.to_string())
         }
     }
