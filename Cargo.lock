@@ -2931,7 +2931,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cli"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "chrono",
