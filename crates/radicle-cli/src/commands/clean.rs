@@ -17,7 +17,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         anyhow::bail!("repository {rid} was not found");
     }
 
-    if args.no_confirm || term::confirm(format!("Clean {rid}?")) {
+    if args.no_confirm || term::confirm(format!("Clean {rid}?"), term::DefaultConfirmation::No) {
         let cleaned = storage.clean(rid)?;
         for remote in cleaned {
             term::info!("Removed {remote}");

@@ -35,6 +35,17 @@ pub enum Interactive {
     No,
 }
 
+/// When asking for interactive confirmation from the user, choose which default
+/// should be chosen when the user presses enter with no input.
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default)]
+pub enum DefaultConfirmation {
+    /// Equivalent to `Y/n`.
+    Yes,
+    /// Equivalent to `y/N`.
+    #[default]
+    No,
+}
+
 impl Interactive {
     pub fn new(term: impl IsTerminal) -> Self {
         Self::from(term.is_terminal())
@@ -48,9 +59,9 @@ impl Interactive {
         !self.yes()
     }
 
-    pub fn confirm(&self, prompt: impl fmt::Display) -> bool {
+    pub fn confirm(&self, prompt: impl fmt::Display, default: DefaultConfirmation) -> bool {
         if self.yes() {
-            confirm(prompt)
+            confirm(prompt, default)
         } else {
             true
         }

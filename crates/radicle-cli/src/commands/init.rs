@@ -500,11 +500,14 @@ pub fn setup_signing(
         ));
         true
     } else if interactive.yes() {
-        term::confirm(format!(
-            "Configure radicle signing key {} in {}?",
-            term::format::tertiary(key),
-            term::format::tertiary(config.display()),
-        ))
+        term::confirm(
+            format!(
+                "Configure radicle signing key {} in {}?",
+                term::format::tertiary(key),
+                term::format::tertiary(config.display()),
+            ),
+            term::DefaultConfirmation::Yes,
+        )
     } else {
         true
     };
@@ -536,7 +539,10 @@ pub fn setup_signing(
 
                 if ssh_keys.contains(&ssh_key) {
                     term::success!("Signing key is already in {gitsigners} file");
-                } else if term::confirm(format!("Add signing key to {gitsigners}?")) {
+                } else if term::confirm(
+                    format!("Add signing key to {gitsigners}?"),
+                    term::DefaultConfirmation::Yes,
+                ) {
                     git::add_gitsigners(repo, [node_id])?;
                 }
             }

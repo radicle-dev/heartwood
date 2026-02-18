@@ -11,7 +11,7 @@ use inquire::{ui::Color, ui::RenderConfig, Confirm, CustomType, Password};
 use thiserror::Error;
 use zeroize::Zeroizing;
 
-use crate::format;
+use crate::{format, DefaultConfirmation};
 use crate::{style, Paint, Size};
 
 pub use inquire;
@@ -238,12 +238,11 @@ pub fn ask<D: fmt::Display>(prompt: D, default: bool) -> bool {
         .unwrap_or_default()
 }
 
-pub fn confirm<D: fmt::Display>(prompt: D) -> bool {
-    ask(prompt, true)
-}
-
-pub fn abort<D: fmt::Display>(prompt: D) -> bool {
-    ask(prompt, false)
+pub fn confirm<D: fmt::Display>(prompt: D, default: DefaultConfirmation) -> bool {
+    match default {
+        DefaultConfirmation::Yes => ask(prompt, true),
+        DefaultConfirmation::No => ask(prompt, false),
+    }
 }
 
 #[non_exhaustive]

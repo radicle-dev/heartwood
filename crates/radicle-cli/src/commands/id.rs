@@ -53,7 +53,10 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 anyhow::bail!("cannot vote on revision that is {}", revision.state);
             }
 
-            if interactive.confirm(format!("Accept revision {}?", term::format::tertiary(id))) {
+            if interactive.confirm(
+                format!("Accept revision {}?", term::format::tertiary(id)),
+                term::DefaultConfirmation::No,
+            ) {
                 identity.accept(&revision.id, &signer)?;
 
                 if let Some(revision) = identity.revision(&id) {
@@ -78,10 +81,10 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 anyhow::bail!("cannot vote on revision that is {}", revision.state);
             }
 
-            if interactive.confirm(format!(
-                "Reject revision {}?",
-                term::format::tertiary(revision.id)
-            )) {
+            if interactive.confirm(
+                format!("Reject revision {}?", term::format::tertiary(revision.id)),
+                term::DefaultConfirmation::No,
+            ) {
                 identity.reject(revision.id, &signer)?;
 
                 if !args.quiet {
@@ -258,10 +261,10 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             if revision.is_accepted() {
                 anyhow::bail!("cannot redact accepted revision");
             }
-            if interactive.confirm(format!(
-                "Redact revision {}?",
-                term::format::tertiary(revision.id)
-            )) {
+            if interactive.confirm(
+                format!("Redact revision {}?", term::format::tertiary(revision.id)),
+                term::DefaultConfirmation::No,
+            ) {
                 identity.redact(revision.id, &signer)?;
 
                 if !args.quiet {
