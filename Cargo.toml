@@ -29,7 +29,7 @@ cypheraddr = "0.4.0"
 cyphernet = "0.5.2"
 dunce = "1.0.5"
 fastrand = { version = "2.0.0", default-features = false }
-git2 = { version = "0.19.0", default-features = false, features = ["vendored-libgit2"] }
+git2 = { version = "0.20.4", default-features = false, features = ["vendored-libgit2"] }
 gix-hash = { version = "0.22.1", default-features = false, features = ["sha1"] }
 gix-packetline = { version = "0.21.1", default-features = false }
 human-panic = "2.0.6"
@@ -82,7 +82,7 @@ zeroize = "1.5.7"
 # `radicle-surf` → `radicle-git-ext` → `git-ref-format` → `git-ref-format-core`
 # Also note that `radicle-surf → git2` so try to also sync with `git2`.
 git-ref-format-core = { version = "0.6.0", default-features = false }
-radicle-surf = "0.26.0"
+radicle-surf = "0.27.0"
 
 [workspace.lints]
 clippy.type_complexity = "allow"
