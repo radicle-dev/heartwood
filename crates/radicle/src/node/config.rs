@@ -78,6 +78,15 @@ pub enum Network {
     Test,
 }
 
+impl fmt::Display for Network {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Network::Main => f.write_str("main"),
+            Network::Test => f.write_str("test"),
+        }
+    }
+}
+
 impl Network {
     /// Bootstrap nodes for this network.
     pub fn bootstrap(&self) -> Vec<(Alias, ProtocolVersion, Vec<ConnectAddress>)> {
