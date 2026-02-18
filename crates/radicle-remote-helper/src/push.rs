@@ -455,21 +455,29 @@ pub(super) fn run(
             }
         }
 
-        if !opts.no_sync {
-            if profile.policies()?.is_seeding(&stored.id)? {
-                // Connect to local node and announce refs to the network.
-                // If our node is not running, we simply skip this step, as the
-                // refs will be announced eventually, when the node restarts.
-                if node.is_running() {
-                    // Nb. allow this to fail. The push to local storage was still successful.
-                    node.sync(stored, ok.into_values().flatten().collect(), opts, profile)
-                        .ok();
-                } else if hints {
-                    hint("offline push, your node is not running");
-                    hint("to sync with the network, run `rad node start`");
+        match opts.no_sync {
+            None => {
+                hint("the sync default recently changed from 'sync' to 'no-sync'");
+                hint("you can use `-o sync` with git push or set `git config --local push.pushOption \"sync\"` to restore the previous behaviour");
+            }
+            Some(no_sync) => {
+                if !no_sync {
+                    if profile.policies()?.is_seeding(&stored.id)? {
+                        // Connect to local node and announce refs to the network.
+                        // If our node is not running, we simply skip this step, as the
+                        // refs will be announced eventually, when the node restarts.
+                        if node.is_running() {
+                            // Nb. allow this to fail. The push to local storage was still successful.
+                            node.sync(stored, ok.into_values().flatten().collect(), opts, profile)
+                                .ok();
+                        } else if hints {
+                            hint("offline push, your node is not running");
+                            hint("to sync with the network, run `rad node start`");
+                        }
+                    } else if hints {
+                        hint("you are not seeding this repository; skipping sync");
+                    }
                 }
-            } else if hints {
-                hint("you are not seeding this repository; skipping sync");
             }
         }
     }

@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to create temporary patches.
 - The `rad id` command will provide a better error message when a non-delegate
   attempts to modify the identity document.
+- `git-remote-helper` is now safer by default, the push option `no-sync` has 
+  replaced the existing value of `sync`. Repositories do not sync with the
+  network on push. You can restore the old behaviour in one of two ways:
+  1. Use `-o sync` for each `git push` you wish to sync.
+  2. Set the git config `push.pushOption` to `sync` with:
+      ```
+      $ git config --local push.pushOption "sync"
+      ```
 
 ## Fixed Bugs
 

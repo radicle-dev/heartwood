@@ -193,7 +193,7 @@ impl Branch {
 #[derive(Debug, Default, Clone)]
 struct Options {
     /// Don't sync after push.
-    no_sync: bool,
+    no_sync: Option<bool>,
     /// Sync debugging.
     sync_debug: bool,
     /// Enable hints.
@@ -404,9 +404,9 @@ fn run_loop<R: BufRead, W: Write, G: service::GitService, N: service::NodeSessio
 fn push_option(args: &[&str], opts: &mut Options) -> Result<(), Error> {
     match args {
         ["hints"] => opts.hints = true,
-        ["sync"] => opts.no_sync = false,
+        ["sync"] => opts.no_sync = Some(false),
         ["sync.debug"] => opts.sync_debug = true,
-        ["no-sync"] => opts.no_sync = true,
+        ["no-sync"] => opts.no_sync = Some(true),
         ["patch.draft"] => opts.draft = true,
         ["patch.branch"] => opts.branch = Branch::MirrorUpstream,
         _ => {
