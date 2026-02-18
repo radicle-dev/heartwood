@@ -54,7 +54,7 @@ radicle-fetch = { version = "0.16", path = "crates/radicle-fetch" }
 radicle-git-metadata = { version = "0.1.0", path = "crates/radicle-git-metadata", default-features = false }
 radicle-git-ref-format = { version = "0.1.0", path = "crates/radicle-git-ref-format", default-features = false }
 radicle-localtime = { version = "0.1", path = "crates/radicle-localtime" }
-radicle-node = { version = "0.16", path = "crates/radicle-node" }
+radicle-node = { version = "0.17", path = "crates/radicle-node" }
 radicle-oid = { version = "0.1.0", path = "crates/radicle-oid", default-features = false }
 radicle-protocol = { version = "0.4", path = "crates/radicle-protocol" }
 radicle-signals = { version = "0.11", path = "crates/radicle-signals" }
