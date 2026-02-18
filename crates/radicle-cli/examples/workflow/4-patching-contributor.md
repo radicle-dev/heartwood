@@ -83,6 +83,8 @@ To compare against your previous revision e4934b6, run:
 
    git range-diff f2de534[..] 3e674d1[..] 27857ec[..]
 
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
    3e674d1..27857ec  flux-capacitor-power -> patches/e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46
 ```

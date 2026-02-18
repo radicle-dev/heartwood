@@ -9,9 +9,9 @@ Switched to a new branch 'feature/1'
 $ git commit -a -m "Add things" -q --allow-empty
 $ git push -o patch.message="Add things #1" -o patch.message="See commits for details." rad HEAD:refs/patches
 ✓ Patch 6035d2f582afbe01ff23ea87528ae523d76875b6 opened
-hint: to update, run `git push` or `git push rad --force-with-lease HEAD:patches/6035d2f582afbe01ff23ea87528ae523d76875b6`
-hint: offline push, your node is not running
-hint: to sync with the network, run `rad node start`
+hint: [..]
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -81,6 +81,8 @@ $ git checkout -b feature/2 -q master
 $ git commit -a -m "Add more things" -q --allow-empty
 $ git push rad HEAD:refs/patches
 ✓ Patch 95808913573cead52ad7b42c7b475260ec45c4b2 opened
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -119,6 +121,8 @@ To compare against your previous revision 9580891, run:
 
    git range-diff f2de534[..] 8b0ea80[..] 02bef3f[..]
 
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    8b0ea80..02bef3f  feature/2 -> patches/95808913573cead52ad7b42c7b475260ec45c4b2
 ```
@@ -199,7 +203,7 @@ error: failed to push some refs to 'rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLr
 hint: [..]
 hint: [..]
 hint: [..]
-hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+hint: [..]
 ```
 
 The push fails because it's not a fast-forward update. To remedy this, we can
@@ -212,6 +216,8 @@ To compare against your previous revision d7040c6, run:
 
    git range-diff f2de534[..] 02bef3f[..] 9304dbc[..]
 
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + 02bef3f...9304dbc feature/2 -> patches/95808913573cead52ad7b42c7b475260ec45c4b2 (forced update)
 ```
@@ -273,7 +279,9 @@ HEAD is now at 831e838 Going into detached HEAD
 $ git push rad HEAD:refs/patches -o patch.branch
 ✓ Patch e0fd879ac0a7d3ddcf3b440d8db656f5d7cebea3 opened
 ✓ Branch patches/e0fd879ac0a7d3ddcf3b440d8db656f5d7cebea3 created
-hint: to update, run `git push rad patches/e0fd879ac0a7d3ddcf3b440d8db656f5d7cebea3`
+hint: [..]
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -291,6 +299,8 @@ To compare against your previous revision e0fd879, run:
 
    git range-diff [..] [..] [..]
 
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    831e838..d0ff2a1  patches/e0fd879ac0a7d3ddcf3b440d8db656f5d7cebea3 -> patches/e0fd879ac0a7d3ddcf3b440d8db656f5d7cebea3
 ```
@@ -302,7 +312,9 @@ $ git checkout 831e838 -q
 $ git push rad HEAD:refs/patches -o patch.branch='feature/3'
 ✓ Patch e0fd879ac0a7d3ddcf3b440d8db656f5d7cebea3 opened
 ✓ Branch feature/3 created
-hint: to update, run `git push rad feature/3`
+hint: [..]
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -319,6 +331,8 @@ To compare against your previous revision e0fd879, run:
 
    git range-diff [..] [..] [..]
 
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    831e838..d0ff2a1  feature/3 -> patches/e0fd879ac0a7d3ddcf3b440d8db656f5d7cebea3
 ```

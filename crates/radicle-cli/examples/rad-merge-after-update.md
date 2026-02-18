@@ -5,6 +5,8 @@ $ git checkout -b feature/1 -q
 $ git commit --allow-empty -q -m "First change"
 $ git push rad HEAD:refs/patches
 ✓ Patch 696ec5508494692899337afe6713fe1796d0315c opened
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -17,6 +19,8 @@ $ git checkout master -q
 $ git merge feature/1 -q
 $ git push rad master
 ✓ Canonical reference refs/heads/master updated to target commit 954bcdb5008447ce294a61a21d7eb87afbe7f4a6
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..954bcdb  master -> master
 ```
@@ -29,6 +33,8 @@ $ git checkout feature/1 -q
 $ git push -f
 ✓ Patch 696ec55 updated to revision [...]
 ✓ Patch 696ec5508494692899337afe6713fe1796d0315c merged
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + 20aa5dd...954bcdb feature/1 -> patches/696ec5508494692899337afe6713fe1796d0315c (forced update)
 ```

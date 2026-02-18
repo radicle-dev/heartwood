@@ -10,6 +10,8 @@ To open a patch in draft mode, we use the `--draft` option:
 ``` (stderr)
 $ git push -o patch.draft -o patch.message="Nothing yet" rad HEAD:refs/patches
 ✓ Patch 97e18f8598237a396a1c0ac1509c89028e666c97 drafted
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```

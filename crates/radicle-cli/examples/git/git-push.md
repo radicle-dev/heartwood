@@ -6,6 +6,8 @@ $ git commit -m "Alice's commit" --allow-empty -s
 
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad HEAD:alice/1
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new branch]      HEAD -> alice/1
 ```

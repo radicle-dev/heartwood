@@ -15,10 +15,14 @@ $ git commit -v -m "Define power requirements"
 ```
 ``` (stderr)
 $ git push rad flux-capacitor-power
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new branch]      flux-capacitor-power -> flux-capacitor-power
 $ git push rad -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
 ✓ Patch aa45913e757cacd46972733bddee5472c78fa32a opened
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -36,6 +40,8 @@ $ git commit --message "Add README, just for the fun"
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun" HEAD:refs/patches
 ✓ Patch 183d343ab47d7fe18baf1b24b7209ad033d7fe5c opened
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```

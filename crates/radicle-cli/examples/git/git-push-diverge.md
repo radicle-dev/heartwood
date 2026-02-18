@@ -63,6 +63,8 @@ f2de534 Second commit
 ``` ~alice RAD_SOCKET=/dev/null (stderr)
 $ git push rad -f
 ✓ Canonical reference refs/heads/master updated to target commit f6cff86594495e9beccfeda7c20173e55c1dd9fc
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + 2e8758f...f6cff86 master -> master (forced update)
 ```
@@ -76,6 +78,8 @@ $ git reset --hard HEAD^ -q
 ``` ~alice RAD_SOCKET=/dev/null (stderr)
 $ git push -f
 ✓ Canonical reference refs/heads/master updated to target commit 319a7dc3b195368ded4b099f8c90bbb80addccd3
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + f6cff86...319a7dc master -> master (forced update)
 ```

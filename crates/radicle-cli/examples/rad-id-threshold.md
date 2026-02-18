@@ -65,6 +65,8 @@ $ git commit -v -m "Define power requirements"
 ``` ~alice (stderr) RAD_SOCKET=/dev/null
 $ git push rad master
 ✓ Canonical reference refs/heads/master updated to target commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..3e674d1  master -> master
 ```
@@ -87,6 +89,8 @@ $ git commit -v -m "Add README file"
 ``` ~alice (stderr) RAD_SOCKET=/dev/null
 $ git push rad HEAD:refs/patches
 ✓ Patch b09b2aa0ee055671c811e9ad4ba73eed211ebaa3 opened
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```

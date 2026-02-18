@@ -5,6 +5,8 @@ $ git checkout -b feature/1 -q
 $ git commit --allow-empty -q -m "First change"
 $ git push -o patch.draft rad HEAD:refs/patches
 ✓ Patch 8dfb4dcafc4346158c8160410dd3f2b0616ad4fe drafted
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -15,6 +17,8 @@ $ git merge feature/1
 $ git push rad master
 ✓ Patch 8dfb4dcafc4346158c8160410dd3f2b0616ad4fe merged
 ✓ Canonical reference refs/heads/master updated to target commit 20aa5dde6210796c3a2f04079b42316a31d02689
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..20aa5dd  master -> master
 ```

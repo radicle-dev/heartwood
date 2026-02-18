@@ -17,6 +17,8 @@ $ git commit --message "Add README, just for the fun"
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun" HEAD:refs/patches
 ✓ Patch 89f7afb1511b976482b21f6b2f39aef7f4fb88a2 opened
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -37,6 +39,8 @@ To compare against your previous revision 89f7afb, run:
 
    git range-diff f2de534[..] 03c02af[..] 8945f61[..]
 
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    03c02af..8945f61  changes -> patches/89f7afb1511b976482b21f6b2f39aef7f4fb88a2
 ```

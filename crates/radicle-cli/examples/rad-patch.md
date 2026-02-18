@@ -27,6 +27,8 @@ Once the code is ready, we open (or create) a patch with our changes for the pro
 ``` (stderr)
 $ git push rad -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
 ✓ Patch aa45913e757cacd46972733bddee5472c78fa32a opened
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -133,6 +135,8 @@ To compare against your previous revision aa45913, run:
 
    git range-diff f2de534[..] 3e674d1[..] 27857ec[..]
 
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    3e674d1..27857ec  flux-capacitor-power -> patches/aa45913e757cacd46972733bddee5472c78fa32a
 ```

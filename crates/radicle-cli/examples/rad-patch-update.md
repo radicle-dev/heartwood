@@ -7,6 +7,8 @@ $ git commit -q -m "Not a real change" --allow-empty
 ``` (stderr)
 $ git push rad HEAD:refs/patches
 ✓ Patch b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5 opened
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```

@@ -18,6 +18,8 @@ the last time you pushed.
 $ git commit --amend -m "Neue Änderungen" --allow-empty -q
 $ git push rad master --force-with-lease
 ✓ Canonical reference refs/heads/master updated to target commit 9170c8795d3a78f0381a0ffafb20ea69fb0f5b6b
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + fb25886...9170c87 master -> master (forced update)
 ```
@@ -29,6 +31,8 @@ value, to `--force-push-lease`:
 $ git commit --amend -m "Noch mehr Änderungen" --allow-empty -q
 $ git push rad master --force-with-lease=master
 ✓ Canonical reference refs/heads/master updated to target commit 1e4213811eb4ce67360e4a0222cab81ad11a7ffe
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + 9170c87...1e42138 master -> master (forced update)
 ```
@@ -39,6 +43,8 @@ As well as the named reference, and its expected value:
 $ git commit --amend -m "Even more changes" --allow-empty -q
 $ git push rad master --force-with-lease=master:1e4213811eb4ce67360e4a0222cab81ad11a7ffe
 ✓ Canonical reference refs/heads/master updated to target commit c4b74ef30953598852a82e0cd22b2ebb0d8d9e18
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + 1e42138...c4b74ef master -> master (forced update)
 ```
@@ -75,6 +81,8 @@ So, let's create a new branch:
 
 ``` (stderr)
 $ git push rad master:dev --force-with-lease=dev:
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new branch]      master -> dev
 ```

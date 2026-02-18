@@ -5,6 +5,8 @@ $ git checkout -b feature/1 -q
 $ git commit --allow-empty -q -m "First change"
 $ git push rad HEAD:refs/patches
 ✓ Patch 696ec5508494692899337afe6713fe1796d0315c opened
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -38,6 +40,8 @@ Finally, we push master and expect the patch to be merged.
 $ git push rad master
 ✓ Patch 696ec5508494692899337afe6713fe1796d0315c merged
 ✓ Canonical reference refs/heads/master updated to target commit 737a10cfa29111afeb0d43cf3545cee386b939ec
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..737a10c  master -> master
 ```

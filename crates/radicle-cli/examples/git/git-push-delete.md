@@ -9,6 +9,8 @@ f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
 
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad :alice/1
+hint: the sync default recently changed from 'sync' to 'no-sync'
+hint: you can use `-o sync` with git push or set `git config --local push.pushOption "sync"` to restore the previous behaviour
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  - [deleted]         alice/1
 ```
@@ -24,12 +26,16 @@ $ git checkout alice/2
 Switched to a new branch 'alice/2'
 $ git push rad HEAD:refs/patches
 ✓ Patch bb9b0d5b8de8d5e2a4cba45f02bd35b3e2678fbe opened
+hint: [..]
+hint: [..]
 To [..]
  * [new reference]   HEAD -> refs/patches
 ```
 
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad alice/2 -d
+hint: [..]
+hint: [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  - [deleted]         alice/2
 ```
