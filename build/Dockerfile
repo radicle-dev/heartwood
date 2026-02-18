@@ -16,7 +16,16 @@ ARG GIT_HEAD
 # Copy cargo configuration we're going to use to specify compiler options.
 RUN mkdir -p .cargo && cp build/config.toml .cargo/config.toml
 # Install dependencies.
-RUN apk update && apk add --no-cache git musl-dev xz asciidoctor zig
+RUN apk update && apk add --no-cache git musl-dev xz asciidoctor
+
+# Install a pinned zig version with MacOS TBD v4 support
+ARG ZIG_VERSION="0.13.0"
+RUN wget -q https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz && \
+    tar -xf zig-linux-x86_64-${ZIG_VERSION}.tar.xz && \
+    mv zig-linux-x86_64-${ZIG_VERSION} /usr/local/zig && \
+    ln -s /usr/local/zig/zig /usr/local/bin/zig && \
+    rm zig-linux-x86_64-${ZIG_VERSION}.tar.xz
+
 # Build man pages and strip metadata. Removes all comments, since they include
 # non-reproducible information, such as version numbers.
 RUN asciidoctor --doctype manpage --backend manpage --destination-dir . *.1.adoc && \
