@@ -228,6 +228,11 @@ fn rad_init() {
 }
 
 #[test]
+fn rad_init_no_announce() {
+    Environment::alice(["rad-init-no-announce"]);
+}
+
+#[test]
 fn rad_init_bare() {
     let mut env = Environment::new();
     let alice = env.profile("alice");
