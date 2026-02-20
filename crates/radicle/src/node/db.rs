@@ -110,6 +110,13 @@ impl Database {
         Ok(self)
     }
 
+    /// Set the `synchronous` pragma.
+    pub fn synchronous(self, synchronous: sqlite_ext::Synchronous) -> Result<Self, Error> {
+        self.db
+            .execute(format!("PRAGMA synchronous = {synchronous};"))?;
+        Ok(self)
+    }
+
     /// Initialize by adding our local node to the database.
     pub fn init<'a>(
         mut self,
