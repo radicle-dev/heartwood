@@ -20,6 +20,7 @@ use crate::node::{
 };
 use crate::sql::transaction;
 
+pub mod config;
 pub mod sqlite_ext;
 
 /// How long to wait for the database lock to be released before failing a read.

@@ -177,7 +177,8 @@ impl Runtime {
         log::info!(target: "node", "Opening node database..");
         let db = home
             .database_mut()?
-            .journal_mode(node::db::sqlite_ext::JournalMode::WAL)?
+            .journal_mode(config.database.sqlite.pragma.journal_mode)?
+            .synchronous(config.database.sqlite.pragma.synchronous)?
             .init(
                 &id,
                 announcement.features,

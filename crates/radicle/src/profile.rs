@@ -253,7 +253,8 @@ impl Profile {
         home.policies_mut()?;
         home.notifications_mut()?;
         home.database_mut()?
-            .journal_mode(node::db::sqlite_ext::JournalMode::WAL)?
+            .journal_mode(config.node.database.sqlite.pragma.journal_mode)?
+            .synchronous(config.node.database.sqlite.pragma.synchronous)?
             .init(
                 &public_key,
                 config.node.features(),

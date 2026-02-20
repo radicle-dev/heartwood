@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- SQLite configuration is modeled as `radicle::node::db::config::Config`
+  and can be configured via `radicle::profile::config::Config`.
+  The two pragmas `journal_mode` and `synchronous` are exposed this way.
+
 ### Changed
 
 ### Removed

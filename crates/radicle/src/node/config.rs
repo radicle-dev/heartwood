@@ -508,6 +508,9 @@ pub struct Config {
     /// Default seeding policy.
     #[serde(default)]
     pub seeding_policy: DefaultSeedingPolicy,
+    /// Database configuration.
+    #[serde(default, skip_serializing_if = "crate::serde_ext::is_default")]
+    pub database: node::db::config::Config,
     /// Extra fields that aren't supported.
     #[serde(flatten, skip_serializing)]
     pub extra: json::Map<String, json::Value>,
@@ -544,6 +547,7 @@ impl Config {
             workers: Workers::default(),
             log: LogLevel::default(),
             seeding_policy: DefaultSeedingPolicy::default(),
+            database: node::db::config::Config::default(),
             extra: json::Map::default(),
             secret: None,
         }
