@@ -1,7 +1,7 @@
 Alice can initialize a *private* repo using the `--private` flag.
 
 ```
-$ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --private
+$ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --private --announce
 
 Initializing private radicle 👾 repository in [..]
 

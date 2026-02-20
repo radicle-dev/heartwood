@@ -59,6 +59,7 @@ pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> an
     let interactive = args.interactive();
     let visibility = args.visibility();
     let seed = args.seed();
+    let should_announce = args.should_announce();
 
     let default_branch = match find_default_branch(&repo) {
         Err(err @ DefaultBranchError::Head) => {
@@ -204,12 +205,17 @@ pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> an
             term::blank();
 
             // Announce inventory to network.
-            if let Err(e) = announce(rid, doc, &mut node, &profile.config) {
-                term::blank();
-                term::warning(format!(
-                    "There was an error announcing your repository to the network: {e}"
-                ));
-                term::warning("Try again with `rad sync --announce`, or check your logs with `rad node logs`.");
+            if should_announce {
+                if let Err(e) = announce(rid, doc, &mut node, &profile.config) {
+                    term::blank();
+                    term::warning(format!(
+                        "There was an error announcing your repository to the network: {e}"
+                    ));
+                    term::warning("Try again with `rad sync --announce`, or check your logs with `rad node logs`.");
+                    term::blank();
+                }
+            } else {
+                term::info!("Your repository has not been announced to the network, run `rad sync --announce` when you're ready.");
                 term::blank();
             }
             term::info!("To push changes, run {}.", term::format::command(push_cmd));

@@ -3,7 +3,7 @@ Let's look at how patch updates work.
 Alice creates a repository and Bob clones it.
 
 ``` ~alice
-$ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --public
+$ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --public --announce
 
 Initializing public radicle 👾 repository in [..]
 

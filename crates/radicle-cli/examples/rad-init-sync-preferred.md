@@ -1,7 +1,7 @@
 Let's try initializing a new repository with a preferred seed configured.
 
 ```
-$ rad init --name heartwood --description "Radicle Heartwood Protocol & Stack" --no-confirm --public --scope followed
+$ rad init --name heartwood --description "Radicle Heartwood Protocol & Stack" --no-confirm --public --scope followed --announce
 
 Initializing public radicle 👾 repository in [..]
 

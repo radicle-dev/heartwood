@@ -2,7 +2,7 @@ Sometimes, `init` will fail to sync with the network. This is not a big deal,
 as the node will keep attempting to sync in the background.
 
 ```
-$ rad init --name heartwood --description "Radicle Heartwood Protocol & Stack" --no-confirm --public --scope followed
+$ rad init --name heartwood --description "Radicle Heartwood Protocol & Stack" --no-confirm --public --scope followed --announce
 
 Initializing public radicle 👾 repository in [..]
 

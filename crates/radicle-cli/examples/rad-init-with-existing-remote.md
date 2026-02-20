@@ -20,7 +20,7 @@ $ git branch -vv
 Then we initialize.
 
 ```
-$ rad init --name heartwood --description "Heartwood Protocol & Stack" --no-confirm --public
+$ rad init --name heartwood --description "Heartwood Protocol & Stack" --no-confirm --public --announce
 
 Initializing public radicle 👾 repository in [..]
 
@@ -36,7 +36,7 @@ To push changes, run `git push rad master`.
 
 Finally we run the suggested command.
 
-``` (stderr)
+```(stderr)
 $ git push rad master
 Everything up-to-date
 ```

@@ -3,7 +3,7 @@ To create your first radicle repository, navigate to a git repository, and run t
 `init` command.  Make sure you have [authenticated](../rad-auth.md) beforehand.
 
 ```
-$ rad init --name heartwood --description "Radicle Heartwood Protocol & Stack" --no-confirm --public -v
+$ rad init --name heartwood --description "Radicle Heartwood Protocol & Stack" --no-confirm --public --announce -v
 
 Initializing public radicle 👾 repository in [..]
 

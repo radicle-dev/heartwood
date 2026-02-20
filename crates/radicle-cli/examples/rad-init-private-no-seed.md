@@ -3,7 +3,7 @@ to be seeded. This means that the repo will be available locally, to us,
 and even if other peers know about it, they won't be able to fetch it
 from us.
 ```
-$ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --private --no-seed
+$ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --private --no-seed --announce
 
 Initializing private radicle 👾 repository in [..]
 

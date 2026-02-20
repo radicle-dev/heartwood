@@ -55,6 +55,12 @@ pub struct Args {
     /// Don't seed this repository after initializing it
     #[arg(long)]
     no_seed: bool,
+    /// Announce changes made to the network
+    #[arg(long, global = true, conflicts_with = "no_announce")]
+    announce: bool,
+    /// Do not announce changes made to the network
+    #[arg(long, global = true, conflicts_with = "announce")]
+    no_announce: bool,
     /// Verbose mode
     #[arg(short, long)]
     pub(super) verbose: bool,
@@ -82,6 +88,14 @@ impl Args {
 
     pub(super) fn seed(&self) -> bool {
         !self.no_seed
+    }
+
+    pub(super) fn should_announce(&self) -> bool {
+        match (self.announce, self.no_announce) {
+            (false, true) | (false, false) => false,
+            (true, false) => true,
+            (true, true) => false,
+        }
     }
 }
 
