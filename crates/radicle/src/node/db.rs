@@ -20,6 +20,8 @@ use crate::node::{
 };
 use crate::sql::transaction;
 
+pub mod sqlite_ext;
+
 /// How long to wait for the database lock to be released before failing a read.
 const DB_READ_TIMEOUT: time::Duration = time::Duration::from_secs(3);
 /// How long to wait for the database lock to be released before failing a write.
@@ -47,19 +49,6 @@ pub enum Error {
     /// No rows returned in query result.
     #[error("no rows returned")]
     NoRows,
-}
-
-/// Database journal mode.
-#[derive(Debug, Default, Copy, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum JournalMode {
-    /// "WAL" mode. Good for concurrent reads & writes, but keeps some extra files around.
-    #[serde(rename = "wal")]
-    #[default]
-    WriteAheadLog,
-    /// Default "rollback" mode. Certain writes may block reads.
-    #[serde(alias = "rollback")]
-    Rollback,
 }
 
 /// A file-backed database storing information about the network.
@@ -107,7 +96,7 @@ impl Database {
     pub fn reader<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let mut db = sql::Connection::open_thread_safe_with_flags(
             path,
-            sqlite::OpenFlags::new().with_read_only(),
+            sql::OpenFlags::new().with_read_only(),
         )?;
         db.set_busy_timeout(DB_READ_TIMEOUT.as_millis() as usize)?;
         db.execute(Self::PRAGMA)?;
@@ -115,16 +104,9 @@ impl Database {
         Ok(Self { db: Arc::new(db) })
     }
 
-    /// Set journal mode.
-    pub fn journal_mode(self, mode: JournalMode) -> Result<Self, Error> {
-        match mode {
-            JournalMode::Rollback => {
-                self.db.execute("PRAGMA journal_mode = DELETE;")?;
-            }
-            JournalMode::WriteAheadLog => {
-                self.db.execute("PRAGMA journal_mode = WAL;")?;
-            }
-        }
+    /// Set `journal_mode` pragma.
+    pub fn journal_mode(self, mode: sqlite_ext::JournalMode) -> Result<Self, Error> {
+        self.db.execute(format!("PRAGMA journal_mode = {mode};"))?;
         Ok(self)
     }
 
