@@ -356,29 +356,10 @@ impl radicle::node::Handle for Handle {
     fn debug(&self) -> Result<serde_json::Value, Self::Error> {
         let (sender, receiver) = chan::bounded(1);
         let query: Arc<QueryState> = Arc::new(move |state| {
-            let fetcher_state = state.fetching();
+            let fetching = debug::Fetching::new(state.fetching());
             let debug = serde_json::json!({
                 "outboxSize": state.outbox().len(),
-                "fetching": fetcher_state.active_fetches()
-                    .iter()
-                    .map(|(rid, active)| {
-                        json!({
-                            "rid": rid,
-                            "from": active.from(),
-                            "refsAt": active.refs(),
-                        })
-                    }).collect::<Vec<_>>(),
-                "queue": fetcher_state.queued_fetches().iter().map(|(node, queue)| {
-                    json!({
-                        "nid": node,
-                        "queue": queue.iter().map(|fetch| {
-                            json!({
-                                "rid": fetch.rid,
-                                "refsAt": fetch.refs,
-                            })
-                        }).collect::<Vec<_>>()
-                    })
-                }).collect::<Vec<_>>(),
+                "fetching": fetching,
                 "rateLimiter": state.limiter().buckets.iter().map(|(host, bucket)| {
                     json!({
                         "host": host.to_string(),
@@ -402,5 +383,78 @@ impl radicle::node::Handle for Handle {
         let debug = receiver.recv()?;
 
         Ok(debug)
+    }
+}
+
+mod debug {
+    //! Serialization formats for the output of [`Handle::debug`] output.
+
+    use radicle_protocol::fetcher;
+    use radicle_protocol::fetcher::FetcherState;
+    use serde::Serialize;
+
+    use super::{NodeId, RefsAt, RepoId};
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct Fetching {
+        active: Vec<ActiveFetch>,
+        queued: Vec<QueuedFetch>,
+    }
+
+    impl Fetching {
+        pub fn new(state: &FetcherState) -> Self {
+            let active = state
+                .active_fetches()
+                .iter()
+                .map(|(rid, fetch)| ActiveFetch::new(*rid, fetch.clone()))
+                .collect();
+            let queued = state
+                .queued_fetches()
+                .iter()
+                .flat_map(|(node, queue)| {
+                    queue
+                        .iter()
+                        .map(|fetch| QueuedFetch::new(*node, fetch.clone()))
+                })
+                .collect();
+            Self { active, queued }
+        }
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ActiveFetch {
+        rid: RepoId,
+        from: NodeId,
+        refs_at: Vec<RefsAt>,
+    }
+
+    impl ActiveFetch {
+        pub fn new(rid: RepoId, fetch: fetcher::ActiveFetch) -> Self {
+            Self {
+                rid,
+                from: fetch.from,
+                refs_at: fetch.refs.into(),
+            }
+        }
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct QueuedFetch {
+        nid: NodeId,
+        rid: RepoId,
+        refs_at: Vec<RefsAt>,
+    }
+
+    impl QueuedFetch {
+        pub fn new(node: NodeId, fetch: fetcher::QueuedFetch) -> Self {
+            Self {
+                nid: node,
+                rid: fetch.rid,
+                refs_at: fetch.refs.into(),
+            }
+        }
     }
 }
