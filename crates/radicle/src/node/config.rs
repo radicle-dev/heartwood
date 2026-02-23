@@ -373,6 +373,7 @@ pub enum DefaultSeedingPolicy {
     Allow {
         /// Seeding scope.
         #[serde(skip_serializing_if = "Scope::is_implicit")]
+        #[cfg_attr(feature = "schemars", schemars(flatten))]
         scope: Scope,
     },
     /// Block seeding.

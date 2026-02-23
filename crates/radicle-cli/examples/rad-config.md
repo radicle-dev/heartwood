@@ -614,18 +614,21 @@ $ rad config schema
           "description": "Allow seeding.",
           "type": "object",
           "properties": {
-            "scope": {
-              "description": "Seeding scope.",
-              "$ref": "#/$defs/Scope"
-            },
             "default": {
               "type": "string",
               "const": "allow"
             }
           },
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Scope"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "required": [
-            "default",
-            "scope"
+            "default"
           ]
         },
         {
@@ -644,17 +647,6 @@ $ rad config schema
       ]
     },
     "Scope": {
-      "description": "[`Scope`] provides a schema for [`policy::Scope`], where the inner scope is/noptional. It is introduced to allow ease migration to a future/nversion of [`DefaultSeedingPolicy::Allow`], where no or different defaults/napply to [`DefaultSeedingPolicy::Allow::scope`].",
-      "anyOf": [
-        {
-          "$ref": "#/$defs/Scope2"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "Scope2": {
       "description": "Follow scope of a seeded repository.",
       "oneOf": [
         {
