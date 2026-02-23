@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 
 use localtime::LocalTime;
 use radicle::node::{address, config, HostName, NodeId};
-use serde::Serialize;
 
 /// Peer rate limiter.
 ///
@@ -10,7 +9,7 @@ use serde::Serialize;
 /// and every request from that address consumes one token. Tokens refill at a predefined
 /// rate. This mechanism allows for consistent request rates with potential bursts up to the
 /// bucket's capacity.
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default)]
 pub struct RateLimiter {
     pub buckets: HashMap<HostName, TokenBucket>,
     pub bypass: HashSet<NodeId>,
