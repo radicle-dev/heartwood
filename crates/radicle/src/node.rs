@@ -17,6 +17,7 @@ pub mod sync;
 pub mod timestamp;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+use std::fmt::Display;
 use std::io::{BufRead, BufReader};
 use std::marker::PhantomData;
 use std::net::IpAddr;
@@ -424,7 +425,7 @@ impl TryFrom<&sqlite::Value> for Alias {
 
 /// Peer public protocol address.
 #[derive(Clone, Eq, PartialEq, Debug, Hash, From, Wrapper, WrapperMut, Serialize, Deserialize)]
-#[wrapper(Deref, Display)]
+#[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
 #[cfg_attr(
     feature = "schemars",
@@ -489,6 +490,39 @@ impl Address {
     /// Return the port number of the [`Address`].
     pub fn port(&self) -> u16 {
         self.0.port
+    }
+
+    pub fn display_compact(&self) -> impl Display {
+        let host = match self.host() {
+            HostName::Ip(IpAddr::V4(ip)) => ip.to_string(),
+            HostName::Ip(IpAddr::V6(ip)) => format!("[{ip}]"),
+            HostName::Dns(dns) => dns.clone(),
+            HostName::Tor(onion) => {
+                let onion = onion.to_string();
+                let start = onion.chars().take(8).collect::<String>();
+                let end = onion
+                    .chars()
+                    .skip(onion.len() - 8 - ".onion".len())
+                    .collect::<String>();
+                format!("{start}…{end}")
+            }
+            _ => unreachable!(),
+        };
+
+        let port = self.port().to_string();
+
+        format!("{host}:{port}")
+    }
+}
+
+impl Display for Address {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.host() {
+            HostName::Ip(IpAddr::V6(ip)) => {
+                write!(f, "[{ip}]:{}", self.port())
+            }
+            _ => self.0.fmt(f),
+        }
     }
 }
 

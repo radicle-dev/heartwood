@@ -8,7 +8,7 @@ pub use radicle_term::{style, Paint};
 use radicle::cob::ObjectId;
 use radicle::identity::Visibility;
 use radicle::node::policy::Policy;
-use radicle::node::{Address, Alias, AliasStore, HostName, NodeId};
+use radicle::node::{Alias, AliasStore, NodeId};
 use radicle::prelude::Did;
 use radicle::profile::{env, Profile};
 use radicle::storage::RefUpdate;
@@ -30,28 +30,6 @@ pub fn node_id_human_compact(node: &NodeId) -> Paint<String> {
 #[must_use]
 pub fn node_id_human(node: &NodeId) -> Paint<String> {
     Paint::new(node.to_human())
-}
-
-#[must_use]
-pub fn addr_compact(address: &Address) -> Paint<String> {
-    let host = match address.host() {
-        HostName::Ip(ip) => ip.to_string(),
-        HostName::Dns(dns) => dns.clone(),
-        HostName::Tor(onion) => {
-            let onion = onion.to_string();
-            let start = onion.chars().take(8).collect::<String>();
-            let end = onion
-                .chars()
-                .skip(onion.len() - 8 - ".onion".len())
-                .collect::<String>();
-            format!("{start}…{end}")
-        }
-        _ => unreachable!(),
-    };
-
-    let port = address.port().to_string();
-
-    Paint::new(format!("{host}:{port}"))
 }
 
 /// Format a git Oid.

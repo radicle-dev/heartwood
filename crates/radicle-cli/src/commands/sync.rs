@@ -460,7 +460,7 @@ impl FetcherSpinner {
             term::format::secondary(progress.succeeded()),
             term::format::secondary(self.replicas.lower_bound()),
             term::format::tertiary(term::format::node_id_human_compact(node)),
-            term::format::tertiary(term::format::addr_compact(addr)),
+            term::format::tertiary(addr.display_compact()),
         ))
     }
 
@@ -477,7 +477,7 @@ impl FetcherSpinner {
             term::format::secondary(progress.succeeded()),
             term::format::secondary(self.replicas.lower_bound()),
             term::format::tertiary(term::format::node_id_human_compact(node)),
-            term::format::tertiary(term::format::addr_compact(addr)),
+            term::format::tertiary(addr.display_compact()),
         ))
     }
 

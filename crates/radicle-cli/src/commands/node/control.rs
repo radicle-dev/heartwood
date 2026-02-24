@@ -384,17 +384,17 @@ pub fn sessions(node: &Node) -> Result<Option<term::Table<5, term::Label>>, node
                 term::Label::blank(),
             ),
             node::State::Attempted => (
-                term::format::addr_compact(&sess.addr).into(),
+                sess.addr.display_compact().to_string().into(),
                 term::Label::from(state_attempted()),
                 term::Label::blank(),
             ),
             node::State::Connected { since, .. } => (
-                term::format::addr_compact(&sess.addr).into(),
+                sess.addr.display_compact().to_string().into(),
                 term::Label::from(state_connected()),
                 term::format::dim(now - since).into(),
             ),
             node::State::Disconnected { since, .. } => (
-                term::format::addr_compact(&sess.addr).into(),
+                sess.addr.display_compact().to_string().into(),
                 term::Label::from(state_disconnected()),
                 term::format::dim(now - since).into(),
             ),
