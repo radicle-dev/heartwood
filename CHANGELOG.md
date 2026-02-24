@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   This would result in timeouts when commands are run from the `rad` CLI.
   The `Service` has now learned to return results when an error occurs which
   will be reported back to the user.
+- Parsing addresses involving an IPv6 host failed if they were enclosed in
+  square brackets, e.g. in `rad node connect z6Mk...@[::1]:8776`.
+  Also, ambiguous addresses would parse, e.g. `::1:8776` would be
+  indistinguishable from `[::1]:8776`. Since a port number is always required
+  along a host when providing an address, IPv6 addresses now always require
+  brackets to avoid confusion.
 
 ## Deprecations
 

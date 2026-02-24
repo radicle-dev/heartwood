@@ -19,6 +19,8 @@ pub mod timestamp;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::io::{BufRead, BufReader};
 use std::marker::PhantomData;
+use std::net::IpAddr;
+use std::net::Ipv6Addr;
 use std::ops::{ControlFlow, Deref};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -30,7 +32,7 @@ use std::os::unix::net::UnixStream;
 use uds_windows::UnixStream;
 
 use amplify::WrapperMut;
-use cyphernet::addr::NetAddr;
+use cyphernet::addr::{AddrParseError, NetAddr};
 use localtime::{LocalDuration, LocalTime};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -422,7 +424,7 @@ impl TryFrom<&sqlite::Value> for Alias {
 
 /// Peer public protocol address.
 #[derive(Clone, Eq, PartialEq, Debug, Hash, From, Wrapper, WrapperMut, Serialize, Deserialize)]
-#[wrapper(Deref, Display, FromStr)]
+#[wrapper(Deref, Display)]
 #[wrapper_mut(DerefMut)]
 #[cfg_attr(
     feature = "schemars",
@@ -487,6 +489,31 @@ impl Address {
     /// Return the port number of the [`Address`].
     pub fn port(&self) -> u16 {
         self.0.port
+    }
+}
+
+impl FromStr for Address {
+    type Err = AddrParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (host, port) = s.rsplit_once(':').ok_or(AddrParseError::PortAbsent)?;
+
+        let host = if let Some(host) = host
+            .strip_prefix('[')
+            .and_then(|host| host.strip_suffix(']'))
+        {
+            HostName::Ip(host.parse::<Ipv6Addr>()?.into())
+        } else {
+            // Require IPv6 addresses to always be enclosed in `[` and `]`.
+            host.parse().and_then(|host| match host {
+                HostName::Ip(IpAddr::V6(_)) => Err(AddrParseError::UnknownAddressFormat),
+                host => Ok(host),
+            })?
+        };
+
+        let port = port.parse().map_err(|_| AddrParseError::InvalidPort)?;
+
+        Ok(Self(NetAddr::new(host, port)))
     }
 }
 
@@ -1446,6 +1473,22 @@ mod test {
         assert!(Alias::from_str("cloud\0head").is_err());
         assert!(Alias::from_str("cloud head").is_err());
         assert!(Alias::from_str("cloudhead\n").is_err());
+    }
+
+    #[test]
+    fn test_address() {
+        assert!(Address::from_str("127.0.0.1:8776").is_ok());
+        assert!(Address::from_str("[::1]:8776").is_ok());
+        assert!(Address::from_str("[::ffff:127.0.0.1]:8776").is_ok());
+        assert!(Address::from_str("localhost:8776").is_ok());
+
+        assert!(Address::from_str("").is_err());
+        assert!(Address::from_str(":").is_err());
+        assert!(Address::from_str("127.0.0.1").is_err());
+        assert!(Address::from_str("127.0.0.1:xyz").is_err());
+        assert!(Address::from_str("[invalid]:8776").is_err());
+        assert!(Address::from_str("[127.0.0.1]:8776").is_err());
+        assert!(Address::from_str("::1:8776").is_err());
     }
 
     #[test]
