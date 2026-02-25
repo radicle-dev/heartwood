@@ -1,0 +1,11 @@
+[package]
+name = "radicle-cob-tasks"
+description = "Radicle Tasks COB"
+homepage.workspace = true
+repository.workspace = true
+version = "0.1.0"
+authors = ["Adrian Duke <adrian.duke@gmail.com>"]
+edition.workspace = true
+license.workspace = true
+keywords = ["radicle", "cob", "cobs", "tasks"]
+rust-version.workspace = true
