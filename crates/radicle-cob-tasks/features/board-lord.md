@@ -1,0 +1,120 @@
+# Persona: Board Leader
+
+## Goal: Structure boards workflow to the their culture
+
+## Goal: Maintain the smallest set of boards to manage tasks at hand
+
+## Goal: Focus boards with a goal
+
+### Feature and scenario headings:
+
+- Create a board
+  - ✗ Repo not defined
+  - ✗ Non-delegate
+  - ✗ Empty
+    - Name
+    - Goal
+  - ✗ Invalid Characters
+    - Name
+    - Goal
+  - ✗ Too Long
+    - Name
+    - Goal
+  - ✗ Non-delegate can't create board
+  - ✗ Name already exists
+  - ✓ Delegate creates board
+    - No Goal
+    - With Goal
+- Add step(s) to board
+  - ✗ Repo not defined
+  - ✗ Non-delegate
+  - ✗ Empty
+    - Label
+  - ✗ Invalid Characters
+    - Label
+  - ✗ Too Long
+    - Label
+  - ✗ Label already exists
+  - ✗ Label not found
+    - Preceeding
+    - Proceeding
+    - Preceeding & Proceeding
+  - ✓ Start step already exists; adds new start
+  - ✓ End step already exists; adds new end
+  - ✓ Nominate step
+    - Start
+    - End
+- Remove step(s) from board
+  - ✗ Repo not defined
+  - ✗ Non-delegate
+  - ✗ Not found
+  - ✗ Cannot remove nominated Start/End step (must re-nominate)
+  - ✓ Empty start step
+  - ✓ Empty end step
+  - ✗ Non-empty step, no migrate
+  - ✓ Non-empty step, with migrate
+- Rename step(s)
+  - ✗ Repo not defined
+  - ✗ Non-delegate
+  - ✗ Not found
+  - ✗ Empty label
+  - ✗ Invalid Label Characters
+  - ✗ Label Too Long
+  - ✗ New label already exists
+  - ✓ Renamed
+- Nominate start and end steps
+  - ✗ Repo not defined
+  - ✗ Non-delegate
+  - ✗ Not found
+  - ✗ Start >= End
+    - Start after End
+    - End before Start
+    - Start and End
+  - ✓ Nominated
+    - Start
+    - End
+- Reorder steps
+  - ✗ Repo not defined
+  - ✗ Non-delegate
+  - ✗ Not found
+    - Preceeding
+    - Proceeding
+    - Preceeding & Proceeding
+  - ✗ Start >= End
+    - Start after End
+    - End before Start
+    - Start and End
+  - ✓ Reordered
+    - To Start
+    - To End
+    - Inbetween
+- Add goal to board
+  - ✗ Repo not defined
+  - ✗ Non-delegate
+  - ✗ Invalid goal characters
+  - ✗ Goal too Long
+  - ✗ Goal already exists
+  - ✓ Added
+- Update board goal
+  - ✗ Repo not defined
+  - ✗ Non-delegate
+  - ✗ Invalid goal characters
+  - ✗ Goal too Long
+  - ✗ Goal already exists
+  - ✓ Updated
+- Remove board goal
+  - ✗ Repo not defined
+  - ✗ Non-delegate
+  - ✗ Not found
+  - ✗ No existing goals
+  - ✓ Removed
+- Archive board
+  - ✗ Repo not defined
+  - ✗ Non-delegate
+  - ✗ Not found
+  - ✓ Archived
+- Un-archive board
+  - ✗ Repo not defined
+  - ✗ Non-delegate
+  - ✗ Not found
+  - ✓ Un-archived
