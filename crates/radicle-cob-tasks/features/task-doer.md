@@ -1,0 +1,146 @@
+# Persona: Task Doer
+
+## Goal: Track and progress work items
+
+### Feature and scenario headings:
+
+- Add task
+  - ✗ Repo not defined
+  - ✗ Empty title
+  - ✗ Invalid characters
+  - ✗ Title too long
+  - ✗ Description too long
+  - ✓ Added
+    - Title only
+    - Title and description
+- Remove task
+  - ✗ Repo not defined
+  - ✗ Not found
+  - ✓ Removed
+- Edit task
+  - ✗ Repo not defined
+  - ✗ Not found
+  - ✗ Empty title
+  - ✗ Invalid characters
+  - ✗ Title too long
+  - ✓ Updated title
+  - ✓ Updated description
+- Attach file
+  - ✗ Repo not defined
+  - ✗ Task not found
+  - ✗ File not found
+  - ✗ File too large
+  - ✓ Attached
+- Remove attachment
+  - ✗ Repo not defined
+  - ✗ Task not found
+  - ✗ Attachment not found
+  - ✓ Removed
+- Comment on task
+  - ✗ Repo not defined
+  - ✗ Not found
+  - ✗ Empty comment
+  - ✗ Comment too long
+  - ✓ Commented
+- React to comment
+  - ✗ Repo not defined
+  - ✗ Task not found
+  - ✗ Comment not found
+  - ✗ Invalid reaction
+  - ✓ Reacted
+- Label task
+  - ✗ Repo not defined
+  - ✗ Not found
+  - ✗ Empty label
+  - ✗ Invalid label characters
+  - ✗ Label too long
+  - ✗ Label already exists
+  - ✓ Labeled
+- Un-label task
+  - ✗ Repo not defined
+  - ✗ Not found
+  - ✗ Label not found
+  - ✓ Un-labeled
+- Progress task
+  - ✗ Repo not defined
+  - ✗ Not found
+  - ✗ Step not found
+  - ✗ Already in step
+  - ✓ Progressed
+- Assign task
+  - ✗ Repo not defined
+  - ✗ Not found
+  - ✗ Assignee not found
+  - ✗ Already assigned
+  - ✓ Assigned
+    - Single DID
+    - Multiple DIDs
+- Unassign task
+  - ✗ Repo not defined
+  - ✗ Not found
+  - ✗ Not assigned
+  - ✓ Unassigned
+    - Single DID
+    - Multiple DIDs
+- Reorder task
+  - ✗ Repo not defined
+  - ✗ Not found
+  - ✗ Sibling not found
+  - ✗ Same position
+  - ✓ Reordered
+    - To top
+    - To bottom
+    - After sibling
+- Filter tasks
+  - ✗ Repo not defined
+  - ✗ Invalid filter key
+  - ✓ Filtered
+    - By step
+    - By assignee
+    - By label
+    - By status
+- View board
+  - ✗ Repo not defined
+  - ✗ Board not found
+  - ✓ Viewed
+- View task
+  - ✗ Repo not defined
+  - ✗ Not found
+  - ✓ Viewed
+    - With Title only
+    - With Title and Description
+    - With Single Assignee
+    - With Multiple Assignees
+    - With Attachment
+    - With Attachments
+    - With Comment
+    - With Comments
+- Archive task
+  - ✗ Repo not defined
+  - ✗ Not found
+  - ✗ Already archived
+  - ✓ Archived
+- Un-archive task
+  - ✗ Repo not defined
+  - ✗ Not found
+  - ✗ Not archived
+  - ✓ Un-archived
+- Batch progress task
+  - ✗ Repo not defined
+  - ✗ Empty list
+  - ✗ Task not found
+  - ✗ Step not found
+  - ✓ Progressed
+- Batch archive/unarchive task
+  - ✗ Repo not defined
+  - ✗ Empty list
+  - ✗ Task not found
+  - ✓ Archived
+  - ✓ Un-archived
+- Batch label/unlabel task
+  - ✗ Repo not defined
+  - ✗ Empty list
+  - ✗ Task not found
+  - ✗ Label invalid
+  - ✓ Labeled
+  - ✓ Un-labeled
