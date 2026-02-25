@@ -36,6 +36,103 @@
     $ rad board create --name "Engineering" --goal "Ship V1"
     ✓ Board 'Engineering' created (b67a123)
     ```
+
+- Show board
+  - ✗ Repo not defined
+  - ✗ Not found
+  - ✗ Invalid sort
+  - ✗ Invalid filter
+  - ✗ Invalid assignee
+  - ✓ Shown
+    - Views:
+      - Board view
+        - No tasks
+        - One task
+        - Many tasks
+
+        ```
+        $ rad board show b67a123
+        ╭──────────────────────────────────────────────────────────────────────────────╮
+        │ Name     Engineering                                                         │
+        │ Board    b67a123...                                                          │
+        │ Goal     Ship V1                                                             │
+        ├──────────────────────────────────────────────────────────────────────────────┤
+        │ Todo                     │ Doing                    │ Done                   │
+        ├──────────────────────────┼──────────────────────────┼────────────────────────┤
+        │ ● 27d3132                │ ● 91f64c0                │ ● c10ecd2              │
+        │   Change passphrase      │   Add CLI command for    │   git push: info links │
+        │   prompt                 │   canonical refs         │   wrong                │
+        │                          │                          │                        │
+        │ ● 4e2a36e                │                          │ ● 23fef8f              │
+        │   refs/heads/* cref      │                          │   Collect errors for   │
+        │   rule conflicts         │                          │   fetch updates        │
+        │                          │                          │                        │
+        ╰──────────────────────────────────────────────────────────────────────────────╯
+        ```
+
+      - Table view (should contain: id, title, assignee, labels - by default)
+        - No tasks
+        - One task
+        - Many tasks
+
+        ```
+        $ rad board show b67a123 --table
+        ╭──────────────────────────────────────────────────────────────────────────────╮
+        │ ●    ID         Title                  Assignee         Labels               │
+        ├──────────────────────────────────────────────────────────────────────────────┤
+        │ ●    27d3132    Change passphrase...   z6MkkPv...       bug                  │
+        │ ●    91f64c0    Add CLI command...     z6MkkPv...       enhancement          │
+        ╰──────────────────────────────────────────────────────────────────────────────╯
+        ```
+
+    - Filter
+      - By step
+        ```
+        $ rad board show b67a123 --step "Todo"
+        ...
+        ```
+      - By assignee
+        ```
+        $ rad board show b67a123 --assignee z6MkkPvad...
+        ...
+        ```
+      - By author
+        ```
+        $ rad board show b67a123 --author adrianduke
+        ...
+        ```
+      - By fuzzy search
+        ```
+        $ rad board show b67a123 --search "CLI"
+        ...
+        ```
+    - Sort
+      - By creation
+        ```
+        $ rad board show b67a123 --sort created
+        ...
+        ```
+      - By updated
+        ```
+        $ rad board show b67a123 --sort updated
+        ...
+        ```
+      - By assignee
+        ```
+        $ rad board show b67a123 --sort assignee
+        ...
+        ```
+      - By author
+        ```
+        $ rad board show b67a123 --sort author
+        ...
+        ```
+    - Archived
+      ```
+      $ rad board show b67a123 --archived
+      ...
+      ```
+
 - Add step(s) to board
   - ✗ Repo not defined
   - ✗ Non-delegate
@@ -62,16 +159,19 @@
     ```
   - ✓ Nominate step
     - Start
+
     ```
     $ rad board step add b67a123 --label "Backlog" --start
     ✓ Step 'Backlog' added to board 'Engineering'
     ```
 
     - End
+
     ```
     $ rad board step add b67a123 --label "Done" --end
     ✓ Step 'Done' added to board 'Engineering'
     ```
+
 - Remove step(s) from board
   - ✗ Repo not defined
   - ✗ Non-delegate
@@ -116,16 +216,19 @@
     - Start and End
   - ✓ Nominated
     - Start
+
     ```
     $ rad board step nominate b67a123 --start "Backlog"
     ✓ Board 'Engineering' updated
     ```
 
     - End
+
     ```
     $ rad board step nominate b67a123 --end "Done"
     ✓ Board 'Engineering' updated
     ```
+
 - Reorder steps
   - ✗ Repo not defined
   - ✗ Non-delegate
@@ -139,22 +242,26 @@
     - Start and End
   - ✓ Reordered
     - To Start
+
     ```
     $ rad board step move b67a123 --step "Doing" --after "Backlog"
     ✓ Board 'Engineering' updated
     ```
 
     - To End
+
     ```
     $ rad board step move b67a123 --step "Review" --before "Done"
     ✓ Board 'Engineering' updated
     ```
 
     - Inbetween
+
     ```
     $ rad board step move b67a123 --step "Review" --after "Doing"
     ✓ Board 'Engineering' updated
     ```
+
 - Add goal to board
   - ✗ Repo not defined
   - ✗ Non-delegate
