@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The default configuration for the SQLite pragma `synchronous` is changed
+  from `FULL` to `NORMAL`, which generates less I/O operations. On power
+  loss, transactions might be rolled back, but SQLite still guarantees
+  consistency in this mode.
+
 ### Removed
 
 ### Security

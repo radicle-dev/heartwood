@@ -1,7 +1,7 @@
 use super::sqlite_ext::*;
 
 const DEFAULT_JOURNAL_MODE: JournalMode = JournalMode::WAL;
-const DEFAULT_SYNCHRONOUS: Synchronous = Synchronous::FULL;
+const DEFAULT_SYNCHRONOUS: Synchronous = Synchronous::NORMAL;
 
 /// Database configuration.
 #[derive(Debug, Default, Copy, Clone, PartialEq, ::serde::Serialize, ::serde::Deserialize)]
@@ -88,7 +88,7 @@ mod test {
     #[test]
     fn database_config_valid_combinations() {
         let cases = [
-            (None, None, JournalMode::WAL, Synchronous::FULL),
+            (None, None, JournalMode::WAL, Synchronous::NORMAL),
             (
                 Some("WAL"),
                 Some("NORMAL"),
