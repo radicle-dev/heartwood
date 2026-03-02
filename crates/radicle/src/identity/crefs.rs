@@ -77,7 +77,7 @@ impl RawCanonicalRefs {
 ///
 /// [`CanonicalRefs`] can be converted into a [`Payload`] using its [`From`]
 /// implementation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanonicalRefs {
     rules: Rules,

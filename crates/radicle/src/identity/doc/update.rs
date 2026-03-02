@@ -372,4 +372,18 @@ mod test {
             "Default branch rule is missing!"
         );
     }
+
+    #[test]
+    fn default_branch_rule_exists_without_payload() {
+        let raw = arbitrary::gen::<RawDoc>(1);
+        let branch = git::fmt::Qualified::from(git::fmt::lit::refs_heads(
+            raw.project().unwrap().default_branch(),
+        ));
+        let verified = super::verify(raw).unwrap();
+        let crefs = verified.canonical_refs().unwrap().unwrap();
+        assert!(
+            crefs.rules().matches(&branch).next().is_some(),
+            "Default branch rule is missing!"
+        );
+    }
 }

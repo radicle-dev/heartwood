@@ -921,21 +921,19 @@ impl crefs::GetCanonicalRefs for Doc {
     type Error = CanonicalRefsError;
 
     fn canonical_refs(&self) -> Result<Option<CanonicalRefs>, Self::Error> {
-        self.raw_canonical_refs().and_then(|raw| {
-            raw.map(|raw| {
+        let mut crefs = self
+            .raw_canonical_refs()?
+            .map(|raw| {
                 raw.try_into_canonical_refs(&mut || self.delegates.clone())
                     .map_err(CanonicalRefsError::from)
-                    .and_then(|mut crefs| {
-                        self.default_branch_rule()
-                            .map_err(CanonicalRefsError::from)
-                            .map(|rule| {
-                                crefs.extend([rule]);
-                                crefs
-                            })
-                    })
             })
-            .transpose()
-        })
+            .transpose()?
+            .unwrap_or_default();
+
+        let rule = self.default_branch_rule()?;
+        crefs.extend([rule]);
+
+        Ok(Some(crefs))
     }
 
     fn raw_canonical_refs(&self) -> Result<Option<RawCanonicalRefs>, Self::Error> {
