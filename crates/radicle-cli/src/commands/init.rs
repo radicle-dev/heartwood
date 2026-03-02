@@ -59,7 +59,7 @@ pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> an
     let interactive = args.interactive();
     let visibility = args.visibility();
     let seed = args.seed();
-    let should_announce = args.should_announce();
+    let should_announce = args.announce();
 
     let default_branch = match find_default_branch(&repo) {
         Err(err @ DefaultBranchError::Head) => {
@@ -134,6 +134,15 @@ pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> an
         Visibility::from_str(selected)?
     };
 
+    let should_announce = match should_announce {
+        Some(announce) => announce,
+        None if interactive.yes() => match visibility {
+            Visibility::Public => term::ask("Announce to the public network now", false),
+            Visibility::Private { .. } => false,
+        },
+        None => false,
+    };
+
     let signer = term::signer(profile)?;
     let mut node = radicle::Node::new(profile.socket());
     let mut spinner = term::spinner("Initializing...");
@@ -144,7 +153,7 @@ pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> an
         name,
         &description,
         branch.clone(),
-        visibility,
+        visibility.clone(),
         &signer,
         &profile.storage,
     ) {
@@ -205,7 +214,7 @@ pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> an
             term::blank();
 
             // Announce inventory to network.
-            if should_announce {
+            if visibility.is_private() || (visibility.is_public() && should_announce) {
                 if let Err(e) = announce(rid, doc, &mut node, &profile.config) {
                     term::blank();
                     term::warning(format!(

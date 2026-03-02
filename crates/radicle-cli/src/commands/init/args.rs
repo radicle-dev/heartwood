@@ -90,11 +90,12 @@ impl Args {
         !self.no_seed
     }
 
-    pub(super) fn should_announce(&self) -> bool {
+    pub(super) fn announce(&self) -> Option<bool> {
         match (self.announce, self.no_announce) {
-            (false, true) | (false, false) => false,
-            (true, false) => true,
-            (true, true) => false,
+            (false, false) => None,
+            (false, true) => Some(false),
+            (true, false) => Some(true),
+            (true, true) => Some(false),
         }
     }
 }
