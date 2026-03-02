@@ -265,7 +265,7 @@ mod test {
     use crate::test::arbitrary;
 
     fn database(path: &str) -> Database {
-        let db = Database::open(path).unwrap();
+        let db = Database::open(path, crate::node::db::config::Config::default()).unwrap();
 
         // We don't want to test foreign key constraints here.
         db.db.execute("PRAGMA foreign_keys = OFF").unwrap();

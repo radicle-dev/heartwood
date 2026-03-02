@@ -252,17 +252,14 @@ impl Profile {
         // Create DBs.
         home.policies_mut()?;
         home.notifications_mut()?;
-        home.database_mut()?
-            .journal_mode(config.node.database.sqlite.pragma.journal_mode)?
-            .synchronous(config.node.database.sqlite.pragma.synchronous)?
-            .init(
-                &public_key,
-                config.node.features(),
-                &config.node.alias,
-                &UserAgent::default(),
-                LocalTime::now().into(),
-                config.node.external_addresses.iter(),
-            )?;
+        home.database_mut(config.node.database)?.init(
+            &public_key,
+            config.node.features(),
+            &config.node.alias,
+            &UserAgent::default(),
+            LocalTime::now().into(),
+            config.node.external_addresses.iter(),
+        )?;
 
         // Migrate COBs cache.
         let mut cobs = home.cobs_db_mut()?;
@@ -364,7 +361,7 @@ impl Profile {
     /// Return a multi-source store for aliases.
     pub fn aliases(&self) -> Aliases {
         let policies = self.home.policies().ok();
-        let db = self.home.database().ok();
+        let db = self.home.database(self.config.node.database).ok();
 
         Aliases { policies, db }
     }
@@ -418,6 +415,24 @@ impl Profile {
             }
             Err(e) => Err(e.into()),
         }
+    }
+
+    /// Return a handle to the database of the node, with SQLite configuration
+    /// from [`Self::config`] applied.
+    pub fn database_mut(&self) -> Result<node::Database, node::db::Error> {
+        self.home.database_mut(self.config.node.database)
+    }
+
+    /// Return a handle to a read-only database of the node, with SQLite
+    /// configuration from [`Self::config`] applied.
+    pub fn database(&self) -> Result<node::Database, node::db::Error> {
+        self.home.database(self.config.node.database)
+    }
+
+    /// Returns the routing store, with SQLite
+    /// configuration from [`Self::config`] applied.
+    pub fn routing(&self) -> Result<impl node::routing::Store, node::db::Error> {
+        self.home.routing(self.config.node.database)
     }
 }
 
@@ -630,34 +645,49 @@ impl Home {
     }
 
     /// Return a handle to a read-only database of the node.
-    pub fn database(&self) -> Result<node::Database, node::db::Error> {
+    pub fn database(
+        &self,
+        config: node::db::config::Config,
+    ) -> Result<node::Database, node::db::Error> {
         let path = self.node().join(node::NODE_DB_FILE);
-        let db = node::Database::reader(path)?;
+        let db = node::Database::reader(path, config)?;
 
         Ok(db)
     }
 
     /// Return a handle to the database of the node.
-    pub fn database_mut(&self) -> Result<node::Database, node::db::Error> {
+    pub fn database_mut(
+        &self,
+        config: node::db::config::Config,
+    ) -> Result<node::Database, node::db::Error> {
         let path = self.node().join(node::NODE_DB_FILE);
-        let db = node::Database::open(path)?;
+        let db = node::Database::open(path, config)?;
 
         Ok(db)
     }
 
     /// Returns the address store.
-    pub fn addresses(&self) -> Result<impl node::address::Store, node::db::Error> {
-        self.database_mut()
+    pub fn addresses(
+        &self,
+        config: node::db::config::Config,
+    ) -> Result<impl node::address::Store, node::db::Error> {
+        self.database_mut(config)
     }
 
     /// Returns the routing store.
-    pub fn routing(&self) -> Result<impl node::routing::Store, node::db::Error> {
-        self.database()
+    pub fn routing(
+        &self,
+        config: node::db::config::Config,
+    ) -> Result<impl node::routing::Store, node::db::Error> {
+        self.database(config)
     }
 
     /// Returns the routing store, mutably.
-    pub fn routing_mut(&self) -> Result<impl node::routing::Store, node::db::Error> {
-        self.database_mut()
+    pub fn routing_mut(
+        &self,
+        config: node::db::config::Config,
+    ) -> Result<impl node::routing::Store, node::db::Error> {
+        self.database_mut(config)
     }
 
     /// Get read access to the COBs cache.

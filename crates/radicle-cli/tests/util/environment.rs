@@ -156,7 +156,7 @@ impl Environment {
         db.migrate(radicle::cob::migrate::ignore).unwrap();
 
         policy::Store::open(policies_db).unwrap();
-        home.database_mut()
+        home.database_mut(node::db::config::Config::default())
             .unwrap()
             .init(
                 &keypair.pk.into(),

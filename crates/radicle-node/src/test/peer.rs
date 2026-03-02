@@ -173,18 +173,21 @@ where
             policies.seed(&repo.rid, Scope::Followed).unwrap();
         }
         // Initialize database.
-        let db = Database::open(config.tmp.path().join(node::NODE_DB_FILE))
-            .unwrap()
-            .init(
-                &id,
-                config.config.features(),
-                &config.config.alias,
-                &UserAgent::default(),
-                config.local_time.into(),
-                config.config.external_addresses.iter(),
-            )
-            .unwrap()
-            .into();
+        let db = Database::open(
+            config.tmp.path().join(node::NODE_DB_FILE),
+            node::db::config::Config::default(),
+        )
+        .unwrap()
+        .init(
+            &id,
+            config.config.features(),
+            &config.config.alias,
+            &UserAgent::default(),
+            config.local_time.into(),
+            config.config.external_addresses.iter(),
+        )
+        .unwrap()
+        .into();
 
         let announcement =
             service::gossip::node(&config.config, Timestamp::from(config.local_time) + 1);

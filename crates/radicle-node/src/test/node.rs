@@ -150,7 +150,11 @@ impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
     pub fn routing(&self) -> impl Iterator<Item = (RepoId, NodeId)> {
         use node::routing::Store as _;
 
-        self.home.routing_mut().unwrap().entries().unwrap()
+        self.home
+            .routing_mut(node::db::config::Config::default())
+            .unwrap()
+            .entries()
+            .unwrap()
     }
 
     pub fn inventory(&self) -> impl Iterator<Item = RepoId> + '_ {
@@ -161,7 +165,11 @@ impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
 
     /// Get sync status of a repo.
     pub fn synced_seeds(&self, rid: &RepoId) -> Vec<node::seed::SyncedSeed> {
-        let db = Database::reader(self.home.node().join(node::NODE_DB_FILE)).unwrap();
+        let db = Database::reader(
+            self.home.node().join(node::NODE_DB_FILE),
+            node::db::config::Config::default(),
+        )
+        .unwrap();
         let seeds = db.seeds_for(rid).unwrap();
 
         seeds.into_iter().collect::<Result<Vec<_>, _>>().unwrap()
@@ -446,7 +454,9 @@ impl Node<MockSigner> {
         )
         .unwrap();
         let policies = home.policies_mut().unwrap();
-        let db = home.database_mut().unwrap();
+        let db = home
+            .database_mut(node::db::config::Config::default())
+            .unwrap();
         let db = service::Stores::from(db);
 
         log::debug!(target: "test", "Node::init {}: {}", config.alias, signer.public_key());

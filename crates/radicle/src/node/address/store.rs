@@ -568,7 +568,7 @@ mod test {
     fn test_empty() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("cache");
-        let cache = Database::open(path).unwrap();
+        let cache = Database::open(path, crate::node::db::config::Config::default()).unwrap();
 
         assert!(cache.is_empty().unwrap());
     }

@@ -82,19 +82,19 @@ impl Database {
     const PRAGMA: &'static str = "PRAGMA foreign_keys = ON";
 
     /// Open a database at the given path. Creates a new database if it
-    /// doesn't exist.
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+    /// does not exist.
+    pub fn open<P: AsRef<Path>>(path: P, config: config::Config) -> Result<Self, Error> {
         let mut db = sql::Connection::open_thread_safe(path)?;
         db.set_busy_timeout(DB_WRITE_TIMEOUT.as_millis() as usize)?;
         db.execute(Self::PRAGMA)?;
         migrate(&db)?;
 
-        Ok(Self { db: Arc::new(db) })
+        Self { db: Arc::new(db) }.configure(config)
     }
 
     /// Same as [`Self::open`], but in read-only mode. This is useful to have multiple
     /// open databases, as no locking is required.
-    pub fn reader<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+    pub fn reader<P: AsRef<Path>>(path: P, config: config::Config) -> Result<Self, Error> {
         let mut db = sql::Connection::open_thread_safe_with_flags(
             path,
             sql::OpenFlags::new().with_read_only(),
@@ -102,7 +102,7 @@ impl Database {
         db.set_busy_timeout(DB_READ_TIMEOUT.as_millis() as usize)?;
         db.execute(Self::PRAGMA)?;
 
-        Ok(Self { db: Arc::new(db) })
+        Self { db: Arc::new(db) }.configure(config)
     }
 
     /// Set `journal_mode` pragma.
@@ -162,6 +162,11 @@ impl Database {
     /// Bump the database version.
     pub fn bump(&self) -> Result<usize, Error> {
         transaction(&self.db, bump)
+    }
+
+    fn configure(self, config: config::Config) -> Result<Self, Error> {
+        self.journal_mode(config.sqlite.pragma.journal_mode)?
+            .synchronous(config.sqlite.pragma.synchronous)
     }
 }
 

@@ -175,18 +175,14 @@ impl Runtime {
             .expect("Runtime::init: unable to solve proof-of-work puzzle");
 
         log::info!(target: "node", "Opening node database..");
-        let db = home
-            .database_mut()?
-            .journal_mode(config.database.sqlite.pragma.journal_mode)?
-            .synchronous(config.database.sqlite.pragma.synchronous)?
-            .init(
-                &id,
-                announcement.features,
-                &announcement.alias,
-                &announcement.agent,
-                announcement.timestamp,
-                announcement.addresses.iter(),
-            )?;
+        let db = home.database_mut(config.database)?.init(
+            &id,
+            announcement.features,
+            &announcement.alias,
+            &announcement.agent,
+            announcement.timestamp,
+            announcement.addresses.iter(),
+        )?;
         let mut stores: service::Stores<_> = db.clone().into();
 
         if config.connect.is_empty() && stores.addresses().is_empty()? {

@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from `FULL` to `NORMAL`, which generates less I/O operations. On power
   loss, transactions might be rolled back, but SQLite still guarantees
   consistency in this mode.
+- Opening database connections requires specification of a configuration.
+  `radicle::Profile` conveniently provides methods that supply the
+  configuration from `radicle::Profile::config`.
 
 ### Removed
 
