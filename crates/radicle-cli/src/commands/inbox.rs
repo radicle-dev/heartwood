@@ -50,7 +50,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 &profile,
             )
         }
-        Command::Clear(args) => clear(&mut notifs, args.into()),
+        Command::Clear(args) => clear(&mut notifs, args.interactive(), args.into()),
         Command::Show { id } => show(&mut notifs, id, storage, &profile),
     }
 }
@@ -385,23 +385,37 @@ impl NotificationRow {
     }
 }
 
-fn clear(notifs: &mut notifications::StoreWriter, mode: ClearMode) -> anyhow::Result<()> {
-    let cleared = match mode {
-        ClearMode::ByNotifications(ids) => notifs.clear(&ids)?,
-        ClearMode::ByRepo(rid) => notifs.clear_by_repo(&rid)?,
-        ClearMode::All => notifs.clear_all()?,
-        ClearMode::Contextual => {
-            if let Ok((_, rid)) = radicle::rad::cwd() {
-                notifs.clear_by_repo(&rid)?
-            } else {
-                return Err(anyhow!("not a radicle repository"));
-            }
-        }
+fn clear(
+    notifs: &mut notifications::StoreWriter,
+    interactive: radicle_term::Interactive,
+    mode: ClearMode,
+) -> anyhow::Result<()> {
+    let question = match &mode {
+        ClearMode::ByNotifications(ids) => format!("Clear {} notifications?", ids.len()),
+        ClearMode::ByRepo(rid) => format!("Clear all notifications of repository {rid}?"),
+        ClearMode::All => "Clear all notification?".to_string(),
+        ClearMode::Contextual => "Clear all notifications of current repository?".to_string(),
     };
-    if cleared > 0 {
-        term::success!("Cleared {cleared} item(s) from your inbox");
-    } else {
-        term::print(term::format::italic("Your inbox is empty."));
+
+    if interactive.confirm(question) {
+        let cleared = match mode {
+            ClearMode::ByNotifications(ids) => notifs.clear(&ids)?,
+            ClearMode::ByRepo(rid) => notifs.clear_by_repo(&rid)?,
+            ClearMode::All => notifs.clear_all()?,
+            ClearMode::Contextual => {
+                if let Ok((_, rid)) = radicle::rad::cwd() {
+                    notifs.clear_by_repo(&rid)?
+                } else {
+                    return Err(anyhow!("not a radicle repository"));
+                }
+            }
+        };
+
+        if cleared > 0 {
+            term::success!("Cleared {cleared} item(s) from your inbox");
+        } else {
+            term::print(term::format::italic("Your inbox is empty."));
+        }
     }
     Ok(())
 }

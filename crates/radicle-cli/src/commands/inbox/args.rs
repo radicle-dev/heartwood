@@ -2,6 +2,7 @@ use std::{fmt::Display, str::FromStr};
 
 use clap::{Parser, Subcommand, ValueEnum};
 use radicle::{node::notifications::NotificationId, prelude::RepoId};
+use radicle_term::Interactive;
 
 const ABOUT: &str = "Manage your Radicle notifications";
 
@@ -139,6 +140,11 @@ pub(super) struct ClearArgs {
     #[arg(long, value_name = "RID")]
     repo: Option<RepoId>,
 
+    /// Do not ask for confirmation
+    #[arg(long)]
+    #[arg(global = true)]
+    no_confirm: bool,
+
     /// Operate on all repositories
     #[arg(short, long, conflicts_with = "repo")]
     all: bool,
@@ -151,8 +157,18 @@ pub(super) struct ClearArgs {
     ids: Option<Vec<NotificationId>>,
 }
 
+impl ClearArgs {
+    pub(super) fn interactive(&self) -> Interactive {
+        if self.no_confirm {
+            Interactive::No
+        } else {
+            Interactive::new(std::io::stdout())
+        }
+    }
+}
+
 impl From<ClearArgs> for ClearMode {
-    fn from(ClearArgs { repo, all, ids }: ClearArgs) -> Self {
+    fn from(ClearArgs { repo, all, ids, .. }: ClearArgs) -> Self {
         if let Some(ids) = ids {
             return Self::ByNotifications(ids);
         }
