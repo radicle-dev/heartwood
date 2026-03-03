@@ -3,7 +3,6 @@ use std::path::Path;
 use std::str::FromStr;
 use std::{fs, net, thread, time};
 
-use radicle::git;
 use radicle::node;
 use radicle::node::address::Store as _;
 use radicle::node::config::seeds::RADICLE_NODE_BOOTSTRAP_IRIS;
@@ -37,6 +36,7 @@ mod commands {
     mod inbox;
     mod init;
     mod issue;
+    mod jj;
 }
 
 /// Run a CLI test file.
@@ -273,48 +273,6 @@ fn rad_node() {
 #[test]
 fn rad_patch() {
     Environment::alice(["rad-init", "rad-patch"]);
-}
-
-#[test]
-fn rad_jj_bare() {
-    // We test whether `jj` is installed, and have this test succeed if it is not.
-    // Programmatic skipping of tests is not supported as of 2024-08.
-    if !program_reports_version("jj") {
-        return;
-    }
-
-    let mut environment = Environment::new();
-    let mut profile = environment.node("alice");
-    let rid = profile.project("heartwood", "Radicle Heartwood Protocol & Stack");
-
-    test(
-        "examples/rad-init-existing-bare.md",
-        environment.work(&profile),
-        Some(&profile.home),
-        [(
-            "URL",
-            git::url::File::new(profile.storage.path())
-                .rid(rid)
-                .to_string()
-                .as_str(),
-        )],
-    )
-    .unwrap();
-
-    environment
-        .tests(["jj-config", "jj-init-bare"], &profile)
-        .unwrap();
-}
-
-#[test]
-fn rad_jj_colocated_patch() {
-    // We test whether `jj` is installed, and have this test succeed if it is not.
-    // Programmatic skipping of tests is not supported as of 2024-08.
-    if !program_reports_version("jj") {
-        return;
-    }
-
-    Environment::alice(["rad-init", "jj-config", "jj-init-colocate", "rad-patch-jj"])
 }
 
 #[test]
