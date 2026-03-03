@@ -1,27 +1,23 @@
 use core::panic;
 use std::path::Path;
 use std::str::FromStr;
-use std::{fs, net, thread, time};
+use std::{fs, thread, time};
 
 use radicle::node;
-use radicle::node::address::Store as _;
 use radicle::node::config::seeds::RADICLE_NODE_BOOTSTRAP_IRIS;
 use radicle::node::config::DefaultSeedingPolicy;
 use radicle::node::events::Event;
 use radicle::node::policy::Scope;
-use radicle::node::UserAgent;
-use radicle::node::{Address, Alias, Config, Handle as _, DEFAULT_TIMEOUT};
+use radicle::node::{Alias, Config, Handle as _, DEFAULT_TIMEOUT};
 use radicle::prelude::RepoId;
 use radicle::profile;
 use radicle::profile::Home;
 use radicle::storage::{ReadStorage, RemoteRepository};
 use radicle::test::fixtures;
 
-use radicle_localtime::LocalTime;
 #[allow(unused_imports)]
 use radicle_node::test::logger;
 use radicle_node::test::node::Node;
-use radicle_node::PROTOCOL_VERSION;
 
 mod util;
 use util::environment::{config, Environment};
@@ -37,6 +33,7 @@ mod commands {
     mod init;
     mod issue;
     mod jj;
+    mod node;
 }
 
 /// Run a CLI test file.
@@ -168,106 +165,6 @@ fn rad_config() {
 #[test]
 fn rad_warn_old_nodes() {
     Environment::alice(["rad-warn-old-nodes"]);
-}
-
-#[test]
-fn rad_node_connect() {
-    let mut environment = Environment::new();
-    let alice = environment.node("alice");
-    let bob = environment.node("bob");
-    let working = tempfile::tempdir().unwrap();
-    let alice = alice.spawn();
-    let bob = bob.spawn();
-
-    alice
-        .rad(
-            "node",
-            &["connect", format!("{}@{}", bob.id, bob.addr).as_str()],
-            working.path(),
-        )
-        .unwrap();
-
-    let sessions = alice.handle.sessions().unwrap();
-    let session = sessions.first().unwrap();
-
-    assert_eq!(session.nid, bob.id);
-    assert_eq!(session.addr, bob.addr.into());
-    assert!(session.state.is_connected());
-}
-
-#[test]
-fn rad_node_connect_without_address() {
-    let mut environment = Environment::new();
-    let mut alice = environment.node("alice");
-    let bob = environment.node("bob");
-    let working = tempfile::tempdir().unwrap();
-    let bob = bob.spawn();
-
-    alice
-        .db
-        .addresses_mut()
-        .insert(
-            &bob.id,
-            PROTOCOL_VERSION,
-            node::Features::SEED,
-            &Alias::new("bob"),
-            0,
-            &UserAgent::default(),
-            LocalTime::now().into(),
-            [node::KnownAddress::new(
-                node::Address::from(bob.addr),
-                node::address::Source::Imported,
-            )],
-        )
-        .unwrap();
-    let alice = alice.spawn();
-    alice
-        .rad(
-            "node",
-            &["connect", format!("{}", bob.id).as_str()],
-            working.path(),
-        )
-        .unwrap();
-
-    let sessions = alice.handle.sessions().unwrap();
-    let session = sessions.first().unwrap();
-
-    assert_eq!(session.nid, bob.id);
-    assert_eq!(session.addr, bob.addr.into());
-    assert!(session.state.is_connected());
-}
-
-#[test]
-fn rad_node() {
-    let mut environment = Environment::new();
-    let alice = environment.node_with(Config {
-        external_addresses: vec![
-            Address::from(net::SocketAddr::from(([41, 12, 98, 112], 8776))),
-            Address::from_str("seed.cloudhead.io:8776").unwrap(),
-        ],
-        seeding_policy: DefaultSeedingPolicy::Block,
-        ..Config::test(Alias::new("alice"))
-    });
-    let working = tempfile::tempdir().unwrap();
-    let alice = alice.spawn();
-
-    fixtures::repository(working.path().join("alice"));
-
-    test(
-        "examples/rad-init-sync-not-connected.md",
-        working.path().join("alice"),
-        Some(&alice.home),
-        [],
-    )
-    .unwrap();
-
-    test(
-        "examples/rad-node.md",
-        working.path().join("alice"),
-        Some(&alice.home),
-        [],
-    )
-    .unwrap();
 }
 
 #[test]
