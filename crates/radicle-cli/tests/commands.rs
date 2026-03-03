@@ -36,6 +36,7 @@ mod commands {
     mod id;
     mod inbox;
     mod init;
+    mod issue;
 }
 
 /// Run a CLI test file.
@@ -122,16 +123,6 @@ fn rad_key_mismatch() {
 #[test]
 fn rad_auth_errors() {
     test("examples/rad-auth-errors.md", Path::new("."), None, []).unwrap();
-}
-
-#[test]
-fn rad_issue() {
-    Environment::alice(["rad-init", "rad-issue"]);
-}
-
-#[test]
-fn rad_issue_list() {
-    Environment::alice(["rad-init", "rad-issue", "rad-issue-list"]);
 }
 
 #[test]
