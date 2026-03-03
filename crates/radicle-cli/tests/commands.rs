@@ -3,7 +3,6 @@ use std::path::Path;
 use std::str::FromStr;
 use std::{fs, thread, time};
 
-use radicle::node;
 use radicle::node::config::seeds::RADICLE_NODE_BOOTSTRAP_IRIS;
 use radicle::node::config::DefaultSeedingPolicy;
 use radicle::node::events::Event;
@@ -34,6 +33,7 @@ mod commands {
     mod jj;
     mod node;
     mod patch;
+    mod policy;
 }
 
 /// Run a CLI test file.
@@ -222,77 +222,6 @@ fn rad_clean() {
         )
         .run()
         .unwrap();
-}
-
-#[test]
-fn rad_seed_and_follow() {
-    Environment::alice(["rad-seed-and-follow"]);
-}
-
-#[test]
-fn rad_seed_many() {
-    let mut environment = Environment::new();
-    let alice = environment.node("alice");
-    let mut bob = environment.node("bob");
-    // Bob creates two projects that Alice seeds in the test
-    let _ = bob.project("heartwood", "Radicle Heartwood Protocol & Stack");
-    let _ = bob.project("nixpkgs", "Home for Nix Packages");
-    let alice = alice.spawn();
-    let mut bob = bob.spawn();
-
-    bob.connect(&alice).converge([&alice]);
-
-    test(
-        "examples/rad-seed-many.md",
-        environment.work(&alice),
-        Some(&alice.home),
-        [],
-    )
-    .unwrap();
-}
-
-#[test]
-fn rad_unseed() {
-    let mut environment = Environment::new();
-    let mut alice = environment.node("alice");
-    let working = tempfile::tempdir().unwrap();
-
-    // Setup a test project.
-    alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
-    let alice = alice.spawn();
-
-    test("examples/rad-unseed.md", working, Some(&alice.home), []).unwrap();
-}
-
-#[test]
-fn rad_unseed_many() {
-    let mut environment = Environment::new();
-    let mut alice = environment.node("alice");
-
-    // Setup a test project.
-    alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
-    alice.project("nixpkgs", "Home for Nix Packages");
-    let alice = alice.spawn();
-
-    test(
-        "examples/rad-unseed-many.md",
-        environment.work(&alice),
-        Some(&alice.home),
-        [],
-    )
-    .unwrap();
-}
-
-#[test]
-fn rad_block() {
-    let mut environment = Environment::new();
-    let alice = environment.node_with(Config {
-        seeding_policy: DefaultSeedingPolicy::permissive(),
-        ..Config::test(Alias::new("alice"))
-    });
-    let working = tempfile::tempdir().unwrap();
-
-    test("examples/rad-block.md", working, Some(&alice.home), []).unwrap();
 }
 
 #[test]
@@ -658,27 +587,6 @@ fn rad_workflow() {
         "examples/workflow/6-pulling-contributor.md",
         environment.work(&bob).join("heartwood"),
         Some(&bob.home),
-        [],
-    )
-    .unwrap();
-}
-
-#[test]
-fn rad_seed_policy_allow_no_scope() {
-    let mut environment = Environment::new();
-    let alice = environment.node_with(Config {
-        seeding_policy: DefaultSeedingPolicy::Allow {
-            scope: node::config::Scope::implicit(),
-        },
-        ..Config::test(Alias::new("alice"))
-    });
-
-    let alice = alice.spawn();
-
-    test(
-        "examples/rad-seed-policy-allow-no-scope.md",
-        environment.work(&alice),
-        Some(&alice.home),
         [],
     )
     .unwrap();
