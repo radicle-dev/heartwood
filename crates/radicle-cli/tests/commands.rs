@@ -6,14 +6,19 @@ mod util;
 use util::formula::formula;
 
 mod commands {
+    mod clone;
     mod cob;
     mod git;
     mod id;
+    mod inbox;
     mod init;
     mod issue;
+    mod jj;
     mod misc;
     mod node;
     mod patch;
+    mod seed;
+    mod watch;
 }
 
 /// Run a CLI test file.

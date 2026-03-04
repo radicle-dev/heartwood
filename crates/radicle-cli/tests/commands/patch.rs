@@ -1,7 +1,6 @@
 use crate::util::environment::Environment;
 use crate::util::formula::formula;
-use crate::{program_reports_version, test};
-use radicle::git;
+use crate::test;
 use radicle::node::policy::Scope;
 use radicle::node::Handle as _;
 use radicle::prelude::RepoId;
@@ -13,47 +12,6 @@ fn rad_patch() {
     Environment::alice(["rad-init", "rad-patch"]);
 }
 
-#[test]
-fn rad_jj_bare() {
-    // We test whether `jj` is installed, and have this test succeed if it is not.
-    // Programmatic skipping of tests is not supported as of 2024-08.
-    if !program_reports_version("jj") {
-        return;
-    }
-
-    let mut environment = Environment::new();
-    let mut profile = environment.node("alice");
-    let rid = profile.project("heartwood", "Radicle Heartwood Protocol & Stack");
-
-    test(
-        "examples/rad-init-existing-bare.md",
-        environment.work(&profile),
-        Some(&profile.home),
-        [(
-            "URL",
-            git::url::File::new(profile.storage.path())
-                .rid(rid)
-                .to_string()
-                .as_str(),
-        )],
-    )
-    .unwrap();
-
-    environment
-        .tests(["jj-config", "jj-init-bare"], &profile)
-        .unwrap();
-}
-
-#[test]
-fn rad_jj_colocated_patch() {
-    // We test whether `jj` is installed, and have this test succeed if it is not.
-    // Programmatic skipping of tests is not supported as of 2024-08.
-    if !program_reports_version("jj") {
-        return;
-    }
-
-    Environment::alice(["rad-init", "jj-config", "jj-init-colocate", "rad-patch-jj"])
-}
 
 #[test]
 fn rad_patch_diff() {
@@ -317,68 +275,6 @@ fn rad_patch_fetch_1() {
         .unwrap();
 }
 
-#[test]
-fn rad_watch() {
-    let mut environment = Environment::new();
-    let mut alice = environment.node("alice");
-    let bob = environment.node("bob");
-    let (repo, _) = environment.repository(&alice);
-    let rid = alice.project_from("heartwood", "Radicle Heartwood Protocol & Stack", &repo);
-
-    let alice = alice.spawn();
-    let mut bob = bob.spawn();
-
-    bob.connect(&alice).converge([&alice]);
-    bob.clone(rid, environment.work(&bob)).unwrap();
-
-    formula(&environment.tempdir(), "examples/rad-watch.md")
-        .unwrap()
-        .home(
-            "alice",
-            environment.work(&alice),
-            [("RAD_HOME", alice.home.path().display())],
-        )
-        .home(
-            "bob",
-            environment.work(&bob).join("heartwood"),
-            [("RAD_HOME", bob.home.path().display())],
-        )
-        .run()
-        .unwrap();
-}
-
-#[test]
-fn rad_inbox() {
-    let mut environment = Environment::new();
-    let mut alice = environment.node("alice");
-    let bob = environment.node("bob");
-    let (repo1, _) = fixtures::repository(environment.work(&alice).join("heartwood"));
-    let (repo2, _) = fixtures::repository(environment.work(&alice).join("radicle-git"));
-    let rid1 = alice.project_from("heartwood", "Radicle Heartwood Protocol & Stack", &repo1);
-    let rid2 = alice.project_from("radicle-git", "Radicle Git", &repo2);
-
-    let alice = alice.spawn();
-    let mut bob = bob.spawn();
-
-    bob.connect(&alice).converge([&alice]);
-    bob.clone(rid1, environment.work(&bob)).unwrap();
-    bob.clone(rid2, environment.work(&bob)).unwrap();
-
-    formula(&environment.tempdir(), "examples/rad-inbox.md")
-        .unwrap()
-        .home(
-            "alice",
-            environment.work(&alice),
-            [("RAD_HOME", alice.home.path().display())],
-        )
-        .home(
-            "bob",
-            environment.work(&bob),
-            [("RAD_HOME", bob.home.path().display())],
-        )
-        .run()
-        .unwrap();
-}
 
 #[test]
 fn rad_patch_fetch_2() {
