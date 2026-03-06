@@ -2,6 +2,8 @@ mod args;
 mod cache;
 mod comment;
 
+use std::collections::BTreeSet;
+
 use anyhow::Context as _;
 
 use radicle::cob::common::Label;
@@ -196,8 +198,14 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             issue.label(labels, &signer)?;
         }
         Command::List(list_args) => {
+            let mut authors: BTreeSet<Did> = list_args.authors.iter().cloned().collect();
+            if list_args.authored {
+                authors.insert(profile.did());
+            }
+
             list(
                 issues,
+                authors,
                 &list_args.assigned,
                 &((&list_args.state).into()),
                 &profile,
@@ -241,6 +249,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
 
 fn list<C>(
     cache: C,
+    authors: BTreeSet<Did>,
     assigned: &Option<Assigned>,
     state: &Option<State>,
     profile: &profile::Profile,
@@ -271,6 +280,12 @@ where
                     return None;
                 }
             };
+
+            if !authors.is_empty() {
+                if !authors.contains(issue.author().id()) {
+                    return None;
+                }
+            }
 
             if let Some(a) = assignee {
                 if !issue.assignees().any(|v| v == &Did::from(a)) {

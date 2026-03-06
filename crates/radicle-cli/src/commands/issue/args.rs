@@ -212,6 +212,20 @@ pub(crate) struct EmptyArgs {
 
     #[clap(flatten)]
     pub(crate) state: EmptyStateArgs,
+
+    /// Show only issues where the given user is an author (may be specified
+    /// multiple times)
+    #[arg(
+        long = "author",
+        value_name = "DID",
+        num_args = 1..,
+        action = clap::ArgAction::Append,
+    )]
+    pub(super) authors: Vec<Did>,
+
+    /// Show only issues that you have authored
+    #[arg(long)]
+    pub(super) authored: bool,
 }
 
 /// Counterpart to [`ListStateArgs`] for the empty subcommand.
@@ -242,6 +256,20 @@ pub(crate) struct ListArgs {
 
     #[clap(flatten)]
     pub(crate) state: ListStateArgs,
+
+    /// Show only issues where the given user is an author (may be specified
+    /// multiple times)
+    #[arg(
+        long = "author",
+        value_name = "DID",
+        num_args = 1..,
+        action = clap::ArgAction::Append,
+    )]
+    pub(super) authors: Vec<Did>,
+
+    /// Show only issues that you have authored
+    #[arg(long)]
+    pub(super) authored: bool,
 }
 
 #[derive(Parser, Debug, Default)]
@@ -296,6 +324,8 @@ impl From<EmptyArgs> for ListArgs {
         Self {
             assigned: args.assigned,
             state: ListStateArgs::from(args.state),
+            authors: args.authors,
+            authored: args.authored,
         }
     }
 }
