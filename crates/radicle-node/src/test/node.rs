@@ -11,6 +11,10 @@ use std::{
 
 use crossbeam_channel as chan;
 
+use crate::node::NodeId;
+use crate::node::device::Device;
+use crate::storage::git::transport;
+use crate::{Runtime, runtime, runtime::Handle, service};
 use radicle::Storage;
 use radicle::cob;
 use radicle::cob::issue;
@@ -33,11 +37,6 @@ use radicle::profile::{Home, Profile, env};
 use radicle::rad;
 use radicle::storage::{ReadStorage as _, RemoteRepository as _, SignRepository as _};
 use radicle::test::fixtures;
-
-use crate::node::NodeId;
-use crate::node::device::Device;
-use crate::storage::git::transport;
-use crate::{Runtime, runtime, runtime::Handle, service};
 
 /// A node that can be run.
 pub struct Node<G> {
@@ -360,13 +359,10 @@ impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
     }
 
     /// Create an [`issue::Issue`] in the `NodeHandle`'s storage.
-    pub fn issue(&self, rid: RepoId, title: cob::Title, desc: &str) -> cob::ObjectId {
+    pub fn issue(&mut self, rid: RepoId, title: cob::Title, desc: &str) -> cob::ObjectId {
         let repo = self.storage.repository(rid).unwrap();
-        let mut issues = issue::Cache::no_cache(&repo).unwrap();
-        *issues
-            .create(title, desc, &[], &[], [], &self.signer)
-            .unwrap()
-            .id()
+        let mut issues = issue::Cache::no_cache(&repo, &self.signer).unwrap();
+        *issues.create(title, desc, &[], &[], []).unwrap().id()
     }
 
     /// Perform a commit to `refname` by generating a blob of random data to a

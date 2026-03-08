@@ -24,7 +24,6 @@ use crate::identity::{Did, PayloadError, doc};
 use crate::identity::{Doc, DocAt, DocError};
 use crate::identity::{Identity, RepoId};
 use crate::node::SyncedAt;
-use crate::node::device::Device;
 use crate::storage::git::NAMESPACES_GLOB;
 use crate::storage::refs::{FeatureLevel, Refs, SignedRefs};
 
@@ -697,16 +696,20 @@ pub trait WriteRepository: ReadRepository + SignRepository {
 /// Allows signing refs.
 pub trait SignRepository {
     /// Sign the repository's refs under the `refs/rad/sigrefs` branch.
-    fn sign_refs<G>(&self, signer: &Device<G>) -> Result<SignedRefs, RepositoryError>
+    fn sign_refs<Signer>(&self, signer: &Signer) -> Result<SignedRefs, RepositoryError>
     where
-        G: crypto::signature::Signer<crypto::Signature>;
+        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+        Signer: crypto::signature::Verifier<crypto::Signature>;
 
     /// Sign the repository's refs under the `refs/rad/sigrefs` branch, even if unchanged.
     ///
     /// Most users will prefer [`Self::sign_refs`].
-    fn force_sign_refs<G>(&self, signer: &Device<G>) -> Result<SignedRefs, RepositoryError>
+    fn force_sign_refs<Signer>(&self, signer: &Signer) -> Result<SignedRefs, RepositoryError>
     where
-        G: crypto::signature::Signer<crypto::Signature>;
+        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+        Signer: crypto::signature::Verifier<crypto::Signature>;
 }
 
 impl<T, S> ReadStorage for T

@@ -2,6 +2,7 @@ use std::{collections::HashSet, thread, time};
 
 use radicle::cob;
 use radicle::cob::Title;
+use radicle::cob::store::access::{ReadOnly, WriteAs};
 use radicle_crypto::test::signer::MockSigner;
 use test_log::test;
 
@@ -514,6 +515,7 @@ fn test_missing_remote() {
         .unwrap();
     assert!(result.is_success());
     log::debug!(target: "test", "Fetch complete with {}", bob.id);
+
     rad::fork_remote(acme, &alice.id, &carol, &bob.storage).unwrap();
 
     alice.issue(
@@ -935,7 +937,7 @@ fn test_non_fastforward_sigrefs() {
     let rid = bob.project("acme", "");
 
     let mut alice = alice.spawn();
-    let bob = bob.spawn();
+    let mut bob = bob.spawn();
     let mut eve = eve.spawn();
 
     alice.handle.seed(rid, Scope::All).unwrap();
@@ -1114,7 +1116,7 @@ fn test_outdated_sigrefs() {
         FetchResult::Success { .. }
     );
     let repo = alice.storage.repository(rid).unwrap();
-    let issues = issue::Issues::open(&repo).unwrap();
+    let issues = issue::Issues::open(&repo, WriteAs::new(&alice.signer)).unwrap();
     assert!(
         issues.get(&issue_id).unwrap().is_some(),
         "Alice did not fetch issue {issue_id}"
@@ -1348,12 +1350,14 @@ fn missing_delegate_default_branch() {
         .unwrap();
     assert!(bob.storage.contains(&rid).unwrap());
 
+    let bob_key = *bob.signer.public_key();
+
     // Helper to assert that Bob's default branch is not in storage
     let assert_bobs_default_is_missing = |repo: &Repository| {
         let doc = repo.identity_doc().unwrap();
         let project = doc.project().unwrap();
         let default_branch = repo.reference(
-            bob.signer.public_key(),
+            &bob_key,
             &radicle::git::refs::branch(project.default_branch()),
         );
         assert!(matches!(
@@ -1365,7 +1369,7 @@ fn missing_delegate_default_branch() {
     // Add Bob as a delegate to the identity document
     {
         let repo = alice.storage.repository(rid).unwrap();
-        let mut identity = Identity::load_mut(&repo).unwrap();
+        let mut identity = Identity::load_mut(&repo, &alice.signer).unwrap();
         let doc = repo
             .identity_doc()
             .unwrap()
@@ -1375,7 +1379,7 @@ fn missing_delegate_default_branch() {
             })
             .unwrap();
         let rev = identity
-            .update(Title::new("Add Bob").unwrap(), "", &doc, &alice.signer)
+            .update(Title::new("Add Bob").unwrap(), "", &doc)
             .unwrap();
         repo.set_identity_head_to(rev).unwrap();
 
@@ -1735,6 +1739,7 @@ fn test_non_fastforward_identity_doc() {
         .handle
         .fetch(rid, alice.id, DEFAULT_TIMEOUT, None)
         .unwrap();
+
     // Alice pushes new references to her laptop
     let issue = alice_laptop.issue(
         rid,
@@ -1752,7 +1757,7 @@ fn test_non_fastforward_identity_doc() {
     // Alice updates the identity of the document to include her laptop
     let (prev, next) = {
         let repo = alice.storage.repository(rid).unwrap();
-        let mut identity = Identity::load_mut(&repo).unwrap();
+        let mut identity = Identity::load_mut(&repo, &alice.signer).unwrap();
         let prev = identity.current;
         let doc = repo
             .identity_doc()
@@ -1761,7 +1766,7 @@ fn test_non_fastforward_identity_doc() {
             .with_edits(|raw| raw.delegate(alice_laptop.id.into()))
             .unwrap();
         let rev = identity
-            .update(Title::new("Add Laptop").unwrap(), "", &doc, &alice.signer)
+            .update(Title::new("Add Laptop").unwrap(), "", &doc)
             .unwrap();
         repo.set_identity_head_to(rev).unwrap();
         (prev, rev)
@@ -1780,7 +1785,7 @@ fn test_non_fastforward_identity_doc() {
     assert!(matches!(result, FetchResult::Success { .. }));
     assert!(!has_issue(&bob, &issue));
     let repo = bob.storage.repository(rid).unwrap();
-    let identity = Identity::load_mut(&repo).unwrap();
+    let identity = Identity::load_mut(&repo, &bob.signer).unwrap();
     assert_eq!(identity.current, next);
     assert_eq!(identity.parent, Some(prev));
 
@@ -1793,7 +1798,7 @@ fn test_non_fastforward_identity_doc() {
     assert!(matches!(result, FetchResult::Success { .. }));
     assert!(has_issue(&bob, &issue));
     let repo = bob.storage.repository(rid).unwrap();
-    let identity = Identity::load_mut(&repo).unwrap();
+    let identity = Identity::load_mut(&repo, &bob.signer).unwrap();
     assert_eq!(identity.current, next);
     assert_eq!(identity.parent, Some(prev));
 }
@@ -1917,7 +1922,7 @@ fn fetch_does_not_contain_rad_sigrefs_parent() {
         FetchResult::Success { .. }
     );
     let repo = bob.storage.repository(rid).unwrap();
-    let issues = issue::Issues::open(&repo).unwrap();
+    let issues = issue::Issues::open(&repo, ReadOnly).unwrap();
     assert!(
         issues.get(&issue_id).unwrap().is_some(),
         "Bob did not fetch issue {issue_id}"

@@ -134,7 +134,6 @@ impl Default for Config<MockSigner> {
 impl<G: crypto::signature::Signer<crypto::Signature>> Peer<Storage, G> {
     pub fn project(&mut self, name: &str, description: &str) -> RepoId {
         radicle::storage::git::transport::local::register(self.storage().clone());
-
         let (repo, _) = fixtures::repository(self.tempdir.path().join(name));
         let (rid, _, _) = rad::init(
             &repo,

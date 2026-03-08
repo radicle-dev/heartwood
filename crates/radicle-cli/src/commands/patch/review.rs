@@ -69,7 +69,7 @@ pub fn run(
         "couldn't load repository {} from local state",
         repository.id
     ))?;
-    let mut patches = term::cob::patches_mut(profile, repository)?;
+    let mut patches = term::cob::patches_mut(profile, repository, &signer)?;
     let mut patch = patches
         .get_mut(&patch_id)
         .context(format!("couldn't find patch {patch_id} locally"))?;
@@ -111,7 +111,7 @@ pub fn run(
             } else {
                 Some(message)
             };
-            patch.review(revision_id, verdict, message, vec![], &signer)?;
+            patch.review(revision_id, verdict, message, vec![])?;
 
             match verdict {
                 Some(Verdict::Accept) => {

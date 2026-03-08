@@ -11,11 +11,13 @@ use serde::{Deserialize, Serialize};
 use crate::cob::op::Op;
 use crate::cob::{Create, Embed, EntryId, ObjectId, TypeName, Update, Updated, Uri, Version};
 use crate::git;
-use crate::node::device::Device;
 use crate::prelude::*;
-use crate::storage::SignRepository;
 use crate::storage::git as storage;
+use crate::storage::{HasRepoId, SignRepository};
 use crate::{cob, identity};
+
+pub mod access;
+use access::WriteAs;
 
 pub trait CobAction {
     /// Parent objects this action depends on. For example, patch revisions
@@ -135,94 +137,147 @@ pub enum Error {
     ClashingIdentifiers(String, String),
 }
 
-/// Storage for collaborative objects of a specific type `T` in a single repository.
-pub struct Store<'a, T, R> {
-    identity: Option<git::Oid>,
-    repo: &'a R,
+/// The [`Scope`] of a [`Store`] keeps track of what collaborative object is
+/// being accessed.
+///
+/// For example, a `Scope<Patch>` keeps track of `Patch` access.
+///
+/// The type parameter `T` is the collaborative object type.
+pub struct Scope<'a, T> {
     witness: PhantomData<T>,
     type_name: &'a TypeName,
 }
 
-impl<T, R> AsRef<R> for Store<'_, T, R> {
-    fn as_ref(&self) -> &R {
-        self.repo
-    }
-}
-
-impl<'a, T, R> Store<'a, T, R>
-where
-    R: ReadRepository + cob::Store,
-{
-    /// Open a new generic store.
-    pub fn open_for(type_name: &'a TypeName, repo: &'a R) -> Result<Self, Error> {
-        Ok(Self {
-            repo,
-            identity: None,
-            witness: PhantomData,
-            type_name,
-        })
-    }
-
-    /// Return a new store with the attached identity.
-    pub fn identity(self, identity: git::Oid) -> Self {
+impl<'a, T: CobWithType> Scope<'a, T> {
+    fn new() -> Self {
         Self {
-            repo: self.repo,
-            witness: self.witness,
-            identity: Some(identity),
-            type_name: self.type_name,
+            witness: PhantomData,
+            type_name: T::type_name(),
         }
     }
 }
 
-impl<'a, T, R> Store<'a, T, R>
+/// Storage for collaborative objects of a specific type `T` in a single repository.
+pub struct Store<'a, T, Repo, Access> {
+    identity: Option<git::Oid>,
+    repo: &'a Repo,
+    scope: Scope<'a, T>,
+    access: Access,
+}
+
+impl<T, Repo, Access> HasRepoId for Store<'_, T, Repo, Access>
 where
-    R: ReadRepository + cob::Store<Namespace = NodeId>,
-    T: CobWithType,
+    Repo: HasRepoId,
 {
-    /// Open a new generic store.
-    pub fn open(repo: &'a R) -> Result<Self, Error> {
+    fn rid(&self) -> RepoId {
+        self.repo.rid()
+    }
+}
+
+impl<T, Repo, Access> AsRef<Repo> for Store<'_, T, Repo, Access> {
+    fn as_ref(&self) -> &Repo {
+        self.repo
+    }
+}
+
+impl<'a, T, Repo, Access> Store<'a, T, Repo, Access>
+where
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
+    Access: access::Access,
+{
+    pub fn open_for(
+        type_name: &'a TypeName,
+        repo: &'a Repo,
+        access: Access,
+    ) -> Result<Self, Error> {
         Ok(Self {
             repo,
             identity: None,
-            witness: PhantomData,
-            type_name: T::type_name(),
+            scope: Scope {
+                witness: PhantomData,
+                type_name,
+            },
+            access,
         })
     }
 }
 
-impl<T, R> Store<'_, T, R>
+impl<'a, T, Repo, Access> Store<'a, T, Repo, Access>
 where
-    R: ReadRepository + cob::Store<Namespace = NodeId>,
-    T: Cob + cob::Evaluate<R>,
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
+    Access: access::Access,
 {
+    /// Return a new store with the attached identity.
+    pub fn identity(self, identity: git::Oid) -> Self {
+        Self {
+            repo: self.repo,
+            identity: Some(identity),
+            scope: self.scope,
+            access: self.access,
+        }
+    }
+}
+
+impl<'a, T, Repo, Access> Store<'a, T, Repo, Access>
+where
+    T: CobWithType,
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
+    Access: access::Access,
+{
+    /// Open a new generic store.
+    pub fn open(repo: &'a Repo, access: Access) -> Result<Self, Error> {
+        Ok(Self {
+            repo,
+            identity: None,
+            scope: Scope::new(),
+            access,
+        })
+    }
+}
+
+impl<'a, 'b, T, Repo, Signer> Store<'a, T, Repo, WriteAs<'b, Signer>>
+where
+    T: Cob + cob::Evaluate<Repo>,
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
+{
+    #[deprecated(note = "only exists to accommodate signatures crate::cob::identity")]
+    pub(super) fn signer(&self) -> &Signer {
+        self.access.signer
+    }
+
+    #[deprecated(note = "only exists to accommodate signatures crate::cob::identity")]
+    pub(super) fn repo(&self) -> &Repo {
+        self.repo
+    }
+
     pub fn transaction(
         &self,
         actions: Vec<T::Action>,
         embeds: Vec<Embed<Uri>>,
-    ) -> Transaction<T, R> {
-        Transaction::new(self.type_name.clone(), actions, embeds)
+    ) -> Transaction<T, Repo> {
+        Transaction::new(self.scope.type_name.clone(), actions, embeds)
     }
 }
 
-impl<T, R> Store<'_, T, R>
+impl<'a, 'b, T, Repo, Signer> Store<'a, T, Repo, WriteAs<'b, Signer>>
 where
-    R: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
-    T: Cob + cob::Evaluate<R>,
+    T: Cob + cob::Evaluate<Repo>,
     T::Action: Serialize,
+    Repo: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
+    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+    Signer: crypto::signature::Verifier<crypto::Signature>,
 {
     /// Update an object.
-    pub fn update<G>(
-        &self,
+    pub fn update(
+        &mut self,
         type_name: &TypeName,
         object_id: ObjectId,
         message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
         embeds: Vec<Embed<Uri>>,
-        signer: &Device<G>,
-    ) -> Result<Updated<T>, Error>
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
+    ) -> Result<Updated<T>, Error> {
         let actions = actions.into();
         let related = actions.iter().flat_map(T::Action::parents).collect();
         let changes = actions.try_map(encoding::encode)?;
@@ -235,12 +290,13 @@ where
                 })
             })
             .collect::<Result<_, _>>()?;
+        let namespace = self.access.signer.verifying_key();
         let updated = cob::update(
             self.repo,
-            signer,
+            self.access.signer,
             self.identity,
             related,
-            signer.public_key(),
+            &namespace,
             Update {
                 object_id,
                 type_name: type_name.clone(),
@@ -250,23 +306,19 @@ where
             },
         )?;
         self.repo
-            .sign_refs(signer)
+            .sign_refs(self.access.signer)
             .map_err(|e| Error::SignRefs(Box::new(e)))?;
 
         Ok(updated)
     }
 
     /// Create an object.
-    pub fn create<G>(
-        &self,
+    pub fn create(
+        &mut self,
         message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
         embeds: Vec<Embed<Uri>>,
-        signer: &Device<G>,
-    ) -> Result<(ObjectId, T), Error>
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
+    ) -> Result<(ObjectId, T), Error> {
         let actions = actions.into();
         let parents = actions.iter().flat_map(T::Action::parents).collect();
         let contents = actions.try_map(encoding::encode)?;
@@ -279,14 +331,15 @@ where
                 })
             })
             .collect::<Result<_, _>>()?;
+        let namespace = self.access.signer.verifying_key();
         let cob = cob::create::<T, _, _>(
             self.repo,
-            signer,
+            self.access.signer,
             self.identity,
             parents,
-            signer.public_key(),
+            &namespace,
             Create {
-                type_name: self.type_name.clone(),
+                type_name: self.scope.type_name.clone(),
                 version: Version::default(),
                 message: message.to_owned(),
                 embeds,
@@ -296,28 +349,23 @@ where
         // Nb. We can't sign our refs before the identity refs exist, which are created after
         // the identity COB is created. Therefore we manually sign refs when creating identity
         // COBs.
-        if self.type_name != &*crate::cob::identity::TYPENAME {
+        if self.scope.type_name != &*crate::cob::identity::TYPENAME {
             self.repo
-                .sign_refs(signer)
+                .sign_refs(self.access.signer)
                 .map_err(|e| Error::SignRefs(Box::new(e)))?;
         }
         Ok((*cob.id(), cob.object))
     }
 
     /// Remove an object.
-    pub fn remove<G>(&self, id: &ObjectId, signer: &Device<G>) -> Result<(), Error>
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
-        let name = git::refs::storage::cob(signer.public_key(), self.type_name, id);
-        match self
-            .repo
-            .reference_oid(signer.public_key(), &name.strip_namespace())
-        {
+    pub fn remove(&mut self, id: &ObjectId) -> Result<(), Error> {
+        let namespace = self.access.signer.verifying_key();
+        let name = git::refs::storage::cob(&namespace, self.scope.type_name, id);
+        match self.repo.reference_oid(&namespace, &name.strip_namespace()) {
             Ok(_) => {
-                cob::remove(self.repo, signer.public_key(), self.type_name, id)?;
+                cob::remove(self.repo, &namespace, self.scope.type_name, id)?;
                 self.repo
-                    .sign_refs(signer)
+                    .sign_refs(self.access.signer)
                     .map_err(|e| Error::SignRefs(Box::new(e)))?;
                 Ok(())
             }
@@ -330,15 +378,16 @@ where
     }
 }
 
-impl<'a, T, R> Store<'a, T, R>
+impl<'a, T, Repo, Access> Store<'a, T, Repo, Access>
 where
-    R: ReadRepository + cob::Store,
-    T: Cob + cob::Evaluate<R> + 'a,
+    T: Cob + cob::Evaluate<Repo> + 'a,
     T::Action: Serialize,
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
+    Access: access::Access,
 {
     /// Get an object.
     pub fn get(&self, id: &ObjectId) -> Result<Option<T>, Error> {
-        cob::get::<T, _>(self.repo, self.type_name, id)
+        cob::get::<T, _>(self.repo, self.scope.type_name, id)
             .map(|r| r.map(|cob| cob.object))
             .map_err(Error::from)
     }
@@ -346,9 +395,11 @@ where
     /// Return all objects.
     pub fn all(
         &self,
-    ) -> Result<impl ExactSizeIterator<Item = Result<(ObjectId, T), Error>> + use<'a, T, R>, Error>
-    {
-        let raw = cob::list::<T, _>(self.repo, self.type_name)?;
+    ) -> Result<
+        impl ExactSizeIterator<Item = Result<(ObjectId, T), Error>> + use<'a, T, Repo, Access>,
+        Error,
+    > {
+        let raw = cob::list::<T, _>(self.repo, self.scope.type_name)?;
 
         Ok(raw.into_iter().map(|o| Ok((*o.id(), o.object))))
     }
@@ -360,7 +411,7 @@ where
 
     /// Return objects count.
     pub fn count(&self) -> Result<usize, Error> {
-        let raw = cob::list::<T, _>(self.repo, self.type_name)?;
+        let raw = cob::list::<T, _>(self.repo, self.scope.type_name)?;
 
         Ok(raw.len())
     }
@@ -408,26 +459,33 @@ where
             type_name,
         }
     }
+
+    #[deprecated(note = "only exists to accommodate signatures crate::cob::identity")]
+    pub(super) fn into_inner(self) -> (Vec<T::Action>, Vec<Embed<Uri>>) {
+        (self.actions, self.embeds)
+    }
 }
 
-impl<T, R> Transaction<T, R>
+impl<T, Repo> Transaction<T, Repo>
 where
-    T: Cob + CobWithType + cob::Evaluate<R>,
+    T: Cob + CobWithType + cob::Evaluate<Repo>,
 {
     /// Create a new transaction to be used as the initial set of operations for a COB.
-    pub fn initial<G, F, Tx>(
+    pub fn initial<'a, 'b, Signer, Tx, F>(
         message: &str,
-        store: &mut Store<T, R>,
-        signer: &Device<G>,
+        store: &mut Store<'a, T, Repo, WriteAs<'b, Signer>>,
         operations: F,
     ) -> Result<(ObjectId, T), Error>
     where
+        T::Action: Serialize + Clone,
+        Repo: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
+        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+        Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+        Signer: crypto::signature::Verifier<crypto::Signature>,
         Tx: From<Self>,
         Self: From<Tx>,
-        G: crypto::signature::Signer<crypto::Signature>,
-        F: FnOnce(&mut Tx, &R) -> Result<(), Error>,
-        R: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
-        T::Action: Serialize + Clone,
+        F: FnOnce(&mut Tx, &Repo) -> Result<(), Error>,
     {
         let mut tx = Tx::from(Transaction::default());
         operations(&mut tx, store.as_ref())?;
@@ -436,13 +494,13 @@ where
         let actions = NonEmpty::from_vec(tx.actions)
             .expect("Transaction::initial: transaction must contain at least one action");
 
-        store.create(message, actions, tx.embeds, signer)
+        store.create(message, actions, tx.embeds)
     }
 }
 
-impl<T, R> Transaction<T, R>
+impl<T, Repo> Transaction<T, Repo>
 where
-    T: Cob + cob::Evaluate<R>,
+    T: Cob + cob::Evaluate<Repo>,
 {
     /// Add an action to this transaction.
     pub fn push(&mut self, action: T::Action) -> Result<(), Error> {
@@ -482,25 +540,28 @@ where
     /// Commit transaction.
     ///
     /// Returns an operation that can be applied onto an in-memory state.
-    pub fn commit<G>(
+    pub fn commit<'a, Signer>(
         self,
         msg: &str,
         id: ObjectId,
-        store: &mut Store<T, R>,
-        signer: &Device<G>,
+        store: &mut Store<T, Repo, WriteAs<'a, Signer>>,
     ) -> Result<(T, EntryId), Error>
     where
-        R: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
         T::Action: Serialize + Clone,
-        G: crypto::signature::Signer<crypto::Signature>,
+        Repo: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
+        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+        Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+        Signer: crypto::signature::Verifier<crypto::Signature>,
     {
         let actions = NonEmpty::from_vec(self.actions)
             .expect("Transaction::commit: transaction must not be empty");
+
         let Updated {
             head,
             object: CollaborativeObject { object, .. },
             ..
-        } = store.update(&self.type_name, id, msg, actions, self.embeds, signer)?;
+        } = store.update(&self.type_name, id, msg, actions, self.embeds)?;
 
         Ok((object, head))
     }

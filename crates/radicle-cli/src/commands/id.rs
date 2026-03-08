@@ -9,7 +9,6 @@ use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
 use radicle::identity::doc::update;
 use radicle::identity::{Doc, Identity, RawDoc, doc};
 use radicle::node::NodeId;
-use radicle::node::device::Device;
 use radicle::storage::{ReadStorage as _, WriteRepository};
 use radicle::{Profile, cob, crypto};
 use radicle_surf::diff::Diff;
@@ -37,7 +36,9 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let repo = storage
         .repository(rid)
         .context(anyhow!("repository `{rid}` not found in local storage"))?;
-    let mut identity = Identity::load_mut(&repo)?;
+
+    let device = profile.signer()?;
+    let mut identity = Identity::load_mut(&repo, &device)?;
     let current = identity.current().clone();
 
     let interactive = args.interactive();
@@ -47,14 +48,13 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         Command::Accept { revision } => {
             let revision = get(revision, &identity, &repo)?.clone();
             let id = revision.id;
-            let signer = term::signer(&profile)?;
 
             if !revision.is_active() {
                 anyhow::bail!("cannot vote on revision that is {}", revision.state);
             }
 
             if interactive.confirm(format!("Accept revision {}?", term::format::tertiary(id))) {
-                identity.accept(&revision.id, &signer)?;
+                identity.accept(&revision.id)?;
 
                 if let Some(revision) = identity.revision(&id) {
                     // Update the canonical head to point to the latest accepted revision.
@@ -72,7 +72,6 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Command::Reject { revision } => {
             let revision = get(revision, &identity, &repo)?.clone();
-            let signer = term::signer(&profile)?;
 
             if !revision.is_active() {
                 anyhow::bail!("cannot vote on revision that is {}", revision.state);
@@ -82,7 +81,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 "Reject revision {}?",
                 term::format::tertiary(revision.id)
             )) {
-                identity.reject(revision.id, &signer)?;
+                identity.reject(revision.id)?;
 
                 if !args.quiet {
                     term::success!("Revision {} rejected", revision.id);
@@ -96,7 +95,6 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             description,
         } => {
             let revision = get(revision, &identity, &repo)?.clone();
-            let signer = term::signer(&profile)?;
 
             if !revision.is_active() {
                 anyhow::bail!("revision can no longer be edited");
@@ -104,7 +102,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             let Some((title, description)) = edit_title_description(title, description)? else {
                 anyhow::bail!("revision title or description missing");
             };
-            identity.edit(revision.id, title, description, &signer)?;
+            identity.edit(revision.id, title, description)?;
 
             if !args.quiet {
                 term::success!("Revision {} edited", revision.id);
@@ -193,15 +191,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
                 return Ok(());
             }
-            let signer = term::signer(&profile)?;
-            let revision = update(
-                title,
-                description,
-                proposal,
-                &mut identity,
-                &signer,
-                &profile,
-            )?;
+            let revision = update(title, description, proposal, &mut identity, &profile)?;
 
             if revision.is_accepted() && revision.parent == Some(current.id) {
                 // Update the canonical head to point to the latest accepted revision.
@@ -253,7 +243,6 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Command::Redact { revision } => {
             let revision = get(revision, &identity, &repo)?.clone();
-            let signer = term::signer(&profile)?;
 
             if revision.is_accepted() {
                 anyhow::bail!("cannot redact accepted revision");
@@ -262,7 +251,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 "Redact revision {}?",
                 term::format::tertiary(revision.id)
             )) {
-                identity.redact(revision.id, &signer)?;
+                identity.redact(revision.id)?;
 
                 if !args.quiet {
                     term::success!("Revision {} redacted", revision.id);
@@ -422,21 +411,23 @@ and description.
     Ok(result)
 }
 
-fn update<R, G>(
+fn update<Repo, Signer>(
     title: Option<Title>,
     description: Option<String>,
     doc: Doc,
-    current: &mut IdentityMut<R>,
-    signer: &Device<G>,
+    current: &mut IdentityMut<Repo, Signer>,
     profile: &Profile,
 ) -> anyhow::Result<Revision>
 where
-    R: WriteRepository + cob::Store<Namespace = NodeId>,
-    G: crypto::signature::Signer<crypto::Signature>,
+    Repo: WriteRepository + cob::Store<Namespace = NodeId>,
+    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+    Signer: crypto::signature::Verifier<crypto::Signature>,
 {
     if let Some((title, description)) = edit_title_description(title, description)? {
         let id = current
-            .update(title, description, &doc, signer)
+            .update(title, description, &doc)
             .map_err(|e| on_identity_err(e, profile))?;
         let revision = current
             .revision(&id)

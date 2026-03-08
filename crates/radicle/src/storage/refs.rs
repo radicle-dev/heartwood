@@ -499,6 +499,7 @@ mod tests {
 
     use super::*;
     use crate::assert_matches;
+
     use crate::node::device::Device;
     use crate::storage::WriteRepository as _;
     use crate::{Storage, cob::Title, cob::identity::Identity, rad, test::fixtures};
@@ -574,14 +575,14 @@ mod tests {
                 })
                 .unwrap();
 
-            let mut paris_ident = Identity::load_mut(&paris).unwrap();
-            let mut london_ident = Identity::load_mut(&london).unwrap();
+            let mut paris_ident = Identity::load_mut(&paris, &alice).unwrap();
+            let mut london_ident = Identity::load_mut(&london, &alice).unwrap();
 
             paris_ident
-                .update(Title::new("Add Bob").unwrap(), "", &paris_doc, &alice)
+                .update(Title::new("Add Bob").unwrap(), "", &paris_doc)
                 .unwrap();
             london_ident
-                .update(Title::new("Add Bob").unwrap(), "", &london_doc, &alice)
+                .update(Title::new("Add Bob").unwrap(), "", &london_doc)
                 .unwrap();
         }
 

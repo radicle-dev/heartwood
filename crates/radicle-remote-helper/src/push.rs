@@ -8,9 +8,9 @@ use std::process::ExitStatus;
 use std::str::FromStr;
 use std::{assert_eq, io};
 
+use radicle::cob::store::access::WriteAs;
 use radicle::identity::crefs::GetCanonicalRefs as _;
 use radicle::identity::doc::CanonicalRefsError;
-use radicle::node::device::Device;
 use thiserror::Error;
 
 use radicle::Profile;
@@ -321,7 +321,8 @@ pub(super) fn run(
                     .map_err(Error::from)
             }
             Command::Push(git::fmt::refspec::Refspec { src, dst, force }) => {
-                let patches = crate::patches_mut(profile, stored)?;
+                let signer = profile.signer()?;
+                let patches = crate::patches_mut(profile, stored, &signer)?;
                 let action = PushAction::new(dst)?;
 
                 match action {
@@ -332,7 +333,6 @@ pub(super) fn run(
                         &working,
                         stored,
                         patches,
-                        &signer,
                         profile,
                         opts.clone(),
                         git,
@@ -560,24 +560,28 @@ impl<'a, G> Drop for TempPatchRef<'a, G> {
 }
 
 /// Open a new patch.
-fn patch_open<G, S>(
+fn patch_open<S, Signer>(
     head: &git::Oid,
     upstream: &Option<git::fmt::RefString>,
     nid: &NodeId,
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
     mut patches: patch::Cache<
-        patch::Patches<'_, storage::git::Repository>,
+        '_,
+        storage::git::Repository,
+        WriteAs<'_, Signer>,
         cob::cache::StoreWriter,
     >,
-    signer: &Device<G>,
     profile: &Profile,
     opts: Options,
     git: &S,
 ) -> Result<Option<ExplorerResource>, Error>
 where
-    G: crypto::signature::Signer<crypto::Signature>,
     S: GitService,
+    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+    Signer: crypto::signature::Verifier<crypto::Signature>,
 {
     let temp = TempPatchRef::new(stored, head, nid, git);
     temp.push(head, opts.verbosity)?;
@@ -601,7 +605,6 @@ where
             base,
             *head,
             &[],
-            signer,
         )
     } else {
         patches.create(
@@ -611,7 +614,6 @@ where
             base,
             *head,
             &[],
-            signer,
         )
     }?;
 
@@ -698,7 +700,7 @@ where
 
 /// Update an existing patch.
 #[allow(clippy::too_many_arguments)]
-fn patch_update<G, S>(
+fn patch_update<S, Signer>(
     head: &git::Oid,
     dst: &git::fmt::Qualified,
     force: bool,
@@ -707,17 +709,22 @@ fn patch_update<G, S>(
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
     mut patches: patch::Cache<
-        patch::Patches<'_, storage::git::Repository>,
+        '_,
+        storage::git::Repository,
+        WriteAs<'_, Signer>,
         cob::cache::StoreWriter,
     >,
-    signer: &Device<G>,
+    signer: &Signer,
     opts: Options,
     expected_refs: &[String],
     git: &S,
 ) -> Result<Option<ExplorerResource>, Error>
 where
-    G: crypto::signature::Signer<crypto::Signature>,
     S: GitService,
+    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+    Signer: crypto::signature::Verifier<crypto::Signature>,
 {
     let Ok(Some(patch)) = patches.get(&patch_id) else {
         return Err(Error::NotFound(patch_id));
@@ -754,7 +761,7 @@ where
     )?;
 
     let mut patch_mut = patch::PatchMut::new(patch_id, patch, &mut patches);
-    let revision = patch_mut.update(message, base, *head, signer)?;
+    let revision = patch_mut.update(message, base, *head)?;
     let Some(revision) = patch_mut.revision(&revision).cloned() else {
         return Err(Error::RevisionNotFound(revision));
     };
@@ -787,7 +794,7 @@ where
     Ok(Some(ExplorerResource::Patch { id: patch_id }))
 }
 
-fn push<G, S>(
+fn push<S, Signer>(
     src: &git::Oid,
     dst: &git::fmt::Qualified,
     force: bool,
@@ -795,17 +802,22 @@ fn push<G, S>(
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
     mut patches: patch::Cache<
-        patch::Patches<'_, storage::git::Repository>,
+        '_,
+        storage::git::Repository,
+        WriteAs<'_, Signer>,
         cob::cache::StoreWriter,
     >,
-    signer: &Device<G>,
+    signer: &Signer,
     verbosity: Verbosity,
     expected_refs: &[String],
     git: &S,
 ) -> Result<Option<ExplorerResource>, Error>
 where
-    G: crypto::signature::Signer<crypto::Signature>,
     S: GitService,
+    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+    Signer: crypto::signature::Verifier<crypto::Signature>,
 {
     let head = *src;
     let dst = dst.with_namespace(nid.into());
@@ -832,7 +844,7 @@ where
             let old = old.peel_to_commit()?.id();
             // Only delegates affect the merge state of the COB.
             if stored.delegates()?.contains(&nid.into()) {
-                patch_revert_all(old.into(), head, &stored.backend, &mut patches, signer)?;
+                patch_revert_all(old.into(), head, &stored.backend, &mut patches)?;
                 patch_merge_all(old.into(), head, working, &mut patches, signer)?;
             }
         }
@@ -841,18 +853,20 @@ where
 }
 
 /// Revert all patches that are no longer included in the base branch.
-fn patch_revert_all<G>(
+fn patch_revert_all<Signer>(
     old: git::Oid,
     new: git::Oid,
     stored: &git::raw::Repository,
     patches: &mut patch::Cache<
-        patch::Patches<'_, storage::git::Repository>,
+        '_,
+        storage::git::Repository,
+        WriteAs<'_, Signer>,
         cob::cache::StoreWriter,
     >,
-    _signer: &Device<G>,
 ) -> Result<(), Error>
 where
-    G: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
 {
     // Find all commits reachable from the old OID but not from the new OID.
     let mut revwalk = stored.revwalk()?;
@@ -906,18 +920,23 @@ where
 }
 
 /// Merge all patches that have been included in the base branch.
-fn patch_merge_all<G>(
+fn patch_merge_all<Signer>(
     old: git::Oid,
     new: git::Oid,
     working: &git::raw::Repository,
     patches: &mut patch::Cache<
-        patch::Patches<'_, storage::git::Repository>,
+        '_,
+        storage::git::Repository,
+        WriteAs<'_, Signer>,
         cob::cache::StoreWriter,
     >,
-    signer: &Device<G>,
+    signer: &Signer,
 ) -> Result<(), Error>
 where
-    G: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+    Signer: crypto::signature::Verifier<crypto::Signature>,
 {
     let mut revwalk = working.revwalk()?;
     revwalk.push_range(&format!("{old}..{new}"))?;
@@ -959,19 +978,22 @@ where
     Ok(())
 }
 
-fn patch_merge<C, G>(
-    mut patch: patch::PatchMut<storage::git::Repository, C>,
+fn patch_merge<Signer, C>(
+    mut patch: patch::PatchMut<'_, '_, '_, storage::git::Repository, Signer, C>,
     revision: patch::RevisionId,
     commit: git::Oid,
     working: &git::raw::Repository,
-    signer: &Device<G>,
+    signer: &Signer,
 ) -> Result<(), Error>
 where
+    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+    Signer: crypto::signature::Verifier<crypto::Signature>,
     C: cob::cache::Update<patch::Patch>,
-    G: crypto::signature::Signer<crypto::Signature>,
 {
     let (latest, _) = patch.latest();
-    let merged = patch.merge(revision, commit, signer)?;
+    let merged = patch.merge(revision, commit)?;
 
     if revision == latest {
         eprintln!(

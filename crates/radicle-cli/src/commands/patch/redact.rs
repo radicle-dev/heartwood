@@ -13,7 +13,7 @@ pub fn run(
     repository: &Repository,
 ) -> anyhow::Result<()> {
     let signer = &term::signer(profile)?;
-    let mut patches = term::cob::patches_mut(profile, repository)?;
+    let mut patches = term::cob::patches_mut(profile, repository, signer)?;
 
     let revision_id = revision_id.resolve::<Oid>(&repository.backend)?;
     let patch::ByRevision {
@@ -27,7 +27,7 @@ pub fn run(
         anyhow::bail!("Patch `{patch_id}` not found");
     };
 
-    patch.redact(revision_id, signer)?;
+    patch.redact(revision_id)?;
 
     Ok(())
 }

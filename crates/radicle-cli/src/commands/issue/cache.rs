@@ -1,6 +1,7 @@
 use std::ops::ControlFlow;
 
 use radicle::Profile;
+use radicle::cob::store::access::ReadOnly;
 use radicle::issue::IssueId;
 use radicle::storage::ReadStorage as _;
 use radicle::storage::git::Repository;
@@ -37,7 +38,18 @@ pub fn run(mode: CacheMode, profile: &Profile) -> anyhow::Result<()> {
 }
 
 fn cache(id: Option<IssueId>, repository: &Repository, profile: &Profile) -> anyhow::Result<()> {
-    let mut issues = term::cob::issues_mut(profile, repository)?;
+    let mut issues = {
+        // NOTE: Since we require a cache that is writeable, on top of a store that
+        // is read-only, we can neither use [`term::cob::issues_mut`] nor [`term::cob::issues`]
+        // since these convenience functions pair a writeable cache with a writeable
+        // store, and respectively a read-only cache with a read-only store.
+
+        let db = profile.cobs_db_mut()?;
+        db.check_version()?;
+        let store = radicle::cob::issue::Issues::open(repository, ReadOnly)?;
+
+        radicle::cob::issue::Cache::open(store, db)
+    };
 
     match id {
         Some(id) => {

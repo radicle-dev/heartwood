@@ -24,7 +24,7 @@ pub fn run(
     profile: &Profile,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
-    let mut patches = term::cob::patches_mut(profile, repo)?;
+    let mut patches = term::cob::patches_mut(profile, repo, &signer)?;
 
     let revision_id = revision_id.resolve::<cob::EntryId>(&repo.backend)?;
     let ByRevision {
@@ -37,7 +37,7 @@ pub fn run(
         .ok_or_else(|| anyhow!("Patch revision `{revision_id}` not found"))?;
     let mut patch = patch::PatchMut::new(patch_id, patch, &mut patches);
     let (body, reply_to) = prompt(message, reply_to, &revision, repo)?;
-    let comment_id = patch.comment(revision_id, body, reply_to, None, vec![], &signer)?;
+    let comment_id = patch.comment(revision_id, body, reply_to, None, vec![])?;
     let comment = patch
         .revision(&revision_id)
         .ok_or(anyhow!("error retrieving revision `{revision_id}`"))?

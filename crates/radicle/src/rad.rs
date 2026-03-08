@@ -76,6 +76,7 @@ where
         )
     })?;
     let doc = identity::Doc::initial(proj, delegate, visibility);
+
     let (project, identity) = Repository::init(&doc, &storage, signer)?;
     let url = git::Url::from(project.id);
 

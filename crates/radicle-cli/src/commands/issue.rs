@@ -6,13 +6,13 @@ use anyhow::Context as _;
 
 use radicle::cob::common::Label;
 use radicle::cob::issue::{CloseReason, State};
+use radicle::cob::store::access::WriteAs;
 use radicle::cob::{Title, issue};
 
 use radicle::Profile;
 use radicle::crypto;
 use radicle::issue::cache::Issues as _;
 use radicle::node::NodeId;
-use radicle::node::device::Device;
 use radicle::prelude::Did;
 use radicle::profile;
 use radicle::storage;
@@ -48,7 +48,8 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         .unwrap_or_else(|| Command::List(args.empty.into()));
 
     let announce = !args.no_announce && command.should_announce_for();
-    let mut issues = term::cob::issues_mut(&profile, &repo)?;
+    let signer = profile.signer()?;
+    let mut issues = term::cob::issues_mut(&profile, &repo, &signer)?;
 
     match command {
         Command::Edit {
@@ -56,8 +57,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             title,
             description,
         } => {
-            let signer = term::signer(&profile)?;
-            let issue = edit(&mut issues, &repo, id, title, description, &signer)?;
+            let issue = edit(&mut issues, &repo, id, title, description)?;
             if !args.quiet {
                 term::issue::show(&issue, issue.id(), Format::Header, args.verbose, &profile)?;
             }
@@ -68,7 +68,6 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             labels,
             assignees,
         } => {
-            let signer = term::signer(&profile)?;
             open(
                 title,
                 description,
@@ -77,7 +76,6 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 args.verbose,
                 args.quiet,
                 &mut issues,
-                &signer,
                 &profile,
             )?;
         }
@@ -131,10 +129,9 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         Command::State { id, target_state } => {
             let to: StateArg = target_state.into();
             let id = id.resolve(&repo.backend)?;
-            let signer = term::signer(&profile)?;
             let mut issue = issues.get_mut(&id)?;
             let state = to.into();
-            issue.lifecycle(state, &signer)?;
+            issue.lifecycle(state)?;
 
             if !args.quiet {
                 let success =
@@ -155,7 +152,6 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         } => {
             let id = id.resolve(&repo.backend)?;
             if let Ok(mut issue) = issues.get_mut(&id) {
-                let signer = term::signer(&profile)?;
                 let comment_id = match comment_id {
                     Some(cid) => cid.resolve(&repo.backend)?,
                     None => *term::io::comment_select(&issue).map(|(cid, _)| cid)?,
@@ -164,11 +160,10 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     Some(reaction) => reaction,
                     None => term::io::reaction_select()?,
                 };
-                issue.react(comment_id, reaction, true, &signer)?;
+                issue.react(comment_id, reaction, true)?;
             }
         }
         Command::Assign { id, add, delete } => {
-            let signer = term::signer(&profile)?;
             let id = id.resolve(&repo.backend)?;
             let Ok(mut issue) = issues.get_mut(&id) else {
                 anyhow::bail!("Issue `{id}` not found");
@@ -179,7 +174,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 .chain(add.iter())
                 .cloned()
                 .collect::<Vec<_>>();
-            issue.assign(assignees, &signer)?;
+            issue.assign(assignees)?;
         }
         Command::Label { id, add, delete } => {
             let id = id.resolve(&repo.backend)?;
@@ -192,8 +187,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 .chain(add.iter())
                 .cloned()
                 .collect::<Vec<_>>();
-            let signer = term::signer(&profile)?;
-            issue.label(labels, &signer)?;
+            issue.label(labels)?;
         }
         Command::List(list_args) => {
             list(
@@ -206,8 +200,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Command::Delete { id } => {
             let id = id.resolve(&repo.backend)?;
-            let signer = term::signer(&profile)?;
-            issues.remove(&id, &signer)?;
+            issues.remove(&id)?;
         }
         Command::Cache { id, storage } => {
             let mode = if storage {
@@ -365,20 +358,22 @@ fn mk_issue_row(
     ]
 }
 
-fn open<R, G>(
+fn open<Repo, Signer>(
     title: Option<Title>,
     description: Option<String>,
     labels: Vec<Label>,
     assignees: Vec<Did>,
     verbose: bool,
     quiet: bool,
-    cache: &mut issue::Cache<issue::Issues<'_, R>, cob::cache::StoreWriter>,
-    signer: &Device<G>,
+    cache: &mut issue::Cache<'_, Repo, WriteAs<'_, Signer>, cob::cache::StoreWriter>,
     profile: &Profile,
 ) -> anyhow::Result<()>
 where
-    R: WriteRepository + cob::Store<Namespace = NodeId>,
-    G: crypto::signature::Signer<crypto::Signature>,
+    Repo: WriteRepository + cob::Store<Namespace = NodeId>,
+    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+    Signer: crypto::signature::Verifier<crypto::Signature>,
 {
     let (title, description) = if let (Some(t), Some(d)) = (title.as_ref(), description.as_ref()) {
         (t.to_owned(), d.to_owned())
@@ -393,7 +388,6 @@ where
         labels.as_slice(),
         assignees.as_slice(),
         [],
-        signer,
     )?;
 
     if !quiet {
@@ -402,17 +396,19 @@ where
     Ok(())
 }
 
-fn edit<'a, 'g, R, G>(
-    issues: &'g mut issue::Cache<issue::Issues<'a, R>, cob::cache::StoreWriter>,
+fn edit<'a, 'b, 'g, Repo, Signer>(
+    issues: &'g mut issue::Cache<'a, Repo, WriteAs<'b, Signer>, cob::cache::StoreWriter>,
     repo: &storage::git::Repository,
     id: Rev,
     title: Option<Title>,
     description: Option<String>,
-    signer: &Device<G>,
-) -> anyhow::Result<issue::IssueMut<'a, 'g, R, cob::cache::StoreWriter>>
+) -> anyhow::Result<issue::IssueMut<'a, 'b, 'g, Repo, Signer, cob::cache::StoreWriter>>
 where
-    R: WriteRepository + cob::Store<Namespace = NodeId>,
-    G: crypto::signature::Signer<crypto::Signature>,
+    Repo: WriteRepository + cob::Store<Namespace = NodeId>,
+    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
+    Signer: radicle::crypto::signature::Signer<radicle::crypto::ssh::ExtendedSignature>,
+    Signer: crypto::signature::Verifier<crypto::Signature>,
 {
     let id = id.resolve(&repo.backend)?;
     let mut issue = issues.get_mut(&id)?;
@@ -421,7 +417,7 @@ where
 
     if title.is_some() || description.is_some() {
         // Editing by command line arguments.
-        issue.transaction("Edit", signer, |tx| {
+        issue.transaction("Edit", |tx| {
             if let Some(t) = title {
                 tx.edit(t)?;
             }
@@ -442,7 +438,7 @@ where
         return Ok(issue);
     };
 
-    issue.transaction("Edit", signer, |tx| {
+    issue.transaction("Edit", |tx| {
         tx.edit(title)?;
         tx.edit_comment(comment_id, description, vec![])?;
 

@@ -3,6 +3,7 @@ use radicle::{
     cob::{
         self,
         cache::{MigrateCallback, MigrateProgress},
+        store::access::{ReadOnly, WriteAs},
     },
     prelude::NodeId,
     profile,
@@ -58,47 +59,53 @@ pub mod migrate {
 }
 
 /// Return a read-only handle for the patches cache.
-pub fn patches<'a, R>(
+pub fn patches<'a, Repo>(
     profile: &Profile,
-    repository: &'a R,
-) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreReader>, anyhow::Error>
+    repository: &'a Repo,
+) -> Result<cob::patch::Cache<'a, Repo, ReadOnly, cob::cache::StoreReader>, anyhow::Error>
 where
-    R: ReadRepository + cob::Store<Namespace = NodeId>,
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
 {
     profile.patches(repository).map_err(with_hint)
 }
 
 /// Return a read-write handle for the patches cache.
-pub fn patches_mut<'a, R>(
+/// Prefer this over [`radicle::profile::Home::patches_mut`],
+/// to obtain an error hint in case migrations must be run.
+pub fn patches_mut<'a, 'b, Repo, Signer>(
     profile: &Profile,
-    repository: &'a R,
-) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreWriter>, anyhow::Error>
+    repository: &'a Repo,
+    signer: &'b Signer,
+) -> Result<cob::patch::Cache<'a, Repo, WriteAs<'b, Signer>, cob::cache::StoreWriter>, anyhow::Error>
 where
-    R: ReadRepository + cob::Store<Namespace = NodeId>,
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
 {
-    profile.patches_mut(repository).map_err(with_hint)
+    profile.patches_mut(repository, signer).map_err(with_hint)
 }
 
 /// Return a read-only handle for the issues cache.
-pub fn issues<'a, R>(
+pub fn issues<'a, Repo>(
     profile: &Profile,
-    repository: &'a R,
-) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreReader>, anyhow::Error>
+    repository: &'a Repo,
+) -> Result<cob::issue::Cache<'a, Repo, ReadOnly, cob::cache::StoreReader>, anyhow::Error>
 where
-    R: ReadRepository + cob::Store<Namespace = NodeId>,
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
 {
     profile.issues(repository).map_err(with_hint)
 }
 
 /// Return a read-write handle for the issues cache.
-pub fn issues_mut<'a, R>(
+/// Prefer this over [`radicle::profile::Home::issues_mut`],
+/// to obtain an error hint in case migrations must be run.
+pub fn issues_mut<'a, 'b, Repo, Signer>(
     profile: &Profile,
-    repository: &'a R,
-) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreWriter>, anyhow::Error>
+    repository: &'a Repo,
+    signer: &'b Signer,
+) -> Result<cob::issue::Cache<'a, Repo, WriteAs<'b, Signer>, cob::cache::StoreWriter>, anyhow::Error>
 where
-    R: ReadRepository + cob::Store<Namespace = NodeId>,
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
 {
-    profile.issues_mut(repository).map_err(with_hint)
+    profile.issues_mut(repository, signer).map_err(with_hint)
 }
 
 /// Adds a hint to the COB out-of-date database error.

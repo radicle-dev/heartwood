@@ -21,7 +21,8 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     };
 
     let repo = profile.storage.repository_mut(rid)?;
-    let mut identity = Identity::load_mut(&repo)?;
+    let signer = profile.signer()?;
+    let mut identity = Identity::load_mut(&repo, &signer)?;
     let doc = identity.doc();
 
     if doc.is_public() {
@@ -51,12 +52,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     // SAFETY: the `Title` here is guaranteed to be nonempty and does not
     // contain `\n` or `\r`.
     #[allow(clippy::unwrap_used)]
-    identity.update(
-        cob::Title::new("Publish repository").unwrap(),
-        "",
-        &doc,
-        &signer,
-    )?;
+    identity.update(cob::Title::new("Publish repository").unwrap(), "", &doc)?;
     repo.sign_refs(&signer)?;
     repo.set_identity_head()?;
     let validations = repo.validate()?;

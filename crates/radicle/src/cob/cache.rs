@@ -112,9 +112,10 @@ pub enum Error {
     OutOfDate,
 }
 
-/// Read and write to the store.
+/// Read from and write to the store.
 pub type StoreWriter = Store<Write>;
-/// Write to the store.
+
+/// Read from the store.
 pub type StoreReader = Store<Read>;
 
 /// Read-only type witness.

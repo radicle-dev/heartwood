@@ -8,9 +8,9 @@ use crate::cob;
 use crate::cob::cache::{self, StoreReader};
 use crate::cob::cache::{Remove, StoreWriter, Update};
 use crate::cob::store;
+use crate::cob::store::access::{ReadOnly, WriteAs};
 use crate::cob::{Label, ObjectId, TypeName};
 use crate::git;
-use crate::node::device::Device;
 use crate::prelude::RepoId;
 use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
 
@@ -87,28 +87,36 @@ impl<T> PatchesMut for T where T: Patches + Update<Patch> + Remove<Patch> {}
 /// The `store` is used for the main storage when performing a
 /// write-through. It is also used for identifying which `RepoId` is
 /// being used for the `cache`.
-pub struct Cache<R, C> {
-    pub(super) store: R,
+pub struct Cache<'a, Repo, Access, C> {
+    pub(super) store: super::Patches<'a, Repo, Access>,
     pub(super) cache: C,
 }
 
-impl<R, C> Cache<R, C> {
-    pub fn new(store: R, cache: C) -> Self {
+impl<'a, Repo, Access, C> Cache<'a, Repo, Access, C> {
+    pub fn new(store: super::Patches<'a, Repo, Access>, cache: C) -> Self {
         Self { store, cache }
     }
+}
 
-    pub fn rid(&self) -> RepoId
-    where
-        R: HasRepoId,
-    {
+impl<'a, Repo, Access, C> HasRepoId for Cache<'a, Repo, Access, C>
+where
+    Repo: HasRepoId,
+{
+    fn rid(&self) -> RepoId {
         self.store.rid()
     }
 }
 
-impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
+impl<'a, 'b, Repo, Signer, C> Cache<'a, Repo, WriteAs<'b, Signer>, C>
+where
+    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+    Signer: crypto::signature::Verifier<crypto::Signature>,
+{
     /// Create a new [`Patch`] using the [`super::Patches`] as the
     /// main storage, and writing the update to the `cache`.
-    pub fn create<'g, G>(
+    pub fn create<'g>(
         &'g mut self,
         title: cob::Title,
         description: impl ToString,
@@ -116,11 +124,9 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         labels: &[Label],
-        signer: &Device<G>,
-    ) -> Result<PatchMut<'a, 'g, R, C>, super::Error>
+    ) -> Result<PatchMut<'a, 'b, 'g, Repo, Signer, C>, super::Error>
     where
-        R: WriteRepository + cob::Store<Namespace = NodeId>,
-        G: crypto::signature::Signer<crypto::Signature>,
+        Repo: WriteRepository + cob::Store<Namespace = NodeId>,
         C: Update<Patch>,
     {
         self.store.create(
@@ -131,14 +137,13 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
             oid,
             labels,
             &mut self.cache,
-            signer,
         )
     }
 
     /// Create a new [`Patch`], in a draft state, using the
     /// [`super::Patches`] as the main storage, and writing the update
     /// to the `cache`.
-    pub fn draft<'g, G>(
+    pub fn draft<'g>(
         &'g mut self,
         title: cob::Title,
         description: impl ToString,
@@ -146,11 +151,9 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         labels: &[Label],
-        signer: &Device<G>,
-    ) -> Result<PatchMut<'a, 'g, R, C>, super::Error>
+    ) -> Result<PatchMut<'a, 'b, 'g, Repo, Signer, C>, super::Error>
     where
-        R: WriteRepository + cob::Store<Namespace = NodeId>,
-        G: crypto::signature::Signer<crypto::Signature>,
+        Repo: WriteRepository + cob::Store<Namespace = NodeId>,
         C: Update<Patch>,
     {
         self.store.draft(
@@ -161,19 +164,17 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
             oid,
             labels,
             &mut self.cache,
-            signer,
         )
     }
 
     /// Remove the given `id` from the [`super::Patches`] storage, and
     /// removing the entry from the `cache`.
-    pub fn remove<G>(&mut self, id: &PatchId, signer: &Device<G>) -> Result<(), super::Error>
+    pub fn remove(&mut self, id: &PatchId) -> Result<(), super::Error>
     where
-        G: crypto::signature::Signer<crypto::Signature>,
-        R: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
+        Repo: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
         C: Remove<Patch>,
     {
-        self.store.remove(id, signer)?;
+        self.store.raw.remove(id)?;
         self.cache
             .remove(id)
             .map_err(|e| super::Error::CacheRemove {
@@ -182,12 +183,17 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
             })?;
         Ok(())
     }
+}
 
+impl<'a, Repo, Access, C> Cache<'a, Repo, Access, C>
+where
+    Access: cob::store::access::Access,
+{
     /// Read the given `id` from the [`super::Patches`] store and
     /// writing it to the `cache`.
     pub fn write(&mut self, id: &PatchId) -> Result<(), super::Error>
     where
-        R: ReadRepository + cob::Store,
+        Repo: ReadRepository + cob::Store<Namespace = NodeId>,
         C: Update<Patch>,
     {
         let issue = self
@@ -213,7 +219,7 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
         callback: impl Fn(&Result<(PatchId, Patch), store::Error>, &cache::Progress) -> ControlFlow<()>,
     ) -> Result<(), super::Error>
     where
-        R: ReadRepository + cob::Store,
+        Repo: ReadRepository + cob::Store<Namespace = NodeId>,
         C: Update<Patch> + Remove<Patch>,
     {
         // Start by clearing the cache. This will get rid of patches that are cached but
@@ -240,28 +246,28 @@ impl<'a, R, C> Cache<super::Patches<'a, R>, C> {
     }
 }
 
-impl<R> Cache<R, StoreReader> {
-    pub fn reader(store: R, cache: StoreReader) -> Self {
+impl<'a, Repo> Cache<'a, Repo, ReadOnly, StoreReader> {
+    pub fn reader(store: super::Patches<'a, Repo, ReadOnly>, cache: StoreReader) -> Self {
         Self { store, cache }
     }
 }
 
-impl<R> Cache<R, StoreWriter> {
-    pub fn open(store: R, cache: StoreWriter) -> Self {
+impl<'a, Repo, Access> Cache<'a, Repo, Access, StoreWriter> {
+    pub fn open(store: super::Patches<'a, Repo, Access>, cache: StoreWriter) -> Self {
         Self { store, cache }
     }
 }
 
-impl<'a, R> Cache<super::Patches<'a, R>, StoreWriter>
+impl<'a, 'b, Repo, Signer> Cache<'a, Repo, WriteAs<'b, Signer>, StoreWriter>
 where
-    R: ReadRepository + cob::Store,
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
 {
     /// Get the [`PatchMut`], identified by `id`, using the
     /// `StoreWriter` for retrieving the `Patch`.
     pub fn get_mut<'g>(
         &'g mut self,
         id: &ObjectId,
-    ) -> Result<PatchMut<'a, 'g, R, StoreWriter>, Error> {
+    ) -> Result<PatchMut<'a, 'b, 'g, Repo, Signer, StoreWriter>, Error> {
         let patch = Patches::get(self, id)?
             .ok_or_else(move || Error::NotFound(super::TYPENAME.clone(), *id))?;
 
@@ -274,14 +280,14 @@ where
     }
 }
 
-impl<'a, R> Cache<super::Patches<'a, R>, cache::NoCache>
+impl<'a, 'b, Repo, Signer> Cache<'a, Repo, WriteAs<'b, Signer>, cache::NoCache>
 where
-    R: ReadRepository + cob::Store<Namespace = NodeId>,
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
 {
     /// Get a `Cache` that does no write-through modifications and
     /// uses the [`super::Patches`] store for all reads and writes.
-    pub fn no_cache(repository: &'a R) -> Result<Self, RepositoryError> {
-        let store = super::Patches::open(repository)?;
+    pub fn no_cache(repository: &'a Repo, signer: &'b Signer) -> Result<Self, RepositoryError> {
+        let store = super::Patches::open(repository, WriteAs::new(signer))?;
         Ok(Self {
             store,
             cache: cache::NoCache,
@@ -292,7 +298,7 @@ where
     pub fn get_mut<'g>(
         &'g mut self,
         id: &ObjectId,
-    ) -> Result<PatchMut<'a, 'g, R, cache::NoCache>, super::Error> {
+    ) -> Result<PatchMut<'a, 'b, 'g, Repo, Signer, cache::NoCache>, super::Error> {
         let patch = self
             .store
             .get(id)?
@@ -307,7 +313,7 @@ where
     }
 }
 
-impl<R, C> cache::Update<Patch> for Cache<R, C>
+impl<'a, Repo, Access, C> cache::Update<Patch> for Cache<'a, Repo, Access, C>
 where
     C: cache::Update<Patch>,
 {
@@ -324,7 +330,7 @@ where
     }
 }
 
-impl<R, C> cache::Remove<Patch> for Cache<R, C>
+impl<'a, Repo, Access, C> cache::Remove<Patch> for Cache<'a, Repo, Access, C>
 where
     C: cache::Remove<Patch>,
 {
@@ -443,9 +449,9 @@ impl Iterator for PatchesIter<'_> {
     }
 }
 
-impl<R> Patches for Cache<R, StoreReader>
+impl<'a, Repo, Access> Patches for Cache<'a, Repo, Access, StoreReader>
 where
-    R: HasRepoId,
+    Repo: HasRepoId,
 {
     type Error = Error;
     type Iter<'b>
@@ -486,9 +492,10 @@ impl Iterator for NoCacheIter<'_> {
     }
 }
 
-impl<R> Patches for Cache<super::Patches<'_, R>, cache::NoCache>
+impl<'a, Repo, Access> Patches for Cache<'a, Repo, Access, cache::NoCache>
 where
-    R: ReadRepository + cob::Store<Namespace = NodeId>,
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
+    Access: store::access::Access,
 {
     type Error = super::Error;
     type Iter<'b>
@@ -535,9 +542,10 @@ where
     }
 }
 
-impl<R> Patches for Cache<R, StoreWriter>
+impl<'a, Repo, Access> Patches for Cache<'a, Repo, Access, StoreWriter>
 where
-    R: HasRepoId,
+    Repo: HasRepoId + cob::Store<Namespace = NodeId>,
+    Access: store::access::Access,
 {
     type Error = Error;
     type Iter<'b>
@@ -711,6 +719,7 @@ mod tests {
     use radicle_cob::ObjectId;
 
     use crate::cob::cache::{Store, Update, Write};
+    use crate::cob::store::access::ReadOnly;
     use crate::cob::thread::{Comment, Thread};
     use crate::cob::{Author, Title, migrate};
     use crate::patch::{
@@ -718,12 +727,14 @@ mod tests {
     };
     use crate::prelude::Did;
     use crate::profile::env;
+    use crate::storage::HasRepoId as _;
     use crate::test::arbitrary;
     use crate::test::storage::MockRepository;
 
     use super::{Cache, Patches};
 
-    fn memory(store: MockRepository) -> Cache<MockRepository, Store<Write>> {
+    fn memory<'a>(store: &'a MockRepository) -> Cache<'a, MockRepository, ReadOnly, Store<Write>> {
+        let store = super::super::Patches::open(store, ReadOnly).unwrap();
         let cache = Store::<Write>::memory()
             .unwrap()
             .with_migrations(migrate::ignore)
@@ -764,7 +775,7 @@ mod tests {
     #[test]
     fn test_is_empty() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
-        let mut cache = memory(repo);
+        let mut cache = memory(&repo);
         assert!(cache.is_empty().unwrap());
 
         let patch = Patch::new(
@@ -792,7 +803,7 @@ mod tests {
     #[test]
     fn test_counts() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
-        let mut cache = memory(repo);
+        let mut cache = memory(&repo);
         let n_open = arbitrary::r#gen::<u8>(0);
         let n_draft = arbitrary::r#gen::<u8>(1);
         let n_archived = arbitrary::r#gen::<u8>(1);
@@ -880,7 +891,7 @@ mod tests {
     #[test]
     fn test_get() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
-        let mut cache = memory(repo);
+        let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
             .map(|_| PatchId::from(arbitrary::oid()))
             .collect::<BTreeSet<PatchId>>();
@@ -916,7 +927,7 @@ mod tests {
     #[test]
     fn test_find_by_revision() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
-        let mut cache = memory(repo);
+        let mut cache = memory(&repo);
         let patch_id = PatchId::from(arbitrary::oid());
         let revisions = (0..arbitrary::r#gen::<NonZeroU8>(1).into())
             .map(|_| revision())
@@ -958,7 +969,7 @@ mod tests {
     #[test]
     fn test_list() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
-        let mut cache = memory(repo);
+        let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
             .map(|_| PatchId::from(arbitrary::oid()))
             .collect::<BTreeSet<PatchId>>();
@@ -989,7 +1000,7 @@ mod tests {
     #[test]
     fn test_list_by_status() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
-        let mut cache = memory(repo);
+        let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
             .map(|_| PatchId::from(arbitrary::oid()))
             .collect::<BTreeSet<PatchId>>();
@@ -1020,7 +1031,7 @@ mod tests {
     #[test]
     fn test_remove() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
-        let mut cache = memory(repo);
+        let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
             .map(|_| PatchId::from(arbitrary::oid()))
             .collect::<BTreeSet<PatchId>>();

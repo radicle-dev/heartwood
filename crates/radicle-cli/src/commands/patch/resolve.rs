@@ -15,12 +15,12 @@ pub fn resolve(
     profile: &Profile,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
-    let mut patches = term::cob::patches_mut(profile, repo)?;
+    let mut patches = term::cob::patches_mut(profile, repo, &signer)?;
     let patch = patches
         .get(&patch_id)?
         .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;
     let mut patch = patch::PatchMut::new(patch_id, patch, &mut patches);
-    patch.resolve_review_comment(review, comment, &signer)?;
+    patch.resolve_review_comment(review, comment)?;
     Ok(())
 }
 
@@ -32,11 +32,11 @@ pub fn unresolve(
     profile: &Profile,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
-    let mut patches = term::cob::patches_mut(profile, repo)?;
+    let mut patches = term::cob::patches_mut(profile, repo, &signer)?;
     let patch = patches
         .get(&patch_id)?
         .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;
     let mut patch = patch::PatchMut::new(patch_id, patch, &mut patches);
-    patch.unresolve_review_comment(review, comment, &signer)?;
+    patch.unresolve_review_comment(review, comment)?;
     Ok(())
 }

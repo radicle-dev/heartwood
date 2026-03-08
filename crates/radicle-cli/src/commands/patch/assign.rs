@@ -15,7 +15,7 @@ pub fn run(
     repository: &Repository,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
-    let mut patches = term::cob::patches_mut(profile, repository)?;
+    let mut patches = term::cob::patches_mut(profile, repository, &signer)?;
     let Ok(mut patch) = patches.get_mut(patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };
@@ -24,6 +24,6 @@ pub fn run(
         .filter(|did| !delete.contains(did))
         .chain(add)
         .collect::<BTreeSet<_>>();
-    patch.assign(assignees, &signer)?;
+    patch.assign(assignees)?;
     Ok(())
 }

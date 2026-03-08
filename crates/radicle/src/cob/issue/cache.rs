@@ -8,9 +8,9 @@ use crate::cob;
 use crate::cob::cache;
 use crate::cob::cache::{Remove, StoreReader, StoreWriter, Update};
 use crate::cob::store;
+use crate::cob::store::access::{ReadOnly, WriteAs};
 use crate::cob::{Embed, Label, ObjectId, TypeName, Uri};
 use crate::node::NodeId;
-use crate::node::device::Device;
 use crate::prelude::{Did, RepoId};
 use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
 
@@ -77,39 +77,45 @@ impl<T> IssuesMut for T where T: Issues + Update<Issue> + Remove<Issue> {}
 /// The `store` is used for the main storage when performing a
 /// write-through. It is also used for identifying which `RepoId` is
 /// being used for the `cache`.
-pub struct Cache<R, C> {
-    store: R,
+pub struct Cache<'a, Repo, Access, C> {
+    store: super::Issues<'a, Repo, Access>,
     cache: C,
 }
 
-impl<R, C> Cache<R, C> {
-    pub fn new(store: R, cache: C) -> Self {
+impl<'a, Repo, Access, C> Cache<'a, Repo, Access, C> {
+    pub fn new(store: super::Issues<'a, Repo, Access>, cache: C) -> Self {
         Self { store, cache }
     }
+}
 
-    pub fn rid(&self) -> RepoId
-    where
-        R: HasRepoId,
-    {
+impl<'a, Repo, Access, C> HasRepoId for Cache<'a, Repo, Access, C>
+where
+    Repo: HasRepoId,
+{
+    fn rid(&self) -> RepoId {
         self.store.rid()
     }
 }
 
-impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
+impl<'a, 'b, Repo, Signer, C> Cache<'a, Repo, WriteAs<'b, Signer>, C>
+where
+    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+    Signer: crypto::signature::Verifier<crypto::Signature>,
+{
     /// Create a new [`Issue`] using the [`super::Issues`] as the
     /// main storage, and writing the update to the `cache`.
-    pub fn create<'g, G>(
+    pub fn create<'g>(
         &'g mut self,
         title: cob::Title,
         description: impl ToString,
         labels: &[Label],
         assignees: &[Did],
         embeds: impl IntoIterator<Item = Embed<Uri>>,
-        signer: &Device<G>,
-    ) -> Result<IssueMut<'a, 'g, R, C>, super::Error>
+    ) -> Result<IssueMut<'a, 'b, 'g, Repo, Signer, C>, super::Error>
     where
-        R: ReadRepository + WriteRepository + cob::Store<Namespace = NodeId>,
-        G: crypto::signature::Signer<crypto::Signature>,
+        Repo: ReadRepository + WriteRepository + cob::Store<Namespace = NodeId>,
         C: Update<Issue>,
     {
         self.store.create(
@@ -119,19 +125,17 @@ impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
             assignees,
             embeds,
             &mut self.cache,
-            signer,
         )
     }
 
     /// Remove the given `id` from the [`super::Issues`] storage, and
     /// removing the entry from the `cache`.
-    pub fn remove<G>(&mut self, id: &IssueId, signer: &Device<G>) -> Result<(), super::Error>
+    pub fn remove(&mut self, id: &IssueId) -> Result<(), super::Error>
     where
-        G: crypto::signature::Signer<crypto::Signature>,
-        R: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
+        Repo: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
         C: Remove<Issue>,
     {
-        self.store.remove(id, signer)?;
+        self.store.raw.remove(id)?;
         self.cache
             .remove(id)
             .map_err(|e| super::Error::CacheRemove {
@@ -140,12 +144,17 @@ impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
             })?;
         Ok(())
     }
+}
 
+impl<'a, Repo, Access, C> Cache<'a, Repo, Access, C>
+where
+    Access: cob::store::access::Access,
+{
     /// Read the given `id` from the [`super::Issues`] store and
     /// writing it to the `cache`.
     pub fn write(&mut self, id: &IssueId) -> Result<(), super::Error>
     where
-        R: ReadRepository + cob::Store,
+        Repo: ReadRepository + cob::Store<Namespace = NodeId>,
         C: Update<Issue>,
     {
         let issue = self
@@ -171,7 +180,7 @@ impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
         on_issue: impl Fn(&Result<(IssueId, Issue), store::Error>, &cache::Progress) -> ControlFlow<()>,
     ) -> Result<(), super::Error>
     where
-        R: ReadRepository + cob::Store,
+        Repo: ReadRepository + cob::Store<Namespace = NodeId>,
         C: Update<Issue> + Remove<Issue>,
     {
         // Start by clearing the cache. This will get rid of issues that are cached but
@@ -198,14 +207,15 @@ impl<'a, R, C> Cache<super::Issues<'a, R>, C> {
     }
 }
 
-impl<'a, R> Cache<super::Issues<'a, R>, cache::NoCache>
+impl<'a, 'b, Repo, Signer> Cache<'a, Repo, WriteAs<'b, Signer>, cache::NoCache>
 where
-    R: ReadRepository + cob::Store<Namespace = NodeId>,
+    Repo: WriteRepository + cob::Store<Namespace = NodeId>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
 {
     /// Get a `Cache` that does no write-through modifications and
     /// uses the [`super::Issues`] store for all reads and writes.
-    pub fn no_cache(repository: &'a R) -> Result<Self, RepositoryError> {
-        let store = super::Issues::open(repository)?;
+    pub fn no_cache(repository: &'a Repo, signer: &'b Signer) -> Result<Self, RepositoryError> {
+        let store = super::Issues::open(repository, WriteAs::new(signer))?;
         Ok(Self {
             store,
             cache: cache::NoCache,
@@ -216,7 +226,7 @@ where
     pub fn get_mut<'g>(
         &'g mut self,
         id: &ObjectId,
-    ) -> Result<IssueMut<'a, 'g, R, cache::NoCache>, super::Error> {
+    ) -> Result<IssueMut<'a, 'b, 'g, Repo, Signer, cache::NoCache>, super::Error> {
         let issue = self
             .store
             .get(id)?
@@ -231,28 +241,28 @@ where
     }
 }
 
-impl<R> Cache<R, StoreReader> {
-    pub fn reader(store: R, cache: StoreReader) -> Self {
+impl<'a, Repo> Cache<'a, Repo, ReadOnly, StoreReader> {
+    pub fn reader(store: super::Issues<'a, Repo, ReadOnly>, cache: StoreReader) -> Self {
         Self { store, cache }
     }
 }
 
-impl<R> Cache<R, StoreWriter> {
-    pub fn open(store: R, cache: StoreWriter) -> Self {
+impl<'a, Repo, Access> Cache<'a, Repo, Access, StoreWriter> {
+    pub fn open(store: super::Issues<'a, Repo, Access>, cache: StoreWriter) -> Self {
         Self { store, cache }
     }
 }
 
-impl<'a, R> Cache<super::Issues<'a, R>, StoreWriter>
+impl<'a, 'b, Repo, Signer> Cache<'a, Repo, WriteAs<'b, Signer>, StoreWriter>
 where
-    R: ReadRepository + cob::Store,
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
 {
     /// Get the [`IssueMut`], identified by `id`, using the
     /// `StoreWriter` for retrieving the `Issue`.
     pub fn get_mut<'g>(
         &'g mut self,
         id: &ObjectId,
-    ) -> Result<IssueMut<'a, 'g, R, StoreWriter>, Error> {
+    ) -> Result<IssueMut<'a, 'b, 'g, Repo, Signer, StoreWriter>, Error> {
         let issue = Issues::get(self, id)?
             .ok_or_else(move || Error::NotFound(super::TYPENAME.clone(), *id))?;
 
@@ -265,7 +275,7 @@ where
     }
 }
 
-impl<R, C> cache::Update<Issue> for Cache<R, C>
+impl<'a, Repo, Access, C> cache::Update<Issue> for Cache<'a, Repo, Access, C>
 where
     C: cache::Update<Issue>,
 {
@@ -282,7 +292,7 @@ where
     }
 }
 
-impl<R, C> cache::Remove<Issue> for Cache<R, C>
+impl<'a, Repo, Access, C> cache::Remove<Issue> for Cache<'a, Repo, Access, C>
 where
     C: cache::Remove<Issue>,
 {
@@ -377,9 +387,10 @@ impl Iterator for NoCacheIter<'_> {
     }
 }
 
-impl<R> Issues for Cache<super::Issues<'_, R>, cache::NoCache>
+impl<'a, Repo, Access> Issues for Cache<'a, Repo, Access, cache::NoCache>
 where
-    R: ReadRepository + cob::Store,
+    Repo: ReadRepository + cob::Store<Namespace = NodeId>,
+    Access: store::access::Access,
 {
     type Error = super::Error;
     type Iter<'b>
@@ -459,9 +470,9 @@ impl Iterator for IssuesIter<'_> {
     }
 }
 
-impl<R> Issues for Cache<R, StoreWriter>
+impl<'a, Repo, Access> Issues for Cache<'a, Repo, Access, StoreWriter>
 where
-    R: HasRepoId,
+    Repo: HasRepoId,
 {
     type Error = Error;
     type Iter<'b>
@@ -486,9 +497,9 @@ where
     }
 }
 
-impl<R> Issues for Cache<R, StoreReader>
+impl<'a, Repo, Access> Issues for Cache<'a, Repo, Access, StoreReader>
 where
-    R: HasRepoId,
+    Repo: HasRepoId,
 {
     type Error = Error;
     type Iter<'b>
@@ -618,14 +629,17 @@ mod tests {
 
     use crate::cob::cache::{Store, Update, Write};
     use crate::cob::migrate;
+    use crate::cob::store::access::ReadOnly;
     use crate::cob::thread::Thread;
     use crate::issue::{CloseReason, Issue, IssueCounts, IssueId, State};
+    use crate::storage::HasRepoId as _;
     use crate::test::arbitrary;
     use crate::test::storage::MockRepository;
 
     use super::{Cache, Issues};
 
-    fn memory(store: MockRepository) -> Cache<MockRepository, Store<Write>> {
+    fn memory<'a>(store: &'a MockRepository) -> Cache<'a, MockRepository, ReadOnly, Store<Write>> {
+        let store = super::super::Issues::open(store, ReadOnly).unwrap();
         let cache = Store::<Write>::memory()
             .unwrap()
             .with_migrations(migrate::ignore)
@@ -636,7 +650,7 @@ mod tests {
     #[test]
     fn test_is_empty() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
-        let mut cache = memory(repo);
+        let mut cache = memory(&repo);
         assert!(cache.is_empty().unwrap());
 
         let issue = Issue::new(Thread::default());
@@ -658,7 +672,7 @@ mod tests {
     #[test]
     fn test_counts() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
-        let mut cache = memory(repo);
+        let mut cache = memory(&repo);
         let n_open = arbitrary::r#gen::<u8>(0);
         let n_closed = arbitrary::r#gen::<u8>(1);
         let open_ids = (0..n_open)
@@ -699,7 +713,7 @@ mod tests {
     #[test]
     fn test_get() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
-        let mut cache = memory(repo);
+        let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
             .map(|_| IssueId::from(arbitrary::oid()))
             .collect::<BTreeSet<IssueId>>();
@@ -734,7 +748,7 @@ mod tests {
     #[test]
     fn test_list() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
-        let mut cache = memory(repo);
+        let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
             .map(|_| IssueId::from(arbitrary::oid()))
             .collect::<BTreeSet<IssueId>>();
@@ -764,7 +778,7 @@ mod tests {
     #[test]
     fn test_list_by_status() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
-        let mut cache = memory(repo);
+        let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
             .map(|_| IssueId::from(arbitrary::oid()))
             .collect::<BTreeSet<IssueId>>();
@@ -794,7 +808,7 @@ mod tests {
     #[test]
     fn test_remove() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
-        let mut cache = memory(repo);
+        let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
             .map(|_| IssueId::from(arbitrary::oid()))
             .collect::<BTreeSet<IssueId>>();

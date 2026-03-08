@@ -10,15 +10,10 @@ pub fn run(
     repository: &Repository,
 ) -> anyhow::Result<bool> {
     let signer = term::signer(profile)?;
-    let mut patches = term::cob::patches_mut(profile, repository)?;
+    let mut patches = term::cob::patches_mut(profile, repository, &signer)?;
     let Ok(mut patch) = patches.get_mut(patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };
 
-    if undo {
-        patch.unready(&signer)
-    } else {
-        patch.ready(&signer)
-    }
-    .map_err(anyhow::Error::from)
+    if undo { patch.unready() } else { patch.ready() }.map_err(anyhow::Error::from)
 }

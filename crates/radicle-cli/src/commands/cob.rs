@@ -11,6 +11,8 @@ use nonempty::NonEmpty;
 
 use radicle::cob;
 use radicle::cob::store::CobAction;
+use radicle::cob::store::access::ReadOnly;
+use radicle::cob::store::access::WriteAs;
 use radicle::cob::stream::CobStream as _;
 use radicle::git;
 use radicle::prelude::*;
@@ -48,21 +50,22 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             type_name,
             operation,
         }) => {
-            let signer = &profile.signer()?;
+            let signer = profile.signer()?;
+            let access = WriteAs::new(&signer);
             let repo = storage.repository_mut(repo)?;
             let embeds = embeds(&repo, operation.embed_files, operation.embed_hashes)?;
 
             let oid = match type_name {
                 Patch => {
-                    let store: Store<cob::patch::Patch, _> = Store::open(&repo)?;
+                    let mut store: Store<cob::patch::Patch, _, _> = Store::open(&repo, access)?;
                     let actions = read_jsonl_actions(&operation.actions)?;
-                    let (oid, _) = store.create(&operation.message, actions, embeds, signer)?;
+                    let (oid, _) = store.create(&operation.message, actions, embeds)?;
                     oid
                 }
                 Issue => {
-                    let store: Store<cob::issue::Issue, _> = Store::open(&repo)?;
+                    let mut store: Store<cob::issue::Issue, _, _> = Store::open(&repo, access)?;
                     let actions = read_jsonl_actions(&operation.actions)?;
-                    let (oid, _) = store.create(&operation.message, actions, embeds, signer)?;
+                    let (oid, _) = store.create(&operation.message, actions, embeds)?;
                     oid
                 }
                 Identity => anyhow::bail!(
@@ -70,10 +73,10 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     &type_name
                 ),
                 Other(type_name) => {
-                    let store: Store<cob::external::External, _> =
-                        Store::open_for(&type_name, &repo)?;
+                    let mut store: Store<cob::external::External, _, _> =
+                        Store::open_for(&type_name, &repo, access)?;
                     let actions = read_jsonl_actions(&operation.actions)?;
-                    let (oid, _) = store.create(&operation.message, actions, embeds, signer)?;
+                    let (oid, _) = store.create(&operation.message, actions, embeds)?;
                     oid
                 }
             };
@@ -178,9 +181,9 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 Patch => {
                     let actions: Vec<cob::patch::Action> =
                         read_jsonl_actions(&operation.actions)?.into();
-                    let mut patches = profile.patches_mut(&repo)?;
+                    let mut patches = crate::terminal::cob::patches_mut(&profile, &repo, signer)?;
                     let mut patch = patches.get_mut(&oid)?;
-                    patch.transaction(&operation.message, &*profile.signer()?, |tx| {
+                    patch.transaction(&operation.message, |tx| {
                         tx.extend(actions)?;
                         tx.embed(embeds)?;
                         Ok(())
@@ -189,9 +192,9 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 Issue => {
                     let actions: Vec<cob::issue::Action> =
                         read_jsonl_actions(&operation.actions)?.into();
-                    let mut issues = profile.issues_mut(&repo)?;
+                    let mut issues = crate::terminal::cob::issues_mut(&profile, &repo, signer)?;
                     let mut issue = issues.get_mut(&oid)?;
-                    issue.transaction(&operation.message, &*profile.signer()?, |tx| {
+                    issue.transaction(&operation.message, |tx| {
                         tx.extend(actions)?;
                         tx.embed(embeds)?;
                         Ok(())
@@ -204,9 +207,10 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 Other(type_name) => {
                     use cob::external::{Action, External};
                     let actions: Vec<Action> = read_jsonl_actions(&operation.actions)?.into();
-                    let mut store: Store<External, _> = Store::open_for(&type_name, &repo)?;
+                    let mut store: Store<External, _, _> =
+                        Store::open_for(&type_name, &repo, WriteAs::new(signer))?;
                     let tx = cob::store::Transaction::new(type_name.clone(), actions, embeds);
-                    let (_, oid) = tx.commit(&operation.message, oid, &mut store, signer)?;
+                    let (_, oid) = tx.commit(&operation.message, oid, &mut store)?;
                     oid
                 }
             };
@@ -244,6 +248,7 @@ fn show(
         }
         FilteredTypeName::Issue => {
             use radicle::issue::cache::Issues as _;
+
             let issues = term::cob::issues(profile, repo)?;
             for oid in oids {
                 let oid = &oid.resolve(&repo.backend)?;
@@ -259,6 +264,7 @@ fn show(
         }
         FilteredTypeName::Patch => {
             use radicle::patch::cache::Patches as _;
+
             let patches = term::cob::patches(profile, repo)?;
             for oid in oids {
                 let oid = &oid.resolve(&repo.backend)?;
@@ -273,8 +279,9 @@ fn show(
             }
         }
         FilteredTypeName::Other(type_name) => {
-            let store =
-                cob::store::Store::<cob::external::External, _>::open_for(&type_name, repo)?;
+            let store = cob::store::Store::<cob::external::External, _, _>::open_for(
+                &type_name, repo, ReadOnly,
+            )?;
             for oid in oids {
                 let oid = &oid.resolve(&repo.backend)?;
                 let cob = store

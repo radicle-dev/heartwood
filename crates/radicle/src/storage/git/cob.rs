@@ -17,7 +17,6 @@ use crate::git::*;
 use crate::identity;
 use crate::identity::doc::DocError;
 use crate::node::NodeId;
-use crate::node::device::Device;
 use crate::storage;
 use crate::storage::Error;
 use crate::storage::{
@@ -232,25 +231,35 @@ impl<R: storage::WriteRepository> change::Storage for DraftStore<'_, R> {
     }
 }
 
-impl<R> SignRepository for DraftStore<'_, R>
+impl<Repo> SignRepository for DraftStore<'_, Repo>
 where
-    R: storage::ReadRepository,
+    Repo: storage::ReadRepository,
 {
-    fn sign_refs<G: crypto::signature::Signer<crypto::Signature>>(
+    fn sign_refs<Signer>(
         &self,
-        signer: &Device<G>,
-    ) -> Result<storage::refs::SignedRefs, RepositoryError> {
+        signer: &Signer,
+    ) -> Result<storage::refs::SignedRefs, RepositoryError>
+    where
+        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+        Signer: crypto::signature::Verifier<crypto::Signature>,
+    {
         // Since this is a draft store, we do not actually want to sign the refs.
         // Instead, we just return the existing signed refs.
-        let remote = self.repo.remote(signer.public_key())?;
+        let remote = self.repo.remote(&signer.verifying_key())?;
 
         Ok(remote.refs)
     }
 
-    fn force_sign_refs<G: crypto::signature::Signer<crypto::Signature>>(
+    fn force_sign_refs<Signer>(
         &self,
-        signer: &Device<G>,
-    ) -> Result<storage::refs::SignedRefs, RepositoryError> {
+        signer: &Signer,
+    ) -> Result<storage::refs::SignedRefs, RepositoryError>
+    where
+        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+        Signer: crypto::signature::Verifier<crypto::Signature>,
+    {
         self.sign_refs(signer)
     }
 }

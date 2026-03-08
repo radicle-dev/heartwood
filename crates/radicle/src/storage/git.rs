@@ -1004,43 +1004,52 @@ impl WriteRepository for Repository {
 }
 
 impl SignRepository for Repository {
-    fn sign_refs<G: crypto::signature::Signer<crypto::Signature>>(
-        &self,
-        signer: &Device<G>,
-    ) -> Result<SignedRefs, RepositoryError> {
+    fn sign_refs<Signer>(&self, signer: &Signer) -> Result<SignedRefs, RepositoryError>
+    where
+        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+        Signer: crypto::signature::Verifier<crypto::Signature>,
+    {
         self.sign_refs_with(signer, false)
     }
 
-    fn force_sign_refs<G: crypto::signature::Signer<crypto::Signature>>(
-        &self,
-        signer: &Device<G>,
-    ) -> Result<SignedRefs, RepositoryError> {
+    fn force_sign_refs<Signer>(&self, signer: &Signer) -> Result<SignedRefs, RepositoryError>
+    where
+        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+        Signer: crypto::signature::Verifier<crypto::Signature>,
+    {
         self.sign_refs_with(signer, true)
     }
 }
 
 impl Repository {
-    fn sign_refs_with<G: crypto::signature::Signer<crypto::Signature>>(
+    fn sign_refs_with<Signer>(
         &self,
-        signer: &Device<G>,
+        signer: &Signer,
         force: bool,
-    ) -> Result<SignedRefs, RepositoryError> {
-        let remote = signer.public_key();
+    ) -> Result<SignedRefs, RepositoryError>
+    where
+        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+        Signer: crypto::signature::Verifier<crypto::Signature>,
+    {
+        let remote = signer.verifying_key();
         // Ensure the root reference is set, which is checked during sigref verification.
         if self
-            .reference_oid(remote, &git::refs::storage::IDENTITY_ROOT)
+            .reference_oid(&remote, &git::refs::storage::IDENTITY_ROOT)
             .is_err()
         {
-            self.set_remote_identity_root(remote)?;
+            self.set_remote_identity_root(&remote)?;
         }
 
-        let committer = refs::sigrefs::git::Committer::from_env_or_now(remote);
+        let committer = refs::sigrefs::git::Committer::from_env_or_now(&remote);
 
-        let refs = self.references_of(remote)?;
+        let refs = self.references_of(&remote)?;
         let signed = if force {
-            refs.force_save(*remote, committer, self, signer)?
+            refs.force_save(remote, committer, self, signer)?
         } else {
-            refs.save(*remote, committer, self, signer)?
+            refs.save(remote, committer, self, signer)?
         };
 
         Ok(signed)

@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::util::environment::Environment;
 use crate::{program_reports_version, test};
+use radicle::cob::store::access::{ReadOnly, WriteAs};
 use radicle::node::Handle;
 use radicle::test::fixtures;
 
@@ -135,7 +136,8 @@ fn test_cob_replication() {
         .unwrap();
 
     let bob_repo = radicle::storage::ReadStorage::repository(&bob.storage, rid).unwrap();
-    let mut bob_issues = radicle::cob::issue::Issues::open(&bob_repo).unwrap();
+    let mut bob_issues =
+        radicle::cob::issue::Issues::open(&bob_repo, WriteAs::new(&bob.signer)).unwrap();
     let mut bob_cache = radicle::cob::cache::InMemory::default();
     let issue = bob_issues
         .create(
@@ -145,7 +147,6 @@ fn test_cob_replication() {
             &[],
             [],
             &mut bob_cache,
-            &bob.signer,
         )
         .unwrap();
     log::debug!(target: "test", "Issue {} created", issue.id());
@@ -163,7 +164,7 @@ fn test_cob_replication() {
         .unwrap();
 
     let alice_repo = radicle::storage::ReadStorage::repository(&alice.storage, rid).unwrap();
-    let alice_issues = radicle::cob::issue::Issues::open(&alice_repo).unwrap();
+    let alice_issues = radicle::cob::issue::Issues::open(&alice_repo, ReadOnly).unwrap();
     let alice_issue = alice_issues.get(issue.id()).unwrap().unwrap();
 
     assert_eq!(alice_issue.title(), "Something's fishy");
@@ -192,7 +193,8 @@ fn test_cob_deletion() {
     bob.routes_to(&[(rid, alice.id)]);
 
     let alice_repo = radicle::storage::ReadStorage::repository(&alice.storage, rid).unwrap();
-    let mut alice_issues = radicle::cob::issue::Cache::no_cache(&alice_repo).unwrap();
+    let mut alice_issues =
+        radicle::cob::issue::Cache::no_cache(&alice_repo, &alice.signer).unwrap();
     let issue = alice_issues
         .create(
             radicle::cob::Title::new("Something's fishy").unwrap(),
@@ -200,7 +202,6 @@ fn test_cob_deletion() {
             &[],
             &[],
             [],
-            &alice.signer,
         )
         .unwrap();
     let issue_id = issue.id();
@@ -210,11 +211,12 @@ fn test_cob_deletion() {
         .unwrap();
 
     let bob_repo = radicle::storage::ReadStorage::repository(&bob.storage, rid).unwrap();
-    let bob_issues = radicle::cob::issue::Issues::open(&bob_repo).unwrap();
+    let bob_issues = radicle::cob::issue::Issues::open(&bob_repo, ReadOnly).unwrap();
     assert!(bob_issues.get(issue_id).unwrap().is_some());
 
-    let mut alice_issues = radicle::cob::issue::Cache::no_cache(&alice_repo).unwrap();
-    alice_issues.remove(issue_id, &alice.signer).unwrap();
+    let mut alice_issues =
+        radicle::cob::issue::Cache::no_cache(&alice_repo, &alice.signer).unwrap();
+    alice_issues.remove(issue_id).unwrap();
 
     log::debug!(target: "test", "Removing issue..");
 
@@ -225,6 +227,6 @@ fn test_cob_deletion() {
         radicle::node::FetchResult::Success { .. }
     );
     let bob_repo = radicle::storage::ReadStorage::repository(&bob.storage, rid).unwrap();
-    let bob_issues = radicle::cob::issue::Issues::open(&bob_repo).unwrap();
+    let bob_issues = radicle::cob::issue::Issues::open(&bob_repo, ReadOnly).unwrap();
     assert!(bob_issues.get(issue_id).unwrap().is_none());
 }

@@ -12,7 +12,7 @@ pub fn run(
     repository: &Repository,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
-    let mut patches = term::cob::patches_mut(profile, repository)?;
+    let mut patches = term::cob::patches_mut(profile, repository, &signer)?;
     let Ok(mut patch) = patches.get_mut(patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };
@@ -22,6 +22,6 @@ pub fn run(
         .chain(add.iter())
         .cloned()
         .collect::<Vec<_>>();
-    patch.label(labels, &signer)?;
+    patch.label(labels)?;
     Ok(())
 }

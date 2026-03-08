@@ -648,7 +648,7 @@ impl<'a> ReviewBuilder<'a> {
         };
         let diff = self.diff(&brain.accepted, &tree, repo, opts)?;
         let drafts = DraftStore::new(self.repo, *signer.public_key());
-        let mut patches = cob::patch::Cache::no_cache(&drafts)?;
+        let mut patches = cob::patch::Cache::no_cache(&drafts, signer)?;
         let mut patch = patches.get_mut(&patch_id)?;
         let mut queue = ReviewQueue::from(diff);
 
@@ -668,7 +668,6 @@ impl<'a> ReviewBuilder<'a> {
                 Some(Verdict::Reject),
                 None,
                 vec![],
-                signer,
             )?
         };
 
@@ -719,7 +718,7 @@ impl<'a> ReviewBuilder<'a> {
                         let builder = CommentBuilder::new(revision.head(), path.to_path_buf());
                         let comments = builder.edit(hunk)?;
 
-                        patch.transaction("Review comments", signer, |tx| {
+                        patch.transaction("Review comments", |tx| {
                             for comment in comments {
                                 tx.review_comment(
                                     review,

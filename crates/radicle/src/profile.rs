@@ -22,6 +22,7 @@ use localtime::LocalTime;
 use thiserror::Error;
 
 use crate::cob::migrate;
+use crate::cob::store::access::{ReadOnly, WriteAs};
 use crate::crypto::PublicKey;
 use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{Keystore, Passphrase, keystore};
@@ -757,15 +758,16 @@ impl Home {
     }
 
     /// Return a read-only handle for the issues cache.
-    pub fn issues<'a, R>(
+    pub fn issues<'a, Repo>(
         &self,
-        repository: &'a R,
-    ) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreReader>, Error>
+        repository: &'a Repo,
+    ) -> Result<cob::issue::Cache<'a, Repo, ReadOnly, cob::cache::StoreReader>, Error>
     where
-        R: ReadRepository + cob::Store<Namespace = NodeId>,
+        Repo: ReadRepository + cob::Store<Namespace = NodeId>,
     {
         let db = self.cobs_db()?;
-        let store = cob::issue::Issues::open(repository)?;
+
+        let store = cob::issue::Issues::open(repository, ReadOnly)?;
 
         db.check_version()?;
 
@@ -773,15 +775,16 @@ impl Home {
     }
 
     /// Return a read-write handle for the issues cache.
-    pub fn issues_mut<'a, R>(
+    pub fn issues_mut<'a, 'b, Repo, Signer>(
         &self,
-        repository: &'a R,
-    ) -> Result<cob::issue::Cache<cob::issue::Issues<'a, R>, cob::cache::StoreWriter>, Error>
+        repository: &'a Repo,
+        signer: &'b Signer,
+    ) -> Result<cob::issue::Cache<'a, Repo, WriteAs<'b, Signer>, cob::cache::StoreWriter>, Error>
     where
-        R: ReadRepository + cob::Store<Namespace = NodeId>,
+        Repo: ReadRepository + cob::Store<Namespace = NodeId>,
     {
         let db = self.cobs_db_mut()?;
-        let store = cob::issue::Issues::open(repository)?;
+        let store = cob::issue::Issues::open(repository, WriteAs::new(signer))?;
 
         db.check_version()?;
 
@@ -789,15 +792,15 @@ impl Home {
     }
 
     /// Return a read-only handle for the patches cache.
-    pub fn patches<'a, R>(
+    pub fn patches<'a, Repo>(
         &self,
-        repository: &'a R,
-    ) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreReader>, Error>
+        repository: &'a Repo,
+    ) -> Result<cob::patch::Cache<'a, Repo, ReadOnly, cob::cache::StoreReader>, Error>
     where
-        R: ReadRepository + cob::Store<Namespace = NodeId>,
+        Repo: ReadRepository + cob::Store<Namespace = NodeId>,
     {
         let db = self.cobs_db()?;
-        let store = cob::patch::Patches::open(repository)?;
+        let store = cob::patch::Patches::open(repository, ReadOnly)?;
 
         db.check_version()?;
 
@@ -805,15 +808,16 @@ impl Home {
     }
 
     /// Return a read-write handle for the patches cache.
-    pub fn patches_mut<'a, R>(
+    pub fn patches_mut<'a, 'b, Repo, Signer>(
         &self,
-        repository: &'a R,
-    ) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreWriter>, Error>
+        repository: &'a Repo,
+        signer: &'b Signer,
+    ) -> Result<cob::patch::Cache<'a, Repo, WriteAs<'b, Signer>, cob::cache::StoreWriter>, Error>
     where
-        R: ReadRepository + cob::Store<Namespace = NodeId>,
+        Repo: ReadRepository + cob::Store<Namespace = NodeId>,
     {
         let db = self.cobs_db_mut()?;
-        let store = cob::patch::Patches::open(repository)?;
+        let store = cob::patch::Patches::open(repository, WriteAs::new(signer))?;
 
         db.check_version()?;
 

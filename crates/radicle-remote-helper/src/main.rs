@@ -28,6 +28,7 @@ use std::process;
 use std::str::FromStr;
 use std::{env, fmt};
 
+use radicle::cob::store::access::{ReadOnly, WriteAs};
 use thiserror::Error;
 
 use radicle::prelude::NodeId;
@@ -458,10 +459,10 @@ pub(crate) fn warn(s: impl fmt::Display) {
 }
 
 /// Get the patch store.
-pub(crate) fn patches<'a, R: ReadRepository + cob::Store<Namespace = NodeId>>(
+pub(crate) fn patches<'a, Repo: ReadRepository + cob::Store<Namespace = NodeId>>(
     profile: &Profile,
-    repo: &'a R,
-) -> Result<cob::patch::Cache<cob::patch::Patches<'a, R>, cob::cache::StoreReader>, list::Error> {
+    repo: &'a Repo,
+) -> Result<cob::patch::Cache<'a, Repo, ReadOnly, cob::cache::StoreReader>, list::Error> {
     match profile.patches(repo) {
         Ok(patches) => Ok(patches),
         Err(err @ profile::Error::CobsCache(cob::cache::Error::OutOfDate)) => {
@@ -473,14 +474,17 @@ pub(crate) fn patches<'a, R: ReadRepository + cob::Store<Namespace = NodeId>>(
 }
 
 /// Get the mutable patch store.
-pub(crate) fn patches_mut<'a>(
+pub(crate) fn patches_mut<'a, 'b, Signer>(
     profile: &Profile,
     repo: &'a storage::git::Repository,
+    signer: &'b Signer,
 ) -> Result<
-    cob::patch::Cache<cob::patch::Patches<'a, storage::git::Repository>, cob::cache::StoreWriter>,
+    cob::patch::Cache<'a, storage::git::Repository, WriteAs<'b, Signer>, cob::cache::StoreWriter>,
     push::Error,
-> {
-    match profile.patches_mut(repo) {
+>
+where
+{
+    match profile.patches_mut(repo, signer) {
         Ok(patches) => Ok(patches),
         Err(err @ profile::Error::CobsCache(cob::cache::Error::OutOfDate)) => {
             hint(cli::cob::MIGRATION_HINT);

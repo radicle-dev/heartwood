@@ -20,7 +20,8 @@ pub fn run(
     let head_branch = try_branch(workdir.head()?)?;
 
     let (_, target_oid) = get_merge_target(repository, &head_branch)?;
-    let mut patches = term::cob::patches_mut(profile, repository)?;
+    let signer = term::signer(profile)?;
+    let mut patches = term::cob::patches_mut(profile, repository, &signer)?;
     let Ok(mut patch) = patches.get_mut(&patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };
@@ -45,8 +46,7 @@ pub fn run(
 
     let (_, revision) = patch.latest();
     let message = term::patch::get_update_message(message, workdir, revision, &head_oid.into())?;
-    let signer = term::signer(profile)?;
-    let revision = patch.update(message, base_oid, head_oid, &signer)?;
+    let revision = patch.update(message, base_oid, head_oid)?;
 
     term::print(revision);
 

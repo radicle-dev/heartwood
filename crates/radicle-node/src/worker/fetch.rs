@@ -1,3 +1,4 @@
+use radicle::cob::store::access::ReadOnly;
 use radicle::identity::CanonicalRefs;
 use radicle::identity::doc::CanonicalRefsError;
 use radicle::storage::git::TempRepository;
@@ -272,8 +273,8 @@ where
     C: cob::cache::Update<cob::issue::Issue> + cob::cache::Update<cob::patch::Patch>,
     C: cob::cache::Remove<cob::issue::Issue> + cob::cache::Remove<cob::patch::Patch>,
 {
-    let mut issues = cob::store::Store::<cob::issue::Issue, _>::open(storage)?;
-    let mut patches = cob::store::Store::<cob::patch::Patch, _>::open(storage)?;
+    let mut issues = cob::store::Store::<cob::issue::Issue, _, _>::open(storage, ReadOnly)?;
+    let mut patches = cob::store::Store::<cob::patch::Patch, _, _>::open(storage, ReadOnly)?;
 
     for update in refs {
         match update {
@@ -303,15 +304,15 @@ where
 }
 
 /// Update or remove a cache entry.
-fn update_or_remove<R, C, T>(
-    store: &mut cob::store::Store<T, R>,
+fn update_or_remove<T, Repo, C>(
+    store: &mut cob::store::Store<T, Repo, ReadOnly>,
     cache: &mut C,
     rid: &RepoId,
     tid: TypedId,
 ) -> Result<(), error::Cache>
 where
-    R: cob::Store + ReadRepository,
-    T: cob::Evaluate<R> + cob::store::Cob + cob::store::CobWithType,
+    T: cob::Evaluate<Repo> + cob::store::Cob + cob::store::CobWithType,
+    Repo: cob::Store<Namespace = NodeId> + ReadRepository,
     C: cob::cache::Update<T> + cob::cache::Remove<T>,
 {
     match store.get(&tid.id) {

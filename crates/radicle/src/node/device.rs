@@ -204,3 +204,12 @@ impl AsRef<crypto::PublicKey> for BoxedDevice {
 impl KeypairRef for BoxedDevice {
     type VerifyingKey = crypto::PublicKey;
 }
+
+impl Verifier<Signature> for BoxedDevice {
+    fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), crypto::signature::Error> {
+        self.0
+            .node
+            .verify(msg, signature)
+            .map_err(crypto::signature::Error::from_source)
+    }
+}

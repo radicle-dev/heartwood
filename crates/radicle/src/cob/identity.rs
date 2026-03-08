@@ -3,15 +3,16 @@ use std::sync::LazyLock;
 use std::{fmt, ops::Deref, str::FromStr};
 
 use crypto::{PublicKey, Signature};
+use nonempty::NonEmpty;
 use radicle_cob::{Embed, ObjectId, TypeName};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::cob::store::access::WriteAs;
 use crate::git;
 use crate::git::Oid;
 use crate::identity::doc::Doc;
 use crate::node::NodeId;
-use crate::node::device::Device;
 use crate::storage;
 use crate::{
     cob,
@@ -219,33 +220,34 @@ impl Identity {
         }
     }
 
-    pub fn initialize<'a, R, G>(
+    pub fn initialize<'a, 'b, Repo, Signer>(
         doc: &Doc,
-        store: &'a R,
-        signer: &Device<G>,
-    ) -> Result<IdentityMut<'a, R>, cob::store::Error>
+        store: &'a Repo,
+        signer: &'b Signer,
+    ) -> Result<IdentityMut<'a, 'b, Repo, Signer>, cob::store::Error>
     where
-        G: crypto::signature::Signer<crypto::Signature>,
-        R: WriteRepository + cob::Store<Namespace = NodeId>,
+        Repo: WriteRepository + cob::Store<Namespace = NodeId>,
+        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+        Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+        Signer: crypto::signature::Verifier<crypto::Signature>,
     {
-        let mut store = cob::store::Store::open(store)?;
-        let (id, identity) = Transaction::<Identity, _>::initial(
-            "Initialize identity",
-            &mut store,
-            signer,
-            |tx, repo| {
-                tx.revision(
-                    // SAFETY: "Initial revision" is a valid title
-                    #[allow(clippy::unwrap_used)]
-                    cob::Title::new("Initial revision").unwrap(),
-                    "",
-                    doc,
-                    None,
-                    repo,
-                    signer,
-                )
-            },
-        )?;
+        let mut store = cob::store::Store::open(store, WriteAs::new(signer))?;
+
+        #[allow(clippy::unwrap_used)]
+        let title = cob::Title::new("Initial revision").unwrap();
+
+        #[allow(deprecated)]
+        let (actions, embeds) = {
+            let repo = store.repo();
+            let signer = store.signer();
+            Transaction::new_revision(title, "", doc, None, repo, signer)?.into_inner()
+        };
+
+        let actions = NonEmpty::from_vec(actions)
+            .expect("Transaction::initial: transaction must contain at least one action");
+
+        let (id, identity) = store.create("Initialize identity", actions, embeds)?;
 
         Ok(IdentityMut {
             id,
@@ -254,10 +256,10 @@ impl Identity {
         })
     }
 
-    pub fn get<R: ReadRepository + cob::Store>(
-        object: &ObjectId,
-        repo: &R,
-    ) -> Result<Identity, store::Error> {
+    pub fn get<Repo>(object: &ObjectId, repo: &Repo) -> Result<Identity, store::Error>
+    where
+        Repo: ReadRepository + cob::Store,
+    {
         use cob::store::CobWithType;
 
         cob::get::<Self, _>(repo, Self::type_name(), object)
@@ -266,12 +268,17 @@ impl Identity {
     }
 
     /// Get a proposal mutably.
-    pub fn get_mut<'a, R: WriteRepository + cob::Store<Namespace = NodeId>>(
+    pub fn get_mut<'a, 'b, Repo, Signer>(
         id: &ObjectId,
-        repo: &'a R,
-    ) -> Result<IdentityMut<'a, R>, store::Error> {
+        repo: &'a Repo,
+        signer: &'b Signer,
+    ) -> Result<IdentityMut<'a, 'b, Repo, Signer>, store::Error>
+    where
+        Repo: WriteRepository + cob::Store<Namespace = NodeId>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+    {
         let obj = Self::get(id, repo)?;
-        let store = cob::store::Store::open(repo)?;
+        let store = cob::store::Store::open(repo, WriteAs::new(signer))?;
 
         Ok(IdentityMut {
             id: *id,
@@ -287,13 +294,18 @@ impl Identity {
         Self::get(&oid, repo).map_err(RepositoryError::from)
     }
 
-    pub fn load_mut<R: WriteRepository + cob::Store<Namespace = NodeId>>(
-        repo: &R,
-    ) -> Result<IdentityMut<'_, R>, RepositoryError> {
+    pub fn load_mut<'a, 'b, Repo, Signer>(
+        repo: &'a Repo,
+        signer: &'b Signer,
+    ) -> Result<IdentityMut<'a, 'b, Repo, Signer>, RepositoryError>
+    where
+        Repo: WriteRepository + cob::Store<Namespace = NodeId>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+    {
         let oid = repo.identity_root()?;
         let oid = ObjectId::from(oid);
 
-        Self::get_mut(&oid, repo).map_err(RepositoryError::from)
+        Self::get_mut(&oid, repo, signer).map_err(RepositoryError::from)
     }
 }
 
@@ -885,43 +897,47 @@ impl<R: ReadRepository> store::Transaction<Identity, R> {
 }
 
 impl<R: WriteRepository> store::Transaction<Identity, R> {
-    pub fn revision<G: crypto::signature::Signer<crypto::Signature>>(
-        &mut self,
+    pub fn new_revision<G: crypto::signature::Signer<crypto::Signature>>(
         title: cob::Title,
         description: impl ToString,
         doc: &Doc,
         parent: Option<RevisionId>,
         repo: &R,
-        signer: &Device<G>,
-    ) -> Result<(), store::Error> {
+        signer: &G,
+    ) -> Result<Self, store::Error> {
+        let mut tx = Transaction::default();
+
         let (blob, bytes, signature) = doc.sign(signer).map_err(store::Error::Identity)?;
         // Store document blob in repository.
         let embed =
             Embed::<Uri>::store("radicle.json", &bytes, repo.raw()).map_err(store::Error::Git)?;
+
         debug_assert_eq!(embed.content, Uri::from(blob)); // Make sure we pre-computed the correct OID for the blob.
 
         // Identity document.
-        self.embed([embed])?;
+        tx.embed([embed])?;
 
         // Revision metadata.
-        self.push(Action::Revision {
+        tx.push(Action::Revision {
             title,
             description: description.to_string(),
             blob,
             parent,
             signature,
-        })
+        })?;
+
+        Ok(tx)
     }
 }
 
-pub struct IdentityMut<'a, R> {
+pub struct IdentityMut<'a, 'b, Repo, Signer> {
     pub id: ObjectId,
 
     identity: Identity,
-    store: store::Store<'a, Identity, R>,
+    store: store::Store<'a, Identity, Repo, WriteAs<'b, Signer>>,
 }
 
-impl<R> fmt::Debug for IdentityMut<'_, R> {
+impl<Repo, Signer> fmt::Debug for IdentityMut<'_, '_, Repo, Signer> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("IdentityMut")
             .field("id", &self.id)
@@ -930,11 +946,16 @@ impl<R> fmt::Debug for IdentityMut<'_, R> {
     }
 }
 
-impl<R> IdentityMut<'_, R>
+impl<Repo, Signer> IdentityMut<'_, '_, Repo, Signer>
 where
-    R: WriteRepository + cob::Store<Namespace = NodeId>,
+    Repo: WriteRepository + cob::Store<Namespace = NodeId>,
+    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+    Signer: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
+    Signer: crypto::signature::Verifier<crypto::Signature>,
 {
     /// Reload the identity data from storage.
+    #[cfg(test)]
     pub fn reload(&mut self) -> Result<(), store::Error> {
         self.identity = self
             .store
@@ -944,20 +965,14 @@ where
         Ok(())
     }
 
-    pub fn transaction<G, F>(
-        &mut self,
-        message: &str,
-        signer: &Device<G>,
-        operations: F,
-    ) -> Result<EntryId, Error>
+    pub fn transaction<F>(&mut self, message: &str, operations: F) -> Result<EntryId, Error>
     where
-        G: crypto::signature::Signer<crypto::Signature>,
-        F: FnOnce(&mut Transaction<Identity, R>, &R) -> Result<(), store::Error>,
+        F: FnOnce(&mut Transaction<Identity, Repo>, &Repo) -> Result<(), store::Error>,
     {
         let mut tx = Transaction::default();
         operations(&mut tx, self.store.as_ref())?;
 
-        let (doc, commit) = tx.commit(message, self.id, &mut self.store, signer)?;
+        let (doc, commit) = tx.commit(message, self.id, &mut self.store)?;
         self.identity = doc;
 
         Ok(commit)
@@ -965,70 +980,61 @@ where
 
     /// Update the identity by proposing a new revision.
     /// If the signer is the only delegate, the revision is accepted automatically.
-    pub fn update<G>(
+    pub fn update(
         &mut self,
         title: cob::Title,
         description: impl ToString,
         doc: &Doc,
-        signer: &Device<G>,
-    ) -> Result<RevisionId, Error>
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
-        let parent = self.current;
-        let id = self.transaction("Propose revision", signer, |tx, repo| {
-            tx.revision(title, description, doc, Some(parent), repo, signer)
-        })?;
+    ) -> Result<RevisionId, Error> {
+        let parent = Some(self.current);
 
-        Ok(id)
+        #[allow(deprecated)]
+        let tx = {
+            let signer = self.store.signer();
+            let repo = self.store.repo();
+            Transaction::new_revision(title, description, doc, parent, repo, signer)?
+        };
+        let (doc, commit) = tx.commit("Propose revision", self.id, &mut self.store)?;
+        self.identity = doc;
+
+        Ok(commit)
     }
 
     /// Accept an active revision.
-    pub fn accept<G>(&mut self, revision: &RevisionId, signer: &Device<G>) -> Result<EntryId, Error>
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
+    pub fn accept(&mut self, revision: &RevisionId) -> Result<EntryId, Error> {
         let id = *revision;
         let revision = self.revision(revision).ok_or(Error::NotFound(id))?;
-        let signature = revision.sign(signer)?;
 
-        self.transaction("Accept revision", signer, |tx, _| tx.accept(id, signature))
+        #[allow(deprecated)]
+        let signature = revision.sign(self.store.signer())?;
+
+        self.transaction("Accept revision", |tx, _| tx.accept(id, signature))
     }
 
     /// Reject an active revision.
-    pub fn reject<G>(&mut self, revision: RevisionId, signer: &Device<G>) -> Result<EntryId, Error>
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
-        self.transaction("Reject revision", signer, |tx, _| tx.reject(revision))
+    pub fn reject(&mut self, revision: RevisionId) -> Result<EntryId, Error> {
+        self.transaction("Reject revision", |tx, _| tx.reject(revision))
     }
 
     /// Redact a revision.
-    pub fn redact<G>(&mut self, revision: RevisionId, signer: &Device<G>) -> Result<EntryId, Error>
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
-        self.transaction("Redact revision", signer, |tx, _| tx.redact(revision))
+    pub fn redact(&mut self, revision: RevisionId) -> Result<EntryId, Error> {
+        self.transaction("Redact revision", |tx, _| tx.redact(revision))
     }
 
     /// Edit an active revision's title or description.
-    pub fn edit<G>(
+    pub fn edit(
         &mut self,
         revision: RevisionId,
         title: cob::Title,
         description: String,
-        signer: &Device<G>,
-    ) -> Result<EntryId, Error>
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
-        self.transaction("Edit revision", signer, |tx, _| {
+    ) -> Result<EntryId, Error> {
+        self.transaction("Edit revision", |tx, _| {
             tx.edit(revision, title, description)
         })
     }
 }
 
-impl<R> Deref for IdentityMut<'_, R> {
+impl<Repo, Signer> Deref for IdentityMut<'_, '_, Repo, Signer> {
     type Target = Identity;
 
     fn deref(&self) -> &Self::Target {
@@ -1076,6 +1082,7 @@ mod test {
     use crate::identity::Visibility;
     use crate::identity::did::Did;
     use crate::identity::doc::PayloadId;
+    use crate::node::device::Device;
     use crate::rad;
     use crate::storage::ReadStorage;
     use crate::storage::git::Storage;
@@ -1101,7 +1108,7 @@ mod test {
         let NodeWithRepo { node, repo } = NodeWithRepo::default();
         let bob = Device::mock();
         let signer = &node.signer;
-        let mut identity = Identity::load_mut(&*repo).unwrap();
+        let mut identity = Identity::load_mut(&*repo, signer).unwrap();
         let mut doc = identity.doc().clone().edit();
         let title = Title::new("Identity update").unwrap();
         let description = "";
@@ -1111,12 +1118,7 @@ mod test {
         assert!(identity.current().is_accepted());
         // Using an identical document to the current one fails.
         identity
-            .update(
-                title.clone(),
-                description,
-                &doc.clone().verified().unwrap(),
-                signer,
-            )
+            .update(title.clone(), description, &doc.clone().verified().unwrap())
             .unwrap_err();
         assert_eq!(identity.current, r0);
 
@@ -1129,12 +1131,7 @@ mod test {
         doc.delegate(bob.public_key().into());
         // The update should go through now.
         let r1 = identity
-            .update(
-                title.clone(),
-                description,
-                &doc.clone().verified().unwrap(),
-                signer,
-            )
+            .update(title.clone(), description, &doc.clone().verified().unwrap())
             .unwrap();
         assert!(identity.revision(&r1).unwrap().is_accepted());
         assert_eq!(identity.current, r1);
@@ -1143,12 +1140,7 @@ mod test {
         // signs it.
         doc.visibility = Visibility::private([]);
         let r2 = identity
-            .update(
-                title.clone(),
-                description,
-                &doc.clone().verified().unwrap(),
-                signer,
-            )
+            .update(title.clone(), description, &doc.clone().verified().unwrap())
             .unwrap();
         // R1 is still the head.
         assert_eq!(identity.current, r1);
@@ -1159,7 +1151,10 @@ mod test {
             &Visibility::Public
         );
         // Now let's add a signature on R2 from Bob.
-        identity.accept(&r2, &bob).unwrap();
+        let mut bob_identity = Identity::load_mut(&*repo, &bob).unwrap();
+        bob_identity.accept(&r2).unwrap();
+
+        identity.reload().unwrap();
 
         // R2 is now the head.
         assert_eq!(identity.current, r2);
@@ -1177,7 +1172,8 @@ mod test {
         let bob = Device::mock();
         let eve = Device::mock();
         let signer = &node.signer;
-        let mut identity = Identity::load_mut(&*repo).unwrap();
+
+        let mut identity = Identity::load_mut(&*repo, signer).unwrap();
         let mut doc = identity.doc().clone().edit();
         let description = "";
 
@@ -1188,7 +1184,6 @@ mod test {
                 cob::Title::new("Identity update").unwrap(),
                 description,
                 &doc.clone().verified().unwrap(),
-                signer,
             )
             .unwrap();
         assert_eq!(identity.current, r1);
@@ -1199,13 +1194,14 @@ mod test {
                 cob::Title::new("Make private").unwrap(),
                 description,
                 &doc.clone().verified().unwrap(),
-                &node.signer,
             )
             .unwrap();
 
+        let mut bob_identity = Identity::load_mut(&*repo, &bob).unwrap();
+
         // 1/2 rejected means that we can never reach the required 2/2 votes.
-        identity.reject(r2, &bob).unwrap();
-        let r2 = identity.revision(&r2).unwrap();
+        bob_identity.reject(r2).unwrap();
+        let r2 = bob_identity.revision(&r2).unwrap();
         assert_eq!(r2.state, State::Rejected);
 
         // Now let's add another delegate.
@@ -1215,10 +1211,13 @@ mod test {
                 cob::Title::new("Add Eve").unwrap(),
                 description,
                 &doc.clone().verified().unwrap(),
-                &node.signer,
             )
             .unwrap();
-        let _ = identity.accept(&r3, &bob).unwrap();
+
+        bob_identity.reload().unwrap();
+        let _ = bob_identity.accept(&r3).unwrap();
+
+        identity.reload().unwrap();
         assert_eq!(identity.current, r3);
 
         doc.visibility = Visibility::Public;
@@ -1227,18 +1226,19 @@ mod test {
                 cob::Title::new("Make public").unwrap(),
                 description,
                 &doc.verified().unwrap(),
-                &node.signer,
             )
             .unwrap();
 
         // 1/3 rejected means that we can still reach the 2/3 required votes.
-        identity.reject(r3, &bob).unwrap();
+        bob_identity.reject(r3).unwrap();
         let r3 = identity.revision(&r3).unwrap().clone();
         assert_eq!(r3.state, State::Active); // Still active.
 
+        let mut eve_identity = Identity::load_mut(&*repo, &eve).unwrap();
+
         // 2/3 rejected means that we can no longer reach the 2/3 required votes.
-        identity.reject(r3.id, &eve).unwrap();
-        let r3 = identity.revision(&r3.id).unwrap();
+        eve_identity.reject(r3.id).unwrap();
+        let r3 = eve_identity.revision(&r3.id).unwrap();
         assert_eq!(r3.state, State::Rejected);
     }
 
@@ -1248,7 +1248,7 @@ mod test {
         let alice = &network.alice;
         let bob = &network.bob;
 
-        let mut alice_identity = Identity::load_mut(&*alice.repo).unwrap();
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
         let mut alice_doc = alice_identity.doc().clone().edit();
 
         alice_doc.delegate(bob.signer.public_key().into());
@@ -1257,13 +1257,12 @@ mod test {
                 cob::Title::new("Add Bob").unwrap(),
                 "",
                 &alice_doc.clone().verified().unwrap(),
-                &alice.signer,
             )
             .unwrap();
 
         bob.repo.fetch(alice);
 
-        let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
+        let bob_identity = Identity::load(&*bob.repo).unwrap();
         let bob_doc = bob_identity.doc().clone();
         assert!(bob_doc.is_delegate(&bob.signer.public_key().into()));
 
@@ -1274,16 +1273,19 @@ mod test {
                 cob::Title::new("Change visibility").unwrap(),
                 "",
                 &alice_doc.clone().clone().verified().unwrap(),
-                &alice.signer,
             )
             .unwrap();
+
+        let bob_identity_mut = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        assert_eq!(*bob_identity_mut, bob_identity);
+        let mut bob_identity = bob_identity_mut;
+
         // Bob makes the same change without knowing Alice already did.
         let b1 = bob_identity
             .update(
                 cob::Title::new("Make private").unwrap(),
                 "",
                 &alice_doc.verified().unwrap(),
-                &bob.signer,
             )
             .unwrap();
 
@@ -1301,7 +1303,7 @@ mod test {
         assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Active);
 
         // Now Bob accepts Alice's proposal. This voids his own.
-        bob_identity.accept(&a2, &bob.signer).unwrap();
+        bob_identity.accept(&a2).unwrap();
         assert_eq!(bob_identity.current, a2);
         assert_eq!(bob_identity.revision(&a1).unwrap().state, State::Accepted);
         assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Accepted);
@@ -1315,7 +1317,7 @@ mod test {
         let bob = &network.bob;
         let eve = &network.eve;
 
-        let mut alice_identity = Identity::load_mut(&*alice.repo).unwrap();
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
         let mut alice_doc = alice_identity.doc().clone().edit();
 
         alice_doc.delegate(bob.signer.public_key().into());
@@ -1325,7 +1327,6 @@ mod test {
                 cob::Title::new("Add Bob").unwrap(),
                 "Eh.",
                 &alice_doc.clone().clone().verified().unwrap(),
-                &alice.signer,
             )
             .unwrap();
 
@@ -1335,20 +1336,16 @@ mod test {
                 cob::Title::new("Change visibility").unwrap(),
                 "Eh.",
                 &alice_doc.verified().unwrap(),
-                &alice.signer,
             )
             .unwrap();
 
         bob.repo.fetch(alice);
-        let a3 = cob::stable::with_advanced_timestamp(|| {
-            alice_identity.redact(a2, &alice.signer).unwrap()
-        });
+        let a3 = cob::stable::with_advanced_timestamp(|| alice_identity.redact(a2).unwrap());
         assert!(alice_identity.revision(&a1).is_some());
         assert_eq!(alice_identity.timeline, vec![a0, a1, a2, a3]);
 
-        let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
-        let b1 =
-            cob::stable::with_advanced_timestamp(|| bob_identity.accept(&a2, &bob.signer).unwrap());
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        let b1 = cob::stable::with_advanced_timestamp(|| bob_identity.accept(&a2).unwrap());
 
         assert_eq!(bob_identity.timeline, vec![a0, a1, a2, b1]);
         assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Accepted);
@@ -1367,7 +1364,7 @@ mod test {
         let bob = &network.bob;
         let eve = &network.eve;
 
-        let mut alice_identity = Identity::load_mut(&*alice.repo).unwrap();
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
         let mut alice_doc = alice_identity.doc().clone().edit();
 
         alice_doc.delegate(bob.signer.public_key().into());
@@ -1378,7 +1375,6 @@ mod test {
                 cob::Title::new("Add Bob and Eve").unwrap(),
                 "Eh#!",
                 &alice_doc.clone().verified().unwrap(),
-                &alice.signer,
             )
             .unwrap();
 
@@ -1388,7 +1384,6 @@ mod test {
                 cob::Title::new("Remove Eve").unwrap(),
                 "",
                 &alice_doc.verified().unwrap(),
-                &alice.signer,
             )
             .unwrap();
 
@@ -1396,12 +1391,11 @@ mod test {
         bob.repo.fetch(alice);
         eve.repo.fetch(bob);
 
-        let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
-        let b1 =
-            cob::stable::with_advanced_timestamp(|| bob_identity.accept(&a2, &bob.signer).unwrap());
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        let b1 = cob::stable::with_advanced_timestamp(|| bob_identity.accept(&a2).unwrap());
         assert_eq!(bob_identity.current, a2);
 
-        let mut eve_identity = Identity::load_mut(&*eve.repo).unwrap();
+        let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
         let mut eve_doc = eve_identity.doc().clone().edit();
         eve_doc.visibility = Visibility::private([eve.signer.public_key().into()]);
         let e1 = cob::stable::with_advanced_timestamp(|| {
@@ -1410,7 +1404,6 @@ mod test {
                     cob::Title::new("Change visibility").unwrap(),
                     "",
                     &eve_doc.verified().unwrap(),
-                    &eve.signer,
                 )
                 .unwrap()
         });
@@ -1443,7 +1436,7 @@ mod test {
         let bob = &network.bob;
         let eve = &network.eve;
 
-        let mut alice_identity = Identity::load_mut(&*alice.repo).unwrap();
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
         let mut alice_doc = alice_identity.doc().clone().edit();
 
         alice_doc.delegate(bob.signer.public_key().into());
@@ -1454,7 +1447,6 @@ mod test {
                 cob::Title::new("Add Bob and Eve").unwrap(),
                 "Eh!#",
                 &alice_doc.clone().verified().unwrap(),
-                &alice.signer,
             )
             .unwrap();
 
@@ -1464,7 +1456,6 @@ mod test {
                 cob::Title::new("Change visibility").unwrap(),
                 "",
                 &alice_doc.verified().unwrap(),
-                &alice.signer,
             )
             .unwrap();
 
@@ -1473,14 +1464,12 @@ mod test {
         eve.repo.fetch(bob);
 
         // Bob accepts alice's revision.
-        let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
-        let b1 =
-            cob::stable::with_advanced_timestamp(|| bob_identity.accept(&a2, &bob.signer).unwrap());
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        let b1 = cob::stable::with_advanced_timestamp(|| bob_identity.accept(&a2).unwrap());
 
         // Eve rejects the revision, not knowing.
-        let mut eve_identity = Identity::load_mut(&*eve.repo).unwrap();
-        let e1 =
-            cob::stable::with_advanced_timestamp(|| eve_identity.reject(a2, &eve.signer).unwrap());
+        let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
+        let e1 = cob::stable::with_advanced_timestamp(|| eve_identity.reject(a2).unwrap());
         assert!(eve_identity.revision(&a2).unwrap().is_active());
 
         // Then she submits a new revision.
@@ -1491,7 +1480,6 @@ mod test {
                 cob::Title::new("Change visibility").unwrap(),
                 "",
                 &eve_doc.verified().unwrap(),
-                &eve.signer,
             )
             .unwrap();
         assert!(eve_identity.revision(&e2).unwrap().is_active());
@@ -1529,7 +1517,7 @@ mod test {
         let bob = &network.bob;
         let eve = &network.eve;
 
-        let mut alice_identity = Identity::load_mut(&*alice.repo).unwrap();
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
         let mut alice_doc = alice_identity.doc().clone().edit();
 
         alice.repo.fetch(bob);
@@ -1542,14 +1530,13 @@ mod test {
                 cob::Title::new("Add Bob and Eve").unwrap(),
                 "",
                 &alice_doc.verified().unwrap(),
-                &alice.signer,
             )
             .unwrap();
 
         bob.repo.fetch(alice);
         eve.repo.fetch(alice);
 
-        let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
         let mut bob_doc = bob_identity.doc().clone().edit();
         assert!(bob_doc.is_delegate(&bob.signer.public_key().into()));
 
@@ -1568,14 +1555,14 @@ mod test {
                 cob::Title::new("Change visibility #1").unwrap(),
                 "",
                 &bob_doc.verified().unwrap(),
-                &bob.signer,
             )
             .unwrap();
+
         alice.repo.fetch(bob);
         eve.repo.fetch(bob);
 
         // In the meantime, Eve does the same thing on her side.
-        let mut eve_identity = Identity::load_mut(&*eve.repo).unwrap();
+        let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
         let mut eve_doc = eve_identity.doc().clone().edit();
         eve_doc.visibility = Visibility::private([]);
         let e1 = eve_identity
@@ -1583,18 +1570,16 @@ mod test {
                 cob::Title::new("Change visibility #2").unwrap(),
                 "Woops",
                 &eve_doc.verified().unwrap(),
-                &eve.signer,
             )
             .unwrap();
         assert_eq!(eve_identity.revisions().count(), 4);
         assert_eq!(eve_identity.revision(&e1).unwrap().state, State::Active);
 
         alice_identity.reload().unwrap();
-        let a2 = cob::stable::with_advanced_timestamp(|| {
-            alice_identity.accept(&b1, &alice.signer).unwrap()
-        });
+        let a2 = cob::stable::with_advanced_timestamp(|| alice_identity.accept(&b1).unwrap());
 
         eve.repo.fetch(alice);
+
         eve_identity.reload().unwrap();
 
         assert_eq!(eve_identity.timeline, vec![a0, a1, b1, e1, a2]);
@@ -1619,7 +1604,7 @@ mod test {
         rad::fork_remote(id, alice.public_key(), &eve, &storage).unwrap();
 
         let repo = storage.repository(id).unwrap();
-        let mut identity = Identity::load_mut(&repo).unwrap();
+        let mut identity = Identity::load_mut(&repo, &alice).unwrap();
         let doc = identity.doc().clone();
         let prj = doc.project().unwrap();
         let mut doc = doc.edit();
@@ -1633,7 +1618,6 @@ mod test {
                 cob::Title::new("Update description").unwrap(),
                 "",
                 &doc.clone().verified().unwrap(),
-                &alice,
             )
             .unwrap();
 
@@ -1645,7 +1629,6 @@ mod test {
                 cob::Title::new("Add bob").unwrap(),
                 "",
                 &doc.clone().verified().unwrap(),
-                &alice,
             )
             .unwrap();
 
@@ -1658,25 +1641,26 @@ mod test {
                 cob::Title::new("Add eve").unwrap(),
                 "",
                 &doc.clone().verified().unwrap(),
-                &alice,
             )
             .unwrap();
-        identity.accept(&revision, &bob).unwrap();
+
+        let mut bob_identity = Identity::load_mut(&repo, &bob).unwrap();
+        bob_identity.accept(&revision).unwrap();
 
         // Update description again with signatures by Eve and Bob.
         let desc = prj.description().to_owned() + "?";
         let prj = prj.update(None, desc, None).unwrap();
         doc.payload.insert(PayloadId::project(), prj.into());
-
-        let revision = identity
+        let revision = bob_identity
             .update(
                 cob::Title::new("Update description again").unwrap(),
                 "Bob's repository",
                 &doc.verified().unwrap(),
-                &bob,
             )
             .unwrap();
-        identity.accept(&revision, &eve).unwrap();
+
+        let mut eve_identity = Identity::load_mut(&repo, &eve).unwrap();
+        eve_identity.accept(&revision).unwrap();
 
         let identity: Identity = Identity::load(&repo).unwrap();
         let root = repo.identity_root().unwrap();

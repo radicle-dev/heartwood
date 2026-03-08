@@ -11,7 +11,6 @@ use crate::git::fmt;
 
 use crate::identity::doc::{Doc, DocAt, DocError, RawDoc, RepoId};
 use crate::node::NodeId;
-use crate::node::device::Device;
 
 pub use crate::storage::*;
 
@@ -367,17 +366,23 @@ impl WriteRepository for MockRepository {
 }
 
 impl SignRepository for MockRepository {
-    fn sign_refs<G: crypto::signature::Signer<crypto::Signature>>(
+    fn sign_refs<Signer>(
         &self,
-        _signer: &Device<G>,
-    ) -> Result<crate::storage::refs::SignedRefs, RepositoryError> {
+        _signer: &Signer,
+    ) -> Result<crate::storage::refs::SignedRefs, RepositoryError>
+    where
+        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+    {
         todo!()
     }
 
-    fn force_sign_refs<G: crypto::signature::Signer<crypto::Signature>>(
-        &self,
-        _signer: &Device<G>,
-    ) -> Result<crate::storage::refs::SignedRefs, RepositoryError> {
+    fn force_sign_refs<Signer>(&self, _signer: &Signer) -> Result<refs::SignedRefs, RepositoryError>
+    where
+        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
+        Signer: crypto::signature::Signer<crypto::Signature>,
+        Signer: crypto::signature::Verifier<crypto::Signature>,
+    {
         todo!()
     }
 }

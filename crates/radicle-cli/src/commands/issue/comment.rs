@@ -1,4 +1,5 @@
 use radicle::Profile;
+use radicle::cob::store::access::WriteAs;
 use radicle::cob::thread;
 use radicle::storage::WriteRepository;
 use radicle::{cob, git, issue, storage};
@@ -8,27 +9,35 @@ use crate::terminal as term;
 use crate::terminal::Element as _;
 use crate::terminal::patch::Message;
 
-pub(super) fn comment(
+pub(super) fn comment<Signer>(
     profile: &Profile,
     repo: &storage::git::Repository,
     issues: &mut issue::Cache<
-        issue::Issues<'_, storage::git::Repository>,
+        '_,
+        storage::git::Repository,
+        WriteAs<'_, Signer>,
         cob::cache::Store<cob::cache::Write>,
     >,
     id: Rev,
     message: Message,
     reply_to: Option<Rev>,
     quiet: bool,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), anyhow::Error>
+where
+    Signer: radicle::crypto::signature::Keypair<VerifyingKey = radicle::crypto::PublicKey>,
+    Signer: radicle::crypto::signature::Signer<radicle::crypto::Signature>,
+    Signer: radicle::crypto::signature::Signer<radicle::crypto::ssh::ExtendedSignature>,
+    Signer: radicle::crypto::signature::Verifier<radicle::crypto::Signature>,
+{
     let reply_to = reply_to
         .map(|rev| rev.resolve::<git::Oid>(repo.raw()))
         .transpose()?;
-    let signer = term::signer(profile)?;
     let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
     let mut issue = issues.get_mut(&issue_id)?;
     let (root_comment_id, _) = issue.root();
     let body = prompt_comment(message, issue.thread(), reply_to, None)?;
-    let comment_id = issue.comment(body, reply_to.unwrap_or(*root_comment_id), vec![], &signer)?;
+
+    let comment_id = issue.comment(body, reply_to.unwrap_or(*root_comment_id), vec![])?;
     if quiet {
         term::print(comment_id);
     } else {
@@ -38,19 +47,26 @@ pub(super) fn comment(
     Ok(())
 }
 
-pub(super) fn edit(
+pub(super) fn edit<Signer>(
     profile: &Profile,
     repo: &storage::git::Repository,
     issues: &mut issue::Cache<
-        issue::Issues<'_, storage::git::Repository>,
+        '_,
+        storage::git::Repository,
+        WriteAs<'_, Signer>,
         cob::cache::Store<cob::cache::Write>,
     >,
     id: Rev,
     message: Message,
     comment_id: Rev,
     quiet: bool,
-) -> Result<(), anyhow::Error> {
-    let signer = term::signer(profile)?;
+) -> Result<(), anyhow::Error>
+where
+    Signer: radicle::crypto::signature::Keypair<VerifyingKey = radicle::crypto::PublicKey>,
+    Signer: radicle::crypto::signature::Signer<radicle::crypto::Signature>,
+    Signer: radicle::crypto::signature::Signer<radicle::crypto::ssh::ExtendedSignature>,
+    Signer: radicle::crypto::signature::Verifier<radicle::crypto::Signature>,
+{
     let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
     let comment_id = comment_id.resolve(&repo.backend)?;
     let mut issue = issues.get_mut(&issue_id)?;
@@ -64,7 +80,7 @@ pub(super) fn edit(
         comment.reply_to(),
         Some(comment.body()),
     )?;
-    issue.edit_comment(comment_id, body, vec![], &signer)?;
+    issue.edit_comment(comment_id, body, vec![])?;
     if quiet {
         term::print(comment_id);
     } else {
