@@ -24,6 +24,7 @@ pub mod logger;
 pub mod node;
 pub mod profile;
 pub mod rad;
+pub mod rand;
 #[cfg(feature = "schemars")]
 pub mod schemars_ext;
 pub mod serde_ext;

@@ -117,16 +117,30 @@ pub mod env {
         Some(super::Passphrase::from(passphrase))
     }
 
+    /// Attempt to read the value of the environment variable `RAD_RNG_SEED`.
+    ///
+    /// # Panics
+    ///
+    /// If `RAD_RNG_SEED` is set but not valid Unicode,
+    /// or is set but does not parse as [`u64`].
+    pub(crate) fn rng_seed() -> Option<u64> {
+        match var(RAD_RNG_SEED) {
+            Err(VarError::NotPresent) => None,
+            Err(VarError::NotUnicode(_)) => {
+                panic!("value of environment variable `{RAD_RNG_SEED}` is not valid Unicode")
+            }
+            Ok(seed) => match seed.parse() {
+                Ok(seed) => Some(seed),
+                Err(err) => panic!(
+                    "value of environment variable `{RAD_RNG_SEED}` does not parse as u64: {err}"
+                ),
+            },
+        }
+    }
+
     /// Get a random number generator from the environment.
     pub fn rng() -> fastrand::Rng {
-        if let Ok(seed) = var(RAD_RNG_SEED) {
-            let Ok(seed) = seed.parse() else {
-                panic!("env::rng: invalid seed specified in `{RAD_RNG_SEED}`");
-            };
-            fastrand::Rng::with_seed(seed)
-        } else {
-            fastrand::Rng::new()
-        }
+        rng_seed().map(fastrand::Rng::with_seed).unwrap_or_default()
     }
 
     /// Return the seed stored in the [`RAD_KEYGEN_SEED`] environment variable,

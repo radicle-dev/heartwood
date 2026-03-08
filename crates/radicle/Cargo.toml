@@ -49,6 +49,7 @@ radicle-git-ref-format = { workspace = true, features = ["macro", "serde"] }
 radicle-localtime = { workspace = true, features = ["serde"] }
 radicle-oid = { workspace = true, features = ["git2", "serde", "std", "sha1"] }
 radicle-ssh = { workspace = true }
+rand = { version = "0.10.0", features = ["chacha"] }
 schemars = { workspace = true, optional = true, features = ["derive", "std"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["preserve_order"] }
