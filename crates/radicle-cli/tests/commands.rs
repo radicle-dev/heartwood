@@ -30,6 +30,10 @@ mod util;
 use util::environment::{config, Environment};
 use util::formula::formula;
 
+mod commands {
+    mod checkout;
+}
+
 /// Run a CLI test file.
 pub(crate) fn test<'a>(
     test: impl AsRef<Path>,
@@ -355,42 +359,6 @@ fn rad_config() {
 #[test]
 fn rad_warn_old_nodes() {
     Environment::alice(["rad-warn-old-nodes"]);
-}
-
-#[test]
-fn rad_checkout() {
-    let mut environment = Environment::new();
-    let profile = environment.profile("alice");
-    let copy = tempfile::tempdir().unwrap();
-
-    environment.repository(&profile);
-
-    environment.test("rad-init", &profile).unwrap();
-    test(
-        "examples/rad-checkout.md",
-        copy.path(),
-        Some(&profile.home),
-        [],
-    )
-    .unwrap();
-
-    if cfg!(target_os = "linux") {
-        test(
-            "examples/rad-checkout-repo-config-linux.md",
-            copy.path(),
-            Some(&profile.home),
-            [],
-        )
-        .unwrap();
-    } else if cfg!(target_os = "macos") {
-        test(
-            "examples/rad-checkout-repo-config-macos.md",
-            copy.path(),
-            Some(&profile.home),
-            [],
-        )
-        .unwrap();
-    }
 }
 
 #[test]
