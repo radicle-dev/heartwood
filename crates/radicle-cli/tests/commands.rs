@@ -1,24 +1,21 @@
 use core::panic;
+use std::fs;
 use std::path::Path;
 use std::str::FromStr;
-use std::{fs, thread, time};
 
 use radicle::node::config::seeds::RADICLE_NODE_BOOTSTRAP_IRIS;
-use radicle::node::config::DefaultSeedingPolicy;
-use radicle::node::events::Event;
 use radicle::node::policy::Scope;
 use radicle::node::{Alias, Config, Handle as _, DEFAULT_TIMEOUT};
 use radicle::prelude::RepoId;
 use radicle::profile;
 use radicle::profile::Home;
-use radicle::storage::{ReadStorage, RemoteRepository};
 use radicle::test::fixtures;
 
 #[allow(unused_imports)]
 use radicle_node::test::logger;
 
 mod util;
-use util::environment::{config, Environment};
+use util::environment::Environment;
 use util::formula::formula;
 
 mod commands {
@@ -35,6 +32,7 @@ mod commands {
     mod patch;
     mod policy;
     mod remote;
+    mod sync;
 }
 
 /// Run a CLI test file.
@@ -226,37 +224,6 @@ fn rad_clean() {
 }
 
 #[test]
-fn rad_sync_without_node() {
-    let mut environment = Environment::new();
-    let alice = environment.seed("alice");
-    let bob = environment.seed("bob");
-    let mut eve = environment.seed("eve");
-
-    let rid = RepoId::from_urn("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5").unwrap();
-    eve.policies.seed(&rid, Scope::All).unwrap();
-
-    formula(&environment.tempdir(), "examples/rad-sync-without-node.md")
-        .unwrap()
-        .home(
-            "alice",
-            alice.home.path(),
-            [("RAD_HOME", alice.home.path().display())],
-        )
-        .home(
-            "bob",
-            bob.home.path(),
-            [("RAD_HOME", bob.home.path().display())],
-        )
-        .home(
-            "eve",
-            eve.home.path(),
-            [("RAD_HOME", eve.home.path().display())],
-        )
-        .run()
-        .unwrap();
-}
-
-#[test]
 fn rad_self() {
     let mut environment = Environment::new();
     let alice = environment.node_with(Config {
@@ -266,27 +233,6 @@ fn rad_self() {
     let working = environment.tempdir().join("working");
 
     test("examples/rad-self.md", working, Some(&alice.home), []).unwrap();
-}
-
-#[test]
-fn rad_fetch() {
-    let mut environment = Environment::new();
-    let alice = environment.node("alice");
-    let bob = environment.node("bob");
-
-    let mut alice = alice.spawn();
-    let bob = bob.spawn();
-
-    alice.connect(&bob);
-    environment.repository(&alice);
-
-    // Alice initializes a repo after her node has started, and after bob has connected to it.
-    environment.test("rad-init-sync", &alice).unwrap();
-
-    // Wait for bob to get any updates to the routing table.
-    bob.converge([&alice]);
-
-    environment.test("rad-fetch", &bob).unwrap();
 }
 
 #[cfg(unix)]
@@ -304,141 +250,6 @@ fn rad_diff() {
     fixtures::repository(&tmp);
 
     test("examples/rad-diff.md", tmp, None, []).unwrap();
-}
-
-#[test]
-fn rad_sync() {
-    let mut environment = Environment::new();
-    let working = environment.tempdir().join("working");
-    let alice = environment.seed("alice");
-    let bob = environment.seed("bob");
-    let eve = environment.seed("eve");
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
-
-    fixtures::repository(working.join("acme"));
-
-    test(
-        "examples/rad-init.md",
-        working.join("acme"),
-        Some(&alice.home),
-        [],
-    )
-    .unwrap();
-
-    let mut alice = alice.spawn();
-    let mut bob = bob.spawn();
-    let mut eve = eve.spawn();
-
-    bob.handle.seed(acme, Scope::All).unwrap();
-    eve.handle.seed(acme, Scope::All).unwrap();
-
-    alice.connect(&bob);
-    eve.connect(&alice);
-
-    bob.routes_to(&[(acme, alice.id)]);
-    eve.routes_to(&[(acme, alice.id)]);
-    alice.routes_to(&[(acme, alice.id), (acme, eve.id), (acme, bob.id)]);
-    alice.is_synced_with(&acme, &eve.id);
-    alice.is_synced_with(&acme, &bob.id);
-
-    test(
-        "examples/rad-sync.md",
-        working.join("acme"),
-        Some(&alice.home),
-        [],
-    )
-    .unwrap();
-}
-
-#[test]
-//
-//     alice -- seed -- bob
-//
-fn test_replication_via_seed() {
-    let mut environment = Environment::new();
-    let alice = environment.relay("alice");
-    let bob = environment.relay("bob");
-    let seed = environment.node_with(Config {
-        seeding_policy: DefaultSeedingPolicy::permissive(),
-        ..config::relay("seed")
-    });
-    let rid = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
-
-    let mut alice = alice.spawn();
-    let mut bob = bob.spawn();
-    let seed = seed.spawn();
-
-    alice.connect(&seed);
-    bob.connect(&seed);
-
-    // Enough time for the next inventory from Seed to not be considered stale by Bob.
-    thread::sleep(time::Duration::from_millis(3));
-
-    alice.routes_to(&[]);
-    seed.routes_to(&[]);
-    bob.routes_to(&[]);
-
-    // Initialize a repo as Alice.
-    environment.repository(&alice);
-    alice
-        .rad(
-            "init",
-            &[
-                "--name",
-                "heartwood",
-                "--description",
-                "Radicle Heartwood Protocol & Stack",
-                "--default-branch",
-                "master",
-                "--public",
-            ],
-            environment.work(&alice),
-        )
-        .unwrap();
-
-    alice
-        .rad("follow", &[&bob.id.to_human()], environment.work(&alice))
-        .unwrap();
-
-    alice.routes_to(&[(rid, alice.id), (rid, seed.id)]);
-    seed.routes_to(&[(rid, alice.id), (rid, seed.id)]);
-    bob.routes_to(&[(rid, alice.id), (rid, seed.id)]);
-
-    let seed_events = seed.handle.events();
-    let alice_events = alice.handle.events();
-
-    bob.fork(rid, environment.work(&bob)).unwrap();
-
-    alice.routes_to(&[(rid, alice.id), (rid, seed.id), (rid, bob.id)]);
-    seed.routes_to(&[(rid, alice.id), (rid, seed.id), (rid, bob.id)]);
-    bob.routes_to(&[(rid, alice.id), (rid, seed.id), (rid, bob.id)]);
-
-    seed_events.iter().any(|e| {
-        matches!(
-            e, Event::RefsFetched { updated, remote, .. }
-            if remote == bob.id && updated.iter().any(|u| u.is_created())
-        )
-    });
-    alice_events.iter().any(|e| {
-        matches!(
-            e, Event::RefsFetched { updated, remote, .. }
-            if remote == seed.id && updated.iter().any(|u| u.is_created())
-        )
-    });
-
-    seed.storage
-        .repository(rid)
-        .unwrap()
-        .remote(&bob.id)
-        .unwrap();
-
-    // Seed should send Bob's ref announcement to Alice, after the fetch.
-    alice
-        .storage
-        .repository(rid)
-        .unwrap()
-        .remote(&bob.id)
-        .unwrap();
 }
 
 #[test]
