@@ -1,15 +1,10 @@
 use core::panic;
-use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 
-use radicle::node::config::seeds::RADICLE_NODE_BOOTSTRAP_IRIS;
-use radicle::node::policy::Scope;
-use radicle::node::{Alias, Config, Handle as _, DEFAULT_TIMEOUT};
+use radicle::node::{Alias, Handle as _};
 use radicle::prelude::RepoId;
-use radicle::profile;
 use radicle::profile::Home;
-use radicle::test::fixtures;
 
 #[allow(unused_imports)]
 use radicle_node::test::logger;
@@ -33,6 +28,7 @@ mod commands {
     mod policy;
     mod remote;
     mod sync;
+    mod utility;
 }
 
 /// Run a CLI test file.
@@ -93,94 +89,20 @@ fn program_reports_version(program: &str) -> bool {
 }
 
 #[test]
-fn rad_help() {
-    Environment::alice(["rad-help"]);
-}
-
-#[test]
-fn rad_auth() {
-    test("examples/rad-auth.md", Path::new("."), None, []).unwrap();
-}
-
-#[test]
-fn rad_key_mismatch() {
+fn rad_remote() {
     let mut environment = Environment::new();
-    let alice = environment.profile("alice");
+    let alice = environment.relay("alice");
+    let bob = environment.relay("bob");
+    let eve = environment.relay("eve");
+    let home = alice.home.clone();
+    let rid = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    // Setup a test repository.
     environment.repository(&alice);
 
-    environment.test("rad-init", &alice).unwrap();
-
-    // Replace the public key with one that does not match the secret key anymore.
-    fs::write(alice.home.path().join("keys").join("radicle.pub"), "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE6Ul/D+P0I/Hl1JVOWGS8Z589us9FqKQXWv8OMOpKCh snakeoil\n").unwrap();
-
-    environment.test("rad-key-mismatch", &alice).unwrap();
-}
-
-#[test]
-fn rad_auth_errors() {
-    test("examples/rad-auth-errors.md", Path::new("."), None, []).unwrap();
-}
-
-#[test]
-fn rad_inspect() {
-    let mut environment = Environment::new();
-    let profile = environment.profile("alice");
-
-    environment.repository(&profile);
-
-    environment
-        .tests(["rad-init", "rad-inspect"], &profile)
-        .unwrap();
-
-    // NOTE: The next test runs without $RAD_HOME set.
-    test(
-        "examples/rad-inspect-noauth.md",
-        environment.work(&profile),
-        None,
-        [],
-    )
-    .unwrap();
-}
-
-#[test]
-fn rad_config() {
-    let mut environment = Environment::new();
-    let alias = Alias::new("alice");
-    let profile = environment.profile_with(profile::Config {
-        preferred_seeds: vec![RADICLE_NODE_BOOTSTRAP_IRIS.clone().first().unwrap().clone()],
-        ..profile::Config::new(alias)
-    });
-    let working = tempfile::tempdir().unwrap();
-
-    test(
-        "examples/rad-config.md",
-        working.path(),
-        Some(&profile.home),
-        [],
-    )
-    .unwrap();
-}
-
-#[test]
-fn rad_warn_old_nodes() {
-    Environment::alice(["rad-warn-old-nodes"]);
-}
-
-#[test]
-fn rad_clean() {
-    let mut environment = Environment::new();
-    let alice = environment.node("alice");
-    let bob = environment.node("bob");
-    let eve = environment.node("eve");
-    let working = environment.tempdir().join("working");
-
-    // Setup a test project.
-    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
-    fixtures::repository(working.join("acme"));
     test(
         "examples/rad-init.md",
-        working.join("acme"),
-        Some(&alice.home),
+        environment.work(&alice),
+        Some(&home),
         [],
     )
     .unwrap();
@@ -188,90 +110,32 @@ fn rad_clean() {
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
     let mut eve = eve.spawn();
-    alice.handle.seed(acme, Scope::All).unwrap();
-    eve.handle.seed(acme, Scope::Followed).unwrap();
-
-    bob.connect(&alice).converge([&alice]);
-    eve.connect(&alice).converge([&alice]);
-
-    eve.handle.fetch(acme, alice.id, DEFAULT_TIMEOUT).unwrap();
-
-    bob.fork(acme, bob.home.path()).unwrap();
-    bob.announce(acme, 1, bob.home.path()).unwrap();
-    bob.has_remote_of(&acme, &alice.id);
-    alice.has_remote_of(&acme, &bob.id);
-    eve.has_remote_of(&acme, &alice.id);
-
-    formula(&environment.tempdir(), "examples/rad-clean.md")
-        .unwrap()
-        .home(
-            "alice",
-            working.join("acme"),
-            [("RAD_HOME", alice.home.path().display())],
-        )
-        .home(
-            "bob",
-            working.join("bob"),
-            [("RAD_HOME", bob.home.path().display())],
-        )
-        .home(
-            "eve",
-            working.join("eve"),
-            [("RAD_HOME", eve.home.path().display())],
-        )
-        .run()
+    alice
+        .handle
+        .follow(bob.id, Some(Alias::new("bob")))
         .unwrap();
-}
-
-#[test]
-fn rad_self() {
-    let mut environment = Environment::new();
-    let alice = environment.node_with(Config {
-        external_addresses: vec!["seed.alice.acme:8776".parse().unwrap()],
-        ..Config::test(Alias::new("alice"))
-    });
-    let working = environment.tempdir().join("working");
-
-    test("examples/rad-self.md", working, Some(&alice.home), []).unwrap();
-}
-
-#[cfg(unix)]
-#[test]
-fn rad_diff() {
-    if std::env::consts::OS == "macos" {
-        // macOS's `sed` requires an argument for `-i`, which we don't provide
-        // in the example. Providing it makes the test fail on Linux.
-        // Since this command is deprecated anyway, we just skip macOS.
-        return;
-    }
-
-    let tmp = tempfile::tempdir().unwrap();
-
-    fixtures::repository(&tmp);
-
-    test("examples/rad-diff.md", tmp, None, []).unwrap();
-}
-
-#[test]
-fn framework_home() {
-    let mut environment = Environment::new();
-    let alice = environment.node("alice");
-    let bob = environment.node("bob");
-
-    formula(&environment.tempdir(), "examples/framework/home.md")
-        .unwrap()
-        .home(
-            "alice",
-            alice.home.path(),
-            [("RAD_HOME", alice.home.path().display())],
-        )
-        .home(
-            "bob",
-            bob.home.path(),
-            [("RAD_HOME", bob.home.path().display())],
-        )
-        .run()
+    alice
+        .handle
+        .follow(eve.id, Some(Alias::new("eve")))
         .unwrap();
+
+    bob.connect(&alice);
+    bob.routes_to(&[(rid, alice.id)]);
+    bob.fork(rid, bob.home.path()).unwrap();
+    alice.has_remote_of(&rid, &bob.id);
+
+    eve.connect(&alice);
+    eve.routes_to(&[(rid, alice.id)]);
+    eve.fork(rid, eve.home.path()).unwrap();
+    alice.has_remote_of(&rid, &eve.id);
+
+    test(
+        "examples/rad-remote.md",
+        environment.work(&alice),
+        Some(&home),
+        [],
+    )
+    .unwrap();
 }
 
 #[test]
