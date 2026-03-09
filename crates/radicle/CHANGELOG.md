@@ -104,7 +104,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `radicle::identity::doc::IdError` was removed, along with its re-export at
   `radicle::identity::IdError`.
 - `radicle::identity::doc::id::RAD_PREFIX` constant was removed.
-- `radicle::identity::doc::VersionError::UnkownVersion` variant was renamed to
+- `radicle::identity::doc::VersionError` variant was corrected to
   `UnknownVersion`, correcting the typo.
   The typo has been corrected to `UnknownVersion`.
 - `radicle::storage::git::RefError` was removed.
