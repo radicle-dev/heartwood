@@ -59,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `Connected` state of a peer no longer contains fetching information. This
   information was returned when requesting for `Seeds` on the control socket.
   Callers should no longer expect the `fetching` inside that JSON result.
-- The `rad debug` information for ongoing fetches contained the number of
+- The `rad node debug` information for ongoing fetches contained the number of
   subscribers awaiting for results, this was removed.
 - The `TypeName` strings defined in `radicle-cob` are restricted to reflect the
   size limits on domain names as specified in
