@@ -393,7 +393,7 @@ fn clear(
     let question = match &mode {
         ClearMode::ByNotifications(ids) => format!("Clear {} notifications?", ids.len()),
         ClearMode::ByRepo(rid) => format!("Clear all notifications of repository {rid}?"),
-        ClearMode::All => "Clear all notification?".to_string(),
+        ClearMode::All => "Clear all notifications?".to_string(),
         ClearMode::Contextual => "Clear all notifications of current repository?".to_string(),
     };
 
