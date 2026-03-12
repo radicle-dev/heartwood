@@ -198,19 +198,11 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             issue.label(labels, &signer)?;
         }
         Command::List(list_args) => {
-            let mut authors: BTreeSet<Did> = list_args.authors.iter().cloned().collect();
-            if list_args.authored {
-                authors.insert(profile.did());
-            }
+            let state = (&list_args.state).into();
+            let assigned = list_args.assigned;
+            let authors = list_args.authors(&profile);
 
-            list(
-                issues,
-                authors,
-                &list_args.assigned,
-                &((&list_args.state).into()),
-                &profile,
-                args.verbose,
-            )?;
+            list(issues, authors, &assigned, &state, &profile, args.verbose)?;
         }
         Command::Delete { id } => {
             let id = id.resolve(&repo.backend)?;

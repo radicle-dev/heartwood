@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::BTreeSet, str::FromStr};
 
 use clap::{Parser, Subcommand};
 
@@ -10,7 +10,7 @@ use radicle::{
 
 use crate::{git::Rev, terminal::patch::Message};
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Assigned {
     #[default]
     Me,
@@ -203,6 +203,33 @@ impl Command {
 
 /// Arguments for the empty subcommand.
 #[derive(Parser, Debug, Default)]
+pub(crate) struct AuthorArgs {
+    /// Show only issues where the given user is an author (may be specified
+    /// multiple times)
+    #[arg(
+        long = "author",
+        value_name = "DID",
+        num_args = 1..,
+        action = clap::ArgAction::Append,
+    )]
+    authors: Vec<Did>,
+
+    /// Show only issues that you have authored
+    #[arg(long)]
+    authored: bool,
+}
+
+impl AuthorArgs {
+    pub(super) fn authors(self, profile: &radicle::profile::Profile) -> BTreeSet<Did> {
+        self.authors
+            .into_iter()
+            .chain(self.authored.then(|| profile.did()))
+            .collect()
+    }
+}
+
+/// Arguments for the empty subcommand.
+#[derive(Parser, Debug, Default)]
 pub(crate) struct EmptyArgs {
     #[arg(long, name = "DID")]
     #[arg(default_missing_value = "me")]
@@ -213,19 +240,8 @@ pub(crate) struct EmptyArgs {
     #[clap(flatten)]
     pub(crate) state: EmptyStateArgs,
 
-    /// Show only issues where the given user is an author (may be specified
-    /// multiple times)
-    #[arg(
-        long = "author",
-        value_name = "DID",
-        num_args = 1..,
-        action = clap::ArgAction::Append,
-    )]
-    pub(super) authors: Vec<Did>,
-
-    /// Show only issues that you have authored
-    #[arg(long)]
-    pub(super) authored: bool,
+    #[clap(flatten)]
+    authors: AuthorArgs,
 }
 
 /// Counterpart to [`ListStateArgs`] for the empty subcommand.
@@ -257,19 +273,14 @@ pub(crate) struct ListArgs {
     #[clap(flatten)]
     pub(crate) state: ListStateArgs,
 
-    /// Show only issues where the given user is an author (may be specified
-    /// multiple times)
-    #[arg(
-        long = "author",
-        value_name = "DID",
-        num_args = 1..,
-        action = clap::ArgAction::Append,
-    )]
-    pub(super) authors: Vec<Did>,
+    #[clap(flatten)]
+    authors: AuthorArgs,
+}
 
-    /// Show only issues that you have authored
-    #[arg(long)]
-    pub(super) authored: bool,
+impl ListArgs {
+    pub(super) fn authors(self, profile: &radicle::profile::Profile) -> BTreeSet<Did> {
+        self.authors.authors(profile)
+    }
 }
 
 #[derive(Parser, Debug, Default)]
@@ -325,7 +336,6 @@ impl From<EmptyArgs> for ListArgs {
             assigned: args.assigned,
             state: ListStateArgs::from(args.state),
             authors: args.authors,
-            authored: args.authored,
         }
     }
 }
