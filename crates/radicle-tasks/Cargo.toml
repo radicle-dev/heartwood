@@ -1,5 +1,5 @@
 [package]
-name = "radicle-cob-tasks"
+name = "radicle-tasks"
 description = "Radicle Tasks COB"
 homepage.workspace = true
 repository.workspace = true

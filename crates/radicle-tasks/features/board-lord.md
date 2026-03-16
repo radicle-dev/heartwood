@@ -13,7 +13,6 @@
   - ✗ Non-delegate
   - ✗ Empty
     - Name
-    - Goal
   - ✗ Invalid Characters
     - Name
     - Goal
@@ -70,7 +69,7 @@
         ╰──────────────────────────────────────────────────────────────────────────────╯
         ```
 
-      - Table view (should contain: id, title, assignee, labels - by default)
+      - Table view
         - No tasks
         - One task
         - Many tasks

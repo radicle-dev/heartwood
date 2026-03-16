@@ -3015,6 +3015,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "radicle-cob-tasks"
+version = "0.1.0"
+
+[[package]]
 name = "radicle-core"
 version = "0.1.0"
 dependencies = [
