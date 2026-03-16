@@ -8,6 +8,8 @@
 
 ### Feature and scenario headings:
 
+> Note that ✗ = unhappy paths and ✓ = happy paths, the order of items below should be shortest to longest path through each feature.
+
 - Create a board
   - ✗ Repo not defined
   - ✗ Non-delegate
@@ -76,12 +78,12 @@
 
         ```
         $ rad board show b67a123 --table
-        ╭──────────────────────────────────────────────────────────────────────────────╮
-        │ ●    ID         Title                  Assignee         Labels               │
-        ├──────────────────────────────────────────────────────────────────────────────┤
-        │ ●    27d3132    Change passphrase...   z6MkkPv...       bug                  │
-        │ ●    91f64c0    Add CLI command...     z6MkkPv...       enhancement          │
-        ╰──────────────────────────────────────────────────────────────────────────────╯
+        ╭─────────────────────────────────────────────────────────────────────────────────────╮
+        │ ●    ID        Step    Title                  Assignee         Labels               │
+        ├─────────────────────────────────────────────────────────────────────────────────────┤
+        │ ●    27d3132   Todo    Change passphrase...   z6MkkPv...       bug                  │
+        │ ●    91f64c0   Doing   Add CLI command...     z6MkkPv...       enhancement          │
+        ╰─────────────────────────────────────────────────────────────────────────────────────╯
         ```
 
     - Filter
