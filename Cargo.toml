@@ -68,7 +68,7 @@ serde_json = "1.0"
 shlex = "1.1.0"
 signature = "2.2"
 snapbox = "0.4.3"
-sqlite = "0.32.0"
+sqlite = "0.37.0"
 tempfile = "3.3.0"
 thiserror = { version = "2", default-features = false }
 uds_windows = "1.1.0"
