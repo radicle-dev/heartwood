@@ -113,13 +113,13 @@ $ rad config schema
     "ConnectAddress": {
       "description": "A node address to connect to. Format: An Ed25519 public key in multibase encoding, followed by the symbol '@', followed by an IP address, or a DNS name, or a Tor onion name, followed by the symbol ':', followed by a TCP port number.",
       "type": "string",
+      "pattern": "^.+@.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$",
       "examples": [
         "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@rosa.radicle.xyz:8776",
         "z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C@xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
         "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi@seed.example.com:8776",
         "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5@192.0.2.0:31337"
-      ],
-      "pattern": "^.+@.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$"
+      ]
     },
     "WebConfig": {
       "description": "Web configuration.",
