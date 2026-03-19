@@ -432,7 +432,7 @@ impl<H: ReactionHandler> Runtime<H> {
 
             let duration = Instant::now().duration_since(tick);
             if duration > LAG_TIMEOUT {
-                log::warn!(target: "reactor", "Service was busy {:?} which exceeds the timeout of {:?}", duration, LAG_TIMEOUT);
+                log::debug!(target: "reactor", "Service was busy {:?} which exceeds the timeout of {:?}", duration, LAG_TIMEOUT);
             }
 
             self.handle_actions(tick);
