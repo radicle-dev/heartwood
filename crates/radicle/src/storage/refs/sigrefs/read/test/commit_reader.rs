@@ -73,6 +73,7 @@ fn missing_commit() {
 }
 
 #[test]
+#[ignore = "strict verification of `refs/rad/root` reverted due to compatibility issues"]
 fn missing_identity() {
     let head = mock::oid(1);
     let refs = [(mock::refs_heads_main(), mock::oid(10))];

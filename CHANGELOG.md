@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in the ambiguous format could not be parsed anymore. Partially undo this change
   to stay backward compatible, but log a warning in case ambiguous addresses are
   encountered.
+- In commit `d3bc868e84c334f113806df1737f52cc57c5453d` which was released in
+  version 1.7.0, the criteria for verification of Signed References was changed
+  to be more strict. In particular, to require the reference `refs/rad/root`
+  pointing at the root commit in the history of the repository identity.
+  This was done under the assumption that the overwhelming majority of
+  repositories on the network would have this reference, thus not many users
+  would be negatively affected, in a trade for improved security.
+  It turned out that this assumption was wrong, and that a larger-than-expected
+  portion of the network is affected by verification errors. The change is
+  reverted, relaxing the verification criteria again.
 
 ## 1.7.0
 
