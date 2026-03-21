@@ -219,7 +219,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     if announce {
-        let mut node = Node::new(profile.socket());
+        let mut node = Node::new(profile.socket_from_env());
         node::announce(
             &repo,
             node::SyncSettings::default(),

@@ -329,11 +329,12 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
         signals
     };
 
+    let socket = home.socket_from_env();
     if options.force {
         log::debug!(target: "node", "Removing existing control socket..");
-        std::fs::remove_file(home.socket()).ok();
+        std::fs::remove_file(&socket).ok();
     }
-    Runtime::init(home, config.node, listen, signals, signer)?.run()?;
+    Runtime::init(home, config.node, socket, listen, signals, signer)?.run()?;
 
     Ok(())
 }

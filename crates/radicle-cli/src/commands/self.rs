@@ -28,7 +28,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     } else if args.nid {
         crate::warning::deprecated("rad self --nid", "rad node status --only nid");
         term::print(
-            Node::new(profile.socket())
+            Node::new(profile.socket_from_env())
                 .nid()
                 .ok()
                 .unwrap_or_else(|| *profile.id()),
@@ -54,7 +54,7 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
         term::format::tertiary(did).into(),
     ]);
 
-    let socket = profile.socket();
+    let socket = profile.socket_from_env();
     let node = if Node::new(&socket).is_running() {
         term::format::positive(format!("running ({})", socket.display()))
     } else {

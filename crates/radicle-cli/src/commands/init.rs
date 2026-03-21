@@ -136,7 +136,7 @@ pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> an
     };
 
     let signer = term::signer(profile)?;
-    let mut node = radicle::Node::new(profile.socket());
+    let mut node = radicle::Node::new(profile.socket_from_env());
     let mut spinner = term::spinner("Initializing...");
     let mut push_cmd = String::from("git push");
 

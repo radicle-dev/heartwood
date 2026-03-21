@@ -11,7 +11,7 @@ use args::Operation;
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let mut node = radicle::Node::new(profile.socket());
+    let mut node = radicle::Node::new(profile.socket_from_env());
 
     match Operation::from(args) {
         Operation::Follow { nid, alias, .. } => follow(nid, alias, &mut node, &profile)?,

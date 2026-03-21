@@ -23,7 +23,7 @@ use args::{Addr, Command};
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let mut node = Node::new(profile.socket());
+    let mut node = Node::new(profile.socket_from_env());
 
     let command = args.command.unwrap_or_default();
 

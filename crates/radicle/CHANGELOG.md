@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- To obtain the location of the control socket, do not use `Home::socket`
+  (which was removed), but instead choose `Home::socket_from_env` or
+  `Home::socket_default` depending on your use-case.
+
 ### Removed
 
 ### Security

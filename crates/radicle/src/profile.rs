@@ -667,12 +667,25 @@ impl Home {
         self.path.join("cobs")
     }
 
-    pub fn socket(&self) -> PathBuf {
-        const DEFAULT_SOCKET_NAME: &str = "control.sock";
-
+    /// The location of the control socket the node.
+    /// If the environment variable with name [`env::RAD_SOCKET`] is set,
+    /// its value is used.
+    /// Otherwise, the default socket name, which is relative to this
+    /// [`Home`], is used, see [`Self::socket_default`].
+    pub fn socket_from_env(&self) -> PathBuf {
         env::var_os(env::RAD_SOCKET)
             .map(PathBuf::from)
-            .unwrap_or_else(|| self.node().join(DEFAULT_SOCKET_NAME))
+            .unwrap_or_else(|| self.socket_default())
+    }
+
+    /// The default location of the control socket the node.
+    /// The returned value only depends on `self`, but not on
+    /// any environment variables.
+    ///
+    /// See also [`Self::socket_from_env`].
+    pub fn socket_default(&self) -> PathBuf {
+        const DEFAULT_SOCKET_NAME: &str = "control.sock";
+        self.node().join(DEFAULT_SOCKET_NAME)
     }
 
     /// Return a read-write handle to the notifications database.

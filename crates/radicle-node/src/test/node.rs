@@ -478,6 +478,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone + Debug> Node<G
         let rt = Runtime::init(
             self.home.clone(),
             self.config,
+            self.home.socket_default(),
             listen,
             signals,
             self.signer.clone(),

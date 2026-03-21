@@ -13,7 +13,7 @@ pub use args::Args;
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let mut node = radicle::Node::new(profile.socket());
+    let mut node = radicle::Node::new(profile.socket_from_env());
 
     match args::Operation::from(args) {
         args::Operation::List => seeding(&profile)?,

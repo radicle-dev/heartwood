@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::net;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{fmt, io, time};
@@ -71,6 +72,10 @@ impl<T> From<chan::SendError<T>> for Error {
 
 pub struct Handle {
     pub(crate) home: Home,
+
+    /// Path to the control socket in use. Required for shutdown.
+    pub(crate) socket: PathBuf,
+
     pub(crate) controller: reactor::Controller,
 
     /// Whether a shutdown was initiated or not. Prevents attempting to shutdown twice.
@@ -96,6 +101,7 @@ impl Clone for Handle {
     fn clone(&self) -> Self {
         Self {
             home: self.home.clone(),
+            socket: self.socket.clone(),
             controller: self.controller.clone(),
             shutdown: self.shutdown.clone(),
             emitter: self.emitter.clone(),
@@ -104,9 +110,15 @@ impl Clone for Handle {
 }
 
 impl Handle {
-    pub fn new(home: Home, controller: reactor::Controller, emitter: Emitter<Event>) -> Self {
+    pub fn new(
+        home: Home,
+        socket: PathBuf,
+        controller: reactor::Controller,
+        emitter: Emitter<Event>,
+    ) -> Self {
         Self {
             home,
+            socket,
             controller,
             shutdown: Arc::default(),
             emitter,
@@ -352,7 +364,7 @@ impl radicle::node::Handle for Handle {
         // Send a shutdown request to our own control socket. This is the only way to kill the
         // control thread gracefully. Since the control thread may have called this function,
         // the control socket may already be disconnected. Ignore errors.
-        UnixStream::connect(self.home.socket())
+        UnixStream::connect(self.socket)
             .and_then(|sock| Command::Shutdown.to_writer(sock))
             .ok();
 

@@ -63,7 +63,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         anyhow::bail!("fatal: repository storage is corrupt");
     }
-    let mut node = radicle::Node::new(profile.socket());
+    let mut node = radicle::Node::new(profile.socket_from_env());
     let spinner = term::spinner("Updating inventory..");
 
     // The repository is now part of our inventory.

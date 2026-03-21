@@ -65,7 +65,7 @@ pub(super) struct RealNodeSession {
 impl RealNodeSession {
     pub(super) fn new(profile: &Profile) -> Self {
         Self {
-            node: radicle::Node::new(profile.socket()),
+            node: radicle::Node::new(profile.socket_from_env()),
         }
     }
 }

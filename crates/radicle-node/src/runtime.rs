@@ -127,6 +127,7 @@ impl Runtime {
     pub fn init<G>(
         home: Home,
         config: radicle::node::Config,
+        socket: PathBuf,
         listen: Vec<net::SocketAddr>,
         signals: chan::Receiver<Signal>,
         signer: Device<G>,
@@ -233,7 +234,7 @@ impl Runtime {
             wire.listen(listener);
         }
         let reactor = Reactor::new(wire, thread::name(&id, "service"))?;
-        let handle = Handle::new(home.clone(), reactor.controller(), emitter);
+        let handle = Handle::new(home.clone(), socket.clone(), reactor.controller(), emitter);
 
         let nid = *signer.public_key();
         let fetch = worker::FetchConfig {
@@ -255,7 +256,7 @@ impl Runtime {
                 policies_db: home.node().join(node::POLICIES_DB_FILE),
             },
         )?;
-        let control = Self::bind(home.socket())?;
+        let control = Self::bind(socket)?;
 
         Ok(Runtime {
             id,
