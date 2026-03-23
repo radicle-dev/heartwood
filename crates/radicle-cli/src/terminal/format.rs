@@ -32,9 +32,42 @@ pub fn node_id_human(node: &NodeId) -> Paint<String> {
     Paint::new(node.to_human())
 }
 
-/// Format a git Oid.
+/// Format a Git object identifier.
+/// To format a Git object identifier in short form, see [`oid`].
+pub fn oid_long(oid: impl Into<radicle::git::Oid>) -> Paint<String> {
+    Paint::new(format!("{}", oid.into()))
+}
+
+/// Format a Git object identifier, shortened to the first 7 characters.
+/// To format a Git object identifier in long form, see [`oid_long`].
 pub fn oid(oid: impl Into<radicle::git::Oid>) -> Paint<String> {
     Paint::new(format!("{:.7}", oid.into()))
+}
+
+fn double_dot(base: impl std::fmt::Display, head: impl std::fmt::Display) -> Paint<String> {
+    Paint::new(format!("{}..{}", base, head))
+}
+
+/// Format a range between Git object identifiers (usually commits).
+/// Both object identifiers are formatted in their long form,
+/// see [`oid_long`].
+/// To format a range in short form, see [`range`].
+pub fn range_long<IntoOid>(base: IntoOid, head: IntoOid) -> Paint<String>
+where
+    IntoOid: Into<radicle::git::Oid>,
+{
+    double_dot(oid_long(base), oid_long(head))
+}
+
+/// Format a range between Git object identifiers (usually commits).
+/// Both object identifiers are formatted in short form,
+/// see [`oid`].
+/// To format a range in long form, see [`range_long`].
+pub fn range<IntoOid>(base: IntoOid, head: IntoOid) -> Paint<String>
+where
+    IntoOid: Into<radicle::git::Oid>,
+{
+    double_dot(oid(base), oid(head))
 }
 
 /// Wrap parenthesis around styled input, eg. `"input"` -> `"(input)"`.
