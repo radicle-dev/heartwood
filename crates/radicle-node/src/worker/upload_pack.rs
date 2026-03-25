@@ -130,15 +130,6 @@ where
                         log::debug!(target: "worker", "Exiting upload-pack reader thread for {}", header.repo);
                         break;
                     }
-                    Err(e) if e.kind() == io::ErrorKind::TimedOut => {
-                        log::debug!(target: "worker", "Read channel timed out for upload-pack {}", header.repo);
-                        // N.b. if the read timed out, ensure that the sender isn't
-                        // still sending messages.
-                        let lock = reporter.lock().expect("FATAL: upload_pack poisoned lock");
-                        if lock.is_timeout(timeout) {
-                            break;
-                        }
-                    }
                     Err(e) => {
                         log::debug!(target: "worker", "Failure on upload-pack channel read for {}: {e}", header.repo);
                         emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
@@ -175,7 +166,6 @@ struct Reporter<W> {
     emitter: Emitter<Event>,
     send: W,
     total: usize,
-    last_sent: Instant,
 }
 
 impl<W> Reporter<W> {
@@ -186,12 +176,7 @@ impl<W> Reporter<W> {
             emitter,
             send,
             total: 0,
-            last_sent: Instant::now(),
         }
-    }
-
-    fn is_timeout(&self, timeout: Duration) -> bool {
-        Instant::now().duration_since(self.last_sent) > timeout
     }
 
     fn emit(&mut self, buf: &[u8]) {
@@ -230,7 +215,6 @@ where
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let n = self.send.write(buf)?;
         self.emit(buf);
-        self.last_sent = Instant::now();
         Ok(n)
     }
 
