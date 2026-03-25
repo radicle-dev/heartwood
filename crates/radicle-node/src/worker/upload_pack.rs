@@ -1,5 +1,4 @@
 use std::io;
-use std::io::{Read, Write};
 use std::process::{Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
@@ -93,43 +92,16 @@ where
 
     thread::scope(|s| {
         thread::spawn_scoped(nid, "upload-pack", s, || {
-            let mut buffer = [0; u16::MAX as usize + 1];
-            loop {
-                match stdout.read(&mut buffer) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        if let Err(e) = reporter.write_all(&buffer[..n]) {
-                            log::debug!(target: "worker", "Failed to write buffer to upload-pack reporter: {e}");
-                            emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        log::debug!(target: "worker", "Exiting upload-pack writer thread for {}: {e}", header.repo);
-                        emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
-                        break;
-                    }
-                }
+            if let Err(e) = io::copy(&mut stdout, &mut reporter) {
+                log::debug!(target: "worker", "Failure on upload-pack writer for {}: {e}", header.repo);
+                emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
             }
         });
 
         let reader = thread::spawn_scoped(nid, "upload-pack", s, || {
-            let mut buffer = [0; u16::MAX as usize + 1];
-            loop {
-                match recv.read(&mut buffer) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        if let Err(e) = stdin.write_all(&buffer[..n]) {
-                            log::debug!(target: "worker", "Failed to write to upload-pack stdin: {e}");
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        log::debug!(target: "worker", "Failure on upload-pack channel read for {}: {e}", header.repo);
-                        emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
-                        break;
-                    }
-                }
+            if let Err(e) = io::copy(&mut recv, &mut stdin) {
+                log::debug!(target: "worker", "Failure on upload-pack reader for {}: {e}", header.repo);
+                emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
             }
         });
 
