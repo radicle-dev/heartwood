@@ -7,12 +7,31 @@ use gix_pack as pack;
 use gix_protocol::fetch::negotiate::one_round::State;
 use gix_protocol::handshake::Ref;
 use gix_protocol::{fetch, Handshake};
+use thiserror::Error;
 
 use crate::git::packfile;
 
 use super::{agent_name, Connection, WantsHaves};
 
-pub type Error = fetch::Error;
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("failed to perform fetch: {0}")]
+    Fetch(fetch::Error),
+    #[error("an I/O error occurred during fetch: {0}")]
+    Io(io::Error),
+}
+
+impl Error {
+    fn from_gix_fetch_error(err: fetch::Error) -> Self {
+        match err {
+            fetch::Error::Client(error) => match error {
+                gix_transport::client::Error::Io(error) => Self::Io(error),
+                err => Self::Fetch(fetch::Error::Client(err)),
+            },
+            err => Error::Fetch(err),
+        }
+    }
+}
 
 pub mod error {
     use std::io;
@@ -161,9 +180,8 @@ where
     log::trace!("Performing fetch");
 
     if wants_haves.wants.is_empty() {
-        return Err(Error::ReadRemainingBytes(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "empty fetch",
+        return Err(Error::Fetch(fetch::Error::ReadRemainingBytes(
+            io::Error::new(io::ErrorKind::InvalidData, "empty fetch"),
         )));
     }
     let mut out = FetchOut {
@@ -197,7 +215,7 @@ where
             shallow: &fetch::Shallow::NoChange,
             tags: fetch::Tags::None,
         },
-    )?.expect("we always get a pack");
+    ).map_err(Error::from_gix_fetch_error)?.expect("we always get a pack");
 
     out.refs
         .extend(fetch_out.last_response.wanted_refs().iter().map(

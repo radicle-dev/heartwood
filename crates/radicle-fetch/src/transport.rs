@@ -61,8 +61,8 @@ pub struct Transport<S> {
 pub enum Error {
     #[error("gix ls-refs error: {0}")]
     LsRefs(#[from] gix_protocol::ls_refs::Error),
-    #[error("gix fetch error: {0}")]
-    Fetch(#[from] gix_protocol::fetch::Error),
+    #[error(transparent)]
+    Fetch(#[from] fetch::Error),
     #[error("empty or no packfile received")]
     Empty,
     #[error("wanted object not found: {0}")]
