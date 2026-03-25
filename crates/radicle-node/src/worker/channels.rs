@@ -223,9 +223,8 @@ impl Read for ChannelReader<Vec<u8>> {
                 self.buffer = io::Cursor::new(data);
                 self.buffer.read(buf)
             }
-            Ok(ChannelEvent::Eof) => Err(io::ErrorKind::UnexpectedEof.into()),
+            Ok(ChannelEvent::Eof) => Ok(0),
             Ok(ChannelEvent::Close) => Err(io::ErrorKind::ConnectionReset.into()),
-
             Err(chan::RecvTimeoutError::Timeout) => Err(io::Error::new(
                 io::ErrorKind::TimedOut,
                 "error reading from stream: channel timed out",

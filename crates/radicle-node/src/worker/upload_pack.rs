@@ -126,10 +126,6 @@ where
                             break;
                         }
                     }
-                    Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
-                        log::debug!(target: "worker", "Exiting upload-pack reader thread for {}", header.repo);
-                        break;
-                    }
                     Err(e) => {
                         log::debug!(target: "worker", "Failure on upload-pack channel read for {}: {e}", header.repo);
                         emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
