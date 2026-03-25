@@ -96,7 +96,7 @@ where
 
     let mut stdin = child.stdin.take().unwrap();
     let mut stdout = io::BufReader::new(child.stdout.take().unwrap());
-    let reporter = std::sync::Mutex::new(Reporter::new(header.repo, remote, emitter.clone(), send));
+    let mut reporter = Reporter::new(header.repo, remote, emitter.clone(), send);
 
     std::thread::scope(|s| {
         thread::spawn_scoped(nid, "upload-pack", s, || {
@@ -105,13 +105,11 @@ where
                 match stdout.read(&mut buffer) {
                     Ok(0) => break,
                     Ok(n) => {
-                        let mut lock = reporter.lock().expect("FATAL: upload_pack poisoned lock");
-                        if let Err(e) = lock.write_all(&buffer[..n]) {
+                        if let Err(e) = reporter.write_all(&buffer[..n]) {
                             log::debug!(target: "worker", "Failed to write buffer to upload-pack reporter: {e}");
                             emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
                             break;
                         }
-                        drop(lock);
                     }
                     Err(e) => {
                         log::debug!(target: "worker", "Exiting upload-pack writer thread for {}: {e}", header.repo);
