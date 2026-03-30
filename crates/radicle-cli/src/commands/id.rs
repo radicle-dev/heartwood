@@ -222,8 +222,8 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 let icon = match r.state {
                     identity::State::Active => term::format::tertiary("●"),
                     identity::State::Accepted => term::format::positive("●"),
-                    identity::State::Rejected => term::format::negative("●"),
-                    identity::State::Stale => term::format::dim("●"),
+                    identity::State::Rejected(_) => term::format::negative("●"),
+                    identity::State::Redacted(_) => continue,
                 }
                 .into();
                 let state = r.state.to_string().into();
@@ -288,6 +288,7 @@ fn get<'a>(
     let id = revision.resolve(&repo.backend)?;
     let revision = identity
         .revision(&id)
+        .filter(|revision| !matches!(revision.state, identity::State::Redacted(_)))
         .ok_or(anyhow!("revision `{id}` not found"))?;
 
     Ok(revision)
@@ -344,13 +345,28 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
         })
         .divider();
 
-    let accepted = revision.accepted().collect::<Vec<_>>();
-    let rejected = revision.rejected().collect::<Vec<_>>();
-    let unknown = previous
-        .delegates()
-        .iter()
-        .filter(|id| !accepted.contains(id) && !rejected.contains(id))
-        .collect::<Vec<_>>();
+    let accepted = {
+        let mut accepted = revision.accepted().collect::<Vec<_>>();
+        accepted.sort();
+        accepted
+    };
+
+    let rejected = {
+        let mut rejected = revision.rejected().collect::<Vec<_>>();
+        rejected.sort();
+        rejected
+    };
+
+    let unknown = {
+        let mut unknown = previous
+            .delegates()
+            .iter()
+            .filter(|id| !accepted.contains(id) && !rejected.contains(id))
+            .collect::<Vec<_>>();
+        unknown.sort();
+        unknown
+    };
+
     let mut signatures = term::Table::<4, _>::default();
 
     for id in accepted {
@@ -485,7 +501,6 @@ fn on_apply_err(e: &identity::ApplyError, profile: &Profile) -> anyhow::Error {
         | e @ radicle::cob::identity::ApplyError::MissingParent
         | e @ radicle::cob::identity::ApplyError::DuplicateVerdict
         | e @ radicle::cob::identity::ApplyError::UnexpectedState
-        | e @ radicle::cob::identity::ApplyError::Redacted
         | e @ radicle::cob::identity::ApplyError::DocUnchanged
         | e @ radicle::cob::identity::ApplyError::Git(_)
         | e @ radicle::cob::identity::ApplyError::Doc(_)
