@@ -1524,6 +1524,78 @@ mod test {
     }
 
     #[test]
+    fn accepted_sibling_causes_rejection() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+        let eve = &network.eve;
+
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+
+        alice_doc.delegate(bob.signer.public_key().into());
+        alice_doc.delegate(eve.signer.public_key().into());
+
+        let a1 = alice_identity // Change description to change traversal order.
+            .update(
+                cob::Title::new("Add Bob and Eve").unwrap(),
+                "Eh#!",
+                &alice_doc.clone().verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        eve.repo.fetch(alice);
+
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        assert_eq!(bob_identity.current, a1);
+
+        let mut bob_doc = bob_identity.doc().clone().edit();
+        bob_doc.visibility = Visibility::private([]);
+        let bob_doc = bob_doc.verified().unwrap();
+        let b1 = cob::stable::with_advanced_timestamp(|| {
+            bob_identity
+                .update(
+                    cob::Title::new("Make private").unwrap(),
+                    "",
+                    &bob_doc.clone(),
+                )
+                .unwrap()
+        });
+
+        // Now, bob is very eager to change the description of the repository,
+        // and does not wait for Eve to accept `b1`.
+
+        let bob_doc = bob_doc.clone().edit();
+        bob_doc
+            .project()
+            .unwrap()
+            .update(None, Some("New Description".to_string()), None)
+            .unwrap();
+        let bob_doc = bob_doc.verified().unwrap();
+        let b2 = cob::stable::with_advanced_timestamp(|| {
+            bob_identity
+                .update(cob::Title::new("Change Description").unwrap(), "", &bob_doc)
+                .unwrap()
+        });
+
+        eve.repo.fetch(bob);
+
+        let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
+
+        // Eve is now ready to accept Bob's revision `b1`, but Bob's newest is `b2`.
+        cob::stable::with_advanced_timestamp(|| eve_identity.accept(&b1).unwrap());
+
+        // Now that Eve has accepted `b1`, it should be accepted and thus current.
+        assert_eq!(eve_identity.current, b1);
+        // The sibling revision `b2` should be rejected.
+        assert_eq!(
+            eve_identity.revision(&b2).unwrap().state,
+            State::Rejected(RejectedBy::Sibling(b1))
+        );
+    }
+
+    #[test]
     fn test_identity_remove_delegate_concurrent() {
         let network = Network::default();
         let alice = &network.alice;
