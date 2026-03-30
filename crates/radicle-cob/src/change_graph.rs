@@ -39,12 +39,18 @@ impl ChangeGraph {
     where
         S: change::Storage<ObjectId = Oid, Parent = Oid, Signatures = ExtendedSignature>,
     {
-        log::debug!(target: "cob", "Loading object of type {typename} at {oid}");
+        let tip_refs = tip_refs.collect::<Vec<_>>();
+
+        if log::log_enabled!(log::Level::Debug) {
+            log::debug!(target: "cob", "Loading object of type {typename} at {oid}.");
+        } else if log::log_enabled!(log::Level::Trace) {
+            log::trace!(target: "cob", "Loading object of type {typename} at {oid} from tips {}.", tip_refs.iter().map(|r| r.to_string()).collect::<Vec<_>>().join(", "));
+        }
 
         let mut graph: Dag<Oid, Entry> = Dag::new();
 
         // Populate the initial set of node ids from the refs we have
-        let mut child_ids = Vec::from_iter(tip_refs.map(|r| r.target.id));
+        let mut child_ids = Vec::from_iter(tip_refs.into_iter().map(|r| r.target.id));
         let mut edges_to_add = Vec::new();
 
         while let Some(child_id) = child_ids.pop() {
@@ -113,13 +119,12 @@ impl ChangeGraph {
             |_, entry, siblings| {
                 // Check the entry signatures are valid.
                 if !entry.valid_signatures() {
+                    log::debug!("Signature verification failed for entry {}.", entry.id);
                     return ControlFlow::Break(());
                 }
-                // Apply the entry to the state, and if there's an error, prune that branch.
-                if object
-                    .apply(entry, siblings.map(|(k, n)| (k, &n.value)), store)
-                    .is_err()
-                {
+                // Apply the entry to the state, and if there is an error, prune that branch.
+                if let Err(err) = object.apply(entry, siblings.map(|(k, n)| (k, &n.value)), store) {
+                    log::debug!("Application of entry {} returned error: {err}", entry.id);
                     return ControlFlow::Break(());
                 }
                 ControlFlow::Continue(())

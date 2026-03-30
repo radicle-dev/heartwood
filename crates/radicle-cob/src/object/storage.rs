@@ -45,6 +45,12 @@ pub struct Reference {
     pub target: Commit,
 }
 
+impl std::fmt::Display for Reference {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} @ {}", self.name, self.target.id)
+    }
+}
+
 /// A [`Commit`] that holds the data for a given [`crate::CollaborativeObject`].
 #[derive(Clone, Debug)]
 pub struct Commit {
