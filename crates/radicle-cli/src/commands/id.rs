@@ -223,7 +223,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     identity::State::Active => term::format::tertiary("●"),
                     identity::State::Accepted => term::format::positive("●"),
                     identity::State::Rejected => term::format::negative("●"),
-                    identity::State::Stale => term::format::dim("●"),
+                    identity::State::Redacted => continue,
                 }
                 .into();
                 let state = r.state.to_string().into();
@@ -288,6 +288,7 @@ fn get<'a>(
     let id = revision.resolve(&repo.backend)?;
     let revision = identity
         .revision(&id)
+        .filter(|revision| revision.state != identity::State::Redacted)
         .ok_or(anyhow!("revision `{id}` not found"))?;
 
     Ok(revision)

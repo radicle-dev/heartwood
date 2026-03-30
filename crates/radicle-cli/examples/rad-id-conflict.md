@@ -53,7 +53,7 @@ $ rad id list
 │ ●   ID        Title               Author                                                      Status     Created   Parent  │
 ├────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ ●   89b2623   Edit project name   bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   accepted   now       0ca42d3 │
-│ ●   12d7300   Edit project name   alice    (you)                                              stale      now       0ca42d3 │
+│ ●   12d7300   Edit project name   alice    (you)                                              rejected   now       0ca42d3 │
 │ ●   0ca42d3   Add Bob             alice    (you)                                              accepted   now       0656c21 │
 │ ●   0656c21   Initial revision    alice    (you)                                              accepted   now       none    │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
@@ -70,9 +70,9 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential s
 ```
 ``` ~bob (fail)
 $ rad id accept 12d7300 -q
-✗ Error: cannot vote on revision that is stale
+✗ Error: cannot vote on revision that is rejected
 $ rad id reject 12d7300 -q
-✗ Error: cannot vote on revision that is stale
+✗ Error: cannot vote on revision that is rejected
 ```
 ``` ~bob
 $ rad id show 12d7300
@@ -82,7 +82,7 @@ $ rad id show 12d7300
 │ Parent   0ca42d376bd566631083c8913cf86bec722da392                      │
 │ Blob     e93aa3e3c5c448bacd3537a81daf1437eccd046a                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
-│ State    stale                                                         │
+│ State    rejected                                                      │
 │ Quorum   no                                                            │
 ├────────────────────────────────────────────────────────────────────────┤
 │ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi alice       │

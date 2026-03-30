@@ -179,7 +179,7 @@ pub struct Identity {
     pub root: RevisionId,
 
     /// Revisions.
-    revisions: BTreeMap<RevisionId, Option<Revision>>,
+    revisions: BTreeMap<RevisionId, Revision>,
     /// Timeline of events.
     timeline: Vec<EntryId>,
 }
@@ -206,7 +206,7 @@ impl Identity {
             id: revision.blob.into(),
             root,
             current: root,
-            revisions: BTreeMap::from_iter([(root, Some(revision))]),
+            revisions: BTreeMap::from_iter([(root, revision)]),
             timeline: vec![root],
         }
     }
@@ -331,14 +331,16 @@ impl Identity {
 
     /// A specific [`Revision`], that may be redacted.
     pub fn revision(&self, revision: &RevisionId) -> Option<&Revision> {
-        self.revisions.get(revision).and_then(|r| r.as_ref())
+        self.revisions.get(revision)
     }
 
     /// All the [`Revision`]s that have not been redacted.
     pub fn revisions(&self) -> impl DoubleEndedIterator<Item = &Revision> {
-        self.timeline
-            .iter()
-            .filter_map(|id| self.revisions.get(id).and_then(|o| o.as_ref()))
+        self.timeline.iter().filter_map(|id| {
+            self.revisions
+                .get(id)
+                .filter(|revision| revision.state != State::Redacted)
+        })
     }
 
     pub fn latest_by(&self, who: &Did) -> Option<&Revision> {
@@ -427,12 +429,8 @@ impl store::Cob for Identity {
                 // This particular error is returned when there is a mismatch between the expected
                 // and the actual state of a revision, which can happen concurrently. Therefore
                 // if there are other concurrent ops, it is not fatal and we simply ignore it.
-                Err(ApplyError::UnexpectedState) => {
-                    if concurrent.is_empty() {
-                        return Err(ApplyError::UnexpectedState);
-                    }
-                }
-                // It's not a user error if the revision happens to be redacted by
+                Err(ApplyError::UnexpectedState) if !concurrent.is_empty() => {}
+                // It is not a user error if the revision happens to be redacted by
                 // the time this action is processed.
                 Err(ApplyError::Redacted) => {}
                 Err(other) => return Err(other),
@@ -452,8 +450,7 @@ impl Identity {
     /// * There is only ever one accepted revision; this is the "current" revision.
     /// * There can be zero or more active revisions, up to the number of delegates.
     /// * An active revision is one that can be "voted" on.
-    /// * An active revision always has the current revision as parent.
-    /// * Only the active revision can be accepted, rejected or edited.
+    /// * Only an active revision can be accepted, rejected or edited.
     fn action<R: ReadRepository>(
         &mut self,
         action: Action,
@@ -474,31 +471,60 @@ impl Identity {
                 revision,
                 signature,
             } => {
-                let id = revision;
-                let Some(revision) = lookup::revision_mut(&mut self.revisions, &id)? else {
-                    return Err(ApplyError::Redacted);
-                };
-                if !revision.is_active() {
-                    // You can't vote on an inactive revision.
-                    return Err(ApplyError::UnexpectedState);
+                let revision = self.revision_mut(&revision)?;
+                match &revision.state {
+                    State::Accepted => {
+                        log::trace!(
+                            "Skipping acceptance of revision {} by {did} because it already is accepted.",
+                            revision.id
+                        );
+                    }
+                    State::Rejected => {
+                        log::debug!(
+                            "Skipping acceptance of revision {} by {did} because it already is rejected.",
+                            revision.id
+                        );
+                    }
+                    State::Active => {
+                        log::trace!(
+                            "Applying acceptance of active revision {} by {did}.",
+                            revision.id
+                        );
+                        revision.accept(author, signature, &current)?;
+                        let id = revision.id;
+                        self.adopt(id);
+                    }
+                    State::Redacted => {
+                        return Err(ApplyError::Redacted);
+                    }
                 }
-                assert_eq!(revision.parent, Some(current.id));
-
-                revision.accept(author, signature, &current)?;
-
-                self.adopt(id);
             }
             Action::RevisionReject { revision } => {
-                let Some(revision) = lookup::revision_mut(&mut self.revisions, &revision)? else {
-                    return Err(ApplyError::Redacted);
-                };
-                if !revision.is_active() {
-                    // You can't vote on an inactive revision.
-                    return Err(ApplyError::UnexpectedState);
+                let revision = self.revision_mut(&revision)?;
+                match &revision.state {
+                    State::Accepted => {
+                        log::debug!(
+                            "Skipping rejection of revision {} by {did} because it already is accepted.",
+                            revision.id
+                        );
+                    }
+                    State::Rejected => {
+                        log::trace!(
+                            "Skipping rejection of revision {} by {did} because it already is rejected.",
+                            revision.id
+                        );
+                    }
+                    State::Active => {
+                        log::trace!(
+                            "Applying rejection of active revision {} by {did}.",
+                            revision.id
+                        );
+                        revision.reject(author)?;
+                    }
+                    State::Redacted => {
+                        return Err(ApplyError::Redacted);
+                    }
                 }
-                assert_eq!(revision.parent, Some(current.id));
-
-                revision.reject(author)?;
             }
             Action::RevisionEdit {
                 title,
@@ -508,15 +534,20 @@ impl Identity {
                 if revision == self.current {
                     return Err(ApplyError::NotAuthorized);
                 }
-                let Some(revision) = lookup::revision_mut(&mut self.revisions, &revision)? else {
-                    return Err(ApplyError::Redacted);
-                };
+                let revision = self.revision_mut(&revision)?;
                 if !revision.is_active() {
-                    // You can't edit an inactive revision.
+                    log::debug!(
+                        "Cannot edit revision {} because it is not active.",
+                        revision.id
+                    );
                     return Err(ApplyError::UnexpectedState);
                 }
                 if revision.author.public_key() != &author {
-                    // Can't edit someone else's revision.
+                    log::debug!(
+                        "{} cannot edit revision created by {}.",
+                        author,
+                        revision.author.public_key()
+                    );
                     // Since the author never changes, we can safely mark this as invalid.
                     return Err(ApplyError::NotAuthorized);
                 }
@@ -527,25 +558,26 @@ impl Identity {
             }
             Action::RevisionRedact { revision } => {
                 if revision == self.current {
-                    // Can't redact the current revision.
-                    return Err(ApplyError::UnexpectedState);
+                    log::debug!("Cannot redact current revision {revision}.");
+                    return Ok(());
                 }
-                if let Some(revision) = self.revisions.get_mut(&revision) {
-                    if let Some(r) = revision {
-                        if r.is_accepted() {
-                            // You can't redact an accepted revision.
-                            return Err(ApplyError::UnexpectedState);
-                        }
-                        if r.author.public_key() != &author {
-                            // Can't redact someone else's revision.
-                            // Since the author never changes, we can safely mark this as invalid.
-                            return Err(ApplyError::NotAuthorized);
-                        }
-                        *revision = None;
-                    }
-                } else {
-                    return Err(ApplyError::Missing(revision));
+                let revision = self.revision_mut(&revision)?;
+
+                if !revision.is_active() {
+                    log::debug!("Cannot redact inactive revision {}.", revision.id);
+                    return Ok(());
                 }
+                if revision.author.public_key() != &author {
+                    log::debug!(
+                        "{} cannot redact revision created by {}.",
+                        author,
+                        revision.author.public_key()
+                    );
+                    // Since the author never changes, we can safely mark this as invalid.
+                    return Err(ApplyError::NotAuthorized);
+                }
+                log::debug!("Redacting revision {}.", revision.id);
+                revision.state = State::Redacted;
             }
             Action::Revision {
                 title,
@@ -554,7 +586,7 @@ impl Identity {
                 signature,
                 parent,
             } => {
-                debug_assert!(!self.revisions.contains_key(&entry));
+                debug_assert_eq!(self.revisions.get(&entry), None, "revision visited twice");
 
                 let doc = repo.blob(blob)?;
                 let doc = Doc::from_blob(&doc)?;
@@ -562,26 +594,16 @@ impl Identity {
                 let Some(parent) = parent else {
                     return Err(ApplyError::MissingParent);
                 };
-                let Some(parent) = lookup::revision(&self.revisions, &parent)? else {
-                    return Err(ApplyError::Redacted);
-                };
-                // If the parent of this revision is no longer the current document, this
-                // revision can be marked as outdated.
-                let state = if parent.id == current.id {
-                    // If the revision is not outdated, we expect it to make a change to the
-                    // current version.
-                    if doc == parent.doc {
-                        return Err(ApplyError::DocUnchanged);
-                    }
-                    State::Active
-                } else {
-                    State::Stale
-                };
-
+                let parent = self.revision_mut(&parent)?;
+                // We expect the revision to make a change compared to its parent.
+                if doc == parent.doc {
+                    return Err(ApplyError::DocUnchanged);
+                }
                 // Verify signature over new blob, using trusted delegates.
                 if parent.verify_signature(&author, &signature, blob).is_err() {
                     return Err(ApplyError::InvalidSignature(author, blob));
                 }
+
                 let revision = Revision::new(
                     entry,
                     title,
@@ -589,54 +611,118 @@ impl Identity {
                     author.into(),
                     blob,
                     doc,
-                    state,
+                    State::Active,
                     signature,
                     Some(parent.id),
                     timestamp,
                 );
                 let id = revision.id;
 
-                self.revisions.insert(id, Some(revision));
-
-                if state == State::Active {
-                    self.adopt(id);
-                }
+                self.revisions.insert(id, revision);
+                self.adopt(id);
             }
         }
         Ok(())
     }
 
-    /// Try to adopt a revision as the current one.
+    /// Try to adopt an active revision as the current one.
+    ///
+    /// # Panics
+    ///
+    /// If the revision with the given ID is not active or lookup from
+    /// `self.revisions` returns a revision with a different ID.
+    /// If the parent revision of the revision with given ID does not exist.
     fn adopt(&mut self, id: RevisionId) {
         if self.current == id {
             return;
         }
-        let votes = self
-            .revision(&id)
-            .map(|revision| revision.accepted().count())
-            .unwrap_or_default();
-        if self.is_majority(votes) {
-            self.current = id;
-            self.current_mut().state = State::Accepted;
 
-            // Void all other active revisions.
-            for r in self
-                .revisions
-                .iter_mut()
-                .filter_map(|(_, r)| r.as_mut())
-                .filter(|r| r.state == State::Active)
-            {
-                r.state = State::Stale;
+        let Some(candidate) = self.revision(&id) else {
+            return;
+        };
+
+        // Invariant of this module. The key and ID of value in
+        // `self.revisions` must be equal.
+        assert_eq!(candidate.id, id);
+
+        // Invariant of this module. This function should only be called on
+        // active revisions.
+        assert_eq!(candidate.state, State::Active);
+
+        let parent = candidate.parent.expect("revision must have parent");
+
+        if parent != self.current {
+            log::debug!(
+                "Cannot adopt revision {} because its parent {} is not the current revision {}.",
+                id,
+                parent,
+                self.current
+            );
+            return;
+        }
+
+        let votes = candidate.accepted().count();
+
+        if !self.is_majority(votes) {
+            log::trace!(
+                "Revision {} has {} votes, but needs {} to be adopted.",
+                id,
+                votes,
+                self.majority()
+            );
+            return;
+        }
+
+        // Reject all sibling revisions and their children.
+        let mut reject = Vec::new();
+
+        loop {
+            let mut found = false;
+            for (revision_id, revision) in self.revisions.iter() {
+                let Some(revision_parent) = revision.parent else {
+                    continue;
+                };
+
+                if (revision_parent == parent || reject.contains(&revision_parent))
+                    && !reject.contains(revision_id)
+                    && revision.state == State::Active
+                    && revision_id != &id
+                {
+                    log::debug!("Adoption of {} causes {} to be rejected.", id, revision_id);
+
+                    found = true;
+                    reject.push(*revision_id);
+                }
+            }
+            if !found {
+                break;
             }
         }
+
+        for id in reject {
+            if let Some(revision) = self.revisions.get_mut(&id) {
+                revision.state = State::Rejected;
+            }
+        }
+
+        self.current = id;
+        self.current_mut().state = State::Accepted;
     }
 
     /// A specific [`Revision`], mutably.
-    fn revision_mut(&mut self, revision: &RevisionId) -> Option<&mut Revision> {
-        self.revisions.get_mut(revision).and_then(|r| r.as_mut())
+    ///
+    /// # Errors
+    ///
+    /// Returns `ApplyError::Missing` if the revision is not found.
+    fn revision_mut(&mut self, id: &RevisionId) -> Result<&mut Revision, ApplyError> {
+        self.revisions.get_mut(id).ok_or(ApplyError::Missing(*id))
     }
 
     /// The current revision, mutably.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the current revision is not found.
     fn current_mut(&mut self) -> &mut Revision {
         let current = self.current;
         self.revision_mut(&current)
@@ -680,18 +766,29 @@ pub enum Verdict {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum State {
-    /// The revision is actively being voted on. From here, it can go into any of the
-    /// other states.
+    /// The initial state of any revision.
+    ///
+    /// If a revision receives a majority of accepting votes, it is adopted and
+    /// transitions to [`Self::Accepted`]. Also, all its sibling revisions
+    /// transition to [`Self::Rejected`].
+    ///
+    /// If a revisions receives a majority of rejecting votes,
+    /// it transitions to [`Self::Rejected`]. This has no impact on sibling
+    /// revisions.
+    ///
+    /// If a revision is redacted (this can only be done by its authoring
+    /// delegate), it transitions to [`Self::Redacted`]. From there, no further
+    /// state transitions are possible. This can be viewed as a form of
+    /// withdrawal of the revision.
     Active,
-    /// The revision has been accepted by a majority of delegates. Once accepted,
-    /// a revision doesn't change state.
+    /// The revision was accepted by a majority of delegates.
+    /// Accepted revisions cannot be redacted.
     Accepted,
-    /// The revision was rejected by a majority of delegates. Once rejected,
-    /// a revision doesn't change state.
+    /// The revision was rejected by a majority of delegates, or
+    /// a sibling revision was accepted by a majority of delegates.
     Rejected,
-    /// The revision was active, but has been replaced by another revision,
-    /// and is now outdated. Once stale, a revision doesn't change state.
-    Stale,
+    /// The author decided to redact/withdraw the revision.
+    Redacted,
 }
 
 impl std::fmt::Display for State {
@@ -700,7 +797,7 @@ impl std::fmt::Display for State {
             Self::Active => write!(f, "active"),
             Self::Accepted => write!(f, "accepted"),
             Self::Rejected => write!(f, "rejected"),
-            Self::Stale => write!(f, "stale"),
+            Self::Redacted => write!(f, "redacted"),
         }
     }
 }
@@ -840,9 +937,8 @@ impl Revision {
         if self.verdicts.insert(key, Verdict::Reject).is_some() {
             return Err(ApplyError::DuplicateVerdict);
         }
-        // Mark as rejected if it's impossible for this revision to be accepted
-        // with the current delegate set. Note that if the delegate set changes,
-        // this proposal will be marked as `stale` anyway.
+        // Mark as rejected if it is impossible for this revision to be accepted
+        // with the current delegate set.
         if self.is_active() && self.rejected().count() > self.delegates().len() - self.majority() {
             self.state = State::Rejected;
         }
@@ -1027,36 +1123,6 @@ impl<Repo, Signer> Deref for IdentityMut<'_, '_, Repo, Signer> {
 
     fn deref(&self) -> &Self::Target {
         &self.identity
-    }
-}
-
-mod lookup {
-    use super::*;
-
-    pub fn revision_mut<'a>(
-        revisions: &'a mut BTreeMap<RevisionId, Option<Revision>>,
-        revision: &RevisionId,
-    ) -> Result<Option<&'a mut Revision>, ApplyError> {
-        match revisions.get_mut(revision) {
-            Some(Some(revision)) => Ok(Some(revision)),
-            // Redacted.
-            Some(None) => Ok(None),
-            // Missing. Causal error.
-            None => Err(ApplyError::Missing(*revision)),
-        }
-    }
-
-    pub fn revision<'a>(
-        revisions: &'a BTreeMap<RevisionId, Option<Revision>>,
-        revision: &RevisionId,
-    ) -> Result<Option<&'a Revision>, ApplyError> {
-        match revisions.get(revision) {
-            Some(Some(revision)) => Ok(Some(revision)),
-            // Redacted.
-            Some(None) => Ok(None),
-            // Missing. Causal error.
-            None => Err(ApplyError::Missing(*revision)),
-        }
     }
 }
 
@@ -1295,7 +1361,7 @@ mod test {
         assert_eq!(bob_identity.current, a2);
         assert_eq!(bob_identity.revision(&a1).unwrap().state, State::Accepted);
         assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Accepted);
-        assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Stale);
+        assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Rejected);
     }
 
     #[test]
@@ -1341,7 +1407,7 @@ mod test {
         bob_identity.reload().unwrap();
 
         assert_eq!(bob_identity.timeline, vec![a0, a1, a2, a3, b1]);
-        assert_eq!(bob_identity.revision(&a2), None);
+        assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Redacted);
         assert_eq!(bob_identity.current, a1);
     }
 
@@ -1561,10 +1627,9 @@ mod test {
         eve_identity.reload().unwrap();
         assert_eq!(eve_identity.timeline, vec![a0, a1, a2, b1, e1, e2]);
 
-        // Her revision is there, although stale, since another revision was accepted since.
-        // However, it wasn't pruned, even though rejecting an accepted revision is an error.
+        // Her revision is there and active, since her revision is a child of the accepted one.
         let e2 = eve_identity.revision(&e2).unwrap();
-        assert_eq!(e2.state, State::Stale);
+        assert_eq!(e2.state, State::Active);
         assert!(eve_identity.revision(&a2).unwrap().is_accepted());
     }
 
@@ -1641,7 +1706,7 @@ mod test {
         eve_identity.reload().unwrap();
 
         assert_eq!(eve_identity.timeline, vec![a0, a1, b1, e1, a2]);
-        assert_eq!(eve_identity.revision(&e1).unwrap().state, State::Stale);
+        assert_eq!(eve_identity.revision(&e1).unwrap().state, State::Rejected);
     }
 
     #[test]
