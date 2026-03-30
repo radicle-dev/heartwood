@@ -177,9 +177,6 @@ pub struct Identity {
     pub current: RevisionId,
     /// The initial revision of the document.
     pub root: RevisionId,
-    /// The latest revision that each delegate has accepted.
-    /// Delegates can only accept one revision at a time.
-    pub heads: BTreeMap<Did, RevisionId>,
 
     /// Revisions.
     revisions: BTreeMap<RevisionId, Option<Revision>>,
@@ -209,12 +206,6 @@ impl Identity {
             id: revision.blob.into(),
             root,
             current: root,
-            heads: revision
-                .delegates()
-                .iter()
-                .copied()
-                .map(|did| (did, root))
-                .collect(),
             revisions: BTreeMap::from_iter([(root, Some(revision))]),
             timeline: vec![root],
         }
@@ -493,7 +484,6 @@ impl Identity {
                 }
                 assert_eq!(revision.parent, Some(current.id));
 
-                self.heads.insert(author.into(), id);
                 revision.accept(author, signature, &current)?;
 
                 self.adopt(id);
@@ -606,7 +596,6 @@ impl Identity {
                 );
                 let id = revision.id;
 
-                self.heads.insert(author.into(), id);
                 self.revisions.insert(id, Some(revision));
 
                 if state == State::Active {
@@ -623,10 +612,9 @@ impl Identity {
             return;
         }
         let votes = self
-            .heads
-            .values()
-            .filter(|revision| **revision == id)
-            .count();
+            .revision(&id)
+            .map(|revision| revision.accepted().count())
+            .unwrap_or_default();
         if self.is_majority(votes) {
             self.current = id;
             self.current_mut().state = State::Accepted;
