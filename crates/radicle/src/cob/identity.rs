@@ -177,9 +177,6 @@ pub struct Identity {
     pub current: RevisionId,
     /// The initial revision of the document.
     pub root: RevisionId,
-    /// The latest revision that each delegate has accepted.
-    /// Delegates can only accept one revision at a time.
-    pub heads: BTreeMap<Did, RevisionId>,
 
     /// Revisions.
     revisions: BTreeMap<RevisionId, Option<Revision>>,
@@ -209,12 +206,6 @@ impl Identity {
             id: revision.blob.into(),
             root,
             current: root,
-            heads: revision
-                .delegates()
-                .iter()
-                .copied()
-                .map(|did| (did, root))
-                .collect(),
             revisions: BTreeMap::from_iter([(root, Some(revision))]),
             timeline: vec![root],
         }
@@ -493,7 +484,6 @@ impl Identity {
                 }
                 assert_eq!(revision.parent, Some(current.id));
 
-                self.heads.insert(author.into(), id);
                 revision.accept(author, signature, &current)?;
 
                 self.adopt(id);
@@ -606,7 +596,6 @@ impl Identity {
                 );
                 let id = revision.id;
 
-                self.heads.insert(author.into(), id);
                 self.revisions.insert(id, Some(revision));
 
                 if state == State::Active {
@@ -623,10 +612,9 @@ impl Identity {
             return;
         }
         let votes = self
-            .heads
-            .values()
-            .filter(|revision| **revision == id)
-            .count();
+            .revision(&id)
+            .map(|revision| revision.accepted().count())
+            .unwrap_or_default();
         if self.is_majority(votes) {
             self.current = id;
             self.current_mut().state = State::Accepted;
@@ -1355,6 +1343,73 @@ mod test {
         assert_eq!(bob_identity.timeline, vec![a0, a1, a2, a3, b1]);
         assert_eq!(bob_identity.revision(&a2), None);
         assert_eq!(bob_identity.current, a1);
+    }
+
+    #[test]
+    fn eager_staleness() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+        let eve = &network.eve;
+
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+
+        alice_doc.delegate(bob.signer.public_key().into());
+        alice_doc.delegate(eve.signer.public_key().into());
+
+        let a1 = alice_identity // Change description to change traversal order.
+            .update(
+                cob::Title::new("Add Bob and Eve").unwrap(),
+                "Eh#!",
+                &alice_doc.clone().verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        eve.repo.fetch(alice);
+
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        assert_eq!(bob_identity.current, a1);
+
+        let mut bob_doc = bob_identity.doc().clone().edit();
+        bob_doc.visibility = Visibility::private([]);
+        let bob_doc = bob_doc.verified().unwrap();
+        let b1 = cob::stable::with_advanced_timestamp(|| {
+            bob_identity
+                .update(
+                    cob::Title::new("Make private").unwrap(),
+                    "",
+                    &bob_doc.clone(),
+                )
+                .unwrap()
+        });
+
+        // Now, bob is very eager to change the description of the repository,
+        // and does not wait for Eve to accept `b1`.
+
+        let bob_doc = bob_doc.clone().edit();
+        bob_doc
+            .project()
+            .unwrap()
+            .update(None, Some("New Description".to_string()), None)
+            .unwrap();
+        let bob_doc = bob_doc.verified().unwrap();
+        let _b2 = cob::stable::with_advanced_timestamp(|| {
+            bob_identity
+                .update(cob::Title::new("Change Description").unwrap(), "", &bob_doc)
+                .unwrap()
+        });
+
+        eve.repo.fetch(bob);
+
+        let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
+
+        // Eve is now ready to accept Bob's revision `b1`, but Bob's newest is `_b2`.
+        cob::stable::with_advanced_timestamp(|| eve_identity.accept(&b1).unwrap());
+
+        // Now that Eve has accepted `b1`, it should be accepted and thus current.
+        assert_eq!(eve_identity.current, b1);
     }
 
     #[test]
