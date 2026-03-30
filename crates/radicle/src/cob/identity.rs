@@ -1523,6 +1523,74 @@ mod test {
     }
 
     #[test]
+    fn accepted_sibling_causes_rejection() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+        let eve = &network.eve;
+
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+
+        alice_doc.delegate(bob.signer.public_key().into());
+        alice_doc.delegate(eve.signer.public_key().into());
+
+        let _a1 = alice_identity
+            .update(
+                cob::Title::new("Add Bob and Eve").unwrap(),
+                "Eh#!",
+                &alice_doc.clone().verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        eve.repo.fetch(alice);
+
+        // Bob proposes b1.
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        let mut bob_doc = bob_identity.doc().clone().edit();
+        bob_doc.visibility = Visibility::private([]);
+        let b1 = cob::stable::with_advanced_timestamp(|| {
+            bob_identity
+                .update(
+                    cob::Title::new("Make private").unwrap(),
+                    "",
+                    &bob_doc.verified().unwrap(),
+                )
+                .unwrap()
+        });
+
+        // Eve proposes e1 (a competing sibling from a different delegate).
+        let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
+        let mut eve_doc = eve_identity.doc().clone().edit();
+        eve_doc.visibility = Visibility::private([eve.signer.public_key().into()]);
+        let e1 = cob::stable::with_advanced_timestamp(|| {
+            eve_identity
+                .update(
+                    cob::Title::new("Change visibility").unwrap(),
+                    "",
+                    &eve_doc.verified().unwrap(),
+                )
+                .unwrap()
+        });
+
+        // Eve fetches Bob's proposal. She redacts her own proposal e1
+        // before accepting Bob's b1 (sibling-accept invariant).
+        eve.repo.fetch(bob);
+        eve_identity.reload().unwrap();
+        cob::stable::with_advanced_timestamp(|| eve_identity.redact(e1).unwrap());
+        cob::stable::with_advanced_timestamp(|| eve_identity.accept(&b1).unwrap());
+
+        // b1 is accepted (Bob + Eve = 2/3), becomes current.
+        assert_eq!(eve_identity.current, b1);
+        // e1 was redacted by Eve.
+        assert_eq!(
+            eve_identity.revision(&e1).unwrap().state,
+            State::Redacted(RedactedBy::Author)
+        );
+    }
+
+    #[test]
     fn remove_delegate_concurrent() {
         let network = Network::default();
         let alice = &network.alice;
