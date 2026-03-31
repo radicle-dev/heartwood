@@ -33,14 +33,14 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential s
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 $ rad id list
-╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title               Author                                                      Status     Created │
-├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   89b2623   Edit project name   bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   active     now     │
-│ ●   12d7300   Edit project name   alice    (you)                                              active     now     │
-│ ●   0ca42d3   Add Bob             alice    (you)                                              accepted   now     │
-│ ●   0656c21   Initial revision    alice    (you)                                              accepted   now     │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title               Author                                                      Status     Created   Parent  │
+├────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   89b2623   Edit project name   bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   active     now       0ca42d3 │
+│ ●   12d7300   Edit project name   alice    (you)                                              active     now       0ca42d3 │
+│ ●   0ca42d3   Add Bob             alice    (you)                                              accepted   now       0656c21 │
+│ ●   0656c21   Initial revision    alice    (you)                                              accepted   now       none    │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 This isn't a problem as long as we don't try to accept both. So let's accept
@@ -49,14 +49,14 @@ Bob's:
 ``` ~alice
 $ rad id accept 89b2623 -q
 $ rad id list
-╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title               Author                                                      Status     Created │
-├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   89b2623   Edit project name   bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   accepted   now     │
-│ ●   12d7300   Edit project name   alice    (you)                                              stale      now     │
-│ ●   0ca42d3   Add Bob             alice    (you)                                              accepted   now     │
-│ ●   0656c21   Initial revision    alice    (you)                                              accepted   now     │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title               Author                                                      Status     Created   Parent  │
+├────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   89b2623   Edit project name   bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   accepted   now       0ca42d3 │
+│ ●   12d7300   Edit project name   alice    (you)                                              stale      now       0ca42d3 │
+│ ●   0ca42d3   Add Bob             alice    (you)                                              accepted   now       0656c21 │
+│ ●   0656c21   Initial revision    alice    (you)                                              accepted   now       none    │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Doing so voided the other conflicting revision, and it can no longer be
@@ -79,6 +79,7 @@ $ rad id show 12d7300
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Edit project name                                             │
 │ Revision 12d7300d1bbba84e4e5760c8c61999bf5fefb81a                      │
+│ Parent   0ca42d376bd566631083c8913cf86bec722da392                      │
 │ Blob     e93aa3e3c5c448bacd3537a81daf1437eccd046a                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    stale                                                         │

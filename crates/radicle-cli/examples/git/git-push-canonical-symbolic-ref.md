@@ -10,6 +10,7 @@ $ rad id update --title "Add canonical symbolic ref" --payload xyz.radicle.crefs
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add canonical symbolic ref                                    │
 │ Revision 62e2cb60c6df9ad9908b6697b5d126760a855484                      │
+│ Parent   37a1aad231100cd206c49aed79e405ea2da9204b                      │
 │ Blob     b20de7b184673eb0d9227be17640c923d8ef3f3e                      │
 │ Author   did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk      │
 │ State    active                                                        │

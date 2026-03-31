@@ -6,6 +6,7 @@ $ rad id update --title "Add field" --description "Add a new 'web' field" --payl
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add field                                                     │
 │ Revision a8a9fee6c4f83578ab132d375f1da0c81282bef3                      │
+│ Parent   0656c217f917c3e06234771e9ecae53aba5e173e                      │
 │ Blob     fbe268d13e60f1f3a1972e0ccd592f3cdecf08b5                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    accepted                                                      │
@@ -42,6 +43,7 @@ $ rad id update --title "Delete field" --description "Delete 'web'" --payload xy
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Delete field                                                  │
 │ Revision d373c35876833105f8aafed8b610660b5737cd67                      │
+│ Parent   a8a9fee6c4f83578ab132d375f1da0c81282bef3                      │
 │ Blob     d96f425412c9f8ad5d9a9a05c9831d0728e2338d                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    accepted                                                      │

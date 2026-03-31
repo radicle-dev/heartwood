@@ -7,6 +7,7 @@ $ rad id update --title "Add emoji alias" --description "Adding alias field" --p
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add emoji alias                                               │
 │ Revision 05100d3f0a73b9373681677158615a53ba51940e                      │
+│ Parent   0656c217f917c3e06234771e9ecae53aba5e173e                      │
 │ Blob     a0f421c928dcfc6eca129fc2ea1f50877de7dc20                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    accepted                                                      │

@@ -204,7 +204,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Command::List => {
             let mut revisions =
-                term::Table::<7, term::Label>::new(term::table::TableOptions::bordered());
+                term::Table::<8, term::Label>::new(term::table::TableOptions::bordered());
 
             revisions.header([
                 term::format::dim(String::from("●")).into(),
@@ -214,6 +214,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 term::Label::blank(),
                 term::format::bold(String::from("Status")).into(),
                 term::format::bold(String::from("Created")).into(),
+                term::format::bold(String::from("Parent")).into(),
             ]);
             revisions.divider();
 
@@ -231,8 +232,9 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 let (alias, author) =
                     term::format::Author::new(r.author.public_key(), &profile, true).labels();
                 let timestamp = term::format::timestamp(r.timestamp).into();
+                let parent = r.parent.map(term::format::oid).unwrap_or_else(|| term::Paint::new("none".to_string()));
 
-                revisions.push([icon, id, title, alias, author, state, timestamp]);
+                revisions.push([icon, id, title, alias, author, state, timestamp, parent.into()]);
             }
             revisions.print();
         }
@@ -290,6 +292,12 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
         term::format::bold("Revision").into(),
         term::label(revision.id.to_string()),
     ]);
+    if let Some(parent) = revision.parent {
+        attrs.push([
+            term::format::bold("Parent").into(),
+            term::label(parent.to_string()),
+        ]);
+    }
     attrs.push([
         term::format::bold("Blob").into(),
         term::label(revision.blob.to_string()),

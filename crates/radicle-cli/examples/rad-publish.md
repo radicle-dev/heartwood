@@ -38,6 +38,7 @@ $ rad id update --visibility private --title "Privatise" --description "Revertin
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Privatise                                                     │
 │ Revision 774cc1e72641d97d7dc9377745b7f454a9171747                      │
+│ Parent   cecb16c9bebf35cfc4130f17efe6424f8ac71d66                      │
 │ Blob     88f759a4d46e9535766fccec0cbfe1fed6160b1a                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    accepted                                                      │
