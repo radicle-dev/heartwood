@@ -1482,7 +1482,10 @@ mod test {
                 &eve_doc.verified().unwrap(),
             )
             .unwrap();
-        assert!(eve_identity.revision(&e2).unwrap().is_active());
+
+        let eve_revision = eve_identity.revision(&e2).unwrap();
+        assert_eq!(eve_revision.state, State::Active);
+        assert_eq!(eve_revision.parent, Some(a1));
 
         //     e2   (Propose "Change visibility") 1/2
         //     |
