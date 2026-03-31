@@ -4,6 +4,7 @@ $ rad id update --title "Add canonical branch for releases" --payload xyz.radicl
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add canonical branch for releases                             │
 │ Revision 37a1aad231100cd206c49aed79e405ea2da9204b                      │
+│ Parent   dace164ba43fa51802697ec28d0b1965a9d7808b                      │
 │ Blob     bbefd77cfeb456e500ad868c3b4effe1f7f818e2                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    active                                                        │

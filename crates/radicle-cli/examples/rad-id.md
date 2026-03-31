@@ -19,6 +19,7 @@ $ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delega
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add Bob                                                       │
 │ Revision 0ca42d376bd566631083c8913cf86bec722da392                      │
+│ Parent   0656c217f917c3e06234771e9ecae53aba5e173e                      │
 │ Blob     053541ba7b90534b35dd8718e0ceaa408979b02b                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    accepted                                                      │
@@ -129,6 +130,7 @@ $ rad id show 0ca42d376bd566631083c8913cf86bec722da392
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add Bob                                                       │
 │ Revision 0ca42d376bd566631083c8913cf86bec722da392                      │
+│ Parent   0656c217f917c3e06234771e9ecae53aba5e173e                      │
 │ Blob     053541ba7b90534b35dd8718e0ceaa408979b02b                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    accepted                                                      │

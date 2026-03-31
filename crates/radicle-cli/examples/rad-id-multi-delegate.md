@@ -14,12 +14,12 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential s
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 $ rad id --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title              Author                                                      Status     Created │
-├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   069e7d5   Add Bob            alice    z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   accepted   now     │
-│ ●   0656c21   Initial revision   alice    z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   accepted   now     │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title              Author                                                      Status     Created   Parent  │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   069e7d5   Add Bob            alice    z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   accepted   now       0656c21 │
+│ ●   0656c21   Initial revision   alice    z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   accepted   now       none    │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 $ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi [..] parent
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [..] root
@@ -32,6 +32,7 @@ $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --des
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add Eve                                                       │
 │ Revision 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3                      │
+│ Parent   069e7d58faa9a7473d27f5510d676af33282796f                      │
 │ Blob     74581605d1f75396c331487a10ca61c4815ed685                      │
 │ Author   did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk      │
 │ State    active                                                        │
@@ -74,6 +75,7 @@ $ rad id accept 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3 --repo rad:z42hL2jL4XNk
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add Eve                                                       │
 │ Revision 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3                      │
+│ Parent   069e7d58faa9a7473d27f5510d676af33282796f                      │
 │ Blob     74581605d1f75396c331487a10ca61c4815ed685                      │
 │ Author   did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk      │
 │ State    accepted                                                      │
@@ -97,14 +99,14 @@ We can list all revisions:
 
 ``` ~alice
 $ rad id list
-╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title              Author                                                      Status     Created │
-├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   e6bf105   Make private       alice    (you)                                              active     now     │
-│ ●   3cd3c7f   Add Eve            bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   accepted   now     │
-│ ●   069e7d5   Add Bob            alice    (you)                                              accepted   now     │
-│ ●   0656c21   Initial revision   alice    (you)                                              accepted   now     │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title              Author                                                      Status     Created   Parent  │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   e6bf105   Make private       alice    (you)                                              active     now       3cd3c7f │
+│ ●   3cd3c7f   Add Eve            bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   accepted   now       069e7d5 │
+│ ●   069e7d5   Add Bob            alice    (you)                                              accepted   now       0656c21 │
+│ ●   0656c21   Initial revision   alice    (you)                                              accepted   now       none    │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Despite being a delegate, Bob can't edit or redact Alice's revision:
@@ -127,6 +129,7 @@ $ rad id show e6bf10593b78384eb2b281cbb18a605668a6d1f7
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Make private                                                  │
 │ Revision e6bf10593b78384eb2b281cbb18a605668a6d1f7                      │
+│ Parent   3cd3c7f9900de0fcb19705856a7cc339a38fb0b3                      │
 │ Blob     c533865b2846ca6c5b4436ec6872257293380c3b                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    active                                                        │
@@ -179,6 +182,7 @@ $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Remove Bob" --
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Remove Bob                                                    │
 │ Revision 8ba242a80bc1181f41f9ea7a19286038c7948994                      │
+│ Parent   3cd3c7f9900de0fcb19705856a7cc339a38fb0b3                      │
 │ Blob     254d62de237117e7d7b9ceff85c47f5e3b610c1e                      │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
 │ State    active                                                        │
