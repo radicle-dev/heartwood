@@ -3,6 +3,7 @@ pub mod thread;
 
 use std::fmt::Debug;
 use std::path::PathBuf;
+use std::str::FromStr as _;
 use std::{fs, io, net};
 
 #[cfg(unix)]
@@ -197,7 +198,7 @@ impl Runtime {
                         radicle::node::Features::SEED,
                         &alias,
                         0,
-                        &UserAgent::default(),
+                        &UserAgent::from_str("/radicle/fake/bootstrap/").expect("valid user agent"),
                         clock.into(),
                         [node::KnownAddress::new(addr, address::Source::Bootstrap)],
                     )?;

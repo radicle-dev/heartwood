@@ -220,18 +220,56 @@ impl PartialOrd for SyncStatus {
 
 /// Node user agent.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
-pub struct UserAgent(String);
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[cfg_attr(
+    feature = "schemars",
+    schemars(description = "\
+    A user agent string that starts and ends with the symbol '/', and contains segments of the form 'client:version' separated by '/'. \
+    The client and version parts must be non-empty, and must consist of printable ASCII characters excluding '/' and ':'. \
+    The entire string must be at most 64 characters long.",
+    extend(
+        "examples" = [
+            "/radicle:1.9.0/",
+            "/example:42.0.0/other-client:2.3.4/",
+        ],
+        "pattern" = r"^/([^:/\s]+((:[^:/\s]+))?/)+$",
+    ),
+))]
+pub struct UserAgent(
+    #[cfg_attr(feature = "schemars", schemars(
+        length(min = 3, max = UserAgent::LEN_MAX),
+    ))]
+    String,
+);
 
 impl UserAgent {
+    const LEN_MAX: usize = 64;
+
     /// Return a reference to the user agent string.
     pub fn as_str(&self) -> &str {
         self.0.as_str()
+    }
+
+    /// Return a user agent that can be used for testing purposes.
+    #[cfg(any(test, feature = "test"))]
+    pub fn test() -> Self {
+        UserAgent("/radicle:test/".to_owned())
     }
 }
 
 impl Default for UserAgent {
     fn default() -> Self {
-        UserAgent(String::from("/radicle/"))
+        const NAME: &str = env!("CARGO_PKG_NAME");
+        const VERSION: &str = env!("RADICLE_VERSION");
+
+        // The length check can be performed at compile time.
+        #[allow(clippy::int_plus_one)]
+        const _: () = assert!(1 + NAME.len() + 1 + VERSION.len() + 1 <= UserAgent::LEN_MAX);
+
+        // All other checks are performed by the `FromStr` implementation
+        // at run time.
+        UserAgent::from_str(&format!("/{NAME}:{VERSION}/"))
+            .expect("default user agent should be valid")
     }
 }
 
@@ -247,7 +285,7 @@ impl FromStr for UserAgent {
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         let reserved = ['/', ':'];
 
-        if input.len() > 64 {
+        if input.len() > UserAgent::LEN_MAX {
             return Err(input.to_owned());
         }
         let Some(s) = input.strip_prefix('/') else {
@@ -1502,6 +1540,7 @@ mod test {
         assert!(UserAgent::from_str("/radicle/").is_ok());
         assert!(UserAgent::from_str("/rad/icle/").is_ok());
         assert!(UserAgent::from_str("/rad:ic/le/").is_ok());
+        assert!(UserAgent::from_str("/heartwood:1.8.0-6-gf223afd9d-dirty/").is_ok());
 
         assert!(UserAgent::from_str("/:/").is_err());
         assert!(UserAgent::from_str("//").is_err());

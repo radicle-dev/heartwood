@@ -56,3 +56,15 @@ where
     use serde::Deserialize as _;
     Ok(Option::deserialize(deserializer)?.unwrap_or_default())
 }
+
+/// A helper that makes it easy to use `Option<T>` with the `serde(default)`
+/// attribute, in case a default of `Some(T::default())` is desired instead
+/// of `None`.
+pub(crate) fn some_default<T: Default>() -> Option<T> {
+    Some(T::default())
+}
+
+/// Like [`is_default`], but for use in combination with [`some_default`].
+pub(crate) fn is_some_default<T: Default + PartialEq>(t: &Option<T>) -> bool {
+    t.as_ref() == Some(&T::default())
+}

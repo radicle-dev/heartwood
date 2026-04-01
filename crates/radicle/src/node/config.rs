@@ -8,8 +8,8 @@ use localtime::LocalDuration;
 use serde::{Deserialize, Serialize};
 use serde_json as json;
 
-use crate::node;
 use crate::node::policy::SeedingPolicy;
+use crate::node::{self, UserAgent};
 use crate::node::{Address, Alias, NodeId};
 use crate::storage::refs::FeatureLevel;
 
@@ -530,6 +530,12 @@ impl Fetch {
 pub struct Config {
     /// Node alias.
     pub alias: Alias,
+    /// User agent string to advertise in the node announcement, which is sent out to other nodes.
+    #[serde(
+        default = "crate::serde_ext::some_default::<UserAgent>",
+        skip_serializing_if = "crate::serde_ext::is_some_default"
+    )]
+    pub user_agent: Option<UserAgent>,
     /// Socket address (a combination of IPv4 or IPv6 address and TCP port) to listen on.
     #[serde(default)]
     #[cfg_attr(feature = "schemars", schemars(example = &"127.0.0.1:8776"))]
@@ -603,6 +609,7 @@ impl Config {
     pub fn new(alias: Alias) -> Self {
         Self {
             alias,
+            user_agent: Some(UserAgent::default()),
             peers: PeerConfig::default(),
             listen: vec![],
             connect: HashSet::default(),
@@ -651,6 +658,15 @@ impl Config {
 
     pub fn features(&self) -> node::Features {
         node::Features::SEED
+    }
+
+    /// Return the configured user agent, if set. Otherwise fall back to the
+    /// unintetesting value `"/radicle/"`.
+    pub fn user_agent(&self) -> UserAgent {
+        match self.user_agent.as_ref() {
+            Some(agent) => agent.clone(),
+            None => UserAgent::from_str("/radicle/").expect("valid user agent"),
+        }
     }
 }
 
@@ -781,7 +797,7 @@ wrapper!(
 #[allow(clippy::unwrap_used)]
 mod test {
     use super::{DefaultSeedingPolicy, Scope};
-    use crate::node::{Alias, policy};
+    use crate::node::{Alias, UserAgent, policy};
     use serde_json::json;
 
     #[test]
@@ -973,5 +989,57 @@ mod test {
         }))
         .unwrap();
         assert_eq!(super::AddressConfig::Drop, actual.onion);
+    }
+
+    #[test]
+    fn user_agent_opt_out() {
+        let actual: super::Config = serde_json::from_value(json!({
+            "alias": "radicle",
+            "userAgent": null,
+        }))
+        .unwrap();
+        assert_eq!(None, actual.user_agent);
+    }
+
+    #[test]
+    fn user_agent_default() {
+        let actual: super::Config = serde_json::from_value(json!({
+            "alias": "radicle",
+        }))
+        .unwrap();
+        assert_eq!(Some(UserAgent::default()), actual.user_agent);
+    }
+
+    #[test]
+    fn user_agent_custom() {
+        use std::str::FromStr as _;
+
+        let actual: super::Config = serde_json::from_value(json!({
+            "alias": "radicle",
+            "userAgent": "/example:0.1.0/",
+        }))
+        .unwrap();
+        assert_eq!(
+            Some(UserAgent::from_str("/example:0.1.0/").unwrap()),
+            actual.user_agent
+        );
+    }
+
+    #[test]
+    fn user_agent_default_explicit() {
+        use std::str::FromStr as _;
+
+        let default_as_string = UserAgent::default().to_string();
+        assert!(default_as_string.contains(":"));
+
+        let actual: super::Config = serde_json::from_value(json!({
+            "alias": "radicle",
+            "userAgent": default_as_string,
+        }))
+        .unwrap();
+        assert_eq!(
+            Some(UserAgent::from_str(&default_as_string).unwrap()),
+            actual.user_agent
+        );
     }
 }

@@ -276,7 +276,12 @@ impl Arbitrary for Timestamp {
 impl Arbitrary for UserAgent {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         UserAgent::from_str(
-            format!("/radicle:1.{}.{}/", u8::arbitrary(g), u8::arbitrary(g)).as_str(),
+            format!(
+                "/radicle:1.{}.{}/fake/arbitrary/",
+                u8::arbitrary(g),
+                u8::arbitrary(g)
+            )
+            .as_str(),
         )
         .unwrap()
     }

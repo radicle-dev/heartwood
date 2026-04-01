@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use radicle::node;
 use radicle::node::UserAgent;
 use radicle::node::device::Device;
@@ -34,7 +32,7 @@ pub fn messages(count: usize, now: LocalTime, delta: LocalDuration) -> Vec<Messa
                 alias: node::Alias::new(r#gen::string(5)),
                 addresses: None.into(),
                 nonce: 0,
-                agent: UserAgent::from_str("/radicle:test/").unwrap(),
+                agent: UserAgent::test(),
             }
             .solve(0)
             .unwrap(),

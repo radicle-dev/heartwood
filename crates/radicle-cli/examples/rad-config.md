@@ -203,6 +203,17 @@ $ rad config schema
           "description": "Node alias.",
           "$ref": "#/$defs/Alias"
         },
+        "userAgent": {
+          "description": "User agent string to advertise in the node announcement, which is sent out to other nodes.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UserAgent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "listen": {
           "description": "Socket address (a combination of IPv4 or IPv6 address and TCP port) to listen on.",
           "type": "array",
@@ -328,6 +339,17 @@ $ rad config schema
     "Alias": {
       "description": "Node alias, i.e. a short and memorable name for it.",
       "type": "string"
+    },
+    "UserAgent": {
+      "description": "A user agent string that starts and ends with the symbol '/', and contains segments of the form 'client:version' separated by '/'. The client and version parts must be non-empty, and must consist of printable ASCII characters excluding '/' and ':'. The entire string must be at most 64 characters long.",
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64,
+      "examples": [
+        "/radicle:1.9.0/",
+        "/example:42.0.0/other-client:2.3.4/"
+      ],
+      "pattern": "^/([^:///s]+((:[^:///s]+))?/)+$"
     },
     "PeerConfig": {
       "description": "Peer configuration.",

@@ -6,7 +6,7 @@ use radicle::crypto::ssh::{Keystore, keystore::MemorySigner};
 use radicle::crypto::{KeyPair, Seed};
 use radicle::git;
 use radicle::node::policy::store as policy;
-use radicle::node::{self, UserAgent};
+use radicle::node::{self};
 use radicle::node::{Alias, Config, POLICIES_DB_FILE};
 use radicle::profile::Home;
 use radicle::profile::{self};
@@ -161,7 +161,7 @@ impl Environment {
                 &keypair.pk.into(),
                 config.node.features(),
                 &alias,
-                &UserAgent::default(),
+                &config.node.user_agent(),
                 LocalTime::now().into(),
                 config.node.external_addresses.iter(),
             )

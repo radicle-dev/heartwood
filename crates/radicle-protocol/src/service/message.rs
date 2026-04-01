@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::{fmt, mem};
 
 use bytes::{Buf, BufMut};
@@ -142,7 +143,9 @@ impl wire::Decode for NodeAnnouncement {
         let nonce = u64::decode(buf)?;
         let agent = match UserAgent::decode(buf) {
             Ok(ua) => ua,
-            Err(wire::Error::UnexpectedEnd { .. }) => UserAgent::default(),
+            Err(wire::Error::UnexpectedEnd { .. }) => {
+                UserAgent::from_str("/radicle/fake/truncated/").expect("valid user agent")
+            }
             Err(e) => return Err(e),
         };
 
@@ -683,7 +686,6 @@ impl qcheck::Arbitrary for ZeroBytes {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use std::str::FromStr;
 
     use fastrand;
     use localtime::LocalTime;
@@ -784,12 +786,12 @@ mod tests {
             alias: Alias::new("alice"),
             addresses: BoundedVec::new(),
             nonce: 0,
-            agent: UserAgent::from_str("/heartwood:1.0.0/").unwrap(),
+            agent: UserAgent::test(),
         };
 
-        assert_eq!(ann.work(), 1);
+        assert_eq!(ann.work(), 2);
         assert_eq!(ann.clone().solve(1).unwrap().work(), 1);
-        assert_eq!(ann.clone().solve(8).unwrap().work(), 10);
+        assert_eq!(ann.clone().solve(8).unwrap().work(), 8);
         assert_eq!(ann.solve(14).unwrap().work(), 14);
     }
 }

@@ -320,7 +320,7 @@ where
                 alias: Alias::from_str(self.name).unwrap(),
                 addresses: Some(net::SocketAddr::from((self.ip, node::DEFAULT_PORT)).into()).into(),
                 nonce: 0,
-                agent: UserAgent::from_str("/radicle:test/").unwrap(),
+                agent: UserAgent::test(),
             }
             .solve(0)
             .unwrap(),
