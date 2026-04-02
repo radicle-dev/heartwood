@@ -36,7 +36,6 @@ This will give us the following workflow for constructing test scenarios:
 3. Run the tests.
 4. Inspect / Debug via observability systems.
 
-
 ## Constraints
 
 ### Non-Goals:
