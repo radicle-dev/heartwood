@@ -170,7 +170,7 @@ pub fn logs(lines: usize, follow: Option<time::Duration>, profile: &Profile) -> 
     }
     tail.reverse();
 
-    print!("{}", term::format::dim(String::from_utf8_lossy(&tail)));
+    term::print_inline(term::format::dim(String::from_utf8_lossy(&tail)));
 
     if let Some(timeout) = follow {
         file.seek(SeekFrom::End(0))?;
@@ -184,7 +184,7 @@ pub fn logs(lines: usize, follow: Option<time::Duration>, profile: &Profile) -> 
             if len == 0 {
                 thread::sleep(time::Duration::from_millis(250));
             } else {
-                print!("{}", term::format::dim(line));
+                term::print_inline(term::format::dim(line));
             }
         }
     }
@@ -414,7 +414,7 @@ pub fn config(node: &Node) -> anyhow::Result<()> {
     let cfg = node.config()?;
     let cfg = serde_json::to_string_pretty(&cfg)?;
 
-    println!("{cfg}");
+    term::print(cfg);
 
     Ok(())
 }

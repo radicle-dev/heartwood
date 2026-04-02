@@ -118,6 +118,22 @@ fn main() {
     .homepage(env!("CARGO_PKG_HOMEPAGE"))
     .support("Open a support request at https://radicle.zulipchat.com/ or file an issue via Radicle itself, or e-mail to team@radicle.xyz"));
 
+    // Install a panic hook that intercepts broken pipe panics and exits
+    // cleanly. This is a backstop for any `println!` calls (in our code or
+    // dependencies like clap) that we haven't converted to `term::print()`.
+    //
+    // The Rust stdlib's `println!` panics with "failed printing to stdout:
+    // Broken pipe" when writing to a closed pipe. We chain our hook in front
+    // of human_panic's hook so that non-BrokenPipe panics are still handled
+    // by human_panic.
+    //
+    // See: <https://github.com/rust-lang/rust/issues/62569>
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        handle_broken_pipe(info);
+        default_hook(info);
+    }));
+
     if let Some(lvl) = radicle::logger::env_level() {
         let logger = Box::new(radicle::logger::Logger::new(lvl));
         log::set_boxed_logger(logger).expect("no other logger should have been set already");
@@ -146,10 +162,77 @@ fn run(command: Command, ctx: impl term::Context) -> ! {
     match run_command(command, ctx) {
         Ok(()) => process::exit(0),
         Err(err) => {
+            // If the error is a broken pipe, exit silently. This happens when
+            // output is piped to a command that exits early, e.g. `rad config | head`.
+            //
+            // Rust ignores SIGPIPE by default (since 1.62), so broken pipes
+            // surface as errors rather than terminating the process. For a CLI
+            // tool, the expected Unix behaviour is to exit cleanly.
+            //
+            // See: <https://github.com/rust-lang/rust/issues/62569>
+            if is_broken_pipe(&err) {
+                process::exit(0);
+            }
             term::fail(&err);
             process::exit(1);
         }
     }
+}
+
+/// Handle an [`ErrorKind::BrokenPipe`] during a panic, and exit the process
+/// with exit code 0.
+///
+/// # Debug
+///
+/// If compiled with `debug_assertions` on, then the panic is written to
+/// [`std::io::stderr`].
+fn handle_broken_pipe(info: &std::panic::PanicHookInfo<'_>) {
+    if is_broken_pipe_panic(info) {
+        if cfg!(debug_assertions) {
+            let mut stderr = std::io::stderr().lock();
+            writeln!(
+                stderr,
+                "SIGPIPE detected. Attempting to print 'PanicHookInfo::payload', before returning with exit code 0"
+            )
+            .ok();
+            if let Some(payload) = info.payload().downcast_ref::<&str>() {
+                writeln!(stderr, "{payload}").ok();
+            } else if let Some(payload) = info.payload().downcast_ref::<String>() {
+                writeln!(stderr, "{payload}").ok();
+            } else {
+                writeln!(
+                    stderr,
+                    "'PanicInfoHook::payload' could not be downcast to 'str' or 'String'"
+                )
+                .ok();
+            }
+        }
+        process::exit(0);
+    }
+}
+
+/// Check if an error (possibly wrapped in `anyhow`) is a broken pipe.
+fn is_broken_pipe(err: &anyhow::Error) -> bool {
+    for cause in err.chain() {
+        if let Some(io_err) = cause.downcast_ref::<io::Error>() {
+            if io_err.kind() == ErrorKind::BrokenPipe {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Check if a panic was caused by a broken pipe write.
+///
+/// The Rust stdlib panics with a `String` payload containing "Broken pipe"
+/// when `println!` or `print!` encounters a closed stdout. This is stable
+/// behaviour across all Unix platforms (the message comes from the OS error
+/// description for `EPIPE`).
+fn is_broken_pipe_panic(info: &std::panic::PanicHookInfo<'_>) -> bool {
+    info.payload()
+        .downcast_ref::<String>()
+        .is_some_and(|msg| msg.contains("Broken pipe"))
 }
 
 fn run_command(command: Command, ctx: impl term::Context) -> Result<(), anyhow::Error> {

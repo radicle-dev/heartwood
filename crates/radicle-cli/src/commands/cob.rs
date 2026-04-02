@@ -80,7 +80,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     oid
                 }
             };
-            println!("{oid}");
+            term::print(oid);
         }
         Migrate => {
             let mut db = profile.cobs_db_mut()?;
@@ -100,7 +100,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 FilteredTypeName::from(type_name).as_ref(),
             )?;
             for cob in cobs {
-                println!("{}", cob.id);
+                term::print(cob.id);
             }
         }
         Log {
@@ -215,7 +215,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
             };
 
-            println!("{oid}");
+            term::print(oid);
         }
     }
     Ok(())

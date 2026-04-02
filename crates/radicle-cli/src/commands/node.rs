@@ -88,7 +88,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         Command::Inventory { nid } => {
             let nid = nid.as_ref().unwrap_or(profile.id());
             for rid in profile.routing()?.get_inventory(nid)? {
-                println!("{}", term::format::tertiary(rid));
+                term::print(term::format::tertiary(rid));
             }
         }
         Command::Status {
