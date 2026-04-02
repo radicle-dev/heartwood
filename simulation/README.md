@@ -64,10 +64,10 @@ This will give us the following workflow for constructing test scenarios:
 
 ## Plan
 
-  1. [ ] Migrate existing [simulation environment repo](https://app.radicle.xyz/nodes/iris.radicle.xyz/rad%3Az2CzknCvAq9jSCpKdyjMppbvGmxyZ) into `heartwood`.
-  2. [ ] `radicle-node` timoni module.
-  3. [ ] `radicle-node` custom container builder.
-  4. [ ] `instances` topology definition files.
-  5. [ ] `sim-tests` rust crate.
-  6. [ ] `Makefile`.
-  7. [ ] `observability` definition files.
+1. [ ] Migrate existing [simulation environment repo](https://app.radicle.xyz/nodes/iris.radicle.xyz/rad%3Az2CzknCvAq9jSCpKdyjMppbvGmxyZ) into `heartwood`.
+2. [ ] `radicle-node` timoni module.
+3. [ ] `radicle-node` custom container builder.
+4. [ ] `instances` topology definition files.
+5. [ ] `sim-tests` rust crate.
+6. [ ] `Makefile`.
+7. [ ] `observability` definition files.
