@@ -40,7 +40,6 @@ use radicle::profile;
 
 use crate::util::environment::Environment;
 
-#[ignore = "test fails"]
 #[test]
 fn config() {
     let mut environment = Environment::new();
@@ -121,7 +120,6 @@ fn help() {
 }
 
 /// `rad self` uses `Element::print()` for table output.
-#[ignore = "test fails"]
 #[test]
 fn rad_self() {
     let mut environment = Environment::new();

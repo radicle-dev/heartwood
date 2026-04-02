@@ -84,8 +84,12 @@ pub trait Element: fmt::Debug + Send + Sync {
 
     /// Print this element to stdout.
     fn print(&self) {
+        use std::io::Write;
+
+        let mut stdout = io::stdout().lock();
         for line in self.render(Constraint::from_env().unwrap_or_default()) {
-            println!("{}", line.to_string().trim_end());
+            let _ = writeln!(stdout, "{}", line.to_string().trim_end())
+                .or_else(crate::io::swallow_broken_pipe_stdout);
         }
     }
 
