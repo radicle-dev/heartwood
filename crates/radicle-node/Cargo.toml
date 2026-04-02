@@ -17,7 +17,7 @@ test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "radi
 tor = ["cyphernet/tor", "radicle/tor", "radicle-protocol/tor"]
 
 [dependencies]
-backtrace = { version = "0.3.75", optional = true }
+backtrace = { workspace = true, optional = true }
 bytes = { workspace = true }
 crossbeam-channel = { workspace = true }
 cyphernet = { workspace = true, features = ["dns", "ed25519", "p2p-ed25519", "noise-framework", "noise_sha2"] }

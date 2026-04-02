@@ -373,7 +373,7 @@ fn print(
     profile: &Profile,
 ) -> anyhow::Result<()> {
     print_meta(revision, previous, profile)?;
-    println!();
+    term::blank();
     print_diff(revision.parent.as_ref(), &revision.id, repo)?;
 
     Ok(())
@@ -514,7 +514,7 @@ fn print_diff(
 
     if let Some(modified) = diff.modified().next() {
         let diff = modified.diff.to_unified_string()?;
-        print!("{diff}");
+        term::print_inline(diff);
     } else {
         term::print(term::format::italic("No changes."));
     }

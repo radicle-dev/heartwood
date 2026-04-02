@@ -118,6 +118,25 @@ fn main() {
     .homepage(env!("CARGO_PKG_HOMEPAGE"))
     .support("Open a support request at https://radicle.zulipchat.com/ or file an issue via Radicle itself, or e-mail to team@radicle.dev"));
 
+    // Install a panic hook that intercepts panics caused by broken pipes and exits
+    // cleanly. This is a backstop for any uses of `println!` (in our code or
+    // dependencies like `clap`) that were not converted to `term::print`.
+    //
+    // `println!` panics with "failed printing to stdout: Broken pipe" when
+    // failing to write to a closed standard output. We chain our hook in front
+    // of `human_panic`'s hook so that panics not caused by broken pipes are
+    // still handled by `human_panic`.
+    //
+    // See also <https://github.com/rust-lang/rust/issues/62569>.
+    #[cfg(unix)]
+    {
+        let default_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            handle_broken_pipe(info);
+            default_hook(info);
+        }));
+    }
+
     if let Some(lvl) = radicle::logger::env_level() {
         let logger = Box::new(radicle::logger::Logger::new(lvl));
         log::set_boxed_logger(logger).expect("no other logger should have been set already");
@@ -146,10 +165,93 @@ fn run(command: Command, ctx: impl term::Context) -> ! {
     match run_command(command, ctx) {
         Ok(()) => process::exit(0),
         Err(err) => {
+            // If the error is a broken pipe, exit cleanly. This happens when
+            // output is piped to a command that exits before reading all our
+            // output, e.g. `rad config | head`.
+            //
+            // Rust ignores `SIGPIPE` by default (since 1.62), so broken pipes
+            // and instead returns `io::ErrorKind::BrokenPipe` errors on writes.
+            // We want to catch these and exit cleanly.
+            //
+            // See <https://github.com/rust-lang/rust/issues/62569>.
+            #[cfg(unix)]
+            if is_broken_pipe(&err) {
+                process::exit(0);
+            }
             term::fail(&err);
             process::exit(1);
         }
     }
+}
+
+/// Handle an error of kind [`ErrorKind::BrokenPipe`] during a panic, and
+/// exit the process with exit code 0.
+///
+/// # Debug
+///
+/// If compiled with `debug_assertions` enabled, then the panic is written to
+/// [`std::io::stderr`].
+#[cfg(unix)]
+fn handle_broken_pipe(info: &std::panic::PanicHookInfo<'_>) {
+    if !is_broken_pipe_panic(info) {
+        return;
+    }
+
+    if cfg!(debug_assertions) {
+        let thread = std::thread::current();
+        let thread = thread.name().unwrap_or("<unnamed>");
+
+        let mut stderr = std::io::stderr().lock();
+
+        match info.location() {
+            Some(location) => {
+                let _ = writeln!(
+                    stderr,
+                    "broken pipe in thread '{thread}' at: {}:{}",
+                    location.file(),
+                    location.line(),
+                );
+            }
+            None => {
+                let _ = writeln!(stderr, "broken pipe in thread '{thread}'");
+            }
+        }
+
+        #[cfg(feature = "backtrace")]
+        let backtrace = format!("{:?}", backtrace::Backtrace::new());
+
+        #[cfg(not(feature = "backtrace"))]
+        let backtrace = "(no backtrace available)";
+
+        let _ = writeln!(stderr, "{backtrace}");
+    }
+    process::exit(0);
+}
+
+/// Check if any error in the [`anyhow::Error::chain`] of `err` is of kind
+/// [`ErrorKind::BrokenPipe`].
+#[cfg(unix)]
+fn is_broken_pipe(err: &anyhow::Error) -> bool {
+    err.chain()
+        .filter_map(|cause| cause.downcast_ref::<io::Error>())
+        .any(|io_err| io_err.kind() == ErrorKind::BrokenPipe)
+}
+
+/// Check whether a panic was caused by writing to a broken pipe.
+///
+/// The standard library panics with a [`String`] payload containing
+/// "Broken pipe" when [`println!`] or [`print!`] fail to write because standard
+/// output is closed. This is stable behaviour across all Unix platforms, since
+/// it is adopted from the description of `EPIPE` in [`errno.h` in POSIX.1-2024].
+///
+/// [`errno.h` in POSIX.1-2024]: https://pubs.opengroup.org/onlinepubs/9799919799.2024edition/basedefs/errno.h.html
+#[cfg(unix)]
+fn is_broken_pipe_panic(info: &std::panic::PanicHookInfo<'_>) -> bool {
+    info.payload()
+        .downcast_ref::<&'static str>()
+        .copied()
+        .or(info.payload().downcast_ref::<String>().map(|s| s.as_str()))
+        .is_some_and(|message| message.contains("Broken pipe"))
 }
 
 fn run_command(command: Command, ctx: impl term::Context) -> Result<(), anyhow::Error> {

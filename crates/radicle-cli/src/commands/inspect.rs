@@ -68,7 +68,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 let refs = RefsAt::new(&repo, remote)?;
                 let sigrefs = SignedRefs::load_at(refs.at, remote, &repo);
 
-                println!(
+                term::print(format_args!(
                     "{:<48} {} {}",
                     term::format::tertiary(remote.to_human()),
                     term::format::secondary(refs.at),
@@ -103,7 +103,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                             term::format::negative("missing".to_string())
                         }
                     }
-                );
+                ));
             }
         }
         Target::Policy => {
@@ -111,19 +111,19 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             let seed = policies.seed_policy(&rid)?;
             match seed.policy {
                 SeedingPolicy::Allow { scope } => {
-                    println!(
+                    term::print(format_args!(
                         "Repository {} is {} with scope {}",
                         term::format::tertiary(&rid),
                         term::format::positive("being seeded"),
                         term::format::dim(format!("`{scope}`"))
-                    );
+                    ));
                 }
                 SeedingPolicy::Block => {
-                    println!(
+                    term::print(format_args!(
                         "Repository {} is {}",
                         term::format::tertiary(&rid),
                         term::format::negative("not being seeded"),
-                    );
+                    ));
                 }
             }
         }
@@ -132,19 +132,19 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             let aliases = profile.aliases();
             for did in doc.delegates().iter() {
                 if let Some(alias) = aliases.alias(did) {
-                    println!(
+                    term::print(format_args!(
                         "{} {}",
                         term::format::tertiary(&did),
                         term::format::parens(term::format::dim(alias))
-                    );
+                    ));
                 } else {
-                    println!("{}", term::format::tertiary(&did));
+                    term::print(term::format::tertiary(&did));
                 }
             }
         }
         Target::Visibility => {
             let (_, doc) = repo(rid, storage)?;
-            println!("{}", term::format::visibility(doc.visibility()));
+            term::print(term::format::visibility(doc.visibility()));
         }
         Target::History => {
             let (repo, _) = repo(rid, storage)?;
@@ -177,22 +177,22 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 .with_timezone(&timezone)
                 .to_rfc2822();
 
-                println!(
+                term::print(format_args!(
                     "{} {}",
                     term::format::yellow("commit"),
                     term::format::yellow(oid),
-                );
+                ));
                 if let Ok(parent) = tip.parent_id(0) {
-                    println!("parent {parent}");
+                    term::print(format_args!("parent {parent}"));
                 }
-                println!("blob   {}", revision.blob);
-                println!("date   {time}");
-                println!();
+                term::print(format_args!("blob   {}", revision.blob));
+                term::print(format_args!("date   {time}"));
+                term::blank();
 
                 if let Some(msg) = tip.message() {
                     for line in msg.lines() {
                         if line.is_empty() {
-                            println!();
+                            term::blank();
                         } else {
                             term::indented(term::format::dim(line));
                         }
@@ -200,10 +200,10 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     term::blank();
                 }
                 for line in json::to_pretty(&doc, Path::new("radicle.json"))? {
-                    println!(" {line}");
+                    term::print(format_args!(" {line}"));
                 }
 
-                println!();
+                term::blank();
             }
         }
         Target::RepoId => {
@@ -232,7 +232,7 @@ fn refs(repo: &radicle::storage::git::Repository) -> anyhow::Result<()> {
         }
     }
 
-    print!("{}", tree(refs));
+    term::print_inline(tree(refs));
 
     Ok(())
 }

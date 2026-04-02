@@ -400,7 +400,6 @@ mod test {
             .chain(ARGS.iter())
             .collect::<Vec<_>>(),
         );
-        println!("{args:?}");
         assert!(args.is_ok())
     }
 
