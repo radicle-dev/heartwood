@@ -2,10 +2,14 @@
 
 A suite of tools to create simulated Radicle networks to run tests in:
 
-- **Talos**: A lightweight, immutable Linux operating system built specifically to run Kubernetes. It can run locally on your machine (via QEMU or Docker) or as a baremetal OS (amongst other deploy options).
+- **Talos**: A lightweight, immutable Linux operating system built specifically to run Kubernetes.
+  It can run locally on your machine (via QEMU or Docker) or as a baremetal OS (amongst other deploy options).
 - **Kubernetes (K8s)**: The orchestrator that runs the Radicle nodes in isolated pods (containers) and manages their networking and storage.
-- **Timoni** & **CUE**: The configuration engine. Instead of writing YAML, we use CUE files to define network topologies. Timoni translates these into Kubernetes instructions.
-- **Cargo test**: The test runner. Write tests in Rust that will execute over the provisioned networks.
+- **Timoni** & **CUE**: The configuration engine.
+  Instead of writing YAML, we use CUE files to define network topologies.
+  Timoni translates these into Kubernetes instructions.
+- **Cargo test**: The test runner.
+  Write tests in Rust that will execute over the provisioned networks.
 
 ## Why?
 
@@ -17,13 +21,16 @@ A suite of tools to create simulated Radicle networks to run tests in:
 
 However we can only run them on the currently checked out version of `heartwood`, this leaves gaps in our testing coverage, particularly for cross version and cross platform.
 
-The simulation environment is intended to remedy these gaps and more. See the [Goals] section for more info.
+The simulation environment is intended to remedy these gaps and more.
+See the [Goals] section for more info.
 
 ## Overview
 
 The Garden team currently deploys containerised versions of `radicle-node` into [Quay.io](https://quay.io/repository/radicle_garden/radicle-node?tab=tags&tag=latest).
-We can utilise these containers inside of K8s configuration files to compose sets of pods. These pods can act as different kinds of `radicle-node`'s e.g. peer, seed or bootstrap, running different `heartwood` versions on platforms of our choosing.
-Each of these 'sets of pods' configuration will be considered a network topology, and defined in [CUE](https://cuelang.org/). It allows us to write type safe configuration definitions instead of YAML.
+We can utilise these containers inside of K8s configuration files to compose sets of pods.
+These pods can act as different kinds of `radicle-node`'s e.g. peer, seed or bootstrap, running different `heartwood` versions on platforms of our choosing.
+Each of these 'sets of pods' configuration will be considered a network topology, and defined in [CUE](https://cuelang.org/).
+It allows us to write type safe configuration definitions instead of YAML.
 We'll then use [Timoni](https://timoni.sh/) to transpile these CUE defined network topologies into [K8s object definition files](https://kubernetes.io/docs/concepts/overview/working-with-objects/) and deploy them.
 [Talos](https://talos.dev) will be used to run the K8s pods on; so we can easily switch between locally deployed, via QEMU or Docker, to baremetal on SBC's like Raspberry Pi's, or remotely in Cloud environments.
 Then with some glue and orchestration code we can utilise the `cargo test` runner to provision a network topology, run tests over it and tear it down again.
