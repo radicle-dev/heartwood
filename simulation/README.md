@@ -9,7 +9,7 @@ A suite of tools to create simulated Radicle networks to run tests in:
 
 ## Why?
 
-`heartwood` already has the following types of tests (as of `04/2026`):
+`heartwood` already has the following types of tests (as of 2026-04):
 
 - [unit](https://app.radicle.xyz/nodes/iris.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5/tree/crates/radicle/src/profile.rs#L842)
 - [e2e](https://app.radicle.xyz/nodes/iris.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5/tree/crates/radicle-node/src/tests/e2e.rs)
