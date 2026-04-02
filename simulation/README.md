@@ -75,6 +75,6 @@ This will give us the following workflow for constructing test scenarios:
 2. [ ] `radicle-node` timoni module.
 3. [ ] `radicle-node` custom container builder.
 4. [ ] `instances` topology definition files.
-5. [ ] `sim-tests` rust crate.
+5. [ ] `radicle-simulation` Rust crate.
 6. [ ] `Makefile`.
 7. [ ] `observability` definition files.
