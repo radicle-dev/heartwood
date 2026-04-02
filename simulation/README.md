@@ -31,7 +31,7 @@ We can utilise these containers inside of K8s configuration files to compose set
 These pods can act as different kinds of `radicle-node`'s e.g. peer, seed or bootstrap, running different `heartwood` versions on platforms of our choosing.
 Each of these 'sets of pods' configuration will be considered a network topology, and defined in [CUE](https://cuelang.org/).
 It allows us to write type safe configuration definitions instead of YAML.
-We'll then use [Timoni](https://timoni.sh/) to transpile these CUE defined network topologies into [K8s object definition files](https://kubernetes.io/docs/concepts/overview/working-with-objects/) and deploy them.
+We will then use [Timoni](https://timoni.sh/) to transpile these CUE defined network topologies into [K8s object definition files](https://kubernetes.io/docs/concepts/overview/working-with-objects/) and deploy them.
 [Talos](https://talos.dev) will be used to run the K8s pods on; so we can easily switch between locally deployed, via QEMU or Docker, to baremetal on SBC's like Raspberry Pi's, or remotely in Cloud environments.
 Then with some glue and orchestration code we can utilise the `cargo test` runner to provision a network topology, run tests over it and tear it down again.
 Finally we can insert observability systems into K8s so we can inspect and compare metrics and logs from different test runs.
