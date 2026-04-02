@@ -19,7 +19,7 @@ A suite of tools to create simulated Radicle networks to run tests in:
 - [End-to-End](https://app.radicle.xyz/nodes/iris.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5/tree/crates/radicle-node/src/tests/e2e.rs)
 - [CLI](https://app.radicle.xyz/nodes/iris.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5/tree/crates/radicle-cli/tests/commands/checkout.rs)
 
-However we can only run them on the currently checked out version of `heartwood`, this leaves gaps in our testing coverage, particularly for cross version and cross platform.
+However we can only run them on the currently checked out version of `heartwood`, this leaves gaps in our testing coverage, particularly for cross-version and cross-platform testing.
 
 The simulation environment is intended to remedy these gaps and more.
 See the [Goals] section for more info.
@@ -28,7 +28,9 @@ See the [Goals] section for more info.
 
 The Garden team currently deploys containerised versions of `radicle-node` into [Quay.io](https://quay.io/repository/radicle_garden/radicle-node?tab=tags&tag=latest).
 We can utilise these containers inside of K8s configuration files to compose sets of pods.
-These pods can act as different kinds of `radicle-node`'s e.g. peer, seed or bootstrap, running different `heartwood` versions on platforms of our choosing.
+These pods encapsulate `radicle-node` processes in different configurations, e.g. peer, seed or bootstrap.
+Also, they might run different versions of `heartwood` (to facilitate cross-version testing),
+and on different platforms (to facilitate cross-platform testing).
 Each of these 'sets of pods' configuration will be considered a network topology, and defined in [CUE](https://cuelang.org/).
 It allows us to write type safe configuration definitions instead of YAML.
 We will then use [Timoni](https://timoni.sh/) to transpile these CUE defined network topologies into [K8s object definition files](https://kubernetes.io/docs/concepts/overview/working-with-objects/) and deploy them.
