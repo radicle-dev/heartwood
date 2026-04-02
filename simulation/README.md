@@ -4,7 +4,7 @@ A suite of tools to create simulated Radicle networks to run tests in:
 
 - **Talos**: A lightweight, immutable Linux operating system built specifically to run Kubernetes.
   It can run locally on your machine (via QEMU or Docker) or as a baremetal OS (amongst other deploy options).
-- **Kubernetes (K8s)**: The orchestrator that runs the Radicle nodes in isolated pods (containers) and manages their networking and storage.
+- **Kubernetes (K8s)**: The orchestrator that runs the Radicle nodes in isolated pods and manages their networking and storage.
 - **Timoni** & **CUE**: The configuration engine.
   Instead of writing YAML, we use CUE files to define network topologies.
   Timoni translates these into Kubernetes instructions.
