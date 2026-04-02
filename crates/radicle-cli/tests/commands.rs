@@ -27,6 +27,7 @@ mod commands {
     mod patch;
     mod policy;
     mod remote;
+    mod sigpipe;
     mod sync;
     mod utility;
     mod watch;
