@@ -170,7 +170,7 @@ pub fn logs(lines: usize, follow: Option<time::Duration>, profile: &Profile) -> 
     }
     tail.reverse();
 
-    term::print_inline(term::format::dim(String::from_utf8_lossy(&tail)));
+    term::print(term::format::dim(String::from_utf8_lossy(&tail)));
 
     if let Some(timeout) = follow {
         file.seek(SeekFrom::End(0))?;
@@ -184,7 +184,7 @@ pub fn logs(lines: usize, follow: Option<time::Duration>, profile: &Profile) -> 
             if len == 0 {
                 thread::sleep(time::Duration::from_millis(250));
             } else {
-                term::print_inline(term::format::dim(line));
+                term::print(term::format::dim(line));
             }
         }
     }

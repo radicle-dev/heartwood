@@ -514,7 +514,7 @@ fn print_diff(
 
     if let Some(modified) = diff.modified().next() {
         let diff = modified.diff.to_unified_string()?;
-        term::print_inline(diff);
+        term::print(diff);
     } else {
         term::println(term::format::italic("No changes."));
     }
