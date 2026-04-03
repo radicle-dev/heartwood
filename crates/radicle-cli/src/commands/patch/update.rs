@@ -48,7 +48,7 @@ pub fn run(
     let message = term::patch::get_update_message(message, workdir, revision, &head_oid.into())?;
     let revision = patch.update(message, base_oid, head_oid)?;
 
-    term::print(revision);
+    term::println(revision);
 
     Ok(())
 }

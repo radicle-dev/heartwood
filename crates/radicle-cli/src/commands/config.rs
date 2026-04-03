@@ -102,10 +102,10 @@ where
 fn print_value(value: &serde_json::Value) -> anyhow::Result<()> {
     match value {
         serde_json::Value::Null => {}
-        serde_json::Value::Bool(b) => term::print(b),
+        serde_json::Value::Bool(b) => term::println(b),
         serde_json::Value::Array(a) => a.iter().try_for_each(print_value)?,
-        serde_json::Value::Number(n) => term::print(n),
-        serde_json::Value::String(s) => term::print(s),
+        serde_json::Value::Number(n) => term::println(n),
+        serde_json::Value::String(s) => term::println(s),
         serde_json::Value::Object(o) => {
             term::json::to_pretty(&o, Path::new("config.json"))?.print()
         }

@@ -167,7 +167,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 {
                     Some(proposal) => serde_json::from_str::<RawDoc>(&proposal)?,
                     None => {
-                        term::print(term::format::italic(
+                        term::println(term::format::italic(
                             "Nothing to do. The document is up to date. See `rad inspect --identity`.",
                         ));
                         return Ok(());
@@ -180,7 +180,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             let proposal = update::verify(proposal)?;
             if proposal == current.doc {
                 if !args.quiet {
-                    term::print(term::format::italic(
+                    term::println(term::format::italic(
                         "Nothing to do. The document is up to date. See `rad inspect --identity`.",
                     ));
                 }
@@ -193,7 +193,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 repo.set_identity_head_to(revision.id)?;
             }
             if args.quiet {
-                term::print(revision.id);
+                term::println(revision.id);
             } else {
                 term::success!(
                     "Identity revision {} created",
@@ -516,7 +516,7 @@ fn print_diff(
         let diff = modified.diff.to_unified_string()?;
         term::print_inline(diff);
     } else {
-        term::print(term::format::italic("No changes."));
+        term::println(term::format::italic("No changes."));
     }
     Ok(())
 }

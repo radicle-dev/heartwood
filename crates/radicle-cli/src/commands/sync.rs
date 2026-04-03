@@ -198,7 +198,7 @@ fn announce_refs(
     };
     if let Err(e) = repo.remote(&profile.public_key) {
         if e.is_not_found() {
-            term::print(term::format::italic(
+            term::println(term::format::italic(
                 "Nothing to announce, you don't have a fork of this repository.",
             ));
             return Ok(());

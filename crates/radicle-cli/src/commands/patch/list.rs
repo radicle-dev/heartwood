@@ -46,7 +46,7 @@ pub fn run(
     }
 
     if all.is_empty() {
-        term::print(term::format::italic("Nothing to show."));
+        term::println(term::format::italic("Nothing to show."));
         return Ok(());
     }
 

@@ -60,7 +60,7 @@ fn debug(profile: Option<&Profile>) -> anyhow::Result<()> {
         warnings: collect_warnings(profile),
     };
 
-    term::print(serde_json::to_string_pretty(&debug).unwrap());
+    term::println(serde_json::to_string_pretty(&debug).unwrap());
 
     Ok(())
 }

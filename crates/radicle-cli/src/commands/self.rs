@@ -14,20 +14,20 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
 
     if args.did {
-        term::print(profile.did());
+        term::println(profile.did());
     } else if args.alias {
-        term::print(profile.config.alias());
+        term::println(profile.config.alias());
     } else if args.home {
-        term::print(profile.home().path().display());
+        term::println(profile.home().path().display());
     } else if args.ssh_key {
-        term::print(ssh::fmt::key(profile.id()));
+        term::println(ssh::fmt::key(profile.id()));
     } else if args.config {
-        term::print(profile.home.config().display());
+        term::println(profile.home.config().display());
     } else if args.ssh_fingerprint {
-        term::print(ssh::fmt::fingerprint(profile.id()));
+        term::println(ssh::fmt::fingerprint(profile.id()));
     } else if args.nid {
         crate::warning::deprecated("rad self --nid", "rad node status --only nid");
-        term::print(
+        term::println(
             Node::new(profile.socket_from_env())
                 .nid()
                 .ok()

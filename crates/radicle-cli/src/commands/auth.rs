@@ -158,10 +158,10 @@ pub fn authenticate(args: Args, profile: &Profile) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    term::print(term::format::dim(
+    term::println(term::format::dim(
         "Nothing to do, ssh-agent is not running.",
     ));
-    term::print(term::format::dim(
+    term::println(term::format::dim(
         "You will be prompted for a passphrase when necessary.",
     ));
 

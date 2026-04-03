@@ -96,7 +96,7 @@ fn list(
     };
 
     if repos.is_empty() {
-        term::print(term::format::italic("Your inbox is empty."));
+        term::println(term::format::italic("Your inbox is empty."));
     } else {
         for repo in repos {
             repo.print();
@@ -397,7 +397,7 @@ fn clear(notifs: &mut notifications::StoreWriter, mode: ClearMode) -> anyhow::Re
     if cleared > 0 {
         term::success!("Cleared {cleared} item(s) from your inbox");
     } else {
-        term::print(term::format::italic("Your inbox is empty."));
+        term::println(term::format::italic("Your inbox is empty."));
     }
     Ok(())
 }
