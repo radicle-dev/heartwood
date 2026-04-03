@@ -118,7 +118,7 @@ impl radicle::node::Handle for Handle {
 
         Ok(RefsAt {
             remote: self.nid()?,
-            at: Oid::sha1_zero(),
+            at: Oid::SHA1_ZERO,
         })
     }
 

@@ -87,6 +87,8 @@ pub enum Oid {
 // for forwards compatibility: What if another hash with digests of the same
 // length becomes popular?
 impl Oid {
+    pub const SHA1_ZERO: Self = Self::Sha1([0u8; SHA1_DIGEST_LEN]);
+
     pub fn from_sha1(digest: [u8; SHA1_DIGEST_LEN]) -> Self {
         Self::Sha1(digest)
     }
@@ -95,10 +97,6 @@ impl Oid {
         match self {
             Oid::Sha1(digest) => Some(*digest),
         }
-    }
-
-    pub fn sha1_zero() -> Self {
-        Self::Sha1([0u8; SHA1_DIGEST_LEN])
     }
 }
 
@@ -230,7 +228,7 @@ pub mod str {
                 "0000000000000000000000000000000000000000"
                     .parse::<Oid>()
                     .unwrap(),
-                Oid::sha1_zero()
+                Oid::SHA1_ZERO
             );
         }
 
@@ -319,7 +317,7 @@ mod fmt {
         #[test]
         fn zero() {
             assert_eq!(
-                Oid::sha1_zero().to_string(),
+                Oid::SHA1_ZERO.to_string(),
                 "0000000000000000000000000000000000000000"
             );
         }
@@ -404,7 +402,7 @@ mod gix {
 
         #[test]
         fn zero() {
-            assert!(Oid::sha1_zero() == Other::null(Kind::Sha1));
+            assert!(Oid::SHA1_ZERO == Other::null(Kind::Sha1));
         }
     }
 }
@@ -451,7 +449,7 @@ mod git2 {
 
         #[test]
         fn zero() {
-            assert!(Oid::sha1_zero() == Other::zero());
+            assert!(Oid::SHA1_ZERO == Other::zero());
         }
     }
 }

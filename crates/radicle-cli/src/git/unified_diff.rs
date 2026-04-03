@@ -336,7 +336,7 @@ impl Encode for FileHeader {
                 w.meta(format!("new file mode {:o}", u32::from(new.mode.clone())))?;
                 w.meta(format!(
                     "index {}..{}",
-                    term::format::oid(git::Oid::sha1_zero()),
+                    term::format::oid(git::Oid::SHA1_ZERO),
                     term::format::oid(*new.oid),
                 ))?;
 
@@ -358,7 +358,7 @@ impl Encode for FileHeader {
                 w.meta(format!(
                     "index {}..{}",
                     term::format::oid(*old.oid),
-                    term::format::oid(git::Oid::sha1_zero())
+                    term::format::oid(git::Oid::SHA1_ZERO)
                 ))?;
 
                 w.meta(format!("--- a/{}", path.display()))?;
