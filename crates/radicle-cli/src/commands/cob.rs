@@ -80,7 +80,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     oid
                 }
             };
-            term::print(oid);
+            term::println(oid);
         }
         Migrate => {
             let mut db = profile.cobs_db_mut()?;
@@ -100,7 +100,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 FilteredTypeName::from(type_name).as_ref(),
             )?;
             for cob in cobs {
-                term::print(cob.id);
+                term::println(cob.id);
             }
         }
         Log {
@@ -215,7 +215,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
             };
 
-            term::print(oid);
+            term::println(oid);
         }
     }
     Ok(())
@@ -303,18 +303,18 @@ where
         std::time::UNIX_EPOCH + std::time::Duration::from_secs(op.timestamp.as_secs()),
     )
     .to_rfc2822();
-    term::print(term::format::yellow(format!("commit   {}", op.id)));
+    term::println(term::format::yellow(format!("commit   {}", op.id)));
     if let Some(oid) = op.identity {
-        term::print(term::format::tertiary(format!("resource {oid}")));
+        term::println(term::format::tertiary(format!("resource {oid}")));
     }
     for parent in op.parents {
-        term::print(format!("parent   {parent}"));
+        term::println(format!("parent   {parent}"));
     }
     for parent in op.related {
-        term::print(format!("rel      {parent}"));
+        term::println(format!("rel      {parent}"));
     }
-    term::print(format!("author   {}", op.author));
-    term::print(format!("date     {time}"));
+    term::println(format!("author   {}", op.author));
+    term::println(format!("date     {time}"));
     term::blank();
     for action in op.actions {
         let val = serde_json::to_string_pretty(&action)?;
@@ -330,7 +330,7 @@ fn print_op_json<A>(op: cob::Op<A>) -> anyhow::Result<()>
 where
     A: serde::Serialize,
 {
-    term::print(serde_json::to_value(&op)?);
+    term::println(serde_json::to_value(&op)?);
     Ok(())
 }
 

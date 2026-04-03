@@ -44,6 +44,6 @@ fn print_table(entries: impl IntoIterator<Item = (RepoId, NodeId)>) {
 
 fn print_json(entries: impl IntoIterator<Item = (RepoId, NodeId)>) {
     for (rid, nid) in entries {
-        term::print(serde_json::json!({ "rid": rid, "nid": nid }));
+        term::println(serde_json::json!({ "rid": rid, "nid": nid }));
     }
 }

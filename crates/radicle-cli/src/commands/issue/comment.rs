@@ -39,7 +39,7 @@ where
 
     let comment_id = issue.comment(body, reply_to.unwrap_or(*root_comment_id), vec![])?;
     if quiet {
-        term::print(comment_id);
+        term::println(comment_id);
     } else {
         let comment = issue.thread().comment(&comment_id).unwrap();
         term::comment::widget(&comment_id, comment, profile).print();
@@ -82,7 +82,7 @@ where
     )?;
     issue.edit_comment(comment_id, body, vec![])?;
     if quiet {
-        term::print(comment_id);
+        term::println(comment_id);
     } else {
         let comment = issue.thread().comment(&comment_id).unwrap();
         term::comment::widget(&comment_id, comment, profile).print();

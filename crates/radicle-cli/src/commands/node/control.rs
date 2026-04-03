@@ -83,7 +83,7 @@ pub fn start(
                     spinner.message(format!("Node started {pid}"));
                     spinner.finish();
 
-                    term::print(term::format::dim(
+                    term::println(term::format::dim(
                         "To stay in sync with the network, leave the node running in the background.",
                     ));
                     term::info!(
@@ -414,7 +414,7 @@ pub fn config(node: &Node) -> anyhow::Result<()> {
     let cfg = node.config()?;
     let cfg = serde_json::to_string_pretty(&cfg)?;
 
-    term::print(cfg);
+    term::println(cfg);
 
     Ok(())
 }

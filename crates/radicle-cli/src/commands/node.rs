@@ -47,7 +47,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             if addresses {
                 let cfg = node.config()?;
                 for addr in cfg.external_addresses {
-                    term::print(ConnectAddress::from((*profile.id(), addr)).to_string());
+                    term::println(ConnectAddress::from((*profile.id(), addr)).to_string());
                 }
             } else {
                 control::config(&node)?;
@@ -88,14 +88,14 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         Command::Inventory { nid } => {
             let nid = nid.as_ref().unwrap_or(profile.id());
             for rid in profile.routing()?.get_inventory(nid)? {
-                term::print(term::format::tertiary(rid));
+                term::println(term::format::tertiary(rid));
             }
         }
         Command::Status {
             only: Some(Only::Nid),
         } => {
             if node.is_running() {
-                term::print(term::format::node_id_human(&node.nid()?));
+                term::println(term::format::node_id_human(&node.nid()?));
             } else {
                 process::exit(2);
             }

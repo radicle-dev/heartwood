@@ -13,7 +13,7 @@ pub fn db(profile: &Profile, op: DbOperation) -> anyhow::Result<()> {
             if changed > 0 {
                 term::success!("{changed} row(s) affected.");
             } else {
-                term::print(term::format::italic("No rows affected."));
+                term::println(term::format::italic("No rows affected."));
             }
         }
     }

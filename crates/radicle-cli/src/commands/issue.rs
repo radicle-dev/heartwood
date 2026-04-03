@@ -243,7 +243,7 @@ where
     C: issue::cache::Issues,
 {
     if cache.is_empty()? {
-        term::print(term::format::italic("Nothing to show."));
+        term::println(term::format::italic("Nothing to show."));
         return Ok(());
     }
 

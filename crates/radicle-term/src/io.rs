@@ -74,7 +74,7 @@ macro_rules! info {
         writeln!($writer, $($arg)*).ok();
     });
     ($($arg:tt)*) => ({
-        $crate::io::print(format_args!($($arg)*));
+        $crate::io::println(format_args!($($arg)*));
     })
 }
 
@@ -118,7 +118,7 @@ pub fn success_args<W: io::Write>(w: &mut W, args: fmt::Arguments) {
 }
 
 pub fn tip_args(args: fmt::Arguments) {
-    print(format_args!(
+    println(format_args!(
         "{} {}",
         format::yellow("*"),
         style(format!("{args}")).italic()
@@ -148,23 +148,23 @@ pub fn viewport() -> Option<Size> {
 }
 
 pub fn headline(headline: impl fmt::Display) {
-    print("");
-    print(style(headline).bold());
-    print("");
+    println("");
+    println(style(headline).bold());
+    println("");
 }
 
 pub fn header(header: &str) {
-    print("");
-    print(style(format::yellow(header)).bold().underline());
-    print("");
+    println("");
+    println(style(format::yellow(header)).bold().underline());
+    println("");
 }
 
 pub fn blob(text: impl fmt::Display) {
-    print(style(text.to_string().trim()).dim());
+    println(style(text.to_string().trim()).dim());
 }
 
 pub fn blank() {
-    print("");
+    println("");
 }
 
 /// Print a line to stdout, silently ignoring broken pipe errors.
@@ -177,7 +177,7 @@ pub fn blank() {
 /// # Panics
 ///
 /// If writing to standard output fails with an error not of kind [`io::ErrorKind::BrokenPipe`].
-pub fn print(msg: impl fmt::Display) {
+pub fn println(msg: impl fmt::Display) {
     use io::Write;
 
     let mut stdout = io::stdout().lock();
@@ -190,7 +190,7 @@ pub fn print(msg: impl fmt::Display) {
 /// Use this function instead of [`print!`] when you want to print to standard
 /// output, but silently ignore broken pipe errors.
 ///
-/// See also [`self::print`].
+/// See also [`self::println`].
 ///
 /// # Panics
 ///
@@ -228,7 +228,7 @@ pub fn prefixed(prefix: &str, text: &str) -> String {
 }
 
 pub fn help(name: &str, version: &str, description: &str, usage: &str) {
-    print(format_args!("rad-{name} {version}\n{description}\n{usage}"));
+    println(format_args!("rad-{name} {version}\n{description}\n{usage}"));
 }
 
 pub fn manual(name: &str) -> io::Result<process::ExitStatus> {
@@ -241,7 +241,7 @@ pub fn manual(name: &str) -> io::Result<process::ExitStatus> {
 }
 
 pub fn usage(name: &str, usage: &str) {
-    print(format_args!(
+    println(format_args!(
         "{} {}\n{}",
         PREFIX_ERROR,
         Paint::red(format!("Error: rad-{name}: invalid usage")),
@@ -250,19 +250,19 @@ pub fn usage(name: &str, usage: &str) {
 }
 
 pub fn println_prefixed(prefix: impl fmt::Display, msg: impl fmt::Display) {
-    print(format_args!("{prefix} {msg}"));
+    println(format_args!("{prefix} {msg}"));
 }
 
 pub fn indented(msg: impl fmt::Display) {
-    print(format_args!("{TAB}{msg}"));
+    println(format_args!("{TAB}{msg}"));
 }
 
 pub fn subcommand(msg: impl fmt::Display) {
-    print(style(format!("Running `{msg}`...")).dim());
+    println(style(format!("Running `{msg}`...")).dim());
 }
 
 pub fn warning(warning: impl fmt::Display) {
-    print(format_args!(
+    println(format_args!(
         "{} {} {warning}",
         PREFIX_WARNING,
         Paint::yellow("Warning:").bold(),
@@ -270,14 +270,14 @@ pub fn warning(warning: impl fmt::Display) {
 }
 
 pub fn error(error: impl fmt::Display) {
-    print(format_args!(
+    println(format_args!(
         "{PREFIX_ERROR} {} {error}",
         Paint::red("Error:")
     ));
 }
 
 pub fn hint(hint: impl fmt::Display) {
-    print(format::hint(format!("{SYMBOL_ERROR} Hint: {hint}")));
+    println(format::hint(format!("{SYMBOL_ERROR} Hint: {hint}")));
 }
 
 pub fn ask<D: fmt::Display>(prompt: D, default: bool) -> bool {

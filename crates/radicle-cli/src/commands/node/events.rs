@@ -13,7 +13,7 @@ where
         let event = event?;
         let obj = serde_json::to_string(&event)?;
 
-        term::print(&obj);
+        term::println(&obj);
 
         // Only output up to `count` events.
         if i + 1 >= count {
