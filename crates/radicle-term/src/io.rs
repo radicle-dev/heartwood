@@ -249,7 +249,7 @@ pub fn usage(name: &str, usage: &str) {
     ));
 }
 
-pub fn println(prefix: impl fmt::Display, msg: impl fmt::Display) {
+pub fn println_prefixed(prefix: impl fmt::Display, msg: impl fmt::Display) {
     print(format_args!("{prefix} {msg}"));
 }
 

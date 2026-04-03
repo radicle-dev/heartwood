@@ -578,7 +578,7 @@ fn display_success<'a>(
     verbose: bool,
 ) {
     for (node, updates, _) in results {
-        term::println(
+        term::println_prefixed(
             "🌱 Fetched from",
             term::format::secondary(term::format::node_id_human(node)),
         );
