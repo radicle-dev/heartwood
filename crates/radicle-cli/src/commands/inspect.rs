@@ -234,7 +234,7 @@ fn refs(repo: &radicle::storage::git::Repository) -> anyhow::Result<()> {
         }
     }
 
-    term::print_inline(tree(refs));
+    term::print(tree(refs));
 
     Ok(())
 }

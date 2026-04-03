@@ -195,7 +195,7 @@ pub fn println(msg: impl fmt::Display) {
 /// # Panics
 ///
 /// If writing to standard output fails with an error not of kind [`io::ErrorKind::BrokenPipe`].
-pub fn print_inline(msg: impl fmt::Display) {
+pub fn print(msg: impl fmt::Display) {
     use io::Write;
 
     let mut stdout = io::stdout().lock();
