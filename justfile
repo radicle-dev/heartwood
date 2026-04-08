@@ -11,7 +11,9 @@ CHECK := "🔄 " + BOLD
 default: check-hooks
     @just --list
 
+# Run post-checkout checks
 [group('hooks')]
+post-checkout:
 
 # Run pre-commit checks
 [group('hooks')]

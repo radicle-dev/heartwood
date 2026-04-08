@@ -47,6 +47,8 @@ if [ "$HOOK_NAME" = "pre-commit" ]; then
 elif [ "$HOOK_NAME" = "pre-push" ]; then
     echo "Running pre-push checks..."
     just pre-push
+elif [ "$HOOK_NAME" = "post-checkout" ]; then
+    just post-checkout
 else
     echo "Unknown hook: $HOOK_NAME"
     exit 1
