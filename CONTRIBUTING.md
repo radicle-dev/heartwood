@@ -35,15 +35,29 @@ simple guidelines.
 
 Patch formatting follows the same rules as commit formatting. See below.
 
+### Git hooks & Task runner
+
+We use [`just`](https://just.systems/) as our task runner. You can see all available commands by running `just` or `just --list` in the repository root.
+
+If you are not using Nix (which sets up hooks automatically), you should install the local git hooks:
+
+    $ just install-hooks
+
+These hooks will run formatting, linting, and spelling checks on `pre-commit` and `pre-push`. For security, our hooks are copied rather than symlinked. If you check out a branch that modifies sensitive files (like `build.rs` or `justfile`), the hook will pause and ask for your confirmation before executing any code.
+
 ### Linting & formatting
 
 Always check your code with the linter (`clippy`), by running:
 
-    $ cargo clippy --workspace --tests
+    $ just lint-rust
 
-And make sure your code is formatted with, using:
+And make sure your code is formatted, using:
 
-    $ cargo fmt
+    $ just format-rust
+
+You can also run the entire suite of pre-commit checks (which includes spelling and shell checks) with:
+
+    $ just pre-commit
 
 Finally, ensure there is no trailing whitespace anywhere.
 
@@ -61,7 +75,7 @@ without effectively testing anything.
 If you make documentation changes, you may want to check whether there are any
 warnings or errors:
 
-    $ cargo doc --workspace --all-features
+    $ just check-docs
 
 ### Code style
 
