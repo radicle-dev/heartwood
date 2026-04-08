@@ -1,6 +1,10 @@
 default:
     @just --list
 
+# Run pre-commit checks
+pre-commit: format-rust check-rust check-docs check-typos check-spelling check-scripts check-keywords format-nix
+    @echo "✅ pre-commit passed"
+
 # Format Rust code
 format-rust: (verify-tool "cargo")
     @echo "Cargo fmt..."
