@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#! /usr/bin/env bash
 set -e
 
 HOOK_NAME=$(basename "$0")
@@ -13,9 +13,10 @@ for file in "${SENSITIVE_FILES[@]}"; do
     fi
 done
 
-if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
-    echo "⚠️  WARNING: Sensitive files have been modified relative to $BASE_BRANCH."
-    echo "Executing these hooks may run arbitrary code from the modified files."
+if [ ${#CHANGED_FILES[@]} -gt 0 ]
+then
+    echo "⚠️ WARNING: Sensitive files have been modified relative to $BASE_BRANCH."
+    echo "Executing this hook may run arbitrary code from the modified files."
     echo ""
 
     for file in "${CHANGED_FILES[@]}"; do
@@ -25,16 +26,16 @@ if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
     done
     echo ""
 
-    # Read from /dev/tty because stdin is not attached to the terminal in git hooks.
+    # Read from /dev/tty because stdin is not attached to the terminal in Git hooks.
     exec < /dev/tty
 
-    read -r -p "Do you want to continue executing the ${HOOK_NAME} hooks? [y/N] " response
+    read -r -p "⚠️ Do you want to continue executing the '${HOOK_NAME}' hook? [y/N] " response
     case "$response" in
         [yY][eE][sS]|[yY])
-            echo "Continuing with ${HOOK_NAME} hooks..."
+            echo "Continuing with '${HOOK_NAME}' hook..."
             ;;
         *)
-            echo "Skipping ${HOOK_NAME} hooks."
+            echo "Skipping '${HOOK_NAME}' hook."
             exit 0
             ;;
     esac
@@ -42,14 +43,12 @@ fi
 
 # Execute the appropriate just recipe based on the hook name
 if [ "$HOOK_NAME" = "pre-commit" ]; then
-    echo "Running pre-commit checks..."
     just pre-commit
 elif [ "$HOOK_NAME" = "pre-push" ]; then
-    echo "Running pre-push checks..."
     just pre-push
 elif [ "$HOOK_NAME" = "post-checkout" ]; then
     just post-checkout
 else
-    echo "Unknown hook: $HOOK_NAME"
+    echo "⚠️ Unknown hook: $HOOK_NAME"
     exit 1
 fi

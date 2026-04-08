@@ -1,1 +1,0 @@
-update addresses set value = concat('[', rtrim(ltrim(rtrim(value, replace(value, ':', '')), '['), ']:'), ']:', replace(value, rtrim(value, replace(value, ':', '')), '')) where type = "ipv6";
