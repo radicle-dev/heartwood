@@ -1,0 +1,13 @@
+[package]
+name = "radicle-dag"
+description = "Radicle DAG implementation"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+authors = ["cloudhead <cloudhead@radicle.xyz>"]
+version = "0.10.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+fastrand = { workspace = true }

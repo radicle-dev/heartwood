@@ -1,0 +1,9 @@
+Comment on an issue, or comment in reply to an earlier comment on the issue.
+
+Every issue can be viewed as a tree of comments, with the initial issue description at the root.
+
+Discussions about the issue can be organized in sub-trees, by using `--reply-to`.
+
+As a fallback, when `--reply-to` is not used, the comment will be in response to the issue description itself.
+
+Using `--edit` preserves this structure of replies.

@@ -1,0 +1,19 @@
+[package]
+name = "radicle-localtime"
+version = "0.1.0"
+description = "Minimal, zero-dependency, monotonic, unix time library."
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true, optional = true, features = ["derive"] }
+schemars = { workspace = true, optional = true, features = ["derive", "std"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }

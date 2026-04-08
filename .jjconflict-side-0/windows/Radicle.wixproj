@@ -1,0 +1,5 @@
+<Project Sdk="WixToolset.Sdk/6.0.0">
+  <PropertyGroup>
+    <SuppressIces>ICE91</SuppressIces>
+  </PropertyGroup>
+</Project>

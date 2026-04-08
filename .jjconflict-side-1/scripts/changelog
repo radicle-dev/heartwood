@@ -1,0 +1,78 @@
+#!/bin/sh
+set -e
+
+# Version from which to generate the changelog.
+from=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --from-version)
+      if [ -z "$2" ]; then
+        echo "error: '--from-version' requires a version number" >&2
+        exit 1
+      fi
+      shift
+      from=$(echo "$1" | sed 's/^releases\///')
+      break
+      ;;
+    *)
+      echo "error: unknown argument '$1'" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Current/latest tag.
+version="$(build/version)"
+current="releases/${version}"
+
+if ! git rev-parse --verify "$current^{tag}" >/dev/null 2>&1; then
+  echo "error: tag '$current' not found" >&2
+  exit 1
+fi
+
+if [ -z "$from" ]; then
+  previous="$(git describe --abbrev=0 HEAD^)"
+else
+  previous="releases/$from"
+fi
+
+if ! git rev-parse --verify "$previous^{tag}" >/dev/null 2>&1; then
+  echo "error: '$from' is not a valid version, tag '$previous' not found" >&2
+  exit 1
+fi
+
+echo "# 👾 Radicle $version"
+echo
+echo "Radicle $version ($(git rev-parse --short HEAD)) is released."
+echo
+echo "## Installation"
+echo
+echo '```'
+echo "curl -sSf https://radicle.xyz/install | sh -s -- --no-modify-path --version=$version"
+echo '```'
+echo
+echo "## Notes"
+echo
+echo "* This update is recommended for everyone. No manual intervention is required."
+echo
+echo "## Changelog"
+
+range="${previous}..${current}"
+ncommits=$(git rev-list --count "$range")
+ncontribs=$(git log "$range" --format='%ae' | sort -u | wc -l)
+
+echo
+echo "This release contains $ncommits commit(s) by $ncontribs contributor(s)."
+echo
+
+# shellcheck disable=SC2016
+git log --pretty=format:'* `%h` **%s** *<%ae>*' "$range"
+
+echo
+echo "## Checksums"
+echo
+
+echo '```'
+build/checksums
+echo '```'

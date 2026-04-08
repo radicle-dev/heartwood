@@ -1,0 +1,19 @@
+[package]
+name = "radicle-schemars"
+description = "Utility to print JSON Schemas from the `radicle` crate"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+version = "0.7.0"
+rust-version.workspace = true
+
+[[bin]]
+name = "radicle-schemars"
+path = "src/main.rs"
+
+[dependencies]
+radicle = { workspace = true, features = ["schemars"]}
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

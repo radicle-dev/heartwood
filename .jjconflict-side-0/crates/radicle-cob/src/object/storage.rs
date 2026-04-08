@@ -1,0 +1,137 @@
+// Copyright © 2021 The Radicle Link Contributors
+
+use std::{collections::BTreeMap, error::Error};
+
+use fmt::RefString;
+use oid::Oid;
+
+use crate::change::EntryId;
+use crate::{ObjectId, TypeName};
+
+/// The [`Reference`]s that refer to the commits that make up a
+/// [`crate::CollaborativeObject`].
+#[derive(Clone, Debug, Default)]
+pub struct Objects(Vec<Reference>);
+
+impl Objects {
+    pub fn new(reference: Reference) -> Self {
+        Self(vec![reference])
+    }
+
+    pub fn push(&mut self, reference: Reference) {
+        self.0.push(reference)
+    }
+
+    /// Return an iterator over the `local` and `remotes` of the given
+    /// [`Objects`].
+    pub fn iter(&self) -> impl Iterator<Item = &Reference> {
+        self.0.iter()
+    }
+}
+
+impl From<Vec<Reference>> for Objects {
+    fn from(refs: Vec<Reference>) -> Self {
+        Objects(refs)
+    }
+}
+
+/// A [`Reference`] that must directly point to the [`Commit`] for a
+/// [`crate::CollaborativeObject`].
+#[derive(Clone, Debug)]
+pub struct Reference {
+    /// The `name` of the reference.
+    pub name: RefString,
+    /// The [`Commit`] that this reference points to.
+    pub target: Commit,
+}
+
+/// A [`Commit`] that holds the data for a given [`crate::CollaborativeObject`].
+#[derive(Clone, Debug)]
+pub struct Commit {
+    /// The content identifier of the commit.
+    pub id: Oid,
+}
+
+pub trait Storage {
+    type ObjectsError: Error + Send + Sync + 'static;
+    type TypesError: Error + Send + Sync + 'static;
+    type UpdateError: Error + Send + Sync + 'static;
+    type RemoveError: Error + Send + Sync + 'static;
+
+    type Namespace;
+
+    /// Get all references which point to a head of the change graph for a
+    /// particular object
+    fn objects(
+        &self,
+        typename: &TypeName,
+        object_id: &ObjectId,
+    ) -> Result<Objects, Self::ObjectsError>;
+
+    /// Get all references to objects of a given type within a particular
+    /// identity
+    fn types(&self, typename: &TypeName) -> Result<BTreeMap<ObjectId, Objects>, Self::TypesError>;
+
+    /// Update a ref to a particular collaborative object
+    fn update(
+        &self,
+        namespace: &Self::Namespace,
+        typename: &TypeName,
+        object_id: &ObjectId,
+        entry: &EntryId,
+    ) -> Result<(), Self::UpdateError>;
+
+    /// Remove a ref to a particular collaborative object
+    fn remove(
+        &self,
+        namespace: &Self::Namespace,
+        typename: &TypeName,
+        object_id: &ObjectId,
+    ) -> Result<(), Self::RemoveError>;
+}
+
+pub mod convert {
+    use std::str;
+
+    use fmt::RefString;
+    use thiserror::Error;
+
+    #[derive(Debug, Error)]
+    pub enum Error {
+        #[error("the reference '{name}' does not point to a commit object")]
+        NotCommit {
+            name: RefString,
+            #[cfg(feature = "git2")]
+            #[source]
+            err: git2::Error,
+        },
+        #[error(transparent)]
+        Ref(#[from] fmt::Error),
+        #[error(transparent)]
+        Utf8(#[from] str::Utf8Error),
+    }
+
+    #[cfg(feature = "git2")]
+    impl<'a> TryFrom<git2::Reference<'a>> for super::Reference {
+        type Error = Error;
+
+        fn try_from(value: git2::Reference<'a>) -> Result<Self, Self::Error> {
+            let name = RefString::try_from(str::from_utf8(value.name_bytes())?)?;
+            let target =
+                super::Commit::from(value.peel_to_commit().map_err(|err| Error::NotCommit {
+                    name: name.clone(),
+                    err,
+                })?);
+            Ok(Self { name, target })
+        }
+    }
+
+    #[cfg(feature = "git2")]
+    impl<'a> From<git2::Commit<'a>> for super::Commit {
+        fn from(commit: git2::Commit<'a>) -> Self {
+            Self {
+                id: commit.id().into(),
+            }
+        }
+    }
+}

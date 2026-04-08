@@ -1,0 +1,39 @@
+# Example systemd user service unit configuration file for `radicle-node`.
+#
+# When running radicle-node on a server, it should be run as
+# a system service by a separate user, see `../system/*.service`.
+#
+# For more information on how to install and configure this service,
+# please read:
+#
+# https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html
+# https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html
+#
+[Unit]
+Description=Radicle Node
+After=network.target network-online.target
+Requires=network-online.target
+
+[Service]
+ExecStart=/usr/bin/radicle-node --log
+KillMode=process
+Restart=always
+RestartSec=3
+# Basic hardening options. For more please refer to `systemd-analyze security`.
+PrivateTmp=true
+ProtectHome=true
+MemoryDenyWriteExecute=true
+
+# If your Radicle key is passphrase-protected, you will have to set the
+# `RAD_PASSPHRASE` environment variable to the passphrase supplied during
+# `rad auth`.
+#Environment=RAD_PASSPHRASE=snickerdoodle
+Environment=RAD_HOME=/home/seed/.radicle RUST_BACKTRACE=1
+
+# Basic hardening options. For more, please refer to `systemd-analyze security`.
+PrivateTmp=true
+ProtectHome=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=default.target

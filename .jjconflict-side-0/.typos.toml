@@ -1,0 +1,16 @@
+[default]
+extend-ignore-re = [
+    "[0-9a-f]{7}\\.\\.\\.?[0-9a-f]{7}", # Git range between two short commit IDs
+    "[0-9a-f]{7}\\[\\.\\.\\]", # Shortened commit IDs as written in tests
+    "did:key:z6Mk[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{44}",
+    "rad://z[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{28}",
+    "rad:z[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{28}",
+    "z6Mk[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{44}",
+]
+
+[default.extend-identifiers]
+"typ" = "typ" # We may write "typ" instead of "type". The latter is a Rust keyword.
+
+[type.codespell]
+check-file = false
+extend-glob = [".codespellrc"]

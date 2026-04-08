@@ -1,0 +1,40 @@
+#!/bin/sh
+set -e
+
+if [ $# -ne 1 ]; then
+  echo "Usage: $0 <version-number>"
+  exit 1
+fi
+
+SSH_LOGIN=${SSH_LOGIN:-release}
+SSH_ADDRESS=${SSH_ADDRESS:-$SSH_LOGIN@files.radicle.xyz}
+SSH_KEY="$(rad path)/keys/radicle"
+
+main() {
+  version="$1"
+  destination="/var/www/files.radicle.xyz/releases"
+
+  if [ -z "$version" ]; then
+    echo "fatal: empty version number" >&2 ; exit 1
+  fi
+
+  if ! git rev-parse --verify "releases/$version^{tag}" >/dev/null 2>&1; then
+    echo "error: '$version' is not a valid version, tag 'releases/$version' not found" >&2
+    exit 1
+  fi
+
+  printf "Releasing Radicle %s? [y/N] " "$version"
+  read -r confirmation
+
+  case "$confirmation" in
+    [Yy]*)
+      echo "Creating 'latest' symlink.."
+      ssh -i "$SSH_KEY" "$SSH_ADDRESS" ln -snf "$destination/$version" "$destination/latest" ;;
+    *)
+      echo "Operation aborted."
+      exit 1 ;;
+  esac
+  echo "Done."
+}
+
+main "$@"

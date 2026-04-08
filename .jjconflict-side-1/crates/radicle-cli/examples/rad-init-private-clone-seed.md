@@ -1,0 +1,55 @@
+Given a private repo `rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu` belonging to Alice,
+Alice allows Bob to fetch it, and Bob, without the updated identity document
+is able to fetch it by specifying Alice as a seed.
+
+``` ~alice
+$ rad id update --title "Allow Bob" --description "" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
+...
+$ rad inspect --identity
+{
+  "payload": {
+    "xyz.radicle.project": {
+      "defaultBranch": "master",
+      "description": "radicle heartwood protocol & stack",
+      "name": "heartwood"
+    }
+  },
+  "delegates": [
+    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+  ],
+  "threshold": 1,
+  "visibility": {
+    "type": "private",
+    "allow": [
+      "did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk"
+    ]
+  }
+}
+```
+
+``` ~bob
+$ rad ls --all --private
+$ rad clone rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --timeout 1s
+✓ Seeding policy updated for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'followed'
+Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from the network, found 1 potential seed(s).
+✓ Target met: 1 preferred seed(s).
+✓ Creating checkout in ./heartwood..
+✓ Remote alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi added
+✓ Remote-tracking branch alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+✓ Repository successfully cloned under [...]/.radicle/heartwood/
+╭────────────────────────────────────╮
+│ heartwood                          │
+│ radicle heartwood protocol & stack │
+│ 0 issues · 0 patches               │
+╰────────────────────────────────────╯
+Run `cd ./heartwood` to go to the repository directory.
+```
+
+We can also use `rad seed` to seed and fetch without creating a checkout.
+
+``` ~bob
+$ rad seed rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --timeout 1s
+✓ Seeding policy exists for rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu with scope 'followed'
+Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from the network, found 1 potential seed(s).
+✓ Target met: 1 seed(s)
+```
