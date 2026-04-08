@@ -1,6 +1,20 @@
 default:
     @just --list
 
+# SECURITY: We COPY the hook template instead of symlinking it. This ensures that
+# checking out an untrusted patch won't overwrite your local git hooks. The copied
+# script also checks if sensitive files (like build.rs or justfile) were modified
+# in the patch and prompts for confirmation, preventing arbitrary code execution.
+#
+# Install git hooks
+[group('hooks')]
+install-hooks:
+    @cp scripts/git-hook-template.sh .git/hooks/pre-commit
+    @chmod +x .git/hooks/pre-commit
+    @cp scripts/git-hook-template.sh .git/hooks/pre-push
+    @chmod +x .git/hooks/pre-push
+    @echo "✅ pre-commit and pre-push hooks installed."
+
 # Run pre-commit checks
 [group('hooks')]
 pre-commit: format-rust check-rust check-docs check-typos check-spelling check-scripts check-keywords format-nix
