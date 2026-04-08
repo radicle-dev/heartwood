@@ -39,9 +39,9 @@ pub fn run(mode: CacheMode, profile: &Profile) -> anyhow::Result<()> {
 
 fn cache(id: Option<PatchId>, repository: &Repository, profile: &Profile) -> anyhow::Result<()> {
     let mut patches = {
-        // NOTE: Since we require a cache that is writeable, on top of a store that
+        // NOTE: Since we require a cache that is writable, on top of a store that
         // is read-only, we can neither use [`term::cob::patches_mut`] nor [`term::cob::patches`]
-        // since these convenience functions pair a writeable cache with a writeable
+        // since these convenience functions pair a writable cache with a writable
         // store, and respectively a read-only cache with a read-only store.
 
         let db = profile.cobs_db_mut()?;
