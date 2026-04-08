@@ -11,19 +11,7 @@ CHECK := "🔄 " + BOLD
 default: check-hooks
     @just --list
 
-# SECURITY: We COPY the hook template instead of symlinking it. This ensures that
-# checking out an untrusted patch won't overwrite your local git hooks. The copied
-# script also checks if sensitive files (like build.rs or justfile) were modified
-# in the patch and prompts for confirmation, preventing arbitrary code execution.
-#
-# Install git hooks
 [group('hooks')]
-install-hooks:
-    @cp scripts/git-hook-template.sh .git/hooks/pre-commit
-    @chmod +x .git/hooks/pre-commit
-    @cp scripts/git-hook-template.sh .git/hooks/pre-push
-    @chmod +x .git/hooks/pre-push
-    @echo "✅ pre-commit and pre-push hooks installed."
 
 # Run pre-commit checks
 [group('hooks')]
@@ -149,4 +137,58 @@ verify-tool tool package_name="":
         echo "{{ERROR}}Missing required tool: {{tool + NORMAL}}"
         echo "{{HINT}}Use your systems package manager to install '$PKG'.{{NORMAL}}"
         exit 1
+    fi
+
+# SECURITY: We COPY the hook template instead of symlinking it. This ensures that
+# checking out an untrusted patch won't overwrite your local git hooks. The copied
+# script also checks if sensitive files (like build.rs or justfile) were modified
+# in the patch and prompts for confirmation, preventing arbitrary code execution.
+#
+# Install git hooks
+[group('hooks')]
+[confirm("Overwrite existing hooks '" + hooks + "'?")]
+install-hooks:
+    #!/usr/bin/env bash
+    set -e
+    for hook in {{hooks}}; do
+        cp {{hook-script}} ".git/hooks/$hook"
+        chmod +x ".git/hooks/$hook"
+    done
+    echo ""
+    echo "{{SUCCESS}}Hooks installed: {{hooks + NORMAL}}"
+
+# Check for missing or changed hooks
+[group('hooks')]
+check-hooks:
+    #!/usr/bin/env bash
+    set -e
+    TEMPLATE="{{hook-script}}"
+    OUTDATED=()
+    MISSING=0
+    TOTAL=0
+
+    for hook in {{hooks}}; do
+        TOTAL=$((TOTAL + 1))
+        if [ ! -f ".git/hooks/$hook" ]; then
+            MISSING=$((MISSING + 1))
+            OUTDATED+=("$hook")
+        elif ! cmp -s "$TEMPLATE" ".git/hooks/$hook"; then
+            OUTDATED+=("$hook")
+        fi
+    done
+
+    if [ "$MISSING" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
+        echo ""
+        echo "{{HINT}}No git hooks are installed. Run 'just install-hooks' to install them.{{NORMAL}}"
+        echo ""
+    elif [ ${#OUTDATED[@]} -gt 0 ]; then
+        echo ""
+        echo "{{WARN}}WARNING: The following git hooks are missing or out of date:{{NORMAL}}"
+        echo ""
+        for hook in "${OUTDATED[@]}"; do
+            echo -e "\t$hook"
+        done
+        echo ""
+        echo "{{HINT}}Check them with 'diff scripts/git-hook-template.sh .git/hooks/<hook name>' then run 'just install-hooks'{{NORMAL}}"
+        echo ""
     fi
