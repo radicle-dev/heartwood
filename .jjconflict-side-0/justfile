@@ -1,4 +1,14 @@
-default:
+hooks := "pre-commit pre-push post-checkout"
+hook-script := "scripts/git-hook-template.sh"
+
+bold_underlined := BOLD + UNDERLINE
+WARN := "⚠️ " + YELLOW + bold_underlined
+SUCCESS := "✅ " + GREEN + bold_underlined
+ERROR := "❌ " + RED + bold_underlined
+HINT := "💡 " + BOLD
+CHECK := "🔄 " + BOLD
+
+default: check-hooks
     @just --list
 
 # SECURITY: We COPY the hook template instead of symlinking it. This ensures that
@@ -18,7 +28,9 @@ install-hooks:
 # Run pre-commit checks
 [group('hooks')]
 pre-commit: format-rust check-rust check-docs check-typos check-spelling check-scripts check-keywords format-nix
-    @echo "✅ pre-commit passed"
+    @echo ""
+    @echo "{{SUCCESS}}pre-commit passed!{{NORMAL}}"
+    @echo ""
 
 # Format Rust code
 [group('pre-commit')]
@@ -26,7 +38,7 @@ pre-commit: format-rust check-rust check-docs check-typos check-spelling check-s
 [group('format')]
 [parallel]
 format-rust: (verify-tool "cargo")
-    @echo "Cargo fmt..."
+    @echo "{{CHECK}}Cargo fmt...{{NORMAL}}"
     @cargo fmt --all
 
 # Run cargo check
@@ -35,7 +47,7 @@ format-rust: (verify-tool "cargo")
 [group('check')]
 [parallel]
 check-rust:
-    @echo "Cargo check..."
+    @echo "{{CHECK}}Cargo check...{{NORMAL}}"
     @cargo check --workspace --all-targets --all-features
 
 # Check documentation for warnings
@@ -44,7 +56,7 @@ check-rust:
 [group('check')]
 [parallel]
 check-docs:
-    @echo "Checking docs for warnings..."
+    @echo "{{CHECK}}Checking docs for warnings...{{NORMAL}}"
     @RUSTDOCFLAGS="--deny warnings" cargo doc --workspace --all-features --no-deps
 
 # Check for typos
@@ -53,7 +65,7 @@ check-docs:
 [group('check')]
 [parallel]
 check-typos: (verify-tool "typos" "typos-cli")
-    @echo "Checking for spelling typos..."
+    @echo "{{CHECK}}Checking for spelling typos...{{NORMAL}}"
     @typos
 
 # Run codespell
@@ -62,7 +74,7 @@ check-typos: (verify-tool "typos" "typos-cli")
 [group('check')]
 [parallel]
 check-spelling: (verify-tool "codespell")
-    @echo "Checking for code typos..."
+    @echo "{{CHECK}}Checking for code typos...{{NORMAL}}"
     @git ls-files -z | xargs -0 codespell -w
 
 # Run shellcheck on all shell scripts
@@ -71,7 +83,7 @@ check-spelling: (verify-tool "codespell")
 [group('check')]
 [parallel]
 check-scripts: (verify-tool "shellcheck")
-    @echo "Checking shell scripts..."
+    @echo "{{CHECK}}Checking shell scripts...{{NORMAL}}"
     @shellcheck scripts/*.sh
 
 # Replicate the custom grep checks from flake.nix
@@ -82,7 +94,7 @@ check-scripts: (verify-tool "shellcheck")
 check-keywords: (verify-tool "rg" "ripgrep")
     #! /usr/bin/env bash
     set -e
-    echo "Checking for forbidden words in staged files..."
+    echo "{{CHECK}}Checking for forbidden words in staged files...{{NORMAL}}"
 
     # Get staged Rust files
     STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.rs$' || true)
@@ -114,12 +126,14 @@ format-nix:
 # Run pre-push checks
 [group('hooks')]
 pre-push: format-rust check-rust check-keywords check-docs check-spelling check-scripts check-typos format-nix lint-rust
-    @echo "✅ pre-push passed"
+    @echo ""
+    @echo "{{SUCCESS}}pre-push passed!{{NORMAL}}"
+    @echo ""
 
 # Run Clippy lints
 [group('pre-push')]
 lint-rust: (verify-tool "cargo")
-    @echo "Cargo clippy..."
+    @echo "{{CHECK}}Cargo clippy...{{NORMAL}}"
     @cargo clippy --workspace --all-targets --all-features -- --deny warnings
 
 # Check if required tools are in PATH.
@@ -132,7 +146,7 @@ verify-tool tool package_name="":
         if [ -z "$PKG" ]; then
             PKG="{{tool}}"
         fi
-        echo "❌ Missing required tool: {{tool}}"
-        echo "💡 Use your systems package manager to install '$PKG'."
+        echo "{{ERROR}}Missing required tool: {{tool + NORMAL}}"
+        echo "{{HINT}}Use your systems package manager to install '$PKG'.{{NORMAL}}"
         exit 1
     fi
