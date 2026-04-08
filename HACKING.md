@@ -29,6 +29,16 @@ The repository is structured in *crates*, as follows:
 * `radicle-term`: A generic terminal library used by the Radicle CLI.
 * `radicle-tools`: Tools used to aid in the development of Radicle.
 
+## Task runner
+
+We use [`just`](https://just.systems/) to manage project tasks such as linting, formatting, and installing git hooks. To see a list of all available commands, run:
+
+    $ just
+
+If you are not using Nix, it is highly recommended to install the git hooks to automatically run checks before committing and pushing:
+
+    $ just install-hooks
+
 ## Running in debug mode
 
 To run the services or the CLI in debug mode, use `cargo run -p <package>`.
