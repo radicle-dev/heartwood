@@ -1,15 +1,135 @@
 # Simulation Environment
 
-A suite of tools to create simulated Radicle networks to run tests in:
+A suite of tools to create simulated Radicle networks to run tests in.
 
-- **Talos**: A lightweight, immutable Linux operating system built specifically to run Kubernetes.
-  It can run locally on your machine (via QEMU or Docker) or as a baremetal OS (amongst other deploy options).
-- **Kubernetes (K8s)**: The orchestrator that runs the Radicle nodes in isolated pods and manages their networking and storage.
-- **Timoni** & **CUE**: The configuration engine.
-  Instead of writing YAML, we use CUE files to define network topologies.
-  Timoni translates these into Kubernetes instructions.
-- **Cargo test**: The test runner.
-  Write tests in Rust that will execute over the provisioned networks.
+This environment provisions a Kubernetes cluster, deploys a configurable topology of `radicle-node` instances, and provides a foundation for running cross-version, cross-platform, and adverse network tests.
+
+## Prerequisites
+
+To run the simulation environment, you need the following tools installed on your system:
+
+- **[just](https://just.systems/)**: A command runner (replaces `make`).
+- **[talosctl](https://talos.dev/docs/v1.12/learn-more/talosctl/)**: CLI for creating and managing Talos Linux clusters.
+- **[kubectl](https://kubernetes.io/docs/tasks/tools/)**: CLI for interacting with Kubernetes.
+- **[timoni](https://timoni.sh/)**: A package manager for Kubernetes, powered by CUE.
+- **[cue](https://cuelang.org/)**: (Optional) Useful for debugging and formatting CUE files.
+- **[QEMU](https://www.qemu.org/download/)** or **[Docker](https://www.docker.com/)**: Required by Talos to provision the local cluster nodes. (Defaults to `qemu`).
+
+## Getting Started
+
+The environment is managed entirely via `just`. From the `simulation` directory, you can run:
+
+```shell
+# Start the complete simulation (creates cluster, configures K8s, and deploys the network)
+$ just start
+
+# Note: To use Docker instead of QEMU, override the provisioner:
+$ PROVISIONER=docker just start
+
+# Inspect the cluster and see running pods
+$ just show-cluster
+
+# Tear down the network workloads (deletes pods and storage, keeps the cluster running)
+$ just delete
+
+# Destroy the entire Talos cluster and clean up your kubeconfig
+$ just destroy
+```
+
+Run `just` by itself to see a list of all available commands.
+
+## Architecture Overview
+
+Here is how the different tools interact to build the simulation:
+
+1. **Just (`justfile`)**: Acts as the orchestrator. It runs the bash scripts required to bootstrap the environment, verify tools are installed, and execute the correct CLI commands in sequence.
+2. **Talos (`talosctl`)**: A lightweight, immutable Linux operating system built specifically to run Kubernetes. `just` uses `talosctl` to spin up a local K8s cluster inside QEMU or Docker.
+3. **Kubernetes (`kubectl`)**: The orchestrator that runs the Radicle nodes in isolated pods. It manages their networking (DNS resolution between nodes) and persistent storage.
+4. **Timoni & CUE**: The configuration engine. Instead of writing verbose YAML, we use CUE files to define network topologies. Timoni reads these CUE files, transpiles them into Kubernetes object definitions (StatefulSets, Services, ConfigMaps), and applies them to the cluster.
+
+## Defining a Topology
+
+Network topologies are defined in `instances/network.cue`. This file dictates how many nodes exist, what roles they play (e.g., `bootstrap`, `peer`), and how they connect to each other.
+
+Here is an example of how the topology is structured:
+
+```cue
+package main
+
+// ...
+
+// Declare instances to deploy
+values: {
+	topology: {
+		// A bootstrap node
+		"bootstrap-v1-8-0": {
+			role:          "bootstrap"
+			version:       "1.8.0"
+			replicas:      1
+			nodeIdSeed:    "bootstrap-0" // Deterministically generates the NID above
+			radicleConfig: #BaseBootstrapSeedConfig
+		}
+		
+		// A peer node that connects to the bootstrap node
+		"seed-v1-8-0": {
+			role:          "seed"
+			version:       "1.8.0"
+			replicas:      1
+			radicleConfig: #BasePeerConfig & {
+				preferredSeeds: [
+					// Uses a helper to format the K8s internal DNS address
+					(#SeedAddress & {nid: #BootstrapNIDs["bootstrap-0"], name: "bootstrap-v1-8-0"}).out,
+				]
+			}
+		}
+	}
+}
+```
+
+When you run `just start-network`, Timoni reads this file, merges it with the module definitions in `modules/radicle-node`, and deploys the resulting pods to Kubernetes.
+
+## Helpful Commands
+
+**Execute a command inside a node:**
+
+```bash
+$ kubectl exec peer-v1-8-0-0 -c node -- rad self
+
+$ kubectl exec peer-v1-8-0-0 -it -c node -- sh
+```
+
+**Follow Radicle node events (from the sidecar):**
+
+```bash
+$ kubectl logs peer-v1-8-0-0 -c events -f
+```
+
+**View standard node logs:**
+
+```bash
+$ kubectl logs -f bootstrap-v1-8-0-0 -c node
+```
+
+**Describe a pod (Useful for debugging `CrashLoopBackOff` errors):**
+
+```bash
+$ kubectl describe pod bootstrap-v1-8-0-0
+```
+
+**Watch all cluster events in real-time:**
+
+```bash
+$ kubectl get events --watch
+```
+
+## Deterministic Keys
+
+To ensure nodes can reliably connect to each other across restarts, the `bootstrap` nodes are configured with deterministic Node IDs (NIDs).
+
+`bootstrap-0`: `did:key:z6MkhJ3cwzpAoNjFnJXWETSPHcDyw2HuBVEhgkyTfbjQHY1B`
+`bootstrap-1`: `did:key:z6MkjcaeSHhQVJU1UeXpnHHZ6mp67zDfQYNMDotHGxbrk7Nj`
+`bootstrap-2`: `did:key:z6MkjNGhuJvdp2noidRMLqco4jFnNNSWzCxSZH5nJV1pGrwQ`
+`bootstrap-3`: `did:key:z6MkpEsXUMSnmyfwdEVkAKijTxGy9WKmNoHWpoxxLM6bbz9M`
 
 ## Why?
 
@@ -24,27 +144,6 @@ However we can only run them on the currently checked out version of `heartwood`
 The simulation environment is intended to remedy these gaps and more.
 See the [Goals] section for more info.
 
-## Overview
-
-The Garden team currently deploys containerised versions of `radicle-node` into [Quay.io](https://quay.io/repository/radicle_garden/radicle-node?tab=tags&tag=latest).
-We can utilise these containers inside of K8s configuration files to compose sets of pods.
-These pods encapsulate `radicle-node` processes in different configurations, e.g. peer, seed or bootstrap.
-Also, they might run different versions of `heartwood` (to facilitate cross-version testing),
-and on different platforms (to facilitate cross-platform testing).
-Each of these 'sets of pods' configuration will be considered a network topology, and defined in [CUE](https://cuelang.org/).
-It allows us to write type safe configuration definitions instead of YAML.
-We will then use [Timoni](https://timoni.sh/) to transpile these CUE defined network topologies into [K8s object definition files](https://kubernetes.io/docs/concepts/overview/working-with-objects/) and deploy them.
-[Talos](https://talos.dev) will be used to run the K8s pods on; so we can easily switch between locally deployed, via QEMU or Docker, to baremetal on SBC's like Raspberry Pi's, or remotely in cloud environments.
-Then with some glue and orchestration code we can utilise the `cargo test` runner to provision a network topology, run tests over it and tear it down again.
-Finally we can insert observability systems into K8s so we can inspect and compare metrics and logs from different test runs.
-
-This will give us the following workflow for constructing test scenarios:
-
-1. Define a network topology of `radicle-node`'s on some platform(s) in CUE.
-2. Write tests that interact with the `radicle-nodes` in Rust.
-3. Run the tests.
-4. Inspect / Debug via observability systems.
-
 ## Constraints
 
 ### Non-Goals:
@@ -56,8 +155,8 @@ This will give us the following workflow for constructing test scenarios:
 
 ### Goals:
 
-- [ ] Isolation between simulations and main network.
-- [ ] Different node versions within a simulation.
+- [X] Isolation between simulations and main network.
+- [X] Different node versions within a simulation.
 - [ ] Cross platform ([Windows](https://github.com/dockur/windows), Linux & [macOS](https://github.com/dockur/macos)).
 - [ ] Realistic load generation.
 - [ ] Invariant assertion across simulation network.
@@ -66,7 +165,7 @@ This will give us the following workflow for constructing test scenarios:
 - [ ] Realtime Observability.
 - [ ] CI/CD Integration.
 - [ ] Cross simulation comparative insights e.g. CPU pressure change from version A to version B.
-- [ ] Flexibility to define network topologies.
+- [X] Flexibility to define network topologies.
 - [ ] Easy to construct and run new simulations.
 - [ ] Reproducible starting state.
 - [ ] Adverse network emulation e.g. dropped packets, network delays...
@@ -74,9 +173,9 @@ This will give us the following workflow for constructing test scenarios:
 ## Plan
 
 - [ ] Migrate existing [simulation environment repo](https://radicle.network/nodes/iris.radicle.network/rad%3Az2CzknCvAq9jSCpKdyjMppbvGmxyZ) into `heartwood`.
-  1. [ ] `radicle-node` timoni module.
+  1. [X] `radicle-node` timoni module.
   2. [ ] `radicle-node` custom container builder.
-  3. [ ] `instances` topology definition files.
+  3. [X] `instances` topology definition files.
   4. [ ] `sim-tests` rust crate.
-  5. [ ] `Makefile`.
+  5. [X] `justfile` orchestration.
   6. [ ] `observability` definition files.
