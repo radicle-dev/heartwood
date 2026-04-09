@@ -14,3 +14,8 @@ extend-ignore-re = [
 [type.codespell]
 check-file = false
 extend-glob = [".codespellrc"]
+
+[files]
+extend-exclude = [
+    "simulation/modules/radicle-node/cue.mod"
+]

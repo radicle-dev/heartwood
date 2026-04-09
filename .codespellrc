@@ -1,4 +1,5 @@
+# See: https://github.com/codespell-project/codespell#using-a-config-file
 [codespell]
-skip = .git*,*.lock,.codespellrc,target,.jj
+skip = .git*,*.lock,.codespellrc,target,.jj,simulation/modules/radicle-node/cue.mod/*
 check-hidden = true
 ignore-words-list = ser,set,noes
