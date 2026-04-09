@@ -30,7 +30,7 @@ setup: configure-cluster
 
 # Create the Talos cluster if it doesn't exist
 [private]
-create-cluster: (verify-tool "talosctl")
+create-cluster: (verify-tool "talosctl") ensure-ovmf
     #!/usr/bin/env bash
     set -e
     if [ ! -d "{{clusters_dir}}/{{cluster_name}}" ]; then
@@ -150,3 +150,19 @@ verify-tool tool package_name="":
         exit 1
     fi
 
+# Ensure OVMF firmware is discoverable by talosctl.
+# On NixOS, OVMF lives in the Nix store — not in /usr/share/OVMF where
+# talosctl expects it. We symlink the firmware files into place.
+[private]
+ensure-ovmf:
+    #!/usr/bin/env bash
+    set -e
+    if [ -z "${OVMF_FD_PATH:-}" ]; then
+        # Not on NixOS / not using the devshell — assume OVMF is installed normally
+        exit 0
+    fi
+    if [ ! -f /usr/share/OVMF/OVMF_CODE.fd ]; then
+        echo "{{CHECK}}Symlinking OVMF firmware from Nix store into /usr/share/OVMF...{{NORMAL}}"
+        sudo mkdir -p /usr/share/OVMF
+        sudo ln -sf "$OVMF_FD_PATH"/* /usr/share/OVMF/
+    fi
