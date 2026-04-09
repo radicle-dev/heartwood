@@ -153,6 +153,7 @@ install-hooks:
     #!/usr/bin/env bash
     set -e
     for hook in {{hooks}}; do
+        rm ".git/hooks/$hook"
         cp {{hook-script}} ".git/hooks/$hook"
         chmod +x ".git/hooks/$hook"
     done
