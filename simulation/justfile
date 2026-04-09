@@ -1,0 +1,135 @@
+provisioner := env_var_or_default("PROVISIONER", "qemu")
+cluster_name := "radicle-" + provisioner
+clusters_dir := env_var("HOME") + "/.talos/clusters"
+radicle_node_module := "./modules/radicle-node"
+kubectl_context := `kubectl config current-context 2>/dev/null || echo "none"`
+
+SUCCESS := "✅ " + GREEN + BOLD
+CHECK := "🔄 " + BOLD
+WARN := "⚠️ " + YELLOW + BOLD
+ERROR := "❌ " + RED + BOLD
+HINT := "💡 " + BOLD
+
+default:
+    @just --list
+
+# Setup and start the complete simulation environment
+[group('start')]
+[group('setup')]
+start: setup start-network
+    @echo ""
+    @echo "{{SUCCESS}}Simulation started!{{NORMAL}}"
+    @echo ""
+
+# Setup cluster and dependencies
+[group('setup')]
+setup: configure-cluster
+    @echo "{{SUCCESS}}Setup complete{{NORMAL}}"
+
+# Create the Talos cluster if it doesn't exist
+[private]
+create-cluster: (verify-tool "talosctl")
+    #!/usr/bin/env bash
+    set -e
+    if [ ! -d "{{clusters_dir}}/{{cluster_name}}" ]; then
+        echo "{{CHECK}}Creating Talos cluster '{{cluster_name}}' using {{provisioner}}...{{NORMAL}}"
+        mkdir -p "{{clusters_dir}}"
+        if [ "{{provisioner}}" = "qemu" ]; then
+            sudo --preserve-env=HOME,PATH talosctl cluster create --name={{cluster_name}} {{provisioner}} --config-patch-controlplanes '{"cluster": {"allowSchedulingOnControlPlanes": true}}'
+        else
+            talosctl cluster create --name={{cluster_name}} {{provisioner}} --config-patch-controlplanes '{"cluster": {"allowSchedulingOnControlPlanes": true}}'
+        fi
+    else
+        echo "{{SUCCESS}}Cluster '{{cluster_name}}' already exists.{{NORMAL}}"
+    fi
+
+# Configure the Kubernetes cluster
+[private]
+configure-cluster: (verify-tool "kubectl") create-cluster
+    @echo "{{CHECK}}Configuring cluster...{{NORMAL}}"
+    # Add local-path storage system
+    @kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+    # Relax security on namespaces
+    @kubectl label namespace local-path-storage pod-security.kubernetes.io/enforce=privileged pod-security.kubernetes.io/warn=privileged pod-security.kubernetes.io/audit=privileged --overwrite
+    @kubectl label namespace default pod-security.kubernetes.io/enforce=privileged pod-security.kubernetes.io/warn=privileged pod-security.kubernetes.io/audit=privileged --overwrite
+    # Set default storage class
+    @kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+# Start the simulation network only
+[group('start')]
+start-network: (verify-tool "timoni")
+    @echo "{{CHECK}}Starting simulation network...{{NORMAL}}"
+    @timoni apply radicle-network {{radicle_node_module}} -f instances/network.cue
+    @just show-cluster
+
+# Show cluster status
+[group('inspect')]
+show-cluster: (verify-tool "kubectl") (verify-tool "talosctl")
+    @echo "Cluster: {{cluster_name}}"
+    @echo "Context: {{kubectl_context}}"
+    @talosctl cluster show --name {{cluster_name}} --provisioner {{provisioner}} || true
+    @kubectl get pods -o wide
+
+# Delete simulation pods and resources
+[group('delete')]
+delete: delete-pods delete-pvc
+    @echo "{{SUCCESS}}Simulation cleaned up{{NORMAL}}"
+
+# Delete pods only
+[group('delete')]
+delete-pods: (verify-tool "kubectl")
+    @echo "{{CHECK}}Deleting pods...{{NORMAL}}"
+    @kubectl delete pods -l app=radicle-node --wait=false
+
+# Delete storage volumes
+[group('delete')]
+delete-pvc: (verify-tool "kubectl")
+    @echo "{{CHECK}}Deleting storage volumes...{{NORMAL}}"
+    @kubectl delete pvc -l app=radicle-node --wait=false
+
+# Destroy the Talos cluster and clean up kubeconfig
+[group('delete')]
+destroy: (verify-tool "kubectl") (verify-tool "talosctl") show-cluster
+    #!/usr/bin/env bash
+    set -e
+    echo ""
+    echo -n "Are you sure you want to destroy the cluster and remove kubeconfig entries? [y/N] "
+    read answer
+    if [ "${answer:-N}" != "y" ]; then
+        echo "Aborted."
+        exit 1
+    fi
+
+    echo "{{CHECK}}Destroying talos cluster '{{cluster_name}}'...{{NORMAL}}"
+    if [ "{{provisioner}}" = "qemu" ]; then
+        sudo --preserve-env=HOME,PATH talosctl cluster destroy --name {{cluster_name}} --provisioner {{provisioner}}
+    else
+        talosctl cluster destroy --name {{cluster_name}} --provisioner {{provisioner}}
+    fi
+
+    echo "{{CHECK}}Removing kube config entries...{{NORMAL}}"
+    CONTEXT=$(kubectl config current-context 2>/dev/null || echo "")
+    if [ -n "$CONTEXT" ]; then
+        CLUSTER=$(echo "$CONTEXT" | cut -d '@' -f 2)
+        kubectl config delete-context "$CONTEXT" || true
+        kubectl config delete-cluster "$CLUSTER" || true
+        kubectl config unset "users.$CONTEXT" || true
+    fi
+    echo "{{WARN}}Make sure you remove the '{{cluster_name}}' entry from: ~/.talos/config{{NORMAL}}"
+    echo "{{SUCCESS}}Cluster destroyed.{{NORMAL}}"
+
+# Check if required tools are in PATH.
+[private]
+verify-tool tool package_name="":
+    #!/usr/bin/env bash
+    set -e
+    if ! command -v {{tool}} >/dev/null 2>&1; then
+        PKG="{{package_name}}"
+        if [ -z "$PKG" ]; then
+            PKG="{{tool}}"
+        fi
+        echo "{{ERROR}}Missing required tool: {{tool + NORMAL}}"
+        echo "{{HINT}}Use your systems package manager to install '$PKG'.{{NORMAL}}"
+        exit 1
+    fi
+
