@@ -76,7 +76,7 @@ check-scripts: (verify-tool "shellcheck")
     @echo "{{CHECK}}Checking shell scripts...{{NORMAL}}"
     @shellcheck scripts/*.sh
 
-# Replicate the custom grep checks from flake.nix
+# Run checks for forbidden keywords
 [group('pre-commit')]
 [group('pre-push')]
 [group('check')]
