@@ -1,5 +1,6 @@
 pub mod canonical;
 pub mod raw;
+pub mod repository;
 
 use std::io;
 use std::path::Path;
