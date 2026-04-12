@@ -6,7 +6,8 @@
 
 // Re-exports that are only used within this crate.
 pub(crate) use git2::{
-    AutotagOption, Blob, FetchOptions, FetchPrune, Object, Revwalk, Sort, message_trailers_strs,
+    AutotagOption, Blob, FetchOptions, FetchPrune, Object, Revwalk, Sort, TreeEntry,
+    message_trailers_strs,
 };
 
 #[cfg(unix)]
@@ -19,8 +20,8 @@ pub(crate) use git2::RemoteCallbacks;
 // Re-exports that are used by other crates in the workspace, including this crate.
 pub use git2::{
     Branch, BranchType, Commit, Direction, Error, ErrorClass, ErrorCode, FileMode, ObjectType, Oid,
-    Reference, Remote, Repository, RepositoryInitOptions, RepositoryOpenFlags, Signature, Time,
-    Tree,
+    Reference, References, Remote, Repository, RepositoryInitOptions, RepositoryOpenFlags,
+    Signature, Time, Tree,
 };
 
 // Re-exports that are used by other crates in the workspace, but *not* this crate.
@@ -32,7 +33,6 @@ pub mod build {
     // Re-exports for `radicle-cli`.
     pub use git2::build::CheckoutBuilder;
 
-    #[cfg(test)]
     pub(crate) use git2::build::TreeUpdateBuilder;
 }
 

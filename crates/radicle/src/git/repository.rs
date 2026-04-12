@@ -17,6 +17,8 @@ pub mod reference;
 pub mod revwalk;
 pub mod types;
 
+mod adapter;
+
 pub use ancestry::{AheadBehind, Ancestry};
 pub use revwalk::{Revwalk, RevwalkPlan, SortOrder};
 pub use types::{Blob, Commit, ObjectKind, TreeEntry};
