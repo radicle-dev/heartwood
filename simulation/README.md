@@ -104,6 +104,57 @@ values: {
 
 When you run `just start-network`, Timoni reads this file, merges it with the module definitions in `modules/radicle-node`, and deploys the resulting pods to Kubernetes.
 
+## Writing Tests
+
+The `radicle-simulation` crate provides an ergonomic Rust framework for writing tests against these CUE topologies. Here is how to introduce a new test suite:
+
+### Create the Topology
+Create a new `.cue` file in the `instances/` directory (e.g., `instances/my_network.cue`). See [## Defining a Topology]
+
+When you run `cargo test` (or `cargo check`), the `build.rs` script automatically detects this file, parses the topology, and generates a Rust bindings file (`my_network_bindings.rs`) in Cargo's `OUT_DIR`. These bindings contain strongly-typed accessor functions for the nodes defined in your CUE file (e.g., `peer_v1_8_0()`, `peer_relative(offset, index)`).
+
+### Create the Test Suite Entrypoint
+In `radicle-simulation/tests/`, create a main entrypoint for your suite (e.g., `my_suite_main.rs`). Use the `setup_network!` macro to link your CUE file to the test suite:
+
+```rust
+use radicle_simulation::setup_network;
+
+// This macro does two things:
+// 1. Includes the generated `my_network_bindings.rs` into a `network` module.
+// 2. Generates a `require_network()` function that provisions the cluster.
+setup_network!("my_network");
+
+// Declare your actual test modules here
+mod my_suite;
+```
+
+### Write the Tests
+In your test modules (e.g., `radicle-simulation/tests/my_suite/mod.rs`), you can now write your tests.
+
+**NOTE:** Every test *must* call `require_network()` and hold onto the returned guard. This ensures the network is provisioned before the test runs and prevents it from being torn down while the test is executing.
+
+```rust
+use crate::network;
+use crate::require_network;
+
+#[test]
+fn test_nodes_can_sync() -> Result<(), String> {
+    // Ensure the network is running and hold the guard
+    let _guard = require_network();
+
+    // Grab node handles using the auto-generated bindings
+    // `peer_relative(0, 0)` gets the 0th replica of the latest versioned peer.
+    let alice_node = network::peer_relative(0, 0).as_alice()?;
+    let bob_node = network::peer_relative(-1, 0).as_bob()?;
+
+    // Interact with the nodes
+    let repo = alice_node.init_test_repo("my-repo", "A test repo", 1)?;
+    bob_node.clone_repo(&repo.rid, "bob-repo")?;
+
+    Ok(())
+}
+```
+
 ## Helpful Commands
 
 **Execute a command inside a node:**
@@ -192,6 +243,6 @@ See the [Goals] section for more info.
   1. [X] `radicle-node` timoni module.
   2. [ ] `radicle-node` custom container builder.
   3. [X] `instances` topology definition files.
-  4. [ ] `sim-tests` rust crate.
+  4. [X] `radicle-simulation` rust crate.
   5. [X] `justfile` orchestration.
   6. [ ] `observability` definition files.
