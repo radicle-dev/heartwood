@@ -1,0 +1,22 @@
+[package]
+name = "radicle-simulation"
+version = "0.1.0"
+build = "build.rs"
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+uuid = { version = "1.8.0", features = ["v4"] }
+log = "0.4"
+env_logger = "0.11"
+
+[dev-dependencies]
+rstest = "0.19.0"
+serde_json = "1.0"
+ruast = "0.0.23"
+
+[build-dependencies]
+serde_json = "1.0"
+ruast = "0.0.23"
