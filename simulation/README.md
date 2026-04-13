@@ -33,6 +33,9 @@ networking.firewall.trustedInterfaces = ["talos+"];
 The environment is managed entirely via `just`. From the `simulation` directory, you can run:
 
 ```shell
+# Run all tests
+$ just test
+
 # Start the complete simulation (creates cluster, configures K8s, and deploys the network)
 $ just start
 

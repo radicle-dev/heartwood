@@ -15,6 +15,10 @@ HINT := "💡 " + BOLD
 default:
     @just --list
 
+[group('test')]
+test: setup
+    @cargo test -p radicle-simulation
+
 # Setup and start the complete simulation environment
 [group('start')]
 [group('setup')]
