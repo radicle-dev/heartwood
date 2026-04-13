@@ -1,5 +1,6 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "simulation/radicle-simulation"]
+default-members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
