@@ -95,7 +95,7 @@ impl<'a, 'b, 'r, R> AsRef<Canonical<'a, 'b, 'r, R, ObjectsFound>>
 
 impl<'a, 'b, 'r, R> Canonical<'a, 'b, 'r, R, Initial>
 where
-    R: repository::Ancestry + effects::FindObjects,
+    R: repository::Ancestry + repository::reference::Reader + repository::object::Reader,
 {
     /// Construct a new [`Canonical`] with the given [`Qualified`] reference, a
     /// canonical reference [`ValidRule`] for that reference, and the Git
@@ -116,13 +116,12 @@ where
     pub fn find_objects(
         self,
     ) -> Result<Canonical<'a, 'b, 'r, R, ObjectsFound>, effects::FindObjectsError> {
+        let allowed: Vec<_> = self.rule.allowed().iter().copied().collect();
         let FoundObjects {
             objects,
             missing_refs,
             missing_objects,
-        } = self
-            .repo
-            .find_objects(&self.refname, self.rule.allowed().iter())?;
+        } = effects::FindObjects::new(self.repo, &self.refname, &allowed).resolve()?;
         let missing = Missing {
             refs: missing_refs,
             objects: missing_objects,
@@ -140,7 +139,7 @@ where
 
 impl<'a, 'b, 'r, R> Canonical<'a, 'b, 'r, R, ObjectsFound>
 where
-    R: repository::Ancestry + effects::FindObjects,
+    R: repository::Ancestry + repository::reference::Reader + repository::object::Reader,
 {
     /// Adds the check for convergence before finding the quorum.
     pub fn with_convergence(
@@ -243,7 +242,7 @@ where
 
 impl<'a, 'b, 'r, R> CanonicalWithConvergence<'a, 'b, 'r, R>
 where
-    R: repository::Ancestry + effects::FindObjects,
+    R: repository::Ancestry + repository::reference::Reader + repository::object::Reader,
 {
     /// Find the [`QuorumWithConvergence`] for the canonical computation.
     pub fn quorum(mut self) -> Result<QuorumWithConvergence<'a>, QuorumError> {
@@ -403,6 +402,19 @@ impl Object {
             }),
             _ => None,
         })
+    }
+
+    /// Construct an [`Object`] from an [`Oid`] and its [`ObjectKind`].
+    ///
+    /// Returns `None` if the kind is not a commit or tag.
+    ///
+    /// [`ObjectKind`]: repository::ObjectKind
+    pub fn from_kind(id: Oid, kind: repository::ObjectKind) -> Option<Self> {
+        match kind {
+            repository::ObjectKind::Commit => Some(Self::Commit { id }),
+            repository::ObjectKind::Tag => Some(Self::Tag { id }),
+            _ => None,
+        }
     }
 
     /// The [`Oid`] of the [`Object`]

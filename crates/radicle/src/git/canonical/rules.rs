@@ -20,11 +20,12 @@ use serde::{Deserialize, Serialize};
 use serde_json as json;
 use thiserror::Error;
 
+use crate::git;
 use crate::git::canonical;
 use crate::git::canonical::Canonical;
 use crate::git::fmt::Qualified;
 use crate::git::fmt::refspec::QualifiedPattern;
-use crate::git::{self, repository};
+use crate::git::repository;
 use crate::identity::{Did, doc};
 
 use super::protect;
@@ -547,7 +548,7 @@ impl Rules {
         repo: &'r R,
     ) -> Option<Canonical<'b, 'a, 'r, R, canonical::Initial>>
     where
-        R: repository::Ancestry + canonical::effects::FindObjects,
+        R: repository::Ancestry + repository::reference::Reader + repository::object::Reader,
     {
         self.matches(&refname)
             .next()
