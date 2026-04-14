@@ -13,7 +13,7 @@ pub(crate) struct Canonical<'a, 'b, 'r, R> {
 
 impl<'a, 'b, 'r, R> Canonical<'a, 'b, 'r, R>
 where
-    R: repository::Ancestry + effects::FindMergeBase + effects::FindObjects,
+    R: repository::Ancestry + effects::FindObjects,
 {
     pub(super) fn new(
         me: Did,

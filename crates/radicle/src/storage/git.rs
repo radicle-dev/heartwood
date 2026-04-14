@@ -308,16 +308,6 @@ impl AsRef<Repository> for Repository {
     }
 }
 
-impl git::canonical::effects::FindMergeBase for Repository {
-    fn merge_base(
-        &self,
-        a: Oid,
-        b: Oid,
-    ) -> Result<git::canonical::MergeBase, git::canonical::effects::MergeBaseError> {
-        git::canonical::effects::FindMergeBase::merge_base(&self.backend, a, b)
-    }
-}
-
 impl git::canonical::effects::FindObjects for Repository {
     fn find_objects<'a, 'b, I>(
         &self,
