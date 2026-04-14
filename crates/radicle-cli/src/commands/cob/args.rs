@@ -400,10 +400,6 @@ mod test {
             .chain(ARGS.iter())
             .collect::<Vec<_>>(),
         );
-        #[allow(clippy::print_stdout)]
-        {
-            println!("{args:?}");
-        }
         assert!(args.is_ok())
     }
 
