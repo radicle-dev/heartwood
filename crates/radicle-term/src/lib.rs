@@ -1,3 +1,8 @@
+// Prevent use of `println!` and `print!` which panic on broken pipes.
+// Use `crate::io::println` or `term::io::print` instead.
+// See: https://github.com/rust-lang/rust/issues/62569
+#![deny(clippy::print_stdout)]
+
 pub mod ansi;
 pub mod cell;
 pub mod colors;
