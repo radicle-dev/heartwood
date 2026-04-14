@@ -193,28 +193,39 @@ fn run(command: Command, ctx: impl term::Context) -> ! {
 /// [`std::io::stderr`].
 #[cfg(unix)]
 fn handle_broken_pipe(info: &std::panic::PanicHookInfo<'_>) {
-    if is_broken_pipe_panic(info) {
-        if cfg!(debug_assertions) {
-            let mut stderr = std::io::stderr().lock();
-            writeln!(
-                stderr,
-                "SIGPIPE detected. Attempting to print 'PanicHookInfo::payload', before returning with exit code 0"
-            )
-            .ok();
-            if let Some(payload) = info.payload().downcast_ref::<&str>() {
-                writeln!(stderr, "{payload}").ok();
-            } else if let Some(payload) = info.payload().downcast_ref::<String>() {
-                writeln!(stderr, "{payload}").ok();
-            } else {
-                writeln!(
+    if !is_broken_pipe_panic(info) {
+        return;
+    }
+
+    if cfg!(debug_assertions) {
+        let thread = std::thread::current();
+        let thread = thread.name().unwrap_or("<unnamed>");
+
+        let mut stderr = std::io::stderr().lock();
+
+        match info.location() {
+            Some(location) => {
+                let _ = writeln!(
                     stderr,
-                    "'PanicInfoHook::payload' could not be downcast to 'str' or 'String'"
-                )
-                .ok();
+                    "broken pipe in thread '{thread}' at: {}:{}",
+                    location.file(),
+                    location.line(),
+                );
+            }
+            None => {
+                let _ = writeln!(stderr, "broken pipe in thread '{thread}'");
             }
         }
-        process::exit(0);
+
+        #[cfg(feature = "backtrace")]
+        let backtrace = format!("{:?}", backtrace::Backtrace::new());
+
+        #[cfg(not(feature = "backtrace"))]
+        let backtrace = "(no backtrace available)";
+
+        let _ = writeln!(stderr, "{backtrace}");
     }
+    process::exit(0);
 }
 
 /// Check if any error in the [`anyhow::Error::chain`] of `err` is of kind

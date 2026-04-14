@@ -3023,6 +3023,7 @@ name = "radicle-cli"
 version = "0.20.0"
 dependencies = [
  "anyhow",
+ "backtrace",
  "chrono",
  "clap",
  "clap_complete",

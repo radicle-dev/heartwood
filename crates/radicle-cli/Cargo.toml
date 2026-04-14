@@ -14,7 +14,7 @@ name = "rad"
 path = "src/main.rs"
 
 [features]
-default = ["tor"]
+default = ["backtrace", "tor"]
 tor = ["radicle/tor"]
 
 [dependencies]
@@ -59,9 +59,11 @@ zeroize = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 shlex = { workspace = true }
+backtrace = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winsplit = { workspace = true }
+
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
