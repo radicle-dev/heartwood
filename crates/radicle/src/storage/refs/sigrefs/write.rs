@@ -12,9 +12,9 @@ use radicle_oid::Oid;
 
 use crate::git;
 use crate::git::repository;
-use crate::git::repository::object;
+use crate::git::repository::{object, reference};
 use crate::storage::refs::SignedRefs;
-use crate::storage::refs::sigrefs::git::{Committer, reference};
+use crate::storage::refs::sigrefs::git::Committer;
 use crate::storage::refs::sigrefs::read::CommitReader;
 use crate::storage::refs::sigrefs::{VerifiedCommit, read};
 use crate::storage::refs::{FeatureLevel, IDENTITY_ROOT, Refs, SIGREFS_BRANCH, SIGREFS_PARENT};
@@ -71,7 +71,13 @@ pub struct SignedRefsWriter<'a, R, S> {
 
 impl<'a, R, S> SignedRefsWriter<'a, R, S>
 where
-    R: object::Writer + object::Reader + reference::Writer + repository::reference::Reader,
+    R: object::Writer
+        + object::Writer
+        + object::Reader
+        + object::Reader
+        + reference::Writer
+        + repository::reference::Reader
+        + reference::Reader,
     S: Signer<crypto::Signature>,
     S: signature::Verifier<crypto::Signature>,
 {
@@ -178,8 +184,12 @@ where
             Err(err) => return Err(error::Write::Head(err)),
         };
         let commit = commit_writer.write().map_err(error::Write::Commit)?;
+        let target = match commit.parent {
+            Some(expected) => reference::Target::cas(commit.oid, expected),
+            None => reference::Target::create(commit.oid),
+        };
         repository
-            .write_reference(&reference, commit.oid, commit.parent, reflog)
+            .write_ref(&reference, target, &reflog)
             .map_err(error::Write::Reference)?;
         Ok(Update::changed(commit, FeatureLevel::Parent))
     }
