@@ -3,8 +3,6 @@ pub mod error;
 #[cfg(test)]
 mod test;
 
-use std::path::Path;
-
 use crypto::PublicKey;
 use crypto::signature::{self, Signer};
 use radicle_core::{NodeId, RepoId};
@@ -14,14 +12,14 @@ use radicle_oid::Oid;
 
 use crate::git;
 use crate::git::repository;
+use crate::git::repository::object;
 use crate::storage::refs::SignedRefs;
-use crate::storage::refs::sigrefs::git::{Committer, object, reference};
+use crate::storage::refs::sigrefs::git::{Committer, reference};
 use crate::storage::refs::sigrefs::read::CommitReader;
 use crate::storage::refs::sigrefs::{VerifiedCommit, read};
-use crate::storage::refs::{
-    FeatureLevel, IDENTITY_ROOT, REFS_BLOB_PATH, Refs, SIGNATURE_BLOB_PATH, SIGREFS_BRANCH,
-    SIGREFS_PARENT,
-};
+use crate::storage::refs::{FeatureLevel, IDENTITY_ROOT, Refs, SIGREFS_BRANCH, SIGREFS_PARENT};
+
+use super::git::object::{RefsEntry, SignatureEntry};
 
 /// The result of attempting to write signed references using
 /// [`SignedRefsWriter`].
@@ -73,10 +71,7 @@ pub struct SignedRefsWriter<'a, R, S> {
 
 impl<'a, R, S> SignedRefsWriter<'a, R, S>
 where
-    R: object::Writer
-        + repository::object::Reader
-        + reference::Writer
-        + repository::reference::Reader,
+    R: object::Writer + object::Reader + reference::Writer + repository::reference::Reader,
     S: Signer<crypto::Signature>,
     S: signature::Verifier<crypto::Signature>,
 {
@@ -336,17 +331,11 @@ where
             .signer
             .try_sign(&canonical)
             .map_err(error::Tree::Sign)?;
-        let refs = object::RefsEntry {
-            path: Path::new(REFS_BLOB_PATH).to_path_buf(),
-            content: canonical,
-        };
-        let sig = object::SignatureEntry {
-            path: Path::new(SIGNATURE_BLOB_PATH).to_path_buf(),
-            content: signature.to_vec(),
-        };
+        let refs = RefsEntry::new(canonical);
+        let sig = SignatureEntry::new(signature.to_vec());
         let oid = self
             .repository
-            .write_tree(refs, sig)
+            .write_tree(&[refs.into_inner(), sig.into_inner()])
             .map_err(error::Tree::Write)?;
         Ok(Tree {
             oid,

@@ -79,7 +79,7 @@ impl Refs {
         signer: &S,
     ) -> Result<SignedRefs, Error>
     where
-        R: repository::object::Reader + sigrefs::git::object::Writer,
+        R: repository::object::Reader + repository::object::Writer,
         R: repository::reference::Reader + sigrefs::git::reference::Writer,
         R: HasRepoId,
         S: signature::Signer<crypto::Signature>,
@@ -97,7 +97,7 @@ impl Refs {
         signer: &S,
     ) -> Result<SignedRefs, Error>
     where
-        R: repository::object::Reader + sigrefs::git::object::Writer,
+        R: repository::object::Reader + repository::object::Writer,
         R: repository::reference::Reader + sigrefs::git::reference::Writer,
         R: HasRepoId,
         S: signature::Signer<crypto::Signature>,
@@ -115,7 +115,7 @@ impl Refs {
         force: bool,
     ) -> Result<SignedRefs, Error>
     where
-        R: repository::object::Reader + sigrefs::git::object::Writer,
+        R: repository::object::Reader + repository::object::Writer,
         R: repository::reference::Reader + sigrefs::git::reference::Writer,
         R: HasRepoId,
         S: signature::Signer<crypto::Signature>,
