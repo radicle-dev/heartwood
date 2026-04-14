@@ -34,7 +34,7 @@ use crate::git::fmt::{
 };
 pub use crate::storage::{Error, RepositoryError};
 
-use super::refs::{RefsAt, sigrefs};
+use super::refs::RefsAt;
 use super::{RemoteId, RemoteRepository, ValidateRepository};
 
 pub static NAMESPACES_GLOB: LazyLock<PatternString> =
@@ -1080,59 +1080,6 @@ impl Repository {
         };
 
         Ok(signed)
-    }
-}
-
-impl sigrefs::git::object::Reader for Repository {
-    fn read_commit(
-        &self,
-        oid: &Oid,
-    ) -> Result<Option<Vec<u8>>, sigrefs::git::object::error::ReadCommit> {
-        self.backend.read_commit(oid)
-    }
-
-    fn read_blob(
-        &self,
-        commit: &Oid,
-        path: &Path,
-    ) -> Result<Option<sigrefs::git::object::Blob>, sigrefs::git::object::error::ReadBlob> {
-        self.backend.read_blob(commit, path)
-    }
-}
-
-impl sigrefs::git::object::Writer for Repository {
-    fn write_tree(
-        &self,
-        refs: sigrefs::git::object::RefsEntry,
-        signature: sigrefs::git::object::SignatureEntry,
-    ) -> Result<Oid, sigrefs::git::object::error::WriteTree> {
-        self.backend.write_tree(refs, signature)
-    }
-
-    fn write_commit(&self, bytes: &[u8]) -> Result<Oid, sigrefs::git::object::error::WriteCommit> {
-        self.backend.write_commit(bytes)
-    }
-}
-
-impl sigrefs::git::reference::Reader for Repository {
-    fn find_reference(
-        &self,
-        reference: &git::fmt::Namespaced,
-    ) -> Result<Option<Oid>, sigrefs::git::reference::error::FindReference> {
-        sigrefs::git::reference::Reader::find_reference(&self.backend, reference)
-    }
-}
-
-impl sigrefs::git::reference::Writer for Repository {
-    fn write_reference(
-        &self,
-        reference: &git::fmt::Namespaced,
-        commit: Oid,
-        parent: Option<Oid>,
-        reflog: String,
-    ) -> Result<(), sigrefs::git::reference::error::WriteReference> {
-        self.backend
-            .write_reference(reference, commit, parent, reflog)
     }
 }
 
