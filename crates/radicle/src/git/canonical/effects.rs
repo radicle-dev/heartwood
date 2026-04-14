@@ -3,49 +3,93 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::git;
 use crate::git::Oid;
 use crate::git::fmt::Qualified;
-use crate::git::raw::ErrorExt as _;
+use crate::git::repository::object;
+use crate::git::repository::reference;
+use crate::git::repository::user;
 use crate::prelude::Did;
 
 use super::{FoundObjects, Object};
 
-/// Find objects for the canonical computation.
-///
-/// Typically implemented by a Git repository.
-pub trait FindObjects {
-    /// Find the objects for the given [`Qualified`] reference name, for each
-    /// [`Did`]'s namespace.
-    ///
-    /// The resulting [`FoundObjects`] includes all objects that were found, the
-    /// references that were missing, and the objects that were missing (if the
-    /// reference was found).
-    fn find_objects<'a, 'b, I>(
-        &self,
-        refname: &Qualified<'a>,
-        dids: I,
-    ) -> Result<FoundObjects, FindObjectsError>
-    where
-        I: Iterator<Item = &'b Did>;
+/// Finds objects for the canonical computation by resolving namespaced
+/// references and determining their object types.
+pub struct FindObjects<'a, 'b, R> {
+    repository: &'a R,
+    refname: &'b Qualified<'b>,
+    dids: &'b [Did],
 }
 
-/// Error produced by the [`FindObjects::find_objects`] method.
+impl<'a, 'b, R> FindObjects<'a, 'b, R>
+where
+    R: reference::Reader + object::Reader,
+{
+    /// Construct a new [`FindObjects`] query.
+    pub fn new(repository: &'a R, refname: &'b Qualified<'b>, dids: &'b [Did]) -> Self {
+        Self {
+            repository,
+            refname,
+            dids,
+        }
+    }
+
+    /// Resolve all references and produce the [`FoundObjects`].
+    pub fn resolve(self) -> Result<FoundObjects, FindObjectsError> {
+        let mut objects = BTreeMap::new();
+        let mut missing_refs = BTreeSet::new();
+        let mut missing_objects = BTreeMap::new();
+
+        for did in self.dids {
+            let name = self.refname.with_namespace(did.as_key().into());
+
+            let oid = match self.repository.ref_target(&name) {
+                Ok(Some(oid)) => oid,
+                Ok(None) => {
+                    missing_refs.insert(name.to_owned());
+                    continue;
+                }
+                Err(e) => {
+                    return Err(FindObjectsError::find_reference(name.to_owned(), e));
+                }
+            };
+
+            let kind = match self.repository.object_kind(oid) {
+                Ok(Some(kind)) => kind,
+                Ok(None) => {
+                    missing_objects.insert(*did, oid);
+                    continue;
+                }
+                Err(e) => return Err(FindObjectsError::find_object(oid, e)),
+            };
+
+            let object = Object::from_kind(oid, kind).ok_or_else(|| {
+                FindObjectsError::invalid_object_type(*did, oid, Some(kind.to_string()))
+            })?;
+
+            objects.insert(*did, object);
+        }
+
+        Ok(FoundObjects {
+            objects,
+            missing_refs,
+            missing_objects,
+        })
+    }
+}
+
+/// Error produced by [`FindObjects::resolve`].
 #[derive(Debug, thiserror::Error)]
 pub enum FindObjectsError {
     #[error(transparent)]
     InvalidObjectType(#[from] InvalidObjectType),
     #[error(transparent)]
     MissingObject(#[from] MissingObject),
-    #[error("failed to find object {oid} due to: {source}")]
+    #[error("failed to find object {oid}: {source}")]
     FindObject {
         oid: Oid,
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
-    #[error("failed to find reference {refname} due to: {source}")]
+    #[error("failed to find reference {refname}: {source}")]
     FindReference {
         refname: git::fmt::Namespaced<'static>,
-        source: Box<dyn std::error::Error + Send + Sync + 'static>,
-    },
-    #[error("failed to find objects")]
-    Other {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
 }
@@ -86,15 +130,6 @@ impl FindObjectsError {
     pub fn invalid_object_type(did: Did, oid: Oid, kind: Option<String>) -> Self {
         InvalidObjectType { did, oid, kind }.into()
     }
-
-    pub fn other<E>(err: E) -> Self
-    where
-        E: std::error::Error + Send + Sync + 'static,
-    {
-        Self::Other {
-            source: Box::new(err),
-        }
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -111,60 +146,4 @@ pub struct MissingObject {
     did: Did,
     commit: Oid,
     source: Box<dyn std::error::Error + Send + Sync + 'static>,
-}
-
-// ===========================================
-// `git2` implementations of the above effects
-// ===========================================
-
-impl FindObjects for git::raw::Repository {
-    fn find_objects<'a, 'b, I>(
-        &self,
-        refname: &Qualified,
-        dids: I,
-    ) -> Result<FoundObjects, FindObjectsError>
-    where
-        I: Iterator<Item = &'b Did>,
-    {
-        let mut objects = BTreeMap::new();
-        let mut missing_refs = BTreeSet::new();
-        let mut missing_objects = BTreeMap::new();
-        for did in dids {
-            let name = &refname.with_namespace(did.as_key().into());
-            let reference = match self.find_reference(name.as_str()) {
-                Ok(reference) => reference,
-                Err(e) if e.is_not_found() => {
-                    missing_refs.insert(name.to_owned());
-                    continue;
-                }
-                Err(e) => {
-                    return Err(FindObjectsError::find_reference(name.to_owned(), e));
-                }
-            };
-            let Some(oid) = reference.target().map(Oid::from) else {
-                log::warn!(target: "radicle", "Missing target for reference `{name}`");
-                continue;
-            };
-            let object = match self.find_object(oid.into(), None) {
-                Ok(object) => Object::new(&object).ok_or_else(|| {
-                    FindObjectsError::invalid_object_type(
-                        *did,
-                        oid,
-                        object.kind().map(|kind| kind.to_string()),
-                    )
-                }),
-                Err(err) if err.is_not_found() => {
-                    missing_objects.insert(*did, oid);
-                    continue;
-                }
-                Err(err) => Err(FindObjectsError::find_object(oid, err)),
-            };
-            objects.insert(*did, object?);
-        }
-        Ok(FoundObjects {
-            objects,
-            missing_refs,
-            missing_objects,
-        })
-    }
 }

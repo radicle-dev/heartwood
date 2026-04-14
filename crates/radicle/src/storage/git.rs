@@ -308,19 +308,6 @@ impl AsRef<Repository> for Repository {
     }
 }
 
-impl git::canonical::effects::FindObjects for Repository {
-    fn find_objects<'a, 'b, I>(
-        &self,
-        refname: &Qualified<'a>,
-        dids: I,
-    ) -> Result<git::canonical::FoundObjects, git::canonical::effects::FindObjectsError>
-    where
-        I: Iterator<Item = &'b crate::prelude::Did>,
-    {
-        git::canonical::effects::FindObjects::find_objects(&self.backend, refname, dids)
-    }
-}
-
 /// A set of [`Validation`] errors that a caller **must use**.
 #[must_use]
 #[derive(Debug, Default)]
