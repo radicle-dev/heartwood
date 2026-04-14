@@ -3,7 +3,9 @@ use std::{fmt, ops::ControlFlow};
 use crate::git::Oid;
 use crate::prelude::Did;
 
-use super::{Object, effects, error};
+use crate::git::repository;
+
+use super::{Object, error};
 
 /// Checks for convergence and ensures that compared objects are of the same
 /// type, i.e. commit or tag, to the [`Candidate`].
@@ -22,7 +24,7 @@ impl<'r, R> fmt::Debug for Convergence<'r, R> {
 
 impl<'r, R> Convergence<'r, R>
 where
-    R: effects::Ancestry,
+    R: repository::Ancestry,
 {
     pub fn new(repo: &'r R, candidate: Did, object: Object) -> Self {
         Self {
@@ -50,7 +52,7 @@ where
             match self.checker.compare_to_candidate(did, *object) {
                 ControlFlow::Continue(c) => match c {
                     Effect::GraphCheck { commit, upstream } => {
-                        converges |= self.repo.graph_ahead_behind(commit, upstream)?.is_linear();
+                        converges |= self.repo.ahead_behind(commit, upstream)?.is_linear();
                     }
                     Effect::TagConverges => {
                         converges = true;

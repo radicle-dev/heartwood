@@ -6,7 +6,7 @@ use crate::git::fmt::Qualified;
 use crate::git::raw::ErrorExt as _;
 use crate::prelude::Did;
 
-use super::{FoundObjects, GraphAheadBehind, MergeBase, Object};
+use super::{FoundObjects, MergeBase, Object};
 
 /// Find objects for the canonical computation.
 ///
@@ -142,29 +142,6 @@ impl MergeBaseError {
     }
 }
 
-/// Calculate the ancestry of two commits.
-///
-/// Typically implemented by a Git repository.
-pub trait Ancestry {
-    /// Produce the [`GraphAheadBehind`] of `commit` and `upstream`.
-    ///
-    /// The result should provide how many commits are ahead and behind when
-    /// comparing the `commit` and `upstream`.
-    fn graph_ahead_behind(
-        &self,
-        commit: Oid,
-        upstream: Oid,
-    ) -> Result<GraphAheadBehind, GraphDescendant>;
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("failed to check if {commit} is an ancestor of {upstream} due to: {source}")]
-pub struct GraphDescendant {
-    commit: Oid,
-    upstream: Oid,
-    source: Box<dyn std::error::Error + Send + Sync + 'static>,
-}
-
 // ===========================================
 // `git2` implementations of the above effects
 // ===========================================
@@ -182,22 +159,6 @@ impl FindMergeBase for git::raw::Repository {
                 b,
                 base: base.into(),
             })
-    }
-}
-
-impl Ancestry for git::raw::Repository {
-    fn graph_ahead_behind(
-        &self,
-        commit: Oid,
-        upstream: Oid,
-    ) -> Result<GraphAheadBehind, GraphDescendant> {
-        self.graph_ahead_behind(commit.into(), upstream.into())
-            .map_err(|err| GraphDescendant {
-                commit,
-                upstream,
-                source: Box::new(err),
-            })
-            .map(|(ahead, behind)| GraphAheadBehind { ahead, behind })
     }
 }
 

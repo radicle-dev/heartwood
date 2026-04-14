@@ -2,6 +2,8 @@ use thiserror::Error;
 
 use crate::git::Oid;
 
+use crate::git::repository::ancestry;
+
 use super::{ObjectType, effects};
 pub use effects::{FindObjectsError, MergeBaseError};
 
@@ -50,7 +52,7 @@ pub struct MismatchedObject {
 #[derive(Debug, Error)]
 pub enum ConvergesError {
     #[error(transparent)]
-    GraphDescendant(#[from] effects::GraphDescendant),
+    AheadBehind(#[from] ancestry::error::AheadBehind),
     #[error(transparent)]
     MismatchedObject(#[from] MismatchedObject),
 }
