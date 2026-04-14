@@ -121,3 +121,20 @@ impl Exists {
         Self::Backend(Box::new(err))
     }
 }
+
+/// Error returned by [`ObjectReader::object_kind`].
+///
+/// [`ObjectReader::object_kind`]: super::super::Reader::object_kind
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub enum ObjectKind {
+    /// An error from the underlying git library.
+    #[error(transparent)]
+    Backend(Box<dyn std::error::Error + Send + Sync + 'static>),
+}
+
+impl ObjectKind {
+    pub fn backend<E: std::error::Error + Send + Sync + 'static>(err: E) -> Self {
+        Self::Backend(Box::new(err))
+    }
+}
