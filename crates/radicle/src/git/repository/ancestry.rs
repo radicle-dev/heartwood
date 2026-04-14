@@ -15,6 +15,19 @@ pub struct AheadBehind {
     pub behind: usize,
 }
 
+impl AheadBehind {
+    /// Whether `self` represents a linear history between two commits.
+    ///
+    /// The following three conditions are equivalent characterisations of
+    /// a linear history:
+    ///  1. One commit is ahead and not behind of the other.
+    ///  2. One commit is behind and not ahead of the other.
+    ///  3. One commit can be "fast-forwarded" to the other.
+    pub fn is_linear(&self) -> bool {
+        self.ahead * self.behind == 0
+    }
+}
+
 /// Git commit graph operations.
 ///
 /// Provides merge-base computation and ancestor checks.

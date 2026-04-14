@@ -22,6 +22,7 @@ use std::marker::PhantomData;
 use std::ops::ControlFlow;
 
 use crate::git::fmt::Namespaced;
+use crate::git::repository;
 
 use crate::prelude::Did;
 
@@ -94,7 +95,7 @@ impl<'a, 'b, 'r, R> AsRef<Canonical<'a, 'b, 'r, R, ObjectsFound>>
 
 impl<'a, 'b, 'r, R> Canonical<'a, 'b, 'r, R, Initial>
 where
-    R: effects::Ancestry + effects::FindMergeBase + effects::FindObjects,
+    R: repository::Ancestry + effects::FindMergeBase + effects::FindObjects,
 {
     /// Construct a new [`Canonical`] with the given [`Qualified`] reference, a
     /// canonical reference [`ValidRule`] for that reference, and the Git
@@ -139,7 +140,7 @@ where
 
 impl<'a, 'b, 'r, R> Canonical<'a, 'b, 'r, R, ObjectsFound>
 where
-    R: effects::Ancestry + effects::FindMergeBase + effects::FindObjects,
+    R: repository::Ancestry + effects::FindMergeBase + effects::FindObjects,
 {
     /// Adds the check for convergence before finding the quorum.
     pub fn with_convergence(
@@ -160,7 +161,7 @@ where
         while let ControlFlow::Continue(pairs) = finder.find_merge_bases() {
             let mut bases = Vec::with_capacity(pairs.size_hint().0);
             for (a, b) in pairs {
-                bases.push(self.repo.merge_base(a, b)?);
+                bases.push(effects::FindMergeBase::merge_base(self.repo, a, b)?);
             }
             finder.found_merge_bases(bases.into_iter());
         }
@@ -243,7 +244,7 @@ where
 
 impl<'a, 'b, 'r, R> CanonicalWithConvergence<'a, 'b, 'r, R>
 where
-    R: effects::Ancestry + effects::FindMergeBase + effects::FindObjects,
+    R: repository::Ancestry + effects::FindMergeBase + effects::FindObjects,
 {
     /// Find the [`QuorumWithConvergence`] for the canonical computation.
     pub fn quorum(mut self) -> Result<QuorumWithConvergence<'a>, QuorumError> {
@@ -447,28 +448,6 @@ impl fmt::Display for ObjectType {
             ObjectType::Commit => f.write_str("commit"),
             ObjectType::Tag => f.write_str("tag"),
         }
-    }
-}
-
-/// The result of checking the relationship between two commits in the commit graph.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct GraphAheadBehind {
-    /// The number of commits the given commit is ahead of the other.
-    pub ahead: usize,
-    /// The number of commits the given commit is behind the other.
-    pub behind: usize,
-}
-
-impl GraphAheadBehind {
-    /// Whether self represents a linear history between two commits.
-    ///
-    /// The following three conditions are equivalent characterizations of
-    /// a linear history:
-    ///  1. One commit is ahead and not behind of the other.
-    ///  2. One commit is behind and not ahead of the other.
-    ///  3. One commit can be "fast-forwarded" to the other.
-    pub fn is_linear(&self) -> bool {
-        self.ahead * self.behind == 0
     }
 }
 

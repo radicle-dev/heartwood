@@ -308,16 +308,6 @@ impl AsRef<Repository> for Repository {
     }
 }
 
-impl git::canonical::effects::Ancestry for Repository {
-    fn graph_ahead_behind(
-        &self,
-        commit: Oid,
-        upstream: Oid,
-    ) -> Result<git::canonical::GraphAheadBehind, git::canonical::effects::GraphDescendant> {
-        git::canonical::effects::Ancestry::graph_ahead_behind(&self.backend, commit, upstream)
-    }
-}
-
 impl git::canonical::effects::FindMergeBase for Repository {
     fn merge_base(
         &self,

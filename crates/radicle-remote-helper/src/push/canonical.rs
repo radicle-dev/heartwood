@@ -3,6 +3,7 @@ use radicle::git::canonical;
 use radicle::git::canonical::QuorumWithConvergence;
 use radicle::git::canonical::effects;
 use radicle::git::canonical::error::QuorumError;
+use radicle::git::repository;
 use radicle::prelude::Did;
 
 /// Validates a vote to update a canonical reference during push.
@@ -12,7 +13,7 @@ pub(crate) struct Canonical<'a, 'b, 'r, R> {
 
 impl<'a, 'b, 'r, R> Canonical<'a, 'b, 'r, R>
 where
-    R: effects::Ancestry + effects::FindMergeBase + effects::FindObjects,
+    R: repository::Ancestry + effects::FindMergeBase + effects::FindObjects,
 {
     pub(super) fn new(
         me: Did,
