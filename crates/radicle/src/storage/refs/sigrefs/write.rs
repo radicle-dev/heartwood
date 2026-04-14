@@ -13,6 +13,7 @@ use radicle_git_metadata::commit::{CommitData, headers::Headers, trailers::Owned
 use radicle_oid::Oid;
 
 use crate::git;
+use crate::git::repository;
 use crate::storage::refs::SignedRefs;
 use crate::storage::refs::sigrefs::git::{Committer, object, reference};
 use crate::storage::refs::sigrefs::read::CommitReader;
@@ -72,7 +73,7 @@ pub struct SignedRefsWriter<'a, R, S> {
 
 impl<'a, R, S> SignedRefsWriter<'a, R, S>
 where
-    R: object::Writer + object::Reader + reference::Writer + reference::Reader,
+    R: object::Writer + repository::object::Reader + reference::Writer + reference::Reader,
     S: Signer<crypto::Signature>,
     S: signature::Verifier<crypto::Signature>,
 {
@@ -377,7 +378,7 @@ struct HeadReader<'a, 'b, 'c, R, V> {
 
 impl<'a, 'b, 'c, R, V> HeadReader<'a, 'b, 'c, R, V>
 where
-    R: object::Reader + reference::Reader,
+    R: repository::object::Reader + reference::Reader,
     V: signature::Verifier<crypto::Signature>,
 {
     /// Construct a [`HeadReader`] with the `reference` that is being read from

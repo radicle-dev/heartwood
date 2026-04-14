@@ -19,6 +19,7 @@ use thiserror::Error;
 use crate::git;
 use crate::git::Oid;
 use crate::git::raw::ErrorExt as _;
+use crate::git::repository;
 use crate::storage;
 use crate::storage::RemoteId;
 use crate::storage::refs::sigrefs::read::Tip;
@@ -78,7 +79,7 @@ impl Refs {
         signer: &S,
     ) -> Result<SignedRefs, Error>
     where
-        R: sigrefs::git::object::Reader + sigrefs::git::object::Writer,
+        R: repository::object::Reader + sigrefs::git::object::Writer,
         R: sigrefs::git::reference::Reader + sigrefs::git::reference::Writer,
         R: HasRepoId,
         S: signature::Signer<crypto::Signature>,
@@ -96,7 +97,7 @@ impl Refs {
         signer: &S,
     ) -> Result<SignedRefs, Error>
     where
-        R: sigrefs::git::object::Reader + sigrefs::git::object::Writer,
+        R: repository::object::Reader + sigrefs::git::object::Writer,
         R: sigrefs::git::reference::Reader + sigrefs::git::reference::Writer,
         R: HasRepoId,
         S: signature::Signer<crypto::Signature>,
@@ -114,7 +115,7 @@ impl Refs {
         force: bool,
     ) -> Result<SignedRefs, Error>
     where
-        R: sigrefs::git::object::Reader + sigrefs::git::object::Writer,
+        R: repository::object::Reader + sigrefs::git::object::Writer,
         R: sigrefs::git::reference::Reader + sigrefs::git::reference::Writer,
         R: HasRepoId,
         S: signature::Signer<crypto::Signature>,
@@ -425,7 +426,7 @@ impl SignedRefs {
     pub fn load<R>(remote: RemoteId, repo: &R) -> Result<Option<Self>, sigrefs::read::error::Read>
     where
         R: HasRepoId,
-        R: sigrefs::git::object::Reader + sigrefs::git::reference::Reader,
+        R: repository::object::Reader + sigrefs::git::reference::Reader,
     {
         Self::load_internal(remote, repo, sigrefs::read::Tip::Reference(remote))
     }
@@ -437,7 +438,7 @@ impl SignedRefs {
     ) -> Result<Option<Self>, sigrefs::read::error::Read>
     where
         R: HasRepoId,
-        R: sigrefs::git::object::Reader + sigrefs::git::reference::Reader,
+        R: repository::object::Reader + sigrefs::git::reference::Reader,
     {
         Self::load_internal(remote, repo, sigrefs::read::Tip::Commit(oid))
     }
@@ -449,7 +450,7 @@ impl SignedRefs {
     ) -> Result<Option<Self>, sigrefs::read::error::Read>
     where
         R: HasRepoId,
-        R: sigrefs::git::object::Reader + sigrefs::git::reference::Reader,
+        R: repository::object::Reader + sigrefs::git::reference::Reader,
     {
         let root = repo.rid();
         match sigrefs::SignedRefsReader::new(root, tip, repo, &remote).read() {

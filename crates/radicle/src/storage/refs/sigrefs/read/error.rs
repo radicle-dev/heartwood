@@ -6,7 +6,8 @@ use radicle_git_metadata::commit;
 use radicle_oid::Oid;
 use thiserror::Error;
 
-use crate::storage::refs::sigrefs::git::{object, reference};
+use crate::git::repository::object;
+use crate::storage::refs::sigrefs::git::reference;
 use crate::storage::refs::sigrefs::read::FeatureLevels;
 use crate::storage::refs::{FeatureLevel, canonical};
 
@@ -48,7 +49,7 @@ pub enum Commit {
     #[error(transparent)]
     TooManyParents(Parent),
     #[error(transparent)]
-    Read(object::error::ReadCommit),
+    Read(object::error::read::Commit),
 }
 
 #[derive(Debug, Error)]
@@ -75,9 +76,9 @@ impl fmt::Display for Parent {
 #[non_exhaustive]
 pub enum Tree {
     #[error(transparent)]
-    Refs(object::error::ReadBlob),
+    Refs(object::error::read::BlobAt),
     #[error(transparent)]
-    Signature(object::error::ReadBlob),
+    Signature(object::error::read::BlobAt),
     #[error(transparent)]
     ParseRefs(canonical::Error),
     #[error(transparent)]
@@ -104,7 +105,7 @@ pub enum MissingBlobs {
 #[non_exhaustive]
 pub enum IdentityRoot {
     #[error(transparent)]
-    Blob(object::error::ReadBlob),
+    Blob(object::error::read::BlobAt),
     #[error("missing repository identity commit '{commit}'")]
     MissingIdentity { commit: Oid },
 }

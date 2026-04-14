@@ -1,5 +1,7 @@
-//! Mock implementations of [`object::Reader`] and [`reference::Reader`] for
+//! Mock implementations of [`ObjectReader`] and [`reference::Reader`] for
 //! unit-testing.
+//!
+//! [`ObjectReader`]: crate::git::repository::ObjectReader
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -12,13 +14,15 @@ use radicle_git_metadata::commit::trailers::OwnedTrailer;
 use radicle_oid::Oid;
 
 use crate::git;
+use crate::git::repository::object;
+use crate::git::repository::types::{Blob, Commit};
 use crate::identity::doc;
-use crate::storage::refs::sigrefs::git::{object, reference};
+use crate::storage::refs::sigrefs::git::reference;
 use crate::storage::refs::{REFS_BLOB_PATH, Refs, SIGNATURE_BLOB_PATH, SIGREFS_BRANCH};
 
 pub(crate) const MOCKED_IDENTITY: u8 = 99u8;
 
-/// A configurable in-memory repository implementing [`object::Reader`] and
+/// A configurable in-memory repository implementing [`ObjectReader`] and
 /// [`reference::Reader`].
 /// All behaviour is set at construction time via the builder methods; the mock
 /// is fully deterministic.
@@ -29,20 +33,20 @@ pub struct MockRepository {
 }
 
 enum CommitBehavior {
-    /// [`object::Reader::read_commit`] returns `Ok(Some(bytes))`.
+    /// [`ObjectReader::commit`] returns `Ok(Some(commit))`.
     Present(Box<CommitData<Oid, Oid>>),
-    /// [`object::Reader::read_commit`] returns `Ok(None)`.
+    /// [`ObjectReader::commit`] returns `Ok(None)`.
     Missing,
-    /// [`object::Reader::read_commit`] returns `Err(…)`.
+    /// [`ObjectReader::commit`] returns `Err(…)`.
     Error,
 }
 
 enum BlobBehavior {
-    /// [`object::Reader::read_blob`] returns `Ok(Some(blob))`.
+    /// [`ObjectReader::blob_at`] returns `Ok(Some(blob))`.
     Present(Vec<u8>),
-    /// [`object::Reader::read_blob`] returns `Ok(None)`.
+    /// [`ObjectReader::blob_at`] returns `Ok(None)`.
     Missing,
-    /// [`object::Reader::read_blob`] returns `Err(…)`.
+    /// [`ObjectReader::blob_at`] returns `Err(…)`.
     Error,
 }
 
@@ -165,36 +169,49 @@ impl MockRepository {
 }
 
 impl object::Reader for MockRepository {
-    fn read_commit(&self, oid: &Oid) -> Result<Option<Vec<u8>>, object::error::ReadCommit> {
-        match self.commits.get(oid) {
-            Some(CommitBehavior::Present(data)) => Ok(Some(data.to_string().as_bytes().to_vec())),
+    fn blob(&self, _oid: Oid) -> Result<Option<Blob>, object::error::read::Blob> {
+        unimplemented!("MockRepository::blob")
+    }
+
+    fn blob_at<P: AsRef<Path>>(
+        &self,
+        commit: Oid,
+        path: &P,
+    ) -> Result<Option<Blob>, object::error::read::BlobAt> {
+        let key = (commit, path.as_ref().to_path_buf());
+        match self.blobs.get(&key) {
+            Some(BlobBehavior::Present(bytes)) => Ok(Some(Blob {
+                // The blob OID is returned as the commit OID.  This is
+                // intentional: IdentityRootReader converts blob.oid into a
+                // RepoId, so callers can predict which RepoId results from a
+                // given identity-root commit OID.
+                oid: commit,
+                content: bytes.clone(),
+            })),
+            Some(BlobBehavior::Missing) | None => Ok(None),
+            Some(BlobBehavior::Error) => Err(object::error::read::BlobAt::backend(
+                std::io::Error::other("mock blob error"),
+            )),
+        }
+    }
+
+    fn commit(&self, oid: Oid) -> Result<Option<Commit>, object::error::read::Commit> {
+        match self.commits.get(&oid) {
+            Some(CommitBehavior::Present(data)) => {
+                let bytes = data.to_string();
+                let parsed = Commit::from_bytes(bytes.as_bytes())
+                    .map_err(|e| object::error::read::Commit::Parse { oid, source: e })?;
+                Ok(Some(parsed))
+            }
             Some(CommitBehavior::Missing) | None => Ok(None),
-            Some(CommitBehavior::Error) => Err(object::error::ReadCommit::other(
+            Some(CommitBehavior::Error) => Err(object::error::read::Commit::backend(
                 std::io::Error::other("mock commit error"),
             )),
         }
     }
 
-    fn read_blob(
-        &self,
-        commit: &Oid,
-        path: &Path,
-    ) -> Result<Option<object::Blob>, object::error::ReadBlob> {
-        let key = (*commit, path.to_path_buf());
-        match self.blobs.get(&key) {
-            Some(BlobBehavior::Present(bytes)) => Ok(Some(object::Blob {
-                // The blob OID is returned as the commit OID.  This is
-                // intentional: IdentityRootReader converts blob.oid into a
-                // RepoId, so callers can predict which RepoId results from a
-                // given identity-root commit OID.
-                oid: *commit,
-                bytes: bytes.clone(),
-            })),
-            Some(BlobBehavior::Missing) | None => Ok(None),
-            Some(BlobBehavior::Error) => Err(object::error::ReadBlob::other(
-                std::io::Error::other("mock blob error"),
-            )),
-        }
+    fn exists(&self, _oid: Oid) -> Result<bool, object::error::read::Exists> {
+        unimplemented!("MockRepository::exists")
     }
 }
 
