@@ -81,7 +81,7 @@
 //! [remote helpers]: https://git-scm.com/docs/gitremote-helpers
 
 use std::collections::HashMap;
-use std::io::{Error as IoError, ErrorKind};
+use std::io::Error as IoError;
 use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
@@ -158,17 +158,12 @@ impl External {
             prefix + suffix
         };
 
-        let child = Command::new(command_name)
+        let mut child = Command::new(command_name)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
 
-        let Some(stdin) = &child.stdin else {
-            return Err(Error::Io(IoError::new(
-                ErrorKind::BrokenPipe,
-                "stdin not available",
-            )));
-        };
+        let stdin = child.stdin.take().expect("handle preset");
 
         #[derive(Serialize)]
         struct OpMessage {
