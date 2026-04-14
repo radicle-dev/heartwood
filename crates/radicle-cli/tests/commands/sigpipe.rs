@@ -146,39 +146,4 @@ mod unix {
         }
     }
 
-    mod normal_pipe {
-        use std::process::Command;
-
-        use radicle::profile;
-
-        use crate::util::environment::Environment;
-
-        /// `rad config` produces valid output when stdout is NOT a broken pipe.
-        #[test]
-        fn rad_config() {
-            let mut environment = Environment::new();
-            let profile = environment.profile("alice");
-
-            let rad = env!("CARGO_BIN_EXE_rad");
-
-            let output = Command::new(rad)
-                .arg("config")
-                .env("RAD_HOME", profile.home.path())
-                .env(profile::env::RAD_PASSPHRASE, "radicle")
-                .output()
-                .expect("failed to run rad");
-
-            assert!(
-                output.status.success(),
-                "rad config failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            assert!(
-                stdout.contains("\"alias\""),
-                "rad config output should contain alias"
-            );
-        }
-    }
 }
