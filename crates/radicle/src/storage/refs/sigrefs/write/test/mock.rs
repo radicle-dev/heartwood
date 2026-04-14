@@ -10,6 +10,8 @@ use radicle_git_metadata::commit::trailers::OwnedTrailer;
 use radicle_oid::Oid;
 
 use crate::git;
+use crate::git::repository;
+use crate::git::repository::types::{Blob, Commit};
 use crate::identity::doc;
 use crate::storage::HasRepoId;
 use crate::storage::refs::sigrefs::git::{object, reference};
@@ -200,30 +202,44 @@ impl HasRepoId for MockRepository {
     }
 }
 
-impl object::Reader for MockRepository {
-    fn read_commit(&self, oid: &Oid) -> Result<Option<Vec<u8>>, object::error::ReadCommit> {
-        match self.commits.get(oid) {
-            Some(CommitBehavior::Present(data)) => Ok(Some(data.to_string().as_bytes().to_vec())),
+impl repository::object::Reader for MockRepository {
+    fn blob(&self, _oid: Oid) -> Result<Option<Blob>, repository::object::error::read::Blob> {
+        unimplemented!("MockRepository::blob")
+    }
+
+    fn blob_at<P: AsRef<Path>>(
+        &self,
+        commit: Oid,
+        path: &P,
+    ) -> Result<Option<Blob>, repository::object::error::read::BlobAt> {
+        let key = (commit, path.as_ref().to_path_buf());
+        match self.blobs.get(&key) {
+            Some(BlobBehavior::Present(bytes)) => Ok(Some(Blob {
+                oid: commit,
+                content: bytes.clone(),
+            })),
+            Some(BlobBehavior::Missing) | None => Ok(None),
+            Some(BlobBehavior::Error) => Err(repository::object::error::read::BlobAt::backend(
+                std::io::Error::other("mock blob error"),
+            )),
+        }
+    }
+
+    fn commit(&self, oid: Oid) -> Result<Option<Commit>, repository::object::error::read::Commit> {
+        match self.commits.get(&oid) {
+            Some(CommitBehavior::Present(data)) => {
+                let bytes = data.to_string();
+                let parsed = Commit::from_bytes(bytes.as_bytes()).map_err(|e| {
+                    repository::object::error::read::Commit::Parse { oid, source: e }
+                })?;
+                Ok(Some(parsed))
+            }
             None => Ok(None),
         }
     }
 
-    fn read_blob(
-        &self,
-        commit: &Oid,
-        path: &Path,
-    ) -> Result<Option<object::Blob>, object::error::ReadBlob> {
-        let key = (*commit, path.to_path_buf());
-        match self.blobs.get(&key) {
-            Some(BlobBehavior::Present(bytes)) => Ok(Some(object::Blob {
-                oid: *commit,
-                bytes: bytes.clone(),
-            })),
-            Some(BlobBehavior::Missing) | None => Ok(None),
-            Some(BlobBehavior::Error) => Err(object::error::ReadBlob::other(
-                std::io::Error::other("mock blob error"),
-            )),
-        }
+    fn exists(&self, _oid: Oid) -> Result<bool, repository::object::error::read::Exists> {
+        unimplemented!("MockRepository::exists")
     }
 }
 

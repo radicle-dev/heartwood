@@ -16,8 +16,9 @@ use radicle_git_metadata::commit::CommitData;
 use radicle_oid::Oid;
 
 use crate::git;
+use crate::git::repository::object;
 use crate::identity::doc;
-use crate::storage::refs::sigrefs::git::{object, reference};
+use crate::storage::refs::sigrefs::git::reference;
 use crate::storage::refs::{
     FeatureLevel, IDENTITY_ROOT, REFS_BLOB_PATH, Refs, SIGNATURE_BLOB_PATH, SIGREFS_BRANCH,
     SignedRefs,
@@ -466,15 +467,10 @@ where
     }
 
     fn read_commit_data(&self) -> Result<CommitData<Oid, Oid>, error::Commit> {
-        let bytes = self
-            .repository
-            .read_commit(&self.commit)
+        self.repository
+            .commit(self.commit)
             .map_err(error::Commit::Read)?
-            .ok_or(error::Commit::Missing { oid: self.commit })?;
-        CommitData::from_bytes(&bytes).map_err(|err| error::Commit::Parse {
-            oid: self.commit,
-            source: err,
-        })
+            .ok_or(error::Commit::Missing { oid: self.commit })
     }
 
     /// Extract the single parent [`Oid`] from a [`CommitData`], if any.
@@ -517,40 +513,42 @@ where
 
     fn read(self) -> Result<Tree, error::Tree> {
         let (refs, signature) = self.try_handle_blobs()?;
-        let refs = Refs::from_canonical(&refs.bytes).map_err(error::Tree::ParseRefs)?;
-        let signature = crypto::Signature::try_from(signature.bytes.as_slice())
+        let refs = Refs::from_canonical(&refs.content).map_err(error::Tree::ParseRefs)?;
+        let signature = crypto::Signature::try_from(signature.content.as_slice())
             .map_err(error::Tree::ParseSignature)?;
         Ok(Tree { refs, signature })
     }
 
     /// Fetch the refs blob and signature blob from the repository, returning a
     /// descriptive error if either or both are missing.
-    fn try_handle_blobs(&self) -> Result<(object::Blob, object::Blob), error::Tree> {
-        let commit = &self.commit;
+    fn try_handle_blobs(
+        &self,
+    ) -> Result<(git::repository::Blob, git::repository::Blob), error::Tree> {
+        let commit = self.commit;
         let refs_path = Path::new(REFS_BLOB_PATH);
         let sig_path = Path::new(SIGNATURE_BLOB_PATH);
 
-        let refs_bytes = self
+        let refs_blob = self
             .repository
-            .read_blob(commit, refs_path)
+            .blob_at(commit, &refs_path)
             .map_err(error::Tree::Refs)?;
-        let sig_bytes = self
+        let sig_blob = self
             .repository
-            .read_blob(commit, sig_path)
+            .blob_at(commit, &sig_path)
             .map_err(error::Tree::Signature)?;
 
-        let result = match (refs_bytes, sig_bytes) {
+        let result = match (refs_blob, sig_blob) {
             (None, None) => Err(error::MissingBlobs::Both {
-                commit: *commit,
+                commit,
                 refs: refs_path.to_path_buf(),
                 signature: sig_path.to_path_buf(),
             }),
             (None, Some(_)) => Err(error::MissingBlobs::Signature {
-                commit: *commit,
+                commit,
                 path: sig_path.to_path_buf(),
             }),
             (Some(_), None) => Err(error::MissingBlobs::Refs {
-                commit: *commit,
+                commit,
                 path: refs_path.to_path_buf(),
             }),
             (Some(refs), Some(sig)) => Ok((refs, sig)),
@@ -590,11 +588,11 @@ where
 
     fn read_blob(&self, commit: &Oid) -> Result<RepoId, error::IdentityRoot> {
         let path = Path::new("embeds").join(*doc::PATH);
-        let object::Blob { oid, .. } = self
+        let blob = self
             .repository
-            .read_blob(commit, &path)
+            .blob_at(*commit, &path)
             .map_err(error::IdentityRoot::Blob)?
             .ok_or_else(|| error::IdentityRoot::MissingIdentity { commit: *commit })?;
-        Ok(RepoId::from(oid))
+        Ok(RepoId::from(blob.oid))
     }
 }

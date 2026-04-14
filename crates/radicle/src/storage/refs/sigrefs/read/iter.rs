@@ -1,6 +1,6 @@
 use radicle_oid::Oid;
 
-use crate::storage::refs::sigrefs::git::object;
+use crate::git::repository::object;
 
 use super::{Commit, CommitReader, error};
 
