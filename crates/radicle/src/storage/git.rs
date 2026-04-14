@@ -13,6 +13,8 @@ use std::{fs, io};
 
 use crate::git::canonical::Quorum;
 use crate::git::raw::ErrorExt as _;
+use crate::git::repository;
+use crate::git::repository::{ancestry, object, reference, revwalk};
 use crate::identity::doc::{DocError, GetPayload as _};
 use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
@@ -1135,6 +1137,194 @@ impl sigrefs::git::reference::Writer for Repository {
     ) -> Result<(), sigrefs::git::reference::error::WriteReference> {
         self.backend
             .write_reference(reference, commit, parent, reflog)
+    }
+}
+
+impl object::Reader for Repository {
+    fn blob(&self, oid: Oid) -> Result<Option<git::repository::Blob>, object::error::read::Blob> {
+        object::Reader::blob(&self.backend, oid)
+    }
+
+    fn blob_at<P>(
+        &self,
+        commit: Oid,
+        path: &P,
+    ) -> Result<Option<git::repository::Blob>, object::error::read::BlobAt>
+    where
+        P: AsRef<Path>,
+    {
+        object::Reader::blob_at(&self.backend, commit, path)
+    }
+
+    fn commit(
+        &self,
+        oid: Oid,
+    ) -> Result<Option<git::repository::Commit>, object::error::read::Commit> {
+        object::Reader::commit(&self.backend, oid)
+    }
+
+    fn exists(&self, oid: Oid) -> Result<bool, object::error::read::Exists> {
+        object::Reader::exists(&self.backend, oid)
+    }
+}
+
+impl object::Writer for Repository {
+    fn write_blob(&self, content: &[u8]) -> Result<Oid, object::error::write::Blob> {
+        object::Writer::write_blob(&self.backend, content)
+    }
+
+    fn write_tree(
+        &self,
+        entries: &[repository::types::TreeEntry],
+    ) -> Result<Oid, object::error::write::Tree> {
+        object::Writer::write_tree(&self.backend, entries)
+    }
+
+    fn write_commit(&self, bytes: &[u8]) -> Result<Oid, object::error::write::Commit> {
+        object::Writer::write_commit(&self.backend, bytes)
+    }
+}
+
+impl reference::Reader for Repository {
+    type References<'a> = <git::raw::Repository as reference::Reader>::References<'a>;
+
+    fn ref_target<R>(&self, name: &R) -> Result<Option<Oid>, reference::error::read::RefTarget>
+    where
+        R: AsRef<git::fmt::RefStr>,
+    {
+        reference::Reader::ref_target(&self.backend, name)
+    }
+
+    fn list_refs<'a, P>(
+        &'a self,
+        pattern: &P,
+    ) -> Result<Self::References<'a>, reference::error::read::ListRefs>
+    where
+        P: AsRef<git::fmt::refspec::PatternStr>,
+    {
+        reference::Reader::list_refs(&self.backend, pattern)
+    }
+}
+
+impl reference::Writer for Repository {
+    fn write_ref<R>(
+        &self,
+        name: &R,
+        target: reference::Target,
+        reflog: &str,
+    ) -> Result<(), reference::error::write::WriteRef>
+    where
+        R: AsRef<git::fmt::RefStr>,
+    {
+        reference::Writer::write_ref(&self.backend, name, target, reflog)
+    }
+
+    fn delete_ref<R>(&self, name: &R) -> Result<(), reference::error::write::DeleteRef>
+    where
+        R: AsRef<git::fmt::RefStr>,
+    {
+        reference::Writer::delete_ref(&self.backend, name)
+    }
+}
+
+impl reference::symbolic::Writer for Repository {
+    fn write_symbolic_ref<R>(
+        &self,
+        name: &R,
+        target: reference::symbolic::Target,
+        reflog: &str,
+    ) -> Result<(), reference::error::write::WriteSymbolicRef>
+    where
+        R: AsRef<radicle_git_ref_format::RefStr>,
+    {
+        reference::symbolic::Writer::write_symbolic_ref(&self.backend, name, target, reflog)
+    }
+}
+
+impl repository::Ancestry for Repository {
+    fn merge_base(&self, a: Oid, b: Oid) -> Result<Option<Oid>, ancestry::error::MergeBase> {
+        repository::Ancestry::merge_base(&self.backend, a, b)
+    }
+
+    fn is_ancestor(&self, ancestor: Oid, head: Oid) -> Result<bool, ancestry::error::IsAncestor> {
+        repository::Ancestry::is_ancestor(&self.backend, ancestor, head)
+    }
+
+    fn ahead_behind(
+        &self,
+        commit: Oid,
+        upstream: Oid,
+    ) -> Result<repository::AheadBehind, ancestry::error::AheadBehind> {
+        repository::Ancestry::ahead_behind(&self.backend, commit, upstream)
+    }
+}
+
+impl repository::Revwalk for Repository {
+    type RevwalkOids<'a>
+        = <git::raw::Repository as repository::Revwalk>::RevwalkOids<'a>
+    where
+        Self: 'a;
+
+    type RevwalkCommits<'a>
+        = <git::raw::Repository as repository::Revwalk>::RevwalkCommits<'a>
+    where
+        Self: 'a;
+
+    fn revwalk_oids<'a>(
+        &'a self,
+        plan: &repository::RevwalkPlan,
+    ) -> Result<Self::RevwalkOids<'a>, revwalk::error::Init> {
+        repository::Revwalk::revwalk_oids(&self.backend, plan)
+    }
+
+    fn revwalk_commits<'a>(
+        &'a self,
+        plan: &repository::RevwalkPlan,
+    ) -> Result<Self::RevwalkCommits<'a>, revwalk::error::Init> {
+        repository::Revwalk::revwalk_commits(&self.backend, plan)
+    }
+}
+
+pub mod trailers {
+    use std::collections::HashMap;
+    use std::str::FromStr;
+
+    use thiserror::Error;
+
+    use super::*;
+    use crypto::Signature;
+    use crypto::{PublicKey, PublicKeyError};
+
+    pub const SIGNATURE_TRAILER: &str = "Rad-Signature";
+
+    #[derive(Error, Debug)]
+    pub enum Error {
+        #[error("invalid format for signature trailer")]
+        SignatureTrailerFormat,
+        #[error("invalid public key in signature trailer")]
+        PublicKey(#[from] PublicKeyError),
+        #[error("invalid signature in trailer")]
+        Signature(#[from] crypto::signature::Error),
+    }
+
+    pub fn parse_signatures(msg: &str) -> Result<HashMap<PublicKey, Signature>, Error> {
+        let trailers =
+            git::raw::message_trailers_strs(msg).map_err(|_| Error::SignatureTrailerFormat)?;
+        let mut signatures = HashMap::with_capacity(trailers.len());
+
+        for (key, val) in trailers.iter() {
+            if key == SIGNATURE_TRAILER {
+                if let Some((pk, sig)) = val.split_once(' ') {
+                    let pk = PublicKey::from_str(pk)?;
+                    let sig = Signature::from_str(sig)?;
+
+                    signatures.insert(pk, sig);
+                } else {
+                    return Err(Error::SignatureTrailerFormat);
+                }
+            }
+        }
+        Ok(signatures)
     }
 }
 

@@ -7,6 +7,7 @@
 // Re-exports that are only used within this crate.
 pub(crate) use git2::{
     AutotagOption, Blob, FetchOptions, FetchPrune, Object, Revwalk, Sort, TreeEntry,
+    message_trailers_strs,
 };
 
 #[cfg(unix)]
