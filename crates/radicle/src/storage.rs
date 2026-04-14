@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub use crate::git::Oid;
+use crate::git::repository::reference;
 use crypto::PublicKey;
 pub use git::{Validation, Validations};
 
@@ -436,7 +437,7 @@ impl Deref for Remote {
 
 /// Read-only operations on a storage instance.
 pub trait ReadStorage {
-    type Repository: ReadRepository + self::refs::sigrefs::git::reference::Reader;
+    type Repository: ReadRepository + reference::Reader;
 
     /// Get user info for this storage.
     fn info(&self) -> &UserInfo;

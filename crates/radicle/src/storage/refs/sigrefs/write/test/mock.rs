@@ -244,17 +244,33 @@ impl repository::object::Reader for MockRepository {
 }
 
 impl reference::Reader for MockRepository {
-    fn find_reference(
+    type References<'a> = std::iter::Empty<
+        Result<
+            (git::fmt::Qualified<'static>, Oid),
+            repository::reference::error::read::ListReference,
+        >,
+    >;
+
+    fn ref_target<R: AsRef<git::fmt::RefStr>>(
         &self,
-        reference: &git::fmt::Namespaced,
-    ) -> Result<Option<Oid>, reference::error::FindReference> {
-        match self.references.get(reference.as_str()) {
+        name: &R,
+    ) -> Result<Option<Oid>, repository::reference::error::read::RefTarget> {
+        match self.references.get(name.as_ref().as_str()) {
             Some(RefBehavior::Present(oid)) => Ok(Some(*oid)),
             Some(RefBehavior::Missing) | None => Ok(None),
-            Some(RefBehavior::Error) => Err(reference::error::FindReference::other(
-                std::io::Error::other("mock reference error"),
-            )),
+            Some(RefBehavior::Error) => {
+                Err(repository::reference::error::read::RefTarget::backend(
+                    std::io::Error::other("mock reference error"),
+                ))
+            }
         }
+    }
+
+    fn list_refs<'a, P: AsRef<git::fmt::refspec::PatternStr>>(
+        &'a self,
+        _pattern: &P,
+    ) -> Result<Self::References<'a>, repository::reference::error::read::ListRefs> {
+        unimplemented!("MockRepository::list_refs")
     }
 }
 

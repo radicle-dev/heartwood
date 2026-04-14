@@ -7,7 +7,7 @@ use radicle_oid::Oid;
 use thiserror::Error;
 
 use crate::git::repository::object;
-use crate::storage::refs::sigrefs::git::reference;
+use crate::git::repository::reference;
 use crate::storage::refs::sigrefs::read::FeatureLevels;
 use crate::storage::refs::{FeatureLevel, canonical};
 
@@ -17,7 +17,7 @@ pub enum Read {
     #[error(transparent)]
     Commit(Commit),
     #[error(transparent)]
-    FindReference(reference::error::FindReference),
+    FindReference(reference::error::read::RefTarget),
     #[error("failed to find `refs/namespaces/{namespace}/refs/rad/sigrefs`")]
     MissingSigrefs { namespace: NodeId },
     #[error(transparent)]
@@ -67,7 +67,7 @@ impl fmt::Display for Parent {
                 .iter()
                 .map(|oid| oid.to_string())
                 .collect::<Vec<_>>()
-                .join(", ")
+                .join(", "),
         )
     }
 }
