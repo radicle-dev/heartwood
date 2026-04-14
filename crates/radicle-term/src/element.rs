@@ -88,11 +88,8 @@ pub trait Element: fmt::Debug + Send + Sync {
 
         let mut stdout = io::stdout().lock();
         for line in self.render(Constraint::from_env().unwrap_or_default()) {
-            match writeln!(stdout, "{}", line.to_string().trim_end()) {
-                Ok(()) => {}
-                Err(e) if e.kind() == io::ErrorKind::BrokenPipe => break,
-                Err(e) => panic!("failed printing to stdout: {e}"),
-            }
+            let _ = writeln!(stdout, "{}", line.to_string().trim_end())
+                .or_else(crate::io::swallow_broken_pipe_stdout);
         }
     }
 

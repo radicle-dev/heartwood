@@ -167,36 +167,56 @@ pub fn blank() {
     print("");
 }
 
-/// Print a line to stdout, silently handling broken pipe errors.
+/// Print a line to stdout, silently ignoring broken pipe errors.
 ///
-/// This is the primary output function for the CLI. All user-facing stdout
-/// output should go through this function (or [`print_inline`]) to avoid
-/// panicking on broken pipes (e.g. `rad config | head`).
+/// Use this function instead of [`println!`] when you want to print to standard
+/// output, but silently ignore broken pipe errors.
 ///
-/// See: <https://github.com/rust-lang/rust/issues/62569>
+/// See also [`self::print`].
+///
+/// # Panics
+///
+/// If writing to standard output fails with an error not of kind [`io::ErrorKind::BrokenPipe`].
 pub fn print(msg: impl fmt::Display) {
     use io::Write;
 
     let mut stdout = io::stdout().lock();
-    match writeln!(stdout, "{msg}") {
-        Ok(()) => {}
-        Err(e) if e.kind() == io::ErrorKind::BrokenPipe => {}
-        Err(e) => panic!("failed printing to stdout: {e}"),
-    }
+    let _ = writeln!(stdout, "{msg}").or_else(swallow_broken_pipe_stdout);
 }
 
-/// Print to stdout without a trailing newline, silently handling broken pipe
+/// Print to stdout without a trailing newline, silently ignoring broken pipe
 /// errors.
 ///
-/// See [`self::print`] for details.
+/// Use this function instead of [`print!`] when you want to print to standard
+/// output, but silently ignore broken pipe errors.
+///
+/// See also [`self::print`].
+///
+/// # Panics
+///
+/// If writing to standard output fails with an error not of kind [`io::ErrorKind::BrokenPipe`].
 pub fn print_inline(msg: impl fmt::Display) {
     use io::Write;
 
     let mut stdout = io::stdout().lock();
-    match write!(stdout, "{msg}") {
-        Ok(()) => {}
-        Err(e) if e.kind() == io::ErrorKind::BrokenPipe => {}
-        Err(e) => panic!("failed printing to stdout: {e}"),
+    let _ = write!(stdout, "{msg}").or_else(swallow_broken_pipe_stdout);
+}
+
+/// If the given `err` is of kind [`io::ErrorKind::BrokenPipe`], return `Ok(())`
+/// to silently ignore it. Otherwise, panic saying "failed printing to stdout",
+/// followed by the error message.
+///
+/// This may be used with [`Result::or_else`] to ignore broken pipes when
+/// writing to standard output.
+///
+/// # Panics
+///
+/// If `err` is not of kind [`io::ErrorKind::BrokenPipe`].
+pub(crate) fn swallow_broken_pipe_stdout(err: io::Error) -> io::Result<()> {
+    if err.kind() == io::ErrorKind::BrokenPipe {
+        Ok(())
+    } else {
+        panic!("failed printing to stdout: {err}")
     }
 }
 
