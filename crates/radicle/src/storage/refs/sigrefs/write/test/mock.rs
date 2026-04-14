@@ -11,10 +11,11 @@ use radicle_oid::Oid;
 
 use crate::git;
 use crate::git::repository;
-use crate::git::repository::types::{Blob, Commit};
+use crate::git::repository::object;
+use crate::git::repository::types::{Blob, Commit, TreeEntry};
 use crate::identity::doc;
 use crate::storage::HasRepoId;
-use crate::storage::refs::sigrefs::git::{object, reference};
+use crate::storage::refs::sigrefs::git::reference;
 use crate::storage::refs::{REFS_BLOB_PATH, Refs, SIGNATURE_BLOB_PATH, SIGREFS_BRANCH};
 
 const MOCKED_IDENTITY: u8 = 99u8;
@@ -202,8 +203,8 @@ impl HasRepoId for MockRepository {
     }
 }
 
-impl repository::object::Reader for MockRepository {
-    fn blob(&self, _oid: Oid) -> Result<Option<Blob>, repository::object::error::read::Blob> {
+impl object::Reader for MockRepository {
+    fn blob(&self, _oid: Oid) -> Result<Option<Blob>, object::error::read::Blob> {
         unimplemented!("MockRepository::blob")
     }
 
@@ -211,7 +212,7 @@ impl repository::object::Reader for MockRepository {
         &self,
         commit: Oid,
         path: &P,
-    ) -> Result<Option<Blob>, repository::object::error::read::BlobAt> {
+    ) -> Result<Option<Blob>, object::error::read::BlobAt> {
         let key = (commit, path.as_ref().to_path_buf());
         match self.blobs.get(&key) {
             Some(BlobBehavior::Present(bytes)) => Ok(Some(Blob {
@@ -219,26 +220,25 @@ impl repository::object::Reader for MockRepository {
                 content: bytes.clone(),
             })),
             Some(BlobBehavior::Missing) | None => Ok(None),
-            Some(BlobBehavior::Error) => Err(repository::object::error::read::BlobAt::backend(
+            Some(BlobBehavior::Error) => Err(object::error::read::BlobAt::backend(
                 std::io::Error::other("mock blob error"),
             )),
         }
     }
 
-    fn commit(&self, oid: Oid) -> Result<Option<Commit>, repository::object::error::read::Commit> {
+    fn commit(&self, oid: Oid) -> Result<Option<Commit>, object::error::read::Commit> {
         match self.commits.get(&oid) {
             Some(CommitBehavior::Present(data)) => {
                 let bytes = data.to_string();
-                let parsed = Commit::from_bytes(bytes.as_bytes()).map_err(|e| {
-                    repository::object::error::read::Commit::Parse { oid, source: e }
-                })?;
+                let parsed = Commit::from_bytes(bytes.as_bytes())
+                    .map_err(|e| object::error::read::Commit::Parse { oid, source: e })?;
                 Ok(Some(parsed))
             }
             None => Ok(None),
         }
     }
 
-    fn exists(&self, _oid: Oid) -> Result<bool, repository::object::error::read::Exists> {
+    fn exists(&self, _oid: Oid) -> Result<bool, object::error::read::Exists> {
         unimplemented!("MockRepository::exists")
     }
 }
@@ -275,25 +275,25 @@ impl repository::reference::Reader for MockRepository {
 }
 
 impl object::Writer for MockRepository {
-    fn write_tree(
-        &self,
-        _refs: object::RefsEntry,
-        _signature: object::SignatureEntry,
-    ) -> Result<Oid, object::error::WriteTree> {
+    fn write_blob(&self, _content: &[u8]) -> Result<Oid, object::error::write::Blob> {
+        unimplemented!("MockRepository::write_blob")
+    }
+
+    fn write_tree(&self, _entries: &[TreeEntry]) -> Result<Oid, object::error::write::Tree> {
         match &self.write_tree {
             Some(WriteTreeBehavior::Ok(oid)) => Ok(*oid),
-            Some(WriteTreeBehavior::Error) | None => Err(object::error::WriteTree::write_error(
+            Some(WriteTreeBehavior::Error) | None => Err(object::error::write::Tree::backend(
                 std::io::Error::other("mock write_tree error"),
             )),
         }
     }
 
-    fn write_commit(&self, _bytes: &[u8]) -> Result<Oid, object::error::WriteCommit> {
+    fn write_commit(&self, _bytes: &[u8]) -> Result<Oid, object::error::write::Commit> {
         match &self.write_commit {
             Some(WriteCommitBehavior(oid)) => Ok(*oid),
-            None => Err(object::error::WriteCommit::other(std::io::Error::other(
-                "mock write_commit error",
-            ))),
+            None => Err(object::error::write::Commit::backend(
+                std::io::Error::other("mock write_commit error"),
+            )),
         }
     }
 }

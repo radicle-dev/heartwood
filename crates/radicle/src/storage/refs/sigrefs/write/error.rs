@@ -2,7 +2,8 @@ use radicle_oid::Oid;
 use thiserror::Error;
 
 use crate::git::repository;
-use crate::storage::refs::sigrefs::git::{object, reference};
+use crate::git::repository::object;
+use crate::storage::refs::sigrefs::git::reference;
 
 // TODO: use commit NID (and RID?) for traceability
 #[derive(Debug, Error)]
@@ -23,7 +24,7 @@ pub enum Commit {
     #[error(transparent)]
     Tree(Tree),
     #[error(transparent)]
-    Write(object::error::WriteCommit),
+    Write(object::error::write::Commit),
 }
 
 // TODO: use commit OID for traceability
@@ -33,7 +34,7 @@ pub enum Tree {
     #[error("failed to sign references payload")]
     Sign(crypto::signature::Error),
     #[error(transparent)]
-    Write(object::error::WriteTree),
+    Write(object::error::write::Tree),
 }
 
 // TODO: use commit OID for traceability

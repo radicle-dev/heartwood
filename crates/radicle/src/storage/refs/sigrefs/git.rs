@@ -183,31 +183,11 @@ mod git2_impls {
             refs: RefsEntry,
             signature: SignatureEntry,
         ) -> Result<Oid, object::error::WriteTree> {
-            use object::error::WriteTree;
-
-            let odb = self.odb().map_err(WriteTree::write_error)?;
-
-            let refs_oid = odb
-                .write(git2::ObjectType::Blob, &refs.content)
-                .map_err(WriteTree::refs_error)?;
-
-            let sig_oid = odb
-                .write(git2::ObjectType::Blob, &signature.content)
-                .map_err(WriteTree::signature_error)?;
-
-            let mut builder = self.treebuilder(None).map_err(WriteTree::write_error)?;
-
-            builder
-                .insert(&refs.path, refs_oid, git2::FileMode::Blob.into())
-                .map_err(WriteTree::refs_error)?;
-
-            builder
-                .insert(&signature.path, sig_oid, git2::FileMode::Blob.into())
-                .map_err(WriteTree::signature_error)?;
-
-            let tree_oid = builder.write().map_err(WriteTree::write_error)?;
-
-            Ok(Oid::from(tree_oid))
+            crate::git::repository::object::Writer::write_tree(
+                self,
+                &[refs.into_inner(), signature.into_inner()],
+            )
+            .map_err(|e| object::error::WriteTree::Write(Box::new(e)))
         }
 
         fn write_commit(&self, bytes: &[u8]) -> Result<Oid, object::error::WriteCommit> {

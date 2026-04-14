@@ -6,9 +6,11 @@
 
 pub mod error;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use radicle_oid::Oid;
+
+use crate::git::repository::types::TreeEntry;
 
 /// A Git blob object, returned by [`Reader::read_blob`].
 pub struct Blob {
@@ -46,30 +48,42 @@ pub trait Reader {
     fn read_blob(&self, commit: &Oid, path: &Path) -> Result<Option<Blob>, error::ReadBlob>;
 }
 
-/// Input to the [`Writer::write_tree`] method.
-///
-/// The entry describes where in the Git tree to write the [`Refs`] content
-/// blob.
-///
-/// [`Refs`]: crate::storage::refs::Refs
+/// A [`TreeEntry`] for the signed references payload blob.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct RefsEntry {
-    /// Path in the Git tree to write to.
-    pub path: PathBuf,
-    /// The contents of the Git blob.
-    pub content: Vec<u8>,
+pub struct RefsEntry(TreeEntry);
+
+impl RefsEntry {
+    /// Create a new entry with the canonical refs bytes.
+    pub fn new(content: Vec<u8>) -> Self {
+        Self(TreeEntry::Blob {
+            path: Path::new(crate::storage::refs::REFS_BLOB_PATH).into(),
+            content,
+        })
+    }
+
+    /// Unwrap into the underlying [`TreeEntry`].
+    pub fn into_inner(self) -> TreeEntry {
+        self.0
+    }
 }
 
-/// Input to the [`Writer::write_tree`] method.
-///
-/// The entry describes where in the Git tree to write the signature content
-/// blob.
+/// A [`TreeEntry`] for the cryptographic signature blob.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SignatureEntry {
-    /// Path in the Git tree to write to.
-    pub path: PathBuf,
-    /// The contents of the Git blob.
-    pub content: Vec<u8>,
+pub struct SignatureEntry(TreeEntry);
+
+impl SignatureEntry {
+    /// Create a new entry with the signature bytes.
+    pub fn new(content: Vec<u8>) -> Self {
+        Self(TreeEntry::Blob {
+            path: Path::new(crate::storage::refs::SIGNATURE_BLOB_PATH).into(),
+            content,
+        })
+    }
+
+    /// Unwrap into the underlying [`TreeEntry`].
+    pub fn into_inner(self) -> TreeEntry {
+        self.0
+    }
 }
 
 /// Git object writer, generally a Git repository, or its corresponding Object
