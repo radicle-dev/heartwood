@@ -19,7 +19,7 @@ use crate::storage::refs::sigrefs::read::CommitReader;
 use crate::storage::refs::sigrefs::{VerifiedCommit, read};
 use crate::storage::refs::{FeatureLevel, IDENTITY_ROOT, Refs, SIGREFS_BRANCH, SIGREFS_PARENT};
 
-use super::git::object::{RefsEntry, SignatureEntry};
+use super::git::{RefsEntry, SignatureEntry};
 
 /// The result of attempting to write signed references using
 /// [`SignedRefsWriter`].

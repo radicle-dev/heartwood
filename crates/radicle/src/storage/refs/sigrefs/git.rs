@@ -1,9 +1,9 @@
-//! Signed References are encoded in the Git commit graph.
-//! This module provides traits for interacting with a Git
-//! repository to read and write data for Signed References.
+//! Domain data for creating signed reference updates.
+//!
+//! [`Committer`] is used for the author of the commit in a signed references commit.
+//! It provides a way to create a stable author and timestamp for deterministic commits.
 
-pub mod object;
-pub mod reference;
+use std::path::Path;
 
 #[cfg(test)]
 mod properties;
@@ -11,6 +11,46 @@ mod properties;
 use crypto::PublicKey;
 use radicle_git_metadata::author::Author;
 use radicle_git_metadata::author::Time;
+
+use crate::git::repository::types::TreeEntry;
+
+/// A [`TreeEntry`] for the signed references payload blob.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(super) struct RefsEntry(TreeEntry);
+
+impl RefsEntry {
+    /// Create a new entry with the canonical refs bytes.
+    pub fn new(content: Vec<u8>) -> Self {
+        Self(TreeEntry::Blob {
+            path: Path::new(crate::storage::refs::REFS_BLOB_PATH).into(),
+            content,
+        })
+    }
+
+    /// Unwrap into the underlying [`TreeEntry`].
+    pub fn into_inner(self) -> TreeEntry {
+        self.0
+    }
+}
+
+/// A [`TreeEntry`] for the cryptographic signature blob.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(super) struct SignatureEntry(TreeEntry);
+
+impl SignatureEntry {
+    /// Create a new entry with the signature bytes.
+    pub fn new(content: Vec<u8>) -> Self {
+        Self(TreeEntry::Blob {
+            path: Path::new(crate::storage::refs::SIGNATURE_BLOB_PATH).into(),
+            content,
+        })
+    }
+
+    /// Unwrap into the underlying [`TreeEntry`].
+    pub fn into_inner(self) -> TreeEntry {
+        self.0
+    }
+}
 
 /// Convenience type that corresponds to an [`Author`].
 ///
@@ -103,144 +143,5 @@ impl Committer {
             email: public_key.to_human(),
             time: Time::new(timestamp, 0),
         })
-    }
-}
-
-mod git2_impls {
-    //! [`git2::Repository`] implementations of the [`object`] and [`reference`] traits.
-    //!
-    //! [`object`]: super::object
-    //! [`reference`]: super::reference
-
-    use std::path::Path;
-
-    use radicle_oid::Oid;
-
-    use crate::git;
-
-    use super::object;
-    use super::object::{RefsEntry, SignatureEntry};
-    use super::reference;
-
-    impl object::Reader for git2::Repository {
-        fn read_commit(&self, oid: &Oid) -> Result<Option<Vec<u8>>, object::error::ReadCommit> {
-            use object::error::ReadCommit;
-
-            let odb = self.odb().map_err(ReadCommit::other)?;
-            let object = odb.read(git2::Oid::from(*oid));
-            match object {
-                Ok(object) => {
-                    if object.kind() != git2::ObjectType::Commit {
-                        return Err(ReadCommit::incorrect_object_error(*oid, object.kind()));
-                    }
-                    Ok(Some(object.data().to_vec()))
-                }
-                Err(e) if e.code() == git2::ErrorCode::NotFound => Ok(None),
-                Err(e) => Err(ReadCommit::other(e)),
-            }
-        }
-
-        fn read_blob(
-            &self,
-            oid: &Oid,
-            path: &Path,
-        ) -> Result<Option<object::Blob>, object::error::ReadBlob> {
-            use object::error::ReadBlob;
-
-            let commit = match self.find_commit(git2::Oid::from(*oid)) {
-                Ok(c) => c,
-                Err(e) if e.code() == git2::ErrorCode::NotFound => {
-                    return Err(ReadBlob::commit_not_found_error(*oid));
-                }
-                Err(e) => return Err(ReadBlob::other(e)),
-            };
-
-            let tree = commit.tree().map_err(ReadBlob::other)?;
-
-            let entry = match tree.get_path(path) {
-                Ok(e) => e,
-                Err(e) if e.code() == git2::ErrorCode::NotFound => return Ok(None),
-                Err(e) => return Err(ReadBlob::other(e)),
-            };
-
-            let object = entry.to_object(self).map_err(ReadBlob::other)?;
-            let blob = object.as_blob().ok_or(ReadBlob::incorrect_object_error(
-                *oid,
-                path.to_path_buf(),
-                object.kind().unwrap_or(git2::ObjectType::Any),
-            ))?;
-
-            Ok(Some(object::Blob {
-                oid: blob.id().into(),
-                bytes: blob.content().to_vec(),
-            }))
-        }
-    }
-
-    impl object::Writer for git2::Repository {
-        fn write_tree(
-            &self,
-            refs: RefsEntry,
-            signature: SignatureEntry,
-        ) -> Result<Oid, object::error::WriteTree> {
-            crate::git::repository::object::Writer::write_tree(
-                self,
-                &[refs.into_inner(), signature.into_inner()],
-            )
-            .map_err(|e| object::error::WriteTree::Write(Box::new(e)))
-        }
-
-        fn write_commit(&self, bytes: &[u8]) -> Result<Oid, object::error::WriteCommit> {
-            use object::error::WriteCommit;
-
-            let odb = self.odb().map_err(WriteCommit::other)?;
-
-            let oid = odb
-                .write(git2::ObjectType::Commit, bytes)
-                .map_err(WriteCommit::other)?;
-
-            Ok(Oid::from(oid))
-        }
-    }
-
-    impl reference::Reader for git2::Repository {
-        fn find_reference(
-            &self,
-            reference: &git::fmt::Namespaced,
-        ) -> Result<Option<Oid>, reference::error::FindReference> {
-            match self.refname_to_id(reference.as_str()) {
-                Ok(oid) => Ok(Some(Oid::from(oid))),
-                Err(e) if e.code() == git2::ErrorCode::NotFound => Ok(None),
-                Err(e) => Err(reference::error::FindReference::other(e)),
-            }
-        }
-    }
-
-    impl reference::Writer for git2::Repository {
-        fn write_reference(
-            &self,
-            reference: &git::fmt::Namespaced,
-            commit: Oid,
-            parent: Option<Oid>,
-            reflog: String,
-        ) -> Result<(), reference::error::WriteReference> {
-            let new = git2::Oid::from(commit);
-
-            match parent {
-                Some(parent) => {
-                    let old = git2::Oid::from(parent);
-                    // The old OID provides a guard, which gives us a compare-and-swap —
-                    // the write will fail if the ref has moved since we read it.
-                    self.reference_matching(reference.as_str(), new, true, old, &reflog)
-                        .map_err(reference::error::WriteReference::other)?;
-                }
-                None => {
-                    self.reference(reference.as_str(), new, false, &reflog)
-                        .map_err(reference::error::WriteReference::other)?;
-                }
-            }
-
-            Ok(())
-        }
     }
 }
