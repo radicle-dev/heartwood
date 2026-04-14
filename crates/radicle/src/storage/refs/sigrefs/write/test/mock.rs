@@ -10,12 +10,11 @@ use radicle_git_metadata::commit::trailers::OwnedTrailer;
 use radicle_oid::Oid;
 
 use crate::git;
-use crate::git::repository;
 use crate::git::repository::object;
+use crate::git::repository::reference;
 use crate::git::repository::types::{Blob, Commit, TreeEntry};
 use crate::identity::doc;
 use crate::storage::HasRepoId;
-use crate::storage::refs::sigrefs::git::reference;
 use crate::storage::refs::{REFS_BLOB_PATH, Refs, SIGNATURE_BLOB_PATH, SIGREFS_BRANCH};
 
 const MOCKED_IDENTITY: u8 = 99u8;
@@ -31,9 +30,9 @@ enum WriteTreeBehavior {
 struct WriteCommitBehavior(Oid);
 
 enum WriteReferenceBehavior {
-    /// [`reference::Writer::write_reference`] returns `Ok(())`.
+    /// [`RefWriter::write_ref`] returns `Ok(())`.
     Ok,
-    /// [`reference::Writer::write_reference`] returns `Err(…)`.
+    /// [`RefWriter::write_ref`] returns `Err(…)`.
     Error,
 }
 
@@ -243,33 +242,28 @@ impl object::Reader for MockRepository {
     }
 }
 
-impl repository::reference::Reader for MockRepository {
+impl reference::Reader for MockRepository {
     type References<'a> = std::iter::Empty<
-        Result<
-            (git::fmt::Qualified<'static>, Oid),
-            repository::reference::error::read::ListReference,
-        >,
+        Result<(git::fmt::Qualified<'static>, Oid), reference::error::read::ListReference>,
     >;
 
     fn ref_target<R: AsRef<git::fmt::RefStr>>(
         &self,
         name: &R,
-    ) -> Result<Option<Oid>, repository::reference::error::read::RefTarget> {
+    ) -> Result<Option<Oid>, reference::error::read::RefTarget> {
         match self.references.get(name.as_ref().as_str()) {
             Some(RefBehavior::Present(oid)) => Ok(Some(*oid)),
             Some(RefBehavior::Missing) | None => Ok(None),
-            Some(RefBehavior::Error) => {
-                Err(repository::reference::error::read::RefTarget::backend(
-                    std::io::Error::other("mock reference error"),
-                ))
-            }
+            Some(RefBehavior::Error) => Err(reference::error::read::RefTarget::backend(
+                std::io::Error::other("mock reference error"),
+            )),
         }
     }
 
     fn list_refs<'a, P: AsRef<git::fmt::refspec::PatternStr>>(
         &'a self,
         _pattern: &P,
-    ) -> Result<Self::References<'a>, repository::reference::error::read::ListRefs> {
+    ) -> Result<Self::References<'a>, reference::error::read::ListRefs> {
         unimplemented!("MockRepository::list_refs")
     }
 }
@@ -299,21 +293,27 @@ impl object::Writer for MockRepository {
 }
 
 impl reference::Writer for MockRepository {
-    fn write_reference(
+    fn write_ref<R: AsRef<git::fmt::RefStr>>(
         &self,
-        _reference: &git::fmt::Namespaced,
-        _commit: Oid,
-        _parent: Option<Oid>,
-        _reflog: String,
-    ) -> Result<(), reference::error::WriteReference> {
+        _name: &R,
+        _target: reference::Target,
+        _reflog: &str,
+    ) -> Result<(), reference::error::write::WriteRef> {
         match &self.write_reference {
             Some(WriteReferenceBehavior::Ok) => Ok(()),
             Some(WriteReferenceBehavior::Error) | None => {
-                Err(reference::error::WriteReference::other(
-                    std::io::Error::other("mock write_reference error"),
+                Err(reference::error::write::WriteRef::backend(
+                    std::io::Error::other("mock write_ref error"),
                 ))
             }
         }
+    }
+
+    fn delete_ref<R: AsRef<git::fmt::RefStr>>(
+        &self,
+        _name: &R,
+    ) -> Result<(), reference::error::write::DeleteRef> {
+        unimplemented!("MockRepository::delete_ref")
     }
 }
 
