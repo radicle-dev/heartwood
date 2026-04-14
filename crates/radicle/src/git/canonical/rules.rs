@@ -547,9 +547,7 @@ impl Rules {
         repo: &'r R,
     ) -> Option<Canonical<'b, 'a, 'r, R, canonical::Initial>>
     where
-        R: repository::Ancestry
-            + canonical::effects::FindMergeBase
-            + canonical::effects::FindObjects,
+        R: repository::Ancestry + canonical::effects::FindObjects,
     {
         self.matches(&refname)
             .next()

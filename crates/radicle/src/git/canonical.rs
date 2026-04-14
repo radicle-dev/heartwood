@@ -95,7 +95,7 @@ impl<'a, 'b, 'r, R> AsRef<Canonical<'a, 'b, 'r, R, ObjectsFound>>
 
 impl<'a, 'b, 'r, R> Canonical<'a, 'b, 'r, R, Initial>
 where
-    R: repository::Ancestry + effects::FindMergeBase + effects::FindObjects,
+    R: repository::Ancestry + effects::FindObjects,
 {
     /// Construct a new [`Canonical`] with the given [`Qualified`] reference, a
     /// canonical reference [`ValidRule`] for that reference, and the Git
@@ -140,7 +140,7 @@ where
 
 impl<'a, 'b, 'r, R> Canonical<'a, 'b, 'r, R, ObjectsFound>
 where
-    R: repository::Ancestry + effects::FindMergeBase + effects::FindObjects,
+    R: repository::Ancestry + effects::FindObjects,
 {
     /// Adds the check for convergence before finding the quorum.
     pub fn with_convergence(
@@ -161,7 +161,10 @@ where
         while let ControlFlow::Continue(pairs) = finder.find_merge_bases() {
             let mut bases = Vec::with_capacity(pairs.size_hint().0);
             for (a, b) in pairs {
-                bases.push(effects::FindMergeBase::merge_base(self.repo, a, b)?);
+                let base = repository::Ancestry::merge_base(self.repo, a, b)
+                    .map_err(|e| MergeBaseError::new(a, b, e))?
+                    .ok_or_else(|| MergeBaseError::no_common_ancestor(a, b))?;
+                bases.push(MergeBase { a, b, base });
             }
             finder.found_merge_bases(bases.into_iter());
         }
@@ -232,11 +235,7 @@ where
                 head: candidate,
             },
             (CommitQuorumFailure::NoMergeBase { a, b }, _) => {
-                #[derive(thiserror::Error, Debug)]
-                #[error("no existing merge base found for commit quorum")]
-                struct NoMergeBase;
-
-                effects::MergeBaseError::new(a, b, NoMergeBase).into()
+                MergeBaseError::no_merge_base(a, b).into()
             }
         }
     }
@@ -244,7 +243,7 @@ where
 
 impl<'a, 'b, 'r, R> CanonicalWithConvergence<'a, 'b, 'r, R>
 where
-    R: repository::Ancestry + effects::FindMergeBase + effects::FindObjects,
+    R: repository::Ancestry + effects::FindObjects,
 {
     /// Find the [`QuorumWithConvergence`] for the canonical computation.
     pub fn quorum(mut self) -> Result<QuorumWithConvergence<'a>, QuorumError> {

@@ -6,7 +6,7 @@ use crate::git::fmt::Qualified;
 use crate::git::raw::ErrorExt as _;
 use crate::prelude::Did;
 
-use super::{FoundObjects, MergeBase, Object};
+use super::{FoundObjects, Object};
 
 /// Find objects for the canonical computation.
 ///
@@ -113,54 +113,9 @@ pub struct MissingObject {
     source: Box<dyn std::error::Error + Send + Sync + 'static>,
 }
 
-/// Find the merge base of two commits.
-///
-/// Typically implemented by a Git repository.
-pub trait FindMergeBase {
-    /// Produce the [`MergeBase`] of commits `a` and `b`.
-    fn merge_base(&self, a: Oid, b: Oid) -> Result<MergeBase, MergeBaseError>;
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("failed to find merge base for {a} and {b} due to: {source}")]
-pub struct MergeBaseError {
-    a: Oid,
-    b: Oid,
-    source: Box<dyn std::error::Error + Send + Sync + 'static>,
-}
-
-impl MergeBaseError {
-    pub fn new<E>(a: Oid, b: Oid, source: E) -> Self
-    where
-        E: std::error::Error + Send + Sync + 'static,
-    {
-        Self {
-            a,
-            b,
-            source: Box::new(source),
-        }
-    }
-}
-
 // ===========================================
 // `git2` implementations of the above effects
 // ===========================================
-
-impl FindMergeBase for git::raw::Repository {
-    fn merge_base(&self, a: Oid, b: Oid) -> Result<MergeBase, MergeBaseError> {
-        self.merge_base(a.into(), b.into())
-            .map_err(|err| MergeBaseError {
-                a,
-                b,
-                source: Box::new(err),
-            })
-            .map(|base| MergeBase {
-                a,
-                b,
-                base: base.into(),
-            })
-    }
-}
 
 impl FindObjects for git::raw::Repository {
     fn find_objects<'a, 'b, I>(

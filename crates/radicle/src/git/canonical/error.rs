@@ -5,7 +5,47 @@ use crate::git::Oid;
 use crate::git::repository::ancestry;
 
 use super::{ObjectType, effects};
-pub use effects::{FindObjectsError, MergeBaseError};
+pub use effects::FindObjectsError;
+
+/// An error that occurred while computing a merge base.
+///
+/// Carries the two commit OIDs for context.
+#[derive(Debug, thiserror::Error)]
+#[error("failed to find merge base for {a} and {b}: {source}")]
+pub struct MergeBaseError {
+    a: Oid,
+    b: Oid,
+    source: Box<dyn std::error::Error + Send + Sync + 'static>,
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("no existing merge base found for commit quorum")]
+struct NoMergeBase;
+
+#[derive(thiserror::Error, Debug)]
+#[error("no common ancestor")]
+struct NoCommonAncestor;
+
+impl MergeBaseError {
+    pub fn new<E>(a: Oid, b: Oid, source: E) -> Self
+    where
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        Self {
+            a,
+            b,
+            source: Box::new(source),
+        }
+    }
+
+    pub(super) fn no_merge_base(a: Oid, b: Oid) -> Self {
+        Self::new(a, b, NoMergeBase)
+    }
+
+    pub(super) fn no_common_ancestor(a: Oid, b: Oid) -> Self {
+        Self::new(a, b, NoCommonAncestor)
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum QuorumError {
