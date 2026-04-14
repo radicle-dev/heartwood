@@ -237,8 +237,10 @@ fn is_broken_pipe(err: &anyhow::Error) -> bool {
 #[cfg(unix)]
 fn is_broken_pipe_panic(info: &std::panic::PanicHookInfo<'_>) -> bool {
     info.payload()
-        .downcast_ref::<String>()
-        .is_some_and(|msg| msg.contains("Broken pipe"))
+        .downcast_ref::<&'static str>()
+        .copied()
+        .or(info.payload().downcast_ref::<String>().map(|s| s.as_str()))
+        .is_some_and(|message| message.contains("Broken pipe"))
 }
 
 fn run_command(command: Command, ctx: impl term::Context) -> Result<(), anyhow::Error> {
