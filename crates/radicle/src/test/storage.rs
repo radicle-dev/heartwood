@@ -152,16 +152,29 @@ impl MockRepository {
     }
 }
 
-impl self::refs::sigrefs::git::reference::Reader for MockRepository {
-    fn find_reference(
-        &self,
-        reference: &git::fmt::Namespaced,
-    ) -> Result<Option<Oid>, refs::sigrefs::git::reference::error::FindReference> {
-        use refs::sigrefs::git::reference::error::FindReference;
-        let ns = reference.namespace();
+impl crate::git::repository::reference::Reader for MockRepository {
+    type References<'a> = std::iter::Empty<
+        Result<
+            (git::fmt::Qualified<'static>, Oid),
+            crate::git::repository::reference::error::read::ListReference,
+        >,
+    >;
 
-        let remote: PublicKey = ns.as_str().parse().map_err(FindReference::other)?;
-        let reference = reference.strip_namespace();
+    fn ref_target<R: AsRef<git::fmt::RefStr>>(
+        &self,
+        name: &R,
+    ) -> Result<Option<Oid>, crate::git::repository::reference::error::read::RefTarget> {
+        use crate::git::repository::reference::error::read::RefTarget;
+
+        let name = name.as_ref();
+        let namespaced = match name.to_namespaced() {
+            Some(ns) => ns,
+            None => return Ok(None),
+        };
+
+        let ns = namespaced.namespace();
+        let remote: PublicKey = ns.as_str().parse().map_err(RefTarget::backend)?;
+        let reference = namespaced.strip_namespace();
 
         match self.remotes.get(&remote) {
             None => Ok(None),
@@ -173,6 +186,14 @@ impl self::refs::sigrefs::git::reference::Reader for MockRepository {
                 }
             }
         }
+    }
+
+    fn list_refs<'a, P: AsRef<git::fmt::refspec::PatternStr>>(
+        &'a self,
+        _pattern: &P,
+    ) -> Result<Self::References<'a>, crate::git::repository::reference::error::read::ListRefs>
+    {
+        unimplemented!("MockRepository::list_refs")
     }
 }
 

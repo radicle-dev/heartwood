@@ -1,6 +1,7 @@
 use radicle_oid::Oid;
 use thiserror::Error;
 
+use crate::git::repository;
 use crate::storage::refs::sigrefs::git::{object, reference};
 
 // TODO: use commit NID (and RID?) for traceability
@@ -41,7 +42,7 @@ pub enum Tree {
 #[error(transparent)]
 pub enum Head {
     #[error(transparent)]
-    Reference(reference::error::FindReference),
+    Reference(repository::reference::error::read::RefTarget),
     #[error(transparent)]
     Commit(super::read::error::Commit),
     #[error("failed to verify commit {commit}: {source}")]

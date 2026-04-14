@@ -73,7 +73,10 @@ pub struct SignedRefsWriter<'a, R, S> {
 
 impl<'a, R, S> SignedRefsWriter<'a, R, S>
 where
-    R: object::Writer + repository::object::Reader + reference::Writer + reference::Reader,
+    R: object::Writer
+        + repository::object::Reader
+        + reference::Writer
+        + repository::reference::Reader,
     S: Signer<crypto::Signature>,
     S: signature::Verifier<crypto::Signature>,
 {
@@ -378,7 +381,7 @@ struct HeadReader<'a, 'b, 'c, R, V> {
 
 impl<'a, 'b, 'c, R, V> HeadReader<'a, 'b, 'c, R, V>
 where
-    R: repository::object::Reader + reference::Reader,
+    R: repository::object::Reader + repository::reference::Reader,
     V: signature::Verifier<crypto::Signature>,
 {
     /// Construct a [`HeadReader`] with the `reference` that is being read from
@@ -406,7 +409,7 @@ where
     fn read(self) -> Result<Option<Head>, error::Head> {
         let Some(oid) = self
             .repository
-            .find_reference(self.reference)
+            .ref_target(self.reference)
             .map_err(error::Head::Reference)?
         else {
             return Ok(None);

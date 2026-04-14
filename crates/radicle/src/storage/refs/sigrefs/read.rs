@@ -16,9 +16,8 @@ use radicle_git_metadata::commit::CommitData;
 use radicle_oid::Oid;
 
 use crate::git;
-use crate::git::repository::object;
+use crate::git::repository::{object, reference};
 use crate::identity::doc;
-use crate::storage::refs::sigrefs::git::reference;
 use crate::storage::refs::{
     FeatureLevel, IDENTITY_ROOT, REFS_BLOB_PATH, Refs, SIGNATURE_BLOB_PATH, SIGREFS_BRANCH,
     SignedRefs,
@@ -305,7 +304,7 @@ where
                     SIGREFS_BRANCH.with_namespace(git::fmt::Component::from(&namespace));
                 let head = self
                     .repository
-                    .find_reference(&reference)
+                    .ref_target(&reference)
                     .map_err(error::Read::FindReference)?
                     .ok_or_else(|| error::Read::MissingSigrefs { namespace })?;
                 Ok(head)
