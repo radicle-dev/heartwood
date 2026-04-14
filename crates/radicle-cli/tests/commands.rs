@@ -27,6 +27,7 @@ mod commands {
     mod patch;
     mod policy;
     mod remote;
+    #[cfg(unix)]
     mod sigpipe;
     mod sync;
     mod utility;
