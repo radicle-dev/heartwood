@@ -213,6 +213,13 @@ impl object::Reader for MockRepository {
     fn exists(&self, _oid: Oid) -> Result<bool, object::error::read::Exists> {
         unimplemented!("MockRepository::exists")
     }
+
+    fn object_kind(
+        &self,
+        _oid: Oid,
+    ) -> Result<Option<crate::git::repository::ObjectKind>, object::error::read::ObjectKind> {
+        unimplemented!("MockRepository::object_kind")
+    }
 }
 
 impl reference::Reader for MockRepository {

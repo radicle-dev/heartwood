@@ -10,7 +10,7 @@ use std::path::Path;
 
 use radicle_oid::Oid;
 
-use super::types::{Blob, Commit, TreeEntry};
+use super::types::{Blob, Commit, ObjectKind, TreeEntry};
 
 /// A handle for reading Git objects from the Git object database.
 pub trait Reader {
@@ -129,6 +129,17 @@ pub trait Reader {
     ///
     /// [`Backend`]: error::read::Exists::Backend
     fn exists(&self, oid: Oid) -> Result<bool, error::read::Exists>;
+
+    /// Determine the kind of an object without reading its full content.
+    ///
+    /// Returns `None` if the object does not exist.
+    ///
+    /// # Errors
+    ///
+    /// - [`Backend`]: An unexpected error from the underlying git library.
+    ///
+    /// [`Backend`]: error::read::ObjectKind::Backend
+    fn object_kind(&self, oid: Oid) -> Result<Option<ObjectKind>, error::read::ObjectKind>;
 }
 
 /// Write Git objects to the Git object database.

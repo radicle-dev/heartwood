@@ -1089,6 +1089,13 @@ impl object::Reader for Repository {
     fn exists(&self, oid: Oid) -> Result<bool, object::error::read::Exists> {
         object::Reader::exists(&self.backend, oid)
     }
+
+    fn object_kind(
+        &self,
+        oid: Oid,
+    ) -> Result<Option<git::repository::ObjectKind>, object::error::read::ObjectKind> {
+        object::Reader::object_kind(&self.backend, oid)
+    }
 }
 
 impl object::Writer for Repository {

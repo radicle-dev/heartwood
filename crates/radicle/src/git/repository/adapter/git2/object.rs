@@ -60,6 +60,15 @@ impl object::Reader for raw::Repository {
             .map(|odb| odb.exists(oid.into()))
             .map_err(read::Exists::backend)
     }
+
+    fn object_kind(&self, oid: Oid) -> Result<Option<ObjectKind>, read::ObjectKind> {
+        let odb = self.odb().map_err(read::ObjectKind::backend)?;
+        match odb.read(oid.into()) {
+            Ok(obj) => Ok(Some(object_kind(obj.kind()))),
+            Err(e) if matches!(e.code(), git2::ErrorCode::NotFound) => Ok(None),
+            Err(e) => Err(read::ObjectKind::backend(e)),
+        }
+    }
 }
 
 impl object::Writer for raw::Repository {
