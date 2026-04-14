@@ -156,14 +156,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             ..
         } => {
             let repo = storage.repository(repo)?;
-            if let Err(e) = show(objects, &repo, type_name.into(), &profile) {
-                if let Some(err) = e.downcast_ref::<std::io::Error>() {
-                    if err.kind() == std::io::ErrorKind::BrokenPipe {
-                        return Ok(());
-                    }
-                }
-                return Err(e);
-            }
+            show(objects, &repo, type_name.into(), &profile)?;
         }
         Update(args::Update {
             repo,
