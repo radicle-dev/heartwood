@@ -201,11 +201,11 @@ impl TryFrom<IndexMap<Name, Target>> for SymbolicRefs {
     type Error = InsertionError;
 
     fn try_from(map: IndexMap<Name, Target>) -> Result<Self, Self::Error> {
-        let mut result = Self::default();
-        for (name, target) in map.iter() {
-            result.try_insert_unprotected(name.clone(), target.clone())?;
-        }
-        Ok(result)
+        map.into_iter()
+            .try_fold(Self::default(), |mut result, (name, target)| {
+                result.try_insert_unprotected(name, target)?;
+                Ok(result)
+            })
     }
 }
 
