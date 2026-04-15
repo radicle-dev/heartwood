@@ -393,7 +393,7 @@ impl From<Did> for Allowed {
 impl std::fmt::Display for Allowed {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Allowed::Delegates => f.write_str("\"allowed\""),
+            Allowed::Delegates => f.write_str("\"delegates\""),
             Allowed::Set(dids) => {
                 let dids = dids
                     .iter()
