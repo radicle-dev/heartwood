@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 set -e
 
-HOOK_NAME=$(basename "$0")
+readonly HOOK_NAME=$(basename "$0")
 
 if ! [[ "$HOOK_NAME" =~ ^(pre-(commit|push)|post-checkout)$ ]]
 then
@@ -9,8 +9,8 @@ then
     exit 1
 fi
 
-SENSITIVE_FILES=("justfile" "build.rs" "rust-toolchain.toml")
-BASE_BRANCH="master"
+readonly SENSITIVE_FILES=("justfile" "build.rs" "rust-toolchain.toml")
+readonly BASE_BRANCH="master"
 
 # Check which files were modified compared to the base branch.
 mapfile -t CHANGED_FILES < <(comm -12 \
