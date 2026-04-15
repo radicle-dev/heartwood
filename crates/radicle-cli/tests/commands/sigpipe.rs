@@ -154,3 +154,32 @@ fn rad_self() {
         "rad panicked on broken pipe.\nstderr:\n{stderr}"
     );
 }
+
+#[test]
+fn test_panic_broken_pipe_handled_cleanly() {
+    let rad = env!("CARGO_BIN_EXE_rad");
+
+    // Test with a `String` payload
+    let output_string = Command::new(rad)
+        .env("RAD_DEBUG_PANIC_BROKEN_PIPE", "string")
+        .output()
+        .expect("failed to run rad");
+
+    assert_eq!(
+        output_string.status.code(),
+        Some(0),
+        "rad should exit with 0 when panicking with a Broken pipe String payload"
+    );
+
+    // Test with a `&str` payload
+    let output_str = Command::new(rad)
+        .env("RAD_DEBUG_PANIC_BROKEN_PIPE", "str")
+        .output()
+        .expect("failed to run rad");
+
+    assert_eq!(
+        output_str.status.code(),
+        Some(0),
+        "rad should exit with 0 when panicking with a Broken pipe &str payload"
+    );
+}

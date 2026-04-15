@@ -137,6 +137,9 @@ fn main() {
         }));
     }
 
+    #[cfg(all(unix, debug_assertions))]
+    broken_pipe_panic_simulator();
+
     if let Some(lvl) = radicle::logger::env_level() {
         let logger = Box::new(radicle::logger::Logger::new(lvl));
         log::set_boxed_logger(logger).expect("no other logger should have been set already");
@@ -147,6 +150,31 @@ fn main() {
     }
     let CliArgs { command } = CliArgs::parse();
     run(command, term::DefaultContext)
+}
+
+/// Simulate a panic caused by a broken pipe for testing purposes.
+///
+/// Testing the broken pipe panic handler directly in a unit test is difficult
+/// because `handle_broken_pipe` calls `std::process::exit(0)`, which would
+/// immediately terminate the test runner. Furthermore, we cannot easily
+/// construct a `std::panic::PanicHookInfo` manually.
+///
+/// Instead, we spawn the `rad` binary with a hidden environment variable
+/// (`RAD_DEBUG_PANIC_BROKEN_PIPE`). This function intercepts that variable
+/// and triggers a panic with the payloads `String` and `&str` that the
+/// standard library produces when `println!` or `print!` fails due to
+/// a closed standard output.
+///
+/// See: <https://github.com/rust-lang/rust/issues/62569>
+#[cfg(all(unix, debug_assertions))]
+fn broken_pipe_panic_simulator() {
+    if let Ok(val) = std::env::var("RAD_DEBUG_PANIC_BROKEN_PIPE") {
+        match val.as_str() {
+            "string" => std::panic::panic_any("failed printing to stdout: Broken pipe".to_string()),
+            "str" => std::panic::panic_any("failed printing to stdout: Broken pipe"),
+            _ => {}
+        }
+    }
 }
 
 fn write_version(as_json: bool) -> anyhow::Result<()> {
