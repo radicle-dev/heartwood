@@ -184,12 +184,6 @@ impl SymbolicRefs {
     }
 }
 
-#[derive(Debug, Error)]
-#[error("symbolic reference '{name}' is cyclic")]
-pub struct Cyclic {
-    name: RawName,
-}
-
 impl TryFrom<IndexMap<Name, Target>> for SymbolicRefs {
     type Error = InsertionError;
 
