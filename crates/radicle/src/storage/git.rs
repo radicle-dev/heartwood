@@ -943,14 +943,21 @@ impl WriteRepository for Repository {
         message: &str,
     ) -> Result<(), RepositoryError> {
         match self.raw().find_reference(name.as_str()) {
-            Ok(mut head_ref) => {
-                if head_ref
-                    .symbolic_target()
-                    .is_some_and(|t| t != target.as_str())
-                {
-                    head_ref.symbolic_set_target(target.as_str(), message)?;
+            Ok(mut existing) => match existing.symbolic_target() {
+                Some(current) if current == target.as_str() => {
+                    // Already points to the correct target, nothing to do.
                 }
-            }
+                Some(_) => {
+                    // Symbolic ref pointing to a different target, update it.
+                    existing.symbolic_set_target(target.as_str(), message)?;
+                }
+                None => {
+                    // A direct (non-symbolic) ref exists where we expect a
+                    // symbolic one. Overwrite it with force.
+                    self.raw()
+                        .reference_symbolic(name.as_str(), target.as_str(), true, message)?;
+                }
+            },
             Err(err) if err.is_not_found() => {
                 self.raw()
                     .reference_symbolic(name.as_str(), target.as_str(), true, message)?;
