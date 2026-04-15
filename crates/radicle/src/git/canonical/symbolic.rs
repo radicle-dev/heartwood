@@ -368,6 +368,23 @@ mod test {
         );
     }
 
+    /// Verifies that resolution works correctly for chains with 2 links
+    /// (even-length), e.g. `HEAD → MAIN → refs/heads/master`.
+    #[test]
+    fn resolve_two_hop_chain() {
+        let symrefs = serde_json::from_value::<SymbolicRefs>(serde_json::json!({
+            "MAIN": "refs/heads/master",
+            "HEAD": "MAIN",
+        }))
+        .unwrap();
+
+        // HEAD → MAIN → refs/heads/master should resolve to refs/heads/master
+        assert_eq!(
+            symrefs.resolve_head().map(|r| r.as_str()),
+            Some("refs/heads/master"),
+        );
+    }
+
     /// Motivates why we cannot simply delegate to [`BTreeMap::extend`]
     /// for combining [`SymbolicRefs`].
     #[test]
