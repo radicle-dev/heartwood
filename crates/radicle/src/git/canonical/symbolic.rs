@@ -119,10 +119,18 @@ pub enum InsertionError {
 /// Mutability.
 impl SymbolicRefs {
     /// Insert a symbolic reference.
-    /// Even though this method will never return [`InsertionError::Protected`]
-    /// we opt to return that (slightly more general) error, as it allows
-    /// construction of [`InsertionError::Cyclic`] by consuming `name` and
-    /// `target`, avoiding an early copy in [`Self::try_insert`].
+    ///
+    /// # Errors
+    ///
+    /// The `target` reference must either:
+    /// - Be a direct [`Qualified`] reference, or
+    /// - Resolve to a direct [`Qualified`] reference, if it is a keyed entry in [`SymbolicRefs`].
+    ///
+    /// If neither of these is satisfied then an
+    /// [`InsertionError::TargetNotQualified`] error is returned.
+    ///
+    /// If the `name` and `target` end up in a cycle, e.g., `a → b → a`, then an
+    /// [`InsertionError::Cyclic`] error is returned.
     pub(super) fn try_insert_unprotected(
         &mut self,
         name: Name,
