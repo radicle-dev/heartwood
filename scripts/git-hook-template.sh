@@ -32,7 +32,7 @@ then
     read -r -p "⚠️ Do you want to continue executing the '${HOOK}' hook? [y/N] " response
     case "$response" in
         [yY][eE][sS]|[yY])
-            echo "Continuing with '${HOOK}' hook..."
+            echo "Continuing with '${HOOK}' hook…"
             ;;
         *)
             echo "Skipping '${HOOK}' hook."
