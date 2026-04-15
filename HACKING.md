@@ -31,7 +31,7 @@ The repository is structured in *crates*, as follows:
 
 ## Task runner
 
-We use [`just`](https://just.systems/) to manage project tasks such as linting, formatting, and installing git hooks. To see a list of all available commands, run:
+We use [`just >= v1.49.0`](https://just.systems/) to manage project tasks such as linting, formatting, and installing git hooks. To see a list of all available commands, run:
 
     $ just
 
