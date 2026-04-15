@@ -363,6 +363,7 @@
           cargo-nextest
           cargo-semver-checks
           codespell
+          just
           ripgrep
           sqlite
         ];
