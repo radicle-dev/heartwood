@@ -40,8 +40,8 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let debug = args.verbose;
 
     match args.command {
-        Some(Command::Status { rid, sort_by }) => {
-            let rid = match rid {
+        Some(Command::Status { repo, sort_by }) => {
+            let rid = match repo {
                 Some(rid) => rid,
                 None => {
                     let (_, rid) = radicle::rad::cwd()
@@ -53,11 +53,11 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         None => match SyncMode::from(args.sync) {
             SyncMode::Repo {
-                rid,
+                repo,
                 settings,
                 direction,
             } => {
-                let rid = match rid {
+                let rid = match repo {
                     Some(rid) => rid,
                     None => {
                         let (_, rid) = radicle::rad::cwd()

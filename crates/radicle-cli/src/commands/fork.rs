@@ -14,7 +14,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let signer = profile.signer()?;
     let storage = &profile.storage;
 
-    let rid = match args.rid {
+    let rid = match args.repo {
         Some(rid) => rid,
         None => {
             let (_, rid) = rad::cwd().context("Current directory is not a Radicle repository")?;

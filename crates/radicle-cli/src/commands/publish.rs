@@ -13,7 +13,7 @@ pub use args::Args;
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let rid = match args.rid {
+    let rid = match args.repo {
         Some(rid) => rid,
         None => radicle::rad::cwd()
             .map(|(_, rid)| rid)

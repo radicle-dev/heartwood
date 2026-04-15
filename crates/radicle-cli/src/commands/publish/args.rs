@@ -21,7 +21,7 @@ pub struct Args {
     ///
     /// [example values: rad:z3Tr6bC7ctEg2EHmLvknUr29mEDLH, z3Tr6bC7ctEg2EHmLvknUr29mEDLH]
     #[arg(value_name = "RID")]
-    pub(super) rid: Option<RepoId>,
+    pub(super) repo: Option<RepoId>,
 }
 
 #[cfg(test)]

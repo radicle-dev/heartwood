@@ -107,7 +107,8 @@ pub(super) struct SyncArgs {
     timeout: std::time::Duration,
 
     /// The repository to perform the synchronizing for [default: cwd]
-    rid: Option<RepoId>,
+    #[arg(value_name = "RID")]
+    repo: Option<RepoId>,
 
     /// Synchronize with a specific number of seeds
     ///
@@ -178,7 +179,8 @@ pub(super) enum Command {
     #[clap(alias = "s")]
     Status {
         /// The repository to display the status for [default: cwd]
-        rid: Option<RepoId>,
+        #[arg(value_name = "RID")]
+        repo: Option<RepoId>,
         /// Sort the table by column
         #[arg(long, value_name = "FIELD", value_enum, default_value_t)]
         sort_by: SortBy,
@@ -216,7 +218,7 @@ pub(super) enum SyncMode {
     /// Fetch and/or announce a repositories references
     Repo {
         /// The repository being synchronized
-        rid: Option<RepoId>,
+        repo: Option<RepoId>,
         /// The settings for fetch/announce
         settings: SyncSettings,
         /// The direction of the synchronization
@@ -244,7 +246,7 @@ impl From<SyncArgs> for SyncMode {
                 settings.seeds = args.seeds.into_iter().collect();
             }
             Self::Repo {
-                rid: args.rid,
+                repo: args.repo,
                 settings,
                 direction,
             }

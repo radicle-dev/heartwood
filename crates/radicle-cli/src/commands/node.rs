@@ -72,7 +72,11 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
 
             events::run(node, count, timeout)?;
         }
-        Command::Routing { rid, nid, json } => {
+        Command::Routing {
+            repo: rid,
+            nid,
+            json,
+        } => {
             let store = profile.database()?;
             routing::run(&store, rid, nid, json)?;
         }
