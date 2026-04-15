@@ -2,6 +2,13 @@
 set -e
 
 HOOK_NAME=$(basename "$0")
+
+if ! [[ "$HOOK_NAME" =~ ^(pre-(commit|push)|post-checkout)$ ]]
+then
+    echo "Unknown hook '${HOOK_NAME}'."
+    exit 1
+fi
+
 SENSITIVE_FILES=("justfile" "build.rs" "rust-toolchain.toml")
 BASE_BRANCH="master"
 
@@ -34,11 +41,4 @@ if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
 fi
 
 # Execute the appropriate just recipe based on the hook name.
-case "$HOOK_NAME" in
-    pre-commit | pre-push | post-checkout)
-        just "$HOOK_NAME"
-        ;;
-    *)
-        echo "⚠️ Unknown hook: $HOOK_NAME"
-        exit 1
-esac
+just "$HOOK_NAME"
