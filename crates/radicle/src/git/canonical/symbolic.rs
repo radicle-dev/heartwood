@@ -40,6 +40,19 @@ pub(super) type Target = Unprotected<RefString>;
 
 /// Maintains a cycle-free set of symbolic references.
 /// Note that dangling references are not detected.
+///
+/// # Deserialization Order
+///
+/// Deserialization validates entries in iteration (insertion) order via
+/// [`TryFrom<IndexMap>`]. This means the validity of a JSON object depends
+/// on its key order: a symbolic reference whose target is another symbolic
+/// reference must appear *after* that target in the JSON. For example,
+/// `{"MAIN": "refs/heads/master", "HEAD": "MAIN"}` is valid, but
+/// `{"HEAD": "MAIN", "MAIN": "refs/heads/master"}` is not.
+///
+/// While JSON objects are nominally unordered (RFC 8259 §4), `serde_json`
+/// with `IndexMap` preserves insertion order. Any serializer producing
+/// this JSON must preserve key order for valid round-tripping.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "IndexMap<Name, Target>")]
 pub struct SymbolicRefs(IndexMap<Name, Target>);
