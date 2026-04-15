@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 set -euo pipefail
 
-readonly HOOK_NAME=$(basename "$0")
+readonly HOOK_NAME="$(basename "$0")"
 
 if ! [[ "$HOOK_NAME" =~ ^(pre-(commit|push)|post-checkout)$ ]]
 then
