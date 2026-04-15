@@ -201,18 +201,6 @@ mod reachability {
         fn get(&'a self, key: &'b K) -> Option<&'a V>;
     }
 
-    impl<'a, 'b, K: Ord, V> Get<'a, 'b, K, V> for std::collections::BTreeMap<K, V> {
-        fn get(&'a self, key: &'b K) -> Option<&'a V> {
-            std::collections::BTreeMap::get(self, key)
-        }
-    }
-
-    impl<'a, 'b, K: Eq + std::hash::Hash, V> Get<'a, 'b, K, V> for std::collections::HashMap<K, V> {
-        fn get(&'a self, key: &'b K) -> Option<&'a V> {
-            std::collections::HashMap::get(self, key)
-        }
-    }
-
     impl<'a, 'b, K: Eq + std::hash::Hash, V> Get<'a, 'b, K, V> for indexmap::IndexMap<K, V> {
         fn get(&'a self, key: &'b K) -> Option<&'a V> {
             indexmap::IndexMap::get(self, key)
