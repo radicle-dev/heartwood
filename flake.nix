@@ -362,6 +362,7 @@
           cargo-watch
           cargo-nextest
           cargo-semver-checks
+          codespell
           ripgrep
           sqlite
         ];
