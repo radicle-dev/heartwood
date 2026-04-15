@@ -18,7 +18,8 @@ mapfile -t CHANGED_FILES < <(comm -12 \
     <(IFS=$'\n'; echo "${SENSITIVE_FILES[*]}" | sort) \
 )
 
-if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
+if [ ${#CHANGED_FILES[@]} -gt 0 ]
+then
     echo "⚠️ WARNING: Sensitive files have been modified relative to $BASE_BRANCH."
     echo "Executing this hook may run arbitrary code from the modified files."
     echo ""
