@@ -148,10 +148,11 @@ verify-tool tool package_name="":
 #
 # Install git hooks
 [group('hooks')]
-[confirm("Overwrite existing hooks '" + hooks + "'?")]
 install-hooks:
     #!/usr/bin/env bash
     set -e
+    read -p "Overwrite existing hooks '{{hooks}}'? [y/N] " confirm
+    [[ "$confirm" == "y" ]] || exit 1
     for hook in {{hooks}}; do
         if [ -f ".git/hooks/$hook" ]; then
           rm ".git/hooks/$hook"
