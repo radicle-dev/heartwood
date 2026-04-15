@@ -6,19 +6,19 @@ pub mod rm;
 
 mod args;
 
-use anyhow::anyhow;
-
 use radicle::storage::ReadStorage;
 
-use crate::terminal as term;
 use crate::terminal::Context;
+use crate::terminal::{self as term, args::rid_or_cwd};
 
 pub use args::Args;
 use args::{Command, ListOption};
 
 pub fn run(args: Args, ctx: impl Context) -> anyhow::Result<()> {
-    let (working, rid) = radicle::rad::cwd()
-        .map_err(|_| anyhow!("this command must be run in the context of a repository"))?;
+    let (Some(working), rid) = rid_or_cwd(None)? else {
+        anyhow::bail!("this command must be run in the context of a repository");
+    };
+
     let profile = ctx.profile()?;
     let command = args
         .command

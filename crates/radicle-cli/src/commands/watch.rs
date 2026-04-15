@@ -2,7 +2,7 @@ mod args;
 
 use std::{thread, time};
 
-use anyhow::{Context as _, anyhow};
+use anyhow::anyhow;
 
 use radicle::git;
 use radicle::git::raw::ErrorExt as _;
@@ -10,6 +10,7 @@ use radicle::prelude::NodeId;
 use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::terminal as term;
+use crate::terminal::args::rid_or_cwd;
 
 pub use args::Args;
 
@@ -21,14 +22,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         .qualified()
         .ok_or_else(|| anyhow!("reference must be fully-qualified, eg. 'refs/heads/master'"))?;
     let nid = args.node.unwrap_or(profile.public_key);
-    let rid = match args.repo {
-        Some(rid) => rid,
-        None => {
-            let (_, rid) =
-                radicle::rad::cwd().context("Current directory is not a Radicle repository")?;
-            rid
-        }
-    };
+    let (_, rid) = rid_or_cwd(args.repo)?;
     let repo = storage.repository(rid)?;
     let now = time::SystemTime::now();
     let timeout = args.timeout();

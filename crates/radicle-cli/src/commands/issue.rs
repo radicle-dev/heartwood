@@ -26,7 +26,7 @@ use crate::git::Rev;
 use crate::node;
 use crate::terminal as term;
 use crate::terminal::Element;
-use crate::terminal::args::Error;
+use crate::terminal::args::{Error, rid_or_cwd};
 use crate::terminal::format::Author;
 use crate::terminal::issue::Format;
 
@@ -34,11 +34,7 @@ const ABOUT: &str = "Manage issues";
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let rid = match args.repo {
-        Some(rid) => rid,
-        None => radicle::rad::cwd().map(|(_, rid)| rid)?,
-    };
-
+    let (_, rid) = rid_or_cwd(args.repo)?;
     let repo = profile.storage.repository_mut(rid)?;
 
     // Fallback to [`Command::List`] if no subcommand is provided.

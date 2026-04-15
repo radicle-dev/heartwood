@@ -105,6 +105,34 @@ impl TypedValueParser for ScopeParser {
     }
 }
 
+/// A wrapper around [`radicle::rad::cwd`] that should be preferred over direct
+/// calls in this crate.
+///
+/// If the given [`Option<RepoId>`] is `Some`, it is returned as is.
+/// No attempt is made to detect whether the current working directory is
+/// a Radicle repository (therefore it is also not checked whether the given
+/// [`RepoId`] matches the [`RepoId`] associated with the current working
+/// directory), and the returned repository is `None`.
+///
+/// Otherwise, i.e, if the given [`Option<RepoId>`] is `None`, an attempt is
+/// made to detect the the [`RepoId`] associated with the current working
+/// directory, by callind [`radicle::rad::cwd`]. If this detection fails,
+/// an error with context is returned.
+pub(crate) fn rid_or_cwd(
+    rid: Option<RepoId>,
+) -> anyhow::Result<(Option<radicle::git::raw::Repository>, RepoId)> {
+    match rid {
+        Some(rid) => Ok((None, rid)),
+        None => {
+            use anyhow::Context as _;
+
+            let (repository, rid) =
+                radicle::rad::cwd().context("Current directory is not a Radicle repository")?;
+            Ok((Some(repository), rid))
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::str::FromStr;

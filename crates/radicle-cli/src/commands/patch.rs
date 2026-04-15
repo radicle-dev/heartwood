@@ -30,6 +30,7 @@ use radicle::{Node, prelude::*};
 use crate::git::Rev;
 use crate::node;
 use crate::terminal as term;
+use crate::terminal::args::rid_or_cwd;
 use crate::terminal::patch::Message;
 
 pub use args::Args;
@@ -37,14 +38,7 @@ pub use args::Args;
 use args::{AssignArgs, Command, CommentAction, LabelArgs};
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
-    let (workdir, rid) = if let Some(rid) = args.repo {
-        (None, rid)
-    } else {
-        radicle::rad::cwd()
-            .map(|(workdir, rid)| (Some(workdir), rid))
-            .map_err(|_| anyhow!("this command must be run in the context of a repository"))?
-    };
-
+    let (workdir, rid) = rid_or_cwd(args.repo)?;
     let profile = ctx.profile()?;
     let repository = profile.storage.repository(rid)?;
 

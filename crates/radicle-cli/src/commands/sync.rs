@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::time;
 
-use anyhow::{Context as _, anyhow};
+use anyhow::anyhow;
 
 use radicle::node;
 use radicle::node::SyncedAt;
@@ -22,6 +22,7 @@ use radicle_term::Element;
 use crate::node::SyncReporting;
 use crate::node::SyncSettings;
 use crate::terminal as term;
+use crate::terminal::args::rid_or_cwd;
 use crate::terminal::format::Author;
 use crate::terminal::{Table, TableOptions};
 
@@ -41,14 +42,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
 
     match args.command {
         Some(Command::Status { repo, sort_by }) => {
-            let rid = match repo {
-                Some(rid) => rid,
-                None => {
-                    let (_, rid) = radicle::rad::cwd()
-                        .context("Current directory is not a Radicle repository")?;
-                    rid
-                }
-            };
+            let (_, rid) = rid_or_cwd(repo)?;
             sync_status(rid, &mut node, &profile, &sort_by, verbose)?;
         }
         None => match SyncMode::from(args.sync) {
@@ -57,14 +51,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 settings,
                 direction,
             } => {
-                let rid = match repo {
-                    Some(rid) => rid,
-                    None => {
-                        let (_, rid) = radicle::rad::cwd()
-                            .context("Current directory is not a Radicle repository")?;
-                        rid
-                    }
-                };
+                let (_, rid) = rid_or_cwd(repo)?;
                 let settings = settings.clone().with_profile(&profile);
 
                 if matches!(direction, SyncDirection::Fetch | SyncDirection::Both) {

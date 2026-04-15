@@ -1,6 +1,6 @@
 mod args;
 
-use anyhow::{Context as _, anyhow};
+use anyhow::anyhow;
 
 use radicle::cob;
 use radicle::identity::{Identity, Visibility};
@@ -8,17 +8,13 @@ use radicle::node::Handle as _;
 use radicle::storage::{SignRepository, ValidateRepository, WriteRepository, WriteStorage};
 
 use crate::terminal as term;
+use crate::terminal::args::rid_or_cwd;
 
 pub use args::Args;
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let rid = match args.repo {
-        Some(rid) => rid,
-        None => radicle::rad::cwd()
-            .map(|(_, rid)| rid)
-            .context("Current directory is not a Radicle repository")?,
-    };
+    let (_, rid) = rid_or_cwd(args.repo)?;
 
     let repo = profile.storage.repository_mut(rid)?;
     let signer = profile.signer()?;

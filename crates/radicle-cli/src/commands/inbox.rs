@@ -5,8 +5,6 @@ pub use args::Args;
 use std::path::Path;
 use std::process;
 
-use anyhow::anyhow;
-
 use localtime::LocalTime;
 use radicle::cob::TypedId;
 use radicle::git::BranchName;
@@ -23,6 +21,7 @@ use radicle::{Storage, cob, git};
 use term::Element as _;
 
 use crate::terminal as term;
+use crate::terminal::args::rid_or_cwd;
 use args::{ClearMode, Command, ListMode, SortBy};
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
@@ -391,11 +390,8 @@ fn clear(notifs: &mut notifications::StoreWriter, mode: ClearMode) -> anyhow::Re
         ClearMode::ByRepo(rid) => notifs.clear_by_repo(&rid)?,
         ClearMode::All => notifs.clear_all()?,
         ClearMode::Contextual => {
-            if let Ok((_, rid)) = radicle::rad::cwd() {
-                notifs.clear_by_repo(&rid)?
-            } else {
-                return Err(anyhow!("not a radicle repository"));
-            }
+            let (_, rid) = rid_or_cwd(None)?;
+            notifs.clear_by_repo(&rid)?
         }
     };
     if cleared > 0 {

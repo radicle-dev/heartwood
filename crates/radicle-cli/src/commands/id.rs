@@ -17,7 +17,7 @@ use radicle_term::Element;
 use crate::git::Rev;
 use crate::git::unified_diff::Encode as _;
 use crate::terminal as term;
-use crate::terminal::args::Error;
+use crate::terminal::args::{Error, rid_or_cwd};
 use crate::terminal::format::Author;
 use crate::terminal::patch::Message;
 
@@ -27,12 +27,7 @@ use args::Command;
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
-    let rid = if let Some(rid) = args.repo {
-        rid
-    } else {
-        let (_, rid) = radicle::rad::cwd()?;
-        rid
-    };
+    let (_, rid) = rid_or_cwd(args.repo)?;
     let repo = storage
         .repository(rid)
         .context(anyhow!("repository `{rid}` not found in local storage"))?;
