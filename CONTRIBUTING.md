@@ -37,7 +37,7 @@ Patch formatting follows the same rules as commit formatting. See below.
 
 ### Git hooks & Task runner
 
-We use [`just`](https://just.systems/) as our task runner. You can see all available commands by running `just` or `just --list` in the repository root.
+We use [`just >= v1.49.0`](https://just.systems/) as our task runner. You can see all available commands by running `just` or `just --list` in the repository root.
 
 If you are not using Nix (which sets up hooks automatically), you should install the local git hooks:
 
