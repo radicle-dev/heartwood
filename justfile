@@ -65,7 +65,7 @@ check-typos: (verify-tool "typos" "typos-cli")
 [parallel]
 check-spelling: (verify-tool "codespell")
     @echo "{{CHECK}}Checking for code typos...{{NORMAL}}"
-    @git ls-files -z | xargs -0 codespell -w
+    @git ls-files -z | xargs -0 codespell --write-changes --check-filenames
 
 # Run shellcheck on all shell scripts
 [group('pre-commit')]
