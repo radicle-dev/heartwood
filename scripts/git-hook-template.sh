@@ -33,14 +33,12 @@ if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
     esac
 fi
 
-# Execute the appropriate just recipe based on the hook name
-if [ "$HOOK_NAME" = "pre-commit" ]; then
-    just pre-commit
-elif [ "$HOOK_NAME" = "pre-push" ]; then
-    just pre-push
-elif [ "$HOOK_NAME" = "post-checkout" ]; then
-    just post-checkout
-else
-    echo "⚠️ Unknown hook: $HOOK_NAME"
-    exit 1
-fi
+# Execute the appropriate just recipe based on the hook name.
+case "$HOOK_NAME" in
+    pre-commit | pre-push | post-checkout)
+        just "$HOOK_NAME"
+        ;;
+    *)
+        echo "⚠️ Unknown hook: $HOOK_NAME"
+        exit 1
+esac
