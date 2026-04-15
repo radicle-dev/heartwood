@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#! /usr/bin/env bash
 set -e
 
 HOOK_NAME=$(basename "$0")

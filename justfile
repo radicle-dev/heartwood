@@ -82,7 +82,7 @@ check-scripts: (verify-tool "shellcheck")
 [group('check')]
 [parallel]
 check-keywords: (verify-tool "rg" "ripgrep")
-    #!/usr/bin/env bash
+    #! /usr/bin/env bash
     set -e
     echo "{{CHECK}}Checking for forbidden words in staged files...{{NORMAL}}"
 
