@@ -19,12 +19,7 @@ then
     echo "Executing this hook may run arbitrary code from the modified files."
     echo ""
 
-    for file in "${CHANGED_FILES[@]}"; do
-        echo "--- Diff for $file ---"
-        git --no-pager diff "$BASE_BRANCH" -- "$file"
-        echo "------------------------"
-    done
-    echo ""
+    git --no-pager diff "$BASE_BRANCH" -- "${SENSITIVE_FILES[@]}"
 
     # Read from /dev/tty because stdin is not attached to the terminal in Git hooks.
     exec < /dev/tty
