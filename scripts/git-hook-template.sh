@@ -3,15 +3,13 @@ set -e
 
 HOOK_NAME=$(basename "$0")
 SENSITIVE_FILES=("justfile" "build.rs" "rust-toolchain.toml")
-CHANGED_FILES=()
 BASE_BRANCH="master"
 
-for file in "${SENSITIVE_FILES[@]}"; do
-    # Check if the file differs between the base branch and the current working tree
-    if git diff --name-only "$BASE_BRANCH" 2>/dev/null | grep -q "^${file}$"; then
-        CHANGED_FILES+=("$file")
-    fi
-done
+# Check which files were modified compared to the base branch.
+mapfile -t CHANGED_FILES < <(comm -12 \
+    <(git diff --name-only master | sort) \
+    <(IFS=$'\n'; echo "${SENSITIVE_FILES[*]}" | sort) \
+)
 
 if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
     echo "⚠️ WARNING: Sensitive files have been modified relative to $BASE_BRANCH."
