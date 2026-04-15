@@ -74,7 +74,7 @@ check-spelling: (verify-tool "codespell")
 [parallel]
 check-scripts: (verify-tool "shellcheck")
     @echo "{{CHECK}}Checking shell scripts...{{NORMAL}}"
-    @shellcheck scripts/*.sh
+    @shellcheck **/*.sh
 
 # Run checks for forbidden keywords
 [group('pre-commit')]
