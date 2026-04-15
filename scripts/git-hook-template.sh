@@ -1,5 +1,5 @@
 #! /usr/bin/env bash
-set -e
+set -euo pipefail
 
 readonly HOOK_NAME=$(basename "$0")
 
