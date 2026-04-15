@@ -25,7 +25,7 @@ if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
 
     git --no-pager diff "$BASE_BRANCH" -- "${SENSITIVE_FILES[@]}"
 
-    # Read from /dev/tty because stdin is not attached to the terminal in git hooks.
+    # Read from /dev/tty because stdin is not attached to the terminal in Git hooks.
     exec < /dev/tty
 
     read -r -p "⚠️ Do you want to continue executing the ${HOOK_NAME} hooks? [y/N] " response
