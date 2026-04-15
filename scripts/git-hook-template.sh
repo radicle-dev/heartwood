@@ -1,11 +1,11 @@
 #! /usr/bin/env bash
 set -euo pipefail
 
-readonly HOOK_NAME="${HOOK_NAME:-$(basename "$0")}"
+readonly HOOK="${HOOK:-$(basename "$0")}"
 
-if ! [[ "$HOOK_NAME" =~ ^(pre-(commit|push)|post-checkout)$ ]]
+if ! [[ "$HOOK" =~ ^(pre-(commit|push)|post-checkout)$ ]]
 then
-    echo "Unknown hook '${HOOK_NAME}'."
+    echo "Unknown hook '${HOOK}'."
     exit 1
 fi
 
@@ -28,17 +28,17 @@ if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
     # Read from /dev/tty because stdin is not attached to the terminal in Git hooks.
     exec < /dev/tty
 
-    read -r -p "⚠️ Do you want to continue executing the '${HOOK_NAME}' hook? [y/N] " response
+    read -r -p "⚠️ Do you want to continue executing the '${HOOK}' hook? [y/N] " response
     case "$response" in
         [yY][eE][sS]|[yY])
-            echo "Continuing with '${HOOK_NAME}' hook..."
+            echo "Continuing with '${HOOK}' hook..."
             ;;
         *)
-            echo "Skipping '${HOOK_NAME}' hook."
+            echo "Skipping '${HOOK}' hook."
             exit 0
             ;;
     esac
 fi
 
 # Execute the appropriate just recipe based on the hook name.
-just "$HOOK_NAME"
+just "$HOOK"
