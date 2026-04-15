@@ -20,7 +20,7 @@ mapfile -t CHANGED_FILES < <(comm -12 \
 
 if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
     echo "⚠️ WARNING: Sensitive files have been modified relative to $BASE_BRANCH."
-    echo "Executing these hooks may run arbitrary code from the modified files."
+    echo "Executing this hook may run arbitrary code from the modified files."
     echo ""
 
     git --no-pager diff "$BASE_BRANCH" -- "${SENSITIVE_FILES[@]}"
@@ -28,13 +28,13 @@ if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
     # Read from /dev/tty because stdin is not attached to the terminal in Git hooks.
     exec < /dev/tty
 
-    read -r -p "⚠️ Do you want to continue executing the ${HOOK_NAME} hooks? [y/N] " response
+    read -r -p "⚠️ Do you want to continue executing the '${HOOK_NAME}' hook? [y/N] " response
     case "$response" in
         [yY][eE][sS]|[yY])
-            echo "Continuing with ${HOOK_NAME} hooks..."
+            echo "Continuing with '${HOOK_NAME}' hook..."
             ;;
         *)
-            echo "Skipping ${HOOK_NAME} hooks."
+            echo "Skipping '${HOOK_NAME}' hook."
             exit 0
             ;;
     esac
