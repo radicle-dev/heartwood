@@ -67,20 +67,12 @@ impl SymbolicRefs {
             .filter_map(|name| self.resolve_unprotected(name).map(|target| (name, target)))
     }
 
-    fn resolve_unprotected<'a, 'b>(&'a self, mut name: &'b Name) -> Option<&'a Target>
-    where
-        'a: 'b,
-    {
-        while let Some(target) = self.0.get(name) {
-            match self.0.get(target) {
-                Some(next) => {
-                    name = next;
-                }
-                None => return Some(target),
-            }
+    fn resolve_unprotected<'a>(&'a self, name: &Name) -> Option<&'a Target> {
+        let mut target = self.0.get(name)?;
+        while let Some(next) = self.0.get(target) {
+            target = next;
         }
-
-        None
+        Some(target)
     }
 
     /// Returns `true` if the set of symbolic references is empty.
