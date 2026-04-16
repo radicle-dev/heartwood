@@ -16,7 +16,7 @@ fi
 echo "${CHECK}Destroying talos cluster '$CLUSTER_NAME'...${NORMAL}"
 if [ "$PROVISIONER" = "qemu" ]
 then
-    sudo --preserve-env=HOME talosctl cluster destroy --name "$CLUSTER_NAME" --provisioner "$PROVISIONER"
+    sudo --preserve-env=HOME,PATH talosctl cluster destroy --name "$CLUSTER_NAME" --provisioner "$PROVISIONER"
 else
     talosctl cluster destroy --name "$CLUSTER_NAME" --provisioner "$PROVISIONER"
 fi

@@ -31,19 +31,7 @@ setup: configure-cluster
 # Create the Talos cluster if it doesn't exist
 [private]
 create-cluster: (verify-tool "talosctl") ensure-ovmf
-    #!/usr/bin/env bash
-    set -e
-    if [ ! -d "{{clusters_dir}}/{{cluster_name}}" ]; then
-        echo "{{CHECK}}Creating Talos cluster '{{cluster_name}}' using {{provisioner}}…{{NORMAL}}"
-        mkdir -p "{{clusters_dir}}"
-        if [ "{{provisioner}}" = "qemu" ]; then
-            sudo --preserve-env=HOME,PATH talosctl cluster create --name={{cluster_name}} {{provisioner}} --config-patch-controlplanes '{"cluster": {"allowSchedulingOnControlPlanes": true}}'
-        else
-            talosctl cluster create --name={{cluster_name}} {{provisioner}} --config-patch-controlplanes '{"cluster": {"allowSchedulingOnControlPlanes": true}}'
-        fi
-    else
-        echo "{{SUCCESS}}Cluster '{{cluster_name}}' already exists.{{NORMAL}}"
-    fi
+    @CHECK="{{CHECK}}" SUCCESS="{{SUCCESS}}" NORMAL="{{NORMAL}}" ../scripts/just/create-cluster.sh "{{clusters_dir}}" "{{cluster_name}}" "{{provisioner}}"
 
 # Configure the Kubernetes cluster
 [private]
@@ -67,17 +55,7 @@ start-network: (verify-tool "timoni") vendor-timoni-dependencies
 # Vendor Timoni dependencies
 [private]
 vendor-timoni-dependencies: (verify-tool "timoni")
-    #!/usr/bin/env bash
-    set -e
-    cd {{radicle_node_module}}
-    if [ ! -d "{{module_pkg}}" ]; then
-        echo "{{CHECK}}Fetching Timoni pkg files…{{NORMAL}}"
-         timoni artifact pull oci://ghcr.io/stefanprodan/timoni/schemas -o cue.mod/pkg
-    fi
-    if [ ! -d "{{module_gen}}" ]; then
-        echo "{{CHECK}}Fetching Timoni k8s gen files…{{NORMAL}}"
-        timoni mod vendor k8s
-    fi
+    @CHECK="{{CHECK}}" NORMAL="{{NORMAL}}" ../scripts/just/vendor-timoni-dependencies.sh "{{radicle_node_module}}" "{{module_pkg}}" "{{module_gen}}"
 
 # Show cluster status
 [group('inspect')]
@@ -107,62 +85,16 @@ delete-pvc: (verify-tool "kubectl")
 # Destroy the Talos cluster and clean up kubeconfig
 [group('delete')]
 destroy: (verify-tool "kubectl") (verify-tool "talosctl") show-cluster
-    #!/usr/bin/env bash
-    set -e
-    echo ""
-    echo -n "Are you sure you want to destroy the cluster and remove kubeconfig entries? [y/N] "
-    read answer
-    if [ "${answer:-N}" != "y" ]; then
-        echo "Aborted."
-        exit 1
-    fi
-
-    echo "{{CHECK}}Destroying talos cluster '{{cluster_name}}'…{{NORMAL}}"
-    if [ "{{provisioner}}" = "qemu" ]; then
-        sudo --preserve-env=HOME,PATH talosctl cluster destroy --name {{cluster_name}} --provisioner {{provisioner}}
-    else
-        talosctl cluster destroy --name {{cluster_name}} --provisioner {{provisioner}}
-    fi
-
-    echo "{{CHECK}}Removing kube config entries…{{NORMAL}}"
-    CONTEXT=$(kubectl config current-context 2>/dev/null || echo "")
-    if [ -n "$CONTEXT" ]; then
-        CLUSTER=$(echo "$CONTEXT" | cut -d '@' -f 2)
-        kubectl config delete-context "$CONTEXT" || true
-        kubectl config delete-cluster "$CLUSTER" || true
-        kubectl config unset "users.$CONTEXT" || true
-    fi
-    echo "{{WARN}}Make sure you remove the '{{cluster_name}}' entry from: ~/.talos/config{{NORMAL}}"
-    echo "{{SUCCESS}}Cluster destroyed.{{NORMAL}}"
+    @CHECK="{{CHECK}}" WARN="{{WARN}}" SUCCESS="{{SUCCESS}}" NORMAL="{{NORMAL}}" ../scripts/just/destroy-cluster.sh "{{cluster_name}}" "{{provisioner}}"
 
 # Check if required tools are in PATH.
 [private]
 verify-tool tool package_name="":
-    #!/usr/bin/env bash
-    set -e
-    if ! command -v {{tool}} >/dev/null 2>&1; then
-        PKG="{{package_name}}"
-        if [ -z "$PKG" ]; then
-            PKG="{{tool}}"
-        fi
-        echo "{{ERROR}}Missing required tool: {{tool + NORMAL}}"
-        echo "{{HINT}}Use your systems package manager to install '$PKG'.{{NORMAL}}"
-        exit 1
-    fi
+    @ERROR="{{ERROR}}" NORMAL="{{NORMAL}}" HINT="{{HINT}}" ../scripts/just/verify-tool.sh "{{tool}}" "{{package_name}}"
 
 # Ensure OVMF firmware is discoverable by talosctl.
 # On NixOS, OVMF lives in the Nix store — not in /usr/share/OVMF where
 # talosctl expects it. We symlink the firmware files into place.
 [private]
 ensure-ovmf:
-    #!/usr/bin/env bash
-    set -e
-    if [ -z "${OVMF_FD_PATH:-}" ]; then
-        # Not on NixOS / not using the devshell — assume OVMF is installed normally
-        exit 0
-    fi
-    if [ ! -f /usr/share/OVMF/OVMF_CODE.fd ]; then
-        echo "{{CHECK}}Symlinking OVMF firmware from Nix store into /usr/share/OVMF…{{NORMAL}}"
-        sudo mkdir -p /usr/share/OVMF
-        sudo ln -sf "$OVMF_FD_PATH"/* /usr/share/OVMF/
-    fi
+    @CHECK="{{CHECK}}" NORMAL="{{NORMAL}}" ../scripts/just/ensure-ovmf.sh
