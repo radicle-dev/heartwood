@@ -10,7 +10,7 @@ then
     echo "${CHECK}Creating Talos cluster '$CLUSTER_NAME' using $PROVISIONER...${NORMAL}"
     mkdir -p "$CLUSTERS_DIR"
     if [ "$PROVISIONER" = "qemu" ]; then
-        sudo --preserve-env=HOME talosctl cluster create --name="$CLUSTER_NAME" "$PROVISIONER" --config-patch-controlplanes '{"cluster": {"allowSchedulingOnControlPlanes": true}}'
+        sudo --preserve-env=HOME,PATH talosctl cluster create --name="$CLUSTER_NAME" "$PROVISIONER" --config-patch-controlplanes '{"cluster": {"allowSchedulingOnControlPlanes": true}}'
     else
         talosctl cluster create --name="$CLUSTER_NAME" "$PROVISIONER" --config-patch-controlplanes '{"cluster": {"allowSchedulingOnControlPlanes": true}}'
     fi
