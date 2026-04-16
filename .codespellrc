@@ -1,5 +1,5 @@
 [codespell]
-skip = .git*,*.lock,.codespellrc,target,.jj
+skip = .git*,*.lock,.codespellrc,target,.jj,.direnv
 check-hidden = true
 ignore-words-list = ser,set,noes
 dictionary = .codespell-dictionary.txt,-
