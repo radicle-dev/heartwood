@@ -58,7 +58,7 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential s
 $ rad id accept 37a1aad231100cd206c49aed79e405ea2da9204b -q
 ```
 
-Bob immediately pushes a branch that matches the rule, thus populating
+Bob immediately pushes a branch that matches the rule, thus populating and
 modifying the canonical namespace.
 
 ``` ~bob
