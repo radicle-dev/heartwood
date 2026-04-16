@@ -1,4 +1,4 @@
-The radicle node is our daemon friend that is running as a background
+The Radicle node is our daemon friend that is running as a background
 process. It allows us to interact with the network as well as storing
 some key data that we may be interested in.
 

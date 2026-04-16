@@ -20,9 +20,9 @@ use crate::storage::{ReadRepository as _, RemoteId, SignRepository as _};
 use crate::storage::{WriteRepository, WriteStorage};
 use crate::{identity, storage};
 
-/// Name of the radicle storage remote.
+/// Name of the Radicle storage remote.
 pub static REMOTE_NAME: LazyLock<git::fmt::RefString> = LazyLock::new(|| git::fmt::refname!("rad"));
-/// Name of the radicle storage remote.
+/// Name of the Radicle storage remote.
 pub static REMOTE_COMPONENT: LazyLock<git::fmt::Component> =
     LazyLock::new(|| git::fmt::component!("rad"));
 /// Refname used for pushing patches.
@@ -45,7 +45,7 @@ pub enum InitError {
     Storage(#[from] storage::Error),
 }
 
-/// Initialize a new radicle project from a git repository.
+/// Initialize a new Radicle project from a git repository.
 pub fn init<G, S>(
     repo: &git::raw::Repository,
     name: ProjectName,
@@ -272,7 +272,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     let repo = git::raw::Repository::init_opts(path.as_ref(), &opts)?;
     let url = git::Url::from(proj);
 
-    // Configure repository for radicle.
+    // Configure repository for Radicle.
     git::configure_repository(&repo)?;
     // Configure and fetch all refs from remote.
     git::configure_remote(
@@ -350,7 +350,7 @@ pub enum RemoteError {
     RidMismatch { found: RepoId, expected: RepoId },
 }
 
-/// Get the radicle ("rad") remote of a repository, and return the associated project id.
+/// Get the Radicle ("rad") remote of a repository, and return the associated project id.
 pub fn remote(repo: &git::raw::Repository) -> Result<(git::raw::Remote<'_>, RepoId), RemoteError> {
     let remote = repo.find_remote(&REMOTE_NAME).map_err(|e| {
         if e.code() == git::raw::ErrorCode::NotFound {
@@ -365,7 +365,7 @@ pub fn remote(repo: &git::raw::Repository) -> Result<(git::raw::Remote<'_>, Repo
     Ok((remote, url.repo))
 }
 
-/// Delete the radicle ("rad") remote of a repository.
+/// Delete the Radicle ("rad") remote of a repository.
 pub fn remove_remote(repo: &git::raw::Repository) -> Result<(), RemoteError> {
     repo.remote_delete(&REMOTE_NAME).map_err(|e| {
         if e.code() == git::raw::ErrorCode::NotFound {

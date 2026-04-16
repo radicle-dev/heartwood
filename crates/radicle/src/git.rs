@@ -594,7 +594,7 @@ pub fn write_tree<'r>(
     Ok(tree)
 }
 
-/// Configure a radicle repository.
+/// Configure a Radicle repository.
 ///
 /// * Sets `push.default = upstream`.
 pub fn configure_repository(repo: &raw::Repository) -> Result<(), raw::Error> {
@@ -604,7 +604,7 @@ pub fn configure_repository(repo: &raw::Repository) -> Result<(), raw::Error> {
     Ok(())
 }
 
-/// Configure a repository's radicle remote.
+/// Configure a repository's Radicle remote.
 ///
 /// The entry for this remote will be:
 /// ```text

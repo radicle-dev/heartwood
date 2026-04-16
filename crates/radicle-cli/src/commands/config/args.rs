@@ -4,7 +4,7 @@ use radicle::node::Alias;
 const ABOUT: &str = "Manage your local Radicle configuration";
 
 const LONG_ABOUT: &str = r#"
-If no argument is specified, prints the current radicle configuration as JSON.
+If no argument is specified, prints the current Radicle configuration as JSON.
 To initialize a new configuration file, use `rad config init`.
 "#;
 
@@ -18,7 +18,7 @@ pub struct Args {
 #[derive(Subcommand, Debug)]
 #[group(multiple = false)]
 pub(crate) enum Command {
-    /// Show the current radicle configuration as JSON (default)
+    /// Show the current Radicle configuration as JSON (default)
     Show,
     /// Initialize a new config file
     Init {

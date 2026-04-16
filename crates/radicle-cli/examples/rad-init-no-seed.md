@@ -2,7 +2,7 @@ If we initialize a public repository without seeding it, it won't be advertised:
 ```
 $ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --public --no-seed
 
-Initializing public radicle 👾 repository in [..]
+Initializing public Radicle 👾 repository in [..]
 
 ✓ Repository heartwood created.
 

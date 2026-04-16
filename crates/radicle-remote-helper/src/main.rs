@@ -210,7 +210,7 @@ struct Options {
     verbosity: Verbosity,
 }
 
-/// Run the radicle remote helper using the given profile.
+/// Run the Radicle remote helper using the given profile.
 fn run(profile: radicle::Profile) -> Result<(), Error> {
     // Since we're going to be writing user output to `stderr`, make sure the paint
     // module is aware of that.

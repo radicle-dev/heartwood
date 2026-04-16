@@ -57,7 +57,7 @@ pub use timestamp::Timestamp;
 
 /// Peer-to-peer protocol version.
 pub const PROTOCOL_VERSION: u8 = 1;
-/// Default radicle protocol port.
+/// Default Radicle protocol port.
 pub const DEFAULT_PORT: u16 = 8776;
 /// Default timeout when waiting for an event to be received on the
 /// [`Handle::subscribe`] channel.

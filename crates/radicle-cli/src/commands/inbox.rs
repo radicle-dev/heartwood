@@ -394,7 +394,7 @@ fn clear(notifs: &mut notifications::StoreWriter, mode: ClearMode) -> anyhow::Re
             if let Ok((_, rid)) = radicle::rad::cwd() {
                 notifs.clear_by_repo(&rid)?
             } else {
-                return Err(anyhow!("not a radicle repository"));
+                return Err(anyhow!("not a Radicle repository"));
             }
         }
     };

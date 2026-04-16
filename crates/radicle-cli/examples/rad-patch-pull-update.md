@@ -5,7 +5,7 @@ Alice creates a repository and Bob clones it.
 ``` ~alice
 $ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --public
 
-Initializing public radicle 👾 repository in [..]
+Initializing public Radicle 👾 repository in [..]
 
 ✓ Repository heartwood created.
 

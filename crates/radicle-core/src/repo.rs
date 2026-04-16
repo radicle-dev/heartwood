@@ -78,7 +78,7 @@ impl RepoId {
     }
 
     /// Parse an identifier from the human-readable URN format.
-    /// Accepts strings without the radicle prefix as well,
+    /// Accepts strings without the prefix [`RAD_PREFIX`] as well,
     /// for convenience.
     pub fn from_urn(s: &str) -> Result<Self, IdError> {
         let s = s.strip_prefix(RAD_PREFIX).unwrap_or(s);

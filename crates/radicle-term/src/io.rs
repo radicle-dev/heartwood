@@ -361,7 +361,7 @@ pub fn passphrase_confirm<K: AsRef<OsStr>>(prompt: &str, var: K) -> io::Result<O
         .with_display_mode(inquire::PasswordDisplayMode::Masked)
         .with_custom_confirmation_message("Repeat passphrase:")
         .with_custom_confirmation_error_message("The passphrases don't match.")
-        .with_help_message("Leave this blank to keep your radicle key unencrypted")
+        .with_help_message("Leave this blank to keep your Radicle key unencrypted")
         .prompt()
     {
         Ok(p) => Ok(Some(Passphrase::from(p))),

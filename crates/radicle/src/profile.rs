@@ -35,21 +35,21 @@ use crate::storage::git::Storage;
 use crate::storage::git::transport;
 use crate::{cob, git, node, storage};
 
-/// Environment variables used by radicle.
+/// Environment variables used by Radicle.
 pub mod env {
     pub use std::env::*;
 
-    /// Path to the radicle home folder.
+    /// Path to the Radicle home folder.
     pub const RAD_HOME: &str = "RAD_HOME";
-    /// Path to the radicle node socket file.
+    /// Path to the Radicle node socket file.
     pub const RAD_SOCKET: &str = "RAD_SOCKET";
-    /// Passphrase for the encrypted radicle secret key.
+    /// Passphrase for the encrypted Radicle secret key.
     pub const RAD_PASSPHRASE: &str = "RAD_PASSPHRASE";
     /// RNG seed. Must be convertible to a `u64`.
     pub const RAD_RNG_SEED: &str = "RAD_RNG_SEED";
     /// Private key seed. Used for generating deterministic keypairs.
     pub const RAD_KEYGEN_SEED: &str = "RAD_KEYGEN_SEED";
-    /// Show radicle hints.
+    /// Show Radicle hints.
     pub const RAD_HINT: &str = "RAD_HINT";
     /// Environment variable to set to overwrite the commit date for both
     /// the author and the committer.
@@ -102,7 +102,7 @@ pub mod env {
         None
     }
 
-    /// Get the radicle passphrase from the environment.
+    /// Get the Radicle passphrase from the environment.
     pub fn passphrase() -> Option<super::Passphrase> {
         let Ok(passphrase) = var(RAD_PASSPHRASE) else {
             return None;
@@ -175,7 +175,7 @@ pub enum Error {
     Routing(#[from] node::routing::Error),
     #[error(transparent)]
     Keystore(#[from] keystore::Error),
-    #[error("no radicle profile found at path '{0}'")]
+    #[error("no Radicle profile found at path '{0}'")]
     NotFound(PathBuf),
     #[error(transparent)]
     PolicyStore(#[from] node::policy::store::Error),
@@ -199,7 +199,7 @@ pub enum SignerError {
     #[error(transparent)]
     Agent(#[from] crate::crypto::ssh::agent::AgentError),
 
-    #[error("radicle key `{0}` is not registered; run `rad auth` to register it with ssh-agent")]
+    #[error("Radicle key `{0}` is not registered; run `rad auth` to register it with ssh-agent")]
     KeyNotRegistered(PublicKey),
 
     #[error(transparent)]
@@ -342,7 +342,7 @@ impl Profile {
         }
     }
 
-    /// Get radicle home.
+    /// Get Radicle home.
     pub fn home(&self) -> &Home {
         &self.home
     }
@@ -488,7 +488,7 @@ impl AliasStore for Aliases {
     }
 }
 
-/// Get the path to the radicle home folder.
+/// Get the path to the Radicle home folder.
 pub fn home() -> Result<Home, io::Error> {
     #[cfg(unix)]
     const ERROR_MESSAGE_UNSET: &str =

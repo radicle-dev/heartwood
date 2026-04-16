@@ -22,7 +22,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 pub fn init(args: Args) -> anyhow::Result<()> {
-    term::headline("Initializing your radicle 👾 identity");
+    term::headline("Initializing your Radicle 👾 identity");
 
     if let Ok(version) = radicle::git::version() {
         if version < radicle::git::VERSION_REQUIRED {
@@ -63,11 +63,11 @@ pub fn init(args: Args) -> anyhow::Result<()> {
     if let Some(passphrase) = passphrase {
         match ssh::agent::Agent::connect() {
             Ok(mut agent) => {
-                let mut spinner = term::spinner("Adding your radicle key to ssh-agent...");
+                let mut spinner = term::spinner("Adding your Radicle key to ssh-agent...");
                 if register(&mut agent, &profile, passphrase).is_ok() {
                     spinner.finish();
                 } else {
-                    spinner.message("Could not register radicle key in ssh-agent.");
+                    spinner.message("Could not register Radicle key in ssh-agent.");
                     spinner.warn();
                 }
             }

@@ -46,7 +46,7 @@ pub struct Args {
     /// Setup the upstream of the default branch
     #[arg(short = 'u', long)]
     pub(super) set_upstream: bool,
-    /// Setup the radicle key as a signing key for this repository
+    /// Setup the Radicle key as a signing key for this repository
     #[arg(long)]
     pub(super) setup_signing: bool,
     /// Don't ask for confirmation during setup

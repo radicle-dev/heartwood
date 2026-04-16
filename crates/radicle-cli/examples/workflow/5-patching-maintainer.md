@@ -1,6 +1,6 @@
 Back to being the project maintainer.
 
-Changes have been proposed by another peer via a radicle patch. To track
+Changes have been proposed by another peer via a Radicle patch. To track
 changes from another peer, we must first follow them, and then create
 a tracking branch in our working copy. The `rad remote add` command does all
 of this.

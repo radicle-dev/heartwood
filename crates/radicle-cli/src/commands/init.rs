@@ -75,7 +75,7 @@ pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> an
     };
 
     term::headline(format!(
-        "Initializing{}radicle 👾 repository in {}..",
+        "Initializing{}Radicle 👾 repository in {}..",
         match visibility {
             Some(ref visibility) => term::format::spaced(term::format::visibility(visibility)),
             None => term::format::default(" ").into(),
@@ -181,7 +181,7 @@ pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> an
             }
 
             if args.setup_signing {
-                // Setup radicle signing key.
+                // Setup Radicle signing key.
                 self::setup_signing(profile.id(), &repo, interactive)?;
             }
 
@@ -254,7 +254,7 @@ pub fn init_existing(
     }
 
     if args.setup_signing {
-        // Setup radicle signing key.
+        // Setup Radicle signing key.
         self::setup_signing(profile.id(), &working, interactive)?;
     }
 
@@ -483,7 +483,7 @@ pub fn announce(
     Ok(())
 }
 
-/// Setup radicle key as commit signing key in repository.
+/// Setup Radicle key as commit signing key in repository.
 pub fn setup_signing(
     node_id: &NodeId,
     repo: &git::Repository,
@@ -497,13 +497,13 @@ pub fn setup_signing(
     let key = ssh::fmt::fingerprint(node_id);
     let yes = if !git::is_signing_configured(path)? {
         term::headline(format!(
-            "Configuring radicle signing key {}...",
+            "Configuring Radicle signing key {}...",
             term::format::tertiary(key)
         ));
         true
     } else if interactive.yes() {
         term::confirm(format!(
-            "Configure radicle signing key {} in {}?",
+            "Configure Radicle signing key {} in {}?",
             term::format::tertiary(key),
             term::format::tertiary(config.display()),
         ))

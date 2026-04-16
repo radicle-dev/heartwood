@@ -47,11 +47,11 @@ impl Context for DefaultContext {
             Ok(profile) => Ok(profile),
             Err(radicle::profile::Error::NotFound(path)) => Err(args::Error::with_hint(
                 anyhow::anyhow!("Radicle profile not found in '{}'.", path.display()),
-                "To setup your radicle profile, run `rad auth`.",
+                "To setup your Radicle profile, run `rad auth`.",
             )
             .into()),
             Err(radicle::profile::Error::LoadConfig(e)) => Err(e.into()),
-            Err(e) => Err(anyhow::anyhow!("Could not load radicle profile: {e}")),
+            Err(e) => Err(anyhow::anyhow!("Could not load Radicle profile: {e}")),
         }
     }
 }

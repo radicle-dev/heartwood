@@ -65,7 +65,7 @@ $ rad config schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Config",
-  "description": "Local radicle configuration.",
+  "description": "Local Radicle configuration.",
   "type": "object",
   "properties": {
     "publicExplorer": {

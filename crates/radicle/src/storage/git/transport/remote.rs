@@ -1,4 +1,4 @@
-//! Git sub-transport used for fetching radicle data.
+//! Git sub-transport used for fetching Radicle data.
 pub mod mock;
 pub mod url;
 

@@ -251,7 +251,7 @@ pub fn is_signing_configured(repo: &Path) -> Result<bool, anyhow::Error> {
     Ok(git(repo, ["config", CONFIG_SIGNING_KEY]).is_ok())
 }
 
-/// Return the list of radicle remotes for the given repository.
+/// Return the list of Radicle remotes for the given repository.
 pub fn rad_remotes(repo: &Repository) -> anyhow::Result<Vec<Remote<'_>>> {
     let remotes: Vec<_> = repo
         .remotes()?
@@ -278,7 +278,7 @@ pub fn rad_remote(repo: &Repository) -> anyhow::Result<(git::raw::Remote<'_>, Re
     match radicle::rad::remote(repo) {
         Ok((remote, id)) => Ok((remote, id)),
         Err(radicle::rad::RemoteError::NotFound(_)) => Err(anyhow!(
-            "could not find radicle remote in git config; did you forget to run `rad init`?"
+            "could not find Radicle remote in git config; did you forget to run `rad init`?"
         )),
         Err(err) => Err(err).context("could not read git remote configuration"),
     }

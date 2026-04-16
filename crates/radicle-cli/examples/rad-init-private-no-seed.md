@@ -5,7 +5,7 @@ from us.
 ```
 $ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --private --no-seed
 
-Initializing private radicle 👾 repository in [..]
+Initializing private Radicle 👾 repository in [..]
 
 ✓ Repository heartwood created.
 

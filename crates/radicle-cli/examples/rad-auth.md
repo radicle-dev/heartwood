@@ -4,7 +4,7 @@ The example below is run with `RAD_PASSPHRASE` set.
 ```
 $ rad auth --alias "alice"
 
-Initializing your radicle 👾 identity
+Initializing your Radicle 👾 identity
 
 ✓ Creating your Ed25519 keypair...
 ✓ Your Radicle DID is did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi. This identifies your device. Run `rad self` to show it at all times.

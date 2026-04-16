@@ -128,7 +128,7 @@ pub enum LoadError {
     },
 }
 
-/// Local radicle configuration.
+/// Local Radicle configuration.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]

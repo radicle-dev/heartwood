@@ -1,4 +1,4 @@
-To create a local copy of a repository on the radicle network, we use the
+To create a local copy of a repository on the Radicle network, we use the
 `clone` command, followed by the identifier or *RID* of the repository:
 
 ```

@@ -14,3 +14,21 @@ extend-ignore-re = [
 [type.codespell]
 check-file = false
 extend-glob = [".codespellrc"]
+
+[type.md]
+extend-ignore-re = [
+    "(Author:|author|committer) radicle ", # Commit Metadata
+    "/radicle:", # User Agent fragment
+    "\"radicle",
+    "\\.radicle", # Path fragment of default `$RAD_HOME`
+    "`radicle`",
+    "radicle heartwood protocol & stack", # Old fixture.
+    "radicle-\\w+", # Crates in Cargo style
+    "radicle\\.((example|zulipchat)\\.com|xyz)", # URLs
+    "radicle\\w*::", # Crates in Rust code style
+    "xyz\\.radicle\\.(issue|patch|id)", # COB Type Names
+]
+
+[type.md.extend-words]
+"radicle" = "Radicle"
+
