@@ -11,6 +11,9 @@ extend-ignore-re = [
 [default.extend-identifiers]
 "typ" = "typ" # We may write "typ" instead of "type". The latter is a Rust keyword.
 
+[default.extend-words]
+"..." = "…"
+
 [type.codespell]
 check-file = false
 extend-glob = [".codespellrc"]
