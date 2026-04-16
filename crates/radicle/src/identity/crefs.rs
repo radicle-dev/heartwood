@@ -111,13 +111,13 @@ impl CanonicalRefs {
                 continue;
             };
 
-            let patterns = rules
+            let mut patterns = rules
                 .matches(&name)
                 .map(|(pattern, _)| pattern.to_string())
-                .collect::<Vec<_>>();
-            if !patterns.is_empty() {
+                .peekable();
+            if patterns.peek().is_some() {
                 return Err(ValidationError::Clash {
-                    patterns,
+                    patterns: patterns.collect(),
                     name: name.to_owned(),
                 });
             }
