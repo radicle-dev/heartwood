@@ -8,6 +8,8 @@ use radicle::{
 };
 use radicle_term::Interactive;
 
+use crate::terminal::args::ScopeParser;
+
 const ABOUT: &str = "Initialize a Radicle repository";
 
 #[derive(Debug, Parser)]
@@ -82,33 +84,6 @@ impl Args {
 
     pub(super) fn seed(&self) -> bool {
         !self.no_seed
-    }
-}
-
-// TODO(finto): this is duplicated from `clone::args`. Consolidate these once
-// the `clap` migration has finished and we can organise the shared code.
-#[derive(Clone, Debug)]
-struct ScopeParser;
-
-impl clap::builder::TypedValueParser for ScopeParser {
-    type Value = Scope;
-
-    fn parse_ref(
-        &self,
-        cmd: &clap::Command,
-        arg: Option<&clap::Arg>,
-        value: &std::ffi::OsStr,
-    ) -> Result<Self::Value, clap::Error> {
-        <Scope as std::str::FromStr>::from_str.parse_ref(cmd, arg, value)
-    }
-
-    fn possible_values(
-        &self,
-    ) -> Option<Box<dyn Iterator<Item = clap::builder::PossibleValue> + '_>> {
-        use clap::builder::PossibleValue;
-        Some(Box::new(
-            [PossibleValue::new("all"), PossibleValue::new("followed")].into_iter(),
-        ))
     }
 }
 
