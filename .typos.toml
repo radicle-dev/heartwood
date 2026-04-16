@@ -35,3 +35,8 @@ extend-ignore-re = [
 [type.md.extend-identifiers]
 "radicle" = "Radicle"
 
+[files]
+extend-exclude = [
+    "simulation/modules/radicle-node/cue.mod"
+]
+
