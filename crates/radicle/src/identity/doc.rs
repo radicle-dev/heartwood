@@ -790,100 +790,107 @@ impl Doc {
     }
 
     /// Construct the canonical references for this document.
-    /// The implementation of [`RawCanonicalRefs`] is used to
-    /// obtain the payload identified by [`PayloadId::canonical_refs`], if it
-    /// exists.
+    ///
+    /// Uses the `xyz.radicle.crefs` payload (if present) and the
+    /// `xyz.radicle.project` payload to determine the `HEAD` symbolic
+    /// reference and its associated rule.
+    ///
+    /// There are three cases, depending on whether `HEAD` is already
+    /// defined in the crefs payload and whether a project payload exists:
+    ///
+    /// 1. **Explicit HEAD + project**: `HEAD` must agree with
+    ///    [`Project::default_branch_qualified`], and the matching rule must
+    ///    use `delegates` with the document's threshold.
+    /// 2. **Explicit HEAD, no project**: The matching rule must use
+    ///    `delegates` with the document's threshold.
+    /// 3. **No HEAD**: A rule and `HEAD` symbolic reference are synthesized
+    ///    from the project payload (which must exist).
+    ///
+    /// In all cases the result must pass [`RawCanonicalRefs::try_into_canonical_refs`]
+    /// validation. If a rule for `HEAD`'s target is missing, it will be
+    /// caught as a dangling reference there.
     ///
     /// [`RawCanonicalRefs`]: super::crefs::RawCanonicalRefs
-    ///
-    /// Starts by obtaining the payload identified by
-    /// [`PayloadId::canonical_refs`].
-    ///
-    /// If the payload exists, and it contains both a symbolic reference with
-    /// the name `HEAD` and a rule matching the corresponding target branch,
-    /// then this rule is verified to be backwards compatible, i.e. that the
-    /// value for `allowed` is [`rules::Allowed::Delegates`] and the threshold
-    /// matches [`Self::threshold`]. If additionally a payload identified by
-    /// [`PayloadId::project`] exists and can be loaded, then the target
-    /// branch of the symbolic reference with name `HEAD` is verified to match
-    /// [`Project::default_branch_qualified`] as well.
-    ///
-    /// If the payload is missing, canonical references are synthesized from
-    /// the payload identified by [`PayloadId::project`]:
-    /// - A rule exactly matching [`Project::default_branch`]
-    ///   that is compatible with self.
-    /// - A symbolic reference with name `HEAD`
-    ///   (see [`symbolic::SymbolicRefs::head`]) that targets the same branch.
-    ///
-    /// The resulting [`CanonicalRefs`] must pass validation, and there are
-    /// cases where the payload is valid as such, but invalid in combination
-    /// with the synthesized rule and symbolic reference. For example, if
-    /// there is a symbolic reference already, with the name of the default
-    /// branch, this will clash with the synthesized rule.
     pub fn canonical_refs(&self) -> Result<CanonicalRefs, CanonicalRefsError> {
-        let project = self.project();
-
-        let raw_crefs = self.raw_canonical_refs()?.unwrap_or_default();
-
+        let mut raw_crefs = self.raw_canonical_refs()?.unwrap_or_default();
         let resolve = &mut || self.delegates.clone();
 
-        // If there is a symbolic reference with name `HEAD` in the crefs
-        // payload, we do not need to access the project payload to obtain
-        // the name of the default branch from there.
-        // However, we must still ensure that the crefs payload, in particular
-        // the rule matching the target branch of the symbolic reference with
-        // name `HEAD`, is backwards compatible with the rest of the identity
-        // document.
-        // These conditions may only be relaxed by introducing a new version of
-        // the identity document.
-        if let Some(default_branch) = raw_crefs.symbolic().resolve_head() {
-            if let Ok(project) = &project {
-                let project = project.default_branch_qualified().to_ref_string();
-                if project != *default_branch {
-                    return Err(CanonicalRefsError::DefaultBranchRuleError(
-                        DefaultBranchRuleError::HeadMismatch {
-                            cref: default_branch.clone(),
-                            project,
-                        },
-                    ));
-                }
-            }
+        // Determine where `HEAD` comes from. The `resolve_head()` result
+        // borrows `raw_crefs`, so clone to allow mutation in the synthesis
+        // path.
+        let head = raw_crefs.symbolic().resolve_head().cloned();
 
-            if let Some(default_branch) = Qualified::from_refstr(default_branch)
-                && let Some((pattern, rule)) = raw_crefs.raw_rules().matches(&default_branch).next()
-            {
-                if *rule.allowed() != rules::Allowed::Delegates {
-                    return Err(CanonicalRefsError::DefaultBranchRuleError(
-                        DefaultBranchRuleError::Allowed {
-                            pattern: pattern.to_string(),
-                            actual: rule.allowed().to_string(),
-                        },
-                    ));
+        match (head, self.project()) {
+            (Some(ref default_branch), Ok(project)) => {
+                let project_branch = project.default_branch_qualified().to_ref_string();
+                if project_branch != *default_branch {
+                    return Err(DefaultBranchRuleError::HeadMismatch {
+                        cref: default_branch.clone(),
+                        project: project_branch,
+                    }
+                    .into());
                 }
-                if *rule.threshold() != self.threshold() {
-                    return Err(CanonicalRefsError::DefaultBranchRuleError(
-                        DefaultBranchRuleError::Threshold {
-                            pattern: pattern.to_string(),
-                            actual: *rule.threshold(),
-                            expected: self.threshold(),
-                        },
-                    ));
-                }
-                // There is a symbolic reference for `HEAD`, but no matching
-                // canonical reference rule. `HEAD` is dangling!
-                // `raw_crefs` is malformed and will not pass validation below.
+                self.validate_head_rule(&raw_crefs, default_branch)?;
             }
-            return Ok(raw_crefs.try_into_canonical_refs(resolve)?);
+            (Some(ref default_branch), Err(_)) => {
+                self.validate_head_rule(&raw_crefs, default_branch)?;
+            }
+            (None, Ok(project)) => {
+                self.synthesize_head(&mut raw_crefs, &project)?;
+            }
+            (None, Err(err)) => {
+                return Err(CanonicalRefsError::SynthesisPayloadMissing(err));
+            }
         }
 
-        // Since there is no symbolic reference with name `HEAD`, fall back
-        // to the project payload for obtaining the default branch.
-        let project = project.map_err(CanonicalRefsError::SynthesisPayloadMissing)?;
+        Ok(raw_crefs.try_into_canonical_refs(resolve)?)
+    }
 
-        // Only now, once it is known that synthesis will be required,
-        // and have a project to do so, make `raw_crefs` mutable.
-        let mut raw_crefs = raw_crefs;
+    /// Validate that the rule matching `HEAD`'s target branch uses
+    /// `delegates` and the document's threshold.
+    ///
+    /// If no rule matches the target, `HEAD` will dangle — this is caught
+    /// later by [`RawCanonicalRefs::try_into_canonical_refs`] validation.
+    fn validate_head_rule(
+        &self,
+        raw_crefs: &RawCanonicalRefs,
+        default_branch: &RefString,
+    ) -> Result<(), CanonicalRefsError> {
+        let Some(qualified) = Qualified::from_refstr(default_branch) else {
+            return Ok(());
+        };
+        let Some((pattern, rule)) = raw_crefs.raw_rules().matches(&qualified).next() else {
+            return Ok(());
+        };
 
+        let allowed = rule.allowed();
+        if *allowed != rules::Allowed::Delegates {
+            return Err(DefaultBranchRuleError::Allowed {
+                pattern: pattern.to_string(),
+                actual: allowed.to_string(),
+            }
+            .into());
+        }
+        let actual = *rule.threshold();
+        let expected = self.threshold();
+        if actual != expected {
+            return Err(DefaultBranchRuleError::Threshold {
+                pattern: pattern.to_string(),
+                actual,
+                expected,
+            }
+            .into());
+        }
+        Ok(())
+    }
+
+    /// Synthesize a `HEAD` symbolic reference and a default-branch rule
+    /// from the project payload.
+    fn synthesize_head(
+        &self,
+        raw_crefs: &mut RawCanonicalRefs,
+        project: &Project,
+    ) -> Result<(), CanonicalRefsError> {
         let default_branch = project.default_branch_qualified();
 
         if raw_crefs
@@ -892,11 +899,9 @@ impl Doc {
             .next()
             .is_none()
         {
-            let rule = rules::Rule::new(rules::Allowed::Delegates, self.threshold());
-
             raw_crefs.raw_rules_mut().insert(
                 git::fmt::refspec::QualifiedPattern::from(default_branch.to_owned()),
-                rule,
+                rules::Rule::new(rules::Allowed::Delegates, self.threshold()),
             );
         }
 
@@ -905,7 +910,7 @@ impl Doc {
             .combine(symbolic::SymbolicRefs::head(project.default_branch()))
             .map_err(|source| CanonicalRefsError::SynthesisCycle { source })?;
 
-        Ok(raw_crefs.try_into_canonical_refs(resolve)?)
+        Ok(())
     }
 
     /// Return the associated [`Visibility`] of this document.
