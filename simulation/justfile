@@ -1,7 +1,9 @@
 provisioner := env_var_or_default("PROVISIONER", "qemu")
 cluster_name := "radicle-" + provisioner
 clusters_dir := env_var("HOME") + "/.talos/clusters"
-radicle_node_module := "./modules/radicle-node"
+radicle_node_module := "modules/radicle-node"
+module_pkg := "cue.mod/pkg"
+module_gen := "cue.mod/gen"
 kubectl_context := `kubectl config current-context 2>/dev/null || echo "none"`
 
 SUCCESS := "✅ " + GREEN + BOLD
@@ -57,10 +59,25 @@ configure-cluster: (verify-tool "kubectl") create-cluster
 
 # Start the simulation network only
 [group('start')]
-start-network: (verify-tool "timoni")
+start-network: (verify-tool "timoni") vendor-timoni-dependencies
     @echo "{{CHECK}}Starting simulation network...{{NORMAL}}"
     @timoni apply radicle-network {{radicle_node_module}} -f instances/network.cue
     @just show-cluster
+
+# Vendor Timoni dependencies
+[private]
+vendor-timoni-dependencies: (verify-tool "timoni")
+    #!/usr/bin/env bash
+    set -e
+    cd {{radicle_node_module}}
+    if [ ! -d "{{module_pkg}}" ]; then
+        echo "{{CHECK}}Fetching Timoni pkg files...{{NORMAL}}"
+         timoni artifact pull oci://ghcr.io/stefanprodan/timoni/schemas -o cue.mod/pkg
+    fi
+    if [ ! -d "{{module_gen}}" ]; then
+        echo "{{CHECK}}Fetching Timoni k8s gen files...{{NORMAL}}"
+        timoni mod vendor k8s
+    fi
 
 # Show cluster status
 [group('inspect')]
