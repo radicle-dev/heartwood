@@ -81,23 +81,7 @@ check-scripts: (verify-tool "shellcheck")
 [group('check')]
 [parallel]
 check-keywords: (verify-tool "rg" "ripgrep")
-    #! /usr/bin/env bash
-    set -e
-    echo "{{CHECK}}Checking for forbidden words in staged files...{{NORMAL}}"
-
-    # Get staged Rust files
-    STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.rs$' || true)
-
-    if [ -n "$STAGED_FILES" ]; then
-        ! echo "$STAGED_FILES" | xargs rg --context=3 --fixed-strings 'radicle.xyz'
-        ! echo "$STAGED_FILES" | xargs rg --context=3 --fixed-strings 'radicle.zulipchat.com'
-
-        # For `git2::` we need to exclude raw.rs
-        FILTERED_GIT2=$(echo "$STAGED_FILES" | grep '^crates/radicle/.*\.rs$' | grep -v 'crates/radicle/src/git/raw.rs' || true)
-        if [ -n "$FILTERED_GIT2" ]; then
-            ! echo "$FILTERED_GIT2" | xargs rg --context=3 --fixed-strings 'git2::'
-        fi
-    fi
+    @CHECK="{{CHECK}}" NORMAL="{{NORMAL}}" scripts/just/check-keywords.sh
 
 # Format Nix files
 [group('pre-commit')]
@@ -105,12 +89,7 @@ check-keywords: (verify-tool "rg" "ripgrep")
 [group('format')]
 [parallel]
 format-nix:
-    #!/usr/bin/env bash
-    if command -v alejandra >/dev/null 2>&1; then
-        alejandra --check .
-    else
-        echo "⏭️ alejandra not found, skipping Nix formatting."
-    fi
+    @scripts/just/format-nix.sh
 
 # Run pre-push checks
 [group('hooks')]
@@ -128,17 +107,7 @@ lint-rust: (verify-tool "cargo")
 # Check if required tools are in PATH.
 [private]
 verify-tool tool package_name="":
-    #!/usr/bin/env bash
-    set -e
-    if ! command -v {{tool}} >/dev/null 2>&1; then
-        PKG="{{package_name}}"
-        if [ -z "$PKG" ]; then
-            PKG="{{tool}}"
-        fi
-        echo "{{ERROR}}Missing required tool: {{tool + NORMAL}}"
-        echo "{{HINT}}Use your systems package manager to install '$PKG'.{{NORMAL}}"
-        exit 1
-    fi
+    @ERROR="{{ERROR}}" NORMAL="{{NORMAL}}" HINT="{{HINT}}" scripts/just/verify-tool.sh "{{tool}}" "{{package_name}}"
 
 # SECURITY: We COPY the hook template instead of symlinking it. This ensures that
 # checking out an untrusted patch won't overwrite your local git hooks. The copied
@@ -148,52 +117,9 @@ verify-tool tool package_name="":
 # Install git hooks
 [group('hooks')]
 install-hooks:
-    #!/usr/bin/env bash
-    set -e
-    read -p "Overwrite existing hooks '{{hooks}}'? [y/N] " confirm
-    [[ "$confirm" == "y" ]] || exit 1
-    for hook in {{hooks}}; do
-        if [ -f ".git/hooks/$hook" ]; then
-          rm ".git/hooks/$hook"
-        fi
-        cp {{hook-script}} ".git/hooks/$hook"
-        chmod +x ".git/hooks/$hook"
-    done
-    echo ""
-    echo "{{SUCCESS}}Hooks installed: {{hooks + NORMAL}}"
+    @SUCCESS="{{SUCCESS}}" NORMAL="{{NORMAL}}" scripts/just/install-hooks.sh "{{hook-script}}" "{{hooks}}"
 
 # Check for missing or changed hooks
 [group('hooks')]
 check-hooks:
-    #!/usr/bin/env bash
-    set -e
-    TEMPLATE="{{hook-script}}"
-    OUTDATED=()
-    MISSING=0
-    TOTAL=0
-
-    for hook in {{hooks}}; do
-        TOTAL=$((TOTAL + 1))
-        if [ ! -f ".git/hooks/$hook" ]; then
-            MISSING=$((MISSING + 1))
-            OUTDATED+=("$hook")
-        elif ! cmp -s "$TEMPLATE" ".git/hooks/$hook"; then
-            OUTDATED+=("$hook")
-        fi
-    done
-
-    if [ "$MISSING" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
-        echo ""
-        echo "{{HINT}}No git hooks are installed. Run 'just install-hooks' to install them.{{NORMAL}}"
-        echo ""
-    elif [ ${#OUTDATED[@]} -gt 0 ]; then
-        echo ""
-        echo "{{WARN}}WARNING: The following git hooks are missing or out of date:{{NORMAL}}"
-        echo ""
-        for hook in "${OUTDATED[@]}"; do
-            echo -e "\t$hook"
-        done
-        echo ""
-        echo "{{HINT}}Check them with 'diff scripts/git-hook-template.sh .git/hooks/<hook name>' then run 'just install-hooks'{{NORMAL}}"
-        echo ""
-    fi
+    @HINT="{{HINT}}" NORMAL="{{NORMAL}}" WARN="{{WARN}}" scripts/just/check-hooks.sh "{{hook-script}}" "{{hooks}}"
