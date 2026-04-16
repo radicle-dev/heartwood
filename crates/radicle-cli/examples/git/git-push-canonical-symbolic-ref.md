@@ -1,7 +1,7 @@
-Bob overhears that the new default name for the default branch is "main",
-not "master" as it used to be.
-To make tooling that expect "main" work, without the hassle of having to push
-to such branch manually, he opts to create a symbolic reference.
+Bob overhears that the new name for the default branch is "main", not "master"
+as it used to be. To make tooling that expect "main" work, without the hassle
+of having to push to such branch manually, he opts to create a symbolic
+reference.
 
 ``` ~bob
 $ cd heartwood
