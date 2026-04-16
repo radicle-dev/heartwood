@@ -66,6 +66,10 @@ check-spelling: (verify-tool "codespell")
     @echo "{{CHECK}}Checking for code typos...{{NORMAL}}"
     @git ls-files -z | xargs -0 codespell --write-changes --check-filenames
 
+# just runs with `/bin/sh` which has no doublestar glob 
+# expansion, furthermore, `time ls **/*.sh` takes ~5s 
+# locally. The `find` solution below is fastest ~900ms.
+#
 # Run shellcheck on all shell scripts
 [group('pre-commit')]
 [group('pre-push')]
@@ -73,7 +77,7 @@ check-spelling: (verify-tool "codespell")
 [parallel]
 check-scripts: (verify-tool "shellcheck")
     @echo "{{CHECK}}Checking shell scripts...{{NORMAL}}"
-    @shellcheck **/*.sh
+    @find . -type f -name "*.sh" -exec shellcheck {} +
 
 # Run checks for forbidden keywords
 [group('pre-commit')]
