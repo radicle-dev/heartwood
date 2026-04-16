@@ -1,10 +1,9 @@
 hooks := "pre-commit pre-push post-checkout"
 hook-script := "scripts/git-hook-template.sh"
 
-bold_underlined := BOLD + UNDERLINE
-WARN := "⚠️ " + YELLOW + bold_underlined
-SUCCESS := "✅ " + GREEN + bold_underlined
-ERROR := "❌ " + RED + bold_underlined
+WARN := "⚠️ " + YELLOW + BOLD
+SUCCESS := "✅ " + GREEN + BOLD
+ERROR := "❌ " + RED + BOLD
 HINT := "💡 " + BOLD
 CHECK := "🔄 " + BOLD
 
