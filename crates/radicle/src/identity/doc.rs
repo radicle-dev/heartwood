@@ -93,9 +93,6 @@ pub enum DefaultBranchError {
 
     #[error(transparent)]
     CanonicalRefsError(#[from] CanonicalRefsError),
-
-    #[error("the target of the symbolic reference `HEAD` is not qualified: {0}")]
-    UnqualifiedHead(git::fmt::RefString),
 }
 
 /// The version number of the identity document.
@@ -779,13 +776,10 @@ impl Doc {
     /// in this document.
     pub fn default_branch(&self) -> Result<git::fmt::Qualified<'_>, DefaultBranchError> {
         let crefs = self.canonical_refs()?;
-        let refname = crefs
+        let qualified = crefs
             .symbolic()
             .resolve_head()
             .ok_or(DefaultBranchError::MissingHead)?;
-        let qualified = refname
-            .qualified()
-            .ok_or(DefaultBranchError::UnqualifiedHead(refname.clone()))?;
         Ok(qualified.to_owned())
     }
 
@@ -818,15 +812,15 @@ impl Doc {
         // Determine where `HEAD` comes from. The `resolve_head()` result
         // borrows `raw_crefs`, so clone to allow mutation in the synthesis
         // path.
-        let head = raw_crefs.symbolic().resolve_head().cloned();
+        let head: Option<Qualified<'static>> = raw_crefs.symbolic().resolve_head().cloned();
 
         match (head, self.project()) {
             (Some(ref default_branch), Ok(project)) => {
-                let project_branch = project.default_branch_qualified().to_ref_string();
+                let project_branch = project.default_branch_qualified();
                 if project_branch != *default_branch {
                     return Err(DefaultBranchRuleError::HeadMismatch {
-                        cref: default_branch.clone(),
-                        project: project_branch,
+                        cref: default_branch.to_ref_string(),
+                        project: project_branch.to_ref_string(),
                     }
                     .into());
                 }
@@ -854,12 +848,9 @@ impl Doc {
     fn validate_head_rule(
         &self,
         raw_crefs: &RawCanonicalRefs,
-        default_branch: &RefString,
+        default_branch: &Qualified,
     ) -> Result<(), CanonicalRefsError> {
-        let Some(qualified) = Qualified::from_refstr(default_branch) else {
-            return Ok(());
-        };
-        let Some((pattern, rule)) = raw_crefs.raw_rules().matches(&qualified).next() else {
+        let Some((pattern, rule)) = raw_crefs.raw_rules().matches(default_branch).next() else {
             return Ok(());
         };
 

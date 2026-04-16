@@ -234,7 +234,7 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
 
             if let Some(symbolic) = crefs.symbolic().resolve_head() {
                 return Err(error::DocVerification::DisallowDefaultBranchSymbolic {
-                    symbolic: symbolic.to_owned(),
+                    symbolic: symbolic.to_ref_string(),
                     default,
                 });
             }

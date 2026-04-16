@@ -676,7 +676,7 @@ pub trait WriteRepository: ReadRepository + SignRepository {
     /// not even exist.
     fn set_canonical_symbolic_refs(&self, message: &str) -> Result<(), RepositoryError> {
         for (name, target) in self.identity_doc()?.canonical_refs()?.symbolic().iter() {
-            self.set_symbolic_ref(name, target, message)?;
+            self.set_symbolic_ref(name.as_ref(), target.as_ref(), message)?;
         }
         Ok(())
     }

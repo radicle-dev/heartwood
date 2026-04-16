@@ -15,7 +15,7 @@ pub enum ValidationError {
     #[error("the target of the symbolic reference '{name} → {target}' is not matched by any rule")]
     Dangling {
         name: symbolic::RawName,
-        target: symbolic::RawTarget,
+        target: Qualified<'static>,
     },
 
     #[error(
@@ -97,10 +97,7 @@ impl CanonicalRefs {
     /// formed set of references when interpreted together.
     pub fn new(rules: Rules, symbolic: SymbolicRefs) -> Result<Self, ValidationError> {
         for (name, target) in symbolic.iter_resolved() {
-            if Qualified::from_refstr(target)
-                .and_then(|qualified| rules.matches(&qualified).next())
-                .is_none()
-            {
+            if rules.matches(target).next().is_none() {
                 return Err(ValidationError::Dangling {
                     name: name.to_owned(),
                     target: target.to_owned(),

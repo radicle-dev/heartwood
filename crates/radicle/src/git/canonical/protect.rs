@@ -57,6 +57,20 @@ impl<T: RefLike> AsRef<T> for Unprotected<T> {
     }
 }
 
+impl<T: RefLike> std::borrow::Borrow<T> for Unprotected<T> {
+    fn borrow(&self) -> &T {
+        &self.0
+    }
+}
+
+/// Enables looking up entries in a map keyed by `Unprotected<RefString>` using
+/// a `&RefStr`.
+impl std::borrow::Borrow<crate::git::fmt::RefStr> for Unprotected<crate::git::fmt::RefString> {
+    fn borrow(&self) -> &crate::git::fmt::RefStr {
+        self.0.as_ref()
+    }
+}
+
 impl<'de, T: RefLike + serde::Deserialize<'de>> serde::Deserialize<'de> for Unprotected<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
