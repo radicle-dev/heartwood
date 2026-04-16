@@ -116,7 +116,7 @@ impl TypedValueParser for ScopeParser {
 ///
 /// Otherwise, i.e, if the given [`Option<RepoId>`] is `None`, an attempt is
 /// made to detect the the [`RepoId`] associated with the current working
-/// directory, by callind [`radicle::rad::cwd`]. If this detection fails,
+/// directory, by calling [`radicle::rad::cwd`]. If this detection fails,
 /// an error with context is returned.
 pub(crate) fn rid_or_cwd(
     rid: Option<RepoId>,
