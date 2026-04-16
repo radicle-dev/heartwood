@@ -80,8 +80,6 @@ impl DocError {
 
 #[derive(Debug, Error)]
 pub enum DefaultBranchError {
-    // #[error("could not load `xyz.radicle.project` to get default branch name: {0}")]
-    // Payload(#[from] PayloadError),
     #[error(
         "could not find default branch in any of the payloads `xyz.radicle.project` ({project}) or `xyz.radicle.crefs` ({crefs})"
     )]
