@@ -3,4 +3,3 @@
 skip = .git*,*.lock,.codespellrc,target,.jj,.direnv,simulation/modules/radicle-node/cue.mod/*
 check-hidden = true
 ignore-words-list = ser,set,noes
-dictionary = .codespell-dictionary.txt,-
