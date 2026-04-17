@@ -238,7 +238,7 @@ impl Formatter for CanonicalFormatter {
 
     // This is for serde_json's `raw_value` feature, which provides a RawValue type
     // that is passed through as-is. That's not good enough for canonical JSON,
-    // so we parse it and immediately write it back out... as canonical JSON.
+    // so we parse it and immediately write it back out… as canonical JSON.
     fn write_raw_fragment<W: Write + ?Sized>(
         &mut self,
         writer: &mut W,

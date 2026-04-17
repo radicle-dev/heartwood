@@ -126,7 +126,7 @@ impl<T, const N: usize> BoundedVec<T, N> {
     /// vec.push(3).expect("within limit");
     /// assert_eq!(vec, vec![1, 2, 3].try_into().unwrap());
     ///
-    /// // ...but this will exceed its limit, returning an error.
+    /// // …but this will exceed its limit, returning an error.
     /// vec.push(4).expect_err("limit exceeded");
     /// assert_eq!(vec.len(), 3);
     /// ```

@@ -258,7 +258,7 @@ pub fn indented(msg: impl fmt::Display) {
 }
 
 pub fn subcommand(msg: impl fmt::Display) {
-    println(style(format!("Running `{msg}`...")).dim());
+    println(style(format!("Running `{msg}`…")).dim());
 }
 
 pub fn warning(warning: impl fmt::Display) {

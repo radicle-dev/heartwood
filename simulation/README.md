@@ -69,7 +69,7 @@ Here is an example of how the topology is structured:
 ```cue
 package main
 
-// ...
+// …
 
 // Declare instances to deploy
 values: {
@@ -181,7 +181,7 @@ See the [Goals] section for more info.
 - [X] Flexibility to define network topologies.
 - [ ] Easy to construct and run new simulations.
 - [ ] Reproducible starting state.
-- [ ] Adverse network emulation e.g. dropped packets, network delays...
+- [ ] Adverse network emulation e.g. dropped packets, network delays…
 
 ## Plan
 

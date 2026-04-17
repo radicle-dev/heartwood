@@ -84,7 +84,7 @@ Running the command again gives us an error:
 
 ```
 $ rad node stop
-✗ Stopping node... error: node is not running
+✗ Stopping node… error: node is not running
 ```
 
 Note that if we unseed a repository, it is no longer part of our inventory:
@@ -126,7 +126,7 @@ $ rad sync status
 ```
 ``` (fail)
 $ rad node connect z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk@radicle.example:58776
-✗ Connecting to z6Mkt67…v4N1tRk@radicle.example:58776... <canceled>
+✗ Connecting to z6Mkt67…v4N1tRk@radicle.example:58776… <canceled>
 ✗ Error: failed to open node control socket "[..]/.radicle/node/control.sock" (entity not found)
 ✗ Hint: to start your node, run `rad node start`.
 ```

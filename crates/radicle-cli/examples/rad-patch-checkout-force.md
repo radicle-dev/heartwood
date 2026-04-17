@@ -80,7 +80,7 @@ ensure that they are looking at the latest changes:
 
 ``` ~bob (fail)
 $ rad patch checkout aa45913 --name alice-init
-✗ Performing checkout... <canceled>
+✗ Performing checkout… <canceled>
 ✗ Error: branch 'alice-init' already exists (use `--force` to overwrite)
 ```
 

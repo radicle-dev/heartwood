@@ -46,7 +46,7 @@ impl Controller {
     }
 
     pub fn shutdown(self) -> Result<(), Self> {
-        log::info!(target: "reactor::controller", "Initiating reactor shutdown...");
+        log::info!(target: "reactor::controller", "Initiating reactor shutdown…");
         let res1 = self.sender.send(ControlMessage::Shutdown);
         let res2 = self.wake();
         res1.or(res2).map_err(|_| self)

@@ -1046,7 +1046,7 @@ impl Doc {
             &crate::cob::identity::TYPENAME,
             &cob.id,
         );
-        // Set `.../refs/rad/id` -> `.../refs/cobs/xyz.radicle.id/<id>`
+        // Set `…/refs/rad/id` -> `…/refs/cobs/xyz.radicle.id/<id>`
         repo.backend.reference_symbolic(
             id_ref.as_str(),
             cob_ref.as_str(),

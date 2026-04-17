@@ -310,7 +310,7 @@ impl Reactor {
         let poll = Poll::new()?;
         let controller = Controller::new(sender, Arc::new(Waker::new(poll.registry(), WAKER)?));
 
-        log::debug!(target: "reactor-controller", "Initializing reactor thread...");
+        log::debug!(target: "reactor-controller", "Initializing reactor thread…");
         let thread = builder.spawn(move || {
             let runtime = Runtime {
                 service,

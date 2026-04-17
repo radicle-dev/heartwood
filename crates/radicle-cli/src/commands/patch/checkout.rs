@@ -54,7 +54,7 @@ pub fn run(
         None => patch.latest(),
     };
 
-    let mut spinner = term::spinner("Performing checkout...");
+    let mut spinner = term::spinner("Performing checkout…");
     let patch_branch = opts.branch(patch_id)?;
 
     let commit = match working.find_branch(patch_branch.as_str(), git::raw::BranchType::Local) {

@@ -120,7 +120,7 @@ pub fn start(
 }
 
 pub fn stop(node: Node, profile: &Profile) {
-    let mut spinner = term::spinner("Stopping node...");
+    let mut spinner = term::spinner("Stopping node…");
     if node.shutdown().is_err() {
         spinner.error("node is not running");
     } else {
@@ -198,7 +198,7 @@ pub fn connect(
     timeout: time::Duration,
 ) -> anyhow::Result<()> {
     let spinner = term::spinner(format!(
-        "Connecting to {}@{addr}...",
+        "Connecting to {}@{addr}…",
         term::format::node_id_human_compact(&nid)
     ));
     match node.connect(
@@ -222,11 +222,11 @@ pub fn connect_many(
     addrs: Vec<Address>,
     timeout: time::Duration,
 ) -> anyhow::Result<()> {
-    let mut spinner = term::spinner("Connecting...");
+    let mut spinner = term::spinner("Connecting…");
     let mut errors = HashMap::new();
     for addr in addrs {
         spinner.message(format!(
-            "Connecting to {}@{addr}...",
+            "Connecting to {}@{addr}…",
             term::format::node_id_human_compact(&nid)
         ));
         match node.connect(

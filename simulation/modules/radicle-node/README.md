@@ -75,7 +75,7 @@ This module uses a `topology` map to define one or more groups of Radicle nodes.
 | `topology: [name]: version`       | `string` | `latest`                                | Container image tag.                                                        |
 | `topology: [name]: storage`       | `object` | `{className: "local-path", size: "1Gi"}`| Persistent Volume Claim configuration for `/home/radicle/.radicle`.         |
 | `topology: [name]: sidecars`      | `object` | `{events: true}`                        | Toggles sidecar containers (e.g. the events logger).                       |
-| `topology: [name]: radicleConfig` | `object` | `{node: {network: "test", ...}}`        | The contents of the `config.json` injected into the node.                   |
+| `topology: [name]: radicleConfig` | `object` | `{node: {network: "test", …}}`        | The contents of the `config.json` injected into the node.                   |
 
 ## Node Identity / Secrets
 
