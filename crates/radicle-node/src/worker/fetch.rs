@@ -342,7 +342,7 @@ fn set_canonical_refs(
     let crefs = identity.doc().canonical_refs()?;
 
     for (name, target) in crefs.symbolic().iter() {
-        if let Err(e) = repo.set_symbolic_ref(name, target.as_refstr(), LOG_MESSAGE) {
+        if let Err(e) = repo.set_symbolic_ref(name, target, LOG_MESSAGE) {
             log::warn!(
                 target: "worker",
                 "Failed to set canonical symbolic reference '{name}' → '{target}': {e}"

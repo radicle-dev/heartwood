@@ -936,12 +936,18 @@ impl ReadRepository for Repository {
 }
 
 impl WriteRepository for Repository {
-    fn set_symbolic_ref(
+    fn set_symbolic_ref<Name, Target>(
         &self,
-        name: &RefStr,
-        target: &RefStr,
+        name: &Name,
+        target: &Target,
         message: &str,
-    ) -> Result<(), RepositoryError> {
+    ) -> Result<(), RepositoryError>
+    where
+        Name: AsRef<RefStr>,
+        Target: AsRef<RefStr>,
+    {
+        let name = name.as_ref();
+        let target = target.as_ref();
         match self.raw().find_reference(name.as_str()) {
             Ok(mut existing) => match existing.symbolic_target() {
                 Some(current) if current == target.as_str() => {

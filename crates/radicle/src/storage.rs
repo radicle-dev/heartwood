@@ -676,19 +676,22 @@ pub trait WriteRepository: ReadRepository + SignRepository {
     /// not even exist.
     fn set_canonical_symbolic_refs(&self, message: &str) -> Result<(), RepositoryError> {
         for (name, target) in self.identity_doc()?.canonical_refs()?.symbolic().iter() {
-            self.set_symbolic_ref(name.as_ref(), target.as_ref(), message)?;
+            self.set_symbolic_ref(name, target, message)?;
         }
         Ok(())
     }
 
     /// Sets a symbolic reference, if it does not exist or its target is different
     /// from the given one.
-    fn set_symbolic_ref(
+    fn set_symbolic_ref<Name, Target>(
         &self,
-        name: &RefStr,
-        target: &RefStr,
+        name: &Name,
+        target: &Target,
         message: &str,
-    ) -> Result<(), RepositoryError>;
+    ) -> Result<(), RepositoryError>
+    where
+        Name: AsRef<RefStr>,
+        Target: AsRef<RefStr>;
 
     /// Computes the head of the default branch based on the delegate set,
     /// and sets it.

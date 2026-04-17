@@ -344,12 +344,16 @@ impl WriteRepository for MockRepository {
         todo!()
     }
 
-    fn set_symbolic_ref(
+    fn set_symbolic_ref<Name, Target>(
         &self,
-        _name: &fmt::RefStr,
-        _target: &fmt::RefStr,
+        _name: &Name,
+        _target: &Target,
         _message: &str,
-    ) -> Result<(), RepositoryError> {
+    ) -> Result<(), RepositoryError>
+    where
+        Name: AsRef<fmt::RefStr>,
+        Target: AsRef<fmt::RefStr>,
+    {
         todo!()
     }
 
