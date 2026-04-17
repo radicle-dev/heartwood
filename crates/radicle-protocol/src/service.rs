@@ -749,7 +749,7 @@ where
         );
 
         if now - self.last_idle >= IDLE_INTERVAL {
-            trace!(target: "service", "Running 'idle' task...");
+            trace!(target: "service", "Running 'idle' task…");
 
             self.keep_alive(&now);
             self.disconnect_unresponsive_peers(&now);
@@ -760,7 +760,7 @@ where
             self.last_idle = now;
         }
         if now - self.last_gossip >= GOSSIP_INTERVAL {
-            trace!(target: "service", "Running 'gossip' task...");
+            trace!(target: "service", "Running 'gossip' task…");
 
             if let Err(e) = self.relay_announcements() {
                 warn!(target: "service", "Failed to relay stored announcements: {e}");
@@ -769,7 +769,7 @@ where
             self.last_gossip = now;
         }
         if now - self.last_sync >= SYNC_INTERVAL {
-            trace!(target: "service", "Running 'sync' task...");
+            trace!(target: "service", "Running 'sync' task…");
 
             if let Err(e) = self.fetch_missing_repositories() {
                 warn!(target: "service", "Failed to fetch missing inventory: {e}");
@@ -778,14 +778,14 @@ where
             self.last_sync = now;
         }
         if now - self.last_announce >= ANNOUNCE_INTERVAL {
-            trace!(target: "service", "Running 'announce' task...");
+            trace!(target: "service", "Running 'announce' task…");
 
             self.announce_inventory();
             self.outbox.wakeup(ANNOUNCE_INTERVAL);
             self.last_announce = now;
         }
         if now - self.last_prune >= PRUNE_INTERVAL {
-            trace!(target: "service", "Running 'prune' task...");
+            trace!(target: "service", "Running 'prune' task…");
 
             if let Err(err) = self.prune_routing_entries(&now) {
                 warn!(target: "service", "Failed to prune routing entries: {err}");
@@ -2631,7 +2631,7 @@ where
 
         for (nid, addr, attempts) in reconnect {
             if self.reconnect(nid, addr) {
-                debug!(target: "service", "Reconnecting to {nid} (attempts={attempts})...");
+                debug!(target: "service", "Reconnecting to {nid} (attempts={attempts})…");
             }
         }
     }

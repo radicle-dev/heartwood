@@ -58,7 +58,7 @@ the delegates and threshold:
     +   "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
     +   "did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk"
       ],
-    ...
+    …
     -  "threshold": 1
     +  "threshold": 2
 

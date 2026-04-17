@@ -1224,7 +1224,7 @@ fn test_persistent_peer_reconnect_attempt() {
     assert!(ips.contains(&bob.id()));
     assert!(ips.contains(&eve.id()));
 
-    // ... Negotiated ...
+    // … Negotiated …
     //
     // Now let's disconnect a peer.
 
@@ -1519,7 +1519,7 @@ fn test_queued_fetch_max_capacity() {
 
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
     assert_eq!(alice.fetches().next(), Some((rid2, bob.id)));
-    // ... but not the third.
+    // … but not the third.
     assert_matches!(alice.fetches().next(), None);
 
     // Finish the 2nd fetch.
@@ -1651,7 +1651,7 @@ fn test_queued_fetch_from_command_same_rid() {
     assert_eq!(rid, rid1);
     assert!(peers.remove(&nid));
 
-    // ... but not the third.
+    // … but not the third.
     assert_matches!(alice.fetches().next(), None);
 
     // Finish the 2nd fetch.

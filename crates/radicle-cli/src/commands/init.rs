@@ -134,7 +134,7 @@ pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> an
 
     let signer = term::signer(profile)?;
     let mut node = radicle::Node::new(profile.socket_from_env());
-    let mut spinner = term::spinner("Initializing...");
+    let mut spinner = term::spinner("Initializing…");
     let mut push_cmd = String::from("git push");
 
     match radicle::rad::init(
@@ -497,7 +497,7 @@ pub fn setup_signing(
     let key = ssh::fmt::fingerprint(node_id);
     let yes = if !git::is_signing_configured(path)? {
         term::headline(format!(
-            "Configuring Radicle signing key {}...",
+            "Configuring Radicle signing key {}…",
             term::format::tertiary(key)
         ));
         true

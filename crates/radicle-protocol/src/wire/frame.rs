@@ -191,7 +191,7 @@ impl From<StreamType> for u8 {
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |                     Stream ID                           |TTT|I| Stream ID with Stream [T]ype and [I]nitiator bits
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                     Data                                   ...| Data (variable size)
+/// |                     Data                                     …| Data (variable size)
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 #[derive(Debug, PartialEq, Eq)]

@@ -61,9 +61,14 @@ check-docs:
 [group('pre-push')]
 [group('check')]
 [parallel]
-check-typos: (verify-tool "typos" "typos-cli")
+check-typos: (verify-tool "typos" "typos-cli") check-ellipses
     @echo "{{CHECK}}Checking for spelling typos...{{NORMAL}}"
     @typos
+
+[group('check')]
+check-ellipses:
+    @echo "{{CHECK}} Checking for ellipses...{{NORMAL}}"
+    scripts/just/check-ellipses.sh
 
 # Run codespell
 [group('pre-commit')]
