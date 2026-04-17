@@ -64,7 +64,7 @@ pub fn signer(profile: &Profile) -> anyhow::Result<BoxedDevice> {
             )
         }
     };
-    let spinner = spinner("Unsealing key...");
+    let spinner = spinner("Unsealing key…");
     let signer = MemorySigner::load(&profile.keystore, Some(passphrase))?;
 
     spinner.finish();

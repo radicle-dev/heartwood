@@ -55,7 +55,7 @@ pub fn init(args: Args) -> anyhow::Result<()> {
         term::passphrase_confirm("Enter a passphrase:", env::RAD_PASSPHRASE)?
     };
     let passphrase = passphrase.filter(|passphrase| !passphrase.trim().is_empty());
-    let spinner = term::spinner("Creating your Ed25519 keypair...");
+    let spinner = term::spinner("Creating your Ed25519 keypair…");
     let profile = Profile::init(home, alias, passphrase.clone(), env::seed())?;
     let mut agent = true;
     spinner.finish();
@@ -63,7 +63,7 @@ pub fn init(args: Args) -> anyhow::Result<()> {
     if let Some(passphrase) = passphrase {
         match ssh::agent::Agent::connect() {
             Ok(mut agent) => {
-                let mut spinner = term::spinner("Adding your Radicle key to ssh-agent...");
+                let mut spinner = term::spinner("Adding your Radicle key to ssh-agent…");
                 if register(&mut agent, &profile, passphrase).is_ok() {
                     spinner.finish();
                 } else {

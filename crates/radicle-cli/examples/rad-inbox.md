@@ -6,7 +6,7 @@ Your inbox is empty.
 
 ``` ~bob
 $ cd heartwood
-$ rad issue open --title "No license file" --description "..." -q
+$ rad issue open --title "No license file" --description "…" -q
 ✓ Synced with 1 seed(s)
 $ git commit -m "Change copyright" --allow-empty -q
 $ git push rad HEAD:bob/copy
@@ -80,7 +80,7 @@ $ rad inbox show 1
 │ Author  bob z6Mkt67…v4N1tRk                      │
 │ Status  open                                     │
 │                                                  │
-│ ...                                              │
+│ [...]                                            │
 ╰──────────────────────────────────────────────────╯
 ```
 

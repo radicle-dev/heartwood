@@ -19,7 +19,7 @@ post-checkout:
 # Run commit-msg checks
 [group('hooks')]
 commit-msg file: (verify-tool "typos" "typos-cli")
-    @echo "{{CHECK}}Checking commit message for typos...{{NORMAL}}"
+    @echo "{{CHECK}}Checking commit message for typos…{{NORMAL}}"
     @NORMAL="{{NORMAL}}" WARN="{{WARN}}" scripts/just/commit-msg.sh "{{file}}"
 
 # Run pre-commit checks
@@ -35,7 +35,7 @@ pre-commit: check-conflict-markers format-rust check-rust check-docs check-typos
 [group('format')]
 [parallel]
 format-rust: (verify-tool "cargo")
-    @echo "{{CHECK}}Cargo fmt...{{NORMAL}}"
+    @echo "{{CHECK}}Cargo fmt…{{NORMAL}}"
     @{{cargo_cmd}} fmt --all --check
 
 # Run cargo check
@@ -44,7 +44,7 @@ format-rust: (verify-tool "cargo")
 [group('check')]
 [parallel]
 check-rust:
-    @echo "{{CHECK}}Cargo check...{{NORMAL}}"
+    @echo "{{CHECK}}Cargo check…{{NORMAL}}"
     @{{cargo_cmd}} check --workspace --all-targets --all-features
 
 # Check documentation for warnings
@@ -53,7 +53,7 @@ check-rust:
 [group('check')]
 [parallel]
 check-docs:
-    @echo "{{CHECK}}Checking docs for warnings...{{NORMAL}}"
+    @echo "{{CHECK}}Checking docs for warnings…{{NORMAL}}"
     @RUSTDOCFLAGS="--deny warnings" {{cargo_cmd}} doc --workspace --all-features --no-deps
 
 # Check for typos
@@ -61,9 +61,14 @@ check-docs:
 [group('pre-push')]
 [group('check')]
 [parallel]
-check-typos: (verify-tool "typos" "typos-cli")
-    @echo "{{CHECK}}Checking for spelling typos...{{NORMAL}}"
+check-typos: (verify-tool "typos" "typos-cli") check-ellipses
+    @echo "{{CHECK}}Checking for spelling typos…{{NORMAL}}"
     @typos
+
+[group('check')]
+check-ellipses:
+    @echo "{{CHECK}}Checking for ellipses…{{NORMAL}}"
+    scripts/just/check-ellipses.sh
 
 # Run codespell
 [group('pre-commit')]
@@ -71,7 +76,7 @@ check-typos: (verify-tool "typos" "typos-cli")
 [group('check')]
 [parallel]
 check-spelling: (verify-tool "codespell")
-    @echo "{{CHECK}}Checking for code typos...{{NORMAL}}"
+    @echo "{{CHECK}}Checking for code typos…{{NORMAL}}"
     @git ls-files -z | xargs -0 codespell --write-changes --check-filenames
 
 # just runs with `/bin/sh` which has no doublestar glob
@@ -84,7 +89,7 @@ check-spelling: (verify-tool "codespell")
 [group('check')]
 [parallel]
 check-scripts: (verify-tool "shellcheck")
-    @echo "{{CHECK}}Checking shell scripts...{{NORMAL}}"
+    @echo "{{CHECK}}Checking shell scripts…{{NORMAL}}"
     @find . -type f -name "*.sh" -exec shellcheck {} +
 
 # Run checks for forbidden keywords
@@ -101,7 +106,7 @@ check-keywords: (verify-tool "rg" "ripgrep")
 [group('check')]
 [parallel]
 check-conflict-markers: (verify-tool "rg" "ripgrep")
-    @echo "{{CHECK}}Checking for conflict markers...{{NORMAL}}"
+    @echo "{{CHECK}}Checking for conflict markers…{{NORMAL}}"
     @! rg -n '^(<{7}|\|{7}|={7}|>{7}|%{7}|\+{7}|-{7})( |$)'
 
 # Format Nix files
@@ -122,7 +127,7 @@ pre-push: check-conflict-markers format-rust check-rust check-keywords check-doc
 # Run Clippy lints
 [group('pre-push')]
 lint-rust: (verify-tool "cargo")
-    @echo "{{CHECK}}Cargo clippy...{{NORMAL}}"
+    @echo "{{CHECK}}Cargo clippy…{{NORMAL}}"
     @{{cargo_cmd}} clippy --workspace --all-targets --all-features -- --deny warnings
 
 # Check if required tools are in PATH.
@@ -148,5 +153,5 @@ check-hooks:
 [group('test')]
 [group('pre-push')]
 test-rust:
-    @echo "{{CHECK}}Cargo test...{{NORMAL}}"
+    @echo "{{CHECK}}Cargo test…{{NORMAL}}"
     @{{cargo_cmd}} nextest run --workspace --all-features --no-fail-fast

@@ -38,7 +38,7 @@ fn execute(args: Args, profile: &Profile) -> anyhow::Result<PathBuf> {
         anyhow::bail!("the local path {:?} already exists", path.as_path());
     }
 
-    let mut spinner = term::spinner("Performing checkout...");
+    let mut spinner = term::spinner("Performing checkout…");
     let repo = match radicle::rad::checkout(args.repo, &remote, path.clone(), &storage, false) {
         Ok(repo) => repo,
         Err(err) => {

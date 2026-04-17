@@ -152,7 +152,7 @@ are separated from private modules with a blank line:
     use std::time;
     use std::process;
 
-    ...
+    …
 
 Imports are organized in groups, from least specific to more specific:
 
@@ -175,13 +175,13 @@ Use short 1-letter names when the variable scope is only a few lines, or the con
 obvious, eg.
 
     if let Some(e) = result.err() {
-        ...
+        …
     }
 
 Use 1-word names for function parameters or variables that have larger scopes:
 
     pub fn commit(repo: &Repository, sig: &Signature) -> Result<Commit, Error> {
-        ...
+        …
     }
 
 Use the most descriptive names for globals:
@@ -224,7 +224,7 @@ for the reader:
     // all of it. It can happen that inventory is not properly tracked if for eg. the
     // user creates a new repository while the node is stopped.
     for rid in self.storage.inventory()? {
-        ...
+        …
 
 ### Referring to radicle.dev in Code
 

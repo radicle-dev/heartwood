@@ -18,7 +18,7 @@ use radicle_signals as signals;
 const HELP_MSG: &str = r#"
 Usage
 
-   radicle-node [<option>...]
+   radicle-node [<option>…]
 
    If you're running a public seed node, make sure to use `--listen` to bind a listening socket to
    eg. `0.0.0.0:8776`, and add your external addresses in your configuration.
