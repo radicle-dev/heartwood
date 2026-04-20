@@ -1,9 +1,10 @@
 use std::str::FromStr;
 use std::{io, process::ExitStatus};
 
+use radicle::storage::ReadRepository;
 use thiserror::Error;
 
-use radicle::git;
+use radicle::git::{self, Url};
 
 use crate::Verbosity;
 use crate::service::GitService;
@@ -36,6 +37,12 @@ pub(super) enum Error {
     /// Received an unexpected command after the first `fetch` command.
     #[error("unexpected command after first `fetch`: {0:?}")]
     UnexpectedCommand(crate::protocol::Command),
+
+    #[error(transparent)]
+    Git(#[from] radicle::git::raw::Error),
+
+    #[error(transparent)]
+    Repository(#[from] radicle::storage::RepositoryError),
 }
 
 /// Run a git fetch command.
@@ -45,6 +52,8 @@ pub(super) fn run<G: GitService>(
     git: &G,
     command_reader: &mut crate::protocol::LineReader<impl io::Read>,
     verbosity: Verbosity,
+    remote: Option<&git::fmt::RefString>,
+    url: &Url,
 ) -> Result<(), Error> {
     // Read all the `fetch` lines.
     for line in command_reader.by_ref() {
@@ -85,6 +94,57 @@ pub(super) fn run<G: GitService>(
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
             status: output.status,
         });
+    }
+
+    // For compatibility with Git versions prior 2.48, we explicitly set
+    // the `HEAD`.
+    if url.namespace.is_none()
+        && let Some(remote) = remote
+    {
+        if let Ok(working) = radicle::git::raw::Repository::open_from_env() {
+            use radicle::git::raw::ErrorExt as _;
+
+            let name = format!("refs/remotes/{remote}/HEAD");
+
+            let head = working.find_reference(&name);
+
+            let head = match head {
+                Ok(head) => Some(head),
+                Err(err) if err.is_not_found() => None,
+                Err(err) => return Err(err)?,
+            };
+
+            let target_actual = head.as_ref().and_then(|head| head.symbolic_target());
+
+            let default_branch = stored.default_branch()?;
+
+            let default_branch = default_branch
+                .components()
+                .nth(2)
+                .expect("qualified reference has at least three components");
+
+            let target_expected = format!("refs/remotes/{remote}/{default_branch}");
+
+            if Some(target_expected.as_str()) != target_actual {
+                match head {
+                    Some(head) => {
+                        let mut head = head;
+                        head.symbolic_set_target(
+                            target_expected.as_str(),
+                            "radicle-remote-helper: update HEAD",
+                        )?;
+                    }
+                    None => {
+                        working.reference_symbolic(
+                            &name,
+                            target_expected.as_str(),
+                            false,
+                            "radicle-remote-helper: set HEAD",
+                        )?;
+                    }
+                }
+            }
+        }
     }
 
     Ok(())

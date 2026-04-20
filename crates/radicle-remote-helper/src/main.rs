@@ -348,6 +348,8 @@ fn run_loop<R: BufRead, W: Write, G: service::GitService, N: service::NodeSessio
                     git,
                     &mut command_reader,
                     opts.verbosity,
+                    remote.as_ref(),
+                    &url,
                 )?;
 
                 // Nb. An empty line means we're done
