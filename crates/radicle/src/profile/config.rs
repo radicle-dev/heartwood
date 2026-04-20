@@ -206,15 +206,8 @@ impl Config {
 
     /// Write configuration to disk.
     pub fn write(&self, path: &Path) -> Result<(), WriteError> {
-        let value = json::to_value(self).map_err(|err| WriteError::to_json(path, err))?;
-        let tmp = RawConfig(value);
-        let file = fs::OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(path)
-            .map_err(|err| WriteError::open_file(path, err))?;
-
-        tmp.write_file(path, file)
+        let contents = json::to_vec_pretty(self).map_err(|err| WriteError::to_json(path, err))?;
+        fs::write(path, contents).map_err(|err| WriteError::write_file(path, err))
     }
 
     /// Get the user alias.
@@ -225,9 +218,11 @@ impl Config {
 
 /// Offers utility functions for editing the configuration. Validates on write.
 #[derive(Debug, Clone)]
+#[deprecated]
 pub struct RawConfig(json::Value);
 
 #[derive(Debug, Error)]
+#[allow(deprecated)]
 pub enum ModifyError {
     #[error("the path provided was empty")]
     EmptyPath,
@@ -241,6 +236,7 @@ pub enum ModifyError {
     Upsert { key: String },
 }
 
+#[allow(deprecated)]
 impl RawConfig {
     /// Creates a temporary configuration, by reading a configuration file from disk.
     pub fn from_file(path: &Path) -> Result<Self, WriteError> {
@@ -396,6 +392,7 @@ impl RawConfig {
     }
 }
 
+#[allow(deprecated)]
 impl TryFrom<RawConfig> for Config {
     type Error = json::Error;
 
@@ -406,11 +403,14 @@ impl TryFrom<RawConfig> for Config {
 
 /// A struct that ensures all values are safe for JSON serialization, including handling special
 /// floating point values like `NaN` and `Infinity`. Use the `From<&str>` implementation to create an instance.
+#[deprecated]
+#[allow(deprecated)]
 pub struct ConfigValue(RawConfigValue);
 
 /// This enum represents raw configuration values and should not be used directly.
 /// Use the `ConfigValue` type, which validates values using its `From<&str>` implementation.
 #[derive(Debug, Clone)]
+#[deprecated]
 enum RawConfigValue {
     Integer(i64),
     Float(f64),
@@ -418,6 +418,7 @@ enum RawConfigValue {
     String(String),
 }
 
+#[allow(deprecated)]
 impl From<&str> for ConfigValue {
     /// Guess the type of a Value.
     fn from(value: &str) -> Self {
@@ -438,12 +439,14 @@ impl From<&str> for ConfigValue {
     }
 }
 
+#[allow(deprecated)]
 impl From<String> for ConfigValue {
     fn from(value: String) -> Self {
         value.as_str().into()
     }
 }
 
+#[allow(deprecated)]
 impl From<ConfigValue> for json::Value {
     fn from(value: ConfigValue) -> Self {
         match value {
@@ -461,8 +464,10 @@ impl From<ConfigValue> for json::Value {
 
 /// Configuration attribute path.
 #[derive(Default, Debug, Clone)]
+#[deprecated]
 pub struct ConfigPath(Vec<String>);
 
+#[allow(deprecated)]
 impl ConfigPath {
     fn parent(&self) -> Option<Self> {
         self.0.split_last().map(|(_, tail)| Self(tail.to_vec()))
@@ -477,12 +482,14 @@ impl ConfigPath {
     }
 }
 
+#[allow(deprecated)]
 impl fmt::Display for ConfigPath {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0.join("."))
     }
 }
 
+#[allow(deprecated)]
 impl From<String> for ConfigPath {
     fn from(value: String) -> Self {
         let parts: Vec<String> = value.split('.').map(|s| s.to_string()).collect();

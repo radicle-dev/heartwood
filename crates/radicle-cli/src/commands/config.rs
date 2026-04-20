@@ -5,10 +5,13 @@ use args::Command;
 
 use std::path::Path;
 
-use radicle::profile::{Config, ConfigPath, RawConfig, config};
+use radicle::profile::{Config, config};
 
-use crate::terminal as term;
+#[allow(deprecated)]
+use radicle::profile::config::{ConfigPath, RawConfig};
+
 use crate::terminal::Element as _;
+use crate::{terminal as term, warning};
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let home = ctx.home()?;
@@ -23,6 +26,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         Command::Schema => {
             term::json::to_pretty(&schemars::schema_for!(Config), path.as_path())?.print()
         }
+        #[allow(deprecated)]
         Command::Get { key } => {
             let mut temp_config = RawConfig::from_file(&path)?;
             let key: ConfigPath = key.into();
@@ -31,19 +35,27 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             })?;
             print_value(value)?;
         }
+        #[allow(deprecated)]
         Command::Set { key, value } => {
+            warning::obsolete("rad config set");
             let value = modify(path, |tmp| tmp.set(&key.into(), value.into()))?;
             print_value(&value)?;
         }
+        #[allow(deprecated)]
         Command::Push { key, value } => {
+            warning::obsolete("rad config push");
             let value = modify(path, |tmp| tmp.push(&key.into(), value.into()))?;
             print_value(&value)?;
         }
+        #[allow(deprecated)]
         Command::Remove { key, value } => {
+            warning::obsolete("rad config remove");
             let value = modify(path, |tmp| tmp.remove(&key.into(), value.into()))?;
             print_value(&value)?;
         }
+        #[allow(deprecated)]
         Command::Unset { key } => {
+            warning::obsolete("rad config unset");
             let value = modify(path, |tmp| tmp.unset(&key.into()))?;
             print_value(&value)?;
         }
@@ -68,6 +80,8 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[deprecated]
+#[allow(deprecated)]
 fn modify<P, M>(path: P, modification: M) -> anyhow::Result<serde_json::Value>
 where
     P: AsRef<Path>,
@@ -83,6 +97,8 @@ where
 }
 
 /// Print a JSON Value.
+#[deprecated]
+#[allow(deprecated)]
 fn print_value(value: &serde_json::Value) -> anyhow::Result<()> {
     match value {
         serde_json::Value::Null => {}

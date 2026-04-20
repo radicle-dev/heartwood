@@ -12,7 +12,7 @@
 //!
 
 pub mod config;
-pub use config::{Config, ConfigPath, RawConfig, WriteError};
+pub use config::{Config, WriteError};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};

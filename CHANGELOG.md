@@ -28,6 +28,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   connections via SOCKS proxy and I2P for `*.i2p{,.alt}` names is now supported.
   To enable making connections via I2P, configure `node.i2p`.
 
+## Deprecations
+
+- The commands to read and modify particular values in Radicle configuration via
+  the CLI, i.e.,
+    - `rad config get`
+    - `rad config push`
+    - `rad config remove`
+    - `rad config set`
+    - `rad config unset`
+  were marked as obsolete. In the future, please modify Radicle configuration
+  with your favorite text editor (e.g. via `rad config edit`), or specialized
+  tools like `jq`.
+
 ## 1.8.0
 
 ## New Features
