@@ -122,6 +122,12 @@ fn repository_with<P: AsRef<Path>>(
         let mut config = repo.config().unwrap();
         config.set_str("user.name", USER_NAME).unwrap();
         config.set_str("user.email", USER_EMAIL).unwrap();
+        // Git older than v2.48.0 have the behaviour of 'remote.<remote>.followRemoteHEAD=never',
+        // So we set it explicitly here for testing purposes, for consistent output of commands
+        // like 'git branch -r' and 'git show-ref'
+        config
+            .set_str("remote.rad.followRemoteHEAD", "never")
+            .unwrap();
     }
 
     let sig = git::raw::Signature::new(

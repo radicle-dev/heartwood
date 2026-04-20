@@ -62,7 +62,6 @@ And let's look at our local and remote refs:
 $ git show-ref
 42d894a83c9c356552a57af09ccdbd5587a99045 refs/heads/feature/1
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 refs/heads/master
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 refs/remotes/rad/HEAD
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 refs/remotes/rad/master
 42d894a83c9c356552a57af09ccdbd5587a99045 refs/remotes/rad/patches/6035d2f582afbe01ff23ea87528ae523d76875b6
 ```
