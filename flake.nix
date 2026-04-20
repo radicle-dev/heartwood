@@ -366,12 +366,25 @@
           just
           ripgrep
           sqlite
+
+          # /simulation
+          cue
+          kubectl
+          talosctl
+          timoni
+          qemu
+          OVMF.fd
         ];
 
         env = {
           RUST_BACKTRACE = "full";
           RUST_SRC_PATH = "${rustupDevShell.toolchain}/lib/rustlib/src/rust/library";
         };
+
+        # NixOS: OVMF firmware lives in the Nix store, not /usr/share/OVMF.
+        # talosctl has hardcoded search paths, so we expose the store path for
+        # the simulation justfile to symlink into a location talosctl can find.
+        env.OVMF_FD_PATH = "${pkgs.OVMF.fd}/FV";
       };
     });
 }
