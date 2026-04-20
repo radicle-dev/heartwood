@@ -53,6 +53,28 @@ import (
 			RAD_KEY=${RAD_HOME}/keys/radicle
 			RAD_CONFIG=${RAD_HOME}/config.json
 
+			# Configure the external address by prepending the pod's hostname.
+			# We only do this for seeds and bootstraps to ensure proper routing.
+			configure_external_address() {
+			  # Extract the first external address, stripping JSON formatting
+			  EXT_ADDRESS=$(rad config get node.externalAddresses | tr -d '[]" \\n' | cut -d',' -f1)
+			  
+			  if [ -n "$EXT_ADDRESS" ]; then
+			    # Check if it already starts with the pod's hostname to prevent stuttering
+			    case "$EXT_ADDRESS" in
+			      ${RAD_ALIAS}.*)
+			        echo "[START] External address already correct: ${EXT_ADDRESS}"
+			        ;;
+			      *)
+			        rad config remove node.externalAddresses "${EXT_ADDRESS}"
+			        NEW_ADDRESS="${RAD_ALIAS}.${EXT_ADDRESS}"
+			        rad config push node.externalAddresses "${NEW_ADDRESS}"
+			        echo "[START] Node's external address updated to: ${NEW_ADDRESS}"
+			        ;;
+			    esac
+			  fi
+			}
+
 			#
 			# Generate keys
 			#
@@ -84,22 +106,8 @@ import (
 			#
 			echo "[START] Node's alias set to: $(rad config set node.alias "${RAD_ALIAS}")"
 
-			# Extract the first external address, stripping JSON formatting
-			EXT_ADDRESS=$(rad config get node.externalAddresses | tr -d '[]" \\n' | cut -d',' -f1)
-			
-			if [ -n "$EXT_ADDRESS" ]; then
-			  # Check if it already starts with the pod's hostname to prevent stuttering
-			  case "$EXT_ADDRESS" in
-			    ${RAD_ALIAS}.*)
-			      echo "[START] External address already correct: ${EXT_ADDRESS}"
-			      ;;
-			    *)
-			      rad config remove node.externalAddresses "${EXT_ADDRESS}"
-			      NEW_ADDRESS="${RAD_ALIAS}.${EXT_ADDRESS}"
-			      rad config push node.externalAddresses "${NEW_ADDRESS}"
-			      echo "[START] Node's external address updated to: ${NEW_ADDRESS}"
-			      ;;
-			  esac
+			if [ "\(role)" = "seed" ] || [ "\(role)" = "bootstrap" ]; then
+			  configure_external_address
 			fi
 
 			#
