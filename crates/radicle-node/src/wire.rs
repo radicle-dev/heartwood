@@ -1193,11 +1193,41 @@ fn session<G: Ecdh<Pk = NodeId>>(
     {
         let connection = socket2::SockRef::from(&connection);
 
-        let ka = socket2::TcpKeepalive::new()
-            .with_time(time::Duration::from_secs(30))
-            .with_interval(time::Duration::from_secs(10));
+        let ka = socket2::TcpKeepalive::new().with_time(time::Duration::from_secs(30));
 
-        #[cfg(not(windows))]
+        #[cfg(any(
+            target_os = "android",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "fuchsia",
+            target_os = "illumos",
+            target_os = "ios",
+            target_os = "visionos",
+            target_os = "linux",
+            target_os = "macos",
+            target_os = "netbsd",
+            target_os = "tvos",
+            target_os = "watchos",
+            target_os = "windows",
+            target_os = "cygwin",
+        ))]
+        let ka = ka.with_interval(time::Duration::from_secs(10));
+
+        #[cfg(any(
+            target_os = "android",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "fuchsia",
+            target_os = "illumos",
+            target_os = "ios",
+            target_os = "visionos",
+            target_os = "linux",
+            target_os = "macos",
+            target_os = "netbsd",
+            target_os = "tvos",
+            target_os = "watchos",
+            target_os = "cygwin",
+        ))]
         let ka = ka.with_retries(3);
 
         if let Err(e) = connection.set_tcp_keepalive(&ka) {
