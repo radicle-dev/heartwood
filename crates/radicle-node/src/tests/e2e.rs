@@ -906,17 +906,21 @@ fn test_connection_crossing() {
         assert_matches!(r2, ConnectResult::Connected);
     }
 
-    thread::sleep(time::Duration::from_secs(1));
+    let (alice_s, bob_s, s1, s2) = loop {
+        let alice_s = alice.handle.sessions().unwrap();
+        let bob_s = bob.handle.sessions().unwrap();
 
-    let alice_s = alice.handle.sessions().unwrap();
-    let bob_s = bob.handle.sessions().unwrap();
+        let s1 = alice_s.iter().find(|s| s.nid == bob.id).cloned();
+        let s2 = bob_s.iter().find(|s| s.nid == alice.id).cloned();
 
-    // Both sessions are established.
-    let s1 = alice_s.iter().find(|s| s.nid == bob.id).unwrap();
-    let s2 = bob_s.iter().find(|s| s.nid == alice.id).unwrap();
-
-    log::debug!(target: "test", "{:?}", alice.handle.sessions());
-    log::debug!(target: "test", "{:?}", bob.handle.sessions());
+        if let (Some(s1), Some(s2)) = (s1, s2) {
+            // Wait until both sessions are fully connected
+            if s1.state.is_connected() && s2.state.is_connected() {
+                break (alice_s, bob_s, s1, s2);
+            }
+        }
+        thread::sleep(time::Duration::from_millis(50));
+    };
 
     // We assert that they have opposite link directions.
     // In a true simultaneous crossing, the preferred peer wins the Outbound link.
