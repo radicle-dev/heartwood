@@ -7,12 +7,60 @@
 //!
 //! [`Qualified`]: radicle_git_ref_format::Qualified
 
-use radicle_git_ref_format::{self as fmt, Qualified};
+pub mod error;
+
+use std::collections::BTreeMap;
+
+use radicle_git_ref_format::{self as fmt, Component, Qualified, refname, refspec};
 use radicle_oid::Oid;
 
 use crate::prelude::Did;
 
 use super::reference;
+
+/// The set of references that exist for a user.
+///
+/// See [`Namespace::references`].
+pub struct References {
+    inner: BTreeMap<Qualified<'static>, Oid>,
+}
+
+impl References {
+    fn new() -> Self {
+        Self {
+            inner: BTreeMap::new(),
+        }
+    }
+
+    fn insert(&mut self, refname: Qualified<'static>, oid: Oid) {
+        self.inner.insert(refname, oid);
+    }
+}
+
+impl References {
+    /// Get the target [`Oid`] of the given `refname`, if it exists.
+    pub fn target_of(&self, refname: &Qualified<'static>) -> Option<&Oid> {
+        self.inner.get(refname)
+    }
+}
+
+impl<'a> IntoIterator for &'a References {
+    type Item = (&'a Qualified<'static>, &'a Oid);
+    type IntoIter = std::collections::btree_map::Iter<'a, Qualified<'static>, Oid>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.iter()
+    }
+}
+
+impl IntoIterator for References {
+    type Item = (Qualified<'static>, Oid);
+    type IntoIter = std::collections::btree_map::IntoIter<Qualified<'static>, Oid>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.into_iter()
+    }
+}
 
 /// User-scoped reference handle.
 ///
@@ -72,6 +120,47 @@ impl<'a, R: reference::Reader> Namespace<'a, R> {
         name: &Qualified,
     ) -> Result<Oid, reference::error::read::RefTarget> {
         self.repo.try_ref_target(&self.namespaced(name))
+    }
+
+    /// List all references for this user matching a glob pattern.
+    ///
+    /// The `pattern` is relative to the user's namespace. For example,
+    /// `refs/*` matches all references, and `refs/heads/*` matches only
+    /// branches.
+    ///
+    /// Each returned [`Qualified`] has the namespace stripped — callers see
+    /// `refs/heads/main`, not `refs/namespaces/<key>/refs/heads/main`.
+    ///
+    /// Per-reference failures (parse or peel errors) are logged and skipped.
+    ///
+    /// # Errors
+    ///
+    /// - [`ListRefs`]: An unexpected error when initialising the iterator.
+    ///
+    /// [`ListRefs`]: error::References::ListRefs
+    pub fn references(
+        &self,
+        pattern: &refspec::PatternStr,
+    ) -> Result<References, error::References> {
+        let namespaced = refname!("refs/namespaces")
+            .join(Component::from(self.did.as_key()))
+            .to_pattern(pattern);
+
+        let refs = self.repo.list_refs(&namespaced)?;
+        let references = refs.fold(References::new(), |mut refs, entry| {
+            match entry {
+                Ok((name, oid)) => {
+                    if let Some(ns) = name.to_namespaced() {
+                        refs.insert(ns.strip_namespace(), oid);
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Skipping reference: {e}");
+                }
+            }
+            refs
+        });
+        Ok(references)
     }
 }
 
