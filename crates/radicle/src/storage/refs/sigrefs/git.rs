@@ -34,7 +34,7 @@ impl Committer {
     ///
     /// The given [`PublicKey`] is always used for the email.
     ///
-    /// In test code, [`Committer::stable`] is returned.
+    /// In test code, `Committer::stable` is returned.
     ///
     /// [`GIT_COMMITTER_DATE`]: crate::profile::env::GIT_COMMITTER_DATE
     pub fn from_env_or_now(public_key: &PublicKey) -> Self {
