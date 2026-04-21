@@ -1720,6 +1720,7 @@ fn test_non_fastforward_identity_doc() {
     let mut alice = alice.spawn();
     let mut alice_laptop = alice_laptop.spawn();
     let mut bob = bob.spawn();
+    let bob_events = bob.handle.events();
     let mut eve = eve.spawn();
 
     let has_issue = |node: &NodeHandle<MockSigner>, issue: &cob::ObjectId| -> bool {
@@ -1764,6 +1765,13 @@ fn test_non_fastforward_identity_doc() {
         .fetch(rid, alice_laptop.id, DEFAULT_TIMEOUT, None)
         .unwrap();
     assert!(has_issue(&eve, &issue));
+
+    bob_events
+        .wait(
+            |e| matches!(e, Event::RefsAnnounced { nid, .. } if *nid == eve.id).then_some(()),
+            DEFAULT_TIMEOUT,
+        )
+        .unwrap();
 
     // Alice updates the identity of the document to include her laptop
     let (prev, next) = {
