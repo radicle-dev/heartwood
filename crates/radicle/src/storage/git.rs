@@ -13,8 +13,9 @@ use std::{fs, io};
 
 use crate::git::canonical::Quorum;
 use crate::git::raw::ErrorExt as _;
-use crate::git::repository;
+use crate::git::repository::{self, user};
 use crate::git::repository::{ancestry, object, reference, revwalk};
+use crate::identity::Did;
 use crate::identity::doc::DocError;
 use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
@@ -758,26 +759,22 @@ impl ReadRepository for Repository {
     ///
     /// [`staging::patch`]: crate::git::refs::storage::staging::patch
     fn references_of(&self, remote: &RemoteId) -> Result<Refs, Error> {
-        let entries = self
-            .backend
-            .references_glob(format!("refs/namespaces/{remote}/*").as_str())?;
+        let did = Did::from(*remote);
+        let user = user::Namespace::new(did, self);
+        let all = user
+            .references(&git::fmt::pattern!("refs/*"))
+            .map_err(|e| Error::from(refs::Error::from(e)))?;
 
-        let mut refs = Refs::new();
-
-        for e in entries {
-            let e = e?;
-            let name = e.name().ok_or(Error::InvalidRef)?;
-            let (_, refname) = git::parse_ref::<RemoteId>(name)?;
-            let oid = e.resolve()?.target().ok_or(Error::InvalidRef)?;
-            let (_, category, subcategory, _) = refname.non_empty_components();
-
-            match (category.as_str(), subcategory.as_str()) {
-                ("tmp", "heads") => continue,
-                _ => {
-                    refs.insert(refname.into(), oid.into());
+        let refs = all
+            .into_iter()
+            .filter_map(|(refname, oid)| {
+                let (_, category, subcategory, _) = refname.non_empty_components();
+                match (category.as_str(), subcategory.as_str()) {
+                    ("tmp", "heads") => None,
+                    _ => Some((refname.to_ref_string(), oid)),
                 }
-            }
-        }
+            })
+            .collect::<Refs>();
         Ok(refs)
     }
 

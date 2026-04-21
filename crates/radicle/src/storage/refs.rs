@@ -42,6 +42,8 @@ pub enum Error {
     #[error(transparent)]
     Git(#[from] git::raw::Error),
     #[error(transparent)]
+    UserReferences(#[from] git::repository::user::error::References),
+    #[error(transparent)]
     Read(#[from] sigrefs::read::error::Read),
     #[error(transparent)]
     Write(#[from] sigrefs::write::error::Write),
