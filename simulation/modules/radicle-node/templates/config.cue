@@ -57,7 +57,7 @@ import (
 			# We only do this for seeds and bootstraps to ensure proper routing.
 			configure_external_address() {
 			  # Extract the first external address, stripping JSON formatting
-			  EXT_ADDRESS=$(rad config get node.externalAddresses | tr -d '[]" \\n' | cut -d',' -f1)
+			  EXT_ADDRESS=$(rad config | jq -r '.node.externalAddresses[0]')
 			  
 			  if [ -n "$EXT_ADDRESS" ]; then
 			    # Check if it already starts with the pod's hostname to prevent stuttering
