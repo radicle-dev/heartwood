@@ -321,7 +321,7 @@ impl Runtime {
         Ok(())
     }
 
-    #[cfg(all(feature = "systemd", target_os = "linux"))]
+    #[cfg(all(feature = "socket2", feature = "systemd", target_os = "linux"))]
     fn receive_listener() -> Option<UnixListener> {
         // SAFETY: When `fd` is called, no other threads are spawned (yet).
         let fd = match unsafe { radicle_systemd::listen::fd("control") } {
@@ -352,7 +352,7 @@ impl Runtime {
     }
 
     fn bind(path: PathBuf) -> Result<ControlSocket, Error> {
-        #[cfg(all(feature = "systemd", target_os = "linux"))]
+        #[cfg(all(feature = "socket2", feature = "systemd", target_os = "linux"))]
         {
             if let Some(listener) = Self::receive_listener() {
                 log::info!(target: "node", "Received control socket.");
