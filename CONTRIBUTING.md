@@ -277,7 +277,7 @@ When proposing changes via a patch:
    change, unless it's helpful to make a large change over multiple commits,
    while still respecting (1). Do not include `fixup!` commits either.
 3. A commit *may* include a category prefix such as `cli:` or `node:` if it
-   mainly concerns a certain area of the codebase. For example. These prefixes
+   mainly concerns a certain area of the codebase. For example, these prefixes
    should usually be the name of the crate, minus any common prefix. Eg.
    `cli:`, and *not* `radicle-cli:`. For documentation, you can use `docs:`,
    and for CI-related files, you can use `ci:`. Additionally, you can add
