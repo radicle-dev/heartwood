@@ -1,0 +1,5 @@
+# Developers that want to use this can add 'source_env .envrc.sample' in their .envrc
+if has nix; then
+   watch_file rust-toolchain.toml
+   use flake
+fi
