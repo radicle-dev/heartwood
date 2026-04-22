@@ -185,3 +185,10 @@ OpenSSH tools to interact with them, eg. `ssh-add`.
 
 Your Radicle secret key is protected with a passphrase (See: `$RAD_PASSPHRASE`).
 
+## Using `direnv`
+
+The team maintains an `.envrc.sample` file (see [direnv](https://direnv.net/)), that contributors may choose to copy or symlink to their local `.envrc` file.
+This provides some basic tooling and setup that is common to the team.
+For example, if `nix` is installed, the `flake.nix` and `rust-toolchain.toml` files are automatically watched for updates.
+
+_NOTE: It's suggested you don't use `source_env .envrc.sample` in your `.envrc` as [`direnv`'s security checks](https://direnv.net/man/direnv-stdlib.1.html#codesourceenv-ltfileordirpathgtcode) aren't triggered when changes are made to `.envrc.sample`._
