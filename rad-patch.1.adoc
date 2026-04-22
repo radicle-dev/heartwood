@@ -86,7 +86,7 @@ List patches in the current repository. The default is *--open*.
 *--open*::                 List only open patches
 *--draft*::                List only draft patches
 *--authored*::             Show only patches that you have authored
-*--author <did>*::         Show only patched where the given user is an author
+*--author <did>*::         Show only patches where the given user is an author
                            (may be specified multiple times)
 
 === ready
@@ -101,8 +101,8 @@ to *open*.
 Review a patch. Indicate acceptance or rejection of a patch revision along
 with a comment.
 
-*--revision*, *-r <revision-id>*::   The revision to diff (default: latest)
-*--patch*, *--p*::                   Review by patch hunks
+*--revision*, *-r <revision-id>*::   The revision to review (default: latest)
+*--patch*, *-p*::                    Review by patch hunks
 *--hunk <index>*::                   Only review a specific hunk
 *--accept*::                         Accept a patch or set of hunks
 *--reject*::                         Reject a patch or set of hunks
