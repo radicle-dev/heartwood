@@ -906,6 +906,7 @@ fn test_connection_crossing() {
         assert_matches!(r2, ConnectResult::Connected);
     }
 
+    let mut iterations = 0;
     let (alice_s, bob_s, s1, s2) = loop {
         let alice_s = alice.handle.sessions().unwrap();
         let bob_s = bob.handle.sessions().unwrap();
@@ -918,6 +919,10 @@ fn test_connection_crossing() {
             if s1.state.is_connected() && s2.state.is_connected() {
                 break (alice_s, bob_s, s1, s2);
             }
+        }
+        iterations += 1;
+        if iterations >= 100 {
+            panic!("Timeout waiting for sessions to connect");
         }
         thread::sleep(time::Duration::from_millis(50));
     };
