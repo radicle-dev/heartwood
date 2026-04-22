@@ -17,7 +17,7 @@ radicle-node - Radicle node
 == Description
 
 A Radicle node synchronizes its Git repositories with other nodes.
-This manual page is a placeholder to point you at the *--help**
+This manual page is a placeholder to point you at the *--help*
 option.
 
 == SEE ALSO ==
