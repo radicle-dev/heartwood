@@ -15,6 +15,19 @@ To run the simulation environment, you need the following tools installed on you
 - **[cue](https://cuelang.org/)**: (Optional) Useful for debugging and formatting CUE files.
 - **[QEMU](https://www.qemu.org/download/)** or **[Docker](https://www.docker.com/)**: Required by Talos to provision the local cluster nodes. (Defaults to `qemu`).
 
+### NixOS
+
+On NixOS it is necessary to enable the following in your `configuration.nix`:
+
+```
+# Kernel modules for QEMU/talosctl networking
+boot.kernelModules = ["kvm-amd" "tun" "bridge" "veth"]; # or kvm-intel
+# /dev/kvm access
+virtualisation.libvirtd.enable = true; # or just ensure kvm group access
+# Allow talos as a trusted firewall interface
+networking.firewall.trustedInterfaces = ["talos+"];
+```
+
 ## Getting Started
 
 The environment is managed entirely via `just`. From the `simulation` directory, you can run:
