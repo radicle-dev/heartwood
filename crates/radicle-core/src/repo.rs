@@ -14,8 +14,24 @@ pub const RAD_PREFIX: &str = "rad:";
 pub enum IdError {
     #[error(transparent)]
     Multibase(#[from] multibase::Error),
-    #[error("invalid length: expected {} bytes, got {actual} bytes", Oid::LEN_SHA1)]
+
+    #[cfg_attr(
+        not(feature = "sha256"),
+        error(
+            "invalid length: expected {} bytes, got {actual} bytes",
+            Oid::LEN_SHA1
+        )
+    )]
+    #[cfg_attr(
+        feature = "sha256",
+        error(
+            "invalid length: expected {} or {} bytes, got {actual} bytes",
+            Oid::LEN_SHA1,
+            Oid::LEN_SHA256
+        )
+    )]
     Length { actual: usize },
+
     #[error(fmt = fmt_mismatched_base_encoding)]
     MismatchedBaseEncoding {
         input: String,
@@ -93,6 +109,7 @@ impl RepoId {
     ///
     #[must_use]
     pub fn canonical(&self) -> String {
+        // TODO: With SHA-256, the canonical form will have to change. Maybe to a multicodec or multihash?
         multibase::encode(multibase::Base::Base58Btc, AsRef::<[u8]>::as_ref(&self.0))
     }
 
@@ -106,13 +123,42 @@ impl RepoId {
     ///
     /// [multibase]: https://github.com/multiformats/multibase?tab=readme-ov-file#multibase-table
     pub fn from_canonical(input: &str) -> Result<Self, IdError> {
+        let result = Self::from_multibase(input);
+
+        if result.is_err() {
+            // TODO: With SHA-256, if the multibase decoding errors, we will have to
+            // attempt to decode the new format, which might be a multicodec or multihash?
+        }
+
+        result
+    }
+
+    fn from_multibase(input: &str) -> Result<Self, IdError> {
         let (base, bytes) = multibase::decode(input)?;
         Self::guard_base_encoding(input, base)?;
-        let bytes: [u8; Oid::LEN_SHA1] =
-            bytes.try_into().map_err(|bytes: Vec<u8>| IdError::Length {
-                actual: bytes.len(),
-            })?;
-        Ok(Self(Oid::from_sha1(bytes)))
+
+        if bytes.len() == Oid::LEN_SHA1 {
+            let bytes: [u8; Oid::LEN_SHA1] =
+                bytes.try_into().map_err(|bytes: Vec<u8>| IdError::Length {
+                    actual: bytes.len(),
+                })?;
+            return Ok(Self(Oid::from_sha1(bytes)));
+        }
+
+        // NOTE: We do not really want to parse SHA-256 object identifiers
+        // in this encoding, but this lets us experiment.
+        #[cfg(feature = "sha256")]
+        if bytes.len() == Oid::LEN_SHA256 {
+            let bytes: [u8; Oid::LEN_SHA256] =
+                bytes.try_into().map_err(|bytes: Vec<u8>| IdError::Length {
+                    actual: bytes.len(),
+                })?;
+            return Ok(Self(Oid::from_sha256(bytes)));
+        }
+
+        Err(IdError::Length {
+            actual: bytes.len(),
+        })
     }
 
     fn guard_base_encoding(input: &str, base: multibase::Base) -> Result<(), IdError> {
