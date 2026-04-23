@@ -87,6 +87,11 @@ pub enum Oid {
 // for forwards compatibility: What if another hash with digests of the same
 // length becomes popular?
 impl Oid {
+    /// A SHA-1 object identifier with all digest bytes set to zero.
+    /// This is sometimes used as a sentinel value to indicate the absence of
+    /// an object.
+    /// To compare whether an object identifier is zero, prefer the method
+    /// [`Oid::is_zero`] over checking equality with this constant.
     pub const SHA1_ZERO: Self = Self::Sha1([0u8; SHA1_DIGEST_LEN]);
 
     pub fn from_sha1(digest: [u8; SHA1_DIGEST_LEN]) -> Self {

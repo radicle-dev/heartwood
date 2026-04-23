@@ -177,7 +177,7 @@ impl Refs {
         let mut buf = String::new();
 
         for (name, oid) in self.0.iter() {
-            debug_assert_ne!(oid, &Oid::SHA1_ZERO);
+            debug_assert!(!oid.is_zero());
             debug_assert_ne!(name, &SIGREFS_BRANCH.to_ref_string());
 
             buf.push_str(&oid.to_string());
