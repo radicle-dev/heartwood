@@ -469,9 +469,7 @@ mod test {
 
         impl Arbitrary for Oid {
             fn arbitrary(g: &mut Gen) -> Self {
-                let slice = [0u8; Oid::SHA1_LEN];
-                g.fill(slice);
-                Self::Sha1(slice)
+                Self::Sha1(<[u8; Oid::SHA1_LEN]>::arbitrary(g))
             }
         }
     }
