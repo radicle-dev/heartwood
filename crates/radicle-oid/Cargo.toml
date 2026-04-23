@@ -15,6 +15,7 @@ default = ["sha1", "std"]
 gix = ["dep:gix-hash"]
 std = []
 sha1 = []
+sha256 = ["gix-hash/sha256", "git2/unstable-sha256"]
 
 [dependencies]
 git2 = { workspace = true, optional = true, default-features = false }

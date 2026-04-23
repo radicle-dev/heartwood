@@ -74,16 +74,28 @@ extern crate alloc;
 #[cfg(not(feature = "sha1"))]
 compile_error!("The `sha1` feature is required.");
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ObjectFormat {
+    #[cfg(feature = "sha1")]
+    Sha1 = 1,
+    #[cfg(feature = "sha256")]
+    Sha256 = 2,
+}
+
 #[derive(PartialEq, Eq, Ord, PartialOrd, Clone, Copy)]
 #[non_exhaustive]
 pub enum Oid {
+    #[cfg(feature = "sha1")]
     Sha1([u8; Self::LEN_SHA1]),
+    #[cfg(feature = "sha256")]
+    Sha256([u8; Self::LEN_SHA256]),
 }
 
 /// Conversions to/from SHA-1.
 // Note that we deliberately do not implement `From<[u8; 20]>` and `Into<[u8; 20]>`,
 // for forwards compatibility: What if another hash with digests of the same
 // length becomes popular?
+#[cfg(feature = "sha1")]
 impl Oid {
     /// The length of a SHA-1 object identifier in bytes.
     pub const LEN_SHA1: usize = 20;
@@ -102,6 +114,34 @@ impl Oid {
     pub fn into_sha1(&self) -> Option<[u8; Self::LEN_SHA1]> {
         match self {
             Oid::Sha1(digest) => Some(*digest),
+            #[cfg(feature = "sha256")]
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "sha256")]
+/// Conversions to/from SHA-256.
+impl Oid {
+    /// The length of a SHA-256 object identifier in bytes.
+    pub const LEN_SHA256: usize = 32;
+
+    /// A SHA-256 object identifier with all digest bytes set to zero.
+    /// This is sometimes used as a sentinel value to indicate the absence of
+    /// an object.
+    /// To compare whether an object identifier is zero, prefer the method
+    /// [`Oid::is_zero`] over checking equality with this constant.
+    pub const ZERO_SHA256: Self = Self::Sha256([0u8; Self::LEN_SHA256]);
+
+    pub fn from_sha256(digest: [u8; Self::LEN_SHA256]) -> Self {
+        Self::Sha256(digest)
+    }
+
+    pub fn into_sha256(&self) -> Option<[u8; Self::LEN_SHA256]> {
+        match self {
+            Oid::Sha256(digest) => Some(*digest),
+            #[cfg(feature = "sha1")]
+            _ => None,
         }
     }
 }
@@ -111,8 +151,27 @@ impl Oid {
     /// Test whether all bytes in this object identifier are zero.
     /// See also [`::git2::Oid::is_zero`].
     pub fn is_zero(&self) -> bool {
+        <Self as AsRef<[u8]>>::as_ref(self).iter().all(|b| *b == 0)
+    }
+
+    pub fn zero(format: ObjectFormat) -> Self {
+        match format {
+            #[cfg(feature = "sha1")]
+            ObjectFormat::Sha1 => Self::ZERO_SHA1,
+            #[cfg(feature = "sha256")]
+            ObjectFormat::Sha256 => Self::ZERO_SHA256,
+        }
+    }
+}
+
+/// Interaction with object formats.
+impl Oid {
+    pub fn object_format(&self) -> ObjectFormat {
         match self {
-            Oid::Sha1(array) => array.iter().all(|b| *b == 0),
+            #[cfg(feature = "sha1")]
+            Oid::Sha1(_) => ObjectFormat::Sha1,
+            #[cfg(feature = "sha256")]
+            Oid::Sha256(_) => ObjectFormat::Sha256,
         }
     }
 }
@@ -120,7 +179,10 @@ impl Oid {
 impl AsRef<[u8]> for Oid {
     fn as_ref(&self) -> &[u8] {
         match self {
+            #[cfg(feature = "sha1")]
             Oid::Sha1(array) => array,
+            #[cfg(feature = "sha256")]
+            Oid::Sha256(array) => array,
         }
     }
 }
@@ -128,7 +190,10 @@ impl AsRef<[u8]> for Oid {
 impl From<Oid> for alloc::boxed::Box<[u8]> {
     fn from(oid: Oid) -> Self {
         match oid {
+            #[cfg(feature = "sha1")]
             Oid::Sha1(array) => alloc::boxed::Box::new(array),
+            #[cfg(feature = "sha256")]
+            Oid::Sha256(array) => alloc::boxed::Box::new(array),
         }
     }
 }
@@ -138,7 +203,12 @@ pub mod str {
     use core::str;
 
     /// Length of the string representation of a SHA-1 digest in hexadecimal notation.
+    #[cfg(feature = "sha1")]
     pub(super) const SHA1_DIGEST_STR_LEN: usize = Oid::LEN_SHA1 * 2;
+
+    /// Length of the string representation of a SHA-256 digest in hexadecimal notation.
+    #[cfg(feature = "sha256")]
+    pub(super) const SHA256_DIGEST_STR_LEN: usize = Oid::LEN_SHA256 * 2;
 
     impl str::FromStr for Oid {
         type Err = error::ParseOidError;
@@ -147,24 +217,41 @@ pub mod str {
             use error::ParseOidError::*;
 
             let len = s.len();
-            if len != SHA1_DIGEST_STR_LEN {
-                return Err(Len(len));
+
+            #[cfg(feature = "sha1")]
+            if len == SHA1_DIGEST_STR_LEN {
+                let mut bytes = [0u8; Oid::LEN_SHA1];
+                for i in 0..Oid::LEN_SHA1 {
+                    bytes[i] = u8::from_str_radix(&s[i * 2..=i * 2 + 1], 16)
+                        .map_err(|source| At { index: i, source })?;
+                }
+
+                return Ok(Self::Sha1(bytes));
             }
 
-            let mut bytes = [0u8; Oid::LEN_SHA1];
-            for i in 0..Oid::LEN_SHA1 {
-                bytes[i] = u8::from_str_radix(&s[i * 2..=i * 2 + 1], 16)
-                    .map_err(|source| At { index: i, source })?;
+            #[cfg(feature = "sha256")]
+            if len == SHA256_DIGEST_STR_LEN {
+                let mut bytes = [0u8; Oid::LEN_SHA256];
+                for i in 0..Oid::LEN_SHA256 {
+                    bytes[i] = u8::from_str_radix(&s[i * 2..=i * 2 + 1], 16)
+                        .map_err(|source| At { index: i, source })?;
+                }
+
+                return Ok(Self::Sha256(bytes));
             }
 
-            Ok(Self::Sha1(bytes))
+            Err(Len(len))
         }
     }
 
     pub mod error {
         use core::{fmt, num};
 
+        #[cfg(feature = "sha1")]
         use super::SHA1_DIGEST_STR_LEN;
+
+        #[cfg(feature = "sha256")]
+        use super::SHA256_DIGEST_STR_LEN;
 
         pub enum ParseOidError {
             Len(usize),
@@ -178,8 +265,23 @@ pub mod str {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 use ParseOidError::*;
                 match self {
+                    #[cfg(all(feature = "sha1", not(feature = "sha256")))]
                     Len(len) => {
                         write!(f, "invalid length (have {len}, want {SHA1_DIGEST_STR_LEN})")
+                    }
+                    #[cfg(all(not(feature = "sha1"), feature = "sha256"))]
+                    Len(len) => {
+                        write!(
+                            f,
+                            "invalid length (have {len}, want {SHA256_DIGEST_STR_LEN})"
+                        )
+                    }
+                    #[cfg(all(feature = "sha1", feature = "sha256"))]
+                    Len(len) => {
+                        write!(
+                            f,
+                            "invalid length (have {len}, want {SHA1_DIGEST_STR_LEN} or {SHA256_DIGEST_STR_LEN})"
+                        )
                     }
                     At { index, source } => write!(
                         f,
@@ -215,31 +317,72 @@ pub mod str {
         use alloc::string::ToString;
         use qcheck_macros::quickcheck;
 
-        #[test]
-        fn fixture() {
-            assert_eq!(
-                "123456789abcdef0123456789abcdef012345678"
-                    .parse::<Oid>()
-                    .unwrap(),
-                Oid::from_sha1([
-                    0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a,
-                    0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78,
-                ])
-            );
+        #[cfg(feature = "sha1")]
+        mod sha1 {
+            use super::*;
+
+            #[test]
+            fn fixture() {
+                assert_eq!(
+                    "123456789abcdef0123456789abcdef012345678"
+                        .parse::<Oid>()
+                        .unwrap(),
+                    Oid::from_sha1([
+                        0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78,
+                        0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78,
+                    ])
+                );
+            }
+
+            #[test]
+            fn zero() {
+                assert_eq!(
+                    "0000000000000000000000000000000000000000"
+                        .parse::<Oid>()
+                        .unwrap(),
+                    Oid::ZERO_SHA1
+                );
+            }
         }
 
-        #[test]
-        fn zero() {
-            assert_eq!(
-                "0000000000000000000000000000000000000000"
-                    .parse::<Oid>()
-                    .unwrap(),
-                Oid::ZERO_SHA1
-            );
+        #[cfg(feature = "sha256")]
+        mod sha256 {
+            use super::*;
+
+            #[test]
+            fn fixture() {
+                assert_eq!(
+                    "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
+                        .parse::<Oid>()
+                        .unwrap(),
+                    Oid::from_sha256([
+                        0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78,
+                        0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0,
+                        0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0,
+                    ])
+                );
+            }
+
+            #[test]
+            fn zero() {
+                assert_eq!(
+                    "0000000000000000000000000000000000000000000000000000000000000000"
+                        .parse::<Oid>()
+                        .unwrap(),
+                    Oid::ZERO_SHA256
+                );
+            }
         }
 
         #[quickcheck]
         fn git2_roundtrip(oid: Oid) {
+            #[cfg(feature = "sha256")]
+            if matches!(oid, Oid::Sha256(_)) {
+                // `git2::Oid` does not support SHA-256, so skip this test for
+                // SHA-256 object identifiers.
+                return;
+            }
+
             let other = git2::Oid::from(oid);
             let other = other.to_string();
             let other = other.parse::<Oid>().unwrap();
@@ -265,6 +408,7 @@ mod fmt {
     impl fmt::Display for Oid {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
+                #[cfg(feature = "sha1")]
                 Oid::Sha1(digest) =>
                 // SAFETY (for all 20 blocks below): The length of `digest` is
                 // known to be `SHA1_DIGEST_LEN`, which is 20.
@@ -291,7 +435,47 @@ mod fmt {
                     unsafe { digest.get_unchecked(17) },
                     unsafe { digest.get_unchecked(18) },
                     unsafe { digest.get_unchecked(19) },
-                ).fmt(f)
+                ).fmt(f),
+                #[cfg(feature = "sha256")]
+                Oid::Sha256(digest) =>
+                // SAFETY (for all 32 blocks below): The length of `digest` is
+                // known to be `SHA256_DIGEST_LEN`, which is 32.
+                // The indices below are manually verified to not be out of bounds.
+                format!(
+                    "{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+                    unsafe { digest.get_unchecked(0) },
+                    unsafe { digest.get_unchecked(1) },
+                    unsafe { digest.get_unchecked(2) },
+                    unsafe { digest.get_unchecked(3) },
+                    unsafe { digest.get_unchecked(4) },
+                    unsafe { digest.get_unchecked(5) },
+                    unsafe { digest.get_unchecked(6) },
+                    unsafe { digest.get_unchecked(7) },
+                    unsafe { digest.get_unchecked(8) },
+                    unsafe { digest.get_unchecked(9) },
+                    unsafe { digest.get_unchecked(10) },
+                    unsafe { digest.get_unchecked(11) },
+                    unsafe { digest.get_unchecked(12) },
+                    unsafe { digest.get_unchecked(13) },
+                    unsafe { digest.get_unchecked(14) },
+                    unsafe { digest.get_unchecked(15) },
+                    unsafe { digest.get_unchecked(16) },
+                    unsafe { digest.get_unchecked(17) },
+                    unsafe { digest.get_unchecked(18) },
+                    unsafe { digest.get_unchecked(19) },
+                    unsafe { digest.get_unchecked(20) },
+                    unsafe { digest.get_unchecked(21) },
+                    unsafe { digest.get_unchecked(22) },
+                    unsafe { digest.get_unchecked(23) },
+                    unsafe { digest.get_unchecked(24) },
+                    unsafe { digest.get_unchecked(25) },
+                    unsafe { digest.get_unchecked(26) },
+                    unsafe { digest.get_unchecked(27) },
+                    unsafe { digest.get_unchecked(28) },
+                    unsafe { digest.get_unchecked(29) },
+                    unsafe { digest.get_unchecked(30) },
+                    unsafe { digest.get_unchecked(31) },
+                ).fmt(f),
             }
         }
     }
@@ -308,28 +492,66 @@ mod fmt {
         use alloc::string::ToString;
         use qcheck_macros::quickcheck;
 
-        #[test]
-        fn fixture() {
-            assert_eq!(
-                Oid::from_sha1([
-                    0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a,
-                    0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78,
-                ])
-                .to_string(),
-                "123456789abcdef0123456789abcdef012345678"
-            );
+        #[cfg(feature = "sha1")]
+        mod sha1 {
+            use super::*;
+
+            #[test]
+            fn fixture() {
+                assert_eq!(
+                    Oid::from_sha1([
+                        0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78,
+                        0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78,
+                    ])
+                    .to_string(),
+                    "123456789abcdef0123456789abcdef012345678"
+                );
+            }
+
+            #[test]
+            fn zero() {
+                assert_eq!(
+                    Oid::ZERO_SHA1.to_string(),
+                    "0000000000000000000000000000000000000000"
+                );
+            }
         }
 
-        #[test]
-        fn zero() {
-            assert_eq!(
-                Oid::ZERO_SHA1.to_string(),
-                "0000000000000000000000000000000000000000"
-            );
+        #[cfg(feature = "sha256")]
+        mod sha256 {
+            use super::*;
+
+            #[test]
+            fn fixture() {
+                assert_eq!(
+                    Oid::from_sha256([
+                        0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78,
+                        0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0,
+                        0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0
+                    ])
+                    .to_string(),
+                    "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0"
+                );
+            }
+
+            #[test]
+            fn zero() {
+                assert_eq!(
+                    Oid::ZERO_SHA256.to_string(),
+                    "0000000000000000000000000000000000000000000000000000000000000000"
+                );
+            }
         }
 
         #[quickcheck]
         fn git2(oid: Oid) {
+            #[cfg(feature = "sha256")]
+            if matches!(oid, Oid::Sha256(_)) {
+                // `git2::Oid` does not support SHA-256, so skip this test for
+                // SHA-256 object identifiers.
+                return;
+            }
+
             assert_eq!(oid.to_string(), git2::Oid::from(oid).to_string());
         }
 
@@ -365,11 +587,13 @@ mod std {
 mod gix {
     use gix_hash::ObjectId as Other;
 
+    use super::ObjectFormat;
     use super::Oid;
 
     impl From<Other> for Oid {
         fn from(other: Other) -> Self {
             match other {
+                #[cfg(feature = "sha1")]
                 Other::Sha1(digest) => Self::Sha1(digest),
                 _ => unimplemented!("conversion from {other:?} into radicle_oid::Oid"),
             }
@@ -379,7 +603,10 @@ mod gix {
     impl From<Oid> for Other {
         fn from(oid: Oid) -> Other {
             match oid {
+                #[cfg(feature = "sha1")]
                 Oid::Sha1(digest) => Other::Sha1(digest),
+                #[cfg(feature = "sha256")]
+                Oid::Sha256(digest) => Other::Sha256(digest),
             }
         }
     }
@@ -387,7 +614,12 @@ mod gix {
     impl core::cmp::PartialEq<Other> for Oid {
         fn eq(&self, other: &Other) -> bool {
             match (self, other) {
+                #[cfg(feature = "sha1")]
                 (Oid::Sha1(a), Other::Sha1(b)) => a == b,
+                #[cfg(feature = "sha256")]
+                (Oid::Sha256(a), Other::Sha256(b)) => a == b,
+                #[cfg(all(feature = "sha1", feature = "sha256"))]
+                (Oid::Sha1(_), Other::Sha256(_)) | (Oid::Sha256(_), Other::Sha1(_)) => false,
                 _ => unimplemented!("conversion from {other:?} into radicle_oid::Oid"),
             }
         }
@@ -396,7 +628,33 @@ mod gix {
     impl AsRef<gix_hash::oid> for Oid {
         fn as_ref(&self) -> &gix_hash::oid {
             match self {
+                #[cfg(feature = "sha1")]
                 Oid::Sha1(digest) => gix_hash::oid::from_bytes_unchecked(digest),
+                #[cfg(feature = "sha256")]
+                Oid::Sha256(digest) => gix_hash::oid::from_bytes_unchecked(digest),
+            }
+        }
+    }
+
+    impl From<gix_hash::Kind> for ObjectFormat {
+        fn from(kind: gix_hash::Kind) -> Self {
+            match kind {
+                #[cfg(feature = "sha1")]
+                gix_hash::Kind::Sha1 => Self::Sha1,
+                #[cfg(feature = "sha256")]
+                gix_hash::Kind::Sha256 => Self::Sha256,
+                _ => unimplemented!("conversion from {kind:?} into radicle_oid::ObjectFormat"),
+            }
+        }
+    }
+
+    impl From<ObjectFormat> for gix_hash::Kind {
+        fn from(format: ObjectFormat) -> Self {
+            match format {
+                #[cfg(feature = "sha1")]
+                ObjectFormat::Sha1 => Self::Sha1,
+                #[cfg(feature = "sha256")]
+                ObjectFormat::Sha256 => Self::Sha256,
             }
         }
     }
@@ -406,9 +664,24 @@ mod gix {
         use super::*;
         use gix_hash::Kind;
 
-        #[test]
-        fn zero() {
-            assert!(Oid::ZERO_SHA1 == Other::null(Kind::Sha1));
+        #[cfg(feature = "sha1")]
+        mod sha1 {
+            use super::*;
+
+            #[test]
+            fn zero() {
+                assert!(Oid::ZERO_SHA1 == Other::null(Kind::Sha1));
+            }
+        }
+
+        #[cfg(feature = "sha256")]
+        mod sha256 {
+            use super::*;
+
+            #[test]
+            fn zero() {
+                assert!(Oid::ZERO_SHA256 == Other::null(Kind::Sha256));
+            }
         }
     }
 }
@@ -419,18 +692,41 @@ mod git2 {
 
     use super::*;
 
-    const EXPECT: &str = "git2::Oid must be exactly 20 bytes long";
+    #[cfg(feature = "sha1")]
+    const EXPECT_SHA1: &str = "git2::Oid must be exactly 20 bytes long";
 
+    #[cfg(feature = "sha256")]
+    const EXPECT_SHA256: &str = "git2::Oid must be exactly 20 bytes long";
+
+    #[cfg(feature = "sha1")]
     impl From<Other> for Oid {
         fn from(other: Other) -> Self {
-            Self::Sha1(other.as_bytes().try_into().expect(EXPECT))
+            match other.object_format() {
+                #[cfg(feature = "sha1")]
+                ::git2::ObjectFormat::Sha1 => {
+                    Self::Sha1(other.as_bytes().try_into().expect(EXPECT_SHA1))
+                }
+                #[cfg(feature = "sha256")]
+                ::git2::ObjectFormat::Sha256 => {
+                    Self::Sha256(other.as_bytes().try_into().expect(EXPECT_SHA256))
+                }
+                #[cfg(all(feature = "sha1", not(feature = "sha256")))]
+                _ => {
+                    unimplemented!(
+                        "conversion from {other:?} into radicle_oid::Oid since object format is not equal to SHA-1",
+                    )
+                }
+            }
         }
     }
 
     impl From<Oid> for Other {
         fn from(oid: Oid) -> Self {
             match oid {
-                Oid::Sha1(array) => Other::from_bytes(&array).expect(EXPECT),
+                #[cfg(feature = "sha1")]
+                Oid::Sha1(array) => Other::from_bytes(&array).expect(EXPECT_SHA1),
+                #[cfg(feature = "sha256")]
+                Oid::Sha256(array) => Other::from_bytes(&array).expect(EXPECT_SHA256),
             }
         }
     }
@@ -438,7 +734,10 @@ mod git2 {
     impl From<&Oid> for Other {
         fn from(oid: &Oid) -> Self {
             match oid {
-                Oid::Sha1(array) => Other::from_bytes(array).expect(EXPECT),
+                #[cfg(feature = "sha1")]
+                Oid::Sha1(array) => Other::from_bytes(array).expect(EXPECT_SHA1),
+                #[cfg(feature = "sha256")]
+                Oid::Sha256(array) => Other::from_bytes(array).expect(EXPECT_SHA256),
             }
         }
     }
@@ -449,13 +748,41 @@ mod git2 {
         }
     }
 
-    #[cfg(test)]
+    impl From<ObjectFormat> for ::git2::ObjectFormat {
+        fn from(format: ObjectFormat) -> Self {
+            match format {
+                #[cfg(feature = "sha1")]
+                ObjectFormat::Sha1 => Self::Sha1,
+                #[cfg(feature = "sha256")]
+                ObjectFormat::Sha256 => Self::Sha256,
+            }
+        }
+    }
+
+    impl From<::git2::ObjectFormat> for ObjectFormat {
+        fn from(format: ::git2::ObjectFormat) -> Self {
+            match format {
+                #[cfg(feature = "sha1")]
+                ::git2::ObjectFormat::Sha1 => Self::Sha1,
+                #[cfg(feature = "sha256")]
+                ::git2::ObjectFormat::Sha256 => Self::Sha256,
+                #[cfg(all(feature = "sha1", not(feature = "sha256")))]
+                _ => {
+                    unimplemented!(
+                        "conversion from {format:?} into radicle_oid::ObjectFormat since it is not equal to SHA-1",
+                    )
+                }
+            }
+        }
+    }
+
+    #[cfg(all(feature = "sha1", test))]
     mod test {
         use super::*;
 
         #[test]
         fn zero() {
-            assert!(Oid::ZERO_SHA1 == Other::zero());
+            assert!(Oid::ZERO_SHA1 == Other::ZERO_SHA1);
         }
     }
 }
@@ -468,8 +795,44 @@ mod test {
         use crate::*;
 
         impl Arbitrary for Oid {
+            #[cfg(all(feature = "sha1", not(feature = "sha256")))]
             fn arbitrary(g: &mut Gen) -> Self {
                 Self::Sha1(<[u8; Oid::LEN_SHA1]>::arbitrary(g))
+            }
+
+            #[cfg(all(not(feature = "sha1"), feature = "sha256"))]
+            fn arbitrary(g: &mut Gen) -> Self {
+                Self::Sha256(<[u8; Oid::LEN_SHA256]>::arbitrary(g))
+            }
+
+            #[cfg(all(feature = "sha1", feature = "sha256"))]
+            fn arbitrary(g: &mut Gen) -> Self {
+                if bool::arbitrary(g) {
+                    Self::Sha1(<[u8; Oid::LEN_SHA1]>::arbitrary(g).try_into().unwrap())
+                } else {
+                    Self::Sha256(<[u8; Oid::LEN_SHA256]>::arbitrary(g).try_into().unwrap())
+                }
+            }
+        }
+
+        impl Arbitrary for ObjectFormat {
+            #[cfg(all(feature = "sha1", not(feature = "sha256")))]
+            fn arbitrary(_g: &mut Gen) -> Self {
+                Self::Sha1
+            }
+
+            #[cfg(all(not(feature = "sha1"), feature = "sha256"))]
+            fn arbitrary(g: &mut Gen) -> Self {
+                Self::Sha256
+            }
+
+            #[cfg(all(feature = "sha1", feature = "sha256"))]
+            fn arbitrary(g: &mut Gen) -> Self {
+                if bool::arbitrary(g) {
+                    Self::Sha1
+                } else {
+                    Self::Sha256
+                }
             }
         }
     }
