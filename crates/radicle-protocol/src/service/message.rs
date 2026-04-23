@@ -22,8 +22,10 @@ use crate::wire::Encode as _;
 /// Maximum number of addresses which can be announced to other nodes.
 pub const ADDRESS_LIMIT: usize = 16;
 /// Maximum number of repository remotes that can be included in a [`RefsAnnouncement`] message.
+// TODO: Once we use SHA-256, which produces longer digests, this number will have to be changed.
 pub const REF_REMOTE_LIMIT: usize = 1024;
 /// Maximum number of inventory which can be announced to other nodes.
+// TODO: Once we use SHA-256, which produces longer digests, this number will have to be changed.
 pub const INVENTORY_LIMIT: usize = 2973;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -654,7 +656,7 @@ impl qcheck::Arbitrary for Message {
             4 => {
                 let message = Info::RefsAlreadySynced {
                     rid: RepoId::arbitrary(g),
-                    at: radicle::test::arbitrary::oid(),
+                    at: radicle::test::arbitrary::oid_sha1(),
                 };
                 Self::Info(message)
             }
@@ -733,6 +735,34 @@ mod tests {
         let msg = Message::inventory(
             InventoryAnnouncement {
                 inventory: arbitrary::vec(INVENTORY_LIMIT)
+                    .try_into()
+                    .expect("size within bounds limit"),
+                timestamp: LocalTime::now().into(),
+            },
+            &Device::mock(),
+        );
+        let mut buf: Vec<u8> = Vec::new();
+        msg.encode(&mut buf);
+
+        let decoded = Message::decode_exact(buf.as_slice());
+        assert!(
+            decoded.is_ok(),
+            "INVENTORY_LIMIT is a valid limit for decoding"
+        );
+        assert_eq!(
+            msg,
+            decoded.unwrap(),
+            "encoding and decoding should be safe for message at INVENTORY_LIMIT",
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "sha256")]
+    fn test_inventory_limit_sha256() {
+        let msg = Message::inventory(
+            InventoryAnnouncement {
+                inventory: [RepoId::from(git::Oid::ZERO_SHA256); INVENTORY_LIMIT]
+                    .to_vec()
                     .try_into()
                     .expect("size within bounds limit"),
                 timestamp: LocalTime::now().into(),
