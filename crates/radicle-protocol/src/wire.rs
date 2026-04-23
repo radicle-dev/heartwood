@@ -21,7 +21,6 @@ use cypheraddr::tor;
 use radicle::crypto::{PublicKey, Signature};
 use radicle::git;
 use radicle::git::fmt;
-use radicle::git::raw;
 use radicle::identity::RepoId;
 use radicle::node;
 use radicle::node::Alias;
@@ -390,11 +389,7 @@ impl Decode for git::Oid {
             return Err(Invalid::Oid { actual: len }.into());
         }
 
-        let buf: [u8; git::Oid::SHA1_LEN] = Decode::decode(buf)?;
-        let oid = raw::Oid::from_bytes(&buf).expect("the buffer is exactly the right size");
-        let oid = git::Oid::from(oid);
-
-        Ok(oid)
+        Ok(git::Oid::Sha1(Decode::decode(buf)?))
     }
 }
 
