@@ -371,7 +371,7 @@ mod gix {
         fn from(other: Other) -> Self {
             match other {
                 Other::Sha1(digest) => Self::Sha1(digest),
-                _ => panic!("unexpected SHA variant was returned for `gix_hash::ObjectId`"),
+                _ => unimplemented!("conversion from {other:?} into radicle_oid::Oid"),
             }
         }
     }
@@ -388,7 +388,7 @@ mod gix {
         fn eq(&self, other: &Other) -> bool {
             match (self, other) {
                 (Oid::Sha1(a), Other::Sha1(b)) => a == b,
-                _ => panic!("unexpected SHA variant was returned for `gix_hash::ObjectId`"),
+                _ => unimplemented!("conversion from {other:?} into radicle_oid::Oid"),
             }
         }
     }
