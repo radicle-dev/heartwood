@@ -25,8 +25,7 @@ use crate::test::storage::{MockRepository, MockStorage};
 use crate::{cob, git};
 
 pub fn oid() -> storage::Oid {
-    let oid_bytes: [u8; 20] = r#gen(1);
-    storage::Oid::from_sha1(oid_bytes)
+    r#gen(1)
 }
 
 pub fn entry_id() -> cob::EntryId {

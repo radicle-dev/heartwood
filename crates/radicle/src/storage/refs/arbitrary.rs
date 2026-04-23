@@ -17,7 +17,7 @@ where
 
     if bool::arbitrary(g) {
         level = Some(FeatureLevel::Parent);
-        let parent = Oid::from_sha1(Arbitrary::arbitrary(g));
+        let parent = Oid::arbitrary(g);
         refs.insert(SIGREFS_PARENT.to_ref_string(), parent);
     }
 
@@ -28,13 +28,12 @@ where
         id: *signer.node_id(),
         level: level.unwrap_or_else(|| FeatureLevel::arbitrary(g)),
         parent: Arbitrary::arbitrary(g),
-        at: Oid::from_sha1(Arbitrary::arbitrary(g)),
+        at: Oid::arbitrary(g),
     }
 }
 
 impl Arbitrary for Refs {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let mut bytes: [u8; 20] = [0; 20];
         let names = &[
             "heads/master",
             "heads/feature/1",
@@ -49,10 +48,7 @@ impl Arbitrary for Refs {
         let mut refs = Self::new();
         for _ in 0..g.size().min(names.len()) {
             if let Some(name) = g.choose(names) {
-                for byte in &mut bytes {
-                    *byte = u8::arbitrary(g);
-                }
-                let oid = storage::Oid::from_sha1(bytes);
+                let oid = storage::Oid::arbitrary(g);
                 let name = git::fmt::RefString::try_from(*name).unwrap();
 
                 refs.insert(name, oid);
@@ -66,7 +62,7 @@ impl Arbitrary for RefsAt {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         Self {
             remote: PublicKey::arbitrary(g),
-            at: Oid::from_sha1(Arbitrary::arbitrary(g)),
+            at: Oid::arbitrary(g),
         }
     }
 }

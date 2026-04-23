@@ -313,10 +313,7 @@ pub mod arbitrary {
 #[cfg(feature = "qcheck")]
 impl qcheck::Arbitrary for RepoId {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let bytes = <[u8; 20]>::arbitrary(g);
-        let oid = radicle_oid::Oid::from_sha1(bytes);
-
-        RepoId::from(oid)
+        RepoId::from(radicle_oid::Oid::arbitrary(g))
     }
 }
 

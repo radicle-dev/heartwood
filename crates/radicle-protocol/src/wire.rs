@@ -624,8 +624,8 @@ mod tests {
     }
 
     #[quickcheck]
-    fn prop_oid(input: [u8; git::Oid::SHA1_LEN]) {
-        roundtrip(git::Oid::from_sha1(input));
+    fn prop_oid(input: git::Oid) {
+        roundtrip(input);
     }
 
     #[test]
