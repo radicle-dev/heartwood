@@ -16,7 +16,8 @@ rust-version.workspace = true
 default = ["std"]
 git2 = ["dep:git2", "radicle-oid/git2"]
 gix = ["dep:gix-hash", "radicle-oid/gix"]
-std = [ "multibase/std", "radicle-oid/std", "thiserror/std", "schemars/std", "serde/std"]
+std = ["multibase/std", "radicle-oid/std", "thiserror/std", "schemars/std", "serde/std"]
+unstable-sha256 = [] 
 qcheck = ["dep:qcheck", "radicle-oid/qcheck"]
 
 [dependencies]

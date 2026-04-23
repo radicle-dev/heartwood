@@ -14,8 +14,21 @@ pub const RAD_PREFIX: &str = "rad:";
 pub enum IdError {
     #[error("invalid multibase string: {0}")]
     Multibase(#[cfg_attr(feature = "std", source)] multibase::Error),
-    #[error("invalid length: expected {} bytes, got {actual} bytes", Oid::LEN_SHA1)]
+
+    #[cfg_attr(
+        not(feature = "unstable-sha256"),
+        error("invalid length: expected {} bytes, got {actual} bytes", Oid::LEN_SHA1)
+    )]
+    #[cfg_attr(
+        feature = "unstable-sha256",
+        error(
+            "invalid length: expected {} or {} bytes, got {actual} bytes",
+            Oid::LEN_SHA1,
+            Oid::LEN_SHA256
+        )
+    )]
     Length { actual: usize },
+
     #[error(fmt = fmt_mismatched_base_encoding)]
     MismatchedBaseEncoding {
         input: String,
@@ -108,11 +121,27 @@ impl RepoId {
     pub fn from_canonical(input: &str) -> Result<Self, IdError> {
         let (base, bytes) = multibase::decode(input).map_err(IdError::Multibase)?;
         Self::guard_base_encoding(input, base)?;
-        let bytes: [u8; Oid::LEN_SHA1] =
-            bytes.try_into().map_err(|bytes: Vec<u8>| IdError::Length {
-                actual: bytes.len(),
-            })?;
-        Ok(Self(Oid::from_sha1(bytes)))
+
+        if bytes.len() == Oid::LEN_SHA1 {
+            let bytes: [u8; Oid::LEN_SHA1] =
+                bytes.try_into().map_err(|bytes: Vec<u8>| IdError::Length {
+                    actual: bytes.len(),
+                })?;
+            return Ok(Self(Oid::from_sha1(bytes)));
+        }
+
+        #[cfg(feature = "unstable-sha256")]
+        if bytes.len() == Oid::LEN_SHA256 {
+            let bytes: [u8; Oid::LEN_SHA256] =
+                bytes.try_into().map_err(|bytes: Vec<u8>| IdError::Length {
+                    actual: bytes.len(),
+                })?;
+            return Ok(Self(Oid::from_sha256(bytes)));
+        }
+
+        Err(IdError::Length {
+            actual: bytes.len(),
+        })
     }
 
     fn guard_base_encoding(input: &str, base: multibase::Base) -> Result<(), IdError> {
