@@ -26,6 +26,12 @@ schemars = [
   "radicle-localtime/schemars",
   "dep:schemars"
 ]
+unstable-sha256 = [
+  "git2/unstable-sha256",
+  "radicle-cob/unstable-sha256",
+  "radicle-core/unstable-sha256",
+  "radicle-oid/unstable-sha256"
+]
 tor = ["cyphernet/tor"]
 
 [dependencies]

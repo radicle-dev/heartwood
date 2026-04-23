@@ -625,6 +625,7 @@ pub fn unresolve<T>(
 mod tests {
     use pretty_assertions::assert_eq;
     use qcheck_macros::quickcheck;
+    use radicle_oid::ObjectFormat;
 
     use super::*;
     use crate as radicle;
@@ -641,23 +642,29 @@ mod tests {
     trait SignerThreadOpExt: SignerOpExt {
         /// Create a new comment.
         fn comment(&mut self, body: &str, reply_to: Option<CommentId>) -> Op<Action> {
-            self.op::<Thread>([Action::Comment {
-                body: String::from(body),
-                reply_to,
-            }])
+            self.op::<Thread>(
+                [Action::Comment {
+                    body: String::from(body),
+                    reply_to,
+                }],
+                ObjectFormat::Sha1,
+            )
         }
 
         /// Create a new redaction.
         fn redact(&mut self, id: CommentId) -> Op<Action> {
-            self.op::<Thread>([Action::Redact { id }])
+            self.op::<Thread>([Action::Redact { id }], ObjectFormat::Sha1)
         }
 
         /// Edit a comment.
         fn edit(&mut self, id: CommentId, body: &str) -> Op<Action> {
-            self.op::<Thread>([Action::Edit {
-                id,
-                body: body.to_owned(),
-            }])
+            self.op::<Thread>(
+                [Action::Edit {
+                    id,
+                    body: body.to_owned(),
+                }],
+                ObjectFormat::Sha1,
+            )
         }
     }
 
@@ -725,7 +732,7 @@ mod tests {
 
         // Note that the same `operation` is used to resolve *both*
         // `comment_1` and `comment_2`.
-        let operation = arbitrary::entry_id();
+        let operation = arbitrary::entry_id(ObjectFormat::Sha1);
 
         resolve(&mut thread, operation, comment_1.id()).unwrap();
         resolve(&mut thread, operation, comment_2.id()).unwrap();
@@ -743,7 +750,7 @@ mod tests {
 
         // Note that the same `operation` is used to unresolve *both*
         // `comment_1` and `comment_2`.
-        let operation = arbitrary::entry_id();
+        let operation = arbitrary::entry_id(ObjectFormat::Sha1);
 
         unresolve(&mut thread, operation, comment_1.id()).unwrap();
         unresolve(&mut thread, operation, comment_2.id()).unwrap();
@@ -766,6 +773,7 @@ mod tests {
         let bob = SigningKey::mock(103);
         let eve = SigningKey::mock(104);
         let repo = r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let time = env::local_time();
 
         let mut a = test::history::<Thread>(
@@ -775,6 +783,7 @@ mod tests {
             }],
             time.into(),
             &alice,
+            format,
         );
         a.comment("Alice comment", Some(*a.root().id()), &alice);
 
@@ -831,9 +840,9 @@ mod tests {
     #[test]
     fn test_duplicate_comments() {
         let repo = r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let alice = SigningKey::mock(94);
         let bob = SigningKey::mock(103);
-        let _eve = SigningKey::mock(104);
         let time = env::local_time();
 
         let mut a = test::history::<Thread>(
@@ -843,6 +852,7 @@ mod tests {
             }],
             time.into(),
             &alice,
+            format,
         );
         let mut b = a.clone();
 
@@ -876,9 +886,9 @@ mod tests {
     #[quickcheck]
     fn prop_ordering(timestamp: u64) {
         let repo = r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let alice = SigningKey::mock(94);
         let bob = SigningKey::mock(103);
-        let _eve = SigningKey::mock(104);
         let timestamp = Timestamp::from_secs(timestamp);
 
         let h0 = test::history::<Thread>(
@@ -888,6 +898,7 @@ mod tests {
             }],
             timestamp,
             &alice,
+            format,
         );
         let mut h1 = h0.clone();
         let mut h2 = h0.clone();
@@ -936,9 +947,10 @@ mod tests {
     #[test]
     fn test_comment_redact_missing() {
         let repo = r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let mut alice = SigningKey::mock(94);
         let mut t = Thread::default();
-        let id = arbitrary::entry_id();
+        let id = arbitrary::entry_id(format);
 
         t.op(alice.redact(id), [], &repo).unwrap_err();
     }
@@ -946,9 +958,10 @@ mod tests {
     #[test]
     fn test_comment_edit_missing() {
         let repo = r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let mut alice = SigningKey::mock(94);
         let mut t = Thread::default();
-        let id = arbitrary::entry_id();
+        let id = arbitrary::entry_id(format);
 
         t.op(alice.edit(id, "Edited"), [], &repo).unwrap_err();
     }

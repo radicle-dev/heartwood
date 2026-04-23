@@ -34,7 +34,7 @@ pub enum NamespacesError {
     FailedDelegates {
         rid: RepoId,
         #[source]
-        err: RepositoryError,
+        err: Box<RepositoryError>,
     },
     #[error(transparent)]
     Git(#[from] crate::git::raw::Error),
@@ -124,7 +124,10 @@ impl<T> Config<T> {
                 if let Ok(repo) = storage.repository(*rid) {
                     let delegates = repo
                         .delegates()
-                        .map_err(|err| FailedDelegates { rid: *rid, err })?
+                        .map_err(|err| FailedDelegates {
+                            rid: *rid,
+                            err: Box::new(err),
+                        })?
                         .map(PublicKey::from);
                     followed.extend(delegates);
                 };

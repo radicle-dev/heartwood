@@ -261,7 +261,7 @@ fn verify_delegates(
 
     for did in dids {
         match refs::SignedRefs::load((*did).into(), repo)
-            .map_err(|err| storage::Error::Refs(storage::refs::Error::Read(err)))?
+            .map_err(|err| storage::Error::from(storage::refs::Error::from(err)))?
         {
             None => {
                 missing.push(error::DelegateVerification::MissingDelegate { did: *did });

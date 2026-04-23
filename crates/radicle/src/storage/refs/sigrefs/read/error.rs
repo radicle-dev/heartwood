@@ -120,8 +120,8 @@ pub enum Verify {
     MismatchedIdentity {
         identity_commit: Oid,
         sigrefs_commit: Oid,
-        expected: RepoId,
-        found: RepoId,
+        expected: Box<RepoId>,
+        found: Box<RepoId>,
     },
     #[error(
         "expected no parent reference in refs commit '{sigrefs_commit}', but found target '{actual}'"

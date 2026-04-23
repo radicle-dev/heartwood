@@ -236,7 +236,7 @@ impl Store<Write> {
 /// `Store<Write>` can access these functions as well.
 impl<T> Store<T> {
     /// Get a specific notification.
-    pub fn get(&self, id: NotificationId) -> Result<Notification, Error> {
+    pub fn get(&self, id: NotificationId, zero: git::Oid) -> Result<Notification, Error> {
         let mut stmt = self.db.prepare(
             "SELECT rowid, repo, ref, old, new, status, timestamp
              FROM `repository-notifications`
@@ -245,13 +245,32 @@ impl<T> Store<T> {
         stmt.bind((1, id as i64))?;
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
-            return parse::notification(row);
+            return parse::notification(row, zero);
+        }
+        Err(Error::NotificationNotFound(id))
+    }
+
+    /// Get the repo that a specific notification is associated with.
+    pub fn get_repo(&self, id: NotificationId) -> Result<RepoId, Error> {
+        let mut stmt = self.db.prepare(
+            "SELECT repo
+             FROM `repository-notifications`
+             WHERE rowid = ?",
+        )?;
+        stmt.bind((1, id as i64))?;
+
+        if let Some(Ok(row)) = stmt.into_iter().next() {
+            let repo = row.try_read::<RepoId, _>("repo")?;
+            return Ok(repo);
         }
         Err(Error::NotificationNotFound(id))
     }
 
     /// Get all notifications.
-    pub fn all(&self) -> Result<impl Iterator<Item = Result<Notification, Error>> + '_, Error> {
+    pub fn all(
+        &self,
+        zero: git::Oid,
+    ) -> Result<impl Iterator<Item = Result<Notification, Error>> + '_, Error> {
         let stmt = self.db.prepare(
             "SELECT rowid, repo, ref, old, new, status, timestamp
              FROM `repository-notifications`
@@ -260,7 +279,7 @@ impl<T> Store<T> {
 
         Ok(stmt.into_iter().map(move |row| {
             let row = row?;
-            parse::notification(row)
+            parse::notification(row, zero)
         }))
     }
 
@@ -269,6 +288,7 @@ impl<T> Store<T> {
         &self,
         since: LocalTime,
         until: LocalTime,
+        zero: git::Oid,
     ) -> Result<impl Iterator<Item = Result<Notification, Error>> + '_, Error> {
         let mut stmt = self.db.prepare(
             "SELECT rowid, repo, ref, old, new, status, timestamp
@@ -284,7 +304,7 @@ impl<T> Store<T> {
 
         Ok(stmt.into_iter().map(move |row| {
             let row = row?;
-            parse::notification(row)
+            parse::notification(row, zero)
         }))
     }
 
@@ -302,9 +322,11 @@ impl<T> Store<T> {
         ))?;
         stmt.bind((1, repo))?;
 
+        let zero = Oid::zero(repo.object_format());
+
         Ok(stmt.into_iter().map(move |row| {
             let row = row?;
-            parse::notification(row)
+            parse::notification(row, zero)
         }))
     }
 
@@ -365,7 +387,7 @@ impl<T> Store<T> {
 mod parse {
     use super::*;
 
-    pub fn notification(row: sql::Row) -> Result<Notification, Error> {
+    pub fn notification(row: sql::Row, zero: git::Oid) -> Result<Notification, Error> {
         let id = row.try_read::<i64, _>("rowid")? as NotificationId;
         let repo = row.try_read::<RepoId, _>("repo")?;
         let refstr = row.try_read::<&str, _>("ref")?;
@@ -380,7 +402,8 @@ mod parse {
                     })
                 })
             })
-            .unwrap_or(Ok(git::Oid::ZERO_SHA1))?;
+            .unwrap_or(Ok(zero))?;
+
         let new = row
             .try_read::<Option<&str>, _>("new")?
             .map(|oid| {
@@ -391,7 +414,8 @@ mod parse {
                     })
                 })
             })
-            .unwrap_or(Ok(git::Oid::ZERO_SHA1))?;
+            .unwrap_or(Ok(zero))?;
+
         let update = RefUpdate::from(RefString::try_from(refstr)?, old, new);
         let (namespace, qualified) = git::parse_ref(refstr)?;
         let timestamp = row.try_read::<i64, _>("timestamp")?;
@@ -415,6 +439,7 @@ mod parse {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
+    use crate::git::ObjectFormat;
     use crate::git::fmt::{qualified, refname};
     use crate::{cob, node::NodeId, test::arbitrary};
 
@@ -424,9 +449,10 @@ mod test {
     fn test_clear() {
         let mut db = Store::open(":memory:").unwrap();
         let repo = arbitrary::r#gen::<RepoId>(1);
-        let old = arbitrary::oid();
+        let format = repo.object_format();
+        let old = arbitrary::oid(format);
         let time = LocalTime::from_millis(32188142);
-        let master = arbitrary::oid();
+        let master = arbitrary::oid(format);
 
         for i in 0..3 {
             let update = RefUpdate::Updated {
@@ -446,9 +472,10 @@ mod test {
     #[test]
     fn test_counts_by_repo() {
         let mut db = Store::open(":memory:").unwrap();
-        let repo1 = arbitrary::r#gen::<RepoId>(1);
-        let repo2 = arbitrary::r#gen::<RepoId>(1);
-        let oid = arbitrary::oid();
+        let format = arbitrary::r#gen::<ObjectFormat>(1);
+        let repo1 = RepoId::from(arbitrary::oid(format));
+        let repo2 = RepoId::from(arbitrary::oid(format));
+        let oid = arbitrary::oid(format);
         let time = LocalTime::from_millis(32188142);
 
         let update1 = RefUpdate::Created {
@@ -480,9 +507,10 @@ mod test {
     #[test]
     fn test_branch_notifications() {
         let repo = arbitrary::r#gen::<RepoId>(1);
-        let old = arbitrary::oid();
-        let master = arbitrary::oid();
-        let other = arbitrary::oid();
+        let format = repo.object_format();
+        let old = arbitrary::oid(format);
+        let master = arbitrary::oid(format);
+        let other = arbitrary::oid(format);
         let time1 = LocalTime::from_millis(32188142);
         let time2 = LocalTime::from_millis(32189874);
         let time3 = LocalTime::from_millis(32189879);
@@ -558,7 +586,8 @@ mod test {
     #[test]
     fn test_notification_status() {
         let repo = arbitrary::r#gen::<RepoId>(1);
-        let oid = arbitrary::oid();
+        let format = repo.object_format();
+        let oid = arbitrary::oid(format);
         let time = LocalTime::from_millis(32188142);
         let mut db = Store::open(":memory:").unwrap();
 
@@ -601,9 +630,10 @@ mod test {
     #[test]
     fn test_duplicate_notifications() {
         let repo = arbitrary::r#gen::<RepoId>(1);
-        let old = arbitrary::oid();
-        let master1 = arbitrary::oid();
-        let master2 = arbitrary::oid();
+        let format = repo.object_format();
+        let old = arbitrary::oid(format);
+        let master1 = arbitrary::oid(format);
+        let master2 = arbitrary::oid(format);
         let time1 = LocalTime::from_millis(32188142);
         let time2 = LocalTime::from_millis(32189874);
         let mut db = Store::open(":memory:").unwrap();
@@ -649,8 +679,9 @@ mod test {
     #[test]
     fn test_cob_notifications() {
         let repo = arbitrary::r#gen::<RepoId>(1);
-        let old = arbitrary::oid();
-        let new = arbitrary::oid();
+        let format = repo.object_format();
+        let old = arbitrary::oid(format);
+        let new = arbitrary::oid(format);
         let timestamp = LocalTime::from_millis(32189874);
         let nid: NodeId = "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
             .parse()

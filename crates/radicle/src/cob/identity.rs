@@ -5,6 +5,7 @@ use std::{fmt, ops::Deref, str::FromStr};
 use crypto::{PublicKey, Signature};
 use nonempty::NonEmpty;
 use radicle_cob::{Embed, ObjectId, TypeName};
+use radicle_oid::ObjectFormat;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -1072,8 +1073,12 @@ impl Revision {
         })
     }
 
-    pub fn sign(&self, signer: &impl crypto::Signer) -> Result<Signature, DocError> {
-        self.doc.signature_of(signer)
+    pub fn sign(
+        &self,
+        signer: &impl crypto::Signer,
+        format: ObjectFormat,
+    ) -> Result<Signature, DocError> {
+        self.doc.signature_of(signer, format)
     }
 }
 
@@ -1154,7 +1159,9 @@ impl<Repo: WriteRepository> store::Transaction<Identity, Repo> {
     ) -> Result<Self, store::Error> {
         let mut tx = Transaction::default();
 
-        let (blob, bytes, signature) = doc.sign(signer).map_err(store::Error::Identity)?;
+        let (blob, bytes, signature) = doc
+            .sign(signer, repo.object_format())
+            .map_err(store::Error::Identity)?;
         // Store document blob in repository.
         let embed =
             Embed::<Uri>::store("radicle.json", &bytes, repo.raw()).map_err(store::Error::Git)?;
@@ -1282,7 +1289,7 @@ where
         }
 
         #[allow(deprecated)]
-        let signature = revision.sign(self.store.signer())?;
+        let signature = revision.sign(self.store.signer(), self.store.object_format())?;
 
         self.transaction("Accept revision", |tx, _| tx.accept(id, signature))
     }
@@ -3061,10 +3068,11 @@ mod test {
         alice_identity.reload().unwrap();
 
         // Use transaction to bypass the API guard (simulating old history).
+        let format = alice.repo.object_format();
         let sig = alice_identity
             .revision(&child_a)
             .unwrap()
-            .sign(&alice.signer)
+            .sign(&alice.signer, format)
             .unwrap();
         alice_identity
             .transaction("Accept child_a", |tx, _| tx.accept(child_a, sig))

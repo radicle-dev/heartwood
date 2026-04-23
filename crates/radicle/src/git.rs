@@ -6,7 +6,7 @@ use std::path::Path;
 use std::process::Command;
 use std::str::FromStr;
 
-pub use radicle_oid::{Oid, str::ParseOidError};
+pub use radicle_oid::{ObjectFormat, Oid, str::ParseOidError};
 
 pub extern crate radicle_git_ref_format as fmt;
 

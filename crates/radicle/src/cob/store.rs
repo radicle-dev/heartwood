@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 
 use nonempty::NonEmpty;
 use radicle_cob::CollaborativeObject;
+use radicle_oid::ObjectFormat;
 use serde::{Deserialize, Serialize};
 
 use crate::cob::op::Op;
@@ -197,6 +198,16 @@ where
             },
             access,
         })
+    }
+}
+
+impl<'a, T, Repo, Access> Store<'a, T, Repo, Access>
+where
+    Repo: ReadRepository,
+{
+    /// Return a new store with the attached identity.
+    pub fn object_format(&self) -> ObjectFormat {
+        self.repo.object_format()
     }
 }
 

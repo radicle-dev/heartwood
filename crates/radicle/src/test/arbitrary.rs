@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashSet};
 use std::hash::Hash;
 use std::ops::RangeBounds;
 use std::str::FromStr;
@@ -10,6 +10,7 @@ use cyphernet::addr::i2p::I2pAddr;
 #[cfg(feature = "tor")]
 use cyphernet::{EcPk, addr::tor::OnionAddrV3};
 use qcheck::Arbitrary;
+use radicle_oid::ObjectFormat;
 
 use crate::identity::doc::Visibility;
 use crate::identity::project::ProjectName;
@@ -24,12 +25,18 @@ use crate::storage;
 use crate::test::storage::{MockRepository, MockStorage};
 use crate::{cob, git};
 
-pub fn oid() -> storage::Oid {
-    r#gen(1)
+pub fn oid(format: git::ObjectFormat) -> storage::Oid {
+    let mut r#gen = qcheck::Gen::default();
+    loop {
+        let oid = git::Oid::arbitrary(&mut r#gen);
+        if oid.object_format() == format {
+            return oid;
+        }
+    }
 }
 
-pub fn entry_id() -> cob::EntryId {
-    self::oid()
+pub fn entry_id(format: git::ObjectFormat) -> cob::EntryId {
+    self::oid(format)
 }
 
 pub fn refstring(len: usize) -> git::fmt::RefString {
@@ -73,21 +80,24 @@ pub fn array_distinct<const N: usize, T: std::fmt::Debug + Eq + Hash + Arbitrary
     vec_distinct(N..=N).try_into().unwrap()
 }
 
-pub fn nonempty_storage(size: usize) -> MockStorage {
-    let mut storage = r#gen::<MockStorage>(size);
-    for _ in 0..size {
-        let doc = r#gen::<DocAt>(1);
-        let id = RepoId::from(doc.blob);
-        storage.repos.insert(
-            id,
-            MockRepository {
-                id,
-                doc,
-                remotes: HashMap::new(),
-            },
-        );
+pub fn doc_at(g: &mut qcheck::Gen, format: ObjectFormat) -> DocAt {
+    DocAt {
+        commit: oid(format),
+        blob: oid(format),
+        doc: Doc::arbitrary(g),
     }
-    storage
+}
+
+pub fn nonempty_storage(size: usize) -> MockStorage {
+    let g = &mut qcheck::Gen::new(size);
+
+    let mut inventory = Vec::with_capacity(size);
+    for _ in 0..size {
+        let format = ObjectFormat::arbitrary(g);
+        let rid = RepoId::from(oid(format));
+        inventory.push((rid, doc_at(g, format)));
+    }
+    MockStorage::new(inventory)
 }
 
 /// Generate a `String` of length `size`, only containing alphanumeric
@@ -184,22 +194,9 @@ impl Arbitrary for Doc {
     }
 }
 
-impl Arbitrary for DocAt {
-    fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let doc = Doc::arbitrary(g);
-
-        DocAt {
-            commit: self::oid(),
-            blob: self::oid(),
-            doc,
-        }
-    }
-}
-
 impl Arbitrary for MockStorage {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let inventory = Arbitrary::arbitrary(g);
-        MockStorage::new(inventory)
+        nonempty_storage(usize::arbitrary(g).min(5))
     }
 }
 

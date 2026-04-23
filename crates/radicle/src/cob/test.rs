@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 
 use nonempty::NonEmpty;
+use radicle_oid::ObjectFormat;
 use serde::{Deserialize, Serialize};
 
 use crate::cob::op::Op;
@@ -23,6 +24,7 @@ pub struct HistoryBuilder<T> {
     resource: Option<Oid>,
     time: Timestamp,
     witness: PhantomData<T>,
+    format: ObjectFormat,
 }
 
 impl<T> AsRef<History> for HistoryBuilder<T> {
@@ -55,12 +57,13 @@ where
         actions: &[T::Action],
         time: Timestamp,
         signer: &impl crypto::Signer,
+        format: ObjectFormat,
     ) -> HistoryBuilder<T> {
-        let resource = Some(arbitrary::oid());
-        let revision = arbitrary::oid();
+        let resource = Some(arbitrary::oid(format));
+        let revision = arbitrary::oid(format);
         let (contents, oids): (Vec<Vec<u8>>, Vec<Oid>) = actions
             .iter()
-            .map(|a| encoded::<T>(a, time, [], signer))
+            .map(|a| encoded::<T>(a, time, [], signer, format))
             .unzip();
         let contents = NonEmpty::from_vec(contents).unwrap();
         let root = oids.first().unwrap();
@@ -83,6 +86,7 @@ where
             time,
             resource,
             witness: PhantomData,
+            format,
         }
     }
 
@@ -97,8 +101,8 @@ where
     pub fn commit(&mut self, action: &T::Action, signer: &impl crypto::Signer) -> crate::git::Oid {
         let timestamp = self.time;
         let tips = self.tips();
-        let revision = arbitrary::oid();
-        let (data, oid) = encoded::<T>(action, timestamp, tips, signer);
+        let revision = arbitrary::oid(self.format);
+        let (data, oid) = encoded::<T>(action, timestamp, tips, signer, self.format);
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
         let signature = ExtendedSignature::try_sign(signer, data.as_slice()).unwrap();
         let change = Entry {
@@ -131,12 +135,13 @@ pub fn history<T>(
     actions: &[T::Action],
     time: Timestamp,
     signer: &impl crypto::Signer,
+    format: ObjectFormat,
 ) -> HistoryBuilder<T>
 where
     T: Cob + CobWithType,
     T::Action: Serialize + Eq + 'static,
 {
-    HistoryBuilder::new(actions, time, signer)
+    HistoryBuilder::new(actions, time, signer, format)
 }
 
 /// An extension trait that provides convenience methods for creating operations.
@@ -147,6 +152,7 @@ pub trait SignerOpExt: crypto::Signer {
         actions: impl IntoIterator<Item = T::Action>,
         identity: Option<Oid>,
         timestamp: Timestamp,
+        format: ObjectFormat,
     ) -> Op<T::Action>
     where
         T: Cob + CobWithType,
@@ -158,8 +164,14 @@ pub trait SignerOpExt: crypto::Signer {
             "nonce": fastrand::u64(..),
         }))
         .unwrap();
-        let oid =
-            crate::git::raw::Oid::hash_object(crate::git::raw::ObjectType::Blob, &data).unwrap();
+
+        let oid = crate::git::raw::Oid::hash_object_ext(
+            crate::git::raw::ObjectType::Blob,
+            &data,
+            format.into(),
+        )
+        .unwrap();
+
         let id = oid.into();
         let author = self.did().into();
         let actions = NonEmpty::from_vec(actions).unwrap();
@@ -180,15 +192,19 @@ pub trait SignerOpExt: crypto::Signer {
     }
 
     /// Create a new operation.
-    fn op<T>(&mut self, actions: impl IntoIterator<Item = T::Action>) -> Op<T::Action>
+    fn op<T>(
+        &mut self,
+        actions: impl IntoIterator<Item = T::Action>,
+        format: ObjectFormat,
+    ) -> Op<T::Action>
     where
         T: Cob + CobWithType,
         T::Action: Clone + Serialize,
     {
-        let identity = arbitrary::oid();
+        let identity = arbitrary::oid(format);
         let timestamp = env::commit_time();
 
-        self.op_with::<T>(actions, Some(identity), timestamp.into())
+        self.op_with::<T>(actions, Some(identity), timestamp.into(), format)
     }
 
     /// Get the [`Did`] corresponding to the verifying key of the signer.
@@ -208,6 +224,7 @@ fn encoded<T: Cob>(
     timestamp: Timestamp,
     parents: impl IntoIterator<Item = Oid>,
     signer: &impl crypto::Signer,
+    format: ObjectFormat,
 ) -> (Vec<u8>, crate::git::Oid) {
     use radicle_git_metadata::{
         author::{Author, Time},
@@ -215,7 +232,14 @@ fn encoded<T: Cob>(
     };
 
     let data = encoding::encode(action).unwrap();
-    let oid = crate::git::raw::Oid::hash_object(crate::git::raw::ObjectType::Blob, &data).unwrap();
+
+    let oid = crate::git::raw::Oid::hash_object_ext(
+        crate::git::raw::ObjectType::Blob,
+        &data,
+        format.into(),
+    )
+    .unwrap();
+
     let parents = parents.into_iter().map(|o| o.into());
     let author = Author {
         name: "radicle".to_owned(),
@@ -233,9 +257,12 @@ fn encoded<T: Cob>(
     )
     .to_string();
 
-    let hash =
-        crate::git::raw::Oid::hash_object(crate::git::raw::ObjectType::Commit, commit.as_bytes())
-            .unwrap();
+    let hash = crate::git::raw::Oid::hash_object_ext(
+        crate::git::raw::ObjectType::Commit,
+        commit.as_bytes(),
+        format.into(),
+    )
+    .unwrap();
 
     (data, hash.into())
 }

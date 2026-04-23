@@ -23,7 +23,7 @@ pub enum QuorumError {
         "could not determine target commit for canonical reference '{refname}', found diverging commits {longest} and {head}, with base commit {base} and threshold {threshold}"
     )]
     DivergingCommits {
-        refname: String,
+        refname: Box<str>,
         threshold: usize,
         base: Oid,
         longest: Oid,

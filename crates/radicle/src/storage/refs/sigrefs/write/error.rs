@@ -8,7 +8,7 @@ use crate::storage::refs::sigrefs::git::{object, reference};
 #[non_exhaustive]
 pub enum Write {
     #[error(transparent)]
-    Head(Head),
+    Head(Box<Head>),
     #[error(transparent)]
     Commit(Commit),
     #[error(transparent)]
@@ -47,6 +47,6 @@ pub enum Head {
     #[error("failed to verify commit {commit}: {source}")]
     Verify {
         commit: Oid,
-        source: super::read::error::Verify,
+        source: Box<super::read::error::Verify>,
     },
 }

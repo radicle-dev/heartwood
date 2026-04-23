@@ -224,7 +224,7 @@ where
                 },
                 _,
             ) => QuorumError::DivergingCommits {
-                refname,
+                refname: refname.into(),
                 threshold,
                 base,
                 longest,

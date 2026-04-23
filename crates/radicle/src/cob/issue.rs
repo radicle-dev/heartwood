@@ -1585,7 +1585,7 @@ mod test {
                 [],
             )
             .unwrap();
-        let missing = arbitrary::oid();
+        let missing = arbitrary::oid(repo.object_format());
 
         issue.comment("Invalid", missing, []).unwrap_err();
         assert_eq!(issue.comments().count(), 1);
@@ -1616,7 +1616,7 @@ mod test {
                 [],
             )
             .unwrap();
-        let missing = arbitrary::oid();
+        let missing = arbitrary::oid(repo.object_format());
 
         // An invalid comment which points to a missing parent.
         // Even creating it via a transaction will trigger an error.
@@ -1660,7 +1660,7 @@ mod test {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let eve = SigningKey::mock(126);
         let identity = repo.identity().unwrap().head();
-        let missing = arbitrary::oid();
+        let missing = arbitrary::oid(repo.object_format());
         let type_name = Issue::type_name().clone();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let mut issue = issues

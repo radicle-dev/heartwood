@@ -33,7 +33,7 @@ pub enum Update {
     },
     /// The provided [`Refs`] were equal to the current [`Refs`], so the process
     /// exited early.
-    Unchanged { verified: VerifiedCommit },
+    Unchanged { verified: Box<VerifiedCommit> },
 }
 
 impl Update {
@@ -45,7 +45,9 @@ impl Update {
     }
 
     fn unchanged(verified: VerifiedCommit) -> Self {
-        Self::Unchanged { verified }
+        Self::Unchanged {
+            verified: Box::new(verified),
+        }
     }
 }
 
@@ -175,7 +177,7 @@ where
                 log::warn!("Verification of head of signed references failed: {source}");
                 CommitWriter::with_parent(refs, commit, author, message, repository, signer)
             }
-            Err(err) => return Err(error::Write::Head(err)),
+            Err(err) => return Err(error::Write::Head(Box::new(err))),
         };
         let commit = commit_writer.write().map_err(error::Write::Commit)?;
         repository
@@ -414,7 +416,7 @@ where
             .verify(self.rid, self.verifier)
             .map_err(|err| error::Head::Verify {
                 commit: oid,
-                source: err,
+                source: Box::new(err),
             })?;
 
         Ok(Some(Head { verified }))

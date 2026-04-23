@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::{fmt, io};
 
 use nonempty::NonEmpty;
+use radicle_oid::ObjectFormat;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -144,7 +145,7 @@ pub enum RepositoryError {
     #[error(transparent)]
     Git(#[from] crate::git::raw::Error),
     #[error(transparent)]
-    Quorum(#[from] canonical::error::QuorumError),
+    Quorum(Box<canonical::error::QuorumError>),
     #[error(transparent)]
     Refs(Box<refs::Error>),
     #[error("missing canonical reference rule for default branch")]
@@ -169,6 +170,12 @@ impl From<refs::Error> for RepositoryError {
     }
 }
 
+impl From<canonical::error::QuorumError> for RepositoryError {
+    fn from(err: canonical::error::QuorumError) -> Self {
+        Self::Quorum(Box::new(err))
+    }
+}
+
 impl RepositoryError {
     pub fn is_not_found(&self) -> bool {
         match self {
@@ -189,13 +196,19 @@ pub enum Error {
     #[error("git reference error: {0}")]
     Ref(#[from] RefError),
     #[error(transparent)]
-    Refs(#[from] refs::Error),
+    Refs(Box<refs::Error>),
     #[error("git: {0}")]
     Git(#[from] crate::git::raw::Error),
     #[error("invalid repository identifier {0:?}")]
     InvalidId(std::ffi::OsString),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
+}
+
+impl From<refs::Error> for Error {
+    fn from(err: refs::Error) -> Self {
+        Self::Refs(Box::new(err))
+    }
 }
 
 impl Error {
@@ -630,6 +643,8 @@ pub trait ReadRepository: Sized + ValidateRepository {
 
     /// Get the merge base of two commits.
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, crate::git::raw::Error>;
+
+    fn object_format(&self) -> ObjectFormat;
 }
 
 /// Access the remotes of a repository.

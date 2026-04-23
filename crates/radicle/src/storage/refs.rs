@@ -41,9 +41,21 @@ pub enum Error {
     #[error(transparent)]
     Git(#[from] git::raw::Error),
     #[error(transparent)]
-    Read(#[from] sigrefs::read::error::Read),
+    Read(Box<sigrefs::read::error::Read>),
     #[error(transparent)]
-    Write(#[from] sigrefs::write::error::Write),
+    Write(Box<sigrefs::write::error::Write>),
+}
+
+impl From<sigrefs::read::error::Read> for Error {
+    fn from(err: sigrefs::read::error::Read) -> Self {
+        Self::Read(Box::new(err))
+    }
+}
+
+impl From<sigrefs::write::error::Write> for Error {
+    fn from(err: sigrefs::write::error::Write) -> Self {
+        Self::Write(Box::new(err))
+    }
 }
 
 impl Error {
@@ -51,7 +63,14 @@ impl Error {
     pub fn is_not_found(&self) -> bool {
         match self {
             Self::Git(e) => e.is_not_found(),
-            Self::Read(sigrefs::read::error::Read::MissingSigrefs { .. }) => true,
+            Self::Read(err)
+                if matches!(
+                    err.as_ref(),
+                    sigrefs::read::error::Read::MissingSigrefs { .. }
+                ) =>
+            {
+                true
+            }
             _ => false,
         }
     }
@@ -688,13 +707,13 @@ mod tests {
         // The graft is not allowed.
         assert_matches!(
             london.remote(bob.public_key()),
-            Err(Error::Read(sigrefs::read::error::Read::Verify(sigrefs::read::error::Verify::MismatchedIdentity {
-                expected,
-                found,
-                sigrefs_commit: _,
-                identity_commit: _,
-            })))
-            if expected == london_rid && found == paris_rid
+            Err(Error::Read(err))
+            if matches!(
+                err.as_ref(),
+                sigrefs::read::error::Read::Verify(
+                    sigrefs::read::error::Verify::MismatchedIdentity { expected, found, .. }
+                ) if **expected == london_rid && **found == paris_rid
+            )
         );
     }
 }

@@ -3,6 +3,7 @@ pub mod cob;
 pub mod transport;
 
 pub mod temp;
+use radicle_oid::ObjectFormat;
 pub use temp::TempRepository;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -167,7 +168,7 @@ impl ReadStorage for Storage {
             };
             // Nb. This will be `None` if they were not found.
             let refs = SignedRefsInfo::new(refs::SignedRefs::load(self.info.key, &repo))
-                .map_err(|err| Error::Refs(refs::Error::Read(err)))?;
+                .map_err(|err| Error::from(refs::Error::from(err)))?;
 
             let synced_at = match &refs {
                 SignedRefsInfo::Some(refs) => Some(node::SyncedAt::new(refs.at, &repo)?),
@@ -202,7 +203,7 @@ impl WriteStorage for Storage {
         // N.b. we remove the repository if the `local` peer has no
         // `rad/sigrefs`. There's no risk of them corrupting data.
         let has_sigrefs = SignedRefs::load(self.info.key, &repo)
-            .map_err(|err| RepositoryError::from(refs::Error::Read(err)))?
+            .map_err(|err| RepositoryError::from(refs::Error::from(err)))?
             .is_some();
         if has_sigrefs {
             repo.clean(&self.info.key)
@@ -259,7 +260,7 @@ impl Storage {
             let head = repo.head().ok().map(|(_, head)| head);
 
             let refs = SignedRefsInfo::new(refs::SignedRefs::load(self.info.key, &repo))
-                .map_err(|err| Error::Refs(refs::Error::Read(err)))?;
+                .map_err(|err| Error::from(refs::Error::from(err)))?;
 
             let synced_at = match &refs {
                 SignedRefsInfo::Some(refs) => Some(node::SyncedAt::new(refs.at, &repo)?),
@@ -428,13 +429,18 @@ impl Repository {
 
     /// Create a new repository.
     pub fn create<P: AsRef<Path>>(path: P, id: RepoId, info: &UserInfo) -> Result<Self, Error> {
-        let backend = git::raw::Repository::init_opts(
-            &path,
-            git::raw::RepositoryInitOptions::new()
-                .bare(true)
-                .no_reinit(true)
-                .external_template(false),
-        )?;
+        let opts = {
+            let mut opts = git::raw::RepositoryInitOptions::new();
+
+            opts.bare(true).no_reinit(true).external_template(false);
+
+            #[cfg(feature = "unstable-sha256")]
+            opts.object_format(id.object_format().into());
+
+            opts
+        };
+
+        let backend = git::raw::Repository::init_opts(&path, &opts)?;
 
         {
             // Even though `external_template(false)` is called above,
@@ -525,8 +531,9 @@ impl Repository {
         doc: &Doc,
         storage: &impl WriteStorage,
         signer: &impl crypto::Signer,
+        format: ObjectFormat,
     ) -> Result<(Self, crate::git::Oid), RepositoryError> {
-        let (doc_oid, doc_bytes) = doc.encode()?;
+        let (doc_oid, doc_bytes) = doc.encode(format)?;
         let id = RepoId::from(doc_oid);
         let repo = Self::create(paths::repository(storage, &id), id, storage.info())?;
         let oid = repo.backend.blob(&doc_bytes)?; // Store document blob in repository.
@@ -631,7 +638,7 @@ impl RemoteRepository for Repository {
     fn remote(&self, remote: &RemoteId) -> Result<Remote, refs::Error> {
         let refs = SignedRefs::load(*remote, self)?;
         let refs = refs.ok_or_else(|| {
-            refs::Error::Read(refs::sigrefs::read::error::Read::MissingSigrefs {
+            refs::Error::from(refs::sigrefs::read::error::Read::MissingSigrefs {
                 namespace: *remote,
             })
         })?;
@@ -951,6 +958,10 @@ impl ReadRepository for Repository {
         self.backend
             .merge_base(left.into(), right.into())
             .map(Oid::from)
+    }
+
+    fn object_format(&self) -> radicle_oid::ObjectFormat {
+        self.backend.object_format().into()
     }
 }
 

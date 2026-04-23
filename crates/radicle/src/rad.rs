@@ -71,7 +71,7 @@ pub fn init(
     })?;
     let doc = identity::Doc::initial(proj, delegate, visibility);
 
-    let (project, identity) = Repository::init(&doc, storage, signer)?;
+    let (project, identity) = Repository::init(&doc, storage, signer, repo.object_format().into())?;
     let url = git::Url::from(project.id);
 
     match init_configure(repo, &project, &default_branch, &url, identity, signer) {

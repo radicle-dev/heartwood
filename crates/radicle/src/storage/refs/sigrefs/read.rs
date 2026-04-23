@@ -381,8 +381,8 @@ impl Commit {
                 return Err(error::Verify::MismatchedIdentity {
                     identity_commit,
                     sigrefs_commit: self.oid,
-                    expected,
-                    found: rid,
+                    expected: Box::new(expected),
+                    found: Box::new(rid),
                 });
             } else {
                 FeatureLevel::Root

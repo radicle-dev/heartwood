@@ -139,7 +139,7 @@ pub struct MockRepository {
 
 impl MockRepository {
     pub fn new(id: RepoId, doc: Doc) -> Self {
-        let (blob, _) = doc.encode().unwrap();
+        let (blob, _) = doc.encode(id.object_format()).unwrap();
 
         Self {
             id,
@@ -221,7 +221,10 @@ impl ReadRepository for MockRepository {
     }
 
     fn head(&self) -> Result<(fmt::Qualified<'_>, Oid), RepositoryError> {
-        Ok((fmt::qualified!("refs/heads/master"), arbitrary::oid()))
+        Ok((
+            fmt::qualified!("refs/heads/master"),
+            arbitrary::oid(self.object_format()),
+        ))
     }
 
     fn canonical_head(&self) -> Result<(fmt::Qualified<'_>, Oid), RepositoryError> {
@@ -333,6 +336,10 @@ impl ReadRepository for MockRepository {
 
     fn merge_base(&self, _left: &Oid, _right: &Oid) -> Result<Oid, crate::git::raw::Error> {
         todo!()
+    }
+
+    fn object_format(&self) -> radicle_oid::ObjectFormat {
+        self.id.object_format()
     }
 }
 
