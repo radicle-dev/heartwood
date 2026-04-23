@@ -391,6 +391,10 @@ impl<R: storage::ReadRepository> ReadRepository for DraftStore<'_, R> {
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, crate::git::raw::Error> {
         self.repo.merge_base(left, right)
     }
+
+    fn object_format(&self) -> ObjectFormat {
+        self.repo.object_format()
+    }
 }
 
 impl<R: storage::WriteRepository> cob::object::Storage for DraftStore<'_, R> {

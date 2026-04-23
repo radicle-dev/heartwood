@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::{fmt, io};
 
 use nonempty::NonEmpty;
+use radicle_oid::ObjectFormat;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -632,6 +633,8 @@ pub trait ReadRepository: Sized + ValidateRepository {
 
     /// Get the merge base of two commits.
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, crate::git::raw::Error>;
+
+    fn object_format(&self) -> ObjectFormat;
 }
 
 /// Access the remotes of a repository.

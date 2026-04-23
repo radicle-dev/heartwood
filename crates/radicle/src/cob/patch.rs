@@ -2994,6 +2994,8 @@ mod test {
 
     use pretty_assertions::assert_eq;
 
+    use radicle_oid::ObjectFormat;
+
     use super::*;
     use crate::cob::common::CodeRange;
     use crate::cob::test::Actor;
@@ -3011,14 +3013,14 @@ mod test {
 
     use cob::migrate;
 
-    fn revision() -> (RevisionId, Revision) {
+    fn revision(format: ObjectFormat) -> (RevisionId, Revision) {
         let author = arbitrary::r#gen::<Did>(1);
         let description = arbitrary::r#gen::<String>(1);
-        let base = arbitrary::oid();
-        let oid = arbitrary::oid();
+        let base = arbitrary::oid(format);
+        let oid = arbitrary::oid(format);
         let timestamp = env::local_time();
         let resolves = BTreeSet::new();
-        let id = RevisionId::from(arbitrary::oid());
+        let id = RevisionId::from(arbitrary::oid(format));
         let mut revision = Revision::new(
             id,
             Author { id: author },
@@ -3036,7 +3038,7 @@ mod test {
             vec![],
             timestamp.into(),
         );
-        let thread = Thread::new(arbitrary::oid(), comment);
+        let thread = Thread::new(arbitrary::oid(format), comment);
         revision.discussion = thread;
         (id, revision)
     }
@@ -3106,10 +3108,12 @@ mod test {
         .verified()
         .unwrap();
 
+        let format = ObjectFormat::Sha1;
+
         let patch_none = Patch::new(
             cob::Title::new("My patch").unwrap(),
             MergeTarget::Delegates,
-            revision(),
+            revision(format),
         );
         assert_eq!(
             patch_none.merge_target_branch(&doc).unwrap().as_str(),
@@ -3119,7 +3123,7 @@ mod test {
         let patch_unqualified = Patch::new(
             cob::Title::new("My patch").unwrap(),
             MergeTarget::Branch(TargetBranch::try_from("accepted").unwrap()),
-            revision(),
+            revision(format),
         );
         assert_eq!(
             patch_unqualified
@@ -3132,7 +3136,7 @@ mod test {
         let patch_qualified_branch = Patch::new(
             cob::Title::new("My patch").unwrap(),
             MergeTarget::Branch(TargetBranch::try_from("refs/heads/accepted").unwrap()),
-            revision(),
+            revision(format),
         );
         assert_eq!(
             patch_qualified_branch
@@ -3174,8 +3178,10 @@ mod test {
 
         let doc = raw_doc.verified().unwrap();
 
+        let format = ObjectFormat::Sha1;
+
         let merge_action = Action::Merge {
-            revision: RevisionId(arbitrary::entry_id()),
+            revision: RevisionId(arbitrary::entry_id(format)),
             commit: oid,
         };
 
@@ -3183,9 +3189,9 @@ mod test {
             cob::Title::new("My Patch").unwrap(),
             MergeTarget::Branch(TargetBranch::try_from("accepted").unwrap()),
             (
-                RevisionId(arbitrary::entry_id()),
+                RevisionId(arbitrary::entry_id(format)),
                 Revision::new(
-                    RevisionId(arbitrary::entry_id()),
+                    RevisionId(arbitrary::entry_id(format)),
                     Author::new(alice.did()),
                     String::new(),
                     base,
@@ -3206,9 +3212,9 @@ mod test {
             cob::Title::new("My Patch").unwrap(),
             MergeTarget::Branch(TargetBranch::try_from("refs/heads/accepted").unwrap()),
             (
-                RevisionId(arbitrary::entry_id()),
+                RevisionId(arbitrary::entry_id(format)),
                 Revision::new(
-                    RevisionId(arbitrary::entry_id()),
+                    RevisionId(arbitrary::entry_id(format)),
                     Author::new(alice.did()),
                     String::new(),
                     base,
@@ -3254,14 +3260,16 @@ mod test {
             identity::doc::Payload::from(crefs),
         );
 
+        let format = ObjectFormat::Sha1;
+
         let doc = raw_doc.verified().unwrap();
         let patch = Patch::new(
             cob::Title::new("My Patch").unwrap(),
             MergeTarget::Branch(TargetBranch::try_from("accepted").unwrap()),
             (
-                RevisionId(arbitrary::entry_id()),
+                RevisionId(arbitrary::entry_id(format)),
                 Revision::new(
-                    RevisionId(arbitrary::entry_id()),
+                    RevisionId(arbitrary::entry_id(format)),
                     Author::new(bob.did()),
                     String::new(),
                     base,
@@ -3273,7 +3281,7 @@ mod test {
         );
 
         let merge_action = Action::Merge {
-            revision: RevisionId(arbitrary::entry_id()),
+            revision: RevisionId(arbitrary::entry_id(format)),
             commit: oid,
         };
 
@@ -3313,14 +3321,16 @@ mod test {
             identity::doc::Payload::from(crefs),
         );
 
+        let format = ObjectFormat::Sha1;
+
         let doc = raw_doc.verified().unwrap();
         let patch = Patch::new(
             cob::Title::new("My Patch").unwrap(),
             MergeTarget::Branch(TargetBranch::try_from("accepted").unwrap()),
             (
-                RevisionId(arbitrary::entry_id()),
+                RevisionId(arbitrary::entry_id(format)),
                 Revision::new(
-                    RevisionId(arbitrary::entry_id()),
+                    RevisionId(arbitrary::entry_id(format)),
                     Author::new(alice.did()),
                     String::new(),
                     base,
@@ -3332,7 +3342,7 @@ mod test {
         );
 
         let merge_action = Action::Merge {
-            revision: RevisionId(arbitrary::entry_id()),
+            revision: RevisionId(arbitrary::entry_id(format)),
             commit: oid,
         };
 
@@ -3503,6 +3513,7 @@ mod test {
     #[test]
     fn test_patch_review() {
         let alice = test::setup::NodeWithRepo::default();
+        let format = alice.repo.object_format();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
         let mut patches = Cache::no_cache(&*alice.repo, &alice.signer).unwrap();
@@ -3546,7 +3557,7 @@ mod test {
         patch.redact_review(review_id).unwrap();
         // If the review never existed, it's an error.
         patch
-            .redact_review(ReviewId(arbitrary::entry_id()))
+            .redact_review(ReviewId(arbitrary::entry_id(format)))
             .unwrap_err();
     }
 
@@ -3596,37 +3607,52 @@ mod test {
         .unwrap();
         let repo = MockRepository::new(rid, doc);
 
-        let a1 = alice.op::<Patch>([
-            Action::Revision {
-                description: String::new(),
+        let a1 = alice.op::<Patch>(
+            [
+                Action::Revision {
+                    description: String::new(),
+                    base,
+                    oid,
+                    resolves: Default::default(),
+                },
+                Action::Edit {
+                    title: cob::Title::new("My patch").unwrap(),
+                    target: MergeTarget::Delegates,
+                },
+            ],
+            ObjectFormat::Sha1,
+        );
+        let a2 = alice.op::<Patch>(
+            [Action::Revision {
+                description: String::from("Second revision"),
                 base,
                 oid,
                 resolves: Default::default(),
-            },
-            Action::Edit {
-                title: cob::Title::new("My patch").unwrap(),
-                target: MergeTarget::Delegates,
-            },
-        ]);
-        let a2 = alice.op::<Patch>([Action::Revision {
-            description: String::from("Second revision"),
-            base,
-            oid,
-            resolves: Default::default(),
-        }]);
-        let a3 = alice.op::<Patch>([Action::RevisionRedact {
-            revision: RevisionId(a2.id()),
-        }]);
-        let a4 = alice.op::<Patch>([Action::Review {
-            revision: RevisionId(a2.id()),
-            summary: None,
-            verdict: Some(Verdict::Accept),
-            labels: vec![],
-        }]);
-        let a5 = alice.op::<Patch>([Action::Merge {
-            revision: RevisionId(a2.id()),
-            commit: oid,
-        }]);
+            }],
+            ObjectFormat::Sha1,
+        );
+        let a3 = alice.op::<Patch>(
+            [Action::RevisionRedact {
+                revision: RevisionId(a2.id()),
+            }],
+            ObjectFormat::Sha1,
+        );
+        let a4 = alice.op::<Patch>(
+            [Action::Review {
+                revision: RevisionId(a2.id()),
+                summary: None,
+                verdict: Some(Verdict::Accept),
+                labels: vec![],
+            }],
+            ObjectFormat::Sha1,
+        );
+        let a5 = alice.op::<Patch>(
+            [Action::Merge {
+                revision: RevisionId(a2.id()),
+                commit: oid,
+            }],
+            ObjectFormat::Sha1,
+        );
 
         let mut patch = Patch::from_ops([a1, a2], &repo).unwrap();
         assert_eq!(patch.revisions().count(), 2);
@@ -3640,9 +3666,10 @@ mod test {
 
     #[test]
     fn test_revision_edit_redact() {
-        let base = arbitrary::oid();
-        let oid = arbitrary::oid();
         let repo = r#gen::<MockRepository>(1);
+        let format = repo.object_format();
+        let base = arbitrary::oid(format);
+        let oid = arbitrary::oid(format);
         let time = env::local_time();
         let alice = MockSigner::default();
         let bob = MockSigner::default();
@@ -3661,6 +3688,7 @@ mod test {
             ],
             time.into(),
             &alice,
+            format,
         );
         let r1 = h0.commit(
             &Action::Revision {
@@ -3707,24 +3735,30 @@ mod test {
         let repo = r#gen::<MockRepository>(1);
         let reaction = Reaction::new('👍').expect("failed to create a reaction");
 
-        let a1 = alice.op::<Patch>([
-            Action::Revision {
-                description: String::new(),
-                base,
-                oid,
-                resolves: Default::default(),
-            },
-            Action::Edit {
-                title: cob::Title::new("My patch").unwrap(),
-                target: MergeTarget::Delegates,
-            },
-        ]);
-        let a2 = alice.op::<Patch>([Action::RevisionReact {
-            revision: RevisionId(a1.id()),
-            location: None,
-            reaction,
-            active: true,
-        }]);
+        let a1 = alice.op::<Patch>(
+            [
+                Action::Revision {
+                    description: String::new(),
+                    base,
+                    oid,
+                    resolves: Default::default(),
+                },
+                Action::Edit {
+                    title: cob::Title::new("My patch").unwrap(),
+                    target: MergeTarget::Delegates,
+                },
+            ],
+            ObjectFormat::Sha1,
+        );
+        let a2 = alice.op::<Patch>(
+            [Action::RevisionReact {
+                revision: RevisionId(a1.id()),
+                location: None,
+                reaction,
+                active: true,
+            }],
+            ObjectFormat::Sha1,
+        );
         let patch = Patch::from_ops([a1, a2], &repo).unwrap();
 
         let (_, r1) = patch.revisions().next().unwrap();
@@ -4044,7 +4078,7 @@ mod test {
             })
         );
 
-        let revision = RevisionId(arbitrary::entry_id());
+        let revision = RevisionId(arbitrary::entry_id(ObjectFormat::Sha1));
         assert_eq!(
             serde_json::to_value(Action::Review {
                 revision,

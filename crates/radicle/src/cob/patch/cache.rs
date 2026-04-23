@@ -717,6 +717,7 @@ mod tests {
 
     use amplify::Wrapper;
     use radicle_cob::ObjectId;
+    use radicle_oid::ObjectFormat;
 
     use crate::cob::cache::{Store, Update, Write};
     use crate::cob::store::access::ReadOnly;
@@ -727,7 +728,7 @@ mod tests {
     };
     use crate::prelude::Did;
     use crate::profile::env;
-    use crate::storage::HasRepoId as _;
+    use crate::storage::{HasRepoId as _, ReadRepository};
     use crate::test::arbitrary;
     use crate::test::storage::MockRepository;
 
@@ -742,14 +743,14 @@ mod tests {
         Cache { store, cache }
     }
 
-    fn revision() -> (RevisionId, Revision) {
+    fn revision(format: ObjectFormat) -> (RevisionId, Revision) {
         let author = arbitrary::r#gen::<Did>(1);
         let description = arbitrary::r#gen::<String>(1);
-        let base = arbitrary::oid();
-        let oid = arbitrary::oid();
+        let base = arbitrary::oid(format);
+        let oid = arbitrary::oid(format);
         let timestamp = env::local_time();
         let resolves = BTreeSet::new();
-        let id = RevisionId::from(arbitrary::oid());
+        let id = RevisionId::from(arbitrary::oid(format));
         let mut revision = Revision::new(
             id,
             Author { id: author },
@@ -767,7 +768,7 @@ mod tests {
             vec![],
             timestamp.into(),
         );
-        let thread = Thread::new(arbitrary::oid(), comment);
+        let thread = Thread::new(arbitrary::oid(format), comment);
         revision.discussion = thread;
         (id, revision)
     }
@@ -775,13 +776,14 @@ mod tests {
     #[test]
     fn test_is_empty() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let mut cache = memory(&repo);
         assert!(cache.is_empty().unwrap());
 
         let patch = Patch::new(
             Title::new("Patch #1").unwrap(),
             MergeTarget::Delegates,
-            revision(),
+            revision(format),
         );
         let id = ObjectId::from_str("47799cbab2eca047b6520b9fce805da42b49ecab").unwrap();
         cache.update(&cache.rid(), &id, &patch).unwrap();
@@ -791,7 +793,7 @@ mod tests {
             ..Patch::new(
                 Title::new("Patch #2").unwrap(),
                 MergeTarget::Delegates,
-                revision(),
+                revision(format),
             )
         };
         let id = ObjectId::from_str("ae981ded6ed2ed2cdba34c8603714782667f18a3").unwrap();
@@ -803,29 +805,30 @@ mod tests {
     #[test]
     fn test_counts() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let mut cache = memory(&repo);
         let n_open = arbitrary::r#gen::<u8>(0);
         let n_draft = arbitrary::r#gen::<u8>(1);
         let n_archived = arbitrary::r#gen::<u8>(1);
         let n_merged = arbitrary::r#gen::<u8>(1);
         let open_ids = (0..n_open)
-            .map(|_| PatchId::from(arbitrary::oid()))
+            .map(|_| PatchId::from(arbitrary::oid(format)))
             .collect::<BTreeSet<PatchId>>();
         let draft_ids = (0..n_draft)
-            .map(|_| PatchId::from(arbitrary::oid()))
+            .map(|_| PatchId::from(arbitrary::oid(format)))
             .collect::<BTreeSet<PatchId>>();
         let archived_ids = (0..n_archived)
-            .map(|_| PatchId::from(arbitrary::oid()))
+            .map(|_| PatchId::from(arbitrary::oid(format)))
             .collect::<BTreeSet<PatchId>>();
         let merged_ids = (0..n_merged)
-            .map(|_| PatchId::from(arbitrary::oid()))
+            .map(|_| PatchId::from(arbitrary::oid(format)))
             .collect::<BTreeSet<PatchId>>();
 
         for id in open_ids.iter() {
             let patch = Patch::new(
                 Title::new(&id.to_string()).unwrap(),
                 MergeTarget::Delegates,
-                revision(),
+                revision(format),
             );
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
@@ -838,7 +841,7 @@ mod tests {
                 ..Patch::new(
                     Title::new(&id.to_string()).unwrap(),
                     MergeTarget::Delegates,
-                    revision(),
+                    revision(format),
                 )
             };
             cache
@@ -852,7 +855,7 @@ mod tests {
                 ..Patch::new(
                     Title::new(&id.to_string()).unwrap(),
                     MergeTarget::Delegates,
-                    revision(),
+                    revision(format),
                 )
             };
             cache
@@ -863,13 +866,13 @@ mod tests {
         for id in merged_ids.iter() {
             let patch = Patch {
                 state: State::Merged {
-                    revision: arbitrary::oid().into(),
-                    commit: arbitrary::oid(),
+                    revision: arbitrary::oid(format).into(),
+                    commit: arbitrary::oid(format),
                 },
                 ..Patch::new(
                     Title::new(&id.to_string()).unwrap(),
                     MergeTarget::Delegates,
-                    revision(),
+                    revision(format),
                 )
             };
             cache
@@ -891,13 +894,14 @@ mod tests {
     #[test]
     fn test_get() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
-            .map(|_| PatchId::from(arbitrary::oid()))
+            .map(|_| PatchId::from(arbitrary::oid(format)))
             .collect::<BTreeSet<PatchId>>();
         let missing = (0..arbitrary::r#gen::<u8>(2))
             .filter_map(|_| {
-                let id = PatchId::from(arbitrary::oid());
+                let id = PatchId::from(arbitrary::oid(format));
                 (!ids.contains(&id)).then_some(id)
             })
             .collect::<BTreeSet<PatchId>>();
@@ -907,7 +911,7 @@ mod tests {
             let patch = Patch::new(
                 Title::new(&id.to_string()).unwrap(),
                 MergeTarget::Delegates,
-                revision(),
+                revision(format),
             );
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
@@ -927,10 +931,11 @@ mod tests {
     #[test]
     fn test_find_by_revision() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let mut cache = memory(&repo);
-        let patch_id = PatchId::from(arbitrary::oid());
+        let patch_id = PatchId::from(arbitrary::oid(format));
         let revisions = (0..arbitrary::r#gen::<NonZeroU8>(1).into())
-            .map(|_| revision())
+            .map(|_| revision(format))
             .collect::<BTreeMap<RevisionId, Revision>>();
         let (rev_id, rev) = revisions
             .iter()
@@ -969,9 +974,10 @@ mod tests {
     #[test]
     fn test_list() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
-            .map(|_| PatchId::from(arbitrary::oid()))
+            .map(|_| PatchId::from(arbitrary::oid(format)))
             .collect::<BTreeSet<PatchId>>();
         let mut patches = Vec::with_capacity(ids.len());
 
@@ -979,7 +985,7 @@ mod tests {
             let patch = Patch::new(
                 Title::new(&id.to_string()).unwrap(),
                 MergeTarget::Delegates,
-                revision(),
+                revision(format),
             );
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
@@ -1000,9 +1006,10 @@ mod tests {
     #[test]
     fn test_list_by_status() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
-            .map(|_| PatchId::from(arbitrary::oid()))
+            .map(|_| PatchId::from(arbitrary::oid(format)))
             .collect::<BTreeSet<PatchId>>();
         let mut patches = Vec::with_capacity(ids.len());
 
@@ -1010,7 +1017,7 @@ mod tests {
             let patch = Patch::new(
                 Title::new(&id.to_string()).unwrap(),
                 MergeTarget::Delegates,
-                revision(),
+                revision(format),
             );
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)
@@ -1031,16 +1038,17 @@ mod tests {
     #[test]
     fn test_remove() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
-            .map(|_| PatchId::from(arbitrary::oid()))
+            .map(|_| PatchId::from(arbitrary::oid(format)))
             .collect::<BTreeSet<PatchId>>();
 
         for id in ids.iter() {
             let patch = Patch::new(
                 Title::new(&id.to_string()).unwrap(),
                 MergeTarget::Delegates,
-                revision(),
+                revision(format),
             );
             cache
                 .update(&cache.rid(), &PatchId::from(*id), &patch)

@@ -180,12 +180,15 @@ mod test {
     use crate::test::arbitrary;
     use localtime::{LocalDuration, LocalTime};
 
+    use radicle_oid::ObjectFormat;
+
     #[test]
     fn test_count() {
         let mut db = Database::memory().unwrap();
-        let oid = arbitrary::oid();
+        let format = arbitrary::r#gen::<ObjectFormat>(1);
+        let oid = arbitrary::oid(format);
 
-        let repo = arbitrary::r#gen::<RepoId>(1);
+        let repo = RepoId::from(arbitrary::oid(format));
         let namespace = arbitrary::r#gen::<NodeId>(1);
         let refname1 = qualified!("refs/heads/master");
         let refname2 = qualified!("refs/heads/main");
@@ -211,9 +214,10 @@ mod test {
     #[test]
     fn test_set_and_delete() {
         let mut db = Database::memory().unwrap();
-        let oid = arbitrary::oid();
+        let format = arbitrary::r#gen::<ObjectFormat>(1);
+        let oid = arbitrary::oid(format);
 
-        let repo = arbitrary::r#gen::<RepoId>(1);
+        let repo = RepoId::from(arbitrary::oid(format));
         let namespace = arbitrary::r#gen::<NodeId>(1);
         let refname = qualified!("refs/heads/master");
         let timestamp = LocalTime::now();
@@ -228,12 +232,17 @@ mod test {
     #[test]
     fn test_set_and_get() {
         let mut db = Database::memory().unwrap();
-        let oid1 = arbitrary::oid();
-        let oid2 = arbitrary::oid();
 
-        assert_ne!(oid1, oid2);
+        let format = arbitrary::r#gen::<ObjectFormat>(1);
 
-        let repo = arbitrary::r#gen::<RepoId>(1);
+        let oid1 = arbitrary::oid(format);
+        let mut oid2 = arbitrary::oid(format);
+
+        while oid1 == oid2 {
+            oid2 = arbitrary::oid(format);
+        }
+
+        let repo = RepoId::from(arbitrary::oid(format));
         let namespace = arbitrary::r#gen::<NodeId>(1);
         let refname = qualified!("refs/heads/master");
         let mut timestamp = LocalTime::now();

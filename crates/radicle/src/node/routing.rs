@@ -460,6 +460,7 @@ mod test {
     fn test_len() {
         let mut db = database(":memory:");
         let ids = arbitrary::vec::<RepoId>(10);
+        eprintln!("IDs: {ids:?}");
         let node = arbitrary::r#gen(1);
 
         db.add_inventory(&ids, node, LocalTime::now().into())

@@ -628,6 +628,7 @@ mod tests {
 
     use pretty_assertions::assert_eq;
     use qcheck_macros::quickcheck;
+    use radicle_oid::ObjectFormat;
 
     use super::*;
     use crate as radicle;
@@ -663,23 +664,29 @@ mod tests {
 
         /// Create a new comment.
         pub fn comment(&mut self, body: &str, reply_to: Option<CommentId>) -> Op<Action> {
-            self.op::<Thread>([Action::Comment {
-                body: String::from(body),
-                reply_to,
-            }])
+            self.op::<Thread>(
+                [Action::Comment {
+                    body: String::from(body),
+                    reply_to,
+                }],
+                ObjectFormat::Sha1,
+            )
         }
 
         /// Create a new redaction.
         pub fn redact(&mut self, id: CommentId) -> Op<Action> {
-            self.op::<Thread>([Action::Redact { id }])
+            self.op::<Thread>([Action::Redact { id }], ObjectFormat::Sha1)
         }
 
         /// Edit a comment.
         pub fn edit(&mut self, id: CommentId, body: &str) -> Op<Action> {
-            self.op::<Thread>([Action::Edit {
-                id,
-                body: body.to_owned(),
-            }])
+            self.op::<Thread>(
+                [Action::Edit {
+                    id,
+                    body: body.to_owned(),
+                }],
+                ObjectFormat::Sha1,
+            )
         }
     }
 
@@ -748,6 +755,7 @@ mod tests {
         let bob = MockSigner::default();
         let eve = MockSigner::default();
         let repo = r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let time = env::local_time();
 
         let mut a = test::history::<Thread, _>(
@@ -757,6 +765,7 @@ mod tests {
             }],
             time.into(),
             &alice,
+            format,
         );
         a.comment("Alice comment", Some(*a.root().id()), &alice);
 
@@ -813,6 +822,7 @@ mod tests {
     #[test]
     fn test_duplicate_comments() {
         let repo = r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let alice = MockSigner::default();
         let bob = MockSigner::default();
         let time = env::local_time();
@@ -824,6 +834,7 @@ mod tests {
             }],
             time.into(),
             &alice,
+            format,
         );
         let mut b = a.clone();
 
@@ -857,6 +868,7 @@ mod tests {
     #[quickcheck]
     fn prop_ordering(timestamp: u64) {
         let repo = r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let alice = MockSigner::default();
         let bob = MockSigner::default();
         let timestamp = Timestamp::from_secs(timestamp);
@@ -868,6 +880,7 @@ mod tests {
             }],
             timestamp,
             &alice,
+            format,
         );
         let mut h1 = h0.clone();
         let mut h2 = h0.clone();
@@ -916,9 +929,10 @@ mod tests {
     #[test]
     fn test_comment_redact_missing() {
         let repo = r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let mut alice = Actor::<MockSigner>::default();
         let mut t = Thread::default();
-        let id = arbitrary::entry_id();
+        let id = arbitrary::entry_id(format);
 
         t.op(alice.redact(id), [], &repo).unwrap_err();
     }
@@ -926,9 +940,10 @@ mod tests {
     #[test]
     fn test_comment_edit_missing() {
         let repo = r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let mut alice = Actor::<MockSigner>::default();
         let mut t = Thread::default();
-        let id = arbitrary::entry_id();
+        let id = arbitrary::entry_id(format);
 
         t.op(alice.edit(id, "Edited"), [], &repo).unwrap_err();
     }

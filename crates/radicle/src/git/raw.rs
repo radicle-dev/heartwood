@@ -18,9 +18,9 @@ pub(crate) use git2::RemoteCallbacks;
 
 // Re-exports that are used by other crates in the workspace, including this crate.
 pub use git2::{
-    Branch, BranchType, Commit, Direction, Error, ErrorClass, ErrorCode, FileMode, ObjectType, Oid,
-    Reference, Remote, Repository, RepositoryInitOptions, RepositoryOpenFlags, Signature, Time,
-    Tree,
+    Branch, BranchType, Commit, Direction, Error, ErrorClass, ErrorCode, FileMode, ObjectFormat,
+    ObjectType, Oid, Reference, Remote, Repository, RepositoryInitOptions, RepositoryOpenFlags,
+    Signature, Time, Tree,
 };
 
 // Re-exports that are used by other crates in the workspace, but *not* this crate.

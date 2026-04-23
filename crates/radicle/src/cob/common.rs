@@ -374,6 +374,7 @@ impl From<Oid> for Uri {
     }
 }
 
+/*
 impl TryFrom<&Uri> for crate::git::raw::Oid {
     type Error = Uri;
 
@@ -386,12 +387,18 @@ impl TryFrom<&Uri> for crate::git::raw::Oid {
         Err(value.clone())
     }
 }
+*/
 
 impl TryFrom<&Uri> for crate::git::Oid {
     type Error = Uri;
 
     fn try_from(value: &Uri) -> Result<Self, Self::Error> {
-        crate::git::raw::Oid::try_from(value).map(crate::git::Oid::from)
+        if let Some(oid) = value.as_str().strip_prefix("git:") {
+            let oid = oid.parse().map_err(|_| value.clone())?;
+
+            return Ok(oid);
+        }
+        Err(value.clone())
     }
 }
 
