@@ -11,6 +11,7 @@ use std::sync::LazyLock;
 use crate::git::Oid;
 use nonempty::NonEmpty;
 use radicle_cob::type_name::{TypeName, TypeNameParse};
+use radicle_oid::ObjectFormat;
 use serde::{Deserialize, Serialize, de};
 use thiserror::Error;
 
@@ -983,35 +984,40 @@ impl Doc {
 
     /// Encode the [`Doc`] as canonical JSON, returning the set of bytes and its
     /// corresponding Git [`Oid`].
-    pub fn encode(&self) -> Result<(git::Oid, Vec<u8>), DocError> {
+    pub fn encode(&self, format: ObjectFormat) -> Result<(git::Oid, Vec<u8>), DocError> {
         let mut buf = Vec::new();
         let mut serializer =
             serde_json::Serializer::with_formatter(&mut buf, CanonicalFormatter::new());
 
         self.serialize(&mut serializer)?;
-        let oid = git::raw::Oid::hash_object(git::raw::ObjectType::Blob, &buf)?;
+
+        let oid = git::raw::Oid::hash_object_ext(git::raw::ObjectType::Blob, &buf, format.into())?;
 
         Ok((oid.into(), buf))
     }
 
     /// [`Doc::encode`] and sign the [`Doc`], returning the set of bytes, its
     /// corresponding Git [`Oid`] and the [`Signature`] over the [`Oid`].
-    pub fn sign<G>(&self, signer: &G) -> Result<(git::Oid, Vec<u8>, Signature), DocError>
+    pub fn sign<G>(
+        &self,
+        signer: &G,
+        format: ObjectFormat,
+    ) -> Result<(git::Oid, Vec<u8>, Signature), DocError>
     where
         G: crypto::signature::Signer<crypto::Signature>,
     {
-        let (oid, bytes) = self.encode()?;
+        let (oid, bytes) = self.encode(format)?;
         let sig = signer.sign(oid.as_ref());
 
         Ok((oid, bytes, sig))
     }
 
     /// Similar to [`Doc::sign`], but only returning the [`Signature`].
-    pub fn signature_of<G>(&self, signer: &G) -> Result<Signature, DocError>
+    pub fn signature_of<G>(&self, signer: &G, format: ObjectFormat) -> Result<Signature, DocError>
     where
         G: crypto::signature::Signer<crypto::Signature>,
     {
-        let (_, _, sig) = self.sign(signer)?;
+        let (_, _, sig) = self.sign(signer, format)?;
 
         Ok(sig)
     }
@@ -1305,7 +1311,12 @@ mod test {
         let remote = arbitrary::r#gen::<RemoteId>(1);
         let proj = arbitrary::r#gen::<RepoId>(1);
         let repo = storage.create(proj).unwrap();
-        let oid = git::raw::Oid::from_str("2d52a53ce5e4f141148a5f770cfd3ead2d6a45b8").unwrap();
+
+        let oid = git::raw::Oid::from_str_ext(
+            "2d52a53ce5e4f141148a5f770cfd3ead2d6a45b8",
+            git::raw::ObjectFormat::Sha1,
+        )
+        .unwrap();
 
         let err = repo.identity_head_of(&remote).unwrap_err();
         {
@@ -1343,7 +1354,7 @@ mod test {
 
     #[quickcheck]
     fn prop_encode_decode(doc: Doc) {
-        let (_, bytes) = doc.encode().unwrap();
+        let (_, bytes) = doc.encode(ObjectFormat::Sha1).unwrap();
         assert_eq!(RawDoc::from_json(&bytes).unwrap().verified().unwrap(), doc);
     }
 

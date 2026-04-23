@@ -24,12 +24,23 @@ use crate::storage;
 use crate::test::storage::{MockRepository, MockStorage};
 use crate::{cob, git};
 
-pub fn oid() -> storage::Oid {
-    r#gen(1)
+#[deprecated]
+pub fn oid_sha1() -> git::Oid {
+    oid(git::ObjectFormat::Sha1)
+}
+
+pub fn oid(format: git::ObjectFormat) -> storage::Oid {
+    let mut r#gen = qcheck::Gen::default();
+    loop {
+        let oid = git::Oid::arbitrary(&mut r#gen);
+        if oid.object_format() == format {
+            return oid;
+        }
+    }
 }
 
 pub fn entry_id() -> cob::EntryId {
-    self::oid()
+    self::oid_sha1()
 }
 
 pub fn refstring(len: usize) -> git::fmt::RefString {
@@ -184,8 +195,8 @@ impl Arbitrary for DocAt {
         let doc = Doc::arbitrary(g);
 
         DocAt {
-            commit: self::oid(),
-            blob: self::oid(),
+            commit: self::oid_sha1(),
+            blob: self::oid_sha1(),
             doc,
         }
     }

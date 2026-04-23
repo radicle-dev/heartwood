@@ -5,6 +5,7 @@ use std::{fmt, ops::Deref, str::FromStr};
 use crypto::{PublicKey, Signature};
 use nonempty::NonEmpty;
 use radicle_cob::{Embed, ObjectId, TypeName};
+use radicle_oid::ObjectFormat;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -790,8 +791,9 @@ impl Revision {
     pub fn sign<G: crypto::signature::Signer<crypto::Signature>>(
         &self,
         signer: &G,
+        format: ObjectFormat,
     ) -> Result<Signature, DocError> {
-        self.doc.signature_of(signer)
+        self.doc.signature_of(signer, format)
     }
 }
 
@@ -907,7 +909,9 @@ impl<R: WriteRepository> store::Transaction<Identity, R> {
     ) -> Result<Self, store::Error> {
         let mut tx = Transaction::default();
 
-        let (blob, bytes, signature) = doc.sign(signer).map_err(store::Error::Identity)?;
+        let (blob, bytes, signature) = doc
+            .sign(signer, repo.object_format())
+            .map_err(store::Error::Identity)?;
         // Store document blob in repository.
         let embed =
             Embed::<Uri>::store("radicle.json", &bytes, repo.raw()).map_err(store::Error::Git)?;
@@ -1006,7 +1010,7 @@ where
         let revision = self.revision(revision).ok_or(Error::NotFound(id))?;
 
         #[allow(deprecated)]
-        let signature = revision.sign(self.store.signer())?;
+        let signature = revision.sign(self.store.signer(), self.store.object_format())?;
 
         self.transaction("Accept revision", |tx, _| tx.accept(id, signature))
     }

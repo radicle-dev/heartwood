@@ -632,7 +632,7 @@ mod tests {
     use crate::cob::store::access::ReadOnly;
     use crate::cob::thread::Thread;
     use crate::issue::{CloseReason, Issue, IssueCounts, IssueId, State};
-    use crate::storage::HasRepoId as _;
+    use crate::storage::{HasRepoId as _, ReadRepository};
     use crate::test::arbitrary;
     use crate::test::storage::MockRepository;
 
@@ -676,10 +676,10 @@ mod tests {
         let n_open = arbitrary::r#gen::<u8>(0);
         let n_closed = arbitrary::r#gen::<u8>(1);
         let open_ids = (0..n_open)
-            .map(|_| IssueId::from(arbitrary::oid()))
+            .map(|_| IssueId::from(arbitrary::oid(repo.object_format())))
             .collect::<BTreeSet<IssueId>>();
         let closed_ids = (0..n_closed)
-            .map(|_| IssueId::from(arbitrary::oid()))
+            .map(|_| IssueId::from(arbitrary::oid(repo.object_format())))
             .collect::<BTreeSet<IssueId>>();
 
         for id in open_ids.iter() {
@@ -715,11 +715,11 @@ mod tests {
         let repo = arbitrary::r#gen::<MockRepository>(1);
         let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
-            .map(|_| IssueId::from(arbitrary::oid()))
+            .map(|_| IssueId::from(arbitrary::oid(repo.object_format())))
             .collect::<BTreeSet<IssueId>>();
         let missing = (0..arbitrary::r#gen::<u8>(2))
             .filter_map(|_| {
-                let id = IssueId::from(arbitrary::oid());
+                let id = IssueId::from(arbitrary::oid(repo.object_format()));
                 (!ids.contains(&id)).then_some(id)
             })
             .collect::<BTreeSet<IssueId>>();
@@ -748,9 +748,10 @@ mod tests {
     #[test]
     fn test_list() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
-            .map(|_| IssueId::from(arbitrary::oid()))
+            .map(|_| IssueId::from(arbitrary::oid(format)))
             .collect::<BTreeSet<IssueId>>();
         let mut issues = Vec::with_capacity(ids.len());
 
@@ -778,9 +779,10 @@ mod tests {
     #[test]
     fn test_list_by_status() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
+        let format = repo.object_format();
         let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
-            .map(|_| IssueId::from(arbitrary::oid()))
+            .map(|_| IssueId::from(arbitrary::oid(format)))
             .collect::<BTreeSet<IssueId>>();
         let mut issues = Vec::with_capacity(ids.len());
 
@@ -810,7 +812,7 @@ mod tests {
         let repo = arbitrary::r#gen::<MockRepository>(1);
         let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
-            .map(|_| IssueId::from(arbitrary::oid()))
+            .map(|_| IssueId::from(arbitrary::oid(repo.object_format())))
             .collect::<BTreeSet<IssueId>>();
 
         for id in ids.iter() {

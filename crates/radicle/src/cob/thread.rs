@@ -628,6 +628,7 @@ mod tests {
 
     use pretty_assertions::assert_eq;
     use qcheck_macros::quickcheck;
+    use radicle_oid::ObjectFormat;
 
     use super::*;
     use crate as radicle;
@@ -663,23 +664,29 @@ mod tests {
 
         /// Create a new comment.
         pub fn comment(&mut self, body: &str, reply_to: Option<CommentId>) -> Op<Action> {
-            self.op::<Thread>([Action::Comment {
-                body: String::from(body),
-                reply_to,
-            }])
+            self.op::<Thread>(
+                [Action::Comment {
+                    body: String::from(body),
+                    reply_to,
+                }],
+                ObjectFormat::Sha1,
+            )
         }
 
         /// Create a new redaction.
         pub fn redact(&mut self, id: CommentId) -> Op<Action> {
-            self.op::<Thread>([Action::Redact { id }])
+            self.op::<Thread>([Action::Redact { id }], ObjectFormat::Sha1)
         }
 
         /// Edit a comment.
         pub fn edit(&mut self, id: CommentId, body: &str) -> Op<Action> {
-            self.op::<Thread>([Action::Edit {
-                id,
-                body: body.to_owned(),
-            }])
+            self.op::<Thread>(
+                [Action::Edit {
+                    id,
+                    body: body.to_owned(),
+                }],
+                ObjectFormat::Sha1,
+            )
         }
     }
 

@@ -3,6 +3,7 @@ pub mod cob;
 pub mod transport;
 
 pub mod temp;
+use radicle_oid::ObjectFormat;
 pub use temp::TempRepository;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -427,13 +428,18 @@ impl Repository {
 
     /// Create a new repository.
     pub fn create<P: AsRef<Path>>(path: P, id: RepoId, info: &UserInfo) -> Result<Self, Error> {
-        let backend = git::raw::Repository::init_opts(
-            &path,
-            git::raw::RepositoryInitOptions::new()
-                .bare(true)
-                .no_reinit(true)
-                .external_template(false),
-        )?;
+        let opts = {
+            let mut opts = git::raw::RepositoryInitOptions::new();
+
+            opts.bare(true).no_reinit(true).external_template(false);
+
+            #[cfg(feature = "sha256")]
+            opts.object_format(id.object_format().into());
+
+            opts
+        };
+
+        let backend = git::raw::Repository::init_opts(&path, &opts)?;
 
         {
             // Even though `external_template(false)` is called above,
@@ -524,12 +530,13 @@ impl Repository {
         doc: &Doc,
         storage: &S,
         signer: &Device<G>,
+        format: ObjectFormat,
     ) -> Result<(Self, crate::git::Oid), RepositoryError>
     where
         G: crypto::signature::Signer<crypto::Signature>,
         S: WriteStorage,
     {
-        let (doc_oid, doc_bytes) = doc.encode()?;
+        let (doc_oid, doc_bytes) = doc.encode(format)?;
         let id = RepoId::from(doc_oid);
         let repo = Self::create(paths::repository(storage, &id), id, storage.info())?;
         let oid = repo.backend.blob(&doc_bytes)?; // Store document blob in repository.
@@ -932,6 +939,10 @@ impl ReadRepository for Repository {
         self.backend
             .merge_base(left.into(), right.into())
             .map(Oid::from)
+    }
+
+    fn object_format(&self) -> radicle_oid::ObjectFormat {
+        self.backend.object_format().into()
     }
 }
 

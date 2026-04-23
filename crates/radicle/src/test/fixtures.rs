@@ -1,6 +1,8 @@
 use std::path::Path;
 use std::str::FromStr;
 
+use radicle_oid::ObjectFormat;
+
 use crate::crypto::PublicKey;
 use crate::git;
 use crate::identity::RepoId;

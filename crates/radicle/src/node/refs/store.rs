@@ -183,7 +183,7 @@ mod test {
     #[test]
     fn test_count() {
         let mut db = Database::memory().unwrap();
-        let oid = arbitrary::oid();
+        let oid = arbitrary::oid_sha1();
 
         let repo = arbitrary::r#gen::<RepoId>(1);
         let namespace = arbitrary::r#gen::<NodeId>(1);
@@ -211,7 +211,7 @@ mod test {
     #[test]
     fn test_set_and_delete() {
         let mut db = Database::memory().unwrap();
-        let oid = arbitrary::oid();
+        let oid = arbitrary::oid_sha1();
 
         let repo = arbitrary::r#gen::<RepoId>(1);
         let namespace = arbitrary::r#gen::<NodeId>(1);
@@ -228,10 +228,13 @@ mod test {
     #[test]
     fn test_set_and_get() {
         let mut db = Database::memory().unwrap();
-        let oid1 = arbitrary::oid();
-        let oid2 = arbitrary::oid();
 
-        assert_ne!(oid1, oid2);
+        let oid1 = arbitrary::oid_sha1();
+        let mut oid2 = arbitrary::oid_sha1();
+
+        while oid1 == oid2 {
+            oid2 = arbitrary::oid_sha1();
+        }
 
         let repo = arbitrary::r#gen::<RepoId>(1);
         let namespace = arbitrary::r#gen::<NodeId>(1);

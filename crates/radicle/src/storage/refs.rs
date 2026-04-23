@@ -495,6 +495,7 @@ pub mod canonical {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use qcheck_macros::quickcheck;
+    use radicle_oid::ObjectFormat;
     use storage::{RemoteRepository, SignRepository, WriteStorage, git::transport};
 
     use super::*;
