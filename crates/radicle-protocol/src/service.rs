@@ -117,7 +117,7 @@ pub const TARGET_OUTBOUND_PEERS: usize = 8;
 /// Maximum external address limit imposed by message size limits.
 pub use message::ADDRESS_LIMIT;
 /// Maximum inventory limit imposed by message size limits.
-pub use message::INVENTORY_LIMIT;
+pub use message::INVENTORY_LIMIT_SHA1;
 /// Maximum number of project git references imposed by message size limits.
 pub use message::REF_REMOTE_LIMIT;
 

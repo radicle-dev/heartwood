@@ -62,14 +62,16 @@ impl UpdatedCanonicalRefs {
 }
 
 #[cfg(any(test, feature = "test"))]
-impl qcheck::Arbitrary for FetchResult {
-    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+impl FetchResult {
+    pub fn arbitrary(g: &mut qcheck::Gen, format: radicle::git::ObjectFormat) -> Self {
+        use qcheck::Arbitrary;
+
         FetchResult {
             updated: vec![],
             canonical: UpdatedCanonicalRefs::default(),
             namespaces: HashSet::arbitrary(g),
             clone: bool::arbitrary(g),
-            doc: DocAt::arbitrary(g),
+            doc: radicle::test::arbitrary::doc_at(g, format),
         }
     }
 }
