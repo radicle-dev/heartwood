@@ -2,7 +2,7 @@ use std::io;
 
 use thiserror::Error;
 
-use radicle::{cob, git::raw, identity, storage};
+use radicle::{cob, identity, storage};
 use radicle_fetch as fetch;
 
 #[derive(Debug, Error)]
@@ -10,7 +10,7 @@ pub enum Fetch {
     #[error(transparent)]
     Run(#[from] fetch::Error),
     #[error(transparent)]
-    Git(#[from] raw::Error),
+    Git(#[from] radicle::git::raw::Error),
     #[error(transparent)]
     Storage(#[from] storage::Error),
     #[error(transparent)]
