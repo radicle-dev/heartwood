@@ -108,7 +108,7 @@ pub enum FetchResult {
         /// Repo fetched.
         rid: RepoId,
         /// Fetch result, including remotes fetched.
-        result: Result<fetch::FetchResult, FetchError>,
+        result: Box<Result<fetch::FetchResult, FetchError>>,
     },
     Responder {
         /// Repo requested.

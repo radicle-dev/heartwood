@@ -43,9 +43,20 @@ pub type Size = u16;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Invalid {
-    #[error(
-        "invalid Git object identifier size: expected {}, got {actual}",
-        git::Oid::LEN_SHA1
+    #[cfg_attr(
+        not(feature = "unstable-sha256"),
+        error(
+            "invalid Git object identifier size: expected {}, got {actual}",
+            git::Oid::LEN_SHA1
+        )
+    )]
+    #[cfg_attr(
+        feature = "unstable-sha256",
+        error(
+            "invalid Git object identifier size: expected {} or {}, got {actual}",
+            git::Oid::LEN_SHA1,
+            git::Oid::LEN_SHA256
+        )
     )]
     Oid { actual: usize },
     #[error(transparent)]
@@ -384,11 +395,32 @@ impl Decode for git::Oid {
     fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
         let len = Size::decode(buf)? as usize;
 
-        if len != git::Oid::LEN_SHA1 {
-            return Err(Invalid::Oid { actual: len }.into());
+        #[cfg(not(feature = "unstable-sha256"))]
+        {
+            if len != git::Oid::LEN_SHA1 {
+                return Err(Invalid::Oid { actual: len }.into());
+            }
+
+            let buf: [u8; git::Oid::LEN_SHA1] = Decode::decode(buf)?;
+            let oid = git::Oid::Sha1(buf);
+
+            Ok(oid)
         }
 
-        Ok(git::Oid::Sha1(Decode::decode(buf)?))
+        #[cfg(feature = "unstable-sha256")]
+        {
+            if len == git::Oid::LEN_SHA1 {
+                let buf: [u8; git::Oid::LEN_SHA1] = Decode::decode(buf)?;
+                let oid = git::Oid::Sha1(buf);
+                Ok(oid)
+            } else if len == git::Oid::LEN_SHA256 {
+                let buf: [u8; git::Oid::LEN_SHA256] = Decode::decode(buf)?;
+                let oid = git::Oid::Sha256(buf);
+                Ok(oid)
+            } else {
+                Err(Invalid::Oid { actual: len }.into())
+            }
+        }
     }
 }
 

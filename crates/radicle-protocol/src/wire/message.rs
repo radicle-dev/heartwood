@@ -440,7 +440,17 @@ mod tests {
     #[test]
     fn test_inv_ann_max_size() {
         let signer = radicle::crypto::SigningKey::mock(147);
-        let inv: [RepoId; INVENTORY_LIMIT] = arbitrary::r#gen(1);
+        let mut inv: [RepoId; INVENTORY_LIMIT_SHA1] = [Oid::ZERO_SHA1.into(); INVENTORY_LIMIT_SHA1];
+
+        for item in inv.iter_mut() {
+            loop {
+                *item = arbitrary::r#gen(1);
+                if item.object_format() == radicle::git::ObjectFormat::Sha1 {
+                    break;
+                }
+            }
+        }
+
         let ann = AnnouncementMessage::Inventory(InventoryAnnouncement {
             inventory: BoundedVec::collect_from(&mut inv.into_iter()),
             timestamp: arbitrary::r#gen(1),

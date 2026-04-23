@@ -12,6 +12,7 @@ rust-version.workspace = true
 i2p = ["cypheraddr/i2p", "radicle/i2p"]
 test = ["radicle/test", "qcheck"]
 tor = ["cypheraddr/tor", "radicle/tor"]
+unstable-sha256 = ["radicle/unstable-sha256", "radicle-core/unstable-sha256"]
 
 [dependencies]
 bloomy = "1.2"

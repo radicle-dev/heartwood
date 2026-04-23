@@ -23,8 +23,22 @@ use crate::wire::Encode as _;
 pub const ADDRESS_LIMIT: usize = 16;
 /// Maximum number of repository remotes that can be included in a [`RefsAnnouncement`] message.
 pub const REF_REMOTE_LIMIT: usize = 1024;
-/// Maximum number of inventory which can be announced to other nodes.
-pub const INVENTORY_LIMIT: usize = 2973;
+/// Maximum size of an inventory consisting only of SHA-1 repositories
+/// that can be announced to other nodes.
+pub const INVENTORY_LIMIT_SHA1: usize = 2973;
+
+/// Maximum size of an inventory consisting only of SHA-256 repositories
+/// that can be announced to other nodes.
+///
+/// Calculated as `INVENTORY_LIMIT_SHA1 * (2 + git::Oid::LEN_SHA1) / (2 + git::Oid::LEN_SHA256)`
+#[cfg(feature = "unstable-sha256")]
+pub const INVENTORY_LIMIT_SHA_256: usize = 1923;
+
+/// Maximum size of an inventory in bytes,
+/// that can be announced to other nodes.
+///
+/// Calculated as `INVENTORY_LIMIT_SHA1 * (2 + git::Oid::LEN_SHA1)`
+pub const INVENTORY_LIMIT_BYTES: usize = 65406;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Subscribe {
@@ -232,7 +246,7 @@ impl RefsStatus {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InventoryAnnouncement {
     /// Node inventory.
-    pub inventory: BoundedVec<RepoId, INVENTORY_LIMIT>,
+    pub inventory: BoundedVec<RepoId, INVENTORY_LIMIT_SHA1>,
     /// Time of announcement.
     pub timestamp: Timestamp,
 }
@@ -647,9 +661,10 @@ impl qcheck::Arbitrary for Message {
                 .into()
             }
             4 => {
+                let format = git::ObjectFormat::arbitrary(g);
                 let message = Info::RefsAlreadySynced {
-                    rid: RepoId::arbitrary(g),
-                    at: radicle::test::arbitrary::oid(),
+                    rid: RepoId::from(radicle::test::arbitrary::oid(format)),
+                    at: radicle::test::arbitrary::oid(format),
                 };
                 Self::Info(message)
             }
@@ -724,12 +739,58 @@ mod tests {
     }
 
     #[test]
-    fn test_inventory_limit() {
+    fn inventory_limit_sha1() {
+        let mut inventory = Vec::with_capacity(INVENTORY_LIMIT_SHA1);
+        for _ in 0..INVENTORY_LIMIT_SHA1 {
+            inventory.push(RepoId::from(radicle::test::arbitrary::oid(
+                git::ObjectFormat::Sha1,
+            )));
+        }
+
         let msg = Message::inventory(
             InventoryAnnouncement {
-                inventory: arbitrary::vec(INVENTORY_LIMIT)
-                    .try_into()
-                    .expect("size within bounds limit"),
+                inventory: inventory.try_into().expect("size within bounds limit"),
+                timestamp: LocalTime::now().into(),
+            },
+            &crypto::SigningKey::mock(217),
+        );
+        let mut buf: Vec<u8> = Vec::new();
+        msg.encode(&mut buf);
+
+        let decoded = Message::decode_exact(buf.as_slice());
+        assert!(
+            decoded.is_ok(),
+            "INVENTORY_LIMIT is a valid limit for decoding"
+        );
+        assert_eq!(
+            msg,
+            decoded.unwrap(),
+            "encoding and decoding should be safe for message at INVENTORY_LIMIT",
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "unstable-sha256")]
+    fn inventory_limit_sha_256_definition() {
+        assert_eq!(
+            INVENTORY_LIMIT_SHA_256,
+            INVENTORY_LIMIT_SHA1 * (2 + git::Oid::LEN_SHA1) / (2 + git::Oid::LEN_SHA256)
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "unstable-sha256")]
+    fn inventory_limit_sha256() {
+        let mut inventory = Vec::with_capacity(INVENTORY_LIMIT_SHA_256);
+        for _ in 0..INVENTORY_LIMIT_SHA_256 {
+            inventory.push(RepoId::from(radicle::test::arbitrary::oid(
+                git::ObjectFormat::Sha256,
+            )));
+        }
+
+        let msg = Message::inventory(
+            InventoryAnnouncement {
+                inventory: inventory.try_into().expect("size within bounds limit"),
                 timestamp: LocalTime::now().into(),
             },
             &crypto::SigningKey::mock(218),
