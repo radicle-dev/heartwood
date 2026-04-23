@@ -42,7 +42,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             thread::sleep(interval);
             let oid = reference(&repo, &nid, &qualified)?;
             if oid != initial {
-                term::info!("{}", oid.unwrap_or(git::raw::Oid::zero().into()));
+                term::info!("{}", oid.unwrap_or(git::Oid::SHA1_ZERO));
                 break;
             }
             if now.elapsed()? >= timeout {

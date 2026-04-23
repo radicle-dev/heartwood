@@ -380,7 +380,7 @@ mod parse {
                     })
                 })
             })
-            .unwrap_or(Ok(git::raw::Oid::zero().into()))?;
+            .unwrap_or(Ok(git::Oid::SHA1_ZERO))?;
         let new = row
             .try_read::<Option<&str>, _>("new")?
             .map(|oid| {
@@ -391,7 +391,7 @@ mod parse {
                     })
                 })
             })
-            .unwrap_or(Ok(git::raw::Oid::zero().into()))?;
+            .unwrap_or(Ok(git::Oid::SHA1_ZERO))?;
         let update = RefUpdate::from(RefString::try_from(refstr)?, old, new);
         let (namespace, qualified) = git::parse_ref(refstr)?;
         let timestamp = row.try_read::<i64, _>("timestamp")?;

@@ -42,10 +42,10 @@ impl Refdb {
             .fold(Applied::default(), |mut ap, update| match update {
                 Update::Direct { name, target, .. } => {
                     let name = name.into_qualified().into_owned();
-                    let prev = match self.0.insert(name.clone(), target) {
-                        Some(prev) => prev,
-                        None => radicle::git::raw::Oid::zero().into(),
-                    };
+                    let prev = self
+                        .0
+                        .insert(name.clone(), target)
+                        .unwrap_or(radicle::git::Oid::SHA1_ZERO);
                     ap.updated.push(RefUpdate::Updated {
                         name: name.to_ref_string(),
                         old: prev,

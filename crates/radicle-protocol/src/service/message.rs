@@ -690,7 +690,6 @@ mod tests {
     use fastrand;
     use localtime::LocalTime;
     use qcheck_macros::quickcheck;
-    use radicle::git::raw;
     use radicle::test::arbitrary;
 
     use crate::wire::Decode as _;
@@ -701,7 +700,7 @@ mod tests {
     fn test_ref_remote_limit() {
         let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
         let signer = Device::mock();
-        let at = raw::Oid::zero().into();
+        let at = git::Oid::SHA1_ZERO;
 
         assert_eq!(refs.capacity(), REF_REMOTE_LIMIT);
 
@@ -759,7 +758,7 @@ mod tests {
     fn prop_refs_announcement_signing(rid: RepoId) {
         let signer = Device::mock_rng(&mut fastrand::Rng::new());
         let timestamp = Timestamp::EPOCH;
-        let at = raw::Oid::zero().into();
+        let at = git::Oid::SHA1_ZERO;
         let refs = BoundedVec::collect_from(
             &mut [RefsAt {
                 remote: *signer.public_key(),
