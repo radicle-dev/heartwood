@@ -14,8 +14,8 @@ pub const RAD_PREFIX: &str = "rad:";
 pub enum IdError {
     #[error(transparent)]
     Multibase(#[from] multibase::Error),
-    #[error("invalid length: expected {expected} bytes, got {actual} bytes")]
-    Length { expected: usize, actual: usize },
+    #[error("invalid length: expected {} bytes, got {actual} bytes", Oid::SHA1_LEN)]
+    Length { actual: usize },
     #[error(fmt = fmt_mismatched_base_encoding)]
     MismatchedBaseEncoding {
         input: String,
@@ -106,12 +106,10 @@ impl RepoId {
     ///
     /// [multibase]: https://github.com/multiformats/multibase?tab=readme-ov-file#multibase-table
     pub fn from_canonical(input: &str) -> Result<Self, IdError> {
-        const EXPECTED_LEN: usize = 20;
         let (base, bytes) = multibase::decode(input)?;
         Self::guard_base_encoding(input, base)?;
-        let bytes: [u8; EXPECTED_LEN] =
+        let bytes: [u8; Oid::SHA1_LEN] =
             bytes.try_into().map_err(|bytes: Vec<u8>| IdError::Length {
-                expected: EXPECTED_LEN,
                 actual: bytes.len(),
             })?;
         Ok(Self(Oid::from_sha1(bytes)))

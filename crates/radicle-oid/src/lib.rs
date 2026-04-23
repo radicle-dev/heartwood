@@ -86,7 +86,7 @@ pub enum Oid {
 // length becomes popular?
 impl Oid {
     /// The length of a SHA-1 object identifier in bytes.
-    const SHA1_LEN: usize = 20;
+    pub const SHA1_LEN: usize = 20;
 
     /// A SHA-1 object identifier with all digest bytes set to zero.
     /// This is sometimes used as a sentinel value to indicate the absence of

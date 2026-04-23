@@ -7,7 +7,6 @@ pub use message::{AddressType, MessageType};
 
 use std::convert::TryFrom;
 use std::fmt::Debug;
-use std::mem;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::string::FromUtf8Error;
@@ -45,8 +44,11 @@ pub type Size = u16;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Invalid {
-    #[error("invalid Git object identifier size: expected {expected}, got {actual}")]
-    Oid { expected: usize, actual: usize },
+    #[error(
+        "invalid Git object identifier size: expected {}, got {actual}",
+        git::Oid::SHA1_LEN
+    )]
+    Oid { actual: usize },
     #[error(transparent)]
     Bounded(#[from] crate::bounded::Error),
     #[error("invalid filter size: {actual}")]
@@ -382,19 +384,13 @@ where
 
 impl Decode for git::Oid {
     fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
-        const LEN_EXPECTED: usize = mem::size_of::<raw::Oid>();
-
         let len = Size::decode(buf)? as usize;
 
-        if len != LEN_EXPECTED {
-            return Err(Invalid::Oid {
-                expected: LEN_EXPECTED,
-                actual: len,
-            }
-            .into());
+        if len != git::Oid::SHA1_LEN {
+            return Err(Invalid::Oid { actual: len }.into());
         }
 
-        let buf: [u8; LEN_EXPECTED] = Decode::decode(buf)?;
+        let buf: [u8; git::Oid::SHA1_LEN] = Decode::decode(buf)?;
         let oid = raw::Oid::from_bytes(&buf).expect("the buffer is exactly the right size");
         let oid = git::Oid::from(oid);
 
@@ -633,7 +629,7 @@ mod tests {
     }
 
     #[quickcheck]
-    fn prop_oid(input: [u8; 20]) {
+    fn prop_oid(input: [u8; git::Oid::SHA1_LEN]) {
         roundtrip(git::Oid::from_sha1(input));
     }
 
