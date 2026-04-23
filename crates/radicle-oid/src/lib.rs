@@ -74,12 +74,10 @@ extern crate alloc;
 #[cfg(not(feature = "sha1"))]
 compile_error!("The `sha1` feature is required.");
 
-const SHA1_DIGEST_LEN: usize = 20;
-
 #[derive(PartialEq, Eq, Ord, PartialOrd, Clone, Copy)]
 #[non_exhaustive]
 pub enum Oid {
-    Sha1([u8; SHA1_DIGEST_LEN]),
+    Sha1([u8; Self::SHA1_LEN]),
 }
 
 /// Conversions to/from SHA-1.
@@ -87,18 +85,21 @@ pub enum Oid {
 // for forwards compatibility: What if another hash with digests of the same
 // length becomes popular?
 impl Oid {
+    /// The length of a SHA-1 object identifier in bytes.
+    const SHA1_LEN: usize = 20;
+
     /// A SHA-1 object identifier with all digest bytes set to zero.
     /// This is sometimes used as a sentinel value to indicate the absence of
     /// an object.
     /// To compare whether an object identifier is zero, prefer the method
     /// [`Oid::is_zero`] over checking equality with this constant.
-    pub const SHA1_ZERO: Self = Self::Sha1([0u8; SHA1_DIGEST_LEN]);
+    pub const SHA1_ZERO: Self = Self::Sha1([0u8; Self::SHA1_LEN]);
 
-    pub fn from_sha1(digest: [u8; SHA1_DIGEST_LEN]) -> Self {
+    pub fn from_sha1(digest: [u8; Self::SHA1_LEN]) -> Self {
         Self::Sha1(digest)
     }
 
-    pub fn into_sha1(&self) -> Option<[u8; SHA1_DIGEST_LEN]> {
+    pub fn into_sha1(&self) -> Option<[u8; Self::SHA1_LEN]> {
         match self {
             Oid::Sha1(digest) => Some(*digest),
         }
@@ -133,11 +134,11 @@ impl From<Oid> for alloc::boxed::Box<[u8]> {
 }
 
 pub mod str {
-    use super::{Oid, SHA1_DIGEST_LEN};
+    use super::Oid;
     use core::str;
 
     /// Length of the string representation of a SHA-1 digest in hexadecimal notation.
-    pub(super) const SHA1_DIGEST_STR_LEN: usize = SHA1_DIGEST_LEN * 2;
+    pub(super) const SHA1_DIGEST_STR_LEN: usize = Oid::SHA1_LEN * 2;
 
     impl str::FromStr for Oid {
         type Err = error::ParseOidError;
@@ -150,8 +151,8 @@ pub mod str {
                 return Err(Len(len));
             }
 
-            let mut bytes = [0u8; SHA1_DIGEST_LEN];
-            for i in 0..SHA1_DIGEST_LEN {
+            let mut bytes = [0u8; Oid::SHA1_LEN];
+            for i in 0..Oid::SHA1_LEN {
                 bytes[i] = u8::from_str_radix(&s[i * 2..=i * 2 + 1], 16)
                     .map_err(|source| At { index: i, source })?;
             }
@@ -468,7 +469,7 @@ mod test {
 
         impl Arbitrary for Oid {
             fn arbitrary(g: &mut Gen) -> Self {
-                let slice = [0u8; SHA1_DIGEST_LEN];
+                let slice = [0u8; Oid::SHA1_LEN];
                 g.fill(slice);
                 Self::Sha1(slice)
             }
@@ -511,10 +512,11 @@ mod serde {
                     type Value = Oid;
 
                     fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                        use crate::str::SHA1_DIGEST_STR_LEN;
                         write!(
                             f,
-                            "a Git object identifier (SHA-1 digest in hexadecimal notation; {SHA1_DIGEST_STR_LEN} characters; {SHA1_DIGEST_LEN} bytes)"
+                            "a Git object identifier (SHA-1 digest in hexadecimal notation; {} characters; {} bytes)",
+                            crate::str::SHA1_DIGEST_STR_LEN,
+                            Oid::SHA1_LEN
                         )
                     }
 
@@ -571,9 +573,12 @@ mod schemars {
         }
 
         fn json_schema(_: &mut SchemaGenerator) -> Schema {
-            use crate::{SHA1_DIGEST_LEN, str::SHA1_DIGEST_STR_LEN};
+            use crate::str::SHA1_DIGEST_STR_LEN;
             json_schema!({
-                "description": format!("A Git object identifier (SHA-1 digest in hexadecimal notation; {SHA1_DIGEST_STR_LEN} characters; {SHA1_DIGEST_LEN} bytes)"),
+                "description": format!(
+                    "A Git object identifier (SHA-1 digest in hexadecimal notation; {SHA1_DIGEST_STR_LEN} characters; {} bytes)",
+                    Oid::SHA1_LEN,
+                ),
                 "type": "string",
                 "maxLength": SHA1_DIGEST_STR_LEN,
                 "minLength": SHA1_DIGEST_STR_LEN,
