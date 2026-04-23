@@ -1435,6 +1435,7 @@ dependencies = [
  "faster-hex",
  "gix-features",
  "sha1-checked",
+ "sha2",
  "thiserror 2.0.18",
 ]
 
