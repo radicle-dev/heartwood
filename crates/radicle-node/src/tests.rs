@@ -1579,7 +1579,7 @@ fn test_queued_fetch_from_ann_same_rid() {
     let bob = Peer::new("bob", [198, 18, 0, 8]);
     let eve = Peer::new("eve", [198, 18, 0, 9]);
     let carol = Peer::new("carol", [198, 18, 0, 10]);
-    let oid = arbitrary::oid();
+    let oid = arbitrary::oid(rid.object_format());
     let ann = RefsAnnouncement {
         rid,
         refs: vec![RefsAt {
@@ -1637,7 +1637,7 @@ fn test_queued_fetch_from_ann_same_rid() {
             canonical: fetch::UpdatedCanonicalRefs::default(),
             namespaces: [carol.id()].into_iter().collect(),
             clone: false,
-            doc: arbitrary::r#gen(1),
+            doc: arbitrary::doc_at(&mut qcheck::Gen::default(), rid.object_format()),
         }),
     );
     // Now the 1st fetch is done, but the 2nd and 3rd fetches are redundant.
@@ -1686,8 +1686,14 @@ fn test_queued_fetch_from_command_same_rid() {
     // Have enough time pass that Alice sends a "ping" to Bob.
     alice.elapse(KEEP_ALIVE_DELTA);
 
+    let g = &mut qcheck::Gen::default();
+
     // Finish the 1st fetch.
-    alice.fetched(rid1, nid, Ok(arbitrary::r#gen::<fetch::FetchResult>(1)));
+    alice.fetched(
+        rid1,
+        nid,
+        Ok(fetch::FetchResult::arbitrary(g, rid1.object_format())),
+    );
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
     let (rid, nid) = alice.fetches().next().unwrap();
     assert_eq!(rid, rid1);
@@ -1697,7 +1703,11 @@ fn test_queued_fetch_from_command_same_rid() {
     assert_matches!(alice.fetches().next(), None);
 
     // Finish the 2nd fetch.
-    alice.fetched(rid1, nid, Ok(arbitrary::r#gen::<fetch::FetchResult>(1)));
+    alice.fetched(
+        rid1,
+        nid,
+        Ok(fetch::FetchResult::arbitrary(g, rid1.object_format())),
+    );
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, nid)) if rid == rid1 && peers.remove(&nid));
     // All fetches were initiated.
