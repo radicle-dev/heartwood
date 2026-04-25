@@ -427,7 +427,7 @@ where
         // Only call into the service if we initiated this fetch.
         match task.result {
             FetchResult::Initiator { rid, result } => {
-                self.service.fetched(rid, nid, result);
+                self.service.fetched(rid, nid, *result);
             }
             FetchResult::Responder { rid, result } => {
                 if let Some(rid) = rid {
@@ -1478,9 +1478,9 @@ mod test {
             stream: StreamId::git(Link::Outbound).nth(1).unwrap(),
             result: FetchResult::Initiator {
                 rid,
-                result: Err(protocol::worker::FetchError::Io(std::io::Error::from(
+                result: Box::new(Err(protocol::worker::FetchError::Io(std::io::Error::from(
                     std::io::ErrorKind::TimedOut,
-                ))),
+                )))),
             },
         }
     }

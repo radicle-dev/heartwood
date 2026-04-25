@@ -415,6 +415,7 @@ where
 
     /// Process a service output event from a node.
     pub fn schedule(&mut self, node: &NodeId, out: Io) {
+        let g = &mut qcheck::Gen::default();
         let node = *node;
 
         match out {
@@ -623,7 +624,7 @@ where
                                         protocol::worker::fetch::UpdatedCanonicalRefs::default(),
                                     namespaces: HashSet::new(),
                                     clone: true,
-                                    doc: arbitrary::r#gen(1),
+                                    doc: arbitrary::doc_at(g, rid.object_format()),
                                 })),
                             ),
                         },

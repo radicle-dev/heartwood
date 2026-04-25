@@ -17,6 +17,7 @@ i2p = ["cyphernet/i2p", "radicle/i2p", "radicle-protocol/i2p"]
 systemd = ["dep:radicle-systemd"]
 test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "radicle-protocol/test", "qcheck", "snapbox"]
 tor = ["cyphernet/tor", "radicle/tor", "radicle-protocol/tor"]
+unstable-sha256 = ["radicle/unstable-sha256", "radicle-protocol/unstable-sha256"]
 
 [dependencies]
 backtrace = { workspace = true, optional = true }

@@ -1602,7 +1602,8 @@ fn queued_fetch_from_ann_same_rid() {
     let cid = Peer::cid();
     let dan = Peer::dan();
 
-    let oid = arbitrary::oid();
+    let oid = arbitrary::oid(rid.object_format());
+
     let ann = RefsAnnouncement {
         rid,
         refs: vec![RefsAt {
@@ -1659,7 +1660,7 @@ fn queued_fetch_from_ann_same_rid() {
             canonical: protocol::worker::fetch::UpdatedCanonicalRefs::default(),
             namespaces: [*cid.nid()].into_iter().collect(),
             clone: false,
-            doc: arbitrary::r#gen(1),
+            doc: arbitrary::doc_at(&mut qcheck::Gen::default(), rid.object_format()),
         }),
     );
     // Now the 1st fetch is done, but the 2nd and 3rd fetches are redundant.
@@ -1709,8 +1710,14 @@ fn queued_fetch_from_command_same_rid() {
     // Have enough time pass that Amy sends a "ping" to Bob.
     amy.elapse(KEEP_ALIVE_DELTA);
 
+    let g = &mut qcheck::Gen::default();
+
     // Finish the 1st fetch.
-    amy.fetched(rid1, nid, Ok(arbitrary::r#gen::<FetchResult>(1)));
+    amy.fetched(
+        rid1,
+        nid,
+        Ok(FetchResult::arbitrary(g, rid1.object_format())),
+    );
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
     let (rid, nid) = amy.fetches().next().unwrap();
     assert_eq!(rid, rid1);
@@ -1720,7 +1727,12 @@ fn queued_fetch_from_command_same_rid() {
     assert_matches!(amy.fetches().next(), None);
 
     // Finish the 2nd fetch.
-    amy.fetched(rid1, nid, Ok(arbitrary::r#gen::<FetchResult>(1)));
+    amy.fetched(
+        rid1,
+        nid,
+        Ok(FetchResult::arbitrary(g, rid1.object_format())),
+    );
+
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
     assert_matches!(amy.fetches().next(), Some((rid, nid)) if rid == rid1 && peers.remove(&nid));
     // All fetches were initiated.

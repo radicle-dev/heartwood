@@ -126,7 +126,10 @@ impl Worker {
             } => {
                 log::debug!(target: "worker", "Worker processing outgoing fetch for {rid}");
                 let result = self.fetch(rid, remote, refs_at, config, channels, notifs);
-                FetchResult::Initiator { rid, result }
+                FetchResult::Initiator {
+                    rid,
+                    result: Box::new(result),
+                }
             }
             FetchRequest::Responder { remote, emitter } => {
                 log::debug!(target: "worker", "Worker processing incoming fetch for {remote} on stream {stream}..");
