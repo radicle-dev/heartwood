@@ -475,7 +475,7 @@ impl FileReviewBuilder {
         }
         drop(writer);
 
-        git::raw::Diff::from_buffer(&buf).map_err(Error::from)
+        git::raw::Diff::from_buffer_ext(&buf, git::raw::ObjectFormat::Sha1).map_err(Error::from)
     }
 }
 

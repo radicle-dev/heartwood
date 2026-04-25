@@ -156,7 +156,10 @@ impl Checkout {
         let rid = repository.rid();
         let doc = repository
             .identity_doc()
-            .map_err(|err| CheckoutFailure::Identity { rid, err })?;
+            .map_err(|err| CheckoutFailure::Identity {
+                rid,
+                err: Box::new(err),
+            })?;
         let proj = doc.project().transpose().ok().flatten();
 
         let path = directory.unwrap_or_else(|| {
@@ -330,9 +333,18 @@ impl CloneResult {
 
 #[derive(Debug)]
 pub enum CheckoutFailure {
-    Identity { rid: RepoId, err: RepositoryError },
-    Payload { rid: RepoId, err: doc::PayloadError },
-    Exists { rid: RepoId, path: PathBuf },
+    Identity {
+        rid: RepoId,
+        err: Box<RepositoryError>,
+    },
+    Payload {
+        rid: RepoId,
+        err: doc::PayloadError,
+    },
+    Exists {
+        rid: RepoId,
+        path: PathBuf,
+    },
 }
 
 impl CheckoutFailure {

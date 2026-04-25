@@ -415,8 +415,9 @@ fn show(
     storage: &Storage,
     profile: &Profile,
 ) -> anyhow::Result<()> {
-    let n = notifs.get(id)?;
-    let repo = storage.repository(n.repo)?;
+    let repo = notifs.get_repo(id)?;
+    let repo = storage.repository(repo)?;
+    let n = notifs.get(id, git::Oid::zero(repo.object_format()))?;
 
     match n.kind {
         NotificationKind::Cob { typed_id } if typed_id.is_issue() => {

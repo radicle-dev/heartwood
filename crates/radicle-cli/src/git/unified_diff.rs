@@ -179,6 +179,24 @@ pub trait Decode: Sized {
     }
 }
 
+/// A trait for decoding types that may contain Git object identifiers
+/// to be parsed.
+pub trait DecodeObject: Sized {
+    /// Decode, and fail if we reach the end of the stream.
+    fn decode(r: &mut impl io::BufRead, format: radicle::git::ObjectFormat) -> Result<Self, Error>;
+
+    /// Decode from a string input.
+    fn parse(s: &str, format: radicle::git::ObjectFormat) -> Result<Self, Error> {
+        Self::from_bytes(s.as_bytes(), format)
+    }
+
+    /// Decode from a string input.
+    fn from_bytes(bytes: &[u8], format: radicle::git::ObjectFormat) -> Result<Self, Error> {
+        let mut r = io::BufReader::new(bytes);
+        Self::decode(&mut r, format)
+    }
+}
+
 /// Diff-related types that can be encoded intro the unified diff format.
 pub trait Encode: Sized {
     /// Encode type into diff writer.
@@ -196,15 +214,16 @@ pub trait Encode: Sized {
     }
 }
 
-impl Decode for Diff {
+impl DecodeObject for Diff {
     /// Decode from git's unified diff format, consuming the entire input.
-    fn decode(r: &mut impl io::BufRead) -> Result<Self, Error> {
+    fn decode(r: &mut impl io::BufRead, format: git::ObjectFormat) -> Result<Self, Error> {
         let mut s = String::new();
 
         r.read_to_string(&mut s)?;
 
-        let d = git::raw::Diff::from_buffer(s.as_ref())
-            .map_err(|e| Error::syntax(format!("decoding unified diff: {e}")))?;
+        let d = git::raw::Diff::from_buffer_ext(s.as_ref(), format.into());
+
+        let d = d.map_err(|e| Error::syntax(format!("decoding unified diff: {e}")))?;
         let d =
             Diff::try_from(d).map_err(|e| Error::syntax(format!("decoding unified diff: {e}")))?;
 
@@ -621,10 +640,10 @@ mod test {
 
     #[test]
     fn test_diff_encode_decode_diff() {
-        let diff_a = diff::Diff::parse(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/data/diff.diff"
-        )))
+        let diff_a = diff::Diff::parse(
+            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/diff.diff")),
+            git::ObjectFormat::Sha1,
+        )
         .unwrap();
         // Lines are expected to match but line ending might differ depending
         // on the platform.
