@@ -12,6 +12,7 @@ rust-version.workspace = true
 
 [features]
 default = []
+unstable-sha256 = ["git2/unstable-sha256", "radicle-oid/unstable-sha256"]
 # Only used for testing. Ensures that commit ids are stable.
 stable-commit-ids = []
 test = []
