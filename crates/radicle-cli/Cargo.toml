@@ -17,6 +17,7 @@ path = "src/main.rs"
 default = ["backtrace", "i2p","tor"]
 i2p = ["radicle/i2p"]
 tor = ["radicle/tor"]
+sha256 = ["radicle/sha256", "radicle-surf/sha256"]
 
 [dependencies]
 anyhow = "1"
