@@ -124,13 +124,9 @@ impl change::Storage for git2::Repository {
 
         let (id, timestamp) = write_commit(
             self,
-            resource.map(|o| o.into()),
+            resource,
             // Commit to tips, extra parents and resource.
-            tips.iter()
-                .cloned()
-                .chain(related.clone())
-                .chain(resource)
-                .map(git2::Oid::from),
+            tips.iter().cloned().chain(related.clone()).chain(resource),
             message,
             signature.clone(),
             related
@@ -167,7 +163,7 @@ impl change::Storage for git2::Repository {
     }
 
     fn load(&self, id: Self::ObjectId) -> Result<Entry, Self::LoadError> {
-        let commit = super::commit::Commit::read(self, id.into())?;
+        let commit = super::commit::Commit::read(self, id)?;
         let timestamp = commit.committer().time.seconds() as u64;
         let trailers = parse_trailers(commit.trailers())?;
         let (resources, related): (Vec<_>, Vec<_>) = trailers.iter().partition(|t| match t {
@@ -178,7 +174,6 @@ impl change::Storage for git2::Repository {
         let related = related.into_iter().map(|r| r.oid()).collect::<Vec<_>>();
         let parents = commit
             .parents()
-            .map(Oid::from)
             .filter(|p| !resources.contains(p) && !related.contains(p))
             .collect();
         let mut signatures = Signatures::try_from(&*commit)?
@@ -194,7 +189,7 @@ impl change::Storage for git2::Repository {
             return Err(error::Load::TooManyResources(id));
         };
 
-        let tree = self.find_tree(*commit.tree())?;
+        let tree = self.find_tree(commit.tree().into())?;
         let manifest = load_manifest(self, &tree)?;
         let contents = load_contents(self, &tree)?;
 
@@ -271,8 +266,8 @@ fn load_contents(repo: &git2::Repository, tree: &git2::Tree) -> Result<Contents,
 
 fn write_commit(
     repo: &git2::Repository,
-    resource: Option<git2::Oid>,
-    parents: impl IntoIterator<Item = git2::Oid>,
+    resource: Option<oid::Oid>,
+    parents: impl IntoIterator<Item = oid::Oid>,
     message: String,
     signature: ExtendedSignature,
     trailers: impl IntoIterator<Item = OwnedTrailer>,
@@ -280,7 +275,7 @@ fn write_commit(
 ) -> Result<(Oid, Timestamp), error::Create> {
     let trailers: Vec<OwnedTrailer> = trailers
         .into_iter()
-        .chain(resource.map(|r| trailers::CommitTrailer::Resource(r.into()).into()))
+        .chain(resource.map(|r| trailers::CommitTrailer::Resource(r).into()))
         .collect();
     let author = repo.signature()?;
     #[allow(unused_variables)]
@@ -333,7 +328,7 @@ fn write_commit(
     };
 
     let oid = Commit::new(
-        tree.id(),
+        tree.id().into(),
         parents,
         author.clone(),
         author,
@@ -343,7 +338,7 @@ fn write_commit(
     )
     .write(repo)?;
 
-    Ok((Oid::from(oid), timestamp as u64))
+    Ok((oid, timestamp as u64))
 }
 
 fn write_manifest(
