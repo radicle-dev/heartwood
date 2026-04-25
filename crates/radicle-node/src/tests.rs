@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time;
 
+use radicle::git::ObjectFormat;
 use radicle::storage::ReadRepository;
 use test_log::test;
 
@@ -1537,7 +1538,7 @@ fn test_queued_fetch_from_ann_same_rid() {
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let eve = Peer::new("eve", [9, 9, 9, 9]);
     let carol = Peer::new("carol", [10, 10, 10, 10]);
-    let oid = arbitrary::oid();
+    let oid = arbitrary::oid(rid.object_format());
     let ann = RefsAnnouncement {
         rid,
         refs: vec![RefsAt {
