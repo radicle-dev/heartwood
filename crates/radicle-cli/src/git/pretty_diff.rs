@@ -29,6 +29,8 @@ pub trait Repo {
     fn blob(&self, oid: git::Oid) -> Result<Blob, git::raw::Error>;
     /// Lookup a file in the workdir.
     fn file(&self, path: &Path) -> Option<Blob>;
+
+    fn object_format(&self) -> radicle::git::ObjectFormat;
 }
 
 impl Repo for git::raw::Repository {
@@ -61,6 +63,10 @@ impl Repo for git::raw::Repository {
                     Blob::Plain(content)
                 }
             })
+    }
+
+    fn object_format(&self) -> radicle::git::ObjectFormat {
+        self.object_format().into()
     }
 }
 
@@ -607,9 +613,12 @@ mod test {
             &[],
         )
         .unwrap();
-        let commit = repo
-            .find_commit(Oid::from_str("5078396028e2ec5660aa54a00208f6e11df84aa9").unwrap())
-            .unwrap();
+
+        const OID: &str = "5078396028e2ec5660aa54a00208f6e11df84aa9";
+
+        let oid = Oid::from_str_ext(OID, radicle::git::raw::ObjectFormat::Sha1);
+
+        let commit = repo.find_commit(oid.unwrap()).unwrap();
         let parent = commit.parents().next().unwrap();
         let old_tree = parent.tree().unwrap();
         let new_tree = commit.tree().unwrap();
