@@ -3,7 +3,8 @@ mod trailers;
 use std::fmt;
 use std::str::{self, FromStr};
 
-use git2::{ObjectType, Oid};
+use git2::ObjectType;
+use oid::Oid;
 
 use metadata::author::Author;
 use metadata::commit::CommitData;
@@ -17,7 +18,7 @@ pub(super) struct Commit(metadata::commit::CommitData<Oid, Oid>);
 
 impl Commit {
     pub fn new<P, I, T>(
-        tree: git2::Oid,
+        tree: Oid,
         parents: P,
         author: Author,
         committer: Author,
@@ -41,7 +42,7 @@ impl Commit {
     /// `oid`.
     pub fn read(repo: &git2::Repository, oid: Oid) -> Result<Self, error::Read> {
         let odb = repo.odb()?;
-        let object = odb.read(oid)?;
+        let object = odb.read(oid.into())?;
         Ok(Commit::try_from(object.data())?)
     }
 
@@ -50,7 +51,9 @@ impl Commit {
     pub fn write(&self, repo: &git2::Repository) -> Result<Oid, error::Write> {
         let odb = repo.odb().map_err(error::Write::Odb)?;
         self.verify_for_write(&odb)?;
-        Ok(odb.write(ObjectType::Commit, self.to_string().as_bytes())?)
+        Ok(odb
+            .write(ObjectType::Commit, self.to_string().as_bytes())?
+            .into())
     }
 
     fn verify_for_write(&self, odb: &git2::Odb) -> Result<(), error::Write> {
@@ -67,11 +70,14 @@ fn verify_object(odb: &git2::Odb, oid: &Oid, expected: ObjectType) -> Result<(),
     use git2::{Error, ErrorClass, ErrorCode};
 
     let (_, kind) = odb
-        .read_header(*oid)
-        .map_err(|err| error::Write::OdbRead { oid: *oid, err })?;
+        .read_header(oid.into())
+        .map_err(|err| error::Write::OdbRead {
+            oid: oid.into(),
+            err,
+        })?;
     if kind != expected {
         Err(error::Write::NotCommit {
-            oid: *oid,
+            oid: oid.into(),
             err: Error::new(
                 ErrorCode::NotFound,
                 ErrorClass::Object,
@@ -135,10 +141,8 @@ impl TryFrom<&[u8]> for Commit {
     }
 }
 
-impl FromStr for Commit {
-    type Err = error::Parse;
-
-    fn from_str(buffer: &str) -> Result<Self, Self::Err> {
+impl Commit {
+    fn from_str(buffer: &str) -> Result<Self, error::Parse> {
         let (header, message) = buffer
             .split_once("\n\n")
             .ok_or(metadata::commit::headers::ParseError::InvalidFormat)?;
@@ -172,7 +176,7 @@ impl fmt::Display for Commit {
 }
 
 impl std::ops::Deref for Commit {
-    type Target = CommitData<git2::Oid, git2::Oid>;
+    type Target = CommitData<oid::Oid, oid::Oid>;
 
     fn deref(&self) -> &Self::Target {
         &self.0

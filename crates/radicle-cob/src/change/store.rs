@@ -3,6 +3,8 @@
 use std::{error::Error, fmt, num::NonZeroUsize};
 
 use nonempty::NonEmpty;
+#[cfg(feature = "git2")]
+use oid::ObjectFormat;
 use oid::Oid;
 use serde::{Deserialize, Serialize};
 
@@ -215,18 +217,18 @@ impl<T: From<Oid>> Embed<T> {
 #[cfg(feature = "git2")]
 impl Embed<Vec<u8>> {
     /// Get the object id of the embedded content.
-    pub fn oid(&self) -> Oid {
+    pub fn oid(&self, format: ObjectFormat) -> Oid {
         // SAFETY: This should not fail since we are using a valid object type.
-        git2::Oid::hash_object(git2::ObjectType::Blob, &self.content)
+        git2::Oid::hash_object_ext(git2::ObjectType::Blob, &self.content, format.into())
             .expect("Embed::oid: invalid object")
             .into()
     }
 
     /// Return an embed where the content is replaced by a content hash.
-    pub fn hashed<T: From<Oid>>(&self) -> Embed<T> {
+    pub fn hashed<T: From<Oid>>(&self, format: ObjectFormat) -> Embed<T> {
         Embed {
             name: self.name.clone(),
-            content: T::from(self.oid()),
+            content: T::from(self.oid(format)),
         }
     }
 }
