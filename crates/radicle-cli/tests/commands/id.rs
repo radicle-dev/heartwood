@@ -358,8 +358,8 @@ fn rad_id_collaboration() {
     let mut remotes = repo
         .remote_ids()
         .unwrap()
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
+        .map(|did| *did.as_key())
+        .collect::<Vec<_>>();
     let mut expected = vec![alice.id, bob.id, eve.id];
     remotes.sort();
     expected.sort();
@@ -369,8 +369,8 @@ fn rad_id_collaboration() {
     let mut remotes = repo
         .remote_ids()
         .unwrap()
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
+        .map(|did| *did.as_key())
+        .collect::<Vec<_>>();
     let mut expected = vec![alice.id, bob.id, eve.id];
     remotes.sort();
     expected.sort();

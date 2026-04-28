@@ -11,7 +11,10 @@ pub mod error;
 
 use std::collections::BTreeMap;
 
-use radicle_git_ref_format::{self as fmt, Component, Qualified, refname, refspec};
+use crypto::PublicKey;
+use radicle_git_ref_format::{
+    self as fmt, Component, Qualified, RefStr, pattern, refname, refspec,
+};
 use radicle_oid::Oid;
 
 use crate::prelude::Did;
@@ -188,5 +191,179 @@ impl<'a, R: reference::Writer> Namespace<'a, R> {
     /// See [`reference::Writer::delete_ref`] for error details.
     pub fn delete_ref(&self, name: &Qualified) -> Result<(), reference::error::write::DeleteRef> {
         self.repo.delete_ref(&self.namespaced(name))
+    }
+}
+
+/// Discovery of users (namespaces) in a Git repository.
+///
+/// [`Namespaces`] provides iterator-based access to the [`Did`]s that have
+/// references in the repository. The optional `filter_by` suffix narrows the
+/// search — for example, passing `refs/rad/sigrefs` limits discovery to
+/// users that have a signed-refs branch.
+pub struct Namespaces<'a, R> {
+    repo: &'a R,
+}
+
+/// Provide a filter for [`Namespaces::dids`] and
+/// [`Namespaces::dids_with_errors`].
+pub enum FilterBy<'a> {
+    /// Provide a suffix to filter the [`Did`]s by.
+    Suffix(&'a RefStr),
+    /// No filter is provided, returning all [`Did`]s.
+    Empty,
+}
+
+impl<'a> FilterBy<'a> {
+    /// Constructs a [`FilterBy::Suffix`].
+    pub fn suffix<R>(suffix: &'a R) -> Self
+    where
+        R: AsRef<RefStr>,
+    {
+        Self::Suffix(suffix.as_ref())
+    }
+
+    /// Constructs a [`FilterBy::Empty`].
+    pub fn empty() -> Self {
+        Self::Empty
+    }
+}
+
+impl<'a, R> Namespaces<'a, R>
+where
+    R: reference::Reader,
+{
+    /// Create a new [`Namespaces`] handle backed by `repo`.
+    pub fn new(repo: &'a R) -> Self {
+        Self { repo }
+    }
+
+    /// Iterate over discovered [`Did`]s, logging and skipping errors.
+    ///
+    /// When `filter_by` is [`Empty`], all namespaces are returned. When a [`Suffix`]
+    /// is provided (e.g. `refs/rad/sigrefs`), only namespaces containing a
+    /// reference matching that suffix are returned.
+    ///
+    /// **Note**: the returned [`Did`]s may contain duplicates when
+    /// `filter_by` is [`Empty`], since a single namespace can contain multiple
+    /// references.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the reference iterator cannot be initialised.
+    ///
+    /// [`Empty`]: FilterBy::Empty
+    /// [`Suffix`]: FilterBy::Suffix
+    pub fn dids(self, filter_by: FilterBy<'_>) -> Result<Dids<R::References<'a>>, error::Dids> {
+        let inner = self.refs_iter(filter_by)?;
+        Ok(Dids { inner })
+    }
+
+    /// Like [`Self::dids`], but yields `Result<Did, NamespaceError>` so the
+    /// caller can handle per-reference failures.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the reference iterator cannot be initialised.
+    pub fn dids_with_errors(
+        self,
+        filter_by: FilterBy<'_>,
+    ) -> Result<DidsWithErrors<R::References<'a>>, error::Dids> {
+        let inner = self.refs_iter(filter_by)?;
+        Ok(DidsWithErrors { inner })
+    }
+
+    fn refs_iter(
+        &self,
+        filter_by: FilterBy<'_>,
+    ) -> Result<R::References<'a>, reference::error::read::ListRefs> {
+        let pattern = pattern!("refs/namespaces/*");
+        let pattern = match filter_by {
+            FilterBy::Suffix(suffix) => pattern.join(suffix),
+            FilterBy::Empty => pattern,
+        };
+        self.repo.list_refs(&pattern)
+    }
+}
+
+/// Extract a [`Did`] from a namespaced [`Qualified`] reference name.
+///
+/// Returns `None` if the reference is not namespaced.
+fn to_did(refname: &Qualified<'_>) -> Option<Result<Did, crypto::PublicKeyError>> {
+    let namespaced = refname.to_namespaced()?;
+    let did = namespaced
+        .namespace()
+        .as_str()
+        .parse::<PublicKey>()
+        .map(Did::from);
+    Some(did)
+}
+
+/// Iterator yielding [`Did`]s, logging and skipping errors.
+///
+/// Produced by [`Namespaces::dids`].
+pub struct Dids<I> {
+    inner: I,
+}
+
+impl<I> Iterator for Dids<I>
+where
+    I: Iterator<Item = Result<(Qualified<'static>, Oid), reference::error::read::ListReference>>,
+{
+    type Item = Did;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match self.inner.next()? {
+                Ok((name, _)) => match to_did(&name) {
+                    Some(Ok(did)) => return Some(did),
+                    Some(Err(e)) => {
+                        log::warn!(target: "radicle", "Skipping namespace with invalid key: {e}");
+                    }
+                    None => {}
+                },
+                Err(e) => {
+                    log::warn!(target: "radicle", "Skipping malformed reference: {e}");
+                }
+            }
+        }
+    }
+}
+
+/// Error produced by [`DidsWithErrors`].
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum NamespaceError {
+    /// The namespace component could not be parsed as a [`Did`].
+    #[error("invalid namespace key: {0}")]
+    Did(#[from] crypto::PublicKeyError),
+    /// A reference could not be read or resolved.
+    #[error(transparent)]
+    Reference(#[from] reference::error::read::ListReference),
+}
+
+/// Iterator yielding `Result<Did, NamespaceError>`.
+///
+/// Produced by [`Namespaces::dids_with_errors`].
+pub struct DidsWithErrors<I> {
+    inner: I,
+}
+
+impl<I> Iterator for DidsWithErrors<I>
+where
+    I: Iterator<Item = Result<(Qualified<'static>, Oid), reference::error::read::ListReference>>,
+{
+    type Item = Result<Did, NamespaceError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match self.inner.next()? {
+                Ok((name, _)) => match to_did(&name) {
+                    Some(Ok(did)) => return Some(Ok(did)),
+                    Some(Err(e)) => return Some(Err(NamespaceError::Did(e))),
+                    None => continue,
+                },
+                Err(e) => return Some(Err(NamespaceError::Reference(e))),
+            }
+        }
     }
 }

@@ -343,7 +343,7 @@ fn test_replication_invalid() {
     let repo = alice.storage.repository(acme).unwrap();
     let mut remotes = repo.remote_ids().unwrap();
 
-    assert_eq!(remotes.next().unwrap().unwrap(), bob.id);
+    assert_eq!(*remotes.next().unwrap().as_key(), bob.id);
     assert!(remotes.next().is_none());
 
     assert!(repo.validate().unwrap().is_empty());
@@ -485,8 +485,8 @@ fn test_fetch_followed_remotes() {
     let bob_remotes = bob_repo
         .remote_ids()
         .unwrap()
-        .collect::<Result<HashSet<_>, _>>()
-        .unwrap();
+        .map(|did| *did.as_key())
+        .collect::<HashSet<_>>();
 
     assert_eq!(bob_remotes.len(), followed.len() + 1);
     assert!(bob_remotes.is_superset(&followed));
