@@ -252,6 +252,16 @@ impl IntoIterator for Refs {
     }
 }
 
+impl FromIterator<(git::fmt::RefString, Oid)> for Refs {
+    fn from_iter<T: IntoIterator<Item = (git::fmt::RefString, Oid)>>(iter: T) -> Self {
+        iter.into_iter()
+            .fold(Refs::new(), |mut refs, (refname, target)| {
+                refs.insert(refname, target);
+                refs
+            })
+    }
+}
+
 impl From<Refs> for BTreeMap<git::fmt::RefString, Oid> {
     fn from(refs: Refs) -> Self {
         refs.0
@@ -263,11 +273,7 @@ where
     I: Iterator<Item = (git::fmt::RefString, Oid)>,
 {
     fn from(value: I) -> Self {
-        let mut refs = Self::new();
-        for (refname, target) in value {
-            refs.insert(refname, target);
-        }
-        refs
+        value.into_iter().collect()
     }
 }
 
