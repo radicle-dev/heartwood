@@ -200,6 +200,11 @@ pub struct Commit {
 
 impl Commit {
     #[cfg(test)]
+    pub(super) fn oid(&self) -> Oid {
+        self.oid
+    }
+
+    #[cfg(test)]
     pub(super) fn into_refs(self) -> Refs {
         self.refs
     }
