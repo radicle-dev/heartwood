@@ -68,16 +68,12 @@ pub fn untracked<'a>(
         .collect::<HashSet<_>>();
     Ok(remotes
         .filter_map(|remote| {
-            remote
-                .map(|remote| {
-                    (!git_remotes.contains(&remote)).then_some(Untracked {
-                        remote,
-                        alias: aliases.alias(&remote),
-                    })
-                })
-                .transpose()
+            (!git_remotes.contains(&remote)).then_some(Untracked {
+                remote: *remote.as_key(),
+                alias: aliases.alias(&remote),
+            })
         })
-        .collect::<Result<Vec<_>, _>>()?)
+        .collect::<Vec<_>>())
 }
 
 pub fn print_tracked<'a>(tracked: impl Iterator<Item = &'a Tracked>) {

@@ -64,7 +64,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         Target::Sigrefs => {
             let (repo, _) = repo(rid, storage)?;
             for remote in repo.remote_ids()? {
-                let remote = remote?;
+                let remote = *remote.as_key();
                 let refs = RefsAt::new(&repo, remote)?;
                 let sigrefs = SignedRefs::load_at(refs.at, remote, &repo);
 

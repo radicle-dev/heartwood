@@ -71,7 +71,7 @@ pub mod error {
         #[error(transparent)]
         RemoteRefs(#[from] sigrefs::error::RemoteRefs),
         #[error("failed to get remote namespaces: {0}")]
-        RemoteIds(#[source] radicle::git::raw::Error),
+        RemoteIds(#[source] radicle::storage::refs::Error),
         #[error(transparent)]
         Step(#[from] Step),
         #[error(transparent)]
@@ -465,7 +465,7 @@ impl FetchState {
             .repository()
             .remote_ids()
             .map_err(error::Protocol::RemoteIds)?
-            .filter_map(|id| id.ok())
+            .map(|did| *did.as_key())
             .filter(|id| delegates.contains(id))
             .collect::<BTreeSet<_>>();
         let mut failed_delegates = BTreeSet::new();

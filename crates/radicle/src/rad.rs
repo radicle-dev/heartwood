@@ -549,8 +549,8 @@ mod tests {
             .unwrap()
             .remotes()
             .unwrap()
-            .collect::<Result<_, _>>()
-            .unwrap();
+            .into_iter()
+            .collect();
 
         let project_repo = storage.repository(proj).unwrap();
         let (_, head) = project_repo.head().unwrap();

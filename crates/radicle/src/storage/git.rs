@@ -209,7 +209,7 @@ impl WriteStorage for Storage {
         if has_sigrefs {
             repo.clean(&self.info.key)
         } else {
-            let remotes = repo.remote_ids()?.collect::<Result<_, _>>()?;
+            let remotes = repo.remote_ids()?.map(|did| *did.as_key()).collect();
             repo.remove()?;
             Ok(remotes)
         }
@@ -451,14 +451,7 @@ impl Repository {
             .collect::<BTreeSet<_>>();
         let mut deleted = Vec::new();
         for id in self.remote_ids()? {
-            let id = match id {
-                Ok(id) => id,
-                Err(e) => {
-                    log::error!(target: "storage", "Failed to clean up remote: {e}");
-                    continue;
-                }
-            };
-
+            let id = *id.as_key();
             // N.b. it is fatal to delete local or delegates
             if *local == id || delegates.contains(&id) {
                 continue;
@@ -558,44 +551,24 @@ impl Repository {
 
     pub fn remote_ids(
         &self,
-    ) -> Result<impl Iterator<Item = Result<RemoteId, refs::Error>> + '_, git::raw::Error> {
-        let iter = self.backend.references_glob(SIGREFS_GLOB.as_str())?.map(
-            |reference| -> Result<RemoteId, refs::Error> {
-                let r = reference?;
-                let name = r.name().ok_or(refs::Error::InvalidRef)?;
-                let (id, _) = git::parse_ref_namespaced::<RemoteId>(name)?;
-
-                Ok(id)
-            },
-        );
-        Ok(iter)
+    ) -> Result<user::Dids<<Self as reference::Reader>::References<'_>>, refs::Error> {
+        let namespaces = user::Namespaces::new(self);
+        Ok(namespaces.dids(user::FilterBy::suffix(&git::fmt::refname!("rad/sigrefs")))?)
     }
 
-    pub fn remotes(
-        &self,
-    ) -> Result<impl Iterator<Item = Result<(RemoteId, Remote), refs::Error>> + '_, git::raw::Error>
-    {
-        let remotes =
-            self.backend
-                .references_glob(SIGREFS_GLOB.as_str())?
-                .map(|reference| -> Result<_, _> {
-                    let r = reference?;
-                    let name = r.name().ok_or(refs::Error::InvalidRef)?;
-                    let (id, _) = git::parse_ref_namespaced::<RemoteId>(name)?;
-                    let remote = self.remote(&id)?;
-
-                    Ok((id, remote))
-                });
+    pub fn remotes(&self) -> Result<Vec<(RemoteId, Remote)>, refs::Error> {
+        let mut remotes = Vec::new();
+        for id in self.remote_ids()? {
+            let remote = self.remote(&id)?;
+            remotes.push((*id.as_key(), remote));
+        }
         Ok(remotes)
     }
 }
 
 impl RemoteRepository for Repository {
     fn remotes(&self) -> Result<Remotes, refs::Error> {
-        let mut remotes = Vec::new();
-        for remote in Repository::remotes(self)? {
-            remotes.push(remote?);
-        }
+        let remotes = Repository::remotes(self)?;
         Ok(Remotes::from_iter(remotes))
     }
 
@@ -613,8 +586,7 @@ impl RemoteRepository for Repository {
         let mut all = Vec::new();
 
         for remote in self.remote_ids()? {
-            let remote = remote?;
-            let refs_at = RefsAt::new(self, remote)?;
+            let refs_at = RefsAt::new(self, *remote)?;
 
             all.push(refs_at);
         }
@@ -676,7 +648,11 @@ impl ReadRepository for Repository {
     }
 
     fn is_empty(&self) -> Result<bool, git::raw::Error> {
-        Ok(self.remotes()?.next().is_none())
+        Ok(self
+            .backend
+            .references_glob(SIGREFS_GLOB.as_str())?
+            .next()
+            .is_none())
     }
 
     fn path(&self) -> &Path {
@@ -876,7 +852,6 @@ impl ReadRepository for Repository {
 
     fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {
         for remote in self.remote_ids()? {
-            let remote = remote?;
             // Nb. A remote may not have an identity document if the user has not contributed
             // any changes to the identity COB.
             let Ok(root) = self.identity_root_of(&remote) else {
