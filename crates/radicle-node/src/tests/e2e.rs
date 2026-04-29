@@ -941,9 +941,9 @@ fn test_connection_crossing() {
 }
 
 #[test]
-/// Alice is going to try to fetch outdated refs of Bob, from Eve. This is a non-fastfoward fetch
+/// Alice is going to try to fetch outdated refs of Bob, from Eve. This is a non-fast-forward fetch
 /// on the sigrefs branch.
-fn test_non_fastforward_sigrefs() {
+fn test_non_fast_forward_sigrefs() {
     let tmp = tempfile::tempdir().unwrap();
 
     let alice = Node::init(tmp.path(), config::relay("alice"));
@@ -1710,7 +1710,7 @@ fn test_fetch_emits_canonical_ref_update() {
 }
 
 #[test]
-fn test_non_fastforward_identity_doc() {
+fn test_non_fast_forward_identity_doc() {
     use radicle::identity::Identity;
 
     let tmp = tempfile::tempdir().unwrap();
