@@ -247,7 +247,7 @@ pub mod str {
         }
 
         #[quickcheck]
-        fn gix_roundrip(oid: Oid) {
+        fn gix_roundtrip(oid: Oid) {
             let other = gix_hash::ObjectId::from(oid);
             let other = other.to_string();
             let other = other.parse::<Oid>().unwrap();
