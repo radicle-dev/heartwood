@@ -22,21 +22,21 @@ impl Default for VStackOptions {
 enum Row<'a> {
     Element(Box<dyn Element + 'a>),
     #[default]
-    Dividier,
+    Divider,
 }
 
 impl Row<'_> {
     fn width(&self, c: Constraint) -> usize {
         match self {
             Self::Element(e) => e.columns(c),
-            Self::Dividier => c.min.cols,
+            Self::Divider => c.min.cols,
         }
     }
 
     fn height(&self, c: Constraint) -> usize {
         match self {
             Self::Element(e) => e.rows(c),
-            Self::Dividier => 1,
+            Self::Divider => 1,
         }
     }
 }
@@ -62,7 +62,7 @@ impl<'a> VStack<'a> {
 
     /// Add a horizontal divider.
     pub fn divider(mut self) -> Self {
-        self.rows.push(Row::Dividier);
+        self.rows.push(Row::Divider);
         self
     }
 
@@ -177,7 +177,7 @@ impl Element for VStack<'_> {
                         }
                     }
                 }
-                Row::Dividier => {
+                Row::Divider => {
                     if let Some(color) = self.opts.border {
                         lines.push(
                             Line::default()
