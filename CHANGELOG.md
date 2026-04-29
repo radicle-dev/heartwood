@@ -50,6 +50,14 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
   with your favorite text editor (e.g. via `rad config edit`), or specialized
   tools like `jq`.
 
+## Fixed Bugs
+
+- Skip node address entries that cannot be parsed from an SQLite row into a
+  valid address entry. This improves the node service, when it checks available
+  peers. Previously, if it found a row it could not parse, then it would fail
+  the whole process. Now, it will continue, providing valid entries to connect
+  to.
+
 ## 1.8.0
 
 ## New Features

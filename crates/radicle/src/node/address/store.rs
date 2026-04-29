@@ -299,31 +299,17 @@ impl Store for Database {
         let mut entries = Vec::new();
 
         while let Some(Ok(row)) = stmt.next() {
-            let node = row.try_read::<NodeId, _>("node")?;
-            let _type = row.try_read::<AddressType, _>("type")?;
-            let addr = row.try_read::<Address, _>("value")?;
-            let source = row.try_read::<Source, _>("source")?;
-            let last_success = row.try_read::<Option<i64>, _>("last_success")?;
-            let last_attempt = row.try_read::<Option<i64>, _>("last_attempt")?;
-            let last_success = last_success.map(|t| LocalTime::from_millis(t as u128));
-            let last_attempt = last_attempt.map(|t| LocalTime::from_millis(t as u128));
-            let version = row.try_read::<i64, _>("version")?.try_into()?;
-            let banned = row.try_read::<i64, _>("banned")?.is_positive();
-            let penalty = row.try_read::<i64, _>("penalty")?;
-            let penalty = Penalty(penalty as u8); // Clamped at `u8::MAX`.
-
-            entries.push(AddressEntry {
-                node,
-                version,
-                penalty,
-                address: KnownAddress {
-                    addr,
-                    source,
-                    last_success,
-                    last_attempt,
-                    banned,
-                },
-            });
+            // Decode each row independently so a single corrupt entry does not poison the whole address book.
+            match AddressEntry::try_from(&row) {
+                Ok(e) => entries.push(e),
+                Err(e) => {
+                    let value = row.try_read::<&str, _>("value").unwrap_or("?");
+                    log::warn!(
+                        target: "service",
+                        "Skipping unreadable address book row (value={value:?}): {e}"
+                    );
+                }
+            }
         }
         Ok(Box::new(entries.into_iter()))
     }
@@ -489,6 +475,38 @@ where
                 nodes.insert(node);
                 result
             })
+    }
+}
+
+impl TryFrom<&sql::Row> for AddressEntry {
+    type Error = Error;
+
+    fn try_from(row: &sql::Row) -> Result<Self, Self::Error> {
+        let node = row.try_read::<NodeId, _>("node")?;
+        let _type = row.try_read::<AddressType, _>("type")?;
+        let addr = row.try_read::<Address, _>("value")?;
+        let source = row.try_read::<Source, _>("source")?;
+        let last_success = row.try_read::<Option<i64>, _>("last_success")?;
+        let last_attempt = row.try_read::<Option<i64>, _>("last_attempt")?;
+        let last_success = last_success.map(|t| LocalTime::from_millis(t as u128));
+        let last_attempt = last_attempt.map(|t| LocalTime::from_millis(t as u128));
+        let version = row.try_read::<i64, _>("version")?.try_into()?;
+        let banned = row.try_read::<i64, _>("banned")?.is_positive();
+        let penalty = row.try_read::<i64, _>("penalty")?;
+        let penalty = Penalty(penalty as u8); // Clamped at `u8::MAX`.
+
+        Ok(AddressEntry {
+            node,
+            version,
+            penalty,
+            address: KnownAddress {
+                addr,
+                source,
+                last_success,
+                last_attempt,
+                banned,
+            },
+        })
     }
 }
 
@@ -975,6 +993,54 @@ mod test {
         assert!(db.is_addr_banned(&ka2.addr).unwrap()); // Banned because node is banned.
         assert!(db.is_ip_banned(ip1.into()).unwrap());
         assert!(db.is_ip_banned(ip2.into()).unwrap());
+    }
+
+    #[test]
+    fn test_entries_skips_unparsable_address() {
+        let alice = arbitrary::r#gen::<NodeId>(1);
+        let bob = arbitrary::r#gen::<NodeId>(2);
+        let mut cache = Database::memory().unwrap();
+        let timestamp = Timestamp::from(LocalTime::now());
+        let ua = UserAgent::default();
+        let features = node::Features::SEED;
+        let good_addr: Address = "[2001:db8::1]:8776".parse().unwrap();
+        let good_ka = KnownAddress {
+            addr: good_addr.clone(),
+            source: Source::Peer,
+            last_success: None,
+            last_attempt: None,
+            banned: false,
+        };
+        cache
+            .insert(
+                &alice,
+                3,
+                features,
+                &Alias::new("alice"),
+                0,
+                &ua,
+                timestamp,
+                [good_ka.clone()],
+            )
+            .unwrap();
+        // Insert bob's node row via the normal path with no addresses, then
+        // smuggle in a malformed row that mimics post-migration-8 corruption.
+        cache
+            .insert(&bob, 3, features, &Alias::new("bob"), 0, &ua, timestamp, [])
+            .unwrap();
+        cache
+            .db
+            .execute(format!(
+                "INSERT INTO addresses (node, type, value, source, timestamp)
+                 VALUES ('{bob}', 'ipv6', '[]:8776', 'peer', 0)"
+            ))
+            .unwrap();
+
+        // entries() must succeed and yield alice's good row.
+        let entries = cache.entries().unwrap().collect::<Vec<_>>();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].node, alice);
+        assert_eq!(entries[0].address, good_ka);
     }
 
     #[test]
