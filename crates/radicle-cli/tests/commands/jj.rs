@@ -2,6 +2,7 @@ use crate::util::environment::Environment;
 use crate::{program_reports_version, test};
 use radicle::git;
 
+#[ignore = "the bare repository does not have a `rad` remote, and so it cannot determine the RID of the repository"]
 #[test]
 fn rad_jj_bare() {
     // We test whether `jj` is installed, and have this test succeed if it is not.
