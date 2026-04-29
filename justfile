@@ -114,7 +114,7 @@ format-nix:
 
 # Run pre-push checks
 [group('hooks')]
-pre-push: check-conflict-markers format-rust check-rust check-keywords check-docs check-spelling check-scripts check-typos format-nix lint-rust
+pre-push: check-conflict-markers format-rust check-rust check-keywords check-docs check-spelling check-scripts check-typos format-nix lint-rust test-rust
     @echo ""
     @echo "{{SUCCESS}}pre-push passed!{{NORMAL}}"
     @echo ""
@@ -144,3 +144,9 @@ install-hooks:
 [group('hooks')]
 check-hooks:
     @HINT="{{HINT}}" NORMAL="{{NORMAL}}" WARN="{{WARN}}" scripts/just/check-hooks.sh "{{hook-script}}" "{{hooks}}"
+
+[group('test')]
+[group('pre-push')]
+test-rust:
+    @echo "{{CHECK}}Cargo test...{{NORMAL}}"
+    @cargo nextest run --workspace --all-features --no-fail-fast
