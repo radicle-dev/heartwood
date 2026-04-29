@@ -54,7 +54,7 @@ pub enum LoadError {
 /// Operations are applied to an accumulator to yield a final state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Op<A> {
-    /// Id of the entry under which this operation lives.
+    /// ID of the entry under which this operation lives.
     pub id: EntryId,
     /// The action carried out by this operation.
     pub actions: NonEmpty<A>,

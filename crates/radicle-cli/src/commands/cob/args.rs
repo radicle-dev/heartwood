@@ -39,7 +39,7 @@ pub(super) enum Command {
 
     /// Print a log of all raw operations on a COB
     Log {
-        /// Tepository ID of the repository to operate on
+        /// Repository ID of the repository to operate on
         #[arg(long, short, value_name = "RID")]
         repo: RepoId,
 

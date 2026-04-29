@@ -520,7 +520,7 @@ where
 
     /// Add actions to this transaction.
     /// Note that we cannot implement [`std::iter::Extend`] because [`Self::push`]
-    /// validates the action being pushed, and therefore is falliable.
+    /// validates the action being pushed, and therefore is fallible.
     pub fn extend<I: IntoIterator<Item = T::Action>>(&mut self, actions: I) -> Result<(), Error> {
         for action in actions {
             self.push(action)?;

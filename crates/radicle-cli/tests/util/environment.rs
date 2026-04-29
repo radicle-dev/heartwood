@@ -110,7 +110,7 @@ impl Environment {
 
     /// Path to the working directory of the user with the given alias.
     /// Tests that need to act on multiple repositories should crate
-    /// subdirecories within this directory.
+    /// subdirectories within this directory.
     pub fn work(&self, has_alias: &impl HasAlias) -> PathBuf {
         self.unix_home(has_alias).join("work")
     }
@@ -185,7 +185,7 @@ impl Environment {
         }
     }
 
-    /// Create a new profile using a the default configuration from [`Environment::config`].
+    /// Create a new profile using the default configuration from [`Environment::config`].
     pub fn profile(&mut self, alias: &'static str) -> Profile {
         self.profile_with(self.config(alias))
     }

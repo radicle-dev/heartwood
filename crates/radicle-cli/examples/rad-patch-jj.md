@@ -33,7 +33,7 @@ As of 2025-05 we can't use `jj` to do push with options directly, see:
  - <https://github.com/jj-vcs/jj/issues/4075>
  - <https://github.com/jj-vcs/jj/pull/2098>
 
-However, since we initialized Jujutusu to colocate with Git, we can just use
+However, since we initialized Jujutsu to colocate with Git, we can just use
 Git to push.
 
 ``` (stderr)

@@ -31,7 +31,7 @@ where
     /// with the set of commits of the other [`Did`]s.
     ///
     /// If a quorum is found, then it is also ensured that the new head commit
-    /// is a descendant of the current canonical commit, otherwise the commits
+    /// is a descendant of the current canonical commit; otherwise, the commits
     /// are considered diverging.
     ///
     /// # Errors

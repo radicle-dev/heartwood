@@ -17,7 +17,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
  * [new tag]         v1.0 -> v1.0
 ```
 
-Since the `rad` remote is setup to push `tags` using the refspec:
+Since the `rad` remote is set up to push `tags` using the refspec:
 
 ~~~
 fetch = +refs/tags/*:refs/remotes/<name>/tags/*

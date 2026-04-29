@@ -9,7 +9,7 @@ pub struct UploadPack {
     /// Keep track of which remotes are being uploaded to, removing any that
     /// have completed.
     remotes: BTreeSet<NodeId>,
-    /// Keep track of how long we've been transmitting for to calculate
+    /// Keep track of how long we've been transmitting to calculate
     /// throughput.
     timer: Instant,
 }

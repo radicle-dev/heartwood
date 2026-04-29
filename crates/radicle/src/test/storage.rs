@@ -22,7 +22,7 @@ pub struct MockStorage {
     pub info: crate::git::UserInfo,
 
     /// All refs keyed by RID.
-    /// Each value is a map of refs keyed by node Id (public key).
+    /// Each value is a map of refs keyed by node ID (public key).
     pub repos: HashMap<RepoId, MockRepository>,
 }
 

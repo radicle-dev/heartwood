@@ -26,7 +26,7 @@ pub enum Error {
     /// This error indicates that the operations are not being applied
     /// in causal order, which is a requirement for this CRDT.
     ///
-    /// For example, this can occur if an operation references anothern operation
+    /// For example, this can occur if an operation references another operation
     /// that hasn't happened yet.
     #[error("causal dependency {0:?} missing")]
     Missing(EntryId),

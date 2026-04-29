@@ -100,7 +100,7 @@ pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
 /// How far back from the present time should we request gossip messages when connecting to a peer,
 /// when we come online for the first time.
 pub const INITIAL_SUBSCRIBE_BACKLOG_DELTA: LocalDuration = LocalDuration::from_mins(60 * 24);
-/// When subscribing, what margin of error do we give ourselves. A igher delta means we ask for
+/// When subscribing, what margin of error do we give ourselves. A greater delta means we ask for
 /// messages further back than strictly necessary, to account for missed messages.
 pub const SUBSCRIBE_BACKLOG_DELTA: LocalDuration = LocalDuration::from_mins(3);
 /// Minimum amount of time to wait before reconnecting to a peer.
@@ -501,7 +501,7 @@ where
             .routing_mut()
             .remove_inventories(private.iter(), &nid)?;
 
-        // Setup subscription filter for seeded repos.
+        // Set up subscription filter for seeded repos.
         self.filter = Filter::allowed_by(self.policies.seed_policies()?);
         // Connect to configured peers.
         let addrs = self.config.connect.clone();
@@ -648,7 +648,7 @@ where
 
     /// Find the closest `n` peers by proximity in seeding graphs.
     /// Returns a sorted list from the closest peer to the furthest.
-    /// Peers with more seedings in common score score higher.
+    /// Peers with more seedings in common score higher.
     #[allow(unused)]
     pub fn closest_peers(&self, n: usize) -> Vec<NodeId> {
         todo!()
@@ -1489,7 +1489,7 @@ where
             }
         }
 
-        // Discard announcement messages we've already seen, otherwise update our last seen time.
+        // Discard announcement messages we've already seen; otherwise, update our last seen time.
         let relay = match self.db.gossip_mut().announced(announcer, announcement) {
             Ok(Some(id)) => {
                 log::debug!(
@@ -1942,7 +1942,7 @@ where
         let now = self.clock();
         let filter = self.filter();
 
-        // TODO: Only subscribe to outbound connections, otherwise we will consume too
+        // TODO: Only subscribe to outbound connections; otherwise, we will consume too
         // much bandwidth.
 
         // If we've been previously connected to the network, we'll have received gossip messages.
@@ -2806,7 +2806,7 @@ impl fmt::Display for DisconnectReason {
 /// Result of a project lookup.
 #[derive(Debug)]
 pub struct Lookup {
-    /// Whether the project was found locally or not.
+    /// Whether or not the project was found locally.
     pub local: Option<Doc>,
     /// A list of remote peers on which the project is known to exist.
     pub remote: Vec<NodeId>,

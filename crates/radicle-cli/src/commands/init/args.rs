@@ -40,15 +40,15 @@ pub struct Args {
     /// Set repository visibility to *public*
     #[arg(long, conflicts_with = "private")]
     public: bool,
-    /// Setup repository as an existing Radicle repository
+    /// Set up repository as an existing Radicle repository
     ///
     /// [example values: rad:z3Tr6bC7ctEg2EHmLvknUr29mEDLH, z3Tr6bC7ctEg2EHmLvknUr29mEDLH]
     #[arg(long, value_name = "RID")]
     pub(super) existing: Option<RepoId>,
-    /// Setup the upstream of the default branch
+    /// Set up the upstream of the default branch
     #[arg(short = 'u', long)]
     pub(super) set_upstream: bool,
-    /// Setup the Radicle key as a signing key for this repository
+    /// Set up the Radicle key as a signing key for this repository
     #[arg(long)]
     pub(super) setup_signing: bool,
     /// Don't ask for confirmation during setup

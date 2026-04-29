@@ -14,7 +14,7 @@ fn rad_remote() {
     let eve = environment.relay("eve");
     let home = alice.home.clone();
     let rid = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
-    // Setup a test repository.
+    // Set up a test repository.
     environment.repository(&alice);
 
     test(

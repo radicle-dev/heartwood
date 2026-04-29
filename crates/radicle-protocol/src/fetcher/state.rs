@@ -463,7 +463,7 @@ impl Queue {
     }
 
     /// Try to dequeue the next [`QueuedFetch`], but only if the `predicate`
-    /// holds, otherwise it will be pushed back to the front of the queue.
+    /// holds; otherwise, it will be pushed back to the front of the queue.
     pub(super) fn try_dequeue<P>(&mut self, predicate: P) -> Option<QueuedFetch>
     where
         P: FnOnce(&QueuedFetch) -> bool,

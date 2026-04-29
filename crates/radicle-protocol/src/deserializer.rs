@@ -8,7 +8,7 @@ use crate::wire;
 
 /// Message stream deserializer.
 ///
-/// Used to for example turn a byte stream into network messages.
+/// Used, for example, to turn a byte stream into network messages.
 #[derive(Debug)]
 pub struct Deserializer<const B: usize, D = Message> {
     unparsed: BoundedVec<u8, B>,

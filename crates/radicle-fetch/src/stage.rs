@@ -270,7 +270,7 @@ impl ProtocolStage for CanonicalId {
         let verified = repo
             .identity_doc_at(
                 *s.canonical_rad_id()
-                    .expect("ensure we got canonicdal 'rad/id' ref"),
+                    .expect("ensure we got canonical 'rad/id' ref"),
             )
             .map_err(|err| error::Prepare::Verification {
                 remote: self.remote,
@@ -399,7 +399,7 @@ pub struct SigrefsAt {
 impl ProtocolStage for SigrefsAt {
     fn ls_refs(&self) -> Option<NonEmpty<RefPrefix>> {
         // N.b. the `Oid`s are known but the `rad/sigrefs` are still
-        // asked for to mark them for updating the fetch state.
+        // requested to mark them for updating the fetch state.
         NonEmpty::collect(
             self.refs_at
                 .iter()
@@ -409,7 +409,7 @@ impl ProtocolStage for SigrefsAt {
         )
     }
 
-    // We only asked for `rad/sigrefs` so we should only get
+    // We only requested `rad/sigrefs` so we should only get
     // `rad/sigrefs`.
     fn ref_filter(&self, r: Ref) -> Option<ReceivedRef> {
         let (refname, tip) = refs::unpack_ref(r).ok()?;

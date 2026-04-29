@@ -62,7 +62,7 @@ fn execute(args: Args, profile: &Profile) -> anyhow::Result<PathBuf> {
         .filter(|id| id != profile.id())
         .collect::<Vec<_>>();
 
-    // Setup remote tracking branches for project delegates.
+    // Set up remote tracking branches for project delegates.
     setup_remotes(
         project::SetupRemote {
             rid: args.repo,
@@ -77,7 +77,7 @@ fn execute(args: Args, profile: &Profile) -> anyhow::Result<PathBuf> {
     Ok(path)
 }
 
-/// Setup a remote and tracking branch for each given remote.
+/// Set up a remote and tracking branch for each given remote.
 pub fn setup_remotes(
     setup: project::SetupRemote,
     remotes: &[NodeId],
@@ -93,7 +93,7 @@ pub fn setup_remotes(
     Ok(())
 }
 
-/// Setup a remote and tracking branch for the given remote.
+/// Set up a remote and tracking branch for the given remote.
 pub fn setup_remote(
     setup: &project::SetupRemote,
     remote_id: &NodeId,

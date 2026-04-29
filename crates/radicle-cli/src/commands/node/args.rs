@@ -185,7 +185,7 @@ pub(super) enum Command {
 
     /// Show the status
     Status {
-        /// If node is running, only print the Node ID and exit, otherwise exit with a non-zero exit status.
+        /// If node is running, only print the Node ID and exit; otherwise, exit with a non-zero exit status.
         #[arg(long, value_parser = OnlyParser)]
         only: Option<Only>,
     },

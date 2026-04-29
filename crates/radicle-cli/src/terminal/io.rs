@@ -43,7 +43,7 @@ impl inquire::validator::StringValidator for PassphraseValidator {
     }
 }
 
-/// Get the signer. First we try getting it from ssh-agent, otherwise we prompt the user,
+/// Get the signer. First we try getting it from ssh-agent; otherwise, we prompt the user,
 /// if we're connected to a TTY.
 pub fn signer(profile: &Profile) -> anyhow::Result<BoxedDevice> {
     match profile.signer() {

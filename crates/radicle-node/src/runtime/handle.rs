@@ -78,7 +78,7 @@ pub struct Handle {
 
     pub(crate) controller: reactor::Controller,
 
-    /// Whether a shutdown was initiated or not. Prevents attempting to shutdown twice.
+    /// Whether or not a shutdown was initiated. Prevents attempting to shutdown twice.
     shutdown: Arc<AtomicBool>,
     /// Publishes events to subscribers.
     emitter: Emitter<Event>,
@@ -353,7 +353,7 @@ impl radicle::node::Handle for Handle {
     }
 
     fn shutdown(self) -> Result<(), Error> {
-        // If the current value is `false`, set it to `true`, otherwise error.
+        // If the current value is `false`, set it to `true`; otherwise, error.
         if self
             .shutdown
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)

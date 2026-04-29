@@ -33,7 +33,7 @@ pub fn start(
         return Ok(());
     }
     let envs = if profile.keystore.is_encrypted()? {
-        // Ask passphrase here, otherwise it'll be a fatal error when running the daemon
+        // Ask passphrase here; otherwise, it'll be a fatal error when running the daemon
         // without `RAD_PASSPHRASE`.
         let validator = term::io::PassphraseValidator::new(profile.keystore.clone());
         let passphrase = if let Some(phrase) = profile::env::passphrase() {

@@ -2,7 +2,7 @@
 
 set -e
 
-# Attempt to install `asciidoctor` on Debian, Arch Linux and MacOS.
+# Attempt to install `asciidoctor` on Debian, Arch Linux and macOS.
 install() {
   os="$(uname)"
 
@@ -16,7 +16,7 @@ install() {
         # Arch Linux
         pacman -Sy --noconfirm asciidoctor
       fi ;;
-    Darwin) # MacOS
+    Darwin) # macOS
       if command -v brew >/dev/null 2>&1; then
         brew install asciidoctor
       fi ;;

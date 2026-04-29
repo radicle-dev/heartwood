@@ -58,7 +58,7 @@ Removed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ✓ Successfully cleaned rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ```
 
-And attempting to clean the repository again, or any non-existent
+And attempting to clean the repository again, or any nonexistent
 repository, has no effect on the storage at all:
 
 ``` ~eve (fail)

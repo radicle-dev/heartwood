@@ -149,7 +149,7 @@ impl Handle {
                 // Notifications are only posted for pulls, not clones.
                 if let Some(mut store) = notifs {
                     // Only create notifications for repos that we have
-                    // contributed to in some way, otherwise our inbox will
+                    // contributed to in some way; otherwise, our inbox will
                     // be flooded by all the repos we are seeding.
                     if repo.remote(&storage.info().key).is_ok() {
                         notify(&rid, &applied, &mut store)?;

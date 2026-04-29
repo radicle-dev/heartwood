@@ -1,4 +1,4 @@
-We initialize Jujutusu for our repository for use with a bare Git repo.
+We initialize Jujutsu for our repository for use with a bare Git repo.
 
 ```(stderr)
 $ jj git init --git-repo heartwood heartwood.jj

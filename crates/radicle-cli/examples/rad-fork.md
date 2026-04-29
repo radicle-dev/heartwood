@@ -51,5 +51,5 @@ z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
         └── sigrefs
 ```
 
-We are now able to setup a remote in our own working copy of the
+We are now able to set up a remote in our own working copy of the
 project and push to our own fork.

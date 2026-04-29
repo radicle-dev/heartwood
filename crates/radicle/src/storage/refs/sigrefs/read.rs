@@ -187,7 +187,7 @@ where
             // The fact that the parent OID is a hash over all previous history
             // makes it *incredibly unlikely* or rather *practically impossible*
             // that the same `/refs` blob re-appears in previous history.
-            // Thus, we can spare oureselves walking the history.
+            // Thus, we can spare ourselves walking the history.
             return Ok(head);
         }
 
@@ -386,7 +386,7 @@ impl Commit {
                 // for `rad/refs/sigrefs-parent` to target. The zero OID would
                 // be a candidate, but it is filtered out in [`Refs`].
                 // Upgrading to `FeatureLevel::Parent` is not a good idea
-                // either, otherwise any history containing this commit
+                // either; otherwise, any history containing this commit
                 // would be at that level from the root onwards.
 
                 // Pattern 2:

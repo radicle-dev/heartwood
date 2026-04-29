@@ -794,7 +794,7 @@ mod tests {
 
         // Note for the next two cases we only give enough merge base
         // information so that the quorum fails. If we provided all
-        // `merge_bases`, it would mean that c0 could be chosen as the quourum.
+        // `merge_bases`, it would mean that c0 could be chosen as the quorum.
         let mut cq = CommitQuorum::new([c2, b2].iter(), 2);
         cq.found_merge_bases([MergeBase {
             a: b2.id(),

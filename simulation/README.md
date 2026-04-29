@@ -58,7 +58,7 @@ This will give us the following workflow for constructing test scenarios:
 
 - [ ] Isolation between simulations and main network.
 - [ ] Different node versions within a simulation.
-- [ ] Cross platform ([Windows](https://github.com/dockur/windows), Linux & [MacOS](https://github.com/dockur/macos)).
+- [ ] Cross platform ([Windows](https://github.com/dockur/windows), Linux & [macOS](https://github.com/dockur/macos)).
 - [ ] Realistic load generation.
 - [ ] Invariant assertion across simulation network.
 - [ ] Teardown and Artifact collection.

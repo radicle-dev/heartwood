@@ -625,7 +625,7 @@ $ rad config schema
           "default": 128
         },
         "outbound": {
-          "description": "Max outbound connections. Note that this can be higher than the *target* number.",
+          "description": "Max outbound connections. Note that this can be greater than the *target* number.",
           "type": "integer",
           "format": "uint",
           "minimum": 0,

@@ -78,7 +78,7 @@ did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
 
 Later, Bob meets Eve at a conference and she wants to take part in the
 project. For Bob to propose Eve, similar steps need to happen as
-between Alice and Bob. Eve first needs to setup a fork:
+between Alice and Bob. Eve first needs to set up a fork:
 
 ``` ~eve
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope followed

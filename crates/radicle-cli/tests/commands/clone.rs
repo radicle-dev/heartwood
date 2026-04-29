@@ -20,7 +20,7 @@ fn rad_clone() {
     let bob = environment.node("bob");
     let working = environment.tempdir().join("working");
 
-    // Setup a test project.
+    // Set up a test project.
     let acme = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
 
     let mut alice = alice.spawn();
@@ -40,7 +40,7 @@ fn rad_clone_bare() {
     let bob = environment.node("bob");
     let working = environment.tempdir().join("working");
 
-    // Setup a test project.
+    // Set up a test project.
     let acme = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
 
     let mut alice = alice.spawn();
@@ -60,7 +60,7 @@ fn rad_clone_directory() {
     let bob = environment.node("bob");
     let working = environment.tempdir().join("working");
 
-    // Setup a test project.
+    // Set up a test project.
     let acme = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
 
     let mut alice = alice.spawn();
@@ -86,7 +86,7 @@ fn rad_clone_all() {
     let bob = environment.node("bob");
     let eve = environment.node("eve");
 
-    // Setup a test project.
+    // Set up a test project.
     let acme = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
 
     let mut alice = alice.spawn();
@@ -121,7 +121,7 @@ fn rad_clone_partial_fail() {
     let mut eve = environment.node("eve");
     let carol = NodeId::from_str("z6MksFqXN3Yhqk8pTJdUGLwBTkRfQvwZXPqR2qMEhbS9wzpT").unwrap();
 
-    // Setup a test project.
+    // Set up a test project.
     let acme = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
 
     let mut alice = alice.spawn();

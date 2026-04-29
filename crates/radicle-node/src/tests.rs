@@ -2008,7 +2008,7 @@ fn test_announcement_message_amplification() {
             s.elapsed() < LocalDuration::from_mins(3)
         });
 
-        // Ensure nodes are all connected, otherwise skip this test run.
+        // Ensure nodes are all connected; otherwise, skip this test run.
         if alice.sessions().connected().count() != 4 {
             continue;
         }

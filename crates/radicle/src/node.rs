@@ -1492,7 +1492,7 @@ pub(crate) mod properties {
     /// the `short` alias, both sets of results will return. For the `long`
     /// alias, only its results will return.
     ///
-    /// It is also expected that the lookup is case insensitive.
+    /// It is also expected that the lookup is case-insensitive.
     pub fn test_reverse_lookup(store: &impl AliasStore, AliasInput { short, long }: AliasInput) {
         let (short, short_ids) = short;
         let (long, long_ids) = long;

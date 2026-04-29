@@ -6,7 +6,7 @@
 //! is not handled by the process, i.e., no signal handler is installed.
 //! The default behaviour in this case is to terminate the process with an
 //! exit code of 141 (128 + 13). Such lack of a signal handler is also
-//! indidcated by `SIG_DFL`.
+//! indicated by `SIG_DFL`.
 //!
 //! Rust (since 1.62) ignores `SIGPIPE` by default, see [issue #6529].
 //! Ignorance in this case means that the signal handler is set to

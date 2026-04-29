@@ -4,7 +4,7 @@ create table if not exists "repository-notifications" (
   "repo"               text      not null,
   -- Git reference name related to this update.
   "ref"                text      not null,
-  -- Notification read status. Null if unread, otherwise the time it was read.
+  -- Notification read status. Null if unread; otherwise, the time it was read.
   "status"             integer   default null,
   -- Old head of the branch before update (OID or `null`).
   "old"                text,

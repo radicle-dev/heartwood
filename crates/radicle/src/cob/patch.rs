@@ -809,7 +809,7 @@ impl Patch {
                 // In this case, since there is not enough information to determine
                 // whether the action is authorized or not, we simply ignore it.
                 // It's likely that the target object was redacted, and we can't
-                // verify whether the action would have been allowed or not.
+                // verify whether or not the action would have been allowed.
                 Ok(())
             }
         }
@@ -943,7 +943,7 @@ impl Patch {
                     return Ok(());
                 };
                 if let Some(rev) = rev {
-                    // Insert a review if there isn't already one. Otherwise we just ignore
+                    // Insert a review if there isn't already one. Otherwise, we just ignore
                     // this operation
                     if let btree_map::Entry::Vacant(e) = rev.reviews.entry(author) {
                         let id = ReviewId(entry);

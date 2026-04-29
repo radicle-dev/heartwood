@@ -312,7 +312,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     }
 
     {
-        // Setup default branch.
+        // Set up default branch.
         let remote_head_ref =
             git::refs::workdir::remote_branch(&REMOTE_NAME, project.default_branch());
 
@@ -329,7 +329,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
             repo.checkout_head(None)?;
         }
 
-        // Setup remote tracking for default branch.
+        // Set up remote tracking for default branch.
         git::set_upstream(&repo, &*REMOTE_NAME, project.default_branch(), branch_ref)?;
     }
 
@@ -457,7 +457,7 @@ pub fn repo_jj_git_root() -> Result<git::raw::Repository, JujutsuGitRootError> {
     Ok(git::raw::Repository::open(path)?)
 }
 
-/// Setup patch upstream branch such that `git push` updates the patch.
+/// Set up patch upstream branch such that `git push` updates the patch.
 pub fn setup_patch_upstream<'a>(
     patch: &ObjectId,
     patch_head: crate::git::Oid,

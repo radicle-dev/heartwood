@@ -722,7 +722,7 @@ where
                                     ChannelsConfig::new(FETCH_TIMEOUT)
                                         .with_reader_limit(reader_limit),
                                 ) else {
-                                    log::debug!(target: "wire", "Peer attempted to open already-open stream stream {stream}");
+                                    log::debug!(target: "wire", "Peer attempted to open already-open stream {stream}");
                                     continue;
                                 };
 
@@ -1094,7 +1094,7 @@ pub fn dial<G: Ecdh<Pk = NodeId>>(
             // In proxy mode, simply use the configured proxy address.
             // This takes precedence over any global proxy.
             AddressConfig::Proxy { address } => Ok((*address).into()),
-            // In "forward" mode, if a global proxy is set, we use that, otherwise
+            // In "forward" mode, if a global proxy is set, we use that; otherwise,
             // we treat the address as a regular DNS name.
             AddressConfig::Forward => Ok(global_proxy
                 .map(Into::into)
@@ -1110,7 +1110,7 @@ pub fn dial<G: Ecdh<Pk = NodeId>>(
     // Determine what address to establish a TCP connection with, given the remote peer
     // address and our node configuration.
     let inet_addr: NetAddr<InetHost> = match (&remote_addr.host, config.proxy) {
-        // For IP and DNS addresses, use the global proxy if set, otherwise use the address as-is.
+        // For IP and DNS addresses, use the global proxy if set; otherwise, use the address as-is.
         (HostName::Ip(_), Some(proxy)) => proxy.into(),
         (HostName::Ip(ip), None) => NetAddr::new(InetHost::Ip(*ip), remote_addr.port),
         (HostName::Dns(_), Some(proxy)) => proxy.into(),

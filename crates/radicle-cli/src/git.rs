@@ -306,7 +306,7 @@ pub fn remove_remote(repo: &Repository, rid: &RepoId) -> anyhow::Result<()> {
     }
 }
 
-/// Setup an upstream tracking branch for the given remote and branch.
+/// Set up an upstream tracking branch for the given remote and branch.
 /// Creates the tracking branch if it does not exist.
 ///
 /// > scooby/master...rad/scooby/heads/master

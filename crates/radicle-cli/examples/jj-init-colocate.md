@@ -1,4 +1,4 @@
-We initialize Jujutusu for our repository by colocating with Git.
+We initialize Jujutsu for our repository by colocating with Git.
 
 ```(stderr)
 $ jj git init --colocate

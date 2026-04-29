@@ -69,7 +69,7 @@ fn rad_clean() {
     let eve = environment.node("eve");
     let working = environment.tempdir().join("working");
 
-    // Setup a test project.
+    // Set up a test project.
     let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
     radicle::test::fixtures::repository(working.join("acme"));
     test(

@@ -52,7 +52,7 @@ pub trait Issues {
         })
     }
 
-    /// List all closed issues with `CloseReasion::Other` in the store.
+    /// List all closed issues with `CloseReason::Other` in the store.
     fn closed(&self) -> Result<Self::Iter<'_>, Self::Error> {
         self.list_by_status(&State::Closed {
             reason: CloseReason::Other,

@@ -445,7 +445,7 @@ pub struct FetcherConfig {
 }
 
 impl FetcherConfig {
-    /// Setup a private network `FetcherConfig`, populating the
+    /// Set up a private network `FetcherConfig`, populating the
     /// [`FetcherConfig`]'s seeds with the allowed set from the
     /// [`PrivateNetwork`]. It is recommended that
     /// [`FetcherConfig::with_candidates`] is not used to extend the candidate

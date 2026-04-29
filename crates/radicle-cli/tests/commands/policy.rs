@@ -42,7 +42,7 @@ fn rad_unseed() {
     let mut alice = environment.node("alice");
     let working = tempfile::tempdir().unwrap();
 
-    // Setup a test project.
+    // Set up a test project.
     alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
     let alice = alice.spawn();
 
@@ -54,7 +54,7 @@ fn rad_unseed_many() {
     let mut environment = Environment::new();
     let mut alice = environment.node("alice");
 
-    // Setup a test project.
+    // Set up a test project.
     alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
     alice.project("nixpkgs", "Home for Nix Packages");
     let alice = alice.spawn();

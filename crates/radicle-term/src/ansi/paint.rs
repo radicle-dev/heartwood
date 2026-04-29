@@ -36,7 +36,7 @@ impl TerminalFile {
 
 /// What file is used for text output.
 static TERMINAL: AtomicI32 = AtomicI32::new(TerminalFile::Stdout as i32);
-/// Whether paint styling is enabled or not.
+/// Whether or not paint styling is enabled.
 static ENABLED: AtomicBool = AtomicBool::new(true);
 /// Whether paint styling should be forced.
 static FORCED: AtomicBool = AtomicBool::new(false);

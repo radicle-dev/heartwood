@@ -46,7 +46,7 @@ pub trait Store {
         ann: &Announcement,
     ) -> Result<Option<AnnouncementId>, Error>;
 
-    /// Set whether a message should be relayed or not.
+    /// Set whether or not a message should be relayed.
     fn set_relay(&mut self, id: AnnouncementId, relay: RelayStatus) -> Result<(), Error>;
 
     /// Return messages that should be relayed.

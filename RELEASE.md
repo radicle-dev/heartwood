@@ -66,7 +66,7 @@ take some time, so grab a coffee ☕.
 ---
 
 **Note**: the script currently outputs warnings about the `strip` command for
-MacOS builds. These are ok, and can be ignored.
+macOS builds. These are ok, and can be ignored.
 
 ---
 
@@ -194,7 +194,7 @@ script linked to on [Get Started][website].
 
 ### Release Branch
 
-At this point, a release branch should be created. This branch will used for
+At this point, a release branch should be created. This branch will be used for
 *patch releases*, e.g. `1.5.1`, `1.5.2`, etc.
 
 The branch must be named `releases/x.y`, similar to the tagged release, where
@@ -228,7 +228,7 @@ Patch Releases
 
 After the `x.y.0` release is made, it may be beneficial, or even necessary, to
 release patch releases of the binaries. These patch releases must be compatible
-with minor version that was released, otherwise the commits should not be
+with minor version that was released; otherwise, the commits should not be
 included.
 
 These changes may have been made on `master` and back-ported to the

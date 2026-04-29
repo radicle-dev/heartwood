@@ -18,7 +18,7 @@ RUN mkdir -p .cargo && cp build/config.toml .cargo/config.toml
 # Install dependencies.
 RUN apk update && apk add --no-cache git musl-dev xz asciidoctor
 
-# Install a pinned zig version with MacOS TBD v4 support
+# Install a pinned zig version with macOS TBD v4 support
 ARG ZIG_VERSION="0.13.0"
 RUN wget -q https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz && \
     tar -xf zig-linux-x86_64-${ZIG_VERSION}.tar.xz && \

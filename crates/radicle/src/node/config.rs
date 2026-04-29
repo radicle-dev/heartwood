@@ -246,7 +246,7 @@ pub struct ConnectionLimits {
     /// Max inbound connections.
     pub inbound: LimitConnectionsInbound,
 
-    /// Max outbound connections. Note that this can be higher than the *target* number.
+    /// Max outbound connections. Note that this can be greater than the *target* number.
     pub outbound: LimitConnectionsOutbound,
 }
 
@@ -671,8 +671,8 @@ impl Config {
         node::Features::SEED
     }
 
-    /// Return the configured user agent, if set. Otherwise fall back to the
-    /// unintetesting value `"/radicle/"`.
+    /// Return the configured user agent, if set. Otherwise, fall back to the
+    /// uninteresting value `"/radicle/"`.
     pub fn user_agent(&self) -> UserAgent {
         match self.user_agent.as_ref() {
             Some(agent) => agent.clone(),

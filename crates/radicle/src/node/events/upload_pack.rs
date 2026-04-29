@@ -16,7 +16,7 @@ pub enum UploadPack {
         remote: NodeId,
         /// The status code of the upload-pack process.
         ///
-        /// N.b. `ExitStatus` can not be de/serialized, so the `Display` of the
+        /// N.b. `ExitStatus` cannot be de/serialized, so the `Display` of the
         /// status is used instead.
         status: String,
     },
@@ -70,7 +70,7 @@ impl UploadPack {
 
     /// Construct a `UploadPack::Done` event.
     ///
-    /// If `error` is `None` the process finished successfully, otherwise it
+    /// If `error` is `None` the process finished successfully; otherwise, it
     /// finished with an error.
     pub fn done(rid: RepoId, remote: NodeId, status: ExitStatus) -> Self {
         Self::Done {

@@ -4,15 +4,15 @@ use crate::git;
 use radicle::git::fmt::RefStr;
 use radicle::node::NodeId;
 
-/// Setup a repository remote and tracking branch.
+/// Set up a repository remote and tracking branch.
 pub struct SetupRemote<'a> {
     /// The repository id.
     pub rid: RepoId,
-    /// Whether or not to setup a remote tracking branch.
+    /// Whether or not to set up a remote tracking branch.
     pub tracking: Option<BranchName>,
     /// Whether or not to fetch the remote immediately.
     pub fetch: bool,
-    /// The repository in which to setup the remote.
+    /// The repository in which to set up the remote.
     pub repo: &'a git::Repository,
 }
 
@@ -38,7 +38,7 @@ impl SetupRemote<'_> {
         if self.fetch {
             remote.fetch::<&str>(&[], None, None)?;
         }
-        // Setup remote-tracking branch.
+        // Set up remote-tracking branch.
         if let Some(branch) = &self.tracking {
             let tracking_branch = remote_name.join(branch);
             let local_branch = radicle::git::refs::workdir::branch(tracking_branch.as_refstr());

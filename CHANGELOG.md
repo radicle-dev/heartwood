@@ -326,7 +326,7 @@ configured, and removed the IP addresses in favor of the DNS names.
 
 ### Better Support for Bare Repositories
 
-[gitrepostiory-layout]: https://git-scm.com/docs/gitrepository-layout/2.49.0
+[gitrepository-layout]: https://git-scm.com/docs/gitrepository-layout/2.49.0
 
 Some improvements to supporting bare repositories have been made for `rad` and
 `git-remote-rad`. For `rad`, the `rad clone` command has learned a new flag
@@ -560,7 +560,7 @@ continue to look into other fixes required for getting full Windows support.
 
 ### Display Full Node IDs
 
-Node IDs and and node addresses have improved formatting. The CLI will output
+Node IDs and node addresses have improved formatting. The CLI will output
 shortened forms of NIDs and addresses when the output is transient, and the full
 form where it is presented to the user. This will allow you to be able to copy
 and paste these identifiers.

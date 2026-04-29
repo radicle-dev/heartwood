@@ -48,7 +48,7 @@ z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
         └── sigrefs
 ```
 
-We can then setup a git remote for `bob`:
+We can then set up a git remote for `bob`:
 
 ```
 $ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob --no-sync --fetch

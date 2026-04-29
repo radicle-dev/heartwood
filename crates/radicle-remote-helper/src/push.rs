@@ -667,7 +667,7 @@ where
                 "to update, run `git push {upstream} {local_branch}`"
             ));
         }
-        // Setup current branch so that pushing updates the patch.
+        // Set up current branch so that pushing updates the patch.
         else if let Some(branch) =
             rad::setup_patch_upstream(&patch, *head, working, upstream, false)?
         {

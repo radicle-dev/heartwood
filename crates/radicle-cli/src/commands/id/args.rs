@@ -204,7 +204,7 @@ pub(super) enum Command {
         /// Update the identity by setting metadata in one of the identity payloads
         ///
         /// [example values: xyz.radicle.project name '"radicle-example"']
-        // TODO(erikili:) Value parsers do not operate on series of values, yet. This will
+        // TODO(erikli:) Value parsers do not operate on series of values, yet. This will
         // change with clap v5, so we can hopefully use `Vec<Payload>`.
         // - https://github.com/clap-rs/clap/discussions/5930#discussioncomment-12315889
         // - https://docs.rs/clap/latest/clap/_derive/index.html#arg-types

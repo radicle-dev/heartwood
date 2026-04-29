@@ -136,7 +136,7 @@ impl Editor {
             {
                 use std::os::fd::{AsRawFd as _, FromRawFd as _};
 
-                // We duplicate the stderr file descriptor to pass it to the child process, otherwise, if
+                // We duplicate the stderr file descriptor to pass it to the child process; otherwise, if
                 // we simply pass the `RawFd` of our stderr, `Command` will close our stderr when the
                 // child exits.
 
