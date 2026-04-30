@@ -9,6 +9,9 @@
 
 pub mod error;
 
+#[cfg(test)]
+mod test;
+
 use std::collections::BTreeMap;
 
 use crypto::PublicKey;
