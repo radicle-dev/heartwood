@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::git;
 use crate::git::Oid;
 use crate::git::fmt::Qualified;
+use crate::git::repository;
 use crate::git::repository::object;
 use crate::git::repository::reference;
 use crate::prelude::Did;
@@ -33,44 +34,33 @@ where
     /// Resolve all references and produce the [`FoundObjects`].
     pub fn resolve(self) -> Result<FoundObjects, FindObjectsError> {
         let mut objects = BTreeMap::new();
-        let mut missing_refs = BTreeSet::new();
-        let mut missing_objects = BTreeMap::new();
+        let mut missing = BTreeSet::new();
 
         for did in self.dids {
-            let name = self.refname.with_namespace(did.as_key().into());
+            let user = user::Namespace::new(*did, self.repository);
+            match user.find_object(self.refname) {
+                Ok(Some(repository::types::Object { oid, kind })) => {
+                    let object = Object::from_kind(oid, kind).ok_or_else(|| {
+                        FindObjectsError::invalid_object_type(*did, oid, Some(kind.to_string()))
+                    })?;
 
-            let oid = match self.repository.ref_target(&name) {
-                Ok(Some(oid)) => oid,
+                    objects.insert(*did, object);
+                }
                 Ok(None) => {
-                    missing_refs.insert(name.to_owned());
+                    // TODO(finto): this leaks the abstraction that we are using `refs/namespaces/<nid>`
+                    let name = self.refname.with_namespace(did.as_key().into());
+                    missing.insert(name.to_owned());
                     continue;
                 }
                 Err(e) => {
+                    // TODO(finto): this leaks the abstraction that we are using `refs/namespaces/<nid>`
+                    let name = self.refname.with_namespace(did.as_key().into());
                     return Err(FindObjectsError::find_reference(name.to_owned(), e));
                 }
-            };
-
-            let kind = match self.repository.object_kind(oid) {
-                Ok(Some(kind)) => kind,
-                Ok(None) => {
-                    missing_objects.insert(*did, oid);
-                    continue;
-                }
-                Err(e) => return Err(FindObjectsError::find_object(oid, e)),
-            };
-
-            let object = Object::from_kind(oid, kind).ok_or_else(|| {
-                FindObjectsError::invalid_object_type(*did, oid, Some(kind.to_string()))
-            })?;
-
-            objects.insert(*did, object);
+            }
         }
 
-        Ok(FoundObjects {
-            objects,
-            missing_refs,
-            missing_objects,
-        })
+        Ok(FoundObjects { objects, missing })
     }
 }
 
