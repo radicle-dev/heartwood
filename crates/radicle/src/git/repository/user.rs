@@ -12,14 +12,16 @@ pub mod error;
 use std::collections::BTreeMap;
 
 use crypto::PublicKey;
-use radicle_git_ref_format::{
-    self as fmt, Component, Qualified, RefStr, pattern, refname, refspec,
-};
+use radicle_git_ref_format as fmt;
+use radicle_git_ref_format::{Component, Qualified, RefStr};
+use radicle_git_ref_format::{pattern, refname, refspec};
 use radicle_oid::Oid;
 
 use crate::prelude::Did;
 
-use super::reference;
+use super::ObjectKind;
+use super::types::Object;
+use super::{object, reference};
 
 /// The set of references that exist for a user.
 ///
@@ -164,6 +166,47 @@ impl<'a, R: reference::Reader> Namespace<'a, R> {
             refs
         });
         Ok(references)
+    }
+}
+
+impl<'a, R: reference::Reader + object::Reader> Namespace<'a, R> {
+    /// Find the object that is pointed to by `refname`, in the user namespace.
+    ///
+    /// The resulting object should either be an [`ObjectKind::Commit`] or
+    /// [`ObjectKind::Tag`], but other [`ObjectKind`]'s may be returned.
+    ///
+    /// # Errors
+    ///
+    /// - [`FindObject::RefTarget`]: An error occurred when attempting to resolve the
+    ///   [`Oid`] of the reference, identified by `refname`.
+    /// - [`FindObject::ObjectKind`]: An error occurred when attempting to resolve the
+    ///   [`ObjectKind`] of the [`Oid`] that the reference is pointing to.
+    ///
+    /// [`FindObject::RefTarget`]: error::FindObject::RefTarget
+    /// [`FindObject::ObjectKind`]: error::FindObject::ObjectKind
+    pub fn find_object(&self, refname: &Qualified) -> Result<Option<Object>, error::FindObject> {
+        let oid = self
+            .ref_target(refname)
+            .map_err(|err| error::FindObject::RefTarget {
+                refname: refname.clone().to_owned(),
+                source: err,
+            })?;
+        oid.and_then(|oid| self.object(refname, oid).transpose())
+            .transpose()
+    }
+
+    fn object(&self, refname: &Qualified, oid: Oid) -> Result<Option<Object>, error::FindObject> {
+        self.object_kind(oid)
+            .map_err(|err| error::FindObject::ObjectKind {
+                oid,
+                refname: refname.clone().to_owned(),
+                source: err,
+            })
+            .map(|kind| kind.map(|kind| Object { oid, kind }))
+    }
+
+    fn object_kind(&self, oid: Oid) -> Result<Option<ObjectKind>, object::error::read::ObjectKind> {
+        self.repo.object_kind(oid)
     }
 }
 
