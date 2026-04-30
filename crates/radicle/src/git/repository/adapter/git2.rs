@@ -12,6 +12,9 @@ mod object;
 mod reference;
 mod revwalk;
 
+#[cfg(test)]
+mod test;
+
 /// Helper trait to enable method chaining to return `None` when the error
 /// matches [`ErrorCode::NotFound`].
 ///
