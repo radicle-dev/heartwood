@@ -4,8 +4,8 @@ use crate::git::Oid;
 
 use crate::git::repository::ancestry;
 
-use super::{ObjectType, effects};
-pub use effects::FindObjectsError;
+use super::{ObjectType, objects};
+pub use objects::FindObjectsError;
 
 /// An error that occurred while computing a merge base.
 ///
