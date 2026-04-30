@@ -141,3 +141,50 @@ pub trait Revwalk {
         plan: &RevwalkPlan,
     ) -> Result<Self::RevwalkCommits<'a>, error::Init>;
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn oid(n: u8) -> Oid {
+        Oid::from_sha1([n; 20])
+    }
+
+    #[test]
+    fn plan_push_accumulates() {
+        let plan = RevwalkPlan::new().push(oid(1)).push(oid(2));
+        assert_eq!(plan.starts(), &[oid(1), oid(2)]);
+    }
+
+    #[test]
+    fn plan_hide_accumulates() {
+        let plan = RevwalkPlan::new().hide(oid(3)).hide(oid(4));
+        assert_eq!(plan.hidden(), &[oid(3), oid(4)]);
+    }
+
+    #[test]
+    fn plan_range() {
+        let plan = RevwalkPlan::new().range(oid(1), oid(2));
+        assert_eq!(plan.range_bounds(), Some((oid(1), oid(2))));
+    }
+
+    #[test]
+    fn plan_sort() {
+        let plan = RevwalkPlan::new().sort(SortOrder::Topological { reverse: true });
+        assert_eq!(plan.sort_order(), SortOrder::Topological { reverse: true });
+    }
+
+    #[test]
+    fn plan_compose() {
+        let plan = RevwalkPlan::new()
+            .push(oid(1))
+            .hide(oid(2))
+            .range(oid(3), oid(4))
+            .sort(SortOrder::Topological { reverse: false });
+
+        assert_eq!(plan.starts(), &[oid(1)]);
+        assert_eq!(plan.hidden(), &[oid(2)]);
+        assert_eq!(plan.range_bounds(), Some((oid(3), oid(4))));
+        assert_eq!(plan.sort_order(), SortOrder::Topological { reverse: false });
+    }
+}
