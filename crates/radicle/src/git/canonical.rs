@@ -117,15 +117,9 @@ where
         self,
     ) -> Result<Canonical<'a, 'b, 'r, R, ObjectsFound>, effects::FindObjectsError> {
         let allowed: Vec<_> = self.rule.allowed().iter().copied().collect();
-        let FoundObjects {
-            objects,
-            missing_refs,
-            missing_objects,
-        } = effects::FindObjects::new(self.repo, &self.refname, &allowed).resolve()?;
-        let missing = Missing {
-            refs: missing_refs,
-            objects: missing_objects,
-        };
+        let FoundObjects { objects, missing } =
+            effects::FindObjects::new(self.repo, &self.refname, &allowed).resolve()?;
+        let missing = Missing { missing };
         Ok(Canonical {
             refname: self.refname,
             rule: self.rule,
@@ -468,25 +462,18 @@ pub struct FoundObjects {
     /// The found objects, and under which [`Did`] they were found.
     pub objects: BTreeMap<Did, Object>,
     /// Any missing references while attempting to find the objects.
-    pub missing_refs: BTreeSet<Namespaced<'static>>,
-    // TODO(finto): I think this doesn't make sense now that we use only one
-    // repository.
-    /// Any missing objects, where the reference was found, but the object was
-    /// missing.
-    pub missing_objects: BTreeMap<Did, Oid>,
+    pub missing: BTreeSet<Namespaced<'static>>,
 }
 
 /// [`Missing`] marks whether there were any missing references or objects.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Missing {
-    pub refs: BTreeSet<Namespaced<'static>>,
-    pub objects: BTreeMap<Did, Oid>,
+    pub missing: BTreeSet<Namespaced<'static>>,
 }
 
 impl Missing {
     fn found<'a>(&mut self, did: &Did, refname: &Qualified<'a>) {
-        self.objects.remove(did);
-        self.refs
+        self.missing
             .remove(&refname.with_namespace((did.as_key()).into()).to_owned());
     }
 }
