@@ -113,3 +113,31 @@ pub trait Writer: super::Writer {
     where
         R: AsRef<RefStr>;
 }
+
+#[cfg(test)]
+mod test {
+    use radicle_git_ref_format::refname;
+
+    use super::*;
+
+    #[test]
+    fn target_create() {
+        let t = Target::create(refname!("refs/heads/main"));
+        assert_eq!(t.target().as_str(), "refs/heads/main");
+        assert!(matches!(t, Target::Create { .. }));
+    }
+
+    #[test]
+    fn target_upsert() {
+        let t = Target::upsert(refname!("refs/heads/main"));
+        assert_eq!(t.target().as_str(), "refs/heads/main");
+        assert!(matches!(t, Target::Upsert { .. }));
+    }
+
+    #[test]
+    fn target_cas() {
+        let t = Target::cas(refname!("refs/heads/main"), refname!("refs/heads/old"));
+        assert_eq!(t.target().as_str(), "refs/heads/main");
+        assert!(matches!(t, Target::Cas { expected, .. } if expected.as_str() == "refs/heads/old"));
+    }
+}

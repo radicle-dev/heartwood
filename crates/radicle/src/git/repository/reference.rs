@@ -185,3 +185,33 @@ pub trait Writer {
     where
         R: AsRef<RefStr>;
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn oid(n: u8) -> Oid {
+        Oid::from_sha1([n; 20])
+    }
+
+    #[test]
+    fn target_create() {
+        let t = Target::create(oid(1));
+        assert_eq!(t.target(), oid(1));
+        assert!(matches!(t, Target::Create { .. }));
+    }
+
+    #[test]
+    fn target_upsert() {
+        let t = Target::Upsert { target: oid(2) };
+        assert_eq!(t.target(), oid(2));
+        assert!(matches!(t, Target::Upsert { .. }));
+    }
+
+    #[test]
+    fn target_cas() {
+        let t = Target::cas(oid(3), oid(4));
+        assert_eq!(t.target(), oid(3));
+        assert!(matches!(t, Target::Cas { expected, .. } if expected == oid(4)));
+    }
+}

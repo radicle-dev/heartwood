@@ -67,3 +67,52 @@ pub trait Ancestry {
     /// [`Backend`]: error::AheadBehind::Backend
     fn ahead_behind(&self, commit: Oid, upstream: Oid) -> Result<AheadBehind, error::AheadBehind>;
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn is_linear_ahead_only() {
+        assert!(
+            AheadBehind {
+                ahead: 3,
+                behind: 0
+            }
+            .is_linear()
+        );
+    }
+
+    #[test]
+    fn is_linear_behind_only() {
+        assert!(
+            AheadBehind {
+                ahead: 0,
+                behind: 5
+            }
+            .is_linear()
+        );
+    }
+
+    #[test]
+    fn is_linear_same_commit() {
+        assert!(
+            AheadBehind {
+                ahead: 0,
+                behind: 0
+            }
+            .is_linear()
+        );
+    }
+
+    #[test]
+    fn is_linear_diverged() {
+        assert!(
+            !AheadBehind {
+                ahead: 2,
+                behind: 1
+            }
+            .is_linear()
+        );
+    }
+}
