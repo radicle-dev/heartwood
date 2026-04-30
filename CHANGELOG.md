@@ -57,6 +57,9 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
   peers. Previously, if it found a row it could not parse, then it would fail
   the whole process. Now, it will continue, providing valid entries to connect
   to.
+- Delete invalid node addresses, of the IPv6 type, from the SQLite address book.
+  Entries deleted include ones that have an address of the form `[]:port`, or
+  that have an invalid address within the `[]`.
 
 ## 1.8.0
 

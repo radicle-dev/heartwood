@@ -39,6 +39,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("db/migrations/6.sql"),
     include_str!("db/migrations/7.sql"),
     include_str!("db/migrations/8.sql"),
+    include_str!("db/migrations/9.sql"),
 ];
 
 #[derive(Error, Debug)]
@@ -444,6 +445,128 @@ mod test {
                     "{value} dns row should be gone"
                 );
             }
+        }
+    }
+
+    mod migration_9 {
+        use super::*;
+
+        const NODE1: &str = "node1";
+
+        fn db_before_migration() -> Database {
+            let db = Database::memory_up_to_migration(8).unwrap();
+            db.execute(
+                "INSERT INTO nodes (id, features, alias, timestamp)
+                 VALUES ('node1', 0, 'alias', 0)",
+            )
+            .unwrap();
+            db
+        }
+
+        fn run_migration(db: &Database) {
+            db.execute(MIGRATIONS[8]).unwrap();
+        }
+
+        fn address_count(db: &Database, address_type: &str, value: &str) -> i64 {
+            db.prepare(format!(
+                "SELECT COUNT(*) FROM addresses
+                 WHERE node = '{NODE1}' AND type = '{address_type}' AND value = '{value}'"
+            ))
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap()
+            .unwrap()
+            .read::<i64, _>(0)
+        }
+
+        fn insert_address(db: &Database, address_type: &str, value: &str) {
+            db.execute(format!(
+                "INSERT INTO addresses (node, type, value, source, timestamp)
+                 VALUES ('{NODE1}', '{address_type}', '{value}', 'peer', 0)"
+            ))
+            .unwrap();
+        }
+
+        #[test]
+        fn empty_brackets_ipv6_row_is_deleted() {
+            let db = db_before_migration();
+            let address: &str = "[]:8776";
+            insert_address(&db, "ipv6", address);
+
+            run_migration(&db);
+
+            assert_eq!(address_count(&db, "ipv6", address), 0);
+        }
+
+        #[test]
+        fn unspecified_address_is_kept() {
+            // `[::]:8776` parses fine as the IPv6 unspecified address.
+            let db = db_before_migration();
+            let address = "[::]:8776";
+            insert_address(&db, "ipv6", address);
+
+            run_migration(&db);
+
+            assert_eq!(address_count(&db, "ipv6", address), 1);
+        }
+
+        #[test]
+        fn loopback_address_is_kept() {
+            let db = db_before_migration();
+            let address = "[::1]:8776";
+            insert_address(&db, "ipv6", address);
+
+            run_migration(&db);
+
+            assert_eq!(address_count(&db, "ipv6", address), 1);
+        }
+
+        #[test]
+        fn full_ipv6_address_is_kept() {
+            let db = db_before_migration();
+            let address = "[2001:db8::1]:8776";
+            insert_address(&db, "ipv6", address);
+
+            run_migration(&db);
+
+            assert_eq!(address_count(&db, "ipv6", address), 1);
+        }
+
+        #[test]
+        fn bracketed_non_ipv6_garbage_is_deleted() {
+            // No `:` between the brackets means it can't be IPv6.
+            let db = db_before_migration();
+            let address = "[abc]:8776";
+            insert_address(&db, "ipv6", address);
+
+            run_migration(&db);
+
+            assert_eq!(address_count(&db, "ipv6", address), 0);
+        }
+
+        #[test]
+        fn ipv4_row_is_unaffected() {
+            let db = db_before_migration();
+            let address = "192.168.1.1:8776";
+            insert_address(&db, "ipv4", address);
+
+            run_migration(&db);
+
+            assert_eq!(address_count(&db, "ipv4", address), 1);
+        }
+
+        #[test]
+        fn dns_row_is_unaffected_even_when_inner_part_has_no_colon() {
+            // Migration 9 only targets `type = 'ipv6'`. A bracketless DNS row
+            // like `example.com:8776` shouldn't be touched.
+            let db = db_before_migration();
+            let address = "example.com:8776";
+            insert_address(&db, "dns", address);
+
+            run_migration(&db);
+
+            assert_eq!(address_count(&db, "dns", address), 1);
         }
     }
 }
