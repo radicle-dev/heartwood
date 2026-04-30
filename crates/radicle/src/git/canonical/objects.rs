@@ -6,6 +6,7 @@ use crate::git::fmt::Qualified;
 use crate::git::repository;
 use crate::git::repository::object;
 use crate::git::repository::reference;
+use crate::git::repository::user;
 use crate::prelude::Did;
 
 use super::{FoundObjects, Object};

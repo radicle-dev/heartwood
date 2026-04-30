@@ -9,7 +9,7 @@ use quorum::{CommitQuorum, CommitQuorumFailure, TagQuorum, TagQuorumFailure};
 
 mod voting;
 
-pub mod effects;
+pub mod objects;
 pub mod protect;
 pub mod rules;
 pub mod symbolic;
@@ -115,7 +115,7 @@ where
     /// find the quorum.
     pub fn find_objects(
         self,
-    ) -> Result<Canonical<'a, 'b, 'r, R, ObjectsFound>, effects::FindObjectsError> {
+    ) -> Result<Canonical<'a, 'b, 'r, R, ObjectsFound>, objects::FindObjectsError> {
         let allowed: Vec<_> = self.rule.allowed().iter().copied().collect();
         let FoundObjects { objects, missing } =
             objects::FindObjects::new(self.repo, &self.refname, &allowed).resolve()?;

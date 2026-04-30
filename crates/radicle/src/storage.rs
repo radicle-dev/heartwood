@@ -155,7 +155,7 @@ pub enum RepositoryError {
     #[error("failed to get canonical reference rules: {0}")]
     CanonicalRefs(#[from] doc::CanonicalRefsError),
     #[error(transparent)]
-    FindObjects(#[from] canonical::effects::FindObjectsError),
+    FindObjects(#[from] canonical::objects::FindObjectsError),
 }
 
 impl From<Error> for RepositoryError {
