@@ -60,6 +60,13 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
 - Delete invalid node addresses, of the IPv6 type, from the SQLite address book.
   Entries deleted include ones that have an address of the form `[]:port`, or
   that have an invalid address within the `[]`.
+- Correctly handle the canonical reference rules that have a glob star suffix,
+  e.g., `refs/heads/main*`, `refs/heads/main-*`, etc.
+  Previously, these would be expanded into sub-component searches. For example,
+  in the previous examples, the search would be expanded to
+  `refs/heads/main**/*` and `refs/heads/main-**/*`.
+  Now, the rule will match by prefix, e.g. `refs/heads/main-*` will match
+  `refs/heads/main-a`, `refs/heads/main-b`, `refs/heads/main-deadbeef`, etc.
 
 ## 1.8.0
 

@@ -477,3 +477,76 @@ fn special_branches() {
     assert!(Pattern::new((*SIGREFS_PARENT).clone().into()).is_err());
     assert!(Pattern::new((*IDENTITY_ROOT).clone().into()).is_err());
 }
+
+#[test]
+fn matches_expands_globs_appropriately() {
+    let exact = qualified_pattern!("refs/heads/main");
+    assert!(matches(&exact, &git::fmt::qualified!("refs/heads/main")));
+    assert!(!matches(&exact, &git::fmt::qualified!("refs/heads/main-2")));
+    assert!(!matches(&exact, &git::fmt::qualified!("refs/heads/other")));
+
+    let trailing_slash = qualified_pattern!("refs/heads/*");
+    assert!(matches(
+        &trailing_slash,
+        &git::fmt::qualified!("refs/heads/main")
+    ));
+    assert!(matches(
+        &trailing_slash,
+        &git::fmt::qualified!("refs/heads/feature/1")
+    ));
+    assert!(!matches(
+        &trailing_slash,
+        &git::fmt::qualified!("refs/tags/main")
+    ));
+
+    let trailing_text = qualified_pattern!("refs/heads/feature-*");
+    assert!(matches(
+        &trailing_text,
+        &git::fmt::qualified!("refs/heads/feature-")
+    ));
+    assert!(matches(
+        &trailing_text,
+        &git::fmt::qualified!("refs/heads/feature-1")
+    ));
+    assert!(matches(
+        &trailing_text,
+        &git::fmt::qualified!("refs/heads/feature-1/sub")
+    ));
+    assert!(!matches(
+        &trailing_text,
+        &git::fmt::qualified!("refs/heads/feature")
+    ));
+
+    // Because `*` expands to `**`, it matches zero or more path components.
+    let middle = qualified_pattern!("refs/heads/*/main");
+    assert!(matches(
+        &middle,
+        &git::fmt::qualified!("refs/heads/alice/main")
+    ));
+    assert!(matches(
+        &middle,
+        &git::fmt::qualified!("refs/heads/alice/bob/main")
+    ));
+
+    //
+    // NOTE(Ade): In git this won't match as glob '*' isn't inclusive of zero matches like `**`
+    // See: https://git.kernel.org/pub/scm/git/git.git/tree/refspec.c?h=v2.54.0&id=94f057755b7941b321fd11fec1b2e3ca5313a4e0#n298
+    //
+    assert!(matches(&middle, &git::fmt::qualified!("refs/heads/main")));
+
+    assert!(!matches(
+        &middle,
+        &git::fmt::qualified!("refs/heads/alice/dev")
+    ));
+
+    // HardenedBSD glob expansion issue
+    let hbsd = qualified_pattern!("refs/heads/quarterly/hardened/15-stable/main*");
+    assert!(matches(
+        &hbsd,
+        &git::fmt::qualified!("refs/heads/quarterly/hardened/15-stable/main-2026q2")
+    ));
+    assert!(matches(
+        &hbsd,
+        &git::fmt::qualified!("refs/heads/quarterly/hardened/15-stable/main/2026q2")
+    ));
+}

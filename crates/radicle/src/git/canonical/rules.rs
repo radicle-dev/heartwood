@@ -54,25 +54,18 @@ fn matches(pattern: &RawPattern, refname: &Qualified) -> bool {
     // that namespace, even if they are further down the hierarchy.
     // Thus, the following rules are applied:
     //
-    //   - a trailing `*` changes to `**/*`
+    //   - a trailing `*` matches anything that starts with the prefix
     //   - a `*` in between path components changes to `**`
-    let spec = match pattern.as_str().split_once(ASTERISK) {
-        None => pattern.to_string(),
-        // Expand `refs/tags/*` to `refs/tags/**/*`
-        Some((prefix, "")) => {
-            let mut spec = prefix.to_string();
-            spec.push_str("**/*");
-            spec
-        }
-        // Expand `refs/tags/*/v1.0` to `refs/tags/**/v1.0`
+    match pattern.as_str().split_once(ASTERISK) {
+        None => pattern.as_str() == refname.as_str(),
+        Some((prefix, "")) => refname.as_str().starts_with(prefix),
         Some((prefix, suffix)) => {
             let mut spec = prefix.to_string();
             spec.push_str("**");
             spec.push_str(suffix);
-            spec
+            fast_glob::glob_match(&spec, refname.as_str())
         }
-    };
-    fast_glob::glob_match(&spec, refname.as_str())
+    }
 }
 
 /// Patterns are ordered by their specificity.
