@@ -38,6 +38,14 @@ impl fmt::Display for ObjectKind {
     }
 }
 
+/// A resolved Git object.
+pub struct Object {
+    /// The content-addressed identifier of the object.
+    pub oid: Oid,
+    /// The kind of the object.
+    pub kind: ObjectKind,
+}
+
 /// A Git blob object.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Blob {
