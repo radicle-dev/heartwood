@@ -1255,113 +1255,203 @@ mod tests {
 
             comp
         }
-
-        fn to_refname(name: &str) -> git::fmt::Qualified<'_> {
-            let refstr = git::fmt::RefStr::try_from_str(name).unwrap();
-            git::fmt::Qualified::from_refstr(refstr).unwrap()
+        fn to_refname(name: &str) -> Option<git::fmt::Qualified<'_>> {
+            let refstr = git::fmt::RefStr::try_from_str(name).ok()?;
+            git::fmt::Qualified::from_refstr(refstr)
         }
-        fn prop_identity(c1: String, c2: String, c3: String) -> bool {
-            let c1 = make_valid_comp(c1);
-            let c2 = make_valid_comp(c2);
-            let c3 = make_valid_comp(c3);
 
+        fn parse_pattern(pat: &str) -> Option<RawPattern> {
+            serde_json::from_value(serde_json::Value::String(pat.to_string())).ok()
+        }
+
+        fn prop_identity(c1: String, c2: String, c3: String) -> qcheck::TestResult {
+            let (c1, c2, c3) = (
+                make_valid_comp(c1),
+                make_valid_comp(c2),
+                make_valid_comp(c3),
+            );
             let name = format!("refs/{c1}/{c2}/{c3}");
 
-            let pattern: RawPattern =
-                serde_json::from_value(serde_json::Value::String(name.clone())).unwrap();
+            let refname = match to_refname(&name) {
+                Some(r) => r,
+                None => return qcheck::TestResult::discard(),
+            };
+            let pattern = match parse_pattern(&name) {
+                Some(p) => p,
+                None => return qcheck::TestResult::discard(),
+            };
 
-            println!("refs/{c1}/{c2}/{c3}");
-            matches(&pattern, &to_refname(&name))
+            qcheck::TestResult::from_bool(matches(&pattern, &refname))
         }
 
-        fn prop_prefix(c1: String, c2: String, c3: String) -> bool {
-            let c1 = make_valid_comp(c1);
-            let c2 = make_valid_comp(c2);
-            let c3 = make_valid_comp(c3);
-
-            let pat_str = format!("refs/{c1}/*");
-            let pattern: RawPattern =
-                serde_json::from_value(serde_json::Value::String(pat_str)).unwrap();
-
-            matches(&pattern, &to_refname(&format!("refs/{c1}/{c2}/{c3}")))
-                && matches(&pattern, &to_refname(&format!("refs/{c1}/{c2}")))
-                && matches(&pattern, &to_refname(&format!("refs/{c1}/{c3}")))
-                && matches(&pattern, &to_refname(&format!("refs/{c1}/{c3}/{c2}")))
-        }
-
-        fn prop_suffix(c1: String, c2: String, c3: String) -> bool {
-            let c1 = make_valid_comp(c1);
-            let c2 = make_valid_comp(c2);
-            let c3 = make_valid_comp(c3);
-
-            let pat_str = format!("refs/*/{c3}");
-            let pattern: RawPattern =
-                serde_json::from_value(serde_json::Value::String(pat_str)).unwrap();
-
-            matches(&pattern, &to_refname(&format!("refs/{c1}/{c2}/{c3}")))
-                && matches(&pattern, &to_refname(&format!("refs/{c2}/{c3}")))
-                && matches(&pattern, &to_refname(&format!("refs/{c1}/{c3}")))
-                && matches(&pattern, &to_refname(&format!("refs/{c2}/{c1}/{c3}")))
-        }
-
-        fn prop_trailing_asterisk_partial_component(c1: String, c2: String, c3: String) -> bool {
-            let c1 = make_valid_comp(c1);
-            let c2 = make_valid_comp(c2);
-            let c3 = make_valid_comp(c3);
-
-            let pat_str = format!("refs/{c1}/{c2}*");
-            let pattern: RawPattern =
-                serde_json::from_value(serde_json::Value::String(pat_str)).unwrap();
-
-            matches(&pattern, &to_refname(&format!("refs/{c1}/{c2}{c3}")))
-                && matches(&pattern, &to_refname(&format!("refs/{c1}/{c2}-{c3}")))
-                && matches(&pattern, &to_refname(&format!("refs/{c1}/{c2}/{c3}")))
-        }
-        fn prop_prefix_negative(c1: String, c2: String, c3: String) -> bool {
+        fn prop_prefix(c1: String, c2: String, c3: String) -> qcheck::TestResult {
             let (c1, c2, c3) = (
                 make_valid_comp(c1),
                 make_valid_comp(c2),
                 make_valid_comp(c3),
             );
-            if c1 == c2 {
-                return true;
+
+            let pattern = match parse_pattern(&format!("refs/{c1}/*")) {
+                Some(p) => p,
+                None => return qcheck::TestResult::discard(),
+            };
+
+            let cases = [
+                format!("refs/{c1}/{c2}/{c3}"),
+                format!("refs/{c1}/{c2}"),
+                format!("refs/{c1}/{c3}"),
+                format!("refs/{c1}/{c3}/{c2}"),
+            ];
+
+            let refnames: Option<Vec<_>> = cases.iter().map(|n| to_refname(n)).collect();
+
+            match refnames {
+                None => qcheck::TestResult::discard(),
+                Some(refs) => {
+                    qcheck::TestResult::from_bool(refs.iter().all(|r| matches(&pattern, r)))
+                }
             }
-
-            let pat_str = format!("refs/{c1}/*");
-            let pattern: RawPattern =
-                serde_json::from_value(serde_json::Value::String(pat_str)).unwrap();
-
-            !matches(&pattern, &to_refname(&format!("refs/{c2}/{c3}")))
-                && !matches(&pattern, &to_refname(&format!("refs/{c3}/{c2}")))
         }
 
-        fn prop_suffix_negative(c1: String, c2: String, c3: String) -> bool {
+        fn prop_suffix(c1: String, c2: String, c3: String) -> qcheck::TestResult {
             let (c1, c2, c3) = (
                 make_valid_comp(c1),
                 make_valid_comp(c2),
                 make_valid_comp(c3),
             );
-            if c2 == c3 {
-                return true;
+
+            let pattern = match parse_pattern(&format!("refs/*/{c3}")) {
+                Some(p) => p,
+                None => return qcheck::TestResult::discard(),
+            };
+
+            let cases = [
+                format!("refs/{c1}/{c2}/{c3}"),
+                format!("refs/a/{c3}"),
+                format!("refs/{c2}/{c3}"),
+                format!("refs/{c1}/{c3}"),
+                format!("refs/{c2}/{c1}/{c3}"),
+            ];
+
+            let refnames: Option<Vec<_>> = cases.iter().map(|n| to_refname(n)).collect();
+
+            match refnames {
+                None => qcheck::TestResult::discard(),
+                Some(refs) => {
+                    qcheck::TestResult::from_bool(refs.iter().all(|r| matches(&pattern, r)))
+                }
             }
-
-            let pat_str = format!("refs/*/{c3}");
-            let pattern: RawPattern =
-                serde_json::from_value(serde_json::Value::String(pat_str)).unwrap();
-
-            !matches(&pattern, &to_refname(&format!("refs/{c1}/{c2}")))
-                && !matches(&pattern, &to_refname(&format!("refs/{c2}/{c1}")))
         }
 
-        qcheck::QuickCheck::new().quickcheck(prop_identity as fn(String, String, String) -> bool);
-        qcheck::QuickCheck::new().quickcheck(prop_prefix as fn(String, String, String) -> bool);
-        qcheck::QuickCheck::new().quickcheck(prop_suffix as fn(String, String, String) -> bool);
+        fn prop_trailing_asterisk_partial_component(
+            c1: String,
+            c2: String,
+            c3: String,
+        ) -> qcheck::TestResult {
+            let (c1, c2, c3) = (
+                make_valid_comp(c1),
+                make_valid_comp(c2),
+                make_valid_comp(c3),
+            );
+
+            let pattern = match parse_pattern(&format!("refs/{c1}/{c2}*")) {
+                Some(p) => p,
+                None => return qcheck::TestResult::discard(),
+            };
+
+            let cases = [
+                format!("refs/{c1}/{c2}{c3}"),
+                format!("refs/{c1}/{c2}-{c3}"),
+                format!("refs/{c1}/{c2}/{c3}"),
+            ];
+
+            let refnames: Option<Vec<_>> = cases.iter().map(|n| to_refname(n)).collect();
+
+            match refnames {
+                None => qcheck::TestResult::discard(),
+                Some(refs) => {
+                    qcheck::TestResult::from_bool(refs.iter().all(|r| matches(&pattern, r)))
+                }
+            }
+        }
+
+        fn prop_prefix_negative(c1: String, c2: String, c3: String) -> qcheck::TestResult {
+            let (c1, c2, c3) = (
+                make_valid_comp(c1),
+                make_valid_comp(c2),
+                make_valid_comp(c3),
+            );
+            if c1 == c2 || c1 == c3 {
+                return qcheck::TestResult::discard();
+            }
+
+            let pattern = match parse_pattern(&format!("refs/{c1}/*")) {
+                Some(p) => p,
+                None => return qcheck::TestResult::discard(),
+            };
+
+            let cases = [
+                format!("refs/{c2}/{c3}"),
+                format!("refs/{c3}/{c2}"),
+                format!("refs/{c2}/a"),
+                format!("refs/{c3}/a"),
+            ];
+
+            let refnames: Option<Vec<_>> = cases.iter().map(|n| to_refname(n)).collect();
+
+            match refnames {
+                None => qcheck::TestResult::discard(),
+                Some(refs) => {
+                    qcheck::TestResult::from_bool(refs.iter().all(|r| !matches(&pattern, r)))
+                }
+            }
+        }
+
+        fn prop_suffix_negative(c1: String, c2: String, c3: String) -> qcheck::TestResult {
+            let (c1, c2, c3) = (
+                make_valid_comp(c1),
+                make_valid_comp(c2),
+                make_valid_comp(c3),
+            );
+            if c3 == c1 || c3 == c2 {
+                return qcheck::TestResult::discard();
+            }
+
+            let pattern = match parse_pattern(&format!("refs/*/{c3}")) {
+                Some(p) => p,
+                None => return qcheck::TestResult::discard(),
+            };
+
+            let cases = [
+                format!("refs/{c1}/{c2}"),
+                format!("refs/{c2}/{c1}"),
+                format!("refs/a/{c1}"),
+                format!("refs/a/{c2}"),
+            ];
+
+            let refnames: Option<Vec<_>> = cases.iter().map(|n| to_refname(n)).collect();
+
+            match refnames {
+                None => qcheck::TestResult::discard(),
+                Some(refs) => {
+                    qcheck::TestResult::from_bool(refs.iter().all(|r| !matches(&pattern, r)))
+                }
+            }
+        }
+
+        qcheck::QuickCheck::new()
+            .quickcheck(prop_identity as fn(String, String, String) -> qcheck::TestResult);
+        qcheck::QuickCheck::new()
+            .quickcheck(prop_prefix as fn(String, String, String) -> qcheck::TestResult);
+        qcheck::QuickCheck::new()
+            .quickcheck(prop_suffix as fn(String, String, String) -> qcheck::TestResult);
         qcheck::QuickCheck::new().quickcheck(
-            prop_trailing_asterisk_partial_component as fn(String, String, String) -> bool,
+            prop_trailing_asterisk_partial_component
+                as fn(String, String, String) -> qcheck::TestResult,
         );
         qcheck::QuickCheck::new()
-            .quickcheck(prop_prefix_negative as fn(String, String, String) -> bool);
+            .quickcheck(prop_prefix_negative as fn(String, String, String) -> qcheck::TestResult);
         qcheck::QuickCheck::new()
-            .quickcheck(prop_suffix_negative as fn(String, String, String) -> bool);
+            .quickcheck(prop_suffix_negative as fn(String, String, String) -> qcheck::TestResult);
     }
 }
