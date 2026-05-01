@@ -1958,3 +1958,71 @@ fn fetch_does_not_contain_rad_sigrefs_parent() {
     assert_eq!(alice_signed_refs.refs(), alice_remote.refs());
     assert!(alice_remote.refs().get(&SIGREFS_PARENT).is_none());
 }
+
+#[test]
+fn test_fetch_emits_canonical_ref_update_partial_glob() {
+    let tmp = tempfile::tempdir().unwrap();
+    let scale = config::scale();
+    let mut alice = Node::init(tmp.path(), config::relay("alice"));
+    let bob = Node::init(tmp.path(), config::relay("bob"));
+
+    let (repo, _) = fixtures::repository(tmp.path());
+    let rid = alice.project_from("acme", "", &repo);
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+    let bob_events = bob.handle.events();
+
+    {
+        let repo = alice.storage.repository(rid).unwrap();
+        let mut identity = radicle::identity::Identity::load_mut(&repo, &alice.signer).unwrap();
+        let doc = repo
+            .identity_doc()
+            .unwrap()
+            .doc
+            .with_edits(|raw| {
+                let crefs = serde_json::json!({
+                    "rules": {
+                        "refs/heads/main*": {
+                            "threshold": 1,
+                            "allow": "delegates"
+                        }
+                    }
+                });
+
+                raw.payload.insert(
+                    radicle::identity::doc::PayloadId::canonical_refs(),
+                    radicle::identity::doc::Payload::from(crefs),
+                );
+            })
+            .unwrap();
+
+        let rev = identity
+            .update(Title::new("Add main* rule").unwrap(), "", &doc)
+            .unwrap();
+        repo.set_identity_head_to(rev).unwrap();
+    }
+
+    bob.handle.seed(rid, Scope::All).unwrap();
+    alice.connect(&bob);
+
+    let result = bob
+        .handle
+        .fetch(rid, alice.id, DEFAULT_TIMEOUT, None)
+        .unwrap();
+    assert!(result.is_success());
+
+    let target_branch: git::fmt::Qualified = git::fmt::qualified!("refs/heads/main-2026q2");
+    alice.commit_to(rid, &target_branch);
+    alice.handle.announce_refs_for(rid, [alice.id]).unwrap();
+
+    bob_events
+        .wait(
+            |e| {
+                matches!(e, Event::CanonicalRefUpdated { refname, .. } if *refname == target_branch)
+                    .then_some(())
+            },
+            time::Duration::from_secs(9 * scale as u64),
+        )
+        .unwrap();
+}
