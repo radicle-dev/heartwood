@@ -1194,6 +1194,14 @@ mod tests {
             &hbsd,
             &git::fmt::qualified!("refs/heads/quarterly/hardened/15-stable/main/2026q2")
         ));
+
+        let exact = qualified_pattern!("refs/heads/{foo,bar}");
+        assert!(matches(
+            &exact,
+            &git::fmt::qualified!("refs/heads/{foo,bar}")
+        ));
+        assert!(!matches(&exact, &git::fmt::qualified!("refs/heads/foo")));
+        assert!(!matches(&exact, &git::fmt::qualified!("refs/heads/bar")));
     }
 
     #[test]
