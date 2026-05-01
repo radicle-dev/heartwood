@@ -42,6 +42,9 @@ pub(crate) mod transport {
     };
 }
 
+#[cfg(any(test, feature = "test"))]
+pub mod fixture;
+
 /// An extension trait for [`git2::Error`] to more conveniently handle
 /// errors with the code [`git2::ErrorCode::NotFound`].
 pub trait ErrorExt {
