@@ -1691,12 +1691,19 @@ fn test_fetch_emits_canonical_ref_update() {
         .unwrap();
     assert!(result.is_success());
 
+    // Drain all the events including initial `CanonicalRefUpdated`
+    // from fetch
+    while bob_events.try_recv().is_ok() {}
+
     let default_branch: git::fmt::Qualified = {
         let repo = alice.storage.repository(rid).unwrap();
         let proj = repo.project().unwrap();
         git::fmt::lit::refs_heads(proj.default_branch()).into()
     };
+
     alice.commit_to(rid, &default_branch);
+
+    alice.handle.announce_refs_for(rid, [alice.id]).unwrap();
 
     bob_events
         .wait(
