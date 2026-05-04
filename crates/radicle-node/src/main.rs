@@ -376,7 +376,13 @@ fn initialize_logging(options: &LogOptions) -> Result<(), Box<dyn std::error::Er
                     LogFormat::Json => json::new_writer(io::stdout()),
                 };
 
-                Box::new(Builder::new().with_default_writer(writer).build())
+                // Disable the structured logger's internal filter so
+                // log::set_max_level is the sole control point.
+                Box::new(
+                    Builder::with_level("trace")
+                        .with_default_writer(writer)
+                        .build(),
+                )
             }
             #[cfg(all(feature = "systemd", target_os = "linux"))]
             Logger::Systemd => {
@@ -398,7 +404,7 @@ fn initialize_logging(options: &LogOptions) -> Result<(), Box<dyn std::error::Er
                 const SYSLOG_IDENTIFIER: &str = "radicle-node";
                 logger::<&str, &str, _>(SYSLOG_IDENTIFIER.to_string(), []).map_err(Box::new)?
             }
-            Logger::Radicle => Box::new(radicle::logger::Logger::new(level)),
+            Logger::Radicle => Box::new(radicle::logger::Logger::new()),
         }
     };
 
