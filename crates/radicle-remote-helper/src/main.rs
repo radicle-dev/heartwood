@@ -52,7 +52,7 @@ fn main() {
     let mut args = env::args();
 
     if let Some(lvl) = radicle::logger::env_level() {
-        let logger = radicle::logger::StderrLogger::new(lvl);
+        let logger = radicle::logger::StderrLogger::new();
         log::set_boxed_logger(Box::new(logger))
             .expect("no other logger should have been set already");
         log::set_max_level(lvl.to_level_filter());

@@ -13,19 +13,23 @@ use colored::*;
 use log::{Level, Log, Metadata, Record};
 
 /// A logger that logs to `stdout`.
-pub struct Logger {
-    level: Level,
-}
+pub struct Logger;
 
 impl Logger {
-    pub fn new(level: Level) -> Self {
-        Self { level }
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for Logger {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl Log for Logger {
     fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() <= self.level
+        metadata.level() <= log::max_level()
     }
 
     fn log(&self, record: &Record) {
@@ -60,19 +64,23 @@ impl Log for Logger {
 }
 
 /// A logger that logs to `stderr`.
-pub struct StderrLogger {
-    level: Level,
-}
+pub struct StderrLogger;
 
 impl StderrLogger {
-    pub fn new(level: Level) -> Self {
-        Self { level }
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for StderrLogger {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl Log for StderrLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() <= self.level
+        metadata.level() <= log::max_level()
     }
 
     fn log(&self, record: &Record) {
