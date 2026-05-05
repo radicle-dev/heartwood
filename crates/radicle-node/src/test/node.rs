@@ -365,8 +365,8 @@ impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
         *issues.create(title, desc, &[], &[], []).unwrap().id()
     }
 
-    /// Perform a commit to `refname` by generating a blob of random data to a
-    /// random path in a new tree.
+    /// Perform a commit to `refname`, within the node's namespace, by
+    /// generating a blob of random data to a random path in a new tree.
     ///
     /// If the reference does not exist, a new one will be created with the new
     /// commit as its target.
@@ -378,7 +378,12 @@ impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
     pub fn commit_to(&self, rid: RepoId, refname: impl AsRef<git::fmt::RefStr>) {
         use radicle::test::arbitrary;
 
-        let refname = refname.as_ref();
+        let refname = match git::fmt::Qualified::from_refstr(refname.as_ref()) {
+            None => git::fmt::lit::refs_heads(refname).into(),
+            Some(refname) => refname,
+        };
+        let refname = refname.with_namespace(self.id.to_component());
+
         let repo = self.storage.repository(rid).unwrap();
         let raw = &repo.backend;
 
