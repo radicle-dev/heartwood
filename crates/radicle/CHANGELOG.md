@@ -11,13 +11,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- To obtain the location of the control socket, do not use `Home::socket`
-  (which was removed), but instead choose `Home::socket_from_env` or
-  `Home::socket_default` depending on your use-case.
-
 ### Removed
 
 ### Security
+
+## 0.24.0
+
+### Added
+
+- New public field `user_agent` on `radicle::node::config::Config`.
+  Struct-literal construction sites must include this field.
+- New variants `CanonicalRefsError::Raw` and `ValidationError::Protected`
+  on existing exhaustive enums. Exhaustive `match` arms must add cases
+  for them.
+- Two new trait methods on `WriteRepository` (also re-exported via
+  `radicle::prelude`): `set_head_to_default_branch` and
+  `set_default_branch_to_canonical_head`. Neither has a default
+  implementation, so downstream impls must provide both.
+
+### Changed
+
+- To obtain the location of the control socket, do not use `Home::socket`
+  (which was removed), but instead choose `Home::socket_from_env` or
+  `Home::socket_default` depending on your use-case.
+- COB layer API refactor:
+  - The `Store` gained a new generic parameter, `Access`. This type parameter
+    describes the access type for the store, read-only or read-write.
+    These two modes are captured by `cob::store::access::ReadOnly` and
+    `cob::store::access::WriteAs`.
+    The `WriteAs` construction requires the signing and verifying key of the
+    local operator. This means that all methods that previously needed a
+    `Signer` as a parameter no longer need this parameter.
+  - Due to the above, all `Mut` stores, i.e., `IssueMut`, `PatchMut`, and
+    `IdentityMut`, now require a `Signer` generic parameter. All access stores,
+    i.e., `Issues`, `Patches`, and their `Cache` counterparts, all require an
+    `Access` generic parameter.
+  - `Store::update`, `Store::create`, `Store::remove`, and
+    `Issues::remove` now take `&mut self` instead of `&self`.
+- `Issues::open` and `Patches::open` now require an `Access` parameter.
+- `Identity::get_mut` and `Identity::load_mut` now require a `Signer` parameter.
+- `Home::issues_mut` and `Home::patches_mut` now require a `Signer` parameter.
+- `Transaction::initial`, and `Transaction::commit` now require a `Store` that
+  is `WriteAs`.
+
+### Removed
+
+- Profile-config types `radicle::profile::RawConfig` and
+  `radicle::profile::ConfigPath`.
+- Canonical-rules types `radicle::git::canonical::rules::Pattern` and
+  `PatternError`, along with `Rules::iter` and `Rule::default_branch`.
+- Methods `IdentityMut::reload` and `Home::socket`.
+- Trait `radicle::identity::crefs::GetCanonicalRefs`.
+- Enum variants `CanonicalRefsError::Json`, `ValidationError::RadRef`,
+  and `DefaultBranchRuleError::Pattern`.
+- Trait method `WriteRepository::set_head` (superseded by the two new
+  trait methods listed under Added).
 
 ## 0.23.0
 
