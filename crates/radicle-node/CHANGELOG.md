@@ -15,6 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## 0.19.0
+
+### Changed
+
+- `Runtime::init` now takes a `PathBuf` parameter for the socket file.
+- `runtime::handle::Handle::new` also takes a `PathBuf` parameter for the socket
+  file.
+
+### Removed
+
+- The public static `radicle_node::USER_AGENT`. Callers should source
+  the user-agent string from its replacement (e.g. via
+  `radicle::node::config::Config::user_agent`).
+
 ## 0.18.0
 
 ### Changed
