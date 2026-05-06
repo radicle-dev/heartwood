@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## 0.20.0
+
+### Changed
+
+- Dependency update of `radicle-crypto` to `0.17`.
+- Dependency update of `radicle` to `0.24`.
+- Dependency update of `radicle-oid` to `0.2`.
+
 ## 0.18.0
 
 ### Changed
