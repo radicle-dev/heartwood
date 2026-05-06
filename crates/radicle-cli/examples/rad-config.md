@@ -141,8 +141,7 @@ $ rad config schema
           "type": [
             "string",
             "null"
-          ],
-          "format": "uri"
+          ]
         }
       }
     },
