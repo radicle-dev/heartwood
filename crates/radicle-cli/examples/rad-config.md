@@ -8,11 +8,6 @@ $ rad config
   "preferredSeeds": [
     "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@iris.radicle.network:8776"
   ],
-  "web": {
-    "pinned": {
-      "repositories": []
-    }
-  },
   "cli": {
     "hints": true
   },
@@ -83,12 +78,7 @@ $ rad config schema
     },
     "web": {
       "description": "Web configuration.",
-      "$ref": "#/$defs/WebConfig",
-      "default": {
-        "pinned": {
-          "repositories": []
-        }
-      }
+      "$ref": "#/$defs/WebConfig"
     },
     "cli": {
       "description": "CLI configuration.",
@@ -154,10 +144,7 @@ $ rad config schema
           ],
           "format": "uri"
         }
-      },
-      "required": [
-        "pinned"
-      ]
+      }
     },
     "Pinned": {
       "description": "Pinned content. This can be used to pin certain content when/nlisting, e.g. pin repositories on a web client.",
@@ -171,10 +158,7 @@ $ rad config schema
             "$ref": "#/$defs/RepoId"
           }
         }
-      },
-      "required": [
-        "repositories"
-      ]
+      }
     },
     "RepoId": {
       "description": "A repository identifier.",

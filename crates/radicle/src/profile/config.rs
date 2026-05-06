@@ -141,7 +141,7 @@ pub struct Config {
     #[serde(default)]
     pub preferred_seeds: Vec<node::config::ConnectAddress>,
     /// Web configuration.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "crate::serde_ext::is_default")]
     pub web: web::Config,
     /// CLI configuration.
     #[serde(default)]
