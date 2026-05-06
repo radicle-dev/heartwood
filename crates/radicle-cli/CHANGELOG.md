@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## 0.21.0
+
+### Changed
+
+- `radicle_cli::terminal::cob::issues_mut` and `radicle_cli::terminal::cob::patches_mut` now take an additional `Signer`
+  parameter, corresponding to the addition from `radicle::profile::Home::{issues_mut, patches_mut}`.
+
 ## 0.20.0
 
 ### Added
