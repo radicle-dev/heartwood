@@ -3283,7 +3283,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-remote-helper"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "dunce",
  "log",
