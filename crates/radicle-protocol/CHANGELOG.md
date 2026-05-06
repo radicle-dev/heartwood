@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [Unreleased]
+
+### Removed
+
+- The `expected` field of the `Invalid::Oid` struct variant is removed.
+- The public static `radicle_protocol::service::gossip::PROTOCOL_VERSION_STRING`
+  is removed.
+
 ## 0.7.0
 
 ### Added

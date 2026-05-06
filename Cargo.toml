@@ -59,7 +59,7 @@ radicle-git-ref-format = { version = "0.1.0", path = "crates/radicle-git-ref-for
 radicle-localtime = { version = "0.1", path = "crates/radicle-localtime" }
 radicle-node = { version = "0.19", path = "crates/radicle-node" }
 radicle-oid = { version = "0.2.0", path = "crates/radicle-oid", default-features = false }
-radicle-protocol = { version = "0.7", path = "crates/radicle-protocol" }
+radicle-protocol = { version = "0.8", path = "crates/radicle-protocol" }
 radicle-signals = { version = "0.11", path = "crates/radicle-signals" }
 radicle-systemd = { version = "0.13", path = "crates/radicle-systemd" }
 radicle-term = { version = "0.18", path = "crates/radicle-term" }
