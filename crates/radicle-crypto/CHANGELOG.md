@@ -15,6 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## 0.17.0
+
+### Changed
+
+- The public tuple field on `PublicKey` has been made private.
+  Code that constructed or destructured `PublicKey` positionally
+  (e.g. `PublicKey(inner)` or `let PublicKey(x) = pk`) will no longer
+  compile. Construction of `PublicKey` should now be done through `From`,
+  `TryFrom`, or `Deserialize` implementations. For accessing the inner bytes,
+  use `PublicKey::to_byte_array`.
+
 ## 0.16.0
 
 ### Changed
