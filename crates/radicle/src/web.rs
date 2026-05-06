@@ -25,7 +25,6 @@ pub struct Config {
     pub avatar_url: Option<String>,
     /// Node description.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "schemars", schemars(url))]
     pub description: Option<String>,
 }
 
