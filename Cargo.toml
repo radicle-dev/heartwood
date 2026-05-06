@@ -62,7 +62,7 @@ radicle-oid = { version = "0.2.0", path = "crates/radicle-oid", default-features
 radicle-protocol = { version = "0.7", path = "crates/radicle-protocol" }
 radicle-signals = { version = "0.11", path = "crates/radicle-signals" }
 radicle-systemd = { version = "0.13", path = "crates/radicle-systemd" }
-radicle-term = { version = "0.17", path = "crates/radicle-term" }
+radicle-term = { version = "0.18", path = "crates/radicle-term" }
 radicle-windows = { version = "0.1", path = "crates/radicle-windows" }
 schemars = { version = "1.0.4", default-features = false }
 serde = { version = "1.0", default-features = false }
