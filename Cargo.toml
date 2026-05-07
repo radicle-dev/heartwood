@@ -16,7 +16,7 @@ version = "0.9.0"
 # *per crate*. If anyone ever wants to set it to a different
 # value per crate, this is of course possible. We're waiting
 # for the day it makes a difference…
-rust-version = "1.85.0"
+rust-version = "1.88.0"
 
 [workspace.dependencies]
 amplify = { version = "4.0.0", default-features = false }
