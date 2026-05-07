@@ -436,3 +436,60 @@ fn rad_patch_merge_on_first_push() {
 fn rad_patch_magic_push() {
     Environment::alice(["rad-init", "rad-patch-magic-push"]);
 }
+
+#[test]
+fn rad_patch_merge_into_canonical_ref_branch() {
+    Environment::alice(["rad-init", "rad-patch-merge-into-canonical-ref-branch"]);
+}
+
+#[test]
+fn rad_patch_merge_wrong_branch() {
+    Environment::alice(["rad-init", "rad-patch-merge-wrong-branch"]);
+}
+
+#[test]
+fn rad_patch_merge_unauthorized_branch() {
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+
+    environment.repository(&alice);
+
+    test(
+        "examples/rad-init.md",
+        environment.work(&alice),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    bob.handle.seed(acme, Scope::All).unwrap();
+    alice.connect(&bob).converge([&bob]);
+
+    formula(
+        &environment.tempdir(),
+        "examples/rad-patch-merge-unauthorized-branch.md",
+    )
+    .unwrap()
+    .home(
+        "alice",
+        environment.work(&alice),
+        [("RAD_HOME", alice.home.path().display())],
+    )
+    .home(
+        "bob",
+        environment.work(&bob),
+        [("RAD_HOME", bob.home.path().display())],
+    )
+    .run()
+    .unwrap();
+}
+
+#[test]
+fn rad_patch_revert_custom_branch() {
+    Environment::alice(["rad-init", "rad-patch-revert-custom-branch"]);
+}
