@@ -59,10 +59,10 @@ pub struct Spinner {
 
 impl Drop for Spinner {
     fn drop(&mut self) {
-        if let Ok(mut progress) = self.progress.lock() {
-            if let State::Running = progress.state {
-                progress.state = State::Canceled;
-            }
+        if let Ok(mut progress) = self.progress.lock()
+            && let State::Running = progress.state
+        {
+            progress.state = State::Canceled;
         }
 
         unsafe { ManuallyDrop::take(&mut self.handle) }

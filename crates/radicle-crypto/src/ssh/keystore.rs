@@ -119,12 +119,12 @@ impl Keystore {
             });
         }
 
-        if let Some(path_public) = &self.path_public {
-            if path_public.exists() {
-                return Err(Error::AlreadyInitialized {
-                    exists: path_public.to_path_buf(),
-                });
-            }
+        if let Some(path_public) = &self.path_public
+            && path_public.exists()
+        {
+            return Err(Error::AlreadyInitialized {
+                exists: path_public.to_path_buf(),
+            });
         }
 
         // NOTE: If [`PathBuf::parent`] returns `None`,

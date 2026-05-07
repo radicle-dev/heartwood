@@ -679,10 +679,10 @@ impl<'a> ReviewBuilder<'a> {
         let total = queue.len();
 
         while let Some((ix, item)) = queue.next() {
-            if let Some(hunk) = self.hunk {
-                if hunk != ix + 1 {
-                    continue;
-                }
+            if let Some(hunk) = self.hunk
+                && hunk != ix + 1
+            {
+                continue;
             }
             let progress = term::format::secondary(format!("({}/{total})", ix + 1));
             let file = match file.as_mut() {

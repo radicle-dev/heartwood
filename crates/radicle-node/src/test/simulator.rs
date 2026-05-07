@@ -331,7 +331,7 @@ where
         // between individual nodes. We need to think about more realistic
         // scenarios. We should also think about creating various network
         // topologies.
-        if self.time.as_secs() % 10 == 0 {
+        if self.time.as_secs().is_multiple_of(10) {
             for (i, x) in nodes.keys().enumerate() {
                 for y in nodes.keys().skip(i + 1) {
                     if self.is_fallible() {

@@ -186,12 +186,12 @@ fn notify(
                 // for sigref verification.
                 continue;
             }
-            if let Some(rest) = r.strip_prefix(git::fmt::refname!("refs/heads/patches")) {
-                if radicle::cob::ObjectId::from_str(rest.as_str()).is_ok() {
-                    // Don't notify about patch branches, since we already get
-                    // notifications about patch updates.
-                    continue;
-                }
+            if let Some(rest) = r.strip_prefix(git::fmt::refname!("refs/heads/patches"))
+                && radicle::cob::ObjectId::from_str(rest.as_str()).is_ok()
+            {
+                // Don't notify about patch branches, since we already get
+                // notifications about patch updates.
+                continue;
             }
         }
         if let RefUpdate::Skipped { .. } = update {

@@ -204,15 +204,15 @@ impl Editor {
 /// Get the default editor command.
 fn default_editor() -> Option<OsString> {
     // First check the standard environment variables.
-    if let Ok(visual) = env::var("VISUAL") {
-        if !visual.is_empty() {
-            return Some(visual.into());
-        }
+    if let Ok(visual) = env::var("VISUAL")
+        && !visual.is_empty()
+    {
+        return Some(visual.into());
     }
-    if let Ok(editor) = env::var("EDITOR") {
-        if !editor.is_empty() {
-            return Some(editor.into());
-        }
+    if let Ok(editor) = env::var("EDITOR")
+        && !editor.is_empty()
+    {
+        return Some(editor.into());
     }
 
     // Check Git. The user might have configured their editor there.

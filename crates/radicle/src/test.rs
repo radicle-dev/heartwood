@@ -34,12 +34,12 @@ pub fn fetch<W: WriteRepository>(
     };
 
     callbacks.update_tips(|name, old, new| {
-        if let Ok(name) = git::fmt::RefString::try_from(name) {
-            if name.to_namespaced().is_some() {
-                updates.push(RefUpdate::from(name, old, new));
-                // Returning `true` ensures the process is not aborted.
-                return true;
-            }
+        if let Ok(name) = git::fmt::RefString::try_from(name)
+            && name.to_namespaced().is_some()
+        {
+            updates.push(RefUpdate::from(name, old, new));
+            // Returning `true` ensures the process is not aborted.
+            return true;
         }
         false
     });

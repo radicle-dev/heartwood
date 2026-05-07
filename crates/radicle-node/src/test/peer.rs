@@ -329,21 +329,20 @@ where
 
     pub fn refs_announcement(&self, rid: RepoId) -> Message {
         let mut refs = BoundedVec::new();
-        if let Ok(repo) = self.storage().repository(rid) {
-            if let Ok(false) = repo.is_empty() {
-                if let Ok(remotes) = repo.remotes() {
-                    for (remote_id, _) in remotes.into_iter() {
-                        match RefsAt::new(&repo, remote_id) {
-                            Ok(refs_at) => {
-                                if let Err(e) = refs.push(refs_at) {
-                                    debug!(target: "test", "Failed to push {remote_id} to refs: {e}");
-                                    break;
-                                }
-                            }
-                            Err(e) => {
-                                debug!(target: "test", "Failed to get `rad/sigrefs` for {remote_id}: {e}")
-                            }
+        if let Ok(repo) = self.storage().repository(rid)
+            && let Ok(false) = repo.is_empty()
+            && let Ok(remotes) = repo.remotes()
+        {
+            for (remote_id, _) in remotes.into_iter() {
+                match RefsAt::new(&repo, remote_id) {
+                    Ok(refs_at) => {
+                        if let Err(e) = refs.push(refs_at) {
+                            debug!(target: "test", "Failed to push {remote_id} to refs: {e}");
+                            break;
                         }
+                    }
+                    Err(e) => {
+                        debug!(target: "test", "Failed to get `rad/sigrefs` for {remote_id}: {e}")
                     }
                 }
             }

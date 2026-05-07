@@ -27,10 +27,11 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             for rid in rids {
                 update(rid, scope, &mut node, &profile)?;
 
-                if should_fetch && node.is_running() {
-                    if let Err(e) = sync::fetch(rid, settings.clone(), &mut node, &profile) {
-                        term::error(e);
-                    }
+                if should_fetch
+                    && node.is_running()
+                    && let Err(e) = sync::fetch(rid, settings.clone(), &mut node, &profile)
+                {
+                    term::error(e);
                 }
             }
         }
@@ -57,11 +58,11 @@ pub fn update(
     let updated = profile.seed(rid, scope, node)?;
     let outcome = if updated { "updated" } else { "exists" };
 
-    if let Ok(repo) = profile.storage.repository(rid) {
-        if repo.identity_doc()?.is_public() {
-            profile.add_inventory(rid, node)?;
-            term::success!("Inventory updated with {}", term::format::tertiary(rid));
-        }
+    if let Ok(repo) = profile.storage.repository(rid)
+        && repo.identity_doc()?.is_public()
+    {
+        profile.add_inventory(rid, node)?;
+        term::success!("Inventory updated with {}", term::format::tertiary(rid));
     }
 
     term::success!(

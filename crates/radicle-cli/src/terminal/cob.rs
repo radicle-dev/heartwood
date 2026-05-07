@@ -39,10 +39,10 @@ impl MigrateCallback for MigrateSpinner {
                 progress.rows.percentage()
             ));
 
-        if progress.is_done() {
-            if let Some(spinner) = self.spinner.take() {
-                spinner.finish()
-            }
+        if progress.is_done()
+            && let Some(spinner) = self.spinner.take()
+        {
+            spinner.finish()
         }
     }
 }

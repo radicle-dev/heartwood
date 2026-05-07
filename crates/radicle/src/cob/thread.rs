@@ -399,10 +399,10 @@ impl<L> Thread<Comment<L>> {
         to: &'a CommentId,
     ) -> impl Iterator<Item = (&'a CommentId, &'a Comment<L>)> {
         self.comments().filter_map(move |(id, c)| {
-            if let Some(reply_to) = c.reply_to {
-                if &reply_to == to {
-                    return Some((id, c));
-                }
+            if let Some(reply_to) = c.reply_to
+                && &reply_to == to
+            {
+                return Some((id, c));
             }
             None
         })
@@ -503,10 +503,10 @@ pub fn comment<L>(
     if body.is_empty() {
         return Err(Error::Comment(id));
     }
-    if let Some(id) = reply_to {
-        if !thread.comments.contains_key(&id) {
-            return Err(Error::Missing(id));
-        }
+    if let Some(id) = reply_to
+        && !thread.comments.contains_key(&id)
+    {
+        return Err(Error::Missing(id));
     }
     debug_assert!(!thread.timeline.contains(&id));
     thread.timeline.push(id);

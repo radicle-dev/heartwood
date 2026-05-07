@@ -464,10 +464,10 @@ where
                 continue;
             };
             // Skip this repo if the sync status matches what we have in storage.
-            if let Some(announced) = announced.get(&rid) {
-                if updated_at.oid == announced.oid {
-                    continue;
-                }
+            if let Some(announced) = announced.get(&rid)
+                && updated_at.oid == announced.oid
+            {
+                continue;
             }
             // Make sure our local node's sync status is up to date with storage.
             if self.db.seeds_mut().synced(
@@ -1300,16 +1300,14 @@ where
                     self.outbox.write_all(peer, msgs);
                 }
                 Entry::Vacant(e) => {
-                    if let HostName::Ip(ip) = addr.host {
-                        if !address::is_local(&ip) {
-                            if let Err(e) =
-                                self.db
-                                    .addresses_mut()
-                                    .record_ip(&remote, ip, self.clock.into())
-                            {
-                                log::debug!(target: "service", "Failed to record IP address for {remote}: {e}");
-                            }
-                        }
+                    if let HostName::Ip(ip) = addr.host
+                        && !address::is_local(&ip)
+                        && let Err(e) =
+                            self.db
+                                .addresses_mut()
+                                .record_ip(&remote, ip, self.clock.into())
+                    {
+                        log::debug!(target: "service", "Failed to record IP address for {remote}: {e}");
                     }
                     let peer = e.insert(Session::inbound(
                         remote,
@@ -1811,20 +1809,20 @@ where
                 let relayer = remote;
                 let relayer_addr = peer.addr.clone();
 
-                if let Some(id) = self.handle_announcement(relayer, &relayer_addr, &ann)? {
-                    if self.config.is_relay() {
-                        if let AnnouncementMessage::Inventory(_) = ann.message {
-                            if let Err(e) = self
-                                .database_mut()
-                                .gossip_mut()
-                                .set_relay(id, gossip::RelayStatus::Relay)
-                            {
-                                warn!(target: "service", "Failed to set relay flag for message: {e}");
-                                return Ok(());
-                            }
-                        } else {
-                            self.relay(id, ann);
+                if let Some(id) = self.handle_announcement(relayer, &relayer_addr, &ann)?
+                    && self.config.is_relay()
+                {
+                    if let AnnouncementMessage::Inventory(_) = ann.message {
+                        if let Err(e) = self
+                            .database_mut()
+                            .gossip_mut()
+                            .set_relay(id, gossip::RelayStatus::Relay)
+                        {
+                            warn!(target: "service", "Failed to set relay flag for message: {e}");
+                            return Ok(());
                         }
+                    } else {
+                        self.relay(id, ann);
                     }
                 }
             }
@@ -1876,20 +1874,18 @@ where
                 );
             }
             Message::Pong { zeroes } => {
-                if let Some((ping, latencies)) = connected {
-                    if let session::PingState::AwaitingResponse {
+                if let Some((ping, latencies)) = connected
+                    && let session::PingState::AwaitingResponse {
                         len: ponglen,
                         since,
                     } = *ping
-                    {
-                        if (ponglen as usize) == zeroes.len() {
-                            *ping = session::PingState::Ok;
-                            // Keep track of peer latency.
-                            latencies.push_back(self.clock - since);
-                            if latencies.len() > MAX_LATENCIES {
-                                latencies.pop_front();
-                            }
-                        }
+                    && (ponglen as usize) == zeroes.len()
+                {
+                    *ping = session::PingState::Ok;
+                    // Keep track of peer latency.
+                    latencies.push_back(self.clock - since);
+                    if latencies.len() > MAX_LATENCIES {
+                        latencies.pop_front();
                     }
                 }
             }
@@ -1929,11 +1925,11 @@ where
 
     /// Add a seed to our routing table.
     fn seed_discovered(&mut self, rid: RepoId, nid: NodeId, time: Timestamp) {
-        if let Ok(result) = self.db.routing_mut().add_inventory([&rid], nid, time) {
-            if let &[(_, InsertResult::SeedAdded)] = result.as_slice() {
-                self.emitter.emit(Event::SeedDiscovered { rid, nid });
-                debug!(target: "service", "Routing table updated for {rid} with seed {nid}");
-            }
+        if let Ok(result) = self.db.routing_mut().add_inventory([&rid], nid, time)
+            && let &[(_, InsertResult::SeedAdded)] = result.as_slice()
+        {
+            self.emitter.emit(Event::SeedDiscovered { rid, nid });
+            debug!(target: "service", "Routing table updated for {rid} with seed {nid}");
         }
     }
 

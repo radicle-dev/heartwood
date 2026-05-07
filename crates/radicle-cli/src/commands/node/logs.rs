@@ -148,10 +148,10 @@ impl Rotate {
     /// Remove the existing file, if it exists. Then create the next log, and
     /// create a hard link to it.
     pub fn execute(self) -> io::Result<Rotated> {
-        if let Some(to_remove) = self.remove {
-            if let Err(err) = to_remove.execute() {
-                log::warn!(target: "cli", "Failed to remove current log file: {err}");
-            }
+        if let Some(to_remove) = self.remove
+            && let Err(err) = to_remove.execute()
+        {
+            log::warn!(target: "cli", "Failed to remove current log file: {err}");
         }
 
         let log = OpenOptions::new()

@@ -347,19 +347,19 @@ impl SymbolicRefs {
 
         // A [`Target::Direct`] whose string is already a key is actually
         // an intermediate link — downgrade to [`Target::Symbolic`].
-        if let Target::Direct(q) = &target {
-            if self.0.contains_key(&q.as_ref().to_ref_string()) {
-                target = Target::symbolic(q.to_ref_string());
-            }
+        if let Target::Direct(q) = &target
+            && self.0.contains_key(&q.as_ref().to_ref_string())
+        {
+            target = Target::symbolic(q.to_ref_string());
         }
 
-        if let Target::Symbolic(s) = &target {
-            if self.resolve(s.as_ref()).is_none() {
-                return Err(InsertionError::TargetNotQualified {
-                    name: name.into_inner(),
-                    target: target_str,
-                });
-            }
+        if let Target::Symbolic(s) = &target
+            && self.resolve(s.as_ref()).is_none()
+        {
+            return Err(InsertionError::TargetNotQualified {
+                name: name.into_inner(),
+                target: target_str,
+            });
         }
 
         self.reclassify_targets(&name);
@@ -373,10 +373,10 @@ impl SymbolicRefs {
     fn reclassify_targets(&mut self, new_key: &Name) {
         let key = new_key.as_ref();
         for existing in self.0.values_mut() {
-            if let Target::Direct(q) = existing {
-                if q == key {
-                    *existing = Target::symbolic(q.to_ref_string());
-                }
+            if let Target::Direct(q) = existing
+                && q == key
+            {
+                *existing = Target::symbolic(q.to_ref_string());
             }
         }
     }

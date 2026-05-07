@@ -249,11 +249,11 @@ impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
         let events = self.handle.events();
 
         loop {
-            if let Ok(repo) = self.storage.repository(*rid) {
-                if repo.remote(nid).is_ok() {
-                    log::debug!(target: "test", "Node {} has {rid}/{nid}", self.id);
-                    break;
-                }
+            if let Ok(repo) = self.storage.repository(*rid)
+                && repo.remote(nid).is_ok()
+            {
+                log::debug!(target: "test", "Node {} has {rid}/{nid}", self.id);
+                break;
             }
             events
                 .wait(

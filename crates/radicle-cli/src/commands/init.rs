@@ -38,10 +38,10 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Err(e) => return Err(e.into()),
     };
-    if let Ok((remote, _)) = git::rad_remote(&repo) {
-        if let Some(remote) = remote.url() {
-            bail!("repository is already initialized with remote {remote}");
-        }
+    if let Ok((remote, _)) = git::rad_remote(&repo)
+        && let Some(remote) = remote.url()
+    {
+        bail!("repository is already initialized with remote {remote}");
     }
 
     if let Some(rid) = args.existing {

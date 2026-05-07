@@ -301,15 +301,15 @@ impl<S: Session + Source> EventHandler for Transport<S> {
 
     fn handle(&mut self, event: &Event) -> Vec<Self::Reaction> {
         let mut events = Vec::with_capacity(2);
-        if event.is_writable() {
-            if let Some(event) = self.handle_io(Interest::WRITABLE) {
-                events.push(event);
-            }
+        if event.is_writable()
+            && let Some(event) = self.handle_io(Interest::WRITABLE)
+        {
+            events.push(event);
         }
-        if event.is_readable() {
-            if let Some(event) = self.handle_io(Interest::READABLE) {
-                events.push(event);
-            }
+        if event.is_readable()
+            && let Some(event) = self.handle_io(Interest::READABLE)
+        {
+            events.push(event);
         }
         events
     }

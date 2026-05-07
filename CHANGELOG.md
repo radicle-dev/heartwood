@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Minimum Supported Rust Version (MSRV)
+
+The MSRV is updated to `1.88.0` due to dependencies requiring a higher bound.
+This effectively puts all published crates in `heartwood` to an MSRV of `1.88.0`.
+
 ## Domain Name Migration
 
 Following a domain move of the project, the names of the bootstrap nodes change:

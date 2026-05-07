@@ -155,10 +155,10 @@ fn parse_body(body: &str) -> (String, Vec<OwnedTrailer>) {
     if let Some(split) = body.rfind("\n\n") {
         let candidate = &body[split + 2..];
         // Only treat non-empty paragraphs as trailers.
-        if !candidate.trim().is_empty() {
-            if let Some(trailers) = try_parse_trailers(candidate) {
-                return (body[..split].to_string(), trailers);
-            }
+        if !candidate.trim().is_empty()
+            && let Some(trailers) = try_parse_trailers(candidate)
+        {
+            return (body[..split].to_string(), trailers);
         }
     }
 

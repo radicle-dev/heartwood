@@ -36,10 +36,10 @@ impl RateLimiter {
         tokens: &T,
         now: LocalTime,
     ) -> bool {
-        if let Some(nid) = nid {
-            if self.bypass.contains(nid) {
-                return false;
-            }
+        if let Some(nid) = nid
+            && self.bypass.contains(nid)
+        {
+            return false;
         }
         if let HostName::Ip(ip) = addr {
             // Don't limit LAN addresses.

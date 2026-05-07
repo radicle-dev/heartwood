@@ -842,10 +842,10 @@ impl ReadRepository for Repository {
 
     fn head(&self) -> Result<(Qualified<'_>, Oid), RepositoryError> {
         // If `HEAD` is already set locally, just return that.
-        if let Ok(head) = self.backend.head() {
-            if let Ok((name, oid)) = git::refs::qualified_from(&head) {
-                return Ok((name.to_owned(), oid));
-            }
+        if let Ok(head) = self.backend.head()
+            && let Ok((name, oid)) = git::refs::qualified_from(&head)
+        {
+            return Ok((name.to_owned(), oid));
         }
         self.canonical_head()
     }

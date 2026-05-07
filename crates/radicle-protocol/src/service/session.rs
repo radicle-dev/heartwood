@@ -218,12 +218,12 @@ impl Session {
             ref mut stable,
             ..
         } = self.state
+            && now >= since
+            && now.duration_since(since) >= CONNECTION_STABLE_THRESHOLD
         {
-            if now >= since && now.duration_since(since) >= CONNECTION_STABLE_THRESHOLD {
-                *stable = true;
-                // Reset number of attempts for stable connections.
-                self.attempts = 0;
-            }
+            *stable = true;
+            // Reset number of attempts for stable connections.
+            self.attempts = 0;
         }
     }
 

@@ -726,10 +726,10 @@ impl Patch {
                 review, comment, ..
             }
             | Action::ReviewCommentRedact { review, comment } => {
-                if let Some((_, review)) = lookup::review(self, review)? {
-                    if let Some(comment) = review.comments.comment(comment) {
-                        return Ok(Authorization::from(*actor == comment.author()));
-                    }
+                if let Some((_, review)) = lookup::review(self, review)?
+                    && let Some(comment) = review.comments.comment(comment)
+                {
+                    return Ok(Authorization::from(*actor == comment.author()));
                 }
                 // Redacted.
                 Authorization::Unknown
@@ -739,14 +739,14 @@ impl Patch {
             // The reviewer, commenter or revision author can resolve and unresolve review comments.
             Action::ReviewCommentResolve { review, comment }
             | Action::ReviewCommentUnresolve { review, comment } => {
-                if let Some((revision, review)) = lookup::review(self, review)? {
-                    if let Some(comment) = review.comments.comment(comment) {
-                        return Ok(Authorization::from(
-                            actor == &comment.author()
-                                || actor == review.author.public_key()
-                                || actor == revision.author.public_key(),
-                        ));
-                    }
+                if let Some((revision, review)) = lookup::review(self, review)?
+                    && let Some(comment) = review.comments.comment(comment)
+                {
+                    return Ok(Authorization::from(
+                        actor == &comment.author()
+                            || actor == review.author.public_key()
+                            || actor == revision.author.public_key(),
+                    ));
                 }
                 // Redacted.
                 Authorization::Unknown
@@ -773,10 +773,10 @@ impl Patch {
             | Action::RevisionCommentRedact {
                 revision, comment, ..
             } => {
-                if let Some(revision) = lookup::revision(self, revision)? {
-                    if let Some(comment) = revision.discussion.comment(comment) {
-                        return Ok(Authorization::from(actor == &comment.author()));
-                    }
+                if let Some(revision) = lookup::revision(self, revision)?
+                    && let Some(comment) = revision.discussion.comment(comment)
+                {
+                    return Ok(Authorization::from(actor == &comment.author()));
                 }
                 // Redacted.
                 Authorization::Unknown

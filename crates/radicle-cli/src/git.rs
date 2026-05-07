@@ -381,10 +381,10 @@ pub fn commit_ssh_fingerprint(path: &Path, sha1: &str) -> Result<Option<String>,
         .transpose()?;
 
     // We only return a fingerprint if it's not an empty string
-    if let Some(s) = string {
-        if !s.is_empty() {
-            return Ok(Some(s));
-        }
+    if let Some(s) = string
+        && !s.is_empty()
+    {
+        return Ok(Some(s));
     }
 
     Ok(None)

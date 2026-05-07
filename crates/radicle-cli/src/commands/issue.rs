@@ -261,16 +261,16 @@ where
                 }
             };
 
-            if let Some(a) = assignee {
-                if !issue.assignees().any(|v| v == &Did::from(a)) {
-                    return None;
-                }
+            if let Some(a) = assignee
+                && !issue.assignees().any(|v| v == &Did::from(a))
+            {
+                return None;
             }
 
-            if let Some(s) = state {
-                if s != issue.state() {
-                    return None;
-                }
+            if let Some(s) = state
+                && s != issue.state()
+            {
+                return None;
             }
 
             Some((id, issue))

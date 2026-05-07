@@ -662,17 +662,15 @@ where
         // Set up current branch so that pushing updates the patch.
         else if let Some(branch) =
             rad::setup_patch_upstream(&patch, *head, working, upstream, false)?
+            && let Some(name) = branch.name()?
+            && profile.hints()
         {
-            if let Some(name) = branch.name()? {
-                if profile.hints() {
-                    // Remove the remote portion of the name, i.e.
-                    // rad/patches/deadbeef -> patches/deadbeef
-                    let name = name.split_once('/').unwrap_or_default().1;
-                    hint(format!(
-                        "to update, run `git push` or `git push {upstream} --force-with-lease HEAD:{name}`"
-                    ));
-                }
-            }
+            // Remove the remote portion of the name, i.e.
+            // rad/patches/deadbeef -> patches/deadbeef
+            let name = name.split_once('/').unwrap_or_default().1;
+            hint(format!(
+                "to update, run `git push` or `git push {upstream} --force-with-lease HEAD:{name}`"
+            ));
         }
     }
 

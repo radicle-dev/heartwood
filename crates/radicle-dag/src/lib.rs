@@ -330,13 +330,13 @@ impl<K: Ord + Copy, V> Dag<K, V> {
         stack.extend(from.dependents.iter());
 
         while let Some(key) = stack.pop_front() {
-            if let Some(node) = self.graph.get(&key) {
-                if visited.insert(key) {
-                    nodes.push(key);
+            if let Some(node) = self.graph.get(&key)
+                && visited.insert(key)
+            {
+                nodes.push(key);
 
-                    for &neighbour in &node.dependents {
-                        stack.push_back(neighbour);
-                    }
+                for &neighbour in &node.dependents {
+                    stack.push_back(neighbour);
                 }
             }
         }
@@ -351,13 +351,13 @@ impl<K: Ord + Copy, V> Dag<K, V> {
         stack.extend(from.dependencies.iter());
 
         while let Some(key) = stack.pop_front() {
-            if let Some(node) = self.graph.get(&key) {
-                if visited.insert(key) {
-                    nodes.push(key);
+            if let Some(node) = self.graph.get(&key)
+                && visited.insert(key)
+            {
+                nodes.push(key);
 
-                    for &neighbour in &node.dependencies {
-                        stack.push_back(neighbour);
-                    }
+                for &neighbour in &node.dependencies {
+                    stack.push_back(neighbour);
                 }
             }
         }

@@ -85,10 +85,10 @@ where
             if let Err(e) = project.remove() {
                 log::warn!(target: "radicle", "Failed to remove project during `rad::init` cleanup: {e}");
             }
-            if repo.find_remote(&REMOTE_NAME).is_ok() {
-                if let Err(e) = repo.remote_delete(&REMOTE_NAME) {
-                    log::warn!(target: "radicle", "Failed to remove remote during `rad::init` cleanup: {e}");
-                }
+            if repo.find_remote(&REMOTE_NAME).is_ok()
+                && let Err(e) = repo.remote_delete(&REMOTE_NAME)
+            {
+                log::warn!(target: "radicle", "Failed to remove remote during `rad::init` cleanup: {e}");
             }
             Err(err)
         }
@@ -497,10 +497,10 @@ pub fn setup_patch_upstream<'a>(
     )?;
     assert!(remote_branch.is_remote());
 
-    if let Some(name) = name {
-        if force || branch.upstream().is_err() {
-            git::set_upstream(working, remote, name.as_str(), git::refs::patch(patch))?;
-        }
+    if let Some(name) = name
+        && (force || branch.upstream().is_err())
+    {
+        git::set_upstream(working, remote, name.as_str(), git::refs::patch(patch))?;
     }
     Ok(Some(crate::git::raw::Branch::wrap(remote_branch)))
 }

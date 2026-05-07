@@ -209,10 +209,10 @@ impl TestFormula {
                 for result in results {
                     match result {
                         Ok(msg) => {
-                            if let Ok(Message::CompilerArtifact(a)) = msg.decode() {
-                                if let Some(e) = a.executable {
-                                    log::debug!(target: "test", "Built {}", e.display());
-                                }
+                            if let Ok(Message::CompilerArtifact(a)) = msg.decode()
+                                && let Some(e) = a.executable
+                            {
+                                log::debug!(target: "test", "Built {}", e.display());
                             }
                         }
                         Err(e) => {

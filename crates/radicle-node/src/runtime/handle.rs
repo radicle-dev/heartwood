@@ -174,10 +174,10 @@ impl radicle::node::Handle for Handle {
         let sessions = self.sessions()?;
         let session = sessions.iter().find(|s| s.nid == node);
 
-        if let Some(s) = session {
-            if s.state.is_connected() {
-                return Ok(ConnectResult::Connected);
-            }
+        if let Some(s) = session
+            && s.state.is_connected()
+        {
+            return Ok(ConnectResult::Connected);
         }
         self.command(service::Command::Connect(node, addr, opts))?;
 

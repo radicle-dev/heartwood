@@ -245,10 +245,10 @@ fn run(profile: radicle::Profile) -> Result<(), Error> {
     let git = service::RealGitService;
     let mut node = service::RealNodeSession::new(&profile);
 
-    if let Err(e) = radicle::io::set_file_limit(4096) {
-        if debug {
-            eprintln!("{}: unable to set open file limit: {e}", VERSION.name);
-        }
+    if let Err(e) = radicle::io::set_file_limit(4096)
+        && debug
+    {
+        eprintln!("{}: unable to set open file limit: {e}", VERSION.name);
     }
 
     run_loop(

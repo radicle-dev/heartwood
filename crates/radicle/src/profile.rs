@@ -91,10 +91,10 @@ pub mod env {
         // because of the complexity surrounding how the pager command is
         // parsed and executed. See also <https://stackoverflow.com/a/773973/1835188>.
         #[cfg(not(windows))]
-        if let Ok(cfg) = crate::git::raw::Config::open_default() {
-            if let Ok(pager) = cfg.get_string("core.pager") {
-                return Some(pager);
-            }
+        if let Ok(cfg) = crate::git::raw::Config::open_default()
+            && let Ok(pager) = cfg.get_string("core.pager")
+        {
+            return Some(pager);
         }
         if let Ok(pager) = var("PAGER") {
             return Some(pager);

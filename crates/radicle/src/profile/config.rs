@@ -187,18 +187,18 @@ impl Config {
 
         // Handle deprecated policy configuration.
         // Nb. This will override "seedingPolicy" if set! This code should be removed after 1.0.
-        if let (Some(p), Some(s)) = (cfg.node.extra.get("policy"), cfg.node.extra.get("scope")) {
-            if let (Ok(policy), Ok(scope)) = (
+        if let (Some(p), Some(s)) = (cfg.node.extra.get("policy"), cfg.node.extra.get("scope"))
+            && let (Ok(policy), Ok(scope)) = (
                 json::from_value::<Policy>(p.clone()),
                 json::from_value::<Scope>(s.clone()),
-            ) {
-                log::warn!(target: "radicle", "Overwriting `seedingPolicy` configuration");
-                cfg.node.seeding_policy = match policy {
-                    Policy::Allow => DefaultSeedingPolicy::Allow {
-                        scope: node::config::Scope::explicit(scope),
-                    },
-                    Policy::Block => DefaultSeedingPolicy::Block,
-                }
+            )
+        {
+            log::warn!(target: "radicle", "Overwriting `seedingPolicy` configuration");
+            cfg.node.seeding_policy = match policy {
+                Policy::Allow => DefaultSeedingPolicy::Allow {
+                    scope: node::config::Scope::explicit(scope),
+                },
+                Policy::Block => DefaultSeedingPolicy::Block,
             }
         }
         Ok(cfg)

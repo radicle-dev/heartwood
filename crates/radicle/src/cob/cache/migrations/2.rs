@@ -48,11 +48,11 @@ pub fn run(
                 .ok_or(Error::MalformedJsonSchema)?;
 
             for (_, review) in reviews.iter_mut() {
-                if let Some(list) = review.as_array_mut() {
-                    if let Some(last) = list.pop() {
-                        *review = last;
-                        transformed = true;
-                    }
+                if let Some(list) = review.as_array_mut()
+                    && let Some(last) = list.pop()
+                {
+                    *review = last;
+                    transformed = true;
                 }
             }
         }
