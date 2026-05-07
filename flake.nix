@@ -34,11 +34,13 @@
 
   outputs = {
     self,
-    nixpkgs,
+
+    advisory-db,
     crane,
     flake-utils,
-    advisory-db,
+    nixpkgs,
     rust-overlay,
+
     ...
   } @ inputs:
     flake-utils.lib.eachDefaultSystem (system: let
