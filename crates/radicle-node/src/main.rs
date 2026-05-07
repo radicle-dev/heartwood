@@ -213,7 +213,7 @@ enum ExecutionError {
     },
 }
 
-/// Loads a credential from systemd, if available.
+/// Loads the path to a credential from systemd, if available.
 ///
 /// The credential ID should only be given as a suffix, as this function will
 /// try different prefixes for backwards compatibility reasons.
@@ -222,44 +222,34 @@ enum ExecutionError {
 /// for new credentials, while the prefix `xyz.radicle.node` is deprecated and
 /// should be migrated away from. If it is used, a warning is logged.
 #[cfg(all(feature = "systemd", target_os = "linux"))]
-fn load_credential(id_suffix: &str) -> Option<String> {
+fn load_credential(id_suffix: &str) -> Option<PathBuf> {
     const INFIX_NODE: &str = ".radicle.node.";
     const PREFIX_DEV: &str = "dev";
     const PREFIX_XYZ: &str = "xyz";
 
     let id_dev = format!("{}{}{}", PREFIX_DEV, INFIX_NODE, id_suffix);
 
-    let credential = match radicle_systemd::credential::path(&id_dev) {
-        Ok(option) => option,
+    match radicle_systemd::credential::path(&id_dev) {
+        Ok(option @ Some(_)) => return option,
+        Ok(None) => {
+            // Fall through and try `PREFIX_XYZ` for backwards compatibility.
+        }
         Err(err) => {
-            log::warn!(target: "node", "Failed to obtain path of the passphrase file via systemd credential with '{id_dev}': {err}");
-            None
+            log::warn!(target: "node", "Failed to obtain of the systemd credential with ID '{id_dev}': {err}");
         }
     };
 
-    let credential = credential.or_else(|| {
-        let id_xyz = format!("{}{}{}", PREFIX_XYZ, INFIX_NODE, id_suffix);
-        match radicle_systemd::credential::path(&id_xyz) {
-            Ok(option) => {
-                log::warn!(target: "node", "Obtain path of the passphrase file via systemd credential with '{id_xyz}'. Using this credential ID is discouraged. Please change the ID to '{id_dev}'.");
-                option
-            },
-            Err(err) => {
-                log::warn!(target: "node", "Failed to obtain path of the passphrase file via systemd credential with '{id_xyz}': {err}");
-                None
-            }
+    let id_xyz = format!("{}{}{}", PREFIX_XYZ, INFIX_NODE, id_suffix);
+    match radicle_systemd::credential::path(&id_xyz) {
+        Ok(option) => {
+            log::warn!(target: "node", "Obtained path of the systemd credential with ID '{id_xyz}'. Using this credential ID is discouraged. Please change the ID to '{id_dev}'.");
+            option
         }
-    });
-
-    credential.and_then(|ref path| {
-        match std::fs::read_to_string(path) {
-            Ok(passphrase) => Some(passphrase),
-            Err(err) => {
-                log::warn!(target: "node", "Failed to read passphrase from '{}': {err}", path.display());
-                None
-            }
+        Err(err) => {
+            log::warn!(target: "node", "Failed to obtain path of the systemd credential with ID '{id_xyz}': {err}");
+            None
         }
-    })
+    }
 }
 
 fn execute(options: Options) -> Result<(), ExecutionError> {
@@ -293,14 +283,22 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
     let passphrase = None;
 
     #[cfg(all(feature = "systemd", target_os = "linux"))]
-    let passphrase = passphrase.or_else(|| load_credential("passphrase").map(|s| s.into()));
+    let passphrase = passphrase.or_else(|| load_credential("passphrase").and_then(|path| {
+        match std::fs::read_to_string(&path) {
+            Ok(passphrase) => Some(passphrase.into()),
+            Err(err) => {
+                log::warn!(target: "node", "Failed to read passphrase from '{}': {err}", path.display());
+                None
+            }
+        }
+    }));
 
     let passphrase = passphrase.or_else(profile::env::passphrase);
 
     let secret_path = options.secret;
 
     #[cfg(all(feature = "systemd", target_os = "linux"))]
-    let secret_path = secret_path.or_else(|| load_credential("secret").map(PathBuf::from));
+    let secret_path = secret_path.or_else(|| load_credential("secret"));
 
     let secret_path = secret_path
         .or_else(|| config.node.secret.clone())
