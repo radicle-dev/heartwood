@@ -40,13 +40,38 @@
     advisory-db,
     rust-overlay,
     ...
-  } @ inputs:
+  } @ inputs: let
+    version = "nix-" + (self.shortRev or self.dirtyShortRev or "unknown");
+
+    lib = nixpkgs.lib;
+
+    srcFilters = pkgs: path: type:
+      builtins.any (suffix: lib.hasSuffix suffix path) [
+        ".sql" # schemas
+        ".diff" # testing
+        ".md" # testing
+        ".adoc" # man pages
+        ".json" # testing samples
+        ".txt" # might be included with `include_str!`
+        "rad-cob-multiset" # testing external COBs
+      ]
+      ||
+      # Default filter from crane (allow .rs files)
+      ((crane.mkLib pkgs).filterCargoSources path type);
+
+    mkSrc = pkgs:
+      lib.cleanSourceWith {
+        src = ./.;
+        filter = srcFilters pkgs;
+      };
+  in
     flake-utils.lib.eachDefaultSystem (system: let
-      lib = nixpkgs.lib;
       pkgs = import nixpkgs {
         inherit system;
         overlays = [(import rust-overlay)];
       };
+
+      src = mkSrc pkgs;
 
       msrv = let
         msrv = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace.package.rust-version;
@@ -70,27 +95,8 @@
         commonArgs = mkCommonArgs craneLib;
       };
 
-      srcFilters = path: type:
-        builtins.any (suffix: lib.hasSuffix suffix path) [
-          ".sql" # schemas
-          ".diff" # testing
-          ".md" # testing
-          ".adoc" # man pages
-          ".json" # testing samples
-          ".txt" # might be included with `include_str!`
-          "rad-cob-multiset" # testing external COBs
-        ]
-        ||
-        # Default filter from crane (allow .rs files)
-        (rustup.craneLib.filterCargoSources path type);
-
-      src = lib.cleanSourceWith {
-        src = ./.;
-        filter = srcFilters;
-      };
-
       basicArgs = {
-        inherit src;
+        src = mkSrc pkgs;
         pname = "Heartwood";
         strictDeps = true;
       };
@@ -118,7 +124,7 @@
 
           env =
             {
-              RADICLE_VERSION = "nix-" + (self.shortRev or self.dirtyShortRev or "unknown");
+              RADICLE_VERSION = version;
             }
             // (
               if self ? rev || self ? dirtyRev
@@ -329,6 +335,17 @@
               env.CARGO_PROFILE = "dev";
               cargoNextestExtraArgs = "--no-capture";
             });
+
+          nixos = let
+            pkgs = import nixpkgs {
+              inherit system;
+              overlays = [
+                (import rust-overlay)
+                self.overlays.default
+              ];
+            };
+          in
+            pkgs.radicle-node.tests.nixos-run;
         };
 
       packages = let
@@ -373,5 +390,18 @@
           RUST_SRC_PATH = "${rustupDevShell.toolchain}/lib/rustlib/src/rust/library";
         };
       };
-    });
+    })
+    // {
+      overlays = {
+        default = final: prev: {
+          radicle-node = prev.radicle-node.overrideAttrs (finalAttrs: prevAttrs: {
+            inherit version;
+            src = mkSrc final;
+            cargoDeps = final.rustPlatform.importCargoLock {
+              lockFile = ./Cargo.lock;
+            };
+          });
+        };
+      };
+    };
 }
