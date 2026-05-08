@@ -85,7 +85,7 @@ pub trait Cob: Sized {
         };
         let mut state = Self::from_root(init, repo)?;
         for op in ops {
-            state.op(op, [].into_iter(), repo)?;
+            state.op(op, [], repo)?;
         }
         Ok(state)
     }

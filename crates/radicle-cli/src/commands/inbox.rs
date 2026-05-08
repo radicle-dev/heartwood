@@ -127,7 +127,7 @@ fn list_all<'a>(
             storage,
             profile,
         )?;
-        vstacks.extend(vstack.into_iter());
+        vstacks.extend(vstack);
     }
     Ok(vstacks)
 }

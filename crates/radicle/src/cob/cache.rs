@@ -290,7 +290,7 @@ fn bump(db: &sql::Connection) -> Result<usize, Error> {
 
     db.execute(format!("PRAGMA user_version = {new}"))?;
 
-    Ok(new as usize)
+    Ok(new)
 }
 
 /// Update a COB object in the cache.

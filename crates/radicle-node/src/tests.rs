@@ -1289,7 +1289,7 @@ fn test_persistent_peer_reconnect_success() {
 #[test]
 fn test_maintain_connections() {
     // Peers alice starts out connected to.
-    let connected = vec![
+    let connected = [
         Peer::new("connected", [8, 8, 8, 1]),
         Peer::new("connected", [8, 8, 8, 2]),
         Peer::new("connected", [8, 8, 8, 3]),
@@ -1338,7 +1338,7 @@ fn test_maintain_connections() {
 #[test]
 fn test_maintain_connections_transient() {
     // Peers alice starts out connected to.
-    let connected = vec![
+    let connected = [
         Peer::new("connected", [8, 8, 8, 1]),
         Peer::new("connected", [8, 8, 8, 2]),
         Peer::new("connected", [8, 8, 8, 3]),
