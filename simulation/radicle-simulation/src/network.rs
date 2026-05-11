@@ -14,14 +14,14 @@ pub struct NetworkGuard {
 
 impl Drop for NetworkGuard {
     fn drop(&mut self) {
-        if let Ok(val) = std::env::var("PRESERVE_NETWORK") {
-            if val == "1" || val.eq_ignore_ascii_case("true") {
-                println!(
-                    "⏭️ PRESERVE_NETWORK is set. Skipping cleanup for {}.",
-                    self.cue_path
-                );
-                return;
-            }
+        if let Ok(val) = std::env::var("PRESERVE_NETWORK")
+            && (val == "1" || val.eq_ignore_ascii_case("true"))
+        {
+            println!(
+                "⏭️ PRESERVE_NETWORK is set. Skipping cleanup for {}.",
+                self.cue_path
+            );
+            return;
         }
 
         println!("🔄 Tearing down network topology from {}...", self.cue_path);
