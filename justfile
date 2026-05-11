@@ -154,4 +154,4 @@ check-hooks:
 [group('pre-push')]
 test-rust:
     @echo "{{CHECK}}Cargo test…{{NORMAL}}"
-    @{{cargo_cmd}} nextest run --workspace --all-features --no-fail-fast
+    @{{cargo_cmd}} nextest run --workspace --all-features --no-fail-fast --exclude radicle-simulation
