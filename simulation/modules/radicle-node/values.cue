@@ -16,10 +16,4 @@ values: {
 		version: "1.2.0" | "1.4.0" | "1.5.0" | "1.5.0-" | "1.5.0-amd64" | "1.5.0-arm64" | "1.6.0" | "1.6.1" | "1.7.0" | "1.7.1" | "1.8.0" | "latest" | "main" | "production" | "sqlite-patch" | string | *"latest"
 		...
 	}
-
-	// Provide a default node so that a basic install works out-of-the-box
-	topology: "default-node": {
-		role: "seed"
-		replicas: 1
-	}
 }
