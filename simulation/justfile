@@ -16,7 +16,7 @@ default:
     @just --list
 
 [group('test')]
-test: setup
+test: setup vendor-timoni-dependencies
     @cargo test -p radicle-simulation
 
 # Setup and start the complete simulation environment
