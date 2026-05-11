@@ -91,6 +91,11 @@ delete-pvc: (verify-tool "kubectl")
 destroy: (verify-tool "kubectl") (verify-tool "talosctl") show-cluster
     @CHECK="{{CHECK}}" WARN="{{WARN}}" SUCCESS="{{SUCCESS}}" NORMAL="{{NORMAL}}" ../scripts/just/destroy-cluster.sh "{{cluster_name}}" "{{provisioner}}"
 
+# Update image tags in a CUE values file
+[group('setup')]
+update-image-tags values_file: (verify-tool "jq") (verify-tool "curl")
+    @CHECK="{{CHECK}}" SUCCESS="{{SUCCESS}}" ERROR="{{ERROR}}" NORMAL="{{NORMAL}}" ../scripts/just/update-image-tags.sh "{{values_file}}"
+
 # Check if required tools are in PATH.
 [private]
 verify-tool tool package_name="":
