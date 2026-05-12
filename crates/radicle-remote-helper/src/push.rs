@@ -11,7 +11,6 @@ use std::{assert_eq, io};
 use radicle::cob::store::access::WriteAs;
 use thiserror::Error;
 
-use radicle::Profile;
 use radicle::cob;
 use radicle::cob::object::ParseObjectId;
 use radicle::cob::patch;
@@ -24,6 +23,7 @@ use radicle::node::NodeId;
 use radicle::storage;
 use radicle::storage::git::transport::local::Url;
 use radicle::storage::{ReadRepository, SignRepository as _, WriteRepository};
+use radicle::{Profile, identity};
 use radicle::{git, rad};
 use radicle_cli::terminal as term;
 
@@ -114,6 +114,9 @@ pub(super) enum Error {
     UnknownObjectType { oid: git::Oid },
     #[error(transparent)]
     FindObjects(#[from] git::canonical::error::FindObjectsError),
+    /// Default branch error.
+    #[error(transparent)]
+    DefaultBranch(#[from] radicle::identity::doc::DefaultBranchError),
 
     /// Error sending pack from the working copy to storage.
     #[error(
@@ -579,23 +582,9 @@ where
         term::patch::get_create_message(opts.message, &stored.backend, &base.into(), &head.into())?;
 
     let patch = if opts.draft {
-        patches.draft(
-            title,
-            &description,
-            patch::MergeTarget::default(),
-            base,
-            *head,
-            &[],
-        )
+        patches.draft(title, &description, opts.target.clone(), base, *head, &[])
     } else {
-        patches.create(
-            title,
-            &description,
-            patch::MergeTarget::default(),
-            base,
-            *head,
-            &[],
-        )
+        patches.create(title, &description, opts.target.clone(), base, *head, &[])
     }?;
 
     let action = if patch.is_draft() {
@@ -799,42 +788,47 @@ where
     Signer: crypto::signature::Verifier<crypto::Signature>,
 {
     let head = *src;
-    let dst = dst.with_namespace(nid.into());
+    let namespaced_dst = dst.with_namespace(nid.into());
 
-    // In some rare cases, pushing to the default branch is a new action for a delegate.
-    // If this is the case, use the canonical head before the push to determine the old side.
-    //
-    // Note that this is only important for reverting and merging, but must happen before the push.
-    let old = stored
-        .backend
-        .find_reference(dst.as_str())
-        .ok()
-        .map(|old| old.peel_to_commit().map(|c| c.id().into()))
-        .transpose()?
-        .or_else(|| stored.canonical_head().map(|(_, oid)| oid).ok());
+    let old = {
+        // In some rare cases, pushing to the default branch is a new action for a delegate.
+        // If this is the case, use the canonical head before the push to determine the old side.
+        //
+        // Note that this is only important for reverting and merging, but must happen before the push.
+        let old = stored
+            .backend
+            .find_reference(namespaced_dst.as_str())
+            .ok()
+            .map(|old| old.peel_to_commit().map(|c| c.id().into()))
+            .transpose()?
+            .or_else(|| stored.canonical_head().map(|(_, oid)| oid).ok());
 
-    push_ref(
-        src,
-        &dst,
-        force,
-        stored.raw(),
-        verbosity,
-        expected_refs,
-        git,
-    )?;
+        push_ref(
+            src,
+            &namespaced_dst,
+            force,
+            stored.raw(),
+            verbosity,
+            expected_refs,
+            git,
+        )?;
+
+        old
+    };
 
     if let Some(old) = old {
-        let proj = stored.project()?;
-        let master = &*git::fmt::Qualified::from(git::fmt::lit::refs_heads(proj.default_branch()));
+        let identity = stored.identity()?;
+        let crefs = identity.doc().canonical_refs()?;
+        let rules = crefs.rules();
+        let me = Did::from(nid);
 
-        // If we're pushing to the project's default branch, we want to see if any patches got
+        // If we're pushing to a valid canonical branch, we want to see if any patches got
         // merged or reverted, and if so, update the patch COB.
-        if &*dst.strip_namespace() == master {
-            // Only delegates affect the merge state of the COB.
-            if stored.delegates()?.contains(&nid.into()) {
-                patch_revert_all(old, head, &stored.backend, &mut patches)?;
-                patch_merge_all(old, head, working, &mut patches, signer)?;
-            }
+        if let Some((_, rule)) = rules.matches(dst).next()
+            && rule.allowed().contains(&me)
+        {
+            patch_revert_all(old, head, dst, &stored.backend, &mut patches, &identity)?;
+            patch_merge_all(old, head, dst, working, &mut patches, signer, &identity)?;
         }
     }
     Ok(Some(ExplorerResource::Tree { oid: head }))
@@ -844,6 +838,7 @@ where
 fn patch_revert_all<Signer>(
     old: git::Oid,
     new: git::Oid,
+    pushed_dst: &git::fmt::Qualified,
     stored: &git::raw::Repository,
     patches: &mut patch::Cache<
         '_,
@@ -851,6 +846,7 @@ fn patch_revert_all<Signer>(
         WriteAs<'_, Signer>,
         cob::cache::StoreWriter,
     >,
+    identity: &radicle::identity::Identity,
 ) -> Result<(), Error>
 where
     Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
@@ -869,11 +865,15 @@ where
         return Ok(());
     }
 
+    let identity_doc = identity.doc();
+
     // Get the list of merged patches.
     let merged = patches
         .merged()?
         // Skip patches that failed to load.
         .filter_map(|patch| patch.ok())
+        // Only consider patches that target the destination branch
+        .filter(|(id, patch)| merge_targets_match(pushed_dst, identity_doc, id, patch))
         .collect::<Vec<_>>();
 
     for (id, patch) in merged {
@@ -907,10 +907,25 @@ where
     Ok(())
 }
 
+fn merge_targets_match(
+    pushed_target: &git::fmt::Qualified,
+    doc: &identity::Doc,
+    id: &patch::PatchId,
+    patch: &patch::Patch,
+) -> bool {
+    patch
+        .is_targeted_by(doc, pushed_target)
+        .unwrap_or_else(|e| {
+            log::warn!("Failed to resolve merge target for patch {}: {}", id, e);
+            false
+        })
+}
+
 /// Merge all patches that have been included in the base branch.
 fn patch_merge_all<Signer>(
     old: git::Oid,
     new: git::Oid,
+    pushed_dst: &git::fmt::Qualified,
     working: &git::raw::Repository,
     patches: &mut patch::Cache<
         '_,
@@ -919,6 +934,7 @@ fn patch_merge_all<Signer>(
         cob::cache::StoreWriter,
     >,
     signer: &Signer,
+    identity: &radicle::identity::Identity,
 ) -> Result<(), Error>
 where
     Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
@@ -937,12 +953,17 @@ where
         return Ok(());
     }
 
+    let identity_doc = identity.doc();
+
     let open = patches
         .opened()?
         .chain(patches.drafted()?)
         // Skip patches that failed to load.
         .filter_map(|patch| patch.ok())
+        // Only consider patches that target the destination branch
+        .filter(|(id, patch)| merge_targets_match(pushed_dst, identity_doc, id, patch))
         .collect::<Vec<_>>();
+
     for (id, patch) in open {
         // Later revisions are more likely to be merged, so we build the list backwards.
         let revisions = patch

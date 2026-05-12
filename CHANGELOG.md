@@ -69,6 +69,13 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
 
 ## New Features
 
+- The remote helper (`git-remote-rad`) now supports the push option 
+  `patch.target`. This allows users to explicitly specify a target canonical 
+  reference when opening or updating a patch. For example, to open a patch that
+  targets the branch "backport", use `git push -o patch.target=refs/heads/backport`.
+  Furthermore, strict merge and revert isolation is now enforced: patches are 
+  only marked as merged or reverted if the commits are pushed to the target 
+  branch of the patch explicitly.
 - Teach `rad patch show` to show the full commit range for each revision.
   Previously, it would only show the head of the range, but not the base.
   It now shows `<base>..<head>`, where the shortened OID is used when not
