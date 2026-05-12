@@ -207,6 +207,8 @@ struct Options {
     message: cli::patch::Message,
     /// Create a branch and set its upstream when opening a patch.
     branch: Branch,
+    /// Patch target to use, when opening or updating a patch.
+    target: cob::patch::MergeTarget,
     verbosity: Verbosity,
 }
 
@@ -438,6 +440,12 @@ fn push_option(args: &[&str], opts: &mut Options) -> Result<(), Error> {
                 }
                 "patch.branch" => {
                     opts.branch = Branch::Provided(git::fmt::RefString::try_from(val)?)
+                }
+                "patch.target" => {
+                    let target = val.parse::<cob::patch::TargetBranch>().map_err(|e| {
+                        Error::UnsupportedPushOption(format!("invalid patch.target '{val}': {e}"))
+                    })?;
+                    opts.target = cob::patch::MergeTarget::Branch(target);
                 }
                 other => {
                     return Err(Error::UnsupportedPushOption(other.to_owned()));
