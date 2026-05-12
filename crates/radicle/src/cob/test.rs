@@ -11,7 +11,7 @@ use crate::cob::store::encoding;
 use crate::cob::{Entry, History, Manifest, Timestamp, Version};
 use crate::cob::{Title, patch};
 use crate::crypto::Signer;
-use crate::git::Oid;
+use crate::git::{self, Oid};
 use crate::node::device::Device;
 use crate::prelude::Did;
 use crate::profile::env;
@@ -267,7 +267,7 @@ fn encoded<T: Cob, G: Signer>(
         email: signer.public_key().to_human(),
         time: Time::new(timestamp.as_secs() as i64, 0),
     };
-    let commit = CommitData::<git2::Oid, git2::Oid>::new::<_, _, OwnedTrailer>(
+    let commit = CommitData::<git::raw::Oid, git::raw::Oid>::new::<_, _, OwnedTrailer>(
         oid,
         parents,
         author.clone(),
