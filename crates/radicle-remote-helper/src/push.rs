@@ -114,6 +114,9 @@ pub(super) enum Error {
     UnknownObjectType { oid: git::Oid },
     #[error(transparent)]
     FindObjects(#[from] git::canonical::error::FindObjectsError),
+    /// Default branch error.
+    #[error(transparent)]
+    DefaultBranch(#[from] radicle::identity::doc::DefaultBranchError),
 
     /// Error sending pack from the working copy to storage.
     #[error(
@@ -824,17 +827,37 @@ where
     )?;
 
     if let Some(old) = old {
-        let proj = stored.project()?;
-        let master = &*git::fmt::Qualified::from(git::fmt::lit::refs_heads(proj.default_branch()));
+        let identity = stored.identity()?;
+        let crefs = identity.doc().canonical_refs()?;
+        let rules = crefs.rules();
+        let me = Did::from(nid);
 
-        // If we're pushing to the project's default branch, we want to see if any patches got
+        let stripped_dst = dst.strip_namespace();
+
+        // If we're pushing to a valid canonical branch, we want to see if any patches got
         // merged or reverted, and if so, update the patch COB.
-        if &*dst.strip_namespace() == master {
-            let old = old.peel_to_commit()?.id();
-            // Only delegates affect the merge state of the COB.
-            if stored.delegates()?.contains(&nid.into()) {
-                patch_revert_all(old.into(), head, &stored.backend, &mut patches)?;
-                patch_merge_all(old.into(), head, working, &mut patches, signer)?;
+        if let Some((_, rule)) = rules.matches(&stripped_dst).next() {
+            if rule.allowed().contains(&me) {
+                let old = old.peel_to_commit()?.id();
+                let destination = Some(stripped_dst.to_ref_string());
+
+                patch_revert_all(
+                    old.into(),
+                    head,
+                    destination.clone(),
+                    &stored.backend,
+                    &mut patches,
+                    &identity,
+                )?;
+                patch_merge_all(
+                    old.into(),
+                    head,
+                    destination,
+                    working,
+                    &mut patches,
+                    signer,
+                    &identity,
+                )?;
             }
         }
     }
@@ -853,6 +876,7 @@ fn patch_revert_all<Signer>(
         WriteAs<'_, Signer>,
         cob::cache::StoreWriter,
     >,
+    identity: &radicle::identity::Identity,
 ) -> Result<(), Error>
 where
     Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
@@ -879,6 +903,10 @@ where
         .collect::<Vec<_>>();
 
     for (id, patch) in merged {
+        if !merge_destinations_match(&destination, identity, id, &patch) {
+            continue;
+        }
+
         let revisions = patch
             .revisions()
             .map(|(id, r)| (id, r.head()))
@@ -909,6 +937,24 @@ where
     Ok(())
 }
 
+fn merge_destinations_match(
+    destination: &Option<git::fmt::RefString>,
+    identity: &cob::identity::Identity,
+    id: cob::ObjectId,
+    patch: &patch::Patch,
+) -> bool {
+    let expected_dst = match patch.merge_destination(identity.doc()) {
+        Ok(dst) => dst,
+        Err(e) => {
+            log::warn!(target: "push", "Failed to resolve merge destination for patch {}: {}", id, e);
+            return false;
+        }
+    };
+    let pushed_dst = git::fmt::Qualified::from_refstr(destination.as_ref().unwrap());
+
+    pushed_dst.is_some() && Some(expected_dst) == pushed_dst
+}
+
 /// Merge all patches that have been included in the base branch.
 fn patch_merge_all<Signer>(
     old: git::Oid,
@@ -922,6 +968,7 @@ fn patch_merge_all<Signer>(
         cob::cache::StoreWriter,
     >,
     signer: &Signer,
+    identity: &radicle::identity::Identity,
 ) -> Result<(), Error>
 where
     Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
@@ -947,6 +994,10 @@ where
         .filter_map(|patch| patch.ok())
         .collect::<Vec<_>>();
     for (id, patch) in open {
+        if !merge_destinations_match(&destination, identity, id, &patch) {
+            continue;
+        }
+
         // Later revisions are more likely to be merged, so we build the list backwards.
         let revisions = patch
             .revisions()
