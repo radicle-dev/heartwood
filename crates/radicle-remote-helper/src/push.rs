@@ -583,7 +583,7 @@ where
             title,
             &description,
             patch::MergeTarget::default(),
-            None, // TODO(Ade): Implement
+            opts.destination.clone(),
             base,
             *head,
             &[],
@@ -593,7 +593,7 @@ where
             title,
             &description,
             patch::MergeTarget::default(),
-            None, // TODO(Ade): Implement
+            opts.destination.clone(),
             base,
             *head,
             &[],
@@ -761,7 +761,15 @@ where
     // and pushed, but the patch hasn't yet been updated. On push to the patch branch,
     // it'll seem like the patch is "empty", because the changes are already in the base branch.
     if base == *head && patch_mut.is_open() {
-        patch_merge(patch_mut, revision.id(), *head, working, signer)?;
+        let destination = patch_mut.destination().cloned();
+        patch_merge(
+            patch_mut,
+            revision.id(),
+            *head,
+            destination,
+            working,
+            signer,
+        )?;
     } else {
         eprintln!(
             "To compare against your previous revision {}, run:\n\n   {}\n",
@@ -837,6 +845,7 @@ where
 fn patch_revert_all<Signer>(
     old: git::Oid,
     new: git::Oid,
+    destination: Option<git::fmt::RefString>,
     stored: &git::raw::Repository,
     patches: &mut patch::Cache<
         '_,
@@ -904,6 +913,7 @@ where
 fn patch_merge_all<Signer>(
     old: git::Oid,
     new: git::Oid,
+    destination: Option<git::fmt::RefString>,
     working: &git::raw::Repository,
     patches: &mut patch::Cache<
         '_,
@@ -950,7 +960,14 @@ where
         for commit in &commits {
             if let Some((revision_id, head)) = revisions.iter().find(|(_, head)| commit == head) {
                 let patch = patch::PatchMut::new(id, patch, patches);
-                patch_merge(patch, *revision_id, *head, working, signer)?;
+                patch_merge(
+                    patch,
+                    *revision_id,
+                    *head,
+                    destination.clone(),
+                    working,
+                    signer,
+                )?;
 
                 break;
             }
@@ -963,6 +980,7 @@ fn patch_merge<Signer, C>(
     mut patch: patch::PatchMut<'_, '_, '_, storage::git::Repository, Signer, C>,
     revision: patch::RevisionId,
     commit: git::Oid,
+    destination: Option<git::fmt::RefString>,
     working: &git::raw::Repository,
     signer: &Signer,
 ) -> Result<(), Error>
@@ -974,7 +992,7 @@ where
     C: cob::cache::Update<patch::Patch>,
 {
     let (latest, _) = patch.latest();
-    let merged = patch.merge(revision, commit, None)?; // TODO(Ade): Implement
+    let merged = patch.merge(revision, commit, destination)?;
 
     if revision == latest {
         eprintln!(
