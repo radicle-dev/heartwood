@@ -2,7 +2,6 @@ pub mod cache;
 
 mod actions;
 pub use actions::ReviewEdit;
-use radicle_git_ref_format::RefStr;
 
 mod encoding;
 
@@ -744,6 +743,12 @@ impl Patch {
             Action::Assign { .. } => Authorization::Deny,
             Action::Merge { destination, .. } => {
                 let dest = Self::resolve_target(destination.as_ref(), doc)?;
+                let expected_dest = self.merge_destination(doc)?;
+
+                // Ensure the merge action matches the patch's intended destination.
+                if dest != expected_dest {
+                    return Ok(Authorization::Deny);
+                }
 
                 if let Ok(crefs) = doc.canonical_refs() {
                     if let Some((_, rule)) = crefs.rules().matches(&dest).next() {
@@ -1147,6 +1152,11 @@ impl Patch {
                 };
 
                 let branch = Self::resolve_target(destination.as_ref(), identity)?;
+                let expected_branch = self.merge_destination(identity)?;
+
+                if branch != expected_branch {
+                    return Ok(());
+                }
 
                 // Nb. We don't return an error in case the merge commit is not an
                 // ancestor of the default branch. The default branch can change
@@ -3226,6 +3236,72 @@ mod test {
                 .authorization(&merge_qualified_tag, &alice.did().into(), &doc)
                 .unwrap(),
             Authorization::Allow
+        );
+    }
+
+    #[test]
+    fn test_patch_merge_mismatched_destination_rejected() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let alice = Actor::<MockSigner>::default();
+        let bob = Actor::<MockSigner>::default();
+
+        let mut raw_doc = RawDoc::new(
+            r#gen::<Project>(1),
+            vec![bob.did()],
+            1,
+            identity::Visibility::Public,
+        );
+
+        let rules = serde_json::json!({
+            "refs/heads/accepted": {
+                "allow": "delegates",
+                "threshold": 1
+            },
+            "refs/heads/master": {
+                "allow": "delegates",
+                "threshold": 1
+            }
+        });
+        let crefs = serde_json::json!({ "rules": rules });
+        raw_doc.payload.insert(
+            identity::doc::PayloadId::canonical_refs(),
+            identity::doc::Payload::from(crefs),
+        );
+
+        let doc = raw_doc.verified().unwrap();
+        let patch = Patch::new(
+            cob::Title::new("My Patch").unwrap(),
+            MergeTarget::Delegates,
+            Some(git::fmt::RefString::try_from("accepted").unwrap()),
+            (
+                RevisionId(arbitrary::entry_id()),
+                Revision::new(
+                    RevisionId(arbitrary::entry_id()),
+                    Author::new(alice.did()),
+                    String::new(),
+                    base,
+                    oid,
+                    env::local_time().into(),
+                    Default::default(),
+                ),
+            ),
+        );
+
+        // Alice is a delegate for both `accepted` and `master`.
+        // But the patch is intended for `accepted`.
+        // If she tries to merge it into `master`, it should be denied.
+        let merge_action = Action::Merge {
+            revision: RevisionId(arbitrary::entry_id()),
+            commit: oid,
+            destination: Some(git::fmt::RefString::try_from("master").unwrap()),
+        };
+
+        assert_eq!(
+            patch
+                .authorization(&merge_action, &alice.did().into(), &doc)
+                .unwrap(),
+            Authorization::Deny
         );
     }
 
