@@ -57,7 +57,7 @@ where
     }
 
     let (root, _) = patch.root();
-    let target = patch.target();
+    let target = patch.target().clone();
     let embeds = patch.embeds().to_owned();
 
     patch.transaction("Edit root", |tx| {

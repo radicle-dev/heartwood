@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Introduce a new variant to `radicle::cob::patch::MergeTarget`, `Branch`.
+  The `Branch` variant holds a `TargetBranch`, which must either be a qualified
+  `refs/heads` reference, or a references not beginning with `refs`; as a
+  `refs/heads` will then be prepended to it.
+
 ### Changed
 
 ### Removed

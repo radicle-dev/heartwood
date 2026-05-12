@@ -30,9 +30,10 @@ use crate::cob::{ActorId, Embed, EntryId, ObjectId, TypeName, Uri, op, store};
 use crate::crypto::PublicKey;
 use crate::git;
 use crate::identity::PayloadError;
-use crate::identity::doc::{DocAt, DocError};
+use crate::identity::doc::{DefaultBranchError, DocAt, DocError};
 use crate::prelude::*;
 use crate::storage;
+use crate::storage::git::Repository;
 
 pub use cache::Cache;
 
@@ -119,6 +120,10 @@ pub enum Error {
     /// Identity document is missing.
     #[error("missing identity document")]
     MissingIdentity,
+    #[error(transparent)]
+    DefaultBranch(#[from] DefaultBranchError),
+    #[error(transparent)]
+    TargetBranch(#[from] TargetBranchError),
     /// Review is empty.
     #[error("empty review; verdict or summary not provided")]
     EmptyReview,
@@ -398,8 +403,91 @@ impl<R: WriteRepository> Merged<'_, R> {
     }
 }
 
+/// A valid target branch for a [`Patch`].
+///
+/// The construction of a [`TargetBranch`] ensures that the reference is a Git
+/// branch, i.e. the reference name begins with `refs/heads`.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(try_from = "git::fmt::RefString", into = "git::fmt::RefString")]
+pub struct TargetBranch(git::fmt::Qualified<'static>);
+
+#[derive(Debug, Error)]
+pub enum TargetBranchError {
+    /// Invalid merge target.
+    #[error("invalid merge target '{0}': must be a branch")]
+    InvalidMergeTarget(git::fmt::RefString),
+    /// Invalid reference format.
+    #[error(transparent)]
+    InvalidReference(#[from] git::fmt::Error),
+}
+
+impl TryFrom<git::fmt::RefString> for TargetBranch {
+    type Error = TargetBranchError;
+
+    fn try_from(refname: git::fmt::RefString) -> Result<Self, Self::Error> {
+        Self::new(refname)
+    }
+}
+
+impl From<TargetBranch> for git::fmt::RefString {
+    fn from(tb: TargetBranch) -> Self {
+        tb.0.to_ref_string()
+    }
+}
+
+impl TryFrom<&str> for TargetBranch {
+    type Error = TargetBranchError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        let refstr = git::fmt::RefString::try_from(s)?;
+        Self::try_from(refstr)
+    }
+}
+
+impl std::str::FromStr for TargetBranch {
+    type Err = TargetBranchError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_from(s)
+    }
+}
+
+impl std::fmt::Display for TargetBranch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl TargetBranch {
+    fn new<R>(refname: R) -> Result<Self, TargetBranchError>
+    where
+        R: AsRef<git::fmt::RefStr>,
+    {
+        let refname = refname.as_ref();
+        match git::fmt::Qualified::from_refstr(refname).to_owned() {
+            None => Ok(Self(git::fmt::lit::refs_heads(refname).into())),
+            Some(branch) if branch.as_str().starts_with("refs/heads/") => {
+                Ok(Self(branch.clone().to_owned()))
+            }
+            Some(_) => Err(TargetBranchError::InvalidMergeTarget(
+                refname.to_ref_string(),
+            )),
+        }
+    }
+
+    /// Return the [`str`] representation of the [`TargetBranch`].
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Return the fully qualified branch reference.
+    pub fn into_qualified(self) -> git::fmt::Qualified<'static> {
+        self.0
+    }
+}
+
 /// Where a patch is intended to be merged.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum MergeTarget {
     /// Intended for the default branch of the project delegates.
@@ -408,16 +496,19 @@ pub enum MergeTarget {
     /// If it were otherwise, patches could become un-mergeable.
     #[default]
     Delegates,
+    /// Intended for a specific branch.
+    Branch(TargetBranch),
 }
 
 impl MergeTarget {
     /// Get the head of the target branch.
-    pub fn head<R: ReadRepository>(&self, repo: &R) -> Result<git::Oid, RepositoryError> {
+    pub fn head(&self, repo: &Repository) -> Result<git::Oid, RepositoryError> {
         match self {
             MergeTarget::Delegates => {
                 let (_, target) = repo.head()?;
                 Ok(target)
             }
+            MergeTarget::Branch(branch) => Ok(repo.backend.refname_to_id(branch.as_str())?.into()),
         }
     }
 }
@@ -490,8 +581,36 @@ impl Patch {
     }
 
     /// Target this patch is meant to be merged in.
-    pub fn target(&self) -> MergeTarget {
-        self.target
+    pub fn target(&self) -> &MergeTarget {
+        &self.target
+    }
+
+    /// Resolves the intended target branch for this patch.
+    ///
+    /// If a custom target was specified, it returns that branch.
+    /// Otherwise, it falls back to the project's default branch.
+    pub fn merge_target_branch<'a>(
+        &'a self,
+        doc: &'a Doc,
+    ) -> Result<git::fmt::Qualified<'a>, DefaultBranchError> {
+        match &self.target {
+            MergeTarget::Delegates => Ok(doc.default_branch()?),
+            MergeTarget::Branch(branch) => Ok(branch.clone().into_qualified()),
+        }
+    }
+
+    /// Check the [`MergeTarget`] of the [`Patch`], and return `true` if the
+    /// given `branch` is the same.
+    ///
+    /// Note that the [`Doc`] is used to resolve the default branch of the
+    /// project.
+    pub fn is_targeted_by(
+        &self,
+        doc: &Doc,
+        branch: &git::fmt::Qualified,
+    ) -> Result<bool, DefaultBranchError> {
+        let target = self.merge_target_branch(doc)?;
+        Ok(target == *branch)
     }
 
     /// Timestamp of the first revision of the patch.
@@ -698,9 +817,17 @@ impl Patch {
                 }
             }
             Action::Assign { .. } => Authorization::Deny,
-            Action::Merge { .. } => match self.target() {
-                MergeTarget::Delegates => Authorization::Deny,
-            },
+            Action::Merge { .. } => {
+                let expected_dest = self.merge_target_branch(doc)?;
+
+                if let Ok(crefs) = doc.canonical_refs()
+                    && let Some((_, rule)) = crefs.rules().matches(&expected_dest).next()
+                {
+                    return Ok(Authorization::from(rule.allowed().contains(&actor.into())));
+                }
+
+                Authorization::Deny
+            }
             // Anyone can submit a review.
             Action::Review { .. } => Authorization::Allow,
             Action::ReviewRedact { review, .. } => {
@@ -1084,25 +1211,22 @@ impl Patch {
                 if lookup::revision_mut(self, &revision)?.is_none() {
                     return Ok(());
                 };
-                match self.target() {
-                    MergeTarget::Delegates => {
-                        let proj = identity.project()?;
-                        let branch = git::refs::branch(proj.default_branch());
 
-                        // Nb. We don't return an error in case the merge commit is not an
-                        // ancestor of the default branch. The default branch can change
-                        // *after* the merge action is created, which is out of the control
-                        // of the merge author. We simply skip it, which allows archiving in
-                        // case of a rebase off the master branch, or a redaction of the
-                        // merge.
-                        let Ok(head) = repo.reference_oid(&author, &branch) else {
-                            return Ok(());
-                        };
-                        if commit != head && !repo.is_ancestor_of(commit, head)? {
-                            return Ok(());
-                        }
-                    }
+                let expected_branch = self.merge_target_branch(identity)?;
+
+                // Nb. We don't return an error in case the merge commit is not an
+                // ancestor of the default branch. The default branch can change
+                // *after* the merge action is created, which is out of the control
+                // of the merge author. We simply skip it, which allows archiving in
+                // case of a rebase off the master branch, or a redaction of the
+                // merge.
+                let Ok(head) = repo.reference_oid(&author, &expected_branch) else {
+                    return Ok(());
+                };
+                if commit != head && !repo.is_ancestor_of(commit, head)? {
+                    return Ok(());
                 }
+
                 self.merges.insert(
                     author,
                     Merge {
@@ -2874,7 +2998,10 @@ mod test {
     use crate::cob::common::CodeRange;
     use crate::cob::test::Actor;
     use crate::crypto::test::signer::MockSigner;
+    use crate::git::BranchName;
     use crate::identity;
+    use crate::identity::doc::RawDoc;
+    use crate::identity::project::{Project, ProjectName};
     use crate::patch::cache::Patches as _;
     use crate::profile::env;
     use crate::test;
@@ -2883,6 +3010,339 @@ mod test {
     use crate::test::storage::MockRepository;
 
     use cob::migrate;
+
+    fn revision() -> (RevisionId, Revision) {
+        let author = arbitrary::r#gen::<Did>(1);
+        let description = arbitrary::r#gen::<String>(1);
+        let base = arbitrary::oid();
+        let oid = arbitrary::oid();
+        let timestamp = env::local_time();
+        let resolves = BTreeSet::new();
+        let id = RevisionId::from(arbitrary::oid());
+        let mut revision = Revision::new(
+            id,
+            Author { id: author },
+            description,
+            base,
+            oid,
+            timestamp.into(),
+            resolves,
+        );
+        let comment = Comment::new(
+            *author,
+            "#1 comment".to_string(),
+            None,
+            None,
+            vec![],
+            timestamp.into(),
+        );
+        let thread = Thread::new(arbitrary::oid(), comment);
+        revision.discussion = thread;
+        (id, revision)
+    }
+
+    #[test]
+    fn test_target_branch() {
+        let unqualified = TargetBranch::try_from("master").unwrap();
+        assert_eq!(unqualified.as_str(), "refs/heads/master");
+
+        let qualified = TargetBranch::try_from("refs/heads/feature/1").unwrap();
+        assert_eq!(qualified.as_str(), "refs/heads/feature/1");
+
+        assert!(matches!(
+            TargetBranch::try_from("refs/tags/v1.0"),
+            Err(TargetBranchError::InvalidMergeTarget(refname)) if refname.as_str() == "refs/tags/v1.0"
+        ));
+
+        assert!(matches!(
+            TargetBranch::try_from("refs/remotes/origin/master"),
+            Err(TargetBranchError::InvalidMergeTarget(refname)) if refname.as_str() == "refs/remotes/origin/master"
+        ));
+
+        assert!(matches!(
+            TargetBranch::try_from("invalid branch name"),
+            Err(TargetBranchError::InvalidReference(_))
+        ));
+    }
+
+    #[test]
+    fn test_json_serialisation_target() {
+        let edit_none = Action::Edit {
+            title: cob::Title::new("My patch").unwrap(),
+            target: MergeTarget::Delegates,
+        };
+        assert_eq!(
+            serde_json::to_string(&edit_none).unwrap(),
+            String::from(r#"{"type":"edit","title":"My patch","target":"delegates"}"#)
+        );
+
+        let edit_some = Action::Edit {
+            title: cob::Title::new("My patch").unwrap(),
+            target: MergeTarget::Branch(TargetBranch::try_from("refs/heads/accepted").unwrap()),
+        };
+        assert_eq!(
+            serde_json::to_string(&edit_some).unwrap(),
+            String::from(
+                r#"{"type":"edit","title":"My patch","target":{"branch":"refs/heads/accepted"}}"#
+            )
+        );
+    }
+
+    #[test]
+    fn test_merge_target_resolution() {
+        let alice = Actor::<MockSigner>::default();
+        let project = Project::new(
+            ProjectName::from_str("test_merge_target_resolution").unwrap(),
+            String::from(""),
+            BranchName::from(git::fmt::RefString::try_from("master").unwrap()),
+        );
+
+        let doc = RawDoc::new(
+            project.unwrap(),
+            vec![alice.did()],
+            1,
+            identity::Visibility::Public,
+        )
+        .verified()
+        .unwrap();
+
+        let patch_none = Patch::new(
+            cob::Title::new("My patch").unwrap(),
+            MergeTarget::Delegates,
+            revision(),
+        );
+        assert_eq!(
+            patch_none.merge_target_branch(&doc).unwrap().as_str(),
+            "refs/heads/master"
+        );
+
+        let patch_unqualified = Patch::new(
+            cob::Title::new("My patch").unwrap(),
+            MergeTarget::Branch(TargetBranch::try_from("accepted").unwrap()),
+            revision(),
+        );
+        assert_eq!(
+            patch_unqualified
+                .merge_target_branch(&doc)
+                .unwrap()
+                .as_str(),
+            "refs/heads/accepted"
+        );
+
+        let patch_qualified_branch = Patch::new(
+            cob::Title::new("My patch").unwrap(),
+            MergeTarget::Branch(TargetBranch::try_from("refs/heads/accepted").unwrap()),
+            revision(),
+        );
+        assert_eq!(
+            patch_qualified_branch
+                .merge_target_branch(&doc)
+                .unwrap()
+                .as_str(),
+            "refs/heads/accepted"
+        );
+    }
+
+    #[test]
+    fn test_patch_merge_authorization_ref_formats() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let alice = Actor::<MockSigner>::default();
+
+        let mut raw_doc = RawDoc::new(
+            r#gen::<Project>(1),
+            vec![alice.did()],
+            1,
+            identity::Visibility::Public,
+        );
+
+        let rules = serde_json::json!({
+            "refs/heads/accepted": {
+                "allow": "delegates",
+                "threshold": 1
+            },
+            "refs/tags/v1.0": {
+                "allow": "delegates",
+                "threshold": 1
+            }
+        });
+        let crefs = serde_json::json!({ "rules": rules });
+        raw_doc.payload.insert(
+            identity::doc::PayloadId::canonical_refs(),
+            identity::doc::Payload::from(crefs),
+        );
+
+        let doc = raw_doc.verified().unwrap();
+
+        let merge_action = Action::Merge {
+            revision: RevisionId(arbitrary::entry_id()),
+            commit: oid,
+        };
+
+        let patch_unqualified = Patch::new(
+            cob::Title::new("My Patch").unwrap(),
+            MergeTarget::Branch(TargetBranch::try_from("accepted").unwrap()),
+            (
+                RevisionId(arbitrary::entry_id()),
+                Revision::new(
+                    RevisionId(arbitrary::entry_id()),
+                    Author::new(alice.did()),
+                    String::new(),
+                    base,
+                    oid,
+                    env::local_time().into(),
+                    Default::default(),
+                ),
+            ),
+        );
+        assert_eq!(
+            patch_unqualified
+                .authorization(&merge_action, &alice.did().into(), &doc)
+                .unwrap(),
+            Authorization::Allow
+        );
+
+        let patch_qualified_branch = Patch::new(
+            cob::Title::new("My Patch").unwrap(),
+            MergeTarget::Branch(TargetBranch::try_from("refs/heads/accepted").unwrap()),
+            (
+                RevisionId(arbitrary::entry_id()),
+                Revision::new(
+                    RevisionId(arbitrary::entry_id()),
+                    Author::new(alice.did()),
+                    String::new(),
+                    base,
+                    oid,
+                    env::local_time().into(),
+                    Default::default(),
+                ),
+            ),
+        );
+        assert_eq!(
+            patch_qualified_branch
+                .authorization(&merge_action, &alice.did().into(), &doc)
+                .unwrap(),
+            Authorization::Allow
+        );
+    }
+
+    #[test]
+    fn test_patch_merge_custom_destination_authorized() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let alice = Actor::<MockSigner>::default();
+        let bob = Actor::<MockSigner>::default();
+
+        let mut raw_doc = RawDoc::new(
+            r#gen::<Project>(1),
+            vec![bob.did()],
+            1,
+            identity::Visibility::Public,
+        );
+
+        let rules = serde_json::json!({
+            "refs/heads/accepted": {
+                "allow": [alice.did()],
+                "threshold": 1
+            }
+        });
+        let crefs = serde_json::json!({
+            "rules": rules
+        });
+        raw_doc.payload.insert(
+            identity::doc::PayloadId::canonical_refs(),
+            identity::doc::Payload::from(crefs),
+        );
+
+        let doc = raw_doc.verified().unwrap();
+        let patch = Patch::new(
+            cob::Title::new("My Patch").unwrap(),
+            MergeTarget::Branch(TargetBranch::try_from("accepted").unwrap()),
+            (
+                RevisionId(arbitrary::entry_id()),
+                Revision::new(
+                    RevisionId(arbitrary::entry_id()),
+                    Author::new(bob.did()),
+                    String::new(),
+                    base,
+                    oid,
+                    env::local_time().into(),
+                    Default::default(),
+                ),
+            ),
+        );
+
+        let merge_action = Action::Merge {
+            revision: RevisionId(arbitrary::entry_id()),
+            commit: oid,
+        };
+
+        assert_eq!(
+            patch
+                .authorization(&merge_action, &alice.did().into(), &doc)
+                .unwrap(),
+            Authorization::Allow,
+        );
+    }
+
+    #[test]
+    fn test_patch_merge_custom_destination_unauthorized() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let alice = Actor::<MockSigner>::default();
+        let bob = Actor::<MockSigner>::default();
+
+        let mut raw_doc = RawDoc::new(
+            r#gen::<Project>(1),
+            vec![alice.did()],
+            1,
+            identity::Visibility::Public,
+        );
+
+        let rules = serde_json::json!({
+            "refs/heads/accepted": {
+                "allow": [alice.did()],
+                "threshold": 1
+            }
+        });
+        let crefs = serde_json::json!({
+            "rules": rules
+        });
+        raw_doc.payload.insert(
+            identity::doc::PayloadId::canonical_refs(),
+            identity::doc::Payload::from(crefs),
+        );
+
+        let doc = raw_doc.verified().unwrap();
+        let patch = Patch::new(
+            cob::Title::new("My Patch").unwrap(),
+            MergeTarget::Branch(TargetBranch::try_from("accepted").unwrap()),
+            (
+                RevisionId(arbitrary::entry_id()),
+                Revision::new(
+                    RevisionId(arbitrary::entry_id()),
+                    Author::new(alice.did()),
+                    String::new(),
+                    base,
+                    oid,
+                    env::local_time().into(),
+                    Default::default(),
+                ),
+            ),
+        );
+
+        let merge_action = Action::Merge {
+            revision: RevisionId(arbitrary::entry_id()),
+            commit: oid,
+        };
+
+        assert_eq!(
+            patch
+                .authorization(&merge_action, &bob.did().into(), &doc)
+                .unwrap(),
+            Authorization::Deny,
+        );
+    }
 
     #[test]
     fn test_json_serialization() {
@@ -2949,7 +3409,7 @@ mod test {
             .create(
                 cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
-                target,
+                target.clone(),
                 branch.base,
                 branch.oid,
                 &[],
@@ -2963,7 +3423,7 @@ mod test {
         assert_eq!(patch.description(), "Blah blah blah.");
         assert_eq!(patch.author().id(), &author);
         assert_eq!(patch.state(), &State::Open { conflicts: vec![] });
-        assert_eq!(patch.target(), target);
+        assert_eq!(patch.target(), &target);
         assert_eq!(patch.version(), 0);
 
         let (rev_id, revision) = patch.latest();
