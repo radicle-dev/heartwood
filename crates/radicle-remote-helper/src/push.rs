@@ -583,6 +583,7 @@ where
             title,
             &description,
             patch::MergeTarget::default(),
+            None, // TODO(Ade): Implement
             base,
             *head,
             &[],
@@ -592,6 +593,7 @@ where
             title,
             &description,
             patch::MergeTarget::default(),
+            None, // TODO(Ade): Implement
             base,
             *head,
             &[],
@@ -972,7 +974,7 @@ where
     C: cob::cache::Update<patch::Patch>,
 {
     let (latest, _) = patch.latest();
-    let merged = patch.merge(revision, commit)?;
+    let merged = patch.merge(revision, commit, None)?; // TODO(Ade): Implement
 
     if revision == latest {
         eprintln!(

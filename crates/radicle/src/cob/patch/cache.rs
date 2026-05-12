@@ -121,6 +121,7 @@ where
         title: cob::Title,
         description: impl ToString,
         target: MergeTarget,
+        destination: Option<git::fmt::RefString>,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         labels: &[Label],
@@ -133,6 +134,7 @@ where
             title,
             description,
             target,
+            destination,
             base,
             oid,
             labels,
@@ -148,6 +150,7 @@ where
         title: cob::Title,
         description: impl ToString,
         target: MergeTarget,
+        destination: Option<git::fmt::RefString>,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         labels: &[Label],
@@ -160,6 +163,7 @@ where
             title,
             description,
             target,
+            destination,
             base,
             oid,
             labels,
@@ -781,6 +785,7 @@ mod tests {
         let patch = Patch::new(
             Title::new("Patch #1").unwrap(),
             MergeTarget::Delegates,
+            None,
             revision(),
         );
         let id = ObjectId::from_str("47799cbab2eca047b6520b9fce805da42b49ecab").unwrap();
@@ -791,6 +796,7 @@ mod tests {
             ..Patch::new(
                 Title::new("Patch #2").unwrap(),
                 MergeTarget::Delegates,
+                None,
                 revision(),
             )
         };
@@ -825,6 +831,7 @@ mod tests {
             let patch = Patch::new(
                 Title::new(&id.to_string()).unwrap(),
                 MergeTarget::Delegates,
+                None,
                 revision(),
             );
             cache
@@ -838,6 +845,7 @@ mod tests {
                 ..Patch::new(
                     Title::new(&id.to_string()).unwrap(),
                     MergeTarget::Delegates,
+                    None,
                     revision(),
                 )
             };
@@ -852,6 +860,7 @@ mod tests {
                 ..Patch::new(
                     Title::new(&id.to_string()).unwrap(),
                     MergeTarget::Delegates,
+                    None,
                     revision(),
                 )
             };
@@ -869,6 +878,7 @@ mod tests {
                 ..Patch::new(
                     Title::new(&id.to_string()).unwrap(),
                     MergeTarget::Delegates,
+                    None,
                     revision(),
                 )
             };
@@ -907,6 +917,7 @@ mod tests {
             let patch = Patch::new(
                 Title::new(&id.to_string()).unwrap(),
                 MergeTarget::Delegates,
+                None,
                 revision(),
             );
             cache
@@ -939,6 +950,7 @@ mod tests {
         let mut patch = Patch::new(
             Title::new(&patch_id.to_string()).unwrap(),
             MergeTarget::Delegates,
+            None,
             (*rev_id, rev.clone()),
         );
         let timeline = revisions.keys().copied().collect::<Vec<_>>();
@@ -979,6 +991,7 @@ mod tests {
             let patch = Patch::new(
                 Title::new(&id.to_string()).unwrap(),
                 MergeTarget::Delegates,
+                None,
                 revision(),
             );
             cache
@@ -1010,6 +1023,7 @@ mod tests {
             let patch = Patch::new(
                 Title::new(&id.to_string()).unwrap(),
                 MergeTarget::Delegates,
+                None,
                 revision(),
             );
             cache
@@ -1040,6 +1054,7 @@ mod tests {
             let patch = Patch::new(
                 Title::new(&id.to_string()).unwrap(),
                 MergeTarget::Delegates,
+                None,
                 revision(),
             );
             cache

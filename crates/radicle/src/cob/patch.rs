@@ -2,6 +2,7 @@ pub mod cache;
 
 mod actions;
 pub use actions::ReviewEdit;
+use radicle_git_ref_format::RefStr;
 
 mod encoding;
 
@@ -30,7 +31,7 @@ use crate::cob::{ActorId, Embed, EntryId, ObjectId, TypeName, Uri, op, store};
 use crate::crypto::PublicKey;
 use crate::git;
 use crate::identity::PayloadError;
-use crate::identity::doc::{DocAt, DocError};
+use crate::identity::doc::{DefaultBranchError, DocAt, DocError};
 use crate::prelude::*;
 use crate::storage;
 
@@ -119,6 +120,8 @@ pub enum Error {
     /// Identity document is missing.
     #[error("missing identity document")]
     MissingIdentity,
+    #[error(transparent)]
+    DefaultBranch(#[from] DefaultBranchError),
     /// Review is empty.
     #[error("empty review; verdict or summary not provided")]
     EmptyReview,
@@ -178,6 +181,8 @@ pub enum Action {
     Edit {
         title: cob::Title,
         target: MergeTarget,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        destination: Option<git::fmt::RefString>,
     },
     #[serde(rename = "label")]
     Label { labels: BTreeSet<Label> },
@@ -189,6 +194,8 @@ pub enum Action {
     Merge {
         revision: RevisionId,
         commit: git::Oid,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        destination: Option<git::fmt::RefString>,
     },
 
     //
@@ -434,6 +441,8 @@ pub struct Patch {
     pub(super) state: State,
     /// Target this patch is meant to be merged in.
     pub(super) target: MergeTarget,
+    /// The specific branch this patch targets, if not the default branch.
+    pub(super) destination: Option<git::fmt::RefString>,
     /// Associated labels.
     /// Labels can be added and removed at will.
     pub(super) labels: BTreeSet<Label>,
@@ -463,6 +472,7 @@ impl Patch {
     pub fn new(
         title: cob::Title,
         target: MergeTarget,
+        destination: Option<git::fmt::RefString>,
         (id, revision): (RevisionId, Revision),
     ) -> Self {
         Self {
@@ -470,6 +480,7 @@ impl Patch {
             author: revision.author.clone(),
             state: State::default(),
             target,
+            destination,
             labels: BTreeSet::default(),
             merges: BTreeMap::default(),
             revisions: BTreeMap::from_iter([(id, Some(revision))]),
@@ -492,6 +503,26 @@ impl Patch {
     /// Target this patch is meant to be merged in.
     pub fn target(&self) -> MergeTarget {
         self.target
+    }
+
+    /// The specific branch this patch targets, if not the default branch.
+    pub fn destination(&self) -> Option<&git::fmt::RefString> {
+        self.destination.as_ref()
+    }
+
+    /// Resolves the intended destination branch for this patch.
+    ///
+    /// If a custom destination was specified, it returns that branch.
+    /// Otherwise, it falls back to the project's default branch.
+    pub fn merge_destination<'a>(
+        &'a self,
+        doc: &'a Doc,
+    ) -> Result<git::fmt::Qualified<'a>, DefaultBranchError> {
+        if let Some(dest) = &self.destination {
+            Ok(git::fmt::lit::refs_heads(strip_refs_heads(dest)).into())
+        } else {
+            doc.default_branch()
+        }
     }
 
     /// Timestamp of the first revision of the patch.
@@ -698,9 +729,21 @@ impl Patch {
                 }
             }
             Action::Assign { .. } => Authorization::Deny,
-            Action::Merge { .. } => match self.target() {
-                MergeTarget::Delegates => Authorization::Deny,
-            },
+            Action::Merge { destination, .. } => {
+                let dest = if let Some(d) = destination {
+                    git::fmt::lit::refs_heads(strip_refs_heads(d)).into()
+                } else {
+                    doc.default_branch()?
+                };
+
+                if let Ok(crefs) = doc.canonical_refs() {
+                    if let Some((_, rule)) = crefs.rules().matches(&dest).next() {
+                        return Ok(Authorization::from(rule.allowed().contains(&actor.into())));
+                    }
+                }
+
+                Authorization::Deny
+            }
             // Anyone can submit a review.
             Action::Review { .. } => Authorization::Allow,
             Action::ReviewRedact { review, .. } => {
@@ -827,9 +870,14 @@ impl Patch {
         repo: &R,
     ) -> Result<(), Error> {
         match action {
-            Action::Edit { title, target } => {
+            Action::Edit {
+                title,
+                target,
+                destination,
+            } => {
                 self.title = title;
                 self.target = target;
+                self.destination = destination;
             }
             Action::Lifecycle { state } => {
                 let valid = self.state == State::Draft
@@ -1079,30 +1127,36 @@ impl Patch {
                     }
                 }
             }
-            Action::Merge { revision, commit } => {
+            Action::Merge {
+                revision,
+                commit,
+                destination,
+            } => {
                 // If the revision was redacted before the merge, ignore the merge.
                 if lookup::revision_mut(self, &revision)?.is_none() {
                     return Ok(());
                 };
-                match self.target() {
-                    MergeTarget::Delegates => {
-                        let proj = identity.project()?;
-                        let branch = git::refs::branch(proj.default_branch());
 
-                        // Nb. We don't return an error in case the merge commit is not an
-                        // ancestor of the default branch. The default branch can change
-                        // *after* the merge action is created, which is out of the control
-                        // of the merge author. We simply skip it, which allows archiving in
-                        // case of a rebase off the master branch, or a redaction of the
-                        // merge.
-                        let Ok(head) = repo.reference_oid(&author, &branch) else {
-                            return Ok(());
-                        };
-                        if commit != head && !repo.is_ancestor_of(commit, head)? {
-                            return Ok(());
-                        }
-                    }
+                let branch = if let Some(d) = &destination {
+                    git::fmt::lit::refs_heads(strip_refs_heads(d)).into()
+                } else {
+                    let proj = identity.project()?;
+                    git::refs::branch(proj.default_branch())
+                };
+
+                // Nb. We don't return an error in case the merge commit is not an
+                // ancestor of the default branch. The default branch can change
+                // *after* the merge action is created, which is out of the control
+                // of the merge author. We simply skip it, which allows archiving in
+                // case of a rebase off the master branch, or a redaction of the
+                // merge.
+                let Ok(head) = repo.reference_oid(&author, &branch) else {
+                    return Ok(());
+                };
+                if commit != head && !repo.is_ancestor_of(commit, head)? {
+                    return Ok(());
                 }
+
                 self.merges.insert(
                     author,
                     Merge {
@@ -1207,6 +1261,12 @@ impl Patch {
     }
 }
 
+/// Strips `refs/heads` prefix
+fn strip_refs_heads(d: &radicle_git_ref_format::RefString) -> &RefStr {
+    d.strip_prefix(git::fmt::refname!("refs/heads"))
+        .unwrap_or(d.as_refstr())
+}
+
 impl cob::store::CobWithType for Patch {
     fn type_name() -> &'static TypeName {
         &TYPENAME
@@ -1229,7 +1289,12 @@ impl store::Cob for Patch {
         else {
             return Err(Error::Init("the first action must be of type `revision`"));
         };
-        let Some(Action::Edit { title, target }) = actions.next() else {
+        let Some(Action::Edit {
+            title,
+            target,
+            destination,
+        }) = actions.next()
+        else {
             return Err(Error::Init("the second action must be of type `edit`"));
         };
         let revision = Revision::new(
@@ -1241,7 +1306,7 @@ impl store::Cob for Patch {
             op.timestamp,
             resolves,
         );
-        let mut patch = Patch::new(title, target, (RevisionId(op.id), revision));
+        let mut patch = Patch::new(title, target, destination, (RevisionId(op.id), revision));
 
         for action in actions {
             match patch.authorization(&action, &op.author, &doc)? {
@@ -1754,8 +1819,17 @@ impl Review {
 }
 
 impl<R: ReadRepository> store::Transaction<Patch, R> {
-    pub fn edit(&mut self, title: cob::Title, target: MergeTarget) -> Result<(), store::Error> {
-        self.push(Action::Edit { title, target })
+    pub fn edit(
+        &mut self,
+        title: cob::Title,
+        target: MergeTarget,
+        destination: Option<git::fmt::RefString>,
+    ) -> Result<(), store::Error> {
+        self.push(Action::Edit {
+            title,
+            target,
+            destination,
+        })
     }
 
     pub fn edit_revision(
@@ -2003,8 +2077,17 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
     }
 
     /// Merge a patch revision.
-    pub fn merge(&mut self, revision: RevisionId, commit: git::Oid) -> Result<(), store::Error> {
-        self.push(Action::Merge { revision, commit })
+    pub fn merge(
+        &mut self,
+        revision: RevisionId,
+        commit: git::Oid,
+        destination: Option<git::fmt::RefString>,
+    ) -> Result<(), store::Error> {
+        self.push(Action::Merge {
+            revision,
+            commit,
+            destination,
+        })
     }
 
     /// Update a patch with a new revision.
@@ -2104,8 +2187,13 @@ where
     }
 
     /// Edit patch metadata.
-    pub fn edit(&mut self, title: cob::Title, target: MergeTarget) -> Result<EntryId, Error> {
-        self.transaction("Edit", |tx| tx.edit(title, target))
+    pub fn edit(
+        &mut self,
+        title: cob::Title,
+        target: MergeTarget,
+        destination: Option<git::fmt::RefString>,
+    ) -> Result<EntryId, Error> {
+        self.transaction("Edit", |tx| tx.edit(title, target, destination))
     }
 
     /// Edit revision metadata.
@@ -2330,9 +2418,12 @@ where
         &mut self,
         revision: RevisionId,
         commit: git::Oid,
+        destination: Option<git::fmt::RefString>,
     ) -> Result<Merged<'_, Repo>, Error> {
         // TODO: Don't allow merging the same revision twice?
-        let entry = self.transaction("Merge revision", |tx| tx.merge(revision, commit))?;
+        let entry = self.transaction("Merge revision", |tx| {
+            tx.merge(revision, commit, destination)
+        })?;
 
         Ok(Merged {
             entry,
@@ -2567,6 +2658,7 @@ where
         title: cob::Title,
         description: impl ToString,
         target: MergeTarget,
+        destination: Option<git::fmt::RefString>,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         labels: &[Label],
@@ -2582,6 +2674,7 @@ where
             title,
             description,
             target,
+            destination,
             base,
             oid,
             labels,
@@ -2596,6 +2689,7 @@ where
         title: cob::Title,
         description: impl ToString,
         target: MergeTarget,
+        destination: Option<git::fmt::RefString>,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         labels: &[Label],
@@ -2610,6 +2704,7 @@ where
             title,
             description,
             target,
+            destination,
             base,
             oid,
             labels,
@@ -2643,6 +2738,7 @@ where
         title: cob::Title,
         description: impl ToString,
         target: MergeTarget,
+        destination: Option<git::fmt::RefString>,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         labels: &[Label],
@@ -2658,7 +2754,7 @@ where
     {
         let (id, patch) = Transaction::initial("Create patch", &mut self.raw, |tx, _| {
             tx.revision(description, base, oid)?;
-            tx.edit(title, target)?;
+            tx.edit(title, target, destination)?;
 
             if !labels.is_empty() {
                 tx.label(labels.to_owned())?;
@@ -2875,6 +2971,8 @@ mod test {
     use crate::cob::test::Actor;
     use crate::crypto::test::signer::MockSigner;
     use crate::identity;
+    use crate::identity::doc::RawDoc;
+    use crate::identity::project::{Project, ProjectName};
     use crate::patch::cache::Patches as _;
     use crate::profile::env;
     use crate::test;
@@ -2883,6 +2981,263 @@ mod test {
     use crate::test::storage::MockRepository;
 
     use cob::migrate;
+
+    fn revision() -> (RevisionId, Revision) {
+        let author = arbitrary::r#gen::<Did>(1);
+        let description = arbitrary::r#gen::<String>(1);
+        let base = arbitrary::oid();
+        let oid = arbitrary::oid();
+        let timestamp = env::local_time();
+        let resolves = BTreeSet::new();
+        let id = RevisionId::from(arbitrary::oid());
+        let mut revision = Revision::new(
+            id,
+            Author { id: author },
+            description,
+            base,
+            oid,
+            timestamp.into(),
+            resolves,
+        );
+        let comment = Comment::new(
+            *author,
+            "#1 comment".to_string(),
+            None,
+            None,
+            vec![],
+            timestamp.into(),
+        );
+        let thread = Thread::new(arbitrary::oid(), comment);
+        revision.discussion = thread;
+        (id, revision)
+    }
+
+    #[test]
+    fn test_destination_forwards_compatibility() {
+        #[allow(dead_code)]
+        #[derive(Debug, Deserialize)]
+        #[serde(tag = "type", rename_all = "camelCase")]
+        enum OldAction {
+            #[serde(rename = "edit")]
+            Edit { title: String, target: String },
+            #[serde(rename = "merge")]
+            Merge { revision: String, commit: String },
+        }
+
+        let new_edit_json = serde_json::json!({
+            "type": "edit",
+            "title": "My patch",
+            "target": "delegates",
+            "destination": "refs/heads/accepted"
+        });
+
+        let new_merge_json = serde_json::json!({
+            "type": "merge",
+            "revision": arbitrary::entry_id().to_string(),
+            "commit": arbitrary::oid().to_string(),
+            "destination": "refs/heads/accepted"
+        });
+
+        let old_edit: OldAction = serde_json::from_value(new_edit_json).expect(
+            "Old client should successfully ignore the unknown `destination` field in Edit",
+        );
+
+        assert!(matches!(old_edit, OldAction::Edit { .. }));
+
+        let old_merge: OldAction = serde_json::from_value(new_merge_json).expect(
+            "Old client should successfully ignore the unknown `destination` field in Merge",
+        );
+
+        assert!(matches!(old_merge, OldAction::Merge { .. }));
+    }
+
+    #[test]
+    fn test_json_serialisation_destination() {
+        let edit_none = Action::Edit {
+            title: cob::Title::new("My patch").unwrap(),
+            target: MergeTarget::Delegates,
+            destination: None,
+        };
+        assert_eq!(
+            serde_json::to_string(&edit_none).unwrap(),
+            String::from(r#"{"type":"edit","title":"My patch","target":"delegates"}"#)
+        );
+
+        let edit_some = Action::Edit {
+            title: cob::Title::new("My patch").unwrap(),
+            target: MergeTarget::Delegates,
+            destination: Some(git::fmt::RefString::try_from("refs/heads/accepted").unwrap()),
+        };
+        assert_eq!(
+            serde_json::to_string(&edit_some).unwrap(),
+            String::from(
+                r#"{"type":"edit","title":"My patch","target":"delegates","destination":"refs/heads/accepted"}"#
+            )
+        );
+    }
+
+    #[test]
+    fn test_merge_destination_resolution() {
+        let alice = Actor::<MockSigner>::default();
+        let project = Project::new(
+            ProjectName::from_str("test_merge_destination_resolution").unwrap(),
+            String::from(""),
+            BranchName::from(git::fmt::RefString::try_from("master").unwrap()),
+        );
+
+        let doc = RawDoc::new(
+            project.unwrap(),
+            vec![alice.did()],
+            1,
+            identity::Visibility::Public,
+        )
+        .verified()
+        .unwrap();
+
+        let patch_none = Patch::new(
+            cob::Title::new("My patch").unwrap(),
+            MergeTarget::Delegates,
+            None,
+            revision(),
+        );
+        assert_eq!(
+            patch_none.merge_destination(&doc).unwrap().as_str(),
+            "refs/heads/master"
+        );
+
+        let patch_some = Patch::new(
+            cob::Title::new("My patch").unwrap(),
+            MergeTarget::Delegates,
+            Some(git::fmt::RefString::try_from("accepted").unwrap()),
+            revision(),
+        );
+        assert_eq!(
+            patch_some.merge_destination(&doc).unwrap().as_str(),
+            "refs/heads/accepted"
+        );
+    }
+
+    #[test]
+    fn test_patch_merge_custom_destination_authorized() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let alice = Actor::<MockSigner>::default();
+        let bob = Actor::<MockSigner>::default();
+
+        let mut raw_doc = RawDoc::new(
+            r#gen::<Project>(1),
+            vec![bob.did()],
+            1,
+            identity::Visibility::Public,
+        );
+
+        let rules = serde_json::json!({
+            "refs/heads/accepted": {
+                "allow": [alice.did()],
+                "threshold": 1
+            }
+        });
+        let crefs = serde_json::json!({
+            "rules": rules
+        });
+        raw_doc.payload.insert(
+            identity::doc::PayloadId::canonical_refs(),
+            identity::doc::Payload::from(crefs),
+        );
+
+        let doc = raw_doc.verified().unwrap();
+        let patch = Patch::new(
+            cob::Title::new("My Patch").unwrap(),
+            MergeTarget::Delegates,
+            Some(git::fmt::RefString::try_from("accepted").unwrap()),
+            (
+                RevisionId(arbitrary::entry_id()),
+                Revision::new(
+                    RevisionId(arbitrary::entry_id()),
+                    Author::new(bob.did()),
+                    String::new(),
+                    base,
+                    oid,
+                    env::local_time().into(),
+                    Default::default(),
+                ),
+            ),
+        );
+
+        let merge_action = Action::Merge {
+            revision: RevisionId(arbitrary::entry_id()),
+            commit: oid,
+            destination: Some(git::fmt::RefString::try_from("accepted").unwrap()),
+        };
+
+        assert_eq!(
+            patch
+                .authorization(&merge_action, &alice.did().into(), &doc)
+                .unwrap(),
+            Authorization::Allow,
+        );
+    }
+
+    #[test]
+    fn test_patch_merge_custom_destination_unauthorized() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let alice = Actor::<MockSigner>::default();
+        let bob = Actor::<MockSigner>::default();
+
+        let mut raw_doc = RawDoc::new(
+            r#gen::<Project>(1),
+            vec![alice.did()],
+            1,
+            identity::Visibility::Public,
+        );
+
+        let rules = serde_json::json!({
+            "refs/heads/accepted": {
+                "allow": [alice.did()],
+                "threshold": 1
+            }
+        });
+        let crefs = serde_json::json!({
+            "rules": rules
+        });
+        raw_doc.payload.insert(
+            identity::doc::PayloadId::canonical_refs(),
+            identity::doc::Payload::from(crefs),
+        );
+
+        let doc = raw_doc.verified().unwrap();
+        let patch = Patch::new(
+            cob::Title::new("My Patch").unwrap(),
+            MergeTarget::Delegates,
+            Some(git::fmt::RefString::try_from("accepted").unwrap()),
+            (
+                RevisionId(arbitrary::entry_id()),
+                Revision::new(
+                    RevisionId(arbitrary::entry_id()),
+                    Author::new(alice.did()),
+                    String::new(),
+                    base,
+                    oid,
+                    env::local_time().into(),
+                    Default::default(),
+                ),
+            ),
+        );
+
+        let merge_action = Action::Merge {
+            revision: RevisionId(arbitrary::entry_id()),
+            commit: oid,
+            destination: Some(git::fmt::RefString::try_from("accepted").unwrap()),
+        };
+
+        assert_eq!(
+            patch
+                .authorization(&merge_action, &bob.did().into(), &doc)
+                .unwrap(),
+            Authorization::Deny,
+        );
+    }
 
     #[test]
     fn test_json_serialization() {
@@ -2950,6 +3305,7 @@ mod test {
                 cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 target,
+                None,
                 branch.base,
                 branch.oid,
                 &[],
@@ -2989,6 +3345,7 @@ mod test {
                 cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
+                None,
                 branch.base,
                 branch.oid,
                 &[],
@@ -3021,6 +3378,7 @@ mod test {
                 cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
+                None,
                 branch.base,
                 branch.oid,
                 &[],
@@ -3029,7 +3387,7 @@ mod test {
 
         let id = patch.id;
         let (rid, _) = patch.revisions().next().unwrap();
-        let _merge = patch.merge(rid, branch.base).unwrap();
+        let _merge = patch.merge(rid, branch.base, None).unwrap();
         let patch = patches.get(&id).unwrap().unwrap();
 
         let merges = patch.merges.iter().collect::<Vec<_>>();
@@ -3051,6 +3409,7 @@ mod test {
                 cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
+                None,
                 branch.base,
                 branch.oid,
                 &[],
@@ -3101,6 +3460,7 @@ mod test {
                 cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
+                None,
                 branch.base,
                 branch.oid,
                 &[],
@@ -3146,6 +3506,7 @@ mod test {
             Action::Edit {
                 title: cob::Title::new("My patch").unwrap(),
                 target: MergeTarget::Delegates,
+                destination: None,
             },
         ]);
         let a2 = alice.op::<Patch>([Action::Revision {
@@ -3166,6 +3527,7 @@ mod test {
         let a5 = alice.op::<Patch>([Action::Merge {
             revision: RevisionId(a2.id()),
             commit: oid,
+            destination: None,
         }]);
 
         let mut patch = Patch::from_ops([a1, a2], &repo).unwrap();
@@ -3197,6 +3559,7 @@ mod test {
                 Action::Edit {
                     title: cob::Title::new("Some patch").unwrap(),
                     target: MergeTarget::Delegates,
+                    destination: None,
                 },
             ],
             time.into(),
@@ -3257,6 +3620,7 @@ mod test {
             Action::Edit {
                 title: cob::Title::new("My patch").unwrap(),
                 target: MergeTarget::Delegates,
+                destination: None,
             },
         ]);
         let a2 = alice.op::<Patch>([Action::RevisionReact {
@@ -3288,6 +3652,7 @@ mod test {
                 cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
+                None,
                 branch.base,
                 branch.oid,
                 &[],
@@ -3325,6 +3690,7 @@ mod test {
                 cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
+                None,
                 branch.base,
                 branch.oid,
                 &[],
@@ -3355,6 +3721,7 @@ mod test {
                 cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
+                None,
                 branch.base,
                 branch.oid,
                 &[],
@@ -3404,6 +3771,7 @@ mod test {
                 cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
+                None,
                 branch.base,
                 branch.oid,
                 &[],
@@ -3449,6 +3817,7 @@ mod test {
                 cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
+                None,
                 branch.base,
                 branch.oid,
                 &[],
@@ -3497,6 +3866,7 @@ mod test {
                 cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
+                None,
                 branch.base,
                 branch.oid,
                 &[],
@@ -3545,6 +3915,7 @@ mod test {
                 cob::Title::new("My first patch").unwrap(),
                 "Blah blah blah.",
                 MergeTarget::Delegates,
+                None,
                 branch.base,
                 branch.oid,
                 &[],
