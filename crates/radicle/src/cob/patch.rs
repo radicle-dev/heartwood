@@ -510,6 +510,23 @@ impl Patch {
         self.destination.as_ref()
     }
 
+    /// Resolves a target branch from an optional reference string.
+    /// If the reference is omitted, it falls back to the project's default branch.
+    fn resolve_target<'a>(
+        target: Option<&'a git::fmt::RefString>,
+        doc: &'a Doc,
+    ) -> Result<git::fmt::Qualified<'a>, DefaultBranchError> {
+        if let Some(dest) = target {
+            if let Some(q) = git::fmt::Qualified::from_refstr(dest) {
+                Ok(q.to_owned())
+            } else {
+                Ok(git::fmt::lit::refs_heads(dest).into())
+            }
+        } else {
+            doc.default_branch()
+        }
+    }
+
     /// Resolves the intended destination branch for this patch.
     ///
     /// If a custom destination was specified, it returns that branch.
@@ -518,11 +535,7 @@ impl Patch {
         &'a self,
         doc: &'a Doc,
     ) -> Result<git::fmt::Qualified<'a>, DefaultBranchError> {
-        if let Some(dest) = &self.destination {
-            Ok(git::fmt::lit::refs_heads(strip_refs_heads(dest)).into())
-        } else {
-            doc.default_branch()
-        }
+        Self::resolve_target(self.destination.as_ref(), doc)
     }
 
     /// Timestamp of the first revision of the patch.
@@ -730,11 +743,7 @@ impl Patch {
             }
             Action::Assign { .. } => Authorization::Deny,
             Action::Merge { destination, .. } => {
-                let dest = if let Some(d) = destination {
-                    git::fmt::lit::refs_heads(strip_refs_heads(d)).into()
-                } else {
-                    doc.default_branch()?
-                };
+                let dest = Self::resolve_target(destination.as_ref(), doc)?;
 
                 if let Ok(crefs) = doc.canonical_refs() {
                     if let Some((_, rule)) = crefs.rules().matches(&dest).next() {
@@ -1137,12 +1146,7 @@ impl Patch {
                     return Ok(());
                 };
 
-                let branch = if let Some(d) = &destination {
-                    git::fmt::lit::refs_heads(strip_refs_heads(d)).into()
-                } else {
-                    let proj = identity.project()?;
-                    git::refs::branch(proj.default_branch())
-                };
+                let branch = Self::resolve_target(destination.as_ref(), identity)?;
 
                 // Nb. We don't return an error in case the merge commit is not an
                 // ancestor of the default branch. The default branch can change
@@ -1259,12 +1263,6 @@ impl Patch {
         }
         Ok(())
     }
-}
-
-/// Strips `refs/heads` prefix
-fn strip_refs_heads(d: &radicle_git_ref_format::RefString) -> &RefStr {
-    d.strip_prefix(git::fmt::refname!("refs/heads"))
-        .unwrap_or(d.as_refstr())
 }
 
 impl cob::store::CobWithType for Patch {
@@ -2970,6 +2968,7 @@ mod test {
     use crate::cob::common::CodeRange;
     use crate::cob::test::Actor;
     use crate::crypto::test::signer::MockSigner;
+    use crate::git::BranchName;
     use crate::identity;
     use crate::identity::doc::RawDoc;
     use crate::identity::project::{Project, ProjectName};
@@ -3105,15 +3104,128 @@ mod test {
             "refs/heads/master"
         );
 
-        let patch_some = Patch::new(
+        let patch_unqualified = Patch::new(
             cob::Title::new("My patch").unwrap(),
             MergeTarget::Delegates,
             Some(git::fmt::RefString::try_from("accepted").unwrap()),
             revision(),
         );
         assert_eq!(
-            patch_some.merge_destination(&doc).unwrap().as_str(),
+            patch_unqualified.merge_destination(&doc).unwrap().as_str(),
             "refs/heads/accepted"
+        );
+
+        let patch_qualified_branch = Patch::new(
+            cob::Title::new("My patch").unwrap(),
+            MergeTarget::Delegates,
+            Some(git::fmt::RefString::try_from("refs/heads/accepted").unwrap()),
+            revision(),
+        );
+        assert_eq!(
+            patch_qualified_branch
+                .merge_destination(&doc)
+                .unwrap()
+                .as_str(),
+            "refs/heads/accepted"
+        );
+
+        let patch_qualified_tag = Patch::new(
+            cob::Title::new("My patch").unwrap(),
+            MergeTarget::Delegates,
+            Some(git::fmt::RefString::try_from("refs/tags/v1.0").unwrap()),
+            revision(),
+        );
+        assert_eq!(
+            patch_qualified_tag
+                .merge_destination(&doc)
+                .unwrap()
+                .as_str(),
+            "refs/tags/v1.0"
+        );
+    }
+
+    #[test]
+    fn test_patch_merge_authorization_ref_formats() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let alice = Actor::<MockSigner>::default();
+
+        let mut raw_doc = RawDoc::new(
+            r#gen::<Project>(1),
+            vec![alice.did()],
+            1,
+            identity::Visibility::Public,
+        );
+
+        let rules = serde_json::json!({
+            "refs/heads/accepted": {
+                "allow": "delegates",
+                "threshold": 1
+            },
+            "refs/tags/v1.0": {
+                "allow": "delegates",
+                "threshold": 1
+            }
+        });
+        let crefs = serde_json::json!({ "rules": rules });
+        raw_doc.payload.insert(
+            identity::doc::PayloadId::canonical_refs(),
+            identity::doc::Payload::from(crefs),
+        );
+
+        let doc = raw_doc.verified().unwrap();
+        let patch = Patch::new(
+            cob::Title::new("My Patch").unwrap(),
+            MergeTarget::Delegates,
+            None,
+            (
+                RevisionId(arbitrary::entry_id()),
+                Revision::new(
+                    RevisionId(arbitrary::entry_id()),
+                    Author::new(alice.did()),
+                    String::new(),
+                    base,
+                    oid,
+                    env::local_time().into(),
+                    Default::default(),
+                ),
+            ),
+        );
+
+        let merge_unqualified = Action::Merge {
+            revision: RevisionId(arbitrary::entry_id()),
+            commit: oid,
+            destination: Some(git::fmt::RefString::try_from("accepted").unwrap()),
+        };
+        assert_eq!(
+            patch
+                .authorization(&merge_unqualified, &alice.did().into(), &doc)
+                .unwrap(),
+            Authorization::Allow
+        );
+
+        let merge_qualified_branch = Action::Merge {
+            revision: RevisionId(arbitrary::entry_id()),
+            commit: oid,
+            destination: Some(git::fmt::RefString::try_from("refs/heads/accepted").unwrap()),
+        };
+        assert_eq!(
+            patch
+                .authorization(&merge_qualified_branch, &alice.did().into(), &doc)
+                .unwrap(),
+            Authorization::Allow
+        );
+
+        let merge_qualified_tag = Action::Merge {
+            revision: RevisionId(arbitrary::entry_id()),
+            commit: oid,
+            destination: Some(git::fmt::RefString::try_from("refs/tags/v1.0").unwrap()),
+        };
+        assert_eq!(
+            patch
+                .authorization(&merge_qualified_tag, &alice.did().into(), &doc)
+                .unwrap(),
+            Authorization::Allow
         );
     }
 
