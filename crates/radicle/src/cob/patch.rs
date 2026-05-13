@@ -750,10 +750,10 @@ impl Patch {
                     return Ok(Authorization::Deny);
                 }
 
-                if let Ok(crefs) = doc.canonical_refs() {
-                    if let Some((_, rule)) = crefs.rules().matches(&dest).next() {
-                        return Ok(Authorization::from(rule.allowed().contains(&actor.into())));
-                    }
+                if let Ok(crefs) = doc.canonical_refs()
+                    && let Some((_, rule)) = crefs.rules().matches(&dest).next()
+                {
+                    return Ok(Authorization::from(rule.allowed().contains(&actor.into())));
                 }
 
                 Authorization::Deny

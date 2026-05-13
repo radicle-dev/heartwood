@@ -836,29 +836,29 @@ where
 
         // If we're pushing to a valid canonical branch, we want to see if any patches got
         // merged or reverted, and if so, update the patch COB.
-        if let Some((_, rule)) = rules.matches(&stripped_dst).next() {
-            if rule.allowed().contains(&me) {
-                let old = old.peel_to_commit()?.id();
-                let destination = Some(stripped_dst.to_ref_string());
+        if let Some((_, rule)) = rules.matches(&stripped_dst).next()
+            && rule.allowed().contains(&me)
+        {
+            let old = old.peel_to_commit()?.id();
+            let destination = Some(stripped_dst.to_ref_string());
 
-                patch_revert_all(
-                    old.into(),
-                    head,
-                    destination.clone(),
-                    &stored.backend,
-                    &mut patches,
-                    &identity,
-                )?;
-                patch_merge_all(
-                    old.into(),
-                    head,
-                    destination,
-                    working,
-                    &mut patches,
-                    signer,
-                    &identity,
-                )?;
-            }
+            patch_revert_all(
+                old.into(),
+                head,
+                destination.clone(),
+                &stored.backend,
+                &mut patches,
+                &identity,
+            )?;
+            patch_merge_all(
+                old.into(),
+                head,
+                destination,
+                working,
+                &mut patches,
+                signer,
+                &identity,
+            )?;
         }
     }
     Ok(Some(ExplorerResource::Tree { oid: head }))
