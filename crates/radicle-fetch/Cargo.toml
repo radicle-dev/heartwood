@@ -11,13 +11,13 @@ rust-version.workspace = true
 [dependencies]
 bstr = { workspace = true }
 either = "1.9.0"
-gix-features = { version = "0.46", features = ["progress"] }
+gix-features = { version = "0.48", features = ["progress"] }
 gix-hash = { workspace = true }
-gix-odb = "0.75.0"
-gix-pack = "0.65.0"
-gix-protocol = { version = "0.57.0", features = ["blocking-client"] }
-gix-refspec = "0.37"
-gix-transport = { version = "0.54.0", features = ["blocking-client"] }
+gix-odb = "0.80.0"
+gix-pack = "0.70.0"
+gix-protocol = { version = "0.61.0", features = ["blocking-client"] }
+gix-refspec = "0.41"
+gix-transport = { version = "0.57.0", features = ["blocking-client"] }
 log = { workspace = true, features = ["std"] }
 nonempty = { workspace = true }
 radicle = { workspace = true, features = ["bstr", "gix"] }
