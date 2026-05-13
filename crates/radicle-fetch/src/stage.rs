@@ -32,7 +32,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use bstr::{BStr, BString};
+use bstr::BString;
 use either::Either;
 use gix_protocol::handshake::Ref;
 use nonempty::NonEmpty;
@@ -121,36 +121,6 @@ impl RefPrefix {
                     .into()
             }
             RefPrefix::AllNamespaces => "refs/namespaces".into(),
-        }
-    }
-
-    /// Convert the [`RefPrefix`] into its equivalent [`RefSpec`].
-    ///
-    /// See the [`RefPrefix`] variants for their [`BString`] values.
-    ///
-    /// # Panics
-    ///
-    /// This will panic if the reference as a [`BString`] value no longer parses
-    /// in the upstream [`gix_refspec`] crate.
-    ///
-    /// [`RefSpec`]: gix_refspec::RefSpec
-    pub fn as_refspec(&self) -> gix_refspec::RefSpec {
-        use gix_refspec::parse::Operation;
-        let parse = |spec: &BStr| -> gix_refspec::RefSpec {
-            gix_refspec::parse(spec, Operation::Fetch)
-                .expect("RefPrefix should be valid refspec")
-                .to_owned()
-        };
-
-        match self {
-            RefPrefix::RadId => parse(refs::REFS_RAD_ID.as_bstr()),
-            RefPrefix::NamespacedRadId { namespace } => {
-                parse(radicle::git::refs::storage::id(namespace).as_bstr())
-            }
-            RefPrefix::NamespacedRadSigrefs { namespace } => {
-                parse(radicle::git::refs::storage::sigrefs(namespace).as_bstr())
-            }
-            RefPrefix::AllNamespaces => parse(BStr::new("refs/namespaces")),
         }
     }
 }
@@ -696,27 +666,4 @@ where
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod test {
-    use super::RefPrefix;
-
-    /// Ensure that the call to [`RefPrefix::as_refspec`] does not panic
-    #[test]
-    fn valid_refspecs() {
-        let namespace = "z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk"
-            .parse()
-            .unwrap();
-        let prefixes = [
-            RefPrefix::AllNamespaces,
-            RefPrefix::RadId,
-            RefPrefix::NamespacedRadId { namespace },
-            RefPrefix::NamespacedRadSigrefs { namespace },
-        ];
-
-        for prefix in prefixes {
-            prefix.as_refspec();
-        }
-    }
 }

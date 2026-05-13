@@ -59,6 +59,7 @@ impl PackWriter {
             object_hash: gix_hash::Kind::Sha1,
             use_multi_pack_index: true,
             current_dir: Some(self.git_dir.clone()),
+            alloc_limit_bytes: None,
         };
         let thickener = Arc::new(
             gix_odb::Store::at_opts(self.git_dir.join("objects"), &mut [].into_iter(), odb_opts)

@@ -4,6 +4,7 @@ use std::io;
 
 use gix_features::progress::Progress;
 use gix_protocol::handshake::Ref;
+use gix_protocol::ls_refs::RefPrefixes;
 use gix_protocol::transport::Protocol;
 use gix_protocol::{Handshake, ls_refs};
 use gix_transport::bstr::BString;
@@ -54,22 +55,17 @@ where
         )));
     }
 
-    let (refspecs, prefixes) = {
-        let n = config.prefixes.len();
-        config.prefixes.into_iter().fold(
-            (Vec::with_capacity(n), Vec::with_capacity(n)),
-            |(mut specs, mut prefixes), prefix| {
-                specs.push(prefix.as_refspec());
-                prefixes.push(prefix.into_bstring());
-                (specs, prefixes)
-            },
-        )
-    };
+    let prefixes = config
+        .prefixes
+        .iter()
+        .map(|prefix| prefix.into_bstring())
+        .collect::<Vec<_>>();
 
-    log::trace!("ls-refs prefixes: {:#?}", refspecs);
+    let mut refspecs = RefPrefixes::new();
+    refspecs.extend(prefixes.clone());
 
     let ls_refs = gix_protocol::LsRefsCommand::new(
-        Some(&refspecs),
+        Some(refspecs),
         capabilities,
         ("agent", Some(Cow::Owned(agent_name()))),
     );
