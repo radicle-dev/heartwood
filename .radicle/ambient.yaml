@@ -1,6 +1,27 @@
 pre_plan:
   - action: cargo_fetch
+  # Define the compatible toolchain channel used by `heartwood`.
+  # This channel is also defined in `rust-toolchain.toml` – which hopefully can
+  # be supported by ambient in the future.
+  - action: rustup
+    channel: 1.95.0
+  - action: rustup
+    channel: "1.95"
 plan:
+  # Remove the components from rust-toolchain.toml. This works around the
+  # inability of the rustup action to install components, and the only component
+  # in the heartwood toolchain file is rust-src, which we do not need for CI,
+  # so we just remove it.
+  - action: shell
+    shell: |
+      sed -i /components/d rust-toolchain.toml
+
+      # Commit this to git so that the Debian package building doesn't
+      # see changes outside the debian directory.
+      git config set user.name "Ambient CI"
+      git config set user.email "ambient@example.com"
+      git commit -m "remove components from toolchain file" rust-toolchain.toml
+
   - action: cargo_fmt
   - action: cargo_clippy
   - action: cargo_build
