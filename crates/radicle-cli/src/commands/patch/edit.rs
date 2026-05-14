@@ -57,13 +57,12 @@ where
     }
 
     let (root, _) = patch.root();
-    let target = patch.target();
-    let destination = patch.destination().cloned();
+    let target = patch.target().clone();
     let embeds = patch.embeds().to_owned();
 
     patch.transaction("Edit root", |tx| {
         if let Some(t) = title {
-            tx.edit(t, target, destination)?;
+            tx.edit(t, target)?;
         }
         if let Some(d) = description {
             tx.edit_revision(root, d, embeds)?;

@@ -237,7 +237,6 @@ impl<G: Signer> Actor<G> {
                 patch::Action::Edit {
                     title,
                     target: patch::MergeTarget::default(),
-                    destination: None,
                 },
             ]),
             repo,
