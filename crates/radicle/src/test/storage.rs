@@ -333,7 +333,12 @@ impl ReadRepository for MockRepository {
     fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {
         Ok(self.doc.commit)
     }
-
+    fn canonical_reference_oid(
+        &self,
+        _refname: radicle_git_ref_format::Qualified,
+    ) -> Result<Oid, RepositoryError> {
+        Ok(self.doc.commit)
+    }
     fn merge_base(&self, _left: &Oid, _right: &Oid) -> Result<Oid, crate::git::raw::Error> {
         todo!()
     }

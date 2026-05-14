@@ -569,6 +569,9 @@ pub trait ReadRepository: Sized + ValidateRepository {
         Ok(doc)
     }
 
+    // Compute the OID for the canonical reference
+    fn canonical_reference_oid(&self, refname: Qualified) -> Result<Oid, RepositoryError>;
+
     /// Get the `reference` for the given `remote`.
     ///
     /// Returns `None` is the reference did not exist.

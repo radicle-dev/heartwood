@@ -388,6 +388,10 @@ impl<R: storage::ReadRepository> ReadRepository for DraftStore<'_, R> {
         self.repo.canonical_identity_head()
     }
 
+    fn canonical_reference_oid(&self, refname: Qualified) -> Result<Oid, RepositoryError> {
+        self.repo.canonical_reference_oid(refname)
+    }
+
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, crate::git::raw::Error> {
         self.repo.merge_base(left, right)
     }

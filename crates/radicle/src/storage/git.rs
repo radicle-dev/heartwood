@@ -928,6 +928,18 @@ impl ReadRepository for Repository {
         Err(DocError::Missing.into())
     }
 
+    fn canonical_reference_oid(&self, refname: Qualified) -> Result<Oid, RepositoryError> {
+        let doc = self.identity_doc()?;
+        Ok(doc
+            .canonical_refs()?
+            .rules()
+            .canonical(refname, self)
+            .ok_or(RepositoryError::MissingBranchRule)?
+            .find_objects()?
+            .quorum()?)
+        .map(|Quorum { object, .. }| object.id())
+    }
+
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, crate::git::raw::Error> {
         self.backend
             .merge_base(left.into(), right.into())
