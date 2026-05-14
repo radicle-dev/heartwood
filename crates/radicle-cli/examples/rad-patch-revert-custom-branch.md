@@ -39,7 +39,7 @@ $ git commit -m "Add new feature"
  create mode 100644 FEATURE.md
 ```
 ``` (stderr)
-$ git push -o patch.message="Add new feature" -o patch.destination="refs/heads/accepted" rad HEAD:refs/patches
+$ git push -o patch.message="Add new feature" -o patch.target="refs/heads/accepted" rad HEAD:refs/patches
 ✓ Patch [..] opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches

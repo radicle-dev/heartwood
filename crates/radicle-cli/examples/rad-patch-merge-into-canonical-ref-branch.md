@@ -26,7 +26,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
  * [new branch]      accepted -> accepted
 ```
 
-Next, we create a feature branch and open a patch. We use the `patch.destination` push option to explicitly state that this patch is intended for `refs/heads/accepted` rather than the default branch (`master`).
+Next, we create a feature branch and open a patch. We use the `patch.target` push option to explicitly state that this patch is intended for `refs/heads/accepted` rather than the default branch (`master`).
 
 ``` (stderr)
 $ git checkout -b feature/1
@@ -43,7 +43,7 @@ $ git commit -m "Add new feature"
 ```
 
 ``` (stderr)
-$ git push -o patch.message="Add new feature" -o patch.destination="refs/heads/accepted" rad HEAD:refs/patches
+$ git push -o patch.message="Add new feature" -o patch.target="refs/heads/accepted" rad HEAD:refs/patches
 ✓ Patch [..] opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches

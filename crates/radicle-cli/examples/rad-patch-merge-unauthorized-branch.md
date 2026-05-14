@@ -54,7 +54,7 @@ $ git commit -m "Add new feature"
  create mode 100644 FEATURE.md
 ```
 ``` ~bob (stderr)
-$ git push -o patch.message="Add new feature" -o patch.destination="refs/heads/accepted" rad HEAD:refs/patches
+$ git push -o patch.message="Add new feature" -o patch.target="refs/heads/accepted" rad HEAD:refs/patches
 ✓ Patch [..] opened
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
