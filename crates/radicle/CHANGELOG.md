@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `radicle::cob::patch::MergeTarget` has a new `Branch(RefString)` variant to support custom target branches.
+- `radicle::storage::ReadRepository` has a new required method `canonical_reference_oid` to resolve the object ID of a reference by its string name.
+
 ### Changed
 
 ### Removed
