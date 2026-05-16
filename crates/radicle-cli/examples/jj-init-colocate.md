@@ -8,5 +8,4 @@ Hint: The following remote bookmarks aren't associated with the existing local b
 Hint: Run the following command to keep local bookmarks updated on future pulls:
   jj bookmark track master[..]rad
 Initialized repo in "."
-Hint: Running `git clean -xdf` will remove `.jj/`!
 ```
