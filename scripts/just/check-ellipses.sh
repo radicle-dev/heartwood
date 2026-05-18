@@ -1,12 +1,12 @@
 #! /usr/bin/env bash
 set -euo pipefail
 
-# Replace '...' with '…' (U+2026) in markdown and Rust files, but ignore:
+# Replace '...' with '…' (U+2026) in markdown, just and Rust files, but ignore:
 # - Git ranges with hex hashes, e.g. 20aa5dd...f2de534
 # - Git ranges with ref paths, e.g. feature/1...rad/patches/f2de534
 # - Standalone '...' lines used as output wildcards in CLI example tests
 # - Wildcards for CLI example tests, i.e. [...]
-patterns=('*.md' '*.rs')
+patterns=('*.md' '*.rs' '*justfile')
 
 # Checksum files before sed so we detect only changes it makes.
 before=$(git ls-files -z "${patterns[@]}" | xargs -0 md5sum)

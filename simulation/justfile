@@ -34,7 +34,7 @@ create-cluster: (verify-tool "talosctl") ensure-ovmf
     #!/usr/bin/env bash
     set -e
     if [ ! -d "{{clusters_dir}}/{{cluster_name}}" ]; then
-        echo "{{CHECK}}Creating Talos cluster '{{cluster_name}}' using {{provisioner}}...{{NORMAL}}"
+        echo "{{CHECK}}Creating Talos cluster '{{cluster_name}}' using {{provisioner}}…{{NORMAL}}"
         mkdir -p "{{clusters_dir}}"
         if [ "{{provisioner}}" = "qemu" ]; then
             sudo --preserve-env=HOME,PATH talosctl cluster create --name={{cluster_name}} {{provisioner}} --config-patch-controlplanes '{"cluster": {"allowSchedulingOnControlPlanes": true}}'
@@ -48,7 +48,7 @@ create-cluster: (verify-tool "talosctl") ensure-ovmf
 # Configure the Kubernetes cluster
 [private]
 configure-cluster: (verify-tool "kubectl") create-cluster
-    @echo "{{CHECK}}Configuring cluster...{{NORMAL}}"
+    @echo "{{CHECK}}Configuring cluster…{{NORMAL}}"
     # Add local-path storage system
     @kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
     # Relax security on namespaces
@@ -60,7 +60,7 @@ configure-cluster: (verify-tool "kubectl") create-cluster
 # Start the simulation network only
 [group('start')]
 start-network: (verify-tool "timoni") vendor-timoni-dependencies
-    @echo "{{CHECK}}Starting simulation network...{{NORMAL}}"
+    @echo "{{CHECK}}Starting simulation network…{{NORMAL}}"
     @timoni apply radicle-network {{radicle_node_module}} -f instances/network.cue
     @just show-cluster
 
@@ -71,11 +71,11 @@ vendor-timoni-dependencies: (verify-tool "timoni")
     set -e
     cd {{radicle_node_module}}
     if [ ! -d "{{module_pkg}}" ]; then
-        echo "{{CHECK}}Fetching Timoni pkg files...{{NORMAL}}"
+        echo "{{CHECK}}Fetching Timoni pkg files…{{NORMAL}}"
          timoni artifact pull oci://ghcr.io/stefanprodan/timoni/schemas -o cue.mod/pkg
     fi
     if [ ! -d "{{module_gen}}" ]; then
-        echo "{{CHECK}}Fetching Timoni k8s gen files...{{NORMAL}}"
+        echo "{{CHECK}}Fetching Timoni k8s gen files…{{NORMAL}}"
         timoni mod vendor k8s
     fi
 
@@ -95,13 +95,13 @@ delete: delete-pods delete-pvc
 # Delete pods only
 [group('delete')]
 delete-pods: (verify-tool "kubectl")
-    @echo "{{CHECK}}Deleting pods...{{NORMAL}}"
+    @echo "{{CHECK}}Deleting pods…{{NORMAL}}"
     @kubectl delete pods -l app=radicle-node --wait=false
 
 # Delete storage volumes
 [group('delete')]
 delete-pvc: (verify-tool "kubectl")
-    @echo "{{CHECK}}Deleting storage volumes...{{NORMAL}}"
+    @echo "{{CHECK}}Deleting storage volumes…{{NORMAL}}"
     @kubectl delete pvc -l app=radicle-node --wait=false
 
 # Destroy the Talos cluster and clean up kubeconfig
@@ -117,14 +117,14 @@ destroy: (verify-tool "kubectl") (verify-tool "talosctl") show-cluster
         exit 1
     fi
 
-    echo "{{CHECK}}Destroying talos cluster '{{cluster_name}}'...{{NORMAL}}"
+    echo "{{CHECK}}Destroying talos cluster '{{cluster_name}}'…{{NORMAL}}"
     if [ "{{provisioner}}" = "qemu" ]; then
         sudo --preserve-env=HOME,PATH talosctl cluster destroy --name {{cluster_name}} --provisioner {{provisioner}}
     else
         talosctl cluster destroy --name {{cluster_name}} --provisioner {{provisioner}}
     fi
 
-    echo "{{CHECK}}Removing kube config entries...{{NORMAL}}"
+    echo "{{CHECK}}Removing kube config entries…{{NORMAL}}"
     CONTEXT=$(kubectl config current-context 2>/dev/null || echo "")
     if [ -n "$CONTEXT" ]; then
         CLUSTER=$(echo "$CONTEXT" | cut -d '@' -f 2)
@@ -162,7 +162,7 @@ ensure-ovmf:
         exit 0
     fi
     if [ ! -f /usr/share/OVMF/OVMF_CODE.fd ]; then
-        echo "{{CHECK}}Symlinking OVMF firmware from Nix store into /usr/share/OVMF...{{NORMAL}}"
+        echo "{{CHECK}}Symlinking OVMF firmware from Nix store into /usr/share/OVMF…{{NORMAL}}"
         sudo mkdir -p /usr/share/OVMF
         sudo ln -sf "$OVMF_FD_PATH"/* /usr/share/OVMF/
     fi

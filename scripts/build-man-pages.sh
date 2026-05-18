@@ -28,7 +28,7 @@ install() {
 
 main() {
   if [ $# -lt 2 ]; then
-    echo "usage: $0 <output-dir> <input-file>..."
+    echo "usage: $0 <output-dir> <input-file>…"
     exit 1
   fi
 

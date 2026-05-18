@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 set -e
-echo "${CHECK}Checking for forbidden words in staged files...${NORMAL}"
+echo "${CHECK}Checking for forbidden words in staged files…${NORMAL}"
 
 # Get staged Rust files
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.rs$' || true)
