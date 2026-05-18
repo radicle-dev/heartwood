@@ -8,18 +8,41 @@ set -euo pipefail
 # - Wildcards for CLI example tests, i.e. [...]
 patterns=('*.md' '*.rs' '*justfile')
 
+# Get all regular files (exclude symlinks, directories, etc.)
+files=()
+while IFS= read -r -d '' file; do
+    if [ -f "$file" ] && [ ! -L "$file" ]; then
+        files+=("$file")
+    fi
+done < <(git ls-files -z "${patterns[@]}")
+
+if [ ${#files[@]} -eq 0 ]; then
+    exit 0
+fi
+
 # Checksum files before sed so we detect only changes it makes.
-before=$(git ls-files -z "${patterns[@]}" | xargs -0 md5sum)
+before=$(printf '%s\0' "${files[@]}" | xargs -0 md5sum)
 
-standalone_wildcard='^\s*\.\.\.\s*$'
+standalone_wildcard='^[[:space:]]*\.\.\.[[:space:]]*$'
 git_hex_range='[0-9a-f]{4,}\.\.\.[0-9a-f]{4,}'
-git_ref_range='\S*\/\S*\.\.\.\S*\/\S*'
-bracket_wildcard='\[\s*\.\.\.\s*\]'
+git_ref_range='[^[:space:]]*\/[^[:space:]]*\.\.\.[^[:space:]]*\/[^[:space:]]*'
+bracket_wildcard='\[[[:space:]]*\.\.\.[[:space:]]*\]'
 
-git ls-files -z "${patterns[@]}" | xargs -0 sed --follow-symlinks --in-place --regexp-extended \
-    --expression "/${standalone_wildcard}/! { /${git_hex_range}/! { /${git_ref_range}/! { /${bracket_wildcard}/! s/\.\.\./…/g } } }"
+# Detect GNU vs BSD sed to apply the correct in-place flag
+if sed --version >/dev/null 2>&1; then
+    sed_cmd=(sed -i -E)
+else
+    sed_cmd=(sed -i '' -E)
+fi
 
-after=$(git ls-files -z "${patterns[@]}" | xargs -0 md5sum)
+printf '%s\0' "${files[@]}" | xargs -0 "${sed_cmd[@]}" \
+    -e "/${standalone_wildcard}/b" \
+    -e "/${git_hex_range}/b" \
+    -e "/${git_ref_range}/b" \
+    -e "/${bracket_wildcard}/b" \
+    -e 's/\.\.\./…/g'
+
+after=$(printf '%s\0' "${files[@]}" | xargs -0 md5sum)
 
 changed=$(diff <(echo "$before") <(echo "$after") | grep '^>' | sed 's/^> [a-f0-9]*  //' || true)
 
