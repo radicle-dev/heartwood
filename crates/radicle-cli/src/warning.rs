@@ -76,9 +76,49 @@ fn implicit_seeding_policy_allow_scope(config: &Config) -> Vec<String> {
     )]
 }
 
+fn ipv6_without_square_brackets(config: &Config) -> Vec<String> {
+    fn zip(
+        option: &'static str,
+        iter: impl Iterator<Item = Address>,
+    ) -> impl Iterator<Item = (&'static str, (usize, Address))> {
+        std::iter::zip(
+            std::iter::repeat(option),
+            iter.enumerate().filter_map(|(i, address)| {
+                #[allow(deprecated)]
+                address
+                    .is_ipv6_without_square_brackets()
+                    .then_some((i, address))
+            }),
+        )
+    }
+
+    fn pick_addr<'a>(
+        iter: impl Iterator<Item = &'a ConnectAddress>,
+    ) -> impl Iterator<Item = Address> {
+        iter.map(|connect_address| connect_address.addr.clone())
+    }
+
+    let chained = zip("preferredSeeds", pick_addr(config.preferred_seeds.iter()))
+        .chain(zip("node.connect", pick_addr(config.node.connect.iter())))
+        .chain(zip(
+            "node.externalAddresses",
+            config.node.external_addresses.iter().cloned(),
+        ));
+
+    chained.map(|(option, (i, address))|
+        format!(
+            "Value of configuration option `{option}` at zero-based index {i} mentions IPv6 address '{}' without square brackets. The address format will change, and this address will be rejected in the future. Please edit your configuration file to enclose the IPv6 address in square brackets. Combined with port information it should read '[{}]:{}'. Refer to RFC 5926, Sec. 6 as well as RFC 3986, Sec. D.1. and RFC 2732, Sec. 2.",
+            address.host(),
+            address.host(),
+            address.port()
+        )
+    ).collect()
+}
+
 pub(crate) fn config_warnings(config: &Config) -> Vec<String> {
     let mut warnings = nodes_renamed(config);
     warnings.extend(implicit_seeding_policy_allow_scope(config));
+    warnings.extend(ipv6_without_square_brackets(config));
 
     warnings
 }
