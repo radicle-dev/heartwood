@@ -62,6 +62,11 @@ fn rad_warn_old_nodes() {
 }
 
 #[test]
+fn rad_warn_ipv6() {
+    Environment::alice(["rad-warn-ipv6"]);
+}
+
+#[test]
 fn rad_clean() {
     let mut environment = Environment::new();
     let alice = environment.node("alice");

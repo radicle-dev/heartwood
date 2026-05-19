@@ -460,7 +460,7 @@ impl TryFrom<&sqlite::Value> for Alias {
 }
 
 /// Peer public protocol address.
-#[derive(Clone, Eq, PartialEq, Debug, Hash, From, Wrapper, WrapperMut, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Wrapper, WrapperMut, Serialize, Deserialize)]
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
 #[serde(try_from = "String", into = "String")]
@@ -479,12 +479,19 @@ impl TryFrom<&sqlite::Value> for Alias {
         "pattern" = "^.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$",
     ),
 ))]
-pub struct Address(NetAddr<HostName>);
+pub struct Address {
+    #[wrap]
+    inner: NetAddr<HostName>,
+
+    /// See documentation of [`Address::is_ipv6_without_square_brackets`] for details.
+    #[deprecated]
+    is_ipv6_without_square_brackets: bool,
+}
 
 impl Address {
     /// Check whether this address is from the local network.
     pub fn is_local(&self) -> bool {
-        match &self.0.host {
+        match &self.inner.host {
             HostName::Ip(ip) => address::is_local(ip),
             HostName::Dns(name) => {
                 let name = name.strip_suffix(".").unwrap_or(name);
@@ -499,7 +506,7 @@ impl Address {
 
     /// Check whether this address is globally routable.
     pub fn is_routable(&self) -> bool {
-        match self.0.host {
+        match self.inner.host {
             HostName::Ip(ip) => address::is_routable(&ip),
             HostName::Dns(_) => !self.is_local(),
             _ => true,
@@ -508,24 +515,24 @@ impl Address {
 
     /// Return the [`HostName`] of the [`Address`].
     pub fn host(&self) -> &HostName {
-        &self.0.host
+        &self.inner.host
     }
 
     /// Returns `true` if the [`HostName`] is a Tor onion address.
     #[cfg(feature = "tor")]
     pub fn is_onion(&self) -> bool {
-        matches!(self.0.host, HostName::Tor(_))
+        matches!(self.inner.host, HostName::Tor(_))
     }
 
     /// Returns `true` if the [`HostName`] is an I2P address.
     #[cfg(feature = "i2p")]
     pub fn is_i2p(&self) -> bool {
-        matches!(self.0.host, HostName::I2p(_))
+        matches!(self.inner.host, HostName::I2p(_))
     }
 
     /// Return the port number of the [`Address`].
     pub fn port(&self) -> u16 {
-        self.0.port
+        self.inner.port
     }
 
     pub fn display_compact(&self) -> impl Display + use<> {
@@ -552,6 +559,17 @@ impl Address {
 
         format!("{host}:{port}")
     }
+
+    /// Returns `true` if the address was parsed from a string that
+    /// mentioned an IPv6 address without square brackets.
+    /// May be used to warn the user, since this format is deprecated.
+    /// This function itself is deprecated and will be removed without further
+    /// notice when the format is no longer accepted.
+    #[deprecated]
+    pub fn is_ipv6_without_square_brackets(&self) -> bool {
+        #[allow(deprecated)]
+        self.is_ipv6_without_square_brackets
+    }
 }
 
 impl Display for Address {
@@ -560,7 +578,17 @@ impl Display for Address {
             HostName::Ip(IpAddr::V6(ip)) => {
                 write!(f, "[{ip}]:{}", self.port())
             }
-            _ => self.0.fmt(f),
+            _ => self.inner.fmt(f),
+        }
+    }
+}
+
+impl From<NetAddr<HostName>> for Address {
+    fn from(addr: NetAddr<HostName>) -> Self {
+        Address {
+            inner: addr,
+            #[allow(deprecated)]
+            is_ipv6_without_square_brackets: false,
         }
     }
 }
@@ -585,52 +613,55 @@ impl FromStr for Address {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (host, port) = s.rsplit_once(':').ok_or(AddrParseError::PortAbsent)?;
 
-        let host = if let Some(host) = host
+        let (host, is_ipv6_without_square_brackets) = if let Some(host) = host
             .strip_prefix('[')
             .and_then(|host| host.strip_suffix(']'))
         {
-            HostName::Ip(host.parse::<Ipv6Addr>()?.into())
+            (HostName::Ip(host.parse::<Ipv6Addr>()?.into()), false)
         } else {
-            // Warn on IPv6 addresses that are not enclosed in `[` and `]`.
-            host.parse().map(|host| match host {
-                HostName::Ip(IpAddr::V6(addr)) => {
-                    log::warn!("Address format will change in the future. '{s}' should be changed to '[{addr}]:{port}' to stay compatible. Refer to RFC 5926, Sec. 6 as well as RFC 3986, Sec. D.1. and RFC 2732, Sec. 2.");
-                    host
-                },
-                host => host,
-            })?
+            let host = host.parse()?;
+            let is_ipv6_without_square_brackets = matches!(&host, HostName::Ip(IpAddr::V6(_)));
+            (host, is_ipv6_without_square_brackets)
         };
 
         let port = port.parse().map_err(|_| AddrParseError::InvalidPort)?;
 
-        Ok(Self(NetAddr::new(host, port)))
+        Ok(Self {
+            inner: NetAddr::new(host, port),
+            #[allow(deprecated)]
+            is_ipv6_without_square_brackets,
+        })
     }
 }
 
 impl cyphernet::addr::Host for Address {
     fn requires_proxy(&self) -> bool {
-        self.0.requires_proxy()
+        self.inner.requires_proxy()
     }
 }
 
 impl cyphernet::addr::Addr for Address {
     fn port(&self) -> u16 {
-        self.0.port()
+        self.inner.port()
     }
 }
 
 impl From<net::SocketAddr> for Address {
     fn from(addr: net::SocketAddr) -> Self {
-        Address(NetAddr {
-            host: HostName::Ip(addr.ip()),
-            port: addr.port(),
-        })
+        Address {
+            inner: NetAddr {
+                host: HostName::Ip(addr.ip()),
+                port: addr.port(),
+            },
+            #[allow(deprecated)]
+            is_ipv6_without_square_brackets: false,
+        }
     }
 }
 
 impl From<Address> for HostName {
     fn from(addr: Address) -> Self {
-        addr.0.host
+        addr.inner.host
     }
 }
 
