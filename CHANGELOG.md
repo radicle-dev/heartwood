@@ -76,6 +76,11 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
   Furthermore, strict merge and revert isolation is now enforced: patches are 
   only marked as merged or reverted if the commits are pushed to the target 
   branch of the patch explicitly.
+- Additionally a magic push reference has been introduced to shortcut the usage 
+  of the aforementioned push option `patch.target`. `refs/for/<branch>` can be 
+  used to set the `patch.target` when used as a push target e.g. 
+  `git push rad HEAD:refs/for/backport`. This will use the `refs/heads/backport`
+  canonical reference as its `patch.target` in place of using the push option. 
 - Teach `rad patch show` to show the full commit range for each revision.
   Previously, it would only show the head of the range, but not the base.
   It now shows `<base>..<head>`, where the shortened OID is used when not

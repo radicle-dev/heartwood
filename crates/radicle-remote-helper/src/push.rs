@@ -31,6 +31,8 @@ use crate::service::GitService;
 use crate::service::NodeSession;
 use crate::{Options, Verbosity, hint, warn};
 
+const PATCHES_FOR_PREFIX: &str = "refs/for/";
+
 #[derive(Debug, Error)]
 pub(super) enum Error {
     /// Public key doesn't match the remote namespace we're pushing to.
@@ -114,6 +116,9 @@ pub(super) enum Error {
     UnknownObjectType { oid: git::Oid },
     #[error(transparent)]
     FindObjects(#[from] git::canonical::error::FindObjectsError),
+    /// Conflicting merge targets.
+    #[error("conflicting merge targets: push option '{0}' and magic ref '{1}' specified")]
+    ConflictingTargets(cob::patch::TargetBranch, cob::patch::TargetBranch),
     /// Default branch error.
     #[error(transparent)]
     DefaultBranch(#[from] radicle::identity::doc::DefaultBranchError),
@@ -212,7 +217,9 @@ impl Command {
 }
 
 enum PushAction {
-    OpenPatch,
+    OpenPatch {
+        target: Option<cob::patch::TargetBranch>,
+    },
     UpdatePatch {
         dst: git::fmt::Qualified<'static>,
         patch: patch::PatchId,
@@ -225,7 +232,17 @@ enum PushAction {
 impl PushAction {
     fn new(dst: &git::fmt::RefString) -> Result<Self, error::PushAction> {
         if dst == &*rad::PATCHES_REFNAME {
-            Ok(Self::OpenPatch)
+            Ok(Self::OpenPatch { target: None })
+        } else if let Some(stripped) = dst.as_str().strip_prefix(PATCHES_FOR_PREFIX) {
+            let target = cob::patch::TargetBranch::try_from(stripped).map_err(|_| {
+                error::PushAction::InvalidRef {
+                    refname: dst.clone(),
+                }
+            })?;
+
+            Ok(Self::OpenPatch {
+                target: Some(target),
+            })
         } else {
             let dst = git::fmt::Qualified::from_refstr(dst)
                 .ok_or_else(|| error::PushAction::InvalidRef {
@@ -326,17 +343,24 @@ pub(super) fn run(
                 let action = PushAction::new(dst)?;
 
                 match action {
-                    PushAction::OpenPatch => patch_open(
-                        src,
-                        &remote,
-                        &nid,
-                        &working,
-                        stored,
-                        patches,
-                        profile,
-                        opts.clone(),
-                        git,
-                    ),
+                    PushAction::OpenPatch { target } => {
+                        let mut push_opts = opts.clone();
+                        if let Some(magic_target) = target {
+                            if let cob::patch::MergeTarget::Branch(opt_target) = &opts.target
+                                && magic_target != *opt_target
+                            {
+                                return Err(Error::ConflictingTargets(
+                                    opt_target.clone(),
+                                    magic_target,
+                                ));
+                            }
+                            push_opts.target = cob::patch::MergeTarget::Branch(magic_target);
+                        }
+
+                        patch_open(
+                            src, &remote, &nid, &working, stored, patches, profile, push_opts, git,
+                        )
+                    }
                     PushAction::UpdatePatch { dst, patch } => patch_update(
                         src,
                         &dst,

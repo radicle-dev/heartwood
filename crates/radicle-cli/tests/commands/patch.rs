@@ -431,3 +431,8 @@ fn rad_patch_merge_on_first_push() {
     .run()
     .unwrap();
 }
+
+#[test]
+fn rad_patch_magic_push() {
+    Environment::alice(["rad-init", "rad-patch-magic-push"]);
+}
