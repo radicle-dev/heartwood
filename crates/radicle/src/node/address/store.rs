@@ -103,6 +103,13 @@ pub trait StoreExt {
         Self: 'a;
 
     fn nodes_by_alias<'a>(&'a self, alias: &Alias) -> Result<Self::NodeAlias<'a>, Error>;
+
+    /// Look up the alias for `node` without hydrating its addresses.
+    ///
+    /// Reads only the `alias` column from `nodes`, so address-table corruption
+    /// or rows with unrecognized types (e.g. `onion`/`i2p` when those features
+    /// are disabled) do not cause the lookup to fail.
+    fn alias_of(&self, node: &NodeId) -> Result<Option<Alias>, Error>;
 }
 
 impl Store for Database {
@@ -451,6 +458,15 @@ impl StoreExt for Database {
             inner: stmt.into_iter(),
         })
     }
+
+    fn alias_of(&self, node: &NodeId) -> Result<Option<Alias>, Error> {
+        let mut stmt = self.db.prepare("SELECT alias FROM nodes WHERE id = ?")?;
+        stmt.bind((1, node))?;
+        match stmt.into_iter().next() {
+            Some(row) => Ok(Some(Alias::from_str(row?.try_read::<&str, _>("alias")?)?)),
+            None => Ok(None),
+        }
+    }
 }
 
 impl<T> AliasStore for T
@@ -458,11 +474,10 @@ where
     T: Store + StoreExt,
 {
     /// Retrieve `alias` of given node.
-    /// Calls `Self::get` under the hood.
+    /// Delegates to `StoreExt::alias_of` so the lookup does not depend on
+    /// hydrating the node's addresses.
     fn alias(&self, nid: &NodeId) -> Option<Alias> {
-        self.get(nid)
-            .map(|node| node.map(|n| n.alias))
-            .unwrap_or(None)
+        self.alias_of(nid).ok().flatten()
     }
 
     fn reverse_lookup(&self, alias: &Alias) -> BTreeMap<Alias, BTreeSet<NodeId>> {
@@ -652,6 +667,42 @@ mod test {
             .unwrap();
         let node = cache.get(&alice).unwrap().unwrap();
         assert_eq!(node.alias.as_ref(), "bob");
+    }
+
+    #[test]
+    fn test_alias_survives_unparsable_address_row() {
+        // Regression: alias resolution must not depend on whether the node's
+        // address rows can be parsed. A row with a type the running binary
+        // doesn't recognize (e.g. `onion`/`i2p` with those features disabled)
+        // must not silently hide the alias.
+        let alice = arbitrary::r#gen::<NodeId>(1);
+        let mut cache = Database::memory().unwrap();
+        let features = node::Features::SEED;
+        let timestamp = Timestamp::from(LocalTime::now());
+        let ua = UserAgent::default();
+
+        cache
+            .insert(
+                &alice,
+                1,
+                features,
+                &Alias::new("alice"),
+                16,
+                &ua,
+                timestamp,
+                [],
+            )
+            .unwrap();
+        cache
+            .db
+            .execute(format!(
+                "INSERT INTO addresses (node, type, value, source, timestamp)
+                 VALUES ('{alice}', 'martian', 'x:0', 'peer', 0)"
+            ))
+            .unwrap();
+
+        assert_eq!(cache.alias_of(&alice).unwrap().as_deref(), Some("alice"));
+        assert_eq!(cache.alias(&alice).as_deref(), Some("alice"));
     }
 
     #[test]
