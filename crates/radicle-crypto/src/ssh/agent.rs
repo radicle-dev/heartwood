@@ -3,7 +3,7 @@ use std::env::VarError;
 use std::path::Path;
 use std::path::PathBuf;
 
-use proto::Credential;
+use proto::{PrivateCredential, PublicCredential};
 use ssh_agent_lib::blocking::Client;
 pub use ssh_agent_lib::error::AgentError;
 use ssh_agent_lib::proto;
@@ -79,7 +79,7 @@ impl Agent {
     pub fn register(&mut self, key: &SecretKey) -> Result<(), AgentError> {
         use ssh_key::private::{Ed25519Keypair, KeypairData};
         self.client.add_identity(proto::AddIdentity {
-            credential: Credential::Key {
+            credential: PrivateCredential::Key {
                 privkey: KeypairData::Ed25519(Ed25519Keypair::from_bytes(key).unwrap()),
                 comment: "".into(),
             },
@@ -88,7 +88,7 @@ impl Agent {
 
     pub fn unregister(&mut self, key: &PublicKey) -> Result<(), AgentError> {
         self.client.remove_identity(proto::RemoveIdentity {
-            pubkey: Self::key_data(key),
+            credential: PublicCredential::Key(Self::key_data(key)),
         })
     }
 
@@ -98,7 +98,7 @@ impl Agent {
 
     pub fn sign(&mut self, key: &PublicKey, data: &[u8]) -> Result<[u8; 64], AgentError> {
         let sig = self.client.sign(proto::SignRequest {
-            pubkey: Self::key_data(key),
+            credential: PublicCredential::Key(Self::key_data(key)),
             data: data.to_vec(),
             flags: 0,
         })?;
@@ -120,7 +120,13 @@ impl Agent {
             .client
             .request_identities()?
             .into_iter()
-            .filter_map(|identity| identity.pubkey.ed25519().map(|key| PublicKey::from(key.0)))
+            .filter_map(|identity| {
+                identity
+                    .credential
+                    .key_data()
+                    .ed25519()
+                    .map(|key| PublicKey::from(key.0))
+            })
             .collect())
     }
 
@@ -189,7 +195,7 @@ impl AgentSigner {
 mod test {
     use crate::PublicKey;
     use ssh_agent_lib::blocking::Client;
-    use ssh_agent_lib::proto::SignRequest;
+    use ssh_agent_lib::proto::{PublicCredential, SignRequest};
     use ssh_agent_lib::ssh_key::public::{Ed25519PublicKey, KeyData};
 
     #[test]
@@ -215,7 +221,7 @@ mod test {
         // since we are not actually connected to SSH agent.
         assert!(
             matches!(client.remove_identity(ssh_agent_lib::proto::RemoveIdentity {
-                pubkey: KeyData::Ed25519(Ed25519PublicKey(pk.to_byte_array())),
+                credential: PublicCredential::Key(KeyData::Ed25519(Ed25519PublicKey(pk.to_byte_array()))),
             }),
                 Err(
                     super::AgentError::Proto(ssh_agent_lib::proto::ProtoError::IO(err)),
@@ -250,7 +256,9 @@ mod test {
 
         client
             .sign(SignRequest {
-                pubkey: KeyData::Ed25519(Ed25519PublicKey(pk.to_byte_array())),
+                credential: PublicCredential::Key(KeyData::Ed25519(Ed25519PublicKey(
+                    pk.to_byte_array(),
+                ))),
                 data,
                 flags: 0,
             })

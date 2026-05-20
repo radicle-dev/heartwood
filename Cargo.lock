@@ -3957,9 +3957,9 @@ dependencies = [
 
 [[package]]
 name = "ssh-agent-lib"
-version = "0.5.2"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3d0582e6e5724c4a5d038472976e8fad64d824b3de37210aa60c35883e3e766"
+checksum = "b528981371b3bfdfe927a5ef37221446e0ba44551e673b569fd0fd38e5dcb292"
 dependencies = [
  "byteorder",
  "log",
