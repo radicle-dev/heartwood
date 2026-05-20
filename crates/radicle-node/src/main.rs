@@ -241,9 +241,13 @@ fn load_credential(id_suffix: &str) -> Option<PathBuf> {
 
     let id_xyz = format!("{}{}{}", PREFIX_XYZ, INFIX_NODE, id_suffix);
     match radicle_systemd::credential::path(&id_xyz) {
-        Ok(option) => {
+        Ok(option @ Some(_)) => {
             log::warn!(target: "node", "Obtained path of the systemd credential with ID '{id_xyz}'. Using this credential ID is discouraged. Please change the ID to '{id_dev}'.");
             option
+        }
+        Ok(None) => {
+            // No credential found with either ID.
+            None
         }
         Err(err) => {
             log::warn!(target: "node", "Failed to obtain path of the systemd credential with ID '{id_xyz}': {err}");
