@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## Fixed Bugs
+
+- Parsing `AddressType` and `Address` would fail for dependents that do not
+  enable the `radicle` crate features `tor` and/or `i2p`.
+  These features are enabled by default in `radicle-node`. If another program
+  builds without these features and attempts to resolve addresses out of the
+  database that was written to by `radicle-node`, it does not recognize these
+  addresses.
+  Address entries of a node that do not parse are now skipped.
+
 ## 1.9.0
 
 ## Minimum Supported Rust Version (MSRV)
