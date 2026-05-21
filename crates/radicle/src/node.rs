@@ -1,6 +1,8 @@
 mod features;
 
 pub mod address;
+use address::AddressType;
+
 pub mod command;
 pub mod config;
 pub mod db;
@@ -516,6 +518,22 @@ impl Address {
     /// Return the [`HostName`] of the [`Address`].
     pub fn host(&self) -> &HostName {
         &self.inner.host
+    }
+
+    /// Return the [`AddressType`] of the [`Address`].
+    ///
+    /// Returns `None` if the [`AddressType`] is not known.
+    pub fn address_type(&self) -> Option<AddressType> {
+        match self.host() {
+            HostName::Ip(IpAddr::V4(_)) => Some(AddressType::Ipv4),
+            HostName::Ip(IpAddr::V6(_)) => Some(AddressType::Ipv6),
+            HostName::Dns(_) => Some(AddressType::Dns),
+            #[cfg(feature = "tor")]
+            HostName::Tor(_) => Some(AddressType::Onion),
+            #[cfg(feature = "i2p")]
+            HostName::I2p(_) => Some(AddressType::I2p),
+            _ => None,
+        }
     }
 
     /// Returns `true` if the [`HostName`] is a Tor onion address.

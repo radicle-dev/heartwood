@@ -182,9 +182,42 @@ impl Store for Database {
         stmt.bind((1, node))?;
 
         for row in stmt.into_iter() {
-            let row = row?;
-            let _type = row.try_read::<AddressType, _>("type")?;
-            let addr = row.try_read::<Address, _>("value")?;
+            let mut row = row?;
+            let address_type = match row.try_read::<AddressType, _>("type") {
+                Ok(address_type) => address_type,
+                Err(err) => {
+                    let value = match row.take("type") {
+                        sqlite::Value::String(value) => value,
+                        value => format!("{value:?}"),
+                    };
+                    log::debug!("Failed to parse address type '{value}' for {node}: {err}");
+                    continue;
+                }
+            };
+            let addr = match row.try_read::<Address, _>("value") {
+                Ok(addr) => addr,
+                Err(err) => {
+                    let value = match row.take("type") {
+                        sqlite::Value::String(value) => value,
+                        value => format!("{value:?}"),
+                    };
+                    log::debug!("Failed to parse address '{value}' for {node}: {err}");
+                    continue;
+                }
+            };
+            match addr.address_type() {
+                None => {
+                    log::debug!("Address {addr} has unknown address type for {node}");
+                    continue;
+                }
+                Some(actual_type) if actual_type != address_type => {
+                    log::debug!(
+                        "The address '{addr}' was expected to be of type '{address_type:?}' but was found to be of type '{actual_type:?}'"
+                    );
+                    continue;
+                }
+                _ => {}
+            }
             let source = row.try_read::<Source, _>("source")?;
             let last_attempt = row
                 .read::<Option<i64>, _>("last_attempt")
@@ -1065,5 +1098,87 @@ mod test {
         }
 
         node::properties::test_reverse_lookup(&db, input)
+    }
+
+    #[test]
+    fn skip_invalid_address_type() {
+        let alice = arbitrary::r#gen::<NodeId>(1);
+        let mut cache = Database::memory().unwrap();
+        let timestamp = Timestamp::from(LocalTime::now());
+        let ua = UserAgent::default();
+        let features = node::Features::SEED;
+        let good_addr: Address = "[2001:db8::1]:64312".parse().unwrap();
+        let good_ka = KnownAddress {
+            addr: good_addr.clone(),
+            source: Source::Peer,
+            last_success: None,
+            last_attempt: None,
+            banned: false,
+        };
+        cache
+            .insert(
+                &alice,
+                1,
+                features,
+                &Alias::new("alice"),
+                0,
+                &ua,
+                timestamp,
+                [good_ka.clone()],
+            )
+            .unwrap();
+        cache
+            .db
+            .execute(format!(
+                "INSERT INTO addresses (node, type, value, source, timestamp)
+                 VALUES ('{alice}', 'invalid-address-type', 'example.com:64312', 'peer', 0)"
+            ))
+            .unwrap();
+
+        let node = cache.get(&alice).unwrap().unwrap();
+        assert_eq!(node.addrs.len(), 1);
+        assert_eq!(node.alias, Alias::new("alice"));
+        assert_eq!(node.agent, ua);
+    }
+
+    #[test]
+    fn skip_mismatched_address_type() {
+        let alice = arbitrary::r#gen::<NodeId>(1);
+        let mut cache = Database::memory().unwrap();
+        let timestamp = Timestamp::from(LocalTime::now());
+        let ua = UserAgent::default();
+        let features = node::Features::SEED;
+        let good_addr: Address = "[2001:db8::1]:64312".parse().unwrap();
+        let good_ka = KnownAddress {
+            addr: good_addr.clone(),
+            source: Source::Peer,
+            last_success: None,
+            last_attempt: None,
+            banned: false,
+        };
+        cache
+            .insert(
+                &alice,
+                1,
+                features,
+                &Alias::new("alice"),
+                0,
+                &ua,
+                timestamp,
+                [good_ka.clone()],
+            )
+            .unwrap();
+        cache
+            .db
+            .execute(format!(
+                "INSERT INTO addresses (node, type, value, source, timestamp)
+                 VALUES ('{alice}', 'ipv4', 'example.com:64312', 'peer', 0)"
+            ))
+            .unwrap();
+
+        let node = cache.get(&alice).unwrap().unwrap();
+        assert_eq!(node.addrs.len(), 1);
+        assert_eq!(node.alias, Alias::new("alice"));
+        assert_eq!(node.agent, ua);
     }
 }
