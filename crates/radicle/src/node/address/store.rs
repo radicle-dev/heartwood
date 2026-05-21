@@ -110,6 +110,13 @@ pub trait StoreExt {
     /// or rows with unrecognized types (e.g. `onion`/`i2p` when those features
     /// are disabled) do not cause the lookup to fail.
     fn alias_of(&self, node: &NodeId) -> Result<Option<Alias>, Error>;
+
+    /// Look up the user agent for `node` without hydrating its addresses.
+    ///
+    /// Reads only the `agent` column from `nodes`, so address-table corruption
+    /// or rows with unrecognized types (e.g. `onion`/`i2p` when those features
+    /// are disabled) do not cause the lookup to fail.
+    fn agent_of(&self, node: &NodeId) -> Result<Option<UserAgent>, Error>;
 }
 
 impl Store for Database {
@@ -467,6 +474,15 @@ impl StoreExt for Database {
             None => Ok(None),
         }
     }
+
+    fn agent_of(&self, node: &NodeId) -> Result<Option<UserAgent>, Error> {
+        let mut stmt = self.db.prepare("SELECT agent FROM nodes WHERE id = ?")?;
+        stmt.bind((1, node))?;
+        match stmt.into_iter().next() {
+            Some(row) => Ok(Some(row?.try_read::<UserAgent, _>("agent")?)),
+            None => Ok(None),
+        }
+    }
 }
 
 impl<T> AliasStore for T
@@ -703,6 +719,41 @@ mod test {
 
         assert_eq!(cache.alias_of(&alice).unwrap().as_deref(), Some("alice"));
         assert_eq!(cache.alias(&alice).as_deref(), Some("alice"));
+    }
+
+    #[test]
+    fn test_agent_survives_unparsable_address_row() {
+        // Regression: user agent resolution must not depend on whether the
+        // node's address rows can be parsed. A row with a type the running
+        // binary doesn't recognize (e.g. `onion`/`i2p` with those features
+        // disabled) must not silently hide the agent.
+        let alice = arbitrary::r#gen::<NodeId>(1);
+        let mut cache = Database::memory().unwrap();
+        let features = node::Features::SEED;
+        let timestamp = Timestamp::from(LocalTime::now());
+        let ua = UserAgent::test();
+
+        cache
+            .insert(
+                &alice,
+                1,
+                features,
+                &Alias::new("alice"),
+                16,
+                &ua,
+                timestamp,
+                [],
+            )
+            .unwrap();
+        cache
+            .db
+            .execute(format!(
+                "INSERT INTO addresses (node, type, value, source, timestamp)
+                 VALUES ('{alice}', 'martian', 'x:0', 'peer', 0)"
+            ))
+            .unwrap();
+
+        assert_eq!(cache.agent_of(&alice).unwrap().as_ref(), Some(&ua));
     }
 
     #[test]
