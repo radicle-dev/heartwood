@@ -1523,6 +1523,85 @@ mod test {
     }
 
     #[test]
+    fn redact_parent_cascades() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+
+        // Alice adds Bob.
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        let _a1 = alice_identity
+            .update(
+                cob::Title::new("Add Bob").unwrap(),
+                "",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Alice proposes A₂. Since there are 2 delegates now, it stays Active.
+        let mut alice_doc2 = alice_identity.doc().clone().edit();
+        alice_doc2.visibility = Visibility::private([]);
+        let a2 = alice_identity
+            .update(
+                cob::Title::new("A₂").unwrap(),
+                "",
+                &alice_doc2.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Bob fetches and proposes B₁ as a child of A₂.
+        bob.repo.fetch(alice);
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+
+        let mut bob_doc = bob_identity.doc().clone().edit();
+        bob_doc.visibility = Visibility::private([alice.signer.public_key().into()]);
+
+        // We use a manual transaction to force B₁ to be a child of the Active A₂,
+        // rather than the Accepted A₁.
+        let b1 = bob_identity
+            .transaction("B₁", |tx, repo| {
+                *tx = Transaction::new_revision(
+                    cob::Title::new("B₁").unwrap(),
+                    "",
+                    &bob_doc.verified().unwrap(),
+                    Some(a2),
+                    repo,
+                    &bob.signer,
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        // Alice redacts A₂.
+        alice_identity.redact(a2).unwrap();
+
+        // Bob fetches Alice's redaction.
+        bob.repo.fetch(alice);
+        bob_identity.reload().unwrap();
+
+        //     b1   (Propose "B₁") 1/2 (RedactedBy::Parent due to parent A₂ being redacted)
+        //     |
+        //     a2   (Propose "A₂") 1/2 (RedactedBy::Author by Alice)
+        //     |
+        //     a1   (Add Bob) 1/1 (Accepted)
+        //     |
+        //     a0
+
+        assert_eq!(
+            bob_identity.revision(&a2).unwrap().state,
+            State::Redacted(RedactedBy::Author)
+        );
+        assert_eq!(
+            bob_identity.revision(&b1).unwrap().state,
+            State::Redacted(RedactedBy::Parent)
+        );
+    }
+
+    /// When a sibling revision is accepted, competing siblings from other
+    /// delegates are rejected with `Rejected(Sibling)`.
+    #[test]
     fn accepted_sibling_causes_rejection() {
         let network = Network::default();
         let alice = &network.alice;
