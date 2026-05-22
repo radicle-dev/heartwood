@@ -1874,7 +1874,7 @@ mod test {
     }
 
     #[test]
-    fn test_identity_cannont_redact_terminal_states() {
+    fn test_identity_cannot_redact_terminal_states() {
         let network = Network::default();
         let alice = &network.alice;
         let bob = &network.bob;
