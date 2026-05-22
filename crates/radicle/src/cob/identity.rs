@@ -1957,11 +1957,11 @@ mod test {
         alice_identity.reload().unwrap();
         assert_eq!(alice_identity.revision(&a4).unwrap().state, State::Rejected);
 
-        //  a4      (Propose "A4") 1/2 (Rejected by Bob)
+        //  a4      (Propose "A4") 1/2 (Rejected by Bob) -> Redact attempt ignored
         //  |
-        //  a3      (Propose "A3") 2/2 (Accepted by Alice, Bob)
+        //  a3      (Propose "A3") 2/2 (Accepted by Alice, Bob) -> Redact attempt ignored
         //  | \
-        //  |  a2   (Propose "A2") (Redacted by Alice)
+        //  |  a2   (Propose "A2") 1/2 (Redacted by Alice concurrently with Bob's Accept)
         //  | /
         //  a1      (Add Bob) 2/2 (Accepted by Alice, Bob)
         //  |
