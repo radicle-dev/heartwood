@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## 1.9.1
+
+## Improvements
+
+- The Gitoxide dependencies were updated after vulnerabilities were found and
+  reported in a number of its crates. Also, the filtering of references in
+  `radicle-fetch` is expected to perform better.
 
 ## Fixed Bugs
 
@@ -16,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   database that was written to by `radicle-node`, it does not recognize these
   addresses.
   Address entries of a node that do not parse are now skipped.
+- When attempting to load systemd credentials, a misleading warning was logged.
+  This case is now handled correctly, and does not emit a warning.
+- Since Radicle 1.9.0, the `rad` CLI uses the `ssh-agent-lib` crate for
+  communication with the SSH agent. We received a bug report by a user,
+  regarding failure to run `rad auth` when there were SSH certificates loaded in
+  their SSH agent. We quickly identified this cause and got in touch with
+  [Wiktor Kwapisiewicz](https://metacode.biz/@wiktor), the maintainer of
+  `ssh-agent-lib`. After a fresh release of `ssh-agent-lib` we updated our
+  dependency and communication with SSH agents that have SSH certificates loaded
+  now works as intended. Thanks Wiktor!
 
 ## 1.9.0
 
