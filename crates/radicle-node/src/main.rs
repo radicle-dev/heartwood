@@ -41,6 +41,10 @@ Options
     --help                                          Print help
 "#;
 
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 #[derive(Debug, Clone)]
 enum Logger {
     Radicle,
@@ -449,6 +453,9 @@ fn panic_hook(info: &std::panic::PanicHookInfo) {
 }
 
 fn main() {
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::new_heap();
+
     let options = parse_options().unwrap_or_else(|err| {
         // The lexopt errors read nicely with a comma.
         eprintln!("Failed to parse options, {err:#}");
