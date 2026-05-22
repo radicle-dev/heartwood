@@ -1908,6 +1908,112 @@ mod test {
     }
 
     #[test]
+    fn test_identity_cannot_redact_terminal_states() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        let a1 = alice_identity
+            .update(
+                cob::Title::new("Add Bob").unwrap(),
+                "",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        bob_identity.accept(&a1).unwrap();
+        alice.repo.fetch(bob);
+        alice_identity.reload().unwrap();
+
+        let mut alice_doc2 = alice_identity.doc().clone().edit();
+        alice_doc2.visibility = Visibility::private([]);
+        let a2 = alice_identity
+            .update(
+                cob::Title::new("A2").unwrap(),
+                "",
+                &alice_doc2.verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        bob_identity.reload().unwrap();
+
+        bob_identity.accept(&a2).unwrap();
+        alice_identity.redact(a2).unwrap();
+
+        alice.repo.fetch(bob);
+        alice_identity.reload().unwrap();
+
+        assert_eq!(
+            alice_identity.revision(&a2).unwrap().state,
+            State::Redacted(RedactedBy::Author)
+        );
+
+        let mut alice_doc3 = alice_identity.doc().clone().edit();
+        alice_doc3.visibility = Visibility::private([alice.signer.public_key().into()]);
+        let a3 = alice_identity
+            .update(
+                cob::Title::new("A3").unwrap(),
+                "",
+                &alice_doc3.verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        bob_identity.reload().unwrap();
+        bob_identity.accept(&a3).unwrap();
+
+        alice.repo.fetch(bob);
+        alice_identity.reload().unwrap();
+        assert_eq!(alice_identity.revision(&a3).unwrap().state, State::Accepted);
+
+        alice_identity.redact(a3).unwrap();
+        assert_eq!(alice_identity.revision(&a3).unwrap().state, State::Accepted);
+
+        let mut alice_doc4 = alice_identity.doc().clone().edit();
+        alice_doc4.visibility = Visibility::private([]);
+        let a4 = alice_identity
+            .update(
+                cob::Title::new("A4").unwrap(),
+                "",
+                &alice_doc4.verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        bob_identity.reload().unwrap();
+        bob_identity.reject(a4).unwrap();
+
+        alice.repo.fetch(bob);
+        alice_identity.reload().unwrap();
+        assert_eq!(
+            alice_identity.revision(&a4).unwrap().state,
+            State::Rejected(RejectedBy::Vote)
+        );
+
+        //  a4      (Propose "A4") 1/2 (Rejected by Bob) -> Redact attempt ignored
+        //  |
+        //  a3      (Propose "A3") 2/2 (Accepted by Alice, Bob) -> Redact attempt ignored
+        //  | \
+        //  |  a2   (Propose "A2") 1/2 (Redacted by Alice concurrently with Bob's Accept)
+        //  | /
+        //  a1      (Add Bob) 2/2 (Accepted by Alice, Bob)
+        //  |
+        //  a0
+
+        alice_identity.redact(a4).unwrap();
+        assert_eq!(
+            alice_identity.revision(&a4).unwrap().state,
+            State::Rejected(RejectedBy::Vote)
+        );
+    }
+
+    #[test]
     fn test_valid_identity() {
         let tempdir = tempfile::tempdir().unwrap();
         let mut rng = fastrand::Rng::new();
