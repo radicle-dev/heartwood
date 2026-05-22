@@ -1832,6 +1832,116 @@ mod test {
     }
 
     #[test]
+    fn cascading_rejections() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+        let eve = &network.eve;
+
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        alice_doc.delegate(eve.signer.public_key().into());
+        let _a1 = alice_identity
+            .update(
+                cob::Title::new("Add Bob and Eve").unwrap(),
+                "",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        eve.repo.fetch(alice);
+
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        let mut bob_doc = bob_identity.doc().clone().edit();
+        bob_doc.visibility = Visibility::private([]);
+        let b1 = bob_identity
+            .update(
+                cob::Title::new("B1").unwrap(),
+                "",
+                &bob_doc.clone().verified().unwrap(),
+            )
+            .unwrap();
+
+        let bob_doc2 = bob_doc.clone();
+        bob_doc.visibility = Visibility::Public;
+        let b2 = bob_identity
+            .update(
+                cob::Title::new("B2").unwrap(),
+                "",
+                &bob_doc2.verified().unwrap(),
+            )
+            .unwrap();
+
+        let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
+        let mut eve_doc = eve_identity.doc().clone().edit();
+        eve_doc.visibility = Visibility::private([eve.signer.public_key().into()]);
+        let e1 = eve_identity
+            .update(
+                cob::Title::new("E1").unwrap(),
+                "",
+                &eve_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        alice.repo.fetch(eve);
+        alice_identity.reload().unwrap();
+        alice_identity.accept(&e1).unwrap();
+
+        eve.repo.fetch(bob);
+        eve.repo.fetch(alice);
+        eve_identity.reload().unwrap();
+
+        //     b2   (Propose "B2")
+        //     |
+        //     b1   (Propose "B1")
+        //  e1 |    (Propose "E1") 2/3 (Accepted)
+        //  | /
+        //  a1      (Add Bob and Eve)
+        //  |
+        //  a0
+
+        assert_eq!(eve_identity.current, e1);
+        assert_eq!(eve_identity.revision(&e1).unwrap().state, State::Accepted);
+        assert_eq!(
+            eve_identity.revision(&b1).unwrap().state,
+            State::Rejected(RejectedBy::Sibling(e1))
+        );
+        assert_eq!(
+            eve_identity.revision(&b2).unwrap().state,
+            State::Rejected(RejectedBy::Sibling(e1))
+        );
+
+        alice.repo.fetch(bob);
+        bob.repo.fetch(alice);
+        bob.repo.fetch(eve);
+
+        alice_identity.reload().unwrap();
+        bob_identity.reload().unwrap();
+
+        assert_eq!(alice_identity.current, e1);
+        assert_eq!(
+            alice_identity.revision(&b1).unwrap().state,
+            State::Rejected(RejectedBy::Sibling(e1))
+        );
+        assert_eq!(
+            alice_identity.revision(&b2).unwrap().state,
+            State::Rejected(RejectedBy::Sibling(e1))
+        );
+
+        assert_eq!(bob_identity.current, e1);
+        assert_eq!(
+            bob_identity.revision(&b1).unwrap().state,
+            State::Rejected(RejectedBy::Sibling(e1))
+        );
+        assert_eq!(
+            bob_identity.revision(&b2).unwrap().state,
+            State::Rejected(RejectedBy::Sibling(e1))
+        );
+    }
+
+    #[test]
     fn terminal_states_concurrent() {
         let network = Network::default();
         let alice = &network.alice;
