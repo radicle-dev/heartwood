@@ -594,6 +594,7 @@ impl Identity {
                 let Some(parent) = parent else {
                     return Err(ApplyError::MissingParent);
                 };
+                let current_oid = self.current;
                 let parent = self.revision_mut(&parent)?;
                 // We expect the revision to make a change compared to its parent.
                 if doc == parent.doc {
@@ -604,6 +605,15 @@ impl Identity {
                     return Err(ApplyError::InvalidSignature(author, blob));
                 }
 
+                // If the parent is already rejected or redacted, this revision is dead on arrival.
+                // Furthermore, if the parent is accepted but is NO LONGER the current revision,
+                // it means a sibling was already adopted and this is a late-arriving fork.
+                let state = match parent.state {
+                    State::Rejected | State::Redacted => State::Rejected,
+                    State::Accepted if parent.id != current_oid => State::Rejected,
+                    _ => State::Active,
+                };
+
                 let revision = Revision::new(
                     entry,
                     title,
@@ -611,7 +621,7 @@ impl Identity {
                     author.into(),
                     blob,
                     doc,
-                    State::Active,
+                    state,
                     signature,
                     Some(parent.id),
                     timestamp,
@@ -619,7 +629,10 @@ impl Identity {
                 let id = revision.id;
 
                 self.revisions.insert(id, revision);
-                self.adopt(id);
+
+                if state == State::Active {
+                    self.adopt(id);
+                }
             }
         }
         Ok(())
@@ -1409,6 +1422,71 @@ mod test {
         assert_eq!(bob_identity.timeline, vec![a0, a1, a2, a3, b1]);
         assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Redacted);
         assert_eq!(bob_identity.current, a1);
+    }
+
+    #[test]
+    fn test_identity_redact_parent_cascades() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+
+        // Alice adds Bob and sets threshold to 2.
+        // (This is immediately accepted because the old threshold is 1).
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        alice_doc.threshold = 2;
+        let _a1 = alice_identity
+            .update(
+                cob::Title::new("Add Bob").unwrap(),
+                "",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Alice proposes A2. Since the threshold is now 2, it stays Active.
+        let mut alice_doc2 = alice_identity.doc().clone().edit();
+        alice_doc2.visibility = Visibility::private([]);
+        let a2 = alice_identity
+            .update(
+                cob::Title::new("A2").unwrap(),
+                "",
+                &alice_doc2.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Bob fetches and proposes B1 as a CHILD of A2.
+        bob.repo.fetch(alice);
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+
+        let mut bob_doc = bob_identity.doc().clone().edit();
+        bob_doc.visibility = Visibility::private([alice.signer.public_key().into()]);
+
+        // We use a manual transaction to force B1 to be a child of the Active A2,
+        // rather than the Accepted A1.
+        let b1 = bob_identity
+            .transaction("B1", |tx, repo| {
+                *tx = Transaction::new_revision(
+                    cob::Title::new("B1").unwrap(),
+                    "",
+                    &bob_doc.verified().unwrap(),
+                    Some(a2),
+                    repo,
+                    &bob.signer,
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        // Alice redacts A2.
+        alice_identity.redact(a2).unwrap();
+
+        // Bob fetches Alice's redaction.
+        bob.repo.fetch(alice);
+        bob_identity.reload().unwrap();
+
+        assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Redacted);
+        assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Rejected);
     }
 
     #[test]
