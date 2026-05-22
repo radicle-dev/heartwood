@@ -36,7 +36,7 @@ pre-commit: check-conflict-markers format-rust check-rust check-docs check-typos
 [parallel]
 format-rust: (verify-tool "cargo")
     @echo "{{CHECK}}Cargo fmt...{{NORMAL}}"
-    @{{cargo_cmd}} fmt --all
+    @{{cargo_cmd}} fmt --all --check
 
 # Run cargo check
 [group('pre-commit')]
