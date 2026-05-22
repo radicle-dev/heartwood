@@ -1710,6 +1710,77 @@ mod test {
     }
 
     #[test]
+    fn test_identity_terminal_states_concurrent() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+        let eve = &network.eve;
+
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        alice_doc.delegate(eve.signer.public_key().into());
+        alice_doc.threshold = 2;
+        let a1 = alice_identity
+            .update(
+                cob::Title::new("Add Bob and Eve").unwrap(),
+                "",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        eve.repo.fetch(alice);
+
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
+
+        bob_identity.accept(&a1).unwrap();
+        eve_identity.accept(&a1).unwrap();
+
+        alice.repo.fetch(bob);
+        alice_identity.reload().unwrap();
+        assert_eq!(alice_identity.revision(&a1).unwrap().state, State::Accepted);
+
+        alice.repo.fetch(eve);
+        alice_identity.reload().unwrap();
+        assert_eq!(alice_identity.revision(&a1).unwrap().state, State::Accepted);
+
+        let mut alice_doc2 = alice_identity.doc().clone().edit();
+        alice_doc2.visibility = Visibility::private([]);
+        let a2 = alice_identity
+            .update(
+                cob::Title::new("A2").unwrap(),
+                "",
+                &alice_doc2.verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        eve.repo.fetch(alice);
+        bob_identity.reload().unwrap();
+        eve_identity.reload().unwrap();
+
+        bob_identity.reject(a2).unwrap();
+        eve_identity.reject(a2).unwrap();
+
+        alice.repo.fetch(bob);
+        alice.repo.fetch(eve);
+        alice_identity.reload().unwrap();
+        assert_eq!(alice_identity.revision(&a2).unwrap().state, State::Rejected);
+
+        //  a2      (Propose "A2") 1/2 (Rejected by Bob and Eve)
+        //  |
+        //  a1      (Add Bob and Eve) 3/2 (Accepted by Alice, Bob, Eve)
+        //  |
+        //  a0
+
+        // Alice tries to accept the rejected revision
+        alice_identity.accept(&a2).unwrap();
+        assert_eq!(alice_identity.revision(&a2).unwrap().state, State::Rejected);
+    }
+
+    #[test]
     fn test_valid_identity() {
         let tempdir = tempfile::tempdir().unwrap();
         let mut rng = fastrand::Rng::new();
