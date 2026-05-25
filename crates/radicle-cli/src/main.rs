@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::fmt::Display;
 use std::io;
 use std::io::Write;
+use std::path::PathBuf;
 use std::{io::ErrorKind, process};
 
 use anyhow::anyhow;
@@ -104,6 +105,23 @@ enum Command {
     Completion {
         /// The type of shell to output a static completion script for.
         shell: clap_complete::Shell,
+    },
+
+    /// Generate man pages to the given directory
+    #[command(hide = true)]
+    GenerateManPages {
+        /// The root directory where the man pages should be generated into.
+        ///
+        /// The directory where the man pages will be written to is
+        /// `<OUT>/man1`, where each file is the command name, e.g.,
+        /// `rad-sync.1`, `rad-sync-status.1`, `rad-patch.1`,
+        /// `rad-patch-assign.1`, etc.
+        out: PathBuf,
+        #[arg(long)]
+        /// Do not write the contents to the directory.
+        ///
+        /// Prints the full file path to the terminal.
+        dry_run: bool,
     },
 
     #[command(external_subcommand)]
@@ -290,6 +308,7 @@ fn run_command(command: Command, ctx: impl term::Context) -> Result<(), anyhow::
             print_completion(shell, &mut CliArgs::command());
             Ok(())
         }
+        Command::GenerateManPages { out, dry_run } => man_pages::generate(out, dry_run),
         Command::External(args) => ExternalCommand::new(args).run(),
     }
 }
@@ -361,5 +380,57 @@ impl ExternalCommand {
                 }
             }
         }
+    }
+}
+
+mod man_pages {
+    use std::path::{Path, PathBuf};
+
+    use anyhow::Context as _;
+    use clap::CommandFactory as _;
+
+    use super::CliArgs;
+
+    pub(super) fn generate(out: PathBuf, dry_run: bool) -> anyhow::Result<()> {
+        let out = out.join("man1");
+        if !dry_run {
+            std::fs::create_dir_all(&out)
+                .with_context(|| format!("Attempting to create {} directory", out.display()))?;
+        }
+
+        let mut command = CliArgs::command();
+        // build() propagates parent-prefixed display names into the rendered
+        // body (titles + cross-refs) so they match the file names we write.
+        command.build();
+
+        write_pages(&command, &out, dry_run)?;
+        if !dry_run {
+            println!("Successfully written man pages to {}", out.display());
+        }
+        Ok(())
+    }
+
+    fn write_pages(cmd: &clap::Command, out: &Path, dry_run: bool) -> anyhow::Result<()> {
+        // Skip hidden commands
+        if cmd.is_hide_set() {
+            return Ok(());
+        }
+
+        let name = cmd.get_display_name().unwrap_or_else(|| cmd.get_name());
+
+        let mut buffer = Vec::new();
+        clap_mangen::Man::new(cmd.clone()).render(&mut buffer)?;
+
+        let filename = out.join(format!("{name}.1"));
+        println!("Writing man page: {}", filename.display());
+        if !dry_run {
+            std::fs::write(&filename, buffer)
+                .with_context(|| format!("Writing man page to {}", filename.display()))?;
+        }
+
+        for sub in cmd.get_subcommands() {
+            write_pages(sub, out, dry_run)?;
+        }
+        Ok(())
     }
 }
