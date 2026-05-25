@@ -60,13 +60,19 @@ impl Agent {
     pub fn connect() -> Result<Self, ConnectError> {
         const SSH_AUTH_SOCK: &str = "SSH_AUTH_SOCK";
 
-        let path =
-            PathBuf::from(
-                std::env::var(SSH_AUTH_SOCK).map_err(|err| ConnectError::EnvVar {
-                    var: SSH_AUTH_SOCK.to_string(),
-                    source: err,
-                })?,
-            );
+        let path = match std::env::var(SSH_AUTH_SOCK) {
+            Ok(path) => Ok(PathBuf::from(path)),
+            #[cfg(windows)]
+            Err(VarError::NotPresent) => {
+                // Windows exposes the SSH Agent on a default named pipe.
+                const DEFAULT_SSH_AGENT_PIPE: &str = "\\\\.\\pipe\\openssh-ssh-agent";
+                Ok(PathBuf::from(DEFAULT_SSH_AGENT_PIPE))
+            }
+            Err(err) => Err(ConnectError::EnvVar {
+                var: SSH_AUTH_SOCK.to_string(),
+                source: err,
+            }),
+        }?;
 
         let client = Client::new(
             Stream::connect(&path).map_err(|err| ConnectError::Agent(AgentError::IO(err)))?,
