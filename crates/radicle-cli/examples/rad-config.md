@@ -578,14 +578,16 @@ $ rad config schema
       ]
     },
     "RateLimit": {
-      "description": "Rate limits for a single connection.",
+      "description": "Rate limits for a single connection./n/nRate limiting uses a token bucket for each peer. The capacity of the bucket/nis defined by [`RateLimit::capacity`], and refill rate of the bucket is/ndefined by [`RateLimit::fill_rate`].",
       "type": "object",
       "properties": {
         "fillRate": {
+          "description": "The fill rate of the token bucket, refills tokens based on the elapsed/ntime, in seconds./n/nFor example, if the fill rate is `0.2`, this is equivalent to 1 token/nper 5 seconds (0.2 × 5 = 1).",
           "type": "number",
           "format": "double"
         },
         "capacity": {
+          "description": "The capacity of the token bucket, is the maximum number of tokens the bucket can hold./nThe bucket starts with the given capacity as the number of tokens./nFor each connection attempt, a token is removed from the bucket, while/nthe fill rate adds tokens back to the bucket./n/nFor example, a capacity of 3 will allow 3 connection attempts from a/ngiven peer. If 3 attempts are made before the bucket refills, i.e. the/npeer attempted connections in quick succession, then the third attempt/nwill be rejected.",
           "type": "integer",
           "format": "uint",
           "minimum": 0

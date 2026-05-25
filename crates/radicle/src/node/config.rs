@@ -251,12 +251,30 @@ pub struct ConnectionLimits {
 }
 
 /// Rate limits for a single connection.
+///
+/// Rate limiting uses a token bucket for each peer. The capacity of the bucket
+/// is defined by [`RateLimit::capacity`], and refill rate of the bucket is
+/// defined by [`RateLimit::fill_rate`].
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Display)]
 #[display("RateLimit(fill_rate={fill_rate}, capacity={capacity})")]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct RateLimit {
+    /// The fill rate of the token bucket, refills tokens based on the elapsed
+    /// time, in seconds.
+    ///
+    /// For example, if the fill rate is `0.2`, this is equivalent to 1 token
+    /// per 5 seconds (0.2 × 5 = 1).
     pub fill_rate: f64,
+    /// The capacity of the token bucket, is the maximum number of tokens the bucket can hold.
+    /// The bucket starts with the given capacity as the number of tokens.
+    /// For each connection attempt, a token is removed from the bucket, while
+    /// the fill rate adds tokens back to the bucket.
+    ///
+    /// For example, a capacity of 3 will allow 3 connection attempts from a
+    /// given peer. If 3 attempts are made before the bucket refills, i.e. the
+    /// peer attempted connections in quick succession, then the third attempt
+    /// will be rejected.
     pub capacity: usize,
 }
 
