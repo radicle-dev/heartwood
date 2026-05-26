@@ -21,9 +21,11 @@ tor = ["radicle/tor"]
 [dependencies]
 anyhow = "1"
 chrono = { workspace = true, features = ["clock", "std"] }
-clap = { version = "4.5.44", features = ["derive"] }
-clap_complete = "4.5"
-clap_mangen = "0.3"
+# clap = { version = "4.5.44", features = ["derive"] }
+# clap_complete = "4.5"
+clap = { path = "../../../clap", features = ["derive"] }
+clap_complete = { path = "../../../clap/clap_complete" }
+clap_mangen = { path = "../../../clap/clap_mangen" }
 dunce = { workspace = true }
 human-panic.workspace = true
 humantime.workspace = true
