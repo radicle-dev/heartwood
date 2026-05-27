@@ -2297,4 +2297,90 @@ mod test {
 
         assert_eq!(doc.project().unwrap().description(), "Acme's repository!?");
     }
+
+    #[test]
+    fn evaluates_queued_children() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+        let eve = &network.eve;
+
+        // Setup. Alice, Bob, and Eve are delegates. Majority required is 2.
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        alice_doc.delegate(eve.signer.public_key().into());
+        let a0 = alice_identity
+            .update(
+                cob::Title::new("Add Bob and Eve").unwrap(),
+                "",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        eve.repo.fetch(alice);
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
+        bob_identity.accept(&a0).unwrap();
+        eve_identity.accept(&a0).unwrap();
+
+        alice.repo.fetch(bob);
+        alice_identity.reload().unwrap();
+        assert_eq!(alice_identity.current, a0);
+
+        // Alice proposes A1 and B1
+        let mut doc_a1 = alice_identity.doc().clone().edit();
+        doc_a1.visibility = Visibility::private([]);
+        let a1 = alice_identity
+            .update(
+                cob::Title::new("A1").unwrap(),
+                "",
+                &doc_a1.clone().verified().unwrap(),
+            )
+            .unwrap();
+
+        let mut doc_b1 = doc_a1.clone();
+        doc_b1.visibility = Visibility::private([bob.signer.public_key().into()]);
+        let b1 = alice_identity
+            .transaction("B1", |tx, repo| {
+                *tx = Transaction::new_revision(
+                    cob::Title::new("B1").unwrap(),
+                    "",
+                    &doc_b1.verified().unwrap(),
+                    Some(a1),
+                    repo,
+                    &alice.signer,
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        // Bob fetches and accepts B1.
+        // B1 now has 2 votes (Alice + Bob). The majority required is 2.
+        // However, B1's parent (A1) is not yet accepted.
+        bob.repo.fetch(alice);
+        bob_identity.reload().unwrap();
+        bob_identity.accept(&b1).unwrap();
+
+        // B1 is queued and not yet accepted
+        assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Active);
+
+        // Bob accepts A1.
+        // A1 reaches 2 votes and is Accepted.
+        // B1 already has 2 votes, so it should be
+        // automatically accepted.
+        //
+        //     b1   [Accepted, 2/2 votes]
+        //     |
+        //     a1   [Accepted, 2/2 votes]
+        //     |
+        //     a0   [Accepted]
+        bob_identity.accept(&a1).unwrap();
+
+        assert_eq!(bob_identity.revision(&a1).unwrap().state, State::Accepted);
+
+        assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Accepted);
+        assert_eq!(bob_identity.current, b1);
+    }
 }
