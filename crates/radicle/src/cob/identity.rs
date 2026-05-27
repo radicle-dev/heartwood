@@ -500,30 +500,40 @@ impl Identity {
                 }
             }
             Action::RevisionReject { revision } => {
-                let revision = self.revision_mut(&revision)?;
-                match &revision.state {
-                    State::Accepted => {
-                        log::debug!(
-                            "Skipping rejection of revision {} by {did} because it already is accepted.",
-                            revision.id
-                        );
+                let revision_id = revision;
+                let is_rejected = {
+                    let revision = self.revision_mut(&revision_id)?;
+                    match &revision.state {
+                        State::Accepted => {
+                            log::debug!(
+                                "Skipping rejection of revision {} by {did} because it already is accepted.",
+                                revision.id
+                            );
+                            false
+                        }
+                        State::Rejected => {
+                            log::trace!(
+                                "Skipping rejection of revision {} by {did} because it already is rejected.",
+                                revision.id
+                            );
+                            false
+                        }
+                        State::Active => {
+                            log::trace!(
+                                "Applying rejection of active revision {} by {did}.",
+                                revision.id
+                            );
+                            revision.reject(author)?;
+                            revision.state == State::Rejected
+                        }
+                        State::Redacted => {
+                            return Err(ApplyError::Redacted);
+                        }
                     }
-                    State::Rejected => {
-                        log::trace!(
-                            "Skipping rejection of revision {} by {did} because it already is rejected.",
-                            revision.id
-                        );
-                    }
-                    State::Active => {
-                        log::trace!(
-                            "Applying rejection of active revision {} by {did}.",
-                            revision.id
-                        );
-                        revision.reject(author)?;
-                    }
-                    State::Redacted => {
-                        return Err(ApplyError::Redacted);
-                    }
+                };
+
+                if is_rejected {
+                    self.reject_children(revision_id);
                 }
             }
             Action::RevisionEdit {
@@ -557,27 +567,32 @@ impl Identity {
                 revision.description = description;
             }
             Action::RevisionRedact { revision } => {
-                if revision == self.current {
-                    log::debug!("Cannot redact current revision {revision}.");
+                let revision_id = revision;
+                if revision_id == self.current {
+                    log::debug!("Cannot redact current revision {revision_id}.");
                     return Ok(());
                 }
-                let revision = self.revision_mut(&revision)?;
+                {
+                    let revision = self.revision_mut(&revision_id)?;
 
-                if !revision.is_active() {
-                    log::debug!("Cannot redact inactive revision {}.", revision.id);
-                    return Ok(());
+                    if !revision.is_active() {
+                        log::debug!("Cannot redact inactive revision {}.", revision.id);
+                        return Ok(());
+                    }
+                    if revision.author.public_key() != &author {
+                        log::debug!(
+                            "{} cannot redact revision created by {}.",
+                            author,
+                            revision.author.public_key()
+                        );
+                        // Since the author never changes, we can safely mark this as invalid.
+                        return Err(ApplyError::NotAuthorized);
+                    }
+                    log::debug!("Redacting revision {}.", revision.id);
+                    revision.state = State::Redacted;
                 }
-                if revision.author.public_key() != &author {
-                    log::debug!(
-                        "{} cannot redact revision created by {}.",
-                        author,
-                        revision.author.public_key()
-                    );
-                    // Since the author never changes, we can safely mark this as invalid.
-                    return Err(ApplyError::NotAuthorized);
-                }
-                log::debug!("Redacting revision {}.", revision.id);
-                revision.state = State::Redacted;
+
+                self.reject_children(revision_id);
             }
             Action::Revision {
                 title,
@@ -720,6 +735,34 @@ impl Identity {
 
         self.current = id;
         self.current_mut().state = State::Accepted;
+    }
+
+    /// Reject all active children of the given revision, recursively.
+    fn reject_children(&mut self, parent: RevisionId) {
+        let mut reject = Vec::new();
+        loop {
+            let mut found = false;
+            for (child_id, child) in self.revisions.iter() {
+                let Some(child_parent) = child.parent else {
+                    continue;
+                };
+                if (child_parent == parent || reject.contains(&child_parent))
+                    && !reject.contains(child_id)
+                    && child.state == State::Active
+                {
+                    found = true;
+                    reject.push(*child_id);
+                }
+            }
+            if !found {
+                break;
+            }
+        }
+        for id in reject {
+            if let Some(child) = self.revisions.get_mut(&id) {
+                child.state = State::Rejected;
+            }
+        }
     }
 
     /// A specific [`Revision`], mutably.
@@ -1482,6 +1525,14 @@ mod test {
         // Bob fetches Alice's redaction.
         bob.repo.fetch(alice);
         bob_identity.reload().unwrap();
+
+        //     b1   (Propose "B1") 1/2 (Rejected due to parent A2 being redacted)
+        //     |
+        //     a2   (Propose "A2") 1/2 (Redacted by Alice)
+        //     |
+        //     a1   (Add Bob) 1/1 (Accepted)
+        //     |
+        //     a0
 
         assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Redacted);
         assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Rejected);
