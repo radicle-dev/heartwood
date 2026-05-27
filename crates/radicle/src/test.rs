@@ -245,6 +245,7 @@ pub mod setup {
         pub alice: NodeWithRepo,
         pub bob: NodeWithRepo,
         pub eve: NodeWithRepo,
+        pub dave: NodeWithRepo,
         pub rid: RepoId,
     }
 
@@ -253,11 +254,13 @@ pub mod setup {
             let alice = Node::new(tempdir().unwrap(), MockSigner::from_seed([!0; 32]), "alice");
             let mut bob = Node::new(tempdir().unwrap(), MockSigner::from_seed([!1; 32]), "bob");
             let mut eve = Node::new(tempdir().unwrap(), MockSigner::from_seed([!2; 32]), "eve");
+            let mut dave = Node::new(tempdir().unwrap(), MockSigner::from_seed([!3; 32]), "dave");
             let repo = alice.project();
             let rid = repo.id;
 
             bob.clone(repo.id, &alice);
             eve.clone(repo.id, &alice);
+            dave.clone(repo.id, &alice);
 
             let alice = NodeWithRepo { node: alice, repo };
             let repo = bob.storage.repository(rid).unwrap();
@@ -276,11 +279,20 @@ pub mod setup {
                     checkout: None,
                 },
             };
+            let repo = dave.storage.repository(rid).unwrap();
+            let dave = NodeWithRepo {
+                node: dave,
+                repo: NodeRepo {
+                    repo,
+                    checkout: None,
+                },
+            };
 
             Self {
                 alice,
                 bob,
                 eve,
+                dave,
                 rid,
             }
         }

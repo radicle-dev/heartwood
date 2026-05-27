@@ -1234,6 +1234,8 @@ impl<Repo, Signer> Deref for IdentityMut<'_, '_, Repo, Signer> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
+    mod property;
+
     use qcheck_macros::quickcheck;
 
     use crate::cob::{self, Title};
