@@ -471,32 +471,40 @@ impl Identity {
                 revision,
                 signature,
             } => {
-                let revision = self.revision_mut(&revision)?;
-                match &revision.state {
-                    State::Accepted => {
-                        log::trace!(
-                            "Skipping acceptance of revision {} by {did} because it already is accepted.",
-                            revision.id
-                        );
+                let revision_id = revision;
+                let should_adopt = {
+                    let revision = self.revision_mut(&revision_id)?;
+                    match &revision.state {
+                        State::Accepted => {
+                            log::trace!(
+                                "Skipping acceptance of revision {} by {did} because it already is accepted.",
+                                revision.id
+                            );
+                            false
+                        }
+                        State::Rejected => {
+                            log::debug!(
+                                "Skipping acceptance of revision {} by {did} because it already is rejected.",
+                                revision.id
+                            );
+                            false
+                        }
+                        State::Active => {
+                            log::trace!(
+                                "Applying acceptance of active revision {} by {did}.",
+                                revision.id
+                            );
+                            revision.accept(author, signature, &current)?;
+                            true
+                        }
+                        State::Redacted => {
+                            return Err(ApplyError::Redacted);
+                        }
                     }
-                    State::Rejected => {
-                        log::debug!(
-                            "Skipping acceptance of revision {} by {did} because it already is rejected.",
-                            revision.id
-                        );
-                    }
-                    State::Active => {
-                        log::trace!(
-                            "Applying acceptance of active revision {} by {did}.",
-                            revision.id
-                        );
-                        revision.accept(author, signature, &current)?;
-                        let id = revision.id;
-                        self.adopt(id);
-                    }
-                    State::Redacted => {
-                        return Err(ApplyError::Redacted);
-                    }
+                };
+
+                if should_adopt {
+                    self.adopt(revision_id);
                 }
             }
             Action::RevisionReject { revision } => {
@@ -735,6 +743,24 @@ impl Identity {
 
         self.current = id;
         self.current_mut().state = State::Accepted;
+
+        // Re-evaluate active children under the new quorum rules.
+        // Because `self.current` just changed, the delegate list
+        // (and `self.majority()`) might have lowered.
+        let mut children_to_adopt = Vec::new();
+        for (child_id, child) in self.revisions.iter() {
+            if child.parent == Some(id)
+                && child.state == State::Active
+                && self.is_majority(child.accepted().count())
+            {
+                children_to_adopt.push(*child_id);
+            }
+        }
+
+        // Recursively adopt any children that now meets the quorum
+        for child_id in children_to_adopt {
+            self.adopt(child_id);
+        }
     }
 
     /// Reject all active children of the given revision, recursively.
@@ -1194,8 +1220,8 @@ mod test {
     use crate::identity::doc::PayloadId;
     use crate::node::device::Device;
     use crate::rad;
-    use crate::storage::ReadStorage;
     use crate::storage::git::Storage;
+    use crate::storage::{ReadStorage, SignRepository};
     use crate::test::fixtures;
     use crate::test::setup::{Network, NodeWithRepo};
 
@@ -2191,5 +2217,91 @@ mod test {
         );
 
         assert_eq!(doc.project().unwrap().description(), "Acme's repository!?");
+    }
+
+    #[test]
+    fn test_identity_evaluates_queued_children() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+        let eve = &network.eve;
+
+        // Setup. Alice, Bob, and Eve are delegates. Majority required is 2.
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        alice_doc.delegate(eve.signer.public_key().into());
+        let a0 = alice_identity
+            .update(
+                cob::Title::new("Add Bob and Eve").unwrap(),
+                "",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        eve.repo.fetch(alice);
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
+        bob_identity.accept(&a0).unwrap();
+        eve_identity.accept(&a0).unwrap();
+
+        alice.repo.fetch(bob);
+        alice_identity.reload().unwrap();
+        assert_eq!(alice_identity.current, a0);
+
+        // Alice proposes A1 and B1
+        let mut doc_a1 = alice_identity.doc().clone().edit();
+        doc_a1.visibility = Visibility::private([]);
+        let a1 = alice_identity
+            .update(
+                cob::Title::new("A1").unwrap(),
+                "",
+                &doc_a1.clone().verified().unwrap(),
+            )
+            .unwrap();
+
+        let mut doc_b1 = doc_a1.clone();
+        doc_b1.visibility = Visibility::private([bob.signer.public_key().into()]);
+        let b1 = alice_identity
+            .transaction("B1", |tx, repo| {
+                *tx = Transaction::new_revision(
+                    cob::Title::new("B1").unwrap(),
+                    "",
+                    &doc_b1.verified().unwrap(),
+                    Some(a1),
+                    repo,
+                    &alice.signer,
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        // Bob fetches and accepts B1.
+        // B1 now has 2 votes (Alice + Bob). The majority required is 2.
+        // However, B1's parent (A1) is not yet accepted.
+        bob.repo.fetch(alice);
+        bob_identity.reload().unwrap();
+        bob_identity.accept(&b1).unwrap();
+
+        // B1 is queued and not yet accepted
+        assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Active);
+
+        // Bob accepts A1.
+        // A1 reaches 2 votes and is Accepted.
+        // B1 already has 2 votes, so it should be
+        // automatically accepted.
+        //
+        //     b1   [Accepted, 2/2 votes]
+        //     |
+        //     a1   [Accepted, 2/2 votes]
+        //     |
+        //     a0   [Accepted]
+        bob_identity.accept(&a1).unwrap();
+
+        assert_eq!(bob_identity.revision(&a1).unwrap().state, State::Accepted);
+
+        assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Accepted);
+        assert_eq!(bob_identity.current, b1);
     }
 }
