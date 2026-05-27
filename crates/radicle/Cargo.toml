@@ -35,7 +35,7 @@ base64 = "0.21.3"
 bytesize = { version = "2", features = ["serde"] }
 crossbeam-channel = { workspace = true }
 cyphernet = { workspace = true, features = ["dns", "p2p-ed25519"] }
-creusot-std = { git = "https://github.com/creusot-rs/creusot/", package = "creusot-std", version = "0.12.0-dev" }
+creusot-std = { workspace = true }
 dunce = { workspace = true }
 fast-glob = { version = "0.3.2" }
 fastrand = { workspace = true, features = ["std"] }

@@ -1,16 +1,27 @@
+#[cfg(not(creusot))]
 use nonempty::NonEmpty;
+#[cfg(not(creusot))]
 use radicle_cob::Manifest;
+#[cfg(not(creusot))]
 use serde::Serialize;
+#[cfg(not(creusot))]
 use thiserror::Error;
 
+#[cfg(not(creusot))]
 use radicle_cob::history::{Entry, EntryId};
 use radicle_crypto::PublicKey;
 
+#[cfg(not(creusot))]
 use crate::cob;
+#[cfg(not(creusot))]
 use crate::cob::Timestamp;
+#[cfg(not(creusot))]
 use crate::git;
+#[cfg(not(creusot))]
 use crate::identity;
+#[cfg(not(creusot))]
 use crate::identity::DocAt;
+#[cfg(not(creusot))]
 use crate::storage::ReadRepository;
 
 /// The author of an [`Op`].
@@ -18,6 +29,7 @@ pub type ActorId = PublicKey;
 
 /// Error decoding an operation from an entry.
 #[derive(Error, Debug)]
+#[cfg(not(creusot))]
 pub enum OpEncodingError {
     #[error("encoding failed: {0}")]
     Encoding(#[from] serde_json::Error),
@@ -27,6 +39,7 @@ pub enum OpEncodingError {
 
 #[derive(Error, Debug)]
 #[error("failed to load manifest of '{object}': {err}")]
+#[cfg(not(creusot))]
 pub struct ManifestError {
     object: git::Oid,
     #[source]
@@ -35,6 +48,7 @@ pub struct ManifestError {
 
 /// Error loading an `Op` from storage.
 #[derive(Error, Debug)]
+#[cfg(not(creusot))]
 pub enum LoadError {
     #[error("failed to load Op at '{object}': {source}")]
     Load {
@@ -53,6 +67,7 @@ pub enum LoadError {
 /// Everything that can be done in the system is represented by an `Op`.
 /// Operations are applied to an accumulator to yield a final state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg(not(creusot))]
 pub struct Op<A> {
     /// ID of the entry under which this operation lives.
     pub id: EntryId,
@@ -72,18 +87,21 @@ pub struct Op<A> {
     pub manifest: Manifest,
 }
 
+#[cfg(not(creusot))]
 impl<A: Eq> PartialOrd for Op<A> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
+#[cfg(not(creusot))]
 impl<A: Eq> Ord for Op<A> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.id.cmp(&other.id)
     }
 }
 
+#[cfg(not(creusot))]
 impl<A> Op<A> {
     pub fn new(
         id: EntryId,
@@ -154,6 +172,7 @@ impl<A> Op<A> {
     }
 }
 
+#[cfg(not(creusot))]
 impl From<Entry> for Op<Vec<u8>> {
     fn from(entry: Entry) -> Self {
         Self {
@@ -169,6 +188,7 @@ impl From<Entry> for Op<Vec<u8>> {
     }
 }
 
+#[cfg(not(creusot))]
 impl<'a, A> TryFrom<&'a Entry> for Op<A>
 where
     for<'de> A: serde::Deserialize<'de>,
@@ -203,6 +223,7 @@ where
     }
 }
 
+#[cfg(not(creusot))]
 impl<A: 'static> IntoIterator for Op<A> {
     type Item = A;
     type IntoIter = <NonEmpty<A> as IntoIterator>::IntoIter;

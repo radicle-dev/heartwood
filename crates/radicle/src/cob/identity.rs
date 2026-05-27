@@ -18,7 +18,6 @@ use crate::cob::store::access::WriteAs;
 #[cfg(not(creusot))]
 use crate::git;
 use crate::git::Oid;
-#[cfg(not(creusot))]
 use crate::identity::doc::Doc;
 #[cfg(not(creusot))]
 use crate::node::NodeId;
@@ -93,7 +92,6 @@ pub enum Action {
     #[cfg_attr(not(creusot), serde(rename = "revision"))]
     Revision {
         /// Short summary of changes.
-        #[cfg(not(creusot))]
         title: cob::Title,
         /// Longer comment on proposed changes.
         #[cfg_attr(not(creusot), serde(default, skip_serializing_if = "String::is_empty"))]
@@ -110,11 +108,9 @@ pub enum Action {
         /// The revision to edit.
         revision: RevisionId,
         /// Short summary of changes.
-        #[cfg(not(creusot))]
         title: cob::Title,
         /// Longer comment on proposed changes.
         #[cfg_attr(not(creusot), serde(default, skip_serializing_if = "String::is_empty"))]
-        #[cfg(not(creusot))]
         description: String,
     },
     #[cfg_attr(not(creusot), serde(rename = "revision.accept"))]
@@ -657,6 +653,9 @@ impl Identity {
                 #[cfg(not(creusot))]
                 let doc = Doc::from_blob(&repo.blob(blob)?)?;
 
+                #[cfg(creusot)]
+                let doc = Doc::new(author.into());
+
                 // We expect the revision to make a change compared to its parent.
                 #[cfg(not(creusot))]
                 if doc == parent.doc {
@@ -677,7 +676,6 @@ impl Identity {
                     _ => State::Active,
                 };
 
-                #[cfg(not(creusot))]
                 let revision = Revision::new(
                     entry,
                     title,
@@ -685,18 +683,6 @@ impl Identity {
                     author.into(),
                     blob,
                     doc,
-                    state,
-                    signature,
-                    Some(parent.id),
-                    timestamp,
-                );
-
-                #[cfg(creusot)]
-                let revision = Revision::new(
-                    entry,
-                    description,
-                    author.into(),
-                    blob,
                     state,
                     signature,
                     Some(parent.id),
@@ -909,7 +895,6 @@ pub struct Revision {
     /// Identity document blob at this revision.
     pub blob: Oid,
     /// Title of the proposal.
-    #[cfg(not(creusot))]
     pub title: cob::Title,
     /// State of the revision.
     pub state: State,
@@ -918,7 +903,6 @@ pub struct Revision {
     /// Author of this proposed revision.
     pub author: Author,
     /// New [`Doc`] that will replace `previous`' document.
-    #[cfg(not(creusot))]
     pub doc: Doc,
     /// Physical timestamp of this proposal revision.
     pub timestamp: Timestamp,
@@ -929,10 +913,10 @@ pub struct Revision {
     verdicts: BTreeMap<PublicKey, Verdict>,
 }
 
-#[cfg(not(creusot))]
 impl std::ops::Deref for Revision {
     type Target = Doc;
 
+    #[cfg_attr(creusot, creusot_std::prelude::check(ghost))]
     fn deref(&self) -> &Self::Target {
         &self.doc
     }
@@ -982,12 +966,10 @@ impl Revision {
 impl Revision {
     fn new(
         id: RevisionId,
-        #[cfg(not(creusot))]
         title: cob::Title,
         description: String,
         author: Author,
         blob: Oid,
-        #[cfg(not(creusot))]
         doc: Doc,
         state: State,
         signature: Signature,
@@ -998,12 +980,10 @@ impl Revision {
 
         Self {
             id,
-            #[cfg(not(creusot))]
             title,
             description,
             author,
             blob,
-            #[cfg(not(creusot))]
             doc,
             state,
             verdicts,

@@ -433,7 +433,7 @@ fn show(
         NotificationKind::Cob { typed_id } if typed_id.is_identity() => {
             let identity = Identity::get(&typed_id.id, &repo)?;
 
-            term::json::to_pretty(&identity.doc, Path::new("radicle.json"))?.print();
+            term::json::to_pretty(&identity.current().doc, Path::new("radicle.json"))?.print();
         }
         NotificationKind::Branch { .. } => {
             let refstr = if let Some(remote) = n.remote {

@@ -1818,7 +1818,7 @@ fn test_non_fast_forward_identity_doc() {
     let repo = bob.storage.repository(rid).unwrap();
     let identity = Identity::load_mut(&repo, &bob.signer).unwrap();
     assert_eq!(identity.current, next);
-    assert_eq!(identity.parent, Some(prev));
+    assert_eq!(identity.current().parent, Some(prev));
 
     // Bob fetches from Eve, the identity document should remain the same, but
     // since Bob now knows that Alice's Laptop is a delegate, the issue should
@@ -1831,7 +1831,7 @@ fn test_non_fast_forward_identity_doc() {
     let repo = bob.storage.repository(rid).unwrap();
     let identity = Identity::load_mut(&repo, &bob.signer).unwrap();
     assert_eq!(identity.current, next);
-    assert_eq!(identity.parent, Some(prev));
+    assert_eq!(identity.current().parent, Some(prev));
 }
 
 #[test]

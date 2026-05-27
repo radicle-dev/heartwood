@@ -3133,6 +3133,7 @@ dependencies = [
 name = "radicle-localtime"
 version = "0.1.0"
 dependencies = [
+ "creusot-std",
  "schemars",
  "serde",
  "serde_json",
@@ -3190,6 +3191,7 @@ dependencies = [
 name = "radicle-oid"
 version = "0.2.0"
 dependencies = [
+ "creusot-std",
  "git2",
  "gix-hash",
  "qcheck",

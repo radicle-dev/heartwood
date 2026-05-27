@@ -17,6 +17,7 @@ std = []
 sha1 = []
 
 [dependencies]
+creusot-std = { workspace = true }
 git2 = { workspace = true, optional = true, default-features = false }
 gix-hash = { workspace = true, optional = true }
 qcheck = { workspace = true, optional = true, default-features = false }

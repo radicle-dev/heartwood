@@ -585,3 +585,24 @@ mod schemars {
         }
     }
 }
+
+#[cfg(creusot)]
+impl creusot_std::model::View for Oid {
+    type ViewTy = creusot_std::prelude::Int;
+
+    #[creusot_std::prelude::logic(opaque)]
+    fn view(self) -> Self::ViewTy {
+        dead
+    }
+}
+
+#[cfg(creusot)]
+impl creusot_std::prelude::DeepModel for Oid {
+    type DeepModelTy = creusot_std::prelude::Int;
+
+    #[creusot_std::prelude::logic]
+    fn deep_model(self) -> Self::DeepModelTy {
+        use creusot_std::model::View as _;
+        self.view()
+    }
+}

@@ -52,15 +52,26 @@ pub use profile::Profile;
 #[cfg(not(creusot))]
 pub use storage::git::Storage;
 
-#[cfg(not(creusot))]
 pub mod prelude {
     use super::*;
 
     pub use crypto::PublicKey;
+
+    pub use identity::Did;
+
+    #[cfg(not(creusot))]
     pub use git::BranchName;
-    pub use identity::{Did, Doc, RawDoc, RepoId, project::Project};
+
+    #[cfg(not(creusot))]
+    pub use identity::{Doc, RawDoc, RepoId, project::Project};
+
+    #[cfg(not(creusot))]
     pub use node::{Alias, NodeId, Timestamp};
+
+    #[cfg(not(creusot))]
     pub use profile::Profile;
+
+    #[cfg(not(creusot))]
     pub use storage::{ReadRepository, ReadStorage, SignRepository, WriteRepository, WriteStorage};
 }
 

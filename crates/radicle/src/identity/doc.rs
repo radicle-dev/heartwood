@@ -1,11 +1,9 @@
 #[cfg(not(creusot))]
 pub mod update;
 
-#[cfg(not(creusot))]
 use std::collections::{BTreeMap, BTreeSet};
 #[cfg(not(creusot))]
 use std::fmt;
-#[cfg(not(creusot))]
 use std::num::{NonZeroU32, NonZeroUsize};
 #[cfg(not(creusot))]
 use std::ops::{Deref, Not};
@@ -17,10 +15,11 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 
 use crate::git::Oid;
-#[cfg(not(creusot))]
 use nonempty::NonEmpty;
 #[cfg(not(creusot))]
-use radicle_cob::type_name::{TypeName, TypeNameParse};
+use radicle_cob::type_name::TypeNameParse;
+use radicle_cob::type_name::TypeName;
+
 #[cfg(not(creusot))]
 use serde::{Deserialize, Serialize, de};
 #[cfg(not(creusot))]
@@ -32,7 +31,6 @@ use crate::canonical::formatter::CanonicalFormatter;
 use crate::cob::identity;
 #[cfg(not(creusot))]
 use crate::crypto;
-#[cfg(not(creusot))]
 use crate::crypto::Signature;
 #[cfg(not(creusot))]
 use crate::git;
@@ -49,7 +47,8 @@ use crate::git::raw::ErrorExt as _;
 #[cfg(not(creusot))]
 use crate::identity::crefs;
 #[cfg(not(creusot))]
-use crate::identity::{Did, project::Project};
+use crate::identity::project::Project;
+use crate::identity::Did;
 #[cfg(not(creusot))]
 use crate::node::device::Device;
 #[cfg(not(creusot))]
@@ -57,10 +56,11 @@ use crate::storage;
 #[cfg(not(creusot))]
 use crate::storage::{ReadRepository, RepositoryError};
 
-#[cfg(not(creusot))]
 pub use crypto::PublicKey;
 #[cfg(not(creusot))]
 pub use radicle_core::repo::*;
+#[cfg(creusot)]
+pub use radicle_core::repo::RepoId;
 
 #[cfg(not(creusot))]
 use super::CanonicalRefs;
@@ -74,11 +74,9 @@ pub static PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("radicle.json"));
 #[cfg(not(creusot))]
 pub const MAX_STRING_LENGTH: usize = 255;
 /// Maximum number of a delegates in the identity document.
-#[cfg(not(creusot))]
 pub const MAX_DELEGATES: usize = 255;
 /// The current, most recent version of the identity document.
 // SAFETY: identity version should never be 0, so we can use `unsafe` here
-#[cfg(not(creusot))]
 pub const IDENTITY_VERSION: Version = Version(NonZeroU32::new(1).unwrap());
 
 #[derive(Error, Debug)]
@@ -96,10 +94,16 @@ pub enum DocError {
     Missing,
 }
 
-#[derive(Debug, Error)]
-#[error("invalid delegates: {0}")]
-#[cfg(not(creusot))]
+#[derive(Debug)]
 pub struct DelegatesError(&'static str);
+
+impl std::fmt::Display for DelegatesError {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        f.write_fmt(format_args!("invalid delegates: {}", self.0))
+    }
+}
+
+impl std::error::Error for DelegatesError {}
 
 #[derive(Debug, Error)]
 #[error("invalid threshold `{0}`: {1}")]
@@ -141,8 +145,8 @@ pub enum DefaultBranchError {
 ///
 /// If an invalid version is found – either the `0` version, or an unrecognized
 /// future version – the parsing of a version will fail.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[cfg(not(creusot))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(not(creusot), derive(Serialize))]
 pub struct Version(NonZeroU32);
 
 #[cfg(not(creusot))]
@@ -260,9 +264,9 @@ fn missing_version() -> Version {
 }
 
 /// Identifies an identity document payload type.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(transparent)]
-#[cfg(not(creusot))]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(not(creusot), derive(Serialize, Deserialize))]
+#[cfg_attr(not(creusot), serde(transparent))]
 pub struct PayloadId(TypeName);
 
 #[cfg(not(creusot))]
@@ -313,9 +317,9 @@ pub enum PayloadError {
 /// A `Payload` is a free-form JSON value that can be associated with an
 /// identity's [`Doc`].
 /// The payload is identified in the [`Doc`] by its corresponding [`PayloadId`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(transparent)]
-#[cfg(not(creusot))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(not(creusot), derive(Serialize, Deserialize))]
+#[cfg_attr(not(creusot), serde(transparent))]
 pub struct Payload {
     value: serde_json::Value,
 }
@@ -408,16 +412,15 @@ impl AsRef<Doc> for DocAt {
 }
 
 /// Repository visibility.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "type")]
-#[cfg(not(creusot))]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[cfg_attr(not(creusot), derive(Serialize, Deserialize), serde(rename_all = "camelCase", tag = "type"))]
 pub enum Visibility {
     /// Anyone and everyone.
     #[default]
     Public,
     /// Delegates plus the allowed DIDs.
     Private {
-        #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+        #[cfg_attr(not(creusot), serde(default, skip_serializing_if = "BTreeSet::is_empty"))]
         allow: BTreeSet<Did>,
     },
 }
@@ -440,7 +443,6 @@ impl FromStr for Visibility {
     }
 }
 
-#[cfg(not(creusot))]
 impl Visibility {
     /// Check whether the visibility is public.
     pub fn is_public(&self) -> bool {
@@ -593,9 +595,9 @@ impl RawDoc {
 /// A valid set of delegates for the identity [`Doc`].
 ///
 /// It can only be constructed via [`Delegates::new`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(try_from = "Vec<Did>")]
-#[cfg(not(creusot))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(not(creusot), derive(Serialize, Deserialize))]
+#[cfg_attr(not(creusot), serde(try_from = "Vec<Did>"))]
 pub struct Delegates(NonEmpty<Did>);
 
 #[cfg(not(creusot))]
@@ -631,7 +633,6 @@ impl IntoIterator for Delegates {
     }
 }
 
-#[cfg(not(creusot))]
 impl Delegates {
     /// Construct the set of `Delegates` by removing any duplicate [`Did`]s,
     /// ensure that the set is non-empty, and check the length does not exceed
@@ -708,12 +709,10 @@ impl From<Delegates> for Vec<Did> {
 /// A valid threshold for the identity [`Doc`].
 ///
 /// It can only be constructed via [`Threshold::new`] or [`Threshold::MIN`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-#[serde(transparent)]
-#[cfg(not(creusot))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(not(creusot), derive(Serialize), serde(transparent))]
 pub struct Threshold(NonZeroUsize);
 
-#[cfg(not(creusot))]
 impl From<Threshold> for usize {
     fn from(Threshold(t): Threshold) -> Self {
         t.get()
@@ -734,7 +733,6 @@ impl fmt::Display for Threshold {
     }
 }
 
-#[cfg(not(creusot))]
 impl Threshold {
     /// A threshold of `1`.
     pub const MIN: Threshold = Threshold(NonZeroUsize::MIN);
@@ -742,6 +740,7 @@ impl Threshold {
     /// Construct the `Threshold` by checking that `t` is not greater than
     /// [`MAX_DELEGATES`], that it does not exceed the number of delegates, and
     /// is non-zero.
+    #[cfg(not(creusot))]
     pub fn new(t: usize, delegates: &Delegates) -> Result<Self, ThresholdError> {
         if t > MAX_DELEGATES {
             Err(ThresholdError(t, "threshold cannot exceed 255"))
@@ -772,27 +771,39 @@ impl Threshold {
 ///      [`RawDoc`] and use [`RawDoc::verified`] to construct the `Doc`.
 ///   4. [`Doc::from_blob`]: construct a `Doc` from a Git blob by deserializing
 ///      its contents.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[serde(try_from = "RawDoc")]
-#[cfg(not(creusot))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(not(creusot), derive(Serialize, Deserialize))]
+#[cfg_attr(not(creusot), serde(rename_all = "camelCase", try_from = "RawDoc"))]
 pub struct Doc {
-    #[serde(skip_serializing_if = "Version::skip_serializing")]
+    #[cfg_attr(not(creusot), serde(skip_serializing_if = "Version::skip_serializing"))]
     version: Version,
     payload: BTreeMap<PayloadId, Payload>,
     delegates: Delegates,
     threshold: Threshold,
-    #[serde(default, skip_serializing_if = "Visibility::is_public")]
+    #[cfg_attr(not(creusot), serde(default, skip_serializing_if = "Visibility::is_public"))]
     visibility: Visibility,
 }
 
-#[cfg(not(creusot))]
+#[cfg(creusot)]
+impl Doc {
+    pub(crate) fn new(delegate: Did) -> Self {
+        Self {
+            version: IDENTITY_VERSION,
+            payload: BTreeMap::new(),
+            delegates: Delegates(NonEmpty::new(delegate)),
+            threshold: Threshold::MIN,
+            visibility: Visibility::Public,
+        }
+    }
+}
+
 impl Doc {
     /// Construct the initial [`Doc`] for an identity.
     ///
     /// It will begin with the provided `project` in the [`Doc::payload`], the
     /// `delegate` as the sole delegate, a threshold of 1, and the given
     /// `visibility`.
+    #[cfg(not(creusot))]
     pub fn initial(project: Project, delegate: Did, visibility: Visibility) -> Self {
         let project =
             serde_json::to_value(project).expect("Doc::initial: payload must be serializable");
@@ -807,12 +818,14 @@ impl Doc {
     }
 
     /// Construct a [`Doc`] contained in the provided Git blob.
+    #[cfg(not(creusot))]
     pub fn from_blob(blob: &git::raw::Blob) -> Result<Self, DocError> {
         RawDoc::from_json(blob.content())?.verified()
     }
 
     /// Convert the [`Doc`] into a [`RawDoc`] for changing the field values and
     /// re-verifying.
+    #[cfg(not(creusot))]
     pub fn edit(self) -> RawDoc {
         let Doc {
             version,
@@ -832,6 +845,7 @@ impl Doc {
 
     /// Using the current state of the `Doc`, perform any edits on the `RawDoc`
     /// form and verify the changes.
+    #[cfg(not(creusot))]
     pub fn with_edits<F>(self, f: F) -> Result<Self, DocError>
     where
         F: FnOnce(&mut RawDoc),
@@ -852,6 +866,7 @@ impl Doc {
     }
 
     /// Get the project payload, if it exists and is valid, out of this document.
+    #[cfg(not(creusot))]
     pub fn project(&self) -> Result<Project, PayloadError> {
         let value = self
             .payload
@@ -865,6 +880,7 @@ impl Doc {
     /// Gets the qualified reference name of the default branch,
     /// according to payloads `xyz.radicle.project` and `xyz.radicle.crefs`
     /// in this document.
+    #[cfg(not(creusot))]
     pub fn default_branch(&self) -> Result<git::fmt::Qualified<'_>, DefaultBranchError> {
         let crefs = self.canonical_refs()?;
         let qualified = crefs
@@ -896,6 +912,7 @@ impl Doc {
     /// caught as a dangling reference there.
     ///
     /// [`RawCanonicalRefs`]: super::crefs::RawCanonicalRefs
+    #[cfg(not(creusot))]
     pub fn canonical_refs(&self) -> Result<CanonicalRefs, CanonicalRefsError> {
         let mut raw_crefs = self.raw_canonical_refs()?.unwrap_or_default();
         let resolve = &mut || self.delegates.clone();
@@ -935,6 +952,7 @@ impl Doc {
     ///
     /// If no rule matches the target, `HEAD` will dangle — this is caught
     /// later by [`RawCanonicalRefs::try_into_canonical_refs`] validation.
+    #[cfg(not(creusot))]
     fn validate_head_rule(
         &self,
         raw_crefs: &RawCanonicalRefs,
@@ -965,6 +983,7 @@ impl Doc {
 
     /// Synthesize a `HEAD` symbolic reference and a default branch rule
     /// from the project payload.
+    #[cfg(not(creusot))]
     fn synthesize_head(
         &self,
         raw_crefs: &mut RawCanonicalRefs,
@@ -1064,6 +1083,7 @@ impl Doc {
     }
 
     /// Helper for getting an `embeds` Git blob.
+    #[cfg(not(creusot))]
     pub(crate) fn blob_at<R: ReadRepository>(
         commit: Oid,
         repo: &R,
@@ -1074,6 +1094,7 @@ impl Doc {
 
     /// Encode the [`Doc`] as canonical JSON, returning the set of bytes and its
     /// corresponding Git [`Oid`].
+    #[cfg(not(creusot))]
     pub fn encode(&self) -> Result<(git::Oid, Vec<u8>), DocError> {
         let mut buf = Vec::new();
         let mut serializer =
@@ -1087,6 +1108,7 @@ impl Doc {
 
     /// [`Doc::encode`] and sign the [`Doc`], returning the set of bytes, its
     /// corresponding Git [`Oid`] and the [`Signature`] over the [`Oid`].
+    #[cfg(not(creusot))]
     pub fn sign<G>(&self, signer: &G) -> Result<(git::Oid, Vec<u8>, Signature), DocError>
     where
         G: crypto::signature::Signer<crypto::Signature>,
@@ -1098,6 +1120,7 @@ impl Doc {
     }
 
     /// Similar to [`Doc::sign`], but only returning the [`Signature`].
+    #[cfg(not(creusot))]
     pub fn signature_of<G>(&self, signer: &G) -> Result<Signature, DocError>
     where
         G: crypto::signature::Signer<crypto::Signature>,
@@ -1109,6 +1132,7 @@ impl Doc {
 
     /// Load the [`DocAt`] found at the given `commit`. The [`DocAt`] will
     /// contain the corresponding [`Doc`].
+    #[cfg(not(creusot))]
     pub fn load_at<R: ReadRepository>(commit: Oid, repo: &R) -> Result<DocAt, DocError> {
         let blob = Self::blob_at(commit, repo)?;
         let doc = Self::from_blob(&blob)?;
@@ -1122,6 +1146,7 @@ impl Doc {
 
     /// Initialize an [`identity::Identity`] with this [`Doc`] as the associated
     /// document.
+    #[cfg(not(creusot))]
     pub fn init<G>(
         &self,
         repo: &storage::git::Repository,

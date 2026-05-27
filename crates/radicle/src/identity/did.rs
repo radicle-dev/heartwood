@@ -1,7 +1,7 @@
-#[cfg(not(creusot))]
 use std::ops::Deref;
+use std::fmt;
 #[cfg(not(creusot))]
-use std::{fmt, str::FromStr};
+use std::str::FromStr;
 
 #[cfg(not(creusot))]
 use serde::{Deserialize, Serialize};
@@ -25,7 +25,27 @@ pub enum DidError {
 #[cfg_attr(not(creusot), serde(into = "String", try_from = "String"))]
 pub struct Did(crypto::PublicKey);
 
-#[cfg(not(creusot))]
+#[cfg(creusot)]
+impl creusot_std::model::View for Did {
+    type ViewTy = creusot_std::prelude::Int;
+
+    #[creusot_std::prelude::logic(opaque)]
+    fn view(self) -> Self::ViewTy {
+        dead
+    }
+}
+
+#[cfg(creusot)]
+impl creusot_std::prelude::DeepModel for Did {
+    type DeepModelTy = creusot_std::prelude::Int;
+
+    #[creusot_std::prelude::logic]
+    fn deep_model(self) -> Self::DeepModelTy {
+        use creusot_std::model::View as _;
+        self.view()
+    }
+}
+
 impl Did {
     /// We use the format specified by the DID `key` method, which is described as:
     ///
@@ -35,6 +55,7 @@ impl Did {
         format!("did:key:{}", self.0.to_human())
     }
 
+    #[cfg(not(creusot))]
     pub fn decode(input: &str) -> Result<Self, DidError> {
         let key = input
             .strip_prefix("did:key:")
@@ -50,14 +71,12 @@ impl Did {
     }
 }
 
-#[cfg(not(creusot))]
 impl From<&crypto::PublicKey> for Did {
     fn from(key: &crypto::PublicKey) -> Self {
         Self(*key)
     }
 }
 
-#[cfg(not(creusot))]
 impl From<crypto::PublicKey> for Did {
     fn from(key: crypto::PublicKey) -> Self {
         (&key).into()
@@ -96,21 +115,18 @@ impl TryFrom<String> for Did {
     }
 }
 
-#[cfg(not(creusot))]
 impl fmt::Display for Did {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.encode())
     }
 }
 
-#[cfg(not(creusot))]
 impl fmt::Debug for Did {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Did({:?})", self.to_string())
     }
 }
 
-#[cfg(not(creusot))]
 impl Deref for Did {
     type Target = crypto::PublicKey;
 

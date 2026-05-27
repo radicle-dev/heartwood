@@ -1,21 +1,54 @@
+#[cfg(not(creusot))]
 use std::fmt;
+#[cfg(not(creusot))]
 use std::fmt::Display;
+#[cfg(not(creusot))]
 use std::ops::{Deref, Range};
+#[cfg(not(creusot))]
 use std::path::PathBuf;
+#[cfg(not(creusot))]
 use std::str::FromStr;
 
+#[cfg(not(creusot))]
 use base64::prelude::{BASE64_STANDARD, Engine};
 use localtime::LocalTime;
+#[cfg(not(creusot))]
 use serde::{Deserialize, Serialize};
+#[cfg(not(creusot))]
 use thiserror::Error;
 
+#[cfg(not(creusot))]
 use crate::git::Oid;
 use crate::prelude::{Did, PublicKey};
 
 /// Timestamp used for COB operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Eq, PartialOrd, Ord)]
+#[cfg_attr(not(creusot), derive(PartialEq))]
+#[cfg_attr(creusot, derive(creusot_std::prelude::PartialEq))]
 pub struct Timestamp(LocalTime);
 
+#[cfg(creusot)]
+impl creusot_std::model::View for Timestamp {
+    type ViewTy = u64;
+
+    #[creusot_std::prelude::logic(opaque)]
+    fn view(self) -> Self::ViewTy {
+        dead
+    }
+}
+
+#[cfg(creusot)]
+impl creusot_std::prelude::DeepModel for Timestamp {
+    type DeepModelTy = u64;
+
+    #[creusot_std::prelude::logic(open, inline)]
+    fn deep_model(self) -> Self::DeepModelTy {
+        use creusot_std::model::View as _;
+        self.view()
+    }
+}
+
+#[cfg(not(creusot))]
 impl Serialize for Timestamp {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -25,6 +58,7 @@ impl Serialize for Timestamp {
     }
 }
 
+#[cfg(not(creusot))]
 impl<'de> Deserialize<'de> for Timestamp {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -42,18 +76,21 @@ impl Timestamp {
     }
 }
 
+#[cfg(not(creusot))]
 impl From<LocalTime> for Timestamp {
     fn from(time: LocalTime) -> Self {
         Self(time)
     }
 }
 
+#[cfg(not(creusot))]
 impl From<Timestamp> for LocalTime {
     fn from(time: Timestamp) -> Self {
         time.0
     }
 }
 
+#[cfg(not(creusot))]
 impl Deref for Timestamp {
     type Target = LocalTime;
 
@@ -64,6 +101,7 @@ impl Deref for Timestamp {
 }
 
 #[derive(Error, Debug, PartialEq, Eq)]
+#[cfg(not(creusot))]
 pub enum TitleError {
     #[error("empty title")]
     EmptyTitle,
@@ -78,10 +116,34 @@ pub enum TitleError {
 ///   - Must not be empty
 ///   - Must not contain `\n` or `\r` characters
 ///   - Will be trimmed of any preceding or following whitespace
-#[derive(Display, Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
-#[display(inner)]
+//#[derive(Display, PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(not(creusot), derive(Deserialize, Serialize))]
+//#[display(inner)]
 pub struct Title(String);
 
+#[cfg(creusot)]
+impl creusot_std::model::View for Title {
+    type ViewTy = creusot_std::prelude::Seq<char>;
+
+    #[creusot_std::prelude::logic(opaque)]
+    fn view(self) -> Self::ViewTy {
+        dead
+    }
+}
+
+#[cfg(creusot)]
+impl creusot_std::prelude::DeepModel for Title {
+    type DeepModelTy = creusot_std::prelude::Seq<char>;
+
+    #[creusot_std::prelude::logic]
+    fn deep_model(self) -> Self::DeepModelTy {
+        use creusot_std::model::View as _;
+        self.view()
+    }
+}
+
+#[cfg(not(creusot))]
 impl Title {
     /// # Errors
     ///
@@ -102,12 +164,14 @@ impl Title {
     }
 }
 
+#[cfg(not(creusot))]
 impl AsRef<str> for Title {
     fn as_ref(&self) -> &str {
         &self.0
     }
 }
 
+#[cfg(not(creusot))]
 impl FromStr for Title {
     type Err = TitleError;
 
@@ -116,6 +180,7 @@ impl FromStr for Title {
     }
 }
 
+#[cfg(not(creusot))]
 impl TryFrom<String> for Title {
     type Error = TitleError;
 
@@ -125,7 +190,8 @@ impl TryFrom<String> for Title {
 }
 
 /// Author.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(not(creusot), derive(Serialize, Deserialize))]
 pub struct Author {
     pub id: Did,
 }
@@ -144,6 +210,7 @@ impl Author {
     }
 }
 
+#[cfg(not(creusot))]
 impl Display for Author {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.id.fmt(f)
@@ -157,6 +224,7 @@ impl From<PublicKey> for Author {
 }
 
 #[derive(thiserror::Error, Debug)]
+#[cfg(not(creusot))]
 pub enum ReactionError {
     #[error("invalid reaction")]
     InvalidReaction,
@@ -164,10 +232,12 @@ pub enum ReactionError {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Serialize)]
 #[serde(transparent)]
+#[cfg(not(creusot))]
 pub struct Reaction {
     emoji: char,
 }
 
+#[cfg(not(creusot))]
 impl Reaction {
     /// Create a new reaction from an emoji.
     pub fn new(emoji: char) -> Result<Self, ReactionError> {
@@ -202,6 +272,7 @@ impl Reaction {
     }
 }
 
+#[cfg(not(creusot))]
 impl<'de> Deserialize<'de> for Reaction {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -242,6 +313,7 @@ impl<'de> Deserialize<'de> for Reaction {
     }
 }
 
+#[cfg(not(creusot))]
 impl FromStr for Reaction {
     type Err = ReactionError;
 
@@ -258,6 +330,7 @@ impl FromStr for Reaction {
 }
 
 #[derive(thiserror::Error, Debug)]
+#[cfg(not(creusot))]
 pub enum LabelError {
     #[error("invalid tag name: `{0}`")]
     InvalidName(String),
@@ -265,8 +338,10 @@ pub enum LabelError {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
+#[cfg(not(creusot))]
 pub struct Label(String);
 
+#[cfg(not(creusot))]
 impl Label {
     pub fn new(name: impl ToString) -> Result<Self, LabelError> {
         let name = name.to_string();
@@ -282,6 +357,7 @@ impl Label {
     }
 }
 
+#[cfg(not(creusot))]
 impl FromStr for Label {
     type Err = LabelError;
 
@@ -290,12 +366,14 @@ impl FromStr for Label {
     }
 }
 
+#[cfg(not(creusot))]
 impl Display for Label {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
+#[cfg(not(creusot))]
 impl From<Label> for String {
     fn from(Label(name): Label) -> Self {
         name
@@ -304,9 +382,11 @@ impl From<Label> for String {
 
 /// RGB color.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[cfg(not(creusot))]
 pub struct Color(u32);
 
 #[derive(thiserror::Error, Debug)]
+#[cfg(not(creusot))]
 pub enum ColorConversionError {
     #[error("invalid format: expect '#rrggbb'")]
     InvalidFormat,
@@ -314,12 +394,14 @@ pub enum ColorConversionError {
     ParseInt(#[from] std::num::ParseIntError),
 }
 
+#[cfg(not(creusot))]
 impl fmt::Display for Color {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#{:06x}", self.0)
     }
 }
 
+#[cfg(not(creusot))]
 impl FromStr for Color {
     type Err = ColorConversionError;
 
@@ -337,6 +419,7 @@ impl FromStr for Color {
     }
 }
 
+#[cfg(not(creusot))]
 impl Serialize for Color {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -347,6 +430,7 @@ impl Serialize for Color {
     }
 }
 
+#[cfg(not(creusot))]
 impl<'a> Deserialize<'a> for Color {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -360,8 +444,10 @@ impl<'a> Deserialize<'a> for Color {
 /// A URI.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
+#[cfg(not(creusot))]
 pub struct Uri(String);
 
+#[cfg(not(creusot))]
 impl Uri {
     /// Get a string reference to the URI.
     pub fn as_str(&self) -> &str {
@@ -369,12 +455,14 @@ impl Uri {
     }
 }
 
+#[cfg(not(creusot))]
 impl From<Oid> for Uri {
     fn from(oid: Oid) -> Self {
         Uri(format!("git:{oid}"))
     }
 }
 
+#[cfg(not(creusot))]
 impl TryFrom<&Uri> for crate::git::raw::Oid {
     type Error = Uri;
 
@@ -388,6 +476,7 @@ impl TryFrom<&Uri> for crate::git::raw::Oid {
     }
 }
 
+#[cfg(not(creusot))]
 impl TryFrom<&Uri> for crate::git::Oid {
     type Error = Uri;
 
@@ -396,12 +485,14 @@ impl TryFrom<&Uri> for crate::git::Oid {
     }
 }
 
+#[cfg(not(creusot))]
 impl std::fmt::Display for Uri {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
+#[cfg(not(creusot))]
 impl std::str::FromStr for Uri {
     type Err = String;
 
@@ -418,14 +509,17 @@ impl std::str::FromStr for Uri {
 
 /// A `data:` URI.
 #[derive(Debug, Clone)]
+#[cfg(not(creusot))]
 pub struct DataUri(Vec<u8>);
 
+#[cfg(not(creusot))]
 impl From<DataUri> for Vec<u8> {
     fn from(value: DataUri) -> Self {
         value.0
     }
 }
 
+#[cfg(not(creusot))]
 impl TryFrom<&Uri> for DataUri {
     type Error = Uri;
 
@@ -444,6 +538,7 @@ impl TryFrom<&Uri> for DataUri {
 
 /// The result of an authorization check on an COB action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(not(creusot))]
 pub enum Authorization {
     /// Action is allowed.
     Allow,
@@ -453,6 +548,7 @@ pub enum Authorization {
     Unknown,
 }
 
+#[cfg(not(creusot))]
 impl From<bool> for Authorization {
     fn from(value: bool) -> Self {
         if value { Self::Allow } else { Self::Deny }
@@ -463,6 +559,7 @@ impl From<bool> for Authorization {
 /// patches, issues, and diffs.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg(not(creusot))]
 pub struct CodeLocation {
     /// [`Oid`] of the Git commit.
     pub commit: Oid,
@@ -477,6 +574,7 @@ pub struct CodeLocation {
 /// Code range.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
+#[cfg(not(creusot))]
 pub enum CodeRange {
     /// One or more lines.
     Lines { range: Range<usize> },
@@ -484,12 +582,14 @@ pub enum CodeRange {
     Chars { line: usize, range: Range<usize> },
 }
 
+#[cfg(not(creusot))]
 impl std::cmp::PartialOrd for CodeRange {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
+#[cfg(not(creusot))]
 impl std::cmp::Ord for CodeRange {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match (self, other) {

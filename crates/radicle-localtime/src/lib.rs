@@ -19,6 +19,28 @@ pub struct LocalTime {
     millis: u128,
 }
 
+#[cfg(creusot)]
+impl creusot_std::model::View for LocalTime {
+    type ViewTy = u64;
+
+    #[creusot_std::prelude::logic(opaque)]
+    fn view(self) -> Self::ViewTy {
+        dead
+    }
+}
+
+#[cfg(creusot)]
+impl creusot_std::prelude::DeepModel for LocalTime {
+    type DeepModelTy = u64;
+
+    #[creusot_std::prelude::logic(open, inline)]
+    fn deep_model(self) -> Self::DeepModelTy {
+        use creusot_std::model::View as _;
+        self.view()
+    }
+}
+
+#[cfg(not(creusot))]
 impl std::fmt::Display for LocalTime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_secs())
@@ -27,6 +49,7 @@ impl std::fmt::Display for LocalTime {
 
 impl LocalTime {
     /// Construct a local time from the current system time.
+    #[cfg(not(creusot))]
     pub fn now() -> Self {
         static LAST: atomic::AtomicU64 = atomic::AtomicU64::new(0);
 
@@ -81,6 +104,7 @@ impl LocalTime {
     ///
     /// This function will panic if `earlier` is later than `self`.
     #[must_use]
+    #[cfg(not(creusot))]
     pub fn duration_since(&self, earlier: LocalTime) -> LocalDuration {
         LocalDuration::from_millis(
             self.millis
@@ -91,6 +115,7 @@ impl LocalTime {
 
     /// Get the difference between two times.
     #[must_use]
+    #[cfg(not(creusot))]
     pub fn diff(&self, other: LocalTime) -> LocalDuration {
         if self > &other {
             self.duration_since(other)
@@ -102,12 +127,14 @@ impl LocalTime {
     /// Elapse time.
     ///
     /// Adds the given duration to the time.
+    #[cfg(not(creusot))]
     pub fn elapse(&mut self, duration: LocalDuration) {
         self.millis += duration.as_millis()
     }
 }
 
 /// Subtract two local times. Yields a duration.
+#[cfg(not(creusot))]
 impl std::ops::Sub<LocalTime> for LocalTime {
     type Output = LocalDuration;
 
@@ -117,6 +144,7 @@ impl std::ops::Sub<LocalTime> for LocalTime {
 }
 
 /// Subtract a duration from a local time. Yields a local time.
+#[cfg(not(creusot))]
 impl std::ops::Sub<LocalDuration> for LocalTime {
     type Output = LocalTime;
 
@@ -128,6 +156,7 @@ impl std::ops::Sub<LocalDuration> for LocalTime {
 }
 
 /// Add a duration to a local time. Yields a local time.
+#[cfg(not(creusot))]
 impl std::ops::Add<LocalDuration> for LocalTime {
     type Output = LocalTime;
 
@@ -145,8 +174,10 @@ impl std::ops::Add<LocalDuration> for LocalTime {
     derive(schemars::JsonSchema),
     schemars(description = "A time duration measured locally in seconds.")
 )]
+#[cfg(not(creusot))]
 pub struct LocalDuration(u128);
 
+#[cfg(not(creusot))]
 impl LocalDuration {
     /// The time interval between blocks. The "block time".
     pub const BLOCK_INTERVAL: LocalDuration = Self::from_mins(10);
@@ -191,6 +222,7 @@ impl LocalDuration {
     }
 }
 
+#[cfg(not(creusot))]
 impl std::fmt::Display for LocalDuration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.as_millis() < 1000 {
@@ -224,6 +256,7 @@ impl std::fmt::Display for LocalDuration {
     }
 }
 
+#[cfg(not(creusot))]
 impl<'a> std::iter::Sum<&'a LocalDuration> for LocalDuration {
     fn sum<I: Iterator<Item = &'a LocalDuration>>(iter: I) -> LocalDuration {
         let mut total: u128 = 0;
@@ -237,6 +270,7 @@ impl<'a> std::iter::Sum<&'a LocalDuration> for LocalDuration {
     }
 }
 
+#[cfg(not(creusot))]
 impl std::ops::Add<LocalDuration> for LocalDuration {
     type Output = LocalDuration;
 
@@ -245,6 +279,7 @@ impl std::ops::Add<LocalDuration> for LocalDuration {
     }
 }
 
+#[cfg(not(creusot))]
 impl std::ops::Div<u32> for LocalDuration {
     type Output = LocalDuration;
 
@@ -253,6 +288,7 @@ impl std::ops::Div<u32> for LocalDuration {
     }
 }
 
+#[cfg(not(creusot))]
 impl std::ops::Mul<u64> for LocalDuration {
     type Output = LocalDuration;
 
@@ -261,13 +297,14 @@ impl std::ops::Mul<u64> for LocalDuration {
     }
 }
 
+#[cfg(not(creusot))]
 impl From<LocalDuration> for std::time::Duration {
     fn from(other: LocalDuration) -> Self {
         std::time::Duration::from_millis(other.0 as u64)
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", not(creusot)))]
 mod serde_impls {
     use super::{LocalDuration, LocalTime};
 

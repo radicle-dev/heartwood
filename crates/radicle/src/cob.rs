@@ -1,14 +1,12 @@
 #![deny(clippy::unwrap_used)]
 #[cfg(not(creusot))]
 pub mod cache;
-#[cfg(not(creusot))]
 pub mod common;
 #[cfg(not(creusot))]
 pub mod external;
 pub mod identity;
 #[cfg(not(creusot))]
 pub mod issue;
-#[cfg(not(creusot))]
 pub mod op;
 #[cfg(not(creusot))]
 pub mod patch;
@@ -30,7 +28,7 @@ pub use cache::{MigrateCallback, migrate};
 #[cfg(not(creusot))]
 pub use common::*;
 #[cfg(creusot)]
-pub use common::{Author, Timestamp};
+pub use common::{Author, Title, Timestamp};
 #[cfg(not(creusot))]
 pub use op::Op;
 pub use op::ActorId;
