@@ -20,6 +20,32 @@ commandline argument `--log-level debug`.
 If you start `radicle-node` via `rad node start`, then change the
 invocation to `rad node start -- --log-level debug`.
 
+### Issue Labels
+
+At the moment, only delegates of the `heartwood` repository are allowed to edit
+the labels of an issue.
+You can see who the delegates are by running:
+```
+$ rad inspect --delegates
+```
+
+There is no strict convention on the labeling of our issues, however, we do try
+to follow a loose scheme and have landed on the following set to begin with:
+
+```
+p=<low | medium | high> – priority
+crate=<crate name>,<other crate>
+due=<YYYY-QX>
+cob=<typename>
+good-first-issue
+type=<bug|feature|improvement|refactor|spec|doc>
+release=X.Y.Z
+os=<unix|linux|windows|macos|android|ios|…>
+```
+
+These can be used to search for different families of issues, and we will strive
+to always keep labels up to date on our issue log.
+
 ## Contributing Code
 
 When contributing code, please follow these
