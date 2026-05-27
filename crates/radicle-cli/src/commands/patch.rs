@@ -17,6 +17,7 @@ mod review;
 mod show;
 mod update;
 
+use core::convert::TryInto;
 use std::collections::BTreeSet;
 
 use anyhow::anyhow;
@@ -196,7 +197,13 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 .map(|rev| rev.resolve::<radicle::git::Oid>(&repository.backend))
                 .transpose()?
                 .map(patch::RevisionId::from);
-            review::run(patch_id, revision_id, options.into(), &profile, &repository)?;
+            review::run(
+                patch_id,
+                revision_id,
+                options.try_into()?,
+                &profile,
+                &repository,
+            )?;
         }
 
         Command::Resolve {

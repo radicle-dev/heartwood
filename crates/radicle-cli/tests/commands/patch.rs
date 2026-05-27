@@ -28,6 +28,11 @@ fn rad_patch_checkout() {
 }
 
 #[test]
+fn rad_patch_review_no_options() {
+    Environment::alice(["rad-init", "rad-patch", "rad-patch-review-no-options"]);
+}
+
+#[test]
 fn rad_patch_checkout_revision() {
     Environment::alice([
         "rad-init",

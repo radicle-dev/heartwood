@@ -1,3 +1,5 @@
+use core::result::Result::Err;
+
 use clap::{Parser, Subcommand};
 
 use radicle::cob::Label;
@@ -588,8 +590,15 @@ pub(super) struct ReviewArgs {
     message_args: MessageArgs,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum OperationError {
+    #[error("expected one of `--accept` or `--reject`, or supply a review message")]
+    MissingOption,
+}
+
 impl ReviewArgs {
-    fn as_operation(&self) -> review::Operation {
+    fn as_operation(&self, message: &Message) -> Result<review::Operation, OperationError> {
         let Self {
             patch,
             accept,
@@ -606,51 +615,60 @@ impl ReviewArgs {
             } else {
                 None
             };
-            return review::Operation::Review(review::ReviewOptions {
+            return Ok(review::Operation::Review(review::ReviewOptions {
                 by_hunk: true,
                 unified: self.unified,
                 hunk: self.hunk,
                 verdict,
-            });
+            }));
         }
 
         if *delete {
-            return review::Operation::Delete;
+            return Ok(review::Operation::Delete);
         }
 
         if *accept {
-            return review::Operation::Review(review::ReviewOptions {
+            return Ok(review::Operation::Review(review::ReviewOptions {
                 by_hunk: false,
                 unified: 3,
                 hunk: None,
                 verdict: Some(Verdict::Accept),
-            });
+            }));
         }
 
         if *reject {
-            return review::Operation::Review(review::ReviewOptions {
+            return Ok(review::Operation::Review(review::ReviewOptions {
                 by_hunk: false,
                 unified: 3,
                 hunk: None,
                 verdict: Some(Verdict::Reject),
-            });
+            }));
         }
 
-        panic!("expected one of `--patch`, `--delete`, `--accept`, or `--reject`");
+        if matches!(message, Message::Edit | Message::Text(_)) {
+            return Ok(review::Operation::Review(review::ReviewOptions {
+                by_hunk: false,
+                unified: self.unified,
+                hunk: self.hunk,
+                verdict: None,
+            }));
+        }
+
+        Err(OperationError::MissingOption)
     }
 }
 
-impl From<ReviewArgs> for review::Options {
-    fn from(args: ReviewArgs) -> Self {
-        let op = args.as_operation();
-        Self {
-            message: Message::from(args.message_args),
-            op,
-        }
+impl TryFrom<ReviewArgs> for review::Options {
+    type Error = OperationError;
+
+    fn try_from(args: ReviewArgs) -> Result<Self, Self::Error> {
+        let message = Message::from(args.message_args.clone());
+        let op = args.as_operation(&message)?;
+        Ok(Self { message, op })
     }
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 #[group(required = false, multiple = false)]
 pub(super) struct MessageArgs {
     /// Provide a message (default: prompt)

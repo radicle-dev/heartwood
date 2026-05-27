@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   merged. The Git remote helper will now fallback to the canonical default
   branch, if the default branch of the delegate could not be found, and
   correctly mark the patch as merged.
+- `rad patch review` presents an appropriate error to the user when the user
+  does not provide an option, one of `--accept` or `--reject`, or a summary
+  message.
 
 ## 1.9.1
 
