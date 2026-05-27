@@ -607,6 +607,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "creusot-std"
+version = "0.12.0-dev"
+source = "git+https://github.com/creusot-rs/creusot/#9cf662ce6dfe16810b871dbde4c72a3f37567ae0"
+dependencies = [
+ "creusot-std-proc",
+ "num-rational",
+]
+
+[[package]]
+name = "creusot-std-proc"
+version = "0.12.0-dev"
+source = "git+https://github.com/creusot-rs/creusot/#9cf662ce6dfe16810b871dbde4c72a3f37567ae0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
 name = "crossbeam-channel"
 version = "0.5.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2890,6 +2909,7 @@ dependencies = [
  "amplify",
  "base64 0.21.7",
  "bytesize",
+ "creusot-std",
  "crossbeam-channel",
  "cyphernet",
  "dunce",

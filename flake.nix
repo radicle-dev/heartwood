@@ -8,6 +8,11 @@
 
     crane.url = "github:ipetkov/crane";
 
+    creusot = {
+      url = "github:creusot-rs/creusot";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     git-hooks = {
       url = "github:cachix/git-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -36,6 +41,7 @@
     self,
     advisory-db,
     crane,
+    creusot,
     flake-utils,
     nixpkgs,
     nixpkgs-stable,
@@ -70,7 +76,10 @@
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {
         inherit system;
-        overlays = [(import rust-overlay)];
+        overlays = [
+          (import rust-overlay)
+          creusot.overlays.default
+        ];
       };
 
       src = mkSrc pkgs;
@@ -396,6 +405,8 @@
           timoni
           qemu
           OVMF.fd
+
+          (pkgs.creusot.mkCreusotWrapped { isFree = true; })
         ];
 
         env = {

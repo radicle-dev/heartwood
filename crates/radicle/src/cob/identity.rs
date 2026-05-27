@@ -48,6 +48,18 @@ impl<'a> IdentityStream<'a> {
     }
 }
 
+use creusot_std::{
+    logic::{Int, OrdLogic, Seq},
+    prelude::*,
+};
+
+#[logic(open)]
+pub fn sorted_range<T: OrdLogic>(s: Seq<T>, l: Int, u: Int) -> bool {
+    pearlite! {
+        forall<i, j> l <= i && i < j && j < u ==> s[i] <= s[j]
+    }
+}
+
 /// Proposal operation.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
