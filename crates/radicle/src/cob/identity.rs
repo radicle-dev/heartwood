@@ -48,11 +48,14 @@ impl<'a> IdentityStream<'a> {
     }
 }
 
+#[cfg(creusot)]
 use creusot_std::{
     logic::{Int, OrdLogic, Seq},
-    prelude::*,
+    prelude::logic,
+    prelude::pearlite,
 };
 
+#[cfg(creusot)]
 #[logic(open)]
 pub fn sorted_range<T: OrdLogic>(s: Seq<T>, l: Int, u: Int) -> bool {
     pearlite! {

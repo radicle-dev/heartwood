@@ -77,3 +77,6 @@ radicle-cob = { workspace = true, features = ["stable-commit-ids", "test"] }
 radicle-core = {workspace = true, features = ["qcheck"] }
 radicle-crypto = { workspace = true, features = ["test"] }
 tempfile = { workspace = true }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(creusot)'] }
