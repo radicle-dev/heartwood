@@ -286,6 +286,7 @@ impl From<serde_json::Value> for Payload {
 impl Deref for Payload {
     type Target = serde_json::Value;
 
+    #[cfg_attr(creusot, creusot_std::prelude::check(ghost))]
     fn deref(&self) -> &Self::Target {
         &self.value
     }
@@ -322,6 +323,7 @@ pub struct DocAt {
 impl Deref for DocAt {
     type Target = Doc;
 
+    #[cfg_attr(creusot, creusot_std::prelude::check(ghost))]
     fn deref(&self) -> &Self::Target {
         &self.doc
     }

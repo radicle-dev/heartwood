@@ -97,6 +97,7 @@ impl fmt::Debug for Did {
 impl Deref for Did {
     type Target = crypto::PublicKey;
 
+    #[cfg_attr(creusot, creusot_std::prelude::check(ghost))]
     fn deref(&self) -> &Self::Target {
         &self.0
     }

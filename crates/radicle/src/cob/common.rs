@@ -57,6 +57,7 @@ impl From<Timestamp> for LocalTime {
 impl Deref for Timestamp {
     type Target = LocalTime;
 
+    #[cfg_attr(creusot, creusot_std::prelude::check(ghost))]
     fn deref(&self) -> &Self::Target {
         &self.0
     }

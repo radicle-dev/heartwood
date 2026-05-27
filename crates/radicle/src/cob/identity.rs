@@ -205,13 +205,16 @@ impl cob::store::CobWithType for Identity {
     }
 }
 
+/*
 impl std::ops::Deref for Identity {
     type Target = Revision;
 
+    #[cfg_attr(creusot, creusot_std::prelude::check(ghost))]
     fn deref(&self) -> &Self::Target {
         self.current()
     }
 }
+*/
 
 impl Identity {
     pub fn new(revision: Revision) -> Self {
@@ -691,12 +694,12 @@ impl Identity {
 
         let votes = candidate.accepted().count();
 
-        if !self.is_majority(votes) {
+        if !self.current().is_majority(votes) {
             log::trace!(
                 "Revision {} has {} votes, but needs {} to be adopted.",
                 id,
                 votes,
-                self.majority()
+                self.current().majority()
             );
             return;
         }
@@ -864,6 +867,7 @@ pub struct Revision {
 impl std::ops::Deref for Revision {
     type Target = Doc;
 
+    #[cfg_attr(creusot, creusot_std::prelude::check(ghost))]
     fn deref(&self) -> &Self::Target {
         &self.doc
     }
@@ -1149,6 +1153,7 @@ where
 impl<Repo, Signer> Deref for IdentityMut<'_, '_, Repo, Signer> {
     type Target = Identity;
 
+    #[cfg_attr(creusot, creusot_std::prelude::check(ghost))]
     fn deref(&self) -> &Self::Target {
         &self.identity
     }
@@ -1642,7 +1647,7 @@ mod test {
         // her revision is no longer valid.
         assert_eq!(eve_identity.timeline, [a0, a1, a2, b1]);
         assert_eq!(eve_identity.revision(&e1), None);
-        assert!(!eve_identity.is_delegate(&eve.signer.public_key().into()));
+        assert!(!eve_identity.current().is_delegate(&eve.signer.public_key().into()));
     }
 
     #[test]
@@ -2146,7 +2151,7 @@ mod test {
         let root = repo.identity_root().unwrap();
         let doc = repo.identity_doc_at(revision).unwrap();
 
-        assert_eq!(identity.signatures().count(), 2);
+        assert_eq!(identity.current().signatures().count(), 2);
         assert_eq!(identity.revisions().count(), 5);
         assert_eq!(identity.id(), id);
         assert_eq!(identity.root().id, root);
