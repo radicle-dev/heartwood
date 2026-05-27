@@ -207,7 +207,7 @@ impl Identity {
             root,
             current: root,
             revisions: BTreeMap::from_iter([(root, revision)]),
-            timeline: vec![root],
+            timeline: [root].to_vec(),
         }
     }
 
@@ -1409,17 +1409,17 @@ mod test {
         bob.repo.fetch(alice);
         let a3 = cob::stable::with_advanced_timestamp(|| alice_identity.redact(a2).unwrap());
         assert!(alice_identity.revision(&a1).is_some());
-        assert_eq!(alice_identity.timeline, vec![a0, a1, a2, a3]);
+        assert_eq!(alice_identity.timeline, [a0, a1, a2, a3]);
 
         let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
         let b1 = cob::stable::with_advanced_timestamp(|| bob_identity.accept(&a2).unwrap());
 
-        assert_eq!(bob_identity.timeline, vec![a0, a1, a2, b1]);
+        assert_eq!(bob_identity.timeline, [a0, a1, a2, b1]);
         assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Accepted);
         bob.repo.fetch(alice);
         bob_identity.reload().unwrap();
 
-        assert_eq!(bob_identity.timeline, vec![a0, a1, a2, a3, b1]);
+        assert_eq!(bob_identity.timeline, [a0, a1, a2, a3, b1]);
         assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Redacted);
         assert_eq!(bob_identity.current, a1);
     }
@@ -1609,7 +1609,7 @@ mod test {
                 .unwrap()
         });
         // Eve's revision is active.
-        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, e1]);
+        assert_eq!(eve_identity.timeline, [a0, a1, a2, e1]);
         assert!(eve_identity.revision(&e1).unwrap().is_active());
 
         //  b1      (Accept "Remove Eve") 2/2
@@ -1625,7 +1625,7 @@ mod test {
         eve_identity.reload().unwrap();
         // Now that Eve reloaded, since Bob's vote to remove Eve went through first (b1 < e1),
         // her revision is no longer valid.
-        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, b1]);
+        assert_eq!(eve_identity.timeline, [a0, a1, a2, b1]);
         assert_eq!(eve_identity.revision(&e1), None);
         assert!(!eve_identity.is_delegate(&eve.signer.public_key().into()));
     }
@@ -1705,7 +1705,7 @@ mod test {
 
         eve.repo.fetch(bob);
         eve_identity.reload().unwrap();
-        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, b1, e1, e2]);
+        assert_eq!(eve_identity.timeline, [a0, a1, a2, b1, e1, e2]);
 
         // Her revision is there, but rejected, since a sibling revision was already accepted.
         let e2 = eve_identity.revision(&e2).unwrap();
@@ -1785,7 +1785,7 @@ mod test {
 
         eve_identity.reload().unwrap();
 
-        assert_eq!(eve_identity.timeline, vec![a0, a1, b1, e1, a2]);
+        assert_eq!(eve_identity.timeline, [a0, a1, b1, e1, a2]);
         assert_eq!(eve_identity.revision(&e1).unwrap().state, State::Rejected);
     }
 
