@@ -1,52 +1,88 @@
+#[cfg(not(creusot))]
 pub mod update;
 
+#[cfg(not(creusot))]
 use std::collections::{BTreeMap, BTreeSet};
+#[cfg(not(creusot))]
 use std::fmt;
+#[cfg(not(creusot))]
 use std::num::{NonZeroU32, NonZeroUsize};
+#[cfg(not(creusot))]
 use std::ops::{Deref, Not};
+#[cfg(not(creusot))]
 use std::path::Path;
+#[cfg(not(creusot))]
 use std::str::FromStr;
+#[cfg(not(creusot))]
 use std::sync::LazyLock;
 
 use crate::git::Oid;
+#[cfg(not(creusot))]
 use nonempty::NonEmpty;
+#[cfg(not(creusot))]
 use radicle_cob::type_name::{TypeName, TypeNameParse};
+#[cfg(not(creusot))]
 use serde::{Deserialize, Serialize, de};
+#[cfg(not(creusot))]
 use thiserror::Error;
 
+#[cfg(not(creusot))]
 use crate::canonical::formatter::CanonicalFormatter;
+#[cfg(not(creusot))]
 use crate::cob::identity;
+#[cfg(not(creusot))]
 use crate::crypto;
+#[cfg(not(creusot))]
 use crate::crypto::Signature;
+#[cfg(not(creusot))]
 use crate::git;
+#[cfg(not(creusot))]
 use crate::git::canonical::rules;
+#[cfg(not(creusot))]
 use crate::git::canonical::symbolic;
+#[cfg(not(creusot))]
 use crate::git::fmt::Qualified;
+#[cfg(not(creusot))]
 use crate::git::fmt::RefString;
+#[cfg(not(creusot))]
 use crate::git::raw::ErrorExt as _;
+#[cfg(not(creusot))]
 use crate::identity::crefs;
+#[cfg(not(creusot))]
 use crate::identity::{Did, project::Project};
+#[cfg(not(creusot))]
 use crate::node::device::Device;
+#[cfg(not(creusot))]
 use crate::storage;
+#[cfg(not(creusot))]
 use crate::storage::{ReadRepository, RepositoryError};
 
+#[cfg(not(creusot))]
 pub use crypto::PublicKey;
+#[cfg(not(creusot))]
 pub use radicle_core::repo::*;
 
+#[cfg(not(creusot))]
 use super::CanonicalRefs;
+#[cfg(not(creusot))]
 use super::crefs::RawCanonicalRefs;
 
 /// Path to the identity document in the identity branch.
+#[cfg(not(creusot))]
 pub static PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("radicle.json"));
 /// Maximum length of a string in the identity document.
+#[cfg(not(creusot))]
 pub const MAX_STRING_LENGTH: usize = 255;
 /// Maximum number of a delegates in the identity document.
+#[cfg(not(creusot))]
 pub const MAX_DELEGATES: usize = 255;
 /// The current, most recent version of the identity document.
 // SAFETY: identity version should never be 0, so we can use `unsafe` here
+#[cfg(not(creusot))]
 pub const IDENTITY_VERSION: Version = Version(NonZeroU32::new(1).unwrap());
 
 #[derive(Error, Debug)]
+#[cfg(not(creusot))]
 pub enum DocError {
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
@@ -62,12 +98,15 @@ pub enum DocError {
 
 #[derive(Debug, Error)]
 #[error("invalid delegates: {0}")]
+#[cfg(not(creusot))]
 pub struct DelegatesError(&'static str);
 
 #[derive(Debug, Error)]
 #[error("invalid threshold `{0}`: {1}")]
+#[cfg(not(creusot))]
 pub struct ThresholdError(usize, &'static str);
 
+#[cfg(not(creusot))]
 impl DocError {
     /// Whether this error is caused by the document not being found.
     pub fn is_not_found(&self) -> bool {
@@ -79,6 +118,7 @@ impl DocError {
 }
 
 #[derive(Debug, Error)]
+#[cfg(not(creusot))]
 pub enum DefaultBranchError {
     #[error(
         "could not find default branch in any of the payloads `xyz.radicle.project` ({project}) or `xyz.radicle.crefs` ({crefs})"
@@ -102,8 +142,10 @@ pub enum DefaultBranchError {
 /// If an invalid version is found – either the `0` version, or an unrecognized
 /// future version – the parsing of a version will fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg(not(creusot))]
 pub struct Version(NonZeroU32);
 
+#[cfg(not(creusot))]
 impl Version {
     /// Construct a [`Version`].
     ///
@@ -139,12 +181,14 @@ impl Version {
     }
 }
 
+#[cfg(not(creusot))]
 impl From<Version> for NonZeroU32 {
     fn from(Version(n): Version) -> Self {
         n
     }
 }
 
+#[cfg(not(creusot))]
 impl From<Version> for u32 {
     fn from(Version(n): Version) -> Self {
         n.into()
@@ -153,6 +197,7 @@ impl From<Version> for u32 {
 
 #[derive(Debug, Error)]
 #[non_exhaustive]
+#[cfg(not(creusot))]
 pub enum VersionError {
     #[error("the version 0 is not supported")]
     ZeroVersion,
@@ -160,6 +205,7 @@ pub enum VersionError {
     UnknownVersion(NonZeroU32),
 }
 
+#[cfg(not(creusot))]
 impl VersionError {
     /// Provide a verbose error.
     ///
@@ -178,6 +224,7 @@ The CLI command `rad id migrate` will help to migrate to an up-to-date versions.
     }
 }
 
+#[cfg(not(creusot))]
 impl TryFrom<u32> for Version {
     type Error = VersionError;
 
@@ -186,12 +233,14 @@ impl TryFrom<u32> for Version {
     }
 }
 
+#[cfg(not(creusot))]
 impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
+#[cfg(not(creusot))]
 impl<'de> Deserialize<'de> for Version {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -204,6 +253,7 @@ impl<'de> Deserialize<'de> for Version {
 
 /// Used for [`Deserialize`] of a [`Version`] in [`RawDoc`], so that
 /// deserializing a missing version results in `Version(1)`.
+#[cfg(not(creusot))]
 fn missing_version() -> Version {
     // N.B. the default version is `1` which is non-zero so unsafe is fine here
     unsafe { Version(NonZeroU32::new_unchecked(1)) }
@@ -212,14 +262,17 @@ fn missing_version() -> Version {
 /// Identifies an identity document payload type.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
+#[cfg(not(creusot))]
 pub struct PayloadId(TypeName);
 
+#[cfg(not(creusot))]
 impl fmt::Display for PayloadId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
+#[cfg(not(creusot))]
 impl FromStr for PayloadId {
     type Err = TypeNameParse;
 
@@ -228,6 +281,7 @@ impl FromStr for PayloadId {
     }
 }
 
+#[cfg(not(creusot))]
 impl PayloadId {
     /// Project payload type.
     pub fn project() -> Self {
@@ -248,6 +302,7 @@ impl PayloadId {
 }
 
 #[derive(Debug, Error)]
+#[cfg(not(creusot))]
 pub enum PayloadError {
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
@@ -260,10 +315,12 @@ pub enum PayloadError {
 /// The payload is identified in the [`Doc`] by its corresponding [`PayloadId`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
+#[cfg(not(creusot))]
 pub struct Payload {
     value: serde_json::Value,
 }
 
+#[cfg(not(creusot))]
 impl Payload {
     /// Get a mutable reference to the JSON map, or `None` if the payload is not a map.
     pub fn as_object_mut(
@@ -277,12 +334,14 @@ impl Payload {
     }
 }
 
+#[cfg(not(creusot))]
 impl From<serde_json::Value> for Payload {
     fn from(value: serde_json::Value) -> Self {
         Self { value }
     }
 }
 
+#[cfg(not(creusot))]
 impl Deref for Payload {
     type Target = serde_json::Value;
 
@@ -293,16 +352,19 @@ impl Deref for Payload {
 }
 
 /// Trait for all types that may carry payloads.
+#[cfg(not(creusot))]
 pub trait GetPayload {
     fn get_payload(&self, id: &PayloadId) -> Option<&Payload>;
 }
 
+#[cfg(not(creusot))]
 impl GetPayload for Doc {
     fn get_payload(&self, id: &PayloadId) -> Option<&Payload> {
         self.payload.get(id)
     }
 }
 
+#[cfg(not(creusot))]
 impl GetPayload for RawDoc {
     fn get_payload(&self, id: &PayloadId) -> Option<&Payload> {
         self.payload.get(id)
@@ -311,6 +373,7 @@ impl GetPayload for RawDoc {
 
 /// A verified identity document at a specific commit.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg(not(creusot))]
 pub struct DocAt {
     /// The commit at which this document exists.
     pub commit: Oid,
@@ -320,6 +383,7 @@ pub struct DocAt {
     pub doc: Doc,
 }
 
+#[cfg(not(creusot))]
 impl Deref for DocAt {
     type Target = Doc;
 
@@ -329,12 +393,14 @@ impl Deref for DocAt {
     }
 }
 
+#[cfg(not(creusot))]
 impl From<DocAt> for Doc {
     fn from(value: DocAt) -> Self {
         value.doc
     }
 }
 
+#[cfg(not(creusot))]
 impl AsRef<Doc> for DocAt {
     fn as_ref(&self) -> &Doc {
         &self.doc
@@ -344,6 +410,7 @@ impl AsRef<Doc> for DocAt {
 /// Repository visibility.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
+#[cfg(not(creusot))]
 pub enum Visibility {
     /// Anyone and everyone.
     #[default]
@@ -357,8 +424,10 @@ pub enum Visibility {
 
 #[derive(Error, Debug)]
 #[error("'{0}' is not a valid visibility type")]
+#[cfg(not(creusot))]
 pub struct VisibilityParseError(String);
 
+#[cfg(not(creusot))]
 impl FromStr for Visibility {
     type Err = VisibilityParseError;
 
@@ -371,6 +440,7 @@ impl FromStr for Visibility {
     }
 }
 
+#[cfg(not(creusot))]
 impl Visibility {
     /// Check whether the visibility is public.
     pub fn is_public(&self) -> bool {
@@ -401,6 +471,7 @@ impl Visibility {
 /// that is deserialized is verified.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg(not(creusot))]
 pub struct RawDoc {
     /// Version of the identity document.
     #[serde(default = "missing_version")]
@@ -416,6 +487,7 @@ pub struct RawDoc {
     pub visibility: Visibility,
 }
 
+#[cfg(not(creusot))]
 impl TryFrom<RawDoc> for Doc {
     type Error = DocError;
 
@@ -424,6 +496,7 @@ impl TryFrom<RawDoc> for Doc {
     }
 }
 
+#[cfg(not(creusot))]
 impl RawDoc {
     /// Construct a new [`RawDoc`] with an initial [`RawDoc::payload`]
     /// containing the provided [`Project`], and the given `delegates`,
@@ -522,20 +595,24 @@ impl RawDoc {
 /// It can only be constructed via [`Delegates::new`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "Vec<Did>")]
+#[cfg(not(creusot))]
 pub struct Delegates(NonEmpty<Did>);
 
+#[cfg(not(creusot))]
 impl AsRef<NonEmpty<Did>> for Delegates {
     fn as_ref(&self) -> &NonEmpty<Did> {
         &self.0
     }
 }
 
+#[cfg(not(creusot))]
 impl From<Did> for Delegates {
     fn from(did: Did) -> Self {
         Self(NonEmpty::new(did))
     }
 }
 
+#[cfg(not(creusot))]
 impl TryFrom<Vec<Did>> for Delegates {
     type Error = DelegatesError;
 
@@ -544,6 +621,7 @@ impl TryFrom<Vec<Did>> for Delegates {
     }
 }
 
+#[cfg(not(creusot))]
 impl IntoIterator for Delegates {
     type Item = <NonEmpty<Did> as IntoIterator>::Item;
     type IntoIter = <NonEmpty<Did> as IntoIterator>::IntoIter;
@@ -553,6 +631,7 @@ impl IntoIterator for Delegates {
     }
 }
 
+#[cfg(not(creusot))]
 impl Delegates {
     /// Construct the set of `Delegates` by removing any duplicate [`Did`]s,
     /// ensure that the set is non-empty, and check the length does not exceed
@@ -605,18 +684,21 @@ impl Delegates {
     }
 }
 
+#[cfg(not(creusot))]
 impl<'a> From<&'a Delegates> for &'a NonEmpty<Did> {
     fn from(ds: &'a Delegates) -> Self {
         &ds.0
     }
 }
 
+#[cfg(not(creusot))]
 impl From<Delegates> for NonEmpty<Did> {
     fn from(ds: Delegates) -> Self {
         ds.0
     }
 }
 
+#[cfg(not(creusot))]
 impl From<Delegates> for Vec<Did> {
     fn from(Delegates(ds): Delegates) -> Self {
         ds.into()
@@ -628,26 +710,31 @@ impl From<Delegates> for Vec<Did> {
 /// It can only be constructed via [`Threshold::new`] or [`Threshold::MIN`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(transparent)]
+#[cfg(not(creusot))]
 pub struct Threshold(NonZeroUsize);
 
+#[cfg(not(creusot))]
 impl From<Threshold> for usize {
     fn from(Threshold(t): Threshold) -> Self {
         t.get()
     }
 }
 
+#[cfg(not(creusot))]
 impl AsRef<NonZeroUsize> for Threshold {
     fn as_ref(&self) -> &NonZeroUsize {
         &self.0
     }
 }
 
+#[cfg(not(creusot))]
 impl fmt::Display for Threshold {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
+#[cfg(not(creusot))]
 impl Threshold {
     /// A threshold of `1`.
     pub const MIN: Threshold = Threshold(NonZeroUsize::MIN);
@@ -688,6 +775,7 @@ impl Threshold {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(try_from = "RawDoc")]
+#[cfg(not(creusot))]
 pub struct Doc {
     #[serde(skip_serializing_if = "Version::skip_serializing")]
     version: Version,
@@ -698,6 +786,7 @@ pub struct Doc {
     visibility: Visibility,
 }
 
+#[cfg(not(creusot))]
 impl Doc {
     /// Construct the initial [`Doc`] for an identity.
     ///
@@ -1061,12 +1150,14 @@ impl Doc {
 }
 
 #[derive(Debug, Error)]
+#[cfg(not(creusot))]
 pub enum RawCanonicalRefsError {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Error)]
+#[cfg(not(creusot))]
 pub enum CanonicalRefsError {
     #[error(transparent)]
     Raw(#[from] RawCanonicalRefsError),
@@ -1085,6 +1176,7 @@ pub enum CanonicalRefsError {
 }
 
 #[derive(Debug, Error)]
+#[cfg(not(creusot))]
 pub enum DefaultBranchRuleError {
     #[error(
         "rule for pattern '{pattern}' which matches the target of symbolic reference 'HEAD' (possibly synthesized from payload 'xyz.radicle.project') must use 'allow' value of \"delegates\" but uses {actual}"
@@ -1106,6 +1198,7 @@ pub enum DefaultBranchRuleError {
     HeadMismatch { cref: RefString, project: RefString },
 }
 
+#[cfg(not(creusot))]
 pub trait GetRawCanonicalRefs: GetPayload {
     /// Retrieve the [`RawCanonicalRefs`] by deserializing from the payload
     /// (if present).
@@ -1118,8 +1211,10 @@ pub trait GetRawCanonicalRefs: GetPayload {
     }
 }
 
+#[cfg(not(creusot))]
 impl GetRawCanonicalRefs for Doc {}
 
+#[cfg(not(creusot))]
 impl GetRawCanonicalRefs for RawDoc {}
 
 #[cfg(test)]

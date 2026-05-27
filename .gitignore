@@ -6,3 +6,6 @@
 /.envrc
 /.direnv/
 /result
+
+.why3find
+/verif

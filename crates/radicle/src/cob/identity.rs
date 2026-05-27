@@ -1,46 +1,68 @@
 use std::collections::BTreeMap;
+#[cfg(not(creusot))]
 use std::sync::LazyLock;
+#[cfg(not(creusot))]
 use std::{fmt, ops::Deref, str::FromStr};
 
 use crypto::{PublicKey, Signature};
+#[cfg(not(creusot))]
 use nonempty::NonEmpty;
+#[cfg(not(creusot))]
 use radicle_cob::{Embed, ObjectId, TypeName};
+#[cfg(not(creusot))]
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+#[cfg(not(creusot))]
 use crate::cob::store::access::WriteAs;
+#[cfg(not(creusot))]
 use crate::git;
 use crate::git::Oid;
+#[cfg(not(creusot))]
 use crate::identity::doc::Doc;
+#[cfg(not(creusot))]
 use crate::node::NodeId;
+#[cfg(not(creusot))]
 use crate::storage;
+
+#[cfg(not(creusot))]
 use crate::{
-    cob,
     cob::{
-        ActorId, Timestamp, Uri, op, store,
+         Uri, op, store,
         store::{Cob, CobAction, Transaction},
     },
     identity::{
-        Did,
-        doc::{DocError, RepoId},
+        // Did,
+        doc::{DocError, /*RepoId*/},
     },
     storage::{ReadRepository, RepositoryError, WriteRepository},
+};
+
+use crate::{
+    cob::{self, ActorId, Timestamp},
+    identity::{Did,
+    doc::RepoId
+    }
 };
 
 use super::{Author, EntryId};
 
 /// Type name of an identity proposal.
+#[cfg(not(creusot))]
 pub static TYPENAME: LazyLock<TypeName> =
     LazyLock::new(|| FromStr::from_str("xyz.radicle.id").expect("type name is valid"));
 
 /// Identity operation.
+#[cfg(not(creusot))]
 pub type Op = cob::Op<Action>;
 
 /// Identifier for an identity revision.
 pub type RevisionId = EntryId;
 
+#[cfg(not(creusot))]
 pub type IdentityStream<'a> = cob::stream::Stream<'a, Action>;
 
+#[cfg(not(creusot))]
 impl<'a> IdentityStream<'a> {
     pub fn init(identity: ObjectId, store: &'a storage::git::Repository) -> Self {
         let history = cob::stream::CobRange::new(&TYPENAME, &identity);
@@ -64,15 +86,17 @@ pub fn sorted_range<T: OrdLogic>(s: Seq<T>, l: Int, u: Int) -> bool {
 }
 
 /// Proposal operation.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(not(creusot), derive(Serialize, Deserialize))]
+#[cfg_attr(not(creusot), serde(tag = "type"))]
 pub enum Action {
-    #[serde(rename = "revision")]
+    #[cfg_attr(not(creusot), serde(rename = "revision"))]
     Revision {
         /// Short summary of changes.
+        #[cfg(not(creusot))]
         title: cob::Title,
         /// Longer comment on proposed changes.
-        #[serde(default, skip_serializing_if = "String::is_empty")]
+        #[cfg_attr(not(creusot), serde(default, skip_serializing_if = "String::is_empty"))]
         description: String,
         /// Blob identifier of the document included in this action as an embed.
         /// Hence, we do not include it as a parent of this action in [`CobAction`].
@@ -86,23 +110,26 @@ pub enum Action {
         /// The revision to edit.
         revision: RevisionId,
         /// Short summary of changes.
+        #[cfg(not(creusot))]
         title: cob::Title,
         /// Longer comment on proposed changes.
-        #[serde(default, skip_serializing_if = "String::is_empty")]
+        #[cfg_attr(not(creusot), serde(default, skip_serializing_if = "String::is_empty"))]
+        #[cfg(not(creusot))]
         description: String,
     },
-    #[serde(rename = "revision.accept")]
+    #[cfg_attr(not(creusot), serde(rename = "revision.accept"))]
     RevisionAccept {
         revision: RevisionId,
         /// Signature over the blob.
         signature: Signature,
     },
-    #[serde(rename = "revision.reject")]
+    #[cfg_attr(not(creusot), serde(rename = "revision.reject"))]
     RevisionReject { revision: RevisionId },
-    #[serde(rename = "revision.redact")]
+    #[cfg_attr(not(creusot), serde(rename = "revision.redact"))]
     RevisionRedact { revision: RevisionId },
 }
 
+#[cfg(not(creusot))]
 impl CobAction for Action {
     fn produces_identifier(&self) -> bool {
         matches!(self, Self::Revision { .. })
@@ -142,8 +169,10 @@ pub enum ApplyError {
     #[error("document does not contain any changes to current identity")]
     DocUnchanged,
     #[error("git: {0}")]
+    #[cfg(not(creusot))]
     Git(#[from] git::raw::Error),
     #[error("identity document error: {0}")]
+    #[cfg(not(creusot))]
     Doc(#[from] DocError),
     #[error("{author} is not a delegate, and only delegates are allowed to {action}")]
     NonDelegateUnauthorized { author: Did, action: String },
@@ -167,12 +196,14 @@ impl ApplyError {
 
 /// Error updating or creating proposals.
 #[derive(Error, Debug)]
+#[cfg(not(creusot))]
 pub enum Error {
     #[error("apply failed: {0}")]
     Apply(#[from] ApplyError),
     #[error("store: {0}")]
     Store(#[from] store::Error),
     #[error("op decoding failed: {0}")]
+    #[cfg(not(creusot))]
     Op(#[from] op::OpEncodingError),
     #[error(transparent)]
     Doc(#[from] DocError),
@@ -181,8 +212,9 @@ pub enum Error {
 }
 
 /// An evolving identity document.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(not(creusot), derive(Serialize))]
+#[cfg_attr(not(creusot), serde(rename_all = "camelCase"))]
 pub struct Identity {
     /// The canonical identifier for this identity.
     /// This is the object id of the initial document blob.
@@ -199,6 +231,7 @@ pub struct Identity {
     timeline: Vec<EntryId>,
 }
 
+#[cfg(not(creusot))]
 impl cob::store::CobWithType for Identity {
     fn type_name() -> &'static TypeName {
         &TYPENAME
@@ -229,6 +262,7 @@ impl Identity {
         }
     }
 
+    #[cfg(not(creusot))]
     pub fn initialize<'a, 'b, Repo, Signer>(
         doc: &Doc,
         store: &'a Repo,
@@ -265,6 +299,7 @@ impl Identity {
         })
     }
 
+    #[cfg(not(creusot))]
     pub fn get<Repo>(object: &ObjectId, repo: &Repo) -> Result<Identity, store::Error>
     where
         Repo: ReadRepository + cob::Store,
@@ -277,6 +312,7 @@ impl Identity {
     }
 
     /// Get a proposal mutably.
+    #[cfg(not(creusot))]
     pub fn get_mut<'a, 'b, Repo, Signer>(
         id: &ObjectId,
         repo: &'a Repo,
@@ -296,6 +332,7 @@ impl Identity {
         })
     }
 
+    #[cfg(not(creusot))]
     pub fn load<R: ReadRepository + cob::Store>(repo: &R) -> Result<Identity, RepositoryError> {
         let oid = repo.identity_root()?;
         let oid = ObjectId::from(oid);
@@ -303,6 +340,7 @@ impl Identity {
         Self::get(&oid, repo).map_err(RepositoryError::from)
     }
 
+    #[cfg(not(creusot))]
     pub fn load_mut<'a, 'b, Repo, Signer>(
         repo: &'a Repo,
         signer: &'b Signer,
@@ -325,6 +363,7 @@ impl Identity {
     }
 
     /// The current document.
+    #[cfg(not(creusot))]
     pub fn doc(&self) -> &Doc {
         &self.current().doc
     }
@@ -366,11 +405,12 @@ impl Identity {
     }
 }
 
+#[cfg(not(creusot))]
 impl store::Cob for Identity {
     type Action = Action;
     type Error = ApplyError;
 
-    fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
+    fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, <cob::identity::Identity as store::Cob>::Error> {
         let mut actions = op.actions.into_iter();
         let Some(Action::Revision {
             title,
@@ -442,7 +482,7 @@ impl store::Cob for Identity {
         let concurrent = concurrent.into_iter().collect::<Vec<_>>();
 
         for action in op.actions {
-            match self.action(action, id, op.author, op.timestamp, &concurrent, repo) {
+            match self.action(action, id, op.author, op.timestamp, repo) {
                 Ok(()) => {}
                 // This particular error is returned when there is a mismatch between the expected
                 // and the actual state of a revision, which can happen concurrently. Therefore
@@ -469,14 +509,15 @@ impl Identity {
     /// * There can be zero or more active revisions, up to the number of delegates.
     /// * An active revision is one that can be "voted" on.
     /// * Only an active revision can be accepted, rejected or edited.
-    fn action<R: ReadRepository>(
+    fn action(
         &mut self,
         action: Action,
         entry: EntryId,
         author: ActorId,
         timestamp: Timestamp,
-        _concurrent: &[&cob::Entry],
-        repo: &R,
+
+        #[cfg(not(creusot))]
+        repo: &impl ReadRepository,
     ) -> Result<(), ApplyError> {
         let current = self.current().clone();
 
@@ -606,18 +647,22 @@ impl Identity {
             } => {
                 debug_assert_eq!(self.revisions.get(&entry), None, "revision visited twice");
 
-                let doc = repo.blob(blob)?;
-                let doc = Doc::from_blob(&doc)?;
                 // All revisions but the first one must have a parent.
                 let Some(parent) = parent else {
                     return Err(ApplyError::MissingParent);
                 };
                 let current_oid = self.current;
                 let parent = self.revision_mut(&parent)?;
+
+                #[cfg(not(creusot))]
+                let doc = Doc::from_blob(&repo.blob(blob)?)?;
+
                 // We expect the revision to make a change compared to its parent.
+                #[cfg(not(creusot))]
                 if doc == parent.doc {
                     return Err(ApplyError::DocUnchanged);
                 }
+
                 // Verify signature over new blob, using trusted delegates.
                 if parent.verify_signature(&author, &signature, blob).is_err() {
                     return Err(ApplyError::InvalidSignature(author, blob));
@@ -632,6 +677,7 @@ impl Identity {
                     _ => State::Active,
                 };
 
+                #[cfg(not(creusot))]
                 let revision = Revision::new(
                     entry,
                     title,
@@ -644,6 +690,19 @@ impl Identity {
                     Some(parent.id),
                     timestamp,
                 );
+
+                #[cfg(creusot)]
+                let revision = Revision::new(
+                    entry,
+                    description,
+                    author.into(),
+                    blob,
+                    state,
+                    signature,
+                    Some(parent.id),
+                    timestamp,
+                );
+
                 let id = revision.id;
 
                 self.revisions.insert(id, revision);
@@ -761,6 +820,7 @@ impl Identity {
     }
 }
 
+#[cfg(not(creusot))]
 impl<R: ReadRepository> cob::Evaluate<R> for Identity {
     type Error = Error;
 
@@ -784,7 +844,8 @@ impl<R: ReadRepository> cob::Evaluate<R> for Identity {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(not(creusot), derive(Serialize))]
 pub enum Verdict {
     /// An accepting verdict must supply the [`Signature`] over the
     /// new proposed [`Doc`].
@@ -794,8 +855,9 @@ pub enum Verdict {
 }
 
 /// State of a revision.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(not(creusot), derive(Serialize, Deserialize))]
+#[cfg_attr(not(creusot), serde(rename_all = "camelCase"))]
 pub enum State {
     /// The initial state of any revision.
     ///
@@ -839,13 +901,15 @@ impl std::fmt::Display for State {
 ///
 /// Once a revision has reached the quorum threshold of the previous
 /// [`Identity`] it is then adopted as the current identity.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(not(creusot), derive(Serialize))]
 pub struct Revision {
     /// The id of this revision. Points to a commit.
     pub id: RevisionId,
     /// Identity document blob at this revision.
     pub blob: Oid,
     /// Title of the proposal.
+    #[cfg(not(creusot))]
     pub title: cob::Title,
     /// State of the revision.
     pub state: State,
@@ -854,6 +918,7 @@ pub struct Revision {
     /// Author of this proposed revision.
     pub author: Author,
     /// New [`Doc`] that will replace `previous`' document.
+    #[cfg(not(creusot))]
     pub doc: Doc,
     /// Physical timestamp of this proposal revision.
     pub timestamp: Timestamp,
@@ -864,10 +929,10 @@ pub struct Revision {
     verdicts: BTreeMap<PublicKey, Verdict>,
 }
 
+#[cfg(not(creusot))]
 impl std::ops::Deref for Revision {
     type Target = Doc;
 
-    #[cfg_attr(creusot, creusot_std::prelude::check(ghost))]
     fn deref(&self) -> &Self::Target {
         &self.doc
     }
@@ -904,6 +969,7 @@ impl Revision {
         })
     }
 
+    #[cfg(not(creusot))]
     pub fn sign<G: crypto::signature::Signer<crypto::Signature>>(
         &self,
         signer: &G,
@@ -916,10 +982,12 @@ impl Revision {
 impl Revision {
     fn new(
         id: RevisionId,
+        #[cfg(not(creusot))]
         title: cob::Title,
         description: String,
         author: Author,
         blob: Oid,
+        #[cfg(not(creusot))]
         doc: Doc,
         state: State,
         signature: Signature,
@@ -930,10 +998,12 @@ impl Revision {
 
         Self {
             id,
+            #[cfg(not(creusot))]
             title,
             description,
             author,
             blob,
+            #[cfg(not(creusot))]
             doc,
             state,
             verdicts,
@@ -978,6 +1048,7 @@ impl Revision {
     }
 }
 
+#[cfg(not(creusot))]
 impl<R: ReadRepository> store::Transaction<Identity, R> {
     pub fn accept(
         &mut self,
@@ -1012,6 +1083,7 @@ impl<R: ReadRepository> store::Transaction<Identity, R> {
     }
 }
 
+#[cfg(not(creusot))]
 impl<R: WriteRepository> store::Transaction<Identity, R> {
     pub fn new_revision<G: crypto::signature::Signer<crypto::Signature>>(
         title: cob::Title,
@@ -1046,6 +1118,7 @@ impl<R: WriteRepository> store::Transaction<Identity, R> {
     }
 }
 
+#[cfg(not(creusot))]
 pub struct IdentityMut<'a, 'b, Repo, Signer> {
     pub id: ObjectId,
 
@@ -1053,6 +1126,7 @@ pub struct IdentityMut<'a, 'b, Repo, Signer> {
     store: store::Store<'a, Identity, Repo, WriteAs<'b, Signer>>,
 }
 
+#[cfg(not(creusot))]
 impl<Repo, Signer> fmt::Debug for IdentityMut<'_, '_, Repo, Signer> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("IdentityMut")
@@ -1062,6 +1136,7 @@ impl<Repo, Signer> fmt::Debug for IdentityMut<'_, '_, Repo, Signer> {
     }
 }
 
+#[cfg(not(creusot))]
 impl<Repo, Signer> IdentityMut<'_, '_, Repo, Signer>
 where
     Repo: WriteRepository + cob::Store<Namespace = NodeId>,
@@ -1150,6 +1225,7 @@ where
     }
 }
 
+#[cfg(not(creusot))]
 impl<Repo, Signer> Deref for IdentityMut<'_, '_, Repo, Signer> {
     type Target = Identity;
 

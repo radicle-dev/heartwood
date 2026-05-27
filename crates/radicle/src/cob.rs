@@ -1,13 +1,22 @@
 #![deny(clippy::unwrap_used)]
+#[cfg(not(creusot))]
 pub mod cache;
+#[cfg(not(creusot))]
 pub mod common;
+#[cfg(not(creusot))]
 pub mod external;
 pub mod identity;
+#[cfg(not(creusot))]
 pub mod issue;
+#[cfg(not(creusot))]
 pub mod op;
+#[cfg(not(creusot))]
 pub mod patch;
+#[cfg(not(creusot))]
 pub mod store;
+#[cfg(not(creusot))]
 pub mod stream;
+#[cfg(not(creusot))]
 pub mod thread;
 
 #[cfg(test)]
@@ -16,18 +25,31 @@ pub mod test;
 #[cfg(test)]
 pub use radicle_cob::stable;
 
+#[cfg(not(creusot))]
 pub use cache::{MigrateCallback, migrate};
+#[cfg(not(creusot))]
 pub use common::*;
-pub use op::{ActorId, Op};
+#[cfg(creusot)]
+pub use common::{Author, Timestamp};
+#[cfg(not(creusot))]
+pub use op::Op;
+pub use op::ActorId;
+#[cfg(not(creusot))]
 pub use radicle_cob::{
-    CollaborativeObject, Contents, Create, Embed, Entry, Evaluate, History, Manifest, ObjectId,
-    Store, TypeName, Update, Updated, Version, change, history::EntryId, object,
+    CollaborativeObject, Contents, Create, Embed, Entry, History, Manifest, ObjectId,
+    Store, TypeName, Update, Updated, Version, change, object,
     object::collaboration::error, type_name::TypeNameParse,
 };
+pub use radicle_cob::{
+    Evaluate, history::EntryId
+};
+
+#[cfg(not(creusot))]
 pub use radicle_cob::{create, get, list, remove, update};
 
 /// The exact identifier for a particular COB.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+#[cfg(not(creusot))]
 pub struct TypedId {
     /// The identifier of the COB in the store.
     pub id: ObjectId,
@@ -35,6 +57,7 @@ pub struct TypedId {
     pub type_name: TypeName,
 }
 
+#[cfg(not(creusot))]
 impl std::fmt::Display for TypedId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}/{}", self.type_name, self.id)
@@ -43,6 +66,7 @@ impl std::fmt::Display for TypedId {
 
 /// Errors that occur when parsing a Git refname into a [`TypedId`].
 #[derive(Debug, thiserror::Error)]
+#[cfg(not(creusot))]
 pub enum ParseIdentifierError {
     #[error(transparent)]
     TypeName(#[from] TypeNameParse),
@@ -50,6 +74,7 @@ pub enum ParseIdentifierError {
     ObjectId(#[from] object::ParseObjectId),
 }
 
+#[cfg(not(creusot))]
 impl TypedId {
     /// Returns `true` is the [`TypedId::type_name`] is for an
     /// [`issue::Issue`].

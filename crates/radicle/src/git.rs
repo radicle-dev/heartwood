@@ -1,29 +1,47 @@
+#[cfg(not(creusot))]
 pub mod canonical;
+#[cfg(not(creusot))]
 pub mod raw;
 
+#[cfg(not(creusot))]
 use std::io;
+#[cfg(not(creusot))]
 use std::path::Path;
+#[cfg(not(creusot))]
 use std::process::Command;
+#[cfg(not(creusot))]
 use std::str::FromStr;
 
-pub use radicle_oid::{Oid, str::ParseOidError};
+#[cfg(not(creusot))]
+pub use radicle_oid::str::ParseOidError;
+pub use radicle_oid::Oid;
 
+#[cfg(not(creusot))]
 pub extern crate radicle_git_ref_format as fmt;
 
+#[cfg(not(creusot))]
 use crate::crypto::PublicKey;
+#[cfg(not(creusot))]
 use crate::node::Alias;
+#[cfg(not(creusot))]
 use crate::rad;
+#[cfg(not(creusot))]
 use crate::storage::RemoteId;
 
+#[cfg(not(creusot))]
 pub use crate::storage::git::transport::local::Url;
 
+#[cfg(not(creusot))]
 use raw::ErrorExt as _;
 
+#[cfg(not(creusot))]
 pub type BranchName = crate::git::fmt::RefString;
 
 /// Default port of the `git` transport protocol.
+#[cfg(not(creusot))]
 pub const PROTOCOL_PORT: u16 = 9418;
 /// Minimum required git version.
+#[cfg(not(creusot))]
 pub const VERSION_REQUIRED: Version = Version {
     major: 2,
     minor: 31,
@@ -32,12 +50,14 @@ pub const VERSION_REQUIRED: Version = Version {
 
 /// A parsed git version.
 #[derive(PartialEq, Eq, Debug, PartialOrd, Ord)]
+#[cfg(not(creusot))]
 pub struct Version {
     pub major: u8,
     pub minor: u8,
     pub patch: u8,
 }
 
+#[cfg(not(creusot))]
 impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
@@ -46,8 +66,10 @@ impl std::fmt::Display for Version {
 
 /// Verbosity level for Git commands.
 #[derive(Default, Clone, Copy)]
+#[cfg(not(creusot))]
 pub struct Verbosity(i8);
 
+#[cfg(not(creusot))]
 impl Verbosity {
     /// Transform into a command line flag, helpful for passing to invocations
     /// of `git`.
@@ -82,6 +104,7 @@ impl Verbosity {
     }
 }
 
+#[cfg(not(creusot))]
 impl From<i8> for Verbosity {
     fn from(v: i8) -> Self {
         Self(v)
@@ -89,6 +112,7 @@ impl From<i8> for Verbosity {
 }
 
 #[derive(thiserror::Error, Debug)]
+#[cfg(not(creusot))]
 pub enum VersionError {
     #[error("malformed git version string")]
     Malformed,
@@ -102,6 +126,7 @@ pub enum VersionError {
     Other(String),
 }
 
+#[cfg(not(creusot))]
 impl std::str::FromStr for Version {
     type Err = VersionError;
 
@@ -130,6 +155,7 @@ impl std::str::FromStr for Version {
 }
 
 /// Get the system's git version.
+#[cfg(not(creusot))]
 pub fn version() -> Result<Version, VersionError> {
     let output = Command::new("git").arg("version").output()?;
 
@@ -145,6 +171,7 @@ pub fn version() -> Result<Version, VersionError> {
 }
 
 #[derive(thiserror::Error, Debug)]
+#[cfg(not(creusot))]
 pub enum RefError {
     #[error("ref name is not valid UTF-8")]
     InvalidName,
@@ -167,6 +194,7 @@ pub enum RefError {
 }
 
 #[derive(thiserror::Error, Debug)]
+#[cfg(not(creusot))]
 pub enum ListRefsError {
     #[error("git error: {0}")]
     Git(#[from] raw::Error),
@@ -174,6 +202,7 @@ pub enum ListRefsError {
     InvalidRef(#[from] RefError),
 }
 
+#[cfg(not(creusot))]
 pub mod refs {
     use std::sync::LazyLock;
 
@@ -470,6 +499,7 @@ pub mod refs {
 /// The `T` can be specified when calling the function. For example, if you
 /// wanted to parse the namespace as a `PublicKey`, then you would the function
 /// like so, `parse_ref_namespaced::<PublicKey>(s)`.
+#[cfg(not(creusot))]
 pub fn parse_ref_namespaced<T>(s: &str) -> Result<(T, fmt::Qualified<'_>), RefError>
 where
     T: FromStr,
@@ -499,6 +529,7 @@ where
 /// The `T` can be specified when calling the function. For example, if you
 /// wanted to parse the namespace as a `PublicKey`, then you would the function
 /// like so, `parse_ref::<PublicKey>(s)`.
+#[cfg(not(creusot))]
 pub fn parse_ref<T>(s: &str) -> Result<(Option<T>, fmt::Qualified<'_>), RefError>
 where
     T: FromStr,
@@ -529,6 +560,7 @@ where
 }
 
 /// Create an initial empty commit.
+#[cfg(not(creusot))]
 pub fn initial_commit<'a>(
     repo: &'a raw::Repository,
     sig: &raw::Signature,
@@ -542,6 +574,7 @@ pub fn initial_commit<'a>(
 }
 
 /// Create a commit and update the given ref to it.
+#[cfg(not(creusot))]
 pub fn commit<'a>(
     repo: &'a raw::Repository,
     parent: &'a raw::Commit,
@@ -557,6 +590,7 @@ pub fn commit<'a>(
 }
 
 /// Create an empty commit on top of the parent.
+#[cfg(not(creusot))]
 pub fn empty_commit<'a>(
     repo: &'a raw::Repository,
     parent: &'a raw::Commit,
@@ -572,6 +606,7 @@ pub fn empty_commit<'a>(
 }
 
 /// Get the repository head.
+#[cfg(not(creusot))]
 pub fn head(repo: &raw::Repository) -> Result<raw::Commit<'_>, raw::Error> {
     let head = repo.head()?.peel_to_commit()?;
 
@@ -579,6 +614,7 @@ pub fn head(repo: &raw::Repository) -> Result<raw::Commit<'_>, raw::Error> {
 }
 
 /// Write a tree with the given blob at the given path.
+#[cfg(not(creusot))]
 pub fn write_tree<'r>(
     path: &Path,
     bytes: &[u8],
@@ -597,6 +633,7 @@ pub fn write_tree<'r>(
 /// Configure a Radicle repository.
 ///
 /// * Sets `push.default = upstream`.
+#[cfg(not(creusot))]
 pub fn configure_repository(repo: &raw::Repository) -> Result<(), raw::Error> {
     let mut cfg = repo.config()?;
     cfg.set_str("push.default", "upstream")?;
@@ -624,6 +661,7 @@ pub fn configure_repository(repo: &raw::Repository) -> Result<(), raw::Error> {
 ///     fetching them.
 ///  2. `tagOpt = --no-tags` to ensure that tags are not fetched and stored
 ///     under `refs/tags`, again, because these are fetched by the `rad` remote.
+#[cfg(not(creusot))]
 pub fn configure_remote<'r>(
     repo: &'r raw::Repository,
     name: &str,
@@ -652,6 +690,7 @@ pub fn configure_remote<'r>(
 }
 
 /// Fetch from the given `remote`.
+#[cfg(not(creusot))]
 pub fn fetch(repo: &raw::Repository, remote: &str) -> Result<(), raw::Error> {
     repo.find_remote(remote)?.fetch::<&str>(
         &[],
@@ -666,6 +705,7 @@ pub fn fetch(repo: &raw::Repository, remote: &str) -> Result<(), raw::Error> {
 }
 
 /// Push `refspecs` to the given `remote` using the provided `namespace`.
+#[cfg(not(creusot))]
 pub fn push<'a>(
     repo: &raw::Repository,
     remote: &str,
@@ -691,6 +731,7 @@ pub fn push<'a>(
 ///     remote = rad
 ///     merge = refs/heads/main
 /// ```
+#[cfg(not(creusot))]
 pub fn set_upstream(
     repo: &raw::Repository,
     remote: impl AsRef<str>,
@@ -717,6 +758,7 @@ pub fn set_upstream(
     Ok(())
 }
 
+#[cfg(not(creusot))]
 pub fn init_default_branch(repo: &raw::Repository) -> Result<Option<String>, raw::Error> {
     let config = repo.config().and_then(|mut c| c.snapshot())?;
     let default_branch = config.get_str("init.defaultbranch")?;
@@ -724,6 +766,7 @@ pub fn init_default_branch(repo: &raw::Repository) -> Result<Option<String>, raw
     Ok(branch.into_reference().shorthand().map(ToOwned::to_owned))
 }
 
+#[cfg(not(creusot))]
 pub fn head_refname(repo: &raw::Repository) -> Result<Option<String>, raw::Error> {
     let head = repo.head()?;
     match head.shorthand() {
@@ -737,6 +780,7 @@ pub fn head_refname(repo: &raw::Repository) -> Result<Option<String>, raw::Error
 /// If `working` is [`Some`], the command is run as if `git` was started in
 /// `working` instead of the current working directory, by prepending
 /// `-C <working>` to the command line.
+#[cfg(not(creusot))]
 pub fn run<S>(
     working: Option<&std::path::Path>,
     args: impl IntoIterator<Item = S>,
@@ -754,6 +798,7 @@ where
 }
 
 /// Functions that call to the `git` CLI instead of `git2`.
+#[cfg(not(creusot))]
 pub mod process {
     use std::io;
     use std::path::Path;
@@ -784,6 +829,7 @@ pub mod process {
 }
 
 /// Git URLs.
+#[cfg(not(creusot))]
 pub mod url {
     use std::path::PathBuf;
 
@@ -815,6 +861,7 @@ pub mod url {
 }
 
 /// Git environment variables.
+#[cfg(not(creusot))]
 pub mod env {
     /// Set of environment vars to reset git's configuration to default.
     pub const GIT_DEFAULT_CONFIG: [(&str, &str); 2] = [
@@ -826,6 +873,7 @@ pub mod env {
 /// The user information used for signing commits and configuring the
 /// `name` and `email` fields in the Git config.
 #[derive(Debug, Clone)]
+#[cfg(not(creusot))]
 pub struct UserInfo {
     /// Alias of the local peer.
     pub alias: Alias,
@@ -833,6 +881,7 @@ pub struct UserInfo {
     pub key: PublicKey,
 }
 
+#[cfg(not(creusot))]
 impl UserInfo {
     /// The name of the user, i.e. the `alias`.
     pub fn name(&self) -> Alias {

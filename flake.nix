@@ -80,6 +80,11 @@
           (import rust-overlay)
           creusot.overlays.default
         ];
+
+        # To work around `cargo creusot` giving up with "bad Altergo version: 2.4.3-free".
+        config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
+          "alt-ergo"
+        ];
       };
 
       src = mkSrc pkgs;
@@ -406,7 +411,7 @@
           qemu
           OVMF.fd
 
-          (pkgs.creusot.mkCreusotWrapped { isFree = true; })
+          (pkgs.creusot.mkCreusotWrapped { isFree = false; })
         ];
 
         env = {

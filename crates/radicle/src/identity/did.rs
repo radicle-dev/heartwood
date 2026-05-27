@@ -1,12 +1,18 @@
+#[cfg(not(creusot))]
 use std::ops::Deref;
+#[cfg(not(creusot))]
 use std::{fmt, str::FromStr};
 
+#[cfg(not(creusot))]
 use serde::{Deserialize, Serialize};
+#[cfg(not(creusot))]
 use thiserror::Error;
 
+#[cfg(not(creusot))]
 use crate::crypto;
 
 #[derive(Error, Debug)]
+#[cfg(not(creusot))]
 pub enum DidError {
     #[error("invalid did: {0}")]
     Did(String),
@@ -14,10 +20,12 @@ pub enum DidError {
     PublicKey(#[from] crypto::PublicKeyError),
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-#[serde(into = "String", try_from = "String")]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+#[cfg_attr(not(creusot), derive(Serialize, Deserialize))]
+#[cfg_attr(not(creusot), serde(into = "String", try_from = "String"))]
 pub struct Did(crypto::PublicKey);
 
+#[cfg(not(creusot))]
 impl Did {
     /// We use the format specified by the DID `key` method, which is described as:
     ///
@@ -42,30 +50,35 @@ impl Did {
     }
 }
 
+#[cfg(not(creusot))]
 impl From<&crypto::PublicKey> for Did {
     fn from(key: &crypto::PublicKey) -> Self {
         Self(*key)
     }
 }
 
+#[cfg(not(creusot))]
 impl From<crypto::PublicKey> for Did {
     fn from(key: crypto::PublicKey) -> Self {
         (&key).into()
     }
 }
 
+#[cfg(not(creusot))]
 impl From<Did> for crypto::PublicKey {
     fn from(Did(key): Did) -> Self {
         key
     }
 }
 
+#[cfg(not(creusot))]
 impl From<Did> for String {
     fn from(other: Did) -> Self {
         other.encode()
     }
 }
 
+#[cfg(not(creusot))]
 impl FromStr for Did {
     type Err = DidError;
 
@@ -74,6 +87,7 @@ impl FromStr for Did {
     }
 }
 
+#[cfg(not(creusot))]
 impl TryFrom<String> for Did {
     type Error = DidError;
 
@@ -82,18 +96,21 @@ impl TryFrom<String> for Did {
     }
 }
 
+#[cfg(not(creusot))]
 impl fmt::Display for Did {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.encode())
     }
 }
 
+#[cfg(not(creusot))]
 impl fmt::Debug for Did {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Did({:?})", self.to_string())
     }
 }
 
+#[cfg(not(creusot))]
 impl Deref for Did {
     type Target = crypto::PublicKey;
 
