@@ -1211,6 +1211,8 @@ impl<Repo, Signer> Deref for IdentityMut<'_, '_, Repo, Signer> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
+    mod property;
+
     use qcheck_macros::quickcheck;
 
     use crate::cob::{self, Title};
@@ -1220,8 +1222,8 @@ mod test {
     use crate::identity::doc::PayloadId;
     use crate::node::device::Device;
     use crate::rad;
+    use crate::storage::ReadStorage;
     use crate::storage::git::Storage;
-    use crate::storage::{ReadStorage, SignRepository};
     use crate::test::fixtures;
     use crate::test::setup::{Network, NodeWithRepo};
 
