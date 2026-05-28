@@ -1113,30 +1113,37 @@ impl Patch {
                 );
 
                 let mut merges = self.merges.iter().fold(
-                    HashMap::<(RevisionId, git::Oid), usize>::new(),
+                    HashMap::<git::Oid, (RevisionId, usize)>::new(),
                     |mut acc, (_, merge)| {
-                        *acc.entry((merge.revision, merge.commit)).or_default() += 1;
+                        let entry = acc.entry(merge.commit).or_insert((merge.revision, 0));
+                        entry.1 += 1;
                         acc
                     },
                 );
-                // Discard revisions that weren't merged by a threshold of delegates.
-                merges.retain(|_, count| *count >= identity.threshold());
+                // Discard commits that weren't merged by a threshold of delegates.
+                merges.retain(|_, (_, count)| *count >= identity.threshold());
 
-                match merges.into_keys().collect::<Vec<_>>().as_slice() {
+                match merges.into_iter().collect::<Vec<_>>().as_slice() {
                     [] => {
-                        // None of the revisions met the quorum.
+                        // None of the commits met the quorum.
                     }
-                    [(revision, commit)] => {
+                    [(commit, (revision, _))] => {
                         // Patch is merged.
                         self.state = State::Merged {
                             revision: *revision,
                             commit: *commit,
                         };
                     }
-                    revisions => {
-                        // More than one revision met the quorum.
+                    commits => {
+                        // More than one commit met the quorum.
                         self.state = State::Open {
-                            conflicts: revisions.to_vec(),
+                            conflicts: commits
+                                .iter()
+                                .map(|(commit, (revision, _))| MergedRevision {
+                                    revision: *revision,
+                                    commit: *commit,
+                                })
+                                .collect(),
                         };
                     }
                 }
@@ -1545,7 +1552,7 @@ pub enum State {
         /// Revisions that were merged and are conflicting.
         #[serde(skip_serializing_if = "Vec::is_empty")]
         #[serde(default)]
-        conflicts: Vec<(RevisionId, git::Oid)>,
+        conflicts: Vec<MergedRevision>,
     },
     Archived,
     Merged {
@@ -1626,6 +1633,33 @@ pub struct Merge {
     pub commit: git::Oid,
     /// When this merge was performed.
     pub timestamp: Timestamp,
+}
+
+/// A revision that met the merge quorum.
+///
+/// # Backward-compatibility
+///
+/// Serializes and deserializes to/from a tuple `[revision, commit]` to be
+/// compatible with the previous representation of [`State::Open::conflicts`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(into = "(RevisionId, git::Oid)", from = "(RevisionId, git::Oid)")]
+pub struct MergedRevision {
+    /// A patch revision that was merged.
+    revision: RevisionId,
+    /// The commit that was merged to the target.
+    commit: git::Oid,
+}
+
+impl From<(RevisionId, git::Oid)> for MergedRevision {
+    fn from((revision, commit): (RevisionId, git::Oid)) -> Self {
+        Self { revision, commit }
+    }
+}
+
+impl From<MergedRevision> for (RevisionId, git::Oid) {
+    fn from(m: MergedRevision) -> Self {
+        (m.revision, m.commit)
+    }
 }
 
 /// A patch review verdict.
@@ -3605,6 +3639,238 @@ mod test {
                 "type": "lines",
                 "range": { "start": 4, "end": 8 },
             })
+        );
+    }
+
+    /// Helper to create a [`MockRepository`] with two delegates and remotes
+    /// configured so that merge evaluation can resolve the default branch.
+    fn mock_repo_with_delegates(
+        alice: &Actor<MockSigner>,
+        bob: &Actor<MockSigner>,
+        threshold: usize,
+        alice_head: git::Oid,
+        bob_head: git::Oid,
+    ) -> MockRepository {
+        use crate::identity::project::ProjectName;
+
+        let project = identity::Project::new(
+            ProjectName::from_str("test").unwrap(),
+            String::from("Test project"),
+            git::fmt::refname!("master").to_owned(),
+        )
+        .unwrap();
+        let rid = r#gen::<RepoId>(1);
+        let doc = identity::RawDoc::new(
+            project,
+            vec![alice.did(), bob.did()],
+            threshold,
+            identity::Visibility::Public,
+        )
+        .verified()
+        .unwrap();
+
+        let branch = git::refs::branch(&git::fmt::refname!("master"));
+        let mut repo = MockRepository::new(rid, doc);
+        repo.remotes.insert(
+            *alice.signer.public_key(),
+            storage::refs::SignedRefs::initialize_with(&alice.signer, &branch, alice_head),
+        );
+        repo.remotes.insert(
+            *bob.signer.public_key(),
+            storage::refs::SignedRefs::initialize_with(&bob.signer, &branch, bob_head),
+        );
+        repo
+    }
+
+    /// Two delegates each create a revision pointing to the same commit and
+    /// each merge their own revision. With threshold=1, the patch should be
+    /// merged — not treated as a conflict.
+    #[test]
+    fn merge_different_revisions_same_commit() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+
+        let mut alice = Actor::<MockSigner>::default();
+        let mut bob = Actor::<MockSigner>::default();
+        let repo = mock_repo_with_delegates(&alice, &bob, 1, oid, oid);
+
+        // Alice creates the initial patch.
+        let a1 = alice.op::<Patch>([
+            Action::Revision {
+                description: String::from("Initial"),
+                base,
+                oid,
+                resolves: Default::default(),
+            },
+            Action::Edit {
+                title: cob::Title::new("My patch").unwrap(),
+                target: MergeTarget::Delegates,
+            },
+        ]);
+
+        // Alice creates a rebased revision.
+        let a2 = alice.op::<Patch>([Action::Revision {
+            description: String::from("Alice rebase"),
+            base,
+            oid,
+            resolves: Default::default(),
+        }]);
+
+        // Bob independently creates a rebased revision with the same commit.
+        let b1 = bob.op::<Patch>([Action::Revision {
+            description: String::from("Bob rebase"),
+            base,
+            oid,
+            resolves: Default::default(),
+        }]);
+
+        // Alice merges her revision.
+        let a3 = alice.op::<Patch>([Action::Merge {
+            revision: RevisionId(a2.id()),
+            commit: oid,
+        }]);
+
+        // Bob merges his revision.
+        let b2 = bob.op::<Patch>([Action::Merge {
+            revision: RevisionId(b1.id()),
+            commit: oid,
+        }]);
+
+        let mut patch = Patch::from_ops([a1, a2], &repo).unwrap();
+        patch.op(b1, [], &repo).unwrap();
+        patch.op(a3, [], &repo).unwrap();
+        patch.op(b2, [], &repo).unwrap();
+
+        assert!(
+            patch.is_merged(),
+            "patch should be merged when two delegates merge different revisions \
+             pointing to the same commit, but state is {:?}",
+            patch.state()
+        );
+    }
+
+    /// Two delegates merge revisions pointing to different commits.
+    /// This is a conflict and should remain open.
+    #[test]
+    fn merge_different_revisions_different_commits() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid_a = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let oid_b = git::Oid::from_str("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+
+        let mut alice = Actor::<MockSigner>::default();
+        let mut bob = Actor::<MockSigner>::default();
+        let repo = mock_repo_with_delegates(&alice, &bob, 1, oid_a, oid_b);
+
+        // Alice creates the initial patch.
+        let a1 = alice.op::<Patch>([
+            Action::Revision {
+                description: String::from("Initial"),
+                base,
+                oid: oid_a,
+                resolves: Default::default(),
+            },
+            Action::Edit {
+                title: cob::Title::new("My patch").unwrap(),
+                target: MergeTarget::Delegates,
+            },
+        ]);
+
+        // Bob creates a revision with a different commit.
+        let b1 = bob.op::<Patch>([Action::Revision {
+            description: String::from("Bob's version"),
+            base,
+            oid: oid_b,
+            resolves: Default::default(),
+        }]);
+
+        // Alice merges her revision (initial) at commit oid_a.
+        let a2 = alice.op::<Patch>([Action::Merge {
+            revision: RevisionId(a1.id()),
+            commit: oid_a,
+        }]);
+
+        // Bob merges his revision at commit oid_b.
+        let b2 = bob.op::<Patch>([Action::Merge {
+            revision: RevisionId(b1.id()),
+            commit: oid_b,
+        }]);
+
+        let mut patch = Patch::from_ops([a1], &repo).unwrap();
+        patch.op(b1, [], &repo).unwrap();
+        patch.op(a2, [], &repo).unwrap();
+        patch.op(b2, [], &repo).unwrap();
+
+        match patch.state() {
+            State::Open { conflicts } => {
+                assert_eq!(conflicts.len(), 2, "should have two conflicting merges");
+            }
+            state => panic!("Unexpected patch state: {state:?}"),
+        }
+    }
+
+    /// Two delegates merge different revisions pointing to the same commit,
+    /// with threshold=2. Both merges should count toward the same quorum.
+    #[test]
+    fn merge_different_revisions_same_commit_threshold_2() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+
+        let mut alice = Actor::<MockSigner>::default();
+        let mut bob = Actor::<MockSigner>::default();
+        let repo = mock_repo_with_delegates(&alice, &bob, 2, oid, oid);
+
+        // Alice creates the initial patch.
+        let a1 = alice.op::<Patch>([
+            Action::Revision {
+                description: String::from("Initial"),
+                base,
+                oid,
+                resolves: Default::default(),
+            },
+            Action::Edit {
+                title: cob::Title::new("My patch").unwrap(),
+                target: MergeTarget::Delegates,
+            },
+        ]);
+
+        // Alice creates a rebased revision.
+        let a2 = alice.op::<Patch>([Action::Revision {
+            description: String::from("Alice rebase"),
+            base,
+            oid,
+            resolves: Default::default(),
+        }]);
+
+        // Bob independently creates a rebased revision with the same commit.
+        let b1 = bob.op::<Patch>([Action::Revision {
+            description: String::from("Bob rebase"),
+            base,
+            oid,
+            resolves: Default::default(),
+        }]);
+
+        // Alice merges her revision.
+        let a3 = alice.op::<Patch>([Action::Merge {
+            revision: RevisionId(a2.id()),
+            commit: oid,
+        }]);
+
+        // Bob merges his revision.
+        let b2 = bob.op::<Patch>([Action::Merge {
+            revision: RevisionId(b1.id()),
+            commit: oid,
+        }]);
+
+        let mut patch = Patch::from_ops([a1, a2], &repo).unwrap();
+        patch.op(b1, [], &repo).unwrap();
+        patch.op(a3, [], &repo).unwrap();
+        patch.op(b2, [], &repo).unwrap();
+
+        assert!(
+            patch.is_merged(),
+            "patch should be merged when two delegates merge different revisions \
+             pointing to the same commit with threshold=2, but state is {:?}",
+            patch.state()
         );
     }
 }

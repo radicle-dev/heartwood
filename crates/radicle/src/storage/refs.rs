@@ -465,6 +465,28 @@ impl SignedRefs {
     pub fn iter(&self) -> impl Iterator<Item = (&git::fmt::RefString, &Oid)> {
         self.refs.iter()
     }
+
+    /// Create a [`SignedRefs`] containing a single branch reference.
+    #[cfg(test)]
+    pub(crate) fn initialize_with<S>(signer: &S, branch: &git::fmt::Qualified, head: Oid) -> Self
+    where
+        S: crypto::signature::Signer<crypto::Signature>,
+        S: crypto::signature::KeypairRef<VerifyingKey = crypto::PublicKey>,
+    {
+        let mut refs = Refs::new();
+        refs.insert(branch.to_ref_string(), head);
+
+        let signature = crypto::signature::Signer::sign(signer, &refs.canonical());
+        let id = signer.as_ref();
+        SignedRefs {
+            refs,
+            signature,
+            id: *id,
+            level: FeatureLevel::None,
+            parent: None,
+            at: head,
+        }
+    }
 }
 
 impl Deref for SignedRefs {
