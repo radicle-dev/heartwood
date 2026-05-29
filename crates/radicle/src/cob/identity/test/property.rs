@@ -283,6 +283,9 @@ impl Harness {
         self.assert_active_quorum(identity);
         self.assert_accepted_quorum(identity);
         self.assert_sibling_rejection(identity);
+        self.assert_ancestor_redacted_from_redacted_parent(identity);
+        self.assert_ancestor_rejected_from_rejected_parent(identity);
+        self.assert_failed_parents_have_failed_children(identity);
     }
 
     /// Strong eventual consistency.
@@ -462,6 +465,71 @@ impl Harness {
                             sibling.state
                         );
                     }
+                }
+            }
+        }
+    }
+
+    /// A revision can only be `AncestorRejected` if its parent was rejected.
+    fn assert_ancestor_rejected_from_rejected_parent(&self, identity: &Identity) {
+        for id in &identity.timeline {
+            if let Some(rev) = identity.revision(id)
+                && rev.state == State::AncestorRejected
+            {
+                let parent_id = rev.parent.expect("AncestorRejected must have a parent");
+                let parent = identity.revision(&parent_id).unwrap();
+                assert!(
+                    parent.state == State::Rejected || parent.state == State::AncestorRejected,
+                    "AncestorRejected revision {} has invalid parent state {:?}",
+                    rev.id,
+                    parent.state
+                );
+            }
+        }
+    }
+
+    /// A revision can only be `AncestorRedacted` if its parent was redacted.
+    fn assert_ancestor_redacted_from_redacted_parent(&self, identity: &Identity) {
+        for id in &identity.timeline {
+            if let Some(rev) = identity.revision(id)
+                && rev.state == State::AncestorRedacted
+            {
+                let parent_id = rev.parent.expect("AncestorRedacted must have a parent");
+                let parent = identity.revision(&parent_id).unwrap();
+                assert!(
+                    parent.state == State::Redacted || parent.state == State::AncestorRedacted,
+                    "AncestorRedacted revision {} has invalid parent state {:?}",
+                    rev.id,
+                    parent.state
+                );
+            }
+        }
+    }
+
+    /// If a parent is in a failed state, it cannot have any `Active` or `Accepted` children.
+    fn assert_failed_parents_have_failed_children(&self, identity: &Identity) {
+        for id in &identity.timeline {
+            if let Some(rev) = identity.revision(id)
+                && let Some(parent_id) = rev.parent
+                && let Some(parent) = identity.revision(&parent_id)
+            {
+                let parent_is_failed = matches!(
+                    parent.state,
+                    State::Rejected
+                        | State::AncestorRejected
+                        | State::Redacted
+                        | State::AncestorRedacted
+                );
+
+                if parent_is_failed {
+                    assert!(
+                        !matches!(rev.state, State::Active | State::Accepted),
+                        "Child {} is {:?} but parent {} has failed ({:?})",
+                        rev.id,
+                        rev.state,
+                        parent.id,
+                        parent.state
+                    );
                 }
             }
         }

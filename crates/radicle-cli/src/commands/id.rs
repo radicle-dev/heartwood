@@ -222,8 +222,11 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 let icon = match r.state {
                     identity::State::Active => term::format::tertiary("●"),
                     identity::State::Accepted => term::format::positive("●"),
-                    identity::State::Rejected => term::format::negative("●"),
-                    identity::State::Redacted => continue,
+                    identity::State::Rejected | identity::State::AncestorRejected => {
+                        term::format::negative("●")
+                    }
+                    // TODO: Think about how to expose redacted children
+                    identity::State::Redacted | identity::State::AncestorRedacted => continue,
                 }
                 .into();
                 let state = r.state.to_string().into();

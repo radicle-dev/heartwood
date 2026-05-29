@@ -180,6 +180,8 @@ pub struct Identity {
 
     /// Revisions.
     revisions: BTreeMap<RevisionId, Revision>,
+    /// Children of a revision.
+    children_of: BTreeMap<RevisionId, Vec<RevisionId>>,
     /// Timeline of events.
     timeline: Vec<EntryId>,
 }
@@ -207,6 +209,7 @@ impl Identity {
             root,
             current: root,
             revisions: BTreeMap::from_iter([(root, revision)]),
+            children_of: BTreeMap::new(),
             timeline: vec![root],
         }
     }
@@ -482,7 +485,7 @@ impl Identity {
                             );
                             false
                         }
-                        State::Rejected => {
+                        State::Rejected | State::AncestorRejected => {
                             log::debug!(
                                 "Skipping acceptance of revision {} by {did} because it already is rejected.",
                                 revision.id
@@ -497,7 +500,7 @@ impl Identity {
                             revision.accept(author, signature, &current)?;
                             true
                         }
-                        State::Redacted => {
+                        State::Redacted | State::AncestorRedacted => {
                             return Err(ApplyError::Redacted);
                         }
                     }
@@ -519,7 +522,7 @@ impl Identity {
                             );
                             false
                         }
-                        State::Rejected => {
+                        State::Rejected | State::AncestorRejected => {
                             log::trace!(
                                 "Skipping rejection of revision {} by {did} because it already is rejected.",
                                 revision.id
@@ -534,14 +537,14 @@ impl Identity {
                             revision.reject(author)?;
                             revision.state == State::Rejected
                         }
-                        State::Redacted => {
+                        State::Redacted | State::AncestorRedacted => {
                             return Err(ApplyError::Redacted);
                         }
                     }
                 };
 
                 if is_rejected {
-                    self.reject_children(revision_id);
+                    self.reject_descendants(revision_id, State::AncestorRejected);
                 }
             }
             Action::RevisionEdit {
@@ -600,7 +603,7 @@ impl Identity {
                     revision.state = State::Redacted;
                 }
 
-                self.reject_children(revision_id);
+                self.reject_descendants(revision_id, State::AncestorRedacted);
             }
             Action::Revision {
                 title,
@@ -619,6 +622,8 @@ impl Identity {
                 };
                 let current_oid = self.current;
                 let parent = self.revision_mut(&parent)?;
+                let parent_id = parent.id;
+
                 // We expect the revision to make a change compared to its parent.
                 if doc == parent.doc {
                     return Err(ApplyError::DocUnchanged);
@@ -632,9 +637,11 @@ impl Identity {
                 // Furthermore, if the parent is accepted but is NO LONGER the current revision,
                 // it means a sibling was already adopted and this is a late-arriving fork.
                 let state = match parent.state {
-                    State::Rejected | State::Redacted => State::Rejected,
+                    State::Rejected | State::AncestorRejected => State::AncestorRejected,
+                    State::Redacted | State::AncestorRedacted => State::AncestorRedacted,
                     State::Accepted if parent.id != current_oid => State::Rejected,
-                    _ => State::Active,
+                    State::Accepted => State::Active,
+                    State::Active => State::Active,
                 };
 
                 let revision = Revision::new(
@@ -646,10 +653,13 @@ impl Identity {
                     doc,
                     state,
                     signature,
-                    Some(parent.id),
+                    Some(parent_id),
                     timestamp,
                 );
                 let id = revision.id;
+
+                let children_of = self.children_of.entry(parent_id).or_default();
+                children_of.push(id);
 
                 self.revisions.insert(id, revision);
 
@@ -710,35 +720,40 @@ impl Identity {
         }
 
         // Reject all sibling revisions and their children.
-        let mut reject = Vec::new();
+        let mut rejectable_descendants = Vec::new();
 
-        loop {
-            let mut found = false;
-            for (revision_id, revision) in self.revisions.iter() {
-                let Some(revision_parent) = revision.parent else {
-                    continue;
-                };
+        for revision_id in self.children_of.get(&parent).into_iter().flatten() {
+            let Some(revision) = self.revisions.get_mut(revision_id) else {
+                continue;
+            };
 
-                if (revision_parent == parent || reject.contains(&revision_parent))
-                    && !reject.contains(revision_id)
-                    && revision.state == State::Active
-                    && revision_id != &id
-                {
-                    log::debug!("Adoption of {} causes {} to be rejected.", id, revision_id);
-
-                    found = true;
-                    reject.push(*revision_id);
-                }
+            if revision.state != State::Active {
+                continue;
             }
-            if !found {
-                break;
+
+            if revision_id != &id {
+                log::debug!("Adoption of {} causes {} to be rejected.", id, revision_id);
+
+                revision.state = State::Rejected;
+                rejectable_descendants
+                    .extend(self.children_of.get(revision_id).into_iter().flatten());
             }
         }
 
-        for id in reject {
-            if let Some(revision) = self.revisions.get_mut(&id) {
-                revision.state = State::Rejected;
+        while let Some(next) = rejectable_descendants.pop() {
+            let Some(revision) = self.revisions.get_mut(next) else {
+                continue;
+            };
+
+            if revision.state != State::Active {
+                continue;
             }
+
+            log::trace!("Adoption of {} causes {} to be rejected.", id, next);
+            revision.state = State::AncestorRejected;
+            if let Some(children) = self.children_of.get(next) {
+                rejectable_descendants.extend(children);
+            };
         }
 
         self.current = id;
@@ -764,30 +779,33 @@ impl Identity {
     }
 
     /// Reject all active children of the given revision, recursively.
-    fn reject_children(&mut self, parent: RevisionId) {
-        let mut reject = Vec::new();
-        loop {
-            let mut found = false;
-            for (child_id, child) in self.revisions.iter() {
-                let Some(child_parent) = child.parent else {
-                    continue;
-                };
-                if (child_parent == parent || reject.contains(&child_parent))
-                    && !reject.contains(child_id)
-                    && child.state == State::Active
-                {
-                    found = true;
-                    reject.push(*child_id);
-                }
+    fn reject_descendants(&mut self, parent: RevisionId, state: State) {
+        let mut rejectable_descendants = self
+            .children_of
+            .get(&parent)
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        while let Some(next) = rejectable_descendants.pop() {
+            let Some(revision) = self.revisions.get_mut(next) else {
+                continue;
+            };
+
+            if revision.state != State::Active {
+                continue;
             }
-            if !found {
-                break;
-            }
-        }
-        for id in reject {
-            if let Some(child) = self.revisions.get_mut(&id) {
-                child.state = State::Rejected;
-            }
+
+            log::trace!(
+                "Cascading state from {} causes {} to be {:?}.",
+                parent,
+                next,
+                state
+            );
+            revision.state = state;
+            if let Some(children) = self.children_of.get(next) {
+                rejectable_descendants.extend(children);
+            };
         }
     }
 
@@ -871,6 +889,10 @@ pub enum State {
     Rejected,
     /// The author decided to redact/withdraw the revision.
     Redacted,
+    /// Implicitly rejected because of an ancestor
+    AncestorRejected,
+    /// Implicitly redacted because of an ancestor
+    AncestorRedacted,
 }
 
 impl std::fmt::Display for State {
@@ -880,6 +902,8 @@ impl std::fmt::Display for State {
             Self::Accepted => write!(f, "accepted"),
             Self::Rejected => write!(f, "rejected"),
             Self::Redacted => write!(f, "redacted"),
+            Self::AncestorRedacted => write!(f, "ancestor redacted"),
+            Self::AncestorRejected => write!(f, "ancestor rejected"),
         }
     }
 }
@@ -1554,7 +1578,7 @@ mod test {
         bob.repo.fetch(alice);
         bob_identity.reload().unwrap();
 
-        //     b1   (Propose "B1") 1/2 (Rejected due to parent A2 being redacted)
+        //     b1   (Propose "B1") 1/2 (AncestorRedacted due to parent A2 being redacted)
         //     |
         //     a2   (Propose "A2") 1/2 (Redacted by Alice)
         //     |
@@ -1563,7 +1587,10 @@ mod test {
         //     a0
 
         assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Redacted);
-        assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Rejected);
+        assert_eq!(
+            bob_identity.revision(&b1).unwrap().state,
+            State::AncestorRedacted
+        );
     }
 
     #[test]
@@ -1765,14 +1792,14 @@ mod test {
         assert_eq!(eve_revision.state, State::Active);
         assert_eq!(eve_revision.parent, Some(a1));
 
-        //     e2   (Propose "Change visibility") 1/2
+        //     e2   (Propose "Change visibility") 1/3
         //     |
-        //     e1   (Reject "Change visibility")  1/2
-        //  b1 |    (Accept "Change visibility")  2/2
+        //     e1   (Reject "Change visibility")  1/3
+        //  b1 |    (Accept "Change visibility")  2/3
         //  | /
-        //  a2      (Propose "Change visibility") 1/2
+        //  a2      (Propose "Change visibility") 1/3
         //  |
-        //  a1      (Add Bob and Eve)
+        //  a1      (Add Bob and Eve) 1/1
         //  |
         //  a0
 

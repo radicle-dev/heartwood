@@ -405,7 +405,10 @@ pub mod identity {
         match s {
             State::Active => term::format::tertiary(s.to_string()),
             State::Accepted => term::format::positive(s.to_string()),
-            State::Rejected | State::Redacted => term::format::negative(s.to_string()),
+            State::Rejected
+            | State::Redacted
+            | State::AncestorRejected
+            | State::AncestorRedacted => term::format::negative(s.to_string()),
         }
     }
 }
