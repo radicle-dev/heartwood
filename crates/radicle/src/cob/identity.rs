@@ -1876,14 +1876,14 @@ mod test {
         assert_eq!(eve_revision.state, State::Active);
         assert_eq!(eve_revision.parent, Some(a1));
 
-        //     e2   (Propose "Change visibility") 1/2
+        //     e2   (Propose "Change visibility") 1/3
         //     |
-        //     e1   (Reject "Change visibility")  1/2
-        //  b1 |    (Accept "Change visibility")  2/2
+        //     e1   (Reject "Change visibility")  1/3
+        //  b1 |    (Accept "Change visibility")  2/3
         //  | /
-        //  a2      (Propose "Change visibility") 1/2
+        //  a2      (Propose "Change visibility") 1/3
         //  |
-        //  a1      (Add Bob and Eve)
+        //  a1      (Add Bob and Eve) 1/1
         //  |
         //  a0
 
