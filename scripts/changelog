@@ -1,6 +1,12 @@
 #!/bin/sh
 set -e
 
+render_commit_footnotes() {
+  # shellcheck disable=SC2016
+  git log --pretty=format:'[`%h`]: https://radicle.network/nodes/seed.radicle.dev/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5/commits/%H' "$1"
+  echo
+}
+
 # Version from which to generate the changelog.
 from=""
 
@@ -67,9 +73,13 @@ echo "This release contains $ncommits commit(s) by $ncontribs contributor(s)."
 echo
 
 # shellcheck disable=SC2016
-git log --pretty=format:'* `%h` **%s** *<%ae>*' "$range"
-
+git log --pretty=format:'* [`%h`] **%s** *<%ae>*' "$range"
 echo
+echo
+
+render_commit_footnotes "$range"
+echo
+
 echo "## Checksums"
 echo
 
