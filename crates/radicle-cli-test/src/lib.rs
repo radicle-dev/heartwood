@@ -6,7 +6,7 @@ use std::sync;
 use std::{env, fs, io, mem};
 
 use snapbox::cmd::{Command, OutputAssert};
-use snapbox::{Assert, Substitutions};
+use snapbox::{Assert, Redactions};
 use thiserror::Error;
 
 const CARGO_TARGET_DIR_DIRNAME: &str = "target";
@@ -29,7 +29,7 @@ pub enum Error {
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
     #[error("snapbox: {0}")]
-    Snapbox(#[from] snapbox::Error),
+    Snapbox(#[from] snapbox::assert::Error),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -168,7 +168,7 @@ pub struct TestFormula {
     /// Tests to run.
     tests: Vec<Test>,
     /// Output substitutions.
-    subs: Substitutions,
+    subs: Redactions,
 }
 
 impl TestFormula {
@@ -178,7 +178,7 @@ impl TestFormula {
             env: HashMap::new(),
             homes: HashMap::new(),
             tests: Vec::new(),
-            subs: Substitutions::new(),
+            subs: Redactions::new(),
         }
     }
 
@@ -369,7 +369,7 @@ impl TestFormula {
         value: &'static str,
         other: impl Into<Cow<'static, str>>,
     ) -> Result<&mut Self, Error> {
-        self.subs.insert(value, other)?;
+        self.subs.insert(value, other.into())?;
         Ok(self)
     }
 
@@ -399,7 +399,7 @@ impl TestFormula {
     }
 
     pub fn run(&mut self) -> Result<bool, io::Error> {
-        let assert = Assert::new().substitutions(self.subs.clone());
+        let assert = Assert::new().redact_with(self.subs.clone());
         let mut runner = TestRunner::new(self);
 
         fs::create_dir_all(&self.cwd)?;
@@ -497,9 +497,9 @@ impl TestFormula {
                         };
 
                         let matches = if test.stderr {
-                            assert.stderr_matches(&expected)
+                            assert.stderr_eq(&expected)
                         } else {
-                            assert.stdout_matches(&expected)
+                            assert.stdout_eq(&expected)
                         };
                         match assertion.exit {
                             ExitStatus::Success => {
@@ -607,7 +607,7 @@ $ rad sync
             homes: HashMap::new(),
             cwd: cwd.clone(),
             env: HashMap::new(),
-            subs: Substitutions::new(),
+            subs: Redactions::new(),
             tests: vec![
                 Test {
                     context: vec![String::from("Let's try to track @dave and @sean:")],
