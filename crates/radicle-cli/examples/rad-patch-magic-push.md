@@ -52,6 +52,7 @@ $ rad patch show 01dad54
 │ Author    alice (you)                                    │
 │ Head      46fd342edc149468ec08b0b25291083aa05d4449       │
 │ Base      [..                                    ]       │
+│ Target    accepted                                       │
 │ Branches  feature/1                                      │
 │ Commits   ahead 1, behind 0                              │
 │ Status    open                                           │
@@ -102,6 +103,7 @@ $ rad patch show 01dad54
 │ Author    alice (you)                                    │
 │ Head      46fd342edc149468ec08b0b25291083aa05d4449       │
 │ Base      [..                                    ]       │
+│ Target    accepted                                       │
 │ Branches  accepted, feature/1                            │
 │ Commits   up to date                                     │
 │ Status    merged                                         │
@@ -151,6 +153,7 @@ $ rad patch show 965855f
 │ Author    alice (you)                                    │
 │ Head      7e6814e99fe7084a213faeb69ca1eacc26935e3c       │
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
+│ Target    accepted                                       │
 │ Branches  feature/2                                      │
 │ Commits   ahead 1, behind 0                              │
 │ Status    open                                           │
@@ -191,6 +194,7 @@ $ rad patch show c846bb5 -v
 │ Author    alice (you)                                                                                                                                                │
 │ Head      99c1d5a04c17ba854f1f4d59985c980c0faf16e7                                                                                                                   │
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                                                                                                                   │
+│ Target    refs/heads/accepted                                                                                                                                        │
 │ Branches  feature/3                                                                                                                                                  │
 │ Commits   ahead 2, behind 0                                                                                                                                          │
 │ Status    open                                                                                                                                                       │

@@ -14,8 +14,8 @@ use radicle::cob::patch;
 use radicle::git;
 use radicle::patch::{Patch, PatchId};
 use radicle::prelude::Profile;
-use radicle::storage::WriteRepository as _;
 use radicle::storage::git::Repository;
+use radicle::storage::{ReadRepository, WriteRepository as _};
 
 use crate::terminal as term;
 use crate::terminal::Element;
@@ -373,6 +373,18 @@ pub fn show(
     let author = term::format::Author::new(author.id(), profile, verbose);
     let labels = patch.labels().map(|l| l.to_string()).collect::<Vec<_>>();
 
+    let doc = stored.identity_doc()?;
+    let target = patch.merge_target_branch(&doc)?;
+    let target_branch = if verbose {
+        target.to_string()
+    } else {
+        target
+            .as_str()
+            .strip_prefix("refs/heads/")
+            .unwrap_or(target.as_str())
+            .to_string()
+    };
+
     let mut attrs = term::Table::<2, term::Line>::new(term::TableOptions {
         spacing: 2,
         ..term::TableOptions::default()
@@ -402,6 +414,10 @@ pub fn show(
     attrs.push([
         term::format::tertiary("Base".to_owned()).into(),
         term::format::secondary(revision.base().to_string()).into(),
+    ]);
+    attrs.push([
+        term::format::tertiary("Target".to_owned()).into(),
+        term::format::secondary(target_branch).into(),
     ]);
     if !branches.is_empty() {
         attrs.push([

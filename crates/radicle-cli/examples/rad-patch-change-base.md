@@ -50,6 +50,7 @@ $ rad patch show 183d343ab47d7fe18baf1b24b7209ad033d7fe5c
 │ Author    alice (you)                                    │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66       │
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
+│ Target    master                                         │
 │ Branches  add-readme                                     │
 │ Commits   ahead 2, behind 0                              │
 │ Status    open                                           │
@@ -81,6 +82,7 @@ $ rad patch show 183d343
 │ Author    alice (you)                                    │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66       │
 │ Base      3e674d1a1df90807e934f9ae5da2591dd6848a33       │
+│ Target    master                                         │
 │ Branches  add-readme                                     │
 │ Commits   ahead 2, behind 0                              │
 │ Status    open                                           │

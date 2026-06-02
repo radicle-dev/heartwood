@@ -21,6 +21,7 @@ $ rad patch show aa45913
 │ Author    alice (you)                                    │
 │ Head      639f44a25145a37f747f3c84265037a9461e44c5       │
 │ Base      [..                                    ]       │
+│ Target    master                                         │
 │ Branches  patch/aa45913                                  │
 │ Commits   ahead 3, behind 0                              │
 │ Status    open                                           │

@@ -103,6 +103,7 @@ $ rad patch show 55b9721
 │ Author   bob z6Mkt67…v4N1tRk                                     │
 │ Head     cad2666a8a2250e4dee175ed5044be2c251ff08b                │
 │ Base     [..                                          ]          │
+│ Target   master                                                  │
 │ Commits  ahead 2, behind 0                                       │
 │ Status   open                                                    │
 ├──────────────────────────────────────────────────────────────────┤
