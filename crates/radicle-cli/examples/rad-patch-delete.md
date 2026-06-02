@@ -39,6 +39,7 @@ $ rad patch show 6c61ef1 -v
 │ Author    alice (you)                                                                                                                                                │
 │ Head      717c900ec17735639587325e0fd9fe09991c9edd                                                                                                                   │
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                                                                                                                   │
+│ Target    refs/heads/master                                                                                                                                          │
 │ Branches  prepare-license                                                                                                                                            │
 │ Commits   ahead 1, behind 0                                                                                                                                          │
 │ Status    draft                                                                                                                                                      │
@@ -90,6 +91,7 @@ $ rad patch show 6c61ef1 -v
 │ Author   alice z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                                                                                                                                                 │
 │ Head     1cc8cd9de8ccc44b4fe3876f2dbd2cd1cf9ddc0e                                                                                                                                                               │
 │ Base     f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                                                                                                                                                               │
+│ Target   refs/heads/master                                                                                                                                                                                      │
 │ Commits  ahead 2, behind 0                                                                                                                                                                                      │
 │ Status   draft                                                                                                                                                                                                  │
 ├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
@@ -115,6 +117,7 @@ $ rad patch show 6c61ef1 -v
 │ Author    alice (you)                                                                                                                                                │
 │ Head      1cc8cd9de8ccc44b4fe3876f2dbd2cd1cf9ddc0e                                                                                                                   │
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                                                                                                                   │
+│ Target    refs/heads/master                                                                                                                                          │
 │ Branches  prepare-license                                                                                                                                            │
 │ Commits   ahead 2, behind 0                                                                                                                                          │
 │ Status    draft                                                                                                                                                      │

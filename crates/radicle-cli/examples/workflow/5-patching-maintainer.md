@@ -34,6 +34,7 @@ $ rad patch show e4934b6
 │ Author   bob z6Mkt67…v4N1tRk                                     │
 │ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                │
 │ Base     [..                                          ]          │
+│ Target   master                                                  │
 │ Commits  ahead 2, behind 0                                       │
 │ Status   open                                                    │
 │                                                                  │
@@ -109,6 +110,7 @@ $ rad patch show e4934b6
 │ Author   bob z6Mkt67…v4N1tRk                                     │
 │ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                │
 │ Base     [..                                          ]          │
+│ Target   master                                                  │
 │ Commits  ahead 0, behind 1                                       │
 │ Status   merged                                                  │
 │                                                                  │

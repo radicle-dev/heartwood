@@ -68,6 +68,7 @@ $ rad patch show 1e31055 -p
 │ Author   alice (you)                                     │
 │ Head     a6ea7b7[..                             ]        │
 │ Base     f2de534[..                             ]        │
+│ Target   master                                          │
 │ Commits  ahead 1, behind 0                               │
 │ Status   open                                            │
 │                                                          │

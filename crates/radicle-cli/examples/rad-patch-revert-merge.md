@@ -27,6 +27,7 @@ $ rad patch show 696ec5508494692899337afe6713fe1796d0315c
 │ Author    alice (you)                                    │
 │ Head      20aa5dde6210796c3a2f04079b42316a31d02689       │
 │ Base      [..                                    ]       │
+│ Target    master                                         │
 │ Branches  feature/1, master                              │
 │ Commits   up to date                                     │
 │ Status    merged                                         │
@@ -66,6 +67,7 @@ $ rad patch show 696ec5508494692899337afe6713fe1796d0315c
 │ Author    alice (you)                                    │
 │ Head      20aa5dde6210796c3a2f04079b42316a31d02689       │
 │ Base      [..                                    ]       │
+│ Target    master                                         │
 │ Branches  feature/1                                      │
 │ Commits   ahead 1, behind 0                              │
 │ Status    open                                           │

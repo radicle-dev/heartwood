@@ -62,6 +62,7 @@ $ rad patch show -v -p 217f050
 │ Author    alice (you)                                                                                                                                                │
 │ Head      5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7                                                                                                                   │
 │ Base      f64fb2c8fe28f7c458c72ec8d700373924794943                                                                                                                   │
+│ Target    refs/heads/master                                                                                                                                          │
 │ Branches  feature/1                                                                                                                                                  │
 │ Commits   ahead 1, behind 1                                                                                                                                          │
 │ Status    open                                                                                                                                                       │
@@ -108,6 +109,7 @@ $ rad patch show -v e22ff008e2a0ed47262890d13263031d7555b555
 │ Author    alice (you)                                                                                                                                                │
 │ Head      7f63fcbcf23fc39eea784c091ad3d20d7e4bd005                                                                                                                   │
 │ Base      f64fb2c8fe28f7c458c72ec8d700373924794943                                                                                                                   │
+│ Target    refs/heads/master                                                                                                                                          │
 │ Branches  feature/2                                                                                                                                                  │
 │ Commits   ahead 2, behind 1                                                                                                                                          │
 │ Status    open                                                                                                                                                       │
@@ -143,6 +145,7 @@ $ rad patch show -v a467ffa260c4fbe355b6fb550ba0c4956078717e
 │ Author    alice (you)                                                                                                                                                │
 │ Head      7f63fcbcf23fc39eea784c091ad3d20d7e4bd005                                                                                                                   │
 │ Base      5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7                                                                                                                   │
+│ Target    refs/heads/master                                                                                                                                          │
 │ Branches  feature/2                                                                                                                                                  │
 │ Commits   ahead 2, behind 1                                                                                                                                          │
 │ Status    open                                                                                                                                                       │

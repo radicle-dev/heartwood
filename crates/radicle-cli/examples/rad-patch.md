@@ -49,6 +49,7 @@ $ rad patch show aa45913e757cacd46972733bddee5472c78fa32a -p
 │ Author    alice (you)                                    │
 │ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33       │
 │ Base      [..                                    ]       │
+│ Target    master                                         │
 │ Branches  flux-capacitor-power                           │
 │ Commits   ahead 1, behind 0                              │
 │ Status    open                                           │
@@ -104,6 +105,7 @@ $ rad patch show aa45913
 │ Labels    fun                                            │
 │ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33       │
 │ Base      [..                                    ]       │
+│ Target    master                                         │
 │ Branches  flux-capacitor-power                           │
 │ Commits   ahead 1, behind 0                              │
 │ Status    open                                           │
@@ -192,6 +194,7 @@ $ rad patch show aa45913
 │ Labels    fun                                            │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66       │
 │ Base      [..                                    ]       │
+│ Target    master                                         │
 │ Branches  flux-capacitor-power, patch/aa45913            │
 │ Commits   ahead 2, behind 0                              │
 │ Status    open                                           │
@@ -225,6 +228,7 @@ $ rad patch show aa45913
 │ Labels    fun                                            │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66       │
 │ Base      [..                                    ]       │
+│ Target    master                                         │
 │ Branches  flux-capacitor-power, patch/aa45913            │
 │ Commits   ahead 2, behind 0                              │
 │ Status    open                                           │
