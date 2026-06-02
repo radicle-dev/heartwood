@@ -72,12 +72,10 @@ pub struct SignedRefsWriter<'a, R, S> {
 impl<'a, R, S> SignedRefsWriter<'a, R, S>
 where
     R: object::Writer
-        + object::Writer
-        + object::Reader
         + object::Reader
         + reference::Writer
-        + repository::reference::Reader
-        + reference::Reader,
+        + reference::Reader
+        + repository::reference::Reader,
     S: Signer<crypto::Signature>,
     S: signature::Verifier<crypto::Signature>,
 {
