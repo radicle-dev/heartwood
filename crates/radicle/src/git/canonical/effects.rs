@@ -48,15 +48,19 @@ where
                     objects.insert(*did, object);
                 }
                 Ok(None) => {
-                    // TODO(finto): this leaks the abstraction that we are using `refs/namespaces/<nid>`
-                    let name = self.refname.with_namespace(did.as_key().into());
-                    missing.insert(name.to_owned());
+                    missing.insert(
+                        user::Refname::new(*did, self.refname.to_owned())
+                            .to_namespaced()
+                            .to_owned(),
+                    );
                     continue;
                 }
                 Err(e) => {
-                    // TODO(finto): this leaks the abstraction that we are using `refs/namespaces/<nid>`
-                    let name = self.refname.with_namespace(did.as_key().into());
-                    return Err(FindObjectsError::find_reference(name.to_owned(), e));
+                    let name = user::Refname::new(*did, self.refname.to_owned());
+                    return Err(FindObjectsError::find_reference(
+                        name.to_namespaced().to_owned(),
+                        e,
+                    ));
                 }
             }
         }

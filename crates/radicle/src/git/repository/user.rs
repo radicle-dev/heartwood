@@ -23,6 +23,26 @@ use super::ObjectKind;
 use super::types::Object;
 use super::{object, reference};
 
+/// A Git reference belonging to a specific user.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Refname {
+    pub did: Did,
+    pub name: Qualified<'static>,
+}
+
+impl Refname {
+    /// Create a new UserReference.
+    pub fn new(did: Did, name: Qualified<'static>) -> Self {
+        Self { did, name }
+    }
+
+    /// Convert to the underlying Git namespaced string.
+    pub fn to_namespaced(&self) -> fmt::Namespaced<'_> {
+        self.name
+            .with_namespace(fmt::Component::from(self.did.as_key()))
+    }
+}
+
 /// The set of references that exist for a user.
 ///
 /// See [`Namespace::references`].
