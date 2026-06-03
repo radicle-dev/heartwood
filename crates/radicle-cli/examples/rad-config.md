@@ -69,7 +69,7 @@ $ rad config schema
       "default": "https://radicle.network/nodes/$host/$rid$path"
     },
     "preferredSeeds": {
-      "description": "Preferred seeds. These seeds will be used for explorer links/nand in other situations when a seed needs to be chosen.",
+      "description": "Preferred seeds. These seeds will be used for explorer links\nand in other situations when a seed needs to be chosen.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/ConnectAddress"
@@ -146,7 +146,7 @@ $ rad config schema
       }
     },
     "Pinned": {
-      "description": "Pinned content. This can be used to pin certain content when/nlisting, e.g. pin repositories on a web client.",
+      "description": "Pinned content. This can be used to pin certain content when\nlisting, e.g. pin repositories on a web client.",
       "type": "object",
       "properties": {
         "repositories": {
@@ -217,7 +217,7 @@ $ rad config schema
           }
         },
         "connect": {
-          "description": "Peers to connect to on startup./nConnections to these peers will be maintained.",
+          "description": "Peers to connect to on startup.\nConnections to these peers will be maintained.",
           "type": "array",
           "uniqueItems": true,
           "items": {
@@ -312,7 +312,7 @@ $ rad config schema
           "$ref": "#/$defs/Fetch"
         },
         "secret": {
-          "description": "Path to a file containing an Ed25519 secret key, in OpenSSH format, i.e./nwith the `-----BEGIN OPENSSH PRIVATE KEY-----` header. The corresponding/npublic key will be used as the Node ID./n/nA decryption password cannot be configured, but passed at runtime via/nthe environment variable `RAD_PASSPHRASE`.",
+          "description": "Path to a file containing an Ed25519 secret key, in OpenSSH format, i.e.\nwith the `-----BEGIN OPENSSH PRIVATE KEY-----` header. The corresponding\npublic key will be used as the Node ID.\n\nA decryption password cannot be configured, but passed at runtime via\nthe environment variable `RAD_PASSPHRASE`.",
           "type": [
             "string",
             "null"
@@ -337,7 +337,7 @@ $ rad config schema
         "/radicle:1.9.0/",
         "/example:42.0.0/other-client:2.3.4/"
       ],
-      "pattern": "^/([^:///s]+((:[^:///s]+))?/)+$"
+      "pattern": "^/([^:/\\s]+((:[^:/\\s]+))?/)+$"
     },
     "PeerConfig": {
       "description": "Peer configuration.",
@@ -403,7 +403,7 @@ $ rad config schema
           ]
         },
         {
-          "description": "Forward address to the next layer. Either this is the global proxy,/nor the operating system, via DNS.",
+          "description": "Forward address to the next layer. Either this is the global proxy,\nor the operating system, via DNS.",
           "type": "object",
           "properties": {
             "mode": {
@@ -578,16 +578,16 @@ $ rad config schema
       ]
     },
     "RateLimit": {
-      "description": "Rate limits for a single connection./n/nRate limiting uses a token bucket for each peer. The capacity of the bucket/nis defined by [`RateLimit::capacity`], and refill rate of the bucket is/ndefined by [`RateLimit::fill_rate`].",
+      "description": "Rate limits for a single connection.\n\nRate limiting uses a token bucket for each peer. The capacity of the bucket\nis defined by [`RateLimit::capacity`], and refill rate of the bucket is\ndefined by [`RateLimit::fill_rate`].",
       "type": "object",
       "properties": {
         "fillRate": {
-          "description": "The fill rate of the token bucket, refills tokens based on the elapsed/ntime, in seconds./n/nFor example, if the fill rate is `0.2`, this is equivalent to 1 token/nper 5 seconds (0.2 × 5 = 1).",
+          "description": "The fill rate of the token bucket, refills tokens based on the elapsed\ntime, in seconds.\n\nFor example, if the fill rate is `0.2`, this is equivalent to 1 token\nper 5 seconds (0.2 × 5 = 1).",
           "type": "number",
           "format": "double"
         },
         "capacity": {
-          "description": "The capacity of the token bucket, is the maximum number of tokens the bucket can hold./nThe bucket starts with the given capacity as the number of tokens./nFor each connection attempt, a token is removed from the bucket, while/nthe fill rate adds tokens back to the bucket./n/nFor example, a capacity of 3 will allow 3 connection attempts from a/ngiven peer. If 3 attempts are made before the bucket refills, i.e. the/npeer attempted connections in quick succession, then the third attempt/nwill be rejected.",
+          "description": "The capacity of the token bucket, is the maximum number of tokens the bucket can hold.\nThe bucket starts with the given capacity as the number of tokens.\nFor each connection attempt, a token is removed from the bucket, while\nthe fill rate adds tokens back to the bucket.\n\nFor example, a capacity of 3 will allow 3 connection attempts from a\ngiven peer. If 3 attempts are made before the bucket refills, i.e. the\npeer attempted connections in quick succession, then the third attempt\nwill be rejected.",
           "type": "integer",
           "format": "uint",
           "minimum": 0
@@ -619,13 +619,13 @@ $ rad config schema
       }
     },
     "FetchPackSizeLimit": {
-      "description": "Limiter for byte streams./n/nDefault: 500MiB",
+      "description": "Limiter for byte streams.\n\nDefault: 500MiB",
       "$ref": "#/$defs/ByteSize"
     },
     "ByteSize": {
       "description": "Byte quantities using unit prefixes according to SI or ISO/IEC 80000-13.",
       "type": "string",
-      "pattern": "^//d+(//.//d+)? ((K|M|G|T|P)i?B?|B)$",
+      "pattern": "^\\d+(\\.\\d+)? ((K|M|G|T|P)i?B?|B)$",
       "examples": [
         "7 G",
         "50.3 TiB",
@@ -711,7 +711,7 @@ $ rad config schema
       }
     },
     "Pragma": {
-      "description": "Global SQLite pragma statements to make in order to configure SQLite itself,/nsee <https://sqlite.org/pragma.html>.",
+      "description": "Global SQLite pragma statements to make in order to configure SQLite itself,\nsee <https://sqlite.org/pragma.html>.",
       "type": "object",
       "properties": {
         "journalMode": {
@@ -723,7 +723,7 @@ $ rad config schema
       }
     },
     "JournalMode": {
-      "description": "Value for a `journal_mode` pragma statement./nFor a description of all variants please refer to/n<https://sqlite.org/pragma.html#pragma_journal_mode>./nNote that when SQLite documentation talks about /"the application/",/nthe application linked against this crate, e.g. Radicle Node, Radicle CLI,/nand others, is meant.",
+      "description": "Value for a `journal_mode` pragma statement.\nFor a description of all variants please refer to\n<https://sqlite.org/pragma.html#pragma_journal_mode>.\nNote that when SQLite documentation talks about \"the application\",\nthe application linked against this crate, e.g. Radicle Node, Radicle CLI,\nand others, is meant.",
       "type": "string",
       "enum": [
         "DELETE",
@@ -735,7 +735,7 @@ $ rad config schema
       ]
     },
     "Synchronous": {
-      "description": "Value for a `synchronous` pragma statement./nFor a description of all variants please refer to/n<https://sqlite.org/pragma.html#pragma_synchronous>.",
+      "description": "Value for a `synchronous` pragma statement.\nFor a description of all variants please refer to\n<https://sqlite.org/pragma.html#pragma_synchronous>.",
       "type": "string",
       "enum": [
         "EXTRA",
@@ -745,7 +745,7 @@ $ rad config schema
       ]
     },
     "Fetch": {
-      "description": "Configuration for fetching repositories from/nother nodes.",
+      "description": "Configuration for fetching repositories from\nother nodes.",
       "type": "object",
       "properties": {
         "signedReferences": {
@@ -765,16 +765,16 @@ $ rad config schema
       "type": "object",
       "properties": {
         "minimum": {
-          "description": "The minimum feature level required to accept incoming/nreferences from other users. This value is compared/nagainst the feature level detected on refs as they are/nfetched./n/nNote that by increasing this value, security can be/ntraded for compatibility. The higher the value,/nthe less backward compatible, but the more secure, fetches will be.",
+          "description": "The minimum feature level required to accept incoming\nreferences from other users. This value is compared\nagainst the feature level detected on refs as they are\nfetched.\n\nNote that by increasing this value, security can be\ntraded for compatibility. The higher the value,\nthe less backward compatible, but the more secure, fetches will be.",
           "$ref": "#/$defs/FeatureLevel"
         }
       }
     },
     "FeatureLevel": {
-      "description": "The Signed References feature has evolved over time./nThis enum captures the corresponding /"feature level/"./n/nFeature levels are monotonic, in the sense that a greater feature level/nencompasses all the features of smaller ones.",
+      "description": "The Signed References feature has evolved over time.\nThis enum captures the corresponding \"feature level\".\n\nFeature levels are monotonic, in the sense that a greater feature level\nencompasses all the features of smaller ones.",
       "oneOf": [
         {
-          "description": "The lowest feature level, with least security. It is vulnerable to/ngraft attacks and replay attacks.",
+          "description": "The lowest feature level, with least security. It is vulnerable to\ngraft attacks and replay attacks.",
           "type": "string",
           "const": "none"
         },

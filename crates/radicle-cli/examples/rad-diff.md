@@ -45,7 +45,7 @@ index 0000000..aae4e0e
 +#include <stdio.h>
 +
 +int main(void) {
-+    printf("Hello World!/n");
++    printf("Hello World!\n");
 +    return 0;
 +}
 ```
@@ -61,8 +61,8 @@ index aae4e0e..a3ed869 100644
  #include <stdio.h>
  
  int main(void) {
--    printf("Hello World!/n");
-+    printf("Hello Radicle!/n");
+-    printf("Hello World!\n");
++    printf("Hello Radicle!\n");
      return 0;
  }
 ```
@@ -79,8 +79,8 @@ index aae4e0e..a3ed869 100644
  #include <stdio.h>
  
  int main(void) {
--    printf("Hello World!/n");
-+    printf("Hello Radicle!/n");
+-    printf("Hello World!\n");
++    printf("Hello Radicle!\n");
      return 0;
  }
 ```
@@ -97,7 +97,7 @@ index aae4e0e..0000000
 -#include <stdio.h>
 -
 -int main(void) {
--    printf("Hello World!/n");
+-    printf("Hello World!\n");
 -    return 0;
 -}
 ```

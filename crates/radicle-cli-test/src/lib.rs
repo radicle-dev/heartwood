@@ -399,7 +399,9 @@ impl TestFormula {
     }
 
     pub fn run(&mut self) -> Result<bool, io::Error> {
-        let assert = Assert::new().redact_with(self.subs.clone());
+        let assert = Assert::new()
+            .normalize_paths(false)
+            .redact_with(self.subs.clone());
         let mut runner = TestRunner::new(self);
 
         fs::create_dir_all(&self.cwd)?;
