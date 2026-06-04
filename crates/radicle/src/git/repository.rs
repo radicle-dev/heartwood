@@ -12,6 +12,7 @@
 //! [`reference`]: self::reference
 
 pub mod ancestry;
+pub mod canonical;
 pub mod object;
 pub mod reference;
 pub mod revwalk;
