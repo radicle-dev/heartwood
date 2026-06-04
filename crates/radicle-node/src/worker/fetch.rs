@@ -351,6 +351,7 @@ fn set_canonical_refs(
     }
 
     let rules = crefs.rules().clone();
+    let canonical_svc = git::repository::canonical::Service::new(repo, rules);
 
     let mut updated_refs = UpdatedCanonicalRefs::default();
     let refnames = applied
@@ -367,42 +368,20 @@ fn set_canonical_refs(
         .collect::<BTreeSet<_>>();
 
     for name in refnames {
-        let canonical = match rules.canonical(name.clone(), repo) {
-            Some(canonical) => canonical,
-            None => continue,
-        };
+        if !canonical_svc.is_canonical(&name) {
+            continue;
+        }
 
-        let canonical = match canonical.find_objects() {
-            Err(err) => {
-                log::warn!(target: "worker", "Failed to find objects for canonical computation of `{name}`: {err}");
-                continue;
+        match canonical_svc.reevaluate(&name, LOG_MESSAGE) {
+            Ok(Some(obj)) => {
+                updated_refs.updated(name, obj.id());
             }
-            Ok(canonical) => canonical,
-        };
-
-        match canonical.quorum() {
+            Ok(None) => {}
             Err(err) => {
                 log::warn!(
                     target: "worker",
-                    "Failed to calculate canonical reference `{name}`: {err}",
+                    "Failed to reevaluate canonical reference `{name}`: {err}",
                 );
-                continue;
-            }
-            Ok(git::canonical::Quorum {
-                refname, object, ..
-            }) => {
-                let oid = object.id();
-                if let Err(e) =
-                    repo.backend
-                        .reference(refname.clone().as_str(), oid.into(), true, LOG_MESSAGE)
-                {
-                    log::warn!(
-                        target: "worker",
-                        "Failed to set canonical reference {refname}->{oid}: {e}"
-                    );
-                } else {
-                    updated_refs.updated(refname, oid);
-                }
             }
         }
     }

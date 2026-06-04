@@ -105,13 +105,13 @@ pub(super) enum Error {
     #[error(transparent)]
     Quorum(#[from] radicle::git::canonical::error::QuorumError),
     #[error(transparent)]
+    CanonicalUpdate(#[from] git::repository::canonical::error::Update),
+    #[error(transparent)]
     CanonicalRefs(#[from] radicle::identity::doc::CanonicalRefsError),
     #[error(transparent)]
     PushAction(#[from] error::PushAction),
     #[error(transparent)]
     Canonical(#[from] error::CanonicalUnrecoverable),
-    #[error("could not determine object type for {oid}")]
-    UnknownObjectType { oid: git::Oid },
     #[error(transparent)]
     FindObjects(#[from] git::canonical::error::FindObjectsError),
 
@@ -373,16 +373,16 @@ pub(super) fn run(
                         //
                         // Note that we *do* allow rolling back to a previous commit on the
                         // canonical branch.
-                        if let Some(canonical) = rules.canonical(dst.clone(), stored) {
-                            let object = working
-                                .find_object(src.into(), None)
-                                .map(|obj| git::canonical::Object::new(&obj))?
-                                .ok_or(Error::UnknownObjectType { oid: *src })?;
-
-                            let canonical = canonical::Canonical::new(me, object, canonical)?;
-                            match canonical.quorum() {
-                                Ok(quorum) => set_canonical_refs.push(quorum),
-                                Err(e) => canonical::io::handle_error(e)?,
+                        let canonical_svc =
+                            git::repository::canonical::Service::new(stored.raw(), rules.clone());
+                        if canonical_svc.is_canonical(&dst) {
+                            match canonical_svc.propose(&dst, *src, me, LOG_MESSAGE) {
+                                Ok(Some(obj)) => set_canonical_refs.push((dst.clone(), obj)),
+                                Ok(None) => {}
+                                Err(git::repository::canonical::error::Update::Quorum(e)) => {
+                                    canonical::io::handle_error(e)?
+                                }
+                                Err(e) => return Err(Error::from(e)),
                             }
                         }
                         Ok(explorer)
@@ -411,33 +411,12 @@ pub(super) fn run(
         for (refname, object) in &set_canonical_refs {
             let oid = object.id();
             let kind = object.object_type();
-            let print_update = || {
-                eprintln!(
-                    "{} Canonical reference {} updated to target {kind} {}",
-                    term::PREFIX_SUCCESS,
-                    term::format::secondary(refname),
-                    term::format::secondary(oid),
-                )
-            };
-
-            match stored.backend.refname_to_id(refname.as_str()) {
-                Ok(new) if oid != new => {
-                    stored
-                        .backend
-                        .reference(refname.as_str(), oid.into(), true, LOG_MESSAGE)?;
-                    print_update();
-                }
-                Err(e) if e.code() == git::raw::ErrorCode::NotFound => {
-                    stored.backend.reference(
-                        refname.as_str(),
-                        oid.into(),
-                        true,
-                        "set-canonical-reference from git-push (radicle)",
-                    )?;
-                    print_update();
-                }
-                _ => {}
-            }
+            eprintln!(
+                "{} Canonical reference {} updated to target {kind} {}",
+                term::PREFIX_SUCCESS,
+                term::format::secondary(refname),
+                term::format::secondary(oid),
+            );
         }
 
         if !opts.no_sync {
