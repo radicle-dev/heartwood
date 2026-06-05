@@ -8,7 +8,7 @@ use radicle::test::fixtures;
 
 #[test]
 fn rad_cob_update() {
-    Environment::alice(["rad-init", "rad-cob-log"]);
+    Environment::alice(["rad-init", "rad-cob-update"]);
 }
 
 #[test]
