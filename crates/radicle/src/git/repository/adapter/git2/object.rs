@@ -66,12 +66,12 @@ impl object::Reader for raw::Repository {
             .map_err(error::read::Exists::backend)
     }
 
-    fn object_kind(&self, oid: Oid) -> Result<Option<ObjectKind>, read::ObjectKind> {
-        let odb = self.odb().map_err(read::ObjectKind::backend)?;
+    fn object_kind(&self, oid: Oid) -> Result<Option<ObjectKind>, error::read::ObjectKind> {
+        let odb = self.odb().map_err(error::read::ObjectKind::backend)?;
         match odb.read(oid.into()) {
             Ok(obj) => Ok(Some(object_kind(obj.kind()))),
             Err(e) if matches!(e.code(), git2::ErrorCode::NotFound) => Ok(None),
-            Err(e) => Err(read::ObjectKind::backend(e)),
+            Err(e) => Err(error::read::ObjectKind::backend(e)),
         }
     }
 }
