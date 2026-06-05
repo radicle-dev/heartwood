@@ -41,22 +41,22 @@ Let's look at the patch, to see what it looks like before editing it:
 
 ```
 $ rad patch show 89f7afb
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title     Add README, just for the fun                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
-│ Author    alice (you)                                               │
-│ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
-│ Base      [..                                                     ] │
-│ Branches  changes                                                   │
-│ Commits   ahead 2, behind 0                                         │
-│ Status    open                                                      │
-├─────────────────────────────────────────────────────────────────────┤
-│ 8945f61 Define the LICENSE                                          │
-│ 03c02af Add README, just for the fun                                │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
-╰─────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────╮
+│ Title     Add README, just for the fun                   │
+│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2       │
+│ Author    alice (you)                                    │
+│ Head      8945f6189adf027892c85ac57f7e9341049c2537       │
+│ Base      [..                                    ]       │
+│ Branches  changes                                        │
+│ Commits   ahead 2, behind 0                              │
+│ Status    open                                           │
+├──────────────────────────────────────────────────────────┤
+│ 8945f61 Define the LICENSE                               │
+│ 03c02af Add README, just for the fun                     │
+├──────────────────────────────────────────────────────────┤
+│ ● Revision 89f7afb @ f2de534..03c02af by alice (you) now │
+│ ↑ Revision 5d78dd5 @ f2de534..8945f61 by alice (you) now │
+╰──────────────────────────────────────────────────────────╯
 ```
 
 We can change the title and description of the patch itself by using a
@@ -65,24 +65,24 @@ multi-line message (using two `--message` options here):
 ```
 $ rad patch edit 89f7afb --message "Add Metadata" --message "Add README & LICENSE" --no-announce
 $ rad patch show 89f7afb
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title     Add Metadata                                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
-│ Author    alice (you)                                               │
-│ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
-│ Base      [..                                                     ] │
-│ Branches  changes                                                   │
-│ Commits   ahead 2, behind 0                                         │
-│ Status    open                                                      │
-│                                                                     │
-│ Add README & LICENSE                                                │
-├─────────────────────────────────────────────────────────────────────┤
-│ 8945f61 Define the LICENSE                                          │
-│ 03c02af Add README, just for the fun                                │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
-╰─────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────╮
+│ Title     Add Metadata                                   │
+│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2       │
+│ Author    alice (you)                                    │
+│ Head      8945f6189adf027892c85ac57f7e9341049c2537       │
+│ Base      [..                                    ]       │
+│ Branches  changes                                        │
+│ Commits   ahead 2, behind 0                              │
+│ Status    open                                           │
+│                                                          │
+│ Add README & LICENSE                                     │
+├──────────────────────────────────────────────────────────┤
+│ 8945f61 Define the LICENSE                               │
+│ 03c02af Add README, just for the fun                     │
+├──────────────────────────────────────────────────────────┤
+│ ● Revision 89f7afb @ f2de534..03c02af by alice (you) now │
+│ ↑ Revision 5d78dd5 @ f2de534..8945f61 by alice (you) now │
+╰──────────────────────────────────────────────────────────╯
 ```
 
 We prepare the file `revision-edit.json` which contains one action (thus one line) to be applied.
@@ -100,24 +100,24 @@ specifying the new description.
 $ rad cob update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object 89f7afb1511b976482b21f6b2f39aef7f4fb88a2 --message "Edit patch" revision-edit.jsonl
 79b816e92735c49b33d93a31890fdf040b36234c
 $ rad patch show --verbose 89f7afb
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title     Add Metadata                                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
-│ Author    alice (you)                                               │
-│ Head      8945f6189adf027892c85ac57f7e9341049c2537                  │
-│ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                  │
-│ Branches  changes                                                   │
-│ Commits   ahead 2, behind 0                                         │
-│ Status    open                                                      │
-│                                                                     │
-│ Add README and LICENSE                                              │
-├─────────────────────────────────────────────────────────────────────┤
-│ 8945f61 Define the LICENSE                                          │
-│ 03c02af Add README, just for the fun                                │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
-╰─────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Title     Add Metadata                                                                                                                                               │
+│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                                                                                                                   │
+│ Author    alice (you)                                                                                                                                                │
+│ Head      8945f6189adf027892c85ac57f7e9341049c2537                                                                                                                   │
+│ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                                                                                                                   │
+│ Branches  changes                                                                                                                                                    │
+│ Commits   ahead 2, behind 0                                                                                                                                          │
+│ Status    open                                                                                                                                                       │
+│                                                                                                                                                                      │
+│ Add README and LICENSE                                                                                                                                               │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 8945f61 Define the LICENSE                                                                                                                                           │
+│ 03c02af Add README, just for the fun                                                                                                                                 │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ● Revision 89f7afb1511b976482b21f6b2f39aef7f4fb88a2 with range f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354..03c02af4b12a593d17a06d38fae50a57fc3c339a by alice (you) now │
+│ ↑ Revision 5d78dd5376453e25df5988ec86951c99cb73742c with range f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354..8945f6189adf027892c85ac57f7e9341049c2537 by alice (you) now │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Notice that the patch now has the description `Add README and LICENSE`.
@@ -158,24 +158,24 @@ Now we can invoke `rad cob update`:
 $ rad cob update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object 89f7afb1511b976482b21f6b2f39aef7f4fb88a2 --message "Create new revision" revision.jsonl
 2da9c025a1d14d93c4f2cec60a7878afbc5e2a3c
 $ rad patch show 89f7afb
-╭─────────────────────────────────────────────────────────────────────╮
-│ Title     Add Metadata                                              │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2                  │
-│ Author    alice (you)                                               │
-│ Head      f1339dd109e538c6b3a7fed3e72403e1b4db08c9                  │
-│ Base      [..                                                     ] │
-│ Branches  changes                                                   │
-│ Commits   ahead 3, behind 0                                         │
-│ Status    open                                                      │
-│                                                                     │
-│ Add README and LICENSE                                              │
-├─────────────────────────────────────────────────────────────────────┤
-│ f1339dd Dummy commit for a new revision                             │
-│ 8945f61 Define the LICENSE                                          │
-│ 03c02af Add README, just for the fun                                │
-├─────────────────────────────────────────────────────────────────────┤
-│ ● opened by alice (you) (03c02af) now                               │
-│ ↑ updated to 5d78dd5376453e25df5988ec86951c99cb73742c (8945f61) now │
-│ ↑ updated to 2da9c025a1d14d93c4f2cec60a7878afbc5e2a3c (f1339dd) now │
-╰─────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────╮
+│ Title     Add Metadata                                   │
+│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2       │
+│ Author    alice (you)                                    │
+│ Head      f1339dd109e538c6b3a7fed3e72403e1b4db08c9       │
+│ Base      [..                                    ]       │
+│ Branches  changes                                        │
+│ Commits   ahead 3, behind 0                              │
+│ Status    open                                           │
+│                                                          │
+│ Add README and LICENSE                                   │
+├──────────────────────────────────────────────────────────┤
+│ f1339dd Dummy commit for a new revision                  │
+│ 8945f61 Define the LICENSE                               │
+│ 03c02af Add README, just for the fun                     │
+├──────────────────────────────────────────────────────────┤
+│ ● Revision 89f7afb @ f2de534..03c02af by alice (you) now │
+│ ↑ Revision 5d78dd5 @ f2de534..8945f61 by alice (you) now │
+│ ↑ Revision 2da9c02 @ f2de534..f1339dd by alice (you) now │
+╰──────────────────────────────────────────────────────────╯
 ```
