@@ -1402,6 +1402,48 @@ fn test_maintain_connections_failed_attempt() {
 }
 
 #[test]
+fn test_maintain_connections_same_second_loop() {
+    use std::io;
+    use std::sync::Arc;
+
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let reason = DisconnectReason::Dial(Arc::new(io::Error::from(io::ErrorKind::HostUnreachable)));
+
+    alice.connect_to(&eve);
+
+    // Advance clock to make the connection stable.
+    // This triggers `idle_connections` which sets `last_success` in the DB to the current time (T).
+    alice.elapse(session::CONNECTION_STABLE_THRESHOLD);
+
+    // Eve disconnects.
+    // This triggers `maintain_connections`.
+    alice.disconnected(eve.id(), Link::Outbound, &reason);
+
+    let connects = alice
+        .outbox()
+        .filter(|o| matches!(o, Io::Connect(id, _) if id == &eve.id))
+        .count();
+    assert_eq!(connects, 1, "Alice should attempt to reconnect once");
+
+    // Simulate the dial failing instantly.
+    // We DO NOT advance the clock. We just call disconnected again.
+    // This triggers `maintain_connections` again.
+    // Now `last_success` is T, and `last_attempt` is T.
+    alice.disconnected(eve.id(), Link::Outbound, &reason);
+
+    // Check if Alice tries to connect again in the exact same second.
+    let immediate_retry = alice
+        .outbox()
+        .any(|o| matches!(o, Io::Connect(id, _) if id == eve.id));
+
+    assert!(
+        !immediate_retry,
+        "Alice immediately retried a connection when last_success == last_attempt"
+    );
+}
+
+#[test]
 fn test_seed_repo_subscribe() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let bob = Peer::new("bob", [8, 8, 8, 8]);

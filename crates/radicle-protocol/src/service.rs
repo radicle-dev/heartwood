@@ -2579,7 +2579,7 @@ where
                         // If we succeeded the last time we tried, this is a good address.
                         // If it's been long enough that we failed to connect, we also try again.
                         (Some(success), Some(attempt)) => {
-                            success >= attempt || now - attempt >= CONNECTION_RETRY_DELTA
+                            success > attempt || now - attempt >= CONNECTION_RETRY_DELTA
                         }
                         // If we haven't succeeded yet, and we waited long enough, we can try this address.
                         (None, Some(attempt)) => now - attempt >= CONNECTION_RETRY_DELTA,
