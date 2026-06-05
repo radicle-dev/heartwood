@@ -50,7 +50,7 @@ pub fn run(
         return Ok(());
     }
 
-    let mut table = Table::<10, term::Line>::new(TableOptions {
+    let mut table = Table::<11, term::Line>::new(TableOptions {
         spacing: 2,
         border: Some(term::colors::FAINT),
         ..TableOptions::default()
@@ -67,6 +67,7 @@ pub fn run(
         term::format::bold(String::from("+")).into(),
         term::format::bold(String::from("-")).into(),
         term::format::bold(String::from("Updated")).into(),
+        term::format::bold(String::from("Labels")).into(),
     ]);
     table.divider();
 
@@ -104,7 +105,7 @@ pub fn row(
     patch: &Patch,
     repository: &Repository,
     profile: &Profile,
-) -> anyhow::Result<[term::Line; 10]> {
+) -> anyhow::Result<[term::Line; 11]> {
     let state = patch.state();
     let (_, revision) = patch.latest();
     let (from, to) = revision.range();
@@ -137,6 +138,8 @@ pub fn row(
             }
         })
         .collect::<Vec<_>>();
+    let mut labels = patch.labels().map(|t| t.to_string()).collect::<Vec<_>>();
+    labels.sort();
 
     Ok([
         match state {
@@ -157,5 +160,6 @@ pub fn row(
             .dim()
             .italic()
             .into(),
+        term::format::secondary(labels.join(", ")).into(),
     ])
 }

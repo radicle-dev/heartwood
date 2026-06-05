@@ -45,11 +45,11 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 When listing, we see that it has one addition:
 ```
 $ rad patch list
-╭────────────────────────────────────────────────────────────────────────╮
-│ ●  ID       Title     Author         Reviews  Head     +   -   Updated │
-├────────────────────────────────────────────────────────────────────────┤
-│ ●  217f050  Add Alan  alice   (you)  -        5c88a79  +1  -0  now     │
-╰────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title     Author         Reviews  Head     +   -   Updated  Labels │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ ●  217f050  Add Alan  alice   (you)  -        5c88a79  +1  -0  now             │
+╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 When showing the patch, we see that it is `ahead 1, behind 1`, since master has

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Improvements
+
+- `rad patch list` includes a `Labels` column, showing any assigned labels to
+  the patch.
+
 ## Fixed Bugs
 
 - Previously, a delegate could push to the default branch, for the first time,
