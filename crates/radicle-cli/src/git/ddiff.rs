@@ -410,12 +410,15 @@ mod tests {
             "/tests/data/ddiff_hunk.diff"
         )))
         .unwrap();
-        assert_eq!(
+        // Lines are expected to match but line ending might differ depending
+        // on the platform.
+        assert!(
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/tests/data/ddiff_hunk.diff"
-            )),
-            ddiff.to_unified_string().unwrap()
+            ))
+            .lines()
+            .eq(ddiff.to_unified_string().unwrap().lines())
         );
     }
 }

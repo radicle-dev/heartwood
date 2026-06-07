@@ -626,9 +626,12 @@ mod test {
             "/tests/data/diff.diff"
         )))
         .unwrap();
-        assert_eq!(
-            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/diff.diff")),
-            diff_a.to_unified_string().unwrap()
+        // Lines are expected to match but line ending might differ depending
+        // on the platform.
+        assert!(
+            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/diff.diff"))
+                .lines()
+                .eq(diff_a.to_unified_string().unwrap().lines())
         );
     }
 
@@ -639,12 +642,15 @@ mod test {
             "/tests/data/diff_body.diff"
         )))
         .unwrap();
-        assert_eq!(
+        // Lines are expected to match but line ending might differ depending
+        // on the platform.
+        assert!(
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/tests/data/diff_body.diff"
-            )),
-            diff_content.to_unified_string().unwrap()
+            ))
+            .lines()
+            .eq(diff_content.to_unified_string().unwrap().lines())
         );
     }
 
