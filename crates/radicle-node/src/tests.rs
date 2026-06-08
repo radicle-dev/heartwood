@@ -92,9 +92,9 @@ fn test_inventory_decode() {
 
 #[test]
 fn test_ping_response() {
-    let mut alice = Peer::new("alice", [8, 8, 8, 8]);
-    let bob = Peer::new("bob", [9, 9, 9, 9]);
-    let eve = Peer::new("eve", [7, 7, 7, 7]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 8]);
+    let bob = Peer::new("bob", [198, 18, 0, 9]);
+    let eve = Peer::new("eve", [198, 18, 0, 7]);
 
     alice.connect_to(&bob);
     alice.receive(
@@ -127,8 +127,8 @@ fn test_ping_response() {
 
 #[test]
 fn test_disconnecting_unresponsive_peer() {
-    let mut alice = Peer::new("alice", [8, 8, 8, 8]);
-    let bob = Peer::new("bob", [9, 9, 9, 9]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 8]);
+    let bob = Peer::new("bob", [198, 18, 0, 9]);
 
     alice.connect_to(&bob);
     assert_eq!(1, alice.sessions().connected().count(), "bob connects");
@@ -141,8 +141,8 @@ fn test_disconnecting_unresponsive_peer() {
 
 #[test]
 fn test_redundant_connect() {
-    let mut alice = Peer::new("alice", [8, 8, 8, 8]);
-    let bob = Peer::new("bob", [9, 9, 9, 9]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 8]);
+    let bob = Peer::new("bob", [198, 18, 0, 9]);
     let opts = ConnectOptions::default();
 
     alice.command(Command::Connect(bob.id(), bob.address(), opts.clone()));
@@ -159,8 +159,8 @@ fn test_redundant_connect() {
 
 #[test]
 fn test_connection_kept_alive() {
-    let mut alice = Peer::new("alice", [8, 8, 8, 8]);
-    let mut bob = Peer::new("bob", [9, 9, 9, 9]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 8]);
+    let mut bob = Peer::new("bob", [198, 18, 0, 9]);
 
     let mut sim = Simulation::new(
         LocalTime::now(),
@@ -193,9 +193,9 @@ fn test_connection_kept_alive() {
 
 #[test]
 fn test_outbound_connection() {
-    let mut alice = Peer::new("alice", [8, 8, 8, 8]);
-    let bob = Peer::new("bob", [9, 9, 9, 9]);
-    let eve = Peer::new("eve", [7, 7, 7, 7]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 8]);
+    let bob = Peer::new("bob", [198, 18, 0, 9]);
+    let eve = Peer::new("eve", [198, 18, 0, 7]);
 
     alice.connect_to(&bob);
     alice.connect_to(&eve);
@@ -213,9 +213,9 @@ fn test_outbound_connection() {
 
 #[test]
 fn test_inbound_connection() {
-    let mut alice = Peer::new("alice", [8, 8, 8, 8]);
-    let bob = Peer::new("bob", [9, 9, 9, 9]);
-    let eve = Peer::new("eve", [7, 7, 7, 7]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 8]);
+    let bob = Peer::new("bob", [198, 18, 0, 9]);
+    let eve = Peer::new("eve", [198, 18, 0, 7]);
 
     alice.connect_from(&bob);
     alice.connect_from(&eve);
@@ -235,15 +235,15 @@ fn test_inbound_connection() {
 fn test_persistent_peer_connect() {
     use indexmap::IndexSet;
 
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
-    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let bob = Peer::new("bob", [198, 18, 0, 8]);
+    let eve = Peer::new("eve", [198, 18, 0, 9]);
     let connect = IndexSet::<ConnectAddress>::from_iter([
         (bob.id(), bob.address()).into(),
         (eve.id(), eve.address()).into(),
     ]);
     let mut alice = Peer::config(
         "alice",
-        [7, 7, 7, 7],
+        [198, 18, 0, 7],
         MockStorage::empty(),
         peer::Config {
             config: Config {
@@ -271,12 +271,12 @@ fn test_inventory_sync() {
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Peer::with_storage(
         "alice",
-        [7, 7, 7, 7],
+        [198, 18, 0, 7],
         Storage::open(tmp.path().join("alice"), fixtures::user()).unwrap(),
     );
     let bob_signer = Device::mock();
     let bob_storage = fixtures::storage(tmp.path().join("bob"), &bob_signer).unwrap();
-    let bob = Peer::with_storage("bob", [8, 8, 8, 8], bob_storage);
+    let bob = Peer::with_storage("bob", [198, 18, 0, 8], bob_storage);
     let now = LocalTime::now().into();
     let repos = bob.inventory().into_iter().collect::<Vec<_>>();
 
@@ -357,7 +357,7 @@ fn test_inventory_pruning() {
     for test in tests {
         let mut alice = Peer::config(
             "alice",
-            [7, 7, 7, 7],
+            [198, 18, 0, 7],
             MockStorage::empty(),
             peer::Config {
                 config: Config {
@@ -371,7 +371,7 @@ fn test_inventory_pruning() {
 
         let bob = Peer::config(
             "bob",
-            [8, 8, 8, 8],
+            [198, 18, 0, 8],
             MockStorage::empty(),
             peer::Config {
                 local_time: alice.local_time(),
@@ -383,7 +383,7 @@ fn test_inventory_pruning() {
         // Tell Alice about the amazing projects available
         alice.connect_to(&bob);
         for num_projs in test.peer_projects {
-            let peer = Peer::new("other", [9, 9, 9, 9]);
+            let peer = Peer::new("other", [198, 18, 0, 9]);
 
             alice.receive(bob.id(), peer.node_announcement());
             alice.receive(
@@ -413,7 +413,7 @@ fn test_inventory_pruning() {
 
 #[test]
 fn test_seeding() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 7]);
     let proj_id: identity::RepoId = test::arbitrary::r#gen(1);
 
     let (cmd, receiver) = Command::seed(proj_id, policy::Scope::default());
@@ -439,8 +439,8 @@ fn test_seeding() {
 
 #[test]
 fn test_inventory_relay_bad_timestamp() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 7]);
+    let bob = Peer::new("bob", [198, 18, 0, 8]);
     let two_hours = 3600 * 1000 * 2;
     let timestamp = alice.timestamp() + two_hours;
 
@@ -464,9 +464,9 @@ fn test_inventory_relay_bad_timestamp() {
 
 #[test]
 fn test_announcement_rebroadcast() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
-    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 7]);
+    let bob = Peer::new("bob", [198, 18, 0, 8]);
+    let eve = Peer::new("eve", [198, 18, 0, 9]);
 
     alice.connect_to(&bob);
     alice.connect_from(&eve);
@@ -500,10 +500,10 @@ fn test_announcement_rebroadcast() {
 
 #[test]
 fn test_announcement_rebroadcast_duplicates() {
-    let mut carol = Peer::new("carol", [4, 4, 4, 4]);
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
-    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let mut carol = Peer::new("carol", [198, 18, 0, 4]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 7]);
+    let bob = Peer::new("bob", [198, 18, 0, 8]);
+    let eve = Peer::new("eve", [198, 18, 0, 9]);
     let rids = arbitrary::set::<RepoId>(3..=3);
 
     carol.init();
@@ -567,9 +567,9 @@ fn test_announcement_rebroadcast_duplicates() {
 
 #[test]
 fn test_announcement_rebroadcast_timestamp_filtered() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
-    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 7]);
+    let bob = Peer::new("bob", [198, 18, 0, 8]);
+    let eve = Peer::new("eve", [198, 18, 0, 9]);
 
     alice.connect_to(&bob);
 
@@ -611,9 +611,9 @@ fn test_announcement_rebroadcast_timestamp_filtered() {
 
 #[test]
 fn test_announcement_relay() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
-    let mut bob = Peer::new("bob", [8, 8, 8, 8]);
-    let mut eve = Peer::new("eve", [9, 9, 9, 9]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 7]);
+    let mut bob = Peer::new("bob", [198, 18, 0, 8]);
+    let mut eve = Peer::new("eve", [198, 18, 0, 9]);
 
     alice.connect_to(&bob);
     alice.connect_to(&eve);
@@ -685,10 +685,10 @@ fn test_announcement_relay() {
 #[test]
 fn test_refs_announcement_relay_public() {
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], MockStorage::empty());
+    let mut alice = Peer::with_storage("alice", [198, 18, 0, 7], MockStorage::empty());
     let eve = Peer::with_storage(
         "eve",
-        [8, 8, 8, 8],
+        [198, 18, 0, 8],
         Storage::open(tmp.path().join("eve"), fixtures::user()).unwrap(),
     );
 
@@ -699,7 +699,7 @@ fn test_refs_announcement_relay_public() {
 
         Peer::config(
             "bob",
-            [9, 9, 9, 9],
+            [198, 18, 0, 9],
             storage,
             peer::Config {
                 signer,
@@ -769,10 +769,10 @@ fn test_refs_announcement_relay_public() {
 #[test]
 fn test_refs_announcement_relay_private() {
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], MockStorage::empty());
+    let mut alice = Peer::with_storage("alice", [198, 18, 0, 7], MockStorage::empty());
     let eve = Peer::with_storage(
         "eve",
-        [8, 8, 8, 8],
+        [198, 18, 0, 8],
         Storage::open(tmp.path().join("eve"), fixtures::user()).unwrap(),
     );
 
@@ -783,7 +783,7 @@ fn test_refs_announcement_relay_private() {
 
         Peer::config(
             "bob",
-            [9, 9, 9, 9],
+            [198, 18, 0, 9],
             storage,
             peer::Config {
                 signer,
@@ -860,7 +860,7 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Peer::with_storage(
         "alice",
-        [7, 7, 7, 7],
+        [198, 18, 0, 7],
         Storage::open(tmp.path().join("alice"), fixtures::user()).unwrap(),
     );
     let bob = {
@@ -870,7 +870,7 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
 
         Peer::config(
             "bob",
-            [9, 9, 9, 9],
+            [198, 18, 0, 9],
             storage,
             peer::Config {
                 signer,
@@ -905,8 +905,8 @@ fn test_refs_announcement_followed() {
     let storage_alice = arbitrary::nonempty_storage(1);
     let rid = *storage_alice.repos.keys().next().unwrap();
     let storage_bob = storage_alice.clone();
-    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage_alice);
-    let mut bob = Peer::with_storage("bob", [8, 8, 8, 8], storage_bob);
+    let mut alice = Peer::with_storage("alice", [198, 18, 0, 7], storage_alice);
+    let mut bob = Peer::with_storage("bob", [198, 18, 0, 8], storage_bob);
 
     let node_id = alice.id;
     let repo = alice.storage_mut().repo_mut(&rid);
@@ -957,9 +957,9 @@ fn test_refs_announcement_followed() {
 fn test_refs_announcement_no_subscribe() {
     let storage = arbitrary::nonempty_storage(1);
     let rid = *storage.repos.keys().next().unwrap();
-    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
-    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let mut alice = Peer::with_storage("alice", [198, 18, 0, 7], storage);
+    let bob = Peer::new("bob", [198, 18, 0, 8]);
+    let eve = Peer::new("eve", [198, 18, 0, 9]);
     let id = arbitrary::r#gen(1);
 
     alice.seed(&id, policy::Scope::All).unwrap();
@@ -979,7 +979,7 @@ fn test_refs_announcement_offline() {
 
         Peer::config(
             "alice",
-            [7, 7, 7, 7],
+            [198, 18, 0, 7],
             storage,
             peer::Config {
                 signer,
@@ -987,7 +987,7 @@ fn test_refs_announcement_offline() {
             },
         )
     };
-    let mut bob = Peer::new("bob", [8, 8, 8, 8]);
+    let mut bob = Peer::new("bob", [198, 18, 0, 8]);
 
     // Make sure alice's service wasn't initialized before.
     assert_eq!(*alice.clock(), LocalTime::default());
@@ -1077,9 +1077,9 @@ fn test_refs_announcement_offline() {
 #[test]
 fn test_inventory_relay() {
     // Topology is eve <-> alice <-> bob
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
-    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 7]);
+    let bob = Peer::new("bob", [198, 18, 0, 8]);
+    let eve = Peer::new("eve", [198, 18, 0, 9]);
     let inv = BoundedVec::try_from(arbitrary::vec(1)).unwrap();
     let now = LocalTime::now().into();
 
@@ -1188,11 +1188,11 @@ fn test_inventory_relay() {
 fn test_persistent_peer_reconnect_attempt() {
     use indexmap::IndexSet;
 
-    let mut bob = Peer::new("bob", [8, 8, 8, 8]);
-    let mut eve = Peer::new("eve", [9, 9, 9, 9]);
+    let mut bob = Peer::new("bob", [198, 18, 0, 8]);
+    let mut eve = Peer::new("eve", [198, 18, 0, 9]);
     let mut alice = Peer::config(
         "alice",
-        [7, 7, 7, 7],
+        [198, 18, 0, 7],
         MockStorage::empty(),
         peer::Config {
             config: Config {
@@ -1248,10 +1248,10 @@ fn test_persistent_peer_reconnect_attempt() {
 fn test_persistent_peer_reconnect_success() {
     use indexmap::IndexSet;
 
-    let bob = Peer::with_storage("bob", [9, 9, 9, 9], MockStorage::empty());
+    let bob = Peer::with_storage("bob", [198, 18, 0, 9], MockStorage::empty());
     let mut alice = Peer::config(
         "alice",
-        [7, 7, 7, 7],
+        [198, 18, 0, 7],
         MockStorage::empty(),
         peer::Config {
             config: Config {
@@ -1290,18 +1290,18 @@ fn test_persistent_peer_reconnect_success() {
 fn test_maintain_connections() {
     // Peers alice starts out connected to.
     let connected = [
-        Peer::new("connected", [8, 8, 8, 1]),
-        Peer::new("connected", [8, 8, 8, 2]),
-        Peer::new("connected", [8, 8, 8, 3]),
+        Peer::new("connected", [198, 18, 0, 81]),
+        Peer::new("connected", [198, 18, 0, 82]),
+        Peer::new("connected", [198, 18, 0, 83]),
     ];
     // Peers alice will connect to once the others disconnect.
     let mut unconnected = vec![
-        Peer::new("unconnected", [9, 9, 9, 1]),
-        Peer::new("unconnected", [9, 9, 9, 2]),
-        Peer::new("unconnected", [9, 9, 9, 3]),
+        Peer::new("unconnected", [198, 18, 0, 91]),
+        Peer::new("unconnected", [198, 18, 0, 92]),
+        Peer::new("unconnected", [198, 18, 0, 93]),
     ];
 
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 7]);
 
     for peer in connected.iter() {
         alice.connect_to(peer);
@@ -1339,11 +1339,11 @@ fn test_maintain_connections() {
 fn test_maintain_connections_transient() {
     // Peers alice starts out connected to.
     let connected = [
-        Peer::new("connected", [8, 8, 8, 1]),
-        Peer::new("connected", [8, 8, 8, 2]),
-        Peer::new("connected", [8, 8, 8, 3]),
+        Peer::new("connected", [198, 18, 0, 81]),
+        Peer::new("connected", [198, 18, 0, 82]),
+        Peer::new("connected", [198, 18, 0, 83]),
     ];
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 7]);
 
     for peer in connected.iter() {
         alice.connect_to(peer);
@@ -1365,8 +1365,8 @@ fn test_maintain_connections_transient() {
 
 #[test]
 fn test_maintain_connections_failed_attempt() {
-    let eve = Peer::new("eve", [9, 9, 9, 9]);
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let eve = Peer::new("eve", [198, 18, 0, 9]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 7]);
     let reason =
         DisconnectReason::Connection(Arc::new(io::Error::from(io::ErrorKind::ConnectionReset)));
 
@@ -1406,8 +1406,8 @@ fn test_maintain_connections_same_second_loop() {
     use std::io;
     use std::sync::Arc;
 
-    let eve = Peer::new("eve", [9, 9, 9, 9]);
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let eve = Peer::new("eve", [198, 18, 0, 9]);
+    let mut alice = Peer::new("alice", [192, 19, 0, 7]);
     let reason = DisconnectReason::Dial(Arc::new(io::Error::from(io::ErrorKind::HostUnreachable)));
 
     alice.connect_to(&eve);
@@ -1445,8 +1445,8 @@ fn test_maintain_connections_same_second_loop() {
 
 #[test]
 fn test_seed_repo_subscribe() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 7]);
+    let bob = Peer::new("bob", [198, 18, 0, 8]);
     let rid = arbitrary::r#gen::<RepoId>(1);
 
     alice.connect_to(&bob);
@@ -1467,8 +1467,8 @@ fn test_seed_repo_subscribe() {
 #[test]
 fn test_fetch_missing_inventory_on_gossip() {
     let rid = arbitrary::r#gen::<RepoId>(1);
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 7]);
+    let bob = Peer::new("bob", [198, 18, 0, 8]);
     let now = LocalTime::now();
 
     alice.seed(&rid, node::policy::Scope::All).unwrap();
@@ -1492,8 +1492,8 @@ fn test_fetch_missing_inventory_on_gossip() {
 #[test]
 fn test_fetch_missing_inventory_on_schedule() {
     let rid = arbitrary::r#gen::<RepoId>(1);
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let mut alice = Peer::new("alice", [198, 18, 0, 7]);
+    let bob = Peer::new("bob", [198, 18, 0, 8]);
     let now = LocalTime::now();
 
     alice.seed(&rid, node::policy::Scope::All).unwrap();
@@ -1531,8 +1531,8 @@ fn test_queued_fetch_max_capacity() {
     let rid2 = *repo_keys.next().unwrap();
     let rid3 = *repo_keys.next().unwrap();
     let doc = storage.repos.get(&rid1).unwrap().doc.clone();
-    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let mut alice = Peer::with_storage("alice", [198, 18, 0, 7], storage);
+    let bob = Peer::new("bob", [198, 18, 0, 8]);
 
     alice.connect_to(&bob);
 
@@ -1575,10 +1575,10 @@ fn test_queued_fetch_from_ann_same_rid() {
     let storage = arbitrary::nonempty_storage(1); // We're testing both public and private repos.
     let mut repo_keys = storage.repos.keys();
     let rid = *repo_keys.next().unwrap();
-    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
-    let eve = Peer::new("eve", [9, 9, 9, 9]);
-    let carol = Peer::new("carol", [10, 10, 10, 10]);
+    let mut alice = Peer::with_storage("alice", [198, 18, 0, 7], storage);
+    let bob = Peer::new("bob", [198, 18, 0, 8]);
+    let eve = Peer::new("eve", [198, 18, 0, 9]);
+    let carol = Peer::new("carol", [198, 18, 0, 10]);
     let oid = arbitrary::oid();
     let ann = RefsAnnouncement {
         rid,
@@ -1649,10 +1649,10 @@ fn test_queued_fetch_from_command_same_rid() {
     let storage = arbitrary::nonempty_storage(3);
     let mut repo_keys = storage.repos.keys();
     let rid1 = *repo_keys.next().unwrap();
-    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
-    let eve = Peer::new("eve", [9, 9, 9, 9]);
-    let carol = Peer::new("carol", [10, 10, 10, 10]);
+    let mut alice = Peer::with_storage("alice", [198, 18, 0, 7], storage);
+    let bob = Peer::new("bob", [198, 18, 0, 8]);
+    let eve = Peer::new("eve", [198, 18, 0, 9]);
+    let carol = Peer::new("carol", [198, 18, 0, 10]);
 
     alice.connect_to(&bob);
     alice.connect_to(&eve);
@@ -1708,9 +1708,9 @@ fn test_queued_fetch_from_command_same_rid() {
 fn test_refs_synced_event() {
     let temp = tempfile::tempdir().unwrap();
     let storage = Storage::open(temp.path(), fixtures::user()).unwrap();
-    let mut alice = Peer::with_storage("alice", [8, 8, 8, 8], storage.clone());
-    let bob = Peer::new("bob", [9, 9, 9, 9]);
-    let eve = Peer::with_storage("eve", [7, 7, 7, 7], storage);
+    let mut alice = Peer::with_storage("alice", [198, 18, 0, 8], storage.clone());
+    let bob = Peer::new("bob", [198, 18, 0, 9]);
+    let eve = Peer::with_storage("eve", [198, 18, 0, 7], storage);
     let acme = alice.project("acme", "");
     let events = alice.events();
     let ann = AnnouncementMessage::from(RefsAnnouncement {
@@ -1762,15 +1762,15 @@ fn test_init_and_seed() {
     )
     .unwrap();
     let (repo, _) = fixtures::repository(tempdir.path().join("working"));
-    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage_alice);
+    let mut alice = Peer::with_storage("alice", [198, 18, 0, 7], storage_alice);
 
     let storage_bob =
         Storage::open(tempdir.path().join("bob").join("storage"), fixtures::user()).unwrap();
-    let mut bob = Peer::with_storage("bob", [8, 8, 8, 8], storage_bob);
+    let mut bob = Peer::with_storage("bob", [198, 18, 0, 8], storage_bob);
 
     let storage_eve =
         Storage::open(tempdir.path().join("eve").join("storage"), fixtures::user()).unwrap();
-    let mut eve = Peer::with_storage("eve", [9, 9, 9, 9], storage_eve);
+    let mut eve = Peer::with_storage("eve", [198, 18, 0, 9], storage_eve);
 
     remote::mock::register(&alice.node_id(), alice.storage().path());
     remote::mock::register(&eve.node_id(), eve.storage().path());
@@ -1858,21 +1858,21 @@ fn prop_inventory_exchange_dense() {
         let rng = fastrand::Rng::new();
         let alice = Peer::with_storage(
             "alice",
-            [7, 7, 7, 7],
+            [198, 18, 0, 7],
             alice_inv
                 .clone()
                 .map(|doc| doc.visibility = Visibility::Public),
         );
         let mut bob = Peer::with_storage(
             "bob",
-            [8, 8, 8, 8],
+            [198, 18, 0, 8],
             bob_inv
                 .clone()
                 .map(|doc| doc.visibility = Visibility::Public),
         );
         let mut eve = Peer::with_storage(
             "eve",
-            [9, 9, 9, 9],
+            [198, 18, 0, 9],
             eve_inv
                 .clone()
                 .map(|doc| doc.visibility = Visibility::Public),
@@ -1961,11 +1961,11 @@ fn test_announcement_message_amplification() {
     let mut rng = fastrand::Rng::new();
 
     while results.len() < *TEST_CASES {
-        let mut alice = Peer::new("alice", [7, 7, 7, 7]);
-        let mut bob = Peer::new("bob", [8, 8, 8, 8]);
-        let mut eve = Peer::new("eve", [9, 9, 9, 9]);
-        let mut zod = Peer::new("zod", [5, 5, 5, 5]);
-        let mut tom = Peer::new("tom", [4, 4, 4, 4]);
+        let mut alice = Peer::new("alice", [198, 18, 0, 7]);
+        let mut bob = Peer::new("bob", [198, 18, 0, 8]);
+        let mut eve = Peer::new("eve", [198, 18, 0, 9]);
+        let mut zod = Peer::new("zod", [198, 18, 0, 5]);
+        let mut tom = Peer::new("tom", [198, 18, 0, 4]);
         let mut sim = Simulation::new(
             LocalTime::now(),
             alice.rng.clone(),
