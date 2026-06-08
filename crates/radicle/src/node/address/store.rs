@@ -697,7 +697,7 @@ mod test {
         let ua = UserAgent::default();
 
         let ka = KnownAddress {
-            addr: net::SocketAddr::from(([4, 4, 4, 4], 8776)).into(),
+            addr: net::SocketAddr::from(([198, 18, 0, 4], 8776)).into(),
             source: Source::Peer,
             last_success: None,
             last_attempt: None,
@@ -737,7 +737,7 @@ mod test {
         let ua = UserAgent::default();
 
         let ka = KnownAddress {
-            addr: net::SocketAddr::from(([4, 4, 4, 4], 8776)).into(),
+            addr: net::SocketAddr::from(([198, 18, 0, 4], 8776)).into(),
             source: Source::Peer,
             last_success: None,
             last_attempt: None,
@@ -767,7 +767,7 @@ mod test {
         let alias1 = Alias::new("alice");
         let alias2 = Alias::new("~alice~");
         let ka = KnownAddress {
-            addr: net::SocketAddr::from(([4, 4, 4, 4], 8776)).into(),
+            addr: net::SocketAddr::from(([198, 18, 0, 4], 8776)).into(),
             source: Source::Peer,
             last_success: None,
             last_attempt: None,
@@ -843,9 +843,9 @@ mod test {
         let bob_alias = Alias::new("bob");
 
         for addr in [
-            ([4, 4, 4, 4], 8776),
-            ([7, 7, 7, 7], 8776),
-            ([9, 9, 9, 9], 8776),
+            ([198, 18, 0, 4], 8776),
+            ([198, 18, 0, 7], 8776),
+            ([198, 18, 0, 9], 8776),
         ] {
             let ka = KnownAddress {
                 addr: net::SocketAddr::from(addr).into(),
@@ -968,8 +968,8 @@ mod test {
     fn test_disconnected_ban() {
         let alice = arbitrary::r#gen::<NodeId>(1);
         let ua = UserAgent::default();
-        let ip1: net::Ipv4Addr = [8, 8, 8, 8].into();
-        let ip2: net::Ipv4Addr = [9, 9, 9, 9].into();
+        let ip1: net::Ipv4Addr = [198, 18, 0, 8].into();
+        let ip2: net::Ipv4Addr = [198, 18, 0, 9].into();
         let ka1 = arbitrary::r#gen::<KnownAddress>(1);
         let ka1 = KnownAddress {
             addr: Address::from(NetAddr::new(ip1.into(), 8776)),
