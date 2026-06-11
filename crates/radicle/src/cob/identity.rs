@@ -2498,4 +2498,143 @@ mod test {
         assert_eq!(eve_identity.revision(&b1).unwrap().state, State::Accepted);
         assert_eq!(eve_identity.current, b1);
     }
+
+    /// Demonstrates that the re-evaluation of queued children by [`Identity::adopt`]
+    /// does not count votes from delegates who are no longer in the current delegate
+    /// set.
+    #[test]
+    fn queued_child_counts_non_delegate_votes() {
+        use crate::crypto::test::signer::MockSigner;
+        use crate::test::setup::{Node, NodeRepo};
+        use tempfile::tempdir;
+
+        // let majority: ℕ → ℕ = n ↦ (n / 2) + 1;
+
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+        let eve = &network.eve;
+
+        // Create Dave as a 4th participant.
+        let mut dave_node = Node::new(tempdir().unwrap(), MockSigner::from_seed([!3; 32]), "dave");
+        dave_node.clone(network.rid, alice);
+        let dave_repo = NodeRepo {
+            repo: dave_node.storage.repository(network.rid).unwrap(),
+            checkout: None,
+        };
+
+        // Revision A₁ lists 4 delegates: Alice, Bob, Eve, and Dave.
+        // Note that majority(4) = 3.
+        // Since alice is the only delegate, A₁ is immediately accepted
+        // and becomes the current revision.
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        alice_doc.delegate(eve.signer.public_key().into());
+        alice_doc.delegate(dave_node.signer.public_key().into());
+        let _a1 = alice_identity
+            .update(
+                cob::Title::new("A₁").unwrap(),
+                "Add Bob, Eve, and Dave",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        eve.repo.fetch(alice);
+        dave_repo.fetch(alice);
+
+        // Revision A₂ lists 3 delegates: Alice, Bob, and Eve. Compared to A₁
+        // (which had 4 delegates), Dave is not a delegate anymore.
+        // Note that majority(3) = 2, which is lower than for A₁.
+        let mut doc_a2 = alice_identity.doc().clone().edit();
+        doc_a2
+            .rescind(&dave_node.signer.public_key().into())
+            .unwrap();
+        let a2 = alice_identity
+            .update(
+                cob::Title::new("A₂").unwrap(),
+                "Remove Dave",
+                &doc_a2.clone().verified().unwrap(),
+            )
+            .unwrap();
+
+        // Revision A₃ only changes visibility.
+        // Note that at this point, A₁ still is the current revision, not
+        // A₂. Therefore, the majority threshold of the current revision is
+        // still 3 (for 4 delegates in A₁) not 2 (for 3 delegates in A₂).
+        let mut doc_a3 = doc_a2.clone();
+        doc_a3.visibility = Visibility::private([]);
+        let a3 = alice_identity
+            .transaction("A₃", |tx, repo| {
+                *tx = Transaction::new_revision(
+                    cob::Title::new("A₃").unwrap(),
+                    "Set visibility to private",
+                    &doc_a3.verified().unwrap(),
+                    Some(a2),
+                    repo,
+                    &alice.signer,
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        // Dave fetches and accepts A₃.
+        // Dave is a delegate in A₁, which is the current revision,
+        // so this is allowed.
+        dave_repo.fetch(alice);
+        let mut dave_identity = Identity::load_mut(&*dave_repo, &dave_node.signer).unwrap();
+        dave_identity.accept(&a3).unwrap();
+
+        // A₃ now has 2 accepting votes:
+        //  1. Alice (voted implicitly, since they created the revision)
+        //  2. Dave (voted explicitly)
+
+        // Bob accepts A₂.
+        bob.repo.fetch(alice);
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        bob_identity.accept(&a2).unwrap();
+
+        // Eve fetches from everyone and accepts A₂.
+        // A₂ reaches 3 accepting votes (by Alice, Bob, and Eve),
+        // thus is adopted and becomes the current revision.
+        //
+        // A₂'s doc: {Alice, Bob, Eve}, majority = 2.
+        //
+        // Re-evaluate A₃: accepted().count() = 2 (Alice + Dave).
+        // is_majority(2) with 3 delegates → 2 >= 2 → true. B1 adopted!
+        //
+        // BUG: Dave is NOT a delegate in A2's doc. His vote should not
+        // count towards the new quorum. Only Alice's vote is legitimate
+        // → 1 vote. 1 < 2. B1 should NOT be adopted.
+        //
+        //     A₃   [Accepted — but only 1 valid delegate vote!]
+        //     |
+        //     A₂   [Accepted, removes Dave]
+        //     |
+        //     A₁   [Accepted, 4 delegates]
+        //     |
+        //     A₀
+        eve.repo.fetch(alice);
+        eve.repo.fetch(bob);
+        eve.repo.fetch(&dave_node);
+        let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
+        eve_identity.accept(&a2).unwrap();
+
+        assert_eq!(eve_identity.revision(&a2).unwrap().state, State::Accepted);
+
+        // Verify Dave is not a delegate in the adopted revision doc.
+        assert!(
+            !eve_identity
+                .doc()
+                .is_delegate(&dave_node.signer.public_key().into())
+        );
+
+        // A₃ has 2 accepting votes (by Alice and Dave), but Dave is no longer
+        // a delegate according to A₂ doc. Only Alice's vote is counted, which
+        // leaves 1 vote.
+        // However, 1 < majority(2), so A₃ should not be adopted.
+        assert_eq!(eve_identity.revision(&a3).unwrap().state, State::Active);
+        assert_eq!(eve_identity.current, a2);
+    }
 }
