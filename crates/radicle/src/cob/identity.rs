@@ -2502,4 +2502,102 @@ mod test {
         assert_eq!(eve_identity.revision(&b1).unwrap().state, State::Accepted);
         assert_eq!(eve_identity.current, b1);
     }
+
+    /// Demonstrates that authorization to vote on a revision is strictly governed
+    /// by its parent, not by the currently accepted identity document.
+    #[test]
+    fn authorization_based_on_parent_not_current() {
+        use crate::crypto::test::signer::MockSigner;
+        use crate::test::setup::{Node, NodeRepo};
+        use tempfile::tempdir;
+
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+        let eve = &network.eve;
+
+        // Create Dave as a 4th participant.
+        let mut dave_node = Node::new(tempdir().unwrap(), MockSigner::from_seed([!3; 32]), "dave");
+        dave_node.clone(network.rid, alice);
+        let dave_repo = NodeRepo {
+            repo: dave_node.storage.repository(network.rid).unwrap(),
+            checkout: None,
+        };
+
+        // Revision A₁ lists 4 delegates: Alice, Bob, Eve, and Dave.
+        // Since alice is the only delegate initially, A₁ is immediately accepted
+        // and becomes the current revision.
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        alice_doc.delegate(eve.signer.public_key().into());
+        alice_doc.delegate(dave_node.signer.public_key().into());
+        let _a1 = alice_identity
+            .update(
+                cob::Title::new("A₁").unwrap(),
+                "Add Bob, Eve, and Dave",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+        eve.repo.fetch(alice);
+        dave_repo.fetch(alice);
+
+        // Revision A₂ lists 3 delegates: Alice, Bob, and Eve.
+        // Dave is removed in this proposal.
+        let mut doc_a2 = alice_identity.doc().clone().edit();
+        doc_a2
+            .rescind(&dave_node.signer.public_key().into())
+            .unwrap();
+        let a2 = alice_identity
+            .update(
+                cob::Title::new("A₂").unwrap(),
+                "Remove Dave",
+                &doc_a2.clone().verified().unwrap(),
+            )
+            .unwrap();
+
+        // Revision A₃ is a child of A₂.
+        // Note that at this point, A₁ is still the currently accepted revision,
+        // meaning Dave is a delegate according to the currently accepted revision.
+        let mut doc_a3 = doc_a2.clone();
+        doc_a3.visibility = Visibility::private([]);
+        let a3 = alice_identity
+            .transaction("A₃", |tx, repo| {
+                *tx = Transaction::new_revision(
+                    cob::Title::new("A₃").unwrap(),
+                    "Set visibility to private",
+                    &doc_a3.verified().unwrap(),
+                    Some(a2),
+                    repo,
+                    &alice.signer,
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        // Dave fetches and attempts to accept A₃.
+        // Even though Dave is a delegate in the currently accepted revision (A₁),
+        // authorization is governed by the parent of A₃, which is A₂.
+        // Because A₂ removed Dave, this action must error.
+        dave_repo.fetch(alice);
+        let mut dave_identity = Identity::load_mut(&*dave_repo, &dave_node.signer).unwrap();
+
+        let err = dave_identity.accept(&a3).unwrap_err();
+        let is_unauthorized =
+            std::iter::successors::<&dyn std::error::Error, _>(Some(&err), |err| err.source()).any(
+                |source| {
+                    matches!(
+                        source.downcast_ref::<ApplyError>(),
+                        Some(ApplyError::NonDelegateUnauthorized { .. })
+                    )
+                },
+            );
+
+        assert!(
+            is_unauthorized,
+            "Dave should be unauthorized because he was removed in the parent (A₂). Actual error: {err:?}"
+        );
+    }
 }
