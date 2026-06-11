@@ -2204,6 +2204,70 @@ mod test {
         );
     }
 
+    /// A previously accepted revision that is no longer the current revision
+    /// cannot be redacted. It was part of the canonical history and its state
+    /// should be immutable.
+    #[test]
+    fn cannot_redact_previously_accepted_revision() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        let a1 = alice_identity
+            .update(
+                cob::Title::new("A₁").unwrap(),
+                "Add Bob",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        // A₁ is accepted by Bob, thus reaches 2/2 votes, is accepted
+        // and becomes the current revision.
+        bob.repo.fetch(alice);
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        bob_identity.accept(&a1).unwrap();
+        alice.repo.fetch(bob);
+        alice_identity.reload().unwrap();
+        assert_eq!(alice_identity.current, a1);
+        assert_eq!(alice_identity.revision(&a1).unwrap().state, State::Accepted);
+
+        // A₂ is proposed and accepted, is acceptedy by Bob, thus reaches 2/2 votes,
+        // is accepted, and becomes the current revision, superseding A₁.
+        let mut alice_doc2 = alice_identity.doc().clone().edit();
+        alice_doc2.visibility = Visibility::private([]);
+        let a2 = alice_identity
+            .update(
+                cob::Title::new("A₂").unwrap(),
+                "",
+                &alice_doc2.verified().unwrap(),
+            )
+            .unwrap();
+        bob.repo.fetch(alice);
+        bob_identity.reload().unwrap();
+        bob_identity.accept(&a2).unwrap();
+        alice.repo.fetch(bob);
+        alice_identity.reload().unwrap();
+        assert_eq!(alice_identity.current, a2);
+
+        // A₁ is now previously accepted but not current anymore.
+        //
+        //  A₂   [Accepted, current]
+        //  |
+        //  A₁   [Accepted, previously current]
+        //  |
+        //  A₀
+        assert_eq!(alice_identity.revision(&a1).unwrap().state, State::Accepted);
+        assert_ne!(alice_identity.current, a1);
+
+        // Attempting to redact A₁ should be silently ignored.
+        alice_identity.redact(a1).unwrap();
+        assert_eq!(alice_identity.revision(&a1).unwrap().state, State::Accepted);
+        assert_eq!(alice_identity.current, a2);
+    }
+
     #[test]
     fn test_valid_identity() {
         let tempdir = tempfile::tempdir().unwrap();
