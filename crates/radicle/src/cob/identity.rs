@@ -2385,4 +2385,121 @@ mod test {
         assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Accepted);
         assert_eq!(bob_identity.current, b1);
     }
+
+    /// When a revision is adopted that changes the delegate set, the majority
+    /// threshold may change. Queued children should be re-evaluated under the
+    /// new quorum rules.
+    ///
+    /// This test exercises the case where a delegate is removed, lowering
+    /// the majority from 3 (for 4 delegates) to 2 (for 3 delegates), which
+    /// enables a queued child to be automatically adopted.
+    #[test]
+    fn evaluates_queued_children_with_new_delegate() {
+        use crate::crypto::test::signer::MockSigner;
+        use crate::test::setup::{Node, NodeRepo};
+        use tempfile::tempdir;
+
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+        let eve = &network.eve;
+
+        // Create Dave as a 4th participant.
+        let mut dave_node = Node::new(tempdir().unwrap(), MockSigner::from_seed([!3; 32]), "dave");
+        dave_node.clone(network.rid, alice);
+        let dave_repo = NodeRepo {
+            repo: dave_node.storage.repository(network.rid).unwrap(),
+            checkout: None,
+        };
+
+        // A1: Alice adds Bob, Eve, and Dave as delegates.
+        // Alice is the sole delegate, so this is auto-accepted.
+        // Result: 4 delegates {Alice, Bob, Eve, Dave}, majority = 3.
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        alice_doc.delegate(eve.signer.public_key().into());
+        alice_doc.delegate(dave_node.signer.public_key().into());
+        let a1 = alice_identity
+            .update(
+                cob::Title::new("Add Bob, Eve, and Dave").unwrap(),
+                "",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+        assert_eq!(alice_identity.current, a1);
+        assert_eq!(alice_identity.doc().delegates().len(), 4);
+
+        // Sync everyone.
+        bob.repo.fetch(alice);
+        eve.repo.fetch(alice);
+        dave_repo.fetch(alice);
+
+        // A2: Alice proposes removing Dave.
+        // Under A1's rules (4 delegates), majority = 3. Alice has 1 vote. Active.
+        let mut doc_a2 = alice_identity.doc().clone().edit();
+        doc_a2
+            .rescind(&dave_node.signer.public_key().into())
+            .unwrap();
+        let a2 = alice_identity
+            .update(
+                cob::Title::new("Remove Dave").unwrap(),
+                "",
+                &doc_a2.clone().verified().unwrap(),
+            )
+            .unwrap();
+        assert_eq!(alice_identity.revision(&a2).unwrap().state, State::Active);
+
+        // B1: Alice proposes a child of A2 (changes visibility).
+        // B1's parent is A2 (Active, not current), so we use a manual transaction.
+        let mut doc_b1 = doc_a2.clone();
+        doc_b1.visibility = Visibility::private([]);
+        let b1 = alice_identity
+            .transaction("B1", |tx, repo| {
+                *tx = Transaction::new_revision(
+                    cob::Title::new("B1: Change visibility").unwrap(),
+                    "",
+                    &doc_b1.verified().unwrap(),
+                    Some(a2),
+                    repo,
+                    &alice.signer,
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        // Bob fetches Alice's changes and accepts B1.
+        // B1 now has 2 votes (Alice + Bob). Both are delegates in A2's doc.
+        // But B1's parent A2 is not yet current, so B1 stays Active.
+        bob.repo.fetch(alice);
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        bob_identity.accept(&b1).unwrap();
+        assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Active);
+
+        // Bob accepts A2. A2 now has 2/4 votes. Still needs 3.
+        bob_identity.accept(&a2).unwrap();
+        assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Active);
+
+        // Eve fetches from Alice and Bob, then accepts A2.
+        // A2 reaches 3/4 votes (Alice + Bob + Eve) → adopted!
+        // A2's doc has 3 delegates {Alice, Bob, Eve}, majority = 2.
+        // Re-evaluate children: B1 has 2 votes (Alice + Bob), 2 >= 2 → adopted!
+        //
+        //     b1   [Accepted, 2 votes (Alice + Bob), majority 2 under A2's doc]
+        //     |
+        //     a2   [Accepted, 3 votes (Alice + Bob + Eve), majority 3 under A1's doc]
+        //     |
+        //     a1   [Accepted, 4 delegates]
+        //     |
+        //     a0
+        eve.repo.fetch(alice);
+        eve.repo.fetch(bob);
+        let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
+        eve_identity.accept(&a2).unwrap();
+
+        assert_eq!(eve_identity.revision(&a2).unwrap().state, State::Accepted);
+        assert_eq!(eve_identity.doc().delegates().len(), 3);
+        assert_eq!(eve_identity.revision(&b1).unwrap().state, State::Accepted);
+        assert_eq!(eve_identity.current, b1);
+    }
 }
