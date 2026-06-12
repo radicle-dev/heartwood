@@ -322,3 +322,55 @@ impl Arbitrary for UserAgent {
         .unwrap()
     }
 }
+
+/// Newtype wrapper around [`Vec`] to keep the [`Arbitrary`] implementation
+/// bounded to a smaller size.
+#[derive(Clone, Debug)]
+pub struct BoundedVec<T, const N: usize> {
+    inner: Vec<T>,
+}
+
+impl<T, const N: usize> BoundedVec<T, N> {
+    pub fn to_vec(self) -> Vec<T> {
+        self.inner
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+impl<T, const N: usize> IntoIterator for BoundedVec<T, N> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.into_iter()
+    }
+}
+
+impl<'a, T, const N: usize> IntoIterator for &'a BoundedVec<T, N> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.iter()
+    }
+}
+
+impl<T: qcheck::Arbitrary, const N: usize> qcheck::Arbitrary for BoundedVec<T, N> {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        let size = usize::arbitrary(g) % N;
+        Self {
+            inner: (0..size).map(|_| T::arbitrary(g)).collect(),
+        }
+    }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        Box::new(self.inner.shrink().map(|inner| Self { inner }))
+    }
+}

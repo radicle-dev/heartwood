@@ -14,24 +14,11 @@ use crate::storage::refs::sigrefs::VerifiedCommit;
 use crate::storage::refs::sigrefs::read::{SignedRefsReader, Tip};
 use crate::storage::refs::sigrefs::write::{SignedRefsWriter, Update};
 use crate::storage::refs::{IDENTITY_ROOT, Refs};
+use crate::test::arbitrary;
 
 use super::Committer;
 
-/// Newtype wrapper around [`Vec`] to keep the [`Arbitrary`] implementation
-/// bounded to a smaller size.
-#[derive(Clone, Debug)]
-struct BoundedVec<T>(Vec<T>);
-
-impl<T: qcheck::Arbitrary> qcheck::Arbitrary for BoundedVec<T> {
-    fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let size = usize::arbitrary(g) % 24;
-        BoundedVec((0..size).map(|_| T::arbitrary(g)).collect())
-    }
-
-    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-        Box::new(self.0.shrink().map(BoundedVec))
-    }
-}
+type BoundedVec<T> = arbitrary::BoundedVec<T, 24>;
 
 struct Verifier {
     key: PublicKey,
@@ -176,7 +163,7 @@ fn initial_commit_roundtrip(mut refs: Refs) -> bool {
 
 #[quickcheck]
 fn chain_roundtrip(chain: BoundedVec<Refs>) -> TestResult {
-    let chain = chain.0;
+    let chain = chain.to_vec();
     if chain.is_empty() {
         return TestResult::discard();
     }
