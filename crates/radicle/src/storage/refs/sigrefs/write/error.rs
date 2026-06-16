@@ -29,7 +29,7 @@ pub enum Commit {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum Tree {
-    #[error("failed to sign references payload")]
+    #[error("failed to sign references payload: {0}")]
     Sign(crypto::signature::Error),
     #[error(transparent)]
     Write(object::error::WriteTree),
