@@ -114,6 +114,8 @@ pub enum Error {
     Op(#[from] OpEncodingError),
     #[error("serde_json: {0}")]
     Serde(#[from] JsonError),
+    #[error("failed to spawn program '{program}': {source}")]
+    Spawn { program: String, source: IoError },
     #[error("io: {0}")]
     Io(#[from] IoError),
 }
@@ -158,10 +160,14 @@ impl External {
             prefix + suffix
         };
 
-        let mut child = Command::new(command_name)
+        let mut child = Command::new(&command_name)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .spawn()?;
+            .spawn()
+            .map_err(|source| Error::Spawn {
+                program: command_name,
+                source,
+            })?;
 
         let stdin = child.stdin.take().expect("handle preset");
 
