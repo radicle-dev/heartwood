@@ -351,7 +351,7 @@ fn set_canonical_refs(
     }
 
     let rules = crefs.rules().clone();
-    let canonical_svc = git::repository::canonical::Service::new(repo, rules);
+    let canonical_svc = git::repository::canonical::Namespace::new(repo, rules);
 
     let mut updated_refs = UpdatedCanonicalRefs::default();
     let refnames = applied

@@ -374,7 +374,7 @@ pub(super) fn run(
                         // Note that we *do* allow rolling back to a previous commit on the
                         // canonical branch.
                         let canonical_svc =
-                            git::repository::canonical::Service::new(stored.raw(), rules.clone());
+                            git::repository::canonical::Namespace::new(stored.raw(), rules.clone());
                         if canonical_svc.is_canonical(&dst) {
                             match canonical_svc.propose(&dst, *src, me, LOG_MESSAGE) {
                                 Ok(Some(obj)) => set_canonical_refs.push((dst.clone(), obj)),

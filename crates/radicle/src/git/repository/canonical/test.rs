@@ -22,7 +22,7 @@ fn setup_rules(dids: Vec<Did>, threshold: usize) -> Rules {
 fn test_is_canonical() {
     let repo = fixture::Repository::new();
     let rules = setup_rules(vec![did(1)], 1);
-    let ns = Service::new(repo.raw(), rules);
+    let ns = Namespace::new(repo.raw(), rules);
 
     assert!(ns.is_canonical(&qualified!("refs/heads/main")));
     assert!(!ns.is_canonical(&qualified!("refs/heads/feature")));
@@ -40,7 +40,7 @@ fn test_reevaluate_calculates_quorum() {
 
     let rules = setup_rules(vec![d1, d2], 2);
 
-    let ns = Service::new(repo.raw(), rules);
+    let ns = Namespace::new(repo.raw(), rules);
 
     let updated = ns
         .reevaluate(&qualified!("refs/heads/main"), "test")
@@ -68,7 +68,7 @@ fn test_propose_evaluates_convergence_ignores_diverging() {
 
     let rules = setup_rules(vec![d1, d2], 1);
 
-    let ns = Service::new(repo.raw(), rules);
+    let ns = Namespace::new(repo.raw(), rules);
 
     // d2 proposes c2, which diverges from c1.
     // Because it diverges, it won't be added to the quorum calculation.
@@ -100,7 +100,7 @@ fn test_propose_evaluates_convergence_mismatch() {
 
     let rules = setup_rules(vec![d1, d2], 1);
 
-    let ns = Service::new(repo.raw(), rules);
+    let ns = Namespace::new(repo.raw(), rules);
 
     let err = ns
         .propose(&qualified!("refs/heads/main"), t1, d2, "test")
