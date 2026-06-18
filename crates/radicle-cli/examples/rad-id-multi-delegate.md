@@ -20,6 +20,10 @@ $ rad id --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 │ ●   069e7d5   Add Bob            alice    z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   accepted   now       0656c21 │
 │ ●   0656c21   Initial revision   alice    z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   accepted   now       none    │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Hints:
+  ● active   ● accepted   ● rejected/redacted
+  ✘ by delegate votes   ↧ due to ancestry   ⇄ due to sibling   ✂ by author
 $ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi [..] parent
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [..] root
@@ -107,6 +111,10 @@ $ rad id list
 │ ●   069e7d5   Add Bob            alice    (you)                                              accepted   now       0656c21 │
 │ ●   0656c21   Initial revision   alice    (you)                                              accepted   now       none    │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Hints:
+  ● active   ● accepted   ● rejected/redacted
+  ✘ by delegate votes   ↧ due to ancestry   ⇄ due to sibling   ✂ by author
 ```
 
 Despite being a delegate, Bob can't edit or redact Alice's revision:
@@ -170,9 +178,44 @@ And she can redact her revision:
 $ rad id redact e6bf10593b78384eb2b281cbb18a605668a6d1f7
 ✓ Revision e6bf10593b78384eb2b281cbb18a605668a6d1f7 redacted
 ```
-``` ~alice (fail)
+``` ~alice
 $ rad id show e6bf10593b78384eb2b281cbb18a605668a6d1f7
-✗ Error: revision `e6bf10593b78384eb2b281cbb18a605668a6d1f7` not found
+╭────────────────────────────────────────────────────────────────────────╮
+│ Title    Make private                                                  │
+│ Revision e6bf10593b78384eb2b281cbb18a605668a6d1f7                      │
+│ Parent   3cd3c7f9900de0fcb19705856a7cc339a38fb0b3                      │
+│ Blob     c533865b2846ca6c5b4436ec6872257293380c3b                      │
+│ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
+│ State    redacted by the author                                        │
+│ Quorum   no                                                            │
+│                                                                        │
+│ Privacy is cool.                                                       │
+├────────────────────────────────────────────────────────────────────────┤
+│ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi alice (you) │
+│ ? did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk bob         │
+│ ? did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z eve         │
+╰────────────────────────────────────────────────────────────────────────╯
+
+@@ -1,15 +1,18 @@
+ {
+   "payload": {
+     "xyz.radicle.project": {
+       "defaultBranch": "master",
+       "description": "Radicle Heartwood Protocol & Stack",
+       "name": "heartwood"
+     }
+   },
+   "delegates": [
+     "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+     "did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk",
+     "did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z"
+   ],
+-  "threshold": 2
++  "threshold": 2,
++  "visibility": {
++    "type": "private"
++  }
+ }
 ```
 
 Finally, Alice can also propose to remove Bob:

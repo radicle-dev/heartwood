@@ -337,15 +337,10 @@ impl Identity {
         self.revisions.get(revision)
     }
 
-    /// All the [`Revision`]s that have not been redacted.
+    /// All the [`Revision`]s.
     pub fn revisions(&self) -> impl DoubleEndedIterator<Item = &Revision> {
-        self.timeline.iter().filter_map(|id| {
-            self.revisions
-                .get(id)
-                .filter(|revision| !matches!(revision.state, State::Redacted(_)))
-        })
+        self.timeline.iter().filter_map(|id| self.revisions.get(id))
     }
-
     pub fn latest_by(&self, who: &Did) -> Option<&Revision> {
         self.revisions().rev().find(|r| r.author.id() == who)
     }
@@ -972,9 +967,9 @@ impl std::fmt::Display for RejectedBy {
 impl std::fmt::Display for RedactedBy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RedactedBy::Author => write!(f, "redacted by the author"),
+            RedactedBy::Author => write!(f, "by the author"),
             RedactedBy::Ancestor(oid) => {
-                write!(f, "redacted due to ancestry '{oid}' being redacted")
+                write!(f, "due to ancestry '{oid}' being redacted")
             }
         }
     }
