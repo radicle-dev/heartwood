@@ -226,7 +226,21 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     identity::State::Redacted(_) => continue,
                 }
                 .into();
-                let state = r.state.to_string().into();
+                let state = match &r.state {
+                    identity::State::Active => "active".to_string(),
+                    identity::State::Accepted => "accepted".to_string(),
+                    identity::State::Rejected(identity::RejectedBy::Vote) => {
+                        "rejected ✘".to_string()
+                    }
+                    identity::State::Rejected(identity::RejectedBy::Parent) => {
+                        "rejected ↥".to_string()
+                    }
+                    identity::State::Rejected(identity::RejectedBy::Sibling(_)) => {
+                        "rejected ⇄".to_string()
+                    }
+                    identity::State::Redacted(_) => continue,
+                }
+                .into();
                 let id = term::format::oid(r.id).into();
                 let title = term::label(r.title.to_string());
                 let (alias, author) =
@@ -249,6 +263,18 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 ]);
             }
             revisions.print();
+
+            term::blank();
+            term::println("Hints:");
+            term::println(format!(
+                "  {} active\n  {} accepted\n  {} rejected:\n    {} … by delegate votes   {} … by parent   {} … by sibling",
+                term::format::tertiary("●"),
+                term::format::positive("●"),
+                term::format::negative("●"),
+                "✘",
+                "↥",
+                "⇄",
+            ));
         }
         Command::Redact { revision } => {
             let revision = get(revision, &identity, &repo)?.clone();
@@ -319,10 +345,31 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
         term::format::bold("Author").into(),
         term::label(revision.author.to_string()),
     ]);
-    attrs.push([
-        term::format::bold("State").into(),
-        term::label(revision.state.to_string()),
-    ]);
+    match &revision.state {
+        identity::State::Rejected(reason) => {
+            attrs.push([
+                term::format::bold("State").into(),
+                term::label(format!(
+                    "{} {}",
+                    term::format::negative(revision.state),
+                    term::format::dim(format!("by {reason}")),
+                )),
+            ]);
+        }
+        identity::State::Active => {
+            attrs.push([
+                term::format::bold("State").into(),
+                term::label(term::format::tertiary(revision.state.to_string())),
+            ]);
+        }
+        identity::State::Accepted => {
+            attrs.push([
+                term::format::bold("State").into(),
+                term::label(term::format::positive(revision.state.to_string())),
+            ]);
+        }
+        identity::State::Redacted(_) => (),
+    }
     attrs.push([
         term::format::bold("Quorum").into(),
         if revision.is_accepted() {
