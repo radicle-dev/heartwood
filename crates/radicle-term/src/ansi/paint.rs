@@ -261,7 +261,11 @@ impl<T> Paint<T> {
 
 impl<T: fmt::Display> fmt::Display for Paint<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if Paint::is_enabled() && self.style.wrap {
+        if !Paint::is_enabled() {
+            return fmt::Display::fmt(&self.item, f);
+        }
+
+        if self.style.wrap {
             let mut prefix = String::new();
             prefix.push_str("\x1B[0m");
             self.style.fmt_prefix(&mut prefix)?;
@@ -270,19 +274,20 @@ impl<T: fmt::Display> fmt::Display for Paint<T> {
             let item = format!("{}", self.item).replace("\x1B[0m", &prefix);
             fmt::Display::fmt(&item, f)?;
             self.style.fmt_suffix(f)
-        } else if Paint::is_enabled() {
+        } else {
             self.style.fmt_prefix(f)?;
             fmt::Display::fmt(&self.item, f)?;
             self.style.fmt_suffix(f)
-        } else {
-            fmt::Display::fmt(&self.item, f)
         }
     }
 }
 
 impl Paint<()> {
-    /// Returns `true` if coloring is enabled and `false` otherwise.
-    pub fn is_enabled() -> bool {
+    /// Returns `true` if ANSI styling (bold, italic, underline, reverse, etc.)
+    /// is enabled. This reflects the general terminal capability and user
+    /// preferences governed by `CLICOLOR`, `ENABLED` / `FORCED`, and terminal
+    /// detection. It does **not** take `NO_COLOR` into account.
+    pub fn is_styling_enabled() -> bool {
         if FORCED.load(sync::atomic::Ordering::SeqCst) {
             return true;
         }
@@ -295,10 +300,16 @@ impl Paint<()> {
 
         is_terminal
             && is_enabled
-            && !anstyle_query::no_color()
             && !clicolor_disabled
             && (anstyle_query::term_supports_color() || clicolor_enabled || anstyle_query::is_ci())
             || anstyle_query::clicolor_force()
+    }
+
+    /// Returns `true` if any painting is enabled.
+    ///
+    /// This is equivalent to `is_styling_enabled()`.
+    pub fn is_enabled() -> bool {
+        Self::is_styling_enabled()
     }
 
     /// Check 24-bit RGB color support.

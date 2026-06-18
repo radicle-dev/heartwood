@@ -22,6 +22,11 @@ impl Property {
     }
 
     #[inline(always)]
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    #[inline(always)]
     pub const fn contains(self, other: Property) -> bool {
         (other.0 & self.0) == other.0
     }
@@ -235,8 +240,14 @@ impl Style {
     /// is currently enabled or disabled. To write the prefix only if painting
     /// is enabled, condition a call to this method on [`Paint::is_enabled()`].
     pub fn fmt_prefix(&self, f: &mut dyn fmt::Write) -> fmt::Result {
+        let color_enabled = !anstyle_query::no_color();
+
         // A user may just want a code-free string when no styles are applied.
         if self.is_plain() {
+            return Ok(());
+        }
+        // When colors are disabled and there are no non-color properties, there's nothing to emit.
+        if !color_enabled && self.properties.is_empty() {
             return Ok(());
         }
 
@@ -248,14 +259,16 @@ impl Style {
             write_spliced(&mut splice, f, k)?;
         }
 
-        if self.background != Color::Unset {
-            write_spliced(&mut splice, f, "4")?;
-            self.background.ansi_fmt(f)?;
-        }
+        if color_enabled {
+            if self.background != Color::Unset {
+                write_spliced(&mut splice, f, "4")?;
+                self.background.ansi_fmt(f)?;
+            }
 
-        if self.foreground != Color::Unset {
-            write_spliced(&mut splice, f, "3")?;
-            self.foreground.ansi_fmt(f)?;
+            if self.foreground != Color::Unset {
+                write_spliced(&mut splice, f, "3")?;
+                self.foreground.ansi_fmt(f)?;
+            }
         }
 
         // All the codes end with an `m`.
@@ -272,7 +285,14 @@ impl Style {
     /// is currently enabled or disabled. To write the suffix only if painting
     /// is enabled, condition a call to this method on [`Paint::is_enabled()`].
     pub fn fmt_suffix(&self, f: &mut dyn fmt::Write) -> fmt::Result {
+        let color_enabled = !anstyle_query::no_color();
+
+        // A user may just want a code-free string when no styles are applied.
         if self.is_plain() {
+            return Ok(());
+        }
+        // When colors are disabled and there are no non-color properties, there's nothing to emit.
+        if !color_enabled && self.properties.is_empty() {
             return Ok(());
         }
         write!(f, "\x1B[0m")

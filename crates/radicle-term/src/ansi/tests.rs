@@ -278,3 +278,65 @@ fn wrapping() {
             .to_string()
     );
 }
+
+#[test]
+fn no_color_disables_colors_not_styles() {
+    let _guard = SERIAL.lock();
+
+    Paint::force(true);
+    Paint::enable();
+
+    // Without NO_COLOR, colors and styles are both emitted.
+    assert_eq!(
+        Paint::red("hi").bold().to_string(),
+        "\x1B[1;31mhi\x1B[0m".to_string()
+    );
+
+    unsafe { std::env::set_var("NO_COLOR", "1") }
+
+    // With NO_COLOR, foreground and background colors are suppressed,
+    // but bold, italic, underline, invert etc. are preserved.
+    assert_eq!(
+        Paint::red("hi").bold().to_string(),
+        "\x1B[1mhi\x1B[0m".to_string()
+    );
+    assert_eq!(Paint::red("hi").to_string(), "hi".to_string());
+    assert_eq!(
+        Paint::new("hi").bold().to_string(),
+        "\x1B[1mhi\x1B[0m".to_string()
+    );
+    assert_eq!(
+        Paint::new("hi").italic().to_string(),
+        "\x1B[3mhi\x1B[0m".to_string()
+    );
+    assert_eq!(
+        Paint::new("hi").invert().to_string(),
+        "\x1B[7mhi\x1B[0m".to_string()
+    );
+
+    // Wrapping without colors should still preserve inner style resets.
+    let inner = || {
+        format!(
+            "{} b {}",
+            Paint::red("a").bold(),
+            Paint::green("c").underline()
+        )
+    };
+    assert_eq!(
+        Paint::new(&inner()).wrap().to_string(),
+        "\u{1b}[1ma\u{1b}[0m b \u{1b}[4mc\u{1b}[0m".to_string()
+    );
+
+    unsafe { std::env::remove_var("NO_COLOR") }
+
+    // When all styling is explicitly disabled, no ANSI codes are emitted at all.
+    Paint::force(false);
+    Paint::disable();
+    assert_eq!(Paint::red("hi").bold().to_string(), "hi".to_string());
+    assert_eq!(Paint::new("hi").bold().to_string(), "hi".to_string());
+    assert_eq!(Paint::new("hi").italic().to_string(), "hi".to_string());
+    assert_eq!(Paint::new("hi").invert().to_string(), "hi".to_string());
+    assert_eq!(Paint::blue("hi").underline().to_string(), "hi".to_string());
+    Paint::force(true);
+    Paint::enable();
+}
