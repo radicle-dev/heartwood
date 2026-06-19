@@ -414,10 +414,10 @@ where
                     .push_back(Action::Send(fd, frame.encode_to_vec()));
             }
         } else {
-            // If the peer disconnected, we'll get here, but we still want to let the service know
-            // about the fetch result, so we don't return here.
-            log::debug!(target: "wire", "Peer {nid} is not connected; ignoring fetch result");
-            return;
+            // If the peer disconnected, we still let the service know about the fetch result.
+            // Otherwise the fetcher's `active` entry for this repo is never cleared, which blocks
+            // the repository from being fetched from any node until the node restarts.
+            log::debug!(target: "wire", "Peer {nid} is not connected; reporting fetch result anyway");
         };
 
         // Only call into the service if we initiated this fetch.
@@ -1025,9 +1025,18 @@ where
                     else {
                         // Nb. It's possible that a peer is disconnected while an `Io::Fetch`
                         // is in the service's i/o buffer. Since the service may not purge the
-                        // buffer on disconnect, we should just ignore i/o actions that don't
-                        // have a connected peer.
+                        // buffer on disconnect, we drop fetches that don't have a connected peer.
+                        // We must still report the failure so the fetcher clears its `active`
+                        // entry; otherwise the repository can no longer be fetched from any node.
                         log::debug!(target: "wire", "Peer {remote} is not connected: dropping fetch");
+                        self.service.fetched(
+                            rid,
+                            remote,
+                            Err(crate::worker::FetchError::Io(io::Error::new(
+                                io::ErrorKind::NotConnected,
+                                "peer disconnected before fetch could start",
+                            ))),
+                        );
                         continue;
                     };
                     let (stream, channels) = streams.open(
