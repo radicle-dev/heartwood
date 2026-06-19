@@ -101,9 +101,6 @@ pub(super) enum Error {
     /// General repository error.
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
-    /// Quorum error.
-    #[error(transparent)]
-    Quorum(#[from] radicle::git::canonical::error::QuorumError),
     #[error(transparent)]
     CanonicalUpdate(#[from] git::repository::canonical::error::Update),
     #[error(transparent)]
@@ -112,9 +109,6 @@ pub(super) enum Error {
     PushAction(#[from] error::PushAction),
     #[error(transparent)]
     Canonical(#[from] error::CanonicalUnrecoverable),
-    #[error(transparent)]
-    FindObjects(#[from] git::canonical::error::FindObjectsError),
-
     /// Error sending pack from the working copy to storage.
     #[error(
         "`git send-pack` failed with exit status {status}, stderr and stdout follow:\n{stderr}\n{stdout}"
@@ -292,7 +286,7 @@ pub(super) fn run(
         }
     }
     let delegates = stored.delegates()?;
-    let mut set_canonical_refs: Vec<(git::fmt::Qualified, git::canonical::Object)> =
+    let mut set_canonical_refs: Vec<(git::fmt::Qualified, git::repository::canonical::Object)> =
         Vec::with_capacity(specs.len());
 
     // Rely on the environment variable `GIT_DIR`.
@@ -379,9 +373,9 @@ pub(super) fn run(
                             match canonical_svc.propose(&dst, *src, me, LOG_MESSAGE) {
                                 Ok(Some(obj)) => set_canonical_refs.push((dst.clone(), obj)),
                                 Ok(None) => {}
-                                Err(git::repository::canonical::error::Update::Quorum(e)) => {
-                                    canonical::io::handle_error(e)?
-                                }
+                                Err(git::repository::canonical::error::Update::Evaluate(
+                                    git::repository::canonical::error::Error::Quorum(e),
+                                )) => canonical::io::handle_error(e)?,
                                 Err(e) => return Err(Error::from(e)),
                             }
                         }

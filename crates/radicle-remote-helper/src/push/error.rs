@@ -1,5 +1,5 @@
 use radicle::git;
-use radicle::git::canonical;
+use radicle::git::repository::canonical;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

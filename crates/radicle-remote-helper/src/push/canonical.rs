@@ -1,5 +1,5 @@
 pub(crate) mod io {
-    use radicle::git::canonical::error::QuorumError;
+    use radicle::git::repository::canonical::error::QuorumError;
 
     use crate::push::error;
     use crate::warn;
