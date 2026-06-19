@@ -65,6 +65,7 @@ where
     }
 }
 
+#[allow(rustdoc::private_intra_doc_links)]
 /// Error produced by [`FindObjects::resolve`].
 #[derive(Debug, thiserror::Error)]
 pub enum FindObjectsError {

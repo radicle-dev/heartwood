@@ -1,3 +1,11 @@
+//! Internal canonical evaluation engine.
+//!
+//! This module contains the low-level mechanics for calculating quorums,
+//! validating convergence, and applying delegate rules.
+//!
+//! **Note:** Types in this module should generally not be exposed directly.
+//! Consumers should interact with canonical state exclusively through the
+//! [`Namespace`](super::Namespace) facade.
 pub mod error;
 use error::*;
 
@@ -14,7 +22,7 @@ pub mod protect;
 pub mod rules;
 pub mod symbolic;
 
-pub use rules::{MatchedRule, RawRule, Rules, ValidRule};
+pub use rules::{Rules, ValidRule};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -26,8 +34,8 @@ use crate::git::repository;
 
 use crate::prelude::Did;
 
-use super::fmt::Qualified;
 use crate::git::Oid;
+use crate::git::fmt::Qualified;
 
 /// A marker for the initial state of [`Canonical`], after construction using
 /// [`Canonical::new`].
@@ -429,6 +437,7 @@ impl Object {
         matches!(self, Self::Commit { .. })
     }
 
+    #[allow(rustdoc::private_intra_doc_links)]
     /// Returns the [`ObjectType`] of the [`Object`].
     pub fn object_type(&self) -> ObjectType {
         match self {
@@ -482,6 +491,7 @@ impl Missing {
 #[allow(clippy::unwrap_used)]
 mod tests {
 
+    use super::rules::RawRule;
     use super::*;
     use crate::assert_matches;
     use crate::git;
@@ -506,8 +516,8 @@ mod tests {
                 .unwrap();
         }
 
-        let rule: RawRule = crate::git::canonical::rules::Rule::new(
-            crate::git::canonical::rules::Allowed::Delegates,
+        let rule: RawRule = crate::git::repository::canonical::eval::rules::Rule::new(
+            crate::git::repository::canonical::eval::rules::Allowed::Delegates,
             threshold,
         );
         let delegates = crate::identity::doc::Delegates::new(delegates).unwrap();

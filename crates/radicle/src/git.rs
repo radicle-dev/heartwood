@@ -1,4 +1,3 @@
-pub mod canonical;
 pub mod raw;
 pub mod repository;
 

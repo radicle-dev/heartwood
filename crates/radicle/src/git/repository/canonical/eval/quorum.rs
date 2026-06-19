@@ -239,7 +239,7 @@ pub enum CommitQuorumFailure {
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod test {
-    use crate::git::{Oid, canonical::MergeBase};
+    use crate::git::{Oid, repository::canonical::eval::MergeBase};
 
     use super::MergeBases;
 

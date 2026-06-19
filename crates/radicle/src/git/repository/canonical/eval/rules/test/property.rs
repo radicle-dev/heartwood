@@ -4,7 +4,7 @@ use qcheck::{Arbitrary, TestResult};
 use qcheck_macros::quickcheck;
 
 use crate::git;
-use crate::git::canonical::rules::{RawPattern, matches};
+use crate::git::repository::canonical::eval::rules::{RawPattern, matches};
 
 /// Newtype wrapper around [`git::fmt::Component`].
 ///

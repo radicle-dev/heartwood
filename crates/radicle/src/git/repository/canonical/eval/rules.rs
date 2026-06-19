@@ -21,11 +21,11 @@ use serde_json as json;
 use thiserror::Error;
 
 use crate::git;
-use crate::git::canonical;
-use crate::git::canonical::Canonical;
 use crate::git::fmt::Qualified;
 use crate::git::fmt::refspec::QualifiedPattern;
 use crate::git::repository;
+use crate::git::repository::canonical::eval as canonical;
+use crate::git::repository::canonical::eval::Canonical;
 use crate::identity::{Did, doc};
 
 use super::protect;
@@ -537,6 +537,7 @@ impl Rules {
             .map(|(pattern, rule)| (pattern.as_ref(), rule))
     }
 
+    #[allow(rustdoc::private_intra_doc_links)]
     /// Match given refname, take the most specific rule, and prepare evaluation
     /// as [`Canonical`]
     ///

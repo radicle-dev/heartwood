@@ -1,8 +1,8 @@
 use radicle_git_ref_format::refspec::QualifiedPattern;
 
 use crate::git;
-use crate::git::canonical::rules::{Allowed, Pattern, RawPattern, Rule};
 use crate::git::fmt::RefString;
+use crate::git::repository::canonical::eval::rules::{Allowed, Pattern, RawPattern, Rule};
 use crate::identity::doc::{self, Doc};
 use crate::prelude::Did;
 use crate::test::fixtures;
