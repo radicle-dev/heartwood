@@ -1498,4 +1498,21 @@ mod test {
         );
     }
 
+    // Contrast: with the peer still `Connected`, the active entry clears too,
+    // confirming the test above exercises the disconnect path, not a vacuous
+    // assertion.
+    #[test]
+    fn worker_result_clears_active_when_peer_connected() {
+        let (mut wire, rid, bob_id, addr) = wire_with_active_fetch();
+
+        wire.peers
+            .insert(Token(1), Peer::connected(bob_id, addr, Link::Outbound));
+
+        wire.worker_result(timed_out_fetch_result(rid, bob_id));
+
+        assert!(
+            !wire.service.fetcher().active_fetches().contains_key(&rid),
+            "fetch result should have cleared active[rid]"
+        );
+    }
 }
