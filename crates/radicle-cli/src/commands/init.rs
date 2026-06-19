@@ -187,7 +187,7 @@ pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> an
 
             term::blank();
             term::info!(
-                "Your Repository ID {} is {}.",
+                "Your Repository ID {} is {}",
                 term::format::dim("(RID)"),
                 term::format::highlight(rid.urn())
             );

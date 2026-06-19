@@ -14,7 +14,7 @@ Initializing public Radicle 👾 repository in [..]
   "defaultBranch": "master"
 }
 
-Your Repository ID (RID) is rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji.
+Your Repository ID (RID) is rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 You can show it any time by running `rad .` from this directory.
 
 Your repository will be announced to the network when you start your node.
