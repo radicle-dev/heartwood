@@ -121,6 +121,45 @@ fn complete_one_of_multiple() {
     assert!(state.get_active_fetch(&repo_3).is_some());
 }
 
+// A result from a node other than the one that started the active fetch is stale
+// (e.g. a late completion from a disconnected peer after the repo was re-fetched
+// from elsewhere). It must not clear the newer entry.
+#[test]
+fn stale_from_does_not_clear_active() {
+    let mut state = FetcherState::new(helpers::config(1, 10));
+    let node_a: NodeId = arbitrary::r#gen(1);
+    let node_b: NodeId = arbitrary::r#gen(1);
+    let repo_1: RepoId = arbitrary::r#gen(1);
+    let config = FetchConfig::default();
+
+    // node_a holds the active fetch for repo_1.
+    state.fetch(command::Fetch {
+        from: node_a,
+        rid: repo_1,
+        refs: helpers::gen_refs(1),
+        config,
+    });
+
+    // A stale result arrives attributed to node_b for the same repo.
+    let event = state.fetched(command::Fetched {
+        from: node_b,
+        rid: repo_1,
+    });
+
+    assert_eq!(
+        event,
+        event::Fetched::NotFound {
+            from: node_b,
+            rid: repo_1,
+        }
+    );
+    // node_a's active fetch is untouched.
+    assert_eq!(
+        state.get_active_fetch(&repo_1).map(|f| f.from),
+        Some(node_a)
+    );
+}
+
 #[test]
 fn non_existent_returns_not_found() {
     let mut state = FetcherState::new(helpers::config(1, 10));
