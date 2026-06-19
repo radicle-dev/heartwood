@@ -11,7 +11,6 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use std::{fs, io};
 
-use crate::git::canonical::Quorum;
 use crate::git::raw::ErrorExt as _;
 use crate::git::repository::{self, user};
 use crate::git::repository::{ancestry, object, reference, revwalk};
@@ -794,18 +793,16 @@ impl ReadRepository for Repository {
 
     fn canonical_head(&self) -> Result<(Qualified<'_>, Oid), RepositoryError> {
         let doc = self.identity_doc()?;
-        Ok(doc
-            .canonical_refs()?
-            .rules()
-            .canonical(doc.default_branch()?, self)
-            .ok_or(RepositoryError::MissingBranchRule)?
-            .find_objects()?
-            .quorum()?)
-        .map(
-            |Quorum {
-                 refname, object, ..
-             }| (refname.to_owned(), object.id()),
-        )
+        let default_branch = doc.default_branch()?.to_owned();
+
+        let ns =
+            git::repository::canonical::Namespace::new(self, doc.canonical_refs()?.rules().clone());
+
+        let obj = ns
+            .quorum(&default_branch)?
+            .ok_or(RepositoryError::MissingBranchRule)?;
+
+        Ok((default_branch, obj.id()))
     }
 
     fn identity_head(&self) -> Result<Oid, RepositoryError> {

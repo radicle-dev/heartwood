@@ -18,9 +18,9 @@ pub use git::{Validation, Validations};
 use crate::cob;
 use crate::collections::RandomMap;
 use crate::git::RefError;
-use crate::git::canonical;
 use crate::git::fmt::{Qualified, RefStr, RefString, refspec::PatternString, refspec::Refspec};
 use crate::git::raw::ErrorExt as _;
+use crate::git::repository::canonical;
 use crate::identity::{Did, PayloadError, doc};
 use crate::identity::{Doc, DocAt, DocError};
 use crate::identity::{Identity, RepoId};
@@ -145,8 +145,6 @@ pub enum RepositoryError {
     #[error(transparent)]
     Git(#[from] crate::git::raw::Error),
     #[error(transparent)]
-    Quorum(#[from] canonical::error::QuorumError),
-    #[error(transparent)]
     Refs(Box<refs::Error>),
     #[error("missing canonical reference rule for default branch")]
     MissingBranchRule,
@@ -155,7 +153,7 @@ pub enum RepositoryError {
     #[error("failed to get canonical reference rules: {0}")]
     CanonicalRefs(#[from] doc::CanonicalRefsError),
     #[error(transparent)]
-    FindObjects(#[from] canonical::objects::FindObjectsError),
+    Canonical(#[from] canonical::error::Error),
 }
 
 impl From<Error> for RepositoryError {

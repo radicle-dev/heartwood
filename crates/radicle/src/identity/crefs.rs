@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::git::canonical::rules::{self, RawRules, Rules};
-use crate::git::canonical::symbolic::{self, SymbolicRefs};
 use crate::git::fmt::Qualified;
+use crate::git::repository::canonical::rules::{self, RawRules, Rules};
+use crate::git::repository::canonical::symbolic::{self, SymbolicRefs};
 
 use super::doc::{Delegates, Payload};
 
