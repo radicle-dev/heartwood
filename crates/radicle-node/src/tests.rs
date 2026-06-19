@@ -1570,6 +1570,61 @@ fn test_queued_fetch_max_capacity() {
     assert_eq!(alice.fetches().next(), Some((rid3, bob.id)));
 }
 
+// Reproduces the orphaned-fetch failure mode: a fetch is started, but on
+// disconnect its result is never delivered and the disconnect skips `cancel`,
+// so the `active[rid]` entry is never cleared. The repo can then no longer be
+// fetched from any node even though the node keeps running. See
+// `wire::Wire::worker_result` (discards the result when the peer isn't
+// `Connected`) and `Service::disconnected` (skips `cancel` on a link mismatch).
+#[test]
+fn test_orphaned_fetch_blocks_repo_from_all_nodes() {
+    let storage = arbitrary::nonempty_storage(1);
+    let rid = *storage.repos.keys().next().unwrap();
+    let doc = storage.repos.get(&rid).unwrap().doc.clone();
+    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
+
+    // Alice dials Bob (outbound) and starts fetching the repo, occupying
+    // `active[rid]`.
+    alice.connect_to(&bob);
+    let (cmd, _recv) = Command::fetch(rid, bob.id, DEFAULT_TIMEOUT, None);
+    alice.command(cmd);
+    assert_matches!(alice.fetches().next(), Some((r, n)) if r == rid && n == bob.id);
+
+    // Bob dials Alice (inbound) while the outbound session is still up: a
+    // connection conflict. The service overwrites the session's link to inbound.
+    alice.connect_from(&bob);
+
+    // The outbound transport, the one the fetch is running over, drops. Because
+    // the session's link is now inbound, `Service::disconnected` early-returns
+    // without cancelling the fetch, so `active[rid]` survives.
+    alice.disconnected(
+        bob.id,
+        Link::Outbound,
+        &DisconnectReason::Session(session::Error::Timeout),
+    );
+
+    // Meanwhile the fetch result is never delivered (the `worker_result` discard).
+    // The entry is now orphaned: nothing will ever clear it.
+    assert!(
+        alice.fetcher().active_fetches().contains_key(&rid),
+        "active fetch should be orphaned"
+    );
+
+    // A different seed offers the same repo. It must not be fetched: the
+    // orphaned entry blocks the repo from every node.
+    alice.connect_to(&eve);
+    let (cmd, _recv) = Command::fetch(rid, eve.id, DEFAULT_TIMEOUT, None);
+    alice.command(cmd);
+    assert_matches!(alice.fetches().next(), None);
+
+    // Delivering the missing result (what the fix guarantees) clears the entry
+    // and the queued fetch from the other node proceeds.
+    alice.fetched(rid, bob.id, Ok(fetch::FetchResult::new(doc)));
+    assert_eq!(alice.fetches().next(), Some((rid, eve.id)));
+}
+
 #[test]
 fn test_queued_fetch_from_ann_same_rid() {
     let storage = arbitrary::nonempty_storage(1); // We're testing both public and private repos.
