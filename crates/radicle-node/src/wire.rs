@@ -784,7 +784,7 @@ where
                             })) => {
                                 if let Some(s) = streams.get_mut(&stream) {
                                     metrics.received_git_bytes += data.len();
-
+                                    // Send via channel to the worker thread
                                     if s.channels.send(ChannelEvent::Data(data)).is_err() {
                                         log::warn!(target: "wire", "Worker is disconnected; cannot send data");
                                     }
@@ -1288,7 +1288,11 @@ mod logger {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::crypto::test::signer::MockSigner;
+    use crate::identity::RepoId;
+    use crate::node;
     use crate::service::{Message, ZeroBytes};
+    use crate::test::storage::MockStorage;
     use crate::wire;
     use crate::wire::varint;
 
@@ -1417,4 +1421,81 @@ mod test {
             assert!(de.is_empty());
         }
     }
+
+    // Builds a service holding an active fetch from `bob`, wrapped in a `Wire`.
+    // Returns the wire, the repo id, and bob's id/address.
+    #[allow(clippy::type_complexity)]
+    fn wire_with_active_fetch() -> (
+        Wire<crate::node::Database, MockStorage, MockSigner>,
+        RepoId,
+        NodeId,
+        NetAddr<HostName>,
+    ) {
+        use crate::test::peer::Peer as TestPeer;
+
+        let storage = crate::test::arbitrary::nonempty_storage(1);
+        let rid = *storage.repos.keys().next().unwrap();
+        let mut alice = TestPeer::with_storage("alice", [7, 7, 7, 7], storage);
+        let bob = TestPeer::new("bob", [8, 8, 8, 8]);
+        let bob_id = bob.id;
+        let bob_addr = NetAddr {
+            host: HostName::Ip(net::IpAddr::from([8, 8, 8, 8])),
+            port: node::DEFAULT_PORT,
+        };
+
+        // Start a fetch from Bob so the service holds `active[rid] = { from: bob }`.
+        alice.connect_to(&bob);
+        let (cmd, _recv) =
+            crate::service::Command::fetch(rid, bob_id, radicle::node::DEFAULT_TIMEOUT, None);
+        alice.command(cmd);
+        assert!(
+            alice.fetches().any(|(r, _)| r == rid),
+            "fetch should be initiated"
+        );
+        assert!(alice.fetcher().active_fetches().contains_key(&rid));
+
+        let (worker_tx, _worker_rx) = chan::unbounded::<Task>();
+        let wire = Wire::new(alice.service, worker_tx, Device::mock());
+
+        (wire, rid, bob_id, bob_addr)
+    }
+
+    fn timed_out_fetch_result(rid: RepoId, remote: NodeId) -> TaskResult {
+        TaskResult {
+            remote,
+            stream: StreamId::git(Link::Outbound).nth(1).unwrap(),
+            result: FetchResult::Initiator {
+                rid,
+                result: Err(crate::worker::FetchError::Io(std::io::Error::from(
+                    std::io::ErrorKind::TimedOut,
+                ))),
+            },
+        }
+    }
+
+    // Regression test: a fetch result for a non-`Connected` peer must still reach
+    // `service.fetched` so `active[rid]` is cleared; otherwise the repo can no
+    // longer be fetched from any node until the process restarts.
+    #[test]
+    fn worker_result_clears_active_when_peer_disconnecting() {
+        let (mut wire, rid, bob_id, _addr) = wire_with_active_fetch();
+
+        // Bob is mid-disconnect at the wire layer: present, but not `Connected`.
+        wire.peers.insert(
+            Token(1),
+            Peer::Disconnecting {
+                link: Link::Outbound,
+                nid: Some(bob_id),
+                reason: DisconnectReason::connection(),
+            },
+        );
+
+        wire.worker_result(timed_out_fetch_result(rid, bob_id));
+
+        assert!(
+            !wire.service.fetcher().active_fetches().contains_key(&rid),
+            "fetch result must be reported even when the peer disconnected"
+        );
+    }
+
 }
