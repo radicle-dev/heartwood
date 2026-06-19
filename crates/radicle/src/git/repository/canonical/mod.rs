@@ -1,6 +1,6 @@
 //! Canonical Git reference access.
 //!
-//! [`Service`] provides operations to evaluate and update canonical references
+//! [`Namespace`] provides operations to evaluate and update canonical references
 //! within a Git repository. It acts as a facade over the underlying repository,
 //! enforcing the rules defined in the identity document, ensuring that updates
 //! only succeed if they meet the required quorum and convergence criteria.
@@ -9,14 +9,24 @@
 mod test;
 
 pub mod error;
+mod eval;
 
 use crate::git::Oid;
-use crate::git::canonical::{Object, Rules};
 use crate::git::fmt::Qualified;
 use crate::git::repository::{Ancestry, object, reference};
 use crate::prelude::Did;
 
-/// A service for managing and evaluating canonical references.
+pub use eval::{Object, Rules};
+
+pub mod rules {
+    pub use super::eval::rules::*;
+}
+
+pub mod symbolic {
+    pub use super::eval::symbolic::*;
+}
+
+/// A namespace for managing and evaluating canonical references.
 ///
 /// This acts as a domain-specific facade over a Git repository. It enforces
 /// the rules defined in an identity document (represented by [`Rules`]),
@@ -50,7 +60,8 @@ where
 {
     /// Resolve a reference to its target [`Oid`].
     ///
-    /// Returns `None` if the reference does not exist for this user.
+    /// Returns `Ok(None)` if the reference does not exist, or if the reference
+    /// is not governed by the canonical rules of this namespace.
     ///
     /// # Errors
     ///
@@ -64,10 +75,37 @@ where
         if self.is_canonical(name) {
             self.repo.ref_target(&name)
         } else {
-            // TODO: Consider whether throwing an error here. Other option would
-            // be always try and resolve, or return `None`.
-            todo!()
+            Ok(None)
         }
+    }
+}
+
+impl<'a, R> Namespace<'a, R>
+where
+    R: reference::Reader + object::Reader + Ancestry,
+{
+    /// Evaluate the current quorum of a canonical reference.
+    ///
+    /// This performs a read-only tally of the delegates' references to determine
+    /// the network's consensus for the given `name`. Unlike [`Namespace::propose`]
+    /// or [`Namespace::reevaluate`], this method does not attempt to update the
+    /// underlying repository with the resulting target.
+    ///
+    /// Returns `Ok(None)` if the reference is not governed by the canonical rules.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`error::Error`] if:
+    /// - The delegates have diverged and no consensus can be reached.
+    /// - The quorum threshold is not met.
+    /// - Reading from the underlying repository fails.
+    pub fn quorum(&self, name: &Qualified) -> Result<Option<Object>, error::Error> {
+        let Some(canonical_eval) = self.rules.canonical(name.clone(), self.repo) else {
+            return Ok(None);
+        };
+        let quorum = canonical_eval.find_objects()?.quorum()?;
+
+        Ok(Some(quorum.object))
     }
 }
 
@@ -92,8 +130,8 @@ where
     /// - The quorum threshold is not met ([`QuorumError::NoCandidates`]).
     /// - Writing to the underlying repository fails.
     ///
-    /// [`QuorumError::Convergence`]: crate::git::canonical::error::QuorumError::Convergence
-    /// [`QuorumError::NoCandidates`]: crate::git::canonical::error::QuorumError::NoCandidates
+    /// [`QuorumError::Convergence`]: crate::git::repository::canonical::eval::error::QuorumError::Convergence
+    /// [`QuorumError::NoCandidates`]: crate::git::repository::canonical::eval::error::QuorumError::NoCandidates
     pub fn propose(
         &self,
         name: &Qualified,
