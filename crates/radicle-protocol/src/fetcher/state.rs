@@ -203,16 +203,28 @@ impl FetcherState {
         }
     }
 
-    /// Process a [`Fetched`] command, which removes the given fetch from the set of active fetches.
+    /// Process a [`Fetched`] command, which removes the given fetch from the
+    /// set of active fetches, but only if the active fetch was from the given
+    /// node.
+    ///
     /// Note that this is agnostic of whether the fetch succeeded or failed.
     ///
     /// The caller will be notified if the completed fetch did not exist in the active set.
     ///
     /// [`Fetched`]: command::Fetched
     pub fn fetched(&mut self, command::Fetched { from, rid }: command::Fetched) -> event::Fetched {
-        match self.active.remove(&rid) {
-            None => event::Fetched::NotFound { from, rid },
-            Some(ActiveFetch { from, refs }) => event::Fetched::Completed { from, rid, refs },
+        // Only the node that started the active fetch may complete it. A result from any
+        // other node is stale — e.g. a late completion delivered after the peer disconnected
+        // and the repo was re-fetched from elsewhere. Clearing the entry on a mismatch would
+        // drop the wrong (newer) fetch, so we leave it and report `NotFound`.
+        match self.active.get(&rid) {
+            Some(ActiveFetch {
+                from: active_from, ..
+            }) if *active_from == from => match self.active.remove(&rid) {
+                Some(ActiveFetch { from, refs }) => event::Fetched::Completed { from, rid, refs },
+                None => event::Fetched::NotFound { from, rid },
+            },
+            _ => event::Fetched::NotFound { from, rid },
         }
     }
 
