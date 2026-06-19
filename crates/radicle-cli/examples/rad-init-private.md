@@ -7,7 +7,7 @@ Initializing private Radicle 👾 repository in [..]
 
 ✓ Repository heartwood created.
 
-Your Repository ID (RID) is rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu.
+Your Repository ID (RID) is rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu
 You can show it any time by running `rad .` from this directory.
 
 You have created a private repository.
