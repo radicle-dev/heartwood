@@ -24,7 +24,7 @@ commit-msg file: (verify-tool "typos" "typos-cli")
 
 # Run pre-commit checks
 [group('hooks')]
-pre-commit: check-conflict-markers format-rust check-rust check-docs check-typos check-spelling check-scripts check-keywords format-nix
+pre-commit: check-conflict-markers format-rust check-rust check-toolchain check-docs check-typos check-spelling check-scripts check-keywords format-nix
     @echo ""
     @echo "{{SUCCESS}}pre-commit passed!{{NORMAL}}"
     @echo ""
@@ -46,6 +46,15 @@ format-rust: (verify-tool "cargo")
 check-rust:
     @echo "{{CHECK}}Cargo check…{{NORMAL}}"
     @{{cargo_cmd}} check --workspace --all-targets --all-features
+
+# Check Dockerfile Rust version matches rust-toolchain.toml
+[group('pre-commit')]
+[group('pre-push')]
+[group('check')]
+[parallel]
+check-toolchain:
+    @echo "{{CHECK}}Checking Rust version consistency…{{NORMAL}}"
+    @ERROR="{{ERROR}}" NORMAL="{{NORMAL}}" scripts/just/check-toolchain.sh
 
 # Check documentation for warnings
 [group('pre-commit')]
@@ -119,7 +128,7 @@ format-nix:
 
 # Run pre-push checks
 [group('hooks')]
-pre-push: check-conflict-markers format-rust check-rust check-keywords check-docs check-spelling check-scripts check-typos format-nix lint-rust test-rust
+pre-push: check-conflict-markers format-rust check-rust check-toolchain check-keywords check-docs check-spelling check-scripts check-typos format-nix lint-rust test-rust
     @echo ""
     @echo "{{SUCCESS}}pre-push passed!{{NORMAL}}"
     @echo ""
