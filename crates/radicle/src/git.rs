@@ -146,8 +146,8 @@ pub fn version() -> Result<Version, VersionError> {
 
 #[derive(thiserror::Error, Debug)]
 pub enum RefError {
-    #[error("ref name is not valid UTF-8")]
-    InvalidName,
+    #[error("ref name is not valid: {source}")]
+    InvalidName { source: raw::Error },
     #[error("unexpected unqualified ref: {0}")]
     Unqualified(fmt::RefString),
     #[error("invalid ref format: {0}")]
@@ -184,7 +184,9 @@ pub mod refs {
 
     /// Try to get a qualified reference from a generic reference.
     pub fn qualified_from<'a>(r: &'a raw::Reference) -> Result<(Qualified<'a>, Oid), RefError> {
-        let name = r.name().ok_or(RefError::InvalidName)?;
+        let name = r
+            .name()
+            .map_err(|source| RefError::InvalidName { source })?;
         let refstr = RefStr::try_from_str(name)?;
         let target = r.resolve()?.target().ok_or(RefError::NoTarget)?;
         let qualified = Qualified::from_refstr(refstr)
@@ -717,19 +719,18 @@ pub fn set_upstream(
     Ok(())
 }
 
-pub fn init_default_branch(repo: &raw::Repository) -> Result<Option<String>, raw::Error> {
+pub fn init_default_branch(repo: &raw::Repository) -> Result<String, raw::Error> {
     let config = repo.config().and_then(|mut c| c.snapshot())?;
     let default_branch = config.get_str("init.defaultbranch")?;
     let branch = repo.find_branch(default_branch, raw::BranchType::Local)?;
-    Ok(branch.into_reference().shorthand().map(ToOwned::to_owned))
+    Ok(branch.into_reference().shorthand()?.to_owned())
 }
 
 pub fn head_refname(repo: &raw::Repository) -> Result<Option<String>, raw::Error> {
     let head = repo.head()?;
-    match head.shorthand() {
-        Some("HEAD") => Ok(None),
-        Some(refname) => Ok(Some(refname.to_owned())),
-        None => Ok(None),
+    match head.shorthand()? {
+        "HEAD" => Ok(None),
+        refname => Ok(Some(refname.to_owned())),
     }
 }
 

@@ -98,9 +98,13 @@ impl<'a> TryFrom<git::raw::Remote<'a>> for Remote<'a> {
         })?;
         let pushurl = value
             .pushurl()
+            .map_err(|_| RemoteError::MissingUrl)?
             .map(radicle::git::Url::from_str)
             .transpose()?;
-        let name = value.name().ok_or(RemoteError::MissingName)?;
+        let name = value
+            .name()
+            .map_err(|_| RemoteError::MissingName)?
+            .ok_or(RemoteError::MissingName)?;
 
         Ok(Self {
             name: name.to_owned(),
@@ -257,7 +261,7 @@ pub fn rad_remotes(repo: &Repository) -> anyhow::Result<Vec<Remote<'_>>> {
         .remotes()?
         .iter()
         .filter_map(|name| {
-            let remote = repo.find_remote(name?).ok()?;
+            let remote = repo.find_remote(name.ok()??).ok()?;
             Remote::try_from(remote).ok()
         })
         .collect();
