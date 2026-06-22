@@ -30,8 +30,6 @@ pub enum Error {
     Git(#[from] git::raw::Error),
     #[error("i/o error: {0}")]
     Io(#[from] io::Error),
-    #[error("invalid utf-8 string")]
-    InvalidUtf8,
 }
 
 /// The user supplied `Patch` description.
@@ -152,7 +150,7 @@ fn message_from_commits(name: &str, commits: Vec<git::raw::Commit>) -> Result<St
     let Some(commit) = commits.next() else {
         return Ok(String::default());
     };
-    let commit_msg = commit.message().ok_or(Error::InvalidUtf8)?.to_string();
+    let commit_msg = commit.message()?.to_string();
 
     if count == 1 {
         return Ok(commit_msg);
@@ -172,7 +170,7 @@ fn message_from_commits(name: &str, commits: Vec<git::raw::Commit>) -> Result<St
     writeln!(&mut msg)?;
 
     for (i, commit) in commits.enumerate() {
-        let commit_msg = commit.message().ok_or(Error::InvalidUtf8)?.trim_end();
+        let commit_msg = commit.message()?.trim_end();
         let commit_num = i + 2;
 
         writeln!(&mut msg, "<!--")?;
@@ -488,7 +486,7 @@ fn patch_commit_lines(
                 term::format::oid(commit.id()).into(),
             )),
             term::label(term::format::default(
-                commit.summary().unwrap_or_default().to_owned(),
+                commit.summary()?.unwrap_or_default().to_owned(),
             )),
         ]));
     }

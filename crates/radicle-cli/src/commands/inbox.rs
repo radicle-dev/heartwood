@@ -273,7 +273,7 @@ impl NotificationRow {
         S: ReadRepository,
     {
         let commit = if let Some(head) = n.update.new() {
-            repo.commit(head)?.summary().unwrap_or_default().to_owned()
+            repo.commit(head)?.summary()?.unwrap_or_default().to_owned()
         } else {
             String::new()
         };
@@ -371,7 +371,7 @@ impl NotificationRow {
         S: ReadRepository,
     {
         let commit = if let Some(head) = n.update.new() {
-            repo.commit(head)?.summary().unwrap_or_default().to_owned()
+            repo.commit(head)?.summary()?.unwrap_or_default().to_owned()
         } else {
             String::new()
         };

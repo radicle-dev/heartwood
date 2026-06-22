@@ -455,7 +455,7 @@ mod git2 {
 
         #[test]
         fn zero() {
-            assert!(Oid::ZERO_SHA1 == Other::zero());
+            assert!(Oid::ZERO_SHA1 == Other::ZERO_SHA1);
         }
     }
 }

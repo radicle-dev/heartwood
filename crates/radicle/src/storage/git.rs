@@ -59,7 +59,9 @@ impl TryFrom<git::raw::Reference<'_>> for Ref {
     type Error = RefError;
 
     fn try_from(r: git::raw::Reference) -> Result<Self, Self::Error> {
-        let name = r.name().ok_or(RefError::InvalidName)?;
+        let name = r
+            .name()
+            .map_err(|source| RefError::InvalidName { source })?;
         let (namespace, name) = match git::parse_ref_namespaced::<RemoteId>(name) {
             Ok((namespace, refname)) => (Some(namespace), refname.to_ref_string()),
             Err(RefError::MissingNamespace(refname)) => (None, refname),
@@ -282,7 +284,7 @@ impl Storage {
 
             for r in repo.raw().references()? {
                 let r = r?;
-                let name = r.name().ok_or(Error::InvalidRef)?;
+                let name = r.name().map_err(|_| Error::InvalidRef)?;
                 let oid = r.resolve()?.target().ok_or(Error::InvalidRef)?;
 
                 println!("{} {oid} {name}", rid.urn());
@@ -544,7 +546,7 @@ impl Repository {
     pub fn inspect(&self) -> Result<(), Error> {
         for r in self.backend.references()? {
             let r = r?;
-            let name = r.name().ok_or(Error::InvalidRef)?;
+            let name = r.name().map_err(|_| Error::InvalidRef)?;
             let oid = r.resolve()?.target().ok_or(Error::InvalidRef)?;
 
             println!("{oid} {name}");
@@ -592,7 +594,7 @@ impl Repository {
         let iter = self.backend.references_glob(SIGREFS_GLOB.as_str())?.map(
             |reference| -> Result<RemoteId, refs::Error> {
                 let r = reference?;
-                let name = r.name().ok_or(refs::Error::InvalidRef)?;
+                let name = r.name().map_err(|_| refs::Error::InvalidRef)?;
                 let (id, _) = git::parse_ref_namespaced::<RemoteId>(name)?;
 
                 Ok(id)
@@ -610,7 +612,7 @@ impl Repository {
                 .references_glob(SIGREFS_GLOB.as_str())?
                 .map(|reference| -> Result<_, _> {
                     let r = reference?;
-                    let name = r.name().ok_or(refs::Error::InvalidRef)?;
+                    let name = r.name().map_err(|_| refs::Error::InvalidRef)?;
                     let (id, _) = git::parse_ref_namespaced::<RemoteId>(name)?;
                     let remote = self.remote(&id)?;
 
@@ -797,7 +799,7 @@ impl ReadRepository for Repository {
 
         for e in entries {
             let e = e?;
-            let name = e.name().ok_or(Error::InvalidRef)?;
+            let name = e.name().map_err(|_| Error::InvalidRef)?;
             let (_, refname) = git::parse_ref::<RemoteId>(name)?;
             let oid = e.resolve()?.target().ok_or(Error::InvalidRef)?;
             let (_, category, subcategory, _) = refname.non_empty_components();
@@ -827,6 +829,7 @@ impl ReadRepository for Repository {
 
             if let Some(name) = r
                 .name()
+                .ok()
                 .and_then(|n| git::fmt::RefStr::try_from_str(n).ok())
                 .and_then(git::fmt::Qualified::from_refstr)
             {
@@ -949,7 +952,7 @@ impl WriteRepository for Repository {
         let name = name.as_ref();
         let target = target.as_ref();
         match self.raw().find_reference(name.as_str()) {
-            Ok(mut existing) => match existing.symbolic_target() {
+            Ok(mut existing) => match existing.symbolic_target()? {
                 Some(current) if current == target.as_str() => {
                     // Already points to the correct target, nothing to do.
                 }

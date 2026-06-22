@@ -89,7 +89,7 @@ pub fn branches(target: &Oid, repo: &git::raw::Repository) -> anyhow::Result<Vec
         if !r.is_branch() {
             continue;
         }
-        if let (Some(oid), Some(name)) = (&r.target(), &r.shorthand())
+        if let (Some(oid), name) = (&r.target(), &r.shorthand()?)
             && target == oid
         {
             branches.push(name.to_string());

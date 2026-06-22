@@ -119,7 +119,7 @@ impl cob::object::Storage for Repository {
         // TODO: Use glob here.
         let mut references = self.backend.references()?.filter_map(|reference| {
             let reference = reference.ok()?;
-            match RefStr::try_from_str(reference.name()?) {
+            match RefStr::try_from_str(reference.name().ok()?) {
                 Ok(name) => {
                     let (ty, object_id) = cob::object::parse_refstr(&name)?;
                     if ty == *typename {

@@ -252,7 +252,7 @@ fn load_contents(repo: &git2::Repository, tree: &git2::Tree) -> Result<Contents,
         .filter_map(|entry| {
             entry.kind().and_then(|kind| match kind {
                 git2::ObjectType::Blob => {
-                    let name = entry.name()?.parse::<i8>().ok()?;
+                    let name = entry.name().ok()?.parse::<i8>().ok()?;
                     let blob = entry
                         .to_object(repo)
                         .and_then(|object| object.peel_to_blob())

@@ -189,16 +189,15 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 term::println(format_args!("date   {time}"));
                 term::blank();
 
-                if let Some(msg) = tip.message() {
-                    for line in msg.lines() {
-                        if line.is_empty() {
-                            term::blank();
-                        } else {
-                            term::indented(term::format::dim(line));
-                        }
+                for line in tip.message()?.lines() {
+                    if line.is_empty() {
+                        term::blank();
+                    } else {
+                        term::indented(term::format::dim(line));
                     }
-                    term::blank();
                 }
+                term::blank();
+
                 for line in json::to_pretty(&doc, Path::new("radicle.json"))? {
                     term::println(format_args!(" {line}"));
                 }

@@ -342,8 +342,6 @@ pub enum RemoteError {
     Git(#[from] git::raw::Error),
     #[error("invalid remote url: {0}")]
     Url(#[from] transport::local::UrlError),
-    #[error("invalid utf-8 string")]
-    InvalidUtf8,
     #[error("remote `{0}` not found")]
     NotFound(String),
     #[error("expected remote for {expected} but found {found}")]
@@ -359,7 +357,7 @@ pub fn remote(repo: &git::raw::Repository) -> Result<(git::raw::Remote<'_>, Repo
             RemoteError::from(e)
         }
     })?;
-    let url = remote.url().ok_or(RemoteError::InvalidUtf8)?;
+    let url = remote.url()?;
     let url = git::Url::from_str(url)?;
 
     Ok((remote, url.repo))

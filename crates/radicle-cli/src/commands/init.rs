@@ -38,9 +38,9 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Err(e) => return Err(e.into()),
     };
-    if let Ok((remote, _)) = git::rad_remote(&repo)
-        && let Some(remote) = remote.url()
-    {
+
+    if let Ok((remote, _)) = git::rad_remote(&repo) {
+        let remote = remote.url()?;
         bail!("repository is already initialized with remote {remote}");
     }
 
@@ -564,17 +564,17 @@ enum DefaultBranchError {
 }
 
 fn find_default_branch(repo: &raw::Repository) -> Result<String, DefaultBranchError> {
-    match find_init_default_branch(repo).ok().flatten() {
+    match find_init_default_branch(repo).ok() {
         Some(refname) => Ok(refname),
         None => Ok(find_repository_head(repo)?),
     }
 }
 
-fn find_init_default_branch(repo: &raw::Repository) -> Result<Option<String>, raw::Error> {
+fn find_init_default_branch(repo: &raw::Repository) -> Result<String, raw::Error> {
     let config = repo.config().and_then(|mut c| c.snapshot())?;
     let default_branch = config.get_str("init.defaultbranch")?;
     let branch = repo.find_branch(default_branch, raw::BranchType::Local)?;
-    Ok(branch.into_reference().shorthand().map(ToOwned::to_owned))
+    Ok(branch.into_reference().shorthand()?.to_owned())
 }
 
 fn find_repository_head(repo: &raw::Repository) -> Result<String, DefaultBranchError> {
@@ -583,6 +583,7 @@ fn find_repository_head(repo: &raw::Repository) -> Result<String, DefaultBranchE
         Err(e) => Err(DefaultBranchError::Git(e)),
         Ok(head) => head
             .shorthand()
+            .ok()
             .filter(|refname| *refname != "HEAD")
             .ok_or(DefaultBranchError::Head)
             .map(|refname| refname.to_owned()),
