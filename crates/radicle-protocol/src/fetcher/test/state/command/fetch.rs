@@ -101,6 +101,17 @@ fn fetch_same_repo_different_nodes_queues_second() {
     let active = state.get_active_fetch(&repo_1);
     assert!(active.is_some());
     assert_eq!(*active.unwrap().from(), node_a);
+
+    // Cannot dequeue for node_b since the repo is active
+    assert!(state.dequeue(&node_b).is_none());
+
+    // Clearing the orphaned entry (as a fix, or a restart, would) unblocks it.
+    state.fetched(command::Fetched {
+        from: node_a,
+        rid: repo_1,
+    });
+    let dequeued = state.dequeue(&node_b).expect("repo is fetchable again");
+    assert_eq!(dequeued.rid, repo_1);
 }
 
 #[test]
