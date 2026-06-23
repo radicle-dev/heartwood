@@ -1683,6 +1683,8 @@ mod test {
 
         alice_doc.delegate(bob.signer.public_key().into());
         alice_doc.delegate(eve.signer.public_key().into());
+        assert_eq!(alice_doc.delegates.len(), 3);
+
         let a0 = alice_identity.root;
         let a1 = alice_identity // Change description to change traversal order.
             .update(
@@ -1693,6 +1695,7 @@ mod test {
             .unwrap();
 
         alice_doc.rescind(&eve.signer.public_key().into()).unwrap();
+        assert_eq!(alice_doc.delegates.len(), 2);
         let a2 = alice_identity
             .update(
                 cob::Title::new("Remove Eve").unwrap(),
@@ -1738,8 +1741,11 @@ mod test {
         eve_identity.reload().unwrap();
         // Now that Eve reloaded, since Bob's vote to remove Eve went through first (b1 < e1),
         // her revision is no longer valid.
-        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, b1]);
-        assert_eq!(eve_identity.revision(&e1), None);
+        assert_eq!(eve_identity.timeline, vec![a0, a1, a2, b1, e1]);
+        assert_eq!(
+            eve_identity.revision(&e1).unwrap().state,
+            State::Rejected(RejectedBy::Sibling(a2))
+        );
         assert!(!eve_identity.is_delegate(&eve.signer.public_key().into()));
     }
 
