@@ -167,9 +167,6 @@ pub enum Error {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Identity {
-    /// The canonical identifier for this identity.
-    /// This is the object id of the initial document blob.
-    pub id: RepoId,
     /// The current revision of the document.
     /// Equal to the head of the identity branch.
     pub current: RevisionId,
@@ -201,7 +198,6 @@ impl Identity {
         let root_id = root.id;
 
         Self {
-            id: root.blob.into(),
             root: root_id,
             current: root_id,
             revisions: HashMap::from_iter([(root_id, root)]),
@@ -300,8 +296,9 @@ impl Identity {
 
 impl Identity {
     /// The repository identifier.
+    #[deprecated]
     pub fn id(&self) -> RepoId {
-        self.id
+        self.root().blob.into()
     }
 
     /// The current document.
@@ -2350,7 +2347,7 @@ mod test {
 
         assert_eq!(identity.signatures().count(), 2);
         assert_eq!(identity.revisions().count(), 5);
-        assert_eq!(identity.id(), id);
+        assert_eq!(RepoId::from(identity.root().blob), id);
         assert_eq!(identity.root().id, root);
         assert_eq!(identity.current().blob, doc.blob);
         assert_eq!(identity.current().description.as_str(), "Bob's repository");
