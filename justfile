@@ -90,7 +90,7 @@ check-scripts: (verify-tool "shellcheck")
 [group('check')]
 [parallel]
 check-keywords: (verify-tool "rg" "ripgrep")
-    @CHECK="{{CHECK}}" NORMAL="{{NORMAL}}" scripts/just/check-keywords.sh
+    @scripts/just/run-scoped.sh --name "keywords" '\.rs$' -- scripts/just/check-keywords.sh
 
 # Run conflict marker checks
 [group('pre-commit')]
