@@ -116,9 +116,6 @@
             git
             installShellFiles
           ];
-          buildInputs = lib.optionals pkgs.stdenv.buildPlatform.isDarwin (with pkgs; [
-            darwin.apple_sdk.frameworks.Security
-          ]);
           nativeCheckInputs = with pkgs; [
             jq
             jujutsu
