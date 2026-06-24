@@ -62,13 +62,11 @@ check-docs:
 [group('check')]
 [parallel]
 check-typos: (verify-tool "typos" "typos-cli") check-ellipses
-    @echo "{{CHECK}}Checking for spelling typos…{{NORMAL}}"
-    @typos
+    @scripts/just/run-scoped.sh --name "typos" '\.(rs|md|toml|yml|sh)$' -- typos
 
 [group('check')]
 check-ellipses:
-    @echo "{{CHECK}}Checking for ellipses…{{NORMAL}}"
-    scripts/just/check-ellipses.sh
+    @scripts/just/check-ellipses.sh
 
 # Run codespell
 [group('pre-commit')]
@@ -76,21 +74,15 @@ check-ellipses:
 [group('check')]
 [parallel]
 check-spelling: (verify-tool "codespell")
-    @echo "{{CHECK}}Checking for code typos…{{NORMAL}}"
-    @git ls-files -z | xargs -0 codespell --write-changes --check-filenames
+    @scripts/just/run-scoped.sh --name "codespell" '.' -- codespell --write-changes --check-filenames
 
-# just runs with `/bin/sh` which has no doublestar glob
-# expansion, furthermore, `time ls **/*.sh` takes ~5s
-# locally. The `find` solution below is fastest ~900ms.
-#
 # Run shellcheck on all shell scripts
 [group('pre-commit')]
 [group('pre-push')]
 [group('check')]
 [parallel]
 check-scripts: (verify-tool "shellcheck")
-    @echo "{{CHECK}}Checking shell scripts…{{NORMAL}}"
-    @find . -type f -name "*.sh" -exec shellcheck {} +
+    @scripts/just/run-scoped.sh --name "shellcheck" '\.sh$' -- shellcheck
 
 # Run checks for forbidden keywords
 [group('pre-commit')]
@@ -106,8 +98,7 @@ check-keywords: (verify-tool "rg" "ripgrep")
 [group('check')]
 [parallel]
 check-conflict-markers: (verify-tool "rg" "ripgrep")
-    @echo "{{CHECK}}Checking for conflict markers…{{NORMAL}}"
-    @! rg -n '^(<{7}|\|{7}|={7}|>{7}|%{7}|\+{7}|-{7})( |$)'
+    @scripts/just/run-scoped.sh --negate --name "conflict markers" '.' -- rg -n '^(<{7}|\|{7}|={7}|>{7}|%{7}|\+{7}|-{7})( |$)'
 
 # Format Nix files
 [group('pre-commit')]
