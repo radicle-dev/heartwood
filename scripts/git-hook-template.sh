@@ -41,6 +41,17 @@ then
     esac
 fi
 
+# During pre-commit, export the staged file list so checks can scope to those files.
+# There are three modes, depending on the state of `CHECK_FILES`:
+#   unset     → all files are checked
+#   empty     → skip checks (nothing staged)
+#   non-empty → checks specific set of files
+if [ "$HOOK" = "pre-commit" ]
+then
+    export CHECK_FILES
+    CHECK_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
+fi
+
 # Execute the appropriate just recipe based on the hook name.
 if [ "$HOOK" = "commit-msg" ]
 then
