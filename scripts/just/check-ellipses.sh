@@ -1,4 +1,4 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # Replace '...' with '…' (U+2026) in markdown, just and Rust files, but ignore:
@@ -6,15 +6,20 @@ set -euo pipefail
 # - Git ranges with ref paths, e.g. feature/1...rad/patches/f2de534
 # - Standalone '...' lines used as output wildcards in CLI example tests
 # - Wildcards for CLI example tests, i.e. [...]
-patterns=('*.md' '*.rs' '*justfile')
+#
+# Receives file arguments from run-scoped.sh.
 
-# Get all regular files (exclude symlinks, directories, etc.)
+if [ $# -eq 0 ]; then
+    exit 0
+fi
+
+# Filter to regular files (exclude symlinks, directories, etc.)
 files=()
-while IFS= read -r -d '' file; do
+for file in "$@"; do
     if [ -f "$file" ] && [ ! -L "$file" ]; then
         files+=("$file")
     fi
-done < <(git ls-files -z "${patterns[@]}")
+done
 
 if [ ${#files[@]} -eq 0 ]; then
     exit 0

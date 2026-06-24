@@ -66,7 +66,7 @@ check-typos: (verify-tool "typos" "typos-cli") check-ellipses
 
 [group('check')]
 check-ellipses:
-    @scripts/just/check-ellipses.sh
+    @scripts/just/run-scoped.sh --name "ellipses" '(\.(rs|md)$|justfile)' -- scripts/just/check-ellipses.sh
 
 # Run codespell
 [group('pre-commit')]
