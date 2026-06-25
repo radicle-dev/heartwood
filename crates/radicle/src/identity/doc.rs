@@ -168,7 +168,6 @@ impl VersionError {
     pub fn verbose(&self) -> String {
         const UNKNOWN_VERSION_ERROR: &str = r#"
 Perhaps a new version of the identity document is released which is not supported by the current client.
-See https://radicle.dev for the latest versions of Radicle.
 The CLI command `rad id migrate` will help to migrate to an up-to-date versions."#;
 
         match self {
