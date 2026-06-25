@@ -1931,6 +1931,7 @@ mod test {
         bob.repo.fetch(alice);
         eve.repo.fetch(alice);
 
+        // Bob proposes B1 (child of A1, the current revision).
         let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
         let mut bob_doc = bob_identity.doc().clone().edit();
         bob_doc.visibility = Visibility::private([]);
@@ -1942,16 +1943,26 @@ mod test {
             )
             .unwrap();
 
-        let bob_doc2 = bob_doc.clone();
-        bob_doc.visibility = Visibility::Public;
+        // Bob proposes B2 as a **child of B1** (not A1).
+        // We use a manual transaction to set B1 as the parent, since `update()`
+        // always uses `self.current` (= A1, because B1 hasn't been accepted).
+        let mut bob_doc2 = bob_doc.clone();
+        bob_doc2.visibility = Visibility::private([bob.signer.public_key().into()]);
         let b2 = bob_identity
-            .update(
-                cob::Title::new("B2").unwrap(),
-                "",
-                &bob_doc2.verified().unwrap(),
-            )
+            .transaction("B2", |tx, repo| {
+                *tx = Transaction::new_revision(
+                    cob::Title::new("B2").unwrap(),
+                    "",
+                    &bob_doc2.verified().unwrap(),
+                    Some(b1),
+                    repo,
+                    &bob.signer,
+                )?;
+                Ok(())
+            })
             .unwrap();
 
+        // Eve proposes E1 (child of A1, sibling of B1).
         let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
         let mut eve_doc = eve_identity.doc().clone().edit();
         eve_doc.visibility = Visibility::private([eve.signer.public_key().into()]);
@@ -1963,18 +1974,20 @@ mod test {
             )
             .unwrap();
 
+        // Alice accepts E1 → E1 reaches 2/3 → adopted.
         alice.repo.fetch(eve);
         alice_identity.reload().unwrap();
         alice_identity.accept(&e1).unwrap();
 
+        // Eve syncs with everyone.
         eve.repo.fetch(bob);
         eve.repo.fetch(alice);
         eve_identity.reload().unwrap();
 
-        //     b2   (Propose "B2")
+        //     b2   (Propose "B2")  [Rejected(Parent) — cascaded from B1]
         //     |
-        //     b1   (Propose "B1")
-        //  e1 |    (Propose "E1") 2/3 (Accepted)
+        //     b1   (Propose "B1")  [Rejected(Sibling(E1)) — sibling E1 accepted]
+        //  e1 |    (Propose "E1")  [Accepted, 2/3]
         //  | /
         //  a1      (Add Bob and Eve)
         //  |
@@ -1982,15 +1995,18 @@ mod test {
 
         assert_eq!(eve_identity.current, e1);
         assert_eq!(eve_identity.revision(&e1).unwrap().state, State::Accepted);
+        // B1 is rejected because its sibling E1 was accepted.
         assert_eq!(
             eve_identity.revision(&b1).unwrap().state,
             State::Rejected(RejectedBy::Sibling(e1))
         );
+        // B2 is rejected because its **parent** B1 was rejected (cascading).
         assert_eq!(
             eve_identity.revision(&b2).unwrap().state,
-            State::Rejected(RejectedBy::Sibling(e1))
+            State::Rejected(RejectedBy::Parent)
         );
 
+        // Verify convergence across all nodes.
         alice.repo.fetch(bob);
         bob.repo.fetch(alice);
         bob.repo.fetch(eve);
@@ -2005,7 +2021,7 @@ mod test {
         );
         assert_eq!(
             alice_identity.revision(&b2).unwrap().state,
-            State::Rejected(RejectedBy::Sibling(e1))
+            State::Rejected(RejectedBy::Parent)
         );
 
         assert_eq!(bob_identity.current, e1);
@@ -2015,7 +2031,7 @@ mod test {
         );
         assert_eq!(
             bob_identity.revision(&b2).unwrap().state,
-            State::Rejected(RejectedBy::Sibling(e1))
+            State::Rejected(RejectedBy::Parent)
         );
     }
 
