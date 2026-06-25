@@ -2365,6 +2365,70 @@ mod test {
         assert_eq!(alice_identity.current, a1);
     }
 
+    /// Companion to `concurrent_redact_and_accept_converge`: here Bob
+    /// acts first (earlier timestamp) and Alice redacts second (later
+    /// timestamp). The accept is processed first and wins.
+    #[test]
+    fn concurrent_accept_before_redact_converge() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        let _a1 = alice_identity
+            .update(
+                cob::Title::new("A₁").unwrap(),
+                "Add Bob",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        let mut alice_doc2 = alice_identity.doc().clone().edit();
+        alice_doc2.visibility = Visibility::private([]);
+        let a2 = alice_identity
+            .update(
+                cob::Title::new("A₂").unwrap(),
+                "",
+                &alice_doc2.verified().unwrap(),
+            )
+            .unwrap();
+
+        bob.repo.fetch(alice);
+
+        // Bob accepts FIRST (earlier timestamp).
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        let _b1 = cob::stable::with_advanced_timestamp(|| bob_identity.accept(&a2).unwrap());
+
+        // Alice redacts SECOND (later timestamp).
+        let _a3 = cob::stable::with_advanced_timestamp(|| alice_identity.redact(a2).unwrap());
+
+        // Sync both directions.
+        bob.repo.fetch(alice);
+        bob_identity.reload().unwrap();
+
+        alice.repo.fetch(bob);
+        alice_identity.reload().unwrap();
+
+        // Both must agree.
+        assert_eq!(
+            alice_identity.revision(&a2).unwrap().state,
+            bob_identity.revision(&a2).unwrap().state,
+            "Alice and Bob must agree on A₂'s state"
+        );
+        assert_eq!(
+            alice_identity.current, bob_identity.current,
+            "Alice and Bob must agree on the current revision"
+        );
+
+        // The accept (earlier timestamp) is processed first.
+        // A₂ reaches 2/2 votes → Accepted. Current becomes A₂.
+        // Then the redaction is processed: A₂ is Accepted (not Active) → skipped.
+        assert_eq!(alice_identity.revision(&a2).unwrap().state, State::Accepted);
+        assert_eq!(alice_identity.current, a2);
+    }
+
     #[test]
     fn test_valid_identity() {
         let tempdir = tempfile::tempdir().unwrap();
