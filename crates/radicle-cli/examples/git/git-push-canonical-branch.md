@@ -65,27 +65,27 @@ modifying the canonical namespace.
 ``` ~bob
 $ git checkout -b releases/2
 $ git commit --allow-empty --message "Release notes for version 2"
-[releases/2 afec366] Release notes for version 2
+[releases/2 44d5918] Release notes for version 2
 ```
 
 ``` ~bob (stderr)
 $ git push -u rad releases/2
-✓ Canonical reference refs/heads/releases/2 updated to target commit afec366785ed3651cdc66975c0fec41866c9ce62
+✓ Canonical reference refs/heads/releases/2 updated to target commit 44d5918f0bf008fde964a7dc71061b1446f7ca8e
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new branch]      releases/2 -> releases/2
 ```
 
-``` ~alice 
+``` ~alice
 $ rad sync -f
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 $ git ls-remote rad
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	HEAD
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
-afec366785ed3651cdc66975c0fec41866c9ce62	refs/heads/releases/2
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/tags/qa/v2.1
-ac51a0746a5e8311829bc481202909a1e3acc0c2	refs/tags/v1.0-hotfix
-89f935f27a16f8ed97915ade4accab8fe48057aa	refs/tags/v2.0
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	HEAD
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	refs/heads/master
+44d5918f0bf008fde964a7dc71061b1446f7ca8e	refs/heads/releases/2
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	refs/tags/qa/v2.1
+d56c2e079334157571b86d1dc6a20cb5f08cc3a4	refs/tags/v1.0-hotfix
+0b1c36e340af20857fb265bba31589bb44cb6cd4	refs/tags/v2.0
 ```

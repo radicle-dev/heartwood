@@ -32,7 +32,7 @@ $ git checkout -b flux-capacitor-power
 $ touch REQUIREMENTS
 $ git add REQUIREMENTS
 $ git commit -v -m "Define power requirements"
-[flux-capacitor-power 3e674d1] Define power requirements
+[flux-capacitor-power 602ba44] Define power requirements
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 REQUIREMENTS
 $ git push rad -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
@@ -45,7 +45,7 @@ $ rad patch
 ╭─────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                      Author         Reviews  Head     +   -   Updated  Labels │
 ├─────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  aa45913  Define power requirements  alice   (you)  -        3e674d1  +0  -0  now             │
+│ ●  70a5938  Define power requirements  alice   (you)  -        602ba44  +0  -0  now             │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -55,7 +55,7 @@ Both issue and patch COBs can be listed.
 $ rad cob list --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue
 d87dcfe8c2b3200e78b128d9b959cfdf7063fefe
 $ rad cob list --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch
-aa45913e757cacd46972733bddee5472c78fa32a
+70a5938a2620ffad0cef086670112c65f69a3d48
 ```
 
 We can look at the issue COB.
@@ -82,19 +82,19 @@ date     Thu, 15 Dec 2022 17:28:04 +0000
 We can look at the patch COB too.
 
 ```
-$ rad cob log --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object aa45913e757cacd46972733bddee5472c78fa32a
-commit   aa45913e757cacd46972733bddee5472c78fa32a
+$ rad cob log --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object 70a5938a2620ffad0cef086670112c65f69a3d48
+commit   70a5938a2620ffad0cef086670112c65f69a3d48
 resource 0656c217f917c3e06234771e9ecae53aba5e173e
-rel      3e674d1a1df90807e934f9ae5da2591dd6848a33
-rel      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+rel      4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927
+rel      602ba4448210fba26633dc3f9ae3d4d9d20a1e84
 author   z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 date     Thu, 15 Dec 2022 17:28:04 +0000
 
     {
       "type": "revision",
       "description": "See details.",
-      "base": "f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354",
-      "oid": "3e674d1a1df90807e934f9ae5da2591dd6848a33"
+      "base": "4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927",
+      "oid": "602ba4448210fba26633dc3f9ae3d4d9d20a1e84"
     }
 
     {

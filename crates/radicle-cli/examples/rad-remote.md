@@ -22,8 +22,8 @@ We can now see the remote-tracking branch that was setup:
 
 ```
 $ git branch -r -v
-  bob/master f2de534 Second commit
-  rad/master f2de534 Second commit
+  bob/master 4c66f0e Second commit
+  rad/master 4c66f0e Second commit
 ```
 
 When we're finished with the `bob` remote, we can remove it:
@@ -32,7 +32,7 @@ When we're finished with the `bob` remote, we can remove it:
 $ rad remote rm bob
 ✓ Remote `bob` removed
 $ git branch -r -v
-  rad/master f2de534 Second commit
+  rad/master 4c66f0e Second commit
 ```
 
 Now, add another time `bob` but without specify the `name`, so we should be

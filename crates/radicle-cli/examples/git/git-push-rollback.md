@@ -18,8 +18,8 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential s
 $ git commit -m "Third commit" --allow-empty -q
 $ git push rad
 $ git branch -arv
-  alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master f2de534 Second commit
-  rad/master                                                    319a7dc Third commit
+  alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master 4c66f0e Second commit
+  rad/master                                                    6701ccf Third commit
 ```
 
 Alice merges these changes and pushes them, which updates the canonical head:
@@ -29,24 +29,24 @@ $ rad remote add did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name
 ✓ Remote bob added
 ✓ Remote-tracking branch bob/master created for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 $ git merge bob/master
-Updating f2de534..319a7dc
+Updating 4c66f0e..6701ccf
 Fast-forward
 ```
 
 ``` ~alice (stderr)
 $ git push rad
-✓ Canonical reference refs/heads/master updated to target commit 319a7dc3b195368ded4b099f8c90bbb80addccd3
+✓ Canonical reference refs/heads/master updated to target commit 6701ccf21c199b3283ffef64a05bade08adf7987
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   f2de534..319a7dc  master -> master
+   4c66f0e..6701ccf  master -> master
 ```
 
 Alice decides that she changes her mind about these changes and rolls back to
 the previous commit:
 
 ``` ~alice
-$ git reset --hard f2de534
-HEAD is now at f2de534 Second commit
+$ git reset --hard 4c66f0e
+HEAD is now at 4c66f0e Second commit
 ```
 
 Since the canonical head is still decidable from this commit she is allowed to
@@ -54,8 +54,8 @@ push and the new canonical head becomes the previous commit again:
 
 ``` ~alice (stderr)
 $ git push rad -f
-✓ Canonical reference refs/heads/master updated to target commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+✓ Canonical reference refs/heads/master updated to target commit 4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + 319a7dc...f2de534 master -> master (forced update)
+ + 6701ccf...4c66f0e master -> master (forced update)
 ```

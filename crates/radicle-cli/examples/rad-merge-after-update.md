@@ -4,7 +4,7 @@ Let's start by creating a patch.
 $ git checkout -b feature/1 -q
 $ git commit --allow-empty -q -m "First change"
 $ git push rad HEAD:refs/patches
-✓ Patch 696ec5508494692899337afe6713fe1796d0315c opened
+✓ Patch 91f94ec3b0b1a2fbf6d2f0a18f8c63e9713ac7be opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -16,9 +16,9 @@ $ git commit --amend --allow-empty -q -m "Amended change"
 $ git checkout master -q
 $ git merge feature/1 -q
 $ git push rad master
-✓ Canonical reference refs/heads/master updated to target commit 954bcdb5008447ce294a61a21d7eb87afbe7f4a6
+✓ Canonical reference refs/heads/master updated to target commit 01f11940ef700c8c3e2a6c8f20894c4ef3719dd1
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   f2de534..954bcdb  master -> master
+   4c66f0e..01f1194  master -> master
 ```
 
 As we can see, no patch is merged. Now if we go back to our patch and try to
@@ -27,8 +27,8 @@ update it, we expect it to be updated and merged:
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git checkout feature/1 -q
 $ git push -f
-✓ Patch 696ec55 updated to revision [...]
-✓ Patch 696ec5508494692899337afe6713fe1796d0315c merged
+✓ Patch 91f94ec updated to revision [...]
+✓ Patch 91f94ec3b0b1a2fbf6d2f0a18f8c63e9713ac7be merged
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + 20aa5dd...954bcdb feature/1 -> patches/696ec5508494692899337afe6713fe1796d0315c (forced update)
+ + f708282...01f1194 feature/1 -> patches/91f94ec3b0b1a2fbf6d2f0a18f8c63e9713ac7be (forced update)
 ```

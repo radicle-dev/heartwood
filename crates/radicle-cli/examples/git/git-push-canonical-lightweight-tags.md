@@ -96,7 +96,7 @@ $ git tag v1.0-hotfix
 
 ``` ~alice (stderr)
 $ git push rad --tags
-✓ Canonical reference refs/tags/v1.0-hotfix updated to target commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+✓ Canonical reference refs/tags/v1.0-hotfix updated to target commit 4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new tag]         v1.0-hotfix -> v1.0-hotfix
@@ -106,7 +106,7 @@ Notice that the output included a message about a canonical reference being
 updated:
 
 ~~~
-✓ Canonical reference refs/tags/v1.0-hotfix updated to target commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+✓ Canonical reference refs/tags/v1.0-hotfix updated to target commit 4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927
 ~~~
 
 On the other side, Bob performs a fetch and now has the tags locally:
@@ -199,7 +199,7 @@ $ git tag v2.0 bob/tags/v2.0
 
 ``` ~alice (stderr)
 $ git push rad --tags
-✓ Canonical reference refs/tags/v2.0 updated to target commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+✓ Canonical reference refs/tags/v2.0 updated to target commit 4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new tag]         v2.0 -> v2.0
@@ -216,7 +216,7 @@ reference is created:
 ``` ~bob (stderr)
 $ git tag qa/v2.1
 $ git push rad --tags
-✓ Canonical reference refs/tags/qa/v2.1 updated to target commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+✓ Canonical reference refs/tags/qa/v2.1 updated to target commit 4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new tag]         qa/v2.1 -> qa/v2.1

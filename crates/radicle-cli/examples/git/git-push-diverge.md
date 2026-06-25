@@ -21,8 +21,8 @@ did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
 $ git commit -m "Third commit" --allow-empty -q
 $ git push rad
 $ git branch -arv
-  alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master f2de534 Second commit
-  rad/master                                                    319a7dc Third commit
+  alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master 4c66f0e Second commit
+  rad/master                                                    6701ccf Third commit
 ```
 
 As Alice, we fetch that code, but commit on top of our own master, which is no
@@ -33,8 +33,8 @@ $ rad remote add did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name
 ✓ Remote bob added
 ✓ Remote-tracking branch bob/master created for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 $ git branch -arv
-  bob/master 319a7dc Third commit
-  rad/master f2de534 Second commit
+  bob/master 6701ccf Third commit
+  rad/master 4c66f0e Second commit
 $ git commit -m "Third commit by Alice" --allow-empty -q
 ```
 
@@ -43,11 +43,11 @@ integrate Bob's changes before pushing ours:
 
 ``` ~alice (stderr)
 $ git push rad
-warn: could not determine target commit for canonical reference 'refs/heads/master', found diverging commits 2e8758fc512cbdef298c86feddff5ba3280e94b4 and 319a7dc3b195368ded4b099f8c90bbb80addccd3, with base commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 and threshold 1
+warn: could not determine target commit for canonical reference 'refs/heads/master', found diverging commits 6701ccf21c199b3283ffef64a05bade08adf7987 and b3cf6bdb16c2b8817f680a9e4aee8d9daf7f1506, with base commit 4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927 and threshold 1
 warn: it is recommended to find a commit to agree upon
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   f2de534..2e8758f  master -> master
+   4c66f0e..b3cf6bd  master -> master
 ```
 
 We do that, and notice that we're now able to push our code:
@@ -55,16 +55,16 @@ We do that, and notice that we're now able to push our code:
 ``` ~alice
 $ git pull bob master --rebase
 $ git log --oneline
-f6cff86 Third commit by Alice
-319a7dc Third commit
-f2de534 Second commit
-08c788d Initial commit
+a1854a8 Third commit by Alice
+6701ccf Third commit
+4c66f0e Second commit
+60d31e8 Initial commit
 ```
 ``` ~alice RAD_SOCKET=/dev/null (stderr)
 $ git push rad -f
-✓ Canonical reference refs/heads/master updated to target commit f6cff86594495e9beccfeda7c20173e55c1dd9fc
+✓ Canonical reference refs/heads/master updated to target commit a1854a87e089558043dcfac2eaeb28247dd8afdb
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + 2e8758f...f6cff86 master -> master (forced update)
+ + b3cf6bd...a1854a8 master -> master (forced update)
 ```
 
 One thing of note is that we can revert to an older commit as long as we are
@@ -75,7 +75,7 @@ $ git reset --hard HEAD^ -q
 ```
 ``` ~alice RAD_SOCKET=/dev/null (stderr)
 $ git push -f
-✓ Canonical reference refs/heads/master updated to target commit 319a7dc3b195368ded4b099f8c90bbb80addccd3
+✓ Canonical reference refs/heads/master updated to target commit 6701ccf21c199b3283ffef64a05bade08adf7987
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + f6cff86...319a7dc master -> master (forced update)
+ + a1854a8...6701ccf master -> master (forced update)
 ```

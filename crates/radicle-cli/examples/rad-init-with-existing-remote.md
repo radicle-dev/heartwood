@@ -14,7 +14,7 @@ $ git remote add origin file://$PWD/remote
 $ git push -u origin master:master
 ...
 $ git branch -vv
-* master f2de534 [origin/master] Second commit
+* master 4c66f0e [origin/master] Second commit
 ```
 
 Then we initialize.

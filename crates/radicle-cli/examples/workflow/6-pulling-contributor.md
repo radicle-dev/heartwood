@@ -4,7 +4,7 @@ master, which includes our patch.
 First, we confirm that our master is behind:
 ```
 $ git rev-parse master
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927
 ```
 
 Then, we call `rad sync --fetch` to fetch from the maintainer:
@@ -23,15 +23,15 @@ Your branch is up to date with 'rad/master'.
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git pull --all --ff
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-   f2de534..f567f69  master     -> rad/master
+   4c66f0e..6947d0d  master     -> rad/master
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   f2de534..f567f69  master     -> alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
+   4c66f0e..6947d0d  master     -> alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
 ```
 
 Now our master branch is up to date with the maintainer's master:
 
 ```
 $ git rev-parse master
-f567f695d25b4e8fb63b5f5ad2a584529826e908
+6947d0dc43b7e5f7902bbe21550f1dfc1e54b205
 $ git diff master..alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
 ```

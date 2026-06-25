@@ -5,7 +5,7 @@ So first, let's add another change to the patch and a `LICENSE` file.
 $ touch LICENSE
 $ git add LICENSE
 $ git commit --message "Add LICENSE, just for the business"
-[patch/aa45913 639f44a] Add LICENSE, just for the business
+[patch/70a5938 1c229bf] Add LICENSE, just for the business
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 LICENSE
 $ git push rad -o patch.message="Add LICENSE, just for the business"
@@ -14,40 +14,40 @@ $ git push rad -o patch.message="Add LICENSE, just for the business"
 We can see the list of revisions of the patch by `show`ing it:
 
 ```
-$ rad patch show aa45913
+$ rad patch show 70a5938
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                      │
-│ Patch     aa45913e757cacd46972733bddee5472c78fa32a       │
+│ Patch     70a5938a2620ffad0cef086670112c65f69a3d48       │
 │ Author    alice (you)                                    │
-│ Head      639f44a25145a37f747f3c84265037a9461e44c5       │
+│ Head      1c229bff249cb9a82d5058cdb265898c88eb803c       │
 │ Base      [..                                    ]       │
 │ Target    master                                         │
-│ Branches  patch/aa45913                                  │
+│ Branches  patch/70a5938                                  │
 │ Commits   ahead 3, behind 0                              │
 │ Status    open                                           │
 │                                                          │
 │ See details.                                             │
 ├──────────────────────────────────────────────────────────┤
-│ 639f44a Add LICENSE, just for the business               │
-│ 27857ec Add README, just for the fun                     │
-│ 3e674d1 Define power requirements                        │
+│ 1c229bf Add LICENSE, just for the business               │
+│ 8083d4c Add README, just for the fun                     │
+│ 602ba44 Define power requirements                        │
 ├──────────────────────────────────────────────────────────┤
-│ ● Revision aa45913 @ [..   ]..3e674d1 by alice (you) now │
-│ ↑ Revision 3156bed @ [..   ]..27857ec by alice (you) now │
-│ ↑ Revision 2f5324f @ [..   ]..639f44a by alice (you) now │
+│ ● Revision 70a5938 @ [..   ]..602ba44 by alice (you) now │
+│ ↑ Revision 052017[..] @ [..   ]..8083d4c by alice (you) now │
+│ ↑ Revision 4fc7c3c @ [..   ]..1c229bf by alice (you) now │
 ╰──────────────────────────────────────────────────────────╯
 ```
 
 So, let's checkout the previous revision, `0c0942e2`:
 
 ```
-$ rad patch checkout aa45913 --revision 3156bed9d64d4675d6cf56612d217fc5f4e8a53a -f
-✓ Switched to branch patch/aa45913 at revision 3156bed
+$ rad patch checkout 70a5938 --revision 052017158836193eb24c54b983614b062cb92bd0 -f
+✓ Switched to branch patch/70a5938 at revision 052017[..]
 ```
 
-And we can confirm that the current commit corresponds to `27857ec`:
+And we can confirm that the current commit corresponds to `8083d4c`:
 
 ```
 $ git rev-parse HEAD
-27857ec9eb04c69cacab516e8bf4b5fd36090f66
+8083d4cbb2b297ade6a12962f8ddc118c3900dcf
 ```

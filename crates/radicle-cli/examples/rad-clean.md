@@ -10,7 +10,7 @@ $ rad ls
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   public       f2de534   Radicle Heartwood Protocol & Stack │
+│ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   public       4c66f0e   Radicle Heartwood Protocol & Stack │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -18,8 +18,8 @@ Let's also inspect what remotes are in the repository:
 
 ``` ~alice
 $ rad inspect --sigrefs
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 55be80540a7e9f10478fbc846913f2a6a19abe1d parent
-z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk e9f48ef90fe8592e1b1c95f96c21a59ca1495300 parent
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi eafcbefc5cfebc6e4adbc09c86f748a00cc48725 parent
+z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 7c97b19a16e7a3f9dd30065c93523d5c80633bfb parent
 ```
 
 Now let's clean the `heartwood` project:
@@ -34,7 +34,7 @@ Inspecting the remotes again, we see that Bob is now gone:
 
 ``` ~alice
 $ rad inspect --sigrefs
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 55be80540a7e9f10478fbc846913f2a6a19abe1d parent
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi eafcbefc5cfebc6e4adbc09c86f748a00cc48725 parent
 ```
 
 Note that Bob will be fetched again if we do not untrack his

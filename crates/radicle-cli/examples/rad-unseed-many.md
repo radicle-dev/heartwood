@@ -8,8 +8,8 @@ $ rad ls
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   public       f2de534   Radicle Heartwood Protocol & Stack │
-│ nixpkgs     rad:zyFFr2iwoTEfNF4jGNZHuoy7odMh    public       f2de534   Home for Nix Packages              │
+│ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   public       4c66f0e   Radicle Heartwood Protocol & Stack │
+│ nixpkgs     rad:zyFFr2iwoTEfNF4jGNZHuoy7odMh    public       4c66f0e   Home for Nix Packages              │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 

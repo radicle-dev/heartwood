@@ -17,9 +17,7 @@ pub const RADICLE_EPOCH: i64 = 1514817556;
 
 const USER_NAME: &str = "anonymous";
 
-// TODO: Next time we do something that changes all hashes,
-// also change this to "anonymous@radicle.example.com".
-const USER_EMAIL: &str = "anonymous@radicle.xyz";
+const USER_EMAIL: &str = "anonymous@example.com";
 
 /// Create a new user info object.
 pub fn user() -> git::UserInfo {

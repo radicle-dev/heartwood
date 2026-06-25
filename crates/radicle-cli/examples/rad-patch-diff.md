@@ -10,7 +10,7 @@ $ git commit -m "Add README" -q
 $ git push rad HEAD:refs/patches
 ```
 ```
-$ rad patch diff 147309e
+$ rad patch diff 23f9d27
 diff --git a/README.md b/README.md
 new file mode 100644
 index 0000000..980a0d5
@@ -31,7 +31,7 @@ $ git commit --amend -q
 $ git push -f
 ```
 ```
-$ rad patch diff 147309e
+$ rad patch diff 23f9d27
 diff --git a/RADICLE.md b/RADICLE.md
 new file mode 100644
 index 0000000..e517184
@@ -52,7 +52,7 @@ Buf if we only want to see the changes from the first revision, we can do that
 too.
 
 ```
-$ rad patch diff 147309e --revision 147309e
+$ rad patch diff 23f9d27 --revision 23f9d27
 diff --git a/README.md b/README.md
 new file mode 100644
 index 0000000..980a0d5

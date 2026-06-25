@@ -34,7 +34,7 @@ And sigrefs:
 
 ```
 $ rad inspect --sigrefs
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 99c549702e2bcfe02b0e68d4a2224fb7a1524529 root
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi dcd733f1bc445218da0cfc617dd20598d00abb3a root
 ```
 
 Or display the repository identity's payload and delegates:

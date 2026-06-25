@@ -21,8 +21,8 @@ $ git commit --amend -m "Neue Änderungen" --allow-empty -q
 
 ``` ~alice (stderr)
 $ git push rad master -f
-✓ Canonical reference refs/heads/master updated to target commit 9170c8795d3a78f0381a0ffafb20ea69fb0f5b6b
+✓ Canonical reference refs/heads/master updated to target commit 4014d28cbfbbe6f9b9cd701af852296fab715c12
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + fb25886...9170c87 master -> master (forced update)
+ + 673e76e...4014d28 master -> master (forced update)
 ```

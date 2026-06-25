@@ -54,24 +54,24 @@ Bob then opens a patch.
 $ git checkout -b bob/feature -q
 $ git commit --allow-empty -m "Bob's commit #1" -q
 $ git push rad -o sync -o patch.message="Bob's patch" HEAD:refs/patches
-✓ Patch 55b9721ed7f6bfec38f43729e9b6631c5dc812fb opened
+✓ Patch 5d5687e3d46f81a1e0283b252bd6f206914884f8 opened
 ✓ Synced with 1 seed(s)
 To rad://zhbMU4DUXrzB8xT6qAJh6yZ7bFMK/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new reference]   HEAD -> refs/patches
 ```
 ``` ~bob
 $ git status --short --branch
-## bob/feature...rad/patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb
+## bob/feature...rad/patches/5d5687e3d46f81a1e0283b252bd6f206914884f8
 ```
 
 Alice checks it out.
 
 ``` ~alice
-$ rad patch checkout 55b9721ed7f6bfec38f43729e9b6631c5dc812fb
-✓ Switched to branch patch/55b9721 at revision 55b9721
-✓ Branch patch/55b9721 setup to track rad/patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb
+$ rad patch checkout 5d5687e3d46f81a1e0283b252bd6f206914884f8
+✓ Switched to branch patch/5d5687e at revision 5d5687e
+✓ Branch patch/5d5687e setup to track rad/patches/5d5687e3d46f81a1e0283b252bd6f206914884f8
 $ git show
-commit bdcdb30b3c0f513620dd0f1c24ff8f4f71de956b
+commit dd7b34d00776fcc562fe60e4d54f4d0021b919ef
 Author: radicle <radicle@localhost>
 Date:   Thu Dec 15 17:28:04 2022 +0000
 
@@ -83,54 +83,54 @@ Bob then updates the patch.
 ``` ~bob (stderr)
 $ git commit --allow-empty -m "Bob's commit #2" -q
 $ git push rad -o sync -o patch.message="Updated."
-✓ Patch 55b9721 updated to revision f91e056da05b2d9a58af1160c76245bc3debf7a8
-To compare against your previous revision 55b9721, run:
+✓ Patch 5d5687e updated to revision 87c9c1e800ae56a8f0974700ca2bd9fec8edef83
+To compare against your previous revision 5d5687e, run:
 
-   git range-diff f2de534[..] bdcdb30[..] cad2666[..]
+   git range-diff 4c66f0e[..] dd7b34d[..] 954a173[..]
 
 ✓ Synced with 1 seed(s)
 To rad://zhbMU4DUXrzB8xT6qAJh6yZ7bFMK/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-   bdcdb30..cad2666  bob/feature -> patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb
+   dd7b34d..954a173  bob/feature -> patches/5d5687e3d46f81a1e0283b252bd6f206914884f8
 ```
 
 Alice pulls the update.
 
 ``` ~alice
-$ rad patch show 55b9721
+$ rad patch show 5d5687e
 ╭──────────────────────────────────────────────────────────────────╮
 │ Title    Bob's patch                                             │
-│ Patch    55b9721ed7f6bfec38f43729e9b6631c5dc812fb                │
+│ Patch    5d5687e3d46f81a1e0283b252bd6f206914884f8                │
 │ Author   bob z6Mkt67…v4N1tRk                                     │
-│ Head     cad2666a8a2250e4dee175ed5044be2c251ff08b                │
+│ Head     954a173c97031553ca7388bb9ab7066862c49f18                │
 │ Base     [..                                          ]          │
 │ Target   master                                                  │
 │ Commits  ahead 2, behind 0                                       │
 │ Status   open                                                    │
 ├──────────────────────────────────────────────────────────────────┤
-│ cad2666 Bob's commit #2                                          │
-│ bdcdb30 Bob's commit #1                                          │
+│ 954a173 Bob's commit #2                                          │
+│ dd7b34d Bob's commit #1                                          │
 ├──────────────────────────────────────────────────────────────────┤
-│ ● Revision 55b9721 @ [..   ]..bdcdb30 by bob z6Mkt67…v4N1tRk now │
-│ ↑ Revision f91e056 @ [..   ]..cad2666 by bob z6Mkt67…v4N1tRk now │
+│ ● Revision 5d5687e @ [..   ]..dd7b34d by bob z6Mkt67…v4N1tRk now │
+│ ↑ Revision 87c9c1e @ [..   ]..954a173 by bob z6Mkt67…v4N1tRk now │
 ╰──────────────────────────────────────────────────────────────────╯
 $ git ls-remote rad
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	HEAD
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
-cad2666a8a2250e4dee175ed5044be2c251ff08b	refs/heads/patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	HEAD
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	refs/heads/master
+954a173c97031553ca7388bb9ab7066862c49f18	refs/heads/patches/5d5687e3d46f81a1e0283b252bd6f206914884f8
 ```
 ``` ~alice
 $ git fetch rad
 $ git status --short --branch
-## patch/55b9721...rad/patches/55b9721ed7f6bfec38f43729e9b6631c5dc812fb [behind 1]
+## patch/5d5687e...rad/patches/5d5687e3d46f81a1e0283b252bd6f206914884f8 [behind 1]
 ```
 ``` ~alice
 $ git pull
-Updating bdcdb30..cad2666
+Updating dd7b34d..954a173
 Fast-forward
 ```
 ``` ~alice
 $ git show
-commit cad2666a8a2250e4dee175ed5044be2c251ff08b
+commit 954a173c97031553ca7388bb9ab7066862c49f18
 Author: radicle <radicle@localhost>
 Date:   Thu Dec 15 17:28:04 2022 +0000
 

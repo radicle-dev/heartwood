@@ -43,20 +43,20 @@ $ rad inbox --all --sort-by id
 
 ``` ~alice
 $ rad inbox show 2
-commit 141c9073066e3910f1dfe356904a0120542e1cc9
+commit 1de79368635a69f0000c7ed3102d1b07800894ca
 Author: radicle <radicle@localhost>
 Date:   Thu Dec 15 17:28:04 2022 +0000
 
     Change copyright
 
-commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
-Author: anonymous <anonymous@radicle.xyz>
+commit 4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927
+Author: anonymous <anonymous@example.com>
 Date:   Mon Jan 1 14:39:16 2018 +0000
 
     Second commit
 
-commit 08c788dd1be6315de09e3fe09b5b1b7a2b8711d9
-Author: anonymous <anonymous@radicle.xyz>
+commit 60d31e85dc8606107837e27c7172d90992205898
+Author: anonymous <anonymous@example.com>
 Date:   Mon Jan 1 14:39:16 2018 +0000
 
     Initial commit

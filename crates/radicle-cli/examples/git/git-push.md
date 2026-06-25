@@ -1,7 +1,7 @@
 ```
 $ git checkout -b alice/1
 $ git commit -m "Alice's commit" --allow-empty -s
-[alice/1 87fa120] Alice's commit
+[alice/1 be30b8c] Alice's commit
 ```
 
 ``` (stderr) RAD_SOCKET=/dev/null
@@ -31,31 +31,31 @@ And that we can with `+`:
 ``` (stderr)
 $ git push -o no-sync rad +HEAD:alice/1
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + 87fa120...145e1e6 HEAD -> alice/1 (forced update)
+ + be30b8c...9d6273e HEAD -> alice/1 (forced update)
 ```
 
 Notice that we used the `-o no-sync` push option to disable syncing after the push.
 
 ```
 $ git branch -r -vv
-  rad/alice/1 145e1e6 Alice's amended commit
-  rad/master  f2de534 Second commit
+  rad/alice/1 9d6273e Alice's amended commit
+  rad/master  4c66f0e Second commit
 ```
 
 List our namespaced refs:
 
 ```
 $ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 'refs/heads/*'
-145e1e69bef3ad93d14946ea212249c2fa9b9828	refs/heads/alice/1
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
+9d6273e3d5393db7c029f03c7b61d3923bb7366b	refs/heads/alice/1
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	refs/heads/master
 ```
 
 List the canonical refs:
 
 ```
 $ git ls-remote rad
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	HEAD
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	HEAD
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	refs/heads/master
 ```
 
 ```
@@ -82,10 +82,10 @@ We can also push a SHA-1:
 
 ```
 $ git commit -m "Something good" --allow-empty -s
-[alice/1 ddcc1f1] Something good
+[alice/1 d59fd22] Something good
 ```
 ``` (stderr)
-$ git push -o no-sync rad ddcc1f164eacfd7dba41da9bff3261da3ee79fd3:refs/heads/alice/2
+$ git push -o no-sync rad d59fd22:refs/heads/alice/2
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- * [new branch]      ddcc1f164eacfd7dba41da9bff3261da3ee79fd3 -> alice/2
+ * [new branch]      d59fd22 -> alice/2
 ```

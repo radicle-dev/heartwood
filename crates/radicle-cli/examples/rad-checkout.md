@@ -48,6 +48,6 @@ List the references:
 
 ```
 $ git show-ref
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 refs/heads/master
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 refs/remotes/rad/master
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927 refs/heads/master
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927 refs/remotes/rad/master
 ```

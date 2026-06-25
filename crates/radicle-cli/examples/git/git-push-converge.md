@@ -35,8 +35,8 @@ pushing to their `rad` remote -- but they won't sync to the network just yet:
 $ git commit -m "Alice's commit" --allow-empty -q
 $ git push rad -o no-sync
 $ git ls-remote rad
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	HEAD
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	HEAD
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	refs/heads/master
 ```
 
 ``` ~bob
@@ -44,8 +44,8 @@ $ git add README
 $ git commit -m "Bob's commit" -q
 $ git push rad -o no-sync
 $ git ls-remote rad
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	HEAD
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	HEAD
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	refs/heads/master
 ```
 
 ``` ~eve
@@ -53,8 +53,8 @@ $ git add README
 $ git commit -m "Eve's commit" -q
 $ git push rad -o no-sync
 $ git ls-remote rad
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	HEAD
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	HEAD
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927	refs/heads/master
 ```
 
 Alice adds Bob and Eve as remotes and starts to notice that the `no quorum was
@@ -98,7 +98,7 @@ warn: could not determine target for canonical reference 'refs/heads/master', no
 warn: it is recommended to find an object (either commit or tag) to agree upon
 ✓ Synced with 2 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   d09e634..0f9bd80  master -> master
+   4466e68..2ee06d0  master -> master
 ```
 
 ``` ~bob
@@ -109,7 +109,7 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential s
 ✓ Remote alice added
 ✓ Remote-tracking branch alice/master created for z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 $ git reset --hard alice/master
-HEAD is now at 0f9bd80 Merge remote-tracking branch 'eve/master'
+HEAD is now at 2ee06d0 Merge remote-tracking branch 'eve/master'
 ```
 
 When we check Bob's `rad` remote, we see that the commit for `refs/heads/master`
@@ -119,10 +119,10 @@ become the canonical `master`.
 
 ``` ~bob (stderr)
 $ git push rad
-✓ Canonical reference refs/heads/master updated to target commit 3a75f66dd0020c9a0355cc6ec21f15de989e2001
+✓ Canonical reference refs/heads/master updated to target commit 4af642de33bf6f78160531bbe20113cb20a60901
 ✓ Synced with 2 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-   2a37862..0f9bd80  master -> master
+   a77a47e..2ee06d0  master -> master
 ```
 
 Once Eve also resets to the merge commits, the canonical `master` is set to this tip.
@@ -135,13 +135,13 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential s
 ✓ Remote alice added
 ✓ Remote-tracking branch alice/master created for z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 $ git reset --hard alice/master
-HEAD is now at 0f9bd80 Merge remote-tracking branch 'eve/master'
+HEAD is now at 2ee06d0 Merge remote-tracking branch 'eve/master'
 ```
 
 ``` ~eve (stderr)
 $ git push rad
-✓ Canonical reference refs/heads/master updated to target commit 0f9bd8035c04b3f73f5408e73e8454879b20800b
+✓ Canonical reference refs/heads/master updated to target commit 2ee06d06c192aff5d6a1ba68ee1dbaad443ac79b
 ✓ Synced with 2 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
-   3a75f66..0f9bd80  master -> master
+   4af642d..2ee06d0  master -> master
 ```

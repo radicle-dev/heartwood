@@ -7,8 +7,8 @@ $ jj describe --message "Define power requirements"
 $ jj status
 Working copy changes:
 A REQUIREMENTS
-Working copy  (@) : lvxkkpmk a6ea7b72 Define power requirements
-Parent commit (@-): xpnzuzwn f2de534b master master@rad | Second commit
+Working copy  (@) : lvxkkpmk f54b4670 Define power requirements
+Parent commit (@-): lvqposkz 4c66f0e9 master master@rad | Second commit
 ```
 
 ```
@@ -18,9 +18,9 @@ $ jj new
 Just making sure that Git sees the Change ID…
 
 ```
-$ git cat-file commit a6ea7b72
+$ git cat-file commit f54b4670
 tree [..]
-parent f2de534b[..]
+parent 4c66f0e9[..]
 author Test User <test.user@example.com> 981147906 +0700
 committer Test User <test.user@example.com> 981147906 +0700
 change-id lvxkkpmk[..]
@@ -38,7 +38,7 @@ Git to push.
 
 ``` (stderr)
 $ git push rad -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
-✓ Patch 1e31055ed3c41a48f2a71ba5317feb863b089700 opened
+✓ Patch e0c8a16d35ce5c7e3de4fcb4103b1a103a286c8b opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -50,7 +50,7 @@ $ rad patch
 ╭─────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                      Author         Reviews  Head     +   -   Updated  Labels │
 ├─────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  1e31055  Define power requirements  alice   (you)  -        a6ea7b7  +0  -0  now             │
+│ ●  e0c8a16  Define power requirements  alice   (you)  -        f54b467  +0  -0  now             │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -61,25 +61,25 @@ $ jj bookmark create flux-capacitor-power
 ```
 
 ```
-$ rad patch show 1e31055 -p
+$ rad patch show e0c8a16 -p
 ╭──────────────────────────────────────────────────────────╮
 │ Title    Define power requirements                       │
-│ Patch    1e31055[..                             ]        │
+│ Patch    e0c8a16[..                             ]        │
 │ Author   alice (you)                                     │
-│ Head     a6ea7b7[..                             ]        │
-│ Base     f2de534[..                             ]        │
+│ Head     f54b467[..                             ]        │
+│ Base     4c66f0e[..                             ]        │
 │ Target   master                                          │
 │ Commits  ahead 1, behind 0                               │
 │ Status   open                                            │
 │                                                          │
 │ See details.                                             │
 ├──────────────────────────────────────────────────────────┤
-│ a6ea7b7 Define power requirements                        │
+│ f54b467 Define power requirements                        │
 ├──────────────────────────────────────────────────────────┤
-│ ● Revision 1e31055 @ [..   ]..a6ea7b7 by alice (you) now │
+│ ● Revision e0c8a16 @ [..   ]..f54b467 by alice (you) now │
 ╰──────────────────────────────────────────────────────────╯
 
-commit a6ea7b7[..]
+commit f54b467[..]
 Author: Test User <test.user@example.com>
 Date:   Sat Feb 3 04:05:06 2001 +0700
 

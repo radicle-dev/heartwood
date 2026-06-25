@@ -35,7 +35,7 @@ $ git checkout -b spice-harvester-broken
 $ touch TREATY.md
 $ git add TREATY.md
 $ git commit -v -m "Start drafting peace treaty"
-[spice-harvester-broken 575ed68] Start drafting peace treaty
+[spice-harvester-broken 87bbb39] Start drafting peace treaty
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 TREATY.md
 $ git push rad -o patch.message="Start drafting peace treaty" -o patch.message="See details." HEAD:refs/patches
@@ -48,7 +48,7 @@ $ rad patch
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                        Author         Reviews  Head     +   -   Updated  Labels │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  d1f7f86  Start drafting peace treaty  alice   (you)  -        575ed68  +0  -0  now             │
+│ ●  a7ed753  Start drafting peace treaty  alice   (you)  -        87bbb39  +0  -0  now             │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -58,7 +58,7 @@ Both issue and patch COBs can be listed.
 $ rad cob list --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue
 9de644864342d7a505eb8d58d1ef20e5bb05de2e
 $ rad cob list --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch
-d1f7f869fde9fac19c1779c4c2e77e8361333f91
+a7ed7534fa15b7a7a7097873287835f3464067c0
 ```
 
 We can show the issue COB.
@@ -71,8 +71,8 @@ $ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue
 We can show the patch COB too.
 
 ```
-$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object d1f7f869fde9fac19c1779c4c2e77e8361333f91
-{"title":"Start drafting peace treaty","author":{"id":"did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"},"state":{"status":"open"},"target":"delegates","labels":[],"merges":{},"revisions":{"d1f7f869fde9fac19c1779c4c2e77e8361333f91":{"id":"d1f7f869fde9fac19c1779c4c2e77e8361333f91","author":{"id":"did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"},"description":[{"author":"z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi","timestamp":1671125284000,"body":"See details.","embeds":[]}],"base":"f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354","oid":"575ed68c716d6aae81ea6b718fd9ac66a8eae532","discussion":{"comments":{},"timeline":[]},"reviews":{},"timestamp":1671125284000,"resolves":[],"reactions":[]}},"assignees":[],"timeline":["d1f7f869fde9fac19c1779c4c2e77e8361333f91"],"reviews":{}}
+$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object a7ed7534fa15b7a7a7097873287835f3464067c0
+{"title":"Start drafting peace treaty","author":{"id":"did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"},"state":{"status":"open"},"target":"delegates","labels":[],"merges":{},"revisions":{"a7ed7534fa15b7a7a7097873287835f3464067c0":{"id":"a7ed7534fa15b7a7a7097873287835f3464067c0","author":{"id":"did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"},"description":[{"author":"z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi","timestamp":1671125284000,"body":"See details.","embeds":[]}],"base":"4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927","oid":"87bbb394a79a73803c39f34d2849772c533f56ce","discussion":{"comments":{},"timeline":[]},"reviews":{},"timestamp":1671125284000,"resolves":[],"reactions":[]}},"assignees":[],"timeline":["a7ed7534fa15b7a7a7097873287835f3464067c0"],"reviews":{}}
 ```
 
 Finally let's update the issue and see the output of `rad cob show` also changes.

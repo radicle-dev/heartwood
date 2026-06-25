@@ -4,8 +4,8 @@ opened when we're in the infamous 'detached HEAD' state.
 First, we will enter this state by using `git checkout` on a commit object:
 
 ``` (stderr) RAD_HINT=1
-$ git checkout f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
-Note: switching to 'f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354'.
+$ git checkout 4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927
+Note: switching to '4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927'.
 
 You are in 'detached HEAD' state. You can look around, make experimental
 changes and commit them, and you can discard any commits you make in this
@@ -22,7 +22,7 @@ Or undo this operation with:
 
 Turn off this advice by setting config variable advice.detachedHead to false
 
-HEAD is now at f2de534 Second commit
+HEAD is now at 4c66f0e Second commit
 ```
 
 Now, we can create a commit on top of this and create a patch, as usual:
@@ -30,7 +30,7 @@ Now, we can create a commit on top of this and create a patch, as usual:
 ``` (stderr) RAD_HINT=1
 $ git commit -a -m "Add things" -q --allow-empty
 $ git push -o patch.message="Add things #1" -o patch.message="See commits for details." rad HEAD:refs/patches
-✓ Patch 6035d2f582afbe01ff23ea87528ae523d76875b6 opened
+✓ Patch 6c2fe32a2f0659721e51a298250fbfb7b3081a52 opened
 hint: offline push, your node is not running
 hint: to sync with the network, run `rad node start`
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi

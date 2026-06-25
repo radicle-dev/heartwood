@@ -57,8 +57,8 @@ Let's check the last commit!
 
 ```
 $ git log -n 1
-commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
-Author: anonymous <anonymous@radicle.xyz>
+commit 4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927
+Author: anonymous <anonymous@example.com>
 Date:   Mon Jan 1 14:39:16 2018 +0000
 
     Second commit
@@ -70,6 +70,6 @@ $ rad ls --seeded
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   public       f2de534   Radicle Heartwood Protocol & Stack │
+│ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   public       4c66f0e   Radicle Heartwood Protocol & Stack │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

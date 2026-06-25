@@ -22,17 +22,17 @@ $ rad inbox --sort-by id
 │ heartwood                                                                  │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ 001   ●   9037b7a   flux capacitor underpowered   issue   open   bob   now │
-│ 002   ●   e4934b6   Define power requirements     patch   open   bob   now │
+│ 002   ●   da0b844   Define power requirements     patch   open   bob   now │
 ╰────────────────────────────────────────────────────────────────────────────╯
 $ git branch -r
-  bob/patches/e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46
+  bob/patches/da0b8447cf370a528b6c4a51ff9255eadd726edf
   rad/master
-$ rad patch show e4934b6
+$ rad patch show da0b844
 ╭──────────────────────────────────────────────────────────────────╮
 │ Title    Define power requirements                               │
-│ Patch    e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46                │
+│ Patch    da0b8447cf370a528b6c4a51ff9255eadd726edf                │
 │ Author   bob z6Mkt67…v4N1tRk                                     │
-│ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                │
+│ Head     8083d4cbb2b297ade6a12962f8ddc118c3900dcf                │
 │ Base     [..                                          ]          │
 │ Target   master                                                  │
 │ Commits  ahead 2, behind 0                                       │
@@ -40,11 +40,11 @@ $ rad patch show e4934b6
 │                                                                  │
 │ See details.                                                     │
 ├──────────────────────────────────────────────────────────────────┤
-│ 27857ec Add README, just for the fun                             │
-│ 3e674d1 Define power requirements                                │
+│ 8083d4c Add README, just for the fun                             │
+│ 602ba44 Define power requirements                                │
 ├──────────────────────────────────────────────────────────────────┤
-│ ● Revision e4934b6 @ [..   ]..3e674d1 by bob z6Mkt67…v4N1tRk now │
-│ ↑ Revision 773b9aa @ [..   ]..27857ec by bob z6Mkt67…v4N1tRk now │
+│ ● Revision da0b844 @ [..   ]..602ba44 by bob z6Mkt67…v4N1tRk now │
+│ ↑ Revision c6894b5 @ [..   ]..8083d4c by bob z6Mkt67…v4N1tRk now │
 ╰──────────────────────────────────────────────────────────────────╯
 ```
 
@@ -54,36 +54,36 @@ way will tell others about the corrections we needed before merging the
 changes.
 
 ```
-$ rad patch checkout e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46
-✓ Switched to branch patch/e4934b6 at revision 773b9aa
-✓ Branch patch/e4934b6 setup to track rad/patches/e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46
+$ rad patch checkout da0b8447cf370a528b6c4a51ff9255eadd726edf
+✓ Switched to branch patch/da0b844 at revision c6894b5
+✓ Branch patch/da0b844 setup to track rad/patches/da0b8447cf370a528b6c4a51ff9255eadd726edf
 $ git mv REQUIREMENTS REQUIREMENTS.md
 $ git commit -m "Use markdown for requirements"
-[patch/e4934b6 f567f69] Use markdown for requirements
+[patch/da0b844 6947d0d] Use markdown for requirements
  1 file changed, 0 insertions(+), 0 deletions(-)
  rename REQUIREMENTS => REQUIREMENTS.md (100%)
 ```
 ``` (stderr)
 $ git push rad -o no-sync -o patch.message="Use markdown for requirements"
-✓ Patch e4934b6 updated to revision 9d62420e779e5cfe1dc02c51eddec9a0907aa844
-To compare against your previous revision 773b9aa, run:
+✓ Patch da0b844 updated to revision 47019eff7014c1443ffd3802399c1e09196c353b
+To compare against your previous revision c6894b5, run:
 
-   git range-diff f2de534[..] 27857ec[..] f567f69[..]
+   git range-diff 4c66f0e[..] 8083d4c[..] 6947d0d[..]
 
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- * [new branch]      patch/e4934b6 -> patches/e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46
+ * [new branch]      patch/da0b844 -> patches/da0b8447cf370a528b6c4a51ff9255eadd726edf
 ```
 
 Great, all fixed up, lets accept and merge the code.
 
 ```
-$ rad patch review e4934b6 --revision 9d62420 --accept
-✓ Patch e4934b6 accepted
+$ rad patch review da0b844 --revision 47019ef --accept
+✓ Patch da0b844 accepted
 ✓ Synced with 1 seed(s)
 $ git checkout master
 Your branch is up to date with 'rad/master'.
-$ git merge patch/e4934b6
-Updating f2de534..f567f69
+$ git merge patch/da0b844
+Updating 4c66f0e..6947d0d
 Fast-forward
  README.md       | 0
  REQUIREMENTS.md | 0
@@ -93,22 +93,22 @@ Fast-forward
 ```
 ``` (stderr)
 $ git push rad master
-✓ Patch e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46 merged at revision 9d62420
-✓ Canonical reference refs/heads/master updated to target commit f567f695d25b4e8fb63b5f5ad2a584529826e908
+✓ Patch da0b8447cf370a528b6c4a51ff9255eadd726edf merged at revision 47019ef
+✓ Canonical reference refs/heads/master updated to target commit 6947d0dc43b7e5f7902bbe21550f1dfc1e54b205
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   f2de534..f567f69  master -> master
+   4c66f0e..6947d0d  master -> master
 ```
 
 The patch is now merged and closed :).
 
 ```
-$ rad patch show e4934b6
+$ rad patch show da0b844
 ╭──────────────────────────────────────────────────────────────────╮
 │ Title    Define power requirements                               │
-│ Patch    e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46                │
+│ Patch    da0b8447cf370a528b6c4a51ff9255eadd726edf                │
 │ Author   bob z6Mkt67…v4N1tRk                                     │
-│ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                │
+│ Head     8083d4cbb2b297ade6a12962f8ddc118c3900dcf                │
 │ Base     [..                                          ]          │
 │ Target   master                                                  │
 │ Commits  ahead 0, behind 1                                       │
@@ -116,12 +116,12 @@ $ rad patch show e4934b6
 │                                                                  │
 │ See details.                                                     │
 ├──────────────────────────────────────────────────────────────────┤
-│ 27857ec Add README, just for the fun                             │
-│ 3e674d1 Define power requirements                                │
+│ 8083d4c Add README, just for the fun                             │
+│ 602ba44 Define power requirements                                │
 ├──────────────────────────────────────────────────────────────────┤
-│ ● Revision e4934b6 @ [..   ]..3e674d1 by bob z6Mkt67…v4N1tRk now │
-│ ↑ Revision 773b9aa @ [..   ]..27857ec by bob z6Mkt67…v4N1tRk now │
-│ ↑ Revision 9d62420 @ [..   ]..f567f69 by alice (you) now         │
+│ ● Revision da0b844 @ [..   ]..602ba44 by bob z6Mkt67…v4N1tRk now │
+│ ↑ Revision c6894b5 @ [..   ]..8083d4c by bob z6Mkt67…v4N1tRk now │
+│ ↑ Revision 47019ef @ [..   ]..6947d0d by alice (you) now         │
 │   └─ ✓ accepted                       by alice (you) now         │
 │   └─ ✓ merged                         by alice (you)             │
 ╰──────────────────────────────────────────────────────────────────╯

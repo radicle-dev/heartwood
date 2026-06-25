@@ -17,9 +17,9 @@ the last time you pushed.
 ``` (stderr)
 $ git commit --amend -m "Neue Änderungen" --allow-empty -q
 $ git push rad master --force-with-lease
-✓ Canonical reference refs/heads/master updated to target commit 9170c8795d3a78f0381a0ffafb20ea69fb0f5b6b
+✓ Canonical reference refs/heads/master updated to target commit 4014d28cbfbbe6f9b9cd701af852296fab715c12
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + fb25886...9170c87 master -> master (forced update)
+ + 673e76e...4014d28 master -> master (forced update)
 ```
 
 As per the documentation, you can also pass the reference name, as the expected
@@ -28,19 +28,19 @@ value, to `--force-push-lease`:
 ``` (stderr)
 $ git commit --amend -m "Noch mehr Änderungen" --allow-empty -q
 $ git push rad master --force-with-lease=master
-✓ Canonical reference refs/heads/master updated to target commit 1e4213811eb4ce67360e4a0222cab81ad11a7ffe
+✓ Canonical reference refs/heads/master updated to target commit 5a68e215f4ac2199fd1b95cecd5d4ca7c47cbc84
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + 9170c87...1e42138 master -> master (forced update)
+ + 4014d28...5a68e21 master -> master (forced update)
 ```
 
 As well as the named reference, and its expected value:
 
 ``` (stderr)
 $ git commit --amend -m "Even more changes" --allow-empty -q
-$ git push rad master --force-with-lease=master:1e4213811eb4ce67360e4a0222cab81ad11a7ffe
-✓ Canonical reference refs/heads/master updated to target commit c4b74ef30953598852a82e0cd22b2ebb0d8d9e18
+$ git push rad master --force-with-lease=master:5a68e215f4ac2199fd1b95cecd5d4ca7c47cbc84
+✓ Canonical reference refs/heads/master updated to target commit a98bbcfcc6ecf8db902c725af371dc4fd8200e0f
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + 1e42138...c4b74ef master -> master (forced update)
+ + 5a68e21...a98bbcf master -> master (forced update)
 ```
 
 If we try use the same expected value as the last push, it should fail since the
@@ -51,7 +51,7 @@ $ git commit --amend -m "And even more" --allow-empty -q
 ```
 
 ``` (stderr) (fail)
-$ git push rad master --force-with-lease=master:1e4213811eb4ce67360e4a0222cab81ad11a7ffe
+$ git push rad master --force-with-lease=master:5a68e215f4ac2199fd1b95cecd5d4ca7c47cbc84
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  ! [rejected]        master -> master (stale info)
 error: failed to push some refs to 'rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi'

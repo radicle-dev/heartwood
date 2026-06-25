@@ -95,7 +95,7 @@ HEAD is now at [..] Initial commit
 $ git push rad master --force
 ✓ Canonical reference refs/heads/master updated to target commit [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + f2de534...08c788d master -> master (forced update)
+ + 4c66f0e...60d31e8 master -> master (forced update)
 ```
 
 Because the patch was merged into `accepted`, dropping commits on `master` should not revert the patch. It should remain
@@ -127,7 +127,7 @@ $ git push rad accepted --force
 ! Patch [..] reverted at revision [..]
 ✓ Canonical reference refs/heads/accepted updated to target commit [..]
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + 27acd3b...f9a3b89 accepted -> accepted (forced update)
+ + f74d080...a3bf012 accepted -> accepted (forced update)
 ```
 
 The patch should now be open again.

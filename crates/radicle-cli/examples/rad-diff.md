@@ -24,7 +24,7 @@ main.c
 $ git mv README README.md
 $ git add main.c
 $ git commit -m "Make changes"
-[master 5f771e0] Make changes
+[master 6663cf1] Make changes
  2 files changed, 6 insertions(+)
  rename README => README.md (100%)
  create mode 100644 main.c

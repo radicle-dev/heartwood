@@ -9,14 +9,14 @@ $ git checkout -b changes
 $ touch README.md
 $ git add README.md
 $ git commit --message "Add README, just for the fun"
-[changes 03c02af] Add README, just for the fun
+[changes ad12b3e] Add README, just for the fun
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
 ```
 
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun" HEAD:refs/patches
-✓ Patch 89f7afb1511b976482b21f6b2f39aef7f4fb88a2 opened
+✓ Patch 564037be20294ec4288f980e8defd394c4572c9a opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -25,42 +25,42 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 $ touch LICENSE
 $ git add LICENSE
 $ git commit -v -m "Define the LICENSE"
-[changes 8945f61] Define the LICENSE
+[changes 098f4c5] Define the LICENSE
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 LICENSE
 ```
 
 ``` (stderr)
 $ git push -f -o patch.message="Add License"
-✓ Patch 89f7afb updated to revision 5d78dd5376453e25df5988ec86951c99cb73742c
-To compare against your previous revision 89f7afb, run:
+✓ Patch 564037b updated to revision b650ef8d9eb39de4888f2c1a4cd3ee2a3e72f38d
+To compare against your previous revision 564037b, run:
 
-   git range-diff f2de534[..] 03c02af[..] 8945f61[..]
+   git range-diff 4c66f0e[..] ad12b3e[..] 098f4c5[..]
 
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   03c02af..8945f61  changes -> patches/89f7afb1511b976482b21f6b2f39aef7f4fb88a2
+   ad12b3e..098f4c5  changes -> patches/564037be20294ec4288f980e8defd394c4572c9a
 ```
 
 Let's look at the patch, to see what it looks like before editing it:
 
 ```
-$ rad patch show 89f7afb
+$ rad patch show 564037b
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Add README, just for the fun                   │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2       │
+│ Patch     564037be20294ec4288f980e8defd394c4572c9a       │
 │ Author    alice (you)                                    │
-│ Head      8945f6189adf027892c85ac57f7e9341049c2537       │
+│ Head      098f4c53591b72ec2e69a7b33f83d04aa92253e5       │
 │ Base      [..                                    ]       │
 │ Target    master                                         │
 │ Branches  changes                                        │
 │ Commits   ahead 2, behind 0                              │
 │ Status    open                                           │
 ├──────────────────────────────────────────────────────────┤
-│ 8945f61 Define the LICENSE                               │
-│ 03c02af Add README, just for the fun                     │
+│ 098f4c5 Define the LICENSE                               │
+│ ad12b3e Add README, just for the fun                     │
 ├──────────────────────────────────────────────────────────┤
-│ ● Revision 89f7afb @ [..   ]..03c02af by alice (you) now │
-│ ↑ Revision 5d78dd5 @ [..   ]..8945f61 by alice (you) now │
+│ ● Revision 564037b @ [..   ]..ad12b3e by alice (you) now │
+│ ↑ Revision b650ef8 @ [..   ]..098f4c5 by alice (you) now │
 ╰──────────────────────────────────────────────────────────╯
 ```
 
@@ -68,13 +68,13 @@ We can change the title and description of the patch itself by using a
 multi-line message (using two `--message` options here):
 
 ```
-$ rad patch edit 89f7afb --message "Add Metadata" --message "Add README & LICENSE" --no-announce
-$ rad patch show 89f7afb
+$ rad patch edit 564037b --message "Add Metadata" --message "Add README & LICENSE" --no-announce
+$ rad patch show 564037b
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Add Metadata                                   │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2       │
+│ Patch     564037be20294ec4288f980e8defd394c4572c9a       │
 │ Author    alice (you)                                    │
-│ Head      8945f6189adf027892c85ac57f7e9341049c2537       │
+│ Head      098f4c53591b72ec2e69a7b33f83d04aa92253e5       │
 │ Base      [..                                    ]       │
 │ Target    master                                         │
 │ Branches  changes                                        │
@@ -83,11 +83,11 @@ $ rad patch show 89f7afb
 │                                                          │
 │ Add README & LICENSE                                     │
 ├──────────────────────────────────────────────────────────┤
-│ 8945f61 Define the LICENSE                               │
-│ 03c02af Add README, just for the fun                     │
+│ 098f4c5 Define the LICENSE                               │
+│ ad12b3e Add README, just for the fun                     │
 ├──────────────────────────────────────────────────────────┤
-│ ● Revision 89f7afb @ [..   ]..03c02af by alice (you) now │
-│ ↑ Revision 5d78dd5 @ [..   ]..8945f61 by alice (you) now │
+│ ● Revision 564037b @ [..   ]..ad12b3e by alice (you) now │
+│ ↑ Revision b650ef8 @ [..   ]..098f4c5 by alice (you) now │
 ╰──────────────────────────────────────────────────────────╯
 ```
 
@@ -98,13 +98,13 @@ If we want to change a specific revision's description, we can use the
 `--revision` option:
 
 ```
-$ rad patch edit 89f7afb --revision 5d78dd5 --message "Changes: Adds LICENSE file" --no-announce
-$ rad patch show 89f7afb
+$ rad patch edit 564037b --revision b650ef8 --message "Changes: Adds LICENSE file" --no-announce
+$ rad patch show 564037b
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Add Metadata                                   │
-│ Patch     89f7afb1511b976482b21f6b2f39aef7f4fb88a2       │
+│ Patch     564037be20294ec4288f980e8defd394c4572c9a       │
 │ Author    alice (you)                                    │
-│ Head      8945f6189adf027892c85ac57f7e9341049c2537       │
+│ Head      098f4c53591b72ec2e69a7b33f83d04aa92253e5       │
 │ Base      [..                                    ]       │
 │ Target    master                                         │
 │ Branches  changes                                        │
@@ -113,11 +113,11 @@ $ rad patch show 89f7afb
 │                                                          │
 │ Add README & LICENSE                                     │
 ├──────────────────────────────────────────────────────────┤
-│ 8945f61 Define the LICENSE                               │
-│ 03c02af Add README, just for the fun                     │
+│ 098f4c5 Define the LICENSE                               │
+│ ad12b3e Add README, just for the fun                     │
 ├──────────────────────────────────────────────────────────┤
-│ ● Revision 89f7afb @ [..   ]..03c02af by alice (you) now │
-│ ↑ Revision 5d78dd5 @ [..   ]..8945f61 by alice (you) now │
+│ ● Revision 564037b @ [..   ]..ad12b3e by alice (you) now │
+│ ↑ Revision b650ef8 @ [..   ]..098f4c5 by alice (you) now │
 ╰──────────────────────────────────────────────────────────╯
 ```
 

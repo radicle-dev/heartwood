@@ -37,7 +37,7 @@ Pushing to the magic reference:
 
 ``` (stderr)
 $ git push rad HEAD:refs/for/accepted
-✓ Patch [..] opened
+✓ Patch df15d2951e27ad8313808070eec2bf6d077ab5f7 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/for/accepted
 ```
@@ -45,12 +45,12 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 We can see the patch is open:
 
 ```
-$ rad patch show 01dad54
+$ rad patch show df15d29
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Initialize accepted branch                     │
-│ Patch     01dad54873ada4efa61541e7d90702266d5ced89       │
+│ Patch     df15d2951e27ad8313808070eec2bf6d077ab5f7       │
 │ Author    alice (you)                                    │
-│ Head      46fd342edc149468ec08b0b25291083aa05d4449       │
+│ Head      cc0cbebab028420127659cac3fb66f9a5e11a056       │
 │ Base      [..                                    ]       │
 │ Target    accepted                                       │
 │ Branches  feature/1                                      │
@@ -59,10 +59,10 @@ $ rad patch show 01dad54
 │                                                          │
 │ Add new feature                                          │
 ├──────────────────────────────────────────────────────────┤
-│ 46fd342 Add new feature                                  │
-│ f9a3b89 Initialize accepted branch                       │
+│ cc0cbeb Add new feature                                  │
+│ a3bf012 Initialize accepted branch                       │
 ├──────────────────────────────────────────────────────────┤
-│ ● Revision 01dad54 @ f2de534..46fd342 by alice (you) now │
+│ ● Revision df15d29 @ 4c66f0e..cc0cbeb by alice (you) now │
 ╰──────────────────────────────────────────────────────────╯
 $ rad patch list --open
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
@@ -96,12 +96,12 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 We can now verify that the patch has been successfully marked as merged:
 
 ```
-$ rad patch show 01dad54
+$ rad patch show df15d29
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Initialize accepted branch                     │
-│ Patch     01dad54873ada4efa61541e7d90702266d5ced89       │
+│ Patch     df15d2951e27ad8313808070eec2bf6d077ab5f7       │
 │ Author    alice (you)                                    │
-│ Head      46fd342edc149468ec08b0b25291083aa05d4449       │
+│ Head      cc0cbebab028420127659cac3fb66f9a5e11a056       │
 │ Base      [..                                    ]       │
 │ Target    accepted                                       │
 │ Branches  accepted, feature/1                            │
@@ -110,10 +110,10 @@ $ rad patch show 01dad54
 │                                                          │
 │ Add new feature                                          │
 ├──────────────────────────────────────────────────────────┤
-│ 46fd342 Add new feature                                  │
-│ f9a3b89 Initialize accepted branch                       │
+│ cc0cbeb Add new feature                                  │
+│ a3bf012 Initialize accepted branch                       │
 ├──────────────────────────────────────────────────────────┤
-│ ● Revision 01dad54 @ f2de534..46fd342 by alice (you) now │
+│ ● Revision df15d29 @ 4c66f0e..cc0cbeb by alice (you) now │
 │   └─ ✓ merged                         by alice (you)     │
 ╰──────────────────────────────────────────────────────────╯
 $ rad patch list --merged
@@ -141,18 +141,18 @@ $ git commit -m "Add another feature" --allow-empty -q
 
 ``` (stderr)
 $ git push -o patch.target=accepted rad HEAD:refs/for/accepted
-✓ Patch [..] opened
+✓ Patch 9a3157b91496477722c9a015afcc9ba4cc662180 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/for/accepted
 ```
 ```
-$ rad patch show 965855f
+$ rad patch show 9a3157b
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Initialize accepted branch                     │
-│ Patch     965855f69bc5a86f7e1787ed80cd065013b6504c       │
+│ Patch     9a3157b91496477722c9a015afcc9ba4cc662180       │
 │ Author    alice (you)                                    │
-│ Head      7e6814e99fe7084a213faeb69ca1eacc26935e3c       │
-│ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
+│ Head      070307970291c9f399e5e2658436427eda97b997       │
+│ Base      4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927       │
 │ Target    accepted                                       │
 │ Branches  feature/2                                      │
 │ Commits   ahead 1, behind 0                              │
@@ -163,11 +163,11 @@ $ rad patch show 965855f
 │                                                          │
 │ Add another feature                                      │
 ├──────────────────────────────────────────────────────────┤
-│ 7e6814e Add another feature                              │
-│ 46fd342 Add new feature                                  │
-│ f9a3b89 Initialize accepted branch                       │
+│ 0703079 Add another feature                              │
+│ cc0cbeb Add new feature                                  │
+│ a3bf012 Initialize accepted branch                       │
 ├──────────────────────────────────────────────────────────┤
-│ ● Revision 965855f @ f2de534..7e6814e by alice (you) now │
+│ ● Revision 9a3157b @ 4c66f0e..0703079 by alice (you) now │
 ╰──────────────────────────────────────────────────────────╯
 ```
 
@@ -179,7 +179,7 @@ $ git commit -m "Add a third feature" --allow-empty -q
 ```
 ``` (stderr)
 $ git push rad HEAD:refs/for/refs/heads/accepted
-✓ Patch [..] opened
+✓ Patch 3cc46286ac6800224971bdb2f763ad371541e7cb opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/for/refs/heads/accepted
 ```
@@ -187,13 +187,13 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 This will create a third feature branch and verify that pushing to `refs/for/refs/heads/accepted` successfully opens a patch.
 
 ```
-$ rad patch show c846bb5 -v
+$ rad patch show 3cc4628 -v
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Initialize accepted branch                                                                                                                                 │
-│ Patch     c846bb5f8298802e8de589174549d78c1d9aa00f                                                                                                                   │
+│ Patch     3cc46286ac6800224971bdb2f763ad371541e7cb                                                                                                                   │
 │ Author    alice (you)                                                                                                                                                │
-│ Head      99c1d5a04c17ba854f1f4d59985c980c0faf16e7                                                                                                                   │
-│ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354                                                                                                                   │
+│ Head      d5672c6f4b73aaabb634aa546e523b00b2777786                                                                                                                   │
+│ Base      4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927                                                                                                                   │
 │ Target    refs/heads/accepted                                                                                                                                        │
 │ Branches  feature/3                                                                                                                                                  │
 │ Commits   ahead 2, behind 0                                                                                                                                          │
@@ -207,11 +207,11 @@ $ rad patch show c846bb5 -v
 │                                                                                                                                                                      │
 │ Add a third feature                                                                                                                                                  │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ 99c1d5a Add a third feature                                                                                                                                          │
-│ 7e6814e Add another feature                                                                                                                                          │
-│ 46fd342 Add new feature                                                                                                                                              │
-│ f9a3b89 Initialize accepted branch                                                                                                                                   │
+│ d5672c6 Add a third feature                                                                                                                                          │
+│ 0703079 Add another feature                                                                                                                                          │
+│ cc0cbeb Add new feature                                                                                                                                              │
+│ a3bf012 Initialize accepted branch                                                                                                                                   │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● Revision c846bb5f8298802e8de589174549d78c1d9aa00f with range f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354..99c1d5a04c17ba854f1f4d59985c980c0faf16e7 by alice (you) now │
+│ ● Revision 3cc46286ac6800224971bdb2f763ad371541e7cb with range 4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927..d5672c6f4b73aaabb634aa546e523b00b2777786 by alice (you) now │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

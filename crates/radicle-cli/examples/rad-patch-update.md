@@ -6,27 +6,27 @@ $ git commit -q -m "Not a real change" --allow-empty
 ```
 ``` (stderr)
 $ git push rad HEAD:refs/patches
-✓ Patch b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5 opened
+✓ Patch 811ff0dc4eb3ed1858d9747ba1d4736d3d18ad1b opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
 
 ```
-$ rad patch show b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5
+$ rad patch show 811ff0dc4eb3ed1858d9747ba1d4736d3d18ad1b
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Not a real change                              │
-│ Patch     b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5       │
+│ Patch     811ff0dc4eb3ed1858d9747ba1d4736d3d18ad1b       │
 │ Author    alice (you)                                    │
-│ Head      51b2f0f77b9849bfaa3e9d3ff68ee2f57771d20c       │
+│ Head      6248bc11b44db82e41be5434d0c73433d0840832       │
 │ Base      [..                                    ]       │
 │ Target    master                                         │
 │ Branches  feature/1                                      │
 │ Commits   ahead 1, behind 0                              │
 │ Status    open                                           │
 ├──────────────────────────────────────────────────────────┤
-│ 51b2f0f Not a real change                                │
+│ 6248bc1 Not a real change                                │
 ├──────────────────────────────────────────────────────────┤
-│ ● Revision b6a23eb @ [..   ]..51b2f0f by alice (you) now │
+│ ● Revision 811ff0d @ [..   ]..6248bc1 by alice (you) now │
 ╰──────────────────────────────────────────────────────────╯
 ```
 
@@ -48,29 +48,29 @@ Now, instead of using `git push` to update the patch, as we normally would,
 we run:
 
 ```
-$ rad patch update b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5 -m "Updated patch" --no-announce
-ea7def3857f62f404606d7cd6490cd0de4eaebd1
+$ rad patch update 811ff0dc4eb3ed1858d9747ba1d4736d3d18ad1b -m "Updated patch" --no-announce
+74f47c085c8c8b982df4ba1d8e695c29778b0509
 ```
 
 The command outputs the new Revision ID, which we can now see here:
 
 ```
-$ rad patch show b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5
+$ rad patch show 811ff0dc4eb3ed1858d9747ba1d4736d3d18ad1b
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Not a real change                              │
-│ Patch     b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5       │
+│ Patch     811ff0dc4eb3ed1858d9747ba1d4736d3d18ad1b       │
 │ Author    alice (you)                                    │
-│ Head      4d272148458a17620541555b1f0905c01658aa9f       │
+│ Head      eece48c32f3b34b741e4f6629448195c76e49f95       │
 │ Base      [..                                    ]       │
 │ Target    master                                         │
 │ Branches  feature/1                                      │
 │ Commits   ahead 2, behind 0                              │
 │ Status    open                                           │
 ├──────────────────────────────────────────────────────────┤
-│ 4d27214 Rename readme file                               │
-│ 51b2f0f Not a real change                                │
+│ eece48c Rename readme file                               │
+│ 6248bc1 Not a real change                                │
 ├──────────────────────────────────────────────────────────┤
-│ ● Revision b6a23eb @ [..   ]..51b2f0f by alice (you) now │
-│ ↑ Revision ea7def3 @ [..   ]..4d27214 by alice (you) now │
+│ ● Revision 811ff0d @ [..   ]..6248bc1 by alice (you) now │
+│ ↑ Revision 74f47c0 @ [..   ]..eece48c by alice (you) now │
 ╰──────────────────────────────────────────────────────────╯
 ```

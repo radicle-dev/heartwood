@@ -3,7 +3,7 @@ Let's clone a regular repository via plain Git:
 $ git clone $URL heartwood
 $ cd heartwood
 $ git rev-parse HEAD
-f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+4c66f0e93e6d341fa0ad45a2b4a2e8cb0fed5927
 ```
 
 We can see it's not a Radicle working copy:

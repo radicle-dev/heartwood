@@ -5,7 +5,7 @@ Radicle is a sovereign code forge built on Git.
 See `rad <COMMAND> --help` to learn about a specific command.
 
 Do you have feedback?
- - Chat <radicle.zulipchat.com>
+ - Chat <https://radicle.zulipchat.com>
  - Mail <feedback@radicle.dev>
    (Messages are automatically posted to the public #feedback channel on Zulip.)
 

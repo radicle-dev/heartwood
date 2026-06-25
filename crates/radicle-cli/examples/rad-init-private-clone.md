@@ -36,7 +36,7 @@ $ rad ls --private --all
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ heartwood   rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu   private      f2de534   radicle heartwood protocol & stack │
+│ heartwood   rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu   private      4c66f0e   radicle heartwood protocol & stack │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 

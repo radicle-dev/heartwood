@@ -4,7 +4,7 @@ Alice creates an annotated tag and pushed to her `rad` remote:
 $ touch LICENSE
 $ git add LICENSE
 $ git commit -am "Add LICENSE"
-[master 62d19fd] Add LICENSE
+[master 4309442] Add LICENSE
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 LICENSE
 $ git tag v1.0 -a -m "Release v1.0"
@@ -57,16 +57,16 @@ a mistake):
 
 ``` ~alice
 $ git commit --allow-empty -m "Release: v1.0"
-[master 8260c04] Release: v1.0
+[master ab581b8] Release: v1.0
 $ git tag v1.0 -f -a -m "Release v1.0"
-Updated tag 'v1.0' (was be18ed6)
+Updated tag 'v1.0' (was e3593f9)
 ```
 
 ``` ~alice (stderr)
 $ git push rad v1.0 -f
 ✓ Synced with 1 seed(s)
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + be18ed6...9dbdebc v1.0 -> v1.0 (forced update)
+ + e3593f9...17daa6c v1.0 -> v1.0 (forced update)
 ```
 
 We ensure that Bob is still able to fetch from Alice and get the new
@@ -82,5 +82,5 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential s
 ``` ~bob (stderr)
 $ git fetch alice -f
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   62d19fd..9dbdebc  v1.0       -> alice/tags/v1.0
+   4309442..17daa6c  v1.0       -> alice/tags/v1.0
 ```

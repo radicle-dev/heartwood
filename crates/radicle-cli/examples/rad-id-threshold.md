@@ -58,16 +58,16 @@ head, and make patches -- as we can see below:
 $ touch REQUIREMENTS
 $ git add REQUIREMENTS
 $ git commit -v -m "Define power requirements"
-[master 3e674d1] Define power requirements
+[master 602ba44] Define power requirements
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 REQUIREMENTS
 ```
 
 ``` ~alice (stderr) RAD_SOCKET=/dev/null
 $ git push rad master
-✓ Canonical reference refs/heads/master updated to target commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
+✓ Canonical reference refs/heads/master updated to target commit 602ba4448210fba26633dc3f9ae3d4d9d20a1e84
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   f2de534..3e674d1  master -> master
+   4c66f0e..602ba44  master -> master
 ```
 
 ``` ~alice
@@ -80,14 +80,14 @@ $ git checkout -b add-readme
 $ touch README.md
 $ git add README.md
 $ git commit -v -m "Add README file"
-[add-readme 964513c] Add README file
+[add-readme 1a626f0] Add README file
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
 ```
 
 ``` ~alice (stderr) RAD_SOCKET=/dev/null
 $ git push rad HEAD:refs/patches
-✓ Patch b09b2aa0ee055671c811e9ad4ba73eed211ebaa3 opened
+✓ Patch de802a16756b653180526aded987079e2619697b opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -136,11 +136,11 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
     │   ├── xyz.radicle.id
     │   │   └── 0656c217f917c3e06234771e9ecae53aba5e173e
     │   └── xyz.radicle.patch
-    │       └── b09b2aa0ee055671c811e9ad4ba73eed211ebaa3
+    │       └── de802a16756b653180526aded987079e2619697b
     ├── heads
     │   ├── master
     │   └── patches
-    │       └── b09b2aa0ee055671c811e9ad4ba73eed211ebaa3
+    │       └── de802a16756b653180526aded987079e2619697b
     └── rad
         ├── id
         ├── root
@@ -152,7 +152,7 @@ Similarly, she still does not have Bob's `rad/sigrefs`:
 
 ``` ~alice
 $ rad inspect --sigrefs
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi e5c200775dc6da38306f62c995df67a1ab1bf62d parent
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 5ab2122a700ea2cee5c76cb8a91b7d813e778f88 parent
 ```
 
 And she can still list the project, without any worries:
@@ -162,7 +162,7 @@ $ rad ls
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   public       3e674d1   Radicle Heartwood Protocol & Stack │
+│ heartwood   rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   public       602ba44   Radicle Heartwood Protocol & Stack │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -200,6 +200,6 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential s
 🌱 Fetched from z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
 🌱 Fetched from z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 $ rad inspect --sigrefs
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi e5c200775dc6da38306f62c995df67a1ab1bf62d parent
-z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk dace6fe948548168a2bb687718949d9b5d9076ee parent
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 5ab2122a700ea2cee5c76cb8a91b7d813e778f88 parent
+z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk d0f4b6a381ce258dc58b9ee7e6dca3c4cdd59c7c parent
 ```

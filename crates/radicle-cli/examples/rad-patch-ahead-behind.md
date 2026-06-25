@@ -26,18 +26,18 @@ $ sed -i '$a Jason Bourne' CONTRIBUTORS
 $ git commit -a -q -m "Add Jason"
 $ git push rad master
 $ git log --graph --decorate --abbrev-commit --pretty=oneline --all
-* 5c88a79 (feature/1) Add Alan
-| * e101a99 (HEAD -> master, rad/master) Add Jason
+* d60e9c1 (feature/1) Add Alan
+| * 79b6b56 (HEAD -> master, rad/master) Add Jason
 |/ [..]
-* f64fb2c Add contributors
-* f2de534 Second commit
-* 08c788d Initial commit
+* 046704f Add contributors
+* 4c66f0e Second commit
+* 60d31e8 Initial commit
 ```
 
 Then we create a patch from `feature/1`:
 ``` (stderr)
 $ git push rad feature/1:refs/patches
-✓ Patch 217f050f8891def8fb863f7c0b4f85c89f97299d opened
+✓ Patch d2aee03ab1a0b2f54f63a4db54acfa359fc86bb6 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   feature/1 -> refs/patches
 ```
@@ -48,31 +48,31 @@ $ rad patch list
 ╭────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title     Author         Reviews  Head     +   -   Updated  Labels │
 ├────────────────────────────────────────────────────────────────────────────────┤
-│ ●  217f050  Add Alan  alice   (you)  -        5c88a79  +1  -0  now             │
+│ ●  d2aee03  Add Alan  alice   (you)  -        d60e9c1  +1  -0  now             │
 ╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 When showing the patch, we see that it is `ahead 1, behind 1`, since master has
 diverged by one commit:
 ```
-$ rad patch show -v -p 217f050
+$ rad patch show -v -p d2aee03
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Add Alan                                                                                                                                                   │
-│ Patch     217f050f8891def8fb863f7c0b4f85c89f97299d                                                                                                                   │
+│ Patch     d2aee03ab1a0b2f54f63a4db54acfa359fc86bb6                                                                                                                   │
 │ Author    alice (you)                                                                                                                                                │
-│ Head      5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7                                                                                                                   │
-│ Base      f64fb2c8fe28f7c458c72ec8d700373924794943                                                                                                                   │
+│ Head      d60e9c18c50bd5b74df1fadccb340f43e61a54f8                                                                                                                   │
+│ Base      046704f8a556ff360a7f6b8879077e46ca6533e4                                                                                                                   │
 │ Target    refs/heads/master                                                                                                                                          │
 │ Branches  feature/1                                                                                                                                                  │
 │ Commits   ahead 1, behind 1                                                                                                                                          │
 │ Status    open                                                                                                                                                       │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ 5c88a79 Add Alan                                                                                                                                                     │
+│ d60e9c1 Add Alan                                                                                                                                                     │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● Revision 217f050f8891def8fb863f7c0b4f85c89f97299d with range f64fb2c8fe28f7c458c72ec8d700373924794943..5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7 by alice (you) now │
+│ ● Revision d2aee03ab1a0b2f54f63a4db54acfa359fc86bb6 with range 046704f8a556ff360a7f6b8879077e46ca6533e4..d60e9c18c50bd5b74df1fadccb340f43e61a54f8 by alice (you) now │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-commit 5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7
+commit d60e9c18c50bd5b74df1fadccb340f43e61a54f8
 Author: radicle <radicle@localhost>
 Date:   Thu Dec 15 17:28:04 2022 +0000
 
@@ -94,7 +94,7 @@ $ git checkout -q -b feature/2 feature/1
 $ sed -i '$a Mel Farna' CONTRIBUTORS
 $ git commit -a -q -m "Add Mel"
 $ git push -o patch.message="Add Mel" rad HEAD:refs/patches
-✓ Patch e22ff008e2a0ed47262890d13263031d7555b555 opened
+✓ Patch 9450ddf28ead5b44e8aa7d02e52f97809622157c opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -102,22 +102,22 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 When we look at the patch, we see that it has both commits, because this new
 patch uses the same base as the previous patch:
 ```
-$ rad patch show -v e22ff008e2a0ed47262890d13263031d7555b555
+$ rad patch show -v 9450ddf28ead5b44e8aa7d02e52f97809622157c
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Add Mel                                                                                                                                                    │
-│ Patch     e22ff008e2a0ed47262890d13263031d7555b555                                                                                                                   │
+│ Patch     9450ddf28ead5b44e8aa7d02e52f97809622157c                                                                                                                   │
 │ Author    alice (you)                                                                                                                                                │
-│ Head      7f63fcbcf23fc39eea784c091ad3d20d7e4bd005                                                                                                                   │
-│ Base      f64fb2c8fe28f7c458c72ec8d700373924794943                                                                                                                   │
+│ Head      b4c96fbe0aab7da9762956751b5882fea9bc3e9d                                                                                                                   │
+│ Base      046704f8a556ff360a7f6b8879077e46ca6533e4                                                                                                                   │
 │ Target    refs/heads/master                                                                                                                                          │
 │ Branches  feature/2                                                                                                                                                  │
 │ Commits   ahead 2, behind 1                                                                                                                                          │
 │ Status    open                                                                                                                                                       │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ 7f63fcb Add Mel                                                                                                                                                      │
-│ 5c88a79 Add Alan                                                                                                                                                     │
+│ b4c96fb Add Mel                                                                                                                                                      │
+│ d60e9c1 Add Alan                                                                                                                                                     │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● Revision e22ff008e2a0ed47262890d13263031d7555b555 with range f64fb2c8fe28f7c458c72ec8d700373924794943..7f63fcbcf23fc39eea784c091ad3d20d7e4bd005 by alice (you) now │
+│ ● Revision 9450ddf28ead5b44e8aa7d02e52f97809622157c with range 046704f8a556ff360a7f6b8879077e46ca6533e4..b4c96fbe0aab7da9762956751b5882fea9bc3e9d by alice (you) now │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -126,32 +126,32 @@ If we want to instead create a "stacked" patch, we can do so with the
 
 ``` (stderr)
 $ git push -o patch.message="Add Mel #2" -o patch.base=HEAD^ rad HEAD:refs/patches
-✓ Patch a467ffa260c4fbe355b6fb550ba0c4956078717e opened
+✓ Patch 385bfd59a90b66f9fe6e958560b72d5d1a83f7f1 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
 
 As you'll notice, using the previous patch as the base, we only see commit
-`7f63fcb` listed for this new patch.
+`b4c96fb` listed for this new patch.
 
 However, since the patch is still intended to be merged into `master`, we see
 that it is still two commits ahead and one behind from `master`.
 
 ```
-$ rad patch show -v a467ffa260c4fbe355b6fb550ba0c4956078717e
+$ rad patch show -v 385bfd59a90b66f9fe6e958560b72d5d1a83f7f1
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Add Mel #2                                                                                                                                                 │
-│ Patch     a467ffa260c4fbe355b6fb550ba0c4956078717e                                                                                                                   │
+│ Patch     385bfd59a90b66f9fe6e958560b72d5d1a83f7f1                                                                                                                   │
 │ Author    alice (you)                                                                                                                                                │
-│ Head      7f63fcbcf23fc39eea784c091ad3d20d7e4bd005                                                                                                                   │
-│ Base      5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7                                                                                                                   │
+│ Head      b4c96fbe0aab7da9762956751b5882fea9bc3e9d                                                                                                                   │
+│ Base      d60e9c18c50bd5b74df1fadccb340f43e61a54f8                                                                                                                   │
 │ Target    refs/heads/master                                                                                                                                          │
 │ Branches  feature/2                                                                                                                                                  │
 │ Commits   ahead 2, behind 1                                                                                                                                          │
 │ Status    open                                                                                                                                                       │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ 7f63fcb Add Mel                                                                                                                                                      │
+│ b4c96fb Add Mel                                                                                                                                                      │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● Revision a467ffa260c4fbe355b6fb550ba0c4956078717e with range 5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7..7f63fcbcf23fc39eea784c091ad3d20d7e4bd005 by alice (you) now │
+│ ● Revision 385bfd59a90b66f9fe6e958560b72d5d1a83f7f1 with range d60e9c18c50bd5b74df1fadccb340f43e61a54f8..b4c96fbe0aab7da9762956751b5882fea9bc3e9d by alice (you) now │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
