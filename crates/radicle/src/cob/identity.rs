@@ -2281,6 +2281,90 @@ mod test {
         assert_eq!(alice_identity.current, a2);
     }
 
+    /// When Alice redacts a revision and Bob concurrently accepts it,
+    /// the outcome depends on CRDT evaluation order (timestamp-based).
+    /// Regardless of which node syncs first, both must converge.
+    #[test]
+    fn concurrent_redact_and_accept_converge() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+
+        // Setup: Alice adds Bob as delegate. A₁ is auto-accepted (1/1 votes).
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        let a1 = alice_identity
+            .update(
+                cob::Title::new("A₁").unwrap(),
+                "Add Bob",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+        assert_eq!(alice_identity.current, a1);
+
+        // Alice proposes A₂. With 2 delegates, needs 2/2 votes. Stays Active.
+        let mut alice_doc2 = alice_identity.doc().clone().edit();
+        alice_doc2.visibility = Visibility::private([]);
+        let a2 = alice_identity
+            .update(
+                cob::Title::new("A₂").unwrap(),
+                "",
+                &alice_doc2.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Bob fetches and sees A₂.
+        bob.repo.fetch(alice);
+
+        // Concurrent actions (no sync between them):
+        // Alice redacts A₂ (timestamp T).
+        let _a3 = cob::stable::with_advanced_timestamp(|| alice_identity.redact(a2).unwrap());
+
+        // Bob accepts A₂ (timestamp T+1, later than Alice's redaction).
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        let _b1 = cob::stable::with_advanced_timestamp(|| bob_identity.accept(&a2).unwrap());
+
+        // Before sync: each node has a different local view.
+        // Alice: A₂ is Redacted(Author), current = A₁.
+        assert_eq!(
+            alice_identity.revision(&a2).unwrap().state,
+            State::Redacted(RedactedBy::Author)
+        );
+        assert_eq!(alice_identity.current, a1);
+
+        // Bob: A₂ is Accepted (2/2 votes locally), current = A₂.
+        assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Accepted);
+        assert_eq!(bob_identity.current, a2);
+
+        // Now sync: Bob fetches Alice, Alice fetches Bob.
+        bob.repo.fetch(alice);
+        bob_identity.reload().unwrap();
+
+        alice.repo.fetch(bob);
+        alice_identity.reload().unwrap();
+
+        // After sync: both must agree.
+        // The redaction (earlier timestamp) is processed before the accept.
+        // When the accept is processed, A₂ is already Redacted → accept is skipped.
+        assert_eq!(
+            alice_identity.revision(&a2).unwrap().state,
+            bob_identity.revision(&a2).unwrap().state,
+            "Alice and Bob must agree on A₂'s state"
+        );
+        assert_eq!(
+            alice_identity.current, bob_identity.current,
+            "Alice and Bob must agree on the current revision"
+        );
+
+        // The redaction wins (earlier timestamp), so current reverts to A₁.
+        assert_eq!(
+            alice_identity.revision(&a2).unwrap().state,
+            State::Redacted(RedactedBy::Author)
+        );
+        assert_eq!(alice_identity.current, a1);
+    }
+
     #[test]
     fn test_valid_identity() {
         let tempdir = tempfile::tempdir().unwrap();
