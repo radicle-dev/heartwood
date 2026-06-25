@@ -228,7 +228,7 @@ pub fn populate(repo: &git::raw::Repository, scale: usize) -> Vec<git::fmt::Qual
             .to_lowercase();
         let name = git::fmt::refname!("feature")
             .join(git::fmt::RefString::try_from(random.as_str()).unwrap());
-        let signature = git::raw::Signature::now("Radicle", "radicle@radicle.dev").unwrap();
+        let signature = git::raw::Signature::now("Radicle", "radicle@example.com").unwrap();
 
         rng.fill(&mut buffer);
 
