@@ -7,6 +7,9 @@ extend-ignore-re = [
     "rad:z[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{28}",
     "z6Mk[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{44}",
 ]
+extend-ignore-identifiers-re = [
+    "^[0-9a-f]{7,40}$",  # bare short/full Git SHAs
+]
 
 [default.extend-identifiers]
 "typ" = "typ" # We may write "typ" instead of "type". The latter is a Rust keyword.
