@@ -38,8 +38,13 @@ if rg --context=3 --fixed-strings 'radicle.zulipchat.com' "$@"; then
     exit 1
 fi
 
-# For `git2::` we need to exclude raw.rs
-FILTERED_GIT2=$(printf '%s\n' "$@" | grep '^crates/radicle/.*\.rs$' | grep -v 'crates/radicle/src/git/raw.rs' || true)
+# For `git2::` we need to exclude files that directly implement traits
+# for git2 types or provide low-level git2 bindings.
+FILTERED_GIT2=$(printf '%s\n' "$@" | grep '^crates/radicle/.*\.rs$' \
+    | grep -v 'crates/radicle/src/git/raw.rs' \
+    | grep -v 'crates/radicle/src/storage/refs/sigrefs/git.rs' \
+    | grep -v 'crates/radicle/src/storage/refs/sigrefs/property/mock.rs' \
+    || true)
 if [ -n "$FILTERED_GIT2" ]; then
     if echo "$FILTERED_GIT2" | xargs rg --context=3 --fixed-strings 'git2::'; then
         exit 1
