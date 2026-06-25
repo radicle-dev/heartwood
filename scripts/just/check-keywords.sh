@@ -8,6 +8,21 @@ if [ $# -eq 0 ]; then
     exit 0
 fi
 
+# Exclude build.rs files — they contain build-time defaults
+# for domain-specific values that are injected via env vars.
+ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        */build.rs|build.rs) ;;
+        *) ARGS+=("$arg") ;;
+    esac
+done
+set -- "${ARGS[@]}"
+
+if [ $# -eq 0 ]; then
+    exit 0
+fi
+
 if rg --context=3 --fixed-strings 'radicle.dev' "$@"; then
     exit 1
 fi

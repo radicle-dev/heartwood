@@ -20,16 +20,22 @@ pub const RADICLE_VERSION: &str = env!("RADICLE_VERSION");
 pub const RADICLE_VERSION_LONG: &str =
     concat!(env!("RADICLE_VERSION"), " (", env!("GIT_HEAD"), ")");
 pub const DESCRIPTION: &str = "Radicle command line interface";
-pub const LONG_DESCRIPTION: &str = "
-Radicle is a sovereign code forge built on Git.
-
-See `rad <COMMAND> --help` to learn about a specific command.
-
-Do you have feedback?
- - Chat <\x1b]8;;https://radicle.zulipchat.com\x1b\\radicle.zulipchat.com\x1b]8;;\x1b\\>
- - Mail <\x1b]8;;mailto:feedback@radicle.dev\x1b\\feedback@radicle.dev\x1b]8;;\x1b\\>
-   (Messages are automatically posted to the public #feedback channel on Zulip.)\
-";
+pub const LONG_DESCRIPTION: &str = concat!(
+    "\nRadicle is a sovereign code forge built on Git.\n\n",
+    "See `rad <COMMAND> --help` to learn about a specific command.\n\n",
+    "Do you have feedback?\n",
+    " - Chat <\x1b]8;;",
+    env!("RADICLE_CHAT_URL"),
+    "\x1b\\",
+    env!("RADICLE_CHAT_URL"),
+    "\x1b]8;;\x1b\\>\n",
+    " - Mail <\x1b]8;;mailto:",
+    env!("RADICLE_FEEDBACK_EMAIL"),
+    "\x1b\\",
+    env!("RADICLE_FEEDBACK_EMAIL"),
+    "\x1b]8;;\x1b\\>\n",
+    "   (Messages are automatically posted to the public #feedback channel on Zulip.)",
+);
 pub const TIMESTAMP: &str = env!("SOURCE_DATE_EPOCH");
 pub const VERSION: Version = Version {
     name: NAME,
@@ -111,12 +117,16 @@ enum Command {
 }
 
 fn main() {
-    human_panic::setup_panic!(human_panic::Metadata::new(
-        env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION")
-    )
-    .homepage(env!("CARGO_PKG_HOMEPAGE"))
-    .support("Open a support request at https://radicle.zulipchat.com/ or file an issue via Radicle itself, or e-mail to team@radicle.dev"));
+    human_panic::setup_panic!(
+        human_panic::Metadata::new(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
+            .homepage(env!("CARGO_PKG_HOMEPAGE"))
+            .support(concat!(
+                "Open a support request at ",
+                env!("RADICLE_CHAT_URL"),
+                " or file an issue via Radicle itself, or e-mail to ",
+                env!("RADICLE_SUPPORT_EMAIL"),
+            ))
+    );
 
     // Install a panic hook that intercepts panics caused by broken pipes and exits
     // cleanly. This is a backstop for any uses of `println!` (in our code or

@@ -80,9 +80,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or(0.to_string())
     });
 
+    // Support channel defaults. Forks can override these via environment
+    // variables to point to their own support channels.
+    let chat_url =
+        env::var("RADICLE_CHAT_URL").unwrap_or_else(|_| "https://radicle.zulipchat.com".into());
+    let feedback_email =
+        env::var("RADICLE_FEEDBACK_EMAIL").unwrap_or_else(|_| "feedback@radicle.dev".into());
+    let support_email =
+        env::var("RADICLE_SUPPORT_EMAIL").unwrap_or_else(|_| "team@radicle.dev".into());
+
     println!("cargo::rustc-env=RADICLE_VERSION={version}");
     println!("cargo::rustc-env=SOURCE_DATE_EPOCH={commit_time}");
     println!("cargo::rustc-env=GIT_HEAD={hash}");
+    println!("cargo::rustc-env=RADICLE_CHAT_URL={chat_url}");
+    println!("cargo::rustc-env=RADICLE_FEEDBACK_EMAIL={feedback_email}");
+    println!("cargo::rustc-env=RADICLE_SUPPORT_EMAIL={support_email}");
 
     Ok(())
 }
