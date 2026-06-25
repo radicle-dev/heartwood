@@ -10,10 +10,13 @@ fi
 
 # Exclude build.rs files — they contain build-time defaults
 # for domain-specific values that are injected via env vars.
+# Exclude warning.rs — it contains old hostnames needed to warn
+# users about deprecated node addresses in their config.
 ARGS=()
 for arg in "$@"; do
     case "$arg" in
         */build.rs|build.rs) ;;
+        */warning.rs) ;;
         *) ARGS+=("$arg") ;;
     esac
 done
