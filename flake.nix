@@ -387,6 +387,9 @@
           ripgrep
           sqlite
 
+          # Used for ensuring toolchain.toml and build/Dockerfile agree on the version
+          (callPackage ./nix/dockerfile-json.nix {})
+
           # /simulation
           cue
           kubectl
