@@ -52,7 +52,7 @@ check-rust:
 [group('pre-push')]
 [group('check')]
 [parallel]
-check-toolchain:
+check-toolchain: (verify-tool "dockerfile-json")
     @echo "{{CHECK}}Checking Rust version consistency…{{NORMAL}}"
     @ERROR="{{ERROR}}" NORMAL="{{NORMAL}}" scripts/just/check-toolchain.sh
 

@@ -1,5 +1,5 @@
 # Builds release binaries for Radicle.
-ARG RUST_VERSION="1.95"
+ARG RUST_VERSION="1.97.1"
 ARG ALPINE_VERSION="3.23"
 
 FROM rust:${RUST_VERSION}-alpine${ALPINE_VERSION} as builder
