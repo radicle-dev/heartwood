@@ -5,6 +5,7 @@ use radicle::{
         cache::{MigrateCallback, MigrateProgress},
         store::access::{ReadOnly, WriteAs},
     },
+    crypto,
     prelude::NodeId,
     profile,
     storage::ReadRepository,
@@ -72,7 +73,7 @@ where
 /// Return a read-write handle for the patches cache.
 /// Prefer this over [`radicle::profile::Home::patches_mut`],
 /// to obtain an error hint in case migrations must be run.
-pub fn patches_mut<'a, 'b, Repo, Signer>(
+pub fn patches_mut<'a, 'b, Repo, Signer: crypto::Signer>(
     profile: &Profile,
     repository: &'a Repo,
     signer: &'b Signer,
@@ -97,7 +98,7 @@ where
 /// Return a read-write handle for the issues cache.
 /// Prefer this over [`radicle::profile::Home::issues_mut`],
 /// to obtain an error hint in case migrations must be run.
-pub fn issues_mut<'a, 'b, Repo, Signer>(
+pub fn issues_mut<'a, 'b, Repo, Signer: crypto::Signer>(
     profile: &Profile,
     repository: &'a Repo,
     signer: &'b Signer,

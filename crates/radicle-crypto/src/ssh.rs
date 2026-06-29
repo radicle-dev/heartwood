@@ -1,103 +1,85 @@
-pub mod agent;
-pub mod keystore;
+extern crate alloc;
+
+use alloc::string::{String, ToString as _};
 
 use thiserror::Error;
 
-use crate as crypto;
+#[cfg(feature = "std")]
+pub mod agent;
 
+#[cfg(feature = "std")]
+pub mod keystore;
+
+#[cfg(feature = "std")]
 pub use keystore::{Keystore, Passphrase};
 
 #[derive(Debug, Error)]
 #[non_exhaustive]
-pub enum ExtendedSignatureError {
+pub enum ExtendedSignaturePemError {
     #[error(transparent)]
     Ssh(#[from] ssh_key::Error),
     #[error(transparent)]
-    Crypto(#[from] crypto::Error),
-    #[error("unsupported signature algorithm")]
-    UnsupportedAlgorithm,
+    Signature(#[from] crate::signature::Error),
+    #[error("unsupported signature algorithm: {algorithm}")]
+    UnsupportedAlgorithm { algorithm: ssh_key::Algorithm },
 }
 
-/// Signature with public key, used for SSH signing.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExtendedSignature {
-    pub key: crypto::PublicKey,
-    pub sig: crypto::Signature,
-}
-
-impl From<ExtendedSignature> for crypto::Signature {
-    fn from(ExtendedSignature { sig, .. }: ExtendedSignature) -> Self {
-        sig
-    }
-}
-
-impl ExtendedSignature {
-    /// Create a new extended signature.
-    pub fn new(public_key: crypto::PublicKey, signature: crypto::Signature) -> Self {
-        Self {
-            key: public_key,
-            sig: signature,
-        }
-    }
-
+impl crate::ExtendedSignature {
     /// Convert to OpenSSH standard PEM format.
-    pub fn to_pem(&self) -> Result<String, ExtendedSignatureError> {
+    pub fn to_pem(&self) -> Result<String, ExtendedSignaturePemError> {
         ssh_key::SshSig::new(
-            ssh_key::public::KeyData::from(ssh_key::public::Ed25519PublicKey(
-                self.key.to_byte_array(),
-            )),
+            ssh_key::public::KeyData::from(ssh_key::public::Ed25519PublicKey::from(self.key)),
             String::from("radicle"),
             ssh_key::HashAlg::Sha256,
-            ssh_key::Signature::new(ssh_key::Algorithm::Ed25519, **self.sig)?,
+            ssh_key::Signature::new(ssh_key::Algorithm::Ed25519, self.sig.to_vec())?,
         )?
         .to_pem(ssh_key::LineEnding::default())
-        .map_err(ExtendedSignatureError::from)
+        .map_err(ExtendedSignaturePemError::from)
     }
 
     /// Create from OpenSSH PEM format.
-    pub fn from_pem(pem: impl AsRef<[u8]>) -> Result<Self, ExtendedSignatureError> {
+    pub fn from_pem(pem: impl AsRef<[u8]>) -> Result<Self, ExtendedSignaturePemError> {
         let sig = ssh_key::SshSig::from_pem(pem)?;
 
-        Ok(Self {
-            key: crypto::PublicKey::from(
-                sig.public_key()
-                    .ed25519()
-                    .ok_or(ExtendedSignatureError::UnsupportedAlgorithm)?
-                    .0,
-            ),
-            sig: crypto::Signature::try_from(sig.signature().as_bytes())?,
-        })
-    }
+        let key = match sig.public_key() {
+            ssh_key::public::KeyData::Ed25519(key) => key.0,
+            key_data => {
+                return Err(ExtendedSignaturePemError::UnsupportedAlgorithm {
+                    algorithm: key_data.algorithm(),
+                });
+            }
+        };
 
-    /// Verify the signature for a given payload.
-    pub fn verify(&self, payload: &[u8]) -> bool {
-        self.key.verify(payload, &self.sig).is_ok()
+        Ok(Self {
+            key: crate::PublicKey(key),
+            sig: crate::Signature::try_from(sig.signature().as_bytes())?,
+        })
     }
 }
 
 pub mod fmt {
+    use super::*;
     use crate::PublicKey;
 
     /// Get the SSH long key from a public key.
     /// This is the output of `ssh-add -L`.
     pub fn key(key: &PublicKey) -> String {
-        ssh_key::PublicKey::from(*key).to_string()
+        ssh_key::PublicKey::from(ssh_key::public::Ed25519PublicKey(key.0)).to_string()
     }
 
     /// Get the SSH key fingerprint from a public key.
     /// This is the output of `ssh-add -l`.
     pub fn fingerprint(key: &PublicKey) -> String {
-        ssh_key::PublicKey::from(*key)
+        ssh_key::PublicKey::from(ssh_key::public::Ed25519PublicKey(key.0))
             .fingerprint(Default::default())
             .to_string()
     }
 
     #[cfg(test)]
     mod test {
-        use std::str::FromStr;
-
         use super::*;
-        use crate::PublicKey;
+
+        use alloc::str::FromStr;
 
         #[test]
         fn test_key() {
@@ -114,6 +96,7 @@ pub mod fmt {
         fn test_fingerprint() {
             let pk =
                 PublicKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
+
             assert_eq!(
                 fingerprint(&pk),
                 "SHA256:gE/Ty4fuXzww49lcnNe9/GI0L7xSEQdFp/v9tOjFwB4"

@@ -6,7 +6,7 @@ mod test;
 use std::path::Path;
 
 use crypto::PublicKey;
-use crypto::signature::{self, Signer};
+use crypto::signature;
 use radicle_core::{NodeId, RepoId};
 use radicle_git_metadata::author::Author;
 use radicle_git_metadata::commit::{CommitData, headers::Headers, trailers::OwnedTrailer};
@@ -62,19 +62,17 @@ impl Update {
 ///   writing.
 /// - A `signer` which is the entity that produces the cryptographic signature
 ///   over the [`Refs`].
-pub struct SignedRefsWriter<'a, R, S> {
+pub struct SignedRefsWriter<'a, Repo, Signer: crypto::Signer> {
     refs: Refs,
     rid: RepoId,
     namespace: NodeId,
-    repository: &'a R,
-    signer: &'a S,
+    repository: &'a Repo,
+    signer: &'a Signer,
 }
 
-impl<'a, R, S> SignedRefsWriter<'a, R, S>
+impl<'a, Repo, Signer: crypto::Signer> SignedRefsWriter<'a, Repo, Signer>
 where
-    R: object::Writer + object::Reader + reference::Writer + reference::Reader,
-    S: Signer<crypto::Signature>,
-    S: signature::Verifier<crypto::Signature>,
+    Repo: object::Writer + object::Reader + reference::Writer + reference::Reader,
 {
     /// Construct a new [`SignedRefsWriter`].
     ///
@@ -87,8 +85,8 @@ where
         mut refs: Refs,
         rid: RepoId,
         namespace: NodeId,
-        repository: &'a R,
-        signer: &'a S,
+        repository: &'a Repo,
+        signer: &'a Signer,
     ) -> Self {
         debug_assert!(refs.get(&IDENTITY_ROOT).is_some());
         debug_assert!(refs.get(&SIGREFS_PARENT).is_none());
@@ -157,7 +155,8 @@ where
         } = self;
         let reference = SIGREFS_BRANCH.with_namespace(git::fmt::Component::from(&namespace));
 
-        let head = HeadReader::new(&reference, repository, rid, self.signer).read();
+        let verifier = signer.verifying_key();
+        let head = HeadReader::new(&reference, repository, rid, &verifier).read();
 
         let commit_writer = match head {
             Ok(Some(head)) if !force && head.is_unchanged(&refs) => {
@@ -221,21 +220,23 @@ impl Commit {
     }
 }
 
-struct CommitWriter<'a, R, S> {
+struct CommitWriter<'a, Repo, Signer: crypto::Signer> {
     refs: Refs,
     parent: Option<Oid>,
     author: Author,
     message: String,
-    repository: &'a R,
-    signer: &'a S,
+    repository: &'a Repo,
+    signer: &'a Signer,
 }
 
-impl<'a, R, S> CommitWriter<'a, R, S>
-where
-    R: object::Writer,
-    S: Signer<crypto::Signature>,
-{
-    fn root(refs: Refs, author: Author, message: String, repository: &'a R, signer: &'a S) -> Self {
+impl<'a, Repo: object::Writer, Signer: crypto::Signer> CommitWriter<'a, Repo, Signer> {
+    fn root(
+        refs: Refs,
+        author: Author,
+        message: String,
+        repository: &'a Repo,
+        signer: &'a Signer,
+    ) -> Self {
         Self {
             refs,
             parent: None,
@@ -251,8 +252,8 @@ where
         parent: Oid,
         author: Author,
         message: String,
-        repository: &'a R,
-        signer: &'a S,
+        repository: &'a Repo,
+        signer: &'a Signer,
     ) -> Self {
         Self {
             refs,
@@ -307,18 +308,14 @@ struct Tree {
     signature: crypto::Signature,
 }
 
-struct TreeWriter<'a, R, S> {
+struct TreeWriter<'a, Repo, Signer: crypto::Signer> {
     refs: Refs,
-    repository: &'a R,
-    signer: &'a S,
+    repository: &'a Repo,
+    signer: &'a Signer,
 }
 
-impl<'a, R, S> TreeWriter<'a, R, S>
-where
-    R: object::Writer,
-    S: Signer<crypto::Signature>,
-{
-    fn new(refs: Refs, repository: &'a R, signer: &'a S) -> Self {
+impl<'a, Repo: object::Writer, Signer: crypto::Signer> TreeWriter<'a, Repo, Signer> {
+    fn new(refs: Refs, repository: &'a Repo, signer: &'a Signer) -> Self {
         Self {
             refs,
             repository,

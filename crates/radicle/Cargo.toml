@@ -39,11 +39,12 @@ fastrand = { workspace = true, features = ["std"] }
 git2 = { workspace = true, features = ["vendored-libgit2"] }
 indexmap = { workspace = true, features = ["serde"] }
 log = { workspace = true, features = ["std"] }
+multibase = { workspace = true, features = ["std"] }
 nonempty = { workspace = true, features = ["serialize"] }
 qcheck = { workspace = true, optional = true }
 radicle-cob = { workspace = true, features = ["git2"] }
 radicle-core = { workspace = true, features = ["git2", "serde", "sqlite"] }
-radicle-crypto = { workspace = true, features = ["git-ref-format-core", "ssh", "sqlite", "cyphernet"] }
+radicle-crypto = { workspace = true, features = ["git-ref-format-core", "serde", "ssh", "sqlite", "cyphernet"] }
 radicle-git-ref-format = { workspace = true, features = ["macro", "serde"] }
 radicle-git-metadata = { workspace = true }
 radicle-localtime = { workspace = true, features = ["serde"] }

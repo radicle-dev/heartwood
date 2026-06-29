@@ -1,148 +1,121 @@
-use std::cmp::Ordering;
-use std::sync::Arc;
-use std::{fmt, ops::Deref, str::FromStr};
+#![no_std]
 
-use ec25519 as ed25519;
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
+#[cfg(any(test, feature = "alloc"))]
+extern crate alloc;
 
-pub use ed25519::{Error, KeyPair, Seed, edwards25519};
+#[cfg(any(test, feature = "alloc"))]
+#[allow(unused_imports)]
+use alloc::{
+    string::{String, ToString as _},
+    vec::Vec,
+};
 
-pub extern crate signature;
+#[cfg(feature = "std")]
+extern crate std;
 
-#[cfg(feature = "ssh")]
+/// References to dalek cryptography crates (see <https://dalek.rs/>)
+/// that this crate depends on. Since both are related to Curve25519
+/// in some way, the "25519" suffix is omitted from the name of the re-export.
+mod dalek {
+    pub(crate) extern crate curve25519_dalek as curve;
+    pub(crate) extern crate ed25519_dalek as ed;
+}
+
+/// Re-exports of the `signature` crate and `ed25519::Signature`
+/// as re-exported by the `ed25519_dalek` crate.
+pub use dalek::ed::ed25519::{Signature, signature};
+
+#[cfg(all(feature = "ssh", feature = "alloc"))]
 pub mod ssh;
-#[cfg(any(test, feature = "test"))]
-pub mod test;
+
+mod seed;
+pub use seed::Seed;
 
 /// Output of a Diffie-Hellman key exchange.
 pub type SharedSecret = [u8; 32];
 
-/// Error returned if signing fails, eg. due to an HSM or KMS.
-#[derive(Debug, Clone, Error)]
-#[error(transparent)]
-#[non_exhaustive]
-pub struct SignerError {
-    #[from]
-    source: Arc<dyn std::error::Error + Send + Sync>,
-}
-
-impl SignerError {
-    pub fn new(source: impl std::error::Error + Send + Sync + 'static) -> Self {
-        Self {
-            source: Arc::new(source),
-        }
-    }
-}
-
-pub trait Signer: Send + signature::Signer<Signature> {
-    /// Return this signer's public/verification key.
-    fn public_key(&self) -> &PublicKey;
-}
-
-impl<S> Signer for S
+/// A super-trait that requires:
+///   - [`signature::Signer`] to produce the exported [`Signature`] type,
+///   - [`signature::Keypair`] where the associated
+///     [`signature::Keypair::VerifyingKey`] is the
+///     [`VerifyingKey`] defined in this crate, and
+///   - [`AsRef<PublicKey>`] to obtain a reference to the corresponding
+///     [`PublicKey`].
+///
+/// A blanket implementation is provided for all types that satisfy the trait
+/// bounds.
+pub trait Signer
 where
-    S: Send,
-    S: signature::Signer<Signature>,
-    S: signature::KeypairRef<VerifyingKey = PublicKey>,
+    Self: signature::Signer<Signature>,
+    Self: signature::Keypair<VerifyingKey = VerifyingKey>,
+    Self: AsRef<PublicKey>,
 {
+    /// Return a reference to the [`PublicKey`].
+    ///
+    /// This is generally satisfied by the [`AsRef<PublicKey>`] instance.
     fn public_key(&self) -> &PublicKey {
         self.as_ref()
     }
 }
 
-/// Cryptographic signature.
-#[derive(PartialEq, Eq, Hash, Copy, Clone, Serialize, Deserialize)]
-#[serde(into = "String", try_from = "String")]
-pub struct Signature(pub ed25519::Signature);
-
-impl AsRef<[u8]> for Signature {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
+impl<T: ?Sized> Signer for T
+where
+    Self: signature::Signer<Signature>,
+    Self: signature::Keypair<VerifyingKey = VerifyingKey>,
+    Self: AsRef<PublicKey>,
+{
 }
 
-impl fmt::Display for Signature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let base = multibase::Base::Base58Btc;
-        write!(f, "{}", multibase::encode(base, self.deref()))
-    }
+/// This module contains compile-time checks to ensure the following:
+///  1. [`Signer`] is compatible with `dyn` usage.
+///  2. [`SigningKey`] and other well-known implementations of signers
+///     implement the trait.
+///
+/// As long as this module compiles, we have reasonable confidence that we
+/// can generalize to `dyn` in the future without breaking existing code.
+///
+/// Note that this module is "dead code" in the sense that it serves no
+/// purpose at runtime, but it is useful at compile-time!
+#[allow(dead_code)]
+mod future {
+    use super::*;
+
+    /// Witnesses that [`Signer`] is `dyn`-compatible.
+    const fn r#dyn(_: &dyn Signer) {}
+
+    /// Witnesses that the generic argument implements [`Signer`].
+    const fn r#impl<Witness: Signer>() {}
+
+    /// Witnesses that [`SigningKey`] implements [`Signer`].
+    const IMPL_SECRET_KEY: () = r#impl::<SigningKey>();
+
+    /// Witnesses that [`ssh::agent::AgentSigner`] implements [`Signer`].
+    #[cfg(all(feature = "ssh", feature = "std"))]
+    const IMPL_AGENT_SIGNER: () = r#impl::<ssh::agent::AgentSigner>();
 }
 
-impl fmt::Debug for Signature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Signature({self})")
-    }
-}
+/// Multicodec key type for Ed25519 keys.
+#[cfg(feature = "multibase")]
+pub const MULTICODEC_TYPE: [u8; 2] = [0xED, 0x01];
 
-#[derive(Error, Debug)]
-#[non_exhaustive]
-pub enum SignatureError {
-    #[error("invalid multibase string: {0}")]
-    Multibase(#[from] multibase::Error),
-    #[error("invalid signature: {0}")]
-    Invalid(#[from] ed25519::Error),
-}
+pub type PublicKeyBytes = [u8; dalek::ed::PUBLIC_KEY_LENGTH];
 
-impl From<ed25519::Signature> for Signature {
-    fn from(other: ed25519::Signature) -> Self {
-        Self(other)
-    }
-}
-
-impl FromStr for Signature {
-    type Err = SignatureError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (_, bytes) = multibase::decode(s)?;
-        let sig = ed25519::Signature::from_slice(bytes.as_slice())?;
-
-        Ok(Self(sig))
-    }
-}
-
-impl Deref for Signature {
-    type Target = ed25519::Signature;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<[u8; 64]> for Signature {
-    fn from(bytes: [u8; 64]) -> Self {
-        Self(ed25519::Signature::new(bytes))
-    }
-}
-
-impl TryFrom<&[u8]> for Signature {
-    type Error = ed25519::Error;
-
-    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        ed25519::Signature::from_slice(bytes).map(Self)
-    }
-}
-
-impl From<Signature> for String {
-    fn from(s: Signature) -> Self {
-        s.to_string()
-    }
-}
-
-impl TryFrom<String> for Signature {
-    type Error = SignatureError;
-
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        Self::from_str(&s)
-    }
-}
-
-/// The public/verification key.
-#[derive(Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-#[serde(into = "String", try_from = "String")]
-#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+/// Bytes that are intended/thought to correspond to a point on the Edwards25519
+/// curve (but not on its twist).
+///
+/// This is more compact than [`VerifyingKey`] in memory, and easier to handle,
+/// but it is not guaranteed to be a valid point on the curve, so cannot be used
+/// for actual cryptographic operations such as signature verification or
+/// Diffie-Hellman key exchange.
+#[derive(Hash, PartialEq, Eq, Copy, Clone, Debug, PartialOrd, Ord)]
 #[cfg_attr(
-    feature = "schemars",
+    all(feature = "serde", feature = "alloc", feature = "multibase"),
+    derive(serde::Serialize, serde::Deserialize),
+    serde(into = "String", try_from = "String")
+)]
+#[cfg_attr(
+    all(feature = "schemars", feature = "serde", feature = "alloc", feature = "multibase"),
+    derive(schemars::JsonSchema),
     schemars(
         title = "Ed25519",
         description = "An Ed25519 public key in multibase encoding.",
@@ -154,266 +127,175 @@ impl TryFrom<String> for Signature {
         ]),
     ),
 )]
-pub struct PublicKey(amplify::Bytes32);
+#[repr(transparent)]
+pub struct PublicKey(PublicKeyBytes);
 
 impl PublicKey {
-    /// Verify the signature for a given payload.
-    pub fn verify(
-        &self,
-        payload: impl AsRef<[u8]>,
-        signature: &ed25519::Signature,
-    ) -> Result<(), ed25519::Error> {
-        ed25519::PublicKey::new(self.0.to_byte_array()).verify(payload, signature)
+    pub const fn from_bytes(bytes: PublicKeyBytes) -> Self {
+        Self(bytes)
     }
 
-    /// Returns a byte array representation of the public key.
-    #[inline]
-    pub fn to_byte_array(&self) -> [u8; 32] {
-        self.0.to_byte_array()
+    pub fn into_inner(self) -> PublicKeyBytes {
+        self.0
     }
 }
 
-impl signature::Verifier<Signature> for PublicKey {
-    fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
-        self.verify(msg, signature)
-            .map_err(signature::Error::from_source)
+impl<'a> From<&'a PublicKeyBytes> for &'a PublicKey {
+    fn from(other: &'a PublicKeyBytes) -> Self {
+        let ptr = std::ptr::from_ref(other).cast::<PublicKey>();
+        // SAFETY: `PublicKey` is `#[repr(transparent)]` over the same array type,
+        // so the cast preserves layout and alignment, and every byte pattern is valid.
+        unsafe { &*ptr }
     }
 }
 
-#[cfg(feature = "cyphernet")]
-impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for PublicKey {
-    type Display = String;
-
-    fn display_fmt(&self, _: &cyphernet::display::Encoding) -> Self::Display {
-        self.to_string()
+impl From<PublicKeyBytes> for PublicKey {
+    fn from(bytes: PublicKeyBytes) -> Self {
+        Self(bytes)
     }
 }
 
-#[cfg(feature = "ssh")]
-impl From<PublicKey> for ssh_key::PublicKey {
-    fn from(key: PublicKey) -> Self {
-        ssh_key::PublicKey::from(ssh_key::public::Ed25519PublicKey(key.to_byte_array()))
-    }
-}
-
-#[cfg(feature = "cyphernet")]
-impl cyphernet::EcPk for PublicKey {
-    const COMPRESSED_LEN: usize = 32;
-    const CURVE_NAME: &'static str = "Edwards25519";
-
-    type Compressed = amplify::Bytes32;
-
-    fn base_point() -> Self {
-        unimplemented!()
-    }
-
-    fn to_pk_compressed(&self) -> Self::Compressed {
-        amplify::Bytes32::from_byte_array(self.to_byte_array())
-    }
-
-    fn from_pk_compressed(pk: Self::Compressed) -> Result<Self, cyphernet::EcPkInvalid> {
-        Ok(PublicKey::from(pk.to_byte_array()))
-    }
-
-    fn from_pk_compressed_slice(slice: &[u8]) -> Result<Self, cyphernet::EcPkInvalid> {
-        ed25519::PublicKey::from_slice(slice)
-            .map_err(|_| cyphernet::EcPkInvalid::default())
-            .map(Self::from)
-    }
-}
-
-/// The private/signing key.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct SecretKey(ed25519::SecretKey);
-
-impl SecretKey {
-    /// Elliptic-curve Diffie-Hellman.
-    pub fn ecdh(&self, pk: &PublicKey) -> Result<[u8; 32], ed25519::Error> {
-        let scalar = self.seed().scalar();
-        let ge = edwards25519::GeP3::from_bytes_vartime(&pk.to_byte_array())
-            .ok_or(Error::InvalidPublicKey)?;
-
-        Ok(edwards25519::ge_scalarmult(&scalar, &ge).to_bytes())
-    }
-}
-
-impl PartialOrd for SecretKey {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for SecretKey {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.cmp(&other.0)
-    }
-}
-
-impl zeroize::Zeroize for SecretKey {
-    fn zeroize(&mut self) {
-        self.0.zeroize();
-    }
-}
-
-impl TryFrom<&[u8]> for SecretKey {
-    type Error = ed25519::Error;
-
-    fn try_from(bytes: &[u8]) -> Result<Self, ed25519::Error> {
-        ed25519::SecretKey::from_slice(bytes).map(Self)
-    }
-}
-
-impl AsRef<[u8]> for SecretKey {
-    fn as_ref(&self) -> &[u8] {
-        &*self.0
-    }
-}
-
-impl From<[u8; 64]> for SecretKey {
-    fn from(bytes: [u8; 64]) -> Self {
-        Self(ed25519::SecretKey::new(bytes))
-    }
-}
-
-impl From<ed25519::SecretKey> for SecretKey {
-    fn from(other: ed25519::SecretKey) -> Self {
-        Self(other)
-    }
-}
-
-impl From<SecretKey> for ed25519::SecretKey {
-    fn from(other: SecretKey) -> Self {
-        other.0
-    }
-}
-
-impl Deref for SecretKey {
-    type Target = ed25519::SecretKey;
-
-    fn deref(&self) -> &Self::Target {
+#[cfg(feature = "alloc")]
+impl alloc::borrow::Borrow<PublicKeyBytes> for PublicKey {
+    fn borrow(&self) -> &PublicKeyBytes {
         &self.0
     }
 }
 
-#[derive(Error, Debug)]
+#[cfg(all(feature = "alloc", feature = "multibase"))]
+impl alloc::fmt::Display for PublicKey {
+    fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
+        write!(f, "{}", self.to_human())
+    }
+}
+
+#[cfg(feature = "ssh")]
+impl From<PublicKey> for ssh_key::public::Ed25519PublicKey {
+    fn from(key: PublicKey) -> Self {
+        ssh_key::public::Ed25519PublicKey(key.0)
+    }
+}
+
+#[cfg(feature = "ssh")]
+impl From<ssh_key::public::Ed25519PublicKey> for PublicKey {
+    fn from(key: ssh_key::public::Ed25519PublicKey) -> Self {
+        Self(key.0)
+    }
+}
+
+#[cfg(all(feature = "alloc", feature = "multibase"))]
+#[derive(thiserror::Error, Debug)]
 #[non_exhaustive]
 pub enum PublicKeyError {
     #[error("invalid length {0}")]
     InvalidLength(usize),
     #[error("invalid multibase string: {0}")]
-    Multibase(#[from] multibase::Error),
+    Multibase(#[cfg_attr(feature = "std", source)] multibase::Error),
     #[error("invalid multicodec prefix, expected {0:?}")]
     Multicodec([u8; 2]),
-    #[error("invalid key: {0}")]
-    InvalidKey(#[from] ed25519::Error),
+    #[error("invalid public key")]
+    Invalid(#[cfg_attr(feature = "std", source)] signature::Error),
 }
 
-impl fmt::Display for PublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_human())
-    }
-}
-
+#[cfg(all(feature = "alloc", feature = "multibase"))]
 impl From<PublicKey> for String {
     fn from(other: PublicKey) -> Self {
         other.to_human()
     }
 }
 
-impl fmt::Debug for PublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PublicKey({self})")
-    }
-}
-
-impl From<ed25519::PublicKey> for PublicKey {
-    fn from(other: ed25519::PublicKey) -> Self {
-        Self(amplify::Bytes32::from_byte_array(*other.deref()))
-    }
-}
-
-impl From<PublicKey> for ed25519::PublicKey {
-    fn from(val: PublicKey) -> Self {
-        ed25519::PublicKey::new(val.to_byte_array())
-    }
-}
-
-impl From<[u8; 32]> for PublicKey {
-    fn from(other: [u8; 32]) -> Self {
-        Self(amplify::Bytes32::from_byte_array(other))
-    }
-}
-
-impl TryFrom<&[u8]> for PublicKey {
-    type Error = ed25519::Error;
-
-    fn try_from(other: &[u8]) -> Result<Self, Self::Error> {
-        ed25519::PublicKey::from_slice(other).map(Self::from)
-    }
-}
-
 impl PublicKey {
-    /// Multicodec key type for Ed25519 keys.
-    pub const MULTICODEC_TYPE: [u8; 2] = [0xED, 0x1];
-
     /// Encode public key in human-readable format.
     ///
     /// `MULTIBASE(base58-btc, MULTICODEC(public-key-type, raw-public-key-bytes))`
     ///
+    #[cfg(all(feature = "alloc", feature = "multibase"))]
     pub fn to_human(&self) -> String {
-        let mut buf = [0; 2 + ed25519::PublicKey::BYTES];
-        buf[..2].copy_from_slice(&Self::MULTICODEC_TYPE);
-        buf[2..].copy_from_slice(self.to_byte_array().as_slice());
+        let mut buf = [0; 2 + dalek::ed::PUBLIC_KEY_LENGTH];
+        buf[..2].copy_from_slice(&MULTICODEC_TYPE);
+        buf[2..].copy_from_slice(&self.0);
 
         multibase::encode(multibase::Base::Base58Btc, buf)
     }
 
-    #[cfg(feature = "git-ref-format-core")]
+    /// Encode the public key to a Git reference string:
+    ///
+    /// `refs/namespaces/<public-key>`
+    ///
+    /// and `<public-key>` is encoded in human-readable format
+    /// ([`PublicKey::to_human`]).
+    #[cfg(all(
+        feature = "git-ref-format-core",
+        feature = "alloc",
+        feature = "multibase"
+    ))]
     pub fn to_namespace(&self) -> git_ref_format_core::RefString {
-        use git_ref_format_core::name::{Component, NAMESPACES, REFS};
-        REFS.to_owned().and(NAMESPACES).and(Component::from(self))
+        use alloc::borrow::ToOwned as _;
+        use git_ref_format_core::name::{NAMESPACES, REFS};
+        REFS.to_owned().and(NAMESPACES).and(self.to_component())
     }
 
-    #[cfg(feature = "git-ref-format-core")]
+    /// Encode the public key a Git reference component, which is equivalent to
+    /// the human-readable format ([`PublicKey::to_human`]).
+    #[cfg(all(
+        feature = "git-ref-format-core",
+        feature = "alloc",
+        feature = "multibase"
+    ))]
     pub fn to_component(&self) -> git_ref_format_core::Component<'_> {
         git_ref_format_core::Component::from(self)
     }
 
-    #[cfg(feature = "git-ref-format-core")]
+    /// Decode a [`PublicKey`] from a namespaced Git reference, expected to be
+    /// in the format:
+    ///
+    /// `refs/namespaces/<public-key>/…`
+    ///
+    /// The `<public-key>` is decoded from the human-readable format
+    /// ([`PublicKey::to_human`]).
+    #[cfg(all(
+        feature = "git-ref-format-core",
+        feature = "alloc",
+        feature = "multibase"
+    ))]
     pub fn from_namespaced(
         refstr: &git_ref_format_core::Namespaced,
     ) -> Result<Self, PublicKeyError> {
-        let name = refstr.namespace().into_inner();
+        use alloc::str::FromStr as _;
 
-        Self::from_str(name.deref().as_str())
+        let name = refstr.namespace().into_inner();
+        Self::from_str(name.as_str())
     }
 }
 
-impl FromStr for PublicKey {
+#[cfg(all(feature = "alloc", feature = "multibase"))]
+impl alloc::str::FromStr for PublicKey {
     type Err = PublicKeyError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (_, bytes) = multibase::decode(s)?;
+        let (_, bytes) = multibase::decode(s).map_err(PublicKeyError::Multibase)?;
 
-        if let Some(bytes) = bytes.strip_prefix(&Self::MULTICODEC_TYPE) {
-            let key = ed25519::PublicKey::from_slice(bytes)?;
-
-            Ok(key.into())
-        } else {
-            Err(PublicKeyError::Multicodec(Self::MULTICODEC_TYPE))
+        if bytes.len() < 2 {
+            return Err(PublicKeyError::InvalidLength(bytes.len()));
         }
+
+        if bytes[..MULTICODEC_TYPE.len()] != MULTICODEC_TYPE {
+            return Err(PublicKeyError::Multicodec(MULTICODEC_TYPE));
+        }
+
+        Ok(PublicKey(
+            bytes[MULTICODEC_TYPE.len()..]
+                .try_into()
+                .map_err(|_| PublicKeyError::InvalidLength(bytes.len()))?,
+        ))
     }
 }
 
-impl TryFrom<String> for PublicKey {
-    type Error = PublicKeyError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::from_str(&value)
-    }
-}
-
-#[cfg(feature = "git-ref-format-core")]
+#[cfg(all(
+    feature = "git-ref-format-core",
+    feature = "alloc",
+    feature = "multibase"
+))]
 impl From<&PublicKey> for git_ref_format_core::Component<'_> {
     fn from(id: &PublicKey) -> Self {
         use git_ref_format_core::{Component, RefString};
@@ -423,18 +305,13 @@ impl From<&PublicKey> for git_ref_format_core::Component<'_> {
     }
 }
 
-#[cfg(feature = "sqlite")]
-impl From<&PublicKey> for sqlite::Value {
-    fn from(pk: &PublicKey) -> Self {
-        sqlite::Value::String(pk.to_human())
-    }
-}
-
-#[cfg(feature = "sqlite")]
+#[cfg(all(feature = "sqlite", feature = "alloc", feature = "multibase"))]
 impl TryFrom<&sqlite::Value> for PublicKey {
     type Error = sqlite::Error;
 
     fn try_from(value: &sqlite::Value) -> Result<Self, Self::Error> {
+        use alloc::str::FromStr as _;
+
         match value {
             sqlite::Value::String(s) => Self::from_str(s).map_err(|e| sqlite::Error {
                 code: None,
@@ -442,13 +319,13 @@ impl TryFrom<&sqlite::Value> for PublicKey {
             }),
             _ => Err(sqlite::Error {
                 code: None,
-                message: Some("sql: invalid type for public key".to_owned()),
+                message: Some(String::from("sql: invalid type for public key")),
             }),
         }
     }
 }
 
-#[cfg(feature = "sqlite")]
+#[cfg(all(feature = "sqlite", feature = "alloc", feature = "multibase"))]
 impl sqlite::BindableWithIndex for &PublicKey {
     fn bind<I: sqlite::ParameterIndex>(
         self,
@@ -459,85 +336,503 @@ impl sqlite::BindableWithIndex for &PublicKey {
     }
 }
 
-#[cfg(feature = "sqlite")]
-impl From<&Signature> for sqlite::Value {
-    fn from(sig: &Signature) -> Self {
-        sqlite::Value::Binary(sig.to_vec())
+#[cfg(all(feature = "sqlite", feature = "alloc", feature = "multibase"))]
+impl From<&PublicKey> for sqlite::Value {
+    fn from(pk: &PublicKey) -> Self {
+        sqlite::Value::String(pk.to_human())
     }
 }
 
-#[cfg(feature = "sqlite")]
-impl TryFrom<&sqlite::Value> for Signature {
-    type Error = sqlite::Error;
+#[cfg(feature = "cyphernet")]
+impl AsRef<[u8]> for PublicKey {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
 
-    fn try_from(value: &sqlite::Value) -> Result<Self, Self::Error> {
-        match value {
-            sqlite::Value::Binary(s) => ed25519::Signature::from_slice(s)
-                .map_err(|e| sqlite::Error {
-                    code: None,
-                    message: Some(e.to_string()),
-                })
-                .map(Self),
-            _ => Err(sqlite::Error {
-                code: None,
-                message: Some("sql: invalid column type for signature".to_owned()),
-            }),
+#[cfg(all(feature = "cyphernet", feature = "alloc", feature = "multibase"))]
+impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for PublicKey {
+    type Display = String;
+
+    fn display_fmt(&self, encoding: &cyphernet::display::Encoding) -> Self::Display {
+        match encoding {
+            cyphernet::display::Encoding::Base58
+            | cyphernet::display::Encoding::Multibase(multibase::Base::Base58Btc) => {
+                self.to_string()
+            }
+            _ => unimplemented!(),
         }
     }
 }
 
-#[cfg(feature = "sqlite")]
-impl sqlite::BindableWithIndex for &Signature {
-    fn bind<I: sqlite::ParameterIndex>(
-        self,
-        stmt: &mut sqlite::Statement<'_>,
-        i: I,
-    ) -> sqlite::Result<()> {
-        sqlite::Value::from(self).bind(stmt, i)
+#[cfg(all(feature = "cyphernet", feature = "alloc"))]
+impl cyphernet::EcPk for PublicKey {
+    const COMPRESSED_LEN: usize = dalek::ed::PUBLIC_KEY_LENGTH;
+    const CURVE_NAME: &'static str = "Edwards25519";
+
+    type Compressed = PublicKey;
+
+    fn base_point() -> Self {
+        unimplemented!()
+    }
+
+    fn to_pk_compressed(&self) -> Self::Compressed {
+        *self
+    }
+
+    fn from_pk_compressed(pk: Self::Compressed) -> Result<Self, cyphernet::EcPkInvalid> {
+        Ok(pk)
+    }
+
+    fn from_pk_compressed_slice(pk: &[u8]) -> Result<Self, cyphernet::EcPkInvalid> {
+        Ok(PublicKey(
+            PublicKeyBytes::try_from(pk).map_err(|_| cyphernet::EcPkInvalid::default())?,
+        ))
+    }
+}
+
+/// A (decompressed) point on the Edwards25519 curve (but not on its twist) that
+/// may be used to verify signatures.
+///
+/// It is not as compact as a [`PublicKey`] in memory and requires more costly
+/// verification/initialization, but directly corresponds to one.
+#[derive(Hash, PartialEq, Eq, Copy, Clone, Debug)]
+pub struct VerifyingKey(dalek::ed::VerifyingKey);
+
+impl VerifyingKey {
+    #[allow(clippy::wrong_self_convention)] // Name copied from dalek.
+    #[inline]
+    pub(crate) fn to_bytes(&self) -> PublicKeyBytes {
+        self.0.to_bytes()
+    }
+}
+
+impl TryFrom<&PublicKey> for VerifyingKey {
+    type Error = signature::Error;
+
+    fn try_from(key: &PublicKey) -> Result<Self, Self::Error> {
+        dalek::ed::VerifyingKey::from_bytes(&key.0).map(Self)
+    }
+}
+
+impl<'a> VerifyingKey {
+    pub fn public_key(&'a self) -> &'a PublicKey {
+        self.0.as_bytes().into()
+    }
+}
+
+impl AsRef<PublicKeyBytes> for VerifyingKey {
+    fn as_ref(&self) -> &PublicKeyBytes {
+        self.0.as_bytes()
+    }
+}
+
+impl From<dalek::ed::VerifyingKey> for VerifyingKey {
+    fn from(other: dalek::ed::VerifyingKey) -> Self {
+        Self(other)
+    }
+}
+
+impl signature::Verifier<Signature> for VerifyingKey {
+    fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
+        self.0.verify(msg, signature)
+    }
+}
+
+#[cfg(all(feature = "alloc", feature = "multibase"))]
+impl alloc::fmt::Display for VerifyingKey {
+    fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
+        self.public_key().fmt(f)
+    }
+}
+
+#[cfg(all(feature = "cyphernet", feature = "alloc", feature = "multibase"))]
+impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for VerifyingKey {
+    type Display = String;
+
+    fn display_fmt(&self, encoding: &cyphernet::display::Encoding) -> Self::Display {
+        self.public_key().display_fmt(encoding)
+    }
+}
+
+#[cfg(feature = "cyphernet")]
+impl From<&cyphernet::ed25519::PublicKey> for PublicKey {
+    fn from(value: &cyphernet::ed25519::PublicKey) -> Self {
+        use core::ops::Deref as _;
+        Self(*value.deref().deref())
+    }
+}
+
+#[cfg(feature = "cyphernet")]
+impl From<PublicKey> for cyphernet::ed25519::PublicKey {
+    fn from(value: PublicKey) -> Self {
+        use cyphernet::EcPk as _;
+        cyphernet::ed25519::PublicKey::from_pk_compressed(value.into_inner().into())
+            .expect("implementation is infallible")
+    }
+}
+
+#[cfg(all(feature = "cyphernet", feature = "alloc"))]
+impl cyphernet::EcPk for VerifyingKey {
+    const COMPRESSED_LEN: usize = dalek::ed::PUBLIC_KEY_LENGTH;
+    const CURVE_NAME: &'static str = "Edwards25519";
+
+    type Compressed = PublicKey;
+
+    fn base_point() -> Self {
+        unimplemented!()
+    }
+
+    fn to_pk_compressed(&self) -> Self::Compressed {
+        *self.public_key()
+    }
+
+    fn from_pk_compressed(pk: Self::Compressed) -> Result<Self, cyphernet::EcPkInvalid> {
+        dalek::ed::VerifyingKey::from_bytes(&pk.0)
+            .map_err(|_| cyphernet::EcPkInvalid::default())
+            .map(Self)
+    }
+
+    fn from_pk_compressed_slice(slice: &[u8]) -> Result<Self, cyphernet::EcPkInvalid> {
+        Self::from_pk_compressed(PublicKey(
+            slice
+                .try_into()
+                .map_err(|_| cyphernet::EcPkInvalid::default())?,
+        ))
+    }
+}
+
+#[cfg(all(feature = "ssh", feature = "std"))]
+#[derive(thiserror::Error, Debug)]
+#[non_exhaustive]
+pub enum LoadError {
+    #[error(transparent)]
+    Keystore(#[from] ssh::keystore::Error),
+    #[error("key not found in '{0}'")]
+    NotFound(std::path::PathBuf),
+    #[error("invalid passphrase")]
+    InvalidPassphrase,
+    #[error("secret key '{secret}' and public key '{public}' do not match")]
+    KeyMismatch {
+        secret: std::path::PathBuf,
+        public: std::path::PathBuf,
+    },
+}
+
+/// A (decompressed) point on the Edwards25519 curve (but not on its twist) that
+/// may be used to sign data.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SigningKey(dalek::ed::SigningKey);
+
+impl SigningKey {
+    fn public_key(&self) -> &PublicKey {
+        self.0.as_ref().as_bytes().into()
+    }
+
+    /// Construct a new [`SigningKey`] from the provided [`Seed`] by "expanding"
+    /// `seed`. This involves hashing `seed` with SHA-512 and clamping the
+    /// resulting 32-byte digest to produce a valid key.
+    ///
+    /// See also `secret_expand` in [RFC 8032, Sec. 6].
+    ///
+    /// [RFC 8032, Sec. 6]: https://datatracker.ietf.org/doc/html/rfc8032#section-6
+    pub fn from_seed(seed: Seed) -> Self {
+        Self(dalek::ed::SigningKey::from_bytes(seed.as_ref()))
+    }
+
+    #[cfg(any(test, all(feature = "test", feature = "alloc")))]
+    pub fn mock(id: usize) -> Self {
+        Self::from_seed(Seed::mock(id))
+    }
+
+    /// Convert this [`SigningKey`] to a 64-byte keypair.
+    pub fn to_keypair_bytes(&self) -> [u8; dalek::ed::KEYPAIR_LENGTH] {
+        self.0.to_keypair_bytes()
+    }
+
+    /// Convert this [`SigningKey`] into a reference to its 32-byte
+    /// representation.
+    pub fn as_bytes(&self) -> &[u8; dalek::ed::SECRET_KEY_LENGTH] {
+        self.0.as_bytes()
+    }
+
+    /// Load this signer from a keystore, given a secret key passphrase.
+    #[cfg(all(feature = "ssh", feature = "std"))]
+    pub fn load(
+        keystore: &ssh::Keystore,
+        passphrase: Option<ssh::Passphrase>,
+    ) -> Result<Self, LoadError> {
+        let secret = keystore
+            .secret_key(passphrase)
+            .map_err(|e| {
+                if e.is_crypto_err() {
+                    LoadError::InvalidPassphrase
+                } else {
+                    e.into()
+                }
+            })?
+            .ok_or_else(|| LoadError::NotFound(keystore.secret_key_path().to_path_buf()))?;
+
+        let Some(public_path) = keystore.public_key_path() else {
+            // There is no public key in the key store, so there's nothing
+            // to validate. Derive it from the secret key.
+            return Ok(secret);
+        };
+
+        let public = keystore
+            .public_key()?
+            .ok_or_else(|| LoadError::NotFound(public_path.to_path_buf()))?;
+
+        if secret.public_key() != &public {
+            return Err(LoadError::KeyMismatch {
+                secret: keystore.secret_key_path().to_path_buf(),
+                public: public_path.to_path_buf(),
+            });
+        }
+
+        Ok(secret)
+    }
+
+    /// Elliptic-curve Diffie-Hellman.
+    #[cfg(feature = "diffie-hellman")]
+    pub fn diffie_hellman(&self, their_public: &VerifyingKey) -> Option<SharedSecret> {
+        let scalar = self.0.to_scalar();
+
+        dalek::curve::edwards::CompressedEdwardsY(their_public.to_bytes())
+            .decompress()
+            .map(|point| (scalar * point).compress().to_bytes())
+    }
+}
+
+impl AsRef<PublicKey> for SigningKey {
+    fn as_ref(&self) -> &PublicKey {
+        self.public_key()
+    }
+}
+
+impl PartialOrd for SigningKey {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SigningKey {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.0.as_bytes().cmp(other.0.as_bytes())
+    }
+}
+
+impl TryFrom<[u8; dalek::ed::KEYPAIR_LENGTH]> for SigningKey {
+    type Error = signature::Error;
+
+    fn try_from(bytes: [u8; dalek::ed::KEYPAIR_LENGTH]) -> Result<Self, Self::Error> {
+        dalek::ed::SigningKey::from_keypair_bytes(&bytes).map(Self)
+    }
+}
+
+impl From<dalek::ed::SigningKey> for SigningKey {
+    fn from(other: dalek::ed::SigningKey) -> Self {
+        Self(other)
+    }
+}
+
+impl From<SigningKey> for dalek::ed::SigningKey {
+    fn from(other: SigningKey) -> Self {
+        other.0
+    }
+}
+
+impl signature::Signer<Signature> for SigningKey {
+    fn try_sign(&self, msg: &[u8]) -> Result<Signature, signature::Error> {
+        self.0.try_sign(msg)
+    }
+}
+
+impl signature::Keypair for SigningKey {
+    type VerifyingKey = VerifyingKey;
+
+    fn verifying_key(&self) -> Self::VerifyingKey {
+        VerifyingKey(self.0.verifying_key())
+    }
+}
+
+#[cfg(all(feature = "cyphernet", feature = "alloc"))]
+impl cyphernet::EcSk for SigningKey {
+    type Pk = VerifyingKey;
+
+    fn generate_keypair() -> (Self, Self::Pk)
+    where
+        Self: Sized,
+    {
+        let signing_key = dalek::ed::SigningKey::from_bytes(&[154; 32]);
+        let verifying_key = signature::Keypair::verifying_key(&signing_key);
+        (SigningKey(signing_key), VerifyingKey(verifying_key))
+    }
+
+    fn to_pk(&self) -> Result<Self::Pk, cyphernet::EcSkInvalid> {
+        use signature::Keypair as _;
+
+        Ok(self.verifying_key())
+    }
+}
+
+#[cfg(all(feature = "cyphernet", feature = "diffie-hellman"))]
+impl cyphernet::Ecdh for SigningKey {
+    type SharedSecret = SharedSecret;
+
+    fn ecdh(&self, pk: &Self::Pk) -> Result<Self::SharedSecret, cyphernet::EcdhError> {
+        self.diffie_hellman(pk)
+            .ok_or(cyphernet::EcdhError::InvalidPk(
+                cyphernet::EcPkInvalid::default(),
+            ))
+    }
+}
+
+#[cfg(feature = "qcheck")]
+impl qcheck::Arbitrary for SigningKey {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        SigningKey::mock(usize::arbitrary(g))
+    }
+}
+
+#[cfg(all(feature = "alloc", feature = "multibase", feature = "cyphernet"))]
+impl alloc::str::FromStr for VerifyingKey {
+    type Err = PublicKeyError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let pk = PublicKey::from_str(s)?;
+        dalek::ed::VerifyingKey::from_bytes(&pk.0)
+            .map(Self)
+            .map_err(PublicKeyError::Invalid)
+    }
+}
+
+#[cfg(all(feature = "alloc", feature = "multibase"))]
+impl TryFrom<String> for PublicKey {
+    type Error = PublicKeyError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        use alloc::str::FromStr as _;
+
+        Self::from_str(&value)
+    }
+}
+
+#[cfg(all(feature = "alloc", feature = "multibase", feature = "cyphernet"))]
+impl TryFrom<String> for VerifyingKey {
+    type Error = PublicKeyError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        use alloc::str::FromStr as _;
+
+        Self::from_str(&value)
+    }
+}
+
+#[cfg(feature = "qcheck")]
+impl qcheck::Arbitrary for PublicKey {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        *SigningKey::from_seed(Seed::arbitrary(g)).public_key()
+    }
+}
+
+/// An extended signature carries the key that may be used to verify the
+/// signature along with the signature itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtendedSignature<PublicKey = crate::PublicKey, Signature = crate::Signature> {
+    key: PublicKey,
+    sig: Signature,
+}
+
+impl ExtendedSignature {
+    pub fn try_sign(signer: &impl Signer, payload: &[u8]) -> Result<Self, signature::Error> {
+        Ok(Self {
+            key: *signer.public_key(),
+            sig: signer.try_sign(payload)?,
+        })
+    }
+}
+
+impl<VerifyingKey, Signature> ExtendedSignature<VerifyingKey, Signature>
+where
+    VerifyingKey: signature::Verifier<Signature>,
+{
+    /// Verify the signature for a given payload.
+    pub fn verify(&self, msg: &[u8]) -> Result<(), signature::Error> {
+        self.key.verify(msg, &self.sig)
+    }
+}
+
+impl<VerifyingKey, Signature> ExtendedSignature<VerifyingKey, Signature> {
+    /// Create a new extended signature.
+    pub fn new(key: VerifyingKey, sig: Signature) -> Self {
+        Self { key, sig }
+    }
+
+    pub fn key(&self) -> &VerifyingKey {
+        &self.key
+    }
+
+    pub fn sig(&self) -> &Signature {
+        &self.sig
+    }
+
+    pub fn into_pair(self) -> (VerifyingKey, Signature) {
+        (self.key, self.sig)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::KeyPair;
-    use crate::{PublicKey, SecretKey};
+    use super::*;
+
     use qcheck_macros::quickcheck;
-    use std::str::FromStr;
 
-    #[test]
-    fn test_e25519_dh() {
-        let kp_a = KeyPair::generate();
-        let kp_b = KeyPair::generate();
+    use crate::SigningKey;
 
-        let output_a = SecretKey::from(kp_b.sk).ecdh(&kp_a.pk.into()).unwrap();
-        let output_b = SecretKey::from(kp_a.sk).ecdh(&kp_b.pk.into()).unwrap();
+    /// See <https://w3c-ccg.github.io/did-key-spec/#example-a-simple-ed25519-did-key-value>.
+    const DID_KEY_SAMPLE: &str = "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
+
+    #[cfg(feature = "diffie-hellman")]
+    #[quickcheck]
+    fn diffie_hellman(sk_a: SigningKey, sk_b: SigningKey) {
+        use signature::Keypair as _;
+
+        let output_a = sk_b.diffie_hellman(&sk_a.verifying_key()).unwrap();
+        let output_b = sk_a.diffie_hellman(&sk_b.verifying_key()).unwrap();
 
         assert_eq!(output_a, output_b);
     }
 
+    #[cfg(feature = "alloc")]
     #[quickcheck]
     fn prop_encode_decode(input: PublicKey) {
+        use alloc::str::FromStr as _;
+
         let encoded = input.to_string();
         let decoded = PublicKey::from_str(&encoded).unwrap();
 
         assert_eq!(input, decoded);
     }
 
+    #[cfg(feature = "alloc")]
     #[test]
-    fn test_encode_decode() {
-        let input = "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
-        let key = PublicKey::from_str(input).unwrap();
+    fn did_key_sample() {
+        use alloc::str::FromStr as _;
 
-        assert_eq!(key.to_string(), input);
+        let key = PublicKey::from_str(DID_KEY_SAMPLE).unwrap();
+
+        assert_eq!(key.to_string(), DID_KEY_SAMPLE);
     }
 
+    #[cfg(feature = "std")]
     #[quickcheck]
     fn prop_key_equality(a: PublicKey, b: PublicKey) {
-        use std::collections::HashSet;
+        if a == b {
+            return;
+        }
 
-        assert_ne!(a, b);
-
-        let mut hm = HashSet::new();
+        let mut hm = std::collections::HashSet::new();
 
         assert!(hm.insert(a));
         assert!(hm.insert(b));
@@ -545,8 +840,9 @@ mod tests {
         assert!(!hm.insert(b));
     }
 
+    #[cfg(feature = "diffie-hellman")]
     #[test]
-    fn e25519_dh_fixture() {
+    fn diffie_hellman_fixture() {
         let sk_a: [u8; 32] = [
             92, 136, 18, 88, 112, 205, 201, 68, 109, 197, 130, 211, 179, 138, 197, 113, 120, 55,
             104, 139, 208, 184, 178, 157, 120, 11, 60, 13, 91, 30, 213, 38,
@@ -556,13 +852,18 @@ mod tests {
             21, 202, 228, 123, 193, 140, 252, 63, 72, 5, 137, 36, 245,
         ];
 
-        let kp_a = KeyPair::from_seed(ec25519::Seed::from(sk_a));
-        let kp_b = KeyPair::from_seed(ec25519::Seed::from(sk_b));
+        let kp_a = dalek::ed::SigningKey::from_bytes(&sk_a);
+        let kp_b = dalek::ed::SigningKey::from_bytes(&sk_b);
 
-        let output_a = SecretKey::from(kp_b.sk).ecdh(&kp_a.pk.into()).unwrap();
-        let output_b = SecretKey::from(kp_a.sk).ecdh(&kp_b.pk.into()).unwrap();
+        let output_a = SigningKey::from(kp_b.clone())
+            .diffie_hellman(&kp_a.verifying_key().into())
+            .unwrap();
+        let output_b = SigningKey::from(kp_a)
+            .diffie_hellman(&kp_b.verifying_key().into())
+            .unwrap();
 
         assert_eq!(output_a, output_b);
+
         assert_eq!(
             output_a,
             [

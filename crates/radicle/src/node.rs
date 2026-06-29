@@ -6,7 +6,6 @@ use address::AddressType;
 pub mod command;
 pub mod config;
 pub mod db;
-pub mod device;
 pub mod events;
 pub mod notifications;
 pub mod policy;
@@ -1523,9 +1522,16 @@ pub(crate) mod properties {
                 a.push_str(arbitrary::r#gen::<Alias>(1).as_str());
                 Alias::new(a)
             };
+
             Self {
-                short: (short, arbitrary::vec::<NodeId>(3).into_iter().collect()),
-                long: (long, arbitrary::vec::<NodeId>(2).into_iter().collect()),
+                short: (
+                    short,
+                    arbitrary::array_distinct::<3, _>().into_iter().collect(),
+                ),
+                long: (
+                    long,
+                    arbitrary::array_distinct::<2, _>().into_iter().collect(),
+                ),
             }
         }
 

@@ -442,20 +442,16 @@ and description.
     Ok(result)
 }
 
-fn update<Repo, Signer>(
+fn update(
     title: Option<Title>,
     description: Option<String>,
     doc: Doc,
-    current: &mut IdentityMut<Repo, Signer>,
+    current: &mut IdentityMut<
+        impl WriteRepository + cob::Store<Namespace = NodeId>,
+        impl crypto::Signer,
+    >,
     profile: &Profile,
-) -> anyhow::Result<Revision>
-where
-    Repo: WriteRepository + cob::Store<Namespace = NodeId>,
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
-{
+) -> anyhow::Result<Revision> {
     if let Some((title, description)) = edit_title_description(title, description)? {
         let id = current
             .update(title, description, &doc)

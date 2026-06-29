@@ -728,20 +728,12 @@ pub trait WriteRepository: ReadRepository + SignRepository {
 /// Allows signing refs.
 pub trait SignRepository {
     /// Sign the repository's refs under the `refs/rad/sigrefs` branch.
-    fn sign_refs<Signer>(&self, signer: &Signer) -> Result<SignedRefs, RepositoryError>
-    where
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>;
+    fn sign_refs(&self, signer: &impl crypto::Signer) -> Result<SignedRefs, RepositoryError>;
 
     /// Sign the repository's refs under the `refs/rad/sigrefs` branch, even if unchanged.
     ///
     /// Most users will prefer [`Self::sign_refs`].
-    fn force_sign_refs<Signer>(&self, signer: &Signer) -> Result<SignedRefs, RepositoryError>
-    where
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>;
+    fn force_sign_refs(&self, signer: &impl crypto::Signer) -> Result<SignedRefs, RepositoryError>;
 }
 
 impl<T, S> ReadStorage for T

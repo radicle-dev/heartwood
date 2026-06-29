@@ -107,13 +107,7 @@ where
     }
 }
 
-impl<'a, 'b, Repo, Signer, C> Cache<'a, Repo, WriteAs<'b, Signer>, C>
-where
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
-{
+impl<'a, 'b, Repo, Signer: crypto::Signer, C> Cache<'a, Repo, WriteAs<'b, Signer>, C> {
     /// Create a new [`Patch`] using the [`super::Patches`] as the
     /// main storage, and writing the update to the `cache`.
     pub fn create<'g>(
@@ -258,7 +252,7 @@ impl<'a, Repo, Access> Cache<'a, Repo, Access, StoreWriter> {
     }
 }
 
-impl<'a, 'b, Repo, Signer> Cache<'a, Repo, WriteAs<'b, Signer>, StoreWriter>
+impl<'a, 'b, Repo, Signer: crypto::Signer> Cache<'a, Repo, WriteAs<'b, Signer>, StoreWriter>
 where
     Repo: ReadRepository + cob::Store<Namespace = NodeId>,
 {
@@ -280,7 +274,7 @@ where
     }
 }
 
-impl<'a, 'b, Repo, Signer> Cache<'a, Repo, WriteAs<'b, Signer>, cache::NoCache>
+impl<'a, 'b, Repo, Signer: crypto::Signer> Cache<'a, Repo, WriteAs<'b, Signer>, cache::NoCache>
 where
     Repo: ReadRepository + cob::Store<Namespace = NodeId>,
 {

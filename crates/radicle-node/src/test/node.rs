@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use std::io::BufRead as _;
 use std::mem::ManuallyDrop;
 use std::net::Ipv4Addr;
@@ -11,16 +10,12 @@ use std::{
 };
 
 use crate::node::NodeId;
-use crate::node::device::Device;
 use crate::storage::git::transport;
 use crate::{Runtime, runtime, runtime::Handle, service};
 use radicle::Storage;
 use radicle::cob;
 use radicle::cob::issue;
-use radicle::crypto::Signature;
-use radicle::crypto::signature::Signer;
-use radicle::crypto::ssh::keystore::MemorySigner;
-use radicle::crypto::test::signer::MockSigner;
+use radicle::crypto::{Signer as _, SigningKey};
 use radicle::git;
 use radicle::git::fmt::refname;
 use radicle::identity::{RepoId, Visibility};
@@ -38,19 +33,19 @@ use radicle::storage::{ReadStorage as _, RemoteRepository as _, SignRepository a
 use radicle::test::fixtures;
 
 /// A node that can be run.
-pub struct Node<G> {
+pub struct Node {
     pub id: NodeId,
     pub home: Home,
-    pub signer: Device<G>,
+    pub secret_key: SigningKey,
     pub storage: Storage,
     pub config: Config,
     pub db: service::Stores<Database>,
     pub policies: policy::Store<policy::Write>,
 }
 
-impl Node<MemorySigner> {
+impl Node {
     pub fn new(profile: Profile) -> Self {
-        let signer = Device::from(MemorySigner::load(&profile.keystore, None).unwrap());
+        let secret_key = profile.keystore.secret_key(None).unwrap().unwrap();
         let id = *profile.id();
         let policies_db = profile.home.node().join(POLICIES_DB_FILE);
         let policies = policy::Store::open(policies_db).unwrap();
@@ -61,7 +56,7 @@ impl Node<MemorySigner> {
             id,
             home: profile.home,
             config: profile.config.node,
-            signer,
+            secret_key,
             db,
             policies,
             storage: profile.storage,
@@ -70,18 +65,18 @@ impl Node<MemorySigner> {
 }
 
 /// Handle to a running node.
-pub struct NodeHandle<G: 'static> {
+pub struct NodeHandle {
     pub id: NodeId,
     pub alias: Alias,
     pub storage: Storage,
-    pub signer: Device<G>,
+    pub signer: SigningKey,
     pub home: Home,
     pub addr: net::SocketAddr,
     pub thread: ManuallyDrop<thread::JoinHandle<Result<(), runtime::Error>>>,
     pub handle: ManuallyDrop<Handle>,
 }
 
-impl<G: 'static> Drop for NodeHandle<G> {
+impl Drop for NodeHandle {
     fn drop(&mut self) {
         log::debug!(target: "test", "Node {} shutting down..", self.id);
 
@@ -95,12 +90,12 @@ impl<G: 'static> Drop for NodeHandle<G> {
     }
 }
 
-impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
+impl NodeHandle {
     /// Connect this node to another node, and wait for the connection to be established both ways.
     ///
     /// If the remote has blocked this node, then the remote event will be
     /// [`Event::PeerDisconnected`].
-    pub fn connect(&mut self, remote: &NodeHandle<G>) -> &mut Self {
+    pub fn connect(&mut self, remote: &NodeHandle) -> &mut Self {
         let local_events = self.handle.events();
         let remote_events = remote.handle.events();
 
@@ -130,7 +125,7 @@ impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
         self
     }
 
-    pub fn disconnect(&mut self, remote: &NodeHandle<G>) {
+    pub fn disconnect(&mut self, remote: &NodeHandle) {
         self.handle.disconnect(remote.id).unwrap();
     }
 
@@ -176,7 +171,7 @@ impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
     /// Wait until this node's routing table matches the remotes.
     pub fn converge<'a>(
         &'a self,
-        remotes: impl IntoIterator<Item = &'a NodeHandle<G>>,
+        remotes: impl IntoIterator<Item = &'a NodeHandle>,
     ) -> BTreeSet<(RepoId, NodeId)> {
         converge(iter::once(self).chain(remotes))
     }
@@ -381,7 +376,7 @@ impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
             None => git::fmt::lit::refs_heads(refname).into(),
             Some(refname) => refname,
         };
-        let refname = refname.with_namespace(self.id.to_component());
+        let refname = refname.with_namespace(git::fmt::Component::from(&self.id));
 
         let repo = self.storage.repository(rid).unwrap();
         let raw = &repo.backend;
@@ -436,21 +431,18 @@ impl<G: Signer<Signature> + cyphernet::Ecdh> NodeHandle<G> {
     }
 }
 
-impl Node<MockSigner> {
+impl Node {
     /// Create a new node.
-    pub fn init(base: &Path, config: Config) -> Self {
-        let home = base.join(
-            iter::repeat_with(fastrand::alphanumeric)
-                .take(8)
-                .collect::<String>(),
-        );
+    pub fn init(base: &Path, config: Config, id: usize) -> Self {
+        let home = base.join(config.alias.to_string());
         let home = Home::new(home).unwrap();
-        let signer = Device::mock();
+        let secret_key = SigningKey::mock(id);
+        let nid = NodeId::from(*secret_key.public_key());
         let storage = Storage::open(
             home.storage(),
             git::UserInfo {
                 alias: config.alias.clone(),
-                key: *signer.public_key(),
+                key: nid,
             },
         )
         .unwrap();
@@ -460,11 +452,11 @@ impl Node<MockSigner> {
             .unwrap();
         let db = service::Stores::from(db);
 
-        log::debug!(target: "test", "Node::init {}: {}", config.alias, signer.public_key());
+        log::debug!(target: "test", "Node::init {}: {}", config.alias, nid);
         Self {
-            id: *signer.public_key(),
+            id: nid,
             home,
-            signer,
+            secret_key,
             storage,
             config,
             db,
@@ -473,10 +465,11 @@ impl Node<MockSigner> {
     }
 }
 
-impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone + Debug> Node<G> {
+impl Node {
     /// Spawn a node in its own thread.
-    pub fn spawn(self) -> NodeHandle<G> {
+    pub fn spawn(self) -> NodeHandle {
         let alias = self.config.alias.clone();
+
         let listen = vec![(Ipv4Addr::LOCALHOST, 0).into()];
         let (_, signals) = mpsc::sync_channel(1);
         let rt = Runtime::init(
@@ -485,11 +478,12 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone + Debug> Node<G
             self.home.socket_default(),
             listen,
             signals,
-            self.signer.clone(),
+            self.secret_key.clone(),
         )
         .unwrap();
+
         let addr = *rt.local_addrs.first().unwrap();
-        let id = *self.signer.public_key();
+        let id = NodeId::from(*self.secret_key.public_key());
         let handle = ManuallyDrop::new(rt.handle.clone());
         let thread = ManuallyDrop::new(runtime::thread::spawn(&id, "runtime", move || rt.run()));
 
@@ -497,7 +491,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone + Debug> Node<G
             id,
             alias,
             storage: self.storage,
-            signer: self.signer,
+            signer: self.secret_key,
             home: self.home,
             addr,
             handle,
@@ -521,7 +515,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone + Debug> Node<G
             description,
             branch.clone(),
             Visibility::default(),
-            &self.signer,
+            &self.secret_key,
             &self.storage,
         )
         .map(|(id, _, _)| id)
@@ -531,7 +525,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone + Debug> Node<G
 
         log::debug!(
             target: "test",
-            "Initialized project {id} for node {}", self.signer.public_key()
+            "Initialized project {id} for node {}", NodeId::from(*self.secret_key.public_key())
         );
 
         // Push local branches to storage.
@@ -558,7 +552,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone + Debug> Node<G
         self.storage
             .repository(id)
             .unwrap()
-            .sign_refs(&self.signer)
+            .sign_refs(&self.secret_key)
             .unwrap();
 
         id
@@ -575,9 +569,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone + Debug> Node<G
 
 /// Checks whether the nodes have converged in their routing tables.
 #[track_caller]
-pub fn converge<'a, G: Signer<Signature> + cyphernet::Ecdh + 'static>(
-    nodes: impl IntoIterator<Item = &'a NodeHandle<G>>,
-) -> BTreeSet<(RepoId, NodeId)> {
+pub fn converge<'a>(nodes: impl IntoIterator<Item = &'a NodeHandle>) -> BTreeSet<(RepoId, NodeId)> {
     let nodes = nodes.into_iter().collect::<Vec<_>>();
 
     let mut all_routes = BTreeSet::<(RepoId, NodeId)>::new();

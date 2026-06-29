@@ -8,12 +8,11 @@ use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time;
 
-use radicle::node::device::Device;
 use radicle::storage::ReadRepository;
 use test_log::test;
 
 use radicle::cob;
-use radicle::crypto::test::signer::MockSigner;
+use radicle::crypto::SigningKey;
 use radicle::identity::Visibility;
 use radicle::node::Link;
 use radicle::node::address::Store as _;
@@ -259,7 +258,7 @@ fn inventory_sync() {
         Storage::open(tmp.path().join("amy"), fixtures::user()).unwrap(),
     );
     let bob_secret = BOB;
-    let bob_signer = Device::mock_from_seed([bob_secret; 32]);
+    let bob_signer = SigningKey::mock(bob_secret as usize);
     let bob_storage = fixtures::storage(tmp.path().join("bob"), &bob_signer).unwrap();
     let bob = Peer::with_storage("bob", bob_secret, bob_storage);
     let now = LocalTime::now().into();
@@ -273,7 +272,7 @@ fn inventory_sync() {
                 inventory: repos.clone().try_into().unwrap(),
                 timestamp: now,
             },
-            bob.signer(),
+            bob.secret_key(),
         ),
     );
 
@@ -378,7 +377,7 @@ fn inventory_pruning() {
                             .unwrap(),
                         timestamp: bob.local_time().into(),
                     },
-                    peer.signer(),
+                    peer.secret_key(),
                 ),
             );
         }
@@ -434,7 +433,7 @@ fn inventory_relay_bad_timestamp() {
                 inventory: BoundedVec::new(),
                 timestamp,
             },
-            bob.signer(),
+            bob.secret_key(),
         ),
     );
     assert_matches!(
@@ -669,13 +668,9 @@ fn refs_announcement_relay_public() {
 
     let bob = {
         const ID: u8 = BOB;
-        let secret_key = MockSigner::from_seed([ID; 32]);
-        let storage =
-            fixtures::storage(tmp.path().join("bob"), &Device::new(secret_key.clone())).unwrap();
-
-        Peer::new_with("bob", ID, storage, move |config| {
-            config.signer = secret_key;
-        })
+        let secret_key = SigningKey::mock(ID as usize);
+        let storage = fixtures::storage(tmp.path().join("bob"), &secret_key).unwrap();
+        Peer::with_storage("bob", ID, storage)
     };
     let bob_inv = bob.inventory().into_iter().collect::<Vec<_>>();
 
@@ -741,10 +736,9 @@ fn refs_announcement_relay_private() {
     );
 
     let bob = {
-        let signer = MockSigner::from_seed([BOB; 32]);
+        let signer = SigningKey::mock(BOB as usize);
 
-        let storage =
-            fixtures::storage(tmp.path().join("bob"), &Device::new(signer.clone())).unwrap();
+        let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
 
         Peer::with_storage("bob", BOB, storage)
     };
@@ -819,7 +813,7 @@ fn refs_announcement_fetch_trusted_no_inventory() {
     let bob = {
         let mut rng = fastrand::Rng::new();
         let id = rng.u8(100..200);
-        let secret_key = Device::mock_from_seed([id; 32]);
+        let secret_key = SigningKey::mock(id as usize);
         let storage = fixtures::storage(tmp.path().join("bob"), &secret_key).unwrap();
 
         Peer::with_storage("bob", id, storage)
@@ -917,13 +911,10 @@ fn refs_announcement_no_subscribe() {
 fn refs_announcement_offline() {
     let tmp = tempfile::tempdir().unwrap();
     let mut amy = {
-        const ID: u8 = AMY;
-        let signer = MockSigner::from_seed([ID; 32]);
-        let secret_key = Device::new(signer.clone());
+        let id = AMY;
+        let secret_key = SigningKey::mock(id as usize);
         let storage = fixtures::storage(tmp.path().join("amy"), &secret_key).unwrap();
-        Peer::new_with("amy", ID, storage, move |config| {
-            config.signer = signer;
-        })
+        Peer::with_storage("amy", id, storage)
     };
     let mut bob = Peer::bob();
 
@@ -955,7 +946,7 @@ fn refs_announcement_offline() {
     // Create an issue without telling the node.
     let repo = amy.storage().repository(rid).unwrap();
     let old_refs = RefsAt::new(&repo, *amy.nid()).unwrap();
-    let mut issues = radicle::issue::Cache::no_cache(&repo, amy.signer()).unwrap();
+    let mut issues = radicle::issue::Cache::no_cache(&repo, amy.secret_key()).unwrap();
     issues
         .create(
             cob::Title::new("Issue while offline!").unwrap(),
@@ -1028,7 +1019,7 @@ fn inventory_relay() {
                 inventory: inv.clone(),
                 timestamp: now,
             },
-            bob.signer(),
+            bob.secret_key(),
         ),
     )
     .elapse(service::GOSSIP_INTERVAL);
@@ -1055,7 +1046,7 @@ fn inventory_relay() {
                 inventory: inv.clone(),
                 timestamp: now,
             },
-            bob.signer(),
+            bob.secret_key(),
         ),
     )
     .elapse(service::GOSSIP_INTERVAL);
@@ -1073,7 +1064,7 @@ fn inventory_relay() {
                 inventory: inv.clone(),
                 timestamp: now + 1,
             },
-            bob.signer(),
+            bob.secret_key(),
         ),
     )
     .elapse(service::GOSSIP_INTERVAL);
@@ -1097,7 +1088,7 @@ fn inventory_relay() {
                 inventory: inv,
                 timestamp: now,
             },
-            cid.signer(),
+            cid.secret_key(),
         ),
     )
     .elapse(service::GOSSIP_INTERVAL);
@@ -1383,7 +1374,7 @@ fn fetch_missing_inventory_on_gossip() {
                 inventory: vec![rid].try_into().unwrap(),
                 timestamp: now.into(),
             },
-            bob.signer(),
+            bob.secret_key(),
         ),
     );
     amy.outbox()
@@ -1407,7 +1398,7 @@ fn fetch_missing_inventory_on_schedule() {
                 inventory: vec![rid].try_into().unwrap(),
                 timestamp: now.into(),
             },
-            bob.signer(),
+            bob.secret_key(),
         ),
     );
     amy.fetched(
@@ -1680,7 +1671,7 @@ fn refs_synced_event() {
             .unwrap(),
         timestamp: Timestamp::from(*bob.clock()),
     });
-    let msg = ann.signed(bob.signer());
+    let msg = ann.signed(bob.secret_key());
 
     amy.seed(&acme, policy::Scope::All).unwrap();
     amy.connect_to(&bob);
@@ -1753,7 +1744,7 @@ fn init_and_seed() {
         "amy's repo",
         git::fmt::refname!("master"),
         Visibility::default(),
-        amy.signer(),
+        amy.secret_key(),
         amy.storage(),
     )
     .unwrap();

@@ -21,7 +21,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         .refstr
         .qualified()
         .ok_or_else(|| anyhow!("reference must be fully-qualified, eg. 'refs/heads/master'"))?;
-    let nid = args.node.unwrap_or(profile.public_key);
+    let nid = args.node.unwrap_or(*profile.id());
     let (_, rid) = rid_or_cwd(args.repo)?;
     let repo = storage.repository(rid)?;
     let now = time::SystemTime::now();

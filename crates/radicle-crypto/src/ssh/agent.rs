@@ -1,7 +1,12 @@
+extern crate std;
+
+use std::borrow::ToOwned as _;
 use std::cell::RefCell;
 use std::env::VarError;
 use std::path::Path;
 use std::path::PathBuf;
+use std::string::{String, ToString as _};
+use std::vec::Vec;
 
 use proto::{PrivateCredential, PublicCredential};
 use ssh_agent_lib::blocking::Client;
@@ -10,9 +15,7 @@ use ssh_agent_lib::proto;
 use ssh_key::public::{Ed25519PublicKey, KeyData};
 use thiserror::Error;
 
-use crate::{PublicKey, SecretKey, Signature, Signer};
-
-use super::ExtendedSignature;
+use crate::{PublicKey, Signature, SigningKey, VerifyingKey};
 
 #[cfg(unix)]
 use std::os::unix::net::UnixStream as Stream;
@@ -50,6 +53,14 @@ impl ConnectError {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum IntoSignerError {
+    #[error(transparent)]
+    Agent(#[from] AgentError),
+    #[error("Identity {identity} not found in agent.")]
+    IdentityNotFound { identity: PublicKey },
+}
+
 pub struct Agent {
     path: PathBuf,
     client: Client<Stream>,
@@ -82,17 +93,22 @@ impl Agent {
     }
 
     /// Register a key with the agent.
-    pub fn register(&mut self, key: &SecretKey) -> Result<(), AgentError> {
+    pub fn register(&mut self, key: &SigningKey) -> Result<(), AgentError> {
         use ssh_key::private::{Ed25519Keypair, KeypairData};
         self.client.add_identity(proto::AddIdentity {
             credential: PrivateCredential::Key {
-                privkey: KeypairData::Ed25519(Ed25519Keypair::from_bytes(key).unwrap()),
+                privkey: KeypairData::Ed25519(
+                    Ed25519Keypair::from_bytes(
+                        &ed25519_dalek::SigningKey::from(key.clone()).to_keypair_bytes(),
+                    )
+                    .unwrap(),
+                ),
                 comment: "".into(),
             },
         })
     }
 
-    pub fn unregister(&mut self, key: &PublicKey) -> Result<(), AgentError> {
+    pub fn unregister(&mut self, key: &VerifyingKey) -> Result<(), AgentError> {
         self.client.remove_identity(proto::RemoveIdentity {
             credential: PublicCredential::Key(Self::key_data(key)),
         })
@@ -102,7 +118,7 @@ impl Agent {
         self.client.remove_all_identities()
     }
 
-    pub fn sign(&mut self, key: &PublicKey, data: &[u8]) -> Result<[u8; 64], AgentError> {
+    pub fn sign(&mut self, key: &VerifyingKey, data: &[u8]) -> Result<[u8; 64], AgentError> {
         let sig = self.client.sign(proto::SignRequest {
             credential: PublicCredential::Key(Self::key_data(key)),
             data: data.to_vec(),
@@ -112,9 +128,16 @@ impl Agent {
         Ok(sig.as_bytes().to_owned().try_into().unwrap())
     }
 
-    /// Get a signer from this agent, given the public key.
-    pub fn signer(self, key: PublicKey) -> AgentSigner {
-        AgentSigner::new(self, key)
+    /// Transform this [`Agent`] into an [`AgentSigner`] scoped to the given
+    /// `identity`.
+    pub fn into_signer(mut self, identity: VerifyingKey) -> Result<AgentSigner, IntoSignerError> {
+        if self.request_identities()?.contains(identity.public_key()) {
+            Ok(AgentSigner::new(self, identity))
+        } else {
+            Err(IntoSignerError::IdentityNotFound {
+                identity: *identity.public_key(),
+            })
+        }
     }
 
     pub fn path(&self) -> &Path {
@@ -136,79 +159,68 @@ impl Agent {
             .collect())
     }
 
-    fn key_data(key: &PublicKey) -> KeyData {
-        KeyData::Ed25519(Ed25519PublicKey(key.to_byte_array()))
+    fn key_data(key: &VerifyingKey) -> KeyData {
+        KeyData::Ed25519(Ed25519PublicKey(key.to_bytes()))
     }
 }
 
-/// A [`Signer`] that uses `ssh-agent`.
+/// A [`crate::signature::Signer`] that uses `ssh-agent`.
 pub struct AgentSigner {
     agent: RefCell<Agent>,
-    public: PublicKey,
+    public: VerifyingKey,
 }
 
-impl signature::Signer<Signature> for AgentSigner {
-    fn try_sign(&self, msg: &[u8]) -> Result<Signature, signature::Error> {
+impl crate::signature::Signer<Signature> for AgentSigner {
+    fn try_sign(&self, msg: &[u8]) -> Result<Signature, crate::signature::Error> {
         let sig = self
             .agent
             .borrow_mut()
             .sign(&self.public, msg)
-            .map_err(signature::Error::from_source)?;
+            .map_err(crate::signature::Error::from_source)?;
         Ok(Signature::from(sig))
     }
 }
 
-impl signature::Signer<ExtendedSignature> for AgentSigner {
-    fn try_sign(&self, msg: &[u8]) -> Result<ExtendedSignature, signature::Error> {
-        use signature::Keypair as _;
-        Ok(ExtendedSignature {
-            key: self.verifying_key(),
-            sig: self.try_sign(msg)?,
-        })
-    }
-}
-
-impl AsRef<PublicKey> for AgentSigner {
-    fn as_ref(&self) -> &PublicKey {
+impl AsRef<VerifyingKey> for AgentSigner {
+    fn as_ref(&self) -> &VerifyingKey {
         &self.public
     }
 }
 
-impl signature::KeypairRef for AgentSigner {
-    type VerifyingKey = PublicKey;
+impl AsRef<crate::PublicKey> for AgentSigner {
+    fn as_ref(&self) -> &crate::PublicKey {
+        self.public.public_key()
+    }
+}
+
+impl crate::signature::KeypairRef for AgentSigner {
+    type VerifyingKey = VerifyingKey;
 }
 
 impl AgentSigner {
-    pub fn new(agent: Agent, public: PublicKey) -> Self {
+    pub fn new(agent: Agent, public: VerifyingKey) -> Self {
         let agent = RefCell::new(agent);
 
         Self { agent, public }
-    }
-
-    pub fn is_ready(&self) -> Result<bool, AgentError> {
-        let ids = self.agent.borrow_mut().request_identities()?;
-
-        Ok(ids.contains(&self.public))
-    }
-
-    /// Box this signer into a [`Signer`].
-    pub fn boxed(self) -> Box<dyn Signer> {
-        Box::new(self)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::PublicKey;
+    use super::*;
+
     use ssh_agent_lib::blocking::Client;
     use ssh_agent_lib::proto::{PublicCredential, SignRequest};
     use ssh_agent_lib::ssh_key::public::{Ed25519PublicKey, KeyData};
+
+    use crate::VerifyingKey;
 
     #[test]
     fn test_agent_encoding_remove() {
         use std::str::FromStr;
 
-        let pk = PublicKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
+        let pk =
+            VerifyingKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
         let expected = [
             0, 0, 0, 56, // Message length
             18, // Message type (remove identity)
@@ -220,14 +232,14 @@ mod test {
             37, 145, 51, 176, 174, 61, 136, 160, 107, 4, 95, 175, 144, // Key
         ];
 
-        let mut client = Client::new(std::io::Cursor::new(vec![]));
+        let mut client = Client::new(std::io::Cursor::new(Vec::new()));
 
         // We expect this to fail with an unexpected EOF, since the client will
         // attempt to read a response from the stream, but the stream is empty,
         // since we are not actually connected to SSH agent.
         assert!(
             matches!(client.remove_identity(ssh_agent_lib::proto::RemoveIdentity {
-                credential: PublicCredential::Key(KeyData::Ed25519(Ed25519PublicKey(pk.to_byte_array()))),
+                credential: PublicCredential::Key(KeyData::Ed25519(Ed25519PublicKey(pk.to_bytes()))),
             }),
                 Err(
                     super::AgentError::Proto(ssh_agent_lib::proto::ProtoError::IO(err)),
@@ -242,7 +254,8 @@ mod test {
     fn test_agent_encoding_sign() {
         use std::str::FromStr;
 
-        let pk = PublicKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
+        let pk =
+            VerifyingKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
         let expected = [
             0, 0, 0, 73, // Message length
             13, // Message type (sign request)
@@ -257,13 +270,13 @@ mod test {
             0, 0, 0, 0, // Signature flags
         ];
 
-        let mut client = Client::new(std::io::Cursor::new(vec![]));
-        let data: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let mut client = Client::new(std::io::Cursor::new(Vec::new()));
+        let data: Vec<u8> = [1, 2, 3, 4, 5, 6, 7, 8, 9].into_iter().collect();
 
         client
             .sign(SignRequest {
                 credential: PublicCredential::Key(KeyData::Ed25519(Ed25519PublicKey(
-                    pk.to_byte_array(),
+                    pk.to_bytes(),
                 ))),
                 data,
                 flags: 0,

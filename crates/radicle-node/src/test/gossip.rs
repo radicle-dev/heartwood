@@ -1,6 +1,6 @@
+use radicle::crypto::SigningKey;
 use radicle::node;
 use radicle::node::UserAgent;
-use radicle::node::device::Device;
 use radicle::test::fixtures::r#gen;
 
 use crate::test::arbitrary;
@@ -15,7 +15,7 @@ pub fn messages(count: usize, now: LocalTime, delta: LocalDuration) -> Vec<Messa
     let mut msgs = Vec::new();
 
     for _ in 0..count {
-        let signer = Device::mock_rng(&mut rng);
+        let signer = SigningKey::mock(rng.usize(0x1000..0xFFFF));
         let time = if delta == LocalDuration::from_secs(0) {
             now
         } else {

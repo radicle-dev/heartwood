@@ -81,7 +81,7 @@ pub enum Tree {
     #[error(transparent)]
     ParseRefs(canonical::Error),
     #[error(transparent)]
-    ParseSignature(crypto::Error),
+    ParseSignature(crypto::signature::Error),
     #[error(transparent)]
     MissingBlobs(#[from] MissingBlobs),
 }

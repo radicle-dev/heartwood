@@ -21,7 +21,8 @@ where
     S: crate::change::Storage<
             ObjectId = crate::object::Oid,
             Parent = crate::object::Oid,
-            Signatures = crate::ExtendedSignature,
+            PublicKey = crypto::PublicKey,
+            Signature = crypto::Signature,
         >,
 {
     let references = storage

@@ -26,11 +26,10 @@ use crate::git::fmt::RefString;
 use crate::git::raw::ErrorExt as _;
 use crate::identity::crefs;
 use crate::identity::{Did, project::Project};
-use crate::node::device::Device;
 use crate::storage;
 use crate::storage::{ReadRepository, RepositoryError};
 
-pub use crypto::PublicKey;
+pub use crypto::{PublicKey, VerifyingKey};
 pub use radicle_core::repo::*;
 
 use super::CanonicalRefs;
@@ -959,13 +958,16 @@ impl Doc {
         signature: &Signature,
         blob: Oid,
     ) -> Result<(), PublicKey> {
+        use crypto::signature::Verifier as _;
+
         if !self.is_delegate(&key.into()) {
             return Err(*key);
         }
-        if key.verify(AsRef::<[u8]>::as_ref(&blob), signature).is_err() {
-            return Err(*key);
-        }
-        Ok(())
+
+        VerifyingKey::try_from(key)
+            .map_err(|_| *key)?
+            .verify(AsRef::<[u8]>::as_ref(&blob), signature)
+            .map_err(|_| *key)
     }
 
     /// Check the provided `votes` passes the [`Doc::majority`].
@@ -1002,10 +1004,10 @@ impl Doc {
 
     /// [`Doc::encode`] and sign the [`Doc`], returning the set of bytes, its
     /// corresponding Git [`Oid`] and the [`Signature`] over the [`Oid`].
-    pub fn sign<G>(&self, signer: &G) -> Result<(git::Oid, Vec<u8>, Signature), DocError>
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
+    pub fn sign(
+        &self,
+        signer: &impl crypto::Signer,
+    ) -> Result<(git::Oid, Vec<u8>, Signature), DocError> {
         let (oid, bytes) = self.encode()?;
         let sig = signer.sign(oid.as_ref());
 
@@ -1013,10 +1015,7 @@ impl Doc {
     }
 
     /// Similar to [`Doc::sign`], but only returning the [`Signature`].
-    pub fn signature_of<G>(&self, signer: &G) -> Result<Signature, DocError>
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
+    pub fn signature_of(&self, signer: &impl crypto::Signer) -> Result<Signature, DocError> {
         let (_, _, sig) = self.sign(signer)?;
 
         Ok(sig)
@@ -1037,21 +1036,15 @@ impl Doc {
 
     /// Initialize an [`identity::Identity`] with this [`Doc`] as the associated
     /// document.
-    pub fn init<G>(
+    pub fn init(
         &self,
         repo: &storage::git::Repository,
-        signer: &Device<G>,
-    ) -> Result<git::Oid, RepositoryError>
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
+        signer: &impl crypto::Signer,
+    ) -> Result<git::Oid, RepositoryError> {
         let cob = identity::Identity::initialize(self, repo, signer)?;
-        let id_ref = git::refs::storage::id(signer.public_key());
-        let cob_ref = git::refs::storage::cob(
-            signer.public_key(),
-            &crate::cob::identity::TYPENAME,
-            &cob.id,
-        );
+        let public_key = signer.public_key();
+        let id_ref = git::refs::storage::id(public_key);
+        let cob_ref = git::refs::storage::cob(public_key, &crate::cob::identity::TYPENAME, &cob.id);
         // Set `…/refs/rad/id` -> `…/refs/cobs/xyz.radicle.id/<id>`
         repo.backend.reference_symbolic(
             id_ref.as_str(),
@@ -1129,6 +1122,7 @@ impl GetRawCanonicalRefs for RawDoc {}
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
+    use crypto::{Signer as _, SigningKey};
     use serde_json::json;
 
     use crate::assert_matches;
@@ -1145,7 +1139,7 @@ mod test {
 
     #[test]
     fn test_duplicate_dids() {
-        let delegate = Device::mock_from_seed([0xff; 32]);
+        let delegate = SigningKey::mock(usize::MAX);
         let did = Did::from(delegate.public_key());
         let mut doc = RawDoc::new(r#gen::<Project>(1), vec![did], 1, Visibility::Public);
         doc.delegate(did);
@@ -1157,7 +1151,9 @@ mod test {
     #[test]
     fn test_max_delegates() {
         // Generate more than the max delegates
-        let delegates = (0..MAX_DELEGATES + 1).map(r#gen).collect::<Vec<Did>>();
+        let delegates = arbitrary::set::<Did>(MAX_DELEGATES + 1..=MAX_DELEGATES + 1)
+            .into_iter()
+            .collect::<Vec<_>>();
 
         // A document with max delegates will be fine
         let doc = RawDoc::new(
@@ -1280,7 +1276,7 @@ mod test {
 
         transport::local::register(storage.clone());
 
-        let delegate = Device::mock_from_seed([0xff; 32]);
+        let delegate = SigningKey::mock(usize::MAX);
         let (repo, _) = fixtures::repository(tempdir.path().join("working"));
         let (id, _, _) = rad::init(
             &repo,
@@ -1331,7 +1327,7 @@ mod test {
 
         let (working, _) = fixtures::repository(tempdir.path().join("working"));
 
-        let delegate = Device::mock_from_seed([0xff; 32]);
+        let delegate = SigningKey::mock(usize::MAX);
         let (rid, doc, _) = rad::init(
             &working,
             "heartwood".try_into().unwrap(),

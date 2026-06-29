@@ -233,7 +233,7 @@ where
     }
 }
 
-impl<'a, 'b, T, Repo, Signer> Store<'a, T, Repo, WriteAs<'b, Signer>>
+impl<'a, 'b, T, Repo, Signer: crypto::Signer> Store<'a, T, Repo, WriteAs<'b, Signer>>
 where
     T: Cob + cob::Evaluate<Repo>,
     Repo: ReadRepository + cob::Store<Namespace = NodeId>,
@@ -262,10 +262,7 @@ where
     T: Cob + cob::Evaluate<Repo>,
     T::Action: Serialize,
     Repo: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
+    Signer: crypto::Signer,
 {
     /// Update an object.
     pub fn update(
@@ -288,13 +285,13 @@ where
                 })
             })
             .collect::<Result<_, _>>()?;
-        let namespace = self.access.signer.verifying_key();
+        let namespace = self.access.signer.public_key();
         let updated = cob::update(
             self.repo,
             self.access.signer,
             self.identity,
             related,
-            &namespace,
+            namespace,
             Update {
                 object_id,
                 type_name: type_name.clone(),
@@ -329,13 +326,13 @@ where
                 })
             })
             .collect::<Result<_, _>>()?;
-        let namespace = self.access.signer.verifying_key();
-        let cob = cob::create::<T, _, _>(
+        let namespace = self.access.signer.public_key();
+        let cob = cob::create::<T, _>(
             self.repo,
             self.access.signer,
             self.identity,
             parents,
-            &namespace,
+            namespace,
             Create {
                 type_name: self.scope.type_name.clone(),
                 version: Version::default(),
@@ -357,11 +354,11 @@ where
 
     /// Remove an object.
     pub fn remove(&mut self, id: &ObjectId) -> Result<(), Error> {
-        let namespace = self.access.signer.verifying_key();
-        let name = git::refs::storage::cob(&namespace, self.scope.type_name, id);
-        match self.repo.reference_oid(&namespace, &name.strip_namespace()) {
+        let namespace = self.access.signer.public_key();
+        let name = git::refs::storage::cob(namespace, self.scope.type_name, id);
+        match self.repo.reference_oid(namespace, &name.strip_namespace()) {
             Ok(_) => {
-                cob::remove(self.repo, &namespace, self.scope.type_name, id)?;
+                cob::remove(self.repo, namespace, self.scope.type_name, id)?;
                 self.repo
                     .sign_refs(self.access.signer)
                     .map_err(|e| Error::SignRefs(Box::new(e)))?;
@@ -469,18 +466,14 @@ where
     T: Cob + CobWithType + cob::Evaluate<Repo>,
 {
     /// Create a new transaction to be used as the initial set of operations for a COB.
-    pub fn initial<'a, 'b, Signer, Tx, F>(
+    pub fn initial<'a, 'b, Tx, F>(
         message: &str,
-        store: &mut Store<'a, T, Repo, WriteAs<'b, Signer>>,
+        store: &mut Store<'a, T, Repo, WriteAs<'b, impl crypto::Signer>>,
         operations: F,
     ) -> Result<(ObjectId, T), Error>
     where
         T::Action: Serialize + Clone,
         Repo: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
         Tx: From<Self>,
         Self: From<Tx>,
         F: FnOnce(&mut Tx, &Repo) -> Result<(), Error>,
@@ -538,19 +531,15 @@ where
     /// Commit transaction.
     ///
     /// Returns an operation that can be applied onto an in-memory state.
-    pub fn commit<'a, Signer>(
+    pub fn commit<'a>(
         self,
         msg: &str,
         id: ObjectId,
-        store: &mut Store<T, Repo, WriteAs<'a, Signer>>,
+        store: &mut Store<T, Repo, WriteAs<'a, impl crypto::Signer>>,
     ) -> Result<(T, EntryId), Error>
     where
         T::Action: Serialize + Clone,
         Repo: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
     {
         let actions = NonEmpty::from_vec(self.actions)
             .expect("Transaction::commit: transaction must not be empty");

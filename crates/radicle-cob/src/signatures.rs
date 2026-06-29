@@ -7,22 +7,23 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crypto::{PublicKey, ssh};
+use crypto::PublicKey;
 use metadata::commit::{
     CommitData,
     headers::Signature::{Pgp, Ssh},
 };
 
-pub use ssh::ExtendedSignature;
+pub use crypto::ExtendedSignature;
+use crypto::Signature;
 pub mod error;
 
 // FIXME(kim): This should really be a HashMap with a no-op Hasher -- PublicKey
 // collisions are catastrophic
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct Signatures(BTreeMap<PublicKey, crypto::Signature>);
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Signatures(BTreeMap<PublicKey, Signature>);
 
 impl Deref for Signatures {
-    type Target = BTreeMap<PublicKey, crypto::Signature>;
+    type Target = BTreeMap<PublicKey, Signature>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -36,20 +37,18 @@ impl DerefMut for Signatures {
 }
 
 impl From<ExtendedSignature> for Signatures {
-    fn from(ExtendedSignature { key, sig }: ExtendedSignature) -> Self {
-        let mut map = BTreeMap::new();
-        map.insert(key, sig);
-        map.into()
+    fn from(signature: ExtendedSignature) -> Self {
+        Self([signature.into_pair()].into())
     }
 }
 
-impl From<BTreeMap<PublicKey, crypto::Signature>> for Signatures {
-    fn from(map: BTreeMap<PublicKey, crypto::Signature>) -> Self {
+impl From<BTreeMap<PublicKey, Signature>> for Signatures {
+    fn from(map: BTreeMap<PublicKey, Signature>) -> Self {
         Self(map)
     }
 }
 
-impl From<Signatures> for BTreeMap<PublicKey, crypto::Signature> {
+impl From<Signatures> for BTreeMap<PublicKey, Signature> {
     fn from(s: Signatures) -> Self {
         s.0
     }
@@ -67,27 +66,27 @@ impl<Tree, Parent> TryFrom<&CommitData<Tree, Parent>> for Signatures {
                     Pgp(_) => None,
                     Ssh(pem) => Some(
                         ExtendedSignature::from_pem(pem.as_bytes())
-                            .map_err(error::Signatures::from),
+                            .map_err(error::Signatures::from)
+                            .map(ExtendedSignature::into_pair),
                     ),
                 }
             })
-            .map(|r| r.map(|es| (es.key, es.sig)))
             .collect::<Result<_, _>>()
     }
 }
 
-impl FromIterator<(PublicKey, crypto::Signature)> for Signatures {
+impl FromIterator<(PublicKey, Signature)> for Signatures {
     fn from_iter<T>(iter: T) -> Self
     where
-        T: IntoIterator<Item = (PublicKey, crypto::Signature)>,
+        T: IntoIterator<Item = (PublicKey, Signature)>,
     {
         Self(BTreeMap::from_iter(iter))
     }
 }
 
 impl IntoIterator for Signatures {
-    type Item = (PublicKey, crypto::Signature);
-    type IntoIter = <BTreeMap<PublicKey, crypto::Signature> as IntoIterator>::IntoIter;
+    type Item = (PublicKey, Signature);
+    type IntoIter = <BTreeMap<PublicKey, Signature> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -99,19 +98,15 @@ impl Extend<ExtendedSignature> for Signatures {
     where
         T: IntoIterator<Item = ExtendedSignature>,
     {
-        for ExtendedSignature { key, sig } in iter {
-            self.insert(key, sig);
-        }
+        self.extend(iter.into_iter().map(ExtendedSignature::into_pair))
     }
 }
 
-impl Extend<(PublicKey, crypto::Signature)> for Signatures {
+impl Extend<(PublicKey, Signature)> for Signatures {
     fn extend<T>(&mut self, iter: T)
     where
-        T: IntoIterator<Item = (PublicKey, crypto::Signature)>,
+        T: IntoIterator<Item = (PublicKey, Signature)>,
     {
-        for (key, sig) in iter {
-            self.insert(key, sig);
-        }
+        self.0.extend(iter)
     }
 }

@@ -119,7 +119,7 @@ fn rad_clone_partial_fail() {
     let mut alice = environment.node("alice");
     let bob = environment.node("bob");
     let mut eve = environment.node("eve");
-    let carol = NodeId::from_str("z6MksFqXN3Yhqk8pTJdUGLwBTkRfQvwZXPqR2qMEhbS9wzpT").unwrap();
+    let carol = NodeId::from_str("z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT").unwrap();
 
     // Set up a test project.
     let acme = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");

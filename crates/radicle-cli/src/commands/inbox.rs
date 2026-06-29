@@ -8,7 +8,7 @@ use std::process;
 use localtime::LocalTime;
 use radicle::cob::TypedId;
 use radicle::git::BranchName;
-use radicle::git::fmt::Qualified;
+use radicle::git::fmt::{Component, Qualified};
 use radicle::identity::Identity;
 use radicle::issue::cache::Issues as _;
 use radicle::node::notifications;
@@ -438,7 +438,7 @@ fn show(
         NotificationKind::Branch { .. } => {
             let refstr = if let Some(remote) = n.remote {
                 n.qualified
-                    .with_namespace(remote.to_component())
+                    .with_namespace(Component::from(&remote))
                     .to_string()
             } else {
                 n.qualified.to_string()

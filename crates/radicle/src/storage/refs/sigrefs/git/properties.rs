@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use crypto::test::signer::MockSigner;
-use crypto::{PublicKey, Signer as _, signature};
+use crypto::{Signer as _, SigningKey};
+use crypto::{signature, signature::Keypair as _};
 use qcheck::TestResult;
 use qcheck_macros::quickcheck;
 use radicle_core::{NodeId, RepoId};
@@ -19,26 +19,6 @@ use crate::test::arbitrary;
 use super::Committer;
 
 type BoundedVec<T> = arbitrary::BoundedVec<T, 24>;
-
-struct Verifier {
-    key: PublicKey,
-}
-
-impl Verifier {
-    fn new(signer: &MockSigner) -> Self {
-        Self {
-            key: *signer.public_key(),
-        }
-    }
-}
-
-impl signature::Verifier<crypto::Signature> for Verifier {
-    fn verify(&self, msg: &[u8], signature: &crypto::Signature) -> Result<(), signature::Error> {
-        self.key
-            .verify(msg, signature)
-            .map_err(signature::Error::from_source)
-    }
-}
 
 fn mock_author() -> Author {
     Author {
@@ -111,7 +91,7 @@ fn write_log(
     refs: Refs,
     rid: RepoId,
     namespace: NodeId,
-    signer: &MockSigner,
+    signer: &SigningKey,
     repo: &git::raw::Repository,
 ) -> Update {
     SignedRefsWriter::new(refs, rid, namespace, repo, signer)
@@ -123,12 +103,15 @@ fn write_log(
         .unwrap()
 }
 
-fn read_log(
+fn read_log<Verifier>(
     rid: RepoId,
     namespace: NodeId,
     verifier: &Verifier,
     repo: &git::raw::Repository,
-) -> VerifiedCommit {
+) -> VerifiedCommit
+where
+    Verifier: signature::Verifier<crypto::Signature>,
+{
     SignedRefsReader::new(rid, Tip::Reference(namespace), repo, verifier)
         .read()
         .unwrap()
@@ -143,9 +126,9 @@ fn initial_commit_roundtrip(mut refs: Refs) -> bool {
         _tmp,
     } = Repository::new();
     refs.insert(IDENTITY_ROOT.to_ref_string(), root);
-    let signer = MockSigner::default();
+    let signer = SigningKey::mock(73);
     let namespace = *signer.public_key();
-    let verifier = Verifier::new(&signer);
+    let verifier = signer.verifying_key();
 
     let update = write_log(refs.clone(), rid, namespace, &signer, &repo);
     let head_oid = match update {
@@ -174,9 +157,9 @@ fn chain_roundtrip(chain: BoundedVec<Refs>) -> TestResult {
         root,
         _tmp,
     } = Repository::new();
-    let signer = MockSigner::default();
+    let signer = SigningKey::mock(98);
     let namespace = *signer.public_key();
-    let verifier = Verifier::new(&signer);
+    let verifier = signer.verifying_key();
 
     let mut last_changed_head = None;
     let mut expected_parent = None;
@@ -225,7 +208,7 @@ fn idempotent_write(mut refs: Refs) -> bool {
         _tmp,
     } = Repository::new();
     refs.insert(IDENTITY_ROOT.to_ref_string(), root);
-    let signer = MockSigner::default();
+    let signer = SigningKey::mock(83);
     let namespace = *signer.public_key();
 
     let first = write_log(refs.clone(), rid, namespace, &signer, &repo);

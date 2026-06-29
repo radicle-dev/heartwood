@@ -4,7 +4,6 @@ use radicle::Profile;
 use radicle::git;
 use radicle::git::fmt::RefString;
 use radicle::prelude::*;
-use radicle_crypto::PublicKey;
 
 use crate::commands::checkout;
 use crate::commands::follow;

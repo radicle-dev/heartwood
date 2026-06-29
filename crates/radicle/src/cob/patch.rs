@@ -416,17 +416,12 @@ impl<R: WriteRepository> Merged<'_, R> {
     ///
     /// This removes Git refs relating to the patch, both in the working copy,
     /// and the stored copy; and updates `rad/sigrefs`.
-    pub fn cleanup<Signer>(
+    pub fn cleanup(
         self,
         working: &git::raw::Repository,
-        signer: &Signer,
-    ) -> Result<(), storage::RepositoryError>
-    where
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
-    {
-        let nid = &signer.verifying_key();
+        signer: &impl crypto::Signer,
+    ) -> Result<(), storage::RepositoryError> {
+        let nid = signer.public_key();
         let stored_ref = git::refs::patch(&self.patch).with_namespace(nid.into());
         let working_ref = git::refs::workdir::patch_upstream(&self.patch);
 
@@ -899,7 +894,7 @@ impl Patch {
                 if let Some((_, review)) = lookup::review(self, review)?
                     && let Some(comment) = review.comments.comment(comment)
                 {
-                    return Ok(Authorization::from(*actor == comment.author()));
+                    return Ok(Authorization::from(actor == comment.author()));
                 }
                 // Redacted.
                 Authorization::Unknown
@@ -913,7 +908,7 @@ impl Patch {
                     && let Some(comment) = review.comments.comment(comment)
                 {
                     return Ok(Authorization::from(
-                        actor == &comment.author()
+                        actor == comment.author()
                             || actor == review.author.public_key()
                             || actor == revision.author.public_key(),
                     ));
@@ -946,7 +941,7 @@ impl Patch {
                 if let Some(revision) = lookup::revision(self, revision)?
                     && let Some(comment) = revision.discussion.comment(comment)
                 {
-                    return Ok(Authorization::from(actor == &comment.author()));
+                    return Ok(Authorization::from(actor == comment.author()));
                 }
                 // Redacted.
                 Authorization::Unknown
@@ -2207,7 +2202,7 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
     }
 }
 
-pub struct PatchMut<'a, 'b, 'g, Repo, Signer, Cache> {
+pub struct PatchMut<'a, 'b, 'g, Repo, Signer: crypto::Signer, Cache> {
     pub id: ObjectId,
 
     patch: Patch,
@@ -2215,13 +2210,9 @@ pub struct PatchMut<'a, 'b, 'g, Repo, Signer, Cache> {
     cache: &'g mut Cache,
 }
 
-impl<'a, 'b, 'g, Repo, Signer, Update> PatchMut<'a, 'b, 'g, Repo, Signer, Update>
+impl<'a, 'b, 'g, Repo, Signer: crypto::Signer, Update> PatchMut<'a, 'b, 'g, Repo, Signer, Update>
 where
     Repo: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
     Update: cob::cache::Update<Patch>,
 {
     pub fn new(
@@ -2575,7 +2566,7 @@ where
     }
 }
 
-impl<Repo, Signer, Cache> Deref for PatchMut<'_, '_, '_, Repo, Signer, Cache> {
+impl<Repo, Signer: crypto::Signer, Cache> Deref for PatchMut<'_, '_, '_, Repo, Signer, Cache> {
     type Target = Patch;
 
     fn deref(&self) -> &Self::Target {
@@ -2725,8 +2716,7 @@ where
 impl<'a, 'b, Repo, Signer> Patches<'a, Repo, WriteAs<'b, Signer>>
 where
     Repo: ReadRepository + SignRepository + cob::Store<Namespace = NodeId>,
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
+    Signer: crypto::Signer,
 {
     /// Open a new patch.
     pub fn create<'g, Cache>(
@@ -2741,9 +2731,7 @@ where
     ) -> Result<PatchMut<'a, 'b, 'g, Repo, Signer, Cache>, Error>
     where
         Cache: cob::cache::Update<Patch>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
+        Signer: crypto::Signer,
     {
         self._create(
             title,
@@ -2770,8 +2758,6 @@ where
     ) -> Result<PatchMut<'a, 'b, 'g, Repo, Signer, Cache>, Error>
     where
         Cache: cob::cache::Update<Patch>,
-        Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
     {
         self._create(
             title,
@@ -2818,10 +2804,7 @@ where
     ) -> Result<PatchMut<'a, 'b, 'g, Repo, Signer, Cache>, Error>
     where
         Cache: cob::cache::Update<Patch>,
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
+        Signer: crypto::Signer,
     {
         let (id, patch) = Transaction::initial("Create patch", &mut self.raw, |tx, _| {
             tx.revision(description, base, oid)?;
@@ -3039,8 +3022,8 @@ mod test {
 
     use super::*;
     use crate::cob::common::CodeRange;
-    use crate::cob::test::Actor;
-    use crate::crypto::test::signer::MockSigner;
+    use crate::cob::test::SignerOpExt as _;
+    use crate::crypto::{Signer as _, SigningKey};
     use crate::git::BranchName;
     use crate::identity;
     use crate::identity::doc::RawDoc;
@@ -3133,7 +3116,7 @@ mod test {
 
     #[test]
     fn test_merge_target_resolution() {
-        let alice = Actor::<MockSigner>::default();
+        let alice = SigningKey::mock(23);
         let project = Project::new(
             ProjectName::from_str("test_merge_target_resolution").unwrap(),
             String::from(""),
@@ -3190,7 +3173,7 @@ mod test {
     fn test_patch_merge_authorization_ref_formats() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let alice = Actor::<MockSigner>::default();
+        let alice = SigningKey::mock(14);
 
         let mut raw_doc = RawDoc::new(
             r#gen::<Project>(1),
@@ -3273,8 +3256,8 @@ mod test {
     fn test_patch_merge_custom_destination_authorized() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let alice = Actor::<MockSigner>::default();
-        let bob = Actor::<MockSigner>::default();
+        let alice = SigningKey::mock(14);
+        let bob = SigningKey::mock(23);
 
         let mut raw_doc = RawDoc::new(
             r#gen::<Project>(1),
@@ -3332,8 +3315,8 @@ mod test {
     fn test_patch_merge_custom_destination_unauthorized() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let alice = Actor::<MockSigner>::default();
-        let bob = Actor::<MockSigner>::default();
+        let alice = SigningKey::mock(14);
+        let bob = SigningKey::mock(23);
 
         let mut raw_doc = RawDoc::new(
             r#gen::<Project>(1),
@@ -3627,7 +3610,7 @@ mod test {
     fn test_revision_review_merge_redacted() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let mut alice = Actor::<MockSigner>::default();
+        let mut alice = SigningKey::mock(14);
         let rid = r#gen::<RepoId>(1);
         let doc = RawDoc::new(
             r#gen::<Project>(1),
@@ -3687,8 +3670,8 @@ mod test {
         let oid = arbitrary::oid();
         let repo = r#gen::<MockRepository>(1);
         let time = env::local_time();
-        let alice = MockSigner::default();
-        let bob = MockSigner::default();
+        let alice = SigningKey::mock(38);
+        let bob = SigningKey::mock(39);
         let mut h0: cob::test::HistoryBuilder<Patch> = cob::test::history(
             &[
                 Action::Revision {
@@ -3746,7 +3729,7 @@ mod test {
     fn test_revision_reaction() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let mut alice = Actor::<MockSigner>::default();
+        let mut alice = SigningKey::mock(35);
         let repo = r#gen::<MockRepository>(1);
         let reaction = Reaction::new('👍').expect("failed to create a reaction");
 

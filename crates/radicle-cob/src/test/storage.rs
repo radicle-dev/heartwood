@@ -8,7 +8,6 @@ use tempfile::TempDir;
 use crate::{
     ObjectId, Store, change,
     object::{self, Reference},
-    signatures,
 };
 
 pub mod error {
@@ -69,29 +68,38 @@ impl change::Storage for Storage {
 
     type ObjectId = <git2::Repository as change::Storage>::ObjectId;
     type Parent = <git2::Repository as change::Storage>::Parent;
-    type Signatures = <git2::Repository as change::Storage>::Signatures;
 
-    fn store<Signer>(
+    type PublicKey = <git2::Repository as change::Storage>::PublicKey;
+    type Signature = <git2::Repository as change::Storage>::Signature;
+
+    fn store(
         &self,
         authority: Option<Self::Parent>,
         parents: Vec<Self::Parent>,
-        signer: &Signer,
+        signer: &impl crypto::Signer,
         spec: change::Template<Self::ObjectId>,
     ) -> Result<
-        change::store::Entry<Self::Parent, Self::ObjectId, Self::Signatures>,
+        change::store::Entry<
+            Self::Parent,
+            Self::ObjectId,
+            crypto::ExtendedSignature<Self::PublicKey, Self::Signature>,
+        >,
         Self::StoreError,
-    >
-    where
-        Signer: signature::Signer<signatures::ExtendedSignature>,
-    {
+    > {
         self.as_raw().store(authority, parents, signer, spec)
     }
 
     fn load(
         &self,
         id: Self::ObjectId,
-    ) -> Result<change::store::Entry<Self::Parent, Self::ObjectId, Self::Signatures>, Self::LoadError>
-    {
+    ) -> Result<
+        change::store::Entry<
+            Self::Parent,
+            Self::ObjectId,
+            crypto::ExtendedSignature<Self::PublicKey, Self::Signature>,
+        >,
+        Self::LoadError,
+    > {
         self.as_raw().load(id)
     }
 

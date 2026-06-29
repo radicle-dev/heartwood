@@ -174,8 +174,8 @@ impl<L> Comment<L> {
     }
 
     /// Return the comment author.
-    pub fn author(&self) -> ActorId {
-        self.author
+    pub fn author(&self) -> &ActorId {
+        &self.author
     }
 
     /// Return the comment this is a reply to. Returns nothing if this is the root comment.
@@ -624,8 +624,6 @@ pub fn unresolve<T>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use std::ops::{Deref, DerefMut};
-
     use pretty_assertions::assert_eq;
     use qcheck_macros::quickcheck;
 
@@ -633,36 +631,17 @@ mod tests {
     use crate as radicle;
     use crate::cob::store::Cob;
     use crate::cob::test;
-    use crate::crypto::Signer;
-    use crate::crypto::test::signer::MockSigner;
-    use crate::node::device::Device;
+    use crate::cob::test::SignerOpExt;
+    use crate::crypto::SigningKey;
     use crate::profile::env;
     use crate::test::arbitrary;
     use crate::test::arbitrary::r#gen;
     use crate::test::storage::MockRepository;
 
-    /// An object that can be used to create and sign changes.
-    pub struct Actor<G> {
-        inner: cob::test::Actor<G>,
-    }
-
-    impl<G: Default + Signer> Default for Actor<G> {
-        fn default() -> Self {
-            Self {
-                inner: cob::test::Actor::<G>::default(),
-            }
-        }
-    }
-
-    impl<G: Signer> Actor<G> {
-        pub fn new(signer: Device<G>) -> Self {
-            Self {
-                inner: cob::test::Actor::new(signer),
-            }
-        }
-
+    /// An extension trait that provides convenience methods for handling thread operations.
+    trait SignerThreadOpExt: SignerOpExt {
         /// Create a new comment.
-        pub fn comment(&mut self, body: &str, reply_to: Option<CommentId>) -> Op<Action> {
+        fn comment(&mut self, body: &str, reply_to: Option<CommentId>) -> Op<Action> {
             self.op::<Thread>([Action::Comment {
                 body: String::from(body),
                 reply_to,
@@ -670,12 +649,12 @@ mod tests {
         }
 
         /// Create a new redaction.
-        pub fn redact(&mut self, id: CommentId) -> Op<Action> {
+        fn redact(&mut self, id: CommentId) -> Op<Action> {
             self.op::<Thread>([Action::Redact { id }])
         }
 
         /// Edit a comment.
-        pub fn edit(&mut self, id: CommentId, body: &str) -> Op<Action> {
+        fn edit(&mut self, id: CommentId, body: &str) -> Op<Action> {
             self.op::<Thread>([Action::Edit {
                 id,
                 body: body.to_owned(),
@@ -683,25 +662,13 @@ mod tests {
         }
     }
 
-    impl<G> Deref for Actor<G> {
-        type Target = cob::test::Actor<G>;
-
-        fn deref(&self) -> &Self::Target {
-            &self.inner
-        }
-    }
-
-    impl<G> DerefMut for Actor<G> {
-        fn deref_mut(&mut self) -> &mut Self::Target {
-            &mut self.inner
-        }
-    }
+    impl<T> SignerThreadOpExt for T where T: SignerOpExt {}
 
     #[test]
     fn test_redact_comment() {
         let radicle::test::setup::Node { signer, .. } = radicle::test::setup::Node::default();
         let repo = r#gen::<MockRepository>(1);
-        let mut alice = Actor::new(signer);
+        let mut alice = signer;
 
         let a0 = alice.comment("First comment", None);
         let a1 = alice.comment("Second comment", Some(a0.id()));
@@ -724,7 +691,7 @@ mod tests {
 
     #[test]
     fn test_edit_comment() {
-        let mut alice = Actor::<MockSigner>::default();
+        let mut alice = SigningKey::mock(49);
         let repo = r#gen::<MockRepository>(1);
 
         let c0 = alice.comment("Hello world!", None);
@@ -744,13 +711,13 @@ mod tests {
 
     #[test]
     fn test_timeline() {
-        let alice = MockSigner::default();
-        let bob = MockSigner::default();
-        let eve = MockSigner::default();
+        let alice = SigningKey::mock(94);
+        let bob = SigningKey::mock(103);
+        let eve = SigningKey::mock(104);
         let repo = r#gen::<MockRepository>(1);
         let time = env::local_time();
 
-        let mut a = test::history::<Thread, _>(
+        let mut a = test::history::<Thread>(
             &[Action::Comment {
                 body: "Thread root".to_owned(),
                 reply_to: None,
@@ -813,11 +780,12 @@ mod tests {
     #[test]
     fn test_duplicate_comments() {
         let repo = r#gen::<MockRepository>(1);
-        let alice = MockSigner::default();
-        let bob = MockSigner::default();
+        let alice = SigningKey::mock(94);
+        let bob = SigningKey::mock(103);
+        let _eve = SigningKey::mock(104);
         let time = env::local_time();
 
-        let mut a = test::history::<Thread, _>(
+        let mut a = test::history::<Thread>(
             &[Action::Comment {
                 body: "Thread root".to_owned(),
                 reply_to: None,
@@ -857,11 +825,12 @@ mod tests {
     #[quickcheck]
     fn prop_ordering(timestamp: u64) {
         let repo = r#gen::<MockRepository>(1);
-        let alice = MockSigner::default();
-        let bob = MockSigner::default();
+        let alice = SigningKey::mock(94);
+        let bob = SigningKey::mock(103);
+        let _eve = SigningKey::mock(104);
         let timestamp = Timestamp::from_secs(timestamp);
 
-        let h0 = test::history::<Thread, _>(
+        let h0 = test::history::<Thread>(
             &[Action::Comment {
                 body: "Thread root".to_owned(),
                 reply_to: None,
@@ -916,7 +885,7 @@ mod tests {
     #[test]
     fn test_comment_redact_missing() {
         let repo = r#gen::<MockRepository>(1);
-        let mut alice = Actor::<MockSigner>::default();
+        let mut alice = SigningKey::mock(94);
         let mut t = Thread::default();
         let id = arbitrary::entry_id();
 
@@ -926,7 +895,7 @@ mod tests {
     #[test]
     fn test_comment_edit_missing() {
         let repo = r#gen::<MockRepository>(1);
-        let mut alice = Actor::<MockSigner>::default();
+        let mut alice = SigningKey::mock(94);
         let mut t = Thread::default();
         let id = arbitrary::entry_id();
 
@@ -936,7 +905,7 @@ mod tests {
     #[test]
     fn test_comment_edit_redacted() {
         let repo = r#gen::<MockRepository>(1);
-        let mut alice = Actor::<MockSigner>::default();
+        let mut alice = SigningKey::mock(94);
 
         let a1 = alice.comment("Hi", None);
         let a2 = alice.redact(a1.id);

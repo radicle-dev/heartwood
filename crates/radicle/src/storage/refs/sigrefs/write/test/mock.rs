@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::str::FromStr as _;
 
 use radicle_core::{NodeId, RepoId};
 use radicle_git_metadata::author::{Author, Time};
@@ -132,6 +131,14 @@ impl MockRepository {
         self.with_blob(commit, Path::new(SIGNATURE_BLOB_PATH), vec![sig_id; 64])
     }
 
+    pub fn with_valid_signature(self, commit: Oid, refs: &Refs) -> MockRepository {
+        let signer = signing_key();
+        let signature = crypto::signature::Signer::try_sign(&signer, &refs.canonical())
+            .expect("mock signing key must sign refs");
+
+        self.with_blob(commit, Path::new(SIGNATURE_BLOB_PATH), signature.to_vec())
+    }
+
     pub fn with_signature_error(self, commit: Oid) -> MockRepository {
         self.with_blob_error(commit, Path::new(SIGNATURE_BLOB_PATH))
     }
@@ -142,7 +149,6 @@ impl MockRepository {
 
     pub fn with_invalid_signature(self, commit: Oid) -> MockRepository {
         let bytes = vec![0u8; 1];
-        assert!(crypto::Signature::from_str(std::str::from_utf8(&bytes).unwrap()).is_err());
         self.with_blob(commit, Path::new(SIGNATURE_BLOB_PATH), bytes)
     }
 
@@ -285,11 +291,20 @@ impl reference::Writer for MockRepository {
     }
 }
 
+fn signing_key() -> crypto::SigningKey {
+    crypto::SigningKey::mock(1)
+}
+
 /// Always signs successfully, returning a fixed 64-byte signature.
-pub struct AlwaysSign;
+#[derive(Clone)]
+pub struct AlwaysSign(crypto::SigningKey);
 
 impl AlwaysSign {
     const SIGNATURE: [u8; 64] = [1u8; 64];
+
+    pub fn new() -> Self {
+        AlwaysSign(signing_key())
+    }
 
     pub fn signature() -> crypto::Signature {
         crypto::Signature::from(Self::SIGNATURE)
@@ -312,12 +327,46 @@ impl crypto::signature::Verifier<crypto::Signature> for AlwaysSign {
     }
 }
 
+impl crypto::signature::Keypair for AlwaysSign {
+    type VerifyingKey = crypto::VerifyingKey;
+
+    fn verifying_key(&self) -> Self::VerifyingKey {
+        self.0.verifying_key()
+    }
+}
+
+impl AsRef<crypto::PublicKey> for AlwaysSign {
+    fn as_ref(&self) -> &crypto::PublicKey {
+        self.0.as_ref()
+    }
+}
+
 /// Always fails to sign.
-pub struct NeverSign;
+pub struct NeverSign(crypto::SigningKey);
+
+impl NeverSign {
+    pub fn new() -> Self {
+        NeverSign(signing_key())
+    }
+}
+
+impl crypto::signature::Keypair for NeverSign {
+    type VerifyingKey = crypto::VerifyingKey;
+
+    fn verifying_key(&self) -> Self::VerifyingKey {
+        self.0.verifying_key()
+    }
+}
 
 impl crypto::signature::Signer<crypto::Signature> for NeverSign {
     fn try_sign(&self, _msg: &[u8]) -> Result<crypto::Signature, crypto::signature::Error> {
         Err(crypto::signature::Error::new())
+    }
+}
+
+impl AsRef<crypto::PublicKey> for NeverSign {
+    fn as_ref(&self) -> &crypto::PublicKey {
+        self.0.as_ref()
     }
 }
 

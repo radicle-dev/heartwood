@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::num::NonZeroUsize;
 use std::path::Path;
 
-use crypto::{PublicKey, signature};
+use crypto::{PublicKey, VerifyingKey, signature};
 use nonempty::NonEmpty;
 use radicle_core::{NodeId, RepoId};
 use radicle_git_metadata::commit::CommitData;
@@ -72,11 +72,11 @@ impl VerifiedCommit {
 /// - A [`Tip`] which describes where and how to start the verification.
 /// - A `repository` which is the Git repository that is being used for the reading.
 /// - A `verifier` which is the entity that verifies the cryptographic signatures.
-pub struct SignedRefsReader<'a, R, V> {
+pub struct SignedRefsReader<'a, Repository, Verifier = VerifyingKey> {
     rid: RepoId,
     tip: Tip,
-    repository: &'a R,
-    verifier: &'a V,
+    repository: &'a Repository,
+    verifier: &'a Verifier,
 }
 
 /// Describe where to start a [`SignedRefsReader`]'s commit chain.
@@ -126,13 +126,13 @@ impl std::fmt::Display for FeatureLevels {
     }
 }
 
-impl<'a, R, V> SignedRefsReader<'a, R, V>
+impl<'a, Repository, Verifier> SignedRefsReader<'a, Repository, Verifier>
 where
-    R: object::Reader + reference::Reader,
-    V: signature::Verifier<crypto::Signature>,
+    Repository: object::Reader + reference::Reader,
+    Verifier: signature::Verifier<crypto::Signature>,
 {
     /// Construct a new [`SignedRefsReader`].
-    pub fn new(rid: RepoId, tip: Tip, repository: &'a R, verifier: &'a V) -> Self {
+    pub fn new(rid: RepoId, tip: Tip, repository: &'a Repository, verifier: &'a Verifier) -> Self {
         Self {
             rid,
             tip,
@@ -191,6 +191,19 @@ where
             return Ok(head);
         }
 
+        /// A wrapper around a [`crypto::Signature`] that implements
+        /// [`std::hash::Hash`] so that we can use it as a key in a [`HashMap`].
+        #[derive(PartialEq, Eq)]
+        #[repr(transparent)]
+        struct HashSignature(crypto::Signature);
+
+        impl std::hash::Hash for HashSignature {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                state.write(self.0.r_bytes());
+                state.write(self.0.s_bytes());
+            }
+        }
+
         // `seen` maps from signatures to the `NonEmpty` of commits they were
         // seen in. Note that for all sets of commits which share the same
         // signature, the `NonEmpty` in `seen` will be in reverse order of the
@@ -201,13 +214,13 @@ where
         // the maximum feature level over all commits in the history.
         let (seen, levels) = iter::Walk::new(head.commit.oid, self.repository).try_fold(
             (
-                HashMap::<crypto::Signature, NonEmpty<Oid>>::new(),
+                HashMap::<HashSignature, NonEmpty<Oid>>::new(),
                 FeatureLevels::new(),
             ),
             |(mut seen, mut levels), commit| {
                 let commit = commit.map_err(error::Read::Commit)?;
 
-                seen.entry(commit.signature)
+                seen.entry(HashSignature(commit.signature))
                     .and_modify(|value| value.push(commit.oid))
                     .or_insert_with(|| NonEmpty::new(commit.oid));
 
@@ -242,7 +255,7 @@ where
         }
 
         if seen
-            .get(&head.commit.signature)
+            .get(&HashSignature(head.commit.signature))
             .expect(SIGNATURES_COLLECTED)
             .len_nonzero()
             == ONE
@@ -272,7 +285,9 @@ where
 
             let commit = verified.commit();
 
-            let commits = seen.get(&commit.signature).expect(SIGNATURES_COLLECTED);
+            let commits = seen
+                .get(&HashSignature(commit.signature))
+                .expect(SIGNATURES_COLLECTED);
             if commits.len_nonzero() == ONE {
                 return Ok(verified);
             }
@@ -345,13 +360,13 @@ impl Commit {
         &self.signature
     }
 
-    pub(super) fn verify<V>(
+    pub(super) fn verify<Verifier>(
         mut self,
         expected: RepoId,
-        verifier: &V,
+        verifier: &Verifier,
     ) -> Result<VerifiedCommit, error::Verify>
     where
-        V: signature::Verifier<crypto::Signature>,
+        Verifier: signature::Verifier<crypto::Signature>,
     {
         verifier
             .verify(&self.refs.canonical(), &self.signature)
@@ -433,16 +448,13 @@ impl Commit {
     }
 }
 
-pub(super) struct CommitReader<'a, R> {
+pub(super) struct CommitReader<'a, Repository: object::Reader> {
     commit: Oid,
-    repository: &'a R,
+    repository: &'a Repository,
 }
 
-impl<'a, R> CommitReader<'a, R>
-where
-    R: object::Reader,
-{
-    pub(super) fn new(commit: Oid, repository: &'a R) -> Self {
+impl<'a, Repo: object::Reader> CommitReader<'a, Repo> {
+    pub(super) fn new(commit: Oid, repository: &'a Repo) -> Self {
         Self { commit, repository }
     }
 
@@ -502,16 +514,13 @@ struct Tree {
     signature: crypto::Signature,
 }
 
-struct TreeReader<'a, R> {
+struct TreeReader<'a, Repo: object::Reader> {
     commit: Oid,
-    repository: &'a R,
+    repository: &'a Repo,
 }
 
-impl<'a, R> TreeReader<'a, R>
-where
-    R: object::Reader,
-{
-    fn new(commit: Oid, repository: &'a R) -> Self {
+impl<'a, Repo: object::Reader> TreeReader<'a, Repo> {
+    fn new(commit: Oid, repository: &'a Repo) -> Self {
         Self { commit, repository }
     }
 
@@ -566,16 +575,13 @@ pub(super) struct IdentityRoot {
     rid: RepoId,
 }
 
-struct IdentityRootReader<'a, 'b, R> {
+struct IdentityRootReader<'a, 'b, Repo: object::Reader> {
     refs: &'a Refs,
-    repository: &'b R,
+    repository: &'b Repo,
 }
 
-impl<'a, 'b, R> IdentityRootReader<'a, 'b, R>
-where
-    R: object::Reader,
-{
-    fn new(refs: &'a Refs, repository: &'b R) -> Self {
+impl<'a, 'b, Repo: object::Reader> IdentityRootReader<'a, 'b, Repo> {
+    fn new(refs: &'a Refs, repository: &'b Repo) -> Self {
         Self { refs, repository }
     }
 

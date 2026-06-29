@@ -130,7 +130,7 @@ impl Store for Database {
                 stmt.bind((4, &msg.encode_to_vec()[..]))?;
             }
         }
-        stmt.bind((5, &ann.signature))?;
+        stmt.bind((5, sql::Value::Binary(ann.signature.to_vec())))?;
         stmt.bind((6, &ann.message.timestamp()))?;
 
         if let Some(row) = stmt.into_iter().next() {
@@ -341,7 +341,7 @@ impl TryFrom<&sql::Value> for GossipType {
 mod parse {
     use super::*;
 
-    pub fn announcement(row: sql::Row) -> Result<(AnnouncementId, Announcement), Error> {
+    pub fn announcement(mut row: sql::Row) -> Result<(AnnouncementId, Announcement), Error> {
         let id = row.try_read::<i64, _>("rowid")? as AnnouncementId;
         let node = row.try_read::<NodeId, _>("node")?;
         let gt = row.try_read::<GossipType, _>("type")?;
@@ -359,7 +359,25 @@ mod parse {
                 AnnouncementMessage::Node(ann)
             }
         };
-        let signature = row.try_read::<Signature, _>("signature")?;
+
+        let signature = match row.take("signature") {
+            sql::Value::Binary(bytes) => {
+                Signature::try_from(bytes.as_slice()).map_err(|source| sql::Error {
+                    code: None,
+                    message: Some(format!("invalid signature: {source}")),
+                })?
+            }
+            value => {
+                return Err(sql::Error {
+                    code: None,
+                    message: Some(format!(
+                        "invalid value of type '{:?}' for row signature",
+                        value.kind()
+                    )),
+                })?;
+            }
+        };
+
         let timestamp = row.try_read::<Timestamp, _>("timestamp")?;
 
         debug_assert_eq!(timestamp, message.timestamp());
@@ -382,8 +400,8 @@ mod test {
     use crate::bounded::BoundedVec;
     use localtime::LocalTime;
     use radicle::assert_matches;
+    use radicle::crypto::SigningKey;
     use radicle::identity::RepoId;
-    use radicle::node::device::Device;
     use radicle::test::arbitrary;
 
     #[test]
@@ -392,18 +410,18 @@ mod test {
         let nid = arbitrary::r#gen::<NodeId>(1);
         let rid = arbitrary::r#gen::<RepoId>(1);
         let timestamp = LocalTime::now().into();
-        let signer = Device::mock();
+        let secret_key = SigningKey::mock(100);
         let refs = AnnouncementMessage::Refs(RefsAnnouncement {
             rid,
             refs: BoundedVec::new(),
             timestamp,
         })
-        .signed(&signer);
+        .signed(&secret_key);
         let inv = AnnouncementMessage::Inventory(InventoryAnnouncement {
             inventory: BoundedVec::new(),
             timestamp,
         })
-        .signed(&signer);
+        .signed(&secret_key);
 
         // Only the first announcement of each type is recognized as new.
         let id1 = db.announced(&nid, &refs).unwrap().unwrap();

@@ -490,6 +490,8 @@ impl FetcherConfig {
         replicas: ReplicationFactor,
         local_node: NodeId,
     ) -> Self {
+        debug_assert!(!seeds.contains(&local_node));
+
         let candidates = seeds
             .clone()
             .into_iter()
@@ -545,12 +547,15 @@ mod test {
 
     #[test]
     fn all_nodes_are_candidates() {
-        let local = arbitrary::r#gen::<NodeId>(0);
         let replicas = ReplicationFactor::default();
-        let seeds = arbitrary::set::<NodeId>(3..=6)
-            .into_iter()
-            .collect::<BTreeSet<_>>();
-        let extra_candidates = arbitrary::vec::<NodeId>(3);
+
+        let ids = arbitrary::array_distinct::<7, _>();
+
+        let local = ids[0];
+        let seeds = ids[1..4].iter().copied().collect::<BTreeSet<_>>();
+
+        let extra_candidates = ids[4..].iter().copied().collect::<BTreeSet<_>>();
+
         let config = FetcherConfig::public(seeds.clone(), replicas, local)
             .with_candidates(extra_candidates.clone().into_iter().map(Candidate::new));
 
@@ -574,10 +579,11 @@ mod test {
 
     #[test]
     fn ignores_duplicates_and_local_node() {
-        let local = arbitrary::r#gen::<NodeId>(0);
         let replicas = ReplicationFactor::default();
-        let bob = arbitrary::r#gen::<NodeId>(1);
-        let eve = arbitrary::r#gen::<NodeId>(2);
+
+        // Ensure that the three nodes in this test have pairwise distinct IDs.
+        let [local, bob, eve] = arbitrary::vec::<NodeId>(3).try_into().unwrap();
+
         let seeds = [bob].into_iter().collect::<BTreeSet<_>>();
         let extra_candidates = vec![bob, local, eve];
         let config = FetcherConfig::public(seeds.clone(), replicas, local)
@@ -626,12 +632,14 @@ mod test {
 
     #[test]
     fn reaches_target_of_preferred_seeds() {
-        let local = arbitrary::r#gen::<NodeId>(0);
+        let ids = arbitrary::array_distinct::<7, _>();
+
+        let local = ids[0];
+        let seeds = ids[1..4].iter().copied().collect::<BTreeSet<_>>();
+        let extra_candidates = ids[4..].iter().copied().collect::<BTreeSet<_>>();
+
         let replicas = ReplicationFactor::default();
-        let seeds = arbitrary::set::<NodeId>(3..=3)
-            .into_iter()
-            .collect::<BTreeSet<_>>();
-        let extra_candidates = arbitrary::vec::<NodeId>(3);
+
         let config = FetcherConfig::public(seeds.clone(), replicas, local)
             .with_candidates(extra_candidates.clone().into_iter().map(Candidate::new));
 
@@ -668,17 +676,22 @@ mod test {
 
     #[test]
     fn reaches_target_of_replicas() {
-        let local = arbitrary::r#gen::<NodeId>(0);
+        let ids = arbitrary::array_distinct::<7, _>();
+
+        let local = ids[0];
+        let seeds = ids[1..4].iter().copied().collect::<BTreeSet<_>>();
+        let extra_candidates = ids[4..].iter().copied().collect::<BTreeSet<_>>();
+
         let replicas = ReplicationFactor::must_reach(3);
-        let seeds = arbitrary::set::<NodeId>(3..=3)
-            .into_iter()
-            .collect::<BTreeSet<_>>();
-        let extra_candidates = arbitrary::vec::<NodeId>(3);
+
+        assert_eq!(extra_candidates.len(), replicas.lower_bound());
+
         let config = FetcherConfig::public(seeds.clone(), replicas, local)
             .with_candidates(extra_candidates.clone().into_iter().map(Candidate::new));
 
         let mut fetcher = Fetcher::new(config).expect("fetcher should be constructed correctly");
         let mut result = Vec::with_capacity(extra_candidates.len());
+
         let expected = extra_candidates
             .clone()
             .into_iter()

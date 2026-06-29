@@ -2,6 +2,8 @@
 
 use std::{error::Error, fmt, num::NonZeroUsize};
 
+use crypto::signature::Verifier as _;
+use crypto::{ExtendedSignature, VerifyingKey};
 use nonempty::NonEmpty;
 use oid::Oid;
 use serde::{Deserialize, Serialize};
@@ -16,26 +18,32 @@ pub trait Storage {
 
     type ObjectId;
     type Parent;
-    type Signatures;
+
+    type PublicKey;
+    type Signature;
 
     /// Store a new change entry.
     #[allow(clippy::type_complexity)]
-    fn store<G>(
+    fn store(
         &self,
         resource: Option<Self::Parent>,
         related: Vec<Self::Parent>,
-        signer: &G,
+        signer: &impl crypto::Signer,
         template: Template<Self::ObjectId>,
-    ) -> Result<Entry<Self::Parent, Self::ObjectId, Self::Signatures>, Self::StoreError>
-    where
-        G: signature::Signer<Self::Signatures>;
+    ) -> Result<
+        Entry<Self::Parent, Self::ObjectId, ExtendedSignature<Self::PublicKey, Self::Signature>>,
+        Self::StoreError,
+    >;
 
     /// Load a change entry.
     #[allow(clippy::type_complexity)]
     fn load(
         &self,
         id: Self::ObjectId,
-    ) -> Result<Entry<Self::Parent, Self::ObjectId, Self::Signatures>, Self::LoadError>;
+    ) -> Result<
+        Entry<Self::Parent, Self::ObjectId, ExtendedSignature<Self::PublicKey, Self::Signature>>,
+        Self::LoadError,
+    >;
 
     /// Returns the parents of the object with the specified ID.
     fn parents_of(&self, id: &Oid) -> Result<Vec<Oid>, Self::LoadError>;
@@ -120,22 +128,28 @@ where
     Id: AsRef<[u8]>,
 {
     pub fn valid_signatures(&self) -> bool {
-        self.signature
-            .iter()
-            .all(|(key, sig)| key.verify(self.revision.as_ref(), sig).is_ok())
+        use crypto::signature::Verifier as _;
+
+        self.signature.iter().all(|(key, sig)| {
+            VerifyingKey::try_from(key)
+                .and_then(|verifier| verifier.verify(self.revision.as_ref(), sig))
+                .is_ok()
+        })
     }
 }
 
-impl<R, Id> Entry<R, Id, signatures::ExtendedSignature>
+impl<R, Id> Entry<R, Id, signatures::ExtendedSignature<crypto::PublicKey>>
 where
     Id: AsRef<[u8]>,
 {
     pub fn valid_signatures(&self) -> bool {
-        self.signature.verify(self.revision.as_ref())
+        VerifyingKey::try_from(self.signature.key())
+            .and_then(|verifier| verifier.verify(self.revision.as_ref(), self.signature.sig()))
+            .is_ok()
     }
 
     pub fn author(&self) -> &crypto::PublicKey {
-        &self.signature.key
+        self.signature.key()
     }
 }
 

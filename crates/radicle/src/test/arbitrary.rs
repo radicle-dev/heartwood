@@ -65,6 +65,14 @@ pub fn vec<T: Eq + Arbitrary>(size: usize) -> Vec<T> {
     vec
 }
 
+fn vec_distinct<T: Eq + Hash + Arbitrary>(range: impl RangeBounds<usize>) -> Vec<T> {
+    set(range).into_iter().collect::<Vec<_>>()
+}
+
+pub fn array_distinct<const N: usize, T: std::fmt::Debug + Eq + Hash + Arbitrary>() -> [T; N] {
+    vec_distinct(N..=N).try_into().unwrap()
+}
+
 pub fn nonempty_storage(size: usize) -> MockStorage {
     let mut storage = r#gen::<MockStorage>(size);
     for _ in 0..size {
@@ -166,11 +174,8 @@ impl Arbitrary for RawDoc {
 
 impl Arbitrary for Doc {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let mut rng = fastrand::Rng::with_seed(u64::arbitrary(g));
         let project = Project::arbitrary(g);
-        let delegates = iter::repeat_with(|| Did::arbitrary(g))
-            .take(rng.usize(1..6))
-            .collect::<Vec<_>>();
+        let delegates = vec_distinct::<Did>(1..6);
         let threshold = delegates.len() / 2 + 1;
         let visibility = Visibility::arbitrary(g);
         let doc = RawDoc::new(project, delegates, threshold, visibility);
@@ -243,7 +248,7 @@ impl Arbitrary for Address {
             AddressType::Onion => {
                 let pk = PublicKey::arbitrary(g);
                 let addr = OnionAddrV3::from(
-                    cyphernet::ed25519::PublicKey::from_pk_compressed(pk.to_byte_array().into())
+                    cyphernet::ed25519::PublicKey::from_pk_compressed(pk.into_inner().into())
                         .unwrap(),
                 );
                 cyphernet::addr::HostName::Tor(addr)

@@ -6,6 +6,7 @@ use std::str::FromStr;
 
 use crypto::PublicKey;
 
+use crate::crypto::ExtendedSignature;
 pub use crate::git;
 use crate::git::fmt;
 
@@ -379,23 +380,17 @@ impl WriteRepository for MockRepository {
 }
 
 impl SignRepository for MockRepository {
-    fn sign_refs<Signer>(
+    fn sign_refs(
         &self,
-        _signer: &Signer,
-    ) -> Result<crate::storage::refs::SignedRefs, RepositoryError>
-    where
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-    {
+        _signer: &impl crypto::Signer,
+    ) -> Result<crate::storage::refs::SignedRefs, RepositoryError> {
         todo!()
     }
 
-    fn force_sign_refs<Signer>(&self, _signer: &Signer) -> Result<refs::SignedRefs, RepositoryError>
-    where
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
-    {
+    fn force_sign_refs(
+        &self,
+        _signer: &impl crypto::Signer,
+    ) -> Result<refs::SignedRefs, RepositoryError> {
         todo!()
     }
 }
@@ -453,21 +448,24 @@ impl radicle_cob::change::Storage for MockRepository {
     type LoadError = radicle_cob::git::change::error::Load;
     type ObjectId = Oid;
     type Parent = Oid;
-    type Signatures = radicle_cob::signatures::ExtendedSignature;
 
-    fn store<G>(
+    type PublicKey = crypto::PublicKey;
+    type Signature = crypto::Signature;
+
+    fn store(
         &self,
         _resource: Option<Self::Parent>,
         _related: Vec<Self::Parent>,
-        _signer: &G,
+        _signer: &impl crypto::Signer,
         _template: radicle_cob::change::Template<Self::ObjectId>,
     ) -> Result<
-        radicle_cob::change::store::Entry<Self::Parent, Self::ObjectId, Self::Signatures>,
+        radicle_cob::change::store::Entry<
+            Self::Parent,
+            Self::ObjectId,
+            ExtendedSignature<Self::PublicKey, Self::Signature>,
+        >,
         Self::StoreError,
-    >
-    where
-        G: radicle_crypto::signature::Signer<Self::Signatures>,
-    {
+    > {
         todo!()
     }
 
@@ -475,7 +473,11 @@ impl radicle_cob::change::Storage for MockRepository {
         &self,
         _id: Self::ObjectId,
     ) -> Result<
-        radicle_cob::change::store::Entry<Self::Parent, Self::ObjectId, Self::Signatures>,
+        radicle_cob::change::store::Entry<
+            Self::Parent,
+            Self::ObjectId,
+            ExtendedSignature<Self::PublicKey, Self::Signature>,
+        >,
         Self::LoadError,
     > {
         todo!()

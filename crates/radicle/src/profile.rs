@@ -14,6 +14,9 @@
 pub mod config;
 pub use config::{Config, WriteError};
 
+mod signer;
+pub use signer::Signer;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -23,10 +26,8 @@ use thiserror::Error;
 
 use crate::cob::migrate;
 use crate::cob::store::access::{ReadOnly, WriteAs};
-use crate::crypto::PublicKey;
-use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{Keystore, Passphrase, keystore};
-use crate::node::device::{BoxedDevice, Device};
+use crate::crypto::{PublicKey, Seed};
 use crate::node::policy::config::store::Read;
 use crate::node::{Alias, AliasStore, Handle as _, Node, notifications, policy, policy::Scope};
 use crate::prelude::{Did, NodeId, RepoId};
@@ -205,32 +206,19 @@ pub enum Error {
 #[derive(Debug, Error)]
 pub enum SignerError {
     #[error(transparent)]
-    MemorySigner(#[from] keystore::MemorySignerError),
+    LoadError(#[from] crypto::LoadError),
 
     #[error(transparent)]
-    Agent(#[from] crate::crypto::ssh::agent::AgentError),
-
-    #[error("Radicle key `{0}` is not registered; run `rad auth` to register it with ssh-agent")]
-    KeyNotRegistered(PublicKey),
+    Agent(#[from] crypto::ssh::agent::IntoSignerError),
 
     #[error(transparent)]
     Keystore(#[from] keystore::Error),
 
-    #[error("error connecting to ssh-agent: {source}")]
-    AgentConnection {
-        source: crate::crypto::ssh::agent::ConnectError,
-    },
-}
+    #[error("error connecting to ssh-agent: {0}")]
+    AgentConnection(#[from] crypto::ssh::agent::ConnectError),
 
-impl SignerError {
-    /// Some signer errors are potentially recoverable by prompting the user
-    /// for a password.
-    pub fn prompt_for_passphrase(&self) -> bool {
-        matches!(
-            self,
-            Self::AgentConnection { .. } | Self::KeyNotRegistered(_)
-        )
-    }
+    #[error("public key is invalid: {0}")]
+    InvalidPublicKey(#[source] crypto::signature::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -247,7 +235,7 @@ impl Profile {
         home: Home,
         alias: Alias,
         passphrase: Option<Passphrase>,
-        seed: crypto::Seed,
+        seed: Seed,
     ) -> Result<Self, Error> {
         let keystore = Keystore::new(&home.keys());
         let public_key = keystore.init("radicle", passphrase, seed)?;
@@ -333,24 +321,42 @@ impl Profile {
         Did::from(self.public_key)
     }
 
-    pub fn signer(&self) -> Result<BoxedDevice, SignerError> {
-        if !self.keystore.is_encrypted()? {
-            let signer = keystore::MemorySigner::load(&self.keystore, None)?;
-            return Ok(Device::from(signer).boxed());
+    pub fn signer(&self) -> Result<Signer, SignerError> {
+        /// Where to obtain the signer from.
+        enum Source {
+            /// Load the secret key from the keystore without a passphrase.
+            /// This only works if the keystore is not encrypted.
+            KeystorePlain,
+            /// Load the secret key from the keystore using the given
+            /// passphrase to decrypt it.
+            KeystoreEncrypted(Passphrase),
+            /// Use `ssh-agent`.
+            Agent,
         }
 
-        if let Some(passphrase) = env::passphrase() {
-            let signer = keystore::MemorySigner::load(&self.keystore, Some(passphrase))?;
-            return Ok(Device::from(signer).boxed());
-        }
+        use Source::*;
 
-        let agent = Agent::connect().map_err(|source| SignerError::AgentConnection { source })?;
-        let signer = agent.signer(self.public_key);
-        if signer.is_ready()? {
-            Ok(Device::from(signer).boxed())
+        let source = if self.keystore.is_encrypted()? {
+            env::passphrase().map(KeystoreEncrypted).unwrap_or(Agent)
         } else {
-            Err(SignerError::KeyNotRegistered(self.public_key))
-        }
+            KeystorePlain
+        };
+
+        let signer = match source {
+            KeystoreEncrypted(passphrase) => {
+                Signer::Key(crypto::SigningKey::load(&self.keystore, Some(passphrase))?)
+            }
+            KeystorePlain => Signer::Key(crypto::SigningKey::load(&self.keystore, None)?),
+            Agent => Signer::Agent(
+                crypto::ssh::agent::Agent::connect()?.into_signer(
+                    self.id()
+                        .try_into()
+                        .map_err(SignerError::InvalidPublicKey)?,
+                )?,
+            ),
+        };
+
+        Ok(signer)
     }
 
     /// Get Radicle home.
@@ -797,7 +803,7 @@ impl Home {
     }
 
     /// Return a read-write handle for the issues cache.
-    pub fn issues_mut<'a, 'b, Repo, Signer>(
+    pub fn issues_mut<'a, 'b, Repo, Signer: crypto::Signer>(
         &self,
         repository: &'a Repo,
         signer: &'b Signer,
@@ -830,7 +836,7 @@ impl Home {
     }
 
     /// Return a read-write handle for the patches cache.
-    pub fn patches_mut<'a, 'b, Repo, Signer>(
+    pub fn patches_mut<'a, 'b, Repo, Signer: crypto::Signer>(
         &self,
         repository: &'a Repo,
         signer: &'b Signer,

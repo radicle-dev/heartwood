@@ -28,9 +28,10 @@ use std::process;
 use std::str::FromStr;
 use std::{env, fmt};
 
-use radicle::cob::store::access::{ReadOnly, WriteAs};
 use thiserror::Error;
 
+use radicle::cob::store::access::{ReadOnly, WriteAs};
+use radicle::crypto;
 use radicle::prelude::NodeId;
 use radicle::storage::git::transport::local::{Url, UrlError};
 use radicle::storage::{ReadRepository, WriteStorage};
@@ -482,7 +483,7 @@ pub(crate) fn patches<'a, Repo: ReadRepository + cob::Store<Namespace = NodeId>>
 }
 
 /// Get the mutable patch store.
-pub(crate) fn patches_mut<'a, 'b, Signer>(
+pub(crate) fn patches_mut<'a, 'b, Signer: crypto::Signer>(
     profile: &Profile,
     repo: &'a storage::git::Repository,
     signer: &'b Signer,

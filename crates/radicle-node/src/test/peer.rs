@@ -7,20 +7,18 @@ use std::str::FromStr;
 use log::*;
 
 use radicle::Storage;
-use radicle::crypto::Signer as _;
+use radicle::crypto::{Signer as _, SigningKey};
 use radicle::git::Oid;
 use radicle::identity::Visibility;
 use radicle::node::Database;
 use radicle::node::UserAgent;
 use radicle::node::address::Store as _;
-use radicle::node::device::Device;
 use radicle::node::{Alias, ConnectOptions, address};
 use radicle::rad;
 use radicle::storage::refs;
 use radicle::storage::refs::{RefsAt, SignedRefs};
 use radicle::storage::{ReadRepository, RemoteRepository};
 
-use crate::crypto::test::signer::MockSigner;
 use crate::identity::RepoId;
 use crate::node;
 use crate::node::routing::Store as _;
@@ -42,7 +40,7 @@ use radicle::node::policy::{Scope, SeedingPolicy};
 use radicle_protocol::bounded::BoundedVec;
 
 /// Service instantiation used for testing.
-pub type Service<S> = service::Service<Database, S, MockSigner>;
+pub type Service<S> = service::Service<Database, S>;
 
 pub const AMY: u8 = 0x0A;
 pub const BOB: u8 = 0x0B;
@@ -124,24 +122,18 @@ pub struct Config {
     pub(crate) config: radicle::node::Config,
     pub(crate) local_time: LocalTime,
     pub(crate) policy: SeedingPolicy,
-    pub(crate) signer: MockSigner,
+    pub(crate) secret_key: SigningKey,
 }
 
 impl Config {
     pub(crate) fn new(id: usize) -> Self {
         let config = radicle::node::Config::test(Alias::from_str("mocky").unwrap());
 
-        let seed = std::iter::repeat_n(id, 32 / std::mem::size_of::<usize>())
-            .flat_map(|i| i.to_le_bytes())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-
         Config {
             config,
             local_time: LocalTime::now(),
             policy: SeedingPolicy::default(),
-            signer: MockSigner::from_seed(seed),
+            secret_key: SigningKey::mock(id),
         }
     }
 }
@@ -156,7 +148,7 @@ impl Peer<Storage> {
             description,
             radicle::git::fmt::refname!("master"),
             Visibility::default(),
-            self.signer(),
+            self.secret_key(),
             self.storage(),
         )
         .unwrap();
@@ -198,7 +190,7 @@ where
 
         let tempdir = tempfile::TempDir::with_prefix(name).unwrap();
 
-        let nid = *config.signer.public_key();
+        let nid = *config.secret_key.public_key();
 
         // Initialize database.
         let db = Database::open(
@@ -226,7 +218,7 @@ where
             db,
             storage,
             policies,
-            Device::new(config.signer),
+            config.secret_key,
             fastrand::Rng::with_seed(id as u64),
             announcement,
             emitter,
@@ -305,7 +297,7 @@ where
                 inventory: arbitrary::vec(3).try_into().unwrap(),
                 timestamp: Timestamp::from(*self.clock()),
             },
-            self.signer(),
+            self.secret_key(),
         )
     }
 
@@ -322,7 +314,7 @@ where
             }
             .solve(0)
             .unwrap(),
-            self.signer(),
+            self.secret_key(),
         )
     }
 
@@ -355,12 +347,12 @@ where
     }
 
     pub fn announcement(&self, ann: impl Into<AnnouncementMessage>) -> Message {
-        ann.into().signed(self.signer()).into()
+        ann.into().signed(self.secret_key()).into()
     }
 
     pub fn signed_refs_at(&self, root: Oid) -> SignedRefs {
         arbitrary::with_gen(8, |g| {
-            refs::arbitrary::signed_refs_at(g, root, self.signer())
+            refs::arbitrary::signed_refs_at(g, root, self.secret_key())
         })
     }
 

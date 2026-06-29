@@ -6,12 +6,11 @@ use std::collections::BTreeMap;
 use nonempty::nonempty;
 
 use crate::Storage;
-use crate::crypto::{Signer, test::signer::MockSigner};
+use crate::crypto::{Signer as _, SigningKey};
 use crate::git;
 use crate::git::fmt::qualified_pattern;
 use crate::identity::Visibility;
 use crate::identity::doc::Doc;
-use crate::node::device::Device;
 use crate::rad;
 use crate::storage::refs::{IDENTITY_BRANCH, IDENTITY_ROOT, SIGREFS_BRANCH, SIGREFS_PARENT};
 use crate::storage::{ReadStorage, git::transport};
@@ -295,23 +294,25 @@ fn rule_validate_failures() {
         Err(ValidationError::Threshold(_))
     ));
 
-    let delegates = NonEmpty::from_vec(arbitrary::vec::<Did>(256)).unwrap();
+    let delegates = NonEmpty::from_vec(
+        arbitrary::set::<Did>(256..=256)
+            .into_iter()
+            .collect::<Vec<_>>(),
+    )
+    .unwrap();
+    assert_eq!(delegates.len(), 256);
     assert!(matches!(
         Rule::new(delegates.into(), 1).validate(&mut || resolve_from_doc(&doc)),
         Err(ValidationError::Delegates(_))
     ));
 
-    let delegates = nonempty![
-        did("did:key:z6MknLWe8A7UJxvTfY36JcB8XrP1KTLb5HFTX38hEmdY3b56"),
-        did("did:key:z6MknLWe8A7UJxvTfY36JcB8XrP1KTLb5HFTX38hEmdY3b56")
-    ];
+    let delegate = Did::from(SigningKey::mock(22).public_key());
+
+    let delegates = nonempty![delegate, delegate];
+    assert_eq!(delegates.len(), 2);
+
     let expected = Rule {
-        allow: ResolvedDelegates::Set(
-            doc::Delegates::new(nonempty![did(
-                "did:key:z6MknLWe8A7UJxvTfY36JcB8XrP1KTLb5HFTX38hEmdY3b56"
-            )])
-            .unwrap(),
-        ),
+        allow: ResolvedDelegates::Set(doc::Delegates::new(nonempty![delegate]).unwrap()),
         threshold: doc::Threshold::MIN,
         extensions: json::Map::new(),
     };
@@ -357,8 +358,8 @@ fn canonical() {
 
     transport::local::register(storage.clone());
 
-    let delegate = Device::mock_from_seed([0xff; 32]);
-    let contributor = MockSigner::from_seed([0xfe; 32]);
+    let delegate = SigningKey::mock(0xff);
+    let contributor = SigningKey::mock(0xfe);
     let (repo, head) = fixtures::repository(tempdir.path().join("working"));
     let (rid, doc, _) = rad::init(
         &repo,

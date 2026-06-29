@@ -22,6 +22,7 @@
 use thiserror::Error;
 
 use radicle::crypto;
+use radicle::crypto::Signer as _;
 use radicle::profile::Home;
 
 /// Fingerprint of a public key.
@@ -64,30 +65,24 @@ impl Fingerprint {
     }
 
     /// Initialize the fingerprint of the node with given public key.
-    pub fn init(
-        home: &Home,
-        secret_key: &impl std::ops::Deref<Target = crypto::SecretKey>,
-    ) -> Result<(), Error> {
-        let public_key = secret_key.deref().public_key().into();
+    pub fn init(home: &Home, secret_key: &crypto::SigningKey) -> Result<(), Error> {
+        let public_key = secret_key.public_key();
         let mut file = std::fs::OpenOptions::new()
             .create_new(true)
             .write(true)
             .open(path(home))?;
         {
             use std::io::Write as _;
-            file.write_all(crypto::ssh::fmt::fingerprint(&public_key).as_ref())?;
+            file.write_all(crypto::ssh::fmt::fingerprint(public_key).as_ref())?;
         }
 
         Ok(())
     }
 
     /// Verify that the fingerprint of given public key matches self.
-    pub fn verify(
-        &self,
-        secret_key: &impl std::ops::Deref<Target = crypto::SecretKey>,
-    ) -> FingerprintVerification {
-        let public_key = secret_key.deref().public_key().into();
-        if crypto::ssh::fmt::fingerprint(&public_key) == self.0 {
+    pub fn verify(&self, secret_key: &crypto::SigningKey) -> FingerprintVerification {
+        let public_key = secret_key.public_key();
+        if crypto::ssh::fmt::fingerprint(public_key) == self.0 {
             FingerprintVerification::Match
         } else {
             FingerprintVerification::Mismatch
@@ -104,7 +99,7 @@ fn path(home: &Home) -> std::path::PathBuf {
 mod tests {
     use super::*;
 
-    use crypto::ssh::Keystore;
+    use crypto::{Seed, ssh::Keystore};
 
     #[test]
     fn matching() {
@@ -112,7 +107,7 @@ mod tests {
         let home = Home::new(tmp.path()).unwrap();
 
         let store = Keystore::new(&home.keys());
-        store.init("test 1", None, crypto::Seed::default()).unwrap();
+        store.init("test 1", None, Seed::mock(1)).unwrap();
         let secret = store.secret_key(None).unwrap().unwrap();
 
         assert_eq!(Fingerprint::read(&home).unwrap(), None);
@@ -124,7 +119,7 @@ mod tests {
         // Generate a new keypair, which does not match the fingerprint.
         // This simulates the user modifying `~/.radicle/keys`.
         std::fs::remove_dir_all(home.keys()).unwrap();
-        store.init("test 1", None, crypto::Seed::default()).unwrap();
+        store.init("test 1", None, Seed::mock(2)).unwrap();
         let other_secret = store.secret_key(None).unwrap().unwrap();
 
         assert_ne!(secret, other_secret);
