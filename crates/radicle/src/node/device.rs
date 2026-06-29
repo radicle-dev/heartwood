@@ -112,7 +112,7 @@ impl<S> Verifier<Signature> for Device<S> {
 impl<S: crypto::Signer> From<S> for Device<S> {
     fn from(signer: S) -> Self {
         Self {
-            node: signer.public_key(),
+            node: signer.verifying_key(),
             signer,
         }
     }

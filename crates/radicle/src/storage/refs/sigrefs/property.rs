@@ -1,7 +1,7 @@
 mod mock;
 use mock::*;
 
-use crypto::Signer as _;
+use crypto::signature::Keypair as _;
 use crypto::test::signer::MockSigner;
 use qcheck::TestResult;
 use qcheck_macros::quickcheck;
@@ -18,7 +18,7 @@ fn roundtrip(BoundedVec(all_refs): BoundedVec<Refs>) -> TestResult {
 
     let fixture = Fixture::new();
     let signer = MockSigner::default();
-    let node_id = signer.public_key();
+    let node_id = signer.verifying_key();
 
     for refs in all_refs {
         let refs = fixture.with_identity_root(refs);
@@ -70,7 +70,7 @@ fn idempotent(refs: Refs) -> TestResult {
     let fixture = Fixture::new();
     let refs = fixture.with_identity_root(refs);
     let signer = MockSigner::default();
-    let node_id = signer.public_key();
+    let node_id = signer.verifying_key();
 
     if let Err(e) = SignedRefsWriter::new(
         refs.clone(),

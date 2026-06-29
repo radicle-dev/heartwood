@@ -35,9 +35,9 @@ impl SignerError {
     }
 }
 
-pub trait Signer: Send + signature::Signer<Signature> {
-    /// Return this signer's public/verification key.
-    fn public_key(&self) -> PublicKey;
+pub trait Signer:
+    Send + signature::Signer<Signature> + signature::Keypair<VerifyingKey = PublicKey>
+{
 }
 
 impl<S> Signer for S
@@ -46,9 +46,6 @@ where
     S: signature::Signer<Signature>,
     S: signature::KeypairRef<VerifyingKey = PublicKey>,
 {
-    fn public_key(&self) -> PublicKey {
-        self.as_ref().clone()
-    }
 }
 
 /// Cryptographic signature.

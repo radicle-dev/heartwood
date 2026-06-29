@@ -67,7 +67,7 @@ where
         let root = oids.first().unwrap();
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
         let signature = signer.sign(&[0]);
-        let signature = ExtendedSignature::new(signer.public_key(), signature);
+        let signature = ExtendedSignature::new(signer.verifying_key(), signature);
         let change = Entry {
             id: *root,
             signature,
@@ -103,7 +103,7 @@ where
         let (data, oid) = encoded::<T, _>(action, timestamp, tips, signer);
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
         let signature = signer.sign(data.as_slice());
-        let signature = ExtendedSignature::new(signer.public_key(), signature);
+        let signature = ExtendedSignature::new(signer.verifying_key(), signature);
         let change = Entry {
             id: oid,
             signature,
@@ -264,7 +264,7 @@ fn encoded<T: Cob, G: Signer>(
     let parents = parents.into_iter().map(|o| o.into());
     let author = Author {
         name: "radicle".to_owned(),
-        email: signer.public_key().to_human(),
+        email: signer.verifying_key().to_human(),
         time: Time::new(timestamp.as_secs() as i64, 0),
     };
     let commit = CommitData::<git::raw::Oid, git::raw::Oid>::new::<_, _, OwnedTrailer>(

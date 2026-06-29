@@ -425,6 +425,8 @@ mod tests {
 
     #[test]
     fn test_signer() {
+        use signature::Keypair as _;
+
         let tmp = tempfile::tempdir().unwrap();
         let store = Keystore::new(&tmp);
 
@@ -437,6 +439,6 @@ mod tests {
             .unwrap();
         let signer = MemorySigner::load(&store, Some("hunter".to_owned().into())).unwrap();
 
-        assert_eq!(public, signer.public_key());
+        assert_eq!(public, signer.verifying_key());
     }
 }

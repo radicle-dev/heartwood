@@ -8,8 +8,9 @@ use crate::{ObjectId, TypeName, object, test::arbitrary::Invalid};
 mod git {
     use std::ops::ControlFlow;
 
+    use crypto::PublicKey;
+    use crypto::signature::Keypair as _;
     use crypto::test::signer::MockSigner;
-    use crypto::{PublicKey, Signer};
     use nonempty::{NonEmpty, nonempty};
     use qcheck::Arbitrary;
 
@@ -23,8 +24,8 @@ mod git {
     fn roundtrip() {
         let storage = test::Storage::new();
         let signer = r#gen::<MockSigner>(1);
-        let terry = test::Person::new(&storage, "terry", signer.public_key()).unwrap();
-        let proj = test::Project::new(&storage, "discworld", signer.public_key()).unwrap();
+        let terry = test::Person::new(&storage, "terry", signer.verifying_key()).unwrap();
+        let proj = test::Project::new(&storage, "discworld", signer.verifying_key()).unwrap();
         let proj = test::RemoteProject {
             project: proj,
             person: terry,
@@ -35,7 +36,7 @@ mod git {
             &signer,
             Some(proj.project.content_id),
             vec![],
-            &signer.public_key(),
+            &signer.verifying_key(),
             Create {
                 contents: nonempty!(Vec::new()),
                 type_name: typename.clone(),
@@ -57,8 +58,8 @@ mod git {
     fn list_cobs() {
         let storage = test::Storage::new();
         let signer = r#gen::<MockSigner>(1);
-        let terry = test::Person::new(&storage, "terry", signer.public_key()).unwrap();
-        let proj = test::Project::new(&storage, "discworld", signer.public_key()).unwrap();
+        let terry = test::Person::new(&storage, "terry", signer.verifying_key()).unwrap();
+        let proj = test::Project::new(&storage, "discworld", signer.verifying_key()).unwrap();
         let proj = test::RemoteProject {
             project: proj,
             person: terry,
@@ -69,7 +70,7 @@ mod git {
             &signer,
             Some(proj.project.content_id),
             vec![],
-            &signer.public_key(),
+            &signer.verifying_key(),
             Create {
                 contents: nonempty!(b"issue 1".to_vec()),
                 type_name: typename.clone(),
@@ -85,7 +86,7 @@ mod git {
             &signer,
             Some(proj.project.content_id),
             vec![],
-            &signer.public_key(),
+            &signer.verifying_key(),
             Create {
                 contents: nonempty!(b"issue 2".to_vec()),
                 type_name: typename.clone(),
@@ -109,8 +110,8 @@ mod git {
     fn update_cob() {
         let storage = test::Storage::new();
         let signer = r#gen::<MockSigner>(1);
-        let terry = test::Person::new(&storage, "terry", signer.public_key()).unwrap();
-        let proj = test::Project::new(&storage, "discworld", signer.public_key()).unwrap();
+        let terry = test::Person::new(&storage, "terry", signer.verifying_key()).unwrap();
+        let proj = test::Project::new(&storage, "discworld", signer.verifying_key()).unwrap();
         let proj = test::RemoteProject {
             project: proj,
             person: terry,
@@ -121,7 +122,7 @@ mod git {
             &signer,
             Some(proj.project.content_id),
             vec![],
-            &signer.public_key(),
+            &signer.verifying_key(),
             Create {
                 contents: nonempty!(Vec::new()),
                 type_name: typename.clone(),
@@ -141,7 +142,7 @@ mod git {
             &signer,
             Some(proj.project.content_id),
             vec![],
-            &signer.public_key(),
+            &signer.verifying_key(),
             Update {
                 changes: nonempty!(b"issue 1".to_vec()),
                 object_id: *cob.id(),
@@ -164,10 +165,10 @@ mod git {
     fn traverse_cobs() {
         let storage = test::Storage::new();
         let neil_signer = r#gen::<MockSigner>(2);
-        let neil = test::Person::new(&storage, "gaiman", neil_signer.public_key()).unwrap();
+        let neil = test::Person::new(&storage, "gaiman", neil_signer.verifying_key()).unwrap();
         let terry_signer = r#gen::<MockSigner>(1);
-        let terry = test::Person::new(&storage, "pratchett", terry_signer.public_key()).unwrap();
-        let proj = test::Project::new(&storage, "discworld", terry_signer.public_key()).unwrap();
+        let terry = test::Person::new(&storage, "pratchett", terry_signer.verifying_key()).unwrap();
+        let proj = test::Project::new(&storage, "discworld", terry_signer.verifying_key()).unwrap();
         let terry_proj = test::RemoteProject {
             project: proj.clone(),
             person: terry,
@@ -182,7 +183,7 @@ mod git {
             &terry_signer,
             Some(terry_proj.project.content_id),
             vec![],
-            &terry_signer.public_key(),
+            &terry_signer.verifying_key(),
             Create {
                 contents: nonempty!(b"issue 1".to_vec()),
                 type_name: typename.clone(),
@@ -194,7 +195,7 @@ mod git {
         .unwrap();
         copy_to(
             storage.as_raw(),
-            &terry_signer.public_key(),
+            &terry_signer.verifying_key(),
             &neil_proj,
             &typename,
             *cob.id(),
@@ -206,7 +207,7 @@ mod git {
             &neil_signer,
             Some(neil_proj.project.content_id),
             vec![],
-            &neil_signer.public_key(),
+            &neil_signer.verifying_key(),
             Update {
                 changes: nonempty!(b"issue 2".to_vec()),
                 object_id: *cob.id(),
@@ -222,7 +223,7 @@ mod git {
         let contents = object
             .history()
             .traverse(Vec::new(), &[root], |mut acc, _, entry| {
-                if entry.author() == &terry_signer.public_key() {
+                if entry.author() == &terry_signer.verifying_key() {
                     acc.push(entry.contents().head.clone());
                 }
                 ControlFlow::Continue(acc)

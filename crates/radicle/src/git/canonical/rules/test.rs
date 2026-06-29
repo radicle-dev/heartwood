@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use nonempty::nonempty;
 
 use crate::Storage;
-use crate::crypto::{Signer, test::signer::MockSigner};
+use crate::crypto::{signature::Keypair as _, test::signer::MockSigner};
 use crate::git;
 use crate::git::fmt::qualified_pattern;
 use crate::identity::Visibility;
@@ -373,7 +373,7 @@ fn canonical() {
 
     let mut doc = doc.edit();
     // Ensure there is a second delegate for testing overlapping rules
-    doc.delegate(contributor.public_key().into());
+    doc.delegate(contributor.verifying_key().into());
 
     // Create tags and keep track of their OIDs
     //
