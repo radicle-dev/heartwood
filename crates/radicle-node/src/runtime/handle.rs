@@ -147,7 +147,7 @@ impl radicle::node::Handle for Handle {
     fn nid(&self) -> Result<NodeId, Self::Error> {
         let (sender, receiver) = chan::bounded(1);
         let query: Arc<QueryState> = Arc::new(move |state| {
-            sender.send(*state.nid()).ok();
+            sender.send(state.nid()).ok();
             Ok(())
         });
         let (err_sender, err_receiver) = chan::bounded(1);

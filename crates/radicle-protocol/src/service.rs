@@ -2,6 +2,8 @@
 #![deny(clippy::unwrap_used)]
 pub mod command;
 pub use command::{Command, QueryState};
+#[cfg(any(test, feature = "test"))]
+use zeroize::{Zeroize, Zeroizing};
 
 pub mod filter;
 pub mod gossip;
@@ -23,6 +25,7 @@ use localtime::{LocalDuration, LocalTime};
 use log::*;
 use nonempty::NonEmpty;
 
+use radicle::crypto::signature::Keypair as _;
 use radicle::identity::Doc;
 use radicle::node;
 use radicle::node::address;
@@ -532,7 +535,7 @@ where
 
         let repo = self.storage.repository_mut(rid)?;
         // NOTE: We assume to reach `FeatureLevel::LATEST` by signing refs.
-        let refs = repo.force_sign_refs(&self.secret_key)?;
+        let refs = repo.force_sign_refs(&*self.secret_key)?;
 
         let repo = self.storage.repository(rid)?;
         let synced_at = SyncedAt::new(refs.at, &repo)?;
@@ -678,7 +681,8 @@ where
     }
 
     /// Get the local signer.
-    pub fn signer(&self) -> &Device<G> {
+    #[cfg(any(test, feature = "test"))]
+    pub fn signer(&self) -> &Zeroizing<crypto::SecretKey> {
         &self.secret_key
     }
 
@@ -710,7 +714,7 @@ where
             .routing()
             .get(&rid)?
             .iter()
-            .filter(|nid| nid != &this)
+            .filter(|nid| **nid != this)
             .cloned()
             .collect();
 
@@ -1451,7 +1455,7 @@ where
         } = announcement;
 
         // Ignore our own announcements, in case the relayer sent one by mistake.
-        if announcer == self.nid() {
+        if *announcer == self.nid() {
             return Ok(None);
         }
         let now = self.clock;
@@ -1542,7 +1546,7 @@ where
                     }
                 }
                 let mut missing = Vec::new();
-                let nid = *self.nid();
+                let nid = self.nid();
 
                 // Here we handle the special case where the inventory we received is that of
                 // a connected peer, as opposed to being relayed to us.
@@ -1605,7 +1609,7 @@ where
                 self.seed_discovered(message.rid, *announcer, message.timestamp);
 
                 // Update sync status of announcer for this repo.
-                if let Some(refs) = refs.iter().find(|r| &r.remote == self.nid()) {
+                if let Some(refs) = refs.iter().find(|r| r.remote == self.nid()) {
                     debug!(
                         target: "service",
                         "Refs announcement of {announcer} for {} contains our own remote at {} (t={})",
@@ -2022,7 +2026,7 @@ where
     fn inventory(&self) -> Result<HashSet<RepoId>, Error> {
         self.db
             .routing()
-            .get_inventory(self.nid())
+            .get_inventory(&self.nid())
             .map_err(Error::from)
     }
 
@@ -2447,7 +2451,7 @@ where
                     .filter(|entry| !self.sessions.contains_key(&entry.node))
                     .filter(|entry| !self.policies.is_blocked(&entry.node).unwrap_or(false))
                     .filter(|entry| !self.config.external_addresses.contains(&entry.address.addr))
-                    .filter(|entry| &entry.node != self.nid())
+                    .filter(|entry| entry.node != self.nid())
                     .filter(|entry| self.is_supported_address(&entry.address.addr))
                     .fold(HashMap::new(), |mut acc, entry| {
                         acc.entry(entry.node)
@@ -2669,7 +2673,7 @@ where
 /// Gives read access to the service state.
 pub trait ServiceState {
     /// Get the Node ID.
-    fn nid(&self) -> &NodeId;
+    fn nid(&self) -> NodeId;
     /// Get the existing sessions.
     fn sessions(&self) -> &Sessions;
     /// Get fetch state.
@@ -2692,14 +2696,13 @@ pub trait ServiceState {
     fn metrics(&self) -> &Metrics;
 }
 
-impl<D, S, G> ServiceState for Service<D, S, G>
+impl<D, S> ServiceState for Service<D, S>
 where
     D: routing::Store,
-    G: crypto::signature::Signer<crypto::Signature>,
     S: ReadStorage,
 {
-    fn nid(&self) -> &NodeId {
-        self.secret_key.public_key()
+    fn nid(&self) -> NodeId {
+        self.secret_key.verifying_key()
     }
 
     fn sessions(&self) -> &Sessions {

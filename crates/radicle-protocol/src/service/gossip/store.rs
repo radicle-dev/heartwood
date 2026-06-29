@@ -383,7 +383,6 @@ mod test {
     use localtime::LocalTime;
     use radicle::assert_matches;
     use radicle::identity::RepoId;
-    use radicle::node::device::Device;
     use radicle::test::arbitrary;
 
     #[test]
@@ -392,18 +391,18 @@ mod test {
         let nid = arbitrary::r#gen::<NodeId>(1);
         let rid = arbitrary::r#gen::<RepoId>(1);
         let timestamp = LocalTime::now().into();
-        let signer = Device::mock();
+        let secret_key = zeroize::Zeroizing::new(radicle::crypto::KeyPair::generate().sk.into());
         let refs = AnnouncementMessage::Refs(RefsAnnouncement {
             rid,
             refs: BoundedVec::new(),
             timestamp,
         })
-        .signed(&signer);
+        .signed(&secret_key);
         let inv = AnnouncementMessage::Inventory(InventoryAnnouncement {
             inventory: BoundedVec::new(),
             timestamp,
         })
-        .signed(&signer);
+        .signed(&secret_key);
 
         // Only the first announcement of each type is recognized as new.
         let id1 = db.announced(&nid, &refs).unwrap().unwrap();

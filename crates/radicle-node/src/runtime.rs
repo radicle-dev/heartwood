@@ -130,7 +130,7 @@ impl Runtime {
         socket: PathBuf,
         listen: Vec<net::SocketAddr>,
         signals: chan::Receiver<Signal>,
-        secret_key: zeroize::Zeroizing<crypto::SecretKey>,
+        secret_key: crate::secret::Secret,
     ) -> Result<Runtime, Error>
     where
         G: crypto::signature::Signer<crypto::Signature>
@@ -236,7 +236,7 @@ impl Runtime {
         let reactor = Reactor::new(wire, thread::name(&id, "service"))?;
         let handle = Handle::new(home.clone(), socket.clone(), reactor.controller(), emitter);
 
-        let nid = *secret_key.public_key();
+        let nid = NodeId::from(secret_key.public_key());
         let fetch = worker::FetchConfig {
             local: nid,
             expiry: worker::garbage::Expiry::default(),

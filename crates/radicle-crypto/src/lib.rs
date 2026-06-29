@@ -306,6 +306,40 @@ impl signature::Keypair for SecretKey {
     }
 }
 
+impl signature::Verifier<Signature> for SecretKey {
+    fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
+        self.public_key()
+            .verify(msg, signature)
+            .map_err(signature::Error::from_source)
+    }
+}
+
+// #[cfg(feature = "cyphernet")]
+impl cyphernet::EcSk for SecretKey {
+    type Pk = PublicKey;
+
+    fn generate_keypair() -> (Self, Self::Pk)
+    where
+        Self: Sized,
+    {
+        let pair = KeyPair::generate();
+        (pair.sk.into(), pair.pk.into())
+    }
+
+    fn to_pk(&self) -> Result<Self::Pk, cyphernet::EcSkInvalid> {
+        Ok(self.public_key().into())
+    }
+}
+
+// #[cfg(feature = "cyphernet")]
+impl cyphernet::Ecdh for SecretKey {
+    type SharedSecret = [u8; 32];
+
+    fn ecdh(&self, pk: &Self::Pk) -> Result<Self::SharedSecret, cyphernet::EcdhError> {
+        self.ecdh(pk).map_err(cyphernet::EcdhError::from)
+    }
+}
+
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum PublicKeyError {

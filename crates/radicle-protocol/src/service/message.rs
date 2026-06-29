@@ -5,6 +5,7 @@ use bytes::{Buf, BufMut};
 use nonempty::NonEmpty;
 
 use radicle::crypto;
+use radicle::crypto::signature::Keypair as _;
 use radicle::git;
 use radicle::identity::RepoId;
 use radicle::node;
@@ -264,18 +265,15 @@ pub enum AnnouncementMessage {
 
 impl AnnouncementMessage {
     /// Sign this announcement message.
-    pub fn signed<G>(self, signer: &Device<G>) -> Announcement
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
+    pub fn signed(self, secret_key: &zeroize::Zeroizing<crypto::SecretKey>) -> Announcement {
         use crypto::signature::Signer as _;
 
         let msg = self.encode_to_vec();
 
-        let signature = signer.sign(&msg);
+        let signature = secret_key.sign(&msg);
 
         Announcement {
-            node: *signer.public_key(),
+            node: secret_key.verifying_key(),
             message: self,
             signature,
         }
@@ -452,18 +450,18 @@ impl Message {
         .into()
     }
 
-    pub fn node<G: crypto::signature::Signer<crypto::Signature>>(
+    pub fn node(
         message: NodeAnnouncement,
-        signer: &Device<G>,
+        secret_key: &zeroize::Zeroizing<crypto::SecretKey>,
     ) -> Self {
-        AnnouncementMessage::from(message).signed(signer).into()
+        AnnouncementMessage::from(message).signed(secret_key).into()
     }
 
-    pub fn inventory<G: crypto::signature::Signer<crypto::Signature>>(
+    pub fn inventory(
         message: InventoryAnnouncement,
-        signer: &Device<G>,
+        secret_key: &zeroize::Zeroizing<crypto::SecretKey>,
     ) -> Self {
-        AnnouncementMessage::from(message).signed(signer).into()
+        AnnouncementMessage::from(message).signed(secret_key).into()
     }
 
     pub fn subscribe(filter: Filter, since: Timestamp, until: Timestamp) -> Self {
@@ -717,7 +715,9 @@ mod tests {
             refs,
             timestamp: LocalTime::now().into(),
         })
-        .signed(&Device::mock())
+        .signed(&zeroize::Zeroizing::new(
+            crypto::KeyPair::generate().sk.into(),
+        ))
         .into();
 
         let mut buf = Vec::new();
@@ -737,7 +737,7 @@ mod tests {
                     .expect("size within bounds limit"),
                 timestamp: LocalTime::now().into(),
             },
-            &Device::mock(),
+            &zeroize::Zeroizing::new(crypto::KeyPair::generate().sk.into()),
         );
         let mut buf: Vec<u8> = Vec::new();
         msg.encode(&mut buf);
@@ -756,12 +756,12 @@ mod tests {
 
     #[quickcheck]
     fn prop_refs_announcement_signing(rid: RepoId) {
-        let signer = Device::mock_rng(&mut fastrand::Rng::new());
+        let secret_key: zeroize::Zeroizing<crypto::SecretKey> = zeroize::Zeroizing::new(crypto::KeyPair::generate().sk.into());
         let timestamp = Timestamp::EPOCH;
         let at = git::Oid::ZERO_SHA1;
         let refs = BoundedVec::collect_from(
             &mut [RefsAt {
-                remote: *signer.public_key(),
+                remote: secret_key.verifying_key(),
                 at,
             }]
             .into_iter(),
@@ -771,7 +771,7 @@ mod tests {
             refs,
             timestamp,
         });
-        let ann = message.signed(&signer);
+        let ann = message.signed(&secret_key);
 
         assert!(ann.verify());
     }

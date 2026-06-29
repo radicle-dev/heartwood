@@ -67,10 +67,10 @@ pub enum Control {
 }
 
 /// Peer session type.
-type WireSession<G> = NoiseSession<G, Sha256, Socks5Session<TcpStream>>;
+type WireSession = NoiseSession<crate::secret::Secret, Sha256, Socks5Session<TcpStream>>;
 
 /// Reactor action.
-type Action<G> = reactor::Action<Listener, Transport<WireSession<G>>>;
+type Action = reactor::Action<Listener, Transport<WireSession>>;
 
 /// A worker stream.
 struct Stream {
@@ -294,17 +294,17 @@ impl Peers {
 }
 
 /// Wire protocol implementation for a set of peers.
-pub(crate) struct Wire<D, S, G: crypto::signature::Signer<crypto::Signature> + Ecdh> {
+pub(crate) struct Wire<D, S> {
     /// Backing service instance.
-    service: Service<D, S, G>,
+    service: Service<D, S>,
     /// Worker pool interface.
     worker: chan::Sender<Task>,
     /// Used for authentication.
-    signer: Device<G>,
+    secret_key: crate::secret::Secret,
     /// Node metrics.
     metrics: service::Metrics,
     /// Internal queue of actions to send to the reactor.
-    actions: VecDeque<Action<G>>,
+    actions: VecDeque<Action>,
     /// Outbound attempted peers without a session.
     outbound: RandomMap<Token, Outbound>,
     /// Inbound peers without a session.
@@ -317,19 +317,23 @@ pub(crate) struct Wire<D, S, G: crypto::signature::Signer<crypto::Signature> + E
     tokens: Tokens,
 }
 
-impl<D, S, G> Wire<D, S, G>
+impl<D, S> Wire<D, S>
 where
     D: service::Store,
     S: WriteStorage + 'static,
-    G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId>,
+    // G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId>,
 {
-    pub fn new(service: Service<D, S, G>, worker: chan::Sender<Task>, signer: Device<G>) -> Self {
+    pub fn new(
+        service: Service<D, S>,
+        worker: chan::Sender<Task>,
+        secret_key: crate::secret::Secret,
+    ) -> Self {
         assert!(service.started().is_some(), "Service must be initialized");
 
         Self {
             service,
             worker,
-            signer,
+            secret_key,
             metrics: Metrics::default(),
             actions: VecDeque::new(),
             inbound: RandomSet::default(),
@@ -483,14 +487,13 @@ where
     }
 }
 
-impl<D, S, G> reactor::ReactionHandler for Wire<D, S, G>
+impl<D, S> reactor::ReactionHandler for Wire<D, S>
 where
     D: service::Store + Send,
     S: WriteStorage + Send + 'static,
-    G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone + Send + Debug,
 {
     type Listener = Listener;
-    type Transport = Transport<WireSession<G>>;
+    type Transport = Transport<WireSession>;
 
     fn tick(&mut self) {
         self.metrics.open_channels = self
@@ -539,11 +542,7 @@ where
                     return;
                 }
 
-                let session = accept::<G>(
-                    remote.clone().into(),
-                    connection,
-                    self.signer.clone().into_inner(),
-                );
+                let session = accept(remote.clone().into(), connection, self.secret_key.clone());
                 let transport = match Transport::with_session(session, Link::Inbound) {
                     Ok(transport) => transport,
                     Err(err) => {
@@ -581,13 +580,13 @@ where
         }
     }
 
-    fn transport_reacted(&mut self, token: Token, event: SessionEvent<WireSession<G>>, _: Instant) {
+    fn transport_reacted(&mut self, token: Token, event: SessionEvent<WireSession>, _: Instant) {
         match event {
             SessionEvent::Established(ProtocolArtifact { state, session }) => {
                 // SAFETY: With the NoiseXK protocol, there is always a remote static key.
                 let nid: NodeId = state.remote_static_key.unwrap();
                 // Make sure we don't try to connect to ourselves by mistake.
-                if &nid == self.signer.public_key() {
+                if nid == self.secret_key.public_key().into() {
                     log::warn!(target: "wire", "Self-connection detected, disconnecting..");
                     self.disconnect(token, DisconnectReason::SelfConnection);
 
@@ -629,7 +628,7 @@ where
                     use Precedence::*;
 
                     // Whether we have precedence in case of conflicting connections.
-                    let precedence = if *self.signer.public_key() > nid {
+                    let precedence = if NodeId::from(self.secret_key.public_key()) > nid {
                         Ours
                     } else {
                         Theirs
@@ -828,7 +827,7 @@ where
         }
     }
 
-    fn handle_error(&mut self, err: reactor::Error<Listener, Transport<WireSession<G>>>) {
+    fn handle_error(&mut self, err: reactor::Error<Listener, Transport<WireSession>>) {
         match err {
             reactor::Error::Poll(err) | reactor::Error::Registration(err) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
@@ -910,13 +909,13 @@ where
     }
 }
 
-impl<D, S, G> Iterator for Wire<D, S, G>
+impl<D, S> Iterator for Wire<D, S>
 where
     D: service::Store,
     S: WriteStorage + 'static,
-    G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone,
+    // G: crypto::signature::Signer<crypto::Signature> + Ecdh<Pk = NodeId> + Clone,
 {
-    type Item = Action<G>;
+    type Item = Action;
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(ev) = self.service.next() {
@@ -962,14 +961,14 @@ where
                     self.service.attempted(node_id, addr.clone());
                     self.metrics.peer(node_id).outbound_connection_attempts += 1;
 
-                    match dial::<G>(
+                    match dial(
                         (*addr).clone(),
                         node_id,
-                        self.signer.clone().into_inner(),
+                        self.secret_key.clone(),
                         self.service.config(),
                     )
                     .and_then(|session| {
-                        Transport::<WireSession<G>>::with_session(session, Link::Outbound)
+                        Transport::<WireSession>::with_session(session, Link::Outbound)
                     }) {
                         Ok(transport) => {
                             let token = self.tokens.advance();
@@ -1077,12 +1076,12 @@ where
 }
 
 /// Establish a new outgoing connection.
-pub fn dial<G: Ecdh<Pk = NodeId>>(
+pub fn dial(
     remote_addr: NetAddr<HostName>,
-    remote_id: <G as EcSk>::Pk,
-    signer: G,
+    remote_id: crypto::PublicKey,
+    signer: crate::secret::Secret,
     config: &radicle::node::Config,
-) -> io::Result<WireSession<G>> {
+) -> io::Result<WireSession> {
     #[cfg(any(feature = "i2p", feature = "tor"))]
     fn proxy_or_forward<H: std::fmt::Display>(
         config: &AddressConfig,
@@ -1149,7 +1148,7 @@ pub fn dial<G: Ecdh<Pk = NodeId>>(
     // Whether to tunnel regular connections through the proxy.
     let force_proxy = config.proxy.is_some();
 
-    Ok(session::<G>(
+    Ok(session(
         remote_addr,
         Some(remote_id),
         connection,
@@ -1159,22 +1158,22 @@ pub fn dial<G: Ecdh<Pk = NodeId>>(
 }
 
 /// Accept a new connection.
-pub fn accept<G: Ecdh<Pk = NodeId>>(
+pub fn accept(
     remote_addr: NetAddr<HostName>,
     connection: TcpStream,
-    signer: G,
-) -> WireSession<G> {
-    session::<G>(remote_addr, None, connection, false, signer)
+    secret_key: crate::secret::Secret,
+) -> WireSession {
+    session(remote_addr, None, connection, false, secret_key)
 }
 
 /// Create a new [`WireSession`].
-fn session<G: Ecdh<Pk = NodeId>>(
+fn session(
     remote_addr: NetAddr<HostName>,
     remote_id: Option<NodeId>,
     connection: TcpStream,
     force_proxy: bool,
-    signer: G,
-) -> WireSession<G> {
+    secret_key: crate::secret::Secret,
+) -> WireSession {
     if let Err(e) = connection.set_nodelay(true) {
         log::warn!(target: "wire", "Unable to set TCP_NODELAY on socket {connection:?}: {e}");
     }
@@ -1246,13 +1245,13 @@ fn session<G: Ecdh<Pk = NodeId>>(
     };
 
     let noise = {
-        let pair = G::generate_keypair();
+        let pair = crypto::KeyPair::generate();
 
         let keyset = Keyset {
-            e: pair.0,
-            s: Some(signer),
+            e: crypto::SecretKey::from(pair.sk),
+            s: Some(secret_key),
             re: None,
-            rs: remote_id,
+            rs: remote_id.into(),
         };
 
         NoiseState::initialize::<{ Sha256::OUTPUT_LEN }>(NOISE_XK, remote_id.is_some(), &[], keyset)

@@ -702,7 +702,7 @@ fn test_refs_announcement_relay_public() {
             [198, 18, 0, 9],
             storage,
             peer::Config {
-                signer,
+                secret_key,
                 rng,
                 ..peer::Config::default()
             },
@@ -786,7 +786,7 @@ fn test_refs_announcement_relay_private() {
             [198, 18, 0, 9],
             storage,
             peer::Config {
-                signer,
+                secret_key,
                 rng,
                 ..peer::Config::default()
             },
@@ -873,7 +873,7 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
             [198, 18, 0, 9],
             storage,
             peer::Config {
-                signer,
+                secret_key,
                 rng,
                 ..peer::Config::default()
             },
@@ -982,7 +982,7 @@ fn test_refs_announcement_offline() {
             [198, 18, 0, 7],
             storage,
             peer::Config {
-                signer,
+                secret_key,
                 ..peer::Config::default()
             },
         )

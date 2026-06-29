@@ -9,6 +9,7 @@ pub mod runtime;
 
 mod control;
 pub(crate) use radicle_protocol::service;
+mod secret;
 mod wire;
 mod worker;
 

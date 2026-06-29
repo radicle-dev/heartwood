@@ -42,12 +42,12 @@ use radicle::node::policy::{Scope, SeedingPolicy};
 use radicle_protocol::bounded::BoundedVec;
 
 /// Service instantiation used for testing.
-pub type Service<S, G> = service::Service<Database, S, G>;
+pub type Service<S> = service::Service<Database, S>;
 
 #[derive(Debug)]
-pub struct Peer<S, G> {
+pub struct Peer<S> {
     pub name: &'static str,
-    pub service: Service<S, G>,
+    pub service: Service<S>,
     pub id: NodeId,
     pub ip: net::IpAddr,
     pub local_time: LocalTime,
@@ -58,10 +58,9 @@ pub struct Peer<S, G> {
     initialized: bool,
 }
 
-impl<S, G> simulator::Peer<S, G> for Peer<S, G>
+impl<S> simulator::Peer<S> for Peer<S>
 where
     S: WriteStorage + 'static,
-    G: crypto::signature::Signer<crypto::Signature> + 'static,
 {
     fn init(&mut self) {}
 
@@ -74,27 +73,27 @@ where
     }
 }
 
-impl<S, G> Deref for Peer<S, G> {
-    type Target = Service<S, G>;
+impl<S> Deref for Peer<S> {
+    type Target = Service<S>;
 
     fn deref(&self) -> &Self::Target {
         &self.service
     }
 }
 
-impl<S, G> DerefMut for Peer<S, G> {
+impl<S> DerefMut for Peer<S> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.service
     }
 }
 
-impl Peer<MockStorage, MockSigner> {
+impl Peer<MockStorage> {
     pub fn new(name: &'static str, ip: impl Into<net::IpAddr>) -> Self {
         Self::with_storage(name, ip, MockStorage::empty()).initialized()
     }
 }
 
-impl<S> Peer<S, MockSigner>
+impl<S> Peer<S>
 where
     S: WriteStorage + 'static,
 {
@@ -103,16 +102,16 @@ where
     }
 }
 
-pub struct Config<G: crypto::signature::Signer<crypto::Signature> + 'static> {
+pub struct Config {
     pub config: radicle::node::Config,
     pub local_time: LocalTime,
     pub policy: SeedingPolicy,
-    pub signer: Device<G>,
+    pub secret_key: Secret,
     pub rng: fastrand::Rng,
     pub tmp: tempfile::TempDir,
 }
 
-impl Default for Config<MockSigner> {
+impl Default for Config {
     fn default() -> Self {
         let mut rng = fastrand::Rng::new();
         let signer = Device::mock_rng(&mut rng);
@@ -123,7 +122,7 @@ impl Default for Config<MockSigner> {
             config,
             local_time: LocalTime::now(),
             policy: SeedingPolicy::default(),
-            signer,
+            secret_key: signer,
             rng,
             tmp,
         }
@@ -149,20 +148,19 @@ impl<G: crypto::signature::Signer<crypto::Signature>> Peer<Storage, G> {
     }
 }
 
-impl<S, G> Peer<S, G>
+impl<S> Peer<S>
 where
     S: WriteStorage + 'static,
-    G: crypto::signature::Signer<crypto::Signature> + 'static,
 {
     pub fn config(
         name: &'static str,
         ip: impl Into<net::IpAddr>,
         storage: S,
-        mut config: Config<G>,
+        mut config: Config,
     ) -> Self {
         let policies = policy::Store::<policy::store::Write>::memory().unwrap();
         let mut policies = policy::Config::new(config.policy, policies);
-        let id = *config.signer.public_key();
+        let id = *config.secret_key.public_key();
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, config.rng.u16(..));
         let inventory = storage.repositories().unwrap();
@@ -197,7 +195,7 @@ where
             db,
             storage,
             policies,
-            config.signer,
+            config.secret_key,
             config.rng.clone(),
             announcement,
             emitter,
