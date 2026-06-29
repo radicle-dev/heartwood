@@ -39,12 +39,17 @@ impl<S: crypto::Signer + Default> Default for Device<S> {
     }
 }
 
-impl<S> Device<S> {
+impl<S: crypto::Signer> Device<S> {
     /// Construct a new `Device`.
-    pub fn new(node: NodeId, signer: S) -> Self {
-        Self { node, signer }
+    pub fn new(signer: S) -> Self {
+        Self {
+            node: *signer.public_key(),
+            signer,
+        }
     }
+}
 
+impl<S> Device<S> {
     /// Return the [`NodeId`] of the `Device.`
     pub fn node_id(&self) -> &NodeId {
         &self.node

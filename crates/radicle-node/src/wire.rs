@@ -1288,6 +1288,9 @@ mod logger {
 mod test {
     use super::*;
     use crate::crypto::test::signer::MockSigner;
+
+    use radicle_protocol::service::ServiceState as _;
+
     use crate::identity::RepoId;
     use crate::node;
     use crate::service::{Message, ZeroBytes};
@@ -1434,9 +1437,9 @@ mod test {
 
         let storage = crate::test::arbitrary::nonempty_storage(1);
         let rid = *storage.repos.keys().next().unwrap();
-        let mut alice = TestPeer::with_storage("alice", [7, 7, 7, 7], storage);
-        let bob = TestPeer::new("bob", [8, 8, 8, 8]);
-        let bob_id = bob.id;
+        let mut alice = TestPeer::with_storage("alice", 7, storage);
+        let bob = TestPeer::bob();
+        let bob_id = *bob.nid();
         let bob_addr = NetAddr {
             host: HostName::Ip(net::IpAddr::from([8, 8, 8, 8])),
             port: node::DEFAULT_PORT,
@@ -1454,7 +1457,7 @@ mod test {
         assert!(alice.fetcher().active_fetches().contains_key(&rid));
 
         let (worker_tx, _worker_rx) = chan::unbounded::<Task>();
-        let wire = Wire::new(alice.service, worker_tx, Device::mock());
+        let wire = Wire::new(alice.into_service(), worker_tx, Device::mock());
 
         (wire, rid, bob_id, bob_addr)
     }
