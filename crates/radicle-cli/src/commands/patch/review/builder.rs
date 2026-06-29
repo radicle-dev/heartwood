@@ -24,7 +24,6 @@ use radicle::cob::{CodeLocation, CodeRange};
 use radicle::crypto;
 use radicle::git;
 use radicle::git::Oid;
-use radicle::node::device::Device;
 use radicle::prelude::*;
 use radicle::storage::git::{Repository, cob::DraftStore};
 use radicle_surf::diff::*;
@@ -614,15 +613,12 @@ impl<'a> ReviewBuilder<'a> {
     }
 
     /// Run the review builder for the given revision.
-    pub fn run<G>(
+    pub fn run(
         self,
         revision: &Revision,
         opts: &mut git::raw::DiffOptions,
-        signer: &Device<G>,
-    ) -> anyhow::Result<()>
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
+        signer: &impl crypto::Signer,
+    ) -> anyhow::Result<()> {
         let repo = self.repo.raw();
         let base = repo.find_commit((*revision.base()).into())?;
         let patch_id = self.patch_id;

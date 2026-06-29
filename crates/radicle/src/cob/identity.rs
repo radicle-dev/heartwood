@@ -65,6 +65,7 @@ pub enum Action {
         /// Parent revision that this revision replaces.
         parent: Option<RevisionId>,
         /// Signature over the revision blob.
+        #[serde(with = "signature")]
         signature: Signature,
     },
     RevisionEdit {
@@ -80,6 +81,7 @@ pub enum Action {
     RevisionAccept {
         revision: RevisionId,
         /// Signature over the blob.
+        #[serde(with = "signature")]
         signature: Signature,
     },
     #[serde(rename = "revision.reject")]
@@ -214,10 +216,7 @@ impl Identity {
     ) -> Result<IdentityMut<'a, 'b, Repo, Signer>, cob::store::Error>
     where
         Repo: WriteRepository + cob::Store<Namespace = NodeId>,
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
+        Signer: crypto::Signer,
     {
         let mut store = cob::store::Store::open(store, WriteAs::new(signer))?;
 
@@ -262,7 +261,7 @@ impl Identity {
     ) -> Result<IdentityMut<'a, 'b, Repo, Signer>, store::Error>
     where
         Repo: WriteRepository + cob::Store<Namespace = NodeId>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
+        Signer: crypto::Signer,
     {
         let obj = Self::get(id, repo)?;
         let store = cob::store::Store::open(repo, WriteAs::new(signer))?;
@@ -287,7 +286,7 @@ impl Identity {
     ) -> Result<IdentityMut<'a, 'b, Repo, Signer>, RepositoryError>
     where
         Repo: WriteRepository + cob::Store<Namespace = NodeId>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
+        Signer: crypto::Signer,
     {
         let oid = repo.identity_root()?;
         let oid = ObjectId::from(oid);
@@ -894,7 +893,7 @@ impl<R: ReadRepository> cob::Evaluate<R> for Identity {
 pub enum Verdict {
     /// An accepting verdict must supply the [`Signature`] over the
     /// new proposed [`Doc`].
-    Accept(Signature),
+    Accept(#[serde(with = "signature")] Signature),
     /// Rejecting the proposed [`Doc`].
     Reject,
 }
@@ -1067,10 +1066,7 @@ impl Revision {
         })
     }
 
-    pub fn sign<G: crypto::signature::Signer<crypto::Signature>>(
-        &self,
-        signer: &G,
-    ) -> Result<Signature, DocError> {
+    pub fn sign(&self, signer: &impl crypto::Signer) -> Result<Signature, DocError> {
         self.doc.signature_of(signer)
     }
 }
@@ -1141,14 +1137,14 @@ impl<R: ReadRepository> store::Transaction<Identity, R> {
     }
 }
 
-impl<R: WriteRepository> store::Transaction<Identity, R> {
-    pub fn new_revision<G: crypto::signature::Signer<crypto::Signature>>(
+impl<Repo: WriteRepository> store::Transaction<Identity, Repo> {
+    pub fn new_revision(
         title: cob::Title,
         description: impl ToString,
         doc: &Doc,
         parent: Option<RevisionId>,
-        repo: &R,
-        signer: &G,
+        repo: &Repo,
+        signer: &impl crypto::Signer,
     ) -> Result<Self, store::Error> {
         let mut tx = Transaction::default();
 
@@ -1175,14 +1171,14 @@ impl<R: WriteRepository> store::Transaction<Identity, R> {
     }
 }
 
-pub struct IdentityMut<'a, 'b, Repo, Signer> {
+pub struct IdentityMut<'a, 'b, Repo, Signer: crypto::Signer> {
     pub id: ObjectId,
 
     identity: Identity,
     store: store::Store<'a, Identity, Repo, WriteAs<'b, Signer>>,
 }
 
-impl<Repo, Signer> fmt::Debug for IdentityMut<'_, '_, Repo, Signer> {
+impl<Repo, Signer: crypto::Signer> fmt::Debug for IdentityMut<'_, '_, Repo, Signer> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("IdentityMut")
             .field("id", &self.id)
@@ -1191,13 +1187,9 @@ impl<Repo, Signer> fmt::Debug for IdentityMut<'_, '_, Repo, Signer> {
     }
 }
 
-impl<Repo, Signer> IdentityMut<'_, '_, Repo, Signer>
+impl<Repo, Signer: crypto::Signer> IdentityMut<'_, '_, Repo, Signer>
 where
     Repo: WriteRepository + cob::Store<Namespace = NodeId>,
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
 {
     /// Reload the identity data from storage.
     #[cfg(test)]
@@ -1240,7 +1232,7 @@ where
         doc: &Doc,
     ) -> Result<RevisionId, Error> {
         #[allow(deprecated)]
-        let did: Did = self.store.signer().verifying_key().into();
+        let did: Did = self.store.signer().public_key().into();
         if let Some(revision_id) = self.has_accepted_active_sibling(&self.current, &did) {
             return Err(Error::Apply(ApplyError::SiblingAccepted {
                 revision: revision_id,
@@ -1275,7 +1267,7 @@ where
 
         if let Some(parent_id) = revision.parent {
             #[allow(deprecated)]
-            let did: Did = self.store.signer().verifying_key().into();
+            let did: Did = self.store.signer().public_key().into();
             if let Some(revision_id) = self.has_accepted_active_sibling(&parent_id, &did) {
                 return Err(Error::Apply(ApplyError::SiblingAccepted {
                     revision: revision_id,
@@ -1312,11 +1304,58 @@ where
     }
 }
 
-impl<Repo, Signer> Deref for IdentityMut<'_, '_, Repo, Signer> {
+impl<Repo, Signer: crypto::Signer> Deref for IdentityMut<'_, '_, Repo, Signer> {
     type Target = Identity;
 
     fn deref(&self) -> &Self::Target {
         &self.identity
+    }
+}
+
+/// This module defines a function to serialize [`Signature`] by
+/// encoding it as a string [multibase format] (using `base58btc` via
+/// [`multibase::encode`] with [`multibase::Base::Base58Btc`]) and
+/// a function to deserialize a [`Signature`] from a string
+/// in multibase format (using [`multibase::decode`]).
+///
+/// The names of these functions are so that the module can be consumed via
+/// `serde_derive`'s `with`, see <https://serde.rs/field-attrs.html#with>. This
+/// is done in particular for variants of [`Action`] and [`Verdict`] that carry
+/// a [`Signature`].
+///
+/// This module exists because, historically, [`Signature`] was a type that did
+/// implement [`serde::Serialize`] and [`serde::Deserialize`], but it was
+/// changed to refer to `ed25519::Signature` in order to maximize compatibility,
+/// which does not implement these traits.
+/// So, for backwards compatibility, this module fills the gap by providing a
+/// way to (se)serialize [`Signature`].
+///
+/// [multibase format]: https://datatracker.ietf.org/doc/draft-multiformats-multibase/
+mod signature {
+    pub fn serialize<Serializer>(
+        signature: &crypto::Signature,
+        serializer: Serializer,
+    ) -> Result<Serializer::Ok, Serializer::Error>
+    where
+        Serializer: serde::Serializer,
+    {
+        serializer.serialize_str(&multibase::encode(
+            multibase::Base::Base58Btc,
+            signature.to_bytes(),
+        ))
+    }
+
+    pub fn deserialize<'de, Deserializer>(
+        deserializer: Deserializer,
+    ) -> Result<crypto::Signature, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        use serde::Deserialize;
+
+        let (_, bytes) = multibase::decode(String::deserialize(deserializer)?)
+            .map_err(serde::de::Error::custom)?;
+        crypto::Signature::from_slice(bytes.as_slice()).map_err(serde::de::Error::custom)
     }
 }
 
@@ -1328,11 +1367,10 @@ mod test {
     use qcheck_macros::quickcheck;
 
     use crate::cob::{self, Title};
-    use crate::crypto::PublicKey;
+    use crate::crypto::{PublicKey, Signer as _, SigningKey};
     use crate::identity::Visibility;
     use crate::identity::did::Did;
     use crate::identity::doc::PayloadId;
-    use crate::node::device::Device;
     use crate::rad;
     use crate::storage::ReadStorage as _;
     use crate::storage::git::Storage;
@@ -1356,7 +1394,7 @@ mod test {
     #[test]
     fn test_identity_updates() {
         let NodeWithRepo { node, repo } = NodeWithRepo::default();
-        let bob = Device::mock();
+        let bob = SigningKey::mock(103);
         let signer = &node.signer;
         let mut identity = Identity::load_mut(&*repo, signer).unwrap();
         let mut doc = identity.doc().clone().edit();
@@ -1419,8 +1457,8 @@ mod test {
     #[test]
     fn test_identity_update_rejected() {
         let NodeWithRepo { node, repo } = NodeWithRepo::default();
-        let bob = Device::mock();
-        let eve = Device::mock();
+        let bob = SigningKey::mock(200);
+        let eve = SigningKey::mock(201);
         let signer = &node.signer;
 
         let mut identity = Identity::load_mut(&*repo, signer).unwrap();
@@ -2531,9 +2569,9 @@ mod test {
         let tempdir = tempfile::tempdir().unwrap();
         let mut rng = fastrand::Rng::new();
 
-        let alice = Device::mock_rng(&mut rng);
-        let bob = Device::mock_rng(&mut rng);
-        let eve = Device::mock_rng(&mut rng);
+        let alice = SigningKey::mock(rng.usize(..));
+        let bob = SigningKey::mock(rng.usize(..));
+        let eve = SigningKey::mock(rng.usize(..));
 
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
         let (id, _, _, _) =
@@ -2717,7 +2755,6 @@ mod test {
     /// enables a queued child to be automatically adopted.
     #[test]
     fn evaluates_queued_children_with_new_delegate() {
-        use crate::crypto::test::signer::MockSigner;
         use crate::test::setup::{Node, NodeRepo};
         use tempfile::tempdir;
 
@@ -2727,7 +2764,7 @@ mod test {
         let eve = &network.eve;
 
         // Create Dave as a 4th participant.
-        let mut dave_node = Node::new(tempdir().unwrap(), MockSigner::from_seed([!3; 32]), "dave");
+        let mut dave_node = Node::new(tempdir().unwrap(), SigningKey::mock(3), "dave");
         dave_node.clone(network.rid, alice);
         let dave_repo = NodeRepo {
             repo: dave_node.storage.repository(network.rid).unwrap(),
@@ -2829,7 +2866,6 @@ mod test {
     /// by its parent, not by the currently accepted identity document.
     #[test]
     fn authorization_based_on_parent_not_current() {
-        use crate::crypto::test::signer::MockSigner;
         use crate::test::setup::{Node, NodeRepo};
         use tempfile::tempdir;
 
@@ -2839,7 +2875,7 @@ mod test {
         let eve = &network.eve;
 
         // Create Dave as a 4th participant.
-        let mut dave_node = Node::new(tempdir().unwrap(), MockSigner::from_seed([!3; 32]), "dave");
+        let mut dave_node = Node::new(tempdir().unwrap(), SigningKey::mock(3), "dave");
         dave_node.clone(network.rid, alice);
         let dave_repo = NodeRepo {
             repo: dave_node.storage.repository(network.rid).unwrap(),

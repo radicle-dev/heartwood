@@ -175,7 +175,7 @@ mod tests {
     use serde_json as json;
 
     use crate::cob::change::Storage as _;
-    use crate::crypto::test::signer::MockSigner;
+    use crate::crypto::SigningKey;
     use crate::test::arbitrary;
     use crate::test::arbitrary::r#gen;
     use crate::{cob, test};
@@ -186,7 +186,7 @@ mod tests {
         "xyz.radicle.test".parse::<TypeName>().unwrap()
     }
 
-    fn gen_ops(repo: &git::raw::Repository, signer: &MockSigner) -> Vec<cob::Entry> {
+    fn gen_ops(repo: &git::raw::Repository, signer: &SigningKey) -> Vec<cob::Entry> {
         // Number of ops
         let n = r#gen::<u8>(1).clamp(1, 10);
         let mut entries = Vec::with_capacity(n.into());
@@ -215,7 +215,7 @@ mod tests {
 
     fn create_entry(
         repo: &git::raw::Repository,
-        signer: &MockSigner,
+        signer: &SigningKey,
         contents: NonEmpty<Vec<u8>>,
         parent: Option<Oid>,
     ) -> cob::Entry {
@@ -332,7 +332,7 @@ mod tests {
     fn test_all_from() {
         let tmp = tempfile::tempdir().unwrap();
         let (repo, _) = test::fixtures::repository(tmp.path());
-        let signer = MockSigner::default();
+        let signer = SigningKey::mock(38);
         let ops = gen_ops(&repo, &signer);
         let history = CobRange {
             root: ops.first().unwrap().id,
@@ -346,7 +346,7 @@ mod tests {
     fn test_all_until() {
         let tmp = tempfile::tempdir().unwrap();
         let (repo, _) = test::fixtures::repository(tmp.path());
-        let signer = MockSigner::default();
+        let signer = SigningKey::mock(39);
         let ops = gen_ops(&repo, &signer);
         let tip = ops.last().unwrap().id;
         let history = CobRange {
@@ -361,7 +361,7 @@ mod tests {
     fn test_all_from_until() {
         let tmp = tempfile::tempdir().unwrap();
         let (repo, _) = test::fixtures::repository(tmp.path());
-        let signer = MockSigner::default();
+        let signer = SigningKey::mock(40);
         let ops = gen_ops(&repo, &signer);
         let tip = ops.last().unwrap().id;
         let history = CobRange {
@@ -376,7 +376,7 @@ mod tests {
     fn test_from_until() {
         let tmp = tempfile::tempdir().unwrap();
         let (repo, _) = test::fixtures::repository(tmp.path());
-        let signer = MockSigner::default();
+        let signer = SigningKey::mock(41);
         let ops = gen_ops(&repo, &signer);
         let history = CobRange {
             root: ops.first().unwrap().id,
@@ -399,7 +399,7 @@ mod tests {
     fn test_regression_from_until() {
         let tmp = tempfile::tempdir().unwrap();
         let (repo, _) = test::fixtures::repository(tmp.path());
-        let signer = MockSigner::default();
+        let signer = SigningKey::mock(42);
         // Set up 3 entries that make up the COB history
         let op1 = create_entry(
             &repo,

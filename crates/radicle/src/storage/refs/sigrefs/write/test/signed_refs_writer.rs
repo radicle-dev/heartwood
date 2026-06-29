@@ -39,7 +39,14 @@ fn refs_with_rad_sigrefs() -> Refs {
 }
 
 fn write(refs: Refs, repo: &MockRepository) -> Result<Update, error::Write> {
-    SignedRefsWriter::new(refs, mock::rid(), mock::node_id(), repo, &mock::AlwaysSign).write(
+    SignedRefsWriter::new(
+        refs,
+        mock::rid(),
+        mock::node_id(),
+        repo,
+        &mock::AlwaysSign::new(),
+    )
+    .write(
         Committer::new(mock::author()),
         "msg".into(),
         "reflog".into(),
@@ -47,7 +54,14 @@ fn write(refs: Refs, repo: &MockRepository) -> Result<Update, error::Write> {
 }
 
 fn force_write(refs: Refs, repo: &MockRepository) -> Result<Update, error::Write> {
-    SignedRefsWriter::new(refs, mock::rid(), mock::node_id(), repo, &mock::AlwaysSign).force_write(
+    SignedRefsWriter::new(
+        refs,
+        mock::rid(),
+        mock::node_id(),
+        repo,
+        &mock::AlwaysSign::new(),
+    )
+    .force_write(
         Committer::new(mock::author()),
         "msg".into(),
         "reflog".into(),
@@ -71,7 +85,7 @@ fn unchanged() {
         .with_rad_sigrefs(&mock::node_id(), head)
         .with_commit(head, mock::commit_data([]))
         .with_refs(head, refs.clone())
-        .with_signature(head, 1);
+        .with_valid_signature(head, &refs);
 
     match write(refs.clone(), &repo).unwrap() {
         Update::Unchanged { verified } => {

@@ -16,6 +16,7 @@ use radicle::cob::object::ParseObjectId;
 use radicle::cob::patch;
 use radicle::cob::patch::cache::Patches as _;
 use radicle::crypto;
+use radicle::crypto::Signer as _;
 use radicle::explorer::ExplorerResource;
 use radicle::identity::Did;
 use radicle::node;
@@ -287,7 +288,7 @@ pub(super) fn run(
     //    won't match the remote we're pushing to.
     // 3. The URL namespace is not set.
     let nid = url.namespace.ok_or(Error::NoKey).and_then(|ns| {
-        (profile.public_key == ns)
+        (profile.id() == &ns)
             .then_some(ns)
             .ok_or(Error::KeyMismatch(ns.into()))
     })?;
@@ -568,7 +569,7 @@ impl<'a, G> Drop for TempPatchRef<'a, G> {
 }
 
 /// Open a new patch.
-fn patch_open<S, Signer>(
+fn patch_open(
     head: &git::Oid,
     upstream: &Option<git::fmt::RefString>,
     nid: &NodeId,
@@ -577,20 +578,13 @@ fn patch_open<S, Signer>(
     mut patches: patch::Cache<
         '_,
         storage::git::Repository,
-        WriteAs<'_, Signer>,
+        WriteAs<'_, impl crypto::Signer>,
         cob::cache::StoreWriter,
     >,
     profile: &Profile,
     opts: Options,
-    git: &S,
-) -> Result<Option<ExplorerResource>, Error>
-where
-    S: GitService,
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
-{
+    git: &impl GitService,
+) -> Result<Option<ExplorerResource>, Error> {
     let temp = TempPatchRef::new(stored, head, nid, git);
     temp.push(head, opts.verbosity)?;
     let base = patch_base(head, &opts, stored)?;
@@ -692,7 +686,7 @@ where
 
 /// Update an existing patch.
 #[allow(clippy::too_many_arguments)]
-fn patch_update<S, Signer>(
+fn patch_update<Signer>(
     head: &git::Oid,
     dst: &git::fmt::Qualified,
     force: bool,
@@ -709,14 +703,10 @@ fn patch_update<S, Signer>(
     signer: &Signer,
     opts: Options,
     expected_refs: &[String],
-    git: &S,
+    git: &impl GitService,
 ) -> Result<Option<ExplorerResource>, Error>
 where
-    S: GitService,
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
+    Signer: crypto::Signer,
 {
     let Ok(Some(patch)) = patches.get(&patch_id) else {
         return Err(Error::NotFound(patch_id));
@@ -786,7 +776,7 @@ where
     Ok(Some(ExplorerResource::Patch { id: patch_id }))
 }
 
-fn push<S, Signer>(
+fn push<Signer>(
     src: &git::Oid,
     dst: &git::fmt::Qualified,
     force: bool,
@@ -802,14 +792,10 @@ fn push<S, Signer>(
     signer: &Signer,
     verbosity: Verbosity,
     expected_refs: &[String],
-    git: &S,
+    git: &impl GitService,
 ) -> Result<Option<ExplorerResource>, Error>
 where
-    S: GitService,
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
+    Signer: crypto::Signer,
 {
     let head = *src;
     let namespaced_dst = dst.with_namespace(nid.into());
@@ -859,7 +845,7 @@ where
 }
 
 /// Revert all patches that are no longer included in the base branch.
-fn patch_revert_all<Signer>(
+fn patch_revert_all(
     old: git::Oid,
     new: git::Oid,
     pushed_dst: &git::fmt::Qualified,
@@ -867,15 +853,11 @@ fn patch_revert_all<Signer>(
     patches: &mut patch::Cache<
         '_,
         storage::git::Repository,
-        WriteAs<'_, Signer>,
+        WriteAs<'_, impl crypto::Signer>,
         cob::cache::StoreWriter,
     >,
     identity: &radicle::identity::Identity,
-) -> Result<(), Error>
-where
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-{
+) -> Result<(), Error> {
     // Find all commits reachable from the old OID but not from the new OID.
     let mut revwalk = stored.revwalk()?;
     revwalk.push(old.into())?;
@@ -961,10 +943,7 @@ fn patch_merge_all<Signer>(
     identity: &radicle::identity::Identity,
 ) -> Result<(), Error>
 where
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
+    Signer: crypto::Signer,
 {
     let mut revwalk = working.revwalk()?;
     revwalk.push_range(&format!("{old}..{new}"))?;
@@ -1011,19 +990,22 @@ where
     Ok(())
 }
 
-fn patch_merge<Signer, C>(
-    mut patch: patch::PatchMut<'_, '_, '_, storage::git::Repository, Signer, C>,
+fn patch_merge<Signer>(
+    mut patch: patch::PatchMut<
+        '_,
+        '_,
+        '_,
+        storage::git::Repository,
+        Signer,
+        impl cob::cache::Update<patch::Patch>,
+    >,
     revision: patch::RevisionId,
     commit: git::Oid,
     working: &git::raw::Repository,
     signer: &Signer,
 ) -> Result<(), Error>
 where
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
-    C: cob::cache::Update<patch::Patch>,
+    Signer: crypto::Signer,
 {
     let (latest, _) = patch.latest();
     let merged = patch.merge(revision, commit)?;

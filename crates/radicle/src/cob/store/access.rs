@@ -7,11 +7,11 @@ pub use seal::Access;
 pub struct ReadOnly;
 
 /// [`WriteAs`] is used for write [`Access`].
-pub struct WriteAs<'a, Signer> {
+pub struct WriteAs<'a, Signer: crypto::Signer> {
     pub(super) signer: &'a Signer,
 }
 
-impl<'a, Signer> WriteAs<'a, Signer> {
+impl<'a, Signer: crypto::Signer> WriteAs<'a, Signer> {
     pub fn new(signer: &'a Signer) -> Self {
         Self { signer }
     }
@@ -31,7 +31,7 @@ mod seal {
         fn seal(&self, _: Seal) {}
     }
 
-    impl<Signer> Access for super::WriteAs<'_, Signer> {
+    impl<Signer: crypto::Signer> Access for super::WriteAs<'_, Signer> {
         fn seal(&self, _: Seal) {}
     }
 }

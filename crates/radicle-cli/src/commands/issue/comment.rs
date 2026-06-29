@@ -1,6 +1,7 @@
 use radicle::Profile;
 use radicle::cob::store::access::WriteAs;
 use radicle::cob::thread;
+use radicle::crypto;
 use radicle::storage::WriteRepository;
 use radicle::{cob, git, issue, storage};
 
@@ -9,26 +10,20 @@ use crate::terminal as term;
 use crate::terminal::Element as _;
 use crate::terminal::patch::Message;
 
-pub(super) fn comment<Signer>(
+pub(super) fn comment(
     profile: &Profile,
     repo: &storage::git::Repository,
     issues: &mut issue::Cache<
         '_,
         storage::git::Repository,
-        WriteAs<'_, Signer>,
+        WriteAs<'_, impl crypto::Signer>,
         cob::cache::Store<cob::cache::Write>,
     >,
     id: Rev,
     message: Message,
     reply_to: Option<Rev>,
     quiet: bool,
-) -> Result<(), anyhow::Error>
-where
-    Signer: radicle::crypto::signature::Keypair<VerifyingKey = radicle::crypto::PublicKey>,
-    Signer: radicle::crypto::signature::Signer<radicle::crypto::Signature>,
-    Signer: radicle::crypto::signature::Signer<radicle::crypto::ssh::ExtendedSignature>,
-    Signer: radicle::crypto::signature::Verifier<radicle::crypto::Signature>,
-{
+) -> Result<(), anyhow::Error> {
     let reply_to = reply_to
         .map(|rev| rev.resolve::<git::Oid>(repo.raw()))
         .transpose()?;
@@ -47,26 +42,20 @@ where
     Ok(())
 }
 
-pub(super) fn edit<Signer>(
+pub(super) fn edit(
     profile: &Profile,
     repo: &storage::git::Repository,
     issues: &mut issue::Cache<
         '_,
         storage::git::Repository,
-        WriteAs<'_, Signer>,
+        WriteAs<'_, impl crypto::Signer>,
         cob::cache::Store<cob::cache::Write>,
     >,
     id: Rev,
     message: Message,
     comment_id: Rev,
     quiet: bool,
-) -> Result<(), anyhow::Error>
-where
-    Signer: radicle::crypto::signature::Keypair<VerifyingKey = radicle::crypto::PublicKey>,
-    Signer: radicle::crypto::signature::Signer<radicle::crypto::Signature>,
-    Signer: radicle::crypto::signature::Signer<radicle::crypto::ssh::ExtendedSignature>,
-    Signer: radicle::crypto::signature::Verifier<radicle::crypto::Signature>,
-{
+) -> Result<(), anyhow::Error> {
     let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
     let comment_id = comment_id.resolve(&repo.backend)?;
     let mut issue = issues.get_mut(&issue_id)?;

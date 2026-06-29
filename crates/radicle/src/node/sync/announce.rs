@@ -668,13 +668,18 @@ mod test {
 
     #[test]
     fn announcer_reached_min_replication_target() {
-        let local = arbitrary::r#gen::<NodeId>(0);
-        let seeds = arbitrary::set::<NodeId>(10..=10);
-        let unsynced = seeds.iter().skip(3).copied().collect::<BTreeSet<_>>();
-        let preferred_seeds = seeds.iter().take(2).copied().collect::<BTreeSet<_>>();
+        let ids = arbitrary::array_distinct::<6, _>();
+        let local = ids[0];
+        let unsynced = ids[1..4].iter().cloned().collect::<BTreeSet<_>>();
+        let preferred_seeds = ids[4..].iter().cloned().collect::<BTreeSet<_>>();
+
+        let replicas = ReplicationFactor::must_reach(3);
+
+        assert!(replicas.lower_bound() <= unsynced.len() + preferred_seeds.len());
+
         let config = AnnouncerConfig::public(
             local,
-            ReplicationFactor::must_reach(3),
+            replicas,
             preferred_seeds.clone(),
             BTreeSet::new(),
             unsynced.clone(),
@@ -729,17 +734,23 @@ mod test {
 
     #[test]
     fn announcer_reached_max_replication_target() {
-        let local = arbitrary::r#gen::<NodeId>(0);
-        let seeds = arbitrary::set::<NodeId>(10..=10);
-        let unsynced = seeds.iter().skip(3).copied().collect::<BTreeSet<_>>();
-        let preferred_seeds = seeds.iter().take(2).copied().collect::<BTreeSet<_>>();
+        const UPPER: usize = 6;
+
+        let ids = arbitrary::array_distinct::<10, _>();
+        let local = ids[0];
+        let unsynced = ids[1..7].iter().copied().collect::<BTreeSet<_>>();
+        let preferred_seeds = ids[7..].iter().copied().collect::<BTreeSet<_>>();
+
         let config = AnnouncerConfig::public(
             local,
-            ReplicationFactor::range(3, 6),
+            ReplicationFactor::range(3, UPPER),
             preferred_seeds.clone(),
             BTreeSet::new(),
             unsynced.clone(),
         );
+
+        assert!(config.replicas.upper_bound().unwrap() <= unsynced.len());
+
         let mut announcer = Announcer::new(config).unwrap();
         let to_sync = announcer.to_sync();
         assert_eq!(to_sync, unsynced.union(&preferred_seeds).copied().collect());
@@ -769,7 +780,7 @@ mod test {
             success.as_ref().unwrap().outcome(),
             SuccessfulOutcome::MaxReplicationFactor {
                 preferred: 0,
-                synced: 6,
+                synced: UPPER,
             }
         )
     }
@@ -840,10 +851,15 @@ mod test {
 
     #[test]
     fn announcer_reached_preferred_seeds() {
-        let local = arbitrary::r#gen::<NodeId>(0);
         let seeds = arbitrary::set::<NodeId>(10..=10);
-        let unsynced = seeds.iter().skip(2).copied().collect::<BTreeSet<_>>();
-        let preferred_seeds = seeds.iter().take(2).copied().collect::<BTreeSet<_>>();
+        let local = seeds.iter().next().copied().unwrap();
+        let unsynced = seeds.iter().skip(3).copied().collect::<BTreeSet<_>>();
+        let preferred_seeds = seeds
+            .iter()
+            .skip(1)
+            .take(2)
+            .copied()
+            .collect::<BTreeSet<_>>();
         let config = AnnouncerConfig::public(
             local,
             ReplicationFactor::must_reach(11),
@@ -1555,7 +1571,7 @@ mod test {
     #[test]
     fn synced_with_local_node_is_ignored() {
         let local = arbitrary::r#gen::<NodeId>(0);
-        let unsynced = arbitrary::set::<NodeId>(3..=3).into_iter().collect();
+        let unsynced = BTreeSet::from_iter(arbitrary::set::<NodeId>(3..=3));
 
         let config = AnnouncerConfig::public(
             local,

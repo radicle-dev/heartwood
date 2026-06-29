@@ -2,11 +2,10 @@ use anyhow::anyhow;
 use radicle::cob::Reaction;
 use radicle::cob::issue::Issue;
 use radicle::cob::thread::{Comment, CommentId};
+use radicle::crypto::SigningKey;
 use radicle::crypto::ssh::Keystore;
-use radicle::crypto::ssh::keystore::MemorySigner;
-use radicle::node::device::{BoxedDevice, Device};
-use radicle::profile::Profile;
 use radicle::profile::env::RAD_PASSPHRASE;
+use radicle::profile::{Profile, Signer, SignerError};
 
 pub use radicle_term::io::*;
 pub use radicle_term::spinner;
@@ -45,14 +44,34 @@ impl inquire::validator::StringValidator for PassphraseValidator {
 
 /// Get the signer. First we try getting it from ssh-agent; otherwise, we prompt the user,
 /// if we're connected to a TTY.
-pub fn signer(profile: &Profile) -> anyhow::Result<BoxedDevice> {
-    match profile.signer() {
+pub fn signer(profile: &Profile) -> anyhow::Result<Signer> {
+    let err = match profile.signer() {
         Ok(signer) => return Ok(signer),
-        Err(err) if !err.prompt_for_passphrase() => return Err(anyhow!(err)),
-        Err(_) => {
-            // The error returned is potentially recoverable by prompting
-            // the user for the correct passphrase.
+        Err(err) => err,
+    };
+
+    match err {
+        SignerError::LoadError(radicle::crypto::LoadError::InvalidPassphrase) => {
+            super::warning(format!(
+                "The passphrase for your Radicle key provided in the environment variable `{RAD_PASSPHRASE}` is invalid. Please try again."
+            ));
         }
+        SignerError::AgentConnection(err) => {
+            super::warning(format!(
+                "Failed to connect to ssh-agent: {err}. Falling back to passphrase prompt."
+            ));
+        }
+        SignerError::Agent(radicle::crypto::ssh::agent::IntoSignerError::IdentityNotFound {
+            identity,
+        }) => {
+            super::warning(format!(
+                "The Radicle key for `{identity}` is not registered with ssh-agent. Please run `rad auth` to register it."
+            ));
+        }
+        err @ SignerError::LoadError(_)
+        | err @ SignerError::InvalidPublicKey(_)
+        | err @ SignerError::Agent(_)
+        | err @ SignerError::Keystore(_) => return Err(anyhow!(err)),
     }
 
     let validator = PassphraseValidator::new(profile.keystore.clone());
@@ -65,11 +84,11 @@ pub fn signer(profile: &Profile) -> anyhow::Result<BoxedDevice> {
         }
     };
     let spinner = spinner("Unsealing key…");
-    let signer = MemorySigner::load(&profile.keystore, Some(passphrase))?;
+    let signer = SigningKey::load(&profile.keystore, Some(passphrase))?;
 
     spinner.finish();
 
-    Ok(Device::from(signer).boxed())
+    Ok(Signer::Key(signer))
 }
 
 pub fn comment_select(issue: &Issue) -> anyhow::Result<(&CommentId, &Comment)> {

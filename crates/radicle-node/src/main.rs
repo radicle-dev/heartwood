@@ -6,10 +6,11 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
-use radicle::node::device::Device;
+use radicle::crypto::Signer as _;
+use radicle::node::NodeId;
 use radicle::profile;
 
-use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
+use radicle_node::crypto::ssh::keystore::Keystore;
 use radicle_node::fingerprint::{Fingerprint, FingerprintVerification};
 use radicle_node::{Runtime, VERSION};
 use radicle_signals as signals;
@@ -313,7 +314,7 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
 
     let keystore = Keystore::from_secret_path(&secret_path);
 
-    let secret_key = keystore
+    let signer = keystore
         .secret_key(passphrase.clone())
         .map_err(|err| ExecutionError::SecretLoading {
             path: secret_path.clone(),
@@ -325,7 +326,7 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
 
     if let Some(fp) = Fingerprint::read(&home)? {
         log::debug!(target: "node", "Verifying fingerprint..");
-        if fp.verify(&secret_key) != FingerprintVerification::Match {
+        if fp.verify(&signer) != FingerprintVerification::Match {
             return Err(ExecutionError::FingerprintMismatch {
                 secret: keystore.secret_key_path().to_path_buf(),
                 fingerprint: fp,
@@ -333,11 +334,10 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
         }
     } else {
         log::info!(target: "node", "Initializing fingerprint..");
-        Fingerprint::init(&home, &secret_key)?;
+        Fingerprint::init(&home, &signer)?;
     }
 
-    let signer = Device::from(MemorySigner::from_secret(secret_key));
-    log::info!(target: "node", "Node ID is {}", signer.public_key());
+    log::info!(target: "node", "Node ID is {}", NodeId::from(*signer.public_key()));
 
     // Add the preferred seeds as persistent peers so that we reconnect to them automatically.
     config.node.connect.extend(config.preferred_seeds);

@@ -51,23 +51,23 @@ impl Create {
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]. See
 /// [`Create`] for further information.
-pub fn create<T, S, G>(
-    storage: &S,
-    signer: &G,
+pub fn create<T, Storage>(
+    storage: &Storage,
+    signer: &impl crypto::Signer,
     resource: Option<Oid>,
     related: Vec<Oid>,
-    identifier: &<S as crate::object::Storage>::Namespace,
+    identifier: &<Storage as crate::object::Storage>::Namespace,
     args: Create,
 ) -> Result<CollaborativeObject<T>, error::Create>
 where
-    T: Evaluate<S>,
-    S: crate::object::Storage
-        + crate::change::Storage<
+    T: Evaluate<Storage>,
+    Storage: crate::object::Storage,
+    Storage: crate::change::Storage<
             ObjectId = crate::object::Oid,
             Parent = crate::object::Oid,
-            Signatures = crate::ExtendedSignature,
+            PublicKey = crypto::PublicKey,
+            Signature = crypto::Signature,
         >,
-    G: signature::Signer<crate::ExtendedSignature>,
 {
     let type_name = args.type_name.clone();
     let version = args.version;

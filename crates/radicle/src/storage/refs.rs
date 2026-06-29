@@ -10,8 +10,8 @@ use std::io::{BufRead, BufReader};
 use std::ops::Deref;
 use std::str::FromStr;
 
-use crypto::signature;
-use crypto::{PublicKey, Signature};
+use crypto::PublicKey;
+use crypto::Signature;
 use radicle_core::NodeId;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -70,55 +70,49 @@ impl Refs {
 
     /// Save the signed refs to disk.
     /// This creates a new commit on the signed refs branch, and updates the branch pointer.
-    pub fn save<R, S>(
+    pub fn save<Repo>(
         self,
         namespace: NodeId,
         committer: sigrefs::git::Committer,
-        repo: &R,
-        signer: &S,
+        repo: &Repo,
+        signer: &impl crypto::Signer,
     ) -> Result<SignedRefs, Error>
     where
-        R: sigrefs::git::object::Reader + sigrefs::git::object::Writer,
-        R: sigrefs::git::reference::Reader + sigrefs::git::reference::Writer,
-        R: HasRepoId,
-        S: signature::Signer<crypto::Signature>,
-        S: signature::Verifier<crypto::Signature>,
+        Repo: sigrefs::git::object::Reader + sigrefs::git::object::Writer,
+        Repo: sigrefs::git::reference::Reader + sigrefs::git::reference::Writer,
+        Repo: HasRepoId,
     {
         self.save_with(namespace, committer, repo, signer, false)
     }
 
     /// Save the signed refs to disk, even if the refs are unchanged.
-    pub fn force_save<R, S>(
+    pub fn force_save<Repo>(
         self,
         namespace: NodeId,
         committer: sigrefs::git::Committer,
-        repo: &R,
-        signer: &S,
+        repo: &Repo,
+        signer: &impl crypto::Signer,
     ) -> Result<SignedRefs, Error>
     where
-        R: sigrefs::git::object::Reader + sigrefs::git::object::Writer,
-        R: sigrefs::git::reference::Reader + sigrefs::git::reference::Writer,
-        R: HasRepoId,
-        S: signature::Signer<crypto::Signature>,
-        S: signature::Verifier<crypto::Signature>,
+        Repo: sigrefs::git::object::Reader + sigrefs::git::object::Writer,
+        Repo: sigrefs::git::reference::Reader + sigrefs::git::reference::Writer,
+        Repo: HasRepoId,
     {
         self.save_with(namespace, committer, repo, signer, true)
     }
 
-    fn save_with<R, S>(
+    fn save_with<Repo>(
         self,
         namespace: NodeId,
         committer: sigrefs::git::Committer,
-        repo: &R,
-        signer: &S,
+        repo: &Repo,
+        signer: &impl crypto::Signer,
         force: bool,
     ) -> Result<SignedRefs, Error>
     where
-        R: sigrefs::git::object::Reader + sigrefs::git::object::Writer,
-        R: sigrefs::git::reference::Reader + sigrefs::git::reference::Writer,
-        R: HasRepoId,
-        S: signature::Signer<crypto::Signature>,
-        S: signature::Verifier<crypto::Signature>,
+        Repo: sigrefs::git::object::Reader + sigrefs::git::object::Writer,
+        Repo: sigrefs::git::reference::Reader + sigrefs::git::reference::Writer,
+        Repo: HasRepoId,
     {
         let msg = "Update signed refs\n";
         let reflog = format!("Save {} signed references", self.len());
@@ -452,7 +446,12 @@ impl SignedRefs {
         R: sigrefs::git::object::Reader + sigrefs::git::reference::Reader,
     {
         let root = repo.rid();
-        match sigrefs::SignedRefsReader::new(root, tip, repo, &remote).read() {
+
+        let verifier = crypto::VerifyingKey::try_from(&remote).map_err(|source| {
+            sigrefs::read::error::Read::Verify(sigrefs::read::error::Verify::Signature(source))
+        })?;
+
+        match sigrefs::SignedRefsReader::new(root, tip, repo, &verifier).read() {
             Ok(latest) => Ok(Some(latest.into_sigrefs_at(remote))),
             Err(sigrefs::read::error::Read::MissingSigrefs { namespace }) => {
                 debug_assert_eq!(namespace, remote);
@@ -500,7 +499,7 @@ mod tests {
     use super::*;
     use crate::assert_matches;
 
-    use crate::node::device::Device;
+    use crate::crypto::{Signer as _, SigningKey};
     use crate::storage::WriteRepository as _;
     use crate::{Storage, cob::Title, cob::identity::Identity, rad, test::fixtures};
 
@@ -522,8 +521,8 @@ mod tests {
     // `paris` repo. We also don't expected the signed refs to validate without error.
     fn test_rid_verification() {
         let tmp = tempfile::tempdir().unwrap();
-        let alice = Device::mock();
-        let bob = Device::mock();
+        let alice = SigningKey::mock(9);
+        let bob = SigningKey::mock(10);
         let storage = &Storage::open(tmp.path().join("storage"), fixtures::user()).unwrap();
 
         transport::local::register(storage.clone());
@@ -665,7 +664,7 @@ mod tests {
         // under her copy of Bob's namespace, and this would only be rejected during signed ref
         // validation.
         {
-            let name = &SIGREFS_BRANCH.with_namespace(git::fmt::Component::from(bob.node_id()));
+            let name = &SIGREFS_BRANCH.with_namespace(git::fmt::Component::from(bob.public_key()));
             let id = paris.backend.refname_to_id(name.as_str()).unwrap();
             london
                 .backend

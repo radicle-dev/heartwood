@@ -5,9 +5,7 @@
 // Re-exports created by manually scanning the `heartwood` workspace on 2025-10-04.
 
 // Re-exports that are only used within this crate.
-pub(crate) use git2::{
-    AutotagOption, Blob, FetchOptions, FetchPrune, Object, Revwalk, Sort, message_trailers_strs,
-};
+pub(crate) use git2::{AutotagOption, Blob, FetchOptions, FetchPrune, Object, Revwalk, Sort};
 
 #[cfg(unix)]
 pub(crate) use git2::Config;

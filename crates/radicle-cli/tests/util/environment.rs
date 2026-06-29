@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use radicle::cob::cache::COBS_DB_FILE;
-use radicle::crypto::ssh::{Keystore, keystore::MemorySigner};
-use radicle::crypto::{KeyPair, Seed};
+use radicle::crypto::ssh::Keystore;
+use radicle::crypto::{Signer as _, SigningKey};
 use radicle::git;
 use radicle::node;
 use radicle::node::policy::store as policy;
@@ -136,7 +136,9 @@ impl Environment {
     pub fn profile_with(&mut self, config: profile::Config) -> Profile {
         let alias = config.alias().clone();
         let home = self.rad_home(&alias);
-        let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
+        let seed = radicle::crypto::Seed::new([!(self.users as u8); 32]);
+        let keypair = SigningKey::from_seed(seed);
+        let public_key = keypair.public_key();
         let policies_db = home.node().join(POLICIES_DB_FILE);
         let cobs_db = home.cobs().join(COBS_DB_FILE);
 
@@ -146,7 +148,7 @@ impl Environment {
             home.storage(),
             radicle::git::UserInfo {
                 alias: alias.clone(),
-                key: keypair.pk.into(),
+                key: *public_key,
             },
         )
         .unwrap();
@@ -158,7 +160,7 @@ impl Environment {
         home.database_mut(node::db::config::Config::default())
             .unwrap()
             .init(
-                &keypair.pk.into(),
+                public_key,
                 config.node.features(),
                 &alias,
                 &config.node.user_agent(),
@@ -171,7 +173,7 @@ impl Environment {
 
         transport::local::register(storage.clone());
         let keystore = Keystore::new(&home.keys());
-        keystore.store(keypair.clone(), "radicle", None).unwrap();
+        keystore.store(&keypair, "radicle", None).unwrap();
 
         // Ensures that each user has a unique but deterministic public key.
         self.users += 1;
@@ -180,7 +182,7 @@ impl Environment {
             home,
             storage,
             keystore,
-            public_key: keypair.pk.into(),
+            public_key: *public_key,
             config,
         }
     }
@@ -197,7 +199,7 @@ impl Environment {
     /// as for each of them a convenience function
     /// (resp. [`Environment::node`], [`Environment::relay`], [`Environment::seed`]).
     /// is provided to reduce boilerplate.
-    pub fn node_with(&mut self, node: Config) -> Node<MemorySigner> {
+    pub fn node_with(&mut self, node: Config) -> Node {
         let alias = node.alias.clone();
         let profile = self.profile_with(profile::Config {
             node,
@@ -206,21 +208,21 @@ impl Environment {
         Node::new(profile)
     }
 
-    /// Convenience method for creating a [`Node<MemorySigner>`]
+    /// Convenience method for creating a [`Node`]
     /// using configuration [`config::node`] within this [`Environment`].
-    pub fn node(&mut self, alias: &'static str) -> Node<MemorySigner> {
+    pub fn node(&mut self, alias: &'static str) -> Node {
         self.node_with(config::node(alias))
     }
 
-    /// Convenience method for creating a [`Node<MemorySigner>`]
+    /// Convenience method for creating a [`Node`]
     /// using configuration [`config::relay`] within this [`Environment`].
-    pub fn relay(&mut self, alias: &'static str) -> Node<MemorySigner> {
+    pub fn relay(&mut self, alias: &'static str) -> Node {
         self.node_with(config::relay(alias))
     }
 
-    /// Convenience method for creating a [`Node<MemorySigner>`]
+    /// Convenience method for creating a [`Node`]
     /// using configuration [`config::seed`] within this [`Environment`].
-    pub fn seed(&mut self, alias: &'static str) -> Node<MemorySigner> {
+    pub fn seed(&mut self, alias: &'static str) -> Node {
         self.node_with(config::seed(alias))
     }
 
@@ -293,7 +295,7 @@ impl HasAlias for Alias {
     }
 }
 
-impl HasAlias for Node<MemorySigner> {
+impl HasAlias for Node {
     fn alias(&self) -> &Alias {
         &self.config.alias
     }
@@ -305,7 +307,7 @@ impl HasAlias for Profile {
     }
 }
 
-impl<G> HasAlias for NodeHandle<G> {
+impl HasAlias for NodeHandle {
     fn alias(&self) -> &Alias {
         &self.alias
     }

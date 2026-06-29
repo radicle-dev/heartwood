@@ -18,7 +18,7 @@ use cypheraddr::i2p;
 #[cfg(feature = "tor")]
 use cypheraddr::tor;
 
-use radicle::crypto::{PublicKey, Signature};
+use radicle::crypto::{PublicKey, PublicKeyBytes, Signature};
 use radicle::git;
 use radicle::git::fmt;
 use radicle::identity::RepoId;
@@ -181,7 +181,7 @@ impl Encode for u64 {
 
 impl Encode for PublicKey {
     fn encode(&self, buf: &mut impl BufMut) {
-        self.to_byte_array().encode(buf)
+        std::borrow::Borrow::<PublicKeyBytes>::borrow(self).encode(buf)
     }
 }
 
@@ -310,7 +310,8 @@ impl Encode for git::fmt::RefString {
 
 impl Encode for Signature {
     fn encode(&self, buf: &mut impl BufMut) {
-        self.deref().encode(buf)
+        let bytes: [u8; 64] = self.to_bytes();
+        bytes.encode(buf)
     }
 }
 
@@ -326,9 +327,7 @@ impl Encode for git::Oid {
 
 impl Decode for PublicKey {
     fn decode(buf: &mut impl Buf) -> Result<Self, Error> {
-        let buf: [u8; 32] = Decode::decode(buf)?;
-
-        Ok(PublicKey::from(buf))
+        Ok(PublicKey::from(<[u8; 32]>::decode(buf)?))
     }
 }
 

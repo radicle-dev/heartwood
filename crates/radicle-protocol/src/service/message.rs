@@ -5,10 +5,10 @@ use bytes::{Buf, BufMut};
 use nonempty::NonEmpty;
 
 use radicle::crypto;
+use radicle::crypto::Signer as _;
 use radicle::git;
 use radicle::identity::RepoId;
 use radicle::node;
-use radicle::node::device::Device;
 use radicle::node::{Address, Alias, UserAgent};
 use radicle::storage;
 use radicle::storage::refs::RefsAt;
@@ -261,18 +261,15 @@ pub enum AnnouncementMessage {
 
 impl AnnouncementMessage {
     /// Sign this announcement message.
-    pub fn signed<G>(self, signer: &Device<G>) -> Announcement
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-    {
+    pub fn signed(self, secret_key: &crypto::SigningKey) -> Announcement {
         use crypto::signature::Signer as _;
 
         let msg = self.encode_to_vec();
 
-        let signature = signer.sign(&msg);
+        let signature = secret_key.sign(&msg);
 
         Announcement {
-            node: *signer.public_key(),
+            node: *secret_key.public_key(),
             message: self,
             signature,
         }
@@ -368,8 +365,15 @@ impl Announcement {
 
     /// Verify this announcement's signature.
     pub fn verify(&self) -> bool {
+        use crypto::signature::Verifier as _;
+
+        let Ok(verifier) = crypto::VerifyingKey::try_from(&self.node) else {
+            // Public key is not a valid verifying key, so the signature cannot be valid.
+            return false;
+        };
+
         let msg = self.message.encode_to_vec();
-        self.node.verify(msg, &self.signature).is_ok()
+        verifier.verify(&msg, &self.signature).is_ok()
     }
 
     pub fn matches(&self, filter: &Filter) -> bool {
@@ -449,18 +453,12 @@ impl Message {
         .into()
     }
 
-    pub fn node<G: crypto::signature::Signer<crypto::Signature>>(
-        message: NodeAnnouncement,
-        signer: &Device<G>,
-    ) -> Self {
-        AnnouncementMessage::from(message).signed(signer).into()
+    pub fn node(message: NodeAnnouncement, secret_key: &crypto::SigningKey) -> Self {
+        AnnouncementMessage::from(message).signed(secret_key).into()
     }
 
-    pub fn inventory<G: crypto::signature::Signer<crypto::Signature>>(
-        message: InventoryAnnouncement,
-        signer: &Device<G>,
-    ) -> Self {
-        AnnouncementMessage::from(message).signed(signer).into()
+    pub fn inventory(message: InventoryAnnouncement, secret_key: &crypto::SigningKey) -> Self {
+        AnnouncementMessage::from(message).signed(secret_key).into()
     }
 
     pub fn subscribe(filter: Filter, since: Timestamp, until: Timestamp) -> Self {
@@ -684,9 +682,9 @@ impl qcheck::Arbitrary for ZeroBytes {
 #[allow(clippy::unwrap_used)]
 mod tests {
 
-    use fastrand;
     use localtime::LocalTime;
     use qcheck_macros::quickcheck;
+    use radicle::crypto::SigningKey;
     use radicle::test::arbitrary;
 
     use crate::wire::Decode as _;
@@ -696,7 +694,7 @@ mod tests {
     #[test]
     fn test_ref_remote_limit() {
         let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
-        let signer = Device::mock();
+        let signer = SigningKey::mock(18);
         let at = git::Oid::ZERO_SHA1;
 
         assert_eq!(refs.capacity(), REF_REMOTE_LIMIT);
@@ -714,7 +712,7 @@ mod tests {
             refs,
             timestamp: LocalTime::now().into(),
         })
-        .signed(&Device::mock())
+        .signed(&crypto::SigningKey::mock(93))
         .into();
 
         let mut buf = Vec::new();
@@ -734,7 +732,7 @@ mod tests {
                     .expect("size within bounds limit"),
                 timestamp: LocalTime::now().into(),
             },
-            &Device::mock(),
+            &crypto::SigningKey::mock(218),
         );
         let mut buf: Vec<u8> = Vec::new();
         msg.encode(&mut buf);
@@ -753,12 +751,12 @@ mod tests {
 
     #[quickcheck]
     fn prop_refs_announcement_signing(rid: RepoId) {
-        let signer = Device::mock_rng(&mut fastrand::Rng::new());
+        let secret_key = crypto::SigningKey::mock(242);
         let timestamp = Timestamp::EPOCH;
         let at = git::Oid::ZERO_SHA1;
         let refs = BoundedVec::collect_from(
             &mut [RefsAt {
-                remote: *signer.public_key(),
+                remote: *secret_key.public_key(),
                 at,
             }]
             .into_iter(),
@@ -768,7 +766,7 @@ mod tests {
             refs,
             timestamp,
         });
-        let ann = message.signed(&signer);
+        let ann = message.signed(&secret_key);
 
         assert!(ann.verify());
     }

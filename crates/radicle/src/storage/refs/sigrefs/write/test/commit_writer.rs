@@ -24,7 +24,7 @@ fn tree_error() {
         mock::author(),
         "msg".into(),
         &repo,
-        &mock::NeverSign,
+        &mock::NeverSign::new(),
     )
     .write();
     assert!(matches!(result, Err(error::Commit::Tree(_))));
@@ -40,7 +40,7 @@ fn write_commit_error() {
         mock::author(),
         "msg".into(),
         &repo,
-        &mock::AlwaysSign,
+        &mock::AlwaysSign::new(),
     )
     .write();
     assert!(matches!(result, Err(error::Commit::Write(_))));
@@ -58,7 +58,7 @@ fn write_root_ok() {
         mock::author(),
         "msg".into(),
         &repo,
-        &mock::AlwaysSign,
+        &mock::AlwaysSign::new(),
     )
     .write()
     .unwrap();
@@ -82,7 +82,7 @@ fn write_with_parent_ok() {
         mock::author(),
         "msg".into(),
         &repo,
-        &mock::AlwaysSign,
+        &mock::AlwaysSign::new(),
     )
     .write()
     .unwrap();
@@ -105,7 +105,7 @@ fn write_empty_refs() {
         mock::author(),
         "msg".into(),
         &repo,
-        &mock::AlwaysSign,
+        &mock::AlwaysSign::new(),
     )
     .write()
     .unwrap();

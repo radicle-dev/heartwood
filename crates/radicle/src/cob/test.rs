@@ -2,20 +2,15 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 
 use nonempty::NonEmpty;
-use radicle_crypto::ssh::ExtendedSignature;
 use serde::{Deserialize, Serialize};
 
 use crate::cob::op::Op;
-use crate::cob::patch::Patch;
 use crate::cob::store::encoding;
 use crate::cob::{Entry, History, Manifest, Timestamp, Version};
-use crate::cob::{Title, patch};
-use crate::crypto::Signer;
+use crate::crypto::ExtendedSignature;
 use crate::git::{self, Oid};
-use crate::node::device::Device;
 use crate::prelude::Did;
 use crate::profile::env;
-use crate::storage::ReadRepository;
 use crate::test::arbitrary;
 
 use super::store::{Cob, CobWithType};
@@ -37,11 +32,11 @@ impl<T> AsRef<History> for HistoryBuilder<T> {
 }
 
 impl HistoryBuilder<thread::Thread> {
-    pub fn comment<G: Signer>(
+    pub fn comment(
         &mut self,
         body: impl ToString,
         reply_to: Option<thread::CommentId>,
-        signer: &G,
+        signer: &impl crypto::Signer,
     ) -> Oid {
         let action = thread::Action::Comment {
             body: body.to_string(),
@@ -56,18 +51,21 @@ where
     T: CobWithType,
     T::Action: for<'de> Deserialize<'de> + Serialize + Eq + 'static,
 {
-    pub fn new<G: Signer>(actions: &[T::Action], time: Timestamp, signer: &G) -> HistoryBuilder<T> {
+    pub fn new(
+        actions: &[T::Action],
+        time: Timestamp,
+        signer: &impl crypto::Signer,
+    ) -> HistoryBuilder<T> {
         let resource = Some(arbitrary::oid());
         let revision = arbitrary::oid();
         let (contents, oids): (Vec<Vec<u8>>, Vec<Oid>) = actions
             .iter()
-            .map(|a| encoded::<T, _>(a, time, [], signer))
+            .map(|a| encoded::<T>(a, time, [], signer))
             .unzip();
         let contents = NonEmpty::from_vec(contents).unwrap();
         let root = oids.first().unwrap();
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
-        let signature = signer.sign(&[0]);
-        let signature = ExtendedSignature::new(*signer.public_key(), signature);
+        let signature = ExtendedSignature::try_sign(signer, &[0]).unwrap();
         let change = Entry {
             id: *root,
             signature,
@@ -96,14 +94,13 @@ where
         self.history.merge(other.history);
     }
 
-    pub fn commit<G: Signer>(&mut self, action: &T::Action, signer: &G) -> crate::git::Oid {
+    pub fn commit(&mut self, action: &T::Action, signer: &impl crypto::Signer) -> crate::git::Oid {
         let timestamp = self.time;
         let tips = self.tips();
         let revision = arbitrary::oid();
-        let (data, oid) = encoded::<T, _>(action, timestamp, tips, signer);
+        let (data, oid) = encoded::<T>(action, timestamp, tips, signer);
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
-        let signature = signer.sign(data.as_slice());
-        let signature = ExtendedSignature::new(*signer.public_key(), signature);
+        let signature = ExtendedSignature::try_sign(signer, data.as_slice()).unwrap();
         let change = Entry {
             id: oid,
             signature,
@@ -130,10 +127,10 @@ impl<A> Deref for HistoryBuilder<A> {
 }
 
 /// Create a new test history.
-pub fn history<T, G: Signer>(
+pub fn history<T>(
     actions: &[T::Action],
     time: Timestamp,
-    signer: &G,
+    signer: &impl crypto::Signer,
 ) -> HistoryBuilder<T>
 where
     T: Cob + CobWithType,
@@ -142,26 +139,10 @@ where
     HistoryBuilder::new(actions, time, signer)
 }
 
-/// An object that can be used to create and sign operations.
-pub struct Actor<G> {
-    pub signer: Device<G>,
-}
-
-impl<G: Default + Signer> Default for Actor<G> {
-    fn default() -> Self {
-        Self::new(Device::default())
-    }
-}
-
-impl<G> Actor<G> {
-    pub fn new(signer: Device<G>) -> Self {
-        Self { signer }
-    }
-}
-
-impl<G: Signer> Actor<G> {
+/// An extension trait that provides convenience methods for creating operations.
+pub trait SignerOpExt: crypto::Signer {
     /// Create a new operation.
-    pub fn op_with<T>(
+    fn op_with<T>(
         &mut self,
         actions: impl IntoIterator<Item = T::Action>,
         identity: Option<Oid>,
@@ -180,7 +161,7 @@ impl<G: Signer> Actor<G> {
         let oid =
             crate::git::raw::Oid::hash_object(crate::git::raw::ObjectType::Blob, &data).unwrap();
         let id = oid.into();
-        let author = *self.signer.public_key();
+        let author = self.did().into();
         let actions = NonEmpty::from_vec(actions).unwrap();
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
         let parents = vec![];
@@ -199,7 +180,7 @@ impl<G: Signer> Actor<G> {
     }
 
     /// Create a new operation.
-    pub fn op<T>(&mut self, actions: impl IntoIterator<Item = T::Action>) -> Op<T::Action>
+    fn op<T>(&mut self, actions: impl IntoIterator<Item = T::Action>) -> Op<T::Action>
     where
         T: Cob + CobWithType,
         T::Action: Clone + Serialize,
@@ -210,49 +191,23 @@ impl<G: Signer> Actor<G> {
         self.op_with::<T>(actions, Some(identity), timestamp.into())
     }
 
-    /// Get the actor's DID.
-    pub fn did(&self) -> Did {
-        self.signer.public_key().into()
+    /// Get the [`Did`] corresponding to the verifying key of the signer.
+    fn did(&self) -> Did {
+        Did::from(self.verifying_key().public_key())
     }
 }
 
-impl<G: Signer> Actor<G> {
-    /// Create a patch.
-    pub fn patch<R: ReadRepository>(
-        &mut self,
-        title: Title,
-        description: impl ToString,
-        base: crate::git::Oid,
-        oid: crate::git::Oid,
-        repo: &R,
-    ) -> Result<Patch, patch::Error> {
-        Patch::from_root(
-            self.op::<Patch>([
-                patch::Action::Revision {
-                    description: description.to_string(),
-                    base,
-                    oid,
-                    resolves: Default::default(),
-                },
-                patch::Action::Edit {
-                    title,
-                    target: patch::MergeTarget::default(),
-                },
-            ]),
-            repo,
-        )
-    }
-}
+impl<Signer> SignerOpExt for Signer where Signer: crypto::Signer {}
 
 /// Encode an action and return its hash.
 ///
 /// Doesn't encode in the same way as we do in production, but attempts to include the same data
 /// that feeds into the hash entropy, so that changing any input will change the resulting oid.
-fn encoded<T: Cob, G: Signer>(
+fn encoded<T: Cob>(
     action: &T::Action,
     timestamp: Timestamp,
     parents: impl IntoIterator<Item = Oid>,
-    signer: &G,
+    signer: &impl crypto::Signer,
 ) -> (Vec<u8>, crate::git::Oid) {
     use radicle_git_metadata::{
         author::{Author, Time},
@@ -264,7 +219,7 @@ fn encoded<T: Cob, G: Signer>(
     let parents = parents.into_iter().map(|o| o.into());
     let author = Author {
         name: "radicle".to_owned(),
-        email: signer.public_key().to_human(),
+        email: signer.verifying_key().public_key().to_human(),
         time: Time::new(timestamp.as_secs() as i64, 0),
     };
     let commit = CommitData::<git::raw::Oid, git::raw::Oid>::new::<_, _, OwnedTrailer>(

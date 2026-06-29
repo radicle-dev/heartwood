@@ -375,7 +375,7 @@ impl Issue {
             Action::CommentEdit { id, .. } | Action::CommentRedact { id, .. } => {
                 if let Some(comment) = self.thread.comments.get(id) {
                     if let Some(comment) = comment {
-                        Authorization::from(*actor == comment.author())
+                        Authorization::from(actor == comment.author())
                     } else {
                         Authorization::Unknown
                     }
@@ -472,8 +472,8 @@ impl Issue {
     }
 }
 
-impl<'a, 'b, 'g, Repo, Signer, Cache> From<IssueMut<'a, 'b, 'g, Repo, Signer, Cache>>
-    for (IssueId, Issue)
+impl<'a, 'b, 'g, Repo, Signer: crypto::Signer, Cache>
+    From<IssueMut<'a, 'b, 'g, Repo, Signer, Cache>> for (IssueId, Issue)
 {
     fn from(value: IssueMut<'a, 'b, 'g, Repo, Signer, Cache>) -> Self {
         (value.id, value.issue)
@@ -581,14 +581,16 @@ impl<R: ReadRepository> store::Transaction<Issue, R> {
     }
 }
 
-pub struct IssueMut<'a, 'b, 'g, Repo, Signer, Cache> {
+pub struct IssueMut<'a, 'b, 'g, Repo, Signer: crypto::Signer, Cache> {
     id: ObjectId,
     issue: Issue,
     store: &'g mut Issues<'a, Repo, WriteAs<'b, Signer>>,
     cache: &'g mut Cache,
 }
 
-impl<Repo, Signer, Cache> std::fmt::Debug for IssueMut<'_, '_, '_, Repo, Signer, Cache> {
+impl<Repo, Signer: crypto::Signer, Cache> std::fmt::Debug
+    for IssueMut<'_, '_, '_, Repo, Signer, Cache>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("IssueMut")
             .field("id", &self.id)
@@ -597,13 +599,9 @@ impl<Repo, Signer, Cache> std::fmt::Debug for IssueMut<'_, '_, '_, Repo, Signer,
     }
 }
 
-impl<Repo, Signer, Cache> IssueMut<'_, '_, '_, Repo, Signer, Cache>
+impl<Repo, Signer: crypto::Signer, Cache> IssueMut<'_, '_, '_, Repo, Signer, Cache>
 where
     Repo: WriteRepository + cob::Store<Namespace = NodeId>,
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
     Cache: cob::cache::Update<Issue>,
 {
     /// Reload the issue data from storage.
@@ -694,10 +692,6 @@ where
 
     pub fn transaction<F>(&mut self, message: &str, operations: F) -> Result<EntryId, Error>
     where
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
         F: FnOnce(&mut Transaction<Issue, Repo>) -> Result<(), store::Error>,
     {
         let mut tx = Transaction::default();
@@ -716,7 +710,7 @@ where
     }
 }
 
-impl<Repo, Signer, Cache> Deref for IssueMut<'_, '_, '_, Repo, Signer, Cache> {
+impl<Repo, Signer: crypto::Signer, Cache> Deref for IssueMut<'_, '_, '_, Repo, Signer, Cache> {
     type Target = Issue;
 
     fn deref(&self) -> &Self::Target {
@@ -777,10 +771,7 @@ where
 impl<'a, 'b, Repo, Signer> Issues<'a, Repo, WriteAs<'b, Signer>>
 where
     Repo: WriteRepository + cob::Store<Namespace = NodeId>,
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
+    Signer: crypto::Signer,
 {
     /// Get an issue mutably.
     pub fn get_mut<'g, Cache>(
@@ -947,9 +938,9 @@ mod test {
 
     use super::*;
     use crate::cob::{ActorId, Reaction, store::CobWithType};
+    use crate::crypto::{Signer as _, SigningKey};
     use crate::git::Oid;
     use crate::issue::cache::Issues as _;
-    use crate::node::device::Device;
     use crate::test::arbitrary;
     use crate::{assert_matches, test};
 
@@ -1169,8 +1160,8 @@ mod test {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
 
-        let assignee = Did::from(arbitrary::r#gen::<ActorId>(1));
-        let assignee_two = Did::from(arbitrary::r#gen::<ActorId>(1));
+        let [assignee, assignee_two] = arbitrary::array_distinct::<2, _>();
+
         let mut issue = issues
             .create(
                 cob::Title::new("My first issue").unwrap(),
@@ -1264,7 +1255,7 @@ mod test {
         let reactions = issue.comment(&comment).unwrap().reactions();
         let authors = reactions.get(&reaction).unwrap();
 
-        assert_eq!(authors.first().unwrap(), &node.signer.public_key());
+        assert_eq!(*authors.first().unwrap(), node.signer.public_key());
 
         // TODO: Test multiple reactions from same author and different authors
     }
@@ -1349,7 +1340,7 @@ mod test {
     #[test]
     fn test_issue_comment() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let author = *node.signer.public_key();
+        let author = node.signer.public_key();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let mut issue = issues
             .create(
@@ -1667,7 +1658,7 @@ mod test {
         use nonempty::NonEmpty;
 
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let eve = Device::mock();
+        let eve = SigningKey::mock(126);
         let identity = repo.identity().unwrap().head();
         let missing = arbitrary::oid();
         let type_name = Issue::type_name().clone();

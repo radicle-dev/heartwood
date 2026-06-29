@@ -4,8 +4,7 @@ use std::str::FromStr;
 
 use anyhow::{Context, anyhow};
 
-use radicle::crypto::ssh;
-use radicle::crypto::ssh::Passphrase;
+use radicle::crypto;
 use radicle::node::Alias;
 use radicle::profile::env;
 use radicle::{Profile, profile};
@@ -72,7 +71,7 @@ pub fn init(args: Args) -> anyhow::Result<()> {
     spinner.finish();
 
     if let Some(passphrase) = passphrase {
-        match ssh::agent::Agent::connect() {
+        match crypto::ssh::agent::Agent::connect() {
             Ok(mut agent) => {
                 let mut spinner = term::spinner("Adding your Radicle key to ssh-agent…");
                 if register(&mut agent, &profile, passphrase).is_ok() {
@@ -133,9 +132,9 @@ pub fn authenticate(args: Args, profile: &Profile) -> anyhow::Result<()> {
 
     // If our key is encrypted, we try to authenticate with SSH Agent and
     // register it; only if it is running.
-    match ssh::agent::Agent::connect() {
+    match crypto::ssh::agent::Agent::connect() {
         Ok(mut agent) => {
-            if agent.request_identities()?.contains(&profile.public_key) {
+            if agent.request_identities()?.contains(profile.id()) {
                 term::success!("Radicle key already in ssh-agent");
                 return Ok(());
             }
@@ -164,7 +163,7 @@ pub fn authenticate(args: Args, profile: &Profile) -> anyhow::Result<()> {
 
     // Try RAD_PASSPHRASE fallback.
     if let Some(passphrase) = profile::env::passphrase() {
-        ssh::keystore::MemorySigner::load(&profile.keystore, Some(passphrase))
+        crypto::SigningKey::load(&profile.keystore, Some(passphrase))
             .map_err(|_| anyhow!("`{}` is invalid", env::RAD_PASSPHRASE))?;
         return Ok(());
     }
@@ -181,9 +180,9 @@ pub fn authenticate(args: Args, profile: &Profile) -> anyhow::Result<()> {
 
 /// Register key with ssh-agent.
 pub fn register(
-    agent: &mut ssh::agent::Agent,
+    agent: &mut crypto::ssh::agent::Agent,
     profile: &Profile,
-    passphrase: Passphrase,
+    passphrase: crypto::ssh::Passphrase,
 ) -> anyhow::Result<()> {
     let secret = profile
         .keystore

@@ -6,7 +6,6 @@ use crate::git;
 use crate::identity::RepoId;
 use crate::identity::doc::Visibility;
 use crate::node::Alias;
-use crate::node::device::Device;
 use crate::rad;
 use crate::storage::git::Storage;
 use crate::storage::git::transport;
@@ -30,22 +29,24 @@ pub fn user() -> git::UserInfo {
 }
 
 /// Create a new storage with a project.
-pub fn storage<P, G>(path: P, signer: &Device<G>) -> Result<Storage, rad::InitError>
-where
-    P: AsRef<Path>,
-    G: crypto::signature::Signer<crypto::Signature>,
-{
+pub fn storage(
+    path: impl AsRef<Path>,
+    signer: &impl crypto::Signer,
+) -> Result<Storage, rad::InitError> {
     let path = path.as_ref();
+
+    let key = signer.public_key();
+
     let storage = Storage::open(
         path.join("storage"),
         git::UserInfo {
             alias: Alias::new("Radcliff"),
-            key: *signer.public_key(),
+            key: *key,
         },
     )?;
 
     transport::local::register(storage.clone());
-    transport::remote::mock::register(signer.public_key(), storage.path());
+    transport::remote::mock::register(key, storage.path());
 
     for (name, desc) in [
         ("acme", "Acme's repository"),
@@ -68,15 +69,11 @@ where
 }
 
 /// Create a new repository at the given path, and initialize it into a project.
-pub fn project<P, G>(
-    path: P,
+pub fn project(
+    path: impl AsRef<Path>,
     storage: &Storage,
-    signer: &Device<G>,
-) -> Result<(RepoId, SignedRefs, git::raw::Repository, git::raw::Oid), rad::InitError>
-where
-    P: AsRef<Path>,
-    G: crypto::signature::Signer<crypto::Signature>,
-{
+    signer: &impl crypto::Signer,
+) -> Result<(RepoId, SignedRefs, git::raw::Repository, git::raw::Oid), rad::InitError> {
     transport::local::register(storage.clone());
 
     let (working, head) = repository(path);

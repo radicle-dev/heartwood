@@ -75,8 +75,7 @@ pub mod setup {
     use tempfile::{TempDir, tempdir};
 
     use super::storage::{Namespaces, RefUpdate};
-    use crate::crypto::test::signer::MockSigner;
-    use crate::node::device::Device;
+    use crate::crypto::{Signer as _, SigningKey};
     use crate::storage::git::Repository;
     use crate::storage::git::transport::remote;
     use crate::{Storage, git, profile::Home, rad::REMOTE_NAME, test::fixtures};
@@ -89,20 +88,20 @@ pub mod setup {
         pub tmp: TempDir,
         pub root: PathBuf,
         pub storage: Storage,
-        pub signer: Device<MockSigner>,
+        pub signer: SigningKey,
     }
 
     impl Default for Node {
         fn default() -> Self {
             let root = tempdir().unwrap();
 
-            Self::new(root, MockSigner::default(), "Radcliff")
+            Self::new(root, SigningKey::mock(73), "Radcliff")
         }
     }
 
     impl Node {
-        pub fn new(tmp: TempDir, signer: MockSigner, alias: &str) -> Self {
-            let signer = Device::from(signer);
+        pub fn new(tmp: TempDir, signer: SigningKey, alias: &str) -> Self {
+            let signer = signer;
             let root = tmp.path().to_path_buf();
             let home = root.join("home");
             let paths = Home::new(home.as_path()).unwrap();
@@ -251,10 +250,10 @@ pub mod setup {
 
     impl Default for Network {
         fn default() -> Self {
-            let alice = Node::new(tempdir().unwrap(), MockSigner::from_seed([!0; 32]), "alice");
-            let mut bob = Node::new(tempdir().unwrap(), MockSigner::from_seed([!1; 32]), "bob");
-            let mut eve = Node::new(tempdir().unwrap(), MockSigner::from_seed([!2; 32]), "eve");
-            let mut dave = Node::new(tempdir().unwrap(), MockSigner::from_seed([!3; 32]), "dave");
+            let alice = Node::new(tempdir().unwrap(), SigningKey::mock(!0), "alice");
+            let mut bob = Node::new(tempdir().unwrap(), SigningKey::mock(!1), "bob");
+            let mut eve = Node::new(tempdir().unwrap(), SigningKey::mock(!2), "eve");
+            let mut dave = Node::new(tempdir().unwrap(), SigningKey::mock(!3), "dave");
             let repo = alice.project();
             let rid = repo.id;
 

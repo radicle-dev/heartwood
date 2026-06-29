@@ -12,8 +12,8 @@ pub const RAD_PREFIX: &str = "rad:";
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum IdError {
-    #[error(transparent)]
-    Multibase(#[from] multibase::Error),
+    #[error("invalid multibase string: {0}")]
+    Multibase(#[cfg_attr(feature = "std", source)] multibase::Error),
     #[error("invalid length: expected {} bytes, got {actual} bytes", Oid::LEN_SHA1)]
     Length { actual: usize },
     #[error(fmt = fmt_mismatched_base_encoding)]
@@ -106,7 +106,7 @@ impl RepoId {
     ///
     /// [multibase]: https://github.com/multiformats/multibase?tab=readme-ov-file#multibase-table
     pub fn from_canonical(input: &str) -> Result<Self, IdError> {
-        let (base, bytes) = multibase::decode(input)?;
+        let (base, bytes) = multibase::decode(input).map_err(IdError::Multibase)?;
         Self::guard_base_encoding(input, base)?;
         let bytes: [u8; Oid::LEN_SHA1] =
             bytes.try_into().map_err(|bytes: Vec<u8>| IdError::Length {

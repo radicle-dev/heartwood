@@ -6,7 +6,6 @@
 
 use std::collections::BTreeSet;
 
-use crypto::ssh::ExtendedSignature;
 use oid::Oid;
 
 use crate::{ObjectId, TypeName, change_graph::ChangeGraph};
@@ -43,7 +42,8 @@ where
     S: crate::change::Storage<
             ObjectId = crate::object::Oid,
             Parent = crate::object::Oid,
-            Signatures = ExtendedSignature,
+            PublicKey = crypto::PublicKey,
+            Signature = crypto::Signature,
         >,
 {
     let tip_refs = storage

@@ -196,7 +196,7 @@ fn announce_refs(
             "nothing to announce, repository {rid} is not available locally"
         ));
     };
-    if let Err(e) = repo.remote(&profile.public_key) {
+    if let Err(e) = repo.remote(profile.id()) {
         if e.is_not_found() {
             term::println(term::format::italic(
                 "Nothing to announce, you don't have a fork of this repository.",

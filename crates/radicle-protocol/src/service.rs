@@ -29,7 +29,6 @@ use radicle::node::address;
 use radicle::node::address::Store as _;
 use radicle::node::address::{AddressBook, AddressType, KnownAddress};
 use radicle::node::config::{PeerConfig, RateLimit};
-use radicle::node::device::Device;
 use radicle::node::refs::Store as _;
 use radicle::node::routing::Store as _;
 use radicle::node::seed;
@@ -59,6 +58,7 @@ use radicle::storage::{Namespaces, ReadStorage, refs::RefsAt};
 // use radicle::worker::fetch;
 // use crate::worker::FetchError;
 use radicle::crypto;
+use radicle::crypto::Signer as _;
 use radicle::node::Link;
 use radicle::node::PROTOCOL_VERSION;
 
@@ -324,11 +324,11 @@ impl<D> From<D> for Stores<D> {
 
 /// The node service.
 #[derive(Debug)]
-pub struct Service<D, S, G> {
+pub struct Service<D, S> {
     /// Service configuration.
     config: Config,
     /// Our cryptographic signer and key.
-    signer: Device<G>,
+    secret_key: crypto::SigningKey,
     /// Project storage.
     storage: S,
     /// Node database.
@@ -381,12 +381,7 @@ pub struct Service<D, S, G> {
     metrics: Metrics,
 }
 
-impl<D, S, G> Service<D, S, G> {
-    /// Get the local node id.
-    pub fn node_id(&self) -> NodeId {
-        *self.signer.public_key()
-    }
-
+impl<D, S> Service<D, S> {
     /// Get the local service time.
     pub fn local_time(&self) -> LocalTime {
         self.clock
@@ -397,18 +392,17 @@ impl<D, S, G> Service<D, S, G> {
     }
 }
 
-impl<D, S, G> Service<D, S, G>
+impl<D, S> Service<D, S>
 where
     D: Store,
     S: WriteStorage + 'static,
-    G: crypto::signature::Signer<crypto::Signature>,
 {
     /// Initialize service with current time. Call this once.
     pub fn initialize(&mut self, time: LocalTime) -> Result<(), Error> {
         debug!(target: "service", "Init @{}", time.as_millis());
         assert_ne!(time, LocalTime::default());
 
-        let nid = self.node_id();
+        let nid = *self.nid();
 
         self.clock = time;
         self.started_at = Some(time);
@@ -533,7 +527,7 @@ where
 
         let repo = self.storage.repository_mut(rid)?;
         // NOTE: We assume to reach `FeatureLevel::LATEST` by signing refs.
-        let refs = repo.force_sign_refs(&self.signer)?;
+        let refs = repo.force_sign_refs(&self.secret_key)?;
 
         let repo = self.storage.repository(rid)?;
         let synced_at = SyncedAt::new(refs.at, &repo)?;
@@ -545,18 +539,17 @@ where
     }
 }
 
-impl<D, S, G> Service<D, S, G>
+impl<D, S> Service<D, S>
 where
     D: Store,
     S: ReadStorage + 'static,
-    G: crypto::signature::Signer<crypto::Signature>,
 {
     pub fn new(
         config: Config,
         db: Stores<D>,
         storage: S,
         policies: policy::Config<Write>,
-        signer: Device<G>,
+        secret_key: crypto::SigningKey,
         rng: Rng,
         node: NodeAnnouncement,
         emitter: Emitter<Event>,
@@ -579,7 +572,7 @@ where
             config,
             storage,
             policies,
-            signer,
+            secret_key,
             rng,
             inventory,
             node,
@@ -679,9 +672,10 @@ where
         &self.policies
     }
 
-    /// Get the local signer.
-    pub fn signer(&self) -> &Device<G> {
-        &self.signer
+    /// Get the local secret key.
+    #[cfg(any(test, feature = "test"))]
+    pub fn secret_key(&self) -> &radicle::crypto::SigningKey {
+        &self.secret_key
     }
 
     /// Subscriber to inner `Emitter` events.
@@ -1756,7 +1750,7 @@ where
         remote: &NodeId,
         message: Message,
     ) -> Result<(), session::Error> {
-        let local = self.node_id();
+        let local = *self.nid();
         let relay = self.config.is_relay();
         let Some(peer) = self.sessions.get_mut(remote) else {
             debug!(target: "service", "Session not found for {remote}");
@@ -1918,7 +1912,7 @@ where
             },
         };
         // Remove our own remote, we don't want to fetch that.
-        refs.want.retain(|r| r.remote != self.node_id());
+        refs.want.retain(|r| r.remote != *self.nid());
 
         Ok(refs)
     }
@@ -1955,8 +1949,8 @@ where
         debug!(target: "service", "Subscribing to messages since timestamp {since}..");
 
         vec![
-            Message::node(self.node.clone(), &self.signer),
-            Message::inventory(self.inventory.clone(), &self.signer),
+            Message::node(self.node.clone(), &self.secret_key),
+            Message::inventory(self.inventory.clone(), &self.secret_key),
             Message::subscribe(filter, since, Timestamp::MAX),
         ]
     }
@@ -1972,7 +1966,7 @@ where
 
     /// Remove a local repository from our inventory.
     fn remove_inventory(&mut self, rid: &RepoId) -> Result<bool, Error> {
-        let node = self.node_id();
+        let node = *self.nid();
         let now = self.timestamp();
 
         let removed = self.db.routing_mut().remove_inventory(rid, &node)?;
@@ -1984,7 +1978,7 @@ where
 
     /// Add a local repository to our inventory.
     fn add_inventory(&mut self, rid: RepoId) -> Result<bool, Error> {
-        let node = self.node_id();
+        let node = *self.nid();
         let now = self.timestamp();
 
         if !self.storage.contains(&rid)? {
@@ -2119,7 +2113,7 @@ where
             refs: refs.clone(),
             timestamp,
         });
-        Ok((msg.signed(&self.signer), refs.into()))
+        Ok((msg.signed(&self.secret_key), refs.into()))
     }
 
     /// Announce our own refs for the given repo.
@@ -2208,7 +2202,7 @@ where
     fn connect(&mut self, nid: NodeId, addr: Address) -> Result<(), ConnectError> {
         debug!(target: "service", "Connecting to {nid} ({addr})..");
 
-        if nid == self.node_id() {
+        if nid == *self.nid() {
             return Err(ConnectError::SelfConnection);
         }
         if let Ok(true) = self.policies.is_blocked(&nid) {
@@ -2358,7 +2352,7 @@ where
     fn relay_announcements(&mut self) -> Result<(), Error> {
         let now = self.clock.into();
         let rows = self.database_mut().gossip_mut().relays(now)?;
-        let local = self.node_id();
+        let local = *self.nid();
 
         for (id, msg) in rows {
             let announcer = msg.node;
@@ -2382,7 +2376,7 @@ where
         let msg = AnnouncementMessage::from(self.inventory.clone());
 
         self.outbox.announce(
-            msg.signed(&self.signer),
+            msg.signed(&self.secret_key),
             self.sessions.connected().map(|(_, p)| p),
             self.db.gossip_mut(),
         );
@@ -2396,7 +2390,7 @@ where
         }
 
         let delta = count - usize::from(self.config.limits.routing_max_size);
-        let nid = self.node_id();
+        let nid = *self.nid();
         self.db.routing_mut().prune(
             (*now - LocalDuration::from(self.config.limits.routing_max_age)).into(),
             Some(delta),
@@ -2501,7 +2495,7 @@ where
                     continue;
                 }
             }
-            match self.seeds(&rid, [self.node_id()].into()) {
+            match self.seeds(&rid, [*self.nid()].into()) {
                 Ok(seeds) => {
                     if let Some(connected) = NonEmpty::from_vec(seeds.connected().collect()) {
                         for seed in connected {
@@ -2697,14 +2691,13 @@ pub trait ServiceState {
     fn metrics(&self) -> &Metrics;
 }
 
-impl<D, S, G> ServiceState for Service<D, S, G>
+impl<D, S> ServiceState for Service<D, S>
 where
     D: routing::Store,
-    G: crypto::signature::Signer<crypto::Signature>,
     S: ReadStorage,
 {
     fn nid(&self) -> &NodeId {
-        self.signer.public_key()
+        self.secret_key.public_key()
     }
 
     fn sessions(&self) -> &Sessions {

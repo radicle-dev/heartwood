@@ -1,8 +1,8 @@
 mod mock;
 use mock::*;
 
-use crypto::Signer as _;
-use crypto::test::signer::MockSigner;
+use crypto::signature::Keypair as _;
+use crypto::{Signer as _, SigningKey};
 use qcheck::TestResult;
 use qcheck_macros::quickcheck;
 
@@ -17,8 +17,8 @@ fn roundtrip(BoundedVec(all_refs): BoundedVec<Refs>) -> TestResult {
     }
 
     let fixture = Fixture::new();
-    let signer = MockSigner::default();
-    let node_id = *signer.public_key();
+    let signer = SigningKey::mock(34);
+    let node_id = signer.public_key();
 
     for refs in all_refs {
         let refs = fixture.with_identity_root(refs);
@@ -26,7 +26,7 @@ fn roundtrip(BoundedVec(all_refs): BoundedVec<Refs>) -> TestResult {
         let writer = SignedRefsWriter::new(
             refs.clone(),
             fixture.rid(),
-            node_id,
+            *node_id,
             fixture.repo(),
             &signer,
         );
@@ -46,11 +46,13 @@ fn roundtrip(BoundedVec(all_refs): BoundedVec<Refs>) -> TestResult {
 
         assert_eq!(refs, written_refs);
 
+        let verifier = signer.verifying_key();
+
         let reader = SignedRefsReader::new(
             fixture.rid(),
-            Tip::Reference(node_id),
+            Tip::Reference(*node_id),
             fixture.repo(),
-            &node_id,
+            &verifier,
         );
         let verified = match reader.read() {
             Ok(v) => v,
@@ -69,7 +71,7 @@ fn roundtrip(BoundedVec(all_refs): BoundedVec<Refs>) -> TestResult {
 fn idempotent(refs: Refs) -> TestResult {
     let fixture = Fixture::new();
     let refs = fixture.with_identity_root(refs);
-    let signer = MockSigner::default();
+    let signer = SigningKey::mock(83);
     let node_id = *signer.public_key();
 
     if let Err(e) = SignedRefsWriter::new(

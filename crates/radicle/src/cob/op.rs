@@ -124,7 +124,8 @@ impl<A> Op<A> {
         S: cob::change::Storage<
                 ObjectId = git::Oid,
                 Parent = git::Oid,
-                Signatures = crypto::ssh::ExtendedSignature,
+                PublicKey = crypto::PublicKey,
+                Signature = crypto::Signature,
             >,
     {
         store.manifest_of(id).map_err(|err| ManifestError {
@@ -139,7 +140,8 @@ impl<A> Op<A> {
         S: cob::change::Storage<
                 ObjectId = git::Oid,
                 Parent = git::Oid,
-                Signatures = crypto::ssh::ExtendedSignature,
+                PublicKey = crypto::PublicKey,
+                Signature = crypto::Signature,
             >,
         for<'de> A: serde::Deserialize<'de>,
     {

@@ -84,7 +84,6 @@ pub mod history;
 pub use history::History;
 
 pub mod signatures;
-use signatures::ExtendedSignature;
 
 pub mod type_name;
 pub use type_name::TypeName;
@@ -116,6 +115,11 @@ mod tests;
 pub trait Store
 where
     Self: object::Storage
-        + change::Storage<ObjectId = oid::Oid, Parent = oid::Oid, Signatures = ExtendedSignature>,
+        + change::Storage<
+            ObjectId = oid::Oid,
+            Parent = oid::Oid,
+            PublicKey = crypto::PublicKey,
+            Signature = crypto::Signature,
+        >,
 {
 }

@@ -2,14 +2,9 @@
 
 use qcheck::Arbitrary;
 
-use crate::node::device::Device;
-
 use super::*;
 
-pub fn signed_refs_at<S>(g: &mut qcheck::Gen, root: Oid, signer: &Device<S>) -> SignedRefs
-where
-    S: crypto::signature::Signer<crypto::Signature>,
-{
+pub fn signed_refs_at(g: &mut qcheck::Gen, root: Oid, signer: &impl crypto::Signer) -> SignedRefs {
     let mut refs = Refs::arbitrary(g);
     refs.insert(IDENTITY_ROOT.to_ref_string(), root);
 
@@ -25,7 +20,7 @@ where
     SignedRefs {
         refs,
         signature,
-        id: *signer.node_id(),
+        id: *signer.public_key(),
         level: level.unwrap_or_else(|| FeatureLevel::arbitrary(g)),
         parent: Arbitrary::arbitrary(g),
         at: Oid::arbitrary(g),

@@ -507,8 +507,8 @@ mod tests {
 
     use super::*;
     use crate::assert_matches;
+    use crate::crypto::{Signer as _, SigningKey};
     use crate::git;
-    use crate::node::device::Device;
     use crate::test::fixtures;
 
     /// Test helper to construct a Canonical and get the quorum
@@ -521,7 +521,7 @@ mod tests {
 
         let mut delegates = Vec::new();
         for (i, head) in heads.iter().enumerate() {
-            let signer = Device::mock_from_seed([(i + 1) as u8; 32]);
+            let signer = SigningKey::mock(i);
             let did = Did::from(signer.public_key());
             delegates.push(did);
             let ns = git::fmt::Component::from(signer.public_key());

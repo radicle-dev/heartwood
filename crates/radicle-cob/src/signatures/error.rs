@@ -1,6 +1,6 @@
 // Copyright © 2019-2020 The Radicle Foundation <hello@radicle.foundation>
 
-use crypto::ssh::ExtendedSignatureError;
+use crypto::ssh::ExtendedSignaturePemError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -17,7 +17,7 @@ pub enum Signature {
 #[non_exhaustive]
 pub enum Signatures {
     #[error(transparent)]
-    ExtendedSignature(#[from] ExtendedSignatureError),
+    ExtendedSignature(#[from] ExtendedSignaturePemError),
 
     #[error(transparent)]
     Signature(#[from] Signature),

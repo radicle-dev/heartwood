@@ -9,7 +9,7 @@ use crate::storage::refs::{IDENTITY_ROOT, Refs, SIGREFS_BRANCH};
 fn read(repo: &MockRepository) -> Result<Option<Head>, error::Head> {
     let namespace = mock::node_id();
     let reference = SIGREFS_BRANCH.with_namespace(Component::from(&namespace));
-    HeadReader::new(&reference, repo, mock::rid(), &mock::AlwaysSign).read()
+    HeadReader::new(&reference, repo, mock::rid(), &mock::AlwaysSign::new()).read()
 }
 
 fn refs() -> [(crate::git::fmt::RefString, radicle_oid::Oid); 2] {

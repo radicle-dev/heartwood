@@ -5,7 +5,7 @@ pub mod transport;
 pub mod temp;
 pub use temp::TempRepository;
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
@@ -16,7 +16,6 @@ use crate::git::raw::ErrorExt as _;
 use crate::identity::doc::DocError;
 use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
-use crate::node::device::Device;
 use crate::storage::refs::{FeatureLevel, Refs, SignedRefs};
 use crate::storage::{
     ReadRepository, ReadStorage, Remote, Remotes, RepositoryInfo, SetHead, SignRepository,
@@ -522,15 +521,11 @@ impl Repository {
     }
 
     /// Create the repository's identity branch.
-    pub fn init<G, S>(
+    pub fn init(
         doc: &Doc,
-        storage: &S,
-        signer: &Device<G>,
-    ) -> Result<(Self, crate::git::Oid), RepositoryError>
-    where
-        G: crypto::signature::Signer<crypto::Signature>,
-        S: WriteStorage,
-    {
+        storage: &impl WriteStorage,
+        signer: &impl crypto::Signer,
+    ) -> Result<(Self, crate::git::Oid), RepositoryError> {
         let (doc_oid, doc_bytes) = doc.encode()?;
         let id = RepoId::from(doc_oid);
         let repo = Self::create(paths::repository(storage, &id), id, storage.info())?;
@@ -1032,52 +1027,37 @@ impl WriteRepository for Repository {
 }
 
 impl SignRepository for Repository {
-    fn sign_refs<Signer>(&self, signer: &Signer) -> Result<SignedRefs, RepositoryError>
-    where
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
-    {
+    fn sign_refs(&self, signer: &impl crypto::Signer) -> Result<SignedRefs, RepositoryError> {
         self.sign_refs_with(signer, false)
     }
 
-    fn force_sign_refs<Signer>(&self, signer: &Signer) -> Result<SignedRefs, RepositoryError>
-    where
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
-    {
+    fn force_sign_refs(&self, signer: &impl crypto::Signer) -> Result<SignedRefs, RepositoryError> {
         self.sign_refs_with(signer, true)
     }
 }
 
 impl Repository {
-    fn sign_refs_with<Signer>(
+    fn sign_refs_with(
         &self,
-        signer: &Signer,
+        signer: &impl crypto::Signer,
         force: bool,
-    ) -> Result<SignedRefs, RepositoryError>
-    where
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
-    {
-        let remote = signer.verifying_key();
+    ) -> Result<SignedRefs, RepositoryError> {
+        let remote = signer.public_key();
         // Ensure the root reference is set, which is checked during sigref verification.
         if self
-            .reference_oid(&remote, &git::refs::storage::IDENTITY_ROOT)
+            .reference_oid(remote, &git::refs::storage::IDENTITY_ROOT)
             .is_err()
         {
-            self.set_remote_identity_root(&remote)?;
+            self.set_remote_identity_root(remote)?;
         }
 
-        let committer = refs::sigrefs::git::Committer::from_env_or_now(&remote);
+        let committer = refs::sigrefs::git::Committer::from_env_or_now(remote);
 
-        let refs = self.references_of(&remote)?;
+        let refs = self.references_of(remote)?;
         let signed = if force {
-            refs.force_save(remote, committer, self, signer)?
+            refs.force_save(*remote, committer, self, signer)?
         } else {
-            refs.save(remote, committer, self, signer)?
+            refs.save(*remote, committer, self, signer)?
         };
 
         Ok(signed)
@@ -1137,48 +1117,6 @@ impl sigrefs::git::reference::Writer for Repository {
     }
 }
 
-pub mod trailers {
-    use std::str::FromStr;
-
-    use thiserror::Error;
-
-    use super::*;
-    use crypto::{PublicKey, PublicKeyError};
-    use crypto::{Signature, SignatureError};
-
-    pub const SIGNATURE_TRAILER: &str = "Rad-Signature";
-
-    #[derive(Error, Debug)]
-    pub enum Error {
-        #[error("invalid format for signature trailer")]
-        SignatureTrailerFormat,
-        #[error("invalid public key in signature trailer")]
-        PublicKey(#[from] PublicKeyError),
-        #[error("invalid signature in trailer")]
-        Signature(#[from] SignatureError),
-    }
-
-    pub fn parse_signatures(msg: &str) -> Result<HashMap<PublicKey, Signature>, Error> {
-        let trailers =
-            git::raw::message_trailers_strs(msg).map_err(|_| Error::SignatureTrailerFormat)?;
-        let mut signatures = HashMap::with_capacity(trailers.len());
-
-        for (key, val) in trailers.iter() {
-            if key == SIGNATURE_TRAILER {
-                if let Some((pk, sig)) = val.split_once(' ') {
-                    let pk = PublicKey::from_str(pk)?;
-                    let sig = Signature::from_str(sig)?;
-
-                    signatures.insert(pk, sig);
-                } else {
-                    return Err(Error::SignatureTrailerFormat);
-                }
-            }
-        }
-        Ok(signatures)
-    }
-}
-
 pub mod paths {
     use std::path::PathBuf;
 
@@ -1197,13 +1135,14 @@ mod tests {
     use super::*;
     use crate::git;
 
+    use crate::crypto::{Signer as _, SigningKey};
     use crate::storage::{ReadRepository, ReadStorage};
     use crate::test::fixtures;
 
     #[test]
     fn test_references_of() {
         let tmp = tempfile::tempdir().unwrap();
-        let signer = Device::mock();
+        let signer = SigningKey::mock(54);
         let storage = Storage::open(tmp.path().join("storage"), fixtures::user()).unwrap();
 
         transport::local::register(storage.clone());
@@ -1237,10 +1176,9 @@ mod tests {
     #[test]
     fn test_sign_refs() {
         let tmp = tempfile::tempdir().unwrap();
-        let mut rng = fastrand::Rng::new();
-        let signer = Device::mock_rng(&mut rng);
+        let signer = SigningKey::mock(0xb4);
         let storage = Storage::open(tmp.path(), fixtures::user()).unwrap();
-        let alice = *signer.public_key();
+        let alice = signer.public_key();
         let (rid, _, working, _) =
             fixtures::project(tmp.path().join("project"), &storage, &signer).unwrap();
         let stored = storage.repository(rid).unwrap();
@@ -1259,8 +1197,8 @@ mod tests {
         .unwrap();
 
         let signed = stored.sign_refs(&signer).unwrap();
-        let remote = stored.remote(&alice).unwrap();
-        let mut unsigned = stored.references_of(&alice).unwrap();
+        let remote = stored.remote(alice).unwrap();
+        let mut unsigned = stored.references_of(alice).unwrap();
 
         // The signed refs doesn't contain the signature ref itself.
         unsigned.remove_sigrefs().unwrap();

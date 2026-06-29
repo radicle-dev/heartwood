@@ -1,4 +1,6 @@
+use radicle::crypto::{Signer as _, SigningKey};
 use radicle::test::arbitrary;
+
 use radicle_core::{NodeId, RepoId};
 
 use crate::fetcher::state::{command, event};
@@ -62,11 +64,13 @@ fn independent_queues() {
 
 #[test]
 fn high_count() {
+    const N: usize = 100;
+
     let mut state = FetcherState::new(helpers::config(1, 10));
     let config = FetchConfig::default();
 
-    for i in 0..100 {
-        let node: NodeId = arbitrary::r#gen(i + 1);
+    for i in 0..N {
+        let node: NodeId = *SigningKey::mock(i * 20).public_key();
         let repo: RepoId = arbitrary::r#gen(i + 1);
         let event = state.fetch(command::Fetch {
             from: node,
@@ -77,5 +81,5 @@ fn high_count() {
         assert!(matches!(event, event::Fetch::Started { .. }));
     }
 
-    assert_eq!(state.active_fetches().len(), 100);
+    assert_eq!(state.active_fetches().len(), N);
 }

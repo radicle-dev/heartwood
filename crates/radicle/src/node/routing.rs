@@ -473,7 +473,7 @@ mod test {
         let mut rng = fastrand::Rng::new();
         let now = LocalTime::now();
         let ids = arbitrary::vec::<RepoId>(10);
-        let nodes = arbitrary::vec::<NodeId>(10);
+        let nodes = arbitrary::array_distinct::<10, NodeId>();
         let mut db = database(":memory:");
 
         for node in &nodes {

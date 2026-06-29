@@ -4,6 +4,7 @@ use crate::assert_matches;
 use crate::cob;
 use crate::cob::identity::{Did, Identity, RedactedBy, RejectedBy, RevisionId, State};
 use crate::cob::store::Transaction;
+use crate::crypto::Signer as _;
 use crate::identity::doc::PayloadId;
 use crate::test::arbitrary::BoundedVec;
 use crate::test::setup::Network;
@@ -192,7 +193,7 @@ impl Harness {
                 '_,
                 '_,
                 crate::storage::git::Repository,
-                crate::node::device::Device<crypto::test::signer::MockSigner>,
+                crypto::SigningKey,
             >,
         ) -> Result<T, cob::identity::Error>,
     {
@@ -465,12 +466,8 @@ impl Harness {
     fn identity_for(
         &self,
         actor: &Actor,
-    ) -> cob::identity::IdentityMut<
-        '_,
-        '_,
-        crate::storage::git::Repository,
-        crate::node::device::Device<crypto::test::signer::MockSigner>,
-    > {
+    ) -> cob::identity::IdentityMut<'_, '_, crate::storage::git::Repository, crypto::SigningKey>
+    {
         let (_, identity, _) = self.signer_identity_doc_for(actor);
 
         identity
@@ -480,13 +477,8 @@ impl Harness {
         &self,
         actor: &Actor,
     ) -> (
-        &crate::node::device::Device<crypto::test::signer::MockSigner>,
-        cob::identity::IdentityMut<
-            '_,
-            '_,
-            crate::storage::git::Repository,
-            crate::node::device::Device<crypto::test::signer::MockSigner>,
-        >,
+        &crypto::SigningKey,
+        cob::identity::IdentityMut<'_, '_, crate::storage::git::Repository, crypto::SigningKey>,
         crate::prelude::RawDoc,
     ) {
         let (repo, signer) = match actor {

@@ -12,7 +12,7 @@ use crate::git::{fmt::Qualified, refs::branch};
 use crate::identity::doc;
 use crate::identity::doc::Payload;
 
-pub use crypto::PublicKey;
+pub use crypto::VerifyingKey;
 
 /// A project-related error.
 #[derive(Debug, Error)]

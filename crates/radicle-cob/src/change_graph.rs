@@ -8,7 +8,7 @@ use oid::Oid;
 
 use crate::{
     CollaborativeObject, Entry, EntryId, History, ObjectId, TypeName, change, object,
-    object::collaboration::Evaluate, signatures::ExtendedSignature,
+    object::collaboration::Evaluate,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -37,7 +37,12 @@ impl ChangeGraph {
         oid: &ObjectId,
     ) -> Option<ChangeGraph>
     where
-        S: change::Storage<ObjectId = Oid, Parent = Oid, Signatures = ExtendedSignature>,
+        S: change::Storage<
+                ObjectId = Oid,
+                Parent = Oid,
+                PublicKey = crypto::PublicKey,
+                Signature = crypto::Signature,
+            >,
     {
         let tip_refs = tip_refs.collect::<Vec<_>>();
 

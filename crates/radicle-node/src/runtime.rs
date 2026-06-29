@@ -12,13 +12,11 @@ use std::os::unix::net::UnixListener;
 #[cfg(windows)]
 use uds_windows::UnixListener;
 
-use cyphernet::Ecdh;
 use radicle::cob::migrate;
-use radicle::crypto;
-use radicle::node::device::Device;
 use radicle_signals::Signal;
 use thiserror::Error;
 
+use radicle::crypto::{Signer as _, SigningKey};
 use radicle::node;
 use radicle::node::Event;
 use radicle::node::UserAgent;
@@ -124,22 +122,15 @@ impl Runtime {
     /// Initialize the runtime.
     ///
     /// This function spawns threads.
-    pub fn init<G>(
+    pub fn init(
         home: Home,
         config: radicle::node::Config,
         socket: PathBuf,
         listen: Vec<net::SocketAddr>,
         signals: mpsc::Receiver<Signal>,
-        signer: Device<G>,
-    ) -> Result<Runtime, Error>
-    where
-        G: crypto::signature::Signer<crypto::Signature>
-            + Ecdh<Pk = NodeId>
-            + Clone
-            + Debug
-            + 'static,
-    {
-        let id = *signer.public_key();
+        secret_key: SigningKey,
+    ) -> Result<Runtime, Error> {
+        let id = NodeId::from(*secret_key.public_key());
         let alias = config.alias.clone();
         let network = config.network;
         let rng = fastrand::Rng::new();
@@ -215,7 +206,7 @@ impl Runtime {
             stores,
             storage.clone(),
             policies,
-            signer.clone(),
+            secret_key.clone(),
             rng,
             announcement,
             emitter.clone(),
@@ -224,7 +215,7 @@ impl Runtime {
 
         let (worker_send, worker_recv) =
             crossbeam_channel::bounded::<worker::Task>(MAX_PENDING_TASKS);
-        let mut wire = Wire::new(service, worker_send, signer.clone());
+        let mut wire = Wire::new(service, worker_send, secret_key.clone());
         let mut local_addrs = Vec::new();
 
         for addr in listen {
@@ -237,7 +228,7 @@ impl Runtime {
         let reactor = Reactor::new(wire, thread::name(&id, "service"))?;
         let handle = Handle::new(home.clone(), socket.clone(), reactor.controller(), emitter);
 
-        let nid = *signer.public_key();
+        let nid = NodeId::from(*secret_key.public_key());
         let fetch = worker::FetchConfig {
             local: nid,
             expiry: worker::garbage::Expiry::default(),

@@ -29,17 +29,18 @@ pub fn run(
     }
 }
 
-fn edit_root<Signer>(
-    mut patch: patch::PatchMut<'_, '_, '_, Repository, Signer, cob::cache::StoreWriter>,
+fn edit_root(
+    mut patch: patch::PatchMut<
+        '_,
+        '_,
+        '_,
+        Repository,
+        impl crypto::Signer,
+        cob::cache::StoreWriter,
+    >,
     title: Title,
     description: String,
-) -> anyhow::Result<()>
-where
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
-{
+) -> anyhow::Result<()> {
     let title = if title.as_ref() != patch.title() {
         Some(title)
     } else {
@@ -73,18 +74,19 @@ where
     Ok(())
 }
 
-fn edit_revision<Signer>(
-    mut patch: patch::PatchMut<'_, '_, '_, Repository, Signer, cob::cache::StoreWriter>,
+fn edit_revision(
+    mut patch: patch::PatchMut<
+        '_,
+        '_,
+        '_,
+        Repository,
+        impl crypto::Signer,
+        cob::cache::StoreWriter,
+    >,
     revision: patch::RevisionId,
     title: Title,
     description: String,
-) -> anyhow::Result<()>
-where
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<radicle::crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
-{
+) -> anyhow::Result<()> {
     let embeds = patch.embeds().to_owned();
     let mut message = title.to_string();
     let message = if description.is_empty() {

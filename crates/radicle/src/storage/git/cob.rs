@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use cob::object::Objects;
-use cob::signatures::ExtendedSignature;
 use radicle_cob as cob;
 use radicle_cob::change;
 use storage::RemoteRepository;
@@ -43,8 +42,6 @@ pub enum TypesError {
     #[error(transparent)]
     Git(#[from] git::raw::Error),
     #[error(transparent)]
-    ParseKey(#[from] crypto::Error),
-    #[error(transparent)]
     ParseObjectId(#[from] cob::object::ParseObjectId),
     #[error(transparent)]
     RefFormat(#[from] git::fmt::Error),
@@ -58,18 +55,17 @@ impl change::Storage for Repository {
 
     type ObjectId = <git::raw::Repository as change::Storage>::ObjectId;
     type Parent = <git::raw::Repository as change::Storage>::Parent;
-    type Signatures = <git::raw::Repository as change::Storage>::Signatures;
 
-    fn store<Signer>(
+    type PublicKey = <git::raw::Repository as change::Storage>::PublicKey;
+    type Signature = <git::raw::Repository as change::Storage>::Signature;
+
+    fn store(
         &self,
         authority: Option<Self::Parent>,
         parents: Vec<Self::Parent>,
-        signer: &Signer,
+        signer: &impl crypto::Signer,
         spec: change::Template<Self::ObjectId>,
-    ) -> Result<cob::Entry, Self::StoreError>
-    where
-        Signer: crypto::signature::Signer<ExtendedSignature>,
-    {
+    ) -> Result<cob::Entry, Self::StoreError> {
         self.backend.store(authority, parents, signer, spec)
     }
 
@@ -203,18 +199,17 @@ impl<R: storage::WriteRepository> change::Storage for DraftStore<'_, R> {
 
     type ObjectId = <git::raw::Repository as change::Storage>::ObjectId;
     type Parent = <git::raw::Repository as change::Storage>::Parent;
-    type Signatures = <git::raw::Repository as change::Storage>::Signatures;
 
-    fn store<Signer>(
+    type PublicKey = <git::raw::Repository as change::Storage>::PublicKey;
+    type Signature = <git::raw::Repository as change::Storage>::Signature;
+
+    fn store(
         &self,
         authority: Option<Self::Parent>,
         parents: Vec<Self::Parent>,
-        signer: &Signer,
+        signer: &impl crypto::Signer,
         spec: change::Template<Self::ObjectId>,
-    ) -> Result<cob::Entry, Self::StoreError>
-    where
-        Signer: crypto::signature::Signer<ExtendedSignature>,
-    {
+    ) -> Result<cob::Entry, Self::StoreError> {
         self.repo.raw().store(authority, parents, signer, spec)
     }
 
@@ -235,31 +230,21 @@ impl<Repo> SignRepository for DraftStore<'_, Repo>
 where
     Repo: storage::ReadRepository,
 {
-    fn sign_refs<Signer>(
+    fn sign_refs(
         &self,
-        signer: &Signer,
-    ) -> Result<storage::refs::SignedRefs, RepositoryError>
-    where
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
-    {
+        signer: &impl crypto::Signer,
+    ) -> Result<storage::refs::SignedRefs, RepositoryError> {
         // Since this is a draft store, we do not actually want to sign the refs.
         // Instead, we just return the existing signed refs.
-        let remote = self.repo.remote(&signer.verifying_key())?;
+        let remote = self.repo.remote(signer.public_key())?;
 
         Ok(remote.refs)
     }
 
-    fn force_sign_refs<Signer>(
+    fn force_sign_refs(
         &self,
-        signer: &Signer,
-    ) -> Result<storage::refs::SignedRefs, RepositoryError>
-    where
-        Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-        Signer: crypto::signature::Signer<crypto::Signature>,
-        Signer: crypto::signature::Verifier<crypto::Signature>,
-    {
+        signer: &impl crypto::Signer,
+    ) -> Result<storage::refs::SignedRefs, RepositoryError> {
         self.sign_refs(signer)
     }
 }

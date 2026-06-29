@@ -354,23 +354,21 @@ fn mk_issue_row(
     ]
 }
 
-fn open<Repo, Signer>(
+fn open(
     title: Option<Title>,
     description: Option<String>,
     labels: Vec<Label>,
     assignees: Vec<Did>,
     verbose: bool,
     quiet: bool,
-    cache: &mut issue::Cache<'_, Repo, WriteAs<'_, Signer>, cob::cache::StoreWriter>,
+    cache: &mut issue::Cache<
+        '_,
+        impl WriteRepository + cob::Store<Namespace = NodeId>,
+        WriteAs<'_, impl crypto::Signer>,
+        cob::cache::StoreWriter,
+    >,
     profile: &Profile,
-) -> anyhow::Result<()>
-where
-    Repo: WriteRepository + cob::Store<Namespace = NodeId>,
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: crypto::signature::Signer<crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
-{
+) -> anyhow::Result<()> {
     let (title, description) = if let (Some(t), Some(d)) = (title.as_ref(), description.as_ref()) {
         (t.to_owned(), d.to_owned())
     } else if let Some((t, d)) = term::issue::get_title_description(title, description)? {
@@ -401,10 +399,7 @@ fn edit<'a, 'b, 'g, Repo, Signer>(
 ) -> anyhow::Result<issue::IssueMut<'a, 'b, 'g, Repo, Signer, cob::cache::StoreWriter>>
 where
     Repo: WriteRepository + cob::Store<Namespace = NodeId>,
-    Signer: crypto::signature::Keypair<VerifyingKey = crypto::PublicKey>,
-    Signer: crypto::signature::Signer<crypto::Signature>,
-    Signer: radicle::crypto::signature::Signer<radicle::crypto::ssh::ExtendedSignature>,
-    Signer: crypto::signature::Verifier<crypto::Signature>,
+    Signer: crypto::Signer,
 {
     let id = id.resolve(&repo.backend)?;
     let mut issue = issues.get_mut(&id)?;

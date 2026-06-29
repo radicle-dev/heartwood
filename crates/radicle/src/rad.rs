@@ -11,7 +11,6 @@ use crate::git::BranchName;
 use crate::identity::doc;
 use crate::identity::doc::{DocError, RepoId, Visibility};
 use crate::identity::project::{Project, ProjectName};
-use crate::node::device::Device;
 use crate::storage::RepositoryError;
 use crate::storage::git::Repository;
 use crate::storage::git::transport;
@@ -46,19 +45,15 @@ pub enum InitError {
 }
 
 /// Initialize a new Radicle project from a git repository.
-pub fn init<G, S>(
+pub fn init(
     repo: &git::raw::Repository,
     name: ProjectName,
     description: &str,
     default_branch: BranchName,
     visibility: Visibility,
-    signer: &Device<G>,
-    storage: S,
-) -> Result<(RepoId, identity::Doc, SignedRefs), InitError>
-where
-    G: crypto::signature::Signer<crypto::Signature>,
-    S: WriteStorage,
-{
+    signer: &impl crypto::Signer,
+    storage: &impl WriteStorage,
+) -> Result<(RepoId, identity::Doc, SignedRefs), InitError> {
     // TODO: Better error when project id already exists in storage, but remote doesn't.
     let delegate: identity::Did = signer.public_key().into();
     let proj = Project::new(
@@ -76,7 +71,7 @@ where
     })?;
     let doc = identity::Doc::initial(proj, delegate, visibility);
 
-    let (project, identity) = Repository::init(&doc, &storage, signer)?;
+    let (project, identity) = Repository::init(&doc, storage, signer)?;
     let url = git::Url::from(project.id);
 
     match init_configure(repo, &project, &default_branch, &url, identity, signer) {
@@ -95,17 +90,14 @@ where
     }
 }
 
-fn init_configure<G>(
+fn init_configure(
     repo: &git::raw::Repository,
     stored: &Repository,
     default_branch: &BranchName,
     url: &git::Url,
     identity: git::Oid,
-    signer: &Device<G>,
-) -> Result<SignedRefs, InitError>
-where
-    G: crypto::signature::Signer<crypto::Signature>,
-{
+    signer: &impl crypto::Signer,
+) -> Result<SignedRefs, InitError> {
     let pk = signer.public_key();
 
     git::configure_repository(repo)?;
@@ -166,16 +158,12 @@ pub enum ForkError {
 
 /// Create a local tree for an existing project, from an existing remote.
 #[cfg(any(test, feature = "test"))]
-pub fn fork_remote<G, S>(
+pub fn fork_remote(
     proj: RepoId,
     remote: &RemoteId,
-    signer: &Device<G>,
-    storage: S,
-) -> Result<(), ForkError>
-where
-    G: crypto::signature::Signer<crypto::Signature>,
-    S: storage::WriteStorage,
-{
+    signer: &impl crypto::Signer,
+    storage: impl storage::WriteStorage,
+) -> Result<(), ForkError> {
     // TODO: Copy tags over?
 
     // Creates or copies the following references:
@@ -205,11 +193,11 @@ where
     Ok(())
 }
 
-pub fn fork<G, S>(rid: RepoId, signer: &Device<G>, storage: &S) -> Result<(), ForkError>
-where
-    G: crypto::signature::Signer<crypto::Signature>,
-    S: storage::WriteStorage,
-{
+pub fn fork(
+    rid: RepoId,
+    signer: &impl crypto::Signer,
+    storage: &impl storage::WriteStorage,
+) -> Result<(), ForkError> {
     let me = signer.public_key();
     let repository = storage.repository_mut(rid)?;
     let (canonical_branch, canonical_head) = repository.head()?;
@@ -510,6 +498,7 @@ mod tests {
 
     use pretty_assertions::assert_eq;
 
+    use crate::crypto::{Signer as _, SigningKey};
     use crate::identity::Did;
     use crate::storage::git::Storage;
     use crate::storage::git::transport;
@@ -522,8 +511,8 @@ mod tests {
     #[test]
     fn test_init() {
         let tempdir = tempfile::tempdir().unwrap();
-        let signer = Device::mock();
-        let public_key = *signer.public_key();
+        let signer = SigningKey::mock(73);
+        let public_key = signer.public_key();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
 
         transport::local::register(storage.clone());
@@ -564,7 +553,7 @@ mod tests {
                 .unwrap(),
         );
 
-        assert_eq!(remotes[&public_key].refs.refs(), refs.refs());
+        assert_eq!(remotes[public_key].refs.refs(), refs.refs());
         assert_eq!(project.name(), "acme");
         assert_eq!(project.description(), "Acme's repo");
         assert_eq!(project.default_branch(), &git::fmt::refname!("master"));
@@ -575,8 +564,8 @@ mod tests {
     fn test_fork() {
         let mut rng = fastrand::Rng::new();
         let tempdir = tempfile::tempdir().unwrap();
-        let alice = Device::mock_rng(&mut rng);
-        let bob = Device::mock_rng(&mut rng);
+        let alice = SigningKey::mock(rng.usize(..));
+        let bob = SigningKey::mock(rng.usize(..));
         let bob_id = bob.public_key();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
 
@@ -613,7 +602,7 @@ mod tests {
     #[test]
     fn test_checkout() {
         let tempdir = tempfile::tempdir().unwrap();
-        let signer = Device::mock();
+        let signer = SigningKey::mock(73);
         let remote_id = signer.public_key();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
 
