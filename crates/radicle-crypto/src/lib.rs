@@ -37,7 +37,7 @@ impl SignerError {
 
 pub trait Signer: Send + signature::Signer<Signature> {
     /// Return this signer's public/verification key.
-    fn public_key(&self) -> &PublicKey;
+    fn public_key(&self) -> PublicKey;
 }
 
 impl<S> Signer for S
@@ -46,8 +46,8 @@ where
     S: signature::Signer<Signature>,
     S: signature::KeypairRef<VerifyingKey = PublicKey>,
 {
-    fn public_key(&self) -> &PublicKey {
-        self.as_ref()
+    fn public_key(&self) -> PublicKey {
+        self.as_ref().clone()
     }
 }
 

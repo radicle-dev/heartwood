@@ -67,7 +67,7 @@ where
         let root = oids.first().unwrap();
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
         let signature = signer.sign(&[0]);
-        let signature = ExtendedSignature::new(*signer.public_key(), signature);
+        let signature = ExtendedSignature::new(signer.public_key(), signature);
         let change = Entry {
             id: *root,
             signature,
@@ -103,7 +103,7 @@ where
         let (data, oid) = encoded::<T, _>(action, timestamp, tips, signer);
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
         let signature = signer.sign(data.as_slice());
-        let signature = ExtendedSignature::new(*signer.public_key(), signature);
+        let signature = ExtendedSignature::new(signer.public_key(), signature);
         let change = Entry {
             id: oid,
             signature,

@@ -18,7 +18,7 @@ fn roundtrip(BoundedVec(all_refs): BoundedVec<Refs>) -> TestResult {
 
     let fixture = Fixture::new();
     let signer = MockSigner::default();
-    let node_id = *signer.public_key();
+    let node_id = signer.public_key();
 
     for refs in all_refs {
         let refs = fixture.with_identity_root(refs);
@@ -70,7 +70,7 @@ fn idempotent(refs: Refs) -> TestResult {
     let fixture = Fixture::new();
     let refs = fixture.with_identity_root(refs);
     let signer = MockSigner::default();
-    let node_id = *signer.public_key();
+    let node_id = signer.public_key();
 
     if let Err(e) = SignedRefsWriter::new(
         refs.clone(),

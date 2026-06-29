@@ -40,7 +40,7 @@ struct Verifier {
 impl Verifier {
     fn new(signer: &MockSigner) -> Self {
         Self {
-            key: *signer.public_key(),
+            key: signer.public_key(),
         }
     }
 }
@@ -157,7 +157,7 @@ fn initial_commit_roundtrip(mut refs: Refs) -> bool {
     } = Repository::new();
     refs.insert(IDENTITY_ROOT.to_ref_string(), root);
     let signer = MockSigner::default();
-    let namespace = *signer.public_key();
+    let namespace = signer.public_key();
     let verifier = Verifier::new(&signer);
 
     let update = write_log(refs.clone(), rid, namespace, &signer, &repo);
@@ -188,7 +188,7 @@ fn chain_roundtrip(chain: BoundedVec<Refs>) -> TestResult {
         _tmp,
     } = Repository::new();
     let signer = MockSigner::default();
-    let namespace = *signer.public_key();
+    let namespace = signer.public_key();
     let verifier = Verifier::new(&signer);
 
     let mut last_changed_head = None;
@@ -239,7 +239,7 @@ fn idempotent_write(mut refs: Refs) -> bool {
     } = Repository::new();
     refs.insert(IDENTITY_ROOT.to_ref_string(), root);
     let signer = MockSigner::default();
-    let namespace = *signer.public_key();
+    let namespace = signer.public_key();
 
     let first = write_log(refs.clone(), rid, namespace, &signer, &repo);
     let head_oid = match first {

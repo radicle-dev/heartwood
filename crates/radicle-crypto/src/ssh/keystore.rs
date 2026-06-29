@@ -437,6 +437,6 @@ mod tests {
             .unwrap();
         let signer = MemorySigner::load(&store, Some("hunter".to_owned().into())).unwrap();
 
-        assert_eq!(public, *signer.public_key());
+        assert_eq!(public, signer.public_key());
     }
 }
