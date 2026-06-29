@@ -324,11 +324,11 @@ impl<D> From<D> for Stores<D> {
 
 /// The node service.
 #[derive(Debug)]
-pub struct Service<D, S, G> {
+pub struct Service<D, S> {
     /// Service configuration.
     config: Config,
     /// Our cryptographic signer and key.
-    signer: Device<G>,
+    secret_key: zeroize::Zeroizing<crypto::SecretKey>,
     /// Project storage.
     storage: S,
     /// Node database.
@@ -381,10 +381,10 @@ pub struct Service<D, S, G> {
     metrics: Metrics,
 }
 
-impl<D, S, G> Service<D, S, G> {
+impl<D, S> Service<D, S> {
     /// Get the local node id.
     pub fn node_id(&self) -> NodeId {
-        *self.signer.public_key()
+        NodeId::from(*self.secret_key.public_key())
     }
 
     /// Get the local service time.
@@ -397,11 +397,10 @@ impl<D, S, G> Service<D, S, G> {
     }
 }
 
-impl<D, S, G> Service<D, S, G>
+impl<D, S> Service<D, S>
 where
     D: Store,
     S: WriteStorage + 'static,
-    G: crypto::signature::Signer<crypto::Signature>,
 {
     /// Initialize service with current time. Call this once.
     pub fn initialize(&mut self, time: LocalTime) -> Result<(), Error> {
@@ -533,7 +532,7 @@ where
 
         let repo = self.storage.repository_mut(rid)?;
         // NOTE: We assume to reach `FeatureLevel::LATEST` by signing refs.
-        let refs = repo.force_sign_refs(&self.signer)?;
+        let refs = repo.force_sign_refs(&self.secret_key)?;
 
         let repo = self.storage.repository(rid)?;
         let synced_at = SyncedAt::new(refs.at, &repo)?;
@@ -545,18 +544,17 @@ where
     }
 }
 
-impl<D, S, G> Service<D, S, G>
+impl<D, S> Service<D, S>
 where
     D: Store,
     S: ReadStorage + 'static,
-    G: crypto::signature::Signer<crypto::Signature>,
 {
     pub fn new(
         config: Config,
         db: Stores<D>,
         storage: S,
         policies: policy::Config<Write>,
-        signer: Device<G>,
+        secret_key: zeroize::Zeroizing<crypto::SecretKey>,
         rng: Rng,
         node: NodeAnnouncement,
         emitter: Emitter<Event>,
@@ -579,7 +577,7 @@ where
             config,
             storage,
             policies,
-            signer,
+            secret_key,
             rng,
             inventory,
             node,
@@ -681,7 +679,7 @@ where
 
     /// Get the local signer.
     pub fn signer(&self) -> &Device<G> {
-        &self.signer
+        &self.secret_key
     }
 
     /// Subscriber to inner `Emitter` events.
@@ -1955,8 +1953,8 @@ where
         debug!(target: "service", "Subscribing to messages since timestamp {since}..");
 
         vec![
-            Message::node(self.node.clone(), &self.signer),
-            Message::inventory(self.inventory.clone(), &self.signer),
+            Message::node(self.node.clone(), &self.secret_key),
+            Message::inventory(self.inventory.clone(), &self.secret_key),
             Message::subscribe(filter, since, Timestamp::MAX),
         ]
     }
@@ -2119,7 +2117,7 @@ where
             refs: refs.clone(),
             timestamp,
         });
-        Ok((msg.signed(&self.signer), refs.into()))
+        Ok((msg.signed(&self.secret_key), refs.into()))
     }
 
     /// Announce our own refs for the given repo.
@@ -2382,7 +2380,7 @@ where
         let msg = AnnouncementMessage::from(self.inventory.clone());
 
         self.outbox.announce(
-            msg.signed(&self.signer),
+            msg.signed(&self.secret_key),
             self.sessions.connected().map(|(_, p)| p),
             self.db.gossip_mut(),
         );
@@ -2701,7 +2699,7 @@ where
     S: ReadStorage,
 {
     fn nid(&self) -> &NodeId {
-        self.signer.public_key()
+        self.secret_key.public_key()
     }
 
     fn sessions(&self) -> &Sessions {

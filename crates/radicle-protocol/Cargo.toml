@@ -30,6 +30,7 @@ sqlite = { workspace = true, features = ["bundled"] }
 scrypt = { version = "0.11.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true, default-features = true }
+zeroize = { workspace = true }
 
 [dev-dependencies]
 pastey = "0.2"

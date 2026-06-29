@@ -337,8 +337,7 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
         Fingerprint::init(&home, &secret_key)?;
     }
 
-    let signer = Device::from(MemorySigner::from_secret(secret_key));
-    log::info!(target: "node", "Node ID is {}", signer.public_key());
+    log::info!(target: "node", "Node ID is {}", NodeId::from(secret_key.public_key()));
 
     // Add the preferred seeds as persistent peers so that we reconnect to them automatically.
     config.node.connect.extend(config.preferred_seeds);
@@ -364,7 +363,7 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
         log::debug!(target: "node", "Removing existing control socket..");
         std::fs::remove_file(&socket).ok();
     }
-    Runtime::init(home, config.node, socket, listen, signals, signer)?.run()?;
+    Runtime::init(home, config.node, socket, listen, signals, secret_key)?.run()?;
 
     Ok(())
 }

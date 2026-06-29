@@ -130,7 +130,7 @@ impl Runtime {
         socket: PathBuf,
         listen: Vec<net::SocketAddr>,
         signals: chan::Receiver<Signal>,
-        signer: Device<G>,
+        secret_key: zeroize::Zeroizing<crypto::SecretKey>,
     ) -> Result<Runtime, Error>
     where
         G: crypto::signature::Signer<crypto::Signature>
@@ -139,7 +139,7 @@ impl Runtime {
             + Debug
             + 'static,
     {
-        let id = *signer.public_key();
+        let id = NodeId::from(*secret_key.public_key());
         let alias = config.alias.clone();
         let network = config.network;
         let rng = fastrand::Rng::new();
@@ -215,7 +215,7 @@ impl Runtime {
             stores,
             storage.clone(),
             policies,
-            signer.clone(),
+            secret_key.clone(),
             rng,
             announcement,
             emitter.clone(),
@@ -223,7 +223,7 @@ impl Runtime {
         service.initialize(clock)?;
 
         let (worker_send, worker_recv) = chan::bounded::<worker::Task>(MAX_PENDING_TASKS);
-        let mut wire = Wire::new(service, worker_send, signer.clone());
+        let mut wire = Wire::new(service, worker_send, secret_key.clone());
         let mut local_addrs = Vec::new();
 
         for addr in listen {
@@ -236,7 +236,7 @@ impl Runtime {
         let reactor = Reactor::new(wire, thread::name(&id, "service"))?;
         let handle = Handle::new(home.clone(), socket.clone(), reactor.controller(), emitter);
 
-        let nid = *signer.public_key();
+        let nid = *secret_key.public_key();
         let fetch = worker::FetchConfig {
             local: nid,
             expiry: worker::garbage::Expiry::default(),
