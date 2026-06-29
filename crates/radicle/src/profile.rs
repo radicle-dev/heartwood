@@ -39,6 +39,8 @@ use crate::{cob, git, node, storage};
 pub mod env {
     pub use std::env::*;
 
+    use crypto::Seed;
+
     /// Path to the Radicle home folder.
     pub const RAD_HOME: &str = "RAD_HOME";
     /// Path to the Radicle node socket file.
@@ -129,22 +131,31 @@ pub mod env {
     }
 
     /// Return the seed stored in the [`RAD_KEYGEN_SEED`] environment variable,
-    /// or generate a random one.
-    pub fn seed() -> crypto::Seed {
-        if let Ok(seed) = var(RAD_KEYGEN_SEED) {
-            let Ok(seed) = (0..seed.len())
-                .step_by(2)
-                .map(|i| u8::from_str_radix(&seed[i..i + 2], 16))
-                .collect::<Result<Vec<u8>, _>>()
-            else {
-                panic!("env::seed: invalid hexadecimal value set in `{RAD_KEYGEN_SEED}`");
-            };
-            let Ok(seed): Result<[u8; 32], _> = seed.try_into() else {
-                panic!("env::seed: invalid seed length set in `{RAD_KEYGEN_SEED}`");
-            };
-            crypto::Seed::new(seed)
-        } else {
-            crypto::Seed::generate()
+    /// if set. Otherwise, return `None`.
+    ///
+    /// # Panics
+    ///
+    /// If the environment value [`RAD_KEYGEN_SEED`] is set but malformed,
+    /// i.e., not Unicode, not hexadecimal, or not 32 bytes long.
+    pub fn seed() -> Option<Seed> {
+        match var(RAD_KEYGEN_SEED) {
+            Err(VarError::NotPresent) => None,
+            Err(VarError::NotUnicode(_)) => {
+                panic!("env::seed: invalid Unicode value set in `{RAD_KEYGEN_SEED}`")
+            }
+            Ok(seed) => Some(Seed::new(
+                (0..seed.len())
+                    .step_by(2)
+                    .map(|i| u8::from_str_radix(&seed[i..i + 2], 16))
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap_or_else(|_| {
+                        panic!("env::seed: invalid hexadecimal value set in `{RAD_KEYGEN_SEED}`")
+                    })
+                    .try_into()
+                    .unwrap_or_else(|_| {
+                        panic!("env::seed: invalid seed length set in `{RAD_KEYGEN_SEED}`")
+                    }),
+            )),
         }
     }
 

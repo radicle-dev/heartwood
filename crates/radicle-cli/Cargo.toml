@@ -24,6 +24,7 @@ chrono = { workspace = true, features = ["clock", "std"] }
 clap = { version = "4.5.44", features = ["derive"] }
 clap_complete = "4.5"
 dunce = { workspace = true }
+getrandom = "0.4.3"
 human-panic.workspace = true
 humantime.workspace = true
 itertools.workspace = true

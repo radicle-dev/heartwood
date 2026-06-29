@@ -56,7 +56,18 @@ pub fn init(args: Args) -> anyhow::Result<()> {
     };
     let passphrase = passphrase.filter(|passphrase| !passphrase.trim().is_empty());
     let spinner = term::spinner("Creating your Ed25519 keypair…");
-    let profile = Profile::init(home, alias, passphrase.clone(), env::seed())?;
+    let profile = Profile::init(
+        home,
+        alias,
+        passphrase.clone(),
+        env::seed().unwrap_or_else(|| {
+            use radicle::crypto::Seed;
+
+            let mut seed = [0; Seed::BYTES];
+            getrandom::fill(&mut seed).expect("failed get random bytes from the operating system");
+            Seed::new(seed)
+        }),
+    )?;
     let mut agent = true;
     spinner.finish();
 
