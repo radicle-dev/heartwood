@@ -292,6 +292,20 @@ impl Deref for SecretKey {
     }
 }
 
+impl signature::Signer<Signature> for SecretKey {
+    fn try_sign(&self, msg: &[u8]) -> Result<Signature, signature::Error> {
+        Ok(Signature(self.0.sign(msg, None)))
+    }
+}
+
+impl signature::Keypair for SecretKey {
+    type VerifyingKey = PublicKey;
+
+    fn verifying_key(&self) -> Self::VerifyingKey {
+        PublicKey(amplify::Bytes32::from_byte_array(*self.public_key()))
+    }
+}
+
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum PublicKeyError {

@@ -21,7 +21,7 @@ impl signature::Signer<ExtendedSignature> for MockSigner {
 
 impl signature::Signer<Signature> for MockSigner {
     fn try_sign(&self, msg: &[u8]) -> Result<Signature, signature::Error> {
-        Ok(Signature(self.sk.sign(msg, None)))
+        Ok(Signature(*signature::Signer::<Signature>::try_sign(&self.sk, msg)?))
     }
 }
 
