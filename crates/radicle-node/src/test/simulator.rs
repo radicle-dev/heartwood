@@ -15,7 +15,6 @@ use radicle::node::events::Event;
 use radicle_protocol::worker::FetchError;
 
 use crate::Link;
-use crate::crypto;
 use crate::prelude::{Address, RepoId};
 use crate::service::io::Io;
 use crate::service::{DisconnectReason, Message, Metrics};
@@ -31,9 +30,7 @@ pub const MIN_LATENCY: LocalDuration = LocalDuration::from_millis(1);
 pub const MAX_EVENTS: usize = 2048;
 
 /// A simulated peer. Service instances have to be wrapped in this type to be simulated.
-pub trait Peer<S>:
-    Deref<Target = Service<S>> + DerefMut<Target = Service<S>> + 'static
-{
+pub trait Peer<S>: Deref<Target = Service<S>> + DerefMut<Target = Service<S>> + 'static {
     /// Initialize the peer. This should at minimum initialize the service with the
     /// current time.
     fn init(&mut self);
@@ -171,7 +168,7 @@ impl Default for Options {
 }
 
 /// A peer-to-peer node simulation.
-pub struct Simulation<S, G> {
+pub struct Simulation<S> {
     /// Inbox of inputs to be delivered by the simulation.
     inbox: Inbox,
     /// Events emitted during simulation.
@@ -198,14 +195,11 @@ pub struct Simulation<S, G> {
     rng: RefCell<fastrand::Rng>,
     /// Storage type.
     storage: PhantomData<S>,
-    /// Signer type.
-    signer: PhantomData<G>,
 }
 
-impl<S, G> Simulation<S, G>
+impl<S> Simulation<S>
 where
     S: WriteStorage + 'static,
-    G: crypto::signature::Signer<crypto::Signature>,
 {
     /// Create a new simulation.
     pub fn new(time: LocalTime, rng: fastrand::Rng, opts: Options) -> Self {
@@ -225,7 +219,6 @@ where
             time,
             rng: RefCell::new(rng),
             storage: PhantomData,
-            signer: PhantomData,
         }
     }
 
@@ -271,7 +264,7 @@ where
     /// Initialize peers.
     pub fn initialize<'a, P>(self, peers: impl IntoIterator<Item = &'a mut P>) -> Self
     where
-        P: Peer<S, G>,
+        P: Peer<S>,
     {
         for peer in peers.into_iter() {
             peer.init();
@@ -285,7 +278,7 @@ where
         peers: impl IntoIterator<Item = &'a mut P>,
         pred: impl Fn(&Self) -> bool,
     ) where
-        P: Peer<S, G>,
+        P: Peer<S>,
     {
         let mut nodes: BTreeMap<_, _> = peers.into_iter().map(|p| (p.id(), p)).collect();
 
@@ -303,12 +296,12 @@ where
     /// Process one scheduled input from the inbox, using the provided peers.
     /// This function should be called until it returns `false`, or some desired state is reached.
     /// Returns `true` if there are more messages to process.
-    pub fn step<'a, P: Peer<S, G>>(&mut self, peers: impl IntoIterator<Item = &'a mut P>) -> bool {
+    pub fn step<'a, P: Peer<S>>(&mut self, peers: impl IntoIterator<Item = &'a mut P>) -> bool {
         let mut nodes: BTreeMap<_, _> = peers.into_iter().map(|p| (p.id(), p)).collect();
         self.step_(&mut nodes)
     }
 
-    fn step_<P: Peer<S, G>>(&mut self, nodes: &mut BTreeMap<NodeId, &mut P>) -> bool {
+    fn step_<P: Peer<S>>(&mut self, nodes: &mut BTreeMap<NodeId, &mut P>) -> bool {
         if !self.opts.latency.is_empty() {
             // Configure latencies.
             for (i, from) in nodes.keys().enumerate() {

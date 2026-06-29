@@ -3,7 +3,11 @@
 pub mod command;
 pub use command::{Command, QueryState};
 #[cfg(any(test, feature = "test"))]
-use zeroize::{Zeroize, Zeroizing};
+use radicle::crypto::ssh::keystore::MemorySigner;
+#[cfg(any(test, feature = "test"))]
+use radicle::node::device::Device;
+#[cfg(any(test, feature = "test"))]
+use zeroize::Zeroizing;
 
 pub mod filter;
 pub mod gossip;
@@ -32,7 +36,6 @@ use radicle::node::address;
 use radicle::node::address::Store as _;
 use radicle::node::address::{AddressBook, AddressType, KnownAddress};
 use radicle::node::config::{PeerConfig, RateLimit};
-use radicle::node::device::Device;
 use radicle::node::refs::Store as _;
 use radicle::node::routing::Store as _;
 use radicle::node::seed;
@@ -682,7 +685,16 @@ where
 
     /// Get the local signer.
     #[cfg(any(test, feature = "test"))]
-    pub fn signer(&self) -> &Zeroizing<crypto::SecretKey> {
+    pub fn signer(&self) -> Device<MemorySigner> {
+        Device::new(
+            self.node_id(),
+            MemorySigner::from_secret(self.secret_key.clone()),
+        )
+    }
+
+    /// Get the local secret key.
+    #[cfg(any(test, feature = "test"))]
+    pub fn secret_key(&self) -> &Zeroizing<radicle::crypto::SecretKey> {
         &self.secret_key
     }
 

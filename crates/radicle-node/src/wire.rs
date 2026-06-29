@@ -12,10 +12,9 @@ use crossbeam_channel as chan;
 use cyphernet::addr::{HostName, InetHost, NetAddr};
 use cyphernet::encrypt::noise::{HandshakePattern, Keyset, NoiseState};
 use cyphernet::proxy::socks5;
-use cyphernet::{Digest, EcSk, Ecdh, Sha256};
+use cyphernet::{Digest, Sha256};
 use localtime::LocalTime;
 use mio::net::TcpStream;
-use radicle::node::device::Device;
 
 use radicle::collections::{RandomMap, RandomSet};
 use radicle::crypto;
@@ -34,6 +33,7 @@ use crate::reactor;
 use crate::reactor::{Listener, Transport};
 use crate::reactor::{NoiseSession, ProtocolArtifact, SessionEvent, Socks5Session};
 use crate::reactor::{Token, Tokens};
+use crate::secret::Secret;
 use crate::service;
 use crate::service::FETCH_TIMEOUT;
 use crate::service::io::Io;
@@ -1248,10 +1248,10 @@ fn session(
         let pair = crypto::KeyPair::generate();
 
         let keyset = Keyset {
-            e: crypto::SecretKey::from(pair.sk),
+            e: Secret::from(crypto::SecretKey::from(pair.sk)),
             s: Some(secret_key),
             re: None,
-            rs: remote_id.into(),
+            rs: remote_id,
         };
 
         NoiseState::initialize::<{ Sha256::OUTPUT_LEN }>(NOISE_XK, remote_id.is_some(), &[], keyset)

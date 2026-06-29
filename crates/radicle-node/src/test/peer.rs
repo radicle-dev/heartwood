@@ -7,25 +7,23 @@ use std::str::FromStr;
 use log::*;
 
 use radicle::Storage;
-use radicle::crypto;
 use radicle::git::Oid;
 use radicle::identity::Visibility;
 use radicle::node::Database;
 use radicle::node::UserAgent;
 use radicle::node::address::Store as _;
-use radicle::node::device::Device;
 use radicle::node::{Alias, ConnectOptions, address};
 use radicle::rad;
 use radicle::storage::refs;
 use radicle::storage::refs::{RefsAt, SignedRefs};
 use radicle::storage::{ReadRepository, RemoteRepository};
 
-use crate::crypto::test::signer::MockSigner;
 use crate::identity::RepoId;
 use crate::node;
 use crate::node::routing::Store as _;
 use crate::prelude::*;
 use crate::runtime::Emitter;
+use crate::secret::Secret;
 use crate::service;
 use crate::service::io::Io;
 use crate::service::message::*;
@@ -114,7 +112,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         let mut rng = fastrand::Rng::new();
-        let signer = Device::mock_rng(&mut rng);
+        let secret_key = Secret::mock_rng(&mut rng);
         let tmp = tempfile::TempDir::new().unwrap();
         let config = radicle::node::Config::test(Alias::from_str("mocky").unwrap());
 
@@ -122,14 +120,14 @@ impl Default for Config {
             config,
             local_time: LocalTime::now(),
             policy: SeedingPolicy::default(),
-            secret_key: signer,
+            secret_key,
             rng,
             tmp,
         }
     }
 }
 
-impl<G: crypto::signature::Signer<crypto::Signature>> Peer<Storage, G> {
+impl Peer<Storage> {
     pub fn project(&mut self, name: &str, description: &str) -> RepoId {
         radicle::storage::git::transport::local::register(self.storage().clone());
         let (repo, _) = fixtures::repository(self.tempdir.path().join(name));
@@ -139,7 +137,7 @@ impl<G: crypto::signature::Signer<crypto::Signature>> Peer<Storage, G> {
             description,
             radicle::git::fmt::refname!("master"),
             Visibility::default(),
-            self.signer(),
+            &self.signer(),
             self.storage(),
         )
         .unwrap();
@@ -160,7 +158,7 @@ where
     ) -> Self {
         let policies = policy::Store::<policy::store::Write>::memory().unwrap();
         let mut policies = policy::Config::new(config.policy, policies);
-        let id = *config.secret_key.public_key();
+        let id = PublicKey::from(config.secret_key.public_key());
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, config.rng.u16(..));
         let inventory = storage.repositories().unwrap();
@@ -195,7 +193,7 @@ where
             db,
             storage,
             policies,
-            config.secret_key,
+            config.secret_key.into_inner(),
             config.rng.clone(),
             announcement,
             emitter,
@@ -277,7 +275,7 @@ where
         self.service
             .database()
             .routing()
-            .get_inventory(self.nid())
+            .get_inventory(&self.nid())
             .unwrap()
     }
 
@@ -304,7 +302,7 @@ where
                 inventory: arbitrary::vec(3).try_into().unwrap(),
                 timestamp: self.timestamp(),
             },
-            self.signer(),
+            self.secret_key(),
         )
     }
 
@@ -321,7 +319,7 @@ where
             }
             .solve(0)
             .unwrap(),
-            self.signer(),
+            self.secret_key(),
         )
     }
 
@@ -354,17 +352,17 @@ where
     }
 
     pub fn announcement(&self, ann: impl Into<AnnouncementMessage>) -> Message {
-        ann.into().signed(self.signer()).into()
+        ann.into().signed(self.secret_key()).into()
     }
 
     pub fn signed_refs_at(&self, root: Oid) -> SignedRefs {
         arbitrary::with_gen(8, |g| {
-            refs::arbitrary::signed_refs_at(g, root, self.signer())
+            refs::arbitrary::signed_refs_at(g, root, &self.signer())
         })
     }
 
     pub fn connect_from(&mut self, peer: &Self) {
-        let remote_id = simulator::Peer::<S, G>::id(peer);
+        let remote_id = simulator::Peer::<S>::id(peer);
 
         self.service
             .connected(remote_id, peer.address(), Link::Inbound);
@@ -384,15 +382,9 @@ where
         .expect("`inventory-announcement` must be sent");
     }
 
-    pub fn connect_to<
-        T: WriteStorage + 'static,
-        H: crypto::signature::Signer<crypto::Signature> + 'static,
-    >(
-        &mut self,
-        peer: &Peer<T, H>,
-    ) {
-        let remote_id = simulator::Peer::<T, H>::id(peer);
-        let remote_addr = simulator::Peer::<T, H>::addr(peer);
+    pub fn connect_to<T: WriteStorage + 'static>(&mut self, peer: &Peer<T>) {
+        let remote_id = simulator::Peer::<T>::id(peer);
+        let remote_addr = simulator::Peer::<T>::addr(peer);
 
         self.service.command(Command::Connect(
             remote_id,
@@ -429,7 +421,7 @@ where
     }
 
     /// Drain outgoing messages sent from this peer to the remote peer.
-    pub fn messages(&mut self, remote: NodeId) -> impl Iterator<Item = Message> + use<S, G> {
+    pub fn messages(&mut self, remote: NodeId) -> impl Iterator<Item = Message> + use<S> {
         let mut msgs = Vec::new();
 
         Service::outbox(&mut self.service)
@@ -449,7 +441,7 @@ where
     /// originating from our own node.
     pub fn relayed(&mut self, remote: NodeId) -> impl Iterator<Item = Message> {
         let mut filtered: Vec<Message> = Vec::new();
-        let nid = *self.nid();
+        let nid = self.nid();
 
         for o in Service::outbox(&mut self.service).queue() {
             match o {

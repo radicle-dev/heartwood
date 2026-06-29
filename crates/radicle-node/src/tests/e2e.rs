@@ -3,7 +3,6 @@ use std::{collections::HashSet, thread, time};
 use radicle::cob;
 use radicle::cob::Title;
 use radicle::cob::store::access::{ReadOnly, WriteAs};
-use radicle_crypto::test::signer::MockSigner;
 use test_log::test;
 
 use radicle::git::raw::ErrorExt as _;
@@ -1735,7 +1734,7 @@ fn test_non_fast_forward_identity_doc() {
     let bob_events = bob.handle.events();
     let mut eve = eve.spawn();
 
-    let has_issue = |node: &NodeHandle<MockSigner>, issue: &cob::ObjectId| -> bool {
+    let has_issue = |node: &NodeHandle, issue: &cob::ObjectId| -> bool {
         let repo = node.storage.repository(rid).unwrap();
         repo.contains(**issue).unwrap()
     };

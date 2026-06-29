@@ -12,10 +12,7 @@ use std::os::unix::net::UnixListener;
 use uds_windows::UnixListener;
 
 use crossbeam_channel as chan;
-use cyphernet::Ecdh;
 use radicle::cob::migrate;
-use radicle::crypto;
-use radicle::node::device::Device;
 use radicle_signals::Signal;
 use thiserror::Error;
 
@@ -124,21 +121,14 @@ impl Runtime {
     /// Initialize the runtime.
     ///
     /// This function spawns threads.
-    pub fn init<G>(
+    pub fn init(
         home: Home,
         config: radicle::node::Config,
         socket: PathBuf,
         listen: Vec<net::SocketAddr>,
         signals: chan::Receiver<Signal>,
         secret_key: crate::secret::Secret,
-    ) -> Result<Runtime, Error>
-    where
-        G: crypto::signature::Signer<crypto::Signature>
-            + Ecdh<Pk = NodeId>
-            + Clone
-            + Debug
-            + 'static,
-    {
+    ) -> Result<Runtime, Error> {
         let id = NodeId::from(*secret_key.public_key());
         let alias = config.alias.clone();
         let network = config.network;
@@ -215,7 +205,7 @@ impl Runtime {
             stores,
             storage.clone(),
             policies,
-            secret_key.clone(),
+            secret_key.clone().into_inner(),
             rng,
             announcement,
             emitter.clone(),

@@ -9,7 +9,6 @@ use radicle::crypto::signature::Keypair as _;
 use radicle::git;
 use radicle::identity::RepoId;
 use radicle::node;
-use radicle::node::device::Device;
 use radicle::node::{Address, Alias, UserAgent};
 use radicle::storage;
 use radicle::storage::refs::RefsAt;
@@ -685,9 +684,9 @@ impl qcheck::Arbitrary for ZeroBytes {
 #[allow(clippy::unwrap_used)]
 mod tests {
 
-    use fastrand;
     use localtime::LocalTime;
     use qcheck_macros::quickcheck;
+    use radicle::node::device::Device;
     use radicle::test::arbitrary;
 
     use crate::wire::Decode as _;
@@ -756,7 +755,8 @@ mod tests {
 
     #[quickcheck]
     fn prop_refs_announcement_signing(rid: RepoId) {
-        let secret_key: zeroize::Zeroizing<crypto::SecretKey> = zeroize::Zeroizing::new(crypto::KeyPair::generate().sk.into());
+        let secret_key: zeroize::Zeroizing<crypto::SecretKey> =
+            zeroize::Zeroizing::new(crypto::KeyPair::generate().sk.into());
         let timestamp = Timestamp::EPOCH;
         let at = git::Oid::ZERO_SHA1;
         let refs = BoundedVec::collect_from(

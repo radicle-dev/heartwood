@@ -453,9 +453,9 @@ impl wire::Decode for ZeroBytes {
 mod tests {
     use qcheck_macros::quickcheck;
     use radicle::node::UserAgent;
-    use radicle::node::device::Device;
     use radicle::storage::refs::RefsAt;
     use radicle::test::arbitrary;
+    use zeroize::Zeroizing;
 
     use crate::deserializer::Deserializer;
     use crate::prop_roundtrip;
@@ -468,7 +468,7 @@ mod tests {
 
     #[test]
     fn test_refs_ann_max_size() {
-        let signer = Device::mock();
+        let signer = Zeroizing::new(radicle::crypto::KeyPair::generate().sk.into());
         let refs: [RefsAt; REF_REMOTE_LIMIT] = arbitrary::r#gen(1);
         let ann = AnnouncementMessage::Refs(RefsAnnouncement {
             rid: arbitrary::r#gen(1),
@@ -484,7 +484,7 @@ mod tests {
 
     #[test]
     fn test_inv_ann_max_size() {
-        let signer = Device::mock();
+        let signer = Zeroizing::new(radicle::crypto::KeyPair::generate().sk.into());
         let inv: [RepoId; INVENTORY_LIMIT] = arbitrary::r#gen(1);
         let ann = AnnouncementMessage::Inventory(InventoryAnnouncement {
             inventory: BoundedVec::collect_from(&mut inv.into_iter()),
@@ -499,7 +499,7 @@ mod tests {
 
     #[test]
     fn test_node_ann_max_size() {
-        let signer = Device::mock();
+        let signer = Zeroizing::new(radicle::crypto::KeyPair::generate().sk.into());
         let addrs: [Address; ADDRESS_LIMIT] = arbitrary::r#gen(1);
         let alias = ['@'; radicle::node::MAX_ALIAS_LENGTH];
         let ann = AnnouncementMessage::Node(NodeAnnouncement {

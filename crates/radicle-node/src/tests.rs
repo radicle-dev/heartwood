@@ -9,6 +9,7 @@ use std::sync::LazyLock;
 use std::time;
 
 use radicle::storage::ReadRepository;
+use radicle_crypto::ssh::keystore::MemorySigner;
 use test_log::test;
 
 use radicle::cob;
@@ -32,6 +33,7 @@ use crate::node;
 use crate::node::config::*;
 use crate::prelude::*;
 use crate::prelude::{LocalDuration, Timestamp};
+use crate::secret::Secret;
 use crate::service::ServiceState as _;
 use crate::service::filter::Filter;
 use crate::service::io::Io;
@@ -67,6 +69,12 @@ pub static TEST_CASES: LazyLock<usize> = LazyLock::new(|| {
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(DEFAULT_TEST_CASES)
 });
+
+fn secret_signer(rng: &mut fastrand::Rng) -> (Secret, Device<MemorySigner>) {
+    let secret = Secret::mock_rng(rng);
+    let signer = Device::from(MemorySigner::from_secret(secret.clone().into_inner()));
+    (secret, signer)
+}
 
 // NOTE
 //
@@ -288,7 +296,7 @@ fn test_inventory_sync() {
                 inventory: repos.clone().try_into().unwrap(),
                 timestamp: now,
             },
-            bob.signer(),
+            bob.secret_key(),
         ),
     );
 
@@ -395,7 +403,7 @@ fn test_inventory_pruning() {
                             .unwrap(),
                         timestamp: bob.local_time().into(),
                     },
-                    peer.signer(),
+                    peer.secret_key(),
                 ),
             );
         }
@@ -452,7 +460,7 @@ fn test_inventory_relay_bad_timestamp() {
                 inventory: BoundedVec::new(),
                 timestamp,
             },
-            bob.signer(),
+            bob.secret_key(),
         ),
     );
     assert_matches!(
@@ -694,7 +702,7 @@ fn test_refs_announcement_relay_public() {
 
     let bob = {
         let mut rng = fastrand::Rng::new();
-        let signer = Device::mock_rng(&mut rng);
+        let (secret_key, signer) = secret_signer(&mut rng);
         let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
 
         Peer::config(
@@ -778,7 +786,7 @@ fn test_refs_announcement_relay_private() {
 
     let bob = {
         let mut rng = fastrand::Rng::new();
-        let signer = Device::mock_rng(&mut rng);
+        let (secret_key, signer) = secret_signer(&mut rng);
         let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
 
         Peer::config(
@@ -865,7 +873,7 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
     );
     let bob = {
         let mut rng = fastrand::Rng::new();
-        let signer = Device::mock_rng(&mut rng);
+        let (secret_key, signer) = secret_signer(&mut rng);
         let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
 
         Peer::config(
@@ -974,7 +982,8 @@ fn test_refs_announcement_no_subscribe() {
 fn test_refs_announcement_offline() {
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = {
-        let signer = Device::mock();
+        let mut rng = fastrand::Rng::new();
+        let (secret_key, signer) = secret_signer(&mut rng);
         let storage = fixtures::storage(tmp.path().join("alice"), &signer).unwrap();
 
         Peer::config(
@@ -1021,7 +1030,8 @@ fn test_refs_announcement_offline() {
     // Create an issue without telling the node.
     let repo = alice.storage().repository(rid).unwrap();
     let old_refs = RefsAt::new(&repo, alice.id).unwrap();
-    let mut issues = radicle::issue::Cache::no_cache(&repo, alice.signer()).unwrap();
+    let signer = alice.signer();
+    let mut issues = radicle::issue::Cache::no_cache(&repo, &signer).unwrap();
     issues
         .create(
             cob::Title::new("Issue while offline!").unwrap(),
@@ -1096,7 +1106,7 @@ fn test_inventory_relay() {
                     inventory: inv.clone(),
                     timestamp: now,
                 },
-                bob.signer(),
+                bob.secret_key(),
             ),
         )
         .elapse(service::GOSSIP_INTERVAL);
@@ -1124,7 +1134,7 @@ fn test_inventory_relay() {
                     inventory: inv.clone(),
                     timestamp: now,
                 },
-                bob.signer(),
+                bob.secret_key(),
             ),
         )
         .elapse(service::GOSSIP_INTERVAL);
@@ -1143,7 +1153,7 @@ fn test_inventory_relay() {
                     inventory: inv.clone(),
                     timestamp: now + 1,
                 },
-                bob.signer(),
+                bob.secret_key(),
             ),
         )
         .elapse(service::GOSSIP_INTERVAL);
@@ -1168,7 +1178,7 @@ fn test_inventory_relay() {
                     inventory: inv,
                     timestamp: now,
                 },
-                eve.signer(),
+                eve.secret_key(),
             ),
         )
         .elapse(service::GOSSIP_INTERVAL);
@@ -1480,7 +1490,7 @@ fn test_fetch_missing_inventory_on_gossip() {
                 inventory: vec![rid].try_into().unwrap(),
                 timestamp: now.into(),
             },
-            bob.signer(),
+            bob.secret_key(),
         ),
     );
     alice
@@ -1505,7 +1515,7 @@ fn test_fetch_missing_inventory_on_schedule() {
                 inventory: vec![rid].try_into().unwrap(),
                 timestamp: now.into(),
             },
-            bob.signer(),
+            bob.secret_key(),
         ),
     );
     alice.fetched(
@@ -1720,7 +1730,7 @@ fn test_refs_synced_event() {
             .unwrap(),
         timestamp: bob.timestamp(),
     });
-    let msg = ann.signed(bob.signer());
+    let msg = ann.signed(bob.secret_key());
 
     alice.seed(&acme, policy::Scope::All).unwrap();
     alice.connect_to(&bob);
@@ -1796,7 +1806,7 @@ fn test_init_and_seed() {
         "alice's repo",
         git::fmt::refname!("master"),
         Visibility::default(),
-        alice.signer(),
+        &alice.signer(),
         alice.storage(),
     )
     .unwrap();

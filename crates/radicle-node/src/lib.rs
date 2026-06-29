@@ -6,10 +6,10 @@
 pub mod fingerprint;
 pub mod reactor;
 pub mod runtime;
+pub mod secret;
 
 mod control;
 pub(crate) use radicle_protocol::service;
-mod secret;
 mod wire;
 mod worker;
 

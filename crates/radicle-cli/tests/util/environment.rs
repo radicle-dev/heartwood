@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use radicle::cob::cache::COBS_DB_FILE;
-use radicle::crypto::ssh::{Keystore, keystore::MemorySigner};
+use radicle::crypto::ssh::Keystore;
 use radicle::crypto::{KeyPair, Seed};
 use radicle::git;
 use radicle::node;
@@ -197,7 +197,7 @@ impl Environment {
     /// as for each of them a convenience function
     /// (resp. [`Environment::node`], [`Environment::relay`], [`Environment::seed`]).
     /// is provided to reduce boilerplate.
-    pub fn node_with(&mut self, node: Config) -> Node<MemorySigner> {
+    pub fn node_with(&mut self, node: Config) -> Node {
         let alias = node.alias.clone();
         let profile = self.profile_with(profile::Config {
             node,
@@ -206,21 +206,21 @@ impl Environment {
         Node::new(profile)
     }
 
-    /// Convenience method for creating a [`Node<MemorySigner>`]
+    /// Convenience method for creating a [`Node`]
     /// using configuration [`config::node`] within this [`Environment`].
-    pub fn node(&mut self, alias: &'static str) -> Node<MemorySigner> {
+    pub fn node(&mut self, alias: &'static str) -> Node {
         self.node_with(config::node(alias))
     }
 
-    /// Convenience method for creating a [`Node<MemorySigner>`]
+    /// Convenience method for creating a [`Node`]
     /// using configuration [`config::relay`] within this [`Environment`].
-    pub fn relay(&mut self, alias: &'static str) -> Node<MemorySigner> {
+    pub fn relay(&mut self, alias: &'static str) -> Node {
         self.node_with(config::relay(alias))
     }
 
-    /// Convenience method for creating a [`Node<MemorySigner>`]
+    /// Convenience method for creating a [`Node`]
     /// using configuration [`config::seed`] within this [`Environment`].
-    pub fn seed(&mut self, alias: &'static str) -> Node<MemorySigner> {
+    pub fn seed(&mut self, alias: &'static str) -> Node {
         self.node_with(config::seed(alias))
     }
 
@@ -293,20 +293,20 @@ impl HasAlias for Alias {
     }
 }
 
-impl HasAlias for Node<MemorySigner> {
-    fn alias(&self) -> &Alias {
-        &self.config.alias
-    }
-}
-
 impl HasAlias for Profile {
     fn alias(&self) -> &Alias {
         self.config.alias()
     }
 }
 
-impl<G> HasAlias for NodeHandle<G> {
+impl HasAlias for NodeHandle {
     fn alias(&self) -> &Alias {
         &self.alias
+    }
+}
+
+impl HasAlias for Node {
+    fn alias(&self) -> &Alias {
+        &self.config.alias
     }
 }

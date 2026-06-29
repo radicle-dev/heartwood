@@ -5,13 +5,14 @@ use std::process::exit;
 use std::str::FromStr;
 
 use crossbeam_channel as chan;
+use radicle::node::NodeId;
 use thiserror::Error;
 
-use radicle::node::device::Device;
 use radicle::profile;
 
-use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
+use radicle_node::crypto::ssh::keystore::Keystore;
 use radicle_node::fingerprint::{Fingerprint, FingerprintVerification};
+use radicle_node::secret::Secret;
 use radicle_node::{Runtime, VERSION};
 use radicle_signals as signals;
 
@@ -363,7 +364,15 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
         log::debug!(target: "node", "Removing existing control socket..");
         std::fs::remove_file(&socket).ok();
     }
-    Runtime::init(home, config.node, socket, listen, signals, secret_key)?.run()?;
+    Runtime::init(
+        home,
+        config.node,
+        socket,
+        listen,
+        signals,
+        Secret::new(secret_key),
+    )?
+    .run()?;
 
     Ok(())
 }
