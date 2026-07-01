@@ -13,7 +13,7 @@ use cyphernet::addr::{HostName, InetHost, NetAddr};
 use cyphernet::encrypt::noise::{HandshakePattern, Keyset, NoiseState};
 use cyphernet::proxy::socks5;
 use cyphernet::{Digest, EcSk, Ecdh, Sha256};
-use localtime::LocalTime;
+use localtime::{LocalDuration, LocalTime};
 use mio::net::TcpStream;
 use radicle::node::device::Device;
 
@@ -35,7 +35,6 @@ use crate::reactor::{Listener, Transport};
 use crate::reactor::{NoiseSession, ProtocolArtifact, SessionEvent, Socks5Session};
 use crate::reactor::{Token, Tokens};
 use crate::service;
-use crate::service::FETCH_TIMEOUT;
 use crate::service::io::Io;
 use crate::service::{DisconnectReason, Metrics, Service, session};
 use crate::worker;
@@ -716,10 +715,13 @@ where
                                 log::debug!(target: "wire", "Received `open` command for stream {stream} from {nid}");
                                 metrics.streams_opened += 1;
                                 metrics.received_fetch_requests += 1;
-                                let reader_limit = self.service.config().limits.fetch_pack_receive;
+                                let limits = &self.service.config().limits;
+                                let reader_limit = limits.fetch_pack_receive;
+                                let fetch_timeout: time::Duration =
+                                    LocalDuration::from(limits.fetch_timeout).into();
                                 let Some(channels) = streams.register(
                                     stream,
-                                    ChannelsConfig::new(FETCH_TIMEOUT)
+                                    ChannelsConfig::new(fetch_timeout)
                                         .with_reader_limit(reader_limit),
                                 ) else {
                                     log::debug!(target: "wire", "Peer attempted to open already-open stream {stream}");

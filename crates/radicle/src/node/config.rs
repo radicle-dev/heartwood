@@ -146,6 +146,15 @@ pub struct Limits {
 
     /// Channel limits.
     pub fetch_pack_receive: FetchPackSizeLimit,
+
+    /// How long a fetch stream is allowed to stall before being aborted.
+    ///
+    /// This is a per-stream inactivity timeout, not a cap on total fetch
+    /// duration: if no bytes flow between the peers for longer than this, the
+    /// fetch is aborted. The default value is suitable for direct TCP
+    /// connections; on high-latency anonymizing transports (Tor, I2P) a larger
+    /// value avoids spurious aborts during tunnel rebuilds or congestion.
+    pub fetch_timeout: FetchTimeout,
 }
 
 /// Limiter for byte streams.
@@ -235,6 +244,30 @@ impl FetchPackSizeLimit {
 impl Default for FetchPackSizeLimit {
     fn default() -> Self {
         Self::mebibytes(500)
+    }
+}
+
+/// The duration value provided to each fetch being performed on a node.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(transparent)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+pub struct FetchTimeout(LocalDuration);
+
+impl Default for FetchTimeout {
+    fn default() -> Self {
+        Self(LocalDuration::from_secs(30))
+    }
+}
+
+impl From<FetchTimeout> for LocalDuration {
+    fn from(t: FetchTimeout) -> Self {
+        t.0
+    }
+}
+
+impl From<LocalDuration> for FetchTimeout {
+    fn from(d: LocalDuration) -> Self {
+        Self(d)
     }
 }
 

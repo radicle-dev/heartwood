@@ -72,6 +72,11 @@ required, but is left to future work.
 
 - `rad patch list` includes a `Labels` column, showing any assigned labels to
   the patch.
+- The node can now be configured with a per-stream timeout. A new configuration
+  key under `node.limits.fetchTimeout` is added and the default value remains 30
+  seconds. This default is suitable for TCP connections. However on the Tor and
+  I2P transports, which are higher latency, a larger timeout avoids spurious
+  aborts during tunnel rebuilds or congestion.
 
 ## Fixed Bugs
 

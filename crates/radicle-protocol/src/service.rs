@@ -2664,7 +2664,9 @@ where
     }
 
     fn fetch_config(&self) -> fetcher::FetchConfig {
+        let timeout: LocalDuration = self.config.limits.fetch_timeout.into();
         fetcher::FetchConfig::default()
+            .with_timeout(timeout.into())
             .with_minimum_feature_level(self.config.fetch.feature_level_min())
     }
 }
