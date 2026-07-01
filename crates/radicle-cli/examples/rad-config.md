@@ -42,7 +42,8 @@ $ rad config
         "inbound": 128,
         "outbound": 16
       },
-      "fetchPackReceive": "500.0 MiB"
+      "fetchPackReceive": "500.0 MiB",
+      "fetchTimeout": 30
     },
     "workers": 8,
     "seedingPolicy": {
@@ -286,7 +287,8 @@ $ rad config schema
               "inbound": 128,
               "outbound": 16
             },
-            "fetchPackReceive": "500.0 MiB"
+            "fetchPackReceive": "500.0 MiB",
+            "fetchTimeout": 30
           }
         },
         "workers": {
@@ -552,6 +554,11 @@ $ rad config schema
           "description": "Channel limits.",
           "$ref": "#/$defs/FetchPackSizeLimit",
           "default": "500.0 MiB"
+        },
+        "fetchTimeout": {
+          "description": "How long a fetch stream is allowed to stall before being aborted.\n\nThis is a per-stream inactivity timeout, not a cap on total fetch\nduration: if no bytes flow between the peers for longer than this, the\nfetch is aborted. The default value is suitable for direct TCP\nconnections; on high-latency anonymizing transports (Tor, I2P) a larger\nvalue avoids spurious aborts during tunnel rebuilds or congestion.",
+          "$ref": "#/$defs/FetchTimeout",
+          "default": 30
         }
       }
     },
@@ -633,6 +640,10 @@ $ rad config schema
         "4 Ki",
         "10 MB"
       ]
+    },
+    "FetchTimeout": {
+      "description": "The duration value provided to each fetch being performed on a node.",
+      "$ref": "#/$defs/LocalDuration"
     },
     "DefaultSeedingPolicy": {
       "description": "Default seeding policy. Applies when no repository policies for the given repo are found.",

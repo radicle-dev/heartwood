@@ -914,6 +914,7 @@ mod test {
               "routingMaxAge": 604800,
               "gossipMaxAge": 604800,
               "fetchConcurrency": 1,
+              "fetchTimeout": 30,
               "maxOpenFiles": 4096,
               "rate": {
                 "inbound": { "fillRate": 10.0, "capacity": 2048 },
