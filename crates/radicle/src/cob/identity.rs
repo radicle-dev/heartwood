@@ -522,8 +522,10 @@ impl Identity {
                         );
                     }
                     State::Active => {
-                        let parent = revision.parent.ok_or(ApplyError::MissingParent)?;
-                        let parent = self.revision(&parent).ok_or(ApplyError::Missing(parent))?;
+                        let parent_id = revision.parent.ok_or(ApplyError::MissingParent)?;
+                        let parent = self
+                            .revision(&parent_id)
+                            .ok_or(ApplyError::Missing(parent_id))?;
 
                         if !parent.is_delegate(&did) {
                             return Err(ApplyError::non_delegate_unauthorized(did, &action));
@@ -533,6 +535,21 @@ impl Identity {
 
                         match action {
                             Action::RevisionAccept { signature, .. } => {
+                                // A delegate may only accept one Active child
+                                // of a given parent. If they already accepted a
+                                // sibling, silently skip this vote.
+                                // This handles old histories where the
+                                // invariant was not enforced.
+                                if let Some(revision_id) =
+                                    self.has_active_sibling_accept(&parent_id, &did)
+                                {
+                                    log::debug!(
+                                        "Skipping accept of {id} by {did}: \
+                                         already accepted an active revision '{revision_id}'.",
+                                    );
+                                    return Ok(());
+                                }
+
                                 parent
                                     .verify_signature(&author, &signature, revision.blob)
                                     .map_err(|_source| {
@@ -1486,14 +1503,15 @@ mod test {
         assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Active);
         assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Active);
 
-        // Now Bob accepts Alice's proposal. This voids his own.
+        // Bob must redact his revision, before he accepts Alice's proposal.
+        bob_identity.redact(b1).unwrap();
         bob_identity.accept(&a2).unwrap();
         assert_eq!(bob_identity.current, a2);
         assert_eq!(bob_identity.revision(&a1).unwrap().state, State::Accepted);
         assert_eq!(bob_identity.revision(&a2).unwrap().state, State::Accepted);
         assert_eq!(
             bob_identity.revision(&b1).unwrap().state,
-            State::Rejected(RejectedBy::Sibling(a2))
+            State::Redacted(RedactedBy::Author)
         );
     }
 
@@ -2893,6 +2911,79 @@ mod test {
         assert_eq!(
             alice_identity.has_active_sibling_accept(&alice_identity.current, &bob_did),
             None
+        );
+    }
+
+    /// Old histories may contain a delegate explicitly accepting two
+    /// siblings. The evaluation layer must handle this gracefully by
+    /// silently skipping the second accept — the vote must not be recorded.
+    #[test]
+    fn evaluation_skips_sibling_accept_in_old_history() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        let _a1 = alice_identity
+            .update(
+                cob::Title::new("Add Bob").unwrap(),
+                "",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Bob proposes child_a (gets implicit accept).
+        bob.repo.fetch(alice);
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        let mut bob_doc = bob_identity.doc().clone().edit();
+        bob_doc.visibility = Visibility::private([]);
+        let child_a = bob_identity
+            .update(
+                cob::Title::new("Child A").unwrap(),
+                "",
+                &bob_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Alice proposes child_b (sibling, gets implicit accept).
+        let mut alice_doc2 = alice_identity.doc().clone().edit();
+        alice_doc2.visibility = Visibility::private([alice.signer.public_key().into()]);
+        let _child_b = alice_identity
+            .update(
+                cob::Title::new("Child B").unwrap(),
+                "",
+                &alice_doc2.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Alice fetches Bob's child_a and explicitly accepts it
+        // (simulating old history — she already has an accept on child_b).
+        alice.repo.fetch(bob);
+        alice_identity.reload().unwrap();
+
+        // Use transaction to bypass the API guard (simulating old history).
+        let sig = alice_identity
+            .revision(&child_a)
+            .unwrap()
+            .sign(&alice.signer)
+            .unwrap();
+        alice_identity
+            .transaction("Accept child_a", |tx, _| tx.accept(child_a, sig))
+            .unwrap();
+
+        let alice_did: Did = alice.signer.public_key().into();
+
+        // Alice's accept on child_a should be skipped because she already
+        // has an accept on the Active sibling child_b.
+        assert!(
+            !alice_identity
+                .revision(&child_a)
+                .unwrap()
+                .accepted()
+                .any(|did| did == alice_did),
+            "Alice's accept on child_a should have been skipped (she already accepted sibling child_b)"
         );
     }
 }
