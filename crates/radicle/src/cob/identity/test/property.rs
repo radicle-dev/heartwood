@@ -223,7 +223,14 @@ impl Harness {
                         Ok(rev) => self.revisions.push(rev),
                         Err(e)
                             if Self::has_apply_error(&e, |err| {
-                                matches!(err, cob::identity::ApplyError::DocUnchanged)
+                                matches!(
+                                    err,
+                                    cob::identity::ApplyError::DocUnchanged
+                                    // An `actor` for the above `update` could attempt
+                                    // to create active, sibling revisions which is
+                                    // disallowed.
+                                        | cob::identity::ApplyError::SiblingAccepted { .. }
+                                )
                             }) => {}
                         Err(e) => {
                             panic!("Delegate action should succeed, but failed with: {:?}", e)

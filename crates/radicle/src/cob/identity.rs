@@ -1226,13 +1226,29 @@ where
     }
 
     /// Update the identity by proposing a new revision.
-    /// If the signer is the only delegate, the revision is accepted automatically.
+    ///
+    /// If the signer is the only delegate, the revision is adopted automatically.
+    ///
+    /// # Errors
+    ///
+    /// [`SiblingAccepted`]: If the delegate has already accepted an active
+    /// revision that shares the same parent as the provided `revision`.
+    ///
+    /// [`SiblingAccepted`]: ApplyError::SiblingAccepted
     pub fn update(
         &mut self,
         title: cob::Title,
         description: impl ToString,
         doc: &Doc,
     ) -> Result<RevisionId, Error> {
+        #[allow(deprecated)]
+        let did: Did = self.store.signer().verifying_key().into();
+        if let Some(revision_id) = self.has_active_sibling_accept(&self.current, &did) {
+            return Err(Error::Apply(ApplyError::SiblingAccepted {
+                revision: revision_id,
+            }));
+        }
+
         let parent = Some(self.current);
 
         #[allow(deprecated)]
@@ -1439,6 +1455,10 @@ mod test {
         bob_identity.reject(r2).unwrap();
         let r2 = bob_identity.revision(&r2).unwrap();
         assert_eq!(r2.state, State::Rejected(RejectedBy::Vote));
+
+        // Reload so Alice sees r2 is rejected (no longer Active).
+        // This allows her to propose a new sibling.
+        identity.reload().unwrap();
 
         // Now let's add another delegate.
         doc.delegate(eve.public_key().into());
@@ -3161,6 +3181,55 @@ mod test {
 
         // Alice tries to accept child_b — should fail.
         let err = alice_identity.accept(&child_b).unwrap_err();
+        assert!(
+            std::iter::successors(Some(&err as &dyn std::error::Error), |e| e.source())
+                .filter_map(|e| e.downcast_ref::<ApplyError>())
+                .any(|e| matches!(e, ApplyError::SiblingAccepted { .. })),
+            "Expected SiblingAccepted error, got: {err:?}"
+        );
+    }
+
+    /// The `update()` API rejects a second proposal if the delegate already
+    /// has an accept on an Active sibling (child of current).
+    #[test]
+    fn update_rejects_second_sibling_proposal() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        let _a1 = alice_identity
+            .update(
+                cob::Title::new("Add Bob").unwrap(),
+                "",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Alice proposes first child.
+        let mut doc1 = alice_identity.doc().clone().edit();
+        doc1.visibility = Visibility::private([]);
+        let _child1 = alice_identity
+            .update(
+                cob::Title::new("Child 1").unwrap(),
+                "",
+                &doc1.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Alice tries to propose a second child (sibling) — should fail.
+        let mut doc2 = alice_identity.doc().clone().edit();
+        doc2.visibility = Visibility::private([alice.signer.public_key().into()]);
+        let err = alice_identity
+            .update(
+                cob::Title::new("Child 2").unwrap(),
+                "",
+                &doc2.verified().unwrap(),
+            )
+            .unwrap_err();
+
         assert!(
             std::iter::successors(Some(&err as &dyn std::error::Error), |e| e.source())
                 .filter_map(|e| e.downcast_ref::<ApplyError>())
