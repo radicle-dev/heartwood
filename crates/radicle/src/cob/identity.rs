@@ -122,6 +122,8 @@ pub enum ApplyError {
     DuplicateVerdict,
     #[error("revision is in an unexpected state")]
     UnexpectedState,
+    #[error("delegate already accepted a sibling revision '{revision}")]
+    SiblingAccepted { revision: RevisionId },
     #[error("document does not contain any changes to current identity")]
     DocUnchanged,
     #[error("git: {0}")]

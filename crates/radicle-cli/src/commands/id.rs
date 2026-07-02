@@ -501,6 +501,7 @@ fn on_apply_err(e: &identity::ApplyError, profile: &Profile) -> anyhow::Error {
         | e @ radicle::cob::identity::ApplyError::MissingParent
         | e @ radicle::cob::identity::ApplyError::DuplicateVerdict
         | e @ radicle::cob::identity::ApplyError::UnexpectedState
+        | e @ radicle::cob::identity::ApplyError::SiblingAccepted
         | e @ radicle::cob::identity::ApplyError::DocUnchanged
         | e @ radicle::cob::identity::ApplyError::Git(_)
         | e @ radicle::cob::identity::ApplyError::Doc(_)
