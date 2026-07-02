@@ -1248,9 +1248,26 @@ where
     }
 
     /// Accept an active revision.
+    ///
+    /// # Errors
+    ///
+    /// [`SiblingAccepted`]: If the delegate has already accepted an active
+    /// revision that shares the same parent as the provided `revision`.
+    ///
+    /// [`SiblingAccepted`]: ApplyError::SiblingAccepted
     pub fn accept(&mut self, revision: &RevisionId) -> Result<EntryId, Error> {
         let id = *revision;
         let revision = self.revision(revision).ok_or(Error::NotFound(id))?;
+
+        if let Some(parent_id) = revision.parent {
+            #[allow(deprecated)]
+            let did: Did = self.store.signer().verifying_key().into();
+            if let Some(revision_id) = self.has_active_sibling_accept(&parent_id, &did) {
+                return Err(Error::Apply(ApplyError::SiblingAccepted {
+                    revision: revision_id,
+                }));
+            }
+        }
 
         #[allow(deprecated)]
         let signature = revision.sign(self.store.signer())?;
@@ -3077,6 +3094,78 @@ mod test {
         assert_eq!(
             alice_identity.revision(&child2).unwrap().state,
             State::Active
+        );
+    }
+
+    /// The `accept()` API rejects an accept if the delegate already
+    /// accepted an Active sibling.
+    #[test]
+    fn accept_rejects_sibling_accept() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+        let eve = &network.eve;
+        let dave = &network.dave;
+
+        // 4 delegates, majority = 3. This ensures Alice's accept of child_a
+        // doesn't immediately adopt it (Bob + Alice = 2 < 3).
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        alice_doc.delegate(eve.signer.public_key().into());
+        alice_doc.delegate(dave.signer.public_key().into());
+        let _a0 = alice_identity
+            .update(
+                cob::Title::new("Add delegates").unwrap(),
+                "",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Bob proposes child_a.
+        bob.repo.fetch(alice);
+        let mut bob_identity = Identity::load_mut(&*bob.repo, &bob.signer).unwrap();
+        let mut bob_doc = bob_identity.doc().clone().edit();
+        bob_doc.visibility = Visibility::private([]);
+        let child_a = bob_identity
+            .update(
+                cob::Title::new("Child A").unwrap(),
+                "",
+                &bob_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Eve proposes child_b (sibling of child_a).
+        eve.repo.fetch(alice);
+        let mut eve_identity = Identity::load_mut(&*eve.repo, &eve.signer).unwrap();
+        let mut eve_doc = eve_identity.doc().clone().edit();
+        eve_doc.visibility = Visibility::private([eve.signer.public_key().into()]);
+        let child_b = eve_identity
+            .update(
+                cob::Title::new("Child B").unwrap(),
+                "",
+                &eve_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Alice fetches both and accepts child_a.
+        // child_a stays Active (Bob + Alice = 2/3, needs 3).
+        alice.repo.fetch(bob);
+        alice.repo.fetch(eve);
+        alice_identity.reload().unwrap();
+        alice_identity.accept(&child_a).unwrap();
+        assert_eq!(
+            alice_identity.revision(&child_a).unwrap().state,
+            State::Active
+        );
+
+        // Alice tries to accept child_b — should fail.
+        let err = alice_identity.accept(&child_b).unwrap_err();
+        assert!(
+            std::iter::successors(Some(&err as &dyn std::error::Error), |e| e.source())
+                .filter_map(|e| e.downcast_ref::<ApplyError>())
+                .any(|e| matches!(e, ApplyError::SiblingAccepted { .. })),
+            "Expected SiblingAccepted error, got: {err:?}"
         );
     }
 }
