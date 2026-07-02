@@ -363,6 +363,32 @@ impl Identity {
             .into_iter()
             .flatten()
     }
+
+    /// Checks if the `delegate` has already accepted any child of the provided
+    /// `parent`.
+    ///
+    /// The [`RevisionId`] is returned if one was found.
+    ///
+    /// Used to enforce the invariant that no two sibling, active [`Revision`]s
+    /// should have an accepted vote from the same delegate.
+    pub(crate) fn has_active_sibling_accept(
+        &self,
+        parent: &RevisionId,
+        delegate: &Did,
+    ) -> Option<RevisionId> {
+        self.children_of(parent).find_map(|child_id| {
+            self.revision(child_id).and_then(|child| {
+                if child.is_active() {
+                    child
+                        .accepted()
+                        .any(|did| did == *delegate)
+                        .then_some(*child_id)
+                } else {
+                    None
+                }
+            })
+        })
+    }
 }
 
 impl store::Cob for Identity {
@@ -2823,6 +2849,50 @@ mod test {
         assert!(
             is_unauthorized,
             "Dave should be unauthorized because he was removed in the parent (A₂). Actual error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn has_active_sibling_accept_returns_true_when_sibling_accepted() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+
+        // Setup: Alice adds Bob as delegate.
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        let _a1 = alice_identity
+            .update(
+                cob::Title::new("Add Bob").unwrap(),
+                "",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Alice proposes a revision (child of current). Alice has an implicit accept.
+        let mut doc1 = alice_identity.doc().clone().edit();
+        doc1.visibility = Visibility::private([]);
+        let child = alice_identity
+            .update(
+                cob::Title::new("Child 1").unwrap(),
+                "",
+                &doc1.verified().unwrap(),
+            )
+            .unwrap();
+
+        let alice_did: Did = alice.signer.public_key().into();
+
+        // Alice has an accept on an Active child of current → true.
+        assert_eq!(
+            alice_identity.has_active_sibling_accept(&alice_identity.current, &alice_did),
+            Some(child)
+        );
+        // Bob does not → false.
+        let bob_did: Did = bob.signer.public_key().into();
+        assert_eq!(
+            alice_identity.has_active_sibling_accept(&alice_identity.current, &bob_did),
+            None
         );
     }
 }
