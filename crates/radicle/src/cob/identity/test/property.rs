@@ -313,6 +313,10 @@ impl Harness {
                             Self::has_apply_error(&e, |err| matches!(
                                 err,
                                 cob::identity::ApplyError::DuplicateVerdict
+                                // An `actor` for the above `accept` could have
+                                // accepted an already active, sibling revision
+                                // which is disallowed.
+                                    | cob::identity::ApplyError::SiblingAccepted { .. }
                             )),
                             "Delegate accept failed with unexpected error: {e:?}"
                         ),
