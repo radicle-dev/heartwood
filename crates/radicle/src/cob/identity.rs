@@ -696,6 +696,14 @@ impl Identity {
                     State::Active => State::Active,
                 };
 
+                // Check BEFORE inserting the new revision, so it doesn't count
+                // as its own sibling. If the author already has an accept on an
+                // Active sibling, their implicit author accept will be stripped
+                // after creation.
+                let should_strip_author_accept = matches!(state, State::Active)
+                    .then(|| self.has_active_sibling_accept(&parent_id, &did))
+                    .flatten();
+
                 let revision = Revision::new(
                     id,
                     title,
@@ -711,6 +719,14 @@ impl Identity {
 
                 self.revisions.insert(id, revision);
                 self.revision_mut(&parent_id)?.children.push(id);
+
+                if let Some(revision_id) = should_strip_author_accept {
+                    log::debug!(
+                        "Stripping implicit accept from revision {id} by {did}: \
+                         already accepted the active revision {revision_id}.",
+                    );
+                    self.revision_mut(&id)?.verdicts.remove(&author);
+                }
 
                 if state == State::Active {
                     self.adopt(id);
@@ -2984,6 +3000,81 @@ mod test {
                 .accepted()
                 .any(|did| did == alice_did),
             "Alice's accept on child_a should have been skipped (she already accepted sibling child_b)"
+        );
+    }
+
+    /// When replaying an old history where a delegate created two sibling
+    /// revisions, the second revision's implicit author accept is stripped.
+    #[test]
+    fn evaluation_strips_author_accept_for_sibling_creation() {
+        let network = Network::default();
+        let alice = &network.alice;
+        let bob = &network.bob;
+
+        let mut alice_identity = Identity::load_mut(&*alice.repo, &alice.signer).unwrap();
+        let mut alice_doc = alice_identity.doc().clone().edit();
+        alice_doc.delegate(bob.signer.public_key().into());
+        let _a1 = alice_identity
+            .update(
+                cob::Title::new("Add Bob").unwrap(),
+                "",
+                &alice_doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Alice proposes first child (gets implicit accept).
+        let mut doc1 = alice_identity.doc().clone().edit();
+        doc1.visibility = Visibility::private([]);
+        let child1 = alice_identity
+            .update(
+                cob::Title::new("Child 1").unwrap(),
+                "",
+                &doc1.clone().verified().unwrap(),
+            )
+            .unwrap();
+
+        // Alice proposes second child via transaction (simulating old history).
+        let mut doc2 = doc1.clone();
+        doc2.visibility = Visibility::private([alice.signer.public_key().into()]);
+        let current = alice_identity.current;
+        let child2 = alice_identity
+            .transaction("Child 2", |tx, repo| {
+                *tx = Transaction::new_revision(
+                    cob::Title::new("Child 2").unwrap(),
+                    "",
+                    &doc2.verified().unwrap(),
+                    Some(current),
+                    repo,
+                    &alice.signer,
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        let alice_did: Did = alice.signer.public_key().into();
+
+        // child1 has Alice's accept (she was the first to propose under this parent).
+        assert!(
+            alice_identity
+                .revision(&child1)
+                .unwrap()
+                .accepted()
+                .any(|did| did == alice_did),
+            "child1 should have Alice's accept"
+        );
+        // child2's implicit accept was stripped because Alice already accepted child1.
+        assert!(
+            !alice_identity
+                .revision(&child2)
+                .unwrap()
+                .accepted()
+                .any(|did| did == alice_did),
+            "child2 should NOT have Alice's accept"
+        );
+        // child2 still exists and is Active (just has 0 accept votes).
+        assert_eq!(
+            alice_identity.revision(&child2).unwrap().state,
+            State::Active
         );
     }
 }
