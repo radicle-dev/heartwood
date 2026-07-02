@@ -540,6 +540,7 @@ impl Harness {
         self.assert_failed_parents_have_failed_children(identity);
         self.assert_rejection_reasons_are_accurate(identity);
         self.assert_verdicts_match_parent_delegates(identity);
+        self.assert_no_duplicate_sibling_accepts(identity);
     }
 
     /// Strong eventual consistency.
@@ -958,6 +959,62 @@ impl Harness {
                         rev.id,
                         parent_id
                     );
+                }
+            }
+        }
+    }
+
+    /// No delegate has Accept verdicts on two Active siblings.
+    ///
+    /// A delegate may hold at most one Accept across all Active children of
+    /// the same parent. If two siblings both accumulate majority accepts, the
+    /// `adopt()` function could encounter an already-rejected revision during
+    /// re-evaluation, which would violate internal assumptions.
+    ///
+    /// PASS:
+    ///   [Parent] → [Child A: Alice accepts] [Child B: Bob accepts]
+    ///
+    /// FAIL:
+    ///   [Parent] → [Child A: Alice accepts] [Child B: Alice accepts]
+    fn assert_no_duplicate_sibling_accepts(&self, identity: &Identity) {
+        for id in &identity.timeline {
+            let Some(rev) = identity.revision(id) else {
+                continue;
+            };
+            if !rev.is_active() {
+                continue;
+            }
+            let Some(parent_id) = rev.parent else {
+                continue;
+            };
+
+            for (voter_key, verdict) in rev.verdicts() {
+                if !matches!(verdict, cob::identity::Verdict::Accept(_)) {
+                    continue;
+                }
+                let voter_did = Did::from(*voter_key);
+
+                // Check that no Active sibling also has an accept from this voter.
+                for sibling_id in identity
+                    .revision(&parent_id)
+                    .map(|p| &p.children)
+                    .into_iter()
+                    .flatten()
+                {
+                    if sibling_id == id {
+                        continue;
+                    }
+                    if let Some(sibling) = identity.revision(sibling_id)
+                        && sibling.is_active()
+                    {
+                        assert!(
+                            !sibling.accepted().any(|did| did == voter_did),
+                            "Delegate {} has Accept verdicts on two active siblings: {} and {}",
+                            voter_did,
+                            id,
+                            sibling_id,
+                        );
+                    }
                 }
             }
         }
