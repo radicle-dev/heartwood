@@ -367,28 +367,26 @@ impl Identity {
     }
 
     /// Checks if the `delegate` has already accepted any child of the provided
-    /// `parent`.
+    /// `parent` that is active.
     ///
     /// The [`RevisionId`] is returned if one was found.
     ///
     /// Used to enforce the invariant that no two sibling, active [`Revision`]s
     /// should have an accepted vote from the same delegate.
-    pub(crate) fn has_active_sibling_accept(
+    pub(crate) fn has_accepted_active_sibling(
         &self,
         parent: &RevisionId,
         delegate: &Did,
     ) -> Option<RevisionId> {
         self.children_of(parent).find_map(|child_id| {
-            self.revision(child_id).and_then(|child| {
-                if child.is_active() {
+            self.revision(child_id)
+                .filter(|child| child.is_active())
+                .and_then(|child| {
                     child
                         .accepted()
                         .any(|did| did == *delegate)
                         .then_some(*child_id)
-                } else {
-                    None
-                }
-            })
+                })
         })
     }
 }
@@ -543,7 +541,7 @@ impl Identity {
                                 // This handles old histories where the
                                 // invariant was not enforced.
                                 if let Some(revision_id) =
-                                    self.has_active_sibling_accept(&parent_id, &did)
+                                    self.has_accepted_active_sibling(&parent_id, &did)
                                 {
                                     log::debug!(
                                         "Skipping accept of {id} by {did}: \
@@ -703,7 +701,7 @@ impl Identity {
                 // Active sibling, their implicit author accept will be stripped
                 // after creation.
                 let should_strip_author_accept = matches!(state, State::Active)
-                    .then(|| self.has_active_sibling_accept(&parent_id, &did))
+                    .then(|| self.has_accepted_active_sibling(&parent_id, &did))
                     .flatten();
 
                 let revision = Revision::new(
@@ -1243,7 +1241,7 @@ where
     ) -> Result<RevisionId, Error> {
         #[allow(deprecated)]
         let did: Did = self.store.signer().verifying_key().into();
-        if let Some(revision_id) = self.has_active_sibling_accept(&self.current, &did) {
+        if let Some(revision_id) = self.has_accepted_active_sibling(&self.current, &did) {
             return Err(Error::Apply(ApplyError::SiblingAccepted {
                 revision: revision_id,
             }));
@@ -1278,7 +1276,7 @@ where
         if let Some(parent_id) = revision.parent {
             #[allow(deprecated)]
             let did: Did = self.store.signer().verifying_key().into();
-            if let Some(revision_id) = self.has_active_sibling_accept(&parent_id, &did) {
+            if let Some(revision_id) = self.has_accepted_active_sibling(&parent_id, &did) {
                 return Err(Error::Apply(ApplyError::SiblingAccepted {
                     revision: revision_id,
                 }));
@@ -2926,7 +2924,7 @@ mod test {
     }
 
     #[test]
-    fn has_active_sibling_accept_returns_true_when_sibling_accepted() {
+    fn has_accepted_active_sibling_returns_true_when_sibling_accepted() {
         let network = Network::default();
         let alice = &network.alice;
         let bob = &network.bob;
@@ -2955,16 +2953,14 @@ mod test {
             .unwrap();
 
         let alice_did: Did = alice.signer.public_key().into();
-
-        // Alice has an accept on an Active child of current → true.
         assert_eq!(
-            alice_identity.has_active_sibling_accept(&alice_identity.current, &alice_did),
+            alice_identity.has_accepted_active_sibling(&alice_identity.current, &alice_did),
             Some(child)
         );
-        // Bob does not → false.
+
         let bob_did: Did = bob.signer.public_key().into();
         assert_eq!(
-            alice_identity.has_active_sibling_accept(&alice_identity.current, &bob_did),
+            alice_identity.has_accepted_active_sibling(&alice_identity.current, &bob_did),
             None
         );
     }
