@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Repository Identity Evaluation
+
+The limitations of evaluating of repository identities were found on multiple
+repositories, including the `heartwood` repository. This prompted a review of
+the evaluation logic, which resulted in several improvements.
+
+The bulk of the improvements come from two aspects in the evaluation. The first
+is keeping track of the parent and children relationship of revisions. The
+second is having a richer model of a revision's state.
+
+We say that a revision, `R2`, is a child of another revision, `R1`, if `R2` was
+created after `R1` and is based on the state of `R1`. This property is
+transitive, and so we can have three revisions `R1`, `R2`, and `R3` where `R1`
+is the parent of `R2` and `R2` is the parent of `R3`, making `R1` the
+grand-parent of `R3`.
+
+Similarly, we say that `R2` and `R3` are siblings if they share the same parent,
+`R1`.
+
+With these relationships in mind, a revision can now be in one of four states:
+1. *Active*: this is the initial state of any revision when it is proposed. The
+   proposal is waiting for delegates to accept or reject it. Or alternatively,
+   the revision can be redacted.
+   A revision will remain active, even if it has a majority of accepted votes,
+   if its parent is still in the active state.
+2. *Accepted*: the revision was accepted by a majority of delegates. The
+   revision can no longer be rejected nor redacted.
+   When a revision is accepted, its children are also evaluated, recursively, to
+   see if they also have reached a majority.
+3. *Rejected*: there are now three variants of rejection for a revision:
+   a. The revision was directly rejected by a majority of the delegates, by them
+      casting their rejection votes.
+   b. The parent of the revision was rejected, and thus this revision was
+      transitively rejected.
+   c. A sibling of the revision was accepted, and thus this revision (and all
+      other siblings) are rejected.
+4. *Redacted*: there are two variants of redaction for a revision:
+   a. The author explicitly redacted (withdrew) the revision.
+   b. The parent of the revision was redacted, and thus this revision was
+      transitively redacted.
+
+This modeling of revisions ensures that the evaluation of the state remains
+consistent, and accounts for the previous cases we had come across in the wild.
+
+The final ingredient that was added ensures that the evaluation remains
+consistent when it involves delegates accepting a revision. A delegate can only
+accept a revision if they have not accepted any other active revision that is a
+sibling of the revision they are voting on.
+This prevents scenarios such as Alice creating and accepting two revisions `R1`
+and `R2`, and Bob and Eve accepting each respectively. Both revisions would then
+reach majority, but the evaluation would pick one arbitrarily based on the
+topological sort of the COB graph. However, with the above condition in place,
+this cannot happen.
+
+We will note that we found an inconsistency where the concurrent operations
+"redact" and "accept" will produce a different identity document depending on
+which is ordered first. Further analysis of the ordering of pairs of actions is
+required, but is left to future work.
+
 ## Improvements
 
 - `rad patch list` includes a `Labels` column, showing any assigned labels to
