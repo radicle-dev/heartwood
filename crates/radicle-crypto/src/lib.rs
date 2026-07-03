@@ -544,4 +544,31 @@ mod tests {
         assert!(!hm.insert(a));
         assert!(!hm.insert(b));
     }
+
+    #[test]
+    fn e25519_dh_fixture() {
+        let sk_a: [u8; 32] = [
+            92, 136, 18, 88, 112, 205, 201, 68, 109, 197, 130, 211, 179, 138, 197, 113, 120, 55,
+            104, 139, 208, 184, 178, 157, 120, 11, 60, 13, 91, 30, 213, 38,
+        ];
+        let sk_b: [u8; 32] = [
+            202, 152, 225, 201, 169, 81, 217, 16, 235, 104, 91, 252, 52, 113, 81, 190, 68, 250, 86,
+            21, 202, 228, 123, 193, 140, 252, 63, 72, 5, 137, 36, 245,
+        ];
+
+        let kp_a = KeyPair::from_seed(ec25519::Seed::from(sk_a));
+        let kp_b = KeyPair::from_seed(ec25519::Seed::from(sk_b));
+
+        let output_a = SecretKey::from(kp_b.sk).ecdh(&kp_a.pk.into()).unwrap();
+        let output_b = SecretKey::from(kp_a.sk).ecdh(&kp_b.pk.into()).unwrap();
+
+        assert_eq!(output_a, output_b);
+        assert_eq!(
+            output_a,
+            [
+                159, 131, 169, 27, 132, 202, 47, 250, 112, 247, 176, 222, 213, 220, 147, 216, 53,
+                7, 33, 232, 232, 77, 254, 105, 125, 237, 61, 243, 209, 172, 93, 100
+            ]
+        )
+    }
 }
