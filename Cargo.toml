@@ -96,3 +96,16 @@ wildcard_enum_match_arm = "deny"
 inherits = "release"
 debug = true
 incremental = false
+
+# For dependencies that do not change often and that are compute-heavy
+# at runtime, trade slower builds for faster runtime.
+# This is noticeable when running tests during development.
+[profile.dev.package]
+base64 = { opt-level = 3 }
+chacha20 = { opt-level = 3 }
+curve25519-dalek = { opt-level = 3 }
+ed25519 = { opt-level = 3 }
+mio = { opt-level = 3 }
+multibase = { opt-level = 3 }
+poly1305 = { opt-level = 3 }
+sha2 = { opt-level = 3 }
