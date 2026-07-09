@@ -23,11 +23,11 @@ main() {
   fi
 
   rev="$(git rev-parse HEAD)"
-  gitarchive="build/heartwood-$rev.tar.gz"
   keypath="$(rad path)/keys/radicle.pub"
   version="$(build/version)"
   image=radicle-build-$version
   rust_version="$(build/rust-version)"
+  gitarchive="build/heartwood-$version.tar.gz"
 
   if [ ! -f "$keypath" ]; then
     echo "fatal: no key found at $keypath" >&2 ; exit 1
