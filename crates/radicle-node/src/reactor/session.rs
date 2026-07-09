@@ -59,16 +59,13 @@ impl<M: StateMachine, S: Session> Display for ProtocolArtifact<M, S> {
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Protocol<M: StateMachine, S: Session> {
-    pub(crate) state: M,
+    pub(crate) machine: M,
     pub(crate) session: S,
 }
 
 impl<M: StateMachine, S: Session> Protocol<M, S> {
-    pub fn new(session: S, state_machine: M) -> Self {
-        Self {
-            state: state_machine,
-            session,
-        }
+    pub fn new(session: S, machine: M) -> Self {
+        Self { machine, session }
     }
 }
 
@@ -76,19 +73,19 @@ impl<M: StateMachine, S: Session> io::Read for Protocol<M, S> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         log::trace!(target: M::NAME, "Reading event");
 
-        if self.state.is_complete() || !self.session.is_established() {
+        if self.machine.is_complete() || !self.session.is_established() {
             log::trace!(target: M::NAME, "Passing reading to inner not yet established session");
             return self.session.read(buf);
         }
 
-        let len = self.state.next_read_len();
+        let len = self.machine.next_read_len();
         let mut input = vec![0u8; len];
         self.session.read_exact(&mut input)?;
 
         log::trace!(target: M::NAME, "Received handshake act: {input:02x?}");
 
         if !input.is_empty() {
-            let output = self.state.advance(&input).map_err(|err| {
+            let output = self.machine.advance(&input).map_err(|err| {
                 log::error!(target: M::NAME, "Handshake failure: {err}");
                 io::Error::other(err)
             })?;
@@ -105,17 +102,17 @@ impl<M: StateMachine, S: Session> io::Read for Protocol<M, S> {
 
 impl<M: StateMachine, S: Session> Write for Protocol<M, S> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        log::trace!(target: M::NAME, "Writing event (state_complete={}, session_established={})", self.state.is_complete(), self.session.is_established());
+        log::trace!(target: M::NAME, "Writing event (state_complete={}, session_established={})", self.machine.is_complete(), self.session.is_established());
 
-        if self.state.is_complete() || !self.session.is_established() {
+        if self.machine.is_complete() || !self.session.is_established() {
             log::trace!(target: M::NAME, "Passing writing to inner session");
             return self.session.write(buf);
         }
 
-        if self.state.next_read_len() == 0 {
+        if self.machine.next_read_len() == 0 {
             log::trace!(target: M::NAME, "Starting handshake protocol");
 
-            let act = self.state.advance(&[]).map_err(|err| {
+            let act = self.machine.advance(&[]).map_err(|err| {
                 log::error!(target: M::NAME, "Handshake failure: {err}");
                 io::Error::other(err)
             })?;
@@ -147,7 +144,7 @@ impl<M: StateMachine, S: Session> Session for Protocol<M, S> {
     fn artifact(&self) -> Option<Self::Artifact> {
         Some(ProtocolArtifact {
             session: self.session.artifact()?,
-            state: self.state.artifact()?,
+            state: self.machine.artifact()?,
         })
     }
 }
